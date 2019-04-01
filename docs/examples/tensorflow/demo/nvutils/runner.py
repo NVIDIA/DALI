@@ -196,6 +196,7 @@ def train(infer_func, params):
 
     if iter_unit.lower() == 'epoch':
         nstep = num_training_samples * num_iter // global_batch_size
+        num_epochs = num_iter
         decay_steps = nstep
     else:
         nstep = num_iter
@@ -259,15 +260,23 @@ def train(infer_func, params):
         deterministic=deterministic, num_threads=num_preproc_threads,
         dali_cpu=dali_cpu, idx_filenames=train_idx_filenames)
 
+    classifier_eval, eval_input_func, eval_steps = create_validaiton_estimator(infer_func, params)
+
     try:
-        classifier.train(
-            input_fn=input_func,
-            max_steps=nstep,
-            hooks=training_hooks)
+        for i in range(num_epochs):
+            classifier.train(
+                input_fn=input_func,
+                max_steps=nstep//num_epochs,
+                hooks=training_hooks)
+            eval_result = classifier_eval.evaluate(
+                input_fn=eval_input_func,
+                steps=eval_steps)
+            print('Top-1 accuracy:', eval_result['top1_accuracy']*100, '%')
+            print('Top-5 accuracy:', eval_result['top5_accuracy']*100, '%')
     except KeyboardInterrupt:
         print("Keyboard interrupt")
 
-def validate(infer_func, params):
+def create_validaiton_estimator(infer_func, params):
     image_width = params['image_width']
     image_height = params['image_height']
     image_format = params['image_format']
@@ -323,7 +332,7 @@ def validate(infer_func, params):
     config.intra_op_parallelism_threads = 1 # Avoid pool of Eigen threads
     config.inter_op_parallelism_threads = 40 // hvd.size() - 2
 
-    classifier = tf.estimator.Estimator(
+    classifier_eval = tf.estimator.Estimator(
         model_fn=_cnn_model_function,
         model_dir=log_dir,
         params={
@@ -353,18 +362,23 @@ def validate(infer_func, params):
         num_preproc_threads = 4
     else:
         num_preproc_threads = 1
+    input_fn=lambda: nvutils.image_set(
+        eval_filenames, batch_size, image_height, image_width,
+        training=False, distort_color=False,
+        deterministic=deterministic,
+        dali_cpu=dali_cpu, idx_filenames=eval_idx_filenames,
+        num_threads=num_preproc_threads),
+    return classifier_eval, input_fn, (num_eval_samples/batch_size)
 
+
+def validate(infer_func, params):
+    classifier_eval, input_func, steps = create_validaiton_estimator(infer_func, params)
     if hvd.rank() == 0:
         print("Evaluating")
         try:
-            eval_result = classifier.evaluate(
-                input_fn=lambda: nvutils.image_set(
-                    eval_filenames, batch_size, image_height, image_width,
-                    training=False, distort_color=False,
-                    deterministic=deterministic,
-                    dali_cpu=dali_cpu, idx_filenames=eval_idx_filenames,
-                    num_threads=num_preproc_threads),
-                    steps=(num_eval_samples/batch_size))
+            eval_result = classifier_eval.evaluate(
+                input_fn=input_func,
+                steps=steps)
             print('Top-1 accuracy:', eval_result['top1_accuracy']*100, '%')
             print('Top-5 accuracy:', eval_result['top5_accuracy']*100, '%')
         except KeyboardInterrupt:
