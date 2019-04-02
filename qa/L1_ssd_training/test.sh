@@ -12,9 +12,9 @@ test_body() {
 
     #install APEX
     git clone https://github.com/nvidia/apex
-    cd apex
+    pushd apex
     pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
-    cd ..
+    popd
 
     # test code
     python -m torch.distributed.launch --nproc_per_node=1 ./main.py --warmup 200 --bs 64 --data=/data/coco/coco-2017/coco2017/ --data_pipeline dali --epochs=4
