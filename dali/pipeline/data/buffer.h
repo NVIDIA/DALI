@@ -279,6 +279,8 @@ class Buffer {
   inline void ResizeHelper(Index new_size) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
 
+    size_ = new_size;
+
     if (new_size == 0) {
       if (std::is_same<Backend, GPUBackend>::value && device_ == -1) {
         CUDA_CALL(cudaGetDevice(&device_));
@@ -287,11 +289,8 @@ class Buffer {
     }
 
     if (!IsValidType(type_)) {
-      size_ = new_size;
       return;
     }
-
-    size_ = new_size;
 
     size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
