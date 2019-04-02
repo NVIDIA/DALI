@@ -397,6 +397,8 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
                 << "frames being used.\e[0m  Consider reencoding the video with a "
                 << "smaller key frame interval (GOP length).";
   }
+  // We have to wait for all kernel recorded in sequence's event are completed
+  sequence.wait();
 }
 
 std::pair<int, int> VideoLoader::load_width_height(const std::string& filename) {
@@ -445,7 +447,6 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     auto& fileidx_frame = frame_starts_[current_frame_idx_];
     push_sequence_to_read(filenames_[fileidx_frame.first], fileidx_frame.second, count_);
     receive_frames(tensor);
-    tensor.wait();
     ++current_frame_idx_;
 
     MoveToNextShard(current_frame_idx_);

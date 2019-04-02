@@ -47,7 +47,7 @@ NvDecoder::NvDecoder(int device_id,
       device_(), context_(), parser_(), decoder_(),
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
-      recv_queue_(), frame_queue_(), output_queue_(),
+      recv_queue_(), frame_queue_(),
       current_recv_(), textures_(), done_(false) {
   if (!codecpar) {
     // TODO(spanev) explicit handling
@@ -91,21 +91,12 @@ NvDecoder::NvDecoder(int device_id,
     return;
   }
 
-  thread_convert_ = std::thread{&NvDecoder::convert_frames_worker, this};
 }
 
 bool NvDecoder::initialized() const {
     return parser_.initialized();
 }
-NvDecoder::~NvDecoder() {
-  if (thread_convert_.joinable()) {
-    try {
-      thread_convert_.join();
-    } catch (const std::system_error& e) {
-        // We should not throw here
-    }
-  }
-}
+NvDecoder::~NvDecoder() = default;
 
 int NvDecoder::decode_av_packet(AVPacket* avpkt) {
   if (done_) return 0;
@@ -273,6 +264,7 @@ NvDecoder::TextureObject::operator cudaTextureObject_t() const {
   }
 }
 
+// Callback called by the driver decoder one a frame has been decoded
 int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   auto frame = av_rescale_q(disp_info->timestamp,
                             nv_time_base_, frame_base_);
@@ -338,7 +330,20 @@ void NvDecoder::push_req(FrameReq req) {
 
 void NvDecoder::receive_frames(SequenceWrapper& sequence) {
   LOG_LINE << "Sequence pushed with " << sequence.count << " frames" << std::endl;
-  output_queue_.push(&sequence);
+
+  context_.push();
+  for (int i = 0; i < sequence.count; ++i) {
+      LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
+                  << frame_queue_.size() << " reqs left"
+                  << std::endl;
+
+      auto* frame_disp_info = frame_queue_.pop();
+      if (done_) break;
+      auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
+      if (done_) break;
+      convert_frame(frame, sequence, i);
+    }
+  record_sequence_event_(sequence);
 }
 
 // We assume here that a pointer and scale_method
@@ -396,28 +401,6 @@ NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
   return p.first->second;
 }
 
-void NvDecoder::convert_frames_worker() {
-  context_.push();
-  while (!done_) {
-    auto& sequence = *output_queue_.pop();
-    if (done_) break;
-    for (int i = 0; i < sequence.count; ++i) {
-      LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
-                  << frame_queue_.size() << " reqs left"
-                  << std::endl;
-
-      auto* frame_disp_info = frame_queue_.pop();
-      if (done_) break;
-      auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
-      if (done_) break;
-      convert_frame(frame, sequence, i);
-    }
-    if (done_) break;
-    record_sequence_event_(sequence);
-  }
-  LOG_LINE << "Leaving convert frames" << std::endl;
-}
-
 void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                               int index) {
   auto input_width = decoder_.width();
@@ -451,7 +434,6 @@ void NvDecoder::finish() {
   done_ = true;
   recv_queue_.shutdown();
   frame_queue_.shutdown();
-  output_queue_.shutdown();
 }
 
 void NvDecoder::record_sequence_event_(SequenceWrapper& sequence) {
