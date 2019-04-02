@@ -64,7 +64,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    */
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
-    this->set_type(other.type());
+    if (IsValidType(other.type())) {
+      this->set_type(other.type());
+    }
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
     ResizeLike(other);
