@@ -296,8 +296,9 @@ void ExposeTensorList(py::module &m) { // NOLINT
             type_size = sizeof(float);
           }
 
-          std::vector<ssize_t> shape(t.tensor_shape(0).size() + 1);
-          std::vector<ssize_t> strides(t.tensor_shape(0).size() + 1);
+          auto shape_size = t.shape().size() > 0 ? t.tensor_shape(0).size() : 0;
+          std::vector<ssize_t> shape(shape_size + 1);
+          std::vector<ssize_t> strides(shape_size + 1);
           size_t dim_prod = 1;
           for (size_t i = 0; i < shape.size(); ++i) {
             if (i == 0) {
