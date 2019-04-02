@@ -34,6 +34,7 @@
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
 #include "dali/common.h"
+#include "dali/kernels/common/scatter_gather.h"
 
 namespace dali {
 
@@ -124,6 +125,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output_type_(spec.GetArgument<DALIImageType>("output_type")),
     output_shape_(batch_size_),
     output_info_(batch_size_),
+    cached_images_(batch_size_),
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
     batched_image_idx_(batch_size_),
     batched_output_(batch_size_),
@@ -297,10 +299,30 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       // (for load balancing)
       std::sort(image_order.begin(), image_order.end(),
                 std::greater<std::pair<size_t, size_t>>());
+
+
+
+      if (cache_) {
+        for (int i = 0; i < batch_size_; ++i) {
+          size_t j = image_order[i].second;
+          auto &in = ws->Input<CPUBackend>(0, j);
+          auto file_name = in.GetSourceInfo();
+
+          auto img = cache_->Get(file_name);
+          cached_images_[j] = img;
+          scatter_gather_.AddCopy(img.data, output.raw_mutable_tensor(j), img.num_elements());
+        }
+        scatter_gather_.Run(ws->stream());
+      }
+
       // Loop over images again and decode
       for (int i = 0; i < batch_size_; ++i) {
         size_t j = image_order[i].second;
-        auto& in = ws->Input<CPUBackend>(0, j);
+
+        if (cached_images_[j].data)
+          continue;
+
+        auto &in = ws->Input<CPUBackend>(0, j);
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
@@ -311,12 +333,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
         thread_pool_.DoWorkWithID(
           [this, info, data, in_size, output_data, output_shape, file_name, j](int tid) {
-            int idx = j;
             const int stream_idx = tid;
-            const auto output_data_size = volume(output_shape) * sizeof(uint8_t);
-
-            if (CacheLoad(file_name, output_data, streams_[stream_idx]))
-              return;
+            int idx = j;
 
             DecodeSingleSample(
               idx,
@@ -478,6 +496,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // Storage for per-image info
   vector<Dims> output_shape_;
   vector<EncodedImageInfo> output_info_;
+  vector<ImageCache::DecodedImage> cached_images_;
+  kernels::ScatterGatherGPU scatter_gather_;
 
   bool use_batched_decode_;
   // For batched API we need image index within the batch being

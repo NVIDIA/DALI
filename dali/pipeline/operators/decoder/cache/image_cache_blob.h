@@ -48,6 +48,8 @@ class DLL_PUBLIC ImageCacheBlob : public ImageCache {
              const ImageShape& data_shape,
              cudaStream_t stream) override;
 
+    DecodedImage Get(const ImageKey &image_key) const override;
+
  protected:
     void print_stats() const;
 
@@ -60,16 +62,6 @@ class DLL_PUBLIC ImageCacheBlob : public ImageCache {
         DALI_ENFORCE(buffer_end_ >= tail_);
         return static_cast<std::size_t>(buffer_end_ - tail_);
     }
-
-    struct DecodedImage {
-        span<uint8_t, dynamic_extent> data;
-        ImageShape dims;
-
-        inline bool operator==(const DecodedImage& oth) const {
-            return data == oth.data
-                && dims == oth.dims;
-        }
-    };
 
     std::size_t cache_size_ = 0;
     std::size_t image_size_threshold_ = 0;

@@ -51,25 +51,37 @@ const ImageCache::ImageShape& ImageCacheBlob::GetShape(const ImageKey& image_key
   std::lock_guard<std::mutex> lock(mutex_);
   const auto it = cache_.find(image_key);
   DALI_ENFORCE(it != cache_.end(), "cache entry [" + image_key + "] not found");
-  return it->second.dims;
+  return it->second.shape;
 }
 
 bool ImageCacheBlob::Read(const ImageKey& image_key,
                           void* destination_buffer,
                           cudaStream_t stream) const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  LOG_LINE << "Read: image_key[" << image_key << "]" << std::endl;
   DALI_ENFORCE(!image_key.empty());
   DALI_ENFORCE(destination_buffer != nullptr);
+  std::lock_guard<std::mutex> lock(mutex_);
+  LOG_LINE << "Read: image_key[" << image_key << "]" << std::endl;
   const auto it = cache_.find(image_key);
   if (it == cache_.end())
     return false;
-  const auto& data = it->second.data;
-  DALI_ENFORCE(data.data() < tail_);
-  DALI_ENFORCE(data.data() + data.size() <= tail_);
-  MemCopy(destination_buffer, data.data(), data.size(), stream);
+  const auto& data = it->second;
+  DALI_ENFORCE(data.data < tail_);
+  const auto n = data.num_elements();
+  DALI_ENFORCE(data.data + n <= tail_);
+  MemCopy(destination_buffer, data.data, n, stream);
   if (stats_enabled_) stats_[image_key].reads++;
   return true;
+}
+
+ImageCache::DecodedImage ImageCacheBlob::Get(const ImageKey& image_key) const {
+  DALI_ENFORCE(!image_key.empty());
+  std::lock_guard<std::mutex> lock(mutex_);
+  LOG_LINE << "Get: image_key[" << image_key << "]" << std::endl;
+  const auto it = cache_.find(image_key);
+  if (it == cache_.end())
+    return {};
+  auto ret = it->second;  // make a copy _before_ leaving the mutex
+  return ret;
 }
 
 void ImageCacheBlob::Add(const ImageKey& image_key, const uint8_t* data,
@@ -90,7 +102,7 @@ void ImageCacheBlob::Add(const ImageKey& image_key, const uint8_t* data,
     return;
   }
   MemCopy(tail_, data, data_size, stream);
-  cache_[image_key] = {{tail_, static_cast<int64>(data_size)}, data_shape};
+  cache_[image_key] = {tail_, data_shape};
   tail_ += data_size;
 
   if (stats_enabled_) stats_[image_key].is_cached = true;
