@@ -1,4 +1,19 @@
-#include "python_function.h"
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "dali/pipeline/operators/python_function/python_function.h"
+#include <vector>
 
 namespace dali {
 
@@ -15,7 +30,7 @@ DALI_SCHEMA(PythonFunction)
 struct PyBindInitializer {
   PyBindInitializer() {
     auto thread_state = PyGILState_Ensure();
-    pybind11::get_shared_data(""); // setup the pybind's internals pointer
+    pybind11::get_shared_data("");  // setup the pybind's internals pointer
     PyGILState_Release(thread_state);
   }
 };
@@ -71,7 +86,9 @@ void copyNumpyArrayToTensor(const py::array &array, Tensor<CPUBackend> &tensor) 
   tensor.Resize(shape);
   py::array contiguous = numpyArrayAsContiguous(type, array);
   std::memcpy(
-      tensor.raw_mutable_data(), contiguous.data(), static_cast<size_t>(contiguous.size() * contiguous.itemsize()));
+      tensor.raw_mutable_data(),
+      contiguous.data(),
+      static_cast<size_t>(contiguous.size() * contiguous.itemsize()));
 }
 
 template<>
@@ -85,4 +102,4 @@ void PythonFunction<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
 DALI_REGISTER_OPERATOR(PythonFunction, PythonFunction<CPUBackend>, CPU);
 
-} // namespace dali
+}  // namespace dali

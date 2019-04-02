@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,8 +13,8 @@
 // limitations under the License.
 
 
-#ifndef DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_H_
-#define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_H_
+#ifndef DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
+#define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
@@ -30,9 +30,8 @@ class PythonFunction : public Operator<Backend> {
  public:
   inline explicit PythonFunction(const OpSpec &spec)
     : Operator<Backend>(spec)
-    , python_function(
-        py::reinterpret_borrow<py::object>(reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))
-            ) {}
+    , python_function(py::reinterpret_borrow<py::object>(
+        reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {}
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
@@ -40,9 +39,8 @@ class PythonFunction : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
 
   py::object python_function;
-
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_COLOR_SPACE_COLOR_SPACE_CONVERSION_H_
+#endif  // DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
