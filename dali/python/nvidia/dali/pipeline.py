@@ -78,7 +78,7 @@ class Pipeline(object):
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
                  exec_async=True, bytes_per_sample=0,
-                 set_affinity=False, max_streams=-1):
+                 set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0):
         self._batch_size = batch_size
         self._num_threads = num_threads
         self._device_id = device_id
@@ -96,6 +96,7 @@ class Pipeline(object):
         self._bytes_per_sample = bytes_per_sample
         self._set_affinity = set_affinity
         self._max_streams = max_streams
+        self._default_cuda_stream_priority = default_cuda_stream_priority
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -154,7 +155,8 @@ class Pipeline(object):
                                 self._exec_async,
                                 self._bytes_per_sample,
                                 self._set_affinity,
-                                self._max_streams)
+                                self._max_streams,
+                                self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         outputs = self.define_graph()
@@ -414,7 +416,8 @@ class Pipeline(object):
                                 self._exec_async,
                                 self._bytes_per_sample,
                                 self._set_affinity,
-                                self._max_streams)
+                                self._max_streams,
+                                self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._prepared = True

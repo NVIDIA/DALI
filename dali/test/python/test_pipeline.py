@@ -330,7 +330,6 @@ def test_as_array():
         assert(img_chw_test.shape == (batch_size,3,224,224))
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
 
-test_as_array()
 def test_seed_serialize():
     batch_size = 64
     class HybridPipe(Pipeline):
@@ -650,7 +649,7 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
 
         def iter_setup(self):
             pass
-    
+
     nonfused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     nonfused_pipe.build()
     nonfused_pipe_out = nonfused_pipe.run()
@@ -861,3 +860,37 @@ def test_element_extract_operator():
         assert out2.shape == out4.shape
         np.testing.assert_array_equal( expected_last, out2 )
         np.testing.assert_array_equal( expected_last, out4 )
+
+def test_pipeline_default_cuda_stream_priority():
+    batch_size = 16
+    n_iters = 12
+
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, default_cuda_stream_priority = 0):
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads=1,
+                                             device_id=0, prefetch_queue_depth=1,
+                                             exec_async=False, exec_pipelined=False,
+                                             default_cuda_stream_priority=default_cuda_stream_priority)
+            self.input = ops.CaffeReader(path = caffe_db_folder)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            images = self.decode(inputs)
+            return images
+
+        def iter_setup(self):
+            pass
+
+    pipe1 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=100)
+    pipe2 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=0)
+    pipe1.build()
+    pipe2.build()
+    for _ in range(n_iters):
+        out1 = pipe1.run()
+        out2 = pipe2.run()
+        for i in range(batch_size):
+            out1_data = out1[0].as_cpu()
+            out2_data = out2[0].as_cpu()
+            assert(np.sum(np.abs(out1_data.at(i)-out2_data.at(i)))==0)

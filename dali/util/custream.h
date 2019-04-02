@@ -22,7 +22,7 @@ namespace dali {
 
 class DLL_PUBLIC CUStream {
  public:
-  CUStream(int device_id, bool default_stream);
+  CUStream(int device_id, bool default_stream, int priority);
 
   ~CUStream();
 

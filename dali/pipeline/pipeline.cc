@@ -62,7 +62,8 @@ namespace dali {
 
   Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
                      bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
-                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream)
+                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
+                     int default_cuda_stream_priority)
       : built_(false), separated_execution_(false) {
     dali_proto::PipelineDef def;
     def.ParseFromString(serialized_pipe);
@@ -93,6 +94,7 @@ namespace dali {
          bytes_per_sample_hint,
          set_affinity,
          max_num_stream,
+         default_cuda_stream_priority,
          QueueSizes{prefetch_queue_depth});
 
     // from serialized pipeline, construct new pipeline
@@ -334,7 +336,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
 
   executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
                           num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
-                          max_num_stream_, prefetch_queue_depth_);
+                          max_num_stream_, default_cuda_stream_priority_, prefetch_queue_depth_);
   executor_->Init();
 
   // Creating the graph

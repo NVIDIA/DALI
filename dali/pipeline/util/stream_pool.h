@@ -53,15 +53,14 @@ class StreamPool {
    * @brief Returns a stream from the pool. If max_size has been exceeded,
    * we hand out previously allocated streams round-robin.
    */
-  cudaStream_t GetStream() {
+  cudaStream_t GetStream(int stream_priority) {
     if (max_size_ < 0 || (Index)streams_.size() < max_size_) {
       cudaStream_t new_stream;
       // Note: Why is device tracked? Is StreamPool intended to be used across devices?
       int dev;
       cudaGetDevice(&dev);
-
-      CUDA_CALL(cudaStreamCreateWithFlags(&new_stream,
-              non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault));
+      int flags = non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault;
+      CUDA_CALL(cudaStreamCreateWithPriority(&new_stream, flags, stream_priority));
       streams_.push_back(new_stream);
       stream_devices_[new_stream] = dev;
       return new_stream;
