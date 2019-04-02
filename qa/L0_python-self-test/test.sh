@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose opencv-python tensorflow-gpu torchvision"
+pip_packages="nose numpy opencv-python tensorflow-gpu torchvision mxnet-cu##CUDA_VERSION##"
 
 pushd ../..
 
@@ -14,7 +14,7 @@ test_body() {
 
     python test_detection_pipeline.py -i 300
     python test_RN50_data_pipeline.py -i 10
-    python test_RN50_data_fw_iterators.py -i 30 -b 256
+    python test_RN50_data_fw_iterators.py -i 30 -b 13
 
     # TensorFlow supports only CUDA 9.0 now
     if [ "${CUDA_VERSION}" == "90"]; then
