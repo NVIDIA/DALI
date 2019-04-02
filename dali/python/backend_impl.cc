@@ -644,7 +644,7 @@ PYBIND11_MODULE(backend_impl, m) {
         [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
           p->SetOutputNames(outputs);
           })
-    .def("RunCPU", &Pipeline::RunCPU)
+    .def("RunCPU", &Pipeline::RunCPU, py::call_guard<py::gil_scoped_release>())
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",
         [](Pipeline *p) {
