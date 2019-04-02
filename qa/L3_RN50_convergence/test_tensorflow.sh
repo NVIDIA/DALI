@@ -42,7 +42,7 @@ MIN_TOP5=92.0
 TOP1=$(grep "^Top-1" $LOG | awk '{print $3}')
 TOP5=$(grep "^Top-5" $LOG | awk '{print $3}')
 
-cat $LOG | grep -o "[0-9]*  [0-9]*\.[0-9]*  [0-9]*\.[0-9]*  [0-9]*\.[0-9]*  [0-9]*\.[0-9]* [0-9]*\.[0-9]*" > tmp2.log
+cat $LOG | grep -o "[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*" > tmp2.log
 mean=`awk 'BEGIN { sum = 0; n = 0 } { sum += $3; n += 1 } END { print sum / n }' tmp2.log`
 rm -f tmp2.log
 

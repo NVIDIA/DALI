@@ -314,7 +314,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
             const int stream_idx = tid;
             const auto output_data_size = volume(output_shape) * sizeof(uint8_t);
 
-            if (CacheLoad(file_name, output_shape, output_data, streams_[stream_idx]))
+            if (CacheLoad(file_name, output_data, streams_[stream_idx]))
               return;
 
             DecodeSingleSample(

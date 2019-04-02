@@ -22,13 +22,14 @@ RUN pip install future numpy setuptools wheel && \
     rm -rf /root/.cache/pip/
 
 RUN if [ ${PYV} != "37" ] ; then \
-        pip install tensorflow-gpu==1.7 && \
-        pip install tensorflow-gpu==1.11 --target /tensorflow/1_11 && \
-        pip install tensorflow-gpu==1.12rc2 --target /tensorflow/1_12 && \
-        pip install tf-nightly-gpu --target /tensorflow/nightly; \
-    else \
-        # only nightly build of TF supports python 3.7 at that time
-        pip install tf-nightly-gpu; \
+        pip install tensorflow-gpu==1.7                                && \
+        pip install tensorflow-gpu==1.11   --target /tensorflow/1_11   && \
+        pip install tensorflow-gpu==1.12   --target /tensorflow/1_12   && \
+        pip install tensorflow-gpu==1.13.1 --target /tensorflow/1_13   && \
+        pip install tensorflow-gpu         --target /tensorflow/latest;   \
+    else                                                                  \
+        # Older versions not supported on python 3.7
+        pip install tensorflow-gpu; \
     fi && \
     rm -rf /root/.cache/pip/
 
