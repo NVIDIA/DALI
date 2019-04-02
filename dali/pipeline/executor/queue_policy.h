@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_EXECUTOR_QUEUE_POLICY_H_
 #define DALI_PIPELINE_EXECUTOR_QUEUE_POLICY_H_
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -158,7 +159,6 @@ struct UniformQueuePolicy {
   bool IsStopSignaled() {
     // We only need to check the first one, since they're
     // always set in the same time
-    std::lock_guard<std::mutex> l(ready_mutex_);
     return ready_stop_;
   }
 
@@ -174,7 +174,8 @@ struct UniformQueuePolicy {
   // so when using them in cond_var predicate,
   // we know the changes are propagated properly and we won't miss a notify.
   std::array<bool, kOpCount> stage_work_stop_ = {{false, false, false, false}};
-  bool ready_stop_ = false;
+  // Used in IsStopSignaled with atomic access, an with mutex for ready_cond_
+  std::atomic<bool> ready_stop_ = {false};
 };
 
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
@@ -329,8 +330,7 @@ struct SeparateQueuePolicy {
 
   bool IsStopSignaled() {
     // We only need to check the first one, since they're
-    // always set in the same time
-    std::lock_guard<std::mutex> l(ready_output_mutex_);
+    // always set in the same time.
     return ready_stop_;
   }
 
@@ -355,7 +355,8 @@ struct SeparateQueuePolicy {
   // we know the changes are propagated properly and we won't miss a notify.
   std::array<bool, kOpCount> stage_free_stop_ = {{false, false, false, false}};
   std::array<bool, kOpCount> stage_ready_stop_ = {{false, false, false, false}};
-  bool ready_stop_ = false;
+  // Used in IsStopSignaled with atomic access, an with mutex for ready_output_cv_
+  std::atomic<bool> ready_stop_ = {false};
   std::array<std::condition_variable, kOpCount> stage_free_cv_;
   std::array<std::condition_variable, kOpCount> stage_ready_cv_;
 
