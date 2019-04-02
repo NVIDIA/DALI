@@ -279,7 +279,7 @@ def set_iters(args, dataset_size):
 
 def to_array(dali_out):
     if isinstance(dali_out, TensorListGPU):
-        dali_out = dali_out.asCPU()
+        dali_out = dali_out.as_cpu()
 
     return np.squeeze(dali_out.as_array())
 

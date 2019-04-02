@@ -273,13 +273,11 @@ void ExposeTensorList(py::module &m) { // NOLINT
       ----------
       )code")
     .def("as_array", [](TensorList<CPUBackend> &t) -> py::array {
-          void* raw_mutable_data;
+          void* raw_mutable_data = nullptr;
           std::string format;
           size_t type_size;
 
-          if (t.size() == 0) {
-            raw_mutable_data = nullptr;
-          } else {
+          if (t.size() > 0) {
             DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
                 "buffer info for tensor w/ invalid type.");
             DALI_ENFORCE(t.IsDenseTensor(),
