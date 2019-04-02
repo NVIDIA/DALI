@@ -10,6 +10,12 @@ test_body() {
     # workaround due to errors while pycocotools is int "pip_packages" above
     pip install -I pycocotools
 
+    #install APEX
+    git clone https://github.com/nvidia/apex
+    cd apex
+    pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
+    cd ..
+
     # test code
     python -m torch.distributed.launch --nproc_per_node=8 ./main.py --warmup 200 --bs 64 --data=/data/coco/coco-2017/coco2017/ --data_pipeline dali --epochs=4
 }
