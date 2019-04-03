@@ -15,10 +15,12 @@
 #ifndef DALI_PIPELINE_EXECUTOR_QUEUE_POLICY_H_
 #define DALI_PIPELINE_EXECUTOR_QUEUE_POLICY_H_
 
+#include <cuda_runtime_api.h>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
+#include <vector>
 
 #include "dali/pipeline/executor/queue_metadata.h"
 
@@ -34,6 +36,8 @@ namespace dali {
 //   QueueIdxs AcquireIdxs(OpType stage);
 //   // Finish stage and release the indexes. Not called by the last stage, as it "returns" outputs
 //   void ReleaseIdxs(OpType stage, QueueIdxs idxs);
+//   // Check if acquired indexes are valid
+//   bool AreValid(QueueIdxs idxs);
 //   // Called by the last stage - mark the Queue idxs as ready to be used as output
 //   void QueueOutputIdxs(QueueIdxs idxs);
 //   // Get the indexes of ready outputs and mark them as in_use by the user
@@ -49,6 +53,7 @@ namespace dali {
 
 // Each stage requires ready buffers from previous stage and free buffers from current stage
 struct UniformQueuePolicy {
+  static const int kInvalidIdx = -1;
   static bool IsUniformPolicy() {
     return true;
   }
@@ -74,7 +79,7 @@ struct UniformQueuePolicy {
         return !free_queue_.empty() || stage_work_stop_[static_cast<int>(stage)];
       });
       if (stage_work_stop_[static_cast<int>(stage)]) {
-        return QueueIdxs{-1};  // We return anything due to exec error
+        return QueueIdxs{kInvalidIdx};  // We return anything due to exec error
       }
       int queue_idx = free_queue_.front();
       free_queue_.pop();
@@ -90,7 +95,10 @@ struct UniformQueuePolicy {
     return QueueIdxs{queue_idx};
   }
 
-  void ReleaseIdxs(OpType stage, QueueIdxs idxs) {
+  void ReleaseIdxs(OpType stage, QueueIdxs idxs, cudaStream_t = 0) {
+    if (idxs[stage] == kInvalidIdx) {
+      return;
+    }
     if (HasNextStage(stage)) {
       auto next_stage = NextStage(stage);
       std::lock_guard<std::mutex> lock(stage_work_mutex_[static_cast<int>(next_stage)]);
@@ -98,7 +106,12 @@ struct UniformQueuePolicy {
     }
   }
 
-  void QueueOutputIdxs(QueueIdxs idxs) {
+  bool AreValid(QueueIdxs idxs) {
+    return idxs[OpType::SUPPORT] != kInvalidIdx && idxs[OpType::CPU] != kInvalidIdx &&
+           idxs[OpType::MIXED] != kInvalidIdx && idxs[OpType::GPU] != kInvalidIdx;
+  }
+
+  void QueueOutputIdxs(QueueIdxs idxs, cudaStream_t = 0) {
     // We have to give up the elements to be occupied
     {
       std::lock_guard<std::mutex> lock(ready_mutex_);
@@ -115,7 +128,7 @@ struct UniformQueuePolicy {
       return !ready_queue_.empty() || ready_stop_;
     });
     if (ready_stop_) {
-      return OutputIdxs{-1};
+      return OutputIdxs{kInvalidIdx};
     }
     int output_idx = ready_queue_.front();
     ready_queue_.pop();
@@ -178,9 +191,21 @@ struct UniformQueuePolicy {
   std::atomic<bool> ready_stop_ = {false};
 };
 
+struct SeparateQueuePolicy;
+
+struct ReleaseCommand {
+  SeparateQueuePolicy *policy;
+  OpType stage;
+  int idx;
+};
+
+static void release_callback(cudaStream_t stream, cudaError_t status, void *userData);
+
 // Ready buffers from previous stage imply that we can process corresponding buffers from current
 // stage
 struct SeparateQueuePolicy {
+  static const int kInvalidIdx = -1;
+
   static bool IsUniformPolicy() {
     return false;
   }
@@ -192,6 +217,8 @@ struct SeparateQueuePolicy {
         stage_free_[stage].push(i);
       }
     }
+    support_release_commands_.resize(stage_queue_depths[static_cast<int>(OpType::SUPPORT)]);
+    cpu_release_commands_.resize(stage_queue_depths[static_cast<int>(OpType::CPU)]);
   }
 
   QueueIdxs AcquireIdxs(OpType stage) {
@@ -207,7 +234,7 @@ struct SeparateQueuePolicy {
         return !stage_ready_[previous_stage].empty() || stage_ready_stop_[previous_stage];
       });
       if (stage_ready_stop_[previous_stage]) {
-        return QueueIdxs{-1};
+        return QueueIdxs{kInvalidIdx};
       }
       // We fill the information about all the previous stages herew
       result = stage_ready_[previous_stage].front();
@@ -221,7 +248,7 @@ struct SeparateQueuePolicy {
         return !stage_free_[current_stage].empty() || stage_free_stop_[current_stage];
       });
       if (stage_free_stop_[current_stage]) {
-        return QueueIdxs{-1};
+        return QueueIdxs{kInvalidIdx};
       }
       // We add info about current stage
       result[stage] = stage_free_[current_stage].front();
@@ -230,25 +257,32 @@ struct SeparateQueuePolicy {
     return result;
   }
 
-  void ReleaseIdxs(OpType stage, QueueIdxs idxs) {
+  void ReleaseIdxs(OpType stage, QueueIdxs idxs, cudaStream_t stage_stream = 0) {
+    if (idxs[stage] == kInvalidIdx) {
+      return;
+    }
     int current_stage = static_cast<int>(stage);
-    // We have a special case for Support ops - they are set free by a GPU stage,
-    // during QueueOutputIdxs
-    if (stage != OpType::CPU) {
-      if (HasPreviousStage(stage)) {
-        ReleaseStageIdx(PreviousStage(stage), idxs);
-      }
+    // TODO(klecki) when we move to CUDA 10, we should move to cudaLaunchHostFunc
+    if (stage == OpType::MIXED) {
+      auto &command = cpu_release_commands_[idxs[OpType::CPU]];
+      command = ReleaseCommand{this, OpType::CPU, idxs[OpType::CPU]};
+      cudaStreamAddCallback(stage_stream, &release_callback, static_cast<void*>(&command), 0);
     }
     {
       std::lock_guard<std::mutex> ready_current_lock(stage_ready_mutex_[current_stage]);
-      // stage_ready_[current_stage].push(idxs[stage]);
       // Store the idxs up to the point of stage that we processed
       stage_ready_[current_stage].push(idxs);
     }
     stage_ready_cv_[current_stage].notify_one();
   }
 
-  void QueueOutputIdxs(QueueIdxs idxs) {
+  bool AreValid(QueueIdxs idxs) {
+    return idxs[OpType::SUPPORT] != kInvalidIdx && idxs[OpType::CPU] != kInvalidIdx &&
+           idxs[OpType::MIXED] != kInvalidIdx && idxs[OpType::GPU] != kInvalidIdx;
+  }
+
+
+  void QueueOutputIdxs(QueueIdxs idxs, cudaStream_t gpu_op_stream) {
     {
       std::lock_guard<std::mutex> ready_output_lock(ready_output_mutex_);
       ready_output_queue_.push({idxs[OpType::MIXED], idxs[OpType::GPU]});
@@ -256,7 +290,9 @@ struct SeparateQueuePolicy {
     ready_output_cv_.notify_all();
 
     // In case of GPU we release also the Support Op
-    ReleaseStageIdx(OpType::SUPPORT, idxs);
+    auto &command = support_release_commands_[idxs[OpType::SUPPORT]];
+    command = ReleaseCommand{this, OpType::SUPPORT, idxs[OpType::SUPPORT]};
+    cudaStreamAddCallback(gpu_op_stream, &release_callback, static_cast<void*>(&command), 0);
   }
 
   OutputIdxs UseOutputIdxs() {
@@ -267,7 +303,7 @@ struct SeparateQueuePolicy {
       return !ready_output_queue_.empty() || ready_stop_;
     });
     if (ready_stop_) {
-      return OutputIdxs{-1, -1};
+      return OutputIdxs{kInvalidIdx, kInvalidIdx};
     }
     auto output_idx = ready_output_queue_.front();
     ready_output_queue_.pop();
@@ -282,22 +318,12 @@ struct SeparateQueuePolicy {
     // Mark the last in-use buffer as free and signal
     // to waiting threads
     if (!in_use_queue_.empty()) {
-      auto mixed_idx = static_cast<int>(OpType::MIXED);
-      auto gpu_idx = static_cast<int>(OpType::GPU);
       // TODO(klecki): in_use_queue should be guarded, but we assume it is used only in synchronous
       // python calls
       auto processed = in_use_queue_.front();
       in_use_queue_.pop();
-      {
-        std::lock_guard<std::mutex> lock(stage_free_mutex_[mixed_idx]);
-        stage_free_[mixed_idx].push(processed.mixed);
-      }
-      stage_free_cv_[mixed_idx].notify_one();
-      {
-        std::lock_guard<std::mutex> lock(stage_free_mutex_[gpu_idx]);
-        stage_free_[gpu_idx].push(processed.gpu);
-      }
-      stage_free_cv_[gpu_idx].notify_one();
+      ReleaseStageIdx(OpType::MIXED, processed.mixed);
+      ReleaseStageIdx(OpType::GPU, processed.gpu);
     }
   }
 
@@ -335,15 +361,21 @@ struct SeparateQueuePolicy {
   }
 
  private:
-  void ReleaseStageIdx(OpType stage, QueueIdxs idxs) {
+  friend void release_callback(cudaStream_t stream, cudaError_t status, void *userData);
+
+  void ReleaseStageIdx(OpType stage, int idx) {
     auto released_stage = static_cast<int>(stage);
     // We release the consumed buffer
     {
       std::lock_guard<std::mutex> free_lock(stage_free_mutex_[released_stage]);
-      stage_free_[released_stage].push(idxs[stage]);
+      stage_free_[released_stage].push(idx);
     }
     // We freed buffer, so we notfiy the released stage it can continue it's work
     stage_free_cv_[released_stage].notify_one();
+  }
+
+  void ReleaseStageIdx(OpType stage, QueueIdxs idxs) {
+    ReleaseStageIdx(stage, idxs[stage]);
   }
 
   static const int kOpCount = static_cast<int>(OpType::COUNT);
@@ -376,7 +408,17 @@ struct SeparateQueuePolicy {
 
   std::queue<OutputIdxs> ready_output_queue_;
   std::queue<OutputIdxs> in_use_queue_;
+  std::vector<ReleaseCommand> support_release_commands_;
+  std::vector<ReleaseCommand> cpu_release_commands_;
 };
+
+// void (CUDART_CB *cudaStreamCallback_t)(cudaStream_t stream, cudaError_t status, void *userData);
+void release_callback(cudaStream_t stream, cudaError_t status, void *userData) {
+  auto command = static_cast<ReleaseCommand*>(userData);
+  command->policy->ReleaseStageIdx(command->stage, command->idx);
+}
+
+
 
 }  // namespace dali
 
