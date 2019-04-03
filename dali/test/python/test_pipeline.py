@@ -883,8 +883,10 @@ def test_pipeline_default_cuda_stream_priority():
         def iter_setup(self):
             pass
 
-    pipe1 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=100)
-    pipe2 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=0)
+    HIGH_PRIORITY = -1
+    LOW_PRIORITY = 0
+    pipe1 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=HIGH_PRIORITY)
+    pipe2 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=LOW_PRIORITY)
     pipe1.build()
     pipe2.build()
     for _ in range(n_iters):

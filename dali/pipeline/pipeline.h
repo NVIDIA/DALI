@@ -15,13 +15,14 @@
 #ifndef DALI_PIPELINE_PIPELINE_H_
 #define DALI_PIPELINE_PIPELINE_H_
 
+#include <chrono>
+#include <limits>
 #include <map>
 #include <memory>
+#include <random>
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
-#include <random>
-#include <chrono>
 
 #include "dali/common.h"
 #include "dali/pipeline/executor/executor.h"
@@ -320,10 +321,9 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Initializes the Pipeline internal state
    */
-  void Init(int batch_size, int num_threads, int device_id,
-            int64_t seed, bool pipelined_execution, bool separated_execution, bool async_execution,
-            size_t bytes_per_sample_hint, bool set_affinity,
-            int max_num_stream, int default_cuda_stream_priority,
+  void Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
+            bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
+            bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
             QueueSizes prefetch_queue_depth = QueueSizes{2}) {
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
@@ -338,17 +338,32 @@ class DLL_PUBLIC Pipeline {
     this->default_cuda_stream_priority_ = default_cuda_stream_priority;
     this->prefetch_queue_depth_ = prefetch_queue_depth;
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
+
+    int lowest_cuda_stream_priority = std::numeric_limits<int>::min();
+    int highest_cuda_stream_priority = std::numeric_limits<int>::max();
+    CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
+                                               &highest_cuda_stream_priority));
+    const auto min_priority_value =
+        std::min(lowest_cuda_stream_priority, highest_cuda_stream_priority);
+    const auto max_priority_value =
+        std::max(lowest_cuda_stream_priority, highest_cuda_stream_priority);
+    DALI_ENFORCE(
+        default_cuda_stream_priority >= min_priority_value &&
+        default_cuda_stream_priority <= max_priority_value,
+        "Provided default cuda stream priority `" + std::to_string(default_cuda_stream_priority) +
+        "` is outside the priority range [" + std::to_string(min_priority_value) + ", " +
+        std::to_string(max_priority_value) + "], with lowest priority being `" +
+        std::to_string(lowest_cuda_stream_priority) + "` and highest priority being `" +
+        std::to_string(highest_cuda_stream_priority) + "`");
+
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
-    if (seed > -1) {
-      std::seed_seq ss{seed};
-      ss.generate(seed_.begin(), seed_.end());
-    } else {
+    if (seed < 0) {
       using Clock = std::chrono::high_resolution_clock;
-      auto init_value = Clock::now().time_since_epoch().count();
-      std::seed_seq ss{init_value};
-      ss.generate(seed_.begin(), seed_.end());
+      seed = Clock::now().time_since_epoch().count();
     }
+    std::seed_seq ss{seed};
+    ss.generate(seed_.begin(), seed_.end());
   }
 
   using EdgeMeta = struct {
