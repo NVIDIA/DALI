@@ -42,6 +42,7 @@ Prerequisites
 ^^^^^^^^^^^^^
 
 
+
 .. |driver link| replace:: **NVIDIA Driver**
 .. _driver link: https://www.nvidia.com/drivers
 .. |cuda link| replace:: **NVIDIA CUDA 9.0**
