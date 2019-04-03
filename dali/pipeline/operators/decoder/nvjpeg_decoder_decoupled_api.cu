@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <limits>
 #include <string>
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder_decoupled_api.h"
 
@@ -28,10 +29,10 @@ Output of the decoder is on the GPU and uses `HWC` ordering.)code")
       R"code(The color space of output image.)code",
       DALI_RGB)
   .AddOptionalArg("hybrid_huffman_threshold",
-      R"code(Images of size H*W*C above this threshold will use the nvJPEG hybrid Huffman decoder.
+      R"code(Images with number of pixels (height * width) above this threshold will use the nvJPEG hybrid Huffman decoder.
 Images below will use the nvJPEG full host huffman decoder.
 N.B.: Hybrid Huffman decoder still uses mostly the CPU.)code",
-      512u*512u)
+      1000u*1000u)
   .AddOptionalArg("device_memory_padding",
       R"code(Padding for nvJPEG's device memory allocations in bytes.
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image

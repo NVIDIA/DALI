@@ -29,7 +29,7 @@ class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
       .AddOutput("decoded", "gpu");
   }
 
-  void JpegTestDecode(int num_threads, unsigned int hybrid_huffman_threshold = 450*450) {
+  void JpegTestDecode(int num_threads, unsigned int hybrid_huffman_threshold) {
     hybrid_huffman_threshold_ = hybrid_huffman_threshold;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_jpegImgType, 0.7);
@@ -46,7 +46,7 @@ class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
   }
 
  private:
-  unsigned int hybrid_huffman_threshold_ = 1000*1000;
+  unsigned int hybrid_huffman_threshold_;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
@@ -58,19 +58,19 @@ TYPED_TEST_SUITE(nvjpegDecodeSplitTest, Types);
 ***********************************************/
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode) {
-  this->JpegTestDecode(1);
+  this->JpegTestDecode(1, 512u*512u);
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode2T) {
-  this->JpegTestDecode(2);
+  this->JpegTestDecode(2, 512u*512u);
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode3T) {
-  this->JpegTestDecode(3);
+  this->JpegTestDecode(3, 512u*512u);
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode4T) {
-  this->JpegTestDecode(4);
+  this->JpegTestDecode(4, 512u*512u);
 }
 
 /***********************************************

@@ -334,12 +334,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   bool ShouldUseHybridHuffman(ImageInfo& info) {
     auto &roi = info.crop_window;
     if (roi) {
-      return info.widths[0] * (roi.y + roi.h) > hybrid_huffman_threshold_;
+      return static_cast<unsigned int>(
+        info.widths[0] * (roi.y + roi.h)) > hybrid_huffman_threshold_;
     }
-    return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
+    return static_cast<unsigned int>(
+      info.widths[0] * info.heights[0]) > hybrid_huffman_threshold_;
   }
-
-
 
   USE_OPERATOR_MEMBERS();
   nvjpegHandle_t handle_;
@@ -347,7 +347,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // output colour format
   DALIImageType output_image_type_;
 
-  int hybrid_huffman_threshold_;
+  unsigned int hybrid_huffman_threshold_;
 
   // Common
   // Storage for per-image info

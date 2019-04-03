@@ -260,7 +260,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
   // output colour format
   DALIImageType output_image_type_;
 
-  unsigned hybrid_huffman_threshold_;
+  unsigned int hybrid_huffman_threshold_;
 
   // Common handles
   nvjpegHandle_t handle_;
