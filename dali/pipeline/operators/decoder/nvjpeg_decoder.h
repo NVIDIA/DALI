@@ -35,6 +35,7 @@
 #include "dali/image/image_factory.h"
 #include "dali/common.h"
 #include "dali/kernels/common/scatter_gather.h"
+#include "dali/kernels/tensor_shape_print.h"
 
 namespace dali {
 
@@ -310,7 +311,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
           auto img = cache_->Get(file_name);
           cached_images_[j] = img;
-          scatter_gather_.AddCopy(img.data, output.raw_mutable_tensor(j), img.num_elements());
+          if (img.data) {
+            scatter_gather_.AddCopy(output.raw_mutable_tensor(j), img.data, img.num_elements());
+          }
         }
         scatter_gather_.Run(ws->stream());
       }
@@ -512,8 +515,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // Thread pool
   ThreadPool thread_pool_;
-
-  std::shared_ptr<ImageCache> cache_;
 };
 
 }  // namespace dali

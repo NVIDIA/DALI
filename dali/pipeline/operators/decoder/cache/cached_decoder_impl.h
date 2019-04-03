@@ -45,7 +45,7 @@ class CachedDecoderImpl {
   ImageCache::ImageShape CacheImageShape(
     const std::string& file_name);
 
- private:
+ protected:
   std::shared_ptr<ImageCache> cache_;
   int device_id_;
 };
