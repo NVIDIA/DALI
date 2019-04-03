@@ -16,11 +16,23 @@
 #include <cstdint>
 #include <vector>
 #include "dali/kernels/alloc.h"
+#include "dali/kernels/span.h"
 #include "dali/api_helper.h"
 
 namespace dali {
 namespace kernels {
 
+namespace detail {
+struct CopyRange {
+  const char *src;
+  char *dst;
+  size_t size;
+};
+
+size_t Coalesce(span<CopyRange> ranges);
+}  // namespace detail
+
+/// Implements a device-to-device batch copy of multiple sources to multiple destinations
 class DLL_PUBLIC ScatterGatherGPU {
  public:
   static constexpr size_t kDefaultBlockSize = 64<<10;
@@ -46,25 +58,36 @@ class DLL_PUBLIC ScatterGatherGPU {
     blocks_.clear();
   }
 
+  /// @brief Adds one copy to the batch
   void AddCopy(void *dst, const void *src, size_t size) {
-    ranges_.push_back({
-      static_cast<const char*>(src),
-      static_cast<char*>(dst),
-      size
-    });
+    if (size > 0) {
+      ranges_.push_back({
+        static_cast<const char*>(src),
+        static_cast<char*>(dst),
+        size
+      });
+    }
   }
-  DLL_PUBLIC void Run(cudaStream_t stream);
 
-  struct CopyRange {
-    const char *src;
-    char *dst;
-    size_t size;
-  };
+  /// @brief Executes the copies
+  /// @param stream - the cudaStream on which the copies are scheduled
+  /// @param reset - if true, calls Reset after processing is over
+  DLL_PUBLIC void Run(cudaStream_t stream, bool reset = true);
+
+  using CopyRange = detail::CopyRange;
  private:
   std::vector<CopyRange> ranges_;
 
-  void Coalesce();
+  /// @brief Sorts and merges contiguous ranges
+  void Coalesce() {
+    size_t n = detail::Coalesce(make_span(ranges_.data(), ranges_.size()));
+    ranges_.resize(n);
+  }
+
+  /// @brief Divides ranges so they don't exceed `max_block_size_`
   void MakeBlocks();
+
+  /// @brief Reserves GPU memory for the description of the blocks.
   void ReserveGPUBlocks();
 
   size_t max_size_per_block_ = kDefaultBlockSize;

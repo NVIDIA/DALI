@@ -19,23 +19,24 @@
 namespace dali {
 namespace kernels {
 
-void ScatterGatherGPU::Coalesce() {
-  if (ranges_.empty())
-    return;
-  std::sort(ranges_.begin(), ranges_.end(), [](const CopyRange &a, const CopyRange &b) {
+namespace detail {
+size_t Coalesce(span<CopyRange> ranges) {
+  if (ranges.empty())
+    return 0;
+  std::sort(ranges.begin(), ranges.end(), [](const CopyRange &a, const CopyRange &b) {
     return a.src < b.src;
   });
 
   int start = 0;
-  int n = ranges_.size();
+  size_t n = ranges.size();
   bool changed = false;
 
   // merge
-  for (int i = 1; i < n; i++) {
-    if (ranges_[i].src == ranges_[start].src + ranges_[start].size &&
-        ranges_[i].dst == ranges_[start].dst + ranges_[start].size) {
-      ranges_[start].size += ranges_[i].size;
-      ranges_[i] = { nullptr, nullptr, 0 };
+  for (size_t i = 1; i < n; i++) {
+    if (ranges[i].src == ranges[start].src + ranges[start].size &&
+        ranges[i].dst == ranges[start].dst + ranges[start].size) {
+      ranges[start].size += ranges[i].size;
+      ranges[i] = { nullptr, nullptr, 0 };
       changed = true;
     } else {
       start = i;
@@ -44,17 +45,20 @@ void ScatterGatherGPU::Coalesce() {
 
   if (changed) {
     // compact
-    int new_size = 1;  // first item is guaranteed to be non-empty
-    for (int i = 1; i < n; i++) {
-      if (ranges_[i].size > 0) {
-        int j = new_size++;
+    size_t new_size = 1;  // first item is guaranteed to be non-empty
+    for (size_t i = 1; i < n; i++) {
+      if (ranges[i].size > 0) {
+        size_t j = new_size++;
         if (j != i)
-          ranges_[j] = ranges_[i];
+          ranges[j] = ranges[i];
       }
     }
-    ranges_.resize(new_size);
+    return new_size;
   }
+  return n;
 }
+
+}  // namespace detail
 
 void ScatterGatherGPU::MakeBlocks() {
   size_t max_size = 0;
@@ -78,8 +82,6 @@ void ScatterGatherGPU::MakeBlocks() {
     }
   }
   assert(blocks_.size() == num_blocks);
-
-  ReserveGPUBlocks();
 }
 
 void ScatterGatherGPU::ReserveGPUBlocks() {
@@ -92,30 +94,35 @@ void ScatterGatherGPU::ReserveGPUBlocks() {
 __global__ void BatchCopy(const ScatterGatherGPU::CopyRange *ranges) {
   auto range = ranges[blockIdx.x];
 
-  for (int i = threadIdx.x; i < range.size; i += blockDim.x) {
+  for (size_t i = threadIdx.x; i < range.size; i += blockDim.x) {
     range.dst[i] = range.src[i];
   }
 }
 
-void ScatterGatherGPU::Run(cudaStream_t stream) {
+void ScatterGatherGPU::Run(cudaStream_t stream, bool reset) {
   Coalesce();
+
+  // TODO(michalz): Error handling
+
   if (ranges_.size() <= 2) {
     for (auto &r : ranges_) {
       cudaMemcpyAsync(r.dst, r.src, r.size, cudaMemcpyDeviceToDevice, stream);
     }
-    return;
+  } else {
+    MakeBlocks();
+    ReserveGPUBlocks();
+    cudaMemcpyAsync(blocks_dev_.get(), blocks_.data(), blocks_.size() * sizeof(blocks_[0]),
+      cudaMemcpyHostToDevice, stream);
+
+    dim3 grid(blocks_.size());
+    dim3 block(std::min<size_t>(size_per_block_, 1024));
+    BatchCopy<<<grid, block>>>(blocks_dev_.get());
+    cudaGetLastError();
   }
 
-  MakeBlocks();
-  cudaMemcpyAsync(blocks_dev_.get(), blocks_.data(), blocks_.size() * sizeof(blocks_[0]),
-    cudaMemcpyDeviceToDevice, stream);
-
-  dim3 grid(blocks_.size());
-  dim3 block(std::min<size_t>(size_per_block_, 1024));
-  BatchCopy<<<grid, block>>>(blocks_dev_.get());
+  if (reset)
+    Reset();
 }
-
-
 
 }  // namespace kernels
 }  // namespace dali
