@@ -37,7 +37,7 @@ For values <=0, grid size is undefined. Currently only grid_size=4 is supported.
                                 R"code(enabling/disabling temporal hints for sequences longer than 2 images.
 They are used to speed up calculation: previous OF result in sequence is used to calculate current flow. You might
 want to use temporal hints for sequences, that don't have much changes in the scene (e.g. only moving objects))code",
-                                true, false)
+                                false, false)
                 .AddOptionalArg(detail::kEnableExternalHintsArgName,
                                 R"code(enabling/disabling external hints for OF calculation. External hints
 are analogous to temporal hints, only they come from external source. When this option is enabled,
