@@ -44,6 +44,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
         device_id_(device_id) {}
 
   DLL_PUBLIC ~AsyncPipelinedExecutor() override {
+    ShutdownQueue();
     cpu_thread_.ForceStop();
     mixed_thread_.ForceStop();
     gpu_thread_.ForceStop();
@@ -82,7 +83,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
       exec_error_ = true;
       mixed_work_cv_.notify_all();
       gpu_work_cv_.notify_all();
-      SignalError();
+      SignalStop();
       throw std::runtime_error(std::string(e.what()));
     } catch (...) {
       throw std::runtime_error("Unknown critical error in pipeline");

@@ -113,6 +113,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC void ReleaseOutputs() override;
   DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
 
+  DLL_PUBLIC void ShutdownQueue() {
+    QueuePolicy::SignalStop();
+  }
+
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
@@ -261,7 +265,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   TimeRange tr("[Executor] RunCPU");
 
   auto support_idx = QueuePolicy::AcquireIdxs(OpType::SUPPORT);
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     QueuePolicy::ReleaseIdxs(OpType::SUPPORT, support_idx);
     return;
   }
@@ -282,7 +286,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
     }
   } catch (std::runtime_error &e) {
     exec_error_ = true;
-    QueuePolicy::SignalError();
+    QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
@@ -291,7 +295,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   QueuePolicy::ReleaseIdxs(OpType::SUPPORT, support_idx);
 
   auto cpu_idx = QueuePolicy::AcquireIdxs(OpType::CPU);
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     QueuePolicy::ReleaseIdxs(OpType::CPU, cpu_idx);
     return;
   }
@@ -319,7 +323,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
     thread_pool_.WaitForWork();
   } catch (std::runtime_error& e) {
     exec_error_ = true;
-    QueuePolicy::SignalError();
+    QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
@@ -334,7 +338,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   DeviceGuard g(device_id_);
 
   auto mixed_idx = QueuePolicy::AcquireIdxs(OpType::MIXED);
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idx);
     return;
   }
@@ -355,7 +359,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
     }
   } catch (std::runtime_error &e) {
     exec_error_ = true;
-    QueuePolicy::SignalError();
+    QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
@@ -370,7 +374,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   TimeRange tr("[Executor] RunGPU");
 
   auto gpu_idx = QueuePolicy::AcquireIdxs(OpType::GPU);
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     QueuePolicy::ReleaseIdxs(OpType::GPU, gpu_idx);
     return;
   }
@@ -429,7 +433,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
     }
   } catch (std::runtime_error &e) {
     exec_error_ = true;
-    QueuePolicy::SignalError();
+    QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
@@ -470,7 +474,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   DeviceGuard g(device_id_);
   ws->Clear();
 
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);
@@ -478,7 +482,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
 
   auto output_idx = QueuePolicy::UseOutputIdxs();
 
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);
