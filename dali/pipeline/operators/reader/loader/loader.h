@@ -59,7 +59,8 @@ class Loader {
       read_ahead_(options.GetArgument<bool>("read_ahead")),
       stick_to_shard_(options.GetArgument<bool>("stick_to_shard")),
       device_id_(options.GetArgument<int>("device_id")),
-      skip_cached_images_(options.GetArgument<bool>("skip_cached_images")) {
+      skip_cached_images_(options.GetArgument<bool>("skip_cached_images")),
+      lazy_(options.GetArgument<bool>("lazy")) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -67,6 +68,9 @@ class Loader {
     dis = std::uniform_int_distribution<>(0, initial_buffer_fill_);
     std::seed_seq seq({seed_});
     e_ = std::default_random_engine(seq);
+    if (!lazy_) {
+      PrepareMetadata();
+    }
   }
 
   virtual ~Loader() = default;
@@ -95,6 +99,11 @@ class Loader {
 
   // Get a random read sample
   LoadTargetPtr ReadOne() {
+    std::call_once(metadata_preparation_flag_, [&](){
+      if (lazy_) {
+        PrepareMetadata();
+      }
+    });
     TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
@@ -156,6 +165,8 @@ class Loader {
   // used to populate the sample buffer for "shuffled"
   // reads.
   virtual void ReadSample(LoadTarget& tensor) = 0;
+
+  virtual void PrepareMetadata() {}
 
   // Give the size of the data accessed through the Loader
   virtual Index Size() = 0;
@@ -228,6 +239,11 @@ class Loader {
 
   // Option determining whether cached samples (at the decoder phase) should be skipped
   bool skip_cached_images_;
+
+  // Indicate whether the dataset preparation has to be done in the constructor or during the
+  // first run
+  std::once_flag metadata_preparation_flag_;
+  bool lazy_;
 
   // Image cache
   std::once_flag fetch_cache_;
