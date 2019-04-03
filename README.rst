@@ -70,7 +70,7 @@ Execute the below command CUDA 9.0 based build:
 .. code-block:: bash
 
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali
-    
+
 Starting DALI 0.8.0 for CUDA 10.0 based build use:
 
 .. code-block:: bash
@@ -84,7 +84,7 @@ Starting DALI 0.8.0 for CUDA 10.0 based build use:
 .. code-block:: bash
 
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali-tf-plugin
-    
+
 Starting DALI 0.8.0 for CUDA 10.0 based build execute:
 
 .. code-block:: bash
@@ -192,8 +192,7 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |ffmpeg link|_ or later                | We recommend using version 3.4.2 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |opencv link|_ or later                | | We recommend using version 3.4+. However previous versions are also compatible.           |
-   |                                        | | *OpenCV 2.x compatibility is provided unofficially.*                                      |
+   | |opencv link|_ or later                | Supported version: 3.4                                                                      |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |lmdb link|_ or later       |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
