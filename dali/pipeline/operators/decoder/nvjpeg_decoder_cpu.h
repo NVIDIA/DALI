@@ -124,7 +124,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(state_nvjpeg->jpeg_stream,
                                                    &info->c));
       state_nvjpeg->nvjpeg_backend =
-                    ShouldBeHybrid(*info, input_data, in_size)
+                    ShouldUseHybridHuffman(*info, input_data, in_size, hybrid_huffman_threshold_)
                     ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
       if (crop_generator) {
@@ -203,11 +203,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     return std::make_pair(info, nvjpeg_state);
   }
 
-  inline bool ShouldBeHybrid(ImageInfo& info, const uint8_t* input, size_t size) const {
-    return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_
-           && !IsProgressiveJPEG(input, size);
-  }
-
   inline nvjpegJpegDecoder_t GetDecoder(nvjpegBackend_t backend) const {
     switch (backend) {
       case NVJPEG_BACKEND_HYBRID:
@@ -218,43 +213,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         DALI_FAIL("Unknown nvjpegBackend_t " + std::to_string(backend));
         return nullptr;
     }
-  }
-
-  // TODO(spanev): Replace when it is available in the nvJPEG API
-  inline uint8_t GetJpegEncoding(const uint8_t* input, size_t size) const {
-    if (input[0] != 0xff || input[1] != 0xd8)
-      return 0;
-    const uint8_t* ptr = input + 2;
-    const uint8_t* end = input + size;
-    uint8_t marker = *ptr;
-    ptr++;
-    while (ptr < end) {
-      do {
-        // We ignore padding/custom metadata
-        while (marker != 0xff && ptr != end) {
-          marker = *ptr;
-          ptr++;
-        }
-        if (ptr == end)
-          return 0;
-        marker = *ptr;
-        ptr++;
-      } while (marker == 0 || marker == 0xff);
-      if (marker >= 0xc0 && marker <= 0xcf) {
-        return marker;
-      } else {
-        // Next segment
-        uint16_t segment_length = (*ptr << 8) + *(ptr+1);
-        ptr += segment_length;
-      }
-    }
-    return 0;
-  }
-
-  inline bool IsProgressiveJPEG(const uint8_t* raw_jpeg, size_t size) const {
-    const uint8_t segment_marker = GetJpegEncoding(raw_jpeg, size);
-    constexpr uint8_t progressive_sof = 0xc2;
-    return segment_marker == progressive_sof;
   }
 
   // output colour format
