@@ -117,7 +117,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
         step_ = count_;
   }
 
-  void init() {
+  void PrepareMetadata() {
     DALI_ENFORCE(cuvidInitChecked(0),
      "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
      "If you are running in a Docker container, please refer "

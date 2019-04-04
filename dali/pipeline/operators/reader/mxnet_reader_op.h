@@ -24,7 +24,7 @@ class MXNetReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit MXNetReader(const OpSpec& spec)
   : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
-    loader_.reset(new RecordIOLoader(spec));
+    loader_ = InitLoader<RecordIOLoader>(spec);
     parser_.reset(new RecordIOParser(spec));
   }
 

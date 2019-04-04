@@ -29,12 +29,9 @@ namespace dali {
 
 class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
-  explicit IndexedFileLoader(const OpSpec& options, bool init = true)
+  explicit IndexedFileLoader(const OpSpec& options)
     : Loader(options),
       current_file_(nullptr) {
-      // trick for https://stackoverflow.com/questions/962132/calling-virtual-functions-inside-constructors
-      if (init)
-        Init(options);
     }
 
   void ReadSample(Tensor<CPUBackend>& tensor) override {
@@ -112,7 +109,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
  protected:
-  void Init(const OpSpec& options) {
+  void PrepareMetadata(const OpSpec& options) {
     uris_ = options.GetRepeatedArgument<std::string>("path");
     DALI_ENFORCE(!uris_.empty(), "No files specified.");
     std::vector<std::string> index_uris = options.GetRepeatedArgument<std::string>("index_path");

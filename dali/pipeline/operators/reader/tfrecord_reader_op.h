@@ -27,7 +27,7 @@ class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit TFRecordReader(const OpSpec& spec)
   : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
-    loader_.reset(new IndexedFileLoader(spec));
+    loader_ = InitLoader<IndexedFileLoader>(spec);
     parser_.reset(new TFRecordParser(spec));
   }
 

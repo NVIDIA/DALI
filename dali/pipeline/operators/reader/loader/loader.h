@@ -68,12 +68,17 @@ class Loader {
     dis = std::uniform_int_distribution<>(0, initial_buffer_fill_);
     std::seed_seq seq({seed_});
     e_ = std::default_random_engine(seq);
+  }
+
+  virtual ~Loader() = default;
+
+  // We need this two stage init because overriden PrepareMetadata
+  // is not known in Loader ctor
+  void Init() {
     if (!lazy_) {
       PrepareMetadata();
     }
   }
-
-  virtual ~Loader() = default;
 
   virtual void PrepareEmpty(LoadTarget& tensor) {
     PrepareEmptyTensor(tensor);

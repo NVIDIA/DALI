@@ -66,7 +66,16 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   explicit LMDBReader(const OpSpec& options)
     : Loader(options),
       db_path_(options.GetArgument<string>("path")) {
+  }
+  ~LMDBReader() override {
+    mdb_cursor_close(mdb_cursor_);
+    mdb_dbi_close(mdb_env_, mdb_dbi_);
+    mdb_txn_abort(mdb_transaction_);
+    mdb_env_close(mdb_env_);
+    mdb_env_ = nullptr;
+  }
 
+  void PrepareMetadata() override {
     // Create the db environment, open the passed DB
     CHECK_LMDB(mdb_env_create(&mdb_env_));
     auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
@@ -82,13 +91,6 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
 
     Reset(true);
-  }
-  ~LMDBReader() override {
-    mdb_cursor_close(mdb_cursor_);
-    mdb_dbi_close(mdb_env_, mdb_dbi_);
-    mdb_txn_abort(mdb_transaction_);
-    mdb_env_close(mdb_env_);
-    mdb_env_ = nullptr;
   }
 
   void ReadSample(Tensor<CPUBackend>& tensor) override {

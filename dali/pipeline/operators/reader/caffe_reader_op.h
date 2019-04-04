@@ -25,7 +25,7 @@ class CaffeReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit CaffeReader(const OpSpec& spec)
   : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
-    loader_.reset(new LMDBReader(spec));
+    loader_ = InitLoader<LMDBReader>(spec);
     parser_.reset(new CaffeParser(spec));
   }
 

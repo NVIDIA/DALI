@@ -94,6 +94,9 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
         streams_(filesystem::GatherExtractedStreams(file_root_)),
         sequences_(detail::GenerateSequences(streams_, sequence_length_, step_, stride_)),
         total_size_(sequences_.size()) {
+  }
+
+  void PrepareMetadata() override {
     DALI_ENFORCE(sequence_length_ > 0, "Sequence length must be positive");
     DALI_ENFORCE(step_ > 0, "Step must be positive");
     DALI_ENFORCE(stride_ > 0, "Stride must be positive");
