@@ -35,6 +35,7 @@ CachedDecoderImpl::CachedDecoderImpl(const OpSpec& spec)
     cache_ = ImageCacheFactory::Instance().Get(
       device_id_, cache_type, cache_size, cache_debug, cache_threshold);
 
+    use_batch_copy_kernel_ = spec.GetArgument<bool>("cache_batch_copy");
     auto batch_size = spec.GetArgument<int>("batch_size");
     const size_t kMaxSizePerBlock = 1<<18;  // 256 kB per block
     scatter_gather_.reset(new kernels::ScatterGatherGPU(
@@ -61,9 +62,9 @@ bool CachedDecoderImpl::DeferCacheLoad(const std::string& file_name, uint8_t *ou
   return true;
 }
 
-void CachedDecoderImpl::LoadDeferred(cudaStream_t stream, bool useMemcpyOnly) {
+void CachedDecoderImpl::LoadDeferred(cudaStream_t stream) {
   if (scatter_gather_)
-    CUDA_CALL((scatter_gather_->Run(stream, true, useMemcpyOnly), cudaGetLastError()));
+    CUDA_CALL((scatter_gather_->Run(stream, true, !use_batch_copy_kernel_), cudaGetLastError()));
 }
 
 ImageCache::ImageShape CachedDecoderImpl::CacheImageShape(const std::string& file_name) {
@@ -91,6 +92,10 @@ images bigger than `cache_threshold` will be cached in memory.)code",
   .AddOptionalArg("cache_debug",
       R"code(Print debug information about decoder cache.)code",
       false)
+  .AddOptionalArg("cache_batch_copy",
+      R"code(If true, multiple images from cache are copied with a single batched copy kernel call;
+otherwise, each image is copied using cudaMemcpy unless order in the batch is the same as in the cache)code",
+      true)
   .AddOptionalArg("cache_type",
       R"code(Choose cache type:
 `threshold`: Caches every image with size bigger than `cache_threshold` until cache is full.

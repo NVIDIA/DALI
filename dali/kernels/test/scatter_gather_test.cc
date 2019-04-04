@@ -17,15 +17,15 @@
 #include <algorithm>
 #include "dali/kernels/common/scatter_gather.h"
 
-namespace std {
+namespace dali {
+namespace kernels {
+
+namespace detail {
 inline bool operator==(const dali::kernels::detail::CopyRange &a,
                        const dali::kernels::detail::CopyRange &b) {
   return a.src == b.src && a.dst == b.dst && a.size == b.size;
 }
-}  // namespace std
-
-namespace dali {
-namespace kernels {
+}  // namespace detail
 
 TEST(ScatterGather, Coalesce) {
   static char A1[1<<12];
@@ -56,8 +56,8 @@ TEST(ScatterGather, Coalesce) {
 
 TEST(ScatterGather, Copy) {
   const size_t max_l = 1024;
-  std::vector<char> in(1<<14);
-  std::vector<char> out(1<<14);
+  std::vector<char> in(1<<20);
+  std::vector<char> out(1<<20);
   unsigned seed = 42;
 
   auto in_ptr = kernels::memory::alloc_unique<char>(AllocType::GPU, in.size());
@@ -105,13 +105,13 @@ TEST(ScatterGather, Copy) {
   // copy
   for (auto &r : ranges)
     sg.AddCopy(r.dst, r.src, r.size);
-  sg.Run(0);
+  sg.Run(0, true, false);  // use Kernel
 
   // copy back
   cudaMemset(in_ptr.get(), 0, in.size());
   for (auto &r : back_ranges)
     sg.AddCopy(r.dst, r.src, r.size);
-  sg.Run(0);
+  sg.Run(0, true, true);  // use cudaMemcpyAsync
   cudaMemcpy(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost);
 
   EXPECT_EQ(in, out);

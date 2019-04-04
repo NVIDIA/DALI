@@ -42,7 +42,7 @@ class nvJPEGDecoderPipeline(Pipeline):
         policy = None
         if cache_size > 0:
           policy = "threshold"
-        self.decode = ops.nvJPEGDecoder(device = 'mixed', output_type = types.RGB, cache_debug = True, cache_size = cache_size, cache_type = policy)
+        self.decode = ops.nvJPEGDecoder(device = 'mixed', output_type = types.RGB, cache_debug = False, cache_size = cache_size, cache_type = policy, cache_batch_copy = True)
 
     def define_graph(self):
         jpegs, labels = self.input(name="Reader")

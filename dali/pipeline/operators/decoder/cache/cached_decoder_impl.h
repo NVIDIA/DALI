@@ -46,7 +46,7 @@ class CachedDecoderImpl {
 
   bool DeferCacheLoad(const std::string& file_name, uint8_t *output_data);
 
-  void LoadDeferred(cudaStream_t stream, bool useMemcpyOnly = false);
+  void LoadDeferred(cudaStream_t stream);
 
   ImageCache::ImageShape CacheImageShape(
     const std::string& file_name);
@@ -60,6 +60,7 @@ class CachedDecoderImpl {
   std::shared_ptr<ImageCache> cache_;
   std::unique_ptr<kernels::ScatterGatherGPU> scatter_gather_;
   int device_id_;
+  bool use_batch_copy_kernel_ = true;
 };
 
 }  // namespace dali
