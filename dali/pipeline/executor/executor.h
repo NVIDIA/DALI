@@ -42,6 +42,14 @@
 
 namespace dali {
 
+
+namespace detail {
+// This is stream callback used on GPU stream to indicate that GPU work for this
+// pipeline run is finished
+static void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData);
+
+}  // namespace detail
+
 class DLL_PUBLIC ExecutorBase {
  public:
   using ExecutorCallback = std::function<void(void)>;
@@ -80,11 +88,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       : batch_size_(batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
+        callback_(nullptr),
         stream_pool_(max_num_stream, true, default_cuda_stream_priority),
         event_pool_(max_num_stream),
         thread_pool_(num_thread, device_id, set_affinity),
         exec_error_(false),
-        callback_(nullptr),
         queue_sizes_(prefetch_queue_depth) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
@@ -174,24 +182,37 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   StageQueues stage_queue_depths_;
 
   OpGraph *graph_ = nullptr;
+  // we need to keep this above the stream_pool_ so we still have it when the stream_pool_
+  // destructor runs and it waits for streams to finish
+  ExecutorCallback callback_;
   StreamPool stream_pool_;
   EventPool event_pool_;
   ThreadPool thread_pool_;
   std::vector<std::string> errors_;
   std::mutex errors_mutex_;
   bool exec_error_;
-  ExecutorCallback callback_;
   QueueSizes queue_sizes_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
   cudaStream_t mixed_op_stream_, gpu_op_stream_;
   // MixedOpId -> queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED to GPU Ops
   std::vector<std::vector<cudaEvent_t>> mixed_op_events_;
+  // queue_idx -> cudaEvent_t
+  // To introduce dependency from MIXED stage to GPU stage for callback only
+  // in some edge cases where there are no operators
+  std::vector<cudaEvent_t> mixed_callback_events_;
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::SetCompletionCallback(ExecutorCallback cb) {
   callback_ = cb;
+  // Create necessary events lazily
+  if (mixed_callback_events_.empty()) {
+    mixed_callback_events_.resize(stage_queue_depths_[OpType::MIXED]);
+    for (auto &event : mixed_callback_events_) {
+      event = event_pool_.GetEvent();
+    }
+  }
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -351,6 +372,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
     // Let the ReleaseIdx chain wake the output cv
   }
 
+  if (callback_) {
+    // Record event that will allow to call the callback after whole run of this pipeline is
+    // finished.
+    CUDA_CALL(cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
+  }
   // Pass the work to the gpu stage
   QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
 }
@@ -427,6 +453,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   // in the `gpu_idxs` set of output buffers has been
   // issued. Notify any waiting threads.
 
+  // Schedule the call to any callback registered previously
+  if (callback_) {
+    CUDA_CALL(cudaStreamWaitEvent(gpu_op_stream_,
+                                  mixed_callback_events_[gpu_idxs[OpType::MIXED]], 0));
+    CUDA_CALL(cudaStreamAddCallback(gpu_op_stream_, &detail::gpu_finished_callback,
+                                    static_cast<void *>(&callback_), 0));
+  }
 
   // We do not release, but handle to used outputs
   QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
@@ -435,11 +468,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   // dependency between consecutive iterations
   // of the gpu stage of the pipeline.
   previous_gpu_queue_idx_ = gpu_idxs[OpType::GPU];
-
-  // call any registered previously callback
-  if (callback_) {
-    callback_();
-  }
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -666,6 +694,16 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputQueuesForGraph() {
 }
 
 using SimpleExecutor = Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
+
+namespace detail {
+
+void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData) {
+  auto callback = static_cast<ExecutorBase::ExecutorCallback*>(userData);
+  (*callback)();
+}
+
+}  // namespace detail
+
 
 }  // namespace dali
 
