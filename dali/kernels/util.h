@@ -38,10 +38,33 @@ size_t size(const T (&a)[N]) {
   return N;
 }
 
+
 template <typename Value, typename Alignment>
 constexpr Value align_up(Value v, Alignment a) {
   return v + ((a - 1) & -v);
 }
+
+
+constexpr int32_t div_ceil(int32_t total, uint32_t grain) {
+  return (total + grain - 1) / grain;
+}
+
+constexpr uint32_t div_ceil(uint32_t total, uint32_t grain) {
+  return (total + grain - 1) / grain;
+}
+
+constexpr int64_t div_ceil(int64_t total, uint64_t grain) {
+  return (total + grain - 1) / grain;
+}
+
+constexpr uint64_t div_ceil(uint64_t total, uint64_t grain) {
+  return (total + grain - 1) / grain;
+}
+
+static_assert(div_ceil(0, 32) == 0, "Should not change");
+static_assert(div_ceil(1, 32) == 1, "Should align up");
+static_assert(div_ceil(32, 32) == 1, "Should not align up");
+static_assert(div_ceil(65, 64) == 2, "Should align up");
 
 static_assert(align_up(17, 16) == 32, "Should align up");
 static_assert(align_up(8, 8) == 8, "Should be already aligned");

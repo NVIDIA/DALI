@@ -478,7 +478,7 @@ struct TensorListShapeBase {
  protected:
   int size() const { return static_cast<const Derived *>(this)->size(); }
   int sample_dim() const { return static_cast<const Derived *>(this)->sample_dim(); }
-  void set_sample_dim(int dim) { static_cast<const Derived *>(this)->set_sample_dim(dim); }
+  void set_sample_dim(int dim) { static_cast<Derived *>(this)->set_sample_dim(dim); }
   TensorListShapeBase() = default;
   TensorListShapeBase(const std::vector<int64_t> &shapes) : shapes(shapes) {}        // NOLINT
   TensorListShapeBase(std::vector<int64_t> &&shapes) : shapes(std::move(shapes)) {}  // NOLINT

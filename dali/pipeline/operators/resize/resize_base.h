@@ -40,25 +40,9 @@ class DLL_PUBLIC ResamplingFilterAttr {
 class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
  public:
   explicit inline ResizeBase(const OpSpec &spec) : ResamplingFilterAttr(spec) {}
-  struct KernelData {
-    kernels::KernelContext context;
-    kernels::KernelRequirements requirements;
-    kernels::ScratchpadAllocator scratch_alloc;
-  };
-  std::vector<KernelData> kernel_data_;
 
   DLL_PUBLIC void Initialize(int num_threads = 1);
   DLL_PUBLIC void InitializeGPU(int batch_size, int minibatch_size);
-
-  inline KernelData &GetKernelData() {
-    DALI_ENFORCE(!kernel_data_.empty(), "Resize kernel data not initialized");
-    return kernel_data_.front();
-  }
-  inline KernelData &GetKernelData(int thread_idx) {
-    DALI_ENFORCE(thread_idx >= 0 && static_cast<size_t>(thread_idx) < kernel_data_.size(),
-                 "Thread index out of range");
-    return kernel_data_[thread_idx];
-  }
 
   DLL_PUBLIC void RunGPU(TensorList<GPUBackend> &output,
                          const TensorList<GPUBackend> &input,
@@ -70,6 +54,36 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
 
   std::vector<kernels::ResamplingParams2D> resample_params_;
   std::vector<Dims> out_shape_;
+
+ private:
+  struct KernelData {
+    kernels::KernelContext context;
+    kernels::KernelRequirements requirements;
+    kernels::ScratchpadAllocator scratch_alloc;
+  };
+
+  std::vector<KernelData> kernel_data_;
+  struct MiniBatch {
+    int start, count;
+    std::vector<Dims> out_shape;
+    kernels::InListGPU<uint8_t, 3> input;
+    kernels::OutListGPU<uint8_t, 3> output;
+  };
+  std::vector<MiniBatch> minibatches_;
+
+  void SubdivideInput(const kernels::InListGPU<uint8_t, 3> &in);
+  void SubdivideOutput(const kernels::OutListGPU<uint8_t, 3> &out);
+
+  inline KernelData &GetKernelData(int thread_idx) {
+    DALI_ENFORCE(thread_idx >= 0 && static_cast<size_t>(thread_idx) < kernel_data_.size(),
+                 "Thread index out of range");
+    return kernel_data_[thread_idx];
+  }
+
+  inline kernels::ScratchpadAllocator &GetGPUScratchAlloc() {
+    DALI_ENFORCE(!kernel_data_.empty(), "Resize kernel data not initialized");
+    return kernel_data_[0].scratch_alloc;
+  }
 };
 
 }  // namespace dali
