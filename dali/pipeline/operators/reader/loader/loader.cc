@@ -41,7 +41,10 @@ accesses.)code", false)
 processing is CPU stage-bound, trading memory consumption for better interleaving with the Loader thread.)code", 1)
   .AddOptionalArg("skip_cached_images",
       R"code(If set to true, loading data will be skipped when the sample is present in the decoder cache.
-In such case the output of the loader will be empty)code", false);
+In such case the output of the loader will be empty)code", false)
+  .AddOptionalArg("lazy",
+      R"code(If set to true, Loader will parse and prepare the dataset metadata only during the first `Run`
+instead of in the constructor.)code", false);
 
 size_t start_index(const size_t shard_id,
                    const size_t shard_num,

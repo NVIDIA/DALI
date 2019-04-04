@@ -43,8 +43,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
     // TODO(spanev): support rescale
       try {
-        loader_.reset(new VideoLoader(spec, filenames_));
-        dynamic_cast<VideoLoader*>(loader_.get())->init();
+        loader_ = InitLoader<VideoLoader>(spec, filenames_);
         auto w_h = dynamic_cast<VideoLoader*>(loader_.get())->load_width_height(filenames_[0]);
         width_ = static_cast<int>(w_h.first * output_scale_);
         height_ = static_cast<int>(w_h.second * output_scale_);

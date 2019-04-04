@@ -56,15 +56,15 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
         "shuffle_after_epoch and stick_to_shard cannot be both true");
 
     if (spec.HasArgument("file_list"))
-      loader_.reset(new FileLoader(
+      loader_ = InitLoader<FileLoader>(
         spec,
         std::vector<std::pair<string, int>>(),
-        shuffle_after_epoch));
+        shuffle_after_epoch);
     else
-      loader_.reset(new FileLoader(
+      loader_ = InitLoader<FileLoader>(
         spec,
         image_id_pairs_,
-        shuffle_after_epoch));
+        shuffle_after_epoch);
     parser_.reset(new COCOParser(spec, annotations_multimap_, save_img_ids_));
   }
 

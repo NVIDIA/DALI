@@ -24,7 +24,7 @@ namespace dali {
 class SequenceReader : public DataReader<CPUBackend, TensorSequence> {
  public:
   explicit SequenceReader(const OpSpec& spec) : DataReader<CPUBackend, TensorSequence>(spec) {
-    loader_.reset(new SequenceLoader(spec));
+    loader_ = InitLoader<SequenceLoader>(spec);
     parser_.reset(new SequenceParser(spec));
   }
 

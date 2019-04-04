@@ -90,10 +90,13 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
         file_root_(spec.GetArgument<string>("file_root")),
         sequence_length_(spec.GetArgument<int32_t>("sequence_length")),
         step_(spec.GetArgument<int32_t>("step")),
-        stride_(spec.GetArgument<int32_t>("stride")),
-        streams_(filesystem::GatherExtractedStreams(file_root_)),
-        sequences_(detail::GenerateSequences(streams_, sequence_length_, step_, stride_)),
-        total_size_(sequences_.size()) {
+        stride_(spec.GetArgument<int32_t>("stride")) {
+  }
+
+  void PrepareMetadata() override {
+    streams_ = filesystem::GatherExtractedStreams(file_root_);
+    sequences_ = detail::GenerateSequences(streams_, sequence_length_, step_, stride_);
+    total_size_ = sequences_.size();
     DALI_ENFORCE(sequence_length_ > 0, "Sequence length must be positive");
     DALI_ENFORCE(step_ > 0, "Step must be positive");
     DALI_ENFORCE(stride_ > 0, "Stride must be positive");

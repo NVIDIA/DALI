@@ -113,11 +113,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       filenames_(filenames),
       codec_id_(0),
       done_(false) {
-      if (step_ < 0)
-        step_ = count_;
-  }
-
-  void init() {
+    if (step_ < 0)
+      step_ = count_;
     DALI_ENFORCE(cuvidInitChecked(0),
      "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
      "If you are running in a Docker container, please refer "
@@ -129,7 +126,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     CUDA_CALL(cudaGetDevice(&device_id_));
 
     av_register_all();
+  }
 
+  void PrepareMetadata() {
     for (size_t i = 0; i < filenames_.size(); ++i) {
       int frame_count = get_or_open_file(filenames_[i]).frame_count_;
       for (int s = 0; s < frame_count && s + count_ <= frame_count; s += step_) {
