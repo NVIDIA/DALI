@@ -34,8 +34,11 @@ class StreamPool {
    * @brief Creates a pool with the given max size. If the input
    * size is < 0, the pool has no size limit.
    */
-  explicit inline StreamPool(int max_size, bool non_blocking = true) :
-    max_size_(max_size), non_blocking_(non_blocking) {
+  explicit inline StreamPool(int max_size, bool non_blocking = true,
+                             int default_cuda_stream_priority = 0)
+      : max_size_(max_size),
+        non_blocking_(non_blocking),
+        default_cuda_stream_priority_(default_cuda_stream_priority) {
     DALI_ENFORCE(max_size != 0, "Stream pool must have non-zero size.");
   }
 
@@ -59,9 +62,8 @@ class StreamPool {
       // Note: Why is device tracked? Is StreamPool intended to be used across devices?
       int dev;
       cudaGetDevice(&dev);
-
-      CUDA_CALL(cudaStreamCreateWithFlags(&new_stream,
-              non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault));
+      int flags = non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault;
+      CUDA_CALL(cudaStreamCreateWithPriority(&new_stream, flags, default_cuda_stream_priority_));
       streams_.push_back(new_stream);
       stream_devices_[new_stream] = dev;
       return new_stream;
@@ -78,6 +80,7 @@ class StreamPool {
 
   int max_size_, idx_ = 0;
   bool non_blocking_;
+  int default_cuda_stream_priority_;
 };
 
 }  // namespace dali

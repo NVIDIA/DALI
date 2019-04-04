@@ -150,7 +150,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
       for (int i = 0; i < max_streams_; ++i) {
         NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &states_[i]));
-        CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
+        CUDA_CALL(cudaStreamCreateWithPriority(&streams_[i], cudaStreamNonBlocking,
+                                               default_cuda_stream_priority_));
         CUDA_CALL(cudaEventCreate(&events_[i]));
       }
       CUDA_CALL(cudaEventCreate(&master_event_));

@@ -18,11 +18,11 @@
 
 namespace dali {
 
-CUStream::CUStream(int device_id, bool default_stream) :
+CUStream::CUStream(int device_id, bool default_stream, int priority) :
         stream_{0} {
   if (!default_stream) {
     DeviceGuard dg(device_id);
-    CUDA_CALL(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
+    CUDA_CALL(cudaStreamCreateWithPriority(&stream_, cudaStreamNonBlocking, priority));
   }
 }
 
