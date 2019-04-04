@@ -158,6 +158,13 @@ auto make_span(Collection &c)->decltype(make_span(c.data(), c.size())) {
   return make_span(c.data(), c.size());
 }
 
+template <typename Collection>
+auto make_span(Collection &&c)->decltype(make_span(c.data(), c.size())) {
+  static_assert(!std::is_rvalue_reference<Collection&&>::value,
+    "Cannot create a span from an r-value.");
+  return make_span(c.data(), c.size());
+}
+
 template <typename T, size_t N>
 constexpr span<T, N> make_span(std::array<T, N> &a) {
   return { a.data() };
@@ -169,10 +176,16 @@ constexpr span<const T, N> make_span(const std::array<T, N> &a) {
 }
 
 template <typename T, size_t N>
+constexpr span<const T, N> make_span(std::array<T, N> &&a) {
+  static_assert(!std::is_rvalue_reference<std::array<T, N> &&>::value,
+    "Cannot create a span from an r-value.");
+  return { a.data() };
+}
+
+template <typename T, size_t N>
 constexpr span<const T, N> make_span(T (&a)[N]) {
   return { a };
 }
-
 
 }  // namespace dali
 

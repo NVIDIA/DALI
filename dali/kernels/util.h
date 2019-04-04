@@ -38,7 +38,6 @@ size_t size(const T (&a)[N]) {
   return N;
 }
 
-
 template <typename Value, typename Alignment>
 constexpr Value align_up(Value v, Alignment a) {
   return v + ((a - 1) & -v);
