@@ -80,6 +80,7 @@ ImageCache::DecodedImage ImageCacheBlob::Get(const ImageKey& image_key) const {
   const auto it = cache_.find(image_key);
   if (it == cache_.end())
     return {};
+  if (stats_enabled_) stats_[image_key].reads++;
   auto ret = it->second;  // make a copy _before_ leaving the mutex
   return ret;
 }

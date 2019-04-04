@@ -34,8 +34,6 @@
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
 #include "dali/common.h"
-#include "dali/kernels/common/scatter_gather.h"
-#include "dali/kernels/tensor_shape_print.h"
 
 namespace dali {
 
@@ -126,7 +124,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output_type_(spec.GetArgument<DALIImageType>("output_type")),
     output_shape_(batch_size_),
     output_info_(batch_size_),
-    cached_images_(batch_size_),
+    img_in_cache_(batch_size_),
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
     batched_image_idx_(batch_size_),
     batched_output_(batch_size_),
@@ -303,26 +301,23 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
 
 
-      if (cache_) {
+      if (IsCacheEnabled()) {
         for (int i = 0; i < batch_size_; ++i) {
           size_t j = image_order[i].second;
           auto &in = ws->Input<CPUBackend>(0, j);
           auto file_name = in.GetSourceInfo();
 
-          auto img = cache_->Get(file_name);
-          cached_images_[j] = img;
-          if (img.data) {
-            scatter_gather_.AddCopy(output.raw_mutable_tensor(j), img.data, img.num_elements());
-          }
+          if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
+            img_in_cache_[j] = true;
         }
-        scatter_gather_.Run(ws->stream());
+        LoadDeferred(ws->stream());
       }
 
       // Loop over images again and decode
       for (int i = 0; i < batch_size_; ++i) {
         size_t j = image_order[i].second;
 
-        if (cached_images_[j].data)
+        if (img_in_cache_[j])
           continue;
 
         auto &in = ws->Input<CPUBackend>(0, j);
@@ -499,8 +494,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // Storage for per-image info
   vector<Dims> output_shape_;
   vector<EncodedImageInfo> output_info_;
-  vector<ImageCache::DecodedImage> cached_images_;
-  kernels::ScatterGatherGPU scatter_gather_;
+  vector<bool> img_in_cache_;
 
   bool use_batched_decode_;
   // For batched API we need image index within the batch being

@@ -51,7 +51,9 @@ class DLL_PUBLIC ScatterGatherGPU {
   : ScatterGatherGPU(
       max_size_per_block,
       (total_size + num_ranges * (max_size_per_block - 1)) / max_size_per_block)
-  {}
+  {
+    ranges_.reserve(num_ranges);
+  }
 
   void Reset() {
     ranges_.clear();
@@ -72,7 +74,9 @@ class DLL_PUBLIC ScatterGatherGPU {
   /// @brief Executes the copies
   /// @param stream - the cudaStream on which the copies are scheduled
   /// @param reset - if true, calls Reset after processing is over
-  DLL_PUBLIC void Run(cudaStream_t stream, bool reset = true);
+  /// @param useMemcpyOnly - if true, all copies are executed using cudaMemcpy;
+  ///                        otherwise a batched kernel is used if there are more than 2 ranges
+  DLL_PUBLIC void Run(cudaStream_t stream, bool reset = true, bool useMemcpyOnly = false);
 
   using CopyRange = detail::CopyRange;
  private:

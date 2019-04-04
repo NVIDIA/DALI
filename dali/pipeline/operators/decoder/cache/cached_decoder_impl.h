@@ -22,6 +22,9 @@
 #include "dali/pipeline/operators/op_spec.h"
 
 namespace dali {
+namespace kernels {
+class ScatterGatherGPU;
+}  // namespace kernels
 
 class CachedDecoderImpl {
  public:
@@ -29,24 +32,32 @@ class CachedDecoderImpl {
    * @params spec: to determine all the cache parameters
    */
   explicit CachedDecoderImpl(const OpSpec& spec);
-  virtual ~CachedDecoderImpl() = default;
 
-  virtual bool CacheLoad(
+  bool CacheLoad(
     const std::string& file_name,
     uint8_t *output_data,
     cudaStream_t stream);
 
   void CacheStore(
     const std::string& file_name,
-    uint8_t* data,
+    const uint8_t *data,
     const ImageCache::ImageShape& data_shape,
     cudaStream_t stream);
+
+  bool DeferCacheLoad(const std::string& file_name, uint8_t *output_data);
+
+  void LoadDeferred(cudaStream_t stream, bool useMemcpyOnly = false);
 
   ImageCache::ImageShape CacheImageShape(
     const std::string& file_name);
 
+  bool IsCacheEnabled() const noexcept { return cache_ != nullptr; }
+
  protected:
+  ~CachedDecoderImpl();
+ private:
   std::shared_ptr<ImageCache> cache_;
+  std::unique_ptr<kernels::ScatterGatherGPU> scatter_gather_;
   int device_id_;
 };
 

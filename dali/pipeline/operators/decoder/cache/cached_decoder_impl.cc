@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
+#include "dali/error_handling.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/pipeline/operators/decoder/cache/image_cache_factory.h"
-#include "dali/error_handling.h"
+#include "dali/kernels/common/scatter_gather.h"
 
 namespace dali {
+
+// NOTE: has to be in .cc so we can forward-declare ScatterGatherGPU
+CachedDecoderImpl::~CachedDecoderImpl() = default;
 
 CachedDecoderImpl::CachedDecoderImpl(const OpSpec& spec)
     : device_id_(spec.GetArgument<int>("device_id")) {
@@ -29,15 +34,36 @@ CachedDecoderImpl::CachedDecoderImpl(const OpSpec& spec)
     const bool cache_debug = spec.GetArgument<bool>("cache_debug");
     cache_ = ImageCacheFactory::Instance().Get(
       device_id_, cache_type, cache_size, cache_debug, cache_threshold);
+
+    auto batch_size = spec.GetArgument<int>("batch_size");
+    const size_t kMaxSizePerBlock = 1<<18; // 256 kB per block
+    scatter_gather_.reset(new kernels::ScatterGatherGPU(
+      kMaxSizePerBlock, cache_size, batch_size));
   }
 }
 
 bool CachedDecoderImpl::CacheLoad(const std::string& file_name,
-                                  uint8_t* output_data,
+                                  uint8_t *output_data,
                                   cudaStream_t stream) {
   if (!cache_ || file_name.empty())
     return false;
   return cache_->Read(file_name, output_data, stream);
+}
+
+
+bool CachedDecoderImpl::DeferCacheLoad(const std::string& file_name, uint8_t *output_data) {
+  if (!cache_ || file_name.empty())
+    return false;
+  auto img = cache_->Get(file_name);
+  if (!img.data)
+    return false;
+  scatter_gather_->AddCopy(output_data, img.data, img.num_elements());
+  return true;
+}
+
+void CachedDecoderImpl::LoadDeferred(cudaStream_t stream, bool useMemcpyOnly) {
+  if (scatter_gather_)
+    CUDA_CALL((scatter_gather_->Run(stream, true, useMemcpyOnly), cudaGetLastError()));
 }
 
 ImageCache::ImageShape CachedDecoderImpl::CacheImageShape(const std::string& file_name) {
@@ -45,7 +71,7 @@ ImageCache::ImageShape CachedDecoderImpl::CacheImageShape(const std::string& fil
     cache_->GetShape(file_name) : ImageCache::ImageShape{};
 }
 
-void CachedDecoderImpl::CacheStore(const std::string& file_name, uint8_t* data,
+void CachedDecoderImpl::CacheStore(const std::string& file_name, const uint8_t *data,
                                    const ImageCache::ImageShape& data_shape,
                                    cudaStream_t stream) {
   if (!cache_ || file_name.empty() || cache_->IsCached(file_name))
