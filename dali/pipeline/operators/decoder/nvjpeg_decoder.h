@@ -124,7 +124,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output_type_(spec.GetArgument<DALIImageType>("output_type")),
     output_shape_(batch_size_),
     output_info_(batch_size_),
-    img_in_cache_(batch_size_),
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
     batched_image_idx_(batch_size_),
     batched_output_(batch_size_),
@@ -299,32 +298,18 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       std::sort(image_order.begin(), image_order.end(),
                 std::greater<std::pair<size_t, size_t>>());
 
-
-
-      if (IsCacheEnabled()) {
-        for (int i = 0; i < batch_size_; ++i) {
-          size_t j = image_order[i].second;
-          auto &in = ws->Input<CPUBackend>(0, j);
-          auto file_name = in.GetSourceInfo();
-
-          if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
-            img_in_cache_[j] = true;
-        }
-        LoadDeferred(ws->stream());
-      }
-
       // Loop over images again and decode
       for (int i = 0; i < batch_size_; ++i) {
         size_t j = image_order[i].second;
-
-        if (img_in_cache_[j])
-          continue;
 
         auto &in = ws->Input<CPUBackend>(0, j);
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
         auto *output_data = output.mutable_tensor<uint8_t>(j);
+        if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
+          continue;
+
         const auto &dims = output_shape_[j];
         const ImageCache::ImageShape output_shape{dims[0], dims[1], dims[2]};
         auto info = output_info_[j];
@@ -348,6 +333,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
             CacheStore(file_name, output_data, output_shape, streams_[stream_idx]);
           });
       }
+      LoadDeferred(ws->stream());
       // Make sure work is finished being submitted
       thread_pool_.WaitForWork();
     }
@@ -494,7 +480,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // Storage for per-image info
   vector<Dims> output_shape_;
   vector<EncodedImageInfo> output_info_;
-  vector<bool> img_in_cache_;
 
   bool use_batched_decode_;
   // For batched API we need image index within the batch being
