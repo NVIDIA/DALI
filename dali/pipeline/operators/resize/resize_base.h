@@ -48,7 +48,7 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
   std::vector<KernelData> kernel_data_;
 
   DLL_PUBLIC void Initialize(int num_threads = 1);
-  DLL_PUBLIC void InitializeGPU();
+  DLL_PUBLIC void InitializeGPU(int batch_size, int minibatch_size);
 
   inline KernelData &GetKernelData() {
     DALI_ENFORCE(!kernel_data_.empty(), "Resize kernel data not initialized");

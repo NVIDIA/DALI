@@ -84,7 +84,7 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   kdata.requirements = Kernel::GetRequirements(
       kdata.context,
       view<const uint8_t, 3>(input),
-      resample_params_);
+      make_span(resample_params_));
 
   kdata.scratch_alloc.Reserve(kdata.requirements.scratch_sizes);
 
@@ -95,7 +95,7 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   kdata.context.scratchpad = &scratchpad;
   auto in_view = view<const uint8_t, 3>(input);
   auto out_view = view<uint8_t, 3>(output);
-  Kernel::Run(kdata.context, out_view, in_view, resample_params_);
+  Kernel::Run(kdata.context, out_view, in_view, make_span(resample_params_));
 }
 
 void ResizeBase::Initialize(int num_threads) {
@@ -104,7 +104,7 @@ void ResizeBase::Initialize(int num_threads) {
   resample_params_.resize(num_threads);
 }
 
-void ResizeBase::InitializeGPU() {
+void ResizeBase::InitializeGPU(int batch_size, int mini_batch_size) {
   kernel_data_.resize(1);
   auto &kdata = GetKernelData();
   auto &gpu_scratch = kdata.requirements.scratch_sizes[static_cast<int>(kernels::AllocType::GPU)];
