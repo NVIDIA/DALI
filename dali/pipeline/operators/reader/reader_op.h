@@ -168,13 +168,6 @@ class DataReader : public Operator<Backend> {
     return sample_ptr;
   }
 
-  template<typename T, typename... Args>
-  std::unique_ptr<T> InitLoader(const OpSpec& spec, Args... args) {
-    std::unique_ptr<T> l (new T(spec, args...));
-    l->Init();
-    return l;
-  }
-
  protected:
   void ProducerStop(std::exception_ptr error = nullptr) {
     {

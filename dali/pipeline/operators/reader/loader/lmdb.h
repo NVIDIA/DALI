@@ -67,6 +67,7 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     : Loader(options),
       db_path_(options.GetArgument<string>("path")) {
   }
+
   ~LMDBReader() override {
     mdb_cursor_close(mdb_cursor_);
     mdb_dbi_close(mdb_env_, mdb_dbi_);

@@ -76,7 +76,9 @@ class Loader {
   // is not known in Loader ctor
   void Init() {
     if (!lazy_) {
-      PrepareMetadata();
+      std::call_once(metadata_preparation_flag_, [this]() {
+        PrepareMetadata();
+      });
     }
   }
 
@@ -104,7 +106,7 @@ class Loader {
 
   // Get a random read sample
   LoadTargetPtr ReadOne() {
-    std::call_once(metadata_preparation_flag_, [&](){
+    std::call_once(metadata_preparation_flag_, [this](){
       if (lazy_) {
         PrepareMetadata();
       }
@@ -199,7 +201,7 @@ class Loader {
     // Fetch image cache factory only the first time that we try to load an image
     // we don't do it in construction because we are not sure that the cache was
     // created since the order of operator creation is not guaranteed.
-    std::call_once(fetch_cache_, [&](){
+    std::call_once(fetch_cache_, [this](){
       auto &image_cache_factory = ImageCacheFactory::Instance();
       if (image_cache_factory.IsInitialized(device_id_))
         cache_ = image_cache_factory.Get(device_id_);
@@ -254,6 +256,13 @@ class Loader {
   std::once_flag fetch_cache_;
   std::shared_ptr<ImageCache> cache_;
 };
+
+template<typename T, typename... Args>
+std::unique_ptr<T> InitLoader(const OpSpec& spec, Args... args) {
+  std::unique_ptr<T> l (new T(spec, args...));
+  l->Init();
+  return l;
+}
 
 };  // namespace dali
 
