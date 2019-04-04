@@ -76,7 +76,6 @@ class DLL_PUBLIC ImageCache {
    *          images from the cache.
    */
   DLL_PUBLIC virtual DecodedImage Get(const ImageKey &image_key) const = 0;
-
 };
 
 }  // namespace dali

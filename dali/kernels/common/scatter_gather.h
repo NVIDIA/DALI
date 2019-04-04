@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_KERNELS_COMMON_SCATTER_GATHER_H_
+#define DALI_KERNELS_COMMON_SCATTER_GATHER_H_
+
 #include <cuda_runtime.h>
 #include <cstdint>
 #include <vector>
@@ -50,8 +53,7 @@ class DLL_PUBLIC ScatterGatherGPU {
   ScatterGatherGPU(size_t max_size_per_block, size_t total_size, size_t num_ranges)
   : ScatterGatherGPU(
       max_size_per_block,
-      (total_size + num_ranges * (max_size_per_block - 1)) / max_size_per_block)
-  {
+      (total_size + num_ranges * (max_size_per_block - 1)) / max_size_per_block) {
     ranges_.reserve(num_ranges);
   }
 
@@ -79,6 +81,7 @@ class DLL_PUBLIC ScatterGatherGPU {
   DLL_PUBLIC void Run(cudaStream_t stream, bool reset = true, bool useMemcpyOnly = false);
 
   using CopyRange = detail::CopyRange;
+
  private:
   std::vector<CopyRange> ranges_;
 
@@ -99,8 +102,9 @@ class DLL_PUBLIC ScatterGatherGPU {
   kernels::memory::KernelUniquePtr<CopyRange> blocks_dev_;
   size_t block_capacity_ = 0;
   size_t size_per_block_ = 0;
-
 };
 
 }  // namespace kernels
 }  // namespace dali
+
+#endif  // DALI_KERNELS_COMMON_SCATTER_GATHER_H_

@@ -36,7 +36,7 @@ CachedDecoderImpl::CachedDecoderImpl(const OpSpec& spec)
       device_id_, cache_type, cache_size, cache_debug, cache_threshold);
 
     auto batch_size = spec.GetArgument<int>("batch_size");
-    const size_t kMaxSizePerBlock = 1<<18; // 256 kB per block
+    const size_t kMaxSizePerBlock = 1<<18;  // 256 kB per block
     scatter_gather_.reset(new kernels::ScatterGatherGPU(
       kMaxSizePerBlock, cache_size, batch_size));
   }

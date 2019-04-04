@@ -55,6 +55,7 @@ class CachedDecoderImpl {
 
  protected:
   ~CachedDecoderImpl();
+
  private:
   std::shared_ptr<ImageCache> cache_;
   std::unique_ptr<kernels::ScatterGatherGPU> scatter_gather_;
