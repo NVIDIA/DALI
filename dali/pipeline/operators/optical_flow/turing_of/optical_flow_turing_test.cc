@@ -241,7 +241,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
 
   // Reference
   auto matref = cv::imread(test_data_path + string("frame_reference.png"));
-  cv::cvtColor(matref, matref, CV_BGR2RGB);
+  cv::cvtColor(matref, matref, cv::COLOR_BGR2RGB);
   assert(matref.isContinuous() && matref.channels() == 3);
   auto ref = mat_to_tensor(matref);
   auto tvref = get<0>(ref);
@@ -249,7 +249,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
 
   // Input
   auto matin = cv::imread(test_data_path + string("frame_input.png"));
-  cv::cvtColor(matin, matin, CV_BGR2RGB);
+  cv::cvtColor(matin, matin, cv::COLOR_BGR2RGB);
   assert(matin.isContinuous() && matin.channels() == 3);
   auto in = mat_to_tensor(matin);
   auto tvin = get<0>(in);
@@ -304,7 +304,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowExternalHintsTest) {
 
   // Reference frame
   auto matref = cv::imread(test_data_path + string("frame_reference.png"));
-  cv::cvtColor(matref, matref, CV_BGR2RGB);
+  cv::cvtColor(matref, matref, cv::COLOR_BGR2RGB);
   assert(matref.isContinuous() && matref.channels() == 3);
   auto ref = mat_to_tensor(matref);
   auto tvref = get<0>(ref);
@@ -313,7 +313,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowExternalHintsTest) {
 
   // Input frame
   auto matin = cv::imread(test_data_path + string("frame_input.png"));
-  cv::cvtColor(matin, matin, CV_BGR2RGB);
+  cv::cvtColor(matin, matin, cv::COLOR_BGR2RGB);
   assert(matin.isContinuous() && matin.channels() == 3);
   auto in = mat_to_tensor(matin);
   auto tvin = get<0>(in);
@@ -367,4 +367,3 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowExternalHintsTest) {
 }  // namespace optical_flow
 
 }  // namespace dali
-
