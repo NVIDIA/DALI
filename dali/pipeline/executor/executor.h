@@ -80,8 +80,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       : batch_size_(batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
-        default_cuda_stream_priority_(default_cuda_stream_priority),
-        stream_pool_(max_num_stream, true),
+        stream_pool_(max_num_stream, true, default_cuda_stream_priority),
         event_pool_(max_num_stream),
         thread_pool_(num_thread, device_id, set_affinity),
         exec_error_(false),
@@ -157,7 +156,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
-  int default_cuda_stream_priority_;
   int previous_gpu_queue_idx_ = -1;
 
   vector<string> output_names_;
@@ -239,8 +237,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // Setup stream and events that will be used for execution
   {
     DeviceGuard g(device_id_);
-    mixed_op_stream_ = stream_pool_.GetStream(default_cuda_stream_priority_);
-    gpu_op_stream_ = stream_pool_.GetStream(default_cuda_stream_priority_);
+    mixed_op_stream_ = stream_pool_.GetStream();
+    gpu_op_stream_ = stream_pool_.GetStream();
     mixed_op_events_ = CreateEventsForMixedOps(event_pool_, *graph_, QueueDepth(OpType::MIXED));
   }
 

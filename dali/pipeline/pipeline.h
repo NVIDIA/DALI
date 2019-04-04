@@ -339,8 +339,7 @@ class DLL_PUBLIC Pipeline {
     this->prefetch_queue_depth_ = prefetch_queue_depth;
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
 
-    int lowest_cuda_stream_priority = std::numeric_limits<int>::min();
-    int highest_cuda_stream_priority = std::numeric_limits<int>::max();
+    int lowest_cuda_stream_priority, highest_cuda_stream_priority;
     CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
                                                &highest_cuda_stream_priority));
     const auto min_priority_value =
