@@ -128,7 +128,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     av_register_all();
   }
 
-  void PrepareMetadata() {
+  void PrepareMetadata() override {
     for (size_t i = 0; i < filenames_.size(); ++i) {
       int frame_count = get_or_open_file(filenames_[i]).frame_count_;
       for (int s = 0; s < frame_count && s + count_ <= frame_count; s += step_) {

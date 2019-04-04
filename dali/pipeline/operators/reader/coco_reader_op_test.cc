@@ -241,6 +241,32 @@ TEST_F(CocoReaderTest, IncludeEmpty) {
   this->CheckInstances(ws);
 }
 
+TEST_F(CocoReaderTest, IncludeEmptyLazy) {
+  Pipeline pipe(this->SmallCocoSize(), 1, 0);
+
+  pipe.AddOperator(
+    this->CocoReaderOpSpec()
+    .AddArg("lazy", true),
+    "coco_reader");
+
+  pipe.Build(this->Outputs());
+
+  // ASSERT_EQ(pipe.EpochSize()["coco_reader"], this->SmallCocoSize());
+
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
+
+  auto ids = this->CopyIds(ws);
+
+  for (int id = 0; id < this->SmallCocoSize(); ++id) {
+    ASSERT_EQ(ids[id], id);
+  }
+
+  this->CheckInstances(ws);
+}
+
 TEST_F(CocoReaderTest, BigSizeThreshold) {
   Pipeline pipe(this->ImagesWithBigObjects(), 1, 0);
 

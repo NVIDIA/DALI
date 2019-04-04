@@ -258,8 +258,8 @@ class Loader {
 };
 
 template<typename T, typename... Args>
-std::unique_ptr<T> InitLoader(const OpSpec& spec, Args... args) {
-  std::unique_ptr<T> l (new T(spec, args...));
+std::unique_ptr<T> InitLoader(const OpSpec& spec, Args&&... args) {
+  std::unique_ptr<T> l (new T(spec, std::forward<Args>(args)...));
   l->Init();
   return l;
 }
