@@ -233,19 +233,20 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       const auto file_name = in.GetSourceInfo();
       cudaStream_t stream = ws->stream();
       auto *output_data = output.mutable_tensor<uint8_t>(i);
+      if (DeferCacheLoad(file_name, output_data))
+        continue;
+
       auto dims = output_shape_[i];
       ImageCache::ImageShape shape = {dims[0], dims[1], dims[2]};
       thread_pool_.DoWorkWithID(
         [this, i, file_name, stream, &in, output_data, shape](int tid) {
-          if (CacheLoad(file_name, output_data, stream))
-            return;
-
           SampleWorker(i, file_name, in.size(), tid,
             in.data<uint8_t>(), output_data);
 
           CacheStore(file_name, output_data, shape, stream);
         });
     }
+    LoadDeferred(ws->stream());
 
     thread_pool_.WaitForWork();
     // record all the current streamed work
