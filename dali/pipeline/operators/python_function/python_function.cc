@@ -22,7 +22,6 @@ DALI_SCHEMA(PythonFunction)
         .NumInput(1)
         .NumOutput(1)
         .AllowMultipleInputSets()
-        .EnforceInputLayout(DALI_NHWC)
         .AddArg("function_id",
                 R"code(Id of the python function.)code",
                 DALI_INT64);
@@ -39,52 +38,68 @@ struct PyBindInitializer {
 // so this workaround initializes them manually
 static PyBindInitializer pybind_initializer{}; // NOLINT
 
-py::array tensorToNumpyArray(const Tensor<CPUBackend> &tensor) {
+py::array TensorToNumpyArray(const Tensor<CPUBackend> &tensor) {
   DALI_TYPE_SWITCH(tensor.type().id(), DType,
       return py::array_t<DType, py::array::c_style>(tensor.shape(), tensor.template data<DType>());
   )
 }
 
-TypeInfo getDaliType(const py::array &array) {
-  if (array.dtype().kind() == 'i') {
-    if (array.itemsize() == sizeof(int16)) {
-      return TypeInfo::Create<int16>();
-    } else if (array.itemsize() == sizeof(int32)) {
-      return TypeInfo::Create<int32>();
-    } else if (array.itemsize() == sizeof(int64)) {
-      return TypeInfo::Create<int64>();
+TypeInfo GetDaliType(const py::array &array) {
+  switch (array.dtype().kind()) {
+    case 'i': {
+      switch (array.itemsize()) {
+        case sizeof(int16):
+          return TypeInfo::Create<int16>();
+        case sizeof(int32):
+          return TypeInfo::Create<int32>();
+        case sizeof(int64):
+          return TypeInfo::Create<int64>();
+        default: {}
+      }
+      break;
     }
-  } else if (array.dtype().kind() == 'u') {
-    if (array.itemsize() == sizeof(uint8)) {
-      return TypeInfo::Create<uint8>();
+    case 'u': {
+      switch (array.itemsize()) {
+        case sizeof(uint8):
+          return TypeInfo::Create<uint8>();
+        default: {}
+      }
+      break;
     }
-  } else if (array.dtype().kind() == 'f') {
-    if (array.itemsize() == sizeof(float16)) {
-      return TypeInfo::Create<float16>();
-    } else if (array.itemsize() == sizeof(float)) {
-      return TypeInfo::Create<float>();
-    } else if (array.itemsize() == sizeof(double)) {
-      return TypeInfo::Create<double>();
+    case 'f': {
+      switch (array.itemsize()) {
+        case sizeof(float16):
+          return TypeInfo::Create<float16>();
+        case sizeof(float):
+          return TypeInfo::Create<float>();
+        case sizeof(double):
+          return TypeInfo::Create<double>();
+        default: {}
+      }
+      break;
     }
-  } else if (array.dtype().kind() == 'b') {
-    return TypeInfo::Create<bool>();
+    case 'b': {
+      return TypeInfo::Create<bool>();
+    }
+    default: {}
   }
-  DALI_FAIL("Unexpected numpy array type.");
+  DALI_FAIL(
+      "Unexpected numpy array type: " + array.dtype().kind() + std::to_string(array.itemsize()));
 }
 
-py::array numpyArrayAsContiguous(const TypeInfo &type, const py::array &array) {
+py::array NumpyArrayAsContiguous(const TypeInfo &type, const py::array &array) {
   DALI_TYPE_SWITCH(type.id(), DType,
-                   return py::array_t<DType, py::array::c_style>::ensure(array);
+      return py::array_t<DType, py::array::c_style>::ensure(array);
   )
 }
 
-void copyNumpyArrayToTensor(const py::array &array, Tensor<CPUBackend> &tensor) {
+void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, const py::array &array) {
   std::vector<Index> shape(static_cast<size_t>(array.ndim()));
   std::copy(array.shape(), array.shape() + array.ndim(), shape.begin());
-  TypeInfo type = getDaliType(array);
+  TypeInfo type = GetDaliType(array);
   tensor.set_type(type);
   tensor.Resize(shape);
-  py::array contiguous = numpyArrayAsContiguous(type, array);
+  py::array contiguous = NumpyArrayAsContiguous(type, array);
   std::memcpy(
       tensor.raw_mutable_data(),
       contiguous.data(),
@@ -96,8 +111,8 @@ void PythonFunction<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto &output = ws->Output<CPUBackend>(idx);
   py::gil_scoped_acquire guard{};
-  py::array output_array = python_function(tensorToNumpyArray(input));
-  copyNumpyArrayToTensor(output_array, output);
+  py::array output_array = python_function(TensorToNumpyArray(input));
+  CopyNumpyArrayToTensor(output, output_array);
 }
 
 DALI_REGISTER_OPERATOR(PythonFunction, PythonFunction<CPUBackend>, CPU);

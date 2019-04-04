@@ -54,8 +54,7 @@ if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
   set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
 endif()
 cuda_add_library(${dali_operator_lib} STATIC ${DALI_OPERATOR_SRCS})
-target_link_libraries(${dali_operator_lib} PRIVATE "${dali_kernel_lib}")
-target_link_libraries(${dali_operator_lib} PRIVATE pybind11::embed)
+target_link_libraries(${dali_operator_lib} PRIVATE "${dali_kernel_lib}" pybind11::embed)
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 
 # Options for using Dockerfile FFmpeg version
