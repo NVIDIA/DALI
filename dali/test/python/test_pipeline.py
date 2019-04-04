@@ -668,9 +668,9 @@ def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
     batch_size =128
 
     class NonFusedPipeline(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, num_gpus, seed=123456):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(NonFusedPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
             self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
             self.res = ops.RandomResizedCrop(device="gpu", size =(224,224), seed=seed)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
@@ -679,25 +679,23 @@ def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
-            self.coin = ops.CoinFlip()
-            self.uniform = ops.Uniform(range = (0.0,1.0))
+            self.coin = ops.CoinFlip(seed = seed)
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             images = self.decode(self.jpegs)
             resized_images = self.res(images)
             mirror = self.coin()
-            output = self.cmnp(resized_images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
-            return (output,resized_images, self.labels)
-
+            output = self.cmnp(resized_images, mirror = mirror)
+            return (output, resized_images, self.labels)
 
         def iter_setup(self):
             pass
 
     class FusedPipeline(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, num_gpus, seed=123456):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(FusedPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
             self.decode = ops.nvJPEGDecoderRandomCrop(device = "mixed", output_type = types.RGB, seed=seed)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
@@ -706,30 +704,33 @@ def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
                                                 image_type = types.RGB,
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
-            self.coin = ops.CoinFlip()
-            self.uniform = ops.Uniform(range = (0.0,1.0))
+            self.coin = ops.CoinFlip(seed = seed)
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             images = self.decode(self.jpegs)
             resized_images = self.res(images)
             mirror = self.coin()
-            output = self.cmnp(resized_images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
-            return (output,resized_images, self.labels)
+            output = self.cmnp(resized_images, mirror = mirror)
+            return (output, resized_images, self.labels)
 
         def iter_setup(self):
             pass
 
-    nonfused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+    random_seed = 123456
+    nonfused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, seed = random_seed)
     nonfused_pipe.build()
     nonfused_pipe_out = nonfused_pipe.run()
-    fused_pipe = FusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+
+    fused_pipe = FusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, seed = random_seed)
     fused_pipe.build()
     fused_pipe_out = fused_pipe.run()
+
+    nonfused_pipe_out_cpu = nonfused_pipe_out[0].as_cpu()
+    fused_pipe_out_cpu = fused_pipe_out[0].as_cpu()
+
     for i in range(batch_size):
-        nonfused_pipe_out_cpu = nonfused_pipe_out[0].as_cpu()
-        fused_pipe_out_cpu = fused_pipe_out[0].as_cpu()
-        assert(np.sum(np.abs(nonfused_pipe_out_cpu.at(i)-fused_pipe_out_cpu.at(i)))==0)
+        assert(np.mean(np.abs(nonfused_pipe_out_cpu.at(i)-fused_pipe_out_cpu.at(i))) < 0.5)
 
 class ExternalInputIterator(object):
     def __init__(self, batch_size):
@@ -750,14 +751,13 @@ class ExternalInputIterator(object):
         return (pos, size)
     next = __next__
 
-eii = ExternalInputIterator(128)
-pos_size_iter = iter(eii)
-
 def test_equal_nvJPEGDecoderSlice_nvJPEGDecoder():
     """
         Comparing results of pipeline: (nvJPEGDecoder -> Slice), with the same operation performed by fused operator
     """
     batch_size =128
+    eii = ExternalInputIterator(128)
+    pos_size_iter = iter(eii)
 
     class NonFusedPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus):
