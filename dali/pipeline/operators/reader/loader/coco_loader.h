@@ -48,7 +48,8 @@ class CocoLoader : public FileLoader {
       size_threshold_(spec.GetArgument<float>("size_threshold")),
       skip_empty_(spec.GetArgument<bool>("skip_empty")) {}
 
-  void PrepareMetadata() override {
+ protected:
+  void PrepareMetadataImpl() override {
     ParseAnnotationFilesHelper(
       annotations_filename_,
       annotations_multimap_,
@@ -68,7 +69,6 @@ class CocoLoader : public FileLoader {
     Reset(true);
   }
 
- protected:
   AnnotationMap &annotations_multimap_;
   std::vector<std::string> annotations_filename_;
   bool ltrb_;

@@ -128,7 +128,35 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     av_register_all();
   }
 
-  void PrepareMetadata() override {
+  ~VideoLoader() noexcept override {
+    done_ = true;
+    send_queue_.shutdown();
+    if (vid_decoder_) {
+      vid_decoder_->finish();
+    }
+    if (thread_file_reader_.joinable()) {
+      try {
+        thread_file_reader_.join();
+      } catch (const std::system_error& e) {
+        // We should not throw here
+      }
+    }
+  }
+
+  void PrepareEmpty(SequenceWrapper &tensor) override;
+  void ReadSample(SequenceWrapper &tensor) override;
+
+  OpenFile& get_or_open_file(std::string filename);
+  void seek(OpenFile& file, int frame);
+  void read_file();
+  void push_sequence_to_read(std::string filename, int frame, int count);
+  void receive_frames(SequenceWrapper& sequence);
+  std::pair<int, int> load_width_height(const std::string& filename);
+
+ protected:
+  Index SizeImpl() override;
+
+  void PrepareMetadataImpl() override {
     for (size_t i = 0; i < filenames_.size(); ++i) {
       int frame_count = get_or_open_file(filenames_[i]).frame_count_;
       for (int s = 0; s < frame_count && s + count_ <= frame_count; s += step_) {
@@ -148,32 +176,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
     thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
-
-  ~VideoLoader() noexcept override {
-    done_ = true;
-    send_queue_.shutdown();
-    if (vid_decoder_) {
-      vid_decoder_->finish();
-    }
-    if (thread_file_reader_.joinable()) {
-      try {
-        thread_file_reader_.join();
-      } catch (const std::system_error& e) {
-        // We should not throw here
-      }
-    }
-  }
-
-  void PrepareEmpty(SequenceWrapper &tensor) override;
-  void ReadSample(SequenceWrapper &tensor) override;
-  Index Size() override;
-
-  OpenFile& get_or_open_file(std::string filename);
-  void seek(OpenFile& file, int frame);
-  void read_file();
-  void push_sequence_to_read(std::string filename, int frame, int count);
-  void receive_frames(SequenceWrapper& sequence);
-  std::pair<int, int> load_width_height(const std::string& filename);
 
  private:
   void Reset(bool wrap_to_shard) override {

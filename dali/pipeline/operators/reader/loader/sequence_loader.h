@@ -93,7 +93,13 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
         stride_(spec.GetArgument<int32_t>("stride")) {
   }
 
-  void PrepareMetadata() override {
+  void PrepareEmpty(TensorSequence &tensor) override;
+  void ReadSample(TensorSequence &tensor) override;
+
+ protected:
+  Index SizeImpl() override;
+
+  void PrepareMetadataImpl() override {
     streams_ = filesystem::GatherExtractedStreams(file_root_);
     sequences_ = detail::GenerateSequences(streams_, sequence_length_, step_, stride_);
     total_size_ = sequences_.size();
@@ -112,10 +118,6 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
     }
     Reset(true);
   }
-
-  void PrepareEmpty(TensorSequence &tensor) override;
-  void ReadSample(TensorSequence &tensor) override;
-  Index Size() override;
 
  private:
   void Reset(bool wrap_to_shard) override {

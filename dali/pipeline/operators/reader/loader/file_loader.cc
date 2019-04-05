@@ -135,7 +135,7 @@ void FileLoader::ReadSample(ImageLabelWrapper &image_label) {
   image_label.label = image_pair.second;
 }
 
-Index FileLoader::Size() {
+Index FileLoader::SizeImpl() {
   return static_cast<Index>(image_label_pairs_.size());
 }
 }  // namespace dali

@@ -86,10 +86,6 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     return;
   }
 
-  Index Size() override {
-    return indices_.size();
-  }
-
   ~IndexedFileLoader() override {
     if (current_file_ != nullptr) {
       current_file_->Close();
@@ -111,7 +107,11 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
  protected:
-  void PrepareMetadata() override {
+  Index SizeImpl() override {
+    return indices_.size();
+  }
+
+  void PrepareMetadataImpl() override {
     DALI_ENFORCE(!uris_.empty(), "No files specified.");
     ReadIndexFile(index_uris_);
     DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");

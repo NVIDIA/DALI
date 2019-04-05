@@ -76,24 +76,6 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     mdb_env_ = nullptr;
   }
 
-  void PrepareMetadata() override {
-    // Create the db environment, open the passed DB
-    CHECK_LMDB(mdb_env_create(&mdb_env_));
-    auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
-    CHECK_LMDB(mdb_env_open(mdb_env_, db_path_.c_str(), mdb_flags, 0664));
-
-    // Create transaction and cursor
-    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
-    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
-    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
-    lmdb_size_ = lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
-
-    // Optional: debug printing
-    lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
-
-    Reset(true);
-  }
-
   void ReadSample(Tensor<CPUBackend>& tensor) override {
     // assume cursor is valid, read next, loop to start if necessary
     lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
@@ -121,8 +103,27 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
                 value_.mv_size*sizeof(uint8_t));
   }
 
-  Index Size() override {
+ protected:
+  Index SizeImpl() override {
     return lmdb_size_;
+  }
+
+  void PrepareMetadataImpl() override {
+    // Create the db environment, open the passed DB
+    CHECK_LMDB(mdb_env_create(&mdb_env_));
+    auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
+    CHECK_LMDB(mdb_env_open(mdb_env_, db_path_.c_str(), mdb_flags, 0664));
+
+    // Create transaction and cursor
+    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
+    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
+    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
+    lmdb_size_ = lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
+
+    // Optional: debug printing
+    lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
+
+    Reset(true);
   }
 
  private:

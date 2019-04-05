@@ -251,12 +251,14 @@ TEST_F(CocoReaderTest, IncludeEmptyLazy) {
 
   pipe.Build(this->Outputs());
 
-  // ASSERT_EQ(pipe.EpochSize()["coco_reader"], this->SmallCocoSize());
+  EXPECT_ANY_THROW(pipe.EpochSize()["coco_reader"]);
 
   DeviceWorkspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
   pipe.Outputs(&ws);
+
+  ASSERT_EQ(pipe.EpochSize()["coco_reader"], this->SmallCocoSize());
 
   auto ids = this->CopyIds(ws);
 

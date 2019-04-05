@@ -64,7 +64,10 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
   void PrepareEmpty(ImageLabelWrapper &tensor) override;
   void ReadSample(ImageLabelWrapper &tensor) override;
 
-  void PrepareMetadata() override {
+ protected:
+  Index SizeImpl() override;
+
+  void PrepareMetadataImpl() override {
     if (image_label_pairs_.empty()) {
       if (file_list_ == "") {
         image_label_pairs_ = filesystem::traverse_directories(file_root_);
@@ -82,8 +85,7 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
         DALI_ENFORCE(s.eof(), "Wrong format of file_list.");
       }
     }
-
-    DALI_ENFORCE(Size() > 0, "No files found.");
+        DALI_ENFORCE(Size() > 0, "No files found.");
 
     if (shuffle_) {
       // seeded with hardcoded value to get
@@ -94,9 +96,6 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
     Reset(true);
   }
 
-  Index Size() override;
-
- protected:
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
       current_index_ = start_index(shard_id_, num_shards_, Size());

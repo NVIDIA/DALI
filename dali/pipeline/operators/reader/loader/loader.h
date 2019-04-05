@@ -60,7 +60,8 @@ class Loader {
       stick_to_shard_(options.GetArgument<bool>("stick_to_shard")),
       device_id_(options.GetArgument<int>("device_id")),
       skip_cached_images_(options.GetArgument<bool>("skip_cached_images")),
-      lazy_(options.GetArgument<bool>("lazy")) {
+      lazy_(options.GetArgument<bool>("lazy")),
+      loaded_(false) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -173,12 +174,22 @@ class Loader {
   // reads.
   virtual void ReadSample(LoadTarget& tensor) = 0;
 
-  virtual void PrepareMetadata() {}
+  void PrepareMetadata() {
+    loaded_ = true;
+    PrepareMetadataImpl();
+  }
 
   // Give the size of the data accessed through the Loader
-  virtual Index Size() = 0;
+  Index Size() {
+    DALI_ENFORCE(loaded_, "Calling Size before data was loaded is an error");
+    return SizeImpl();
+  }
 
  protected:
+  virtual Index SizeImpl() = 0;
+
+  virtual void PrepareMetadataImpl() {}
+
   virtual void MoveToNextShard(Index current_index) {
     if (IsNextShard(current_index)) {
       Reset(stick_to_shard_);
@@ -251,6 +262,7 @@ class Loader {
   // first run
   std::once_flag metadata_preparation_flag_;
   bool lazy_;
+  bool loaded_;
 
   // Image cache
   std::once_flag fetch_cache_;
