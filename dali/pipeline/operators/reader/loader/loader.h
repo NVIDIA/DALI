@@ -59,7 +59,9 @@ class Loader {
       read_ahead_(options.GetArgument<bool>("read_ahead")),
       stick_to_shard_(options.GetArgument<bool>("stick_to_shard")),
       device_id_(options.GetArgument<int>("device_id")),
-      skip_cached_images_(options.GetArgument<bool>("skip_cached_images")) {
+      skip_cached_images_(options.GetArgument<bool>("skip_cached_images")),
+      lazy_init_(options.GetArgument<bool>("lazy_init")),
+      loaded_(false) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -70,6 +72,16 @@ class Loader {
   }
 
   virtual ~Loader() = default;
+
+  // We need this two stage init because overriden PrepareMetadata
+  // is not known in Loader ctor
+  void Init() {
+    if (!lazy_init_) {
+      std::call_once(metadata_preparation_flag_, [this]() {
+        PrepareMetadata();
+      });
+    }
+  }
 
   virtual void PrepareEmpty(LoadTarget& tensor) {
     PrepareEmptyTensor(tensor);
@@ -95,6 +107,12 @@ class Loader {
 
   // Get a random read sample
   LoadTargetPtr ReadOne() {
+    if (lazy_init_) {
+      std::call_once(metadata_preparation_flag_, [this](){
+          PrepareMetadata();
+      });
+      lazy_init_ = false;
+    }
     TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
@@ -157,10 +175,22 @@ class Loader {
   // reads.
   virtual void ReadSample(LoadTarget& tensor) = 0;
 
+  void PrepareMetadata() {
+    loaded_ = true;
+    PrepareMetadataImpl();
+  }
+
   // Give the size of the data accessed through the Loader
-  virtual Index Size() = 0;
+  Index Size() {
+    DALI_ENFORCE(loaded_, "Calling Size before data was loaded is an error");
+    return SizeImpl();
+  }
 
  protected:
+  virtual Index SizeImpl() = 0;
+
+  virtual void PrepareMetadataImpl() {}
+
   virtual void MoveToNextShard(Index current_index) {
     if (IsNextShard(current_index)) {
       Reset(stick_to_shard_);
@@ -183,7 +213,7 @@ class Loader {
     // Fetch image cache factory only the first time that we try to load an image
     // we don't do it in construction because we are not sure that the cache was
     // created since the order of operator creation is not guaranteed.
-    std::call_once(fetch_cache_, [&](){
+    std::call_once(fetch_cache_, [this](){
       auto &image_cache_factory = ImageCacheFactory::Instance();
       if (image_cache_factory.IsInitialized(device_id_))
         cache_ = image_cache_factory.Get(device_id_);
@@ -229,10 +259,23 @@ class Loader {
   // Option determining whether cached samples (at the decoder phase) should be skipped
   bool skip_cached_images_;
 
+  // Indicate whether the dataset preparation has to be done in the constructor or during the
+  // first run
+  std::once_flag metadata_preparation_flag_;
+  bool lazy_init_;
+  bool loaded_;
+
   // Image cache
   std::once_flag fetch_cache_;
   std::shared_ptr<ImageCache> cache_;
 };
+
+template<typename T, typename... Args>
+std::unique_ptr<T> InitLoader(const OpSpec& spec, Args&&... args) {
+  std::unique_ptr<T> loader (new T(spec, std::forward<Args>(args)...));
+  loader->Init();
+  return loader;
+}
 
 };  // namespace dali
 

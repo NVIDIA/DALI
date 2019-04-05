@@ -114,7 +114,7 @@ void SequenceLoader::ReadSample(TensorSequence &sequence) {
   MoveToNextShard(current_sequence_);
 }
 
-Index SequenceLoader::Size() {
+Index SequenceLoader::SizeImpl() {
   return total_size_;
 }
 

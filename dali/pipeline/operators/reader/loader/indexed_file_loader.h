@@ -29,12 +29,11 @@ namespace dali {
 
 class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
-  explicit IndexedFileLoader(const OpSpec& options, bool init = true)
+  explicit IndexedFileLoader(const OpSpec& options)
     : Loader(options),
+      uris_(options.GetRepeatedArgument<std::string>("path")),
+      index_uris_(options.GetRepeatedArgument<std::string>("index_path")),
       current_file_(nullptr) {
-      // trick for https://stackoverflow.com/questions/962132/calling-virtual-functions-inside-constructors
-      if (init)
-        Init(options);
     }
 
   void ReadSample(Tensor<CPUBackend>& tensor) override {
@@ -87,10 +86,6 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     return;
   }
 
-  Index Size() override {
-    return indices_.size();
-  }
-
   ~IndexedFileLoader() override {
     if (current_file_ != nullptr) {
       current_file_->Close();
@@ -112,11 +107,13 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
  protected:
-  void Init(const OpSpec& options) {
-    uris_ = options.GetRepeatedArgument<std::string>("path");
+  Index SizeImpl() override {
+    return indices_.size();
+  }
+
+  void PrepareMetadataImpl() override {
     DALI_ENFORCE(!uris_.empty(), "No files specified.");
-    std::vector<std::string> index_uris = options.GetRepeatedArgument<std::string>("index_path");
-    ReadIndexFile(index_uris);
+    ReadIndexFile(index_uris_);
     DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");
     current_file_index_ = INVALID_INDEX;
     Reset(true);
@@ -145,6 +142,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
   std::vector<std::string> uris_;
+  std::vector<std::string> index_uris_;
   std::vector<std::tuple<int64, int64, size_t>> indices_;
   size_t current_index_;
   size_t current_file_index_;
