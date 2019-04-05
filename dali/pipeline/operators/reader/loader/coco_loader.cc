@@ -422,7 +422,7 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
   }
 }
 
-}
+}  // namespace detail
 
 RAPIDJSON_DIAG_POP
 
