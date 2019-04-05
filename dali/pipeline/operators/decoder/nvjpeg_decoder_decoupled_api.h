@@ -182,7 +182,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           DALI_FAIL(e.what() + "File: " + file_name);
         }
       } else {
-        if (ShouldUseHybridHuffman(info)) {
+        if (ShouldUseHybridHuffman(info, input_data, in_size, hybrid_huffman_threshold_)) {
           image_decoders_[i] = decoder_huff_hybrid_;
           image_states_[i] = decoder_huff_hybrid_state_[i];
         } else {
@@ -328,18 +328,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       HostFallback<kernels::StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                         streams_[thread_id], file_name, info.crop_window);
     }
-  }
-
-  // Predicate to determine if the image should be decoded with the nvJPEG
-  // hybrid Huffman decoder instead of the nvjpeg host Huffman decoder
-  bool ShouldUseHybridHuffman(ImageInfo& info) {
-    auto &roi = info.crop_window;
-    if (roi) {
-      return static_cast<unsigned int>(
-        info.widths[0] * (roi.y + roi.h)) > hybrid_huffman_threshold_;
-    }
-    return static_cast<unsigned int>(
-      info.widths[0] * info.heights[0]) > hybrid_huffman_threshold_;
   }
 
   USE_OPERATOR_MEMBERS();

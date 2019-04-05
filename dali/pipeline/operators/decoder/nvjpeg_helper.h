@@ -93,6 +93,59 @@ inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   }
 }
 
+// TODO(spanev): Replace when it is available in the nvJPEG API
+inline uint8_t GetJpegEncoding(const uint8_t* input, size_t size) {
+  if (input[0] != 0xff || input[1] != 0xd8)
+    return 0;
+  const uint8_t* ptr = input + 2;
+  const uint8_t* end = input + size;
+  uint8_t marker = *ptr;
+  ptr++;
+  while (ptr < end) {
+    do {
+      // We ignore padding/custom metadata
+      while (marker != 0xff && ptr != end) {
+        marker = *ptr;
+        ptr++;
+      }
+      if (ptr == end)
+        return 0;
+      marker = *ptr;
+      ptr++;
+    } while (marker == 0 || marker == 0xff);
+    if (marker >= 0xc0 && marker <= 0xcf) {
+      return marker;
+    } else {
+      // Next segment
+      uint16_t segment_length = (*ptr << 8) + *(ptr+1);
+      ptr += segment_length;
+    }
+  }
+  return 0;
+}
+
+inline bool IsProgressiveJPEG(const uint8_t* raw_jpeg, size_t size) {
+  const uint8_t segment_marker = GetJpegEncoding(raw_jpeg, size);
+  constexpr uint8_t progressive_sof = 0xc2;
+  return segment_marker == progressive_sof;
+}
+
+// Predicate to determine if the image should be decoded with the nvJPEG
+// hybrid Huffman decoder instead of the nvjpeg host Huffman decoder
+template <typename T>
+inline bool ShouldUseHybridHuffman(EncodedImageInfo<T>& info,
+                                   const uint8_t* input,
+                                   size_t size,
+                                   unsigned int threshold) {
+  auto &roi = info.crop_window;
+  unsigned int w = static_cast<unsigned int>(info.widths[0]);
+  unsigned int h = static_cast<unsigned int>(roi ? (roi.y + roi.h)
+                                                  : info.heights[0]);
+  // TODO(spanev): replace it by nvJPEG API function when available in future release
+  // We don't wanna call IsProgressiveJPEG if not needed
+  return h*w > threshold && !IsProgressiveJPEG(input, size);
+}
+
 template <typename StorageType>
 void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8_t *output_buffer,
                   cudaStream_t stream, std::string file_name, CropWindow crop_window) {
