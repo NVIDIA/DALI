@@ -28,11 +28,15 @@
 
 namespace dali {
 
+namespace detail {
+
 void ParseAnnotationFilesHelper(
   std::vector<std::string> &annotations_filename,
   AnnotationMap &annotations_multimap,
   std::vector<std::pair<std::string, int>> &image_id_pairs,
   bool ltrb, bool ratio, float size_threshold, bool skip_empty);
+
+}
 
 class CocoLoader : public FileLoader {
  public:
@@ -50,7 +54,7 @@ class CocoLoader : public FileLoader {
 
  protected:
   void PrepareMetadataImpl() override {
-    ParseAnnotationFilesHelper(
+    detail::ParseAnnotationFilesHelper(
       annotations_filename_,
       annotations_multimap_,
       image_label_pairs_,

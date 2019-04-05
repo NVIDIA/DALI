@@ -34,26 +34,26 @@ namespace dali {
 class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit COCOReader(const OpSpec& spec)
-  : DataReader<CPUBackend, ImageLabelWrapper>(spec),
-    save_img_ids_(spec.GetArgument<bool>("save_img_ids")),
-    shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")),
-    stick_to_shard_(spec.GetArgument<bool>("stick_to_shard")) {
-    if (shuffle_after_epoch_ || stick_to_shard_)
+  : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+    bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
+    bool stick_to_shard = spec.GetArgument<bool>("stick_to_shard");
+
+    if (shuffle_after_epoch || stick_to_shard)
       DALI_ENFORCE(
-        !shuffle_after_epoch_ || !stick_to_shard_,
+        !shuffle_after_epoch || !stick_to_shard,
         "shuffle_after_epoch and stick_to_shard cannot be both true");
 
     if (spec.HasArgument("file_list"))
       loader_ = InitLoader<FileLoader>(
         spec,
         std::vector<std::pair<string, int>>(),
-        shuffle_after_epoch_);
+        shuffle_after_epoch);
     else
       loader_ = InitLoader<CocoLoader>(
         spec,
         annotations_multimap_,
-        shuffle_after_epoch_);
-    parser_.reset(new COCOParser(spec, annotations_multimap_, save_img_ids_));
+        shuffle_after_epoch);
+    parser_.reset(new COCOParser(spec, annotations_multimap_));
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
@@ -62,9 +62,6 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
  protected:
   AnnotationMap annotations_multimap_;
-  bool save_img_ids_;
-  bool shuffle_after_epoch_;
-  bool stick_to_shard_;
 
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
 };

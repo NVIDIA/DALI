@@ -44,10 +44,10 @@ using AnnotationMap = std::multimap<int, Annotation>;
 class COCOParser: public Parser<ImageLabelWrapper> {
  public:
   explicit COCOParser(
-    const OpSpec& spec, AnnotationMap& annotations_multimap, const bool& save_img_ids)
+    const OpSpec& spec, AnnotationMap& annotations_multimap)
     : Parser<ImageLabelWrapper>(spec),
     annotations_multimap_(annotations_multimap),
-    save_img_ids_(save_img_ids) {}
+    save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {}
 
   void Parse(const ImageLabelWrapper& image_label, SampleWorkspace* ws) override {
     Index image_size = image_label.image.size();

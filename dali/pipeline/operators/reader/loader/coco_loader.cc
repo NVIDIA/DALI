@@ -288,6 +288,9 @@ int LookaheadParser::PeekType() {
 }  // namespace
 
 namespace dali {
+
+namespace detail {
+
 void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
                                 AnnotationMap &annotations_multimap,
                                 std::vector<std::pair<std::string, int>> &image_id_pairs,
@@ -417,6 +420,8 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
     }
     f.close();
   }
+}
+
 }
 
 RAPIDJSON_DIAG_POP
