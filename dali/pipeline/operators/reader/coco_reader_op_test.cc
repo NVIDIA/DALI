@@ -246,7 +246,7 @@ TEST_F(CocoReaderTest, IncludeEmptyLazy) {
 
   pipe.AddOperator(
     this->CocoReaderOpSpec()
-    .AddArg("lazy", true),
+    .AddArg("lazy_init", true),
     "coco_reader");
 
   pipe.Build(this->Outputs());

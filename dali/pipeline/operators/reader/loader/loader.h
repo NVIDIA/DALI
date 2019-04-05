@@ -60,7 +60,7 @@ class Loader {
       stick_to_shard_(options.GetArgument<bool>("stick_to_shard")),
       device_id_(options.GetArgument<int>("device_id")),
       skip_cached_images_(options.GetArgument<bool>("skip_cached_images")),
-      lazy_(options.GetArgument<bool>("lazy")),
+      lazy_init_(options.GetArgument<bool>("lazy_init")),
       loaded_(false) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
@@ -76,7 +76,7 @@ class Loader {
   // We need this two stage init because overriden PrepareMetadata
   // is not known in Loader ctor
   void Init() {
-    if (!lazy_) {
+    if (!lazy_init_) {
       std::call_once(metadata_preparation_flag_, [this]() {
         PrepareMetadata();
       });
@@ -108,7 +108,7 @@ class Loader {
   // Get a random read sample
   LoadTargetPtr ReadOne() {
     std::call_once(metadata_preparation_flag_, [this](){
-      if (lazy_) {
+      if (lazy_init_) {
         PrepareMetadata();
       }
     });
@@ -261,7 +261,7 @@ class Loader {
   // Indicate whether the dataset preparation has to be done in the constructor or during the
   // first run
   std::once_flag metadata_preparation_flag_;
-  bool lazy_;
+  bool lazy_init_;
   bool loaded_;
 
   // Image cache
@@ -271,9 +271,9 @@ class Loader {
 
 template<typename T, typename... Args>
 std::unique_ptr<T> InitLoader(const OpSpec& spec, Args&&... args) {
-  std::unique_ptr<T> l (new T(spec, std::forward<Args>(args)...));
-  l->Init();
-  return l;
+  std::unique_ptr<T> loader (new T(spec, std::forward<Args>(args)...));
+  loader->Init();
+  return loader;
 }
 
 };  // namespace dali
