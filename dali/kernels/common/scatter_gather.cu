@@ -116,7 +116,7 @@ void ScatterGatherGPU::Run(cudaStream_t stream, bool reset, bool useMemcpyOnly) 
 
     dim3 grid(blocks_.size());
     dim3 block(std::min<size_t>(size_per_block_, 1024));
-    BatchCopy<<<grid, block>>>(blocks_dev_.get());
+    BatchCopy<<<grid, block, 0, stream>>>(blocks_dev_.get());
     cudaGetLastError();
   }
 
