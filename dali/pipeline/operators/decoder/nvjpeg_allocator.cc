@@ -20,12 +20,6 @@ namespace dali {
 
 namespace memory {
 
-using BPA = BasicPinnedAllocator;
-std::vector<void*> BPA::free_buffers_pool_;
-size_t BPA::element_size_hint_ = 0;
-std::unordered_set<void*> BPA::allocated_buffers_;
-std::mutex BPA::mutex_;
-
 using CPA = ChunkPinnedAllocator;
 std::vector<CPA::Chunk> CPA::chunks_;
 size_t CPA::element_size_hint_;

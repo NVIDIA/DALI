@@ -77,7 +77,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
     NVJPEG_CALL(nvjpegDestroy(handle_));
-    int nbuffers = spec_.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
     PinnedAllocator::FreeBuffers();
   }
 
@@ -246,7 +245,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
   // TODO(spanev): add huffman hybrid decode
   std::vector<nvjpegDecodeParams_t> decode_params_;
-
 
   bool use_chunk_allocator_;
   nvjpegPinnedAllocator_t pinned_allocator_;
