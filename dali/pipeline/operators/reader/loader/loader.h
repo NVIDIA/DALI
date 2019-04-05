@@ -107,11 +107,12 @@ class Loader {
 
   // Get a random read sample
   LoadTargetPtr ReadOne() {
-    std::call_once(metadata_preparation_flag_, [this](){
-      if (lazy_init_) {
-        PrepareMetadata();
-      }
-    });
+    if (lazy_init_) {
+      std::call_once(metadata_preparation_flag_, [this](){
+          PrepareMetadata();
+      });
+      lazy_init_ = false;
+    }
     TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
     // perform an iniital buffer fill if it hasn't already happened
     if (!initial_buffer_filled_) {
