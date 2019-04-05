@@ -114,7 +114,7 @@ class SeparableResamplingSetup {
 
 class BatchResamplingSetup : public SeparableResamplingSetup {
  public:
-  using Params = std::vector<ResamplingParams2D>;
+  using Params = span<ResamplingParams2D>;
 
   std::vector<SampleDesc> sample_descs;
   TensorListShape<3> output_shape, intermediate_shape;
@@ -122,6 +122,11 @@ class BatchResamplingSetup : public SeparableResamplingSetup {
   BlockCount total_blocks;
 
   void SetupBatch(const TensorListShape<3> &in, const Params &params);
+
+  template <typename Collection>
+  void SetupBatch(const TensorListShape<3> &in, const Collection &params) {
+    SetupBatch(in, make_span(params));
+  }
   void InitializeSampleLookup(const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup);
 };
 
