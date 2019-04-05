@@ -518,6 +518,11 @@ void Pipeline::PrepareOpSpec(OpSpec *spec) {
     .AddArg("num_threads", num_threads_)
     .AddArg("device_id", device_id_)
     .AddArgIfNotExisting("seed", seed_[current_seed_]);
+  string dev = spec->GetArgument<string>("device");
+  if (dev == "cpu" || dev == "mixed")
+    spec->AddArg("cpu_prefetch_queue_depth", prefetch_queue_depth_.cpu_size);
+  if (dev == "gpu" || dev == "mixed")
+    spec->AddArg("gpu_prefetch_queue_depth", prefetch_queue_depth_.gpu_size);
   current_seed_ = (current_seed_+1) % MAX_SEEDS;
 }
 

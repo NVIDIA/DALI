@@ -24,6 +24,7 @@ class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
       .AddArg("device", "mixed")
       .AddArg("output_type", this->img_type_)
       .AddArg("hybrid_huffman_threshold", hybrid_huffman_threshold_)
+      .AddArg("use_chunk_allocator", use_chunk_allocator_)
       .AddArg("split_stages", true)
       .AddInput("encoded", "cpu")
       .AddOutput("decoded", "gpu");
@@ -45,8 +46,13 @@ class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
     this->RunTestDecode(t_tiffImgType , 0.7);
   }
 
+  void SetCustomAllocator() {
+    use_chunk_allocator_ = true;
+  }
+
  private:
   unsigned int hybrid_huffman_threshold_;
+  bool use_chunk_allocator_ = false;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
@@ -70,6 +76,30 @@ TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode3T) {
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode4T) {
+  this->JpegTestDecode(4, 512u*512u);
+}
+
+/***********************************************
+******* JPEG Decode with chunk allocator *******
+***********************************************/
+
+TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc) {
+  this->SetCustomAllocator();
+  this->JpegTestDecode(1, 512u*512u);
+}
+
+TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc2T) {
+  this->SetCustomAllocator();
+  this->JpegTestDecode(2, 512u*512u);
+}
+
+TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc3T) {
+  this->SetCustomAllocator();
+  this->JpegTestDecode(3, 512u*512u);
+}
+
+TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc4T) {
+  this->SetCustomAllocator();
   this->JpegTestDecode(4, 512u*512u);
 }
 
