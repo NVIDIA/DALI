@@ -115,22 +115,22 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
 
         // We do not buffer if we do not touch GPU (SUPPORT is synchronous with CPU)
         // otherwise we buffer for a pair of CPU x GPU
-        result[tid] = gpu_consumers == 0 ? 1 : stage_queue_depths_[stage];
+        result[tid] = gpu_consumers == 0 ? 1 : stage_queue_depths_[static_cast<OpType>(stage)];
       }
 
     } else {
       for (auto id : stage_outputs_[stage]) {
-        result[id] = stage_queue_depths_[stage];
+        result[id] = stage_queue_depths_[static_cast<OpType>(stage)];
       }
     }
   }
   return result;
 }
 
-
-using PipelinedExecutor = PipelinedExecutorImpl<AOT_WS_Policy, UniformQueuePolicy>;
-using SeparatedPipelinedExecutor = PipelinedExecutorImpl<JIT_WS_Policy, SeparateQueuePolicy>;
-
+using PipelinedExecutor =
+    PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
+using SeparatedPipelinedExecutor =
+    PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
 
 }  // namespace dali
 
