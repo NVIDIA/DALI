@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/decoder/cache/image_cache_largest.h"
 #include <gtest/gtest.h>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+#include "dali/pipeline/operators/decoder/cache/image_cache_largest.h"
+#include "dali/kernels/common/copy.h"
 
 namespace dali {
 namespace testing {
@@ -127,6 +128,23 @@ TEST_F(ImageCacheLargestTest, ReadWorks) {
 
   std::vector<uint8_t> dst(4, 0x00);
   cache_->Read("4", &dst[0], 0);
+  cudaStreamSynchronize(0);
+  EXPECT_EQ(data_[4].second, dst);
+}
+
+TEST_F(ImageCacheLargestTest, GetWorks) {
+  SetUpImpl(4);
+
+  AddImage(4);
+  EXPECT_FALSE(IsCached(4));
+  AddImage(4);
+  EXPECT_TRUE(IsCached(4));
+
+  std::vector<uint8_t> dst(4, 0x00);
+  auto dev = cache_->Get("4");
+  kernels::TensorView<kernels::StorageCPU, uint8_t, 3> host(dst.data(), dev.shape);
+  kernels::copy(host, dev);
+  cudaStreamSynchronize(0);
   EXPECT_EQ(data_[4].second, dst);
 }
 
