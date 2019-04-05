@@ -61,6 +61,7 @@ class BasicPinnedAllocator {
     for (auto buff : free_buffers_pool_) {
       CUDA_CALL(cudaFreeHost(buff));
     }
+    free_buffers_pool_.clear();
   }
 
   static int Alloc(void** ptr, size_t size, unsigned int flags) {
