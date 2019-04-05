@@ -52,6 +52,7 @@ class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
 
  private:
   unsigned int hybrid_huffman_threshold_;
+  bool use_chunk_allocator_ = false;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
@@ -84,22 +85,22 @@ TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode4T) {
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc) {
   this->SetCustomAllocator();
-  this->JpegTestDecode(1);
+  this->JpegTestDecode(1, 512u*512u);
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc2T) {
   this->SetCustomAllocator();
-  this->JpegTestDecode(2);
+  this->JpegTestDecode(2, 512u*512u);
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc3T) {
   this->SetCustomAllocator();
-  this->JpegTestDecode(3);
+  this->JpegTestDecode(3, 512u*512u);
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc4T) {
   this->SetCustomAllocator();
-  this->JpegTestDecode(4);
+  this->JpegTestDecode(4, 512u*512u);
 }
 
 /***********************************************
