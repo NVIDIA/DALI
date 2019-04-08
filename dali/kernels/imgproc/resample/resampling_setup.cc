@@ -161,7 +161,7 @@ void BatchResamplingSetup::SetupBatch(
     Initialize();
 
   int N = in.num_samples();
-  assert(params.size() == static_cast<size_t>(N));
+  assert(params.size() == static_cast<ptrdiff_t>(N));
 
   sample_descs.resize(N);
   intermediate_shape.resize(N);
