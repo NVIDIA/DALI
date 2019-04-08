@@ -71,7 +71,7 @@ Execute the below command CUDA 9.0 based build:
 .. code-block:: bash
 
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali
-    
+
 Starting DALI 0.8.0 for CUDA 10.0 based build use:
 
 .. code-block:: bash
@@ -85,7 +85,7 @@ Starting DALI 0.8.0 for CUDA 10.0 based build use:
 .. code-block:: bash
 
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/9.0 nvidia-dali-tf-plugin
-    
+
 Starting DALI 0.8.0 for CUDA 10.0 based build execute:
 
 .. code-block:: bash
@@ -250,6 +250,7 @@ Make the build directory
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
+
 
     mkdir build
     cd build
