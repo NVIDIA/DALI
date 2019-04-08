@@ -1,12 +1,6 @@
 #!/bin/bash -e
 pip_packages=""
 
-
-# TensorFlow supports only CUDA 9.0 now
-if [ "${CUDA_VERSION}" != "90" ]; then
-    exit 0
-fi
-
 pushd ../..
 
 cd docs/examples/tensorflow/demo
@@ -15,27 +9,34 @@ mkdir -p idx-files/
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-OPENMPI_VERSION=3.0.0
-wget -q -O - https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-${OPENMPI_VERSION}.tar.gz | tar -xzf -
-cd openmpi-${OPENMPI_VERSION}
-./configure --enable-orterun-prefix-by-default --prefix=/usr/local/mpi --disable-getpwuid -with-cma=no
-make -j"$(nproc)" install
-cd .. && rm -rf openmpi-${OPENMPI_VERSION}
-echo "/usr/local/mpi/lib" >> /etc/ld.so.conf.d/openmpi.conf && ldconfig
-export PATH=$PATH:/usr/local/mpi/bin
+CUDA_VERSION=$(nvcc --version | grep -E ".*release ([0-9]+)\.([0-9]+).*" | sed 's/.*release \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
+# from 1.13.1 CUDA 10 is supported but not CUDA 9
+# MPI is present in CUDA 10 image already so no need to build it
+if [ "${CUDA_VERSION}" == "100" ]; then
+    pip install tensorflow-gpu==1.13.1
+else
+    pip install tensorflow-gpu==1.12
 
-/bin/echo -e '#!/bin/bash'\
-'\ncat <<EOF'\
-'\n======================================================================'\
-'\nTo run a multi-node job, install an ssh client and clear plm_rsh_agent'\
-'\nin '/usr/local/mpi/etc/openmpi-mca-params.conf'.'\
-'\n======================================================================'\
-'\nEOF'\
-'\nexit 1' >> /usr/local/mpi/bin/rsh_warn.sh
-chmod +x /usr/local/mpi/bin/rsh_warn.sh
-echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
+    OPENMPI_VERSION=3.0.0
+    wget -q -O - https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-${OPENMPI_VERSION}.tar.gz | tar -xzf -
+    cd openmpi-${OPENMPI_VERSION}
+    ./configure --enable-orterun-prefix-by-default --prefix=/usr/local/mpi --disable-getpwuid -with-cma=no
+    make -j"$(nproc)" install
+    cd .. && rm -rf openmpi-${OPENMPI_VERSION}
+    echo "/usr/local/mpi/lib" >> /etc/ld.so.conf.d/openmpi.conf && ldconfig
+    export PATH=$PATH:/usr/local/mpi/bin
 
-pip install tensorflow-gpu==1.10.0
+    /bin/echo -e '#!/bin/bash'\
+    '\ncat <<EOF'\
+    '\n======================================================================'\
+    '\nTo run a multi-node job, install an ssh client and clear plm_rsh_agent'\
+    '\nin '/usr/local/mpi/etc/openmpi-mca-params.conf'.'\
+    '\n======================================================================'\
+    '\nEOF'\
+    '\nexit 1' >> /usr/local/mpi/bin/rsh_warn.sh
+    chmod +x /usr/local/mpi/bin/rsh_warn.sh
+    echo "plm_rsh_agent = /usr/local/mpi/bin/rsh_warn.sh" >> /usr/local/mpi/etc/openmpi-mca-params.conf
+fi
 
 export HOROVOD_GPU_ALLREDUCE=NCCL
 export HOROVOD_NCCL_INCLUDE=/usr/include
