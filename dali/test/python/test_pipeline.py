@@ -22,6 +22,11 @@ from numpy.testing import assert_array_equal, assert_allclose
 
 caffe_db_folder = "/data/imagenet/train-lmdb-256x256"
 
+def check_batch(batch1, batch2, batch_size, eps = 0.0000001):
+    for i in range(batch_size):
+        err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
+        assert(err < eps)
+
 def test_tensor_multiple_uses():
     batch_size = 128
     class HybridPipe(Pipeline):
@@ -1054,3 +1059,38 @@ def test_pipeline_default_cuda_stream_priority():
             out1_data = out1[0].as_cpu()
             out2_data = out2[0].as_cpu()
             assert(np.sum(np.abs(out1_data.at(i)-out2_data.at(i)))==0)
+
+def test_nvjpegdecoder_cached_vs_non_cached():
+    """
+        Checking that cached nvJPEGDecoder produces the same output as non cached version
+    """
+    batch_size = 26
+
+    class ComparePipeline(Pipeline):
+        def __init__(self, batch_size=batch_size, num_threads=1, device_id=0, num_gpus=10000):
+            super(ComparePipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth = 1)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, stick_to_shard = True)
+            self.decode_non_cached = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode_cached     = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
+                                                       cache_size=8000,
+                                                       cache_threshold=0,
+                                                       cache_type='threshold',
+                                                       cache_debug=False)
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+            images_non_cached = self.decode_non_cached(self.jpegs)
+            images_cached = self.decode_cached(self.jpegs)
+            return (images_non_cached, images_cached)
+
+        def iter_setup(self):
+            pass
+
+    pipe = ComparePipeline()
+    pipe.build()
+    N_iterations = 100
+    for k in range(N_iterations):
+        pipe_out = pipe.run()
+        non_cached_data = pipe_out[0].as_cpu()
+        cached_data = pipe_out[1].as_cpu()
+        check_batch(non_cached_data, cached_data, batch_size)
