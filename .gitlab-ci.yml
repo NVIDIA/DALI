@@ -1,0 +1,7 @@
+stages:
+    - stage 0
+
+pass_job:
+    stage: stage 0
+    script:
+      - "true"
