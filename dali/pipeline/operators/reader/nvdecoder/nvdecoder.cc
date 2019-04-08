@@ -90,7 +90,6 @@ NvDecoder::NvDecoder(int device_id,
     DALI_FAIL("Problem creating video parser");
     return;
   }
-
 }
 
 bool NvDecoder::initialized() const {
@@ -334,8 +333,8 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
   context_.push();
   for (int i = 0; i < sequence.count; ++i) {
       LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
-                  << frame_queue_.size() << " reqs left"
-                  << std::endl;
+               << frame_queue_.size() << " reqs left"
+               << std::endl;
 
       auto* frame_disp_info = frame_queue_.pop();
       if (done_) break;
