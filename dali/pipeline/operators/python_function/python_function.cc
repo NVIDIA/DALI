@@ -40,7 +40,7 @@ static PyBindInitializer pybind_initializer{}; // NOLINT
 
 py::array TensorToNumpyArray(const Tensor<CPUBackend> &tensor) {
   DALI_TYPE_SWITCH(tensor.type().id(), DType,
-      return py::array_t<DType, py::array::c_style>(tensor.shape(), tensor.template data<DType>());
+    return py::array_t<DType, py::array::c_style>(tensor.shape(), tensor.template data<DType>());
   )
 }
 
@@ -89,7 +89,7 @@ TypeInfo GetDaliType(const py::array &array) {
 
 py::array NumpyArrayAsContiguous(const TypeInfo &type, const py::array &array) {
   DALI_TYPE_SWITCH(type.id(), DType,
-      return py::array_t<DType, py::array::c_style>::ensure(array);
+    return py::array_t<DType, py::array::c_style>::ensure(array);
   )
 }
 

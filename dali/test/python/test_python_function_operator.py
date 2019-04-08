@@ -3,7 +3,6 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy
-import argparse
 import random
 import torchvision.transforms as transforms
 from PIL import Image
@@ -67,42 +66,27 @@ class FlippingPipeline(CommonPipeline):
         return flipped
 
 
-DEVICE_ID = 0
-
-
 def random_seed():
     return int(random.random() * (1 << 32))
 
 
-def make_parser():
-    _parser = argparse.ArgumentParser(description='Python function operator test')
-    _parser.add_argument(
-        '-i', '--iters', default=32, type=int, metavar='N',
-        help='number of iterations to run (default: whole dataset)')
-    _parser.add_argument(
-        '-s', '--seed', default=random_seed(), type=int, metavar='N',
-        help='seed for random ops (default: random seed)')
-    _parser.add_argument(
-        '-w', '--num_workers', default=3, type=int, metavar='N',
-        help='number of worker threads (default: %(default)s)')
-    _parser.add_argument(
-        '-b', '--batch_size', default=1, type=int, metavar='N',
-        help='image batch size (default: %(default)s)')
-    return _parser
+DEVICE_ID = 0
+BATCH_SIZE = 8
+ITERS = 64
+SEED = random_seed()
+NUM_WORKERS = 6
 
 
-def run_test(func, name):
-    pipe = BasicPipeline(args.batch_size, args.num_workers, DEVICE_ID, args.seed, images_dirs[0])
-    pyfunc_pipe = PythonOperatorPipeline(args.batch_size, args.num_workers, DEVICE_ID, args.seed, images_dirs[0], func)
+def run_case(func):
+    pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dirs[0])
+    pyfunc_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dirs[0], func)
     pipe.build()
     pyfunc_pipe.build()
-    print('test: ' + name)
-    for it in range(args.iters):
+    for it in range(ITERS):
         preprocessed_output, = pipe.run()
         output, = pyfunc_pipe.run()
         for i in range(len(output)):
             assert numpy.array_equal(output.at(i), func(preprocessed_output.at(i)))
-    print('done')
 
 
 def one_channel_normalize(image):
@@ -124,24 +108,25 @@ def flip(image):
     return numpy.fliplr(image)
 
 
-def flipping_test(args):
-    dali_flip = FlippingPipeline(args.batch_size, args.num_workers, DEVICE_ID, args.seed, images_dirs[0])
-    numpy_flip = PythonOperatorPipeline(args.batch_size, args.num_workers, DEVICE_ID, args.seed, images_dirs[0], flip)
+def test_python_operator_one_channel_normalize():
+    run_case(one_channel_normalize)
+
+
+def test_python_operator_channels_mean():
+    run_case(channels_mean)
+
+
+def test_python_operator_bias():
+    run_case(bias)
+
+
+def test_python_operator_flip():
+    dali_flip = FlippingPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dirs[0])
+    numpy_flip = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dirs[0], flip)
     dali_flip.build()
     numpy_flip.build()
-    print('test: flip')
-    for it in range(args.iters):
+    for it in range(ITERS):
         numpy_output, = numpy_flip.run()
         dali_output, = dali_flip.run()
         for i in range(len(numpy_output)):
             assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
-    print('done')
-
-
-if __name__ == '__main__':
-    parser = make_parser()
-    args = parser.parse_args()
-    flipping_test(args)
-    run_test(one_channel_normalize, "one channel normalized")
-    run_test(channels_mean, "channels mean")
-    run_test(bias, "bias")
