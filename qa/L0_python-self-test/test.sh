@@ -16,6 +16,8 @@ test_body() {
     python test_RN50_data_pipeline.py -i 10
     python test_RN50_data_fw_iterators.py -i 30 -b 13
 
+    nosetests --verbose test_python_function_operator.py
+
     # DALI TF tests
 
     # Load plugin OK (supported version of TF in the prebuilt plugins)
