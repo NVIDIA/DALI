@@ -14,6 +14,8 @@
 
 #include "dali/pipeline/operators/decoder/nvjpeg_decoder_cpu.h"
 
+#include <unordered_map>
+
 namespace dali {
 
 DALI_REGISTER_OPERATOR(nvJPEGDecoderCPUStage, nvJPEGDecoderCPUStage, CPU);
@@ -27,4 +29,3 @@ It is automatically inserted during the pipeline creation.)code")
   .AddParent("nvJPEGDecoder");
 
 }  // namespace dali
-

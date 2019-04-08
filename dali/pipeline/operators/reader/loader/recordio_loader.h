@@ -29,8 +29,7 @@ namespace dali {
 class RecordIOLoader : public IndexedFileLoader {
  public:
   explicit RecordIOLoader(const OpSpec& options)
-    : IndexedFileLoader(options, false) {
-    Init(options);
+    : IndexedFileLoader(options) {
   }
   ~RecordIOLoader() override {}
 

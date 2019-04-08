@@ -34,19 +34,23 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
  public:
   DLL_PUBLIC inline AsyncSeparatedPipelinedExecutor(
       int batch_size, int num_thread, int device_id, size_t bytes_per_sample_hint,
-      bool set_affinity = false, int max_num_stream = -1,
+      bool set_affinity = false, int max_num_stream = -1, int default_cuda_stream_priority = 0,
       QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : SeparatedPipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint,
-                                   set_affinity, max_num_stream, prefetch_queue_depth),
+                                   set_affinity, max_num_stream, default_cuda_stream_priority,
+                                   prefetch_queue_depth),
         cpu_thread_(device_id, set_affinity),
         mixed_thread_(device_id, set_affinity),
         gpu_thread_(device_id, set_affinity),
         device_id_(device_id) {}
 
   DLL_PUBLIC ~AsyncSeparatedPipelinedExecutor() override {
+    ShutdownQueue();
+
     cpu_thread_.ForceStop();
     mixed_thread_.ForceStop();
     gpu_thread_.ForceStop();
+
     /*
      * We need to call shutdown here and not rely on cpu_thread_ destructor
      * as when WorkerThread destructor is called conditional variables and mutexes
@@ -80,7 +84,7 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
       SeparatedPipelinedExecutor::Outputs(ws);
     } catch (std::runtime_error &e) {
       exec_error_ = true;
-      SignalError();
+      SignalStop();
       throw std::runtime_error(std::string(e.what()));
     } catch (...) {
       throw std::runtime_error("Unknown critical error in pipeline");

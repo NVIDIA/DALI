@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
 #include <dlfcn.h>
 
+#include "dali/pipeline/operators/optical_flow/turing_of/optical_flow_turing.h"
 
 namespace dali {
 namespace optical_flow {

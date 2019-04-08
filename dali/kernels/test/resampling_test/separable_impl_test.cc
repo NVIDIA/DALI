@@ -76,7 +76,7 @@ TEST(SeparableImpl, Setup) {
 
   InListGPU<uint8_t, 3> in_tv = input.gpu();
 
-  auto req = resampling.Setup(ctx, in_tv, params);
+  auto req = resampling.Setup(ctx, in_tv, make_span(params));
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
@@ -189,7 +189,7 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
     copy(in_tv[i], view_as_tensor<uint8_t, 3>(cv_img[i]));
   }
 
-  auto req = resampling.Setup(ctx, in_tv, params);
+  auto req = resampling.Setup(ctx, in_tv, make_span(params));
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
@@ -219,7 +219,7 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
 
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
-  resampling.Run(ctx, out_tv, in_tv, params);
+  resampling.Run(ctx, out_tv, in_tv, make_span(params));
   for (int i = 0; i < N; i++) {
     auto ref_tensor = view_as_tensor<uint8_t, 3>(cv_ref[i]);
     auto out_tensor = output.cpu()[i];
@@ -276,7 +276,7 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
     copy(in_tv[i], view_as_tensor<uint8_t, 3>(cv_img[i]));
   }
 
-  auto req = Kernel::GetRequirements(ctx, in_tv, params);
+  auto req = Kernel::GetRequirements(ctx, in_tv, make_span(params));
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
@@ -297,7 +297,7 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
 
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
-  Kernel::Run(ctx, out_tv, in_tv, params);
+  Kernel::Run(ctx, out_tv, in_tv, make_span(params));
   for (int i = 0; i < N; i++) {
     auto ref_tensor = view_as_tensor<uint8_t, 3>(cv_ref[i]);
     auto out_tensor = output.cpu()[i];

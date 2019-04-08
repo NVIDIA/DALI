@@ -150,7 +150,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
       for (int i = 0; i < max_streams_; ++i) {
         NVJPEG_CALL(nvjpegJpegStateCreate(handle_, &states_[i]));
-        CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
+        CUDA_CALL(cudaStreamCreateWithPriority(&streams_[i], cudaStreamNonBlocking,
+                                               default_cuda_stream_priority_));
         CUDA_CALL(cudaEventCreate(&events_[i]));
       }
       CUDA_CALL(cudaEventCreate(&master_event_));
@@ -296,26 +297,27 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       // (for load balancing)
       std::sort(image_order.begin(), image_order.end(),
                 std::greater<std::pair<size_t, size_t>>());
+
       // Loop over images again and decode
       for (int i = 0; i < batch_size_; ++i) {
         size_t j = image_order[i].second;
-        auto& in = ws->Input<CPUBackend>(0, j);
+
+        auto &in = ws->Input<CPUBackend>(0, j);
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
         auto *output_data = output.mutable_tensor<uint8_t>(j);
+        if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
+          continue;
+
         const auto &dims = output_shape_[j];
         const ImageCache::ImageShape output_shape{dims[0], dims[1], dims[2]};
         auto info = output_info_[j];
 
         thread_pool_.DoWorkWithID(
           [this, info, data, in_size, output_data, output_shape, file_name, j](int tid) {
-            int idx = j;
             const int stream_idx = tid;
-            const auto output_data_size = volume(output_shape) * sizeof(uint8_t);
-
-            if (CacheLoad(file_name, output_data, streams_[stream_idx]))
-              return;
+            int idx = j;
 
             DecodeSingleSample(
               idx,
@@ -331,6 +333,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
             CacheStore(file_name, output_data, output_shape, streams_[stream_idx]);
           });
       }
+      LoadDeferred(ws->stream());
       // Make sure work is finished being submitted
       thread_pool_.WaitForWork();
     }
@@ -491,8 +494,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // Thread pool
   ThreadPool thread_pool_;
-
-  std::shared_ptr<ImageCache> cache_;
 };
 
 }  // namespace dali

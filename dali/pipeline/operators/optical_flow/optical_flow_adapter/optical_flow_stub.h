@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_STUB_H_
-#define DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_STUB_H_
+#ifndef DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_OPTICAL_FLOW_STUB_H_
+#define DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_OPTICAL_FLOW_STUB_H_
 
 #include <vector>
+
 #include "dali/kernels/tensor_view.h"
-#include "dali/aux/optical_flow/optical_flow_adapter.h"
+#include "dali/pipeline/operators/optical_flow/optical_flow_adapter/optical_flow_adapter.h"
 
 namespace dali {
 namespace optical_flow {
@@ -76,4 +77,4 @@ inline void OpticalFlowStub<kernels::ComputeGPU>::CalcOpticalFlow(
 }  // namespace optical_flow
 }  // namespace dali
 
-#endif  // DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_STUB_H_
+#endif  // DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_OPTICAL_FLOW_STUB_H_

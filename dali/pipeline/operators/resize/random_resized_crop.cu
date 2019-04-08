@@ -24,7 +24,7 @@ namespace dali {
 
 template<>
 void RandomResizedCrop<GPUBackend>::BackendInit() {
-  InitializeGPU();
+  InitializeGPU(batch_size_, spec_.GetArgument<int>("minibatch_size"));
 }
 
 template<>

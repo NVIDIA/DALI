@@ -17,7 +17,7 @@
 
 #include <cuda_runtime.h>
 #include <memory>
-#include <vector>
+#include "dali/kernels/span.h"
 #include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {
@@ -31,7 +31,7 @@ struct SeparableResamplingFilter {
 
   virtual ~SeparableResamplingFilter() = default;
 
-  using Params = std::vector<ResamplingParams2D>;
+  using Params = span<ResamplingParams2D>;
 
   virtual KernelRequirements
   Setup(KernelContext &context, const Input &in, const Params &params) = 0;

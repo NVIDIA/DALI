@@ -40,7 +40,7 @@ class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     t.set_type(TypeInfo::Create<uint8_t>());
   }
 
-  Index Size() override {
+  Index SizeImpl() override {
     return 1;
   }
 
@@ -191,7 +191,7 @@ class TestLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
   void ReadSample(Tensor<CPUBackend> &t) override {}
 
-  Index Size() override {
+  Index SizeImpl() override {
     return 10;
   }
 
@@ -223,6 +223,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestWrap) {
       .AddArg("stick_to_shard", false)
       .AddArg("batch_size", 2)
       .AddArg("device_id", 0));
+  tl.PrepareMetadata();
 
   ASSERT_EQ(tl.IsNextShard(0)            , false);
   ASSERT_EQ(tl.IsNextShard(tl.Size() / 2), false);
@@ -263,6 +264,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard) {
       .AddArg("stick_to_shard", true)
       .AddArg("batch_size", 2)
       .AddArg("device_id", 0));
+  tl.PrepareMetadata();
 
   ASSERT_EQ(tl.IsNextShard(0)            , false);
   ASSERT_EQ(tl.IsNextShard(tl.Size() / 2), true);
@@ -303,6 +305,7 @@ TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard2) {
       .AddArg("stick_to_shard", true)
       .AddArg("batch_size", 2)
       .AddArg("device_id", 0));
+  tl.PrepareMetadata();
 
   ASSERT_EQ(tl.IsNextShard(tl.Size() / 2), false);
   ASSERT_EQ(tl.IsNextShard(tl.Size() - 1), false);

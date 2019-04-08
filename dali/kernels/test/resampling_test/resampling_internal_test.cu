@@ -31,10 +31,6 @@
 namespace dali {
 namespace kernels {
 
-inline constexpr int divUp(int total, int grain) {
-  return (total + grain - 1) / grain;
-}
-
 template <typename Dst, typename Src>
 __global__ void ResampleHorzTestKernel(
     Dst *out, int out_stride, int out_w,
@@ -336,22 +332,22 @@ class ResamplingTest : public ::testing::Test {
     if (vert_first_) {
       assert(img_tmp_.shape == TensorShape<3>(outH, W, channels));
 
-      dim3 grid = per_span ? dim3(divUp(tmpW, block.x), divUp(tmpH, block.y)) : dim3(1);
+      dim3 grid = per_span ? dim3(div_ceil(tmpW, block.x), div_ceil(tmpH, block.y)) : dim3(1);
       ResampleVertTestKernel<<<grid, block, ResampleSharedMemSize>>>(
         img_tmp_.data, tmpW*channels, tmpH, img_in_.data, W*channels, W, H, channels,
         flt_y_, flt_y_.support());
-      grid = per_span ? dim3(divUp(outW, block.x), divUp(outH, block.y)) : dim3(1);
+      grid = per_span ? dim3(div_ceil(outW, block.x), div_ceil(outH, block.y)) : dim3(1);
       ResampleHorzTestKernel<<<grid, block, ResampleSharedMemSize>>>(
         img_out_.data, outW*channels, outW, img_tmp_.data, tmpW*channels, tmpW, tmpH, channels,
         flt_x_, flt_x_.support());
     } else {
       assert(img_tmp_.shape == TensorShape<3>(H, outW, channels));
 
-      dim3 grid = per_span ? dim3(divUp(tmpW, block.x), divUp(tmpH, block.y)) : dim3(1);
+      dim3 grid = per_span ? dim3(div_ceil(tmpW, block.x), div_ceil(tmpH, block.y)) : dim3(1);
       ResampleHorzTestKernel<<<grid, block, ResampleSharedMemSize>>>(
         img_tmp_.data, tmpW*channels, tmpW, img_in_.data, W*channels, W, H, channels,
         flt_x_, flt_x_.support());
-      grid = per_span ? dim3(divUp(outW, block.x), divUp(outH, block.y)) : dim3(1);
+      grid = per_span ? dim3(div_ceil(outW, block.x), div_ceil(outH, block.y)) : dim3(1);
       ResampleVertTestKernel<<<grid, block, ResampleSharedMemSize>>>(
         img_out_.data, outW*channels, outH, img_tmp_.data, tmpW*channels, tmpW, tmpH, channels,
         flt_y_, flt_y_.support());

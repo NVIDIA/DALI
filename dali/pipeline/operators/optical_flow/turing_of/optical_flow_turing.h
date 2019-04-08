@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
-#define DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
+#ifndef DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
+#define DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
 
 #include <cuda_runtime.h>
 #include <memory>
@@ -23,8 +23,8 @@
 #include "nvOpticalFlowCuda.h"
 #include "nvOpticalFlowCommon.h"
 #include "dali/common.h"
-#include "dali/aux/optical_flow/optical_flow_adapter.h"
-#include "dali/aux/optical_flow/turing_of/optical_flow_buffer.h"
+#include "dali/pipeline/operators/optical_flow/optical_flow_adapter/optical_flow_adapter.h"
+#include "dali/pipeline/operators/optical_flow/turing_of/optical_flow_buffer.h"
 
 namespace dali {
 namespace optical_flow {
@@ -161,5 +161,5 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
 }  // namespace optical_flow
 }  // namespace dali
 
-#endif  // DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
+#endif  // DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
 

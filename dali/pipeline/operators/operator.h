@@ -74,7 +74,8 @@ class DLL_PUBLIC OperatorBase {
   DLL_PUBLIC inline explicit OperatorBase(const OpSpec &spec) :
     spec_(spec), num_threads_(spec.GetArgument<int>("num_threads")),
     batch_size_(spec.GetArgument<int>("batch_size")),
-    input_sets_(spec.GetArgument<int>("num_input_sets")) {
+    input_sets_(spec.GetArgument<int>("num_input_sets")),
+    default_cuda_stream_priority_(spec.GetArgument<int>("default_cuda_stream_priority")) {
     DALI_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     DALI_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
   }
@@ -138,12 +139,14 @@ class DLL_PUBLIC OperatorBase {
   int num_threads_;
   int batch_size_;
   int input_sets_;
+  int default_cuda_stream_priority_;
 };
 
-#define USE_OPERATOR_MEMBERS()                  \
-  using OperatorBase::spec_;               \
-  using OperatorBase::num_threads_;        \
-  using OperatorBase::batch_size_
+#define USE_OPERATOR_MEMBERS()                       \
+  using OperatorBase::spec_;                         \
+  using OperatorBase::num_threads_;                  \
+  using OperatorBase::batch_size_;                   \
+  using OperatorBase::default_cuda_stream_priority_
 
 /**
  * @brief Class defining an operator using specific backend.

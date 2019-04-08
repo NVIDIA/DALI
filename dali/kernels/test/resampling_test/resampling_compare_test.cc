@@ -124,7 +124,7 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
   }
   OutListCPU<uint8_t, 3> in_cpu = input.cpu();
 
-  auto req_gpu = KernelGPU::GetRequirements(ctx_gpu, in_gpu, params);
+  auto req_gpu = KernelGPU::GetRequirements(ctx_gpu, in_gpu, make_span(params));
   std::vector<TensorShape<3>> size_cpu;
   ASSERT_EQ(req_gpu.output_shapes.size(), 1);
   ASSERT_EQ(req_gpu.output_shapes[0].num_samples(), N);
@@ -165,7 +165,7 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
 
   auto scratchpad = scratch_alloc_gpu.GetScratchpad();
   ctx_gpu.scratchpad = &scratchpad;
-  KernelGPU::Run(ctx_gpu, out_gpu, in_gpu, params);
+  KernelGPU::Run(ctx_gpu, out_gpu, in_gpu, make_span(params));
 
   for (int i = 0; i < N; i++) {
     KernelCPU::GetRequirements(ctx_cpu, in_cpu[i], params[i]);

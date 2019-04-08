@@ -33,7 +33,7 @@ namespace dali {
 class DLL_PUBLIC UserStream {
  public:
   DLL_PUBLIC static UserStream* Get() {
-    std::unique_lock<std::mutex> lock(m_);
+    std::lock_guard<std::mutex> lock(m_);
     if (us_ == nullptr) {
       us_ = new UserStream();
     }
@@ -42,12 +42,14 @@ class DLL_PUBLIC UserStream {
 
   DLL_PUBLIC cudaStream_t GetStream(const dali::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
-    std::unique_lock<std::mutex> lock(m_);
+    std::lock_guard<std::mutex> lock(m_);
     auto it = streams_.find(dev);
     if (it != streams_.end()) {
       return it->second;
     } else {
-      CUDA_CALL(cudaStreamCreateWithFlags(&streams_[dev], cudaStreamNonBlocking));
+      constexpr int kDefaultStreamPriority = 0;
+      CUDA_CALL(cudaStreamCreateWithPriority(&streams_[dev], cudaStreamNonBlocking,
+                                             kDefaultStreamPriority));
       return streams_.at(dev);
     }
   }

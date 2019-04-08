@@ -19,11 +19,10 @@ from collections import Iterable
 
 _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
 _dali_tf_module = None
-# Order: 'current', numbered versions, nightly build
+# Order: 'current', prebuilt versions
 _dali_tf_current = list(filter(lambda x: 'current' in x, _tf_plugins))
-_dali_tf_numbered = list(filter(lambda x: 'current' not in x and 'nightly' not in x, _tf_plugins))
-_dali_tf_nightly = list(filter(lambda x: 'nightly' in x, _tf_plugins))
-_processed_tf_plugins = _dali_tf_current + _dali_tf_numbered + _dali_tf_nightly
+_dali_tf_prebuilt = list(filter(lambda x: 'current' not in x, _tf_plugins))
+_processed_tf_plugins = _dali_tf_current + _dali_tf_prebuilt
 
 for _libdali_tf in _processed_tf_plugins:
   try:

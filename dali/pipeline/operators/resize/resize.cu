@@ -32,7 +32,7 @@ Resize<GPUBackend>::Resize(const OpSpec &spec)
   outputs_per_idx_ = save_attrs_ ? 2 : 1;
 
   ResizeAttr::SetBatchSize(batch_size_);
-  InitializeGPU();
+  InitializeGPU(batch_size_, spec_.GetArgument<int>("minibatch_size"));
   resample_params_.resize(batch_size_);
 }
 

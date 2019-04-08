@@ -24,7 +24,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit FileReader(const OpSpec& spec)
     : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
-    loader_.reset(new FileLoader(spec));
+    loader_ = InitLoader<FileLoader>(spec);
   }
 
   void RunImpl(SampleWorkspace *ws, const int i) override {

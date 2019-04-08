@@ -42,7 +42,7 @@ NvDecoder::NvDecoder(int device_id,
                      DALIImageType image_type,
                      DALIDataType dtype,
                      bool normalized)
-    : device_id_(device_id), stream_(device_id, false), codecpar_(codecpar),
+    : device_id_(device_id), stream_(device_id, false, 0), codecpar_(codecpar),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
       device_(), context_(), parser_(), decoder_(),
       time_base_{time_base.num, time_base.den},

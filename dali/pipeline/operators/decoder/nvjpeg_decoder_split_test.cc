@@ -24,12 +24,13 @@ class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
       .AddArg("device", "mixed")
       .AddArg("output_type", this->img_type_)
       .AddArg("hybrid_huffman_threshold", hybrid_huffman_threshold_)
+      .AddArg("use_chunk_allocator", use_chunk_allocator_)
       .AddArg("split_stages", true)
       .AddInput("encoded", "cpu")
       .AddOutput("decoded", "gpu");
   }
 
-  void JpegTestDecode(int num_threads, unsigned int hybrid_huffman_threshold = 450*450) {
+  void JpegTestDecode(int num_threads, unsigned int hybrid_huffman_threshold) {
     hybrid_huffman_threshold_ = hybrid_huffman_threshold;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_jpegImgType, 0.7);
@@ -45,8 +46,13 @@ class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
     this->RunTestDecode(t_tiffImgType , 0.7);
   }
 
+  void SetCustomAllocator() {
+    use_chunk_allocator_ = true;
+  }
+
  private:
-  unsigned int hybrid_huffman_threshold_ = 1000*1000;
+  unsigned int hybrid_huffman_threshold_;
+  bool use_chunk_allocator_ = false;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
@@ -58,19 +64,43 @@ TYPED_TEST_SUITE(nvjpegDecodeSplitTest, Types);
 ***********************************************/
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode) {
-  this->JpegTestDecode(1);
+  this->JpegTestDecode(1, 512u*512u);
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode2T) {
-  this->JpegTestDecode(2);
+  this->JpegTestDecode(2, 512u*512u);
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode3T) {
-  this->JpegTestDecode(3);
+  this->JpegTestDecode(3, 512u*512u);
 }
 
 TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode4T) {
-  this->JpegTestDecode(4);
+  this->JpegTestDecode(4, 512u*512u);
+}
+
+/***********************************************
+******* JPEG Decode with chunk allocator *******
+***********************************************/
+
+TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc) {
+  this->SetCustomAllocator();
+  this->JpegTestDecode(1, 512u*512u);
+}
+
+TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc2T) {
+  this->SetCustomAllocator();
+  this->JpegTestDecode(2, 512u*512u);
+}
+
+TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc3T) {
+  this->SetCustomAllocator();
+  this->JpegTestDecode(3, 512u*512u);
+}
+
+TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc4T) {
+  this->SetCustomAllocator();
+  this->JpegTestDecode(4, 512u*512u);
 }
 
 /***********************************************
