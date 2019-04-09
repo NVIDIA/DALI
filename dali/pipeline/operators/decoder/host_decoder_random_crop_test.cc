@@ -13,35 +13,32 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/decoder/decoder_test.h"
-#include "dali/util/random_crop_generator.h"
+#include "dali/pipeline/operators/crop/random_crop_attr.h"
 
 namespace dali {
+
+static constexpr int64_t kSeed = 1212334;
 
 template <typename ImgType>
 class HostDecoderRandomCropTest : public DecodeTestBase<ImgType> {
  public:
   HostDecoderRandomCropTest()
-    : random_crop_generator(
-        new RandomCropGenerator(aspect_ratio_range, area_range, seed)) {
-  }
+    : random_crop_attr(
+      OpSpec("RandomCropAttr")
+        .AddArg("batch_size", this->batch_size_)
+        .AddArg("seed", kSeed)) {}
 
  protected:
-  const OpSpec DecodingOp() const override {
+  OpSpec DecodingOp() const override {
     return this->GetOpSpec("HostDecoderRandomCrop")
-      .AddArg("seed", seed);
+      .AddArg("seed", kSeed);
   }
 
-  CropWindowGenerator GetCropWindowGenerator() const override {
-    return std::bind(
-      &RandomCropGenerator::GenerateCropWindow,
-      random_crop_generator,
-      std::placeholders::_1, std::placeholders::_2);
+  CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
+    return random_crop_attr.GetCropWindowGenerator(data_idx);
   }
 
-  int64_t seed = 1212334;
-  AspectRatioRange aspect_ratio_range{3.0f/4.0f, 4.0f/3.0f};
-  AreaRange area_range{0.08f, 1.0f};
-  std::shared_ptr<RandomCropGenerator> random_crop_generator;
+  RandomCropAttr random_crop_attr;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;

@@ -14,8 +14,9 @@
 
 #include <gtest/gtest.h>
 #include <memory>
-#include "dali/aux/optical_flow/optical_flow_stub.h"
+
 #include "dali/kernels/backend_tags.h"
+#include "dali/pipeline/operators/optical_flow/optical_flow_adapter/optical_flow_stub.h"
 #include "dali/util/cuda_utils.h"
 
 namespace dali {
@@ -34,7 +35,7 @@ TEST(OpticalFlowAdapter, StubApiCpuBackend) {
   TensorView<StorageCPU, uint8_t, 3> tvref, tvin;
   std::vector<float> in_data(kTestDataSize);
   TensorView<StorageCPU, float, 3> tvout(in_data.data(), {1, 1, 2});
-  OpticalFlowParams params;
+  OpticalFlowParams params = {0.f, VectorGridSize::SIZE_4, false, false};
   std::unique_ptr<OpticalFlowAdapter<ComputeCPU>> of(new OpticalFlowStub<ComputeCPU>(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
   EXPECT_FLOAT_EQ(OpticalFlowStub<ComputeCPU>::kStubValue, *tvout(0, 0, 0));
@@ -53,7 +54,7 @@ TEST(OpticalFlowAdapter, StubApiGpuBackend) {
 
   TensorView<StorageGPU, uint8_t, 3> tvref, tvin;
   TensorView<StorageGPU, float, 3> tvout(tvout_data, {1, 1, 2});
-  OpticalFlowParams params;
+  OpticalFlowParams params = {0.f, VectorGridSize::SIZE_4, false, false};
   std::unique_ptr<OpticalFlowAdapter<ComputeGPU>> of(new OpticalFlowStub<ComputeGPU>(params));
   of->CalcOpticalFlow(tvref, tvin, tvout);
 

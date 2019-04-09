@@ -18,6 +18,7 @@ add_subdirectory(cache)
 if (BUILD_NVJPEG)
   if (NVJPEG_DECOUPLED_API)
     list(APPEND DALI_SRCS
+      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_allocator.cc"
       "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_decoupled_api.cu"
       "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_crop.cu"
       "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_slice.cu"

@@ -38,7 +38,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
   }
 
  protected:
-  virtual const OpSpec DecodingOp() const { return OpSpec(); }
+  virtual OpSpec DecodingOp() const { return OpSpec(); }
 
   inline uint32_t GetTestCheckType() const override {
     return t_checkColorComp;  // + t_checkElements + t_checkAll + t_checkNoAssert;

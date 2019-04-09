@@ -12,10 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(optical_flow)
+add_subdirectory(turing_of)
+add_subdirectory(optical_flow_adapter)
 
+file(GLOB tmp *.cc)
+set(DALI_SRCS ${DALI_SRCS} ${tmp})
+file(GLOB tmp *_test.cc)
+remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)
-    set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
+  # get all the test srcs
+  file(GLOB tmp *_test.cc)
+  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()

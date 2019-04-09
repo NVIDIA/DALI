@@ -66,23 +66,8 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   explicit LMDBReader(const OpSpec& options)
     : Loader(options),
       db_path_(options.GetArgument<string>("path")) {
-
-    // Create the db environment, open the passed DB
-    CHECK_LMDB(mdb_env_create(&mdb_env_));
-    auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
-    CHECK_LMDB(mdb_env_open(mdb_env_, db_path_.c_str(), mdb_flags, 0664));
-
-    // Create transaction and cursor
-    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
-    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
-    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
-    lmdb_size_ = lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
-
-    // Optional: debug printing
-    lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
-
-    Reset(true);
   }
+
   ~LMDBReader() override {
     mdb_cursor_close(mdb_cursor_);
     mdb_dbi_close(mdb_env_, mdb_dbi_);
@@ -98,19 +83,47 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
     MoveToNextShard(current_index_);
 
-    tensor.Resize({static_cast<Index>(value_.mv_size)});
+    std::string image_key =
+      db_path_ + " at key " + to_string(reinterpret_cast<char*>(key_.mv_data));
+    tensor.SetSourceInfo(image_key);
     tensor.set_type(TypeInfo::Create<uint8_t>());
-    tensor.SetSourceInfo(db_path_ + " at key " + to_string(reinterpret_cast<char*>(key_.mv_data)));
+    tensor.SetSkipSample(false);
 
+    // if image is cached, skip loading
+    if (ShouldSkipImage(image_key)) {
+      tensor.set_type(TypeInfo::Create<uint8_t>());
+      tensor.Resize({1});
+      tensor.SetSkipSample(true);
+      return;
+    }
+
+    tensor.Resize({static_cast<Index>(value_.mv_size)});
     std::memcpy(tensor.raw_mutable_data(),
                 reinterpret_cast<uint8_t*>(value_.mv_data),
                 value_.mv_size*sizeof(uint8_t));
-
-    return;
   }
 
-  Index Size() override {
+ protected:
+  Index SizeImpl() override {
     return lmdb_size_;
+  }
+
+  void PrepareMetadataImpl() override {
+    // Create the db environment, open the passed DB
+    CHECK_LMDB(mdb_env_create(&mdb_env_));
+    auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
+    CHECK_LMDB(mdb_env_open(mdb_env_, db_path_.c_str(), mdb_flags, 0664));
+
+    // Create transaction and cursor
+    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
+    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
+    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
+    lmdb_size_ = lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
+
+    // Optional: debug printing
+    lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
+
+    Reset(true);
   }
 
  private:

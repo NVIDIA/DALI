@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
-#define DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
+#ifndef DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
+#define DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
 
 #include <cuda_runtime.h>
 #include <memory>
@@ -23,8 +23,8 @@
 #include "nvOpticalFlowCuda.h"
 #include "nvOpticalFlowCommon.h"
 #include "dali/common.h"
-#include "dali/aux/optical_flow/optical_flow_adapter.h"
-#include "dali/aux/optical_flow/turing_of/optical_flow_buffer.h"
+#include "dali/pipeline/operators/optical_flow/optical_flow_adapter/optical_flow_adapter.h"
+#include "dali/pipeline/operators/optical_flow/turing_of/optical_flow_buffer.h"
 
 namespace dali {
 namespace optical_flow {
@@ -82,9 +82,27 @@ DLL_PUBLIC void
 DecodeFlowComponents(const int16_t *input, float *output, size_t pitch, size_t width_px,
                      size_t height, cudaStream_t stream = 0);
 
+/**
+ * Encode flow components and put in strided memory (for external hints)
+ * @param input
+ * @param output User is responsible for allocation of output
+ * @param pitch Stride within input memory layout. In bytes.
+ * @param width_px In pixels.
+ * @param height
+ * @param stream Stream, in which kernel is called
+ */
+DLL_PUBLIC void
+EncodeFlowComponents(const float *input, int16_t *output, size_t pitch, size_t width_px,
+                     size_t height, cudaStream_t stream = 0);
+
 
 inline __host__ __device__ float decode_flow_component(int16_t value) {
   return value * (1 / 32.f);
+}
+
+
+inline __host__ __device__ int16_t encode_flow_component(float value) {
+  return static_cast<int16_t>(value * 32.f);
 }
 
 }  // namespace kernel
@@ -99,7 +117,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
 
 
   kernels::TensorShape<kernels::DynamicDimensions> GetOutputShape() override {
-    auto sz = of_params_.outGridSize;
+    auto sz = init_params_.outGridSize;
     // There are 2 flow vector components: (x, y)
     return {static_cast<int>(height_ + sz - 1) / sz, static_cast<int>(width_ + sz - 1) / sz, 2};
   }
@@ -117,7 +135,8 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
 
 
   NV_OF_EXECUTE_INPUT_PARAMS
-  GenerateExecuteInParams(NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle);
+  GenerateExecuteInParams(NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle,
+                          NvOFGPUBufferHandle hints_handle = nullptr);
 
 
   NV_OF_EXECUTE_OUTPUT_PARAMS GenerateExecuteOutParams(NvOFGPUBufferHandle out_handle);
@@ -134,13 +153,13 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
   cudaStream_t stream_;
   NvOFHandle of_handle_;
   NV_OF_CUDA_API_FUNCTION_LIST turing_of_;
-  NV_OF_INIT_PARAMS of_params_;
-  std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_;
+  NV_OF_INIT_PARAMS init_params_;
+  std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_, hintsbuf_;
   DALIImageType image_type_;
 };
 
 }  // namespace optical_flow
 }  // namespace dali
 
-#endif  // DALI_AUX_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
+#endif  // DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
 

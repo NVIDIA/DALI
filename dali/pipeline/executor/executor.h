@@ -42,6 +42,14 @@
 
 namespace dali {
 
+
+namespace detail {
+// This is stream callback used on GPU stream to indicate that GPU work for this
+// pipeline run is finished
+static void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData);
+
+}  // namespace detail
+
 class DLL_PUBLIC ExecutorBase {
  public:
   using ExecutorCallback = std::function<void(void)>;
@@ -75,32 +83,21 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
  public:
   DLL_PUBLIC inline Executor(int batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
-                             int max_num_stream = -1,
+                             int max_num_stream = -1, int default_cuda_stream_priority = 0,
                              QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : batch_size_(batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
-        stream_pool_(max_num_stream, true),
+        callback_(nullptr),
+        stream_pool_(max_num_stream, true, default_cuda_stream_priority),
         event_pool_(max_num_stream),
         thread_pool_(num_thread, device_id, set_affinity),
         exec_error_(false),
-        callback_(nullptr),
         queue_sizes_(prefetch_queue_depth) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 
-    // TODO(klecki) This should be moved to children
-    if (QueuePolicy::IsUniformPolicy()) {
-      // synchronous with CPU, we buffer for the GPU
-      QueueDepth(OpType::SUPPORT) = prefetch_queue_depth.gpu_size;
-    } else {
-      // For non-uniform case we buffer for CPU x GPU pair.
-      QueueDepth(OpType::SUPPORT) = prefetch_queue_depth.cpu_size * prefetch_queue_depth.gpu_size;
-    }
-    QueueDepth(OpType::CPU) = prefetch_queue_depth.cpu_size;
-    // Mixed and GPU are bound together due to being outputs
-    QueueDepth(OpType::MIXED) = prefetch_queue_depth.gpu_size;
-    QueueDepth(OpType::GPU) = prefetch_queue_depth.gpu_size;
+    stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
   }
 
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
@@ -112,6 +109,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws) override;
   DLL_PUBLIC void ReleaseOutputs() override;
   DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
+
+  DLL_PUBLIC void ShutdownQueue() {
+    QueuePolicy::SignalStop();
+  }
 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
@@ -131,8 +132,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
                    const OpGraph &graph);
 
   void SetupOutputQueuesForGraph();
-
-  int &QueueDepth(OpType stage);
 
   class EventList {
    public:
@@ -180,27 +179,40 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // unless it becomes an issue in the future.
 
 
-  std::array<int, static_cast<int>(OpType::COUNT)> stage_queue_depths_;
+  StageQueues stage_queue_depths_;
 
   OpGraph *graph_ = nullptr;
+  // we need to keep this above the stream_pool_ so we still have it when the stream_pool_
+  // destructor runs and it waits for streams to finish
+  ExecutorCallback callback_;
   StreamPool stream_pool_;
   EventPool event_pool_;
   ThreadPool thread_pool_;
   std::vector<std::string> errors_;
   std::mutex errors_mutex_;
   bool exec_error_;
-  ExecutorCallback callback_;
   QueueSizes queue_sizes_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
   cudaStream_t mixed_op_stream_, gpu_op_stream_;
   // MixedOpId -> queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED to GPU Ops
   std::vector<std::vector<cudaEvent_t>> mixed_op_events_;
+  // queue_idx -> cudaEvent_t
+  // To introduce dependency from MIXED stage to GPU stage for callback only
+  // in some edge cases where there are no operators
+  std::vector<cudaEvent_t> mixed_callback_events_;
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::SetCompletionCallback(ExecutorCallback cb) {
   callback_ = cb;
+  // Create necessary events lazily
+  if (mixed_callback_events_.empty()) {
+    mixed_callback_events_.resize(stage_queue_depths_[OpType::MIXED]);
+    for (auto &event : mixed_callback_events_) {
+      event = event_pool_.GetEvent();
+    }
+  }
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -235,7 +247,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
     DeviceGuard g(device_id_);
     mixed_op_stream_ = stream_pool_.GetStream();
     gpu_op_stream_ = stream_pool_.GetStream();
-    mixed_op_events_ = CreateEventsForMixedOps(event_pool_, *graph_, QueueDepth(OpType::MIXED));
+    mixed_op_events_ =
+        CreateEventsForMixedOps(event_pool_, *graph_, stage_queue_depths_[OpType::MIXED]);
   }
 
   PrepinData(tensor_to_store_queue_, *graph_);
@@ -260,9 +273,9 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   TimeRange tr("[Executor] RunCPU");
 
-  auto support_idx = QueuePolicy::AcquireIdxs(OpType::SUPPORT);
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
-    QueuePolicy::ReleaseIdxs(OpType::SUPPORT, support_idx);
+  auto support_idxs = QueuePolicy::AcquireIdxs(OpType::SUPPORT);
+  if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(support_idxs)) {
+    QueuePolicy::ReleaseIdxs(OpType::SUPPORT, support_idxs);
     return;
   }
 
@@ -275,38 +288,37 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
       OperatorBase &op = *op_node.op;
       // SupportWorkspace &ws = GetWorkspace<OpType::SUPPORT>(queue_idx, i);
       typename WorkspacePolicy::template ws_t<OpType::SUPPORT> ws =
-          WorkspacePolicy::template GetWorkspace<OpType::SUPPORT>(support_idx, *graph_, i);
+          WorkspacePolicy::template GetWorkspace<OpType::SUPPORT>(support_idxs, *graph_, i);
       TimeRange tr("[Executor] Run Support op " + op_node.instance_name,
           TimeRange::kCyan);
       op.Run(&ws);
     }
   } catch (std::runtime_error &e) {
     exec_error_ = true;
-    QueuePolicy::SignalError();
+    QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
   }
 
-  QueuePolicy::ReleaseIdxs(OpType::SUPPORT, support_idx);
+  QueuePolicy::ReleaseIdxs(OpType::SUPPORT, support_idxs);
 
-  auto cpu_idx = QueuePolicy::AcquireIdxs(OpType::CPU);
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
-    QueuePolicy::ReleaseIdxs(OpType::CPU, cpu_idx);
+  auto cpu_idxs = QueuePolicy::AcquireIdxs(OpType::CPU);
+  if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(cpu_idxs)) {
+    QueuePolicy::ReleaseIdxs(OpType::CPU, cpu_idxs);
     return;
   }
-  auto queue_idx = cpu_idx;
 
   // Run the cpu-ops in the thread pool
   for (int i = 0; i < batch_size_; ++i) {
     thread_pool_.DoWorkWithID(std::bind(
-          [this, queue_idx] (int data_idx, int tid) {
+          [this, cpu_idxs] (int data_idx, int tid) {
           TimeRange tr("[Executor] RunCPU on " + to_string(data_idx));
           SampleWorkspace ws;
           for (int j = 0; j < graph_->NumOp(OpType::CPU); ++j) {
             OpNode &op_node = graph_->Node(OpType::CPU, j);
             OperatorBase &op = *op_node.op;
-            WorkspacePolicy::template GetWorkspace<OpType::CPU>(queue_idx, *graph_, op_node)
+            WorkspacePolicy::template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, op_node)
                 .GetSample(&ws, data_idx, tid);
             TimeRange tr("[Executor] Run CPU op " + op_node.instance_name
                 + " on " + to_string(data_idx),
@@ -319,13 +331,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
     thread_pool_.WaitForWork();
   } catch (std::runtime_error& e) {
     exec_error_ = true;
-    QueuePolicy::SignalError();
+    QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
   }
   // Pass the work to the mixed stage
-  QueuePolicy::ReleaseIdxs(OpType::CPU, cpu_idx);
+  QueuePolicy::ReleaseIdxs(OpType::CPU, cpu_idxs);
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -333,19 +345,18 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   TimeRange tr("[Executor] RunMixed");
   DeviceGuard g(device_id_);
 
-  auto mixed_idx = QueuePolicy::AcquireIdxs(OpType::MIXED);
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
-    QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idx);
+  auto mixed_idxs = QueuePolicy::AcquireIdxs(OpType::MIXED);
+  if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(mixed_idxs)) {
+    QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs);
     return;
   }
-  auto queue_idx = mixed_idx;
 
   try {
     for (int i = 0; i < graph_->NumOp(OpType::MIXED); ++i) {
       OpNode &op_node = graph_->Node(OpType::MIXED, i);
       OperatorBase &op = *op_node.op;
       typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
-          WorkspacePolicy::template GetWorkspace<OpType::MIXED>(queue_idx, *graph_, i);
+          WorkspacePolicy::template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
       TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
           TimeRange::kOrange);
       op.Run(&ws);
@@ -355,26 +366,30 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
     }
   } catch (std::runtime_error &e) {
     exec_error_ = true;
-    QueuePolicy::SignalError();
+    QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
   }
 
+  if (callback_) {
+    // Record event that will allow to call the callback after whole run of this pipeline is
+    // finished.
+    CUDA_CALL(cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
+  }
   // Pass the work to the gpu stage
-  QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idx);
+  QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   TimeRange tr("[Executor] RunGPU");
 
-  auto gpu_idx = QueuePolicy::AcquireIdxs(OpType::GPU);
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
-    QueuePolicy::ReleaseIdxs(OpType::GPU, gpu_idx);
+  auto gpu_idxs = QueuePolicy::AcquireIdxs(OpType::GPU);
+  if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(gpu_idxs)) {
+    QueuePolicy::ReleaseIdxs(OpType::GPU, gpu_idxs);
     return;
   }
-  auto queue_idx = gpu_idx;
   DeviceGuard g(device_id_);
 
   // Enforce our assumed dependency between consecutive
@@ -392,7 +407,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
       OpNode &op_node = graph_->Node(OpType::GPU, i);
       OperatorBase &op = *op_node.op;
       typename WorkspacePolicy::template ws_t<OpType::GPU> ws =
-          WorkspacePolicy::template GetWorkspace<OpType::GPU>(queue_idx, *graph_, i);
+          WorkspacePolicy::template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
       auto parent_events = ws.ParentEvents();
 
       for (auto &event : parent_events) {
@@ -414,14 +429,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
       int src_idx = graph_->NodeIdx(src_id);
 
       // Record events for each output requested by the user
-      cudaEvent_t event = gpu_output_events_[i].GetEvent(queue_idx[OpType::GPU]);
+      cudaEvent_t event = gpu_output_events_[i].GetEvent(gpu_idxs[OpType::GPU]);
       if (graph_->NodeType(src_id) == OpType::MIXED) {
         typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
-            WorkspacePolicy::template GetWorkspace<OpType::MIXED>(queue_idx, *graph_, src_idx);
+            WorkspacePolicy::template GetWorkspace<OpType::MIXED>(gpu_idxs, *graph_, src_idx);
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
       } else if (graph_->NodeType(src_id) == OpType::GPU) {
         typename WorkspacePolicy::template ws_t<OpType::GPU> ws =
-            WorkspacePolicy::template GetWorkspace<OpType::GPU>(queue_idx, *graph_, src_idx);
+            WorkspacePolicy::template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, src_idx);
         CUDA_CALL(cudaEventRecord(event, ws.stream()));
       } else {
         DALI_FAIL("Internal error. Output node is not gpu/mixed");
@@ -429,28 +444,30 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
     }
   } catch (std::runtime_error &e) {
     exec_error_ = true;
-    QueuePolicy::SignalError();
+    QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     errors_.push_back(e.what());
     // Let the ReleaseIdx chain wake the output cv
   }
   // Update the ready queue to signal that all the work
-  // in the `queue_idx` set of output buffers has been
+  // in the `gpu_idxs` set of output buffers has been
   // issued. Notify any waiting threads.
 
+  // Schedule the call to any callback registered previously
+  if (callback_) {
+    CUDA_CALL(cudaStreamWaitEvent(gpu_op_stream_,
+                                  mixed_callback_events_[gpu_idxs[OpType::MIXED]], 0));
+    CUDA_CALL(cudaStreamAddCallback(gpu_op_stream_, &detail::gpu_finished_callback,
+                                    static_cast<void *>(&callback_), 0));
+  }
 
   // We do not release, but handle to used outputs
-  QueuePolicy::QueueOutputIdxs(gpu_idx);
+  QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
 
-  // Save the queue_idx so we can enforce the
+  // Save the gpu_idxs so we can enforce the
   // dependency between consecutive iterations
   // of the gpu stage of the pipeline.
-  previous_gpu_queue_idx_ = queue_idx[OpType::GPU];
-
-  // call any registered previously callback
-  if (callback_) {
-    callback_();
-  }
+  previous_gpu_queue_idx_ = gpu_idxs[OpType::GPU];
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -470,7 +487,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   DeviceGuard g(device_id_);
   ws->Clear();
 
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);
@@ -478,7 +495,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
 
   auto output_idx = QueuePolicy::UseOutputIdxs();
 
-  if (exec_error_ || QueuePolicy::IsErrorSignaled()) {
+  if (exec_error_ || QueuePolicy::IsStopSignaled()) {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     std::string error = errors_.empty() ? "Unknown error" : errors_.front();
     throw std::runtime_error(error);
@@ -580,7 +597,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &grap
     if (tensor.producer.storage_device == StorageDevice::GPU) {
       auto parent_type = graph.Node(tensor.producer.node).op_type;
       gpu_output_events_.push_back(
-          EventList(QueueDepth(parent_type), &event_pool_));
+          EventList(stage_queue_depths_[parent_type], &event_pool_));
     } else {
       gpu_output_events_.push_back(EventList());
     }
@@ -596,7 +613,7 @@ std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(con
   for (auto id : output_ids) {
     auto &tensor = graph.Tensor(id);
     auto parent_type =  graph.Node(tensor.producer.node).op_type;
-    result[id] = QueueDepth(parent_type);
+    result[id] = stage_queue_depths_[parent_type];
   }
   return result;
 }
@@ -676,13 +693,17 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputQueuesForGraph() {
   QueuePolicy::InitializeQueues(stage_queue_depths_);
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-int &Executor<WorkspacePolicy, QueuePolicy>::QueueDepth(OpType stage) {
-  return stage_queue_depths_[static_cast<int>(stage)];
+using SimpleExecutor = Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
+
+namespace detail {
+
+void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData) {
+  auto callback = static_cast<ExecutorBase::ExecutorCallback*>(userData);
+  (*callback)();
 }
 
+}  // namespace detail
 
-using SimpleExecutor = Executor<AOT_WS_Policy, UniformQueuePolicy>;
 
 }  // namespace dali
 

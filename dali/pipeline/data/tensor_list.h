@@ -64,7 +64,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    */
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, cudaStream_t stream) {
-    this->set_type(other.type());
+    if (IsValidType(other.type())) {
+      this->set_type(other.type());
+    }
     this->meta_ = other.meta_;
     this->SetLayout(other.GetLayout());
     ResizeLike(other);
@@ -85,7 +87,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     }
 
     this->Resize(new_shape);
-    this->set_type(type);
+    if (IsValidType(type)) {
+      this->set_type(type);
+    }
     this->SetLayout(layout);
 
     for (size_t i = 0; i < other.size(); ++i) {
@@ -94,6 +98,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
           other[i].raw_data(),
           other[i].size(), 0);
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
+      this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
   }
 
@@ -283,7 +288,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * and they are densely packed in memory.
    */
   inline bool IsDenseTensor() const {
-    if (ntensor() == 0) {
+    if (ntensor() == 0 || size_ == 0) {
       return true;
     }
     const Dims& d = shape_[0];
@@ -358,6 +363,13 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       meta.SetLayout(layout_);
   }
 
+  inline void SetSkipSample(int idx, bool skip_sample) {
+    return meta_[idx].SetSkipSample(skip_sample);
+  }
+
+  inline bool ShouldSkipSample(int idx) const {
+    return meta_[idx].ShouldSkipSample();
+  }
 
  protected:
   // We store a set of dimension for each tensor in the list.

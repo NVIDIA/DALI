@@ -15,13 +15,14 @@
 #ifndef DALI_PIPELINE_PIPELINE_H_
 #define DALI_PIPELINE_PIPELINE_H_
 
+#include <chrono>
+#include <limits>
 #include <map>
 #include <memory>
+#include <random>
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
-#include <random>
-#include <chrono>
 
 #include "dali/common.h"
 #include "dali/pipeline/executor/executor.h"
@@ -82,18 +83,19 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int64_t seed = -1,
                              bool pipelined_execution = true, int prefetch_queue_depth = 2,
                              bool async_execution = true, size_t bytes_per_sample_hint = 0,
-                             bool set_affinity = false, int max_num_stream = -1)
+                             bool set_affinity = false, int max_num_stream = -1,
+                             int default_cuda_stream_priority = 0)
       : built_(false), separated_execution_{false} {
     Init(batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
          async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
-         QueueSizes{prefetch_queue_depth});
+         default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
   }
 
   DLL_PUBLIC Pipeline(const string &serialized_pipe, int batch_size = -1, int num_threads = -1,
                       int device_id = -1, bool pipelined_execution = true,
                       int prefetch_queue_depth = 2, bool async_execution = true,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
-                      int max_num_stream = -1);
+                      int max_num_stream = -1, int default_cuda_stream_priority = 0);
 
   DLL_PUBLIC ~Pipeline() = default;
 
@@ -319,10 +321,10 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Initializes the Pipeline internal state
    */
-  void Init(int batch_size, int num_threads, int device_id,
-            int64_t seed, bool pipelined_execution, bool separated_execution, bool async_execution,
-            size_t bytes_per_sample_hint, bool set_affinity,
-            int max_num_stream, QueueSizes prefetch_queue_depth = QueueSizes{2}) {
+  void Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
+            bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
+            bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
+            QueueSizes prefetch_queue_depth = QueueSizes{2}) {
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
@@ -333,19 +335,34 @@ class DLL_PUBLIC Pipeline {
     this->bytes_per_sample_hint_ = bytes_per_sample_hint;
     this->set_affinity_ = set_affinity;
     this->max_num_stream_ = max_num_stream;
+    this->default_cuda_stream_priority_ = default_cuda_stream_priority;
     this->prefetch_queue_depth_ = prefetch_queue_depth;
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
+
+    int lowest_cuda_stream_priority, highest_cuda_stream_priority;
+    CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
+                                               &highest_cuda_stream_priority));
+    const auto min_priority_value =
+        std::min(lowest_cuda_stream_priority, highest_cuda_stream_priority);
+    const auto max_priority_value =
+        std::max(lowest_cuda_stream_priority, highest_cuda_stream_priority);
+    DALI_ENFORCE(
+        default_cuda_stream_priority >= min_priority_value &&
+        default_cuda_stream_priority <= max_priority_value,
+        "Provided default cuda stream priority `" + std::to_string(default_cuda_stream_priority) +
+        "` is outside the priority range [" + std::to_string(min_priority_value) + ", " +
+        std::to_string(max_priority_value) + "], with lowest priority being `" +
+        std::to_string(lowest_cuda_stream_priority) + "` and highest priority being `" +
+        std::to_string(highest_cuda_stream_priority) + "`");
+
     seed_.resize(MAX_SEEDS);
     current_seed_ = 0;
-    if (seed > -1) {
-      std::seed_seq ss{seed};
-      ss.generate(seed_.begin(), seed_.end());
-    } else {
+    if (seed < 0) {
       using Clock = std::chrono::high_resolution_clock;
-      auto init_value = Clock::now().time_since_epoch().count();
-      std::seed_seq ss{init_value};
-      ss.generate(seed_.begin(), seed_.end());
+      seed = Clock::now().time_since_epoch().count();
     }
+    std::seed_seq ss{seed};
+    ss.generate(seed_.begin(), seed_.end());
   }
 
   using EdgeMeta = struct {
@@ -407,6 +424,7 @@ class DLL_PUBLIC Pipeline {
   size_t bytes_per_sample_hint_;
   int set_affinity_;
   int max_num_stream_;
+  int default_cuda_stream_priority_;
   QueueSizes prefetch_queue_depth_;
 
   std::vector<int64_t> seed_;

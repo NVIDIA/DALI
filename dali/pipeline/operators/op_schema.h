@@ -49,21 +49,25 @@ class DLL_PUBLIC OpSchema {
     , is_internal_(false) {
     // Fill internal arguments
     auto v = Value::construct(-1);
-    internal_arguments_["num_threads"] = std::make_pair("Number of CPU threads in a thread pool",
-        v.get());
+    internal_arguments_["num_threads"] =
+        std::make_pair("Number of CPU threads in a thread pool", v.get());
     internal_arguments_unq_.push_back(std::move(v));
     v = Value::construct(-1);
     internal_arguments_["batch_size"] = std::make_pair("Batch size", v.get());
     internal_arguments_unq_.push_back(std::move(v));
     v = Value::construct(1);
-    internal_arguments_["num_input_sets"] = std::make_pair("Number of input sets given to an Op",
-        v.get());
+    internal_arguments_["num_input_sets"] =
+        std::make_pair("Number of input sets given to an Op", v.get());
     internal_arguments_unq_.push_back(std::move(v));
     v = Value::construct(std::string("cpu"));
     internal_arguments_["device"] = std::make_pair("Device on which the Op is run", v.get());
     internal_arguments_unq_.push_back(std::move(v));
     v = Value::construct(false);
     internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place", v.get());
+    internal_arguments_unq_.push_back(std::move(v));
+    v = Value::construct(0);
+    internal_arguments_["default_cuda_stream_priority"] =
+        std::make_pair("Default cuda stream priority", v.get());
     internal_arguments_unq_.push_back(std::move(v));
 
     AddOptionalArg("seed", "Random seed (If not provided it will be populated based "

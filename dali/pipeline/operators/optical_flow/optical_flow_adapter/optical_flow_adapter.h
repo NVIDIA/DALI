@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
-#define DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
+#ifndef DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_OPTICAL_FLOW_ADAPTER_H_
+#define DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_OPTICAL_FLOW_ADAPTER_H_
 
 #include <string>
-#include "dali/kernels/tensor_view.h"
+
 #include "dali/kernels/backend_tags.h"
+#include "dali/kernels/tensor_view.h"
 #include "dali/pipeline/data/backend.h"
 
 namespace dali {
@@ -46,7 +47,8 @@ enum struct VectorGridSize {
 struct OpticalFlowParams {
   float perf_quality_factor;  /// 0..1, where 0 is best quality, lowest performance
   VectorGridSize grid_size;
-  bool enable_hints;
+  bool enable_temporal_hints;
+  bool enable_external_hints;
 };
 
 using dali::kernels::TensorView;
@@ -68,8 +70,9 @@ template<typename ComputeBackend>
 class DLL_PUBLIC OpticalFlowAdapter {
  protected:
   using StorageBackend = typename detail::compute_to_storage<ComputeBackend>::type;
+
  public:
-  explicit OpticalFlowAdapter(OpticalFlowParams params) {}
+  explicit OpticalFlowAdapter(OpticalFlowParams params) : of_params_(params) {}
 
 
   /**
@@ -88,9 +91,12 @@ class DLL_PUBLIC OpticalFlowAdapter {
 
 
   virtual ~OpticalFlowAdapter() = default;
+
+ protected:
+  const OpticalFlowParams of_params_;
 };
 
 }  // namespace optical_flow
 }  // namespace dali
 
-#endif  // DALI_AUX_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_H_
+#endif  // DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_OPTICAL_FLOW_ADAPTER_OPTICAL_FLOW_ADAPTER_H_

@@ -273,13 +273,30 @@ void ExposeTensorList(py::module &m) { // NOLINT
       ----------
       )code")
     .def("as_array", [](TensorList<CPUBackend> &t) -> py::array {
-          DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
-              "buffer info for tensor w/ invalid type.");
-          DALI_ENFORCE(t.IsDenseTensor(),
-                      "Tensors in the list must have the same shape");
+          void* raw_mutable_data = nullptr;
+          std::string format;
+          size_t type_size;
 
-          std::vector<ssize_t> shape(t.tensor_shape(0).size() + 1);
-          std::vector<ssize_t> stride(t.tensor_shape(0).size() + 1);
+          if (t.size() > 0) {
+            DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
+                "buffer info for tensor w/ invalid type.");
+            DALI_ENFORCE(t.IsDenseTensor(),
+                        "Tensors in the list must have the same shape");
+            raw_mutable_data = t.raw_mutable_data();
+          }
+
+          if (IsValidType(t.type())) {
+            format = FormatStrFromType(t.type());
+            type_size = t.type().size();
+          } else {
+            // Default is float
+            format = py::format_descriptor<float>::format();
+            type_size = sizeof(float);
+          }
+
+          auto shape_size = t.shape().size() > 0 ? t.tensor_shape(0).size() : 0;
+          std::vector<ssize_t> shape(shape_size + 1);
+          std::vector<ssize_t> strides(shape_size + 1);
           size_t dim_prod = 1;
           for (size_t i = 0; i < shape.size(); ++i) {
             if (i == 0) {
@@ -289,7 +306,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
             }
 
             // We iterate over stride backwards
-            stride[(stride.size()-1) - i] = t.type().size()*dim_prod;
+            strides[(strides.size()-1) - i] = type_size*dim_prod;
             if (i == shape.size() - 1) {
               dim_prod *= t.shape().size();
             } else {
@@ -298,10 +315,10 @@ void ExposeTensorList(py::module &m) { // NOLINT
           }
 
           return py::array(py::buffer_info(
-              t.raw_mutable_data(),
-              t.type().size(),
-              FormatStrFromType(t.type()),
-              shape.size(), shape, stride));
+              raw_mutable_data,
+              type_size,
+              std::move(format),
+              shape.size(), shape, strides));
         },
       R"code(
       Returns TensorList as a numpy array. TensorList must be dense.
@@ -555,11 +572,12 @@ PYBIND11_MODULE(backend_impl, m) {
             [](int batch_size, int num_threads, int device_id, int64_t seed = -1,
                 bool pipelined_execution = true, int prefetch_queue_depth = 2,
                 bool async_execution = true, size_t bytes_per_sample_hint = 0,
-                bool set_affinity = false, int max_num_stream = -1) {
+                bool set_affinity = false, int max_num_stream = -1,
+                int default_cuda_stream_priority = 0) {
               return std::unique_ptr<Pipeline>(
                   new Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
                       prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
-                      max_num_stream));
+                      max_num_stream, default_cuda_stream_priority));
             }),
         "batch_size"_a,
         "num_threads"_a,
@@ -570,7 +588,8 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_async"_a,
         "bytes_per_sample_hint"_a = 0,
         "set_affinity"_a = false,
-        "max_num_stream"_a = -1
+        "max_num_stream"_a = -1,
+        "default_cuda_stream_priority"_a = 0
         )
     // initialize from serialized pipeline
     .def(py::init(
@@ -578,13 +597,13 @@ PYBIND11_MODULE(backend_impl, m) {
              int batch_size, int num_threads, int device_id,
              bool pipelined_execution = true,  int prefetch_queue_depth = 2,
              bool async_execution = true, size_t bytes_per_sample_hint = 0,
-             bool set_affinity = false,
-             int max_num_stream = -1) {
+             bool set_affinity = false, int max_num_stream = -1,
+             int default_cuda_stream_priority = 0) {
               return std::unique_ptr<Pipeline>(
                   new Pipeline(serialized_pipe,
                                batch_size, num_threads, device_id, pipelined_execution,
                                prefetch_queue_depth, async_execution, bytes_per_sample_hint,
-                               set_affinity, max_num_stream));
+                               set_affinity, max_num_stream, default_cuda_stream_priority));
             }),
         "serialized_pipe"_a,
         "batch_size"_a,
@@ -595,7 +614,8 @@ PYBIND11_MODULE(backend_impl, m) {
         "exec_async"_a,
         "bytes_per_sample_hint"_a = 0,
         "set_affinity"_a = false,
-        "max_num_stream"_a = -1
+        "max_num_stream"_a = -1,
+        "default_cuda_stream_priority"_a = 0
         )
     .def("AddOperator", &Pipeline::AddOperator)
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)

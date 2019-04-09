@@ -24,12 +24,15 @@ class MXNetReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit MXNetReader(const OpSpec& spec)
   : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
-    loader_.reset(new RecordIOLoader(spec));
+    loader_ = InitLoader<RecordIOLoader>(spec);
     parser_.reset(new RecordIOParser(spec));
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
-    parser_->Parse(GetSample(ws->data_idx()), ws);
+    const auto& tensor = GetSample(ws->data_idx());
+    if (tensor.ShouldSkipSample())
+      return;
+    parser_->Parse(tensor, ws);
   }
 
  protected:

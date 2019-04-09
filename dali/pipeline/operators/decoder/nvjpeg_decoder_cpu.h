@@ -15,12 +15,17 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_CPU_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECODER_CPU_H_
 
+#include <cuda_runtime_api.h>
+
 #include <memory>
 #include <string>
 #include <utility>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
+#include "dali/pipeline/operators/decoder/nvjpeg_allocator.h"
 
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/operators/operator.h"
@@ -29,7 +34,10 @@
 
 namespace dali {
 
+
 using ImageInfo = EncodedImageInfo<unsigned int>;
+
+using PinnedAllocator = memory::ChunkPinnedAllocator;
 
 class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
  public:
@@ -37,7 +45,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     Operator<CPUBackend>(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
-    decode_params_(batch_size_) {
+    decode_params_(batch_size_),
+    use_chunk_allocator_(spec.GetArgument<bool>("use_chunk_allocator")) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
 
     // Do we really need both in both stages ops?
@@ -55,12 +64,20 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                     GetFormat(output_image_type_)));
       NVJPEG_CALL(nvjpegDecodeParamsSetAllowCMYK(decode_params_[i], true));
     }
+
+    if (use_chunk_allocator_) {
+      int nbuffers = spec.GetArgument<int>("cpu_prefetch_queue_depth") * batch_size_;
+      PinnedAllocator::PreallocateBuffers(host_memory_padding, nbuffers);
+      pinned_allocator_.pinned_malloc = &PinnedAllocator::Alloc;
+      pinned_allocator_.pinned_free = &PinnedAllocator::Free;
+    }
   }
 
   virtual ~nvJPEGDecoderCPUStage() noexcept(false) {
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
     NVJPEG_CALL(nvjpegDestroy(handle_));
+    PinnedAllocator::FreeBuffers();
   }
 
   void RunImpl(SampleWorkspace *ws, const int idx) {
@@ -124,7 +141,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(state_nvjpeg->jpeg_stream,
                                                    &info->c));
       state_nvjpeg->nvjpeg_backend =
-                    ShouldBeHybrid(*info) ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
+                    ShouldUseHybridHuffman(*info, input_data, in_size, hybrid_huffman_threshold_)
+                    ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
       if (crop_generator) {
         info->crop_window = crop_generator(info->heights[0], info->widths[0]);
@@ -184,7 +202,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       });
 
       // We want to use nvJPEG default pinned allocator
-      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &state_p->pinned_buffer));
+      auto* allocator = use_chunk_allocator_ ? &pinned_allocator_ : nullptr;
+      NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, allocator, &state_p->pinned_buffer));
       NVJPEG_CALL(nvjpegDecoderStateCreate(handle_,
                                         decoder_host_,
                                         &state_p->decoder_host_state));
@@ -202,10 +221,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     return std::make_pair(info, nvjpeg_state);
   }
 
-  bool ShouldBeHybrid(ImageInfo& info) const {
-    return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
-  }
-
   inline nvjpegJpegDecoder_t GetDecoder(nvjpegBackend_t backend) const {
     switch (backend) {
       case NVJPEG_BACKEND_HYBRID:
@@ -221,7 +236,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
   // output colour format
   DALIImageType output_image_type_;
 
-  unsigned hybrid_huffman_threshold_;
+  unsigned int hybrid_huffman_threshold_;
 
   // Common handles
   nvjpegHandle_t handle_;
@@ -230,6 +245,9 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
   // TODO(spanev): add huffman hybrid decode
   std::vector<nvjpegDecodeParams_t> decode_params_;
+
+  bool use_chunk_allocator_;
+  nvjpegPinnedAllocator_t pinned_allocator_;
 };
 
 }  // namespace dali

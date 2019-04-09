@@ -51,15 +51,23 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
     bool shuffle_after_epoch = false)
     : Loader<CPUBackend, ImageLabelWrapper>(spec),
       file_root_(spec.GetArgument<string>("file_root")),
+      file_list_(spec.GetArgument<string>("file_list")),
       image_label_pairs_(image_label_pairs),
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
       current_epoch_(0) {
-    file_list_ = spec.GetArgument<string>("file_list");
     mmap_reserver = FileStream::FileStreamMappinReserver(
         static_cast<unsigned int>(initial_buffer_fill_));
     copy_read_data_ = !mmap_reserver.CanShareMappedData();
+  }
 
+  void PrepareEmpty(ImageLabelWrapper &tensor) override;
+  void ReadSample(ImageLabelWrapper &tensor) override;
+
+ protected:
+  Index SizeImpl() override;
+
+  void PrepareMetadataImpl() override {
     if (image_label_pairs_.empty()) {
       if (file_list_ == "") {
         image_label_pairs_ = filesystem::traverse_directories(file_root_);
@@ -77,8 +85,7 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
         DALI_ENFORCE(s.eof(), "Wrong format of file_list.");
       }
     }
-
-    DALI_ENFORCE(Size() > 0, "No files found.");
+        DALI_ENFORCE(Size() > 0, "No files found.");
 
     if (shuffle_) {
       // seeded with hardcoded value to get
@@ -89,12 +96,6 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
     Reset(true);
   }
 
-  void PrepareEmpty(ImageLabelWrapper &tensor) override;
-  void ReadSample(ImageLabelWrapper &tensor) override;
-
-  Index Size() override;
-
- protected:
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
       current_index_ = start_index(shard_id_, num_shards_, Size());

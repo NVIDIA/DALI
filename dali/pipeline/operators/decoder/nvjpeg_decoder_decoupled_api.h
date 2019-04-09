@@ -96,7 +96,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
     for (int i = 0; i < num_threads_; ++i) {
       NVJPEG_CALL(nvjpegBufferDeviceCreate(handle_, nullptr, &device_buffer_[i]));
-      CUDA_CALL(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
+      CUDA_CALL(cudaStreamCreateWithPriority(&streams_[i], cudaStreamNonBlocking,
+                                             default_cuda_stream_priority_));
     }
     CUDA_CALL(cudaEventCreate(&master_event_));
   }
@@ -141,12 +142,19 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ParseImagesInfo(MixedWorkspace *ws) {
+    const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
     // Parsing and preparing metadata
     for (int i = 0; i < batch_size_; i++) {
       const auto &in = ws->Input<CPUBackend>(0, i);
       const auto *input_data = in.data<uint8_t>();
       const auto in_size = in.size();
       const auto file_name = in.GetSourceInfo();
+
+      auto cached_shape = CacheImageShape(file_name);
+      if (volume(cached_shape) > 0) {
+        output_shape_[i] = Dims({cached_shape[0], cached_shape[1], cached_shape[2]});
+        continue;
+      }
 
       ImageInfo info;
       nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
@@ -174,7 +182,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           DALI_FAIL(e.what() + "File: " + file_name);
         }
       } else {
-        if (ShouldUseHybridHuffman(info)) {
+        if (ShouldUseHybridHuffman(info, input_data, in_size, hybrid_huffman_threshold_)) {
           image_decoders_[i] = decoder_huff_hybrid_;
           image_states_[i] = decoder_huff_hybrid_state_[i];
         } else {
@@ -192,7 +200,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           info.heights[0] = crop_window.h;
         }
       }
-      const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
       output_shape_[i] = Dims({info.heights[0], info.widths[0], c});
       output_info_[i] = info;
     }
@@ -224,21 +231,20 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       const auto &in = ws->Input<CPUBackend>(0, i);
       const auto file_name = in.GetSourceInfo();
-      cudaStream_t stream = ws->stream();
       auto *output_data = output.mutable_tensor<uint8_t>(i);
+      if (DeferCacheLoad(file_name, output_data))
+        continue;
+
       auto dims = output_shape_[i];
       ImageCache::ImageShape shape = {dims[0], dims[1], dims[2]};
       thread_pool_.DoWorkWithID(
-        [this, i, file_name, stream, &in, output_data, shape](int tid) {
-          if (CacheLoad(file_name, shape, output_data, stream))
-            return;
-
+        [this, i, file_name, &in, output_data, shape](int tid) {
           SampleWorker(i, file_name, in.size(), tid,
             in.data<uint8_t>(), output_data);
-
-          CacheStore(file_name, output_data, shape, stream);
+          CacheStore(file_name, output_data, shape, streams_[tid]);
         });
     }
+    LoadDeferred(ws->stream());
 
     thread_pool_.WaitForWork();
     // record all the current streamed work
@@ -323,25 +329,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
-  // Predicate to determine if the image should be decoded with the nvJPEG
-  // hybrid Huffman decoder instead of the nvjpeg host Huffman decoder
-  bool ShouldUseHybridHuffman(ImageInfo& info) {
-    auto &roi = info.crop_window;
-    if (roi) {
-      return info.widths[0] * (roi.y + roi.h) > hybrid_huffman_threshold_;
-    }
-    return info.widths[0] * info.heights[0] > hybrid_huffman_threshold_;
-  }
-
-
-
   USE_OPERATOR_MEMBERS();
   nvjpegHandle_t handle_;
 
   // output colour format
   DALIImageType output_image_type_;
 
-  int hybrid_huffman_threshold_;
+  unsigned int hybrid_huffman_threshold_;
 
   // Common
   // Storage for per-image info

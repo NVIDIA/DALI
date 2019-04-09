@@ -120,6 +120,14 @@ TEST_F(RandomCropGeneratorTest, AspectRatio) {
       float aspect = static_cast<float>(window.w) / window.h;
       EXPECT_GE(aspect, min_ratio) << window.w << "x" << window.h;
       EXPECT_LE(aspect, max_ratio) << window.w << "x" << window.h;
+      EXPECT_GE(window.w, 1) << window.w << "x" << window.h;
+      EXPECT_GE(window.h, 1) << window.w << "x" << window.h;
+      EXPECT_LE(window.w, W) << window.w << "x" << window.h;
+      EXPECT_LE(window.h, H) << window.w << "x" << window.h;
+      EXPECT_LT(window.x, W) << window.x << "x" << window.y;
+      EXPECT_LT(window.y, H) << window.x << "x" << window.y;
+      EXPECT_LE(window.x + window.w, W) << window.x << "x" << window.y;
+      EXPECT_LE(window.y + window.h, H) << window.x << "x" << window.y;
     }
 }
 

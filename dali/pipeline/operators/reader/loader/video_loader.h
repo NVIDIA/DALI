@@ -113,11 +113,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       filenames_(filenames),
       codec_id_(0),
       done_(false) {
-      if (step_ < 0)
-        step_ = count_;
-  }
-
-  void init() {
+    if (step_ < 0)
+      step_ = count_;
     DALI_ENFORCE(cuvidInitChecked(0),
      "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
      "If you are running in a Docker container, please refer "
@@ -129,25 +126,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     CUDA_CALL(cudaGetDevice(&device_id_));
 
     av_register_all();
-
-    for (size_t i = 0; i < filenames_.size(); ++i) {
-      int frame_count = get_or_open_file(filenames_[i]).frame_count_;
-      for (int s = 0; s < frame_count && s + count_ <= frame_count; s += step_) {
-        frame_starts_.emplace_back(i, s);
-      }
-    }
-
-    if (shuffle_) {
-      // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
-      // seeded with hardcoded value to get
-      // the same sequence on every shard
-      std::mt19937 g(524287);
-      std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
-    }
-
-    Reset(true);
-
-    thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
 
   ~VideoLoader() noexcept override {
@@ -167,7 +145,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   void PrepareEmpty(SequenceWrapper &tensor) override;
   void ReadSample(SequenceWrapper &tensor) override;
-  Index Size() override;
 
   OpenFile& get_or_open_file(std::string filename);
   void seek(OpenFile& file, int frame);
@@ -175,6 +152,30 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void push_sequence_to_read(std::string filename, int frame, int count);
   void receive_frames(SequenceWrapper& sequence);
   std::pair<int, int> load_width_height(const std::string& filename);
+
+ protected:
+  Index SizeImpl() override;
+
+  void PrepareMetadataImpl() override {
+    for (size_t i = 0; i < filenames_.size(); ++i) {
+      int frame_count = get_or_open_file(filenames_[i]).frame_count_;
+      for (int s = 0; s < frame_count && s + count_ <= frame_count; s += step_) {
+        frame_starts_.emplace_back(i, s);
+      }
+    }
+
+    if (shuffle_) {
+      // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
+      // seeded with hardcoded value to get
+      // the same sequence on every shard
+      std::mt19937 g(524287);
+      std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
+    }
+
+    Reset(true);
+
+    thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
+  }
 
  private:
   void Reset(bool wrap_to_shard) override {

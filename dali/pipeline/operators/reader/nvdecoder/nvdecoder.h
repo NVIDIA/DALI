@@ -86,6 +86,7 @@ class NvDecoder {
 
   bool initialized() const;
 
+  // NVDEC callbacks
   static int handle_sequence(void* user_data, CUVIDEOFORMAT* format);
   static int handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
   static int handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
@@ -103,7 +104,7 @@ class NvDecoder {
 
   void record_sequence_event_(SequenceWrapper& sequence);
 
-
+  // implem functions called in the callback
   int handle_sequence_(CUVIDEOFORMAT* format);
   int handle_decode_(CUVIDPICPARAMS* pic_params);
   int handle_display_(CUVIDPARSERDISPINFO* disp_info);
@@ -156,7 +157,6 @@ class NvDecoder {
   const TextureObjects& get_textures(uint8_t* input, unsigned int input_pitch,
                                      uint16_t input_width, uint16_t input_height,
                                      ScaleMethod scale_method);
-  void convert_frames_worker();
   void convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                      int index);
 
@@ -181,7 +181,6 @@ class NvDecoder {
   std::vector<uint8_t> frame_in_use_;
   ThreadSafeQueue<FrameReq> recv_queue_;
   ThreadSafeQueue<CUVIDPARSERDISPINFO*> frame_queue_;
-  ThreadSafeQueue<SequenceWrapper*> output_queue_;
   FrameReq current_recv_;
 
   using TexID = std::tuple<uint8_t*, ScaleMethod>;

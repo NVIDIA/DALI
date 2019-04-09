@@ -20,7 +20,6 @@
 #include <array>
 
 #include "dali/pipeline/operators/reader/parser/parser.h"
-#include "dali/pipeline/operators/reader/loader/file_loader.h"
 
 namespace dali {
 
@@ -40,23 +39,15 @@ struct Annotation {
   friend std::ostream& operator<<(std::ostream& os, Annotation& an);
 };
 
-std::ostream& operator<<(std::ostream& os, Annotation& an) {
-  std::array<float, 4>& bbox = an.bbox;
-  os << "Annotation(category_id=" << an.category_id
-  << ",bbox = [" << bbox[0] << "," << bbox[1]
-  << "," << bbox[2] << "," << bbox[3] << "])";
-  return os;
-}
-
 using AnnotationMap = std::multimap<int, Annotation>;
 
 class COCOParser: public Parser<ImageLabelWrapper> {
  public:
-  explicit COCOParser(const OpSpec& spec, const AnnotationMap& annotations_multimap,
-                      const bool& save_img_ids)
+  explicit COCOParser(
+    const OpSpec& spec, AnnotationMap& annotations_multimap)
     : Parser<ImageLabelWrapper>(spec),
     annotations_multimap_(annotations_multimap),
-    save_img_ids_(save_img_ids) {}
+    save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {}
 
   void Parse(const ImageLabelWrapper& image_label, SampleWorkspace* ws) override {
     Index image_size = image_label.image.size();
@@ -102,7 +93,7 @@ class COCOParser: public Parser<ImageLabelWrapper> {
     }
   }
 
-  const AnnotationMap& annotations_multimap_;
+  AnnotationMap& annotations_multimap_;
   const bool save_img_ids_;
 };
 

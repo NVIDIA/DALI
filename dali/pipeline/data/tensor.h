@@ -91,6 +91,7 @@ class Tensor : public Buffer<Backend> {
     this->set_type(other.type());
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo());
+    this->SetSkipSample(other.ShouldSkipSample());
     this->ResizeLike(other);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), stream);
@@ -106,6 +107,7 @@ class Tensor : public Buffer<Backend> {
     this->set_type(other.type());
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo(idx));
+    this->SetSkipSample(other.ShouldSkipSample(idx));
     this->Resize(shape_);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_tensor(idx), this->size(), stream);
@@ -399,6 +401,14 @@ class Tensor : public Buffer<Backend> {
 
   inline void SetSourceInfo(string source_info) {
     meta_.SetSourceInfo(source_info);
+  }
+
+  inline void SetSkipSample(bool skip_sample) {
+    meta_.SetSkipSample(skip_sample);
+  }
+
+  inline bool ShouldSkipSample() const {
+    return meta_.ShouldSkipSample();
   }
 
  protected:

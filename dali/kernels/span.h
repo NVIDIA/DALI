@@ -16,6 +16,7 @@
 #define DALI_KERNELS_SPAN_H_
 
 #include <cstddef>
+#include <array>
 #include <type_traits>
 
 namespace dali {
@@ -151,6 +152,40 @@ constexpr span<T, Extent> make_span(T *data) { return { data }; }
 // @brief Helper function for pre-C++17
 template <ptrdiff_t Extent = dynamic_extent, typename T>
 constexpr span<T, Extent> make_span(T *data, ptrdiff_t extent) { return { data, extent }; }
+
+template <typename Collection>
+auto make_span(Collection &c)->decltype(make_span(c.data(), c.size())) {
+  return make_span(c.data(), c.size());
+}
+
+template <typename Collection>
+auto make_span(Collection &&c)->decltype(make_span(c.data(), c.size())) {
+  static_assert(!std::is_rvalue_reference<Collection&&>::value,
+    "Cannot create a span from an r-value.");
+  return make_span(c.data(), c.size());
+}
+
+template <typename T, size_t N>
+constexpr span<T, N> make_span(std::array<T, N> &a) {
+  return { a.data() };
+}
+
+template <typename T, size_t N>
+constexpr span<const T, N> make_span(const std::array<T, N> &a) {
+  return { a.data() };
+}
+
+template <typename T, size_t N>
+constexpr span<const T, N> make_span(std::array<T, N> &&a) {
+  static_assert(!std::is_rvalue_reference<std::array<T, N> &&>::value,
+    "Cannot create a span from an r-value.");
+  return { a.data() };
+}
+
+template <typename T, size_t N>
+constexpr span<const T, N> make_span(T (&a)[N]) {
+  return { a };
+}
 
 }  // namespace dali
 

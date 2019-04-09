@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/aux/optical_flow/turing_of/optical_flow_turing.h"
 #include <dlfcn.h>
 
+#include "dali/pipeline/operators/optical_flow/turing_of/optical_flow_turing.h"
 
 namespace dali {
 namespace optical_flow {
@@ -55,7 +55,7 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
 
   TURING_OF_API_CALL(turing_of_.nvCreateOpticalFlowCuda(ctx, &of_handle_));
   TURING_OF_API_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
-  VerifySupport(turing_of_.nvOFInit(of_handle_, &of_params_));
+  VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
 
   inbuf_.reset(
           new OpticalFlowBuffer(of_handle_, width_, height_, turing_of_, NV_OF_BUFFER_USAGE_INPUT,
@@ -66,6 +66,11 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
   outbuf_.reset(
           new OpticalFlowBuffer(of_handle_, (width_ + 3) / 4, (height_ + 3) / 4, turing_of_,
                                 NV_OF_BUFFER_USAGE_OUTPUT, NV_OF_BUFFER_FORMAT_SHORT2));
+  if (of_params_.enable_external_hints) {
+    hintsbuf_.reset(
+            new OpticalFlowBuffer(of_handle_, (width_ + 3) / 4, (height_ + 3) / 4, turing_of_,
+                                  NV_OF_BUFFER_USAGE_HINT, NV_OF_BUFFER_FORMAT_SHORT2));
+  }
 }
 
 
@@ -73,6 +78,9 @@ OpticalFlowTuring::~OpticalFlowTuring() {
   inbuf_.reset(nullptr);
   refbuf_.reset(nullptr);
   outbuf_.reset(nullptr);
+  if (of_params_.enable_external_hints) {
+    hintsbuf_.reset(nullptr);
+  }
   auto err = turing_of_.nvOFDestroy(of_handle_);
   if (err != NV_OF_SUCCESS) {
     // Failing to destroy OF leads to significant GPU resource leak,
@@ -91,6 +99,13 @@ void OpticalFlowTuring::CalcOpticalFlow(
         TensorView<StorageGPU, const uint8_t, 3> input_image,
         TensorView<StorageGPU, float, 3> output_image,
         TensorView<StorageGPU, const float, 3> external_hints) {
+  if (of_params_.enable_external_hints) {
+    DALI_ENFORCE(external_hints.shape == output_image.shape,
+                 "If external hint are used, shape must match against output_image");
+  } else {
+    DALI_ENFORCE(external_hints.shape == kernels::TensorShape<3>(),
+            "If external hints aren't used, shape must be empty");
+  }
   switch (image_type_) {
     case DALI_BGR:
       kernel::BgrToRgba(input_image.data, reinterpret_cast<uint8_t *>(inbuf_->GetPtr()),
@@ -114,7 +129,9 @@ void OpticalFlowTuring::CalcOpticalFlow(
       DALI_FAIL("Provided image type not supported");
   }
 
-  auto in_params = GenerateExecuteInParams(inbuf_->GetHandle(), refbuf_->GetHandle());
+  auto in_params = GenerateExecuteInParams(inbuf_->GetHandle(), refbuf_->GetHandle(),
+                                           of_params_.enable_external_hints ? hintsbuf_->GetHandle()
+                                                                            : nullptr);
   auto out_params = GenerateExecuteOutParams(outbuf_->GetHandle());
   TURING_OF_API_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
 
@@ -125,42 +142,43 @@ void OpticalFlowTuring::CalcOpticalFlow(
 
 
 void OpticalFlowTuring::SetInitParams(dali::optical_flow::OpticalFlowParams api_params) {
-  of_params_.width = static_cast<uint32_t>(width_);
-  of_params_.height = static_cast<uint32_t>(height_);
+  init_params_.width = static_cast<uint32_t>(width_);
+  init_params_.height = static_cast<uint32_t>(height_);
 
   if (api_params.grid_size == VectorGridSize::SIZE_4) {
-    of_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_4;
-    of_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_4;
+    init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_4;
+    init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_4;
   } else {
-    of_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_UNDEFINED;
-    of_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
+    init_params_.outGridSize = NV_OF_OUTPUT_VECTOR_GRID_SIZE_UNDEFINED;
+    init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
   }
 
-  of_params_.mode = NV_OF_MODE_OPTICALFLOW;
+  init_params_.mode = NV_OF_MODE_OPTICALFLOW;
 
   if (api_params.perf_quality_factor >= 0.0 && api_params.perf_quality_factor < 0.375f) {
-    of_params_.perfLevel = NV_OF_PERF_LEVEL_SLOW;
+    init_params_.perfLevel = NV_OF_PERF_LEVEL_SLOW;
   } else if (api_params.perf_quality_factor < 0.75f) {
-    of_params_.perfLevel = NV_OF_PERF_LEVEL_MEDIUM;
+    init_params_.perfLevel = NV_OF_PERF_LEVEL_MEDIUM;
   } else if (api_params.perf_quality_factor <= 1.0f) {
-    of_params_.perfLevel = NV_OF_PERF_LEVEL_FAST;
+    init_params_.perfLevel = NV_OF_PERF_LEVEL_FAST;
   } else {
-    of_params_.perfLevel = NV_OF_PERF_LEVEL_UNDEFINED;
+    init_params_.perfLevel = NV_OF_PERF_LEVEL_UNDEFINED;
   }
 
-  of_params_.enableExternalHints = api_params.enable_hints ? NV_OF_TRUE : NV_OF_FALSE;
-  of_params_.enableOutputCost = NV_OF_FALSE;
-  of_params_.hPrivData = NULL;
+  init_params_.enableExternalHints = of_params_.enable_external_hints ? NV_OF_TRUE : NV_OF_FALSE;
+  init_params_.enableOutputCost = NV_OF_FALSE;
+  init_params_.hPrivData = NULL;
 }
 
 
 NV_OF_EXECUTE_INPUT_PARAMS OpticalFlowTuring::GenerateExecuteInParams
-        (NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle) {
+        (NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle,
+         NvOFGPUBufferHandle hints_handle) {
   NV_OF_EXECUTE_INPUT_PARAMS params;
   params.inputFrame = in_handle;
   params.referenceFrame = ref_handle;
-  params.disableTemporalHints = NV_OF_TRUE;
-  params.externalHints = nullptr;
+  params.disableTemporalHints = of_params_.enable_temporal_hints ? NV_OF_FALSE : NV_OF_TRUE;
+  params.externalHints = hints_handle;
   params.padding = 0;
   params.hPrivData = NULL;
   return params;

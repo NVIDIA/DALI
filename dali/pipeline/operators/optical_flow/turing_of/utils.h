@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_AUX_OPTICAL_FLOW_TURING_OF_UTILS_H_
-#define DALI_AUX_OPTICAL_FLOW_TURING_OF_UTILS_H_
+#ifndef DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_UTILS_H_
+#define DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_UTILS_H_
 
 #define TURING_OF_API_CALL(nvOFAPI)                                                  \
     do                                                                               \
@@ -26,4 +26,4 @@
         }                                                                            \
     } while (0)
 
-#endif  // DALI_AUX_OPTICAL_FLOW_TURING_OF_UTILS_H_
+#endif  // DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_UTILS_H_
