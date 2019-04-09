@@ -50,20 +50,18 @@ Image::ImageDims PnmImage::PeekDims(const uint8_t *pnm, size_t length) const {
               ++at_ptr;
               DALI_ENFORCE(at_ptr < end_ptr);
           } while (!isspace(*at_ptr));
-          continue;
       } else if (isspace(*at_ptr)) {
           if (++state < STATE_DONE) {
               do {
                   ++at_ptr;
                   DALI_ENFORCE(at_ptr < end_ptr);
               } while (isspace(*at_ptr));
-              continue;
           }
       } else {
           DALI_ENFORCE(isdigit(*at_ptr));
           dim[state-1] = dim[state-1]*10 + (*at_ptr - '0');
+          ++at_ptr;
       }
-      ++at_ptr;
   } while (state < STATE_DONE);
   int h = dim[STATE_HEIGHT-1];
   int w = dim[STATE_WIDTH-1];
