@@ -92,7 +92,10 @@ def parse_cmdline(init_vals, custom_parser=None):
                    help="""Select single or half precision arithmetic.""")
     p.add_argument('--dali_cpu', action='store_true',
                    default=False,
-                   help="""Use CPU backend for DALI for input pipeline""")
+                   help="""Use CPU backend for DALI for input pipeline.""")
+    p.add_argument('--epoch_evaluation', action='store_true',
+                   default=False,
+                   help="""Additionally runs the evaluation after every epoch.""")
 
     FLAGS, unknown_args = p.parse_known_args()
     if len(unknown_args) > 0:
@@ -125,6 +128,8 @@ def parse_cmdline(init_vals, custom_parser=None):
     del FLAGS.precision
     vals['dali_cpu'] = FLAGS.dali_cpu
     del FLAGS.dali_cpu
+    vals['epoch_evaluation'] = FLAGS.epoch_evaluation
+    del FLAGS.epoch_evaluation
 
     return vals, FLAGS
 
