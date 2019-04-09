@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/views.h"
-#include "dali/pipeline/operators/optical_flow/optical_flow.h"
+#include <dali/pipeline/data/views.h>
+#include <dali/pipeline/operators/optical_flow/optical_flow.h>
 
 namespace dali {
 
@@ -63,10 +63,11 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     const auto &hints = ws->Input<GPUBackend>(1);
     auto &output = ws->Output<GPUBackend>(0);
 
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
-
     // Extract calculation params
     ExtractParams(input, hints);
+
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
+
     std::vector<Dims> new_sizes;
     auto out_shape = optical_flow_->GetOutputShape();
     for (int i = 0; i < nsequences_; i++) {
@@ -75,7 +76,6 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
       new_sizes.emplace_back(shape);
     }
     output.Resize(new_sizes);
-
 
     // Prepare input and output TensorViews
     auto tvlin = view<const uint8_t, kNInputDims>(input);
@@ -104,10 +104,12 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     const auto &input = ws->Input<GPUBackend>(0);
     auto &output = ws->Output<GPUBackend>(0);
 
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
 
     // Extract calculation params
     ExtractParams(input);
+
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
+
     std::vector<Dims> new_sizes;
     auto out_shape = optical_flow_->GetOutputShape();
     for (int i = 0; i < nsequences_; i++) {
@@ -116,7 +118,6 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
       new_sizes.emplace_back(shape);
     }
     output.Resize(new_sizes);
-
 
     // Prepare input and output TensorViews
     auto tvlin = view<const uint8_t, kNInputDims>(input);
