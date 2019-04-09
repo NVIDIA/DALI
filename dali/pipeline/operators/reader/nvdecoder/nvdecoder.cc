@@ -51,7 +51,7 @@ NvDecoder::NvDecoder(int device_id,
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
-      current_recv_(), textures_(), done_(false) {
+      current_recv_(), textures_(), stop_(false) {
   if (!codecpar) {
     // TODO(spanev) explicit handling
     return;
@@ -101,7 +101,7 @@ bool NvDecoder::initialized() const {
 NvDecoder::~NvDecoder() = default;
 
 int NvDecoder::decode_av_packet(AVPacket* avpkt) {
-  if (done_) return 0;
+  if (stop_) return 0;
 
   CUVIDSOURCEDATAPACKET cupkt = {0};
 
@@ -153,7 +153,7 @@ int NvDecoder::handle_sequence_(CUVIDEOFORMAT* format) {
   try {
     ret = decoder_.initialize(format);
   } catch (...) {
-    done_ = true;
+    stop_ = true;
     captured_exception_ = std::current_exception();
     // Main thread is waiting on frame_queue_
     frame_queue_.shutdown();
@@ -168,7 +168,7 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
   constexpr auto enable_timeout = false;
 
   // If something went wrong during init we exit directly
-  if (done_) return kNvcuvid_failure;
+  if (stop_) return kNvcuvid_failure;
 
   while (frame_in_use_[pic_params->CurrPicIdx]) {
     if (enable_timeout &&
@@ -182,7 +182,7 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
       DALI_FAIL(ss.str());
     }
     usleep(sleep_period);
-    if (done_) return kNvcuvid_failure;
+    if (stop_) return kNvcuvid_failure;
   }
 
   LOG_LINE << "Sending a picture for decode"
@@ -293,7 +293,7 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
     current_recv_ = recv_queue_.pop();
   }
 
-  if (done_) return kNvcuvid_failure;
+  if (stop_) return kNvcuvid_failure;
 
   if (current_recv_.count <= 0) {
     // a new req with count <= 0 probably means we are finishing
@@ -350,9 +350,9 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
                << std::endl;
 
       auto* frame_disp_info = frame_queue_.pop();
-      if (done_) break;
+      if (stop_) break;
       auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
-      if (done_) break;
+      if (stop_) break;
       convert_frame(frame, sequence, i);
   }
   if (captured_exception_)
@@ -445,7 +445,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
 }
 
 void NvDecoder::finish() {
-  done_ = true;
+  stop_ = true;
   recv_queue_.shutdown();
   frame_queue_.shutdown();
 }
