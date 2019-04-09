@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_UTIL_OPTICAL_FLOW_H_
-#define DALI_PIPELINE_OPERATORS_UTIL_OPTICAL_FLOW_H_
+#ifndef DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_OPTICAL_FLOW_H_
+#define DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_OPTICAL_FLOW_H_
 
 #include <memory>
 #include <vector>
@@ -169,4 +169,4 @@ class OpticalFlow : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_UTIL_OPTICAL_FLOW_H_
+#endif  // DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_OPTICAL_FLOW_H_
