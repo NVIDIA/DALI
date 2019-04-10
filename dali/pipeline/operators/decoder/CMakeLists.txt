@@ -42,8 +42,6 @@ if (BUILD_NVJPEG)
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_crop_test.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_slice_test.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_random_crop_test.cc")
-    else()
-      list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_test.cc")
     endif()
   endif()
 endif()
