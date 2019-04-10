@@ -34,7 +34,7 @@ RUN CUDA_VERSION=10.0 && \
     curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux && \
     chmod +x cuda_${CUDA_BUILD}_linux && \
     ./cuda_${CUDA_BUILD}_linux --silent --no-opengl-libs --toolkit && \
-    rm -f cuda_${CUDA_BUILD}_linux; 
+    rm -f cuda_${CUDA_BUILD}_linux;
 
 FROM cuda-${USE_CUDA_VERSION} as cuda
 
@@ -112,7 +112,7 @@ RUN CLANG_VERSION=6.0.1 && \
 
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
-# FMpeg
+# FFmpeg
 RUN FFMPEG_VERSION=3.4.2 && \
     cd /tmp && wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
     tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
