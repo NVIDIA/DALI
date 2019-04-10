@@ -187,7 +187,7 @@ endforeach(m)
 
 include_directories(${avformat_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${avformat_LIBRARIES})
-CHECK_STRUCT_HAS_MEMBER("struct AVStream" codecpar libavformat/avformat.h HAVE_AVSTREAM_CODECPAR LANGUAGE C)
+CHECK_STRUCT_HAS_MEMBER("struct AVStream" codecpar libavformat/avformat.h HAVE_AVSTREAM_CODECPAR LANGUAGE CXX)
 set(CMAKE_EXTRA_INCLUDE_FILES libavcodec/avcodec.h)
 CHECK_TYPE_SIZE("AVBSFContext" AVBSFCONTEXT LANGUAGE CXX)
 
