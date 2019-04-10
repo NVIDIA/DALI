@@ -18,6 +18,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 
+
 class COCOPipeline(Pipeline):
     def __init__(self, default_boxes, args, seed):
         super(COCOPipeline, self).__init__(
@@ -86,6 +87,7 @@ class COCOPipeline(Pipeline):
             device="cpu",
             criteria=0.5,
             anchors=default_boxes.as_ltrb_list())
+
 
     def define_graph(self):
         saturation = self.rng1()

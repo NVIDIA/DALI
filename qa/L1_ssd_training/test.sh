@@ -17,7 +17,7 @@ test_body() {
     popd
 
     # test code
-    python -m torch.distributed.launch --nproc_per_node=1 ./main.py --warmup 200 --bs 64 --data=/data/coco/coco-2017/coco2017/ --data_pipeline dali --epochs=4
+    python main.py --backbone resnet50 --warmup 300 --bs 64 --fp16 --data /coco --data=/data/coco/coco-2017/coco2017/ --data_pipeline dali --epochs=4 --target 0.1
 }
 
 source ../../../../qa/test_template.sh

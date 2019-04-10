@@ -4,7 +4,7 @@ Single Shot MultiBox Detector training in PyTorch
 This example shows how DALI can be used in detection networks, specifically Single Shot Multibox Detector originally published by Wei Liu, Dragomir Anguelov, Dumitru Erhan, Christian Szegedy, 
 Scott Reed, Cheng-Yang Fu, Alexander C. Berg as `SSD: Single Shot MultiBox Detector <https://arxiv.org/abs/1512.02325>`_.
 
-Code is based on `MLPerf example <https://github.com/mlperf/training/tree/master/single_stage_detector/ssd>`_ and has been modified to use DALI. 
+Code is based on `NVIDIA Deep Learining Examples <https://github.com/awolant/DeepLearningExamples/tree/master/PyTorch/Detection/SSD>`_ and has been modified to use full DALI pipeline. 
 
 To run training on 8 GPUs using half-precission with COCO 2017 dataset under ``/coco`` use following command:
 
@@ -77,6 +77,10 @@ All arguments with descriptions you can find in table below:
 | --num-workers NUM_WORKERS                   | number of worker threads                |
 +---------------------------------------------+-----------------------------------------+
 | --fp16                                      | use half precission                     |
++---------------------------------------------+-----------------------------------------+
+| --amp                                       | use AMP                                 |
++---------------------------------------------+-----------------------------------------+
+| --target                                    | target mAP to assert against at the end |
 +---------------------------------------------+-----------------------------------------+
 | --local_rank LOCAL_RANK                     | local rank of current process           |
 +---------------------------------------------+-----------------------------------------+
