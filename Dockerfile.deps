@@ -43,6 +43,8 @@ FROM base
 # Install yum Dependencies
 RUN yum install -y zip wget yasm
 
+RUN yum install -y python-devel
+
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m
 
