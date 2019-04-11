@@ -4,7 +4,7 @@ Single Shot MultiBox Detector training in PyTorch
 This example shows how DALI can be used in detection networks, specifically Single Shot Multibox Detector originally published by Wei Liu, Dragomir Anguelov, Dumitru Erhan, Christian Szegedy, 
 Scott Reed, Cheng-Yang Fu, Alexander C. Berg as `SSD: Single Shot MultiBox Detector <https://arxiv.org/abs/1512.02325>`_.
 
-Code is based on `NVIDIA Deep Learning Examples <https://github.com/awolant/DeepLearningExamples/tree/master/PyTorch/Detection/SSD>`_ and has been modified to use full DALI pipeline. 
+Code is based on `NVIDIA Deep Learning Examples <https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/Detection/SSD>`_ and has been modified to use full DALI pipeline. 
 
 To run training on 8 GPUs using half-precission with COCO 2017 dataset under ``/coco`` use following command:
 
