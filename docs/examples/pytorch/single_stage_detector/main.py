@@ -108,7 +108,7 @@ def make_parser():
         '--backbone', type=str, default='resnet50',
         choices=['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'])
     parser.add_argument('--num-workers', type=int, default=4)
-    parser.add_argument('--fp16-mode', type=str, default='amp', choices=['off', 'static', 'amp'],
+    parser.add_argument('--fp16-mode', type=str, default='static', choices=['off', 'static', 'amp'],
         help='Half precission mode to use')
 
     # Distributed
