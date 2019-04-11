@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/pipeline/data/views.h>
-#include <dali/pipeline/operators/optical_flow/optical_flow.h>
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operators/optical_flow/optical_flow.h"
 
 namespace dali {
 
