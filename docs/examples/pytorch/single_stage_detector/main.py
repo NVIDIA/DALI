@@ -108,8 +108,8 @@ def make_parser():
         '--backbone', type=str, default='resnet50',
         choices=['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'])
     parser.add_argument('--num-workers', type=int, default=4)
-    parser.add_argument('--fp16', action='store_true', help='use halp precission')
-    parser.add_argument('--amp', action='store_true', help='use AMP')
+    parser.add_argument('--fp16-mode', type=str, default='amp', choices=['off', 'static', 'amp'],
+        help='Half precission mode to use')
 
     # Distributed
     parser.add_argument('--local_rank', default=0, type=int,
@@ -200,6 +200,13 @@ if __name__ == "__main__":
         os.makedirs('./models', exist_ok=True)
 
     torch.backends.cudnn.benchmark = True
+
+    if args.fp16_mode != 'off':
+        args.fp16 = True
+        args.amp = (args.fp16_mode == 'amp')
+    else:
+        args.fp16 = False
+        args.amp = False
 
     start_time = time.time()
     acc, avg_speed = train(args)
