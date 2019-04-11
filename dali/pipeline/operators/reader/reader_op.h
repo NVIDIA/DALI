@@ -22,6 +22,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
 #include "dali/pipeline/operators/reader/loader/loader.h"
 #include "dali/pipeline/operators/reader/parser/parser.h"
@@ -54,6 +55,7 @@ class DataReader : public Operator<Backend> {
       : Operator<Backend>(spec),
         finished_(false),
         prefetch_queue_depth_(spec.GetArgument<int>("prefetch_queue_depth")),
+        skip_cached_images_(spec.GetArgument<bool>("skip_cached_images")),
         prefetched_batch_queue_(prefetch_queue_depth_),
         curr_batch_consumer_(0),
         curr_batch_producer_(0),
@@ -169,6 +171,56 @@ class DataReader : public Operator<Backend> {
   }
 
  protected:
+  void ParseIfNeeded(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) {
+    using OutputCache = std::unordered_map<std::string, std::vector<Tensor<CPUBackend>>>;
+    static OutputCache output_cache;
+    static std::mutex output_cache_mutex;
+
+    const auto& source_info = tensor.GetSourceInfo();
+    const auto should_skip_sample = tensor.ShouldSkipSample();
+    const std::size_t num_outputs = ws->NumOutput();
+
+    if (should_skip_sample) {
+      std::lock_guard<std::mutex> lock(output_cache_mutex);
+      auto it = output_cache.find(source_info);
+      DALI_ENFORCE(it != output_cache.end(),
+        "Image `" + source_info + "` should be in cache (cache size: "
+        + std::to_string(output_cache.size()) + ")");
+      auto& cached_outputs = it->second;
+      DALI_ENFORCE(cached_outputs.size() == num_outputs,
+        "Unexpected number of outputs");
+      for (std::size_t i = 0; i < cached_outputs.size(); i++) {
+        auto& output = ws->Output<CPUBackend>(i);
+        output.Copy(cached_outputs[i], 0);
+      }
+      return;
+    }
+
+    parser_->Parse(tensor, ws);
+
+    if (skip_cached_images_) {
+      std::lock_guard<std::mutex> lock(output_cache_mutex);
+      if (output_cache.find(source_info) != output_cache.end()) {
+        return;
+      }
+
+      auto& cached_outputs = output_cache[source_info];
+      cached_outputs.resize(num_outputs);
+
+      // We don't want to cache the image itself
+      auto& first_output = cached_outputs[0];
+      first_output.SetSourceInfo(source_info);
+      first_output.SetSkipSample(should_skip_sample);
+      first_output.set_type(TypeInfo::Create<uint8_t>());
+      first_output.Resize({1});
+
+      for (std::size_t i = 1; i < cached_outputs.size(); i++) {
+        auto& output = ws->Output<CPUBackend>(i);
+        cached_outputs[i].Copy(output, 0);
+      }
+    }
+  }
+
   void ProducerStop(std::exception_ptr error = nullptr) {
     {
       std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
@@ -236,6 +288,7 @@ class DataReader : public Operator<Backend> {
 
   // prefetched batch
   int prefetch_queue_depth_;
+  bool skip_cached_images_;
   using BatchQueueElement = std::vector<LoadTargetPtr>;
   std::vector<BatchQueueElement> prefetched_batch_queue_;
   int curr_batch_consumer_;

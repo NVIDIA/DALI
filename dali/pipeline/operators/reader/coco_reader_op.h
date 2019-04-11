@@ -38,6 +38,9 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     bool stick_to_shard = spec.GetArgument<bool>("stick_to_shard");
 
+    DALI_ENFORCE(!skip_cached_images_,
+      "COCOReader doesn't support `skip_cached_images` option");
+
     if (shuffle_after_epoch || stick_to_shard)
       DALI_ENFORCE(
         !shuffle_after_epoch || !stick_to_shard,

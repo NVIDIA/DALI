@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
+import nvidia.dali as dali
 from timeit import default_timer as timer
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
@@ -24,8 +26,35 @@ caffe_db_folder = "/data/imagenet/train-lmdb-256x256"
 
 def check_batch(batch1, batch2, batch_size, eps = 0.0000001):
     for i in range(batch_size):
-        err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
-        assert(err < eps)
+        is_failed = False
+        try:
+            err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
+        except:
+            is_failed = True
+        if (is_failed or err > eps ):
+            try:
+                print("failed[{}] err[{}]".format(is_failed, err))
+                plt.imsave("err_1.png", batch1.at(i))
+                plt.imsave("err_2.png", batch2.at(i))
+            except:
+                print("Batch at {} can't be saved as an image".format(i))
+                print(batch1.at(i))
+                print(batch2.at(i))
+            assert(False)
+
+def compare_pipelines(pipe1, pipe2, batch_size, N_iterations):
+    pipe1.build()
+    pipe2.build()
+    for k in range(N_iterations):
+        out1 = pipe1.run()
+        out2 = pipe2.run()
+        assert len(out1) == len(out2)
+        for i in range(len(out1)):
+            if isinstance(out1[i].at(0), dali.backend_impl.TensorGPU):
+                check_batch(out1[i].as_cpu(), out2[i].as_cpu(), batch_size)
+            else:
+                check_batch(out1[i], out2[i], batch_size)
+    print("OK: ({} iterations)".format(N_iterations))
 
 def test_tensor_multiple_uses():
     batch_size = 128
@@ -1060,37 +1089,89 @@ def test_pipeline_default_cuda_stream_priority():
             out2_data = out2[0].as_cpu()
             assert(np.sum(np.abs(out1_data.at(i)-out2_data.at(i)))==0)
 
-def test_nvjpegdecoder_cached_vs_non_cached():
-    """
-        Checking that cached nvJPEGDecoder produces the same output as non cached version
-    """
+
+class CachedPipeline(Pipeline):
+    def __init__(self, reader_type, batch_size, is_cached=False, seed=123456, skip_cached_images=False, num_shards=100000):
+        super(CachedPipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1, seed=seed)
+        self.reader_type = reader_type
+        if reader_type == "MXNetReader":
+            self.input = ops.MXNetReader(path = "/data/imagenet/train-480-val-256-recordio/train.rec",
+                                         index_path = "/data/imagenet/train-480-val-256-recordio/train.idx",
+                                         shard_id = 0, 
+                                         num_shards = num_shards, 
+                                         stick_to_shard = True,
+                                         skip_cached_images = skip_cached_images, 
+                                         prefetch_queue_depth = 1)
+        elif reader_type == "CaffeReader":
+            self.input = ops.CaffeReader(path = "/data/imagenet/train-lmdb-256x256", 
+                                         shard_id = 0, 
+                                         num_shards = num_shards, 
+                                         stick_to_shard = True,
+                                         skip_cached_images = skip_cached_images, 
+                                         prefetch_queue_depth = 1)
+        elif reader_type == "Caffe2Reader":
+            self.input = ops.Caffe2Reader(path = "/data/imagenet/train-c2lmdb-480", 
+                                          shard_id = 0, 
+                                          num_shards = num_shards, 
+                                          stick_to_shard = True,
+                                          skip_cached_images = skip_cached_images, 
+                                          prefetch_queue_depth = 1)
+        elif reader_type == "FileReader":
+            self.input = ops.FileReader(file_root = "/data/imagenet/train-jpeg",
+                                        shard_id = 0, 
+                                        num_shards = num_shards, 
+                                        stick_to_shard = True,
+                                        skip_cached_images = skip_cached_images, 
+                                        prefetch_queue_depth = 1)
+
+        elif reader_type == "TFRecordReader":
+            tfrecord = sorted(glob.glob("/data/imagenet/train-val-tfrecord-480/train-*"))
+            tfrecord_idx = sorted(glob.glob("/data/imagenet/train-val-tfrecord-480.idx/train-*"))
+            self.input = ops.TFRecordReader(path = tfrecord,
+                                            index_path = tfrecord_idx,
+                                            shard_id = 0, 
+                                            num_shards = num_shards, 
+                                            stick_to_shard = True,
+                                            skip_cached_images = skip_cached_images, 
+                                            features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                                                        "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
+
+        if is_cached:
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
+                                            cache_size=2000,
+                                            cache_threshold=0,
+                                            cache_type='threshold',
+                                            cache_debug=False,
+                                            cache_batch_copy=True)
+        else:
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+
+    def define_graph(self):
+        if self.reader_type == "TFRecordReader":
+            inputs = self.input()
+            jpegs = inputs["image/encoded"]
+            labels = inputs["image/class/label"]
+        else:
+            jpegs, labels = self.input()
+        images = self.decode(jpegs)
+        return (images, labels)
+
+    def iter_setup(self):
+        pass
+
+def test_nvjpeg_cached_pipelines():
     batch_size = 26
+    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "TFRecordReader"}:
+        compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False), 
+                          CachedPipeline(reader_type, batch_size, is_cached=True), 
+                          batch_size=batch_size, N_iterations=20)
 
-    class ComparePipeline(Pipeline):
-        def __init__(self, batch_size=batch_size, num_threads=1, device_id=0, num_gpus=10000):
-            super(ComparePipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth = 1)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, stick_to_shard = True)
-            self.decode_non_cached = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
-            self.decode_cached     = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
-                                                       cache_size=8000,
-                                                       cache_threshold=0,
-                                                       cache_type='threshold',
-                                                       cache_debug=False)
+def test_skip_cached_images():
+    batch_size = 1
+    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader"}:
+        compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False), 
+                          CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True), 
+                          batch_size=batch_size, N_iterations=100)
 
-        def define_graph(self):
-            self.jpegs, self.labels = self.input()
-            images_non_cached = self.decode_non_cached(self.jpegs)
-            images_cached = self.decode_cached(self.jpegs)
-            return (images_non_cached, images_cached)
 
-        def iter_setup(self):
-            pass
 
-    pipe = ComparePipeline()
-    pipe.build()
-    N_iterations = 100
-    for k in range(N_iterations):
-        pipe_out = pipe.run()
-        non_cached_data = pipe_out[0].as_cpu()
-        cached_data = pipe_out[1].as_cpu()
-        check_batch(non_cached_data, cached_data, batch_size)
