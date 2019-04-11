@@ -107,11 +107,10 @@ class Loader {
 
   // Get a random read sample
   LoadTargetPtr ReadOne() {
-    if (lazy_init_) {
+    if (!loaded_) {
       std::call_once(metadata_preparation_flag_, [this](){
           PrepareMetadata();
       });
-      lazy_init_ = false;
     }
     TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
     // perform an iniital buffer fill if it hasn't already happened
@@ -182,7 +181,11 @@ class Loader {
 
   // Give the size of the data accessed through the Loader
   Index Size() {
-    DALI_ENFORCE(loaded_, "Calling Size before data was loaded is an error");
+    if (!loaded_) {
+      std::call_once(metadata_preparation_flag_, [this](){
+          PrepareMetadata();
+      });
+    }
     return SizeImpl();
   }
 
