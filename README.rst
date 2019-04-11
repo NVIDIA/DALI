@@ -339,7 +339,7 @@ Contributing to DALI
 --------------------
 
 We welcome contributions to DALI. To contribute to DALI and make pull requests, follow the guidelines outlined in the `Contributing <CONTRIBUTING.md>`_ document.
-If you are looking for a task good for the start please check one form `external contribution welcome label <https://github.com/NVIDIA/DALI/labels/external%20contribution%20welcome>`_.
+If you are looking for a task good for the start please check one from `external contribution welcome label <https://github.com/NVIDIA/DALI/labels/external%20contribution%20welcome>`_.
 
 Reporting problems, asking questions
 ------------------------------------
