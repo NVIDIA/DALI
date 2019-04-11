@@ -70,7 +70,7 @@ void ScatterGatherGPU::MakeBlocks() {
 
   size_per_block_ = std::min(max_size, max_size_per_block_);
 
-  int num_blocks = 0;
+  size_t num_blocks = 0;
   for (auto &r : ranges_)
     num_blocks += (r.size + size_per_block_ - 1) / size_per_block_;
 
