@@ -498,8 +498,7 @@ TEST_F(ResamplingTest, Lanczos3) {
   Verify(1, "score_lanczos_dif.png");
 }
 
-// It passes. It's DISABLED until the test data propagates to CI
-TEST_F(ResamplingTest, DISABLED_Cubic) {
+TEST_F(ResamplingTest, Cubic) {
   SetSource("imgproc_test/score.png", "imgproc_test/ref_out/score_cubic.png");
   SetOutputSize(200, 93);
   auto filters = GetResamplingFilters();
