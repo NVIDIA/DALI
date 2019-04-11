@@ -202,8 +202,8 @@ void VideoLoader::read_file() {
   using pkt_ptr = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
   auto raw_pkt = AVPacket{};
   auto seek_hack = 1;
-  while (!done_) {
-    if (done_) {
+  while (!stop_) {
+    if (stop_) {
       break;
     }
 
@@ -213,7 +213,7 @@ void VideoLoader::read_file() {
                 << " send_queue_ has " << send_queue_.size() << " frames left"
                 << std::endl;
 
-    if (done_) {
+    if (stop_) {
       break;
     }
 

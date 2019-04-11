@@ -36,6 +36,9 @@
 
 namespace dali {
 
+static constexpr int kNvcuvid_success = 1;
+static constexpr int kNvcuvid_failure = 0;
+
 NvDecoder::NvDecoder(int device_id,
                      const CodecParameters* codecpar,
                      AVRational time_base,
@@ -48,7 +51,7 @@ NvDecoder::NvDecoder(int device_id,
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
-      current_recv_(), textures_(), done_(false) {
+      current_recv_(), textures_(), stop_(false) {
   if (!codecpar) {
     // TODO(spanev) explicit handling
     return;
@@ -98,7 +101,7 @@ bool NvDecoder::initialized() const {
 NvDecoder::~NvDecoder() = default;
 
 int NvDecoder::decode_av_packet(AVPacket* avpkt) {
-  if (done_) return 0;
+  if (stop_) return 0;
 
   CUVIDSOURCEDATAPACKET cupkt = {0};
 
@@ -142,12 +145,20 @@ int NvDecoder::handle_display(void* user_data,
   return decoder->handle_display_(disp_info);
 }
 
+// Prepare params and calls cuvidCreateDecoder
 int NvDecoder::handle_sequence_(CUVIDEOFORMAT* format) {
   frame_base_ = {static_cast<int>(format->frame_rate.denominator),
                   static_cast<int>(format->frame_rate.numerator)};
-
-  // Prepare params and calls cuvidCreateDecoder
-  return decoder_.initialize(format);
+  int ret = kNvcuvid_failure;
+  try {
+    ret = decoder_.initialize(format);
+  } catch (...) {
+    stop_ = true;
+    captured_exception_ = std::current_exception();
+    // Main thread is waiting on frame_queue_
+    frame_queue_.shutdown();
+  }
+  return ret;
 }
 
 int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
@@ -155,29 +166,33 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
   constexpr auto sleep_period = 500;
   constexpr auto timeout_sec = 20;
   constexpr auto enable_timeout = false;
+
+  // If something went wrong during init we exit directly
+  if (stop_) return kNvcuvid_failure;
+
   while (frame_in_use_[pic_params->CurrPicIdx]) {
     if (enable_timeout &&
       total_wait++ > timeout_sec * 1000000 / sleep_period) {
-      std::cout << device_id_ << ": Waiting for picture "
-                << pic_params->CurrPicIdx
-                << " to become available..." << std::endl;
+      LOG_LINE << device_id_ << ": Waiting for picture "
+               << pic_params->CurrPicIdx
+               << " to become available..." << std::endl;
       std::stringstream ss;
       ss << "Waited too long (" << timeout_sec << " seconds) "
-          << "for decode output buffer to become available";
+         << "for decode output buffer to become available";
       DALI_FAIL(ss.str());
     }
     usleep(sleep_period);
-    if (done_) return 0;
+    if (stop_) return kNvcuvid_failure;
   }
 
   LOG_LINE << "Sending a picture for decode"
-              << " size: " << pic_params->nBitstreamDataLen
-              << " pic index: " << pic_params->CurrPicIdx
-              << std::endl;
+           << " size: " << pic_params->nBitstreamDataLen
+           << " pic index: " << pic_params->CurrPicIdx
+           << std::endl;
 
   // decoder_ operator () returns a CUvideodecoder
   CUDA_CALL(cuvidDecodePicture(decoder_, pic_params));
-  return 1;
+  return kNvcuvid_success;
 }
 
 NvDecoder::MappedFrame::MappedFrame()
@@ -267,25 +282,24 @@ NvDecoder::TextureObject::operator cudaTextureObject_t() const {
 int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   auto frame = av_rescale_q(disp_info->timestamp,
                             nv_time_base_, frame_base_);
-
   if (current_recv_.count <= 0) {
     if (recv_queue_.empty()) {
       LOG_LINE << "Ditching frame " << frame << " since "
               << "the receive queue is empty." << std::endl;
-      return 1;
+      return kNvcuvid_success;
     }
     LOG_LINE << "Moving on to next request, " << recv_queue_.size()
                 << " reqs left" << std::endl;
     current_recv_ = recv_queue_.pop();
   }
 
-  if (done_) return 0;
+  if (stop_) return kNvcuvid_failure;
 
   if (current_recv_.count <= 0) {
     // a new req with count <= 0 probably means we are finishing
     // up and should just ditch this frame
     LOG_LINE << "Ditching frame " << frame << "since current_recv_.count <= 0" << std::endl;
-    return 1;
+    return kNvcuvid_success;
   }
 
   if (frame != current_recv_.frame) {
@@ -293,7 +307,7 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
     // Add exception? Directly or after countdown treshold?
     LOG_LINE << "Ditching frame " << frame << " since we are waiting for "
                 << "frame " << current_recv_.frame << std::endl;
-    return 1;
+    return kNvcuvid_success;
   }
 
   LOG_LINE << "\e[1mGoing ahead with frame " << frame
@@ -306,7 +320,7 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
 
   frame_in_use_[disp_info->picture_index] = true;
   frame_queue_.push(disp_info);
-  return 1;
+  return kNvcuvid_success;
 }
 
 int NvDecoder::decode_packet(AVPacket* pkt) {
@@ -322,7 +336,6 @@ int NvDecoder::decode_packet(AVPacket* pkt) {
   return -1;
 }
 
-
 void NvDecoder::push_req(FrameReq req) {
   recv_queue_.push(std::move(req));
 }
@@ -337,11 +350,13 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
                << std::endl;
 
       auto* frame_disp_info = frame_queue_.pop();
-      if (done_) break;
+      if (stop_) break;
       auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
-      if (done_) break;
+      if (stop_) break;
       convert_frame(frame, sequence, i);
-    }
+  }
+  if (captured_exception_)
+    std::rethrow_exception(captured_exception_);
   record_sequence_event_(sequence);
 }
 
@@ -430,7 +445,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
 }
 
 void NvDecoder::finish() {
-  done_ = true;
+  stop_ = true;
   recv_queue_.shutdown();
   frame_queue_.shutdown();
 }

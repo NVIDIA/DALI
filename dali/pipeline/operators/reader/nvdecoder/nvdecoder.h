@@ -195,7 +195,8 @@ class NvDecoder {
 
   std::unordered_map<TexID, TextureObjects, tex_hash> textures_;
 
-  volatile bool done_;
+  volatile bool stop_;
+  std::exception_ptr captured_exception_;
 
   std::thread thread_convert_;
 };
