@@ -3,7 +3,7 @@
 pip_packages="nose numpy torch torchvision scikit-image tensorboardX"
 
 apt-get update
-apt-get install -y wget ffmpeg
+apt-get install -y wget ffmpeg git
 
 pushd ../..
 
@@ -37,6 +37,8 @@ cp ../video_files/* $DATA_DIR/val/
 
 # Pre-trained FlowNet2.0 weights
 FLOWNET_PATH=/data/dali/pretrained_models/FlowNet2-SD_checkpoint.pth.tar
+
+git clone https://github.com/NVIDIA/flownet2-pytorch.git
 
 cd ..
 
