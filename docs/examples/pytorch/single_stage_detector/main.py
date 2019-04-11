@@ -154,7 +154,7 @@ def train(args):
         tencent_trick(ssd300), 
         lr=args.learning_rate,
         momentum=args.momentum,
-         weight_decay=args.weight_decay)
+        weight_decay=args.weight_decay)
 
     scheduler = MultiStepLR(
         optimizer=optimizer, 
