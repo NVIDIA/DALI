@@ -39,13 +39,14 @@ Usage
 .. code-block:: bash
 
   usage: main.py [-h] --data DATA [--epochs EPOCHS] [--batch-size BATCH_SIZE]
-                [--eval-batch-size EVAL_BATCH_SIZE] [--seed SEED]
-                [--evaluation [EVALUATION [EVALUATION ...]]]
-                [--multistep [MULTISTEP [MULTISTEP ...]]]
-                [--learning-rate LEARNING_RATE] [--momentum MOMENTUM]
-                [--weight-decay WEIGHT_DECAY] [--warmup WARMUP]
-                [--num-workers NUM_WORKERS] [--fp16] [--local_rank LOCAL_RANK]
-                [--data_pipeline {dali,no_dali}]
+               [--eval-batch-size EVAL_BATCH_SIZE] [--seed SEED]
+               [--evaluation [EVALUATION [EVALUATION ...]]]
+               [--multistep [MULTISTEP [MULTISTEP ...]]] [--target TARGET]
+               [--learning-rate LEARNING_RATE] [--momentum MOMENTUM]
+               [--weight-decay WEIGHT_DECAY] [--warmup WARMUP]
+               [--backbone {resnet18,resnet34,resnet50,resnet101,resnet152}]
+               [--num-workers NUM_WORKERS] [--fp16-mode {off,static,amp}]
+               [--local_rank LOCAL_RANK] [--data_pipeline {dali,no_dali}]
 
 All arguments with descriptions you can find in table below:
 
@@ -76,9 +77,7 @@ All arguments with descriptions you can find in table below:
 +---------------------------------------------+-----------------------------------------+
 | --num-workers NUM_WORKERS                   | number of worker threads                |
 +---------------------------------------------+-----------------------------------------+
-| --fp16                                      | use half precission                     |
-+---------------------------------------------+-----------------------------------------+
-| --amp                                       | use AMP                                 |
+| --fp16-mode                                 | half precission mode to use             |
 +---------------------------------------------+-----------------------------------------+
 | --target                                    | target mAP to assert against at the end |
 +---------------------------------------------+-----------------------------------------+
