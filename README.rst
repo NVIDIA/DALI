@@ -298,6 +298,7 @@ Building DALI using Clang (experimental):
 -  ``BUILD_NVTX`` - build with NVTX profiling enabled (default: OFF)
 -  ``BUILD_TENSORFLOW`` - build TensorFlow plugin (default: OFF)
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
+-  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
 -  *(Unofficial)* ``BUILD_NVJPEG`` - build with ``nvJPEG`` (default: ON)
 

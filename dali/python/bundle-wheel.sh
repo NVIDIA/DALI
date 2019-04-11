@@ -51,7 +51,7 @@ OUTWHLNAME=$(basename $INWHL)
 OUTWHLNAME=${OUTWHLNAME//-none-/-}
 
 PKGNAME=$(echo "$OUTWHLNAME" | sed 's/-.*$//')
-PKGNAME_PATH=$(echo "$PKGNAME" | sed 's/_/\//' )
+PKGNAME_PATH=$(echo "$PKGNAME" | sed 's/_/\//' | sed 's/_.*$//')
 
 if [[ -z "$INWHL" || ! -f "$INWHL" || -z "$PKGNAME" ]]; then
     echo "Usage: $0 <inputfile.whl>"
