@@ -32,12 +32,21 @@ namespace dali {
 
 class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
-  explicit DummyLoader(const OpSpec& spec) :
-    Loader<CPUBackend, Tensor<CPUBackend>>(spec) {}
+  explicit DummyLoader(const OpSpec& spec, std::string dummyfile = "") :
+    Loader<CPUBackend, Tensor<CPUBackend>>(spec),
+    dummyfile_(dummyfile) {}
 
   void ReadSample(Tensor<CPUBackend> &t) override {
     t.Resize({1});
     t.set_type(TypeInfo::Create<uint8_t>());
+  }
+
+  void PrepareMetadataImpl() override {
+    if (dummyfile_ != "") {
+      std::ifstream f(dummyfile_);
+      if (!f)
+        throw std::runtime_error("Failed to open " + dummyfile_);
+    }
   }
 
   Index SizeImpl() override {
@@ -45,13 +54,20 @@ class DummyLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
   void Reset(bool wrap_to_shard) override {}
+
+ private:
+  std::string dummyfile_;
 };
 class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit DummyDataReader(const OpSpec &spec)
       : DataReader<CPUBackend, Tensor<CPUBackend>>(spec),
         count_(0) {
-    loader_.reset(new DummyLoader(spec));
+    std::string dummyfile("");
+    if (spec.HasArgument("dummyfile")) {
+      dummyfile = spec.GetArgument<std::string>("dummyfile");
+    }
+    loader_ = InitLoader<DummyLoader>(spec, std::move(dummyfile));
   }
 
   ~DummyDataReader() override {
@@ -139,6 +155,52 @@ TYPED_TEST(ReaderTest, PrefetchQueueTest) {
   return;
 }
 
+TYPED_TEST(ReaderTest, LazyInitTest) {
+  Pipeline eager_pipe(32, 1, 0);
+  Pipeline lazy_pipe(32, 1, 0);
+
+  // This file does not exist yet
+  std::string filename("/tmp/dalidummyfile.txt");
+  std::remove(filename.c_str());
+
+  eager_pipe.AddOperator(
+      OpSpec("DummyDataReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("prefetch_queue_depth", 3)
+      .AddArg("lazy_init", false)
+      .AddArg("dummyfile", filename));
+
+  lazy_pipe.AddOperator(
+      OpSpec("DummyDataReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("prefetch_queue_depth", 3)
+      .AddArg("lazy_init", true)
+      .AddArg("dummyfile", filename));
+
+  // File `filename` doesnt exist yet
+  std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
+
+  ASSERT_ANY_THROW(eager_pipe.Build(outputs));
+  // Eager pipeline threw, we don't care anymore
+
+  ASSERT_NO_THROW(lazy_pipe.Build(outputs));
+
+  // Creating the file
+  std::ofstream dummyfs(filename);
+  dummyfs.close();
+
+  // This calls PrepareMetadataImpl
+  ASSERT_NO_THROW(lazy_pipe.EpochSize());
+
+  DeviceWorkspace ws;
+  for (int i=0; i < 5; ++i) {
+    lazy_pipe.RunCPU();
+    lazy_pipe.RunGPU();
+    lazy_pipe.Outputs(&ws);
+  }
+  std::remove(filename.c_str());
+  return;
+}
 
 TYPED_TEST(ReaderTest, SequenceTest) {
   Pipeline pipe(128, 4, 0);
