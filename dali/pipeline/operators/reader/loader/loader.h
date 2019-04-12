@@ -77,9 +77,7 @@ class Loader {
   // is not known in Loader ctor
   void Init() {
     if (!lazy_init_) {
-      std::call_once(metadata_preparation_flag_, [this]() {
-        PrepareMetadata();
-      });
+      PrepareMetadata();
     }
   }
 
@@ -108,9 +106,7 @@ class Loader {
   // Get a random read sample
   LoadTargetPtr ReadOne() {
     if (!loaded_) {
-      std::call_once(metadata_preparation_flag_, [this](){
-          PrepareMetadata();
-      });
+      PrepareMetadata();
     }
     TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
     // perform an iniital buffer fill if it hasn't already happened
@@ -175,16 +171,17 @@ class Loader {
   virtual void ReadSample(LoadTarget& tensor) = 0;
 
   void PrepareMetadata() {
-    loaded_ = true;
-    PrepareMetadataImpl();
+    std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
+    if (!loaded_) {
+      loaded_ = true;
+      PrepareMetadataImpl();
+    }
   }
 
   // Give the size of the data accessed through the Loader
   Index Size() {
     if (!loaded_) {
-      std::call_once(metadata_preparation_flag_, [this](){
-          PrepareMetadata();
-      });
+      PrepareMetadata();
     }
     return SizeImpl();
   }
@@ -264,7 +261,7 @@ class Loader {
 
   // Indicate whether the dataset preparation has to be done in the constructor or during the
   // first run
-  std::once_flag metadata_preparation_flag_;
+  std::mutex prepare_metadata_mutex_;
   bool lazy_init_;
   bool loaded_;
 
