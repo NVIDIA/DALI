@@ -259,7 +259,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
         auto xc = 0.5*(bbox[0] + bbox[2]);
         auto yc = 0.5*(bbox[1] + bbox[3]);
 
-        bool valid = (xc > left) && (xc < right) && (yc > top) && (yc < bottom);
+        bool valid = (xc >= left) && (xc <= right) && (yc >= top) && (yc <= bottom);
         if (valid) {
           mask.push_back(j);
           valid_bboxes += 1;
