@@ -385,8 +385,8 @@ def run_for_dataset(args, dataset):
                 print('  decode_crop =', decode_crop)
                 print('  slice_cpu =', slice_cpu)
                 print('  slice_gpu =', slice_gpu)
-                print('  boxes_crop =', decode_crop)
-                print('  labels_cpu =', labels_crop)
+                print('  boxes_crop =', boxes_crop)
+                print('  labels_crop =', labels_crop)
 
                 print('Resize =', resize)
 
