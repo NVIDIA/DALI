@@ -42,7 +42,10 @@ extern "C" {
       int batch_size = -1,
       int num_threads = -1,
       int device_id = -1,
-      int prefetch_queue_depth = 2);
+      bool separated_execution = false,
+      int prefetch_queue_depth = 2,
+      int cpu_prefetch_queue_depth = 2,
+      int gpu_prefetch_queue_depth = 2);
 
   /**
    * @brief Start the execution of the pipeline.
@@ -50,13 +53,24 @@ extern "C" {
   DLL_PUBLIC void daliRun(daliPipelineHandle* pipe_handle);
 
   /**
-   * @brief Wait till the output of the pipeline is ready.
+   * @brief Schedule first runs to fill buffers for Executor with UniformQueue policy.
+   */
+  DLL_PUBLIC void daliPrefetchUniform(daliPipelineHandle* pipe_handle, int queue_depth);
+
+  /**
+   * @brief Schedule first runs to fill buffers for Executor with SeparateQueue policy.
+   */
+  DLL_PUBLIC void daliPrefetchSeparate(daliPipelineHandle* pipe_handle,
+                                       int cpu_queue_depth, int gpu_queue_depth);
+
+  /**
+   * @brief Wait until the output of the pipeline is ready.
    * Releases previously returned buffers.
    */
   DLL_PUBLIC void daliOutput(daliPipelineHandle* pipe_handle);
 
   /**
-   * @brief Wait till the output of the pipeline is ready.
+   * @brief Wait until the output of the pipeline is ready.
    * Doesn't release previously returned buffers.
    */
   DLL_PUBLIC void daliShareOutput(daliPipelineHandle* pipe_handle);

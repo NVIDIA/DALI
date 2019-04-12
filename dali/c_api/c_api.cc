@@ -28,18 +28,46 @@ void daliCreatePipeline(daliPipelineHandle* pipe_handle,
     int batch_size,
     int num_threads,
     int device_id,
-    int prefetch_queue_depth) {
+    bool separated_execution,
+    int prefetch_queue_depth,
+    int cpu_prefetch_queue_depth,
+    int gpu_prefetch_queue_depth) {
   dali::Pipeline* pipe = new dali::Pipeline(
                               std::string(serialized_pipeline, length),
                               batch_size,
                               num_threads,
                               device_id,
                               true,
+                              // TODO(spanev) remove this arg and infere from SetQueueSizes
                               prefetch_queue_depth,
                               true);
+  pipe->SetExecutionTypes(true, separated_execution, true);
+  if (separated_execution) {
+    pipe->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
+  }
   pipe->Build();
   pipe_handle->pipe = reinterpret_cast<void*>(pipe);
   pipe_handle->ws = new dali::DeviceWorkspace();
+}
+
+void daliPrefetchUniform(daliPipelineHandle* pipe_handle, int queue_depth) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  for (int i = 0; i < queue_depth; ++i) {
+    pipeline->RunCPU();
+    pipeline->RunGPU();
+  }
+}
+
+void daliPrefetchSeparate(daliPipelineHandle* pipe_handle,
+                          int cpu_queue_depth, int gpu_queue_depth) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  for (int i = 0; i < gpu_queue_depth; ++i) {
+    pipeline->RunCPU();
+    pipeline->RunGPU();
+  }
+  for (int i = 0; i < cpu_queue_depth; ++i) {
+    pipeline->RunCPU();
+  }
 }
 
 void daliRun(daliPipelineHandle* pipe_handle) {
