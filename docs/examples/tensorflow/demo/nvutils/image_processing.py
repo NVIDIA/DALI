@@ -43,7 +43,7 @@ class HybridPipe(dali.pipeline.Pipeline):
         kwargs = dict()
         if deterministic:
             kwargs['seed'] = 7 * (1 + hvd.rank())
-        super(HybridPipe, self).__init__(batch_size, num_threads, device_id, **kwargs)
+        super(HybridPipe, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth={"cpu_size":2, "gpu_size":2}, **kwargs)
 
         self.input = dali.ops.TFRecordReader(
             path=tfrec_filenames,
