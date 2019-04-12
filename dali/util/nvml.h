@@ -111,7 +111,13 @@ inline void SetCPUAffinity(int core = -1) {
   // Set the affinity
   int error = pthread_setaffinity_np(pthread_self(), sizeof(requested_set), &requested_set);
   if (error != 0) {
-      DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
+      std::stringstream ss;
+      ss << "Affinity (num_cpus: " << num_cpus << ") : ";
+      for (std::size_t i = 0; i < num_cpus; i++) {
+          ss << CPU_ISSET(i, &requested_set) << " ";
+      }
+      DALI_WARN("Setting affinity failed! Error code: "
+        + to_string(error) + " [" + ss.str() + "]" );
   }
 }
 
