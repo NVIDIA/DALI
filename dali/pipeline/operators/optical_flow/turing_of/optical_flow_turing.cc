@@ -27,7 +27,7 @@ void VerifySupport(NV_OF_STATUS status) {
       return;
     case NV_OF_ERR_OF_NOT_AVAILABLE:
     case NV_OF_ERR_UNSUPPORTED_DEVICE:
-      throw unsupported_exception();
+      throw unsupported_exception("Feature unsupported");
     default:
       DALI_FAIL("Optical flow failed, code: " + std::to_string(status));
   }
@@ -104,7 +104,7 @@ void OpticalFlowTuring::CalcOpticalFlow(
                  "If external hint are used, shape must match against output_image");
   } else {
     DALI_ENFORCE(external_hints.shape == kernels::TensorShape<3>(),
-            "If external hints aren't used, shape must be empty");
+                 "If external hints aren't used, shape must be empty");
   }
   switch (image_type_) {
     case DALI_BGR:
@@ -130,10 +130,12 @@ void OpticalFlowTuring::CalcOpticalFlow(
   }
 
   auto in_params = GenerateExecuteInParams(inbuf_->GetHandle(), refbuf_->GetHandle(),
-                                           of_params_.enable_external_hints ? hintsbuf_->GetHandle()
-                                                                            : nullptr);
+                                           of_params_.enable_external_hints
+                                           ? hintsbuf_->GetHandle()
+                                           : nullptr);
   auto out_params = GenerateExecuteOutParams(outbuf_->GetHandle());
   TURING_OF_API_CALL(turing_of_.nvOFExecute(of_handle_, &in_params, &out_params));
+
 
   kernel::DecodeFlowComponents(reinterpret_cast<int16_t *>(outbuf_->GetPtr()), output_image.data,
                                outbuf_->GetStride().x, outbuf_->GetDescriptor().width,

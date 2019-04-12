@@ -17,8 +17,9 @@ mkdir -p idx_files
 cd docs/examples
 
 test_body() {
-    # dummy patern
-    black_list_files="#"
+    black_list_files="optical_flow_example.ipynb\|#" # optical flow requires TU102 architecture
+                                                     # whilst currently L1_jupyter_plugins test
+                                                     # can be run only on V100
 
     # test code
     find */* -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
