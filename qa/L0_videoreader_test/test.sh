@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages="numpy"
+pip_packages="nose numpy"
 
 apt-get update
 apt-get install -y wget ffmpeg
@@ -26,6 +26,7 @@ done
 test_body() {
     # test code
     python video_example.py
+    nosetests --verbose ../../../dali/test/python/test_video_pipeline.py
 }
 
 source ../../../qa/test_template.sh

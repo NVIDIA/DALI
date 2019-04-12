@@ -105,6 +105,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     : Loader<GPUBackend, SequenceWrapper>(spec),
       count_(spec.GetArgument<int>("sequence_length")),
       step_(spec.GetArgument<int>("step")),
+      stride_(spec.GetArgument<int>("stride")),
       height_(0),
       width_(0),
       image_type_(spec.GetArgument<DALIImageType>("image_type")),
@@ -114,7 +115,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       codec_id_(0),
       stop_(false) {
     if (step_ < 0)
-      step_ = count_;
+      step_ = count_ * stride_;
     DALI_ENFORCE(cuvidInitChecked(0),
      "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
      "If you are running in a Docker container, please refer "
@@ -188,6 +189,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   // Params
   int count_;
   int step_;
+  int stride_;
   int output_height_;
   int output_width_;
   int height_;
