@@ -54,7 +54,6 @@ struct OpticalFlowParams {
 using dali::kernels::TensorView;
 
 struct unsupported_exception : std::runtime_error {
-
   explicit unsupported_exception(const std::string &str) : runtime_error(str), msg(str) {}
 
 
