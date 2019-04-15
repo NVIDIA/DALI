@@ -817,19 +817,16 @@ def test_lazy_init():
     nonlazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, db_folder = empty_db_folder,  lazy_type = False)
     try:
         nonlazy_pipe.build()
+        assert(False)
     except RuntimeError:
-        print ("run empty folder without lazy PASS")
-    else:
-        print ("run empty folder without lazy FAILED")
+        assert(True)
 
     emlazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=empty_db_folder, lazy_type=True)
     try:
         emlazy_pipe.build()
+        assert(True)
     except BaseException:
-        print ("run empty folder with lazy FAILED")
-    else:
-        print ("run empty folder with lazy PASS")
-
+        assert(False)
     dbnolazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=caffe_db_folder, lazy_type=False)
     dblazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=caffe_db_folder, lazy_type=True)
     compare_pipelines(dbnolazy_pipe, dblazy_pipe, batch_size=batch_size, N_iterations=20)
