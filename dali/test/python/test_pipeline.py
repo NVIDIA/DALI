@@ -784,6 +784,64 @@ class ExternalInputIterator(object):
             self.i = (self.i + 1) % self.n
         return (pos, size)
     next = __next__
+    
+def test_lazy_init():
+    """
+        Comparing results of pipeline: lazy_init false and lazy_init true with empty folder and real folder
+    """
+    batch_size =128
+
+    class LazyPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus, db_folder, lazy_type):
+            super(LazyPipeline, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.input = ops.CaffeReader(path = db_folder, shard_id = device_id, num_shards = num_gpus, lazy_init = lazy_type)
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
+            self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
+            self.crop = ops.Crop(device="gpu", crop =(224,224))
+
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+
+            pos_x = self.pos_rng_x()
+            pos_y = self.pos_rng_y()
+            images = self.decode(self.jpegs)
+            crop = self.crop(images, crop_pos_x=pos_x, crop_pos_y=pos_y)
+            return (crop, self.labels)
+
+
+        def iter_setup(self):
+            pass
+  
+    nonlazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, db_folder = empty_db_folder,  lazy_type = False)
+    try:
+        nonlazy_pipe.build()
+    except RuntimeError:
+        print ("run empty folder without lazy PASS")
+    else:
+        print ("run empty folder without lazy FAILED")
+
+    emlazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=empty_db_folder, lazy_type=True)
+    try:
+        emlazy_pipe.build()
+    except BaseException:
+        print ("run empty folder with lazy FAILED")
+    else:
+        print ("run empty folder with lazy PASS")
+
+    dbnolazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=caffe_db_folder, lazy_type=False)
+    dblazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=caffe_db_folder, lazy_type=True)
+    dbnolazy_pipe.build()
+    dblazy_pipe.build()
+    dbnolazy_pipe_out = dbnolazy_pipe.run()
+    dblazy_pipe_out = dblazy_pipe.run()
+    for i in range(batch_size):
+        dbnolazy_pipe_out_cpu = dbnolazy_pipe_out[0].as_cpu()
+        dblazy_pipe_out_cpu = dblazy_pipe_out[0].as_cpu()
+        assert(np.sum(np.abs(dbnolazy_pipe_out_cpu.at(i)-dblazy_pipe_out_cpu.at(i)))==0)
+
 
 def test_equal_nvJPEGDecoderSlice_nvJPEGDecoder():
     """
