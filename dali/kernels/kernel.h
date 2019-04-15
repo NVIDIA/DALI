@@ -35,12 +35,12 @@ namespace examples {
 ///
 /// This class represents a "concept" of a DALI kernel.
 /// A kernel must provide two non-overloaded functions:
-/// Run and GetRequirements.
+/// Run and Setup.
 ///
 /// The kernel can be run directly or its inputs, outputs and arguments can be tied
 /// into tuples and then the kernel be configured and launched using:
 ///
-/// `dali::kernels::kernel::GetRequirements`
+/// `dali::kernels::kernel::Setup`
 ///
 /// `dali::kernels::kernel::Run`
 ///
@@ -51,19 +51,19 @@ template <typename Input1, typename Input2, typename OutputType>
 struct Kernel {
   /// @brief Returns kernel output(s) shape(s) and additional memory requirements
   ///
-  /// GetRequirements receives full input and output tensor lists and any extra arguments that
+  /// Setup receives full input and output tensor lists and any extra arguments that
   /// are going to be passed to a subsequent call to Run.
   ///
   /// @remarks The inputs are provided mainly to inspect their shapes; actually looking at the
   /// data may degrade performance severely.
   ///
   /// @param context - environment of the kernel;, cuda stream, batch info, etc.
-  ///                  At the time of call to GetRequirements, its scratch area is undefined.
+  ///                  At the time of call to Setup, its scratch area is undefined.
   ///
   /// @param in1 - example input, consisting of a list of 3D tensors with element type Input1
   /// @param in2 - example input, consisting of a 4D tensor with element type Input2
   /// @param aux - some extra parameters (e.g. convolution kernel, mask)
-  static KernelRequirements GetRequirements(
+  static KernelRequirements Setup(
     KernelContext &context,
     const InListGPU<Input1, 3> &in1,
     const InTensorGPU<Input2, 4> &in2,
@@ -72,10 +72,10 @@ struct Kernel {
   /// @brief Runs the kernel
   ///
   /// Run processes the inputs and populates the pre-allocated output. Output shape is expected
-  /// to match that returned by GetRequirements.
+  /// to match that returned by Setup.
   ///
   /// @param context - environment; provides scratch memory, cuda stream, batch info, etc.
-  ///                  Scratch area must satisfy requirements returned by GetRequirements.
+  ///                  Scratch area must satisfy requirements returned by Setup.
   /// @param in1 - example input, consisting of a list of 3D tensors with element type Input1
 /// @param in2 - example input, consisting of a 4D tensor with element type Input2
     /// @param aux - some extra parameters (e.g. convolution kernel, mask)
@@ -111,12 +111,12 @@ using Requirements = KernelRequirements;
 /// @param input              - kernel inputs, convertible to kernel_inputs<Kernel>
 /// @param args               - kernel extra arguments, convertible to kernel_args<Kernel>
 template <typename Kernel>
-Requirements GetRequirements(
+Requirements Setup(
       Context &context,
       const inputs<Kernel> &input,
       const args<Kernel> &args) {
   check_kernel<Kernel>();
-  return apply_all(Kernel::GetRequirements, context, input, args);
+  return apply_all(Kernel::Setup, context, input, args);
 }
 
 /// @brief Executes a Kernel on an input set
@@ -139,7 +139,7 @@ void Run(
 ///
 /// @TODO(michalz) remove references from inputs/args?
 template <typename Kernel>
-Requirements GetRequirements(
+Requirements Setup(
       Context &context,
       const std::vector<inputs<Kernel>> &input_sets,
       const args<Kernel> &args) {
@@ -147,9 +147,9 @@ Requirements GetRequirements(
   if (input_sets.empty())
     return {};
 
-  Requirements req = GetRequirements<Kernel>(context, input_sets[0], args);
+  Requirements req = Setup<Kernel>(context, input_sets[0], args);
   for (size_t i = 1; i < input_sets.size(); i++) {
-    Requirements newReq = GetRequirements<Kernel>(context, input_sets[i], args);
+    Requirements newReq = Setup<Kernel>(context, input_sets[i], args);
     req.AddInputSet(newReq, true);
   }
   return req;

@@ -35,7 +35,7 @@ struct ResampleCPU {
     if (!impl) {
       if (!create)
         throw std::logic_error("The context is not valid!\n"
-                               "Hint: have you called GetRequirements using this context?");
+                               "Hint: have you called Setup using this context?");
 
       context.kernel_data = Impl();
       impl = any_cast<Impl>(&context.kernel_data);
@@ -43,7 +43,7 @@ struct ResampleCPU {
     return impl;
   }
 
-  static KernelRequirements GetRequirements(KernelContext &context,
+  static KernelRequirements Setup(KernelContext &context,
                                             const Input &input,
                                             const ResamplingParams2D &params) {
     auto *impl = GetImpl(context, true);

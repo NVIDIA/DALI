@@ -25,7 +25,7 @@ namespace kernels {
 // Performs elementwise MAD (multiply-add).
 template <typename Input1, typename Input2, typename Output>
 struct MADKernel {
-  static KernelRequirements GetRequirements(
+  static KernelRequirements Setup(
       KernelContext &context,
       const InListCPU<Input1, 3> &i1,
       const InListCPU<Input2, 3> &i2,
