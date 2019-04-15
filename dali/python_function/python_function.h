@@ -13,8 +13,8 @@
 // limitations under the License.
 
 
-#ifndef DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
-#define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
+#ifndef DALI_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
+#define DALI_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
@@ -43,4 +43,4 @@ class PythonFunctionImpl : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
+#endif  // DALI_PYTHON_FUNCTION_PYTHON_FUNCTION_H_

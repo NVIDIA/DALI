@@ -526,6 +526,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("DATA_TYPE", DALI_DATA_TYPE)
     .value("INTERP_TYPE", DALI_INTERP_TYPE)
     .value("TENSOR_LAYOUT", DALI_TENSOR_LAYOUT)
+    .value("PYTHON_OBJECT", DALI_PYTHON_OBJECT)
     .export_values();
 
   // DALIImageType

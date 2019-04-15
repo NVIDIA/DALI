@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "python_function.h"
+#include "dali/python_function/python_function.h"
 #include <vector>
 
 namespace dali {
 
 DALI_SCHEMA(PythonFunctionImpl)
-        .DocStr(R"code(Executes python function that consumes and produces single numpy array.)code")
+        .DocStr(R"code(This is an auxiliary operator. Use PythonFunction instead.)code")
         .NumInput(1)
         .NumOutput(1)
         .AllowMultipleInputSets()
@@ -26,7 +26,13 @@ DALI_SCHEMA(PythonFunctionImpl)
                 R"code(Id of the python function.)code",
                 DALI_INT64);
 
-DALI_SCHEMA(PythonFunction).DocStr("dfsafd").AddParent("PythonFunctionImpl");
+DALI_SCHEMA(PythonFunction)
+        .DocStr("Executes a python function")
+        .NumInput(1)
+        .NumOutput(1)
+        .AddArg("function",
+                R"code(Function object consuming and producing a single numpy array.)code",
+                DALI_PYTHON_OBJECT);
 
 struct PyBindInitializer {
   PyBindInitializer() {
