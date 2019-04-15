@@ -811,7 +811,6 @@ def test_lazy_init():
             crop = self.crop(images, crop_pos_x=pos_x, crop_pos_y=pos_y)
             return (crop, self.labels)
 
-
         def iter_setup(self):
             pass
   
@@ -833,14 +832,7 @@ def test_lazy_init():
 
     dbnolazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=caffe_db_folder, lazy_type=False)
     dblazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=caffe_db_folder, lazy_type=True)
-    dbnolazy_pipe.build()
-    dblazy_pipe.build()
-    dbnolazy_pipe_out = dbnolazy_pipe.run()
-    dblazy_pipe_out = dblazy_pipe.run()
-    for i in range(batch_size):
-        dbnolazy_pipe_out_cpu = dbnolazy_pipe_out[0].as_cpu()
-        dblazy_pipe_out_cpu = dblazy_pipe_out[0].as_cpu()
-        assert(np.sum(np.abs(dbnolazy_pipe_out_cpu.at(i)-dblazy_pipe_out_cpu.at(i)))==0)
+    compare_pipelines(dbnolazy_pipe, dblazy_pipe, batch_size=batch_size, N_iterations=20)
 
 
 def test_equal_nvJPEGDecoderSlice_nvJPEGDecoder():
