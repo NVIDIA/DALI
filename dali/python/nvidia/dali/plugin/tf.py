@@ -37,12 +37,21 @@ else:
 _dali_tf = _dali_tf_module.dali
 
 def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
-                        shapes = [], dtypes = [], batch_size = -1, **kwargs):
+                        shapes = [], dtypes = [], batch_size = -1, prefetch_queue_depth = 2, **kwargs):
   """
 TF Plugin Wrapper
 
 This operator works in the same way as DALI TensorFlow plugin, with the exception that is also accepts Pipeline objects as the input and serializes it internally. For more information, please look **TensorFlow Plugin API reference** in the documentation.
   """
+  if type(prefetch_queue_depth) is dict:
+      exec_separated = True
+      cpu_prefetch_queue_depth = prefetch_queue_depth["cpu_size"]
+      gpu_prefetch_queue_depth = prefetch_queue_depth["gpu_size"]
+  elif type(prefetch_queue_depth) is int:
+      exec_separated = False
+      cpu_prefetch_queue_depth = -1 # dummy: wont' be used
+      gpu_prefetch_queue_depth = prefetch_queue_depth
+
   if serialized_pipeline is None:
     serialized_pipeline = pipeline.serialize()
 
@@ -79,7 +88,9 @@ This operator works in the same way as DALI TensorFlow plugin, with the exceptio
       if len(shapes) > i:
         new_shapes.append(shapes[i])
 
-  out = _dali_tf(serialized_pipeline=serialized_pipeline, shapes=new_shapes, dtypes=new_dtypes, sparse=sparse, batch_size=batch_size, **kwargs)
+  # gpu_prefetch_queue_depth correspond to the global queue depth in the uniform case
+  out = _dali_tf(serialized_pipeline=serialized_pipeline, shapes=new_shapes, dtypes=new_dtypes, sparse=sparse, batch_size=batch_size,
+                 exec_separated=exec_separated, gpu_prefetch_queue_depth=gpu_prefetch_queue_depth, cpu_prefetch_queue_depth=cpu_prefetch_queue_depth, **kwargs)
   new_out = []
   j = 0
   for i in range(len(dtypes)):

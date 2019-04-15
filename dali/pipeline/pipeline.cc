@@ -89,7 +89,7 @@ namespace dali {
     Init(this->batch_size_, this->num_threads_,
          this->device_id_, def.seed(),
          pipelined_execution,
-         separated_execution_,  // We use false as default for now
+         separated_execution_,
          async_execution,
          bytes_per_sample_hint,
          set_affinity,
