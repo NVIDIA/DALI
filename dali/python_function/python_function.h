@@ -26,9 +26,9 @@ namespace dali {
 namespace py = pybind11;
 
 template <typename Backend>
-class PythonFunction : public Operator<Backend> {
+class PythonFunctionImpl : public Operator<Backend> {
  public:
-  inline explicit PythonFunction(const OpSpec &spec)
+  inline explicit PythonFunctionImpl(const OpSpec &spec)
     : Operator<Backend>(spec)
     , python_function(py::reinterpret_borrow<py::object>(
         reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {}

@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Get all the source files and dump test files
-file(GLOB tmp *.cc *.cu)
-file(GLOB tmp_test *_test.cc)
-remove(tmp "${tmp}" ${tmp_test})
+set(python_function_lib "python_function_plugin")
+add_library(${python_function_lib} SHARED python_function.cc)
+target_link_libraries(${python_function_lib} ${dali_lib})
+target_include_directories(${python_function_lib}
+        PRIVATE ${PYBIND11_INCLUDE_DIR}  # from project CMakeLists.txt
+        PRIVATE ${pybind11_INCLUDE_DIR}  # from pybind11Config
+        PRIVATE ${PYTHON_INCLUDE_DIRS})
 
-set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} ${tmp} PARENT_SCOPE)
-
-if (BUILD_TEST)
-  # get all the test srcs
-  file(GLOB tmp *_test.cc)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
-endif()
+# Install python operator plugin to the wheel directory
+set_target_properties(${python_function_lib} PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/)

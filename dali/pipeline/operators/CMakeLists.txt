@@ -28,7 +28,6 @@ add_subdirectory(sequence)
 add_subdirectory(support)
 add_subdirectory(transpose)
 add_subdirectory(util)
-add_subdirectory(python_function)
 
 # Get all the source files and dump test files
 file(GLOB tmp *.cc *.cu)

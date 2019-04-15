@@ -20,6 +20,8 @@ from nvidia.dali import backend as b
 from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
+from nvidia.dali.plugin_manager import load_library
+import os
 
 def _docstring_generator(cls):
     __cpu_ops = set(b.RegisteredCPUOps())
@@ -333,3 +335,53 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)
         return outputs
+
+
+def _load_plugins():
+    load_library(os.path.join(os.path.dirname(__file__), 'libpython_function_plugin.so'))
+
+
+_load_plugins()
+
+
+class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
+    def __init__(self, function, **kwargs):
+        self._schema = b.GetSchema("PythonFunctionImpl")
+        self._spec = b.OpSpec("PythonFunctionImpl")
+        self._device = "cpu"
+
+        for key, value in kwargs.items():
+            self._spec.AddArg(key, value)
+
+        self.function = function
+
+    @property
+    def spec(self):
+        return self._spec
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @property
+    def device(self):
+        return self._device
+
+    def __call__(self, *inputs, **kwargs):
+        if (len(inputs) > self._schema.MaxNumInput() or
+                len(inputs) < self._schema.MinNumInput()):
+            raise ValueError(
+                ("Operator {} expects [{}, " +
+                 "{}] inputs, but received {}")
+                .format(type(self).__name__,
+                        self._schema.MinNumInput(),
+                        self._schema.MaxNumInput(),
+                        len(inputs)))
+
+        op_instance = _OperatorInstance(inputs, self, **kwargs)
+        t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id)
+        t = EdgeReference(t_name, self._device, op_instance)
+        op_instance.spec.AddOutput(t.name, t.device)
+        op_instance.append_output(t)
+        op_instance.spec.AddArg("function_id", id(self.function))
+        return [t]

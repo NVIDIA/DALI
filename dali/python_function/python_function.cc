@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/python_function/python_function.h"
+#include "python_function.h"
 #include <vector>
 
 namespace dali {
 
-DALI_SCHEMA(PythonFunction)
+DALI_SCHEMA(PythonFunctionImpl)
         .DocStr(R"code(Executes python function that consumes and produces single numpy array.)code")
         .NumInput(1)
         .NumOutput(1)
@@ -25,6 +25,8 @@ DALI_SCHEMA(PythonFunction)
         .AddArg("function_id",
                 R"code(Id of the python function.)code",
                 DALI_INT64);
+
+DALI_SCHEMA(PythonFunction).DocStr("dfsafd").AddParent("PythonFunctionImpl");
 
 struct PyBindInitializer {
   PyBindInitializer() {
@@ -107,7 +109,7 @@ void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, const py::array &array) 
 }
 
 template<>
-void PythonFunction<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto &output = ws->Output<CPUBackend>(idx);
   py::gil_scoped_acquire guard{};
@@ -115,6 +117,6 @@ void PythonFunction<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   CopyNumpyArrayToTensor(output, output_array);
 }
 
-DALI_REGISTER_OPERATOR(PythonFunction, PythonFunction<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(PythonFunctionImpl, PythonFunctionImpl<CPUBackend>, CPU);
 
 }  // namespace dali

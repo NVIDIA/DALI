@@ -23,7 +23,7 @@ class CommonPipeline(Pipeline):
                                              exec_pipelined=False)
         self.input = ops.FileReader(file_root=image_dir)
         self.decode = ops.HostDecoder(output_type=types.RGB)
-        self.resize = ops.PythonFunction(function_id=id(resize))
+        self.resize = ops.PythonFunction(function=resize)
 
     def load(self):
         jpegs, labels = self.input()
@@ -47,7 +47,7 @@ class BasicPipeline(CommonPipeline):
 class PythonOperatorPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
         super(PythonOperatorPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
-        self.python_function = ops.PythonFunction(function_id=id(function))
+        self.python_function = ops.PythonFunction(function=function)
 
     def define_graph(self):
         images, labels = self.load()
