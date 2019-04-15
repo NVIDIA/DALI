@@ -20,8 +20,7 @@ from nvidia.dali import backend as b
 from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
-from nvidia.dali.plugin_manager import load_library
-import os
+
 
 def _docstring_generator(cls):
     __cpu_ops = set(b.RegisteredCPUOps())
@@ -335,13 +334,6 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)
         return outputs
-
-
-def _load_plugins():
-    load_library(os.path.join(os.path.dirname(__file__), 'libpython_function_plugin.so'))
-
-
-_load_plugins()
 
 
 class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
