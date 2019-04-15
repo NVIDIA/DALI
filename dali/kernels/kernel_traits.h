@@ -181,7 +181,7 @@ using kernel_args = typename detail::KernelArgs<Kernel>::type;
 namespace detail {
 
 IMPL_HAS_UNIQUE_FUNCTION(Run)
-IMPL_HAS_UNIQUE_FUNCTION(GetRequirements)
+IMPL_HAS_UNIQUE_FUNCTION(Setup)
 
 template <typename Kernel>
 std::is_same<void, decltype(apply_all(Kernel::Run,
@@ -194,18 +194,18 @@ std::is_same<void, decltype(apply_all(Kernel::Run,
 std::false_type IsKernelRunnable(...);
 
 template <typename Kernel>
-std::is_same<KernelRequirements, decltype(apply_all(Kernel::GetRequirements,
+std::is_same<KernelRequirements, decltype(apply_all(Kernel::Setup,
     std::declval<KernelContext&>(),
     std::declval<kernel_inputs<Kernel>>(),
     std::declval<kernel_args<Kernel>>() ))>
-  CanGetRequirements(Kernel*);
+  CanSetup(Kernel*);
 
-std::false_type CanGetRequirements(...);
+std::false_type CanSetup(...);
 
 template <typename Kernel,
     bool assert_,
     bool is_runnable = decltype(IsKernelRunnable(static_cast<Kernel*>(nullptr)))::value,
-    bool can_get_requirements = decltype(CanGetRequirements(static_cast<Kernel*>(nullptr)))::value
+    bool can_get_requirements = decltype(CanSetup(static_cast<Kernel*>(nullptr)))::value
     >
 struct check_kernel_params : std::integral_constant<bool, is_runnable && can_get_requirements> {
     static_assert(!assert_ || is_runnable,
@@ -214,16 +214,16 @@ struct check_kernel_params : std::integral_constant<bool, is_runnable && can_get
       "Check return type = void");
 
     static_assert(!assert_ || can_get_requirements,
-      "Kernel::GetRequirements method cannot be run with inferred arguments.\n"
+      "Kernel::Setup method cannot be run with inferred arguments.\n"
       "Check argument order (context, [inputs], [arguments]).\n"
       "Check return type = KernelRequirements");
 };
 
 template <typename Kernel, bool assert_,
-    bool has_get_requirements = has_unique_function_GetRequirements<Kernel>::value>
+    bool has_get_requirements = has_unique_function_Setup<Kernel>::value>
 struct check_kernel_has_get_requirements : std::false_type {
   static_assert(!assert_ || has_get_requirements,
-  "Kernel class must have a unique, static GetRequirements function");
+  "Kernel class must have a unique, static Setup function");
 };
 
 template <typename Kernel, bool assert_>

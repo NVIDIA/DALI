@@ -91,7 +91,7 @@ struct KernelPoCFixture : Base {
     i1 = tl1.template get<StorageBackend, 3>();
     i2 = tl2.template get<StorageBackend, 3>();
 
-    auto req = Kernel::GetRequirements(ctx, i1, i2, a);
+    auto req = Kernel::Setup(ctx, i1, i2, a);
     ASSERT_EQ((int)req.output_shapes.size(), 1);
     ASSERT_NO_FATAL_FAILURE(CheckEqual(req.output_shapes[0], i1.shape));
 

@@ -75,7 +75,7 @@ TEST_P(ResamplingTestCPU, KernelAPI) {
 
   FilterDesc filter(ResamplingFilterType::Nearest);
 
-  auto req = Kernel::GetRequirements(context, in_tensor, param.params);
+  auto req = Kernel::Setup(context, in_tensor, param.params);
   ASSERT_NE(any_cast<Kernel::Impl>(&context.kernel_data), nullptr);
   scratch_alloc.Reserve(req.scratch_sizes);
   auto scratchpad = scratch_alloc.GetScratchpad();

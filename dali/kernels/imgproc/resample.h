@@ -56,7 +56,7 @@ struct ResampleGPU {
   }
 
   static KernelRequirements
-  GetRequirements(KernelContext &context, const Input &input, const Params &params) {
+  Setup(KernelContext &context, const Input &input, const Params &params) {
     auto *impl = SelectImpl(context, input, params);
     return impl->Setup(context, input, params);
   }

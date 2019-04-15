@@ -127,7 +127,7 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
     MiniBatch &mb = minibatches_[b];
 
     kdata.context.gpu.stream = stream;
-    kdata.requirements = Kernel::GetRequirements(
+    kdata.requirements = Kernel::Setup(
         kdata.context,
         mb.input,
         make_span(resample_params_.data() + mb.start, mb.count));
@@ -190,7 +190,7 @@ void ResizeBase::RunCPU(Tensor<CPUBackend> &output,
   using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
   auto in_view = view<const uint8_t, 3>(input);
   auto &kdata = GetKernelData(thread_idx);
-  kdata.requirements = Kernel::GetRequirements(
+  kdata.requirements = Kernel::Setup(
       kdata.context,
       in_view,
       resample_params_[thread_idx]);

@@ -276,7 +276,7 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
     copy(in_tv[i], view_as_tensor<uint8_t, 3>(cv_img[i]));
   }
 
-  auto req = Kernel::GetRequirements(ctx, in_tv, make_span(params));
+  auto req = Kernel::Setup(ctx, in_tv, make_span(params));
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
