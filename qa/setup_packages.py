@@ -18,10 +18,11 @@ except ImportError:
 # instead of version number, direct link can be used
 # put {0} in pacage link as a placeholder for python pip package version (i.e. cp27-cp27mu-linux_x86_64)
 # and cuda_v for cuXX version
+# NOTE: First version will be picked in case of one_config_only
 packages = {"numpy" : ["1.11.1"],
             "mxnet-cu90" : ["1.4.0"],
             "mxnet-cu100" : ["1.4.0"],
-            "tensorflow-gpu" : {"90": ["1.7", "1.11", "1.12.0"], "100": ["1.13.1"]},
+            "tensorflow-gpu" : {"90": ["1.12.0", "1.11", "1.7"], "100": ["1.13.1"]},
             "torch" : ["http://download.pytorch.org/whl/{cuda_v}/torch-1.0.0-{0}.whl"]
             }
 
