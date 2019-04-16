@@ -810,9 +810,6 @@ def test_lazy_init():
             images = self.decode(self.jpegs)
             crop = self.crop(images, crop_pos_x=pos_x, crop_pos_y=pos_y)
             return (crop, self.labels)
-
-        def iter_setup(self):
-            pass
   
     nonlazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, db_folder = empty_db_folder,  lazy_type = False)
     try:
