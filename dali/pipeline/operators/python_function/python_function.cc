@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/python_function/python_function.h"
+#include "dali/pipeline/operators/python_function/python_function.h"
 #include <vector>
 
 namespace dali {

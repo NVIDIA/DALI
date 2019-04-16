@@ -33,7 +33,7 @@ add_subdirectory(pipeline)
 add_subdirectory(util)
 add_subdirectory(plugin)
 add_subdirectory(c_api)
-add_subdirectory(python_function)
+add_subdirectory(pipeline/operators/python_function)
 
 # Collect source files for dali
 file(GLOB tmp *.cc)
