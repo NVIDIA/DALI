@@ -62,7 +62,7 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
     kernels::KernelContext context;
     kernels::KernelRequirements requirements;
     kernels::ScratchpadAllocator scratch_alloc;
-    unique_ptr<void, void(*)(void*)> instance = { nullptr, free };
+    std::unique_ptr<void, void(*)(void*)> instance = { nullptr, free };
 
     template <typename Kernel, typename... Args>
     Kernel &KernelInstance(Args&&... args) {
