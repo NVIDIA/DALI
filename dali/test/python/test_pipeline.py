@@ -1136,7 +1136,7 @@ class CachedPipeline(Pipeline):
                                             features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
                                                         "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
 
-        if is_cached or is_cached_batch_copy:
+        if is_cached:
             self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
                                             cache_size=2000,
                                             cache_threshold=0,
