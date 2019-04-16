@@ -26,6 +26,12 @@ target_link_libraries(${dali_python_lib} PRIVATE ${CUDA_LIBRARIES} ${dali_lib})
 set_target_properties(${dali_python_lib} PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali)
 
+if (DALI_BUILD_FLAVOR)
+  set(DALI_FLAVOR "${DALI_BUILD_FLAVOR} ")
+  set(DALI_FLAVOR_MINUS "-${DALI_BUILD_FLAVOR}")
+  set(DALI_VERSION "${DALI_VERSION}.${TIMESTAMP}")
+endif()
+
 # Add the COPYRIGHT, LICENSE, and Acknowledgements
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/dali/python/nvidia" "${PROJECT_BINARY_DIR}/dali/python")
 configure_file("${PROJECT_SOURCE_DIR}/dali/python/setup.py.in" "${PROJECT_BINARY_DIR}/stage/setup.py")
