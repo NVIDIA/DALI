@@ -1091,37 +1091,37 @@ def test_pipeline_default_cuda_stream_priority():
 
 
 class CachedPipeline(Pipeline):
-    def __init__(self, reader_type, batch_size, is_cached=False, seed=123456, skip_cached_images=False, num_shards=100000):
+    def __init__(self, reader_type, batch_size, is_cached=False, is_cached_batch_copy=True,  seed=123456, skip_cached_images=False, num_shards=100000):
         super(CachedPipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1, seed=seed)
         self.reader_type = reader_type
         if reader_type == "MXNetReader":
             self.input = ops.MXNetReader(path = "/data/imagenet/train-480-val-256-recordio/train.rec",
                                          index_path = "/data/imagenet/train-480-val-256-recordio/train.idx",
-                                         shard_id = 0, 
-                                         num_shards = num_shards, 
+                                         shard_id = 0,
+                                         num_shards = num_shards,
                                          stick_to_shard = True,
-                                         skip_cached_images = skip_cached_images, 
+                                         skip_cached_images = skip_cached_images,
                                          prefetch_queue_depth = 1)
         elif reader_type == "CaffeReader":
-            self.input = ops.CaffeReader(path = "/data/imagenet/train-lmdb-256x256", 
-                                         shard_id = 0, 
-                                         num_shards = num_shards, 
+            self.input = ops.CaffeReader(path = "/data/imagenet/train-lmdb-256x256",
+                                         shard_id = 0,
+                                         num_shards = num_shards,
                                          stick_to_shard = True,
-                                         skip_cached_images = skip_cached_images, 
+                                         skip_cached_images = skip_cached_images,
                                          prefetch_queue_depth = 1)
         elif reader_type == "Caffe2Reader":
-            self.input = ops.Caffe2Reader(path = "/data/imagenet/train-c2lmdb-480", 
-                                          shard_id = 0, 
-                                          num_shards = num_shards, 
+            self.input = ops.Caffe2Reader(path = "/data/imagenet/train-c2lmdb-480",
+                                          shard_id = 0,
+                                          num_shards = num_shards,
                                           stick_to_shard = True,
-                                          skip_cached_images = skip_cached_images, 
+                                          skip_cached_images = skip_cached_images,
                                           prefetch_queue_depth = 1)
         elif reader_type == "FileReader":
             self.input = ops.FileReader(file_root = "/data/imagenet/train-jpeg",
-                                        shard_id = 0, 
-                                        num_shards = num_shards, 
+                                        shard_id = 0,
+                                        num_shards = num_shards,
                                         stick_to_shard = True,
-                                        skip_cached_images = skip_cached_images, 
+                                        skip_cached_images = skip_cached_images,
                                         prefetch_queue_depth = 1)
 
         elif reader_type == "TFRecordReader":
@@ -1129,22 +1129,29 @@ class CachedPipeline(Pipeline):
             tfrecord_idx = sorted(glob.glob("/data/imagenet/train-val-tfrecord-480.idx/train-*"))
             self.input = ops.TFRecordReader(path = tfrecord,
                                             index_path = tfrecord_idx,
-                                            shard_id = 0, 
-                                            num_shards = num_shards, 
+                                            shard_id = 0,
+                                            num_shards = num_shards,
                                             stick_to_shard = True,
-                                            skip_cached_images = skip_cached_images, 
+                                            skip_cached_images = skip_cached_images,
                                             features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
                                                         "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
 
-        if is_cached:
+        if is_cached or is_cached_batch_copy:
             self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
                                             cache_size=2000,
                                             cache_threshold=0,
                                             cache_type='threshold',
                                             cache_debug=False,
                                             cache_batch_copy=True)
+        elif is_cached and  is_cached_batch_copy == False:
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
+                                            cache_size=2000,
+                                            cache_threshold=0,
+                                            cache_type='threshold',
+                                            cache_debug=False,
+                                            cache_batch_copy=False)
         else:
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+           self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
 
     def define_graph(self):
         if self.reader_type == "TFRecordReader":
@@ -1159,6 +1166,14 @@ class CachedPipeline(Pipeline):
     def iter_setup(self):
         pass
 
+
+def test_nvjpeg_cached_batch_copy_pipelines():
+    batch_size = 26
+    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "TFRecordReader"}:
+        compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=True),
+                          CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=False),
+                          batch_size=batch_size, N_iterations=20)
+        
 def test_nvjpeg_cached_pipelines():
     batch_size = 26
     for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "TFRecordReader"}:
