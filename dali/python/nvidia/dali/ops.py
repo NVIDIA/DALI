@@ -20,7 +20,7 @@ from nvidia.dali import backend as b
 from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
-
+import os
 
 def _docstring_generator(cls):
     __cpu_ops = set(b.RegisteredCPUOps())
@@ -337,7 +337,14 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
 
 
 class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
+    _plugin_loaded = False
+
     def __init__(self, function, **kwargs):
+        if not PythonFunction._plugin_loaded:
+            # This is a workaround for Python 2.7 which doesn't handle cyclic imports.
+            # The intention behind this block is to call load_library(...).
+            b.LoadLibrary(os.path.join(os.path.dirname(__file__), 'libpython_function_plugin.so'))
+            Reload()
         self._schema = b.GetSchema("PythonFunctionImpl")
         self._spec = b.OpSpec("PythonFunctionImpl")
         self._device = "cpu"

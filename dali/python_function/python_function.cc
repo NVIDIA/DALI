@@ -24,7 +24,8 @@ DALI_SCHEMA(PythonFunctionImpl)
         .AllowMultipleInputSets()
         .AddArg("function_id",
                 R"code(Id of the python function.)code",
-                DALI_INT64);
+                DALI_INT64)
+        .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
         .DocStr("Executes a python function")
