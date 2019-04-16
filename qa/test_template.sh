@@ -10,11 +10,18 @@ CUDA_VERSION=$(nvcc --version | grep -E ".*release ([0-9]+)\.([0-9]+).*" | sed '
 CUDA_VERSION=${CUDA_VERSION:-90}
 # Set proper CUDA version for packages, like MXNet, requiring it
 pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
-count=$($topdir/qa/setup_packages.py -n -u $pip_packages)
+last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
-for i in `seq 0 $count`;
+# Limit to only one configuration (First version of each package)
+if [ $one_config_only = true ]; then
+    echo "Limiting test run to one configuration of packages (first version of each)"
+    last_config_index=0
+fi
+
+for i in `seq 0 $last_config_index`;
 do
-    # install pacakges
+    echo "Test run $i"
+    # install packages
     inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
     if [ -n "$inst" ]
     then
@@ -23,7 +30,7 @@ do
     # test code
     test_body
 
-    # remove pacakges
+    # remove packages
     remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
     if [ -n "$remove" ]
     then
