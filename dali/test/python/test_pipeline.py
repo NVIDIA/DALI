@@ -790,7 +790,7 @@ def test_lazy_init():
         Comparing results of pipeline: lazy_init false and lazy_init true with empty folder and real folder
     """
     batch_size =128
-
+    empty_db_folder="/data/empty"
     class LazyPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, db_folder, lazy_type):
             super(LazyPipeline, self).__init__(batch_size,
