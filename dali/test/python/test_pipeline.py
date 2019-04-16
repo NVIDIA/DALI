@@ -1142,14 +1142,7 @@ class CachedPipeline(Pipeline):
                                             cache_threshold=0,
                                             cache_type='threshold',
                                             cache_debug=False,
-                                            cache_batch_copy=True)
-        elif is_cached and  is_cached_batch_copy == False:
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
-                                            cache_size=2000,
-                                            cache_threshold=0,
-                                            cache_type='threshold',
-                                            cache_debug=False,
-                                            cache_batch_copy=False)
+                                            cache_batch_copy=is_cached_batch_copy)
         else:
            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
 
