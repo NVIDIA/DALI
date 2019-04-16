@@ -33,39 +33,25 @@ struct ResampleGPU {
   using Params = typename Impl::Params;
   using ImplPtr = typename Impl::Ptr;
 
-  static Impl *SelectImpl(
+  ImplPtr pImpl;
+
+  Impl *SelectImpl(
       KernelContext &context,
       const Input &input,
       const Params &params) {
-    auto cur_impl = any_cast<ImplPtr>(&context.kernel_data);
-    if (cur_impl) {
-      return cur_impl->get();
-    } else {
-      auto ptr = Impl::Create(params);
-      context.kernel_data = ptr;
-      return ptr.get();
-    }
-  }
-  static Impl *GetImpl(KernelContext &context) {
-    auto cur_impl = any_cast<ImplPtr>(&context.kernel_data);
-    if (cur_impl) {
-      return cur_impl->get();
-    } else {
-      return nullptr;
-    }
+    if (!pImpl)
+      pImpl = Impl::Create(params);
+    return pImpl.get();
   }
 
-  static KernelRequirements
-  Setup(KernelContext &context, const Input &input, const Params &params) {
+  KernelRequirements Setup(KernelContext &context, const Input &input, const Params &params) {
     auto *impl = SelectImpl(context, input, params);
     return impl->Setup(context, input, params);
   }
 
-  static void
-  Run(KernelContext &context, const Output &output, const Input &input, const Params &params) {
-    Impl *impl = GetImpl(context);
-    assert(impl != nullptr);
-    impl->Run(context, output, input, params);
+  void Run(KernelContext &context, const Output &output, const Input &input, const Params &params) {
+    assert(pImpl != nullptr);
+    pImpl->Run(context, output, input, params);
   }
 };
 

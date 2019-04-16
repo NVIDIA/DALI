@@ -43,6 +43,7 @@ struct KernelPoCFixture : Base {
 
  private:
   KernelContext ctx;
+  Kernel kernel;
   TestTensorList<Input1> tl1;
   TestTensorList<Input2> tl2;
   TestTensorList<Output> tlo1, tlo2, tlref;
@@ -91,19 +92,19 @@ struct KernelPoCFixture : Base {
     i1 = tl1.template get<StorageBackend, 3>();
     i2 = tl2.template get<StorageBackend, 3>();
 
-    auto req = Kernel::Setup(ctx, i1, i2, a);
+    auto req = kernel.Setup(ctx, i1, i2, a);
     ASSERT_EQ((int)req.output_shapes.size(), 1);
     ASSERT_NO_FATAL_FAILURE(CheckEqual(req.output_shapes[0], i1.shape));
 
     // Kernel's native Run
     tlo1.reshape(req.output_shapes[0]);
     o1 = tlo1.template get<StorageBackend, 3>();
-    Kernel::Run(ctx, o1, i1, i2, a);
+    kernel.Run(ctx, o1, i1, i2, a);
 
     // use uniform call with argument tuples
     tlo2.reshape(req.output_shapes[0]);
     o2 = tlo2.template get<StorageBackend, 3>();
-    kernels::kernel::Run<Kernel>(ctx, std::tie(o2), std::tie(i1, i2), std::make_tuple(a) );
+    kernels::kernel::Run(kernel, ctx, std::tie(o2), std::tie(i1, i2), std::make_tuple(a) );
   }
 
   void Verify() {

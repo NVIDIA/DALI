@@ -124,10 +124,11 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   out_shape_.clear();
   for (size_t b = 0; b < minibatches_.size(); b++) {
     auto &kdata = kernel_data_[b];
+    auto &kernel = kdata.KernelInstance<Kernel>();
     MiniBatch &mb = minibatches_[b];
 
     kdata.context.gpu.stream = stream;
-    kdata.requirements = Kernel::Setup(
+    kdata.requirements = kernel.Setup(
         kdata.context,
         mb.input,
         make_span(resample_params_.data() + mb.start, mb.count));
@@ -150,11 +151,12 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
 
   for (size_t b = 0; b < minibatches_.size(); b++) {
     auto &kdata = kernel_data_[b];
+    auto &kernel = kdata.KernelInstance<Kernel>();
     MiniBatch &mb = minibatches_[b];
 
     auto scratchpad = alloc.GetScratchpad();
     kdata.context.scratchpad = &scratchpad;
-    Kernel::Run(kdata.context, mb.output, mb.input, make_span(resample_params_));
+    kernel.Run(kdata.context, mb.output, mb.input, make_span(resample_params_));
   }
 }
 
@@ -175,7 +177,11 @@ void ResizeBase::InitializeGPU(int batch_size, int mini_batch_size) {
     gpu_scratch = temp_buffer_hint_;
   kdata.scratch_alloc.Reserve(kdata.requirements.scratch_sizes);
   minibatches_.resize(num_minibatches);
+
   for (int i = 0; i < num_minibatches; i++) {
+    using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
+    auto &kernel = GetKernelInstance<Kernel>(i);  // create the kernel instances
+    (void)kernel;
     int start = batch_size * i / num_minibatches;
     int end = (batch_size * (i + 1)) / num_minibatches;
 
@@ -190,7 +196,8 @@ void ResizeBase::RunCPU(Tensor<CPUBackend> &output,
   using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
   auto in_view = view<const uint8_t, 3>(input);
   auto &kdata = GetKernelData(thread_idx);
-  kdata.requirements = Kernel::Setup(
+  auto &kernel = GetKernelInstance<Kernel>(thread_idx);
+  kdata.requirements = kernel.Setup(
       kdata.context,
       in_view,
       resample_params_[thread_idx]);
@@ -207,7 +214,7 @@ void ResizeBase::RunCPU(Tensor<CPUBackend> &output,
   output.Resize(out_shape_[thread_idx]);
   output.SetLayout(DALI_NHWC);
   auto out_view = view<uint8_t, 3>(output);
-  Kernel::Run(kdata.context, out_view, in_view, resample_params_[thread_idx]);
+  kernel.Run(kdata.context, out_view, in_view, resample_params_[thread_idx]);
 }
 
 }  // namespace dali
