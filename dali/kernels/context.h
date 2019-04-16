@@ -88,7 +88,7 @@ struct KernelContext {
   Scratchpad *scratchpad;
 
   /// @brief Kernel-provided context; should not be changed by the caller between
-  ///        calls to GetRequirements and Run
+  ///        calls to Setup and Run
   any kernel_data;
 };
 

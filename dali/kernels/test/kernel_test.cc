@@ -31,31 +31,31 @@ struct Empty {
 
 // Two run functions
 struct TwoRuns {
-  static KernelRequirements GetRequirements(KernelContext &conext, const InListCPU<float, 3>&);
+  static KernelRequirements Setup(KernelContext &conext, const InListCPU<float, 3>&);
   void Run();
   static void Run(KernelContext &conext, const OutListCPU<float, 3>&, const InListCPU<float, 3>&);
 };
 
-// No GetRequirements
+// No Setup
 struct NoGetReq {
   static void Run(KernelContext &conext, const OutListCPU<float, 3>&, const InListCPU<float, 3>&);
 };
 
-// GetRequirements returns wrong type
+// Setup returns wrong type
 struct GetReqBadType {
-  static int GetRequirements(KernelContext &conext, const InListCPU<float, 3>&);
+  static int Setup(KernelContext &conext, const InListCPU<float, 3>&);
   static void Run(KernelContext &conext, const OutListCPU<float, 3>&, const InListCPU<float, 3>&);
 };
 
-// GetRequirements doesn't take KernelContext & as its first argument
+// Setup doesn't take KernelContext & as its first argument
 struct GetReqBadParamsType {
-  static int GetRequirements(const InListCPU<float, 3>&);
+  static int Setup(const InListCPU<float, 3>&);
   static void Run(KernelContext &conext, const OutListCPU<float, 3>&, const InListCPU<float, 3>&);
 };
 
 // Run doesn't take KernelContext & as its first argument
 struct RunBadParamsType {
-  static KernelRequirements GetRequirements(KernelContext &conext, const InListCPU<float, 3> &);
+  static KernelRequirements Setup(KernelContext &conext, const InListCPU<float, 3> &);
   static void Run(const OutListCPU<float, 3> &, const InListCPU<float, 3> &);
 };
 
@@ -89,13 +89,13 @@ TEST(KernelAPI, EnforceConcept) {
 
   static_assert(!is_kernel<Empty>::value, "Empty has no Run function and cannot be a kernel");
   static_assert(!is_kernel<NoGetReq>::value,
-                "Empty has no GetRequirements function and cannot be a kernel");
+                "Empty has no Setup function and cannot be a kernel");
   static_assert(!is_kernel<TwoRuns>::value, "ToRuns has two Run functions");
   static_assert(!is_kernel<RunBadParamsType>::value, "Run has bad parameters");
 }
 
 template <typename I1, typename I2, typename O>
-KernelRequirements dali::kernels::examples::Kernel<I1, I2, O>::GetRequirements(
+KernelRequirements dali::kernels::examples::Kernel<I1, I2, O>::Setup(
   KernelContext &context,
   const InListGPU<I1, 3> &in1,
   const InTensorGPU<I2, 4> &in2,

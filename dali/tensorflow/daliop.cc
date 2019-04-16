@@ -68,7 +68,9 @@ REGISTER_OP("Dali")
   .Attr("shapes: list(shape) >= 1")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")
-  .Attr("prefetch_queue_depth: int = 2")
+  .Attr("exec_separated: bool = false")
+  .Attr("gpu_prefetch_queue_depth: int = 2")
+  .Attr("cpu_prefetch_queue_depth: int = 2")
   .Attr("sparse: list(bool) = []")
   .Attr("batch_size: int = -1")
   .Output("data: dtypes")
@@ -109,14 +111,20 @@ class DaliOp : public tf::OpKernel {
     int num_threads;
     int device_id;
     int batch_size;
+    bool exec_separated;
+    int cpu_prefetch_queue_depth;
 
     OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
     OP_REQUIRES_OK(context, context->GetAttr("dtypes", &types_));
     OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads));
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
-    OP_REQUIRES_OK(context, context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
+    OP_REQUIRES_OK(context, context->GetAttr("exec_separated", &exec_separated));
+    // In exec_separated==false case, gpu_prefetch_queue_depth is the global prefetch_queue_depth_
+    OP_REQUIRES_OK(context, context->GetAttr("gpu_prefetch_queue_depth", &prefetch_queue_depth_));
     OP_REQUIRES_OK(context, context->GetAttr("sparse", &sparse_));
     OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
+    OP_REQUIRES_OK(context, context->GetAttr("cpu_prefetch_queue_depth",
+                                             &cpu_prefetch_queue_depth));
 
     // TF doing constant propagation runs all operators on the CPU first, so we need to provide
     // ability to copy memory from the GPU pipeline to the CPU seamlessly
@@ -139,6 +147,9 @@ class DaliOp : public tf::OpKernel {
                    batch_size,
                    num_threads,
                    device_id,
+                   exec_separated,
+                   prefetch_queue_depth_,
+                   cpu_prefetch_queue_depth,
                    prefetch_queue_depth_));
 
 #if USE_TF_ALLOCATOR
@@ -147,8 +158,12 @@ class DaliOp : public tf::OpKernel {
 #endif
     LOG_LINE << "Pipeline created\n";
     LOG_LINE << "Prefetching...\n";
-    for (int i = 0; i < prefetch_queue_depth_; ++i) {
-      TF_DALI_CALL(daliRun(&pipe_handle_));
+    if (!exec_separated) {
+      TF_DALI_CALL(daliPrefetchUniform(&pipe_handle_, prefetch_queue_depth_));
+    } else {
+      TF_DALI_CALL(daliPrefetchSeparate(&pipe_handle_,
+                                        cpu_prefetch_queue_depth,
+                                        prefetch_queue_depth_));
     }
     LOG_LINE << "After first run\n";
   }
