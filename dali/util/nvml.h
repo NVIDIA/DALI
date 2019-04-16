@@ -81,28 +81,8 @@ inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
   CPU_ZERO(&current_set);
   pthread_getaffinity_np(pthread_self(), sizeof(current_set), &current_set);
 
-  std::stringstream ss;
-  ss << "current_set affinity (num_cpus: " << num_cpus << ") : ";
-  for (std::size_t i = 0; i < num_cpus; i++) {
-      ss << CPU_ISSET(i, &current_set) << " ";
-  }
-  ss << "] ";
-
-  ss << "nvml_set affinity (num_cpus: " << num_cpus << ") : ";
-  for (std::size_t i = 0; i < num_cpus; i++) {
-      ss << CPU_ISSET(i, &nvml_set) << " ";
-  }
-  ss << "] ";
-
   // AND masks
   CPU_AND(mask, &nvml_set, &current_set);
-
-  ss << "mask affinity (num_cpus: " << num_cpus << ") : ";
-  for (std::size_t i = 0; i < num_cpus; i++) {
-      ss << CPU_ISSET(i, mask) << " ";
-  }
-  ss << "] ";
-  std::cout << ss.str() << std::endl;
 }
 
 /**
@@ -129,15 +109,20 @@ inline void SetCPUAffinity(int core = -1) {
   }
 
   // Set the affinity
+  bool at_least_one_cpu_set = false;
+  for (std::size_t i = 0; i < num_cpus; i++) {
+    at_least_one_cpu_set |= CPU_ISSET(i, &requested_set);
+  }
+  if (!at_least_one_cpu_set) {
+    DALI_WARN("CPU affinity requested by user or recommended by nvml setting"
+              " does not meet allowed affinity for given DALI thread."
+              " Use taskset tool to check allowed affinity");
+    return;
+  }
+
   int error = pthread_setaffinity_np(pthread_self(), sizeof(requested_set), &requested_set);
   if (error != 0) {
-      std::stringstream ss;
-      ss << "Affinity (num_cpus: " << num_cpus << ") : ";
-      for (std::size_t i = 0; i < num_cpus; i++) {
-          ss << CPU_ISSET(i, &requested_set) << " ";
-      }
-      DALI_WARN("Setting affinity failed! Error code: "
-        + to_string(error) + " [" + ss.str() + "]");
+      DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
   }
 }
 
