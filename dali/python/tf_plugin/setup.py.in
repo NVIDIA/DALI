@@ -77,8 +77,8 @@ class CustomInstall(install, object):
 
         super(CustomInstall, self).run()
 
-setup(name='nvidia-dali-tf-plugin',
-      description='NVIDIA DALI Tensorflow plugin for CUDA @CUDA_VERSION@',
+setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
+      description='NVIDIA DALI @DALI_FLAVOR@Tensorflow plugin for CUDA @CUDA_VERSION@. Git SHA: @GIT_SHA@',
       url='https://github.com/NVIDIA/dali',
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
@@ -87,7 +87,7 @@ setup(name='nvidia-dali-tf-plugin',
       include_package_data=True,
       zip_safe=False,
       install_requires = [
-          'nvidia-dali==@DALI_VERSION@'
+          'nvidia-dali@DALI_FLAVOR_MINUS@==@DALI_VERSION@'
           ],
       cmdclass = {
           'install': CustomInstall
