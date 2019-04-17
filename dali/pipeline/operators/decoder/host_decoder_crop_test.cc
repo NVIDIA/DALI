@@ -21,7 +21,9 @@ class HostDecoderCropTest : public DecodeTestBase<ImgType> {
  protected:
   OpSpec DecodingOp() const override {
     return this->GetOpSpec("HostDecoderCrop")
-      .AddArg("crop", std::vector<float>{1.0f*crop_H, 1.0f*crop_W});
+      .AddArg("crop", std::vector<float>{1.0f*crop_H, 1.0f*crop_W})
+      .AddArg("crop_pos_x", 0.5f)
+      .AddArg("crop_pos_y", 0.5f);
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {

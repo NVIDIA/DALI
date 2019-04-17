@@ -38,29 +38,41 @@ TYPED_TEST_SUITE(ResizeCropMirrorTest, Types);
 
 TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCrop) {
   this->TstBody(this->DefaultSchema()
-                .AddArg("resize_shorter", 480.f)
-                .AddArg("crop", vector<float>{224, 224}), 5e-6);
+                        .AddArg("resize_shorter", 480.f)
+                        .AddArg("crop_pos_x", 0.5f)
+                        .AddArg("crop_pos_y", 0.5f)
+                        .AddArg("crop", vector<float>{224, 224}), 5e-6);
 }
+
 
 TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropWarp) {
   this->TstBody(this->DefaultSchema()
-                .AddArg("resize_x", 480.f)
-                .AddArg("resize_y", 480.f)
-                .AddArg("crop", vector<float>{224, 224}), 5e-6);
+                        .AddArg("resize_x", 480.f)
+                        .AddArg("resize_y", 480.f)
+                        .AddArg("crop_pos_x", 0.5f)
+                        .AddArg("crop_pos_y", 0.5f)
+                        .AddArg("crop", vector<float>{224, 224}), 5e-6);
+
 }
+
 
 TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCrop) {
   this->TstBody(this->DefaultSchema(true)
-                .AddArg("resize_shorter", 480.f)
-                .AddArg("crop", vector<float>{224, 224}), 1.98);
+                        .AddArg("resize_shorter", 480.f)
+                        .AddArg("crop_pos_x", 0.5f)
+                        .AddArg("crop_pos_y", 0.5f)
+                        .AddArg("crop", vector<float>{224, 224}), 1.98);
+
 }
+
 
 TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCropWarp) {
   this->TstBody(this->DefaultSchema(true)
-                    .AddArg("resize_x", 480.f)
-                    .AddArg("resize_y", 480.f)
-                    .AddArg("crop", vector<float>{224, 224}),
-                1.80);
+                        .AddArg("resize_x", 480.f)
+                        .AddArg("resize_y", 480.f)
+                        .AddArg("crop_pos_x", 0.5f)
+                        .AddArg("crop_pos_y", 0.5f)
+                        .AddArg("crop", vector<float>{224, 224}), 1.80);
 }
 
 }  // namespace dali
