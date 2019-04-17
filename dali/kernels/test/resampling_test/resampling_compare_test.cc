@@ -109,8 +109,8 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
   KernelContext ctx_gpu, ctx_cpu;
   ctx_gpu.gpu.stream = 0;
   ctx_cpu.gpu.stream = 0;
-  using KernelGPU = ResampleGPU<uint8_t, uint8_t>;
-  using KernelCPU = ResampleCPU<uint8_t, uint8_t>;
+  ResampleGPU<uint8_t, uint8_t> kernel_gpu;
+  ResampleCPU<uint8_t, uint8_t> kernel_cpu;
   TestTensorList<uint8_t, 3> input, output_gpu, output_cpu;
 
   std::vector<TensorShape<3>> shapes;
@@ -124,7 +124,7 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
   }
   OutListCPU<uint8_t, 3> in_cpu = input.cpu();
 
-  auto req_gpu = KernelGPU::Setup(ctx_gpu, in_gpu, make_span(params));
+  auto req_gpu = kernel_gpu.Setup(ctx_gpu, in_gpu, make_span(params));
   std::vector<TensorShape<3>> size_cpu;
   ASSERT_EQ(req_gpu.output_shapes.size(), 1);
   ASSERT_EQ(req_gpu.output_shapes[0].num_samples(), N);
@@ -132,7 +132,7 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
   KernelRequirements req_cpu = {};
   std::vector<TensorShape<>> out_shape_cpu;
   for (int i = 0; i < N; i++) {
-    auto req_tmp = KernelCPU::Setup(ctx_cpu, in_cpu[i], params[i]);
+    auto req_tmp = kernel_cpu.Setup(ctx_cpu, in_cpu[i], params[i]);
 
     for (size_t j = 0; j < req_cpu.scratch_sizes.size(); j++) {
       req_cpu.scratch_sizes[j] = std::max(req_cpu.scratch_sizes[j], req_tmp.scratch_sizes[j]);
@@ -165,15 +165,15 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
 
   auto scratchpad = scratch_alloc_gpu.GetScratchpad();
   ctx_gpu.scratchpad = &scratchpad;
-  KernelGPU::Run(ctx_gpu, out_gpu, in_gpu, make_span(params));
+  kernel_gpu.Run(ctx_gpu, out_gpu, in_gpu, make_span(params));
 
   for (int i = 0; i < N; i++) {
-    KernelCPU::Setup(ctx_cpu, in_cpu[i], params[i]);
+    kernel_cpu.Setup(ctx_cpu, in_cpu[i], params[i]);
     auto out_tensor = out_cpu[i];
     auto in_tensor = in_cpu[i];
     auto scratchpad = scratch_alloc_cpu.GetScratchpad();
     ctx_cpu.scratchpad = &scratchpad;
-    KernelCPU::Run(ctx_cpu, out_tensor, in_tensor, params[i]);
+    kernel_cpu.Run(ctx_cpu, out_tensor, in_tensor, params[i]);
   }
 
 

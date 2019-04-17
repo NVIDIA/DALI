@@ -15,8 +15,9 @@
 #ifndef DALI_KERNELS_KERNEL_TRAITS_H_
 #define DALI_KERNELS_KERNEL_TRAITS_H_
 
-#include <type_traits>
+#include <functional>
 #include <tuple>
+#include <type_traits>
 #include "dali/kernels/kernel_params.h"
 #include "dali/kernels/util.h"
 #include "dali/kernels/tuple_helpers.h"
@@ -75,8 +76,8 @@ struct filter<T, Predicate, false> {
 template <typename F>
 struct input_lists;
 
-template <typename... Args>
-struct input_lists<void(Args...)> {
+template <typename Kernel, typename... Args>
+struct input_lists<void (Kernel::*)(Args...)> {
   using type = dali::detail::tuple_cat_t<
     typename filter<Args, is_input>::type...
   >;
@@ -85,8 +86,8 @@ struct input_lists<void(Args...)> {
 template <typename F>
 struct output_lists;
 
-template <typename... Args>
-struct output_lists<void(Args...)> {
+template <typename Kernel, typename... Args>
+struct output_lists<void (Kernel::*)(Args...)> {
   using type = dali::detail::tuple_cat_t<
     typename filter<Args, is_output>::type...
   >;
@@ -95,8 +96,8 @@ struct output_lists<void(Args...)> {
 template <typename F>
 struct kernel_arg_params;
 
-template <typename... Args>
-struct kernel_arg_params<void(Args...)> {
+template <typename Kernel, typename... Args>
+struct kernel_arg_params<void (Kernel::*)(Args...)> {
   using type = dali::detail::tuple_cat_t<
     typename filter<Args, is_kernel_arg>::type...
   >;
@@ -104,19 +105,19 @@ struct kernel_arg_params<void(Args...)> {
 
 template <typename Kernel>
 struct kernel_run_inputs {
-  using type = typename detail::input_lists<decltype(Kernel::Run)>::type;
+  using type = typename detail::input_lists<decltype(&Kernel::Run)>::type;
 };
 
 
 template <typename Kernel>
 struct kernel_run_outputs {
-  using type = typename detail::output_lists<decltype(Kernel::Run)>::type;
+  using type = typename detail::output_lists<decltype(&Kernel::Run)>::type;
 };
 
 
 template <typename Kernel>
 struct kernel_run_args {
-  using type = typename detail::kernel_arg_params<decltype(Kernel::Run)>::type;
+  using type = typename detail::kernel_arg_params<decltype(&Kernel::Run)>::type;
 };
 
 
@@ -180,11 +181,12 @@ using kernel_args = typename detail::KernelArgs<Kernel>::type;
 
 namespace detail {
 
-IMPL_HAS_UNIQUE_FUNCTION(Run)
-IMPL_HAS_UNIQUE_FUNCTION(Setup)
+IMPL_HAS_UNIQUE_MEMBER_FUNCTION(Run)
+IMPL_HAS_UNIQUE_MEMBER_FUNCTION(Setup)
 
 template <typename Kernel>
-std::is_same<void, decltype(apply_all(Kernel::Run,
+std::is_same<void, decltype(apply_all(std::mem_fn(&Kernel::Run),
+    std::declval<Kernel&>(),
     std::declval<KernelContext&>(),
     std::declval<kernel_outputs<Kernel>>(),
     std::declval<kernel_inputs<Kernel>>(),
@@ -194,50 +196,52 @@ std::is_same<void, decltype(apply_all(Kernel::Run,
 std::false_type IsKernelRunnable(...);
 
 template <typename Kernel>
-std::is_same<KernelRequirements, decltype(apply_all(Kernel::Setup,
+std::is_same<KernelRequirements, decltype(apply_all(std::mem_fn(&Kernel::Setup),
+    std::declval<Kernel&>(),
     std::declval<KernelContext&>(),
     std::declval<kernel_inputs<Kernel>>(),
     std::declval<kernel_args<Kernel>>() ))>
-  CanSetup(Kernel*);
+  HasSetup(Kernel*);
 
-std::false_type CanSetup(...);
+std::false_type HasSetup(...);
 
 template <typename Kernel,
     bool assert_,
     bool is_runnable = decltype(IsKernelRunnable(static_cast<Kernel*>(nullptr)))::value,
-    bool can_get_requirements = decltype(CanSetup(static_cast<Kernel*>(nullptr)))::value
+    bool has_setup = decltype(HasSetup(static_cast<Kernel*>(nullptr)))::value
     >
-struct check_kernel_params : std::integral_constant<bool, is_runnable && can_get_requirements> {
+struct check_kernel_params : std::integral_constant<bool, is_runnable && has_setup> {
     static_assert(!assert_ || is_runnable,
       "Kernel::Run method cannot be run with inferred arguments.\n"
       "Check argument order (context, [outputs], [inputs], [arguments]).\n"
       "Check return type = void");
 
-    static_assert(!assert_ || can_get_requirements,
+    static_assert(!assert_ || has_setup,
       "Kernel::Setup method cannot be run with inferred arguments.\n"
       "Check argument order (context, [inputs], [arguments]).\n"
       "Check return type = KernelRequirements");
 };
 
 template <typename Kernel, bool assert_,
-    bool has_get_requirements = has_unique_function_Setup<Kernel>::value>
-struct check_kernel_has_get_requirements : std::false_type {
-  static_assert(!assert_ || has_get_requirements,
-  "Kernel class must have a unique, static Setup function");
+    bool has_setup = has_unique_member_function_Setup<Kernel>::value>
+struct check_kernel_has_setup : std::false_type {
+  static_assert(!assert_ || has_setup,
+  "Kernel class must have a unique, non-static Setup function");
 };
 
 template <typename Kernel, bool assert_>
-struct check_kernel_has_get_requirements<Kernel, assert_, true>
+struct check_kernel_has_setup<Kernel, assert_, true>
  : check_kernel_params<Kernel, assert_> {};
 
-template <typename Kernel, bool assert_, bool has_run = has_unique_function_Run<Kernel>::value>
+template <typename Kernel, bool assert_,
+    bool has_run = has_unique_member_function_Run<Kernel>::value>
 struct check_kernel_has_run : std::false_type {
-  static_assert(!assert_ || has_run, "Kernel class must have a unique, static Run function");
+  static_assert(!assert_ || has_run, "Kernel class must have a unique, non-static Run function");
 };
 
 template <typename Kernel, bool assert_>
 struct check_kernel_has_run<Kernel, assert_, true>
- : check_kernel_has_get_requirements<Kernel, assert_> {};
+ : check_kernel_has_setup<Kernel, assert_> {};
 
 }  // namespace detail
 

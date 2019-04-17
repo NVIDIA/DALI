@@ -259,6 +259,7 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
   KernelContext ctx;
   ctx.gpu.stream = 0;
   using Kernel = ResampleGPU<uint8_t, uint8_t>;
+  Kernel kernel;
   TestTensorList<uint8_t, 3> input, output;
 
   FilterDesc tri;
@@ -276,7 +277,7 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
     copy(in_tv[i], view_as_tensor<uint8_t, 3>(cv_img[i]));
   }
 
-  auto req = Kernel::Setup(ctx, in_tv, make_span(params));
+  auto req = kernel.Setup(ctx, in_tv, make_span(params));
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
@@ -297,7 +298,7 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
 
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
-  Kernel::Run(ctx, out_tv, in_tv, make_span(params));
+  kernel.Run(ctx, out_tv, in_tv, make_span(params));
   for (int i = 0; i < N; i++) {
     auto ref_tensor = view_as_tensor<uint8_t, 3>(cv_ref[i]);
     auto out_tensor = output.cpu()[i];
