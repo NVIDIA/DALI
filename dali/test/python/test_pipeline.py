@@ -785,49 +785,52 @@ class ExternalInputIterator(object):
         return (pos, size)
     next = __next__
     
-def test_lazy_init():
-    """
-        Comparing results of pipeline: lazy_init false and lazy_init true with empty folder and real folder
-    """
-    batch_size =128
+class LazyPipeline(Pipeline):
+    def __init__(self, batch_size, db_folder, lazy_type, num_threads=1, device_id=0, num_gpus=1):
+        super(LazyPipeline, self).__init__(batch_size,
+                                           num_threads,
+                                           device_id)
+        self.input = ops.CaffeReader(path = db_folder, shard_id = device_id, num_shards = num_gpus, lazy_init = lazy_type)
+        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
+        self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
+        self.crop = ops.Crop(device="gpu", crop =(224,224))
+
+    def define_graph(self):
+        self.jpegs, self.labels = self.input()
+
+        pos_x = self.pos_rng_x()
+        pos_y = self.pos_rng_y()
+        images = self.decode(self.jpegs)
+        crop = self.crop(images, crop_pos_x=pos_x, crop_pos_y=pos_y)
+        return (crop, self.labels)
+
+def test_lazy_init_empty_data_path():
     empty_db_folder="/data/empty"
-    class LazyPipeline(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id, num_gpus, db_folder, lazy_type):
-            super(LazyPipeline, self).__init__(batch_size,
-                                             num_threads,
-                                             device_id)
-            self.input = ops.CaffeReader(path = db_folder, shard_id = device_id, num_shards = num_gpus, lazy_init = lazy_type)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
-            self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
-            self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
-            self.crop = ops.Crop(device="gpu", crop =(224,224))
+    batch_size = 128
 
-        def define_graph(self):
-            self.jpegs, self.labels = self.input()
-
-            pos_x = self.pos_rng_x()
-            pos_y = self.pos_rng_y()
-            images = self.decode(self.jpegs)
-            crop = self.crop(images, crop_pos_x=pos_x, crop_pos_y=pos_y)
-            return (crop, self.labels)
-  
-    nonlazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, db_folder = empty_db_folder,  lazy_type = False)
+    nonlazy_pipe = LazyPipeline(batch_size, empty_db_folder, lazy_type=False)
     try:
         nonlazy_pipe.build()
         assert(False)
     except RuntimeError:
         assert(True)
 
-    emlazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=empty_db_folder, lazy_type=True)
+    lazy_pipe = LazyPipeline(batch_size, empty_db_folder, lazy_type=True)
     try:
-        emlazy_pipe.build()
+        lazy_pipe.build()
         assert(True)
     except BaseException:
         assert(False)
-    dbnolazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=caffe_db_folder, lazy_type=False)
-    dblazy_pipe = LazyPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,db_folder=caffe_db_folder, lazy_type=True)
-    compare_pipelines(dbnolazy_pipe, dblazy_pipe, batch_size=batch_size, N_iterations=20)
 
+def test_lazy_init():
+    """
+        Comparing results of pipeline: lazy_init false and lazy_init true with empty folder and real folder
+    """
+    batch_size =128
+    compare_pipelines(LazyPipeline(batch_size, caffe_db_folder, lazy_type=False), 
+                      LazyPipeline(batch_size, caffe_db_folder, lazy_type=True), 
+                      batch_size=batch_size, N_iterations=20)
 
 def test_equal_nvJPEGDecoderSlice_nvJPEGDecoder():
     """
