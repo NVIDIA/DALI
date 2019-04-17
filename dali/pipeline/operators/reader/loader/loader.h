@@ -61,7 +61,7 @@ class Loader {
       device_id_(options.GetArgument<int>("device_id")),
       skip_cached_images_(options.GetArgument<bool>("skip_cached_images")),
       lazy_init_(options.GetArgument<bool>("lazy_init")),
-      loaded_(false) {
+      loading_flag_(false) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -105,7 +105,7 @@ class Loader {
 
   // Get a random read sample
   LoadTargetPtr ReadOne() {
-    if (!loaded_) {
+    if (!loading_flag_) {
       PrepareMetadata();
     }
     TimeRange tr("[Loader] ReadOne", TimeRange::kGreen1);
@@ -172,15 +172,15 @@ class Loader {
 
   void PrepareMetadata() {
     std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
-    if (!loaded_) {
-      loaded_ = true;
+    if (!loading_flag_) {
+      loading_flag_ = true;
       PrepareMetadataImpl();
     }
   }
 
   // Give the size of the data accessed through the Loader
   Index Size() {
-    if (!loaded_) {
+    if (!loading_flag_) {
       PrepareMetadata();
     }
     return SizeImpl();
@@ -263,7 +263,7 @@ class Loader {
   // first run
   std::mutex prepare_metadata_mutex_;
   bool lazy_init_;
-  bool loaded_;
+  bool loading_flag_;
 
   // Image cache
   std::once_flag fetch_cache_;
