@@ -83,7 +83,8 @@ struct KernelPoCFixture : Base {
     for (int sample = 0; sample < ref.num_samples(); sample++) {
       ptrdiff_t elements = ref.tensor_shape(sample).num_elements();
       for (ptrdiff_t i = 0; i < elements; i++) {
-        ref.tensor_data(sample)[i] = i1_cpu.tensor_data(sample)[i] * a + i2_cpu.tensor_data(sample)[i];
+        ref.tensor_data(sample)[i] =
+          i1_cpu.tensor_data(sample)[i] * a + i2_cpu.tensor_data(sample)[i];
       }
     }
   }

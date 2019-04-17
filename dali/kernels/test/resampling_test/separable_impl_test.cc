@@ -91,7 +91,7 @@ TEST(SeparableImpl, Setup) {
     };
     EXPECT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
 
-    EXPECT_EQ(out_tv.offsets[i], resampling.setup.sample_descs[i].offsets[2]);
+    // EXPECT_EQ(out_tv.offsets[i], resampling.setup.sample_descs[i].offsets[2]);
 
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[0], 1);
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[1], 1);
@@ -184,34 +184,38 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
     shapes.push_back(tensor_shape<3>(cv_img[i]));
   }
   input.reshape(shapes);
-  OutListGPU<uint8_t, 3> in_tv = input.gpu();
+  OutListGPU<uint8_t, 3> in_tlv = input.gpu();
   for (int i = 0; i < N; i++) {
-    copy(in_tv[i], view_as_tensor<uint8_t, 3>(cv_img[i]));
+    copy(in_tlv[i], view_as_tensor<uint8_t, 3>(cv_img[i]));
   }
 
-  auto req = resampling.Setup(ctx, in_tv, make_span(params));
+  auto req = resampling.Setup(ctx, in_tlv, make_span(params));
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
   scratch_alloc.Reserve(req.scratch_sizes);
 
   output.reshape(req.output_shapes[0].to_static<3>());
-  OutListGPU<uint8_t, 3> out_tv = output.gpu();
-  cudaMemset(out_tv.data, 0, out_tv.num_elements()*sizeof(*out_tv.data));
+  OutListGPU<uint8_t, 3> out_tlv = output.gpu();
+  for (int i = 0; i < out_tlv.num_samples(); i++) {
+    auto tv = out_tlv[i];
+    cudaMemset(tv.data, 0, tv.num_elements()*sizeof(*tv.data));
+  }
+
 
   for (int i = 0; i < N; i++) {
     TensorShape<3> expected_shape = {
       params[i][0].output_size,
       params[i][1].output_size,
-      in_tv.shape.tensor_shape_span(i)[2]
+      in_tlv.shape.tensor_shape_span(i)[2]
     };
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
 
     if (!params[i][0].roi.use_roi || !params[i][1].roi.use_roi) {
-      EXPECT_EQ(in_tv.offsets[i], resampling.setup.sample_descs[i].offsets[0]);
-      EXPECT_EQ(resampling.intermediate.offsets[i], resampling.setup.sample_descs[i].offsets[1]);
+      // EXPECT_EQ(in_tlv.offsets[i], resampling.setup.sample_descs[i].offsets[0]);
+      // EXPECT_EQ(resampling.intermediate.offsets[i], resampling.setup.sample_descs[i].offsets[1]);
     }
-    EXPECT_EQ(out_tv.offsets[i], resampling.setup.sample_descs[i].offsets[2]);
+    // EXPECT_EQ(out_tlv.offsets[i], resampling.setup.sample_descs[i].offsets[2]);
 
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[0], 1);
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[1], 1);
@@ -219,7 +223,7 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
 
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
-  resampling.Run(ctx, out_tv, in_tv, make_span(params));
+  resampling.Run(ctx, out_tlv, in_tlv, make_span(params));
   for (int i = 0; i < N; i++) {
     auto ref_tensor = view_as_tensor<uint8_t, 3>(cv_ref[i]);
     auto out_tensor = output.cpu()[i];
@@ -272,33 +276,36 @@ TEST_P(BatchResamplingTest, ResamplingKernelAPI) {
     shapes.push_back(tensor_shape<3>(cv_img[i]));
   }
   input.reshape(shapes);
-  OutListGPU<uint8_t, 3> in_tv = input.gpu();
+  OutListGPU<uint8_t, 3> in_tlv = input.gpu();
   for (int i = 0; i < N; i++) {
-    copy(in_tv[i], view_as_tensor<uint8_t, 3>(cv_img[i]));
+    copy(in_tlv[i], view_as_tensor<uint8_t, 3>(cv_img[i]));
   }
 
-  auto req = kernel.Setup(ctx, in_tv, make_span(params));
+  auto req = kernel.Setup(ctx, in_tlv, make_span(params));
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
   scratch_alloc.Reserve(req.scratch_sizes);
 
   output.reshape(req.output_shapes[0].to_static<3>());
-  OutListGPU<uint8_t, 3> out_tv = output.gpu();
-  cudaMemset(out_tv.data, 0, out_tv.num_elements()*sizeof(*out_tv.data));
+  OutListGPU<uint8_t, 3> out_tlv = output.gpu();
+  for (int i = 0; i < out_tlv.num_samples(); i++) {
+    auto tv = out_tlv[i];
+    cudaMemset(tv.data, 0, tv.num_elements()*sizeof(*tv.data));
+  }
 
   for (int i = 0; i < N; i++) {
     TensorShape<3> expected_shape = {
       params[i][0].output_size,
       params[i][1].output_size,
-      in_tv.shape.tensor_shape_span(i)[2]
+      in_tlv.shape.tensor_shape_span(i)[2]
     };
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
   }
 
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
-  kernel.Run(ctx, out_tv, in_tv, make_span(params));
+  kernel.Run(ctx, out_tlv, in_tlv, make_span(params));
   for (int i = 0; i < N; i++) {
     auto ref_tensor = view_as_tensor<uint8_t, 3>(cv_ref[i]);
     auto out_tensor = output.cpu()[i];

@@ -49,30 +49,52 @@ class SeparableResamplingSetup {
   struct SampleDesc {
     using DevShape = DeviceArray<int, 2>;
 
+    DeviceArray<uintptr_t, 3> pointers;
     DeviceArray<ptrdiff_t, 3> offsets;
     DeviceArray<int, 3>       strides;
     DeviceArray<DevShape, 3>  shapes;
 
-    DevShape &in_shape() { return shapes[0]; }
-    const DevShape &in_shape() const { return shapes[0]; }
-    DevShape &tmp_shape() { return shapes[1]; }
-    const DevShape &tmp_shape() const { return shapes[1]; }
-    DevShape &out_shape() { return shapes[2]; }
-    const DevShape &out_shape() const { return shapes[2]; }
+    template <typename Input, typename Tmp, typename Output>
+    __host__ __device__ void set_base_pointers(Input *in, Tmp *tmp, Output *out) {
+      in_ptr()  = reinterpret_cast<uintptr_t>(in  + in_offset());
+      tmp_ptr() = reinterpret_cast<uintptr_t>(tmp + tmp_offset());
+      out_ptr() = reinterpret_cast<uintptr_t>(out + out_offset());
+    }
 
-    int  &in_stride()       { return strides[0]; }
-    int   in_stride() const { return strides[0]; }
-    int &tmp_stride()       { return strides[1]; }
-    int  tmp_stride() const { return strides[1]; }
-    int &out_stride()       { return strides[2]; }
-    int  out_stride() const { return strides[2]; }
+    __host__ __device__ DevShape &in_shape() { return shapes[0]; }
+    __host__ __device__ const DevShape &in_shape() const { return shapes[0]; }
+    __host__ __device__ DevShape &tmp_shape() { return shapes[1]; }
+    __host__ __device__ const DevShape &tmp_shape() const { return shapes[1]; }
+    __host__ __device__ DevShape &out_shape() { return shapes[2]; }
+    __host__ __device__ const DevShape &out_shape() const { return shapes[2]; }
 
-    ptrdiff_t  &in_offset()       { return offsets[0]; }
-    ptrdiff_t   in_offset() const { return offsets[0]; }
-    ptrdiff_t &tmp_offset()       { return offsets[1]; }
-    ptrdiff_t  tmp_offset() const { return offsets[1]; }
-    ptrdiff_t &out_offset()       { return offsets[2]; }
-    ptrdiff_t  out_offset() const { return offsets[2]; }
+    __host__ __device__ int  &in_stride()       { return strides[0]; }
+    __host__ __device__ int   in_stride() const { return strides[0]; }
+    __host__ __device__ int &tmp_stride()       { return strides[1]; }
+    __host__ __device__ int  tmp_stride() const { return strides[1]; }
+    __host__ __device__ int &out_stride()       { return strides[2]; }
+    __host__ __device__ int  out_stride() const { return strides[2]; }
+
+    __host__ __device__ uintptr_t  &in_ptr()       { return pointers[0]; }
+    __host__ __device__ uintptr_t   in_ptr() const { return pointers[0]; }
+    __host__ __device__ uintptr_t &tmp_ptr()       { return pointers[1]; }
+    __host__ __device__ uintptr_t  tmp_ptr() const { return pointers[1]; }
+    __host__ __device__ uintptr_t &out_ptr()       { return pointers[2]; }
+    __host__ __device__ uintptr_t  out_ptr() const { return pointers[2]; }
+
+    __host__ __device__ ptrdiff_t  &in_offset()       { return offsets[0]; }
+    __host__ __device__ ptrdiff_t   in_offset() const { return offsets[0]; }
+    __host__ __device__ ptrdiff_t &tmp_offset()       { return offsets[1]; }
+    __host__ __device__ ptrdiff_t  tmp_offset() const { return offsets[1]; }
+    __host__ __device__ ptrdiff_t &out_offset()       { return offsets[2]; }
+    __host__ __device__ ptrdiff_t  out_offset() const { return offsets[2]; }
+
+    template <typename T>
+    __host__ __device__ const T *in_ptr() const { return reinterpret_cast<const T*>(pointers[0]); }
+    template <typename T>
+    __host__ __device__ T *tmp_ptr() const { return reinterpret_cast<T*>(pointers[1]); }
+    template <typename T>
+    __host__ __device__ T *out_ptr() const { return reinterpret_cast<T*>(pointers[2]); }
 
     DeviceArray<float, 2> origin, scale;
 

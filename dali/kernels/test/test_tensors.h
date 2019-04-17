@@ -53,7 +53,7 @@ class TestTensorList {
       char *ptr = new char[size];
       cpumem_ = { ptr, CPUDeleter };
       if (gpumem_)
-        cudaMemcpy(ptr, gpumem_.get(), size, cudaMemcpyDeviceToHost);
+        cudaMemcpyAsync(ptr, gpumem_.get(), size, cudaMemcpyDeviceToHost, stream);
     }
     auto out_shape = convert_dim<out_dim>(shape_);
     return { reinterpret_cast<T*>(cpumem_.get()), std::move(out_shape) };
@@ -68,7 +68,7 @@ class TestTensorList {
       cudaMalloc(reinterpret_cast<void**>(&ptr), size);
       gpumem_ = { ptr, GPUDeleter };
       if (cpumem_)
-        cudaMemcpy(ptr, cpumem_.get(), size, cudaMemcpyHostToDevice);
+        cudaMemcpyAsync(ptr, cpumem_.get(), size, cudaMemcpyHostToDevice, stream);
     }
     auto out_shape = convert_dim<out_dim>(shape_);
     return { reinterpret_cast<T*>(gpumem_.get()), std::move(out_shape) };

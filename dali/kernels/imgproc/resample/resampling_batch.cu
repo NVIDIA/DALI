@@ -23,24 +23,22 @@ namespace kernels {
 
 template <int which_pass, typename Output, typename Input>
 __global__ void BatchedSeparableResampleKernel(
-    Output *__restrict__ out,
-    const Input *__restrict__ in,
     const SeparableResamplingSetup::SampleDesc *__restrict__ samples,
     const SampleBlockInfo *__restrict__ block2sample) {
   // find which part of which sample this block will process
   SampleBlockInfo sbi = block2sample[blockIdx.x];
   const SeparableResamplingSetup::SampleDesc &sample = samples[sbi.sample];
   int in_stride, out_stride;
-  Output *sample_out;
-  const Input *sample_in;
+  Output *__restrict__ sample_out;
+  const Input *__restrict__ sample_in;
   int blocks;
 
   DeviceArray<int, 2> in_shape, out_shape;
 
   in_stride = sample.strides[which_pass];
   out_stride = sample.strides[which_pass+1];
-  sample_in = in + sample.offsets[which_pass];
-  sample_out = out + sample.offsets[which_pass+1];
+  sample_in = reinterpret_cast<const Input*>(sample.pointers[which_pass]);
+  sample_out = reinterpret_cast<Output*>(sample.pointers[which_pass+1]);
   blocks = sample.block_count.pass[which_pass];
   in_shape = sample.shapes[which_pass];
   out_shape = sample.shapes[which_pass+1];
@@ -115,9 +113,9 @@ __global__ void BatchedSeparableResampleKernel(
 }
 
 template <int which_pass, typename Output, typename Input>
-void BatchedSeparableResample(Output *out, const Input *in,
+void BatchedSeparableResample(
     const SeparableResamplingSetup::SampleDesc *samples,
-    int num_samples, const SampleBlockInfo *block2sample, int num_blocks,
+    const SampleBlockInfo *block2sample, int num_blocks,
     int2 block_size,
     cudaStream_t stream) {
   if (num_blocks <= 0)
@@ -125,17 +123,15 @@ void BatchedSeparableResample(Output *out, const Input *in,
 
   dim3 block(block_size.x, block_size.y);
 
-  BatchedSeparableResampleKernel<which_pass>
-  <<<num_blocks, block, ResampleSharedMemSize, stream>>>(
-    out, in, samples, block2sample);
+  BatchedSeparableResampleKernel<which_pass, Output, Input>
+  <<<num_blocks, block, ResampleSharedMemSize, stream>>>(samples, block2sample);
 }
 
 
 #define INSTANTIATE_BATCHED_RESAMPLE(which_pass, Output, Input) \
 template void BatchedSeparableResample<which_pass, Output, Input>( \
-  Output *out, const Input *in, \
   const SeparableResamplingSetup::SampleDesc *samples, \
-  int num_samples, const SampleBlockInfo *block2sample, int num_blocks, \
+  const SampleBlockInfo *block2sample, int num_blocks, \
   int2 block_size, cudaStream_t stream)
 
 INSTANTIATE_BATCHED_RESAMPLE(0, float, uint8_t);

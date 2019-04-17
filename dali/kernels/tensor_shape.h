@@ -30,6 +30,21 @@ namespace kernels {
 constexpr int DynamicDimensions = -1;
 constexpr int InferDimensions = -2;
 
+namespace detail {
+
+template <int ndim1, int ndim2>
+struct is_compatible_ndim : std::integral_constant<bool,
+  ndim1 == ndim2 || ndim1 == DynamicDimensions || ndim2 == DynamicDimensions> {};
+
+template <int ndim1, int ndim2>
+struct check_compatible_ndim {
+  static_assert(is_compatible_ndim<ndim1, ndim2>::value, "Incompatible number of dimensions\n."
+    "Must be equal or at least one side must be DynamicDimensions");
+};
+
+}  // namespace detail
+
+
 template <typename T>
 struct compile_time_size_impl : std::integral_constant<int, DynamicDimensions> {};
 

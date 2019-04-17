@@ -263,7 +263,7 @@ struct TensorListViewBase {
 
   void resize(int num_samples, int dim) {
     shape.resize(num_samples, dim);
-    data.resze(num_samples);
+    data.resize(num_samples);
   }
 
   bool empty() const {
@@ -310,6 +310,12 @@ struct TensorListViewBase {
     return shape.tensor_shape_span(sample);
   }
 
+  template <typename U>
+  void set_dense_data(U *data) {
+    detail::check_implicit_conversion<U, DataType>();
+    calculate_pointers(this->data, data, shape);
+  }
+
   using data_pointers_t = std::vector<element_type*>;
   TensorListShape<sample_ndim> shape;
   data_pointers_t data;
@@ -325,7 +331,7 @@ struct TensorListViewBase {
   ///
   /// The shape is copied from `shape` parameter and the `data`
   /// vector is resized to num_samples and filled with null pointers.
-  TensorListViewBase(const TensorListShape<sample_ndim> &shape)
+  TensorListViewBase(const TensorListShape<sample_ndim> &shape)  // NOLINT
       : shape(std::move(shape))
       , data(this->num_samples(), nullptr) {}
 
@@ -333,7 +339,7 @@ struct TensorListViewBase {
   ///
   /// The shape is taken from `shape` parameter and the `data`
   /// vector is resized to num_samples and filled with null pointers.
-  TensorListViewBase(TensorListShape<sample_ndim> &&shape)
+  TensorListViewBase(TensorListShape<sample_ndim> &&shape)  // NOLINT
       : shape(std::move(shape))
       , data(this->num_samples(), nullptr) {}
 
@@ -431,14 +437,13 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
   TensorListView(TensorListView<Backend, U, other_sample_ndim> &&other)
       : Base(std::move(other.data), std::move(other.shape)) {
     detail::check_implicit_conversion<U, DataType>();
-    other.data = nullptr;
   }
 };
 
 template <typename Backend, typename DataType, int sample_ndim>
 struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   using Base = TensorListViewBase<Backend, DataType, sample_ndim>;
-  using Base::data_pointers_t;
+  using typename Base::data_pointers_t;
   TensorListView() = default;
   TensorListView(const TensorListView &) = default;
   TensorListView(TensorListView &&) = default;
@@ -448,15 +453,15 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   ////////////////////////////////////////////////////////////////////////////
   // Construction from contiguous memory
 
-  TensorListView(nullptr_t, const std::vector<TensorShape<sample_ndim>> &shapes)
+  TensorListView(std::nullptr_t, const std::vector<TensorShape<sample_ndim>> &shapes)
       : Base(TensorListShape<sample_ndim>(shapes)) {}
 
   template <int other_sample_ndim>
-  TensorListView(nullptr_t, const TensorListShape<other_sample_ndim> &shape)
+  TensorListView(std::nullptr_t, const TensorListShape<other_sample_ndim> &shape)
       : Base(shape) {}
 
   template <int other_sample_ndim>
-  TensorListView(nullptr_t, TensorListShape<other_sample_ndim> &&shape)
+  TensorListView(std::nullptr_t, TensorListShape<other_sample_ndim> &&shape)
       : Base(std::move(shape)) {}
 
   ////////////////////////////////////////////////////////////////////////////
@@ -519,15 +524,27 @@ TensorListView<StorageBackend, T, ndim> make_tensor_list(T *data, TensorListShap
   return { data, std::move(shape) };
 }
 
+/// @brief Wraps raw memory as a tensor list
+template <typename StorageBackend, int ndim, typename T>
+TensorListView<StorageBackend, T, ndim> make_tensor_list(T **data, TensorListShape<ndim> shape) {
+  return { data, std::move(shape) };
+}
+
 /// @brief Wraps CPU raw memory as a tensor
 template <int ndim, typename T>
 TensorView<StorageCPU, T, ndim> make_tensor_cpu(T *data, TensorShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
-/// @brief Wraps CPU raw memory as a tensor list
+/// @brief Wraps contiguous CPU memory as a tensor list
 template <int ndim, typename T>
 TensorListView<StorageCPU, T, ndim> make_tensor_list_cpu(T *data, TensorListShape<ndim> shape) {
+  return { data, std::move(shape) };
+}
+
+/// @brief Wraps CPU raw memory as a tensor list
+template <int ndim, typename T>
+TensorListView<StorageCPU, T, ndim> make_tensor_list_cpu(T **data, TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
@@ -537,12 +554,17 @@ TensorView<StorageGPU, T, ndim> make_tensor_gpu(T *data, TensorShape<ndim> shape
   return { data, std::move(shape) };
 }
 
-/// @brief Wraps GPU raw memory as a tensor list
+/// @brief Wraps contiguous GPU memory as a tensor list
 template <int ndim, typename T>
 TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
+/// @brief Wraps GPU raw memory as a tensor list
+template <int ndim, typename T>
+TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T **data, TensorListShape<ndim> shape) {
+  return { data, std::move(shape) };
+}
 
 /// @{
 /// @brief Get a subtensor by slicing along outermost dimension at position `pos`
@@ -577,24 +599,39 @@ subtensor(TensorView<StorageBackend, DataType, DynamicDimensions> source, int64_
 }
 /// @}
 
+/// @brief Retrieves a sample range from a tensor list
+/// @param input      input list
+/// @param out_slice  output list
+/// @param begin      index of the first sample to include in the subrange
+/// @param end        index one past the last sample to include in the subrange
+template <typename StorageBackend, typename DataType, int out_ndim, int ndim>
+void sample_range(TensorListView<StorageBackend, DataType, out_ndim> &out_slice,
+    const TensorListView<StorageBackend, DataType, ndim> &input, int begin, int end) {
+  detail::check_compatible_ndim<out_ndim, ndim>();
+  assert(begin >=0 && begin <= input.num_samples());
+  assert(end >= begin && end <= input.num_samples());
+  out_slice.resize(end - begin, input.sample_dim());
+  const int dim = input.sample_dim();
+  for (int i = begin, j = 0; i < end; i++, j++) {
+    out_slice.data[j] = input.data[i];
+    for (int d = 0; d < dim; d++)
+      out_slice.tensor_shape_span(j)[d] = input.tensor_shape_span(i)[d];
+  }
+}
+
+
+/// @brief Retrieves a sample range from a tensor list
+/// @param input      input list
+/// @param begin      index of the first sample to include in the subrange
+/// @param end        index one past the last sample to include in the subrange
+/// @return `TensorListView<out_ndim>` consisting of samples at indices `begin` to `end` - 1
 template <int out_ndim = InferDimensions, typename StorageBackend, typename DataType, int ndim,
   int output_ndim = (out_ndim == InferDimensions ? ndim : out_ndim)>
 TensorListView<StorageBackend, DataType, output_ndim> sample_range(
-    const TensorListView<StorageBackend, DataType, ndim> &list, int begin, int end) {
-  static_assert(output_ndim == ndim ||
-                output_ndim == DynamicDimensions || ndim == DynamicDimensions,
-                "Cannot change number of dimensions");
-  assert(begin >=0 && begin <= list.num_samples());
-  assert(end >= begin && end <= list.num_samples());
-  TensorListView<StorageBackend, DataType, output_ndim> out;
-  out.resize(end - begin, list.sample_dim());
-  const int dim = list.sample_dim();
-  for (int i = begin, j = 0; i < end; i++, j++) {
-    out.data[j] = list.data[j];
-    for (int d = 0; d < dim; d++)
-      out.tensor_shape_span(i)[j] = list.tensor_shape_span(i)[j];
-  }
-  return out;
+    const TensorListView<StorageBackend, DataType, ndim> &input, int begin, int end) {
+  TensorListView<StorageBackend, DataType, output_ndim> out_slice;
+  sample_range(out_slice, input, begin, end);
+  return out_slice;
 }
 
 }  // namespace kernels

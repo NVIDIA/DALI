@@ -172,27 +172,32 @@ TEST(TensorListViewTest, TypePromotion) {
   TensorListView<EmptyBackendTag, int, 3> tv{nullptr, shape};
   TensorListView<EmptyBackendTag, const int, 3> tvc = tv;
   EXPECT_EQ(tvc.shape, tv.shape);
-  EXPECT_EQ(tvc.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
   tvc = {};
   EXPECT_NE(tvc.shape, tv.shape);
   EXPECT_TRUE(tvc.empty());
   tvc = tv;
   EXPECT_EQ(tvc.shape, tv.shape);
-  EXPECT_EQ(tvc.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
 
   TensorListView<EmptyBackendTag, int> tv_dyn = tv;
   EXPECT_EQ(tv_dyn.shape, tv.shape);
-  EXPECT_EQ(tv_dyn.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
 
   TensorListView<EmptyBackendTag, const int> tvc_dyn = tv;
   EXPECT_EQ(tvc_dyn.shape, tv.shape);
-  EXPECT_EQ(tvc_dyn.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
   tvc_dyn = {};
   EXPECT_NE(tvc_dyn.shape, tv.shape);
   EXPECT_TRUE(tvc_dyn.empty());
   tvc_dyn = tv;
   EXPECT_EQ(tvc_dyn.shape, tv.shape);
-  EXPECT_EQ(tvc_dyn.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
 
   auto *ptr = tv_dyn.shape.shapes.data();
   tvc_dyn = std::move(tv_dyn);
@@ -255,6 +260,29 @@ TEST(TensorViewTest, DynamicSubtensorTest) {
   for (int i = 0; i < dims[0]; i++) {
     auto ret = subtensor(tv, i);
     VerifySubtensor(ret.data, dims, i);
+  }
+}
+
+TEST(TensorListViewTest, SampleRange) {
+  const int D = 3;
+  unsigned seed = 42;
+  int N = 100;
+  std::vector<TensorShape<D>> shapes(N);
+  for (int i = 0; i < N; i++) {
+    for (int j = 0; j < D; j++)
+      shapes[i][j] = rand_r(&seed)%5 + 1;
+  }
+  TensorListShape<D> shape(shapes);
+  std::vector<int> data(shape.num_elements());
+  std::iota(data.begin(), data.end(), 1);
+  TensorListView<StorageCPU, int, D> whole(data.data(), shape);
+  int start = 33;
+  int length = 15;
+  auto slice = sample_range(whole, start, start + length);
+  ASSERT_EQ(slice.num_samples(), length);
+  for (int j = 0; j < length; j++) {
+    EXPECT_EQ(slice.tensor_data(j), whole.tensor_data(start + j));
+    EXPECT_EQ(slice.tensor_shape(j), whole.tensor_shape(start + j));
   }
 }
 

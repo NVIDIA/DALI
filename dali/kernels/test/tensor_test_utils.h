@@ -178,7 +178,9 @@ void Fill(const TensorView<StorageCPU, DataType, ndim> &tv, Generator &generator
 
 template <typename DataType, int ndim, typename Generator>
 void Fill(const TensorListView<StorageCPU, DataType, ndim> &tlv, Generator &generator) {
-  Fill(make_span(tlv.data, tlv.num_elements()), generator);
+  for (int i = 0; i < tlv.num_samples(); i++) {
+    Fill(tlv[i], generator);
+  }
 }
 
 template <typename T>
