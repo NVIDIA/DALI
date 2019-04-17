@@ -94,6 +94,10 @@ struct TensorShapeBase {
   size_type sample_dim() const { return shape.size(); }
   constexpr bool empty() const { return size() == 0; }
 
+  volume_t<value_type> num_elements() const {
+    return volume(shape);
+  }
+
   Container shape;
   static constexpr int static_ndim = ndim;
 
@@ -442,6 +446,14 @@ struct TensorListShapeBase {
   constexpr bool empty() const { return size() == 0; }
   int num_samples() const { return size(); }
 
+  ptrdiff_t num_elements() const {
+    ptrdiff_t n = 0;
+    for (int i = 0; i < num_samples(); i++) {
+      n += volume(tensor_shape_span(i));
+    }
+    return n;
+  }
+
   template <typename SampleShape>
   static Derived make_uniform(int num_samples, const SampleShape &ss) {
     if (num_samples < 1)
@@ -594,8 +606,8 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
     return result;
   }
 
-  constexpr int sample_dim() const { return sample_ndim; }
-  int size() const { return shapes.size() / sample_dim(); }
+  constexpr int sample_dim() const noexcept { return sample_ndim; }
+  int size() const noexcept { return shapes.size() / sample_dim(); }
   void set_sample_dim(int dim) {
     assert(dim == sample_ndim && "Cannot change number of dimensions");
   }
@@ -697,30 +709,25 @@ bool operator!=(const TensorListShape<left_ndim> &left, const TensorListShape<ri
   return !(left == right);
 }
 
-/// @brief Calculate offsets for Tensors stored in contigous buffer whose shapes
-///        are described by tls. Offsets are calculated as number of elements of each tensors.
-///
-/// @param offsets - receives the result; the size of the output is tls.num_samples()+1 - the last
-///                  [i] is an offset to sample `i`, [i+1] is an offset one past sample `i`.
-template <int sample_ndim, typename Offset>
-void calculate_offsets(std::vector<Offset> &offsets, const TensorListShape<sample_ndim> &tls) {
-  offsets.resize(tls.size() + 1);
-  offsets[0] = 0;
-  for (int i = 0; i < tls.size(); i++) {
+/// @brief Calculate pointers for Tensors stored in contigous buffer whose shapes
+///        are described by tls. Offsets are calculated as number of elements of each tensor.
+template <int sample_ndim, typename T>
+void calculate_pointers(std::vector<T*> &pointers, T *base,
+                        const TensorListShape<sample_ndim> &tls) {
+  pointers.resize(tls.size());
+  pointers[0] = base;
+  for (int i = 0; i < tls.size() - 1; i++) {
     auto sample_shape_span = tls.tensor_shape_span(i);
-    offsets[i + 1] = offsets[i] + volume(sample_shape_span);
+    pointers[i + 1] = pointers[i] + volume(sample_shape_span);
   }
 }
 
-/// @brief Calculate offsets for Tensors stored in contigous buffer whose shapes
-///        are described by tls. Offsets are calculated as number of elements of each tensors
-///
-/// @return std::vector<ptrdiff_t> containing tls.size() + 1 elements,
-///         [i] is an offset to sample `i`, [i+1] is an offset one past sample `i`.
-template <int sample_ndim>
-std::vector<ptrdiff_t> calculate_offsets(const TensorListShape<sample_ndim> &tls) {
-  std::vector<ptrdiff_t> offsets;
-  calculate_offsets(offsets, tls);
+/// @brief Calculate pointers for Tensors stored in contigous buffer whose shapes
+///        are described by tls. Offsets are calculated as number of elements of each tensor.
+template <int sample_ndim, typename T>
+std::vector<T *> calculate_pointers(T *base, const TensorListShape<sample_ndim> &tls) {
+  std::vector<T *> offsets;
+  calculate_pointers(offsets, base, tls);
   return offsets;
 }
 

@@ -444,15 +444,16 @@ TEST(FlattenTest, DynamicTensorShape) {
   EXPECT_EQ(flatten_shapes(vec_vec), expected);
 }
 
-TEST(CalculateOffsetsTest, Result) {
+TEST(CalculatePointersTest, Result) {
   TensorListShape<3> tls_static({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
   TensorListShape<> tls_dynamic(
       std::vector<TensorShape<DynamicDimensions>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
-  auto static_offs = calculate_offsets(tls_static);
-  auto dynamic_offs = calculate_offsets(tls_dynamic);
-  auto expected = std::vector<ptrdiff_t>{0, 6, 30, 90};
-  EXPECT_EQ(static_offs, expected);
-  EXPECT_EQ(dynamic_offs, expected);
+  static const char ptr[100] = {};
+  auto static_ptrs = calculate_pointers(ptr, tls_static);
+  auto dynamic_ptrs = calculate_pointers(ptr, tls_dynamic);
+  auto expected = std::vector<const char *>{ptr + 0, ptr + 6, ptr + 30};
+  EXPECT_EQ(static_ptrs, expected);
+  EXPECT_EQ(dynamic_ptrs, expected);
 }
 
 TEST(TensorListShapeTest, IsUniform) {

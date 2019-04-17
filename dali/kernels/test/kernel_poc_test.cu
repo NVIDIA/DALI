@@ -46,13 +46,19 @@ struct MADKernelGPU {
       const InListGPU<Input1, 3> &i1,
       const InListGPU<Input2, 3> &i2,
       float A) {
-    auto n = i1.num_elements();
     assert(i2.num_elements() == n);
     assert(o.num_elements() == n);
-    size_t block = 1024;
-    size_t grid = (n + block - 1) / block;
 
-    ElementwiseMAD<<<grid, block, 0, context.gpu.stream>>>(n, o.data, i1.data, i2.data, A);
+    for (int i = 0; i < o.num_samples(); i++) {
+      auto tv1 = i1[i];
+      auto tv2 = i2[i];
+      auto tvo = o[i];
+      auto n = i1.num_elements();
+      size_t block = 1024;
+      size_t grid = (n + block - 1) / block;
+
+      ElementwiseMAD<<<grid, block, 0, context.gpu.stream>>>(n, tvo.data, tv1.data, tv2.data, A);
+    }
   }
 };
 

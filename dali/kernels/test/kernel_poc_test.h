@@ -79,12 +79,12 @@ struct KernelPoCFixture : Base {
 
     tlref.reshape(list_shape);
     auto ref = tlref.template cpu<3>(0);
-    ptrdiff_t total = ref.num_elements();
 
-    // calculate the reference - since it's purely elementwise,
-    // we can skip the tedious multidimensional indexing
-    for (ptrdiff_t i = 0; i < total; i++) {
-      ref.data[i] = i1_cpu.data[i] * a + i2_cpu.data[i];
+    for (int sample = 0; sample < ref.num_samples(); sample++) {
+      ptrdiff_t elements = ref.tensor_shape(sample).num_elements();
+      for (ptrdiff_t i = 0; i < elements; i++) {
+        ref.tensor_data(sample)[i] = i1_cpu.tensor_data(sample)[i] * a + i2_cpu.tensor_data(sample)[i];
+      }
     }
   }
 

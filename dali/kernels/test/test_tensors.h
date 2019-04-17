@@ -26,10 +26,15 @@ namespace kernels {
 template <typename T, int dim = DynamicDimensions>
 class TestTensorList {
  public:
-  void reshape(TensorListShape<dim> shape) {
+  void reshape(const TensorListShape<dim> &shape) {
     cpumem_.reset();
     gpumem_.reset();
-    any_ = { nullptr, shape };
+    this->shape_ = shape;
+  }
+  void reshape(TensorListShape<dim> &&shape) {
+    cpumem_.reset();
+    gpumem_.reset();
+    this->shape_ = std::move(shape);
   }
 
   void invalidate_cpu() {
@@ -44,31 +49,29 @@ class TestTensorList {
   TensorListView<StorageCPU, T, out_dim> cpu(cudaStream_t stream = 0) {
     TensorListView<StorageCPU, T, out_dim> ret;
     if (!cpumem_) {
-      auto size = any_.num_elements() * sizeof(T);
+      auto size = shape_.num_elements() * sizeof(T);
       char *ptr = new char[size];
       cpumem_ = { ptr, CPUDeleter };
       if (gpumem_)
         cudaMemcpy(ptr, gpumem_.get(), size, cudaMemcpyDeviceToHost);
     }
-    auto out_shape = convert_dim<out_dim>(any_.shape);
-    auto out_offsets = any_.offsets;
-    return { reinterpret_cast<T*>(cpumem_.get()), std::move(out_shape), std::move(out_offsets) };
+    auto out_shape = convert_dim<out_dim>(shape_);
+    return { reinterpret_cast<T*>(cpumem_.get()), std::move(out_shape) };
   }
 
   template <int out_dim = dim>
   TensorListView<StorageGPU, T, out_dim> gpu(cudaStream_t stream = 0) {
     TensorListView<StorageGPU, T, out_dim> ret;
     if (!gpumem_) {
-      auto size = any_.num_elements() * sizeof(T);
+      auto size = shape_.num_elements() * sizeof(T);
       char *ptr = nullptr;
       cudaMalloc(reinterpret_cast<void**>(&ptr), size);
       gpumem_ = { ptr, GPUDeleter };
       if (cpumem_)
         cudaMemcpy(ptr, cpumem_.get(), size, cudaMemcpyHostToDevice);
     }
-    auto out_shape = convert_dim<out_dim>(any_.shape);
-    auto out_offsets = any_.offsets;
-    return { reinterpret_cast<T*>(gpumem_.get()), std::move(out_shape), std::move(out_offsets) };
+    auto out_shape = convert_dim<out_dim>(shape_);
+    return { reinterpret_cast<T*>(gpumem_.get()), std::move(out_shape) };
   }
 
   // workaround for lack of partial specialization for functions
@@ -101,7 +104,7 @@ class TestTensorList {
   }
 
   std::unique_ptr<char, Deleter> cpumem_{nullptr, CPUDeleter}, gpumem_{nullptr, GPUDeleter};
-  TensorListView<void, char, dim> any_;
+  TensorListShape<dim> shape_;
 };
 
 

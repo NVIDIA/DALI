@@ -149,10 +149,16 @@ TEST_P(ResamplingCompareTest, ResamplingKernelAPI) {
   output_cpu.reshape(req_cpu.output_shapes[0].to_static<3>());
 
   OutListGPU<uint8_t, 3> out_gpu = output_gpu.gpu();
-  cudaMemset(out_gpu.data, 0, out_gpu.num_elements()*sizeof(*out_gpu.data));
+  for (int i = 0; i < out_gpu.num_samples(); i++) {
+    auto tv = out_gpu[i];
+    cudaMemset(tv.data, 0, tv.num_elements()*sizeof(*tv.data));
+  }
 
   OutListCPU<uint8_t, 3> out_cpu = output_cpu.cpu();
-  memset(out_cpu.data, 0, out_cpu.num_elements()*sizeof(*out_cpu.data));
+  for (int i = 0; i < out_cpu.num_samples(); i++) {
+    auto tv = out_cpu[i];
+    memset(tv.data, 0, tv.num_elements()*sizeof(*tv.data));
+  }
 
   for (int i = 0; i < N; i++) {
     TensorShape<3> expected_shape = {

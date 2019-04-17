@@ -175,7 +175,7 @@ TEST(TensorListViewTest, TypePromotion) {
   EXPECT_EQ(tvc.data, tv.data);
   tvc = {};
   EXPECT_NE(tvc.shape, tv.shape);
-  EXPECT_EQ(tvc.data, nullptr);
+  EXPECT_TRUE(tvc.empty());
   tvc = tv;
   EXPECT_EQ(tvc.shape, tv.shape);
   EXPECT_EQ(tvc.data, tv.data);
@@ -189,7 +189,7 @@ TEST(TensorListViewTest, TypePromotion) {
   EXPECT_EQ(tvc_dyn.data, tv.data);
   tvc_dyn = {};
   EXPECT_NE(tvc_dyn.shape, tv.shape);
-  EXPECT_EQ(tvc_dyn.data, nullptr);
+  EXPECT_TRUE(tvc_dyn.empty());
   tvc_dyn = tv;
   EXPECT_EQ(tvc_dyn.shape, tv.shape);
   EXPECT_EQ(tvc_dyn.data, tv.data);

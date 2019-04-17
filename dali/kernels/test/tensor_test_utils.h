@@ -206,19 +206,21 @@ if_iterable<Collection, void> UniformRandomFill(
 
 template <typename DataType, int ndim, typename RandomGenerator>
 void UniformRandomFill(
-    const TensorListView<StorageCPU, DataType, ndim> &tlv,
-    RandomGenerator &generator,
-    same_as_t<DataType> lo, same_as_t<DataType> hi) {
-  UniformRandomFill(make_span(tlv.data, tlv.num_elements()), generator, lo, hi);
-}
-
-template <typename DataType, int ndim, typename RandomGenerator>
-void UniformRandomFill(
     const TensorView<StorageCPU, DataType, ndim> &tv,
     RandomGenerator &generator,
     same_as_t<DataType> lo, same_as_t<DataType> hi) {
   UniformRandomFill(make_span(tv.data, tv.num_elements()), generator, lo, hi);
 }
+
+template <typename DataType, int ndim, typename RandomGenerator>
+void UniformRandomFill(
+    const TensorListView<StorageCPU, DataType, ndim> &tlv,
+    RandomGenerator &generator,
+    same_as_t<DataType> lo, same_as_t<DataType> hi) {
+  for (int i = 0; i < tlv.num_samples(); i++)
+    UniformRandomFill(tlv[i], generator, lo, hi);
+}
+
 
 template <typename C>
 if_iterable<C, void> ConstantFill(C &&c, const element_t<C> &value = {}) {
@@ -228,17 +230,19 @@ if_iterable<C, void> ConstantFill(C &&c, const element_t<C> &value = {}) {
 
 template <typename DataType, int dim>
 void ConstantFill(
-    const TensorListView<StorageCPU, DataType, dim> &tlv,
-    same_as_t<DataType> value = {}) {
-  ConstantFill(make_span(tlv.data, tlv.num_elements()), value);
-}
-
-template <typename DataType, int dim>
-void ConstantFill(
     const TensorView<StorageCPU, DataType, dim> &tv,
     same_as_t<DataType> value = {}) {
   ConstantFill(make_span(tv.data, tv.num_elements()), value);
 }
+
+template <typename DataType, int dim>
+void ConstantFill(
+    const TensorListView<StorageCPU, DataType, dim> &tlv,
+    same_as_t<DataType> value = {}) {
+  for (int i = 0; i < tlv.num_samples(); i++)
+    ConstantFill(tlv[i], value);
+}
+
 
 }  // namespace kernels
 }  // namespace dali
