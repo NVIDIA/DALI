@@ -127,15 +127,24 @@ std::false_type HasNested_##type_name(...);\
 template <typename T>\
 struct has_type_##type_name : decltype(HasNested_##type_name<T>(nullptr)) {}; \
 
-#define IMPL_HAS_UNIQUE_FUNCTION(function_name)\
+#define IMPL_HAS_UNIQUE_STATIC_FUNCTION(function_name)\
 template <typename T>\
-std::is_function<decltype(T::function_name)> HasUniqueFunction_##function_name(T *);\
+std::is_function<decltype(T::function_name)> HasUniqueStaticFunction_##function_name(T *);\
 template <typename T>\
-std::false_type HasUniqueFunction_##function_name(...);\
+std::false_type HasUniqueStaticFunction_##function_name(...);\
 template <typename T>\
-struct has_unique_function_##function_name : \
-  decltype(HasUniqueFunction_##function_name<T>(nullptr)) {}; \
+struct has_unique_static_function_##function_name : \
+  decltype(HasUniqueStaticFunction_##function_name<T>(nullptr)) {}; \
 
+#define IMPL_HAS_UNIQUE_MEMBER_FUNCTION(function_name)\
+template <typename T>\
+std::is_member_function_pointer<decltype(&T::function_name)>\
+HasUniqueMemberFunction_##function_name(T *);\
+template <typename T>\
+std::false_type HasUniqueMemberFunction_##function_name(...);\
+template <typename T>\
+struct has_unique_member_function_##function_name : \
+  decltype(HasUniqueMemberFunction_##function_name<T>(nullptr)) {}; \
 
 /// @brief Type of a volume with given `ExtentType`
 template <typename ExtentType, bool arithm = std::is_arithmetic<ExtentType>::value>

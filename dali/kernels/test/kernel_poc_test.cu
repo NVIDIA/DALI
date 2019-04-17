@@ -30,7 +30,7 @@ ElementwiseMAD(size_t n, Output *o, const Input1 *i1, const Input2 *i2, float al
 // Performs elementwise MAD (multiply-add).
 template <typename Input1, typename Input2, typename Output>
 struct MADKernelGPU {
-  static KernelRequirements Setup(
+  KernelRequirements Setup(
       KernelContext &context,
       const InListGPU<Input1, 3> &i1,
       const InListGPU<Input2, 3> &i2,
@@ -40,7 +40,7 @@ struct MADKernelGPU {
     return req;
   }
 
-  static void Run(
+  void Run(
       KernelContext &context,
       const OutListGPU<Output, 3> &o,
       const InListGPU<Input1, 3> &i1,
