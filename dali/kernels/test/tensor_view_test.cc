@@ -79,7 +79,7 @@ TEST(TensorViewTest, Addressing) {
   EXPECT_EQ(tv(1, 0, 0), static_cast<int*>(nullptr) + 5000);
   EXPECT_EQ(tv(1, 1, 1), static_cast<int*>(nullptr) + 5051);
   EXPECT_EQ(tv(1, 1), static_cast<int*>(nullptr) + 5050);
-  // EXPECT_EQ(tv(1), static_cast<int*>(nullptr) + 5000); // TODO - this is ambigous
+  EXPECT_EQ(tv(1), static_cast<int*>(nullptr) + 5000);
 }
 
 TEST(TensorViewTest, TypePromotion) {

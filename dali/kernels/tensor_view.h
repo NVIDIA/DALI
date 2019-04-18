@@ -53,9 +53,9 @@ constexpr int ShapeDim(const T &t) {
 
 template <typename Shape, typename Position>
 bool ContainsCoords(const Shape &shape, const Position &pos) {
-  const int shapedim = ShapeDim(shape);
+  const int shape_dim = ShapeDim(shape);
   const int pos_dim = ShapeDim(pos);
-  if (pos_dim > shapedim) {
+  if (pos_dim > shape_dim) {
     return false;
   }
   for (int i = 0; i < pos_dim; i++) {
@@ -69,16 +69,27 @@ bool ContainsCoords(const Shape &shape, const Position &pos) {
 /// @brief Calculates flat index of a given element in the tensor
 /// @remarks If pos has fewer dimensions than shape, the remaining offsets are assumed to be 0
 template <typename Shape, typename Position>
-ptrdiff_t CalcOffset(const Shape &shape, const Position &pos) {
+if_array_like<Position, ptrdiff_t> CalcOffset(const Shape &shape, const Position &pos) {
   ptrdiff_t ofs = pos[0];
-  const int pos_dim = ShapeDim(pos);
-  const int shapedim = ShapeDim(shape);
+  const int pos_dim = size(pos);
+  const int shape_dim = ShapeDim(shape);
   int i;
   for (i = 1; i < pos_dim; i++) {
     ofs *= shape[i];
     ofs += pos[i];
   }
-  for (; i < shapedim; i++) {
+  for (; i < shape_dim; i++) {
+    ofs *= shape[i];
+  }
+  return ofs;
+}
+
+/// @brief Calculates the offset to a slice of the tensor
+template <typename Shape>
+ptrdiff_t CalcOffset(const Shape &shape, const ptrdiff_t &index) {
+  ptrdiff_t ofs = index;
+  const int shape_dim = ShapeDim(shape);
+  for (int i = 1; i < shape_dim; i++) {
     ofs *= shape[i];
   }
   return ofs;
