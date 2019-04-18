@@ -91,8 +91,6 @@ TEST(SeparableImpl, Setup) {
     };
     EXPECT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
 
-    // EXPECT_EQ(out_tv.offsets[i], resampling.setup.sample_descs[i].offsets[2]);
-
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[0], 1);
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[1], 1);
   }
@@ -210,12 +208,6 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
       in_tlv.shape.tensor_shape_span(i)[2]
     };
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
-
-    if (!params[i][0].roi.use_roi || !params[i][1].roi.use_roi) {
-      // EXPECT_EQ(in_tlv.offsets[i], resampling.setup.sample_descs[i].offsets[0]);
-      // EXPECT_EQ(resampling.intermediate.offsets[i], resampling.setup.sample_descs[i].offsets[1]);
-    }
-    // EXPECT_EQ(out_tlv.offsets[i], resampling.setup.sample_descs[i].offsets[2]);
 
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[0], 1);
     EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[1], 1);

@@ -299,7 +299,7 @@ struct TensorListViewBase {
 
   template <int output_dim = sample_ndim>
   TensorShape<output_dim> tensor_shape(int sample) const {
-    return shape.tensor_shape<output_dim>(sample);
+    return shape.template tensor_shape<output_dim>(sample);
   }
 
   span<int64_t, sample_ndim> tensor_shape_span(int sample) {
@@ -481,7 +481,7 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   ////////////////////////////////////////////////////////////////////////////
   // Construction from non-contiguous memory
 
-  TensorListView(DataType **data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
+  TensorListView(DataType **data, const std::vector<TensorShape<sample_ndim>> &shapes)
       : Base(data, shapes) {}
 
   template <int other_sample_ndim>
