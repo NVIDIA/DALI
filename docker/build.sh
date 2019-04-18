@@ -2,7 +2,7 @@
 #########Set Me###############
 export PYVER=${PYVER:-2.7}
 export PYV=${PYVER/./}
-export CUDA_VERSION=${CUDA_VERSION:-9}
+export CUDA_VERSION=${CUDA_VERSION:-10}
 export NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-12345}
 export CREATE_WHL=${CREATE_WHL:-YES}
 export CREATE_RUNNER=${CREATE_RUNNER:-NO}
@@ -12,6 +12,12 @@ export BUILDER=dali_${PYV}_cu${CUDA_VERSION}.build
 export RUN_IMG=dali_${PYV}_cu${CUDA_VERSION}.run
 
 set -o errexit
+
+if [ $CUDA_VERSION != "9" ] && [ $CUDA_VERSION != "10" ]
+then
+    echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only `9` and `10` are supported"
+    exit 1
+fi
 
 # build manylinux3
 pushd ../third_party/manylinux/
