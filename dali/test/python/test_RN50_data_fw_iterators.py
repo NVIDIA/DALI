@@ -63,7 +63,13 @@ parser.add_argument('-p', '--print-freq', default=10, type=int,
 parser.add_argument('-j', '--workers', default=3, type=int, metavar='N',
                     help='number of data loading workers (default: 3)')
 parser.add_argument('--prefetch', default=2, type=int, metavar='N',
-                    help='prefetch queue deptch (default: 2)')
+                    help='prefetch queue depth (default: 2)')
+parser.add_argument('--separate_queue', action='store_true',
+                    help='Use separate queues executor')
+parser.add_argument('--cpu_size', default=2, type=int, metavar='N',
+                    help='cpu prefetch queue depth (default: 2)')
+parser.add_argument('--gpu_size', default=2, type=int, metavar='N',
+                    help='gpu prefetch queue depth (default: 2)')
 parser.add_argument('--fp16', action='store_true',
                     help='Run fp16 pipeline')
 parser.add_argument('--nhwc', action='store_true',
@@ -76,6 +82,10 @@ args = parser.parse_args()
 
 print("GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, args.nhwc: {}"
       .format(args.gpus, args.batch_size, args.workers, args.prefetch, args.print_freq, args.fp16, args.nhwc))
+
+PREFETCH = args.prefetch
+if args.separate_queue:
+    PREFETCH = {'cpu_size': args.cpu_size , 'gpu_size': args.gpu_size}
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -109,7 +119,7 @@ for iterator_name, IteratorClass in Iterators:
     labels = []
 
     pipes = [RN50Pipeline(batch_size=args.batch_size, num_threads=args.workers, device_id=n,
-                          num_gpus=args.gpus, data_paths=data_paths, prefetch=args.prefetch,
+                          num_gpus=args.gpus, data_paths=data_paths, prefetch=PREFETCH,
                           fp16=args.fp16, nhwc=args.nhwc) for n in range(args.gpus)]
     [pipe.build() for pipe in pipes]
     iters = args.iters
