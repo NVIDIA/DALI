@@ -128,7 +128,6 @@ if (BUILD_JPEG_TURBO)
   message("Using libjpeg-turbo at ${JPEG_LIBRARY}")
   list(APPEND DALI_LIBS ${JPEG_LIBRARY})
   add_definitions(-DDALI_USE_JPEG_TURBO)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ljpeg -lturbojpeg")
 else()
   # Note: Support for disabling libjpeg-turbo is unofficial
   message(STATUS "Building WITHOUT JpegTurbo")

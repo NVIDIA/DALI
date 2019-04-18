@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
+set(CMAKE_SYSTEM_NAME Linux) # Set it to force CMAKE_CROSSCOMPILING to true
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fexceptions -fPIC -D_XOPEN_SOURCE=600 -std=gnu++0x -L/usr/aarch64-linux-gnu/lib")
@@ -23,6 +24,8 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".so,.a")
 set(CMAKE_SHARED_LINKER_FLAGS "${LINKER_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS}")
 set(CMAKE_MODULE_LINKER_FLAGS "${LINKER_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${LINKER_FLAGS} ${CMAKE_EXE_LINKER_FLAGS}")
+
+set(CMAKE_SYSTEM_PREFIX_PATH "/usr/aarch64-linux-gnu")
 
 include_directories(
   ${PROTOBUF_TARGET}/include

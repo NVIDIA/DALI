@@ -35,6 +35,8 @@ if(NOT DEFINED CMAKE_LINKER)
   endif()
 endif()
 
+set(CMAKE_SYSTEM_PREFIX_PATH "/usr/aarch64-unknown-nto-qnx/aarch64le")
+
 message("Including the header directories")
 include_directories(
   $ENV{QNX_TARGET}/usr/include
