@@ -21,7 +21,9 @@ fi
 
 # build manylinux3
 pushd ../third_party/manylinux/
-git checkout 96b47a25673b33c728e49099a3a6b1bf503a18c2
+git checkout 96b47a25673b33c728e49099a3a6b1bf503a18c2 || echo -e "Did you forget to \`git clone --recursive\`? Try this:\n" \
+                                                                 "  git submodule sync --recursive && \n" \
+                                                                 "  git submodule update --init --recursive && \n"
 git am ../../docker/0001-An-approximate-manylinux3.patch
 PLATFORM=$(uname -m) TRAVIS_COMMIT=latest ./build.sh
 popd
