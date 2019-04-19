@@ -85,7 +85,7 @@ def make_parser():
         help='manually set random seed for torch')
     parser.add_argument(
         '--evaluation', nargs='*', type=int,
-        default=[3, 21, 31, 37, 42, 48, 53, 59, 64],
+        default=[59, 64],
         help='epochs at which to evaluate')
     parser.add_argument(
         '--multistep', nargs='*', type=int, default=[43, 54],
