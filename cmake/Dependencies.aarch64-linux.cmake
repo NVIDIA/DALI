@@ -2,42 +2,49 @@
 #        CUDA TOOLKIT
 #############################
 
-find_package(CUDA 10.0 REQUIRED)
-
+# TODO(klecki): Setting them directly from command line does not work
 set(CUDA_TOOLKIT_ROOT_DIR ${CUDA_HOST})
 set(CUDA_TOOLKIT_TARGET_DIR ${CUDA_TARGET})
-set(CUDA_TOOLKIT_ROOT_DIR_INTERNAL ${CUDA_TOOLKIT_ROOT_DIR})
-set(CUDA_TOOLKIT_TARGET_DIR_INTERNAL ${CUDA_TOOLKIT_TARGET_DIR})
-set(CUDA_LIBRARIES ${CUDA_TOOLKIT_TARGET_DIR}/lib)
 
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/libcudart.so)
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/libnppc_static.a)
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/libnppicom_static.a)
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/libnppicc_static.a)
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/libnppig_static.a)
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/libculibos.a)
-list(APPEND DALI_LIBS ${CMAKE_DL_LIBS})
+find_package(CUDA 10.0 REQUIRED)
 
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/stubs/libnppc.so)
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/stubs/libnppicom.so)
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/stubs/libnppicc.so)
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/stubs/libnppig.so)
+include_directories(${CUDA_INCLUDE_DIRS})
+list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
+
+list(APPEND DALI_EXCLUDES libcudart_static.a)
+
+# NVIDIA NPPC library
+find_cuda_helper_libs(nppc_static)
+find_cuda_helper_libs(nppicom_static)
+find_cuda_helper_libs(nppicc_static)
+find_cuda_helper_libs(nppig_static)
+list(APPEND DALI_LIBS ${CUDA_nppicom_static_LIBRARY}
+  ${CUDA_nppicc_static_LIBRARY}
+  ${CUDA_nppig_static_LIBRARY})
+list(APPEND DALI_EXCLUDES libnppicom_static.a
+  libnppicc_static.a
+  libnppig_static.a)
+list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
+list(APPEND DALI_EXCLUDES libnppc_static.a)
+
+# CULIBOS needed when using static CUDA libs
+find_cuda_helper_libs(culibos)
+list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
+list(APPEND DALI_EXCLUDES libculibos.a)
 
 include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -L${CUDA_LIBRARIES} -L${CUDA_LIBRARIES}/stubs -lcudart -lnppc_static -lnppicom_static -lnppicc_static -lnppig_static -lnpps -lnppc -lculibos")
-
 # NVTX for profiling
 if (BUILD_NVTX)
-  list(APPEND DALI_LIBS ${CUDA_LIBRARIES}/libnvToolsExt.so)
+  find_cuda_helper_libs(nvToolsExt)
+  list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
   add_definitions(-DDALI_USE_NVTX)
 endif()
 
 ##################################################################
 # Common dependencies
 ##################################################################
-
 include(cmake/Dependencies.common.cmake)
 
 ##################################################################

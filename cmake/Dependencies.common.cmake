@@ -91,7 +91,6 @@ endif()
 ##################################################################
 # FFmpeg
 ##################################################################
-
 if(BUILD_FFMPEG)
   include(CheckStructHasMember)
   include(CheckTypeSize)

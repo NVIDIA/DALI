@@ -5,8 +5,10 @@
 ##################################################################
 # Note: CUDA 8 support is unofficial.  CUDA 9 is officially supported
 find_package(CUDA 8.0 REQUIRED)
+
 include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
+
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # For NVJPEG

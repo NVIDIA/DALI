@@ -155,26 +155,28 @@ WORKDIR /dali
      
 ENV PATH=/usr/local/cuda-10.0/bin:$PATH
 
-CMD echo "VERSIONS:\n    opencv-${OPENCV_VERSION}\n    protobuf-${PROTOBUF_VERSION}\n    ffmpeg-${FFMPEG_VERSION}\n\n" \ 
-&& mkdir -p build && cd build && cmake \ 
--DCMAKE_INSTALL_PREFIX=./install \
--DARCH=aarch64-linux \
--DCMAKE_COLOR_MAKEFILE=ON \
--DBUILD_NVJPEG=OFF \
--DBUILD_TENSORFLOW=OFF \
--DBUILD_TEST=OFF \
--DBUILD_JPEG_TURBO=ON \
--DJPEG_INCLUDE_DIR=/usr/aarch64-linux-gnu/include \
--DJPEG_LIBRARY=/usr/aarch64-linux-gnu/lib \
--DBUILD_PYTHON=OFF \
--DBUILD_LMDB=OFF \
--DBUILD_NVTX=OFF \
--DCMAKE_TOOLCHAIN_FILE:STRING="$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake" \
--DBUILD_BENCHMARK=OFF \
--DCUDA_HOST=/usr/local/cuda-10.0 \
--DOPENCV_PATH=/usr/aarch64-linux-gnu/ \
--DCUDA_TARGET=/usr/local/cuda-10.0/targets/aarch64-linux \
--DPROTOBUF_TARGET=/usr/aarch64-linux-gnu/ \
--DProtobuf_LIBRARIES=/usr/aarch64-linux-gnu/lib \
--DFFMPEG_ROOT_DIR=/usr/aarch64-linux-gnu/ \
-../ && make install -j12
+ARG DALI_BUILD_DIR=build_aarch64_linux
+
+WORKDIR /dali/${DALI_BUILD_DIR}
+
+CMD echo "VERSIONS:\n    opencv-${OPENCV_VERSION}\n    protobuf-${PROTOBUF_VERSION}\n    ffmpeg-${FFMPEG_VERSION}\n\n" && \ 
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE:STRING="$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake" \
+  -DCMAKE_COLOR_MAKEFILE=ON \
+  -DCMAKE_INSTALL_PREFIX=./install \
+  -DARCH=aarch64-linux \
+  -DCUDA_HOST=/usr/local/cuda-10.0 \
+  -DCUDA_TARGET=/usr/local/cuda-10.0/targets/aarch64-linux \
+  -DBUILD_TEST=ON \
+  -DBUILD_BENCHMARK=OFF \
+  -DBUILD_NVTX=OFF \
+  -DBUILD_PYTHON=OFF \
+  -DBUILD_LMDB=OFF \
+  -DBUILD_TENSORFLOW=OFF \
+  -DBUILD_JPEG_TURBO=ON \
+  -DBUILD_NVJPEG=OFF \
+  -DBUILD_NVOF=OFF \
+  -DBUILD_NVDEC=OFF \
+  -DBUILD_NVML=OFF \
+  ..  && \
+  make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
