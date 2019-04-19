@@ -36,12 +36,12 @@ def make_batch(size):
     return [data[i % len(data)] for i in range(size)]
 
 class C2Pipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, pipelined = True, async = True):
+    def __init__(self, batch_size, num_threads, device_id, pipelined = True, exec_async = True):
         super(C2Pipe, self).__init__(batch_size,
                                      num_threads,
                                      device_id,
                                      exec_pipelined=pipelined,
-                                     exec_async=async)
+                                     exec_async=exec_async)
         self.input = ops.ExternalSource()
         self.decode = ops.HostDecoder(output_type = types.RGB)
         self.rcm = ops.FastResizeCropMirror(crop = (224, 224))
@@ -74,12 +74,12 @@ class C2Pipe(Pipeline):
             self.iter += 1
 
 class HybridPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, pipelined = True, async = True):
+    def __init__(self, batch_size, num_threads, device_id, pipelined = True, exec_async = True):
         super(HybridPipe, self).__init__(batch_size,
                                          num_threads,
                                          device_id,
                                          exec_pipelined=pipelined,
-                                         exec_async=async)
+                                         exec_async=exec_async)
         self.input = ops.ExternalSource()
         self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
         self.resize = ops.Resize(device = "gpu",
@@ -115,10 +115,10 @@ def run_benchmarks(PipeType, args):
     print("Running Benchmarks For {}".format(PipeType.__name__))
     for executor in args.executors:
         pipelined = executor > 0
-        async = executor > 1
+        exec_async = executor > 1
         for batch_size in args.batch_sizes:
             for num_threads in args.thread_counts:
-                pipe = PipeType(batch_size, num_threads, 0, pipelined, async)
+                pipe = PipeType(batch_size, num_threads, 0, pipelined, exec_async)
                 pipe.build()
                 start_time = timer()
                 for i in range(args.num_iters):
