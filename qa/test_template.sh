@@ -1,3 +1,10 @@
+#!/bin/bash
+
+# Force error checking
+set -e
+# Force tests to be verbose
+set -x
+
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 
 # Install dependencies
