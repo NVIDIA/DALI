@@ -58,8 +58,8 @@ class Logger:
         self.processed_samples = 0
 
         if self.local_rank == 0:
-            print('Epoch {:2d}, Time: {:4f} s, Speed: {:4f} img/sec, Average speed: {:4f}'
-                .format(len(self.epochs_times), epoch_time, epoch_speed, self.average_speed()))
+            print('Epoch {:2d} finished. Time: {:4f} s, Speed: {:4f} img/sec, Average speed: {:4f}'
+                .format(len(self.epochs_times)-1, epoch_time, epoch_speed, self.average_speed()))
 
     def average_speed(self):
         return sum(self.epochs_speeds) / len(self.epochs_speeds)
