@@ -3,7 +3,7 @@
 source ../setup_test.sh
 
 # used pip packages
-pip_packages="jupyter matplotlib tensorflow-gpu"
+pip_packages="jupyter matplotlib numpy"
 
 pushd ../../docs/examples
 
