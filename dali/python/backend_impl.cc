@@ -36,6 +36,16 @@ namespace python {
 namespace py = pybind11;
 using namespace pybind11::literals; // NOLINT
 
+static void* ctypes_void_ptr(const py::object& object) {
+  PyObject *p_ptr = object.ptr();
+  if (!PyObject_HasAttr(p_ptr, PyUnicode_FromString("value"))) {
+    return nullptr;
+  }
+  PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
+  void *ptr = PyLong_AsVoidPtr(ptr_as_int);
+  return ptr;
+}
+
 static std::string FormatStrFromType(TypeInfo type) {
   if (IsType<uint8>(type)) {
     return py::format_descriptor<uint8>::format();
@@ -146,10 +156,7 @@ void ExposeTensor(py::module &m) { // NOLINT
          )code")
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
-          PyObject *p_ptr = p.ptr();
-          PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
-          void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(t, ptr, CPU);
+          CopyToExternalTensor(t, ctypes_void_ptr(p), CPU, 0);
         },
       "ptr"_a,
       R"code(
@@ -178,13 +185,15 @@ void ExposeTensor(py::module &m) { // NOLINT
          Remove single-dimensional entries from the shape of the Tensor.
          )code")
     .def("copy_to_external",
-        [](Tensor<GPUBackend> &t, py::object p) {
-          PyObject *p_ptr = p.ptr();
-          PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
-          void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(t, ptr, GPU);
+        [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream) {
+          void *ptr = ctypes_void_ptr(p);
+          cudaStream_t stream = static_cast<cudaStream_t>(
+            ctypes_void_ptr(cuda_stream));
+
+          CopyToExternalTensor(t, ptr, GPU, stream);
         },
       "ptr"_a,
+      "cuda_stream"_a = 0,
       R"code(
       Copy to external pointer in the GPU memory.
 
@@ -192,6 +201,8 @@ void ExposeTensor(py::module &m) { // NOLINT
       ----------
       ptr : ctypes.c_void_p
             Destination of the copy.
+      cuda_stream : ctypes.c_void_p
+            CUDA stream to schedule the copy on (default stream if not provided).
       )code")
     .def("dtype",
         [](Tensor<GPUBackend> &t) {
@@ -340,10 +351,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
       )code")
     .def("copy_to_external",
         [](TensorList<CPUBackend> &t, py::object p) {
-          PyObject *p_ptr = p.ptr();
-          PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
-          void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(&t, ptr, CPU);
+          CopyToExternalTensor(&t, ctypes_void_ptr(p), CPU, 0);
         },
       R"code(
       Copy the contents of this `TensorList` to an external pointer
@@ -397,21 +405,27 @@ void ExposeTensorList(py::module &m) { // NOLINT
       may be viewed as a tensor of shape `(N, H, W, C)`.
       )code")
     .def("copy_to_external",
-        [](TensorList<GPUBackend> &t, py::object p) {
-          PyObject *p_ptr = p.ptr();
-          PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
-          void *ptr = PyLong_AsVoidPtr(ptr_as_int);
-          CopyToExternalTensor(&t, ptr, GPU);
+        [](TensorList<GPUBackend> &t, py::object p, py::object cuda_stream) {
+          void *ptr = ctypes_void_ptr(p);
+          cudaStream_t stream = static_cast<cudaStream_t>(
+            ctypes_void_ptr(cuda_stream));
+          CopyToExternalTensor(&t, ptr, GPU, stream);
         },
+      "ptr"_a,
+      "cuda_stream"_a = 0,
       R"code(
       Copy the contents of this `TensorList` to an external pointer
-      (of type `ctypes.c_void_p`) residing in CPU memory.
+      residing in CPU memory.
 
       This function is used internally by plugins to interface with
       tensors from supported Deep Learning frameworks.
 
       Parameters
       ----------
+      ptr : ctypes.c_void_p
+            Destination of the copy.
+      cuda_stream : ctypes.c_void_p
+            CUDA stream to schedule the copy on (default stream if not provided).
       )code")
     .def("at",
         [](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {

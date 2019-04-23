@@ -203,7 +203,11 @@ unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
 template <typename T>
 static void daliCopyTensorListNToHelper(dali::DeviceWorkspace* ws, void* dst, int n,
                                         device_type_t dst_type) {
-  dali::CopyToExternalTensor(&(ws->Output<T>(n)), dst, (dali::device_type_t)dst_type);
+  dali::CopyToExternalTensor(
+    &(ws->Output<T>(n)),
+    dst,
+    (dali::device_type_t)dst_type,
+    (cudaStream_t) 0);
 }
 
 void daliCopyTensorListNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
@@ -222,7 +226,7 @@ static void daliCopyTensorNToHelper(dali::DeviceWorkspace* ws, void* dst, int n,
                                     device_type_t dst_type) {
   dali::Tensor<T> t;
   t.ShareData(&(ws->Output<T>(n)));
-  dali::CopyToExternalTensor(t, dst, (dali::device_type_t)dst_type);
+  dali::CopyToExternalTensor(t, dst, (dali::device_type_t)dst_type, (cudaStream_t) 0);
 }
 
 void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n, device_type_t dst_type) {
