@@ -188,7 +188,8 @@ def train(args):
             if args.local_rank == 0:
                 print('Epoch {:2d}, Accuracy: {:4f} mAP'.format(epoch, acc))
 
-        train_loader.reset()
+        if args.data_pipeline == 'dali':
+            train_loader.reset()
 
     return acc, logger.average_speed()
         
