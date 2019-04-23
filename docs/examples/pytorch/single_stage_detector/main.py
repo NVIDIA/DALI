@@ -42,7 +42,7 @@ class Logger:
             return
 
         if iteration % self.print_freq == 0:
-            print('Epoch: {:2d}, Iteraion: {}, Loss: {}'.format(epoch, iteration, loss))
+            print('Epoch: {:2d}, Iteration: {}, Loss: {}'.format(epoch, iteration, loss))
 
         self.processed_samples = self.processed_samples + self.batch_size
 
