@@ -16,7 +16,7 @@
 #define DALI_ERROR_HANDLING_H_
 
 #ifndef _MSC_VER
-#define DALI_USE_STACKTRACE 1
+#define DALI_USE_STACKTRACE 0
 #endif  // _MSC_VER
 
 #if DALI_USE_STACKTRACE
