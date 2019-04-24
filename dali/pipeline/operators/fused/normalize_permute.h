@@ -36,8 +36,8 @@ class NormalizePermute : public Operator<Backend> {
     DALI_ENFORCE(C_ == 3 || C_ == 1);
 
     vector<float> mean, std;
-    GetSingleOrRepeatedArg(spec, &mean, "mean", C_);
-    GetSingleOrRepeatedArg(spec, &std, "std", C_);
+    GetSingleOrRepeatedArg(spec, mean, "mean", C_);
+    GetSingleOrRepeatedArg(spec, std, "std", C_);
 
     // Inverse the std-deviation
     for (int i = 0; i < C_; ++i) {

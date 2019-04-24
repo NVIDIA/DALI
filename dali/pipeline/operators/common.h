@@ -22,26 +22,20 @@
 
 namespace dali {
 template <typename T>
-inline void GetSingleOrRepeatedArg(const OpSpec &spec, vector<T> *arg,
+inline void GetSingleOrRepeatedArg(const OpSpec &spec, vector<T> &result,
                                    const std::string &argName, size_t repeat_count = 2) {
-  try {
-      *arg = spec.GetRepeatedArgument<T>(argName);
-  } catch (std::runtime_error e) {
-      try {
-        *arg = {spec.GetArgument<T>(argName)};
-      } catch (std::runtime_error e) {
-          DALI_FAIL("Invalid type of argument \"" + argName + "\"");
-      }
+  if (!spec.TryGetRepeatedArgument<T>(result, argName)) {
+      T scalar = spec.GetArgument<T>(argName);
+      result.assign(repeat_count, scalar);
+  } else if (result.size() == 1 && repeat_count != 1) {
+      T scalar = result.front();
+      result.assign(repeat_count, scalar);
   }
 
-  if (arg->size() == 1) {
-    arg->assign(repeat_count, arg->back());
-  }
-
-  DALI_ENFORCE(arg->size() == repeat_count,
+  DALI_ENFORCE(result.size() == repeat_count,
       "Argument \"" + argName + "\" expects either a single value "
       "or a list of " + to_string(repeat_count) + " elements. " +
-      to_string(arg->size()) + " given.");
+      to_string(result.size()) + " given.");
 }
 
 }  // namespace dali
