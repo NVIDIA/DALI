@@ -29,7 +29,7 @@ class Uniform : public Operator<SupportBackend> {
     Operator<SupportBackend>(spec),
     rng_(spec.GetArgument<int64_t>("seed")) {
     std::vector<float> range;
-    GetSingleOrRepeatedArg(spec, &range, "range", 2);
+    GetSingleOrRepeatedArg(spec, range, "range", 2);
     dis_ = std::uniform_real_distribution<float>(range[0], range[1]);
   }
 

@@ -153,6 +153,31 @@ bool OpSchema::HasOptionalArgument(const std::string &name, const bool local_onl
   return ret;
 }
 
+std::pair<const OpSchema *, const Value *>
+OpSchema::FindDefaultValue(const std::string &name, bool local_only, bool include_internal) const {
+  auto it = optional_arguments_.find(name);
+  if (it != optional_arguments_.end()) {
+    return { this, it->second.second };
+  }
+  if (include_internal) {
+    it = internal_arguments_.find(name);
+    if (it != internal_arguments_.end()) {
+      return { this, it->second.second };
+    }
+  }
+  if (local_only)
+    return { nullptr, nullptr };
+
+  for (const auto &p : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(p);
+    auto schema_val = parent.FindDefaultValue(name, false, include_internal);
+    if (schema_val.first && schema_val.second)
+      return schema_val;
+  }
+  return { nullptr, nullptr };
+}
+
+
 bool OpSchema::IsTensorArgument(const std::string &name) const {
   bool ret = tensor_arguments_.find(name) != tensor_arguments_.end();
   if (ret) {
