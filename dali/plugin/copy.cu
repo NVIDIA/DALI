@@ -34,7 +34,7 @@ void CopyToExternalTensorHelper<CPUBackend>(const dali::Buffer<CPUBackend> &src,
                                             void *dst,
                                             device_type_t dst_type,
                                             size_t num,
-                                            cudaStream_t stream) {
+                                            cudaStream_t /** stream */) {
   if (dst_type == CPU) {
     std::memcpy(dst, src.raw_data(), num);
   } else {

@@ -15,8 +15,8 @@
 #ifndef DALI_C_API_C_API_H_
 #define DALI_C_API_C_API_H_
 
+#include <cuda_runtime_api.h>
 #include <inttypes.h>
-
 #include "dali/api_helper.h"
 
 // Trick to bypass gcc4.9 old ABI name mangling used by TF
@@ -133,7 +133,7 @@ extern "C" {
    * @remarks Tensor list doesn't need to be dense
    */
   DLL_PUBLIC void daliCopyTensorListNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
-                                          device_type_t dst_type);
+                                        device_type_t dst_type, cudaStream_t stream);
 
   /**
    * @brief Returns number of DALI pipeline outputs
@@ -146,7 +146,7 @@ extern "C" {
    * @remarks If the output is tensor list then it need to be dense
    */
   DLL_PUBLIC void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
-                                          device_type_t dst_type);
+                                    device_type_t dst_type, cudaStream_t stream);
 
   /**
    * @brief Delete the pipeline object.

@@ -126,6 +126,9 @@ class DaliOp : public tf::OpKernel {
     OP_REQUIRES_OK(context, context->GetAttr("cpu_prefetch_queue_depth",
                                              &cpu_prefetch_queue_depth));
 
+    if (cudaSuccess != cudaStreamCreateWithFlags(&this->cuda_stream_, cudaStreamNonBlocking))
+      this->cuda_stream_ = 0;
+
     // TF doing constant propagation runs all operators on the CPU first, so we need to provide
     // ability to copy memory from the GPU pipeline to the CPU seamlessly
     this->device_type_ = (context->device_type() == "CPU") ?
@@ -299,10 +302,10 @@ class DaliOp : public tf::OpKernel {
           break;
       }
       if (!should_be_sparse_tensor) {
-        TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_));
+        TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_, this->cuda_stream_));
       } else {
         // copy values
-        TF_DALI_CALL(daliCopyTensorListNTo(&pipe_handle_, dst, i, this->device_type_));
+        TF_DALI_CALL(daliCopyTensorListNTo(&pipe_handle_, dst, i, this->device_type_, this->cuda_stream_));
         ++j;
         // copy out shape
         OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({dims}),
@@ -340,6 +343,7 @@ class DaliOp : public tf::OpKernel {
   int prefetch_queue_depth_;
   device_type_t device_type_;
   std::vector<bool> sparse_;
+  cudaStream_t cuda_stream_;
 };
 
 using tf::int64;
