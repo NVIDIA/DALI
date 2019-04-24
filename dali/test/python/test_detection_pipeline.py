@@ -273,8 +273,8 @@ def data_paths():
 
 def set_iters(args, dataset_size):
     if args.iters is None:
-        args.iters = ceil(
-            dataset_size / (args.batch_size * args.num_gpus))
+        args.iters = int(ceil(
+            dataset_size / (args.batch_size * args.num_gpus)))
 
 
 def to_array(dali_out):
