@@ -27,9 +27,10 @@ except ImportError:
 
 
 class Logger:
-    def __init__(self, batch_size, local_rank, print_freq=20):
+    def __init__(self, batch_size, local_rank, n_gpu, print_freq=20):
         self.batch_size = batch_size
         self.local_rank = local_rank
+        self.n_gpu = n_gpu
         self.print_freq = print_freq
 
         self.processed_samples = 0
@@ -59,7 +60,7 @@ class Logger:
 
         if self.local_rank == 0:
             print('Epoch {:2d} finished. Time: {:4f} s, Speed: {:4f} img/sec, Average speed: {:4f}'
-                .format(len(self.epochs_times)-1, epoch_time, epoch_speed, self.average_speed()))
+                .format(len(self.epochs_times)-1, epoch_time, epoch_speed * self.n_gpu, self.average_speed() * self.n_gpu))
 
     def average_speed(self):
         return sum(self.epochs_speeds) / len(self.epochs_speeds)
@@ -171,7 +172,7 @@ def train(args):
     train_loader = get_train_loader(args, dboxes)
 
     acc = 0
-    logger = Logger(args.batch_size, args.local_rank)
+    logger = Logger(args.batch_size, args.local_rank, args.N_gpu)
     
     for epoch in range(0, args.epochs):
         logger.start_epoch()
@@ -211,6 +212,12 @@ if __name__ == "__main__":
 
     start_time = time.time()
     acc, avg_speed = train(args)
+    # avg_speed is reported per node, adjust for the global speed
+    try:
+        num_shards = torch.distributed.get_world_size()
+    except RuntimeError:
+        num_shards = 1
+    avg_speed = num_shards * avg_speed
     training_time = time.time() - start_time
 
     if args.local_rank == 0:
