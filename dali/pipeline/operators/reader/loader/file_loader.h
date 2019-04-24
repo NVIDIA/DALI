@@ -56,6 +56,12 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
       current_epoch_(0) {
+      /*
+       * Imply `stick_to_shard` from  `shuffle_after_epoch`
+       */
+      if (shuffle_after_epoch_) {
+        stick_to_shard_ = true;
+      }
     mmap_reserver = FileStream::FileStreamMappinReserver(
         static_cast<unsigned int>(initial_buffer_fill_));
     copy_read_data_ = !mmap_reserver.CanShareMappedData();
