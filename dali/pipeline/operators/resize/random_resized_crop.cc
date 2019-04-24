@@ -24,7 +24,8 @@ namespace dali {
 
 DALI_SCHEMA(RandomResizedCrop)
   .DocStr("Perform a crop with randomly chosen area and aspect ratio,"
-      " then resize it to given size.")
+" then resize it to given size. Expects a 3-dimensional input with samples"
+" in HWC layout (height, width, channels)")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
