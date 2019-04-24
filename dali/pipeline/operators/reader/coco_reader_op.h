@@ -41,6 +41,12 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     DALI_ENFORCE(!skip_cached_images_,
       "COCOReader doesn't support `skip_cached_images` option");
 
+    /*
+     * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks differently
+     * after each epoch so coexistence with `stick_to_shard` doesn't make any sense
+     * Still when `shuffle_after_epoch` we will set `stick_to_shard` internally in the FileLoader so all
+     * DALI instances will do shuffling after each epoch
+     */
     if (shuffle_after_epoch || stick_to_shard)
       DALI_ENFORCE(
         !shuffle_after_epoch || !stick_to_shard,
