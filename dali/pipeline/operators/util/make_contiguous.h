@@ -33,7 +33,7 @@ class MakeContiguous : public Operator<MixedBackend> {
       Operator<MixedBackend>(spec),
       coalesced(true) {
     std::vector<int> hints;
-    GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
+    GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
     if (!hints.empty())
       bytes_per_sample_hint = hints[0];
   }

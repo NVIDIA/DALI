@@ -38,7 +38,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     color_(IsColor(image_type_)),
     C_(color_ ? 3 : 1) {
     vector<float> temp_crop;
-    GetSingleOrRepeatedArg(spec, &temp_crop, "crop", 2);
+    GetSingleOrRepeatedArg(spec, temp_crop, "crop", 2);
 
     crop_h_ = temp_crop[0];
     crop_w_ = temp_crop[1];
@@ -53,8 +53,8 @@ class CropMirrorNormalize : public Operator<Backend> {
 
     DALI_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
 
-    GetSingleOrRepeatedArg(spec, &mean_vec_, "mean", C_);
-    GetSingleOrRepeatedArg(spec, &inv_std_vec_, "std", C_);
+    GetSingleOrRepeatedArg(spec, mean_vec_, "mean", C_);
+    GetSingleOrRepeatedArg(spec, inv_std_vec_, "std", C_);
 
     // Inverse the std-deviation
     for (int i = 0; i < C_; ++i) {

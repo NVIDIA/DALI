@@ -61,7 +61,7 @@ class WarpAffineAugment {
 
   void Prepare(Param* p, const OpSpec& spec, ArgumentWorkspace *ws, int index) {
     std::vector<float> tmp;
-    GetSingleOrRepeatedArg(spec, &tmp, "matrix", size);
+    GetSingleOrRepeatedArg(spec, tmp, "matrix", size);
     for (int i = 0; i < size; ++i) {
       p->matrix[i] = tmp[i];
     }

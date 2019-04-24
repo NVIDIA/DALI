@@ -683,7 +683,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
 template <typename WorkspacePolicy, typename QueuePolicy>
 std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetMemoryHints(const OpNode &node) {
   std::vector<int> hints;
-  GetSingleOrRepeatedArg(node.spec, &hints, "bytes_per_sample_hint", node.spec.NumOutput());
+  GetSingleOrRepeatedArg(node.spec, hints, "bytes_per_sample_hint", node.spec.NumOutput());
   std::replace(hints.begin(), hints.end(), 0, static_cast<int>(bytes_per_sample_hint_));
   return hints;
 }

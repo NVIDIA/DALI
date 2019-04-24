@@ -294,7 +294,7 @@ inline int GetMemoryHint(OpSpec &spec, int index) {
   if (!spec.HasArgument("bytes_per_sample_hint"))
     return 0;
   std::vector<int> hints;
-  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
+  GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
 
   DALI_ENFORCE(index < static_cast<int>(hints.size()),
                "Output index out of range: " + std::to_string(index));
@@ -308,7 +308,7 @@ inline void SetMemoryHint(OpSpec &spec, int index, int value) {
   DALI_ENFORCE(index < no, "Output index out of range: " +
     std::to_string(index) + " >= " + std::to_string(no));
 
-  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", no);
+  GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", no);
   hints[index] = value;
   spec.SetArg("bytes_per_sample_hint", hints);
 }
