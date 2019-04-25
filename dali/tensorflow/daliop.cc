@@ -12,23 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cuda_runtime_api.h>
 #include <chrono>
 
-#include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op.h"
-#include "tensorflow/core/framework/shape_inference.h"
+
+#define EIGEN_USE_GPU  // for Eigen::GpuDevice
+#include "tensorflow/core/framework/op_kernel.h"
+
 #include "tensorflow/core/framework/register_types.h"
+#include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.h"
 
 #define USE_TF_ALLOCATOR 0
-
 #if USE_TF_ALLOCATOR
 #include "dali/tensorflow/tfallocator.h"
 #endif
 
-#include "dali/common.h"
 #include "dali/c_api/c_api.h"
+#include "dali/common.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 
@@ -198,6 +201,11 @@ class DaliOp : public tf::OpKernel {
 
     OP_REQUIRES_OK(context, context->output_list("data", &outputs));
 
+    cudaStream_t stream = 0;
+    if (this->device_type_ == device_type_t::GPU) {
+      stream = context->eigen_device<Eigen::GpuDevice>().stream();
+    }
+
     for (unsigned i = 0, j = 0; i < dali_num_out; ++i, ++j) {
       bool should_be_sparse_tensor = i < sparse_.size() && sparse_[i];
       unsigned elms = 0;
@@ -298,11 +306,12 @@ class DaliOp : public tf::OpKernel {
                                         "for tensor " + std::to_string(i)));
           break;
       }
+
       if (!should_be_sparse_tensor) {
-        TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_));
+        TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_, stream));
       } else {
         // copy values
-        TF_DALI_CALL(daliCopyTensorListNTo(&pipe_handle_, dst, i, this->device_type_));
+        TF_DALI_CALL(daliCopyTensorListNTo(&pipe_handle_, dst, i, this->device_type_, stream));
         ++j;
         // copy out shape
         OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({dims}),
