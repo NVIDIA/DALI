@@ -74,7 +74,7 @@ class DALIGenericIterator(object):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    stop_at_epoch : bool, optional, default = False
+    fill_last_batch : bool, optional, default = True
                  Whether to return a fraction of a full batch of data
                  such that the total entries returned by the
                  iterator == 'size'. Setting this flag to False will
@@ -85,14 +85,23 @@ class DALIGenericIterator(object):
                  change during execution. If True, the pytorch tensor will be resized accordingly
                  if the shape of DALI returned tensors changes during execution.
                  If False, the iterator will fail in case of change.
+    last_batch_padded : bool, optional, default = False
+                 Whether the last batch provided by DALI is padded with the last sample
+                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 if the iterator returning last batch with data only partially filled with
+                 data from the current epoch is dropping padding samples or samples from
+                 the next epoch. If set to True next epoch will end sooner as data from
+                 it was consumed but dropped. If set to false next epoch would be the
+                 same length as the first one.
     """
     def __init__(self,
                  pipelines,
                  output_map,
                  size,
                  auto_reset=False,
-                 stop_at_epoch=False,
-                 dynamic_shape=False):
+                 fill_last_batch=True,
+                 dynamic_shape=False,
+                 last_batch_padded = False):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
@@ -100,8 +109,9 @@ class DALIGenericIterator(object):
         self.batch_size = pipelines[0].batch_size
         self._size = int(size)
         self._auto_reset = auto_reset
-        self._stop_at_epoch = stop_at_epoch
         self._dynamic_shape = dynamic_shape
+        self._fill_last_batch = fill_last_batch
+        self._last_batch_padded = last_batch_padded
         self._pipes = pipelines
         # Build all pipelines
         for p in self._pipes:
@@ -191,7 +201,7 @@ class DALIGenericIterator(object):
         self._current_data_batch = (self._current_data_batch + 1) % 2
         self._counter += self._num_gpus * self.batch_size
 
-        if (self._stop_at_epoch) and (self._counter > self._size):
+        if (not self._fill_last_batch) and (self._counter > self._size):
             # First calculate how much data is required to return exactly self._size entries.
             diff = self._num_gpus * self.batch_size - (self._counter - self._size)
             # Figure out how many GPUs to grab from.
@@ -206,7 +216,7 @@ class DALIGenericIterator(object):
             # 2) Grab the right data from the last GPU.
             # 3) Append data together correctly and return.
             output = [db[copy_db_index] for db in self._data_batches[0:numGPUs_tograb]]
-            output[-1] = output[-1].copy();
+            output[-1] = output[-1].copy()
             for category in self._output_categories:
                 output[-1][category] = output[-1][category][0:data_fromlastGPU]
             return output
@@ -229,10 +239,10 @@ class DALIGenericIterator(object):
         and will ignore such request.
         """
         if self._counter >= self._size:
-            if self._stop_at_epoch:
-                self._counter = 0
+            if self._fill_last_batch and not self._last_batch_padded:
+                self._counter = self._counter % self._size
             else:
-               self._counter = self._counter % self._size
+                self._counter = 0
             for p in self._pipes:
                 p.reset()
         else:
@@ -264,7 +274,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    stop_at_epoch : bool, optional, default = False
+    fill_last_batch : bool, optional, default = True
                  Whether to return a fraction of a full batch of data
                  such that the total entries returned by the
                  iterator == 'size'. Setting this flag to False will
@@ -275,17 +285,27 @@ class DALIClassificationIterator(DALIGenericIterator):
                  change during execution. If True, the pytorch tensor will be resized accordingly
                  if the shape of DALI returned tensors changes during execution.
                  If False, the iterator will fail in case of change.
+    last_batch_padded : bool, optional, default = False
+                 Whether the last batch provided by DALI is padded with the last sample
+                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 if the iterator returning last batch with data only partially filled with
+                 data from the current epoch is dropping padding samples or samples from
+                 the next epoch. If set to True next epoch will end sooner as data from
+                 it was consumed but dropped. If set to false next epoch would be the
+                 same length as the first one.
     """
     def __init__(self,
                  pipelines,
                  size,
                  auto_reset=False,
-                 stop_at_epoch=False,
-                 dynamic_shape=False):
+                 fill_last_batch=True,
+                 dynamic_shape=False,
+                 last_batch_padded=False):
         super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
                                                          size, auto_reset = auto_reset,
-                                                         stop_at_epoch = stop_at_epoch,
-                                                         dynamic_shape = dynamic_shape)
+                                                         fill_last_batch = fill_last_batch,
+                                                         dynamic_shape = dynamic_shape,
+                                                         last_batch_padded = last_batch_padded)
 
 
 class TorchPythonFunction(ops.PythonFunction):
@@ -304,4 +324,3 @@ class TorchPythonFunction(ops.PythonFunction):
         ops.PythonFunction.__init__(self,
                                     functools.partial(TorchPythonFunction.torch_wrapper, function),
                                     num_outputs, **kwargs)
-

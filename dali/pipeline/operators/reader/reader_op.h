@@ -49,7 +49,7 @@ namespace dali {
 template <typename Backend, typename LoadTarget, typename ParseTarget = LoadTarget>
 class DataReader : public Operator<Backend> {
  public:
-  using LoadTargetPtr = std::unique_ptr<LoadTarget>;
+  using LoadTargetPtr = std::shared_ptr<LoadTarget>;
 
   inline explicit DataReader(const OpSpec& spec)
       : Operator<Backend>(spec),
@@ -71,10 +71,9 @@ class DataReader : public Operator<Backend> {
   ~DataReader() noexcept override {
     StopPrefetchThread();
     for (auto &batch : prefetched_batch_queue_) {
-      for (auto &sample : batch) {
-        if (sample)
-          loader_->RecycleTensor(std::move(sample));
-      }
+      // make share_ptr do their job while loader is still alive
+      // and RecycleTensor could be safelly executed
+      batch.clear();
     }
   }
 
@@ -86,7 +85,7 @@ class DataReader : public Operator<Backend> {
     curr_batch.reserve(Operator<Backend>::batch_size_);
     curr_batch.clear();
     for (int i = 0; i < Operator<Backend>::batch_size_; ++i) {
-      curr_batch.push_back(loader_->ReadOne());
+      curr_batch.push_back(loader_->ReadOne(i == 0));
     }
   }
 
@@ -137,10 +136,6 @@ class DataReader : public Operator<Backend> {
     // This is synchronous call for CPU Backend
     Operator<Backend>::Run(ws);
 
-    for (int sample_idx = 0; sample_idx < Operator<Backend>::batch_size_; sample_idx++) {
-      loader_->RecycleTensor(MoveSample(sample_idx));
-    }
-
     // Notify that we have consumed whole batch
     ConsumerAdvanceQueue();
   }
@@ -155,7 +150,7 @@ class DataReader : public Operator<Backend> {
     Operator<Backend>::Run(ws);
     CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     for (int sample_idx = 0; sample_idx < Operator<Backend>::batch_size_; sample_idx++) {
-      loader_->RecycleTensor(MoveSample(sample_idx));
+      auto sample = MoveSample(sample_idx);
     }
 
     // Notify we have consumed a batch

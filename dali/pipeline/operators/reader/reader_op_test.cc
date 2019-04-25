@@ -79,7 +79,7 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   bool Prefetch() override {
     for (int i = 0; i < Operator::batch_size_; ++i) {
       printf("new tensor %d\n", i);
-      auto *t = loader_->ReadOne();
+      auto *t = loader_->ReadOne(false);
       prefetched_batch_.push_back(t);
     }
     return true;
