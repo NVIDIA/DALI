@@ -20,6 +20,7 @@ except ImportError:
 # and cuda_v for cuXX version
 # NOTE: First version will be picked in case of one_config_only
 packages = {"numpy" : ["1.11.1"],
+            "opencv-python" : ["4.1.0.25"],
             "mxnet-cu90" : ["1.4.0"],
             "mxnet-cu100" : ["1.4.0"],
             "tensorflow-gpu" : {"90": ["1.12.0", "1.11", "1.7"], "100": ["1.13.1"]},

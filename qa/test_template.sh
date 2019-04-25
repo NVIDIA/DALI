@@ -7,6 +7,14 @@ set -x
 
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 
+# Install dependencies: opencv-python from 3.3.0.10 onwards uses QT which requires
+# X11 and other libraries that are not present in clean docker images or bundled there
+apt-get update
+apt-get install -y --no-install-recommends libsm6 libice6 libxrender1 libxext6 libx11-6 glib-2.0
+# Note: glib-2.0 depends on python2, so reinstall the desired python afterward
+# to make sure defaults are right
+apt-get install -y --no-install-recommends --reinstall python$PYVER python$PYVER-dev
+
 CUDA_VERSION=$(nvcc --version | grep -E ".*release ([0-9]+)\.([0-9]+).*" | sed 's/.*release \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
 CUDA_VERSION=${CUDA_VERSION:-90}
 # Set proper CUDA version for packages, like MXNet, requiring it
