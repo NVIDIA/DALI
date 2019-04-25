@@ -7,12 +7,6 @@ set -x
 
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 
-# Install dependencies
-# Note: glib-2.0 depends on python2, so reinstall the desired python afterward to make sure defaults are right
-apt-get update
-apt-get install -y --no-install-recommends glib-2.0
-apt-get install -y --no-install-recommends --reinstall python$PYVER python$PYVER-dev
-
 CUDA_VERSION=$(nvcc --version | grep -E ".*release ([0-9]+)\.([0-9]+).*" | sed 's/.*release \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
 CUDA_VERSION=${CUDA_VERSION:-90}
 # Set proper CUDA version for packages, like MXNet, requiring it
