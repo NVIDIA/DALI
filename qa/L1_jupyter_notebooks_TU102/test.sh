@@ -1,5 +1,6 @@
 #!/bin/bash -e
 
+source setup_optflow.sh
 source ../setup_test.sh
 
 # used pip packages
