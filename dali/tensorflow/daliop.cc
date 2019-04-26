@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,39 +32,14 @@
 
 #include "dali/c_api/c_api.h"
 #include "dali/core/common.h"
+#include "dali/tensorflow/tf_helper.h"
+
+#define TF_DALI_CALL(FUNC)                                                         \
+    _DALI_CALL_IMPL(FUNC, _CTX_ERROR)
 
 typedef std::chrono::high_resolution_clock Clock;
 
 namespace tf = tensorflow;
-
-#define TF_DALI_CALL(FUNC)                                                         \
-    do {                                                                           \
-      try {                                                                        \
-        FUNC;                                                                      \
-      } catch (std::runtime_error& e) {                                            \
-        std::string error = "DALI " + std::string(#FUNC)                           \
-                            + " failed: " + std::string(e.what());                 \
-        std::cout << error << std::endl;                                           \
-        context->SetStatus(tf::errors::Internal(error));                           \
-       return;                                                                     \
-      }                                                                            \
-    } while (0)
-
-struct CDeleter {
-  void operator()(void *p) {
-    free(p);
-  }
-};
-
-template <typename T>
-using AutoCPtr = std::unique_ptr<T, CDeleter>;
-
-static tf::TensorShape DaliToShape(const AutoCPtr<int64_t>& ns) {
-  tf::TensorShape ts;
-  for (int i = 0; ns.get()[i] != 0; ++i)
-    ts.InsertDim(i, ns.get()[i]);
-  return ts;
-}
 
 REGISTER_OP("Dali")
   .Attr("serialized_pipeline: string")

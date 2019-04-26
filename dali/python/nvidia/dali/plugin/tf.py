@@ -12,10 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tensorflow as tf
 import os
 import glob
 from collections import Iterable
+
+import functools
+
+import tensorflow as tf
+from tensorflow.python.framework import ops
+from tensorflow.python.framework import tensor_shape
+from tensorflow.python.data.ops import dataset_ops
+from tensorflow.python.data.util import structure
+from tensorflow.python.util.tf_export import tf_export
 
 _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
 _dali_tf_module = None
@@ -36,13 +44,13 @@ else:
 
 _dali_tf = _dali_tf_module.dali
 
-def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
-                        shapes = [], dtypes = [], batch_size = -1, prefetch_queue_depth = 2, **kwargs):
-  """
-TF Plugin Wrapper
 
-This operator works in the same way as DALI TensorFlow plugin, with the exception that is also accepts Pipeline objects as the input and serializes it internally. For more information, please look **TensorFlow Plugin API reference** in the documentation.
+def _PrepareDALIArgsHelper(pipeline = None, serialized_pipeline = None, sparse = [],
+                     shapes = [], dtypes = [], batch_size = -1, prefetch_queue_depth = 2, **kwargs):
   """
+  Internal helper that converts user input arguments into TensorFlow operator arguments.
+  """
+
   if type(prefetch_queue_depth) is dict:
       exec_separated = True
       cpu_prefetch_queue_depth = prefetch_queue_depth["cpu_size"]
@@ -87,10 +95,25 @@ This operator works in the same way as DALI TensorFlow plugin, with the exceptio
       new_dtypes.append(dtypes[i])
       if len(shapes) > i:
         new_shapes.append(shapes[i])
+  prepared_args = {'serialized_pipeline':serialized_pipeline , 'shapes':new_shapes, 'sparse':sparse, 'dtypes':dtypes, 'batch_size':batch_size,
+                   'exec_separated':exec_separated, 'gpu_prefetch_queue_depth':gpu_prefetch_queue_depth, 'cpu_prefetch_queue_depth':cpu_prefetch_queue_depth}
+  prepared_args.update(**kwargs)
+  return prepared_args
+
+def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
+                        shapes = [], dtypes = [], batch_size = -1, prefetch_queue_depth = 2, **kwargs):
+  """
+TF Plugin Wrapper
+
+This operator works in the same way as DALI TensorFlow plugin, with the exception that is also accepts Pipeline objects as the input and serializes it internally. For more information, please look **TensorFlow Plugin API reference** in the documentation.
+  """
+  oldargs = locals().copy()
+  oldargs.pop('kwargs', None)
+  prepared_dali_args = _PrepareDALIArgsHelper(**oldargs)
+  prepared_dali_args.update(**kwargs)
 
   # gpu_prefetch_queue_depth correspond to the global queue depth in the uniform case
-  out = _dali_tf(serialized_pipeline=serialized_pipeline, shapes=new_shapes, dtypes=new_dtypes, sparse=sparse, batch_size=batch_size,
-                 exec_separated=exec_separated, gpu_prefetch_queue_depth=gpu_prefetch_queue_depth, cpu_prefetch_queue_depth=cpu_prefetch_queue_depth, **kwargs)
+  out = _dali_tf(**prepared_dali_args)
   new_out = []
   j = 0
   for i in range(len(dtypes)):
@@ -109,6 +132,74 @@ def DALIIterator():
 def DALIRawIterator():
     return _dali_tf
 
+
+class DALIDatasetV2(dataset_ops.DatasetSource):
+    def __init__(self,
+                  pipeline=None,
+                  batch_size=1,
+                  sparse=[],
+                  shapes=None,
+                  dtypes=None,
+                  prefetch_queue_depth=2,
+                  num_threads=1,
+                  **kwargs):
+        """Creates a `DALIDataset`.
+        Args:
+        pipeline: A`nvidia.dali.Pipeline` defining the augmentation to be performed
+        batch_size: `int` defining the number of samples in a batch
+        shapes: A `List` of `tf.TensorShape` with the expected output shapes
+        dtypes: A `List` of `tf.DType` with the expected output types
+        devices: A `List` with the indexes of the devices to use
+        prefetch_queue_depth: `int` with the amount of prefetched batches
+        num_threads: `int` with the number of reader threads in the pipeline per GPU
+        """
+        oldargs = locals().copy()
+        oldargs.pop('self', None)
+        oldargs.pop('kwargs', None)
+        oldargs.pop('__class__', None)
+        self._dali_args = _PrepareDALIArgsHelper(**oldargs)
+        self._dali_args.update(**kwargs)
+
+        self._dtypes = self._dali_args['dtypes']
+        self._shapes = self._dali_args['shapes']
+
+        types = (self._dtypes[0], self._dtypes[1])
+        shapes = (self._shapes[0], self._shapes[1])
+        output_classes = (ops.Tensor, ops.Tensor)
+        self._structure = structure.convert_legacy_structure(types, shapes, output_classes)
+
+        super(DALIDatasetV2, self).__init__()
+        # Change to this when TF updates
+        #variant_tensor = self._as_variant_tensor
+        #super(DALIDatasetV2, self).__init__(variant_tensor)
+
+    @property
+    def _element_structure(self):
+        return self._structure
+
+    def _as_variant_tensor(self):
+        dali_args = self._dali_args
+        return _dali_tf_module.dali_dataset(**dali_args)
+
+class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
+  """Creates a `DALIDataset`.
+  Args:
+  pipeline: A`nvidia.dali.Pipeline` defining the augmentation to be performed
+  batch_size: `int` defining the number of samples in a batch
+  shapes: A `List` of `tf.TensorShape` with the expected output shapes
+  dtypes: A `List` of `tf.DType` with the expected output types
+  devices: A `List` with the indexes of the devices to use
+  prefetch_queue_depth: `int` with the amount of prefetched batches
+  num_threads: `int` with the number of reader threads in the pipeline per GPU
+  """
+
+  @functools.wraps(DALIDatasetV2.__init__)
+  def __init__(self, **kwargs):
+    wrapped = DALIDatasetV2(**kwargs)
+    super(DALIDatasetV1, self).__init__(wrapped)
+
+DALIDataset = DALIDatasetV1
+#TODO(spanev) Replace when V2 is ready.
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
 DALIRawIterator.__doc__ = _dali_tf.__doc__
