@@ -1,20 +1,20 @@
-From 92407fb3f440cace918ea610eae164acecb6456f Mon Sep 17 00:00:00 2001
+From 116046ccbf0b1811931443ed41fef8a27b59fdbe Mon Sep 17 00:00:00 2001
 From: jwoolley <jwoolley@nvidia.com>
 Date: Tue, 26 Jun 2018 10:10:00 -0700
 Subject: [PATCH] An approximate 'manylinux3'
 
 ---
- build.sh                          |  4 +-
+ build.sh                          |  5 +--
  docker/Dockerfile-x86_64          |  8 ++--
  docker/build_scripts/build.sh     | 65 ++++++++-----------------------
  docker/build_scripts/build_env.sh |  3 +-
- 4 files changed, 25 insertions(+), 55 deletions(-)
+ 4 files changed, 25 insertions(+), 56 deletions(-)
 
 diff --git a/build.sh b/build.sh
-index 56b42ff..73950b8 100755
+index 56b42ff..ba02a29 100755
 --- a/build.sh
 +++ b/build.sh
-@@ -1,8 +1,8 @@
+@@ -1,8 +1,7 @@
  #!/bin/bash
 +# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
  
@@ -23,8 +23,8 @@ index 56b42ff..73950b8 100755
  
 -docker/build_scripts/prefetch.sh openssl curl
 -docker build --rm -t quay.io/pypa/manylinux1_$PLATFORM:$TRAVIS_COMMIT -f docker/Dockerfile-$PLATFORM docker/
+-docker system prune -f
 +docker build --rm -t manylinux3_x86_64 -f docker/Dockerfile-$PLATFORM docker/
- docker system prune -f
 diff --git a/docker/Dockerfile-x86_64 b/docker/Dockerfile-x86_64
 index 0c2f4b1..6715697 100644
 --- a/docker/Dockerfile-x86_64
