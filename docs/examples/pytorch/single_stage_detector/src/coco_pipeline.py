@@ -29,15 +29,17 @@ class COCOPipeline(Pipeline):
 
         try:
             shard_id = torch.distributed.get_rank()
+            num_shards = torch.distributed.get_world_size()
         except RuntimeError:
             shard_id = 0
+            num_shards = 1
 
         self.input = ops.COCOReader(
             file_root=args.train_coco_root, 
             annotations_file=args.train_annotate, 
             skip_empty=True,
             shard_id=shard_id, 
-            num_shards=args.N_gpu, 
+            num_shards=num_shards, 
             ratio=True, 
             ltrb=True, 
             random_shuffle=True,
