@@ -24,6 +24,8 @@ set(dali_operator_lib "dali_operators")
 set(dali_kernel_lib "dali_kernels")
 set(dali_kernel_test_lib "dali_kernel_test")
 set(dali_core_lib "dali_core")
+set(DALI_WHEEL_DIR "dali/python/nvidia/dali")
+set(DALI_INCLUDE_DIR "${DALI_WHEEL_DIR}/include/")
 
 ################################################
 # Build libdali
@@ -38,8 +40,8 @@ add_subdirectory(c_api)
 add_subdirectory(pipeline/operators/python_function)
 
 # Collect source files for dali
-file(GLOB tmp *.cc)
-set(DALI_SRCS ${DALI_SRCS} ${tmp})
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_SRCS PARENT_SCOPE)
 
 set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
 if (BUILD_LMDB)
@@ -90,37 +92,18 @@ target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
 
 # install libdali to the wheel dir
 set_target_properties(${dali_lib} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}"
 )
 
 set_target_properties(${dali_operator_lib} PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
 
-# filter all *.h which don't have 'test' in name, create pairs 'src dst' string with sed and call xargs
-# with install command to copy with dest recursive dir creation
-add_custom_target(install_headers ALL
-    DEPENDS ${dali_lib}
-)
-
-
-
-add_custom_command(
-    TARGET install_headers
-    COMMAND find "${PROJECT_SOURCE_DIR}/dali" -regex ".*\\\\.h"
-    | grep --invert test
-    | sed -r 's,\(^${PROJECT_SOURCE_DIR}/dali\)\(.*\),\\1\\2 ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/include/dali\\2,'
-    | xargs -n 2 install -D
-    COMMAND find "${PROJECT_SOURCE_DIR}/include" -regex ".*\\\\.h"
-    | sed -r 's,\(^${PROJECT_SOURCE_DIR}\)\(.*\),\\1\\2 ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/\\2,'
-    | xargs -n 2 install -D
-  )
-
 ################################################
 # Build test suite
 ################################################
 if (BUILD_TEST)
-  set(TEST_BINARY_DIR ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
+  set(TEST_BINARY_DIR "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 
   # get all test srcs
   add_subdirectory(test)
@@ -162,7 +145,7 @@ if (BUILD_BENCHMARK)
   target_link_libraries(${benchmark_bin} PRIVATE ${DALI_LIBS} ${dali_lib} benchmark pthread)
 
   set_target_properties(${benchmark_bin} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/test)
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 endif()
 
 
@@ -214,7 +197,7 @@ if (BUILD_TENSORFLOW)
     target_link_libraries(${customop_lib} PRIVATE ${dali_lib})
 
     set_target_properties(${customop_lib} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/plugin")
+      LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/plugin")
   ENDFOREACH()
 endif()
 
@@ -226,3 +209,27 @@ if (BUILD_PYTHON)
   # Get all python srcs
   add_subdirectory(python)
 endif()
+
+
+################################################
+# Gather DALI headers for whl
+################################################
+
+# Copy all headers from DALI_INST_HDRS list to DALI_WHEEL_DIR using install command
+# with `-D` option, that recursively creates missing directories in destination path
+add_custom_target(install_headers ALL
+    DEPENDS ${dali_lib}
+)
+
+# Process the DALI_INST_HDRS list
+foreach(INSTALL_HEADER ${DALI_INST_HDRS})
+  add_custom_command(
+    TARGET install_headers
+    COMMAND install -D "${CMAKE_SOURCE_DIR}/${INSTALL_HEADER}" "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/${INSTALL_HEADER}")
+endforeach(INSTALL_HEADER)
+
+# Copy proper `include` dir
+add_custom_command(
+  TARGET install_headers
+  COMMAND cp -r "${CMAKE_SOURCE_DIR}/include/." "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}"
+)

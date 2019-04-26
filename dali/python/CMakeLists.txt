@@ -13,9 +13,10 @@
 # limitations under the License.
 
 # Get all the srcs
-file(GLOB tmp *.cc)
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_PYTHON_BACKEND_SRCS)
 set(dali_python_lib "backend_impl")
-pybind11_add_module(${dali_python_lib} MODULE ${tmp})
+pybind11_add_module(${dali_python_lib} MODULE ${DALI_PYTHON_BACKEND_SRCS})
 message(STATUS "Adding dependencies to ${dali_python_lib}: '${dali_lib}'")
 add_dependencies(${dali_python_lib} ${dali_lib})
 
