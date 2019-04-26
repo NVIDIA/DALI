@@ -22,7 +22,7 @@ pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
 # Limit to only one configuration (First version of each package)
-if [ $one_config_only = true ]; then
+if [[ $one_config_only = true ]]; then
     echo "Limiting test run to one configuration of packages (first version of each)"
     last_config_index=0
 fi
