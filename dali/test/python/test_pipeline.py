@@ -282,14 +282,15 @@ def test_cropmirrornormalize_pad():
 def test_cropmirrornormalize_multiple_inputs():
     batch_size = 13
     class HybridPipe(Pipeline):
-        def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1):
+        def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1, device="cpu"):
             super(HybridPipe, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
+            self.device = device
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
             self.decode2 = ops.HostDecoder(device = "cpu", output_type = types.RGB)
-            self.cmnp = ops.CropMirrorNormalize(device = "gpu",
+            self.cmnp = ops.CropMirrorNormalize(device = device,
                                                 output_dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
                                                 crop = (224, 224),
@@ -301,16 +302,27 @@ def test_cropmirrornormalize_multiple_inputs():
             inputs, labels = self.input(name="Reader")
             images = self.decode(inputs)
             images2 = self.decode2(inputs)
-            output1, output2 = self.cmnp([images.gpu(), images2.gpu()])
-            return (output1, output2)
+
+            images_device  = images if self.device == "cpu" else images.gpu()
+            images2_device = images2 if self.device == "cpu" else images2.gpu()
+
+            output1, output2 = self.cmnp([images_device, images2_device])
+            output3 = self.cmnp([images_device])
+            output4 = self.cmnp([images2_device])
+            return (output1, output2, output3, output4)
 
         def iter_setup(self):
             pass
-    pipe = HybridPipe(batch_size=batch_size)
-    pipe.build()
-    for _ in range(10):
-        out1, out2 = pipe.run()
-        check_batch(out1.as_cpu(), out2.as_cpu(), batch_size)
+
+    for device in ["cpu", "gpu"]:
+        pipe = HybridPipe(batch_size=batch_size, device=device)
+        pipe.build()
+        for _ in range(5):
+            out1, out2, out3, out4 = pipe.run()
+            outs = [out.as_cpu() if device == 'gpu' else out for out in [out1, out2, out3, out4] ]
+            check_batch(outs[0], outs[1], batch_size)
+            check_batch(outs[0], outs[2], batch_size)
+            check_batch(outs[1], outs[3], batch_size)
 
 def test_seed():
     batch_size = 64
