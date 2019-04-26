@@ -537,13 +537,13 @@ committed.
 LICENSE
 
 Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met: 
+modification, are permitted provided that the following conditions are met:
 
 1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer. 
+   list of conditions and the following disclaimer.
 2. Redistributions in binary form must reproduce the above copyright notice,
    this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution. 
+   and/or other materials provided with the distribution.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -569,19 +569,19 @@ Copyright (c) 2016-present, Facebook Inc. All rights reserved.
 
 All contributions by Facebook:
 Copyright (c) 2016 Facebook Inc.
- 
+
 All contributions by Google:
 Copyright (c) 2015 Google Inc.
 All rights reserved.
- 
+
 All contributions by Yangqing Jia:
 Copyright (c) 2015 Yangqing Jia
 All rights reserved.
- 
+
 All contributions from Caffe:
 Copyright(c) 2013, 2014, 2015, the respective contributors
 All rights reserved.
- 
+
 All other contributions:
 Copyright(c) 2015, 2016 the respective contributors
 All rights reserved.
@@ -1261,24 +1261,24 @@ SOFTWARE LICENSE AGREEMENT
 
 This Software License Agreement, including exhibits attached ("Agreement”) is a
 legal agreement between you and NVIDIA Corporation ("NVIDIA") and governs your
-use of a NVIDIA software and materials provided hereunder (“SOFTWARE”). 
+use of a NVIDIA software and materials provided hereunder (“SOFTWARE”).
 
 This Agreement can be accepted only by an adult of legal age of majority in the
-country in which the SOFTWARE is used. 
+country in which the SOFTWARE is used.
 
 If you are entering into this Agreement on behalf of a company or other legal
 entity, you represent that you have the legal authority to bind the entity to
-this Agreement, in which case “you” will mean the entity you represent. 
+this Agreement, in which case “you” will mean the entity you represent.
 
 If you don’t have the required age or authority to accept this Agreement, or if
 you don’t accept all the terms and conditions of this Agreement, do not
-download, install, copy or use the SOFTWARE.  
+download, install, copy or use the SOFTWARE.
 
 You agree to use the SOFTWARE only for purposes that are permitted by (a) this
 Agreement, and (b) any applicable law, regulation or generally accepted
 practices or guidelines in the relevant jurisdictions.
 
-1. License. 
+1. License.
 
 1.1 Grant
 
@@ -1290,18 +1290,18 @@ install, use and make copies of the SOFTWARE for your use.
 
 You may allow employees and contractors of your entity or of your
 subsidiary(ies) to access and use the SOFTWARE from your secure network to
-perform work on your behalf. 
+perform work on your behalf.
 
 If you are an academic institution you may allow users enrolled or employed by
 the academic institution to access and use the SOFTWARE from your secure
-network. 
+network.
 
 You are responsible for the compliance with the terms of this Agreement by your
 authorized users. If you become aware that your authorized users didn’t follow
 the terms of this Agreement, you agree to take reasonable steps to resolve the
-non-compliance and prevent new occurrences. 
+non-compliance and prevent new occurrences.
 
-1.3 Pre-Release SOFTWARE 
+1.3 Pre-Release SOFTWARE
 
 The SOFTWARE versions identified as alpha, beta, preview or otherwise as
 pre-release, may not be fully functional, may contain errors or design flaws,
@@ -1309,15 +1309,15 @@ and may have reduced or different security, privacy, accessibility,
 availability, and reliability standards relative to commercial versions of
 NVIDIA software and materials. Use of a pre-release SOFTWARE may result in
 unexpected results, loss of data, project delays or other unpredictable damage
-or loss. 
+or loss.
 
 You may use a pre-release SOFTWARE at your own risk, understanding that
 pre-release SOFTWARE is not intended for use in production or business-critical
-systems. 
+systems.
 
 NVIDIA may choose not to make available a commercial version of any pre-release
 SOFTWARE. NVIDIA may also choose to abandon development and terminate the
-availability of a pre-release SOFTWARE at any time without liability. 
+availability of a pre-release SOFTWARE at any time without liability.
 
 1.4  Updates
 
@@ -1340,20 +1340,20 @@ by the copyright holders indicated in the third-party software or license.
 NVIDIA reserves all rights, title and interest in and to the SOFTWARE not
 expressly granted to you under this Agreement.
 
-2. Limitations. 
+2. Limitations.
 
 The following license limitations apply to your use of the SOFTWARE:
 
 2.1 You may not reverse engineer, decompile or disassemble, or remove copyright
 or other proprietary notices from any portion of the SOFTWARE or copies of the
-SOFTWARE. 
+SOFTWARE.
 
 2.2 Except as expressly provided in this Agreement, you may not copy, sell,
 rent, sublicense, transfer, distribute, modify, or create derivative works of
-any portion of the SOFTWARE. 
+any portion of the SOFTWARE.
 
 2.3 You may not bypass, disable, or circumvent any encryption, security,
-digital rights management or authentication mechanism in the SOFTWARE. 
+digital rights management or authentication mechanism in the SOFTWARE.
 
 2.4 You may not use the SOFTWARE in any manner that would cause it to become
 subject to an open source software license. As examples, licenses that require
@@ -1368,7 +1368,7 @@ personal injury, death, or catastrophic loss. Examples include use in nuclear,
 avionics, navigation, military, medical, life support or other life critical
 applications. NVIDIA does not design, test or manufacture the SOFTWARE for
 these critical uses and NVIDIA shall not be liable to you or any third party,
-in whole or in part, for any claims or damages arising from such uses. 
+in whole or in part, for any claims or damages arising from such uses.
 
 2.6 You agree to defend, indemnify and hold harmless NVIDIA and its affiliates,
 and their respective employees, contractors, agents, officers and directors,
@@ -1378,13 +1378,13 @@ attorney’s fees and costs incident to establishing the right of
 indemnification) arising out of or related to your use of the SOFTWARE outside
 of the scope of this Agreement, or not in compliance with its terms.
 
-3. Ownership. 
+3. Ownership.
 
 3.1 The SOFTWARE, modifications thereto, and the respective intellectual
 property rights therein are owned by NVIDIA or its licensors and are licensed
 to you as described in this Agreement. NVIDIA’s licensors are intended third
 party beneficiaries with the rights to enforce this Agreement with respect to
-their intellectual property rights. 
+their intellectual property rights.
 
 3.2  You may, but don’t have to, provide to NVIDIA suggestions, feature
 requests or other feedback regarding the SOFTWARE, including possible
@@ -1394,9 +1394,9 @@ non-exclusive, worldwide, irrevocable license to use, reproduce, modify,
 license, sublicense (through multiple tiers of sublicensees), and distribute
 (through multiple tiers of distributors) it without the payment of any
 royalties or fees to you. NVIDIA will decide if and how to respond to feedback
-and if to incorporate feedback into the SOFTWARE. 
+and if to incorporate feedback into the SOFTWARE.
 
-4.  No Warranties. 
+4.  No Warranties.
 
 THE SOFTWARE IS PROVIDED BY NVIDIA “AS IS” AND “WITH ALL FAULTS.” TO THE
 MAXIMUM EXTENT PERMITTED BY LAW, NVIDIA AND ITS AFFILIATES EXPRESSLY DISCLAIM
@@ -1404,9 +1404,9 @@ ALL WARRANTIES OF ANY KIND OR NATURE, WHETHER EXPRESS, IMPLIED OR STATUTORY,
 INCLUDING, BUT NOT LIMITED TO, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
 PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, OR THE ABSENCE OF ANY DEFECTS
 THEREIN, WHETHER LATENT OR PATENT. NO WARRANTY IS MADE ON THE BASIS OF TRADE
-USAGE, COURSE OF DEALING OR COURSE OF TRADE. 
+USAGE, COURSE OF DEALING OR COURSE OF TRADE.
 
-5.  Limitations of Liability. 
+5.  Limitations of Liability.
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, NVIDIA AND ITS AFFILIATES SHALL NOT BE
 LIABLE FOR ANY SPECIAL, INCIDENTAL, PUNITIVE OR CONSEQUENTIAL DAMAGES, OR ANY
@@ -1418,7 +1418,7 @@ ARISES FROM ANY CLAIM BASED UPON BREACH OF CONTRACT, BREACH OF WARRANTY, TORT
 THEORY OF LIABILITY. IN NO EVENT WILL NVIDIA’S AND ITS AFFILIATES TOTAL
 CUMULATIVE LIABILITY UNDER OR ARISING OUT OF THIS AGREEMENT EXCEED US$10.00.
 THE NATURE OF THE LIABILITY OR THE NUMBER OF CLAIMS OR SUITS SHALL NOT ENLARGE
-OR EXTEND THIS LIMIT. 
+OR EXTEND THIS LIMIT.
 
 These exclusions and limitations of liability shall apply regardless if NVIDIA
 or its affiliates have been advised of the possibility of such damages, and
@@ -1426,15 +1426,15 @@ regardless of whether a remedy fails its essential purpose. These exclusions
 and limitations of liability form an essential basis of the bargain between the
 parties, and, absent any of these exclusions or limitations of liability, the
 provisions of this Agreement, including, without limitation, the economic
-terms, would be substantially different. 
+terms, would be substantially different.
 
-6.   Termination. 
+6.   Termination.
 
 6.1 This Agreement will continue to apply until terminated by either you or
-NVIDIA as described below. 
+NVIDIA as described below.
 
 6.2 If you want to terminate this Agreement, you may do so by stopping to use
-the SOFTWARE. 
+the SOFTWARE.
 
 6.3 NVIDIA may, at any time, terminate this Agreement if: (i) you fail to
 comply with any term of this Agreement and the non-compliance is not fixed
@@ -1444,22 +1444,22 @@ participate in any legal proceeding against NVIDIA with respect to the
 SOFTWARE; or (iii) NVIDIA decides to no longer provide the SOFTWARE or certain
 parts of the SOFTWARE to users in a country, or the provision of the SOFTWARE
 or to you by NVIDIA is, in NVIDIA’s sole discretion, no longer commercially
-viable. 
+viable.
 
 6.4 Upon any termination of this Agreement, you agree to promptly discontinue
 use of the SOFTWARE and destroy all copies in your possession or control. Upon
 written request, you will certify in writing that you have complied with your
 commitments under this section. Upon any termination of this Agreement all
-provisions survive except for the license grant provisions. 
+provisions survive except for the license grant provisions.
 
-7.  General.  
- 
+7.  General.
+
 If you wish to assign this Agreement or your rights and obligations, including
 by merger, consolidation, dissolution or operation of law, contact NVIDIA to
 ask for permission. Any attempted assignment not approved by NVIDIA in writing
 shall be void and of no effect. NVIDIA may assign, delegate or transfer this
 Agreement and its rights and obligations, and if to a non-affiliate you will be
-notified. 
+notified.
 
 You agree to cooperate with NVIDIA and provide reasonably requested information
 to verify your compliance with this Agreement.
@@ -1475,7 +1475,7 @@ The state or federal courts residing in Santa Clara County, California shall
 have exclusive jurisdiction over any dispute or claim arising out of this
 Agreement. Notwithstanding this, you agree that NVIDIA shall still be allowed
 to apply for injunctive remedies or an equivalent type of urgent legal relief
-in any jurisdiction. 
+in any jurisdiction.
 
 If any court of competent jurisdiction determines that any provision of this
 Agreement is illegal, invalid or unenforceable, such provision will be
@@ -1484,11 +1484,11 @@ enforceable under the law and the remaining provisions will remain in full
 force and effect. Unless otherwise specified, remedies are cumulative.
 
 Each party acknowledges and agrees that the other is an independent contractor
-in the performance of this Agreement. 
+in the performance of this Agreement.
 
 Neither party will be responsible for any failure or delay in its performance
 under this Agreement to the extent due to causes beyond its reasonable control
-for so long as the cause or event continues in effect. 
+for so long as the cause or event continues in effect.
 
 The SOFTWARE has been developed entirely at private expense and is “commercial
 items” consisting of “commercial computer software” and “commercial computer
@@ -1885,8 +1885,8 @@ MLPerf Reference Implementations Preliminary release (v0.5)
 
 ========================
 RapidJSON
-Tencent is pleased to support the open source community by making RapidJSON available. 
- 
+Tencent is pleased to support the open source community by making RapidJSON available.
+
 Copyright (C) 2015 THL A29 Limited, a Tencent company, and Milo Yip.  All rights reserved.
 
 If you have downloaded a copy of the RapidJSON binary from Tencent, please note that the RapidJSON binary is licensed under the MIT License.
@@ -1898,13 +1898,13 @@ Other dependencies and licenses:
 Open Source Software Licensed Under the BSD License:
 --------------------------------------------------------------------
 
-The msinttypes r29 
-Copyright (c) 2006-2013 Alexander Chemeris 
+The msinttypes r29
+Copyright (c) 2006-2013 Alexander Chemeris
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
-* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer. 
+* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
 * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
 * Neither the name of  copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
@@ -1913,7 +1913,7 @@ THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND ANY EXPR
 Open Source Software Licensed Under the JSON License:
 --------------------------------------------------------------------
 
-json.org 
+json.org
 Copyright (c) 2002 JSON.org
 All Rights Reserved.
 
@@ -2013,3 +2013,30 @@ https://github.com/tomrunia/OpticalFlow_Visualization
 #
 # Author: Tom Runia
 # Date Created: 2018-08-03
+
+========================
+Boost preprocessor
+
+Boost Software License - Version 1.0 - August 17th, 2003
+
+Permission is hereby granted, free of charge, to any person or organization
+obtaining a copy of the software and accompanying documentation covered by
+this license (the "Software") to use, reproduce, display, distribute,
+execute, and transmit the Software, and to prepare derivative works of the
+Software, and to permit third-parties to whom the Software is furnished to
+do so, all subject to the following:
+
+The copyright notices in the Software and this entire statement, including
+the above license grant, this restriction and the following disclaimer,
+must be included in all copies of the Software, in whole or in part, and
+all derivative works of the Software, unless such copies or derivative
+works are solely in the form of machine-executable object code generated by
+a source language processor.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
+SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
+FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
