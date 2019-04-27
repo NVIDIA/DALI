@@ -325,6 +325,8 @@ class DLL_PUBLIC Pipeline {
             bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
             bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
             QueueSizes prefetch_queue_depth = QueueSizes{2}) {
+    // guard cudaDeviceGetStreamPriorityRange call
+    DeviceGuard g(device_id);
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
