@@ -741,9 +741,9 @@ void calculate_pointers(std::vector<T*> &pointers, T *base,
 ///        are described by tls. Offsets are calculated as number of elements of each tensor.
 template <int sample_ndim, typename T>
 std::vector<T *> calculate_pointers(T *base, const TensorListShape<sample_ndim> &tls) {
-  std::vector<T *> offsets;
-  calculate_pointers(offsets, base, tls);
-  return offsets;
+  std::vector<T *> pointers;
+  calculate_pointers(pointers, base, tls);
+  return pointers;
 }
 
 /// @brief Checks if all TensorShapes stored in `tls` have the same sizes

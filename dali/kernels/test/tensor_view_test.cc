@@ -21,15 +21,6 @@
 namespace dali {
 namespace kernels {
 
-TEST(ShapeDimTest, Value) {
-  int x1[] = {1, 2, 3};
-  EXPECT_EQ(ShapeDim(x1), 3);
-  std::array<int, 5> x2;
-  EXPECT_EQ(ShapeDim(x2), 5);
-  std::vector<int> x3 = {1, 2, 3, 4};
-  EXPECT_EQ(ShapeDim(x3), 4);
-}
-
 TEST(CompileTimeSize, DimInference) {
   std::array<int, 3> a;
   const auto *pa = &a;

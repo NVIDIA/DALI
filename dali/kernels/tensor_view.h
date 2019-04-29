@@ -36,25 +36,10 @@ struct check_implicit_conversion {
 
 }  // namespace detail
 
-template <typename T>
-constexpr typename std::enable_if<std::is_fundamental<T>::value, size_t>::type ShapeDim(const T &) {
-  return 1;
-}
-
-template <typename T, size_t N>
-constexpr int ShapeDim(T (&)[N]) {
-  return static_cast<int>(N);
-}
-
-template <typename T>
-constexpr int ShapeDim(const T &t) {
-  return static_cast<int>(t.size());
-}
-
 template <typename Shape, typename Position>
 bool ContainsCoords(const Shape &shape, const Position &pos) {
-  const int shape_dim = ShapeDim(shape);
-  const int pos_dim = ShapeDim(pos);
+  const int shape_dim = size(shape);
+  const int pos_dim = size(pos);
   if (pos_dim > shape_dim) {
     return false;
   }
@@ -72,7 +57,7 @@ template <typename Shape, typename Position>
 if_array_like<Position, ptrdiff_t> CalcOffset(const Shape &shape, const Position &pos) {
   ptrdiff_t ofs = pos[0];
   const int pos_dim = size(pos);
-  const int shape_dim = ShapeDim(shape);
+  const int shape_dim = size(shape);
   int i;
   for (i = 1; i < pos_dim; i++) {
     ofs *= shape[i];
@@ -88,7 +73,7 @@ if_array_like<Position, ptrdiff_t> CalcOffset(const Shape &shape, const Position
 template <typename Shape>
 ptrdiff_t CalcOffset(const Shape &shape, const ptrdiff_t &index) {
   ptrdiff_t ofs = index;
-  const int shape_dim = ShapeDim(shape);
+  const int shape_dim = size(shape);
   for (int i = 1; i < shape_dim; i++) {
     ofs *= shape[i];
   }
@@ -343,7 +328,7 @@ struct TensorListViewBase {
   /// The shape is copied from `shape` parameter and the `data`
   /// vector is resized to num_samples and filled with null pointers.
   TensorListViewBase(const TensorListShape<sample_ndim> &shape)  // NOLINT
-      : shape(std::move(shape))
+      : shape(shape)
       , data(this->num_samples(), nullptr) {}
 
   /// @brief Constructs a tensor list without specific memory
@@ -355,7 +340,7 @@ struct TensorListViewBase {
       , data(this->num_samples(), nullptr) {}
 
   /// @brief Constructs a tensor list from non-contiguous memory
-  TensorListViewBase(data_pointers_t data, const TensorListShape<sample_ndim> &shape)
+  TensorListViewBase(const data_pointers_t &data, const TensorListShape<sample_ndim> &shape)
       : shape(shape)
       , data(std::move(data)) {}
   /// @brief Constructs a tensor list from non-contiguous memory
@@ -368,13 +353,17 @@ struct TensorListViewBase {
   template <typename U>
   TensorListViewBase(const std::vector<U*> &data, const TensorListShape<sample_ndim> &shape)
       : shape(shape)
-      , data(reinterpret_cast<const data_pointers_t&>(data)) {}
+      , data(reinterpret_cast<const data_pointers_t&>(data)) {
+    detail::check_implicit_conversion<U, DataType>();
+  }
 
   /// @brief Constructs a tensor list from non-contiguous memory
   template <typename U>
   TensorListViewBase(std::vector<U*> &&data, TensorListShape<sample_ndim> &&shape)
       : shape(std::move(shape))
-      , data(std::move(reinterpret_cast<data_pointers_t&>(data))) {}
+      , data(std::move(reinterpret_cast<data_pointers_t&>(data))) {
+    detail::check_implicit_conversion<U, DataType>();
+  }
 
   /// @brief Constructs a tensor list from non-contiguous memory
   TensorListViewBase(DataType **data, const TensorListShape<sample_ndim> &shape)
@@ -440,7 +429,7 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
 
   template <int other_sample_ndim, typename U>
   TensorListView(const TensorListView<Backend, U, other_sample_ndim> &other)
-      : Base(std::move(other.data), other.shape) {
+      : Base(other.data, other.shape) {
     detail::check_implicit_conversion<U, DataType>();
   }
 
