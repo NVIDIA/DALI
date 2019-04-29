@@ -16,8 +16,8 @@
 #define DALI_KERNELS_IMGPROC_RESAMPLE_RESAMPLING_IMPL_CUH_
 
 #include <cuda_runtime.h>
-#include "dali/kernels/static_switch.h"
-#include "dali/kernels/common/convert.h"
+#include "dali/core/static_switch.h"
+#include "dali/core/convert.h"
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 
 namespace dali {

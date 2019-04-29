@@ -25,7 +25,7 @@ limitations under the License.
 
 #include <functional>
 #include <string>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/image/jpeg_utils.h"
 
 namespace dali {

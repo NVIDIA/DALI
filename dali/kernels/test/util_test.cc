@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <list>
-#include "dali/kernels/util.h"
+#include "dali/core/util.h"
 #include "dali/kernels/tensor_shape.h"
 
 namespace dali {

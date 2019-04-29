@@ -20,7 +20,7 @@
 
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/common.h"
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 // Found by benchmarking coalesced vs non coalesced on diff size images
 #define COALESCE_TRESHOLD 8192

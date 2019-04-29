@@ -16,7 +16,7 @@
 #define DALI_PLUGIN_PLUGIN_MANAGER_H_
 
 #include <string>
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

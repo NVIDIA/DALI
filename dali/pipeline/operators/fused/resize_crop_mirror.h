@@ -19,7 +19,7 @@
 #include <vector>
 #include <utility>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/image/transform.h"
 #include "dali/pipeline/operators/operator.h"

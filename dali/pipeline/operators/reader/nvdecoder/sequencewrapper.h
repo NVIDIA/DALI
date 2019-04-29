@@ -19,7 +19,7 @@
 #include <mutex>
 #include <thread>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/argument.h"
 #include "dali/pipeline/data/tensor.h"

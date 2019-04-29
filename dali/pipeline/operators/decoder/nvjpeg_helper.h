@@ -19,7 +19,7 @@
 
 #include <string>
 #include <memory>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/util/crop_window.h"
 #include "dali/kernels/backend_tags.h"

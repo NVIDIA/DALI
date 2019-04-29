@@ -26,8 +26,8 @@
 #include "dali/pipeline/workspace/mixed_workspace.h"
 #include "dali/pipeline/workspace/support_workspace.h"
 
-#include "dali/kernels/static_switch.h"
-#include "dali/kernels/tuple_helpers.h"
+#include "dali/core/static_switch.h"
+#include "dali/core/tuple_helpers.h"
 #include "dali/pipeline/util/op_type_to_workspace.h"
 
 namespace dali {

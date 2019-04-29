@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_COMMON_H_
-#define DALI_COMMON_H_
+#ifndef DALI_CORE_COMMON_H_
+#define DALI_CORE_COMMON_H_
 
 #ifdef DALI_USE_NVTX
 #include "nvToolsExt.h"
@@ -27,13 +27,13 @@
 #include <type_traits>
 #include <vector>
 
-#include "dali/api_helper.h"
+#include "dali/core/api_helper.h"
 
 namespace dali {
 
 // pi
 #ifndef M_PI
-const float M_PI = 3.14159265358979323846;
+#define M_PI 3.14159265358979323846
 #endif
 
 // Using declaration for common types
@@ -289,22 +289,8 @@ std::string to_string(const std::vector<T>& v) {
   return ret;
 }
 
-template <typename T>
-struct is_vector : std::false_type {};
-
-template <typename T, typename A>
-struct is_vector<std::vector<T, A> > : std::true_type {};
-
-template <typename T>
-struct is_std_array : std::false_type {};
-
-template <typename T, size_t A>
-struct is_std_array<std::array<T, A> > : std::true_type {};
-
 std::vector<std::string> string_split(const std::string &s, const char delim);
 
-template <bool Value, typename Type = void>
-using enable_if_t = typename std::enable_if<Value, Type>::type;
 
 }  // namespace dali
 
@@ -316,4 +302,4 @@ using enable_if_t = typename std::enable_if<Value, Type>::type;
   if (1) \
   std::cerr << __FILE__ << ":" << __LINE__ << ": "
 
-#endif  // DALI_COMMON_H_
+#endif  // DALI_CORE_COMMON_H_

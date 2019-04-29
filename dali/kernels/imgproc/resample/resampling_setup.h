@@ -20,7 +20,7 @@
 #include <vector>
 #include "dali/kernels/imgproc/resample/params.h"
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
-#include "dali/kernels/dev_array.h"
+#include "dali/core/dev_array.h"
 
 namespace dali {
 namespace kernels {

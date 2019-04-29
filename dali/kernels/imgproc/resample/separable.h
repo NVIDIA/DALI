@@ -17,7 +17,7 @@
 
 #include <cuda_runtime.h>
 #include <memory>
-#include "dali/kernels/span.h"
+#include "dali/core/span.h"
 #include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {

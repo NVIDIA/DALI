@@ -17,7 +17,7 @@
 
 #include <string>
 #include <vector>
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali_proto {
 class Argument;

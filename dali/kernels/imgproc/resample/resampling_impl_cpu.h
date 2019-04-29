@@ -17,8 +17,8 @@
 
 #include <cassert>
 #include <type_traits>
-#include "dali/kernels/static_switch.h"
-#include "dali/kernels/common/convert.h"
+#include "dali/core/static_switch.h"
+#include "dali/core/convert.h"
 #include "dali/kernels/imgproc/surface.h"
 
 namespace dali {

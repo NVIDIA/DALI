@@ -21,8 +21,8 @@
 #include <iostream>
 #include <utility>
 #include <vector>
-#include "dali/kernels/span.h"
-#include "dali/kernels/util.h"
+#include "dali/core/span.h"
+#include "dali/core/util.h"
 
 namespace dali {
 namespace kernels {

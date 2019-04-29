@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/crop/crop.h"

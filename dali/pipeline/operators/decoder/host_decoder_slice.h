@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_SLICE_H_
 
 #include <vector>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/decoder/host_decoder.h"
 #include "dali/pipeline/operators/crop/slice_attr.h"
 

@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/data/tensor.h"

@@ -17,7 +17,7 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

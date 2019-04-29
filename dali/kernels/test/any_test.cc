@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/kernels/any.h"
+#include "dali/core/any.h"
 
 namespace dali {
 

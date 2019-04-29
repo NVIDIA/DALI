@@ -17,7 +17,7 @@
 
 #include <cuda_runtime_api.h>
 #include <inttypes.h>
-#include "dali/api_helper.h"
+#include "dali/core/api_helper.h"
 
 // Trick to bypass gcc4.9 old ABI name mangling used by TF
 extern "C" {

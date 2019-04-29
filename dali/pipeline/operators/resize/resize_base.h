@@ -18,7 +18,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/kernel.h"

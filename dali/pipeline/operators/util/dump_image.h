@@ -17,7 +17,7 @@
 
 #include <string>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
 

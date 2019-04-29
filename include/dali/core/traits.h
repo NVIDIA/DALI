@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_TYPE_CONVERSION_H_
-#define DALI_UTIL_TYPE_CONVERSION_H_
-
-#include "dali/core/common.h"
+#include <type_traits>
+#include <array>
+#include <vector>
 
 namespace dali {
 
-// Type conversions for data on GPU. All conversions
-// run in the default stream
-template <typename IN, typename OUT>
-DLL_PUBLIC void Convert(const IN *data, int n, OUT *out);
+template <typename T>
+struct is_vector : std::false_type {};
+
+template <typename T, typename A>
+struct is_vector<std::vector<T, A> > : std::true_type {};
+
+template <typename T>
+struct is_std_array : std::false_type {};
+
+template <typename T, size_t A>
+struct is_std_array<std::array<T, A> > : std::true_type {};
+
+
+template <bool Value, typename Type = void>
+using enable_if_t = typename std::enable_if<Value, Type>::type;
 
 }  // namespace dali
-
-#endif  // DALI_UTIL_TYPE_CONVERSION_H_

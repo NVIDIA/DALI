@@ -18,7 +18,7 @@
 #include <lmdb.h>
 #include <string>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/reader/loader/loader.h"
 
 namespace dali {

@@ -23,10 +23,10 @@
 #include <type_traits>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/kernels/util.h"
+#include "dali/core/util.h"
 
 namespace dali {
 

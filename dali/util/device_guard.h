@@ -15,7 +15,7 @@
 #ifndef DALI_UTIL_DEVICE_GUARD_H_
 #define DALI_UTIL_DEVICE_GUARD_H_
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 
 namespace dali {

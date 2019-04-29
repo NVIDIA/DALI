@@ -19,8 +19,8 @@
 #include <tuple>
 #include <type_traits>
 #include "dali/kernels/kernel_params.h"
-#include "dali/kernels/util.h"
-#include "dali/kernels/tuple_helpers.h"
+#include "dali/core/util.h"
+#include "dali/core/tuple_helpers.h"
 #include "dali/kernels/kernel_req.h"
 
 namespace dali {

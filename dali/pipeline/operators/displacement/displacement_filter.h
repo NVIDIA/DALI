@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_H_
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_H_
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/operator.h"
 
 /**
