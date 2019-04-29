@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SPAN_H_
-#define DALI_KERNELS_SPAN_H_
+#ifndef DALI_CORE_SPAN_H_
+#define DALI_CORE_SPAN_H_
 
 #if defined(__host__) || defined(__CUDACC__)
 #define DALI_HOST_DEVICE __host__ __device__
@@ -205,4 +205,4 @@ DALI_HOST_DEVICE constexpr span<const T, N> make_span(T (&a)[N]) {
 
 #undef DALI_HOST_DEVICE
 
-#endif  // DALI_KERNELS_SPAN_H_
+#endif  // DALI_CORE_SPAN_H_

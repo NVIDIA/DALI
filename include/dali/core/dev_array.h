@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_DEV_ARRAY_H_
-#define DALI_KERNELS_DEV_ARRAY_H_
+#ifndef DALI_CORE_DEV_ARRAY_H_
+#define DALI_CORE_DEV_ARRAY_H_
 
 #include <cuda_runtime.h>
 #include <array>
 
 namespace dali {
-namespace kernels {
 
 template <typename T, size_t N>
 class DeviceArray {
@@ -69,7 +68,6 @@ class DeviceArray {
   T data_[N];
 };
 
-}  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_DEV_ARRAY_H_
+#endif  // DALI_CORE_DEV_ARRAY_H_

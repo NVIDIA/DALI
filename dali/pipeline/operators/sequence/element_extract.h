@@ -17,7 +17,7 @@
 #define DALI_PIPELINE_OPERATORS_SEQUENCE_ELEMENT_EXTRACT_H_
 
 #include <vector>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {

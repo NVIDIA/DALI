@@ -22,8 +22,8 @@
 #include "dali/kernels/kernel_params.h"
 #include "dali/kernels/kernel_req.h"
 #include "dali/kernels/kernel_traits.h"
-#include "dali/kernels/tuple_helpers.h"
-#include "dali/kernels/util.h"
+#include "dali/core/tuple_helpers.h"
+#include "dali/core/util.h"
 
 namespace dali {
 

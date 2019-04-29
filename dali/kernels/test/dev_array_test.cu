@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <array>
-#include "dali/kernels/dev_array.h"
+#include "dali/core/dev_array.h"
 
 namespace dali {
 namespace kernels {

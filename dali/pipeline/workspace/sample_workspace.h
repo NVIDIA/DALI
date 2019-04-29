@@ -21,7 +21,7 @@
 #include <vector>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/data/tensor.h"

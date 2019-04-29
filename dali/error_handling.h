@@ -30,7 +30,7 @@
 #include <algorithm>
 #include <iostream>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

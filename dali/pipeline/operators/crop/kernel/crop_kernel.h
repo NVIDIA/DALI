@@ -18,7 +18,7 @@
 #include <tuple>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/crop/kernel/coords.h"
 #include "dali/pipeline/operators/crop/kernel/sequence.h"
 

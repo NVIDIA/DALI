@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_
 #define DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"

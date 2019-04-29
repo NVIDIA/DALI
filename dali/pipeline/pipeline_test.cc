@@ -17,7 +17,7 @@
 #include <cuda_runtime_api.h>
 #include <gtest/gtest.h>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor.h"

@@ -13,13 +13,12 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/kernels/common/convert.h"
-#include "dali/kernels/common/convert_test_static.h"
+#include "dali/core/convert.h"
+#include "dali/core/convert_test_static.h"
 
 namespace dali {
-namespace kernels {
 
-TEST(ConvertNormCUDA, float2int) {
+TEST(ConvertNorm, float2int) {
   EXPECT_EQ(ConvertNorm<uint8_t>(0.0f), 0);
   EXPECT_EQ(ConvertNorm<uint8_t>(0.499f), 127);
   EXPECT_EQ(ConvertNorm<uint8_t>(1.0f), 255);
@@ -34,7 +33,7 @@ TEST(ConvertNormCUDA, float2int) {
   EXPECT_EQ(ConvertNorm<int16_t>(-1.0f), -0x7fff);
 }
 
-TEST(ConvertSatNormCUDA, float2int) {
+TEST(ConvertSatNorm, float2int) {
   EXPECT_EQ(ConvertSatNorm<uint8_t>(2.0f), 255);
   EXPECT_EQ(ConvertSatNorm<uint8_t>(0.499f), 127);
   EXPECT_EQ(ConvertSatNorm<uint8_t>(-2.0f), 0);
@@ -46,12 +45,11 @@ TEST(ConvertSatNormCUDA, float2int) {
   EXPECT_EQ(ConvertSatNorm<int16_t>(-2.0f), -0x8000);
 }
 
-TEST(ConvertNormCUDA, int2float) {
+TEST(ConvertNorm, int2float) {
   EXPECT_EQ((ConvertNorm<float, uint8_t>(255)), 1.0f);
   EXPECT_NEAR((ConvertNorm<float, uint8_t>(127)), 1.0f*127/255, 1e-7f);
   EXPECT_EQ((ConvertNorm<float, int8_t>(127)), 1.0f);
   EXPECT_NEAR((ConvertNorm<float, int8_t>(64)), 1.0f*64/127, 1e-7f);
 }
 
-}  // namespace kernels
 }  // namespace dali

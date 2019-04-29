@@ -17,7 +17,7 @@
 
 #include <string>
 #include <utility>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/data/tensor.h"
 

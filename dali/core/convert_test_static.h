@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_COMMON_CONVERT_TEST_STATIC_H_
-#define DALI_KERNELS_COMMON_CONVERT_TEST_STATIC_H_
+#ifndef DALI_CORE_CONVERT_TEST_STATIC_H_
+#define DALI_CORE_CONVERT_TEST_STATIC_H_
 
-#include "dali/kernels/common/convert.h"
+#include "dali/core/convert.h"
 
 namespace dali {
 namespace kernels {
@@ -140,4 +140,4 @@ static_assert(clamp<uint64_t>(-1.0e+200) == 0, "Unexpected clamp result");
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_COMMON_CONVERT_TEST_STATIC_H_
+#endif  // DALI_CORE_CONVERT_TEST_STATIC_H_

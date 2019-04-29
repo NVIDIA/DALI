@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_UTIL_H_
-#define DALI_KERNELS_UTIL_H_
+#ifndef DALI_CORE_UTIL_H_
+#define DALI_CORE_UTIL_H_
 
 #include <cstddef>
 #include <utility>
@@ -237,4 +237,4 @@ static_assert(!all_of<true, false, true>::value,
 
 }  // namespace dali
 
-#endif  // DALI_KERNELS_UTIL_H_
+#endif  // DALI_CORE_UTIL_H_

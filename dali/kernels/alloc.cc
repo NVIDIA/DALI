@@ -15,8 +15,8 @@
 #include <cuda_runtime.h>
 #include <cassert>
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/static_switch.h"
-#include "dali/kernels/gpu_utils.h"
+#include "dali/core/static_switch.h"
+#include "dali/core/gpu_utils.h"
 
 namespace dali {
 namespace kernels {

@@ -19,7 +19,7 @@
 #include <memory>
 #include <vector>
 
-#include "dali/kernels/util.h"
+#include "dali/core/util.h"
 #include "dali/pipeline/operators/op_spec.h"
 
 namespace dali {

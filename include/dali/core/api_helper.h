@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_API_HELPER_H_
-#define DALI_API_HELPER_H_
+#ifndef DALI_CORE_API_HELPER_H_
+#define DALI_CORE_API_HELPER_H_
 
 #if defined _WIN32 || defined __CYGWIN__
   #ifdef BUILDING_DLL
@@ -42,4 +42,4 @@
   #endif
 #endif
 
-#endif  // DALI_API_HELPER_H_
+#endif  // DALI_CORE_API_HELPER_H_

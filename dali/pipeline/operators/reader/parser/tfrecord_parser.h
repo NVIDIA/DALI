@@ -21,7 +21,7 @@
 #include <string>
 #include <exception>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/argument.h"
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/operators/reader/parser/parser.h"

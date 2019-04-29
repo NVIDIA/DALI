@@ -13,7 +13,7 @@
 // limitations under the License.
 
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/displacement/water.h"
 #include "dali/pipeline/operators/displacement/displacement_filter_impl_cpu.h"
 

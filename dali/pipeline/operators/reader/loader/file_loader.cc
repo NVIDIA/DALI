@@ -16,7 +16,7 @@
 #include <errno.h>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/image/image.h"
 #include "dali/pipeline/operators/reader/loader/file_loader.h"
 #include "dali/util/file.h"

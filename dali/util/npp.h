@@ -18,7 +18,7 @@
 #include <npp.h>
 
 #include "dali/error_handling.h"
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_TUPLE_HELPERS_H_
-#define DALI_KERNELS_TUPLE_HELPERS_H_
+#ifndef DALI_CORE_TUPLE_HELPERS_H_
+#define DALI_CORE_TUPLE_HELPERS_H_
 
 #include <tuple>
 #include <utility>
@@ -235,4 +235,4 @@ using detail::apply_all;
 
 }  // namespace dali
 
-#endif  // DALI_KERNELS_TUPLE_HELPERS_H_
+#endif  // DALI_CORE_TUPLE_HELPERS_H_

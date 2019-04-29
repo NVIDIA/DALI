@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_RANDOM_CROP_H_
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/decoder/host_decoder.h"
 #include "dali/pipeline/operators/crop/random_crop_attr.h"
 

@@ -31,7 +31,7 @@
 #endif
 
 #include "dali/c_api/c_api.h"
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 

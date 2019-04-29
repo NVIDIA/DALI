@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_EXECUTOR_QUEUE_METADATA_H_
 #define DALI_PIPELINE_EXECUTOR_QUEUE_METADATA_H_
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 
