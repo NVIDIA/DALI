@@ -1,8 +1,9 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
-get_filename_component(CMAKE_PROJECT_DIR "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
-set(LINT_COMMAND python ${CMAKE_PROJECT_DIR}/third_party/cpplint.py)
-set(DALI_SRC_DIR "${CMAKE_PROJECT_DIR}/dali")
-set(DALI_INC_DIR "${CMAKE_PROJECT_DIR}/include")
+# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Get the project dir - not set for this target
+get_filename_component(PROJECT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+set(LINT_COMMAND python ${PROJECT_SOURCE_DIR}/third_party/cpplint.py)
+set(DALI_SRC_DIR "${PROJECT_SOURCE_DIR}/dali")
+set(DALI_INC_DIR "${PROJECT_SOURCE_DIR}/include")
 file(GLOB_RECURSE LINT_SRC "${DALI_SRC_DIR}/*.cc" "${DALI_SRC_DIR}/*.h" "${DALI_SRC_DIR}/*.cu" "${DALI_SRC_DIR}/*.cuh")
 file(GLOB_RECURSE LINT_INC "${DALI_INC_DIR}/*.h" "${DALI_INC_DIR}/*.cuh" "${DALI_INC_DIR}/*.inc" "${DALI_SRC_DIR}/*.inl")
 
@@ -80,7 +81,7 @@ list(REMOVE_ITEM LINT_SRC
 
 execute_process(
   COMMAND ${LINT_COMMAND} --linelength=100 --root=include ${LINT_INC}
-  WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   RESULT_VARIABLE LINT_RESULT
   ERROR_VARIABLE LINT_ERROR
   OUTPUT_QUIET
@@ -88,7 +89,7 @@ execute_process(
 
 execute_process(
   COMMAND ${LINT_COMMAND} --linelength=100 ${LINT_SRC}
-  WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   RESULT_VARIABLE LINT_RESULT
   ERROR_VARIABLE LINT_ERROR
   OUTPUT_QUIET

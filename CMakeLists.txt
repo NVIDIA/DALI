@@ -30,7 +30,7 @@ option(WERROR "Threat all warnings as errors" OFF)
 
 include(cmake/Utils.cmake)
 
-get_dali_version(${CMAKE_PROJECT_DIR}/VERSION DALI_VERSION)
+get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 
 # Default to release build
 if (NOT CMAKE_BUILD_TYPE)
