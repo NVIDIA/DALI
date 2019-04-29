@@ -151,7 +151,7 @@ Prerequisites
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg
 .. |protobuf link| replace:: **protobuf**
 .. _protobuf link: https://github.com/google/protobuf
-.. |cmake link| replace:: **CMake 3.5**
+.. |cmake link| replace:: **CMake 3.11**
 .. _cmake link: https://cmake.org
 .. |jpegturbo link| replace:: **libjpeg-turbo 1.5.x**
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
