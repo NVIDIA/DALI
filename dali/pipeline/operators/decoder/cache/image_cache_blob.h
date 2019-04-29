@@ -18,7 +18,7 @@
 #include <fstream>
 #include <mutex>
 #include <unordered_map>
-#include "dali/kernels/span.h"
+#include "dali/core/span.h"
 #include "dali/error_handling.h"
 #include "dali/kernels/alloc.h"
 #include "dali/pipeline/operators/decoder/cache/image_cache.h"

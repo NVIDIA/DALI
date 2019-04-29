@@ -16,7 +16,7 @@
 #define DALI_UTIL_CUSTREAM_H_
 
 #include <driver_types.h>
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

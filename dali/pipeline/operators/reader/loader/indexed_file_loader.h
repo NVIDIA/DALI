@@ -21,7 +21,7 @@
 #include <fstream>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/reader/loader/loader.h"
 #include "dali/util/file.h"
 

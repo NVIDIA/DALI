@@ -27,7 +27,7 @@
 #include <typeinfo>
 #include <unordered_map>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/util/cuda_utils.h"
 #include "dali/error_handling.h"
 

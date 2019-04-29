@@ -22,7 +22,7 @@
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/kernels/imgproc/resample/resampling_windows.h"
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/span.h"
+#include "dali/core/span.h"
 
 namespace dali {
 namespace kernels {

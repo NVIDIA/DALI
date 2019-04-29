@@ -22,13 +22,13 @@
 #include <utility>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/meta.h"
-#include "dali/kernels/util.h"
+#include "dali/core/util.h"
 
 namespace dali {
 

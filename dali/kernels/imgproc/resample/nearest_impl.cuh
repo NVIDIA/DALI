@@ -19,7 +19,7 @@
 #ifndef __CUDACC__
 #include <algorithm>
 #endif
-#include "dali/kernels/common/convert.h"
+#include "dali/core/convert.h"
 
 namespace dali {
 namespace kernels {

@@ -17,7 +17,7 @@
 
 #include <cuda_runtime.h>
 #include <string>
-#include "dali/api_helper.h"
+#include "dali/core/api_helper.h"
 #include "dali/kernels/tensor_shape.h"
 #include "dali/kernels/tensor_view.h"
 

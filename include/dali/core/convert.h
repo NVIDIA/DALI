@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_COMMON_CONVERT_H_
-#define DALI_KERNELS_COMMON_CONVERT_H_
+#ifndef DALI_CORE_CONVERT_H_
+#define DALI_CORE_CONVERT_H_
 
 #include <cuda_runtime.h>
 #include <cstdint>
@@ -21,7 +21,6 @@
 #include <type_traits>
 
 namespace dali {
-namespace kernels {
 
 template <typename T>
 struct const_limits;
@@ -179,8 +178,7 @@ ConvertNorm(In value) {
   return ConvertSatNorm<Out>(value);
 }
 
-}  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_COMMON_CONVERT_H_
+#endif  // DALI_CORE_CONVERT_H_
 

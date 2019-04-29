@@ -19,8 +19,8 @@
 #ifndef __CUDACC__
 #include <algorithm>
 #endif
-#include "dali/kernels/static_switch.h"
-#include "dali/kernels/common/convert.h"
+#include "dali/core/static_switch.h"
+#include "dali/core/convert.h"
 
 namespace dali {
 namespace kernels {

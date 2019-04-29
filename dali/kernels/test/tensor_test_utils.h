@@ -23,7 +23,7 @@
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/tensor_shape_print.h"
 #include "dali/kernels/backend_tags.h"
-#include "dali/kernels/util.h"
+#include "dali/core/util.h"
 
 namespace dali {
 namespace kernels {

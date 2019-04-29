@@ -21,7 +21,7 @@
 #include <utility>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/proto/dali_proto_utils.h"

@@ -30,7 +30,7 @@ option(WERROR "Threat all warnings as errors" OFF)
 
 include(cmake/Utils.cmake)
 
-get_dali_version(${CMAKE_SOURCE_DIR}/VERSION DALI_VERSION)
+get_dali_version(${CMAKE_PROJECT_DIR}/VERSION DALI_VERSION)
 
 # Default to release build
 if (NOT CMAKE_BUILD_TYPE)
@@ -106,10 +106,14 @@ message(STATUS "Generated gencode flags: ${CUDA_gencode_flags}")
 # Add ptx & bin flags for cuda
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_gencode_flags}")
 
-# Project dir
-include_directories(BEFORE ${PROJECT_SOURCE_DIR})
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
-cuda_include_directories(${PROJECT_SOURCE_DIR})
+# Include directories
+include_directories(BEFORE
+  "${PROJECT_SOURCE_DIR}"
+  "${PROJECT_SOURCE_DIR}/include"
+  "${PROJECT_BINARY_DIR}")
+cuda_include_directories(
+  "${PROJECT_SOURCE_DIR}"
+  "${PROJECT_SOURCE_DIR}/include")
 
 # Project build
 add_subdirectory(dali)

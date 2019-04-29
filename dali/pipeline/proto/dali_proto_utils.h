@@ -17,7 +17,7 @@
 
 #include <string>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/proto/dali_proto_intern.h"
 
 namespace dali {

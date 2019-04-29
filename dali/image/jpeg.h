@@ -18,7 +18,7 @@
 #include <utility>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/image/generic_image.h"
 
 namespace dali {

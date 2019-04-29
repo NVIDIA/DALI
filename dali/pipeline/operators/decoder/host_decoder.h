@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_HOST_DECODER_H_
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/util/crop_window.h"

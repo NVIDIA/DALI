@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "dali/pipeline/operators/reader/loader/indexed_file_loader.h"
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 
 namespace dali {

@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_GPU_UTILS_H_
-#define DALI_KERNELS_GPU_UTILS_H_
+#ifndef DALI_CORE_GPU_UTILS_H_
+#define DALI_CORE_GPU_UTILS_H_
 
 #include <cuda_runtime.h>
 
 namespace dali {
-namespace kernels {
 
 class DeviceGuard {
  public:
@@ -33,7 +32,6 @@ class DeviceGuard {
   int original_device_;
 };
 
-}  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_GPU_UTILS_H_
+#endif  // DALI_CORE_GPU_UTILS_H_

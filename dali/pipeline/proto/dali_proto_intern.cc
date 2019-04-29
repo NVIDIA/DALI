@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/dali.pb.h"
 #include "dali/pipeline/proto/dali_proto_intern.h"
 

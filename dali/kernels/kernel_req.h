@@ -19,8 +19,8 @@
 #include <vector>
 #include <algorithm>
 #include "dali/kernels/context.h"
-#include "dali/kernels/tuple_helpers.h"
-#include "dali/kernels/util.h"
+#include "dali/core/tuple_helpers.h"
+#include "dali/core/util.h"
 
 namespace dali {
 namespace kernels {

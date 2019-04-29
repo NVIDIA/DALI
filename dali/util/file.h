@@ -19,8 +19,8 @@
 #include <string>
 #include <memory>
 
-#include "dali/api_helper.h"
-#include "dali/common.h"
+#include "dali/core/api_helper.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

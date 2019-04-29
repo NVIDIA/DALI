@@ -19,7 +19,7 @@
 
 #include "dali/pipeline/operators/transpose/transpose.h"
 #include "dali/error_handling.h"
-#include "dali/kernels/static_switch.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 

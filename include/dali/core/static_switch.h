@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_STATIC_SWITCH_H_
-#define DALI_KERNELS_STATIC_SWITCH_H_
+#ifndef DALI_CORE_STATIC_SWITCH_H_
+#define DALI_CORE_STATIC_SWITCH_H_
 
 #ifdef __CUDACC__
 #ifdef BOOST_PP_VARIADICS
@@ -135,4 +135,4 @@
   { BOOST_PP_REMOVE_PARENS(default_); } \
   }
 
-#endif  // DALI_KERNELS_STATIC_SWITCH_H_
+#endif  // DALI_CORE_STATIC_SWITCH_H_

@@ -18,7 +18,7 @@
 #include <vector>
 #include <random>
 #include <utility>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/util/crop_window.h"
 
 namespace dali {

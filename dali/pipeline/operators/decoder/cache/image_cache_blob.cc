@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include "dali/error_handling.h"
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/span.h"
+#include "dali/core/span.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operators/decoder/cache/image_cache_blob.h"
 

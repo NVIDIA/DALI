@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "dali/pipeline/operators/resize/resize.h"
-#include "dali/kernels/static_switch.h"
+#include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
 
 namespace dali {

@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/kernels/span.h"
+#include "dali/core/span.h"
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/util.h"
+#include "dali/core/util.h"
 
 namespace dali {
 namespace kernels {

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_ANY_H_
-#define DALI_KERNELS_ANY_H_
+#ifndef DALI_CORE_ANY_H_
+#define DALI_CORE_ANY_H_
 
 #include <exception>
 #include <utility>
@@ -21,9 +21,7 @@
 #include <typeinfo>
 
 namespace dali {
-
 namespace detail {
-
 
 struct alignas(8)
 any_placeholder {
@@ -390,4 +388,4 @@ any make_any(std::initializer_list<U> il, Args&&... args) {
 
 }  // namespace dali
 
-#endif  // DALI_KERNELS_ANY_H_
+#endif  // DALI_CORE_ANY_H_
