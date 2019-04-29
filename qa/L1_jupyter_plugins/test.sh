@@ -14,6 +14,12 @@ pushd ../..
 # attempt to run jupyter on all example notebooks
 mkdir -p idx_files
 
+# Apparently gcc/g++ installation is broken in the docker image
+if ( ! test `find /usr/lib/gcc -name stddef.h` ); then
+    apt-get purge --autoremove -y build-essential g++ gcc libc6-dev
+    apt-get update && apt-get install -y build-essential g++ gcc libc6-dev
+fi
+
 cd docs/examples
 
 test_body() {
