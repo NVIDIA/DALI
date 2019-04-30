@@ -17,8 +17,8 @@
 #include <map>
 #include <unordered_map>
 
-#include "dali/util/rapidjson/reader.h"
-#include "dali/util/rapidjson/document.h"
+#include <rapidjson/reader.h>
+#include <rapidjson/document.h>
 
 RAPIDJSON_DIAG_PUSH
 #ifdef __GNUC__
