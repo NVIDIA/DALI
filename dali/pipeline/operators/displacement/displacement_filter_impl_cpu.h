@@ -23,102 +23,11 @@
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/kernels/kernel_params.h"
-#include "dali/kernels/common/convert.h"
-#include "dali/kernels/static_switch.h"
+#include "dali/kernels/imgproc/sampler.h"
+#include "dali/core/convert.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
-
-template <DALIInterpType interp>
-struct Interpolation;
-
-template <>
-struct Interpolation<DALI_INTERP_NN> {
-
-  template <typename In>
-  static const In *value_at(const kernels::InTensorCPU<In, 3> &input, int x, int y, const In *border_value) {
-    if (x < 0 || x >= input.shape[1] ||
-        y < 0 || y >= input.shape[0]) {
-      return border_value;
-    } else {
-      return input(y, x);
-    }
-  }
-
-  struct Sample {
-    Sample() = default;
-    Sample(int x, int y) : x(x), y(y) {}
-    int x, y;
-
-    template <typename T, typename In>
-    void operator()(T *pixel, const kernels::InTensorCPU<In, 3> &input, const In *border_value) const {
-      auto *v = value_at(input, x, y, border_value);
-      for (int c = 0; c < input.shape[2]; c++) {
-        pixel[c] = kernels::clamp<T>(v[c]);
-      }
-    }
-
-    template <typename T, typename In>
-    void operator()(T *pixel, const kernels::InTensorCPU<In, 3> &input, const In *border_value, int channel) const {
-      auto *v = value_at(input, x, y, border_value);
-      pixel[channel] = kernels::clamp<T>(v[channel]);
-    }
-  };
-
-  Sample operator()(float x, float y) const {
-    return {
-      static_cast<int>(floorf(x)),
-      static_cast<int>(floorf(y))
-    };
-  }
-};
-
-
-template <>
-struct Interpolation<DALI_INTERP_LINEAR> {
-  struct Sample {
-    float x, y;
-
-    template <typename T, typename In>
-    void operator()(T *pixel, const kernels::InTensorCPU<In, 3> &input, const In *border_value) const {
-      using NN = Interpolation<DALI_INTERP_NN>;
-      int x0 = floorf(x);
-      int y0 = floorf(y);
-      const In *s00 = NN::value_at(input, x0,   y0,   border_value);
-      const In *s01 = NN::value_at(input, x0+1, y0,   border_value);
-      const In *s10 = NN::value_at(input, x0,   y0+1, border_value);
-      const In *s11 = NN::value_at(input, x0+1, y0+1, border_value);
-      float qx = x - x0;
-      float px = 1 - qx;
-      float qy = y - y0;
-      for (int c = 0; c < input.shape[2]; c++) {
-        float s0 = s00[c] * px + s01[c] * qx;
-        float s1 = s10[c] * px + s11[c] * qx;
-        pixel[c] = kernels::clamp<T>(s0 + (s1 - s0) * qy);
-      }
-    }
-
-    template <typename T, typename In>
-    void operator()(T *pixel, const kernels::InTensorCPU<In, 3> &input, const In *border_value, int channel) const {
-      using NN = Interpolation<DALI_INTERP_NN>;
-      int x0 = floorf(x);
-      int y0 = floorf(y);
-      const In *s00 = NN::value_at(input, x0,   y0,   border_value);
-      const In *s01 = NN::value_at(input, x0+1, y0,   border_value);
-      const In *s10 = NN::value_at(input, x0,   y0+1, border_value);
-      const In *s11 = NN::value_at(input, x0+1, y0+1, border_value);
-      float qx = x - x0;
-      float px = 1 - qx;
-      float qy = y - y0;
-      float s0 = s00[channel] * px + s01[channel] * qx;
-      float s1 = s10[channel] * px + s11[channel] * qx;
-      pixel[channel] = kernels::clamp<T>(s0 + (s1 - s0) * qy);
-    }
-  };
-
-  Sample operator()(float x, float y) const {
-    return { x, y };
-  }
-};
 
 template <DALIInterpType interp_type, bool per_channel,
           typename Out, typename In, typename Displacement>
@@ -134,7 +43,7 @@ void Warp(
   int inH = in.shape[0];
   int inW = in.shape[1];
 
-  Interpolation<interp_type> interp;
+  kernels::Sampler<interp_type, In> sampler(kernels::as_surface_HWC(in));
 
   for (int y = 0; y < outH; y++) {
     Out *out_row = out(y, 0);
@@ -142,11 +51,11 @@ void Warp(
       if (per_channel) {
         for (int c = 0; c < C; c++) {
           auto p = displacement.template operator()<float>(y, x, c, inH, inW, C);
-          interp(p.x, p.y)(&out_row[C*x], in, fillValue, c);
+          sampler(&out_row[C*x], p.x, p.y, c, fillValue);
         }
       } else {
         auto p = displacement.template operator()<float>(y, x, 0, inH, inW, C);
-        interp(p.x, p.y)(&out_row[C*x], in, fillValue);
+        sampler(&out_row[C*x], p.x, p.y, fillValue);
       }
     }
   }
