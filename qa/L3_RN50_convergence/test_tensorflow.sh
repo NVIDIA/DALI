@@ -38,12 +38,13 @@ fi
 
 MIN_TOP1=75.0
 MIN_TOP5=92.0
+MIN_PERF=6000
 
 TOP1=$(grep "^Top-1" $LOG | awk '{print $3}')
 TOP5=$(grep "^Top-5" $LOG | awk '{print $3}')
 
 cat $LOG | grep -o "[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*[ ]*[0-9]*\.[0-9]*" > tmp2.log
-mean=`awk 'BEGIN { sum = 0; n = 0 } { sum += $3; n += 1 } END { print sum / n }' tmp2.log`
+PERF=`awk 'BEGIN { sum = 0; n = 0 } { sum += $3; n += 1 } END { print sum / n }' tmp2.log`
 rm -f tmp2.log
 
 if [[ -z "$TOP1" || -z "$TOP5" ]]; then
@@ -53,13 +54,14 @@ fi
 
 TOP1_RESULT=$(echo "$TOP1 $MIN_TOP1" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
 TOP5_RESULT=$(echo "$TOP5 $MIN_TOP5" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
+PERF_RESULT=$(echo "$PERF $MIN_PERF" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
 
 echo
 printf "TOP-1 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP1 $MIN_TOP1 $TOP1_RESULT
 printf "TOP-5 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP5 $MIN_TOP5 $TOP5_RESULT
-printf "mean speed = $mean samples/sec\n"
+printf "mean speed %.2f% (expect at least %f%) samples/sec %s\n" $PERF $MIN_PERF $PERF_RESULT
 
-if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" ]]; then
+if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" && "$PERF_RESULT" == "OK" ]]; then
     CLEAN_AND_EXIT 0
 fi
 
