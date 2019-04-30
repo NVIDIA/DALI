@@ -7,6 +7,12 @@ set -x
 
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 
+# Apparently gcc/g++ installation is broken in the docker image
+if [[ $compiler_required = true ]] && ( ! test `find /usr/lib/gcc -name stddef.h` ); then
+  apt-get purge --autoremove -y build-essential g++ gcc libc6-dev
+  apt-get update && apt-get install -y build-essential g++ gcc libc6-dev
+fi
+
 # Install dependencies: opencv-python from 3.3.0.10 onwards uses QT which requires
 # X11 and other libraries that are not present in clean docker images or bundled there
 apt-get update
@@ -15,13 +21,7 @@ apt-get install -y --no-install-recommends libsm6 libice6 libxrender1 libxext6 l
 # to make sure defaults are right
 apt-get install -y --no-install-recommends --reinstall python$PYVER python$PYVER-dev
 
-# Apparently gcc/g++ installation is broken in the docker image
-if [[ $compiler_required = true ]] && ( ! test `find /usr/lib/gcc -name stddef.h` ); then
-  apt-get purge --autoremove -y build-essential g++ gcc libc6-dev
-  apt-get update && apt-get install -y build-essential g++ gcc libc6-dev
-fi
-
-CUDA_VERSION=$(nvcc --version | grep -E ".*release ([0-9]+)\.([0-9]+).*" | sed 's/.*release \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
+CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
 CUDA_VERSION=${CUDA_VERSION:-90}
 PYTHON_VERSION=$(python -c "from __future__ import print_function; import sys; print(\"{}.{}\".format(sys.version_info[0],sys.version_info[1]))")
 
