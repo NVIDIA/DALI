@@ -540,6 +540,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("DATA_TYPE", DALI_DATA_TYPE)
     .value("INTERP_TYPE", DALI_INTERP_TYPE)
     .value("TENSOR_LAYOUT", DALI_TENSOR_LAYOUT)
+    .value("PYTHON_OBJECT", DALI_PYTHON_OBJECT)
     .export_values();
 
   // DALIImageType
@@ -656,7 +657,7 @@ PYBIND11_MODULE(backend_impl, m) {
         [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
           p->SetOutputNames(outputs);
           })
-    .def("RunCPU", &Pipeline::RunCPU)
+    .def("RunCPU", &Pipeline::RunCPU, py::call_guard<py::gil_scoped_release>())
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",
         [](Pipeline *p) {

@@ -47,7 +47,8 @@ DALI_SCHEMA(_TFRecordReader)
   .AddArg("features", "List of features.",
       DALI_TF_FEATURE_VEC)
   .AddParent("_TFRecordReaderBase")
-  .AddParent("LoaderBase");
+  .AddParent("LoaderBase")
+  .MakeInternal();
 
 // Schema for the actual TFRecordReader op exposed
 // in Python. It is here for proper docstring generation

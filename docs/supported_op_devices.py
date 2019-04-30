@@ -1,14 +1,12 @@
 from nvidia.dali import backend as b
+import nvidia.dali.ops as ops
 import sys
 
 def main(argv):
-    cpu_ops = set(b.RegisteredCPUOps())
-    if '_TFRecordReader' in cpu_ops:
-        cpu_ops.remove('_TFRecordReader')
-        cpu_ops.add('TFRecordReader')
-    gpu_ops = set(b.RegisteredGPUOps())
-    mix_ops = set(b.RegisteredMixedOps())
-    support_ops = set(b.RegisteredSupportOps())
+    cpu_ops = ops.cpu_ops()
+    gpu_ops = ops.gpu_ops()
+    mix_ops = ops.mixed_ops()
+    support_ops = ops.support_ops()
     all_ops = cpu_ops.union(gpu_ops).union(mix_ops).union(support_ops)
     link_string = '_'
     op_name_max_len = len(max(all_ops, key=len)) + len(link_string)

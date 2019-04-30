@@ -21,21 +21,21 @@ from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from future.utils import with_metaclass
 
+_cpu_ops = set({})
+_gpu_ops = set({})
+_mixed_ops = set({})
+_support_ops = set({})
+
 def _docstring_generator(cls):
-    __cpu_ops = set(b.RegisteredCPUOps())
-    __cpu_ops.add("TFRecordReader")
-    __gpu_ops = set(b.RegisteredGPUOps())
-    __mix_ops = set(b.RegisteredMixedOps())
-    __support_ops = set(b.RegisteredSupportOps())
     op_name = cls.__name__
     op_dev = []
-    if op_name in __cpu_ops:
+    if op_name in _cpu_ops:
         op_dev.append("'CPU'")
-    if op_name in __gpu_ops:
+    if op_name in _gpu_ops:
         op_dev.append("'GPU'")
-    if op_name in __mix_ops:
+    if op_name in _mixed_ops:
         op_dev.append("'mixed'")
-    if op_name in __support_ops:
+    if op_name in _support_ops:
         op_dev.append("'support'")
     pre_doc = "This is a " + ", ".join(op_dev) + " operator\n\n"
 
@@ -254,11 +254,16 @@ def python_op_factory(name, op_device = "cpu"):
     return Operator
 
 def _load_ops():
-    _cpugpu_ops = (set(b.RegisteredCPUOps())
-                .union(set(b.RegisteredGPUOps()))
-                .union(set(b.RegisteredMixedOps())))
-    _support_ops = set(b.RegisteredSupportOps())
-    for op_name in _cpugpu_ops:
+    global _cpu_ops
+    global _gpu_ops
+    global _mixed_ops
+    global _support_ops
+    _cpu_ops = _cpu_ops.union(set(b.RegisteredCPUOps()))
+    _gpu_ops = _gpu_ops.union(set(b.RegisteredGPUOps()))
+    _mixed_ops = _mixed_ops.union(set(b.RegisteredMixedOps()))
+    _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
+    _support_ops = _support_ops.union(set(b.RegisteredSupportOps()))
+    for op_name in _cpu_gpu_ops:
         setattr(sys.modules[__name__], op_name,
                 python_op_factory(op_name, op_device = "cpu"))
     # add support ops
@@ -270,9 +275,12 @@ _load_ops()
 def Reload():
     _load_ops()
 
-# custom wrappers around ops
 
+# custom wrappers around ops
 class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
+    global _cpu_ops
+    _cpu_ops = _cpu_ops.union({'TFRecordReader'})
+
     def __init__(self, path, index_path, features, **kwargs):
         if isinstance(path, list):
             self._path = path
@@ -333,3 +341,65 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)
         return outputs
+
+
+class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
+    global _cpu_ops
+    _cpu_ops = _cpu_ops.union({'PythonFunction'})
+
+    def __init__(self, function, **kwargs):
+        self._schema = b.GetSchema("PythonFunctionImpl")
+        self._spec = b.OpSpec("PythonFunctionImpl")
+        self._device = "cpu"
+
+        for key, value in kwargs.items():
+            self._spec.AddArg(key, value)
+
+        self.function = function
+
+    @property
+    def spec(self):
+        return self._spec
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @property
+    def device(self):
+        return self._device
+
+    def __call__(self, *inputs, **kwargs):
+        if (len(inputs) > self._schema.MaxNumInput() or
+                len(inputs) < self._schema.MinNumInput()):
+            raise ValueError(
+                ("Operator {} expects [{}, " +
+                 "{}] inputs, but received {}")
+                .format(type(self).__name__,
+                        self._schema.MinNumInput(),
+                        self._schema.MaxNumInput(),
+                        len(inputs)))
+
+        op_instance = _OperatorInstance(inputs, self, **kwargs)
+        t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id)
+        t = EdgeReference(t_name, self._device, op_instance)
+        op_instance.spec.AddOutput(t.name, t.device)
+        op_instance.append_output(t)
+        op_instance.spec.AddArg("function_id", id(self.function))
+        return [t]
+
+
+def cpu_ops():
+    return _cpu_ops
+
+
+def gpu_ops():
+    return _gpu_ops
+
+
+def support_ops():
+    return _support_ops
+
+
+def mixed_ops():
+    return _mixed_ops
