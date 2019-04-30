@@ -300,9 +300,14 @@ Building DALI using Clang (experimental):
 -  ``BUILD_TENSORFLOW`` - build TensorFlow plugin (default: OFF)
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
 -  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
+-  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
+-  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
+-  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
--  *(Unofficial)* ``BUILD_NVJPEG`` - build with ``nvJPEG`` (default: ON)
 
+.. note::
+
+   DALI release packages are built with the options listed above set to ON. Testing is done with the same configuration.
 
 Install Python bindings
 ^^^^^^^^^^^^^^^^^^^^^^^

@@ -24,7 +24,9 @@ option(BUILD_PYTHON "Build python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
-option(BUILD_NVJPEG "Build with nvJPEG" ON)
+option(BUILD_NVJPEG "Build with nvJPEG support" ON)
+option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
+option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON)
 
 option(WERROR "Threat all warnings as errors" OFF)
 
