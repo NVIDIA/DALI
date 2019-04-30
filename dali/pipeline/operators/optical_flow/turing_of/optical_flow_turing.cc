@@ -200,7 +200,11 @@ NV_OF_EXECUTE_OUTPUT_PARAMS OpticalFlowTuring::GenerateExecuteOutParams
 void OpticalFlowTuring::LoadTuringOpticalFlow(const std::string &library_path) {
   auto handle = dlopen(library_path.c_str(), RTLD_LOCAL | RTLD_LAZY);
   if (!handle) {
-    throw unsupported_exception("Failed to load TuringOF library: " + std::string(dlerror()));
+    const std::string library_path_1 = library_path + ".1";
+    handle = dlopen(library_path_1.c_str(), RTLD_LOCAL | RTLD_LAZY);
+    if (!handle) {
+      throw unsupported_exception("Failed to load TuringOF library: " + std::string(dlerror()));
+    }
   }
 
   // Pointer to initialization function
