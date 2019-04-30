@@ -209,3 +209,8 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/turing_of)
 # Boost prerocessor
 ##################################################################
 include_directories(${PROJECT_SOURCE_DIR}/third_party/boost/preprocessor/include)
+
+##################################################################
+# RapidJSON
+##################################################################
+include_directories(${PROJECT_SOURCE_DIR}/third_party/rapidjson/include)
