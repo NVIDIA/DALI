@@ -14,11 +14,11 @@
 
 #include "dali/pipeline/operators/reader/loader/coco_loader.h"
 
+#include <rapidjson/reader.h>
+#include <rapidjson/document.h>
+
 #include <map>
 #include <unordered_map>
-
-#include "dali/util/rapidjson/reader.h"
-#include "dali/util/rapidjson/document.h"
 
 RAPIDJSON_DIAG_PUSH
 #ifdef __GNUC__
