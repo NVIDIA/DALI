@@ -342,7 +342,7 @@ struct TensorListViewBase {
   /// @brief Constructs a tensor list from non-contiguous memory
   TensorListViewBase(const data_pointers_t &data, const TensorListShape<sample_ndim> &shape)
       : shape(shape)
-      , data(std::move(data)) {}
+      , data(data) {}
   /// @brief Constructs a tensor list from non-contiguous memory
   TensorListViewBase(data_pointers_t &&data, TensorListShape<sample_ndim> &&shape)
       : shape(std::move(shape))
