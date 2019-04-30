@@ -52,7 +52,6 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropWarp) {
                         .AddArg("crop_pos_x", 0.5f)
                         .AddArg("crop_pos_y", 0.5f)
                         .AddArg("crop", vector<float>{224, 224}), 5e-6);
-
 }
 
 
@@ -62,7 +61,6 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCrop) {
                         .AddArg("crop_pos_x", 0.5f)
                         .AddArg("crop_pos_y", 0.5f)
                         .AddArg("crop", vector<float>{224, 224}), 1.98);
-
 }
 
 
