@@ -26,6 +26,12 @@ fi
 export PATH=$PATH:/usr/local/mpi/bin
 # MPI might be present in CUDA 10 image already so no need to build it if that is the case
 if ! [ -x "$(command -v mpicxx)" ]; then
+    # Apparently gcc/g++ installation is broken in the docker image
+    if ( ! test `find /usr/lib/gcc -name stddef.h` ); then
+        apt-get purge --autoremove -y build-essential g++ gcc libc6-dev
+        apt-get update && apt-get install -y build-essential g++ gcc libc6-dev
+    fi
+
     apt-get update && apt-get install -y wget
     OPENMPI_VERSION=3.0.0
     wget -q -O - https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-${OPENMPI_VERSION}.tar.gz | tar -xzf -
