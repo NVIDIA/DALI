@@ -35,6 +35,8 @@ add_subdirectory(pipeline)
 add_subdirectory(util)
 add_subdirectory(plugin)
 add_subdirectory(c_api)
+add_subdirectory(pipeline/operators/python_function)
+
 # Collect source files for dali
 file(GLOB tmp *.cc)
 set(DALI_SRCS ${DALI_SRCS} ${tmp})

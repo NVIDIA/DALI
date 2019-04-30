@@ -45,6 +45,7 @@ _known_types = {
         DALIDataType.DATA_TYPE : ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
         DALIDataType.INTERP_TYPE : ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
         DALIDataType.TENSOR_LAYOUT : ("nvidia.dali.types.DALITensorLayout", lambda x: DALITensorLayout(int(x))),
+        DALIDataType.PYTHON_OBJECT : ("object", lambda x: x)
         }
 if _tfrecord_support:
     _known_types[DALIDataType.FEATURE] = ("nvidia.dali.tfrecord.Feature", tfrec.Feature)
