@@ -15,9 +15,9 @@ mkdir -p idx-files/
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-CUDA_VERSION=$(nvcc --version | grep -E ".*release ([0-9]+)\.([0-9]+).*" | sed 's/.*release \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
+CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
 # from 1.13.1 CUDA 10 is supported but not CUDA 9
-if [ "${CUDA_VERSION}" == "100" ]; then
+if [ "${CUDA_VERSION}" -ge "100" ]; then
     pip install tensorflow-gpu==1.13.1
 else
     pip install tensorflow-gpu==1.12
@@ -26,12 +26,6 @@ fi
 export PATH=$PATH:/usr/local/mpi/bin
 # MPI might be present in CUDA 10 image already so no need to build it if that is the case
 if ! [ -x "$(command -v mpicxx)" ]; then
-    # Apparently gcc/g++ installation is broken in the docker image
-    if ( ! test `find /usr/lib/gcc -name stddef.h` ); then
-        apt-get purge --autoremove -y build-essential g++ gcc libc6-dev
-        apt-get update && apt-get install -y build-essential g++ gcc libc6-dev
-    fi
-
     apt-get update && apt-get install -y wget
     OPENMPI_VERSION=3.0.0
     wget -q -O - https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-${OPENMPI_VERSION}.tar.gz | tar -xzf -

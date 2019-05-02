@@ -1,7 +1,6 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages="nose tensorflow-gpu"
-compiler_required=true
 
 pushd ../..
 

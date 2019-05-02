@@ -41,7 +41,7 @@ FROM cuda-${USE_CUDA_VERSION} as cuda
 # Actual image
 FROM base
 # Install yum Dependencies
-RUN yum update && yum install -y zip wget yasm graphviz doxygen
+RUN yum install -y zip wget yasm doxygen graphviz
 
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m

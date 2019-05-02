@@ -4,7 +4,6 @@ source ../setup_test.sh
 
 # used pip packages
 pip_packages="jupyter matplotlib mxnet-cu##CUDA_VERSION## tensorflow-gpu torchvision torch"
-compiler_required=true
 
 # We need cmake to run the custom plugin notebook + ffmpeg and wget for video example
 apt-get update

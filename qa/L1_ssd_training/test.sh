@@ -1,7 +1,6 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages="numpy torch torchvision mlperf_compliance matplotlib Cython"
-compiler_required=true
 
 pushd ../..
 

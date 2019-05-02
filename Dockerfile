@@ -102,6 +102,6 @@ RUN if [ "${BUILD_PYTHON}" = "ON" ]; then \
 
 RUN pushd .. && \
     doxygen Doxyfile && \
-    tar czvf nvidia_dali_doxygen.tar.gz html && \
+    tar czvf nvidia_dali_doxygen.tar.gz doxygen && \
     mv nvidia_dali_doxygen.tar.gz /wheelhouse && \
     popd
