@@ -51,10 +51,25 @@ ARG NVIDIA_DALI_BUILD_FLAVOR
 ARG GIT_SHA
 ARG DALI_TIMESTAMP
 
+# Optional build arguments
+
+ARG BUILD_TEST=ON
+ARG BUILD_BENCHMARK=ON
+# ARG BUILD_NVTX=ON
+ARG BUILD_PYTHON=ON
+ARG BUILD_LMDB=ON
+ARG BUILD_TENSORFLOW=ON
+ARG BUILD_JPEG_TURBO=ON
+ARG BUILD_NVJPEG=ON
+ARG BUILD_NVOF=ON
+ARG BUILD_NVDEC=ON
+
 RUN LD_LIBRARY_PATH="${PWD}:${LD_LIBRARY_PATH}" && \
     cmake ../ -DCMAKE_INSTALL_PREFIX=. \
-          -DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_PYTHON=ON \
-          -DBUILD_LMDB=ON -DBUILD_TENSORFLOW=ON -DWERROR=ON \
+          -DBUILD_TEST=${BUILD_TEST} -DBUILD_BENCHMARK=${BUILD_BENCHMARK} -DBUILD_PYTHON=${BUILD_PYTHON} \
+          -DBUILD_LMDB=${BUILD_LMDB} -DBUILD_TENSORFLOW=${BUILD_TENSORFLOW} -DWERROR=ON \
+          -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO} -DBUILD_NVJPEG=${BUILD_NVJPEG} \
+          -DBUILD_NVOF=${BUILD_NVOF} -DBUILD_NVDEC=${BUILD_NVDEC} \
           -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
           -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA} && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
@@ -62,17 +77,21 @@ RUN LD_LIBRARY_PATH="${PWD}:${LD_LIBRARY_PATH}" && \
 ARG NVIDIA_BUILD_ID
 ENV NVIDIA_BUILD_ID ${NVIDIA_BUILD_ID:-0}
 
-RUN pip wheel -v dali/python \
-        --build-option --python-tag=$(basename /opt/python/cp${PYV}-*) \
-        --build-option --plat-name=manylinux1_x86_64 \
-        --build-option --build-number=${NVIDIA_BUILD_ID} && \
-    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl && \
-    UNZIP_PATH="$(mktemp -d)" && \
-    unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH && \
-    python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ') && \
-    rm -rf $UNZIP_PATH
+RUN if [ "${BUILD_PYTHON}" = "ON" ]; then \
+        pip wheel -v dali/python \
+            --build-option --python-tag=$(basename /opt/python/cp${PYV}-*) \
+            --build-option --plat-name=manylinux1_x86_64 \
+            --build-option --build-number=${NVIDIA_BUILD_ID} && \
+        ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl && \
+        UNZIP_PATH="$(mktemp -d)" && \
+        unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH && \
+        python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ') && \
+        rm -rf $UNZIP_PATH ;\
+    fi
 
-RUN pushd dali/python/tf_plugin/ && \
-    python setup.py sdist && \
-    mv dist/nvidia-dali-tf-plugin*.tar.gz /wheelhouse/ && \
-    popd
+RUN if [ "${BUILD_PYTHON}" = "ON" ]; then \
+        pushd dali/python/tf_plugin/ && \
+        python setup.py sdist && \
+        mv dist/nvidia-dali-tf-plugin*.tar.gz /wheelhouse/ && \
+        popd ;\
+    fi
