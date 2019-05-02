@@ -37,7 +37,6 @@ add_subdirectory(pipeline)
 add_subdirectory(util)
 add_subdirectory(plugin)
 add_subdirectory(c_api)
-add_subdirectory(pipeline/operators/python_function)
 
 # Collect source files for dali
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
@@ -206,6 +205,7 @@ endif()
 # Build the DALI python bindings
 ################################################
 if (BUILD_PYTHON)
+  add_subdirectory(pipeline/operators/python_function)
   # Get all python srcs
   add_subdirectory(python)
 endif()
