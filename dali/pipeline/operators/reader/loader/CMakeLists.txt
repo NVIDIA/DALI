@@ -13,12 +13,8 @@
 # limitations under the License.
 
 # Get all the source files and dump test files
-file(GLOB tmp *.cc *.cu)
-set(DALI_SRCS ${DALI_SRCS} ${tmp})
-file(GLOB tmp *_test.cc)
-remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
-
-set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_SRCS PARENT_SCOPE)
 
 # we don't want to test Caffe2 reader if LMDB is not present
 if (BUILD_TEST AND BUILD_LMDB)

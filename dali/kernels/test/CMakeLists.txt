@@ -14,15 +14,6 @@
 
 add_subdirectory(resampling_test)
 
-# Get all the source files and dump test files
-file(GLOB tmp *.cc *.cu)
-set(DALI_KERNEL_SRCS ${DALI_KERNEL_SRCS} ${tmp})
-file(GLOB tmp *_test.cc *_test.cu)
-remove(DALI_KERNEL_SRCS "${DALI_KERNEL_SRCS}" ${tmp})
-set(DALI_KERNEL_SRCS ${DALI_KERNEL_SRCS} PARENT_SCOPE)
-
-if (BUILD_TEST)
-  # get all the test srcs
-  file(GLOB tmp *_test.cc *_test.cu)
-  set(DALI_KERNEL_TEST_SRCS ${DALI_KERNEL_TEST_SRCS} ${tmp} PARENT_SCOPE)
-endif()
+# Get all the source files and dump test files, but not the headers
+collect_sources(DALI_KERNEL_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_KERNEL_TEST_SRCS PARENT_SCOPE)

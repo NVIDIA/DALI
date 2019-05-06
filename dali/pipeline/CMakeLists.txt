@@ -22,19 +22,9 @@ add_subdirectory(executor)
 add_subdirectory(proto)
 
 # Get all the source files and dump test files
-file(GLOB tmp *.cc)
-set(DALI_SRCS ${DALI_SRCS} ${tmp})
-file(GLOB tmp *_test.cc)
-remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
-file(GLOB tmp *_bench.cc)
-remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
-set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
-
-if (BUILD_TEST)
-  # get all the test srcs
-  file(GLOB tmp *_test.cc)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
-endif()
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
 
 if (BUILD_BENCHMARK)
   # Get all the benchmark srcs
