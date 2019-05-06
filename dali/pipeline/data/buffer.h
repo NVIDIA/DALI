@@ -236,6 +236,7 @@ class Buffer {
       CUDA_CALL(cudaGetDevice(&device_));
     }
 
+    data_.reset();
     data_.reset(
       Backend::New(new_num_bytes, pinned_),
       std::bind(FreeMemory, std::placeholders::_1, new_num_bytes, device_, pinned_));
