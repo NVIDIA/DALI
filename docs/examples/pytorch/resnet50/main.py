@@ -138,7 +138,6 @@ class HybridValPipe(Pipeline):
 
 best_prec1 = 0
 args = parser.parse_args()
-total_batch_size = args.world_size * args.batch_size
 
 # test mode, use default args for sanity test
 if args.test:
@@ -186,6 +185,8 @@ def main():
         torch.distributed.init_process_group(backend='nccl',
                                              init_method='env://')
         args.world_size = torch.distributed.get_world_size()
+
+    args.total_batch_size = args.world_size * args.batch_size
 
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
@@ -287,7 +288,7 @@ def main():
             if epoch == args.epochs - 1:
                 print('##Top-1 {0}\n'
                       '##Top-5 {1}\n'
-                      '##Perf  {2}'.format(prec1, prec5, total_batch_size / total_time.avg))
+                      '##Perf  {2}'.format(prec1, prec5, args.total_batch_size / total_time.avg))
 
         # reset DALI iterators
         train_loader.reset()
@@ -361,8 +362,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    epoch, i, train_loader_len,
-                   total_batch_size / batch_time.val,
-                   total_batch_size / batch_time.avg,
+                   args.total_batch_size / batch_time.val,
+                   args.total_batch_size / batch_time.avg,
                    batch_time=batch_time,
                    data_time=data_time, loss=losses, top1=top1, top5=top5))
     return batch_time.avg
@@ -419,8 +420,8 @@ def validate(val_loader, model, criterion):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    i, val_loader_len,
-                   total_batch_size / batch_time.val,
-                   total_batch_size / batch_time.avg,
+                   args.total_batch_size / batch_time.val,
+                   args.total_batch_size / batch_time.avg,
                    batch_time=batch_time, loss=losses,
                    top1=top1, top5=top5))
 
