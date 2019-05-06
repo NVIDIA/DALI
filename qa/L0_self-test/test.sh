@@ -1,6 +1,7 @@
 #!/bin/bash -ex
 
-source ../setup_test.sh
+source ../setup_test_common.sh
+source ../setup_dali_extra.sh
 
 BINNAME=dali_test.bin
 

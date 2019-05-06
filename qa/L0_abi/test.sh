@@ -2,6 +2,8 @@
 
 pushd ../..
 
+source qa/setup_test_common.sh
+
 DIRNAME=$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))')
 # skip non core libs
 for SOFILE in $(find $DIRNAME -iname 'libdali*.so' -not -iname '*tf*')

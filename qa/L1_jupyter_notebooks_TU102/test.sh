@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-source ../setup_test.sh
+source ../setup_dali_extra.sh
 
 # used pip packages
 pip_packages="jupyter matplotlib numpy"

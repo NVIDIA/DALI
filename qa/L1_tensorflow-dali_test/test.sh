@@ -1,12 +1,6 @@
 #!/bin/bash -e
 pip_packages=""
 
-# TensorFlow doesn't support Python 3.7 yet
-PYTHON_VERSION=$(python -c "from __future__ import print_function; import sys; print(\"{}.{}\".format(sys.version_info[0],sys.version_info[1]))")
-if [ $PYTHON_VERSION == "3.7" ]; then
-    exit 0
-fi
-
 pushd ../..
 
 cd docs/examples/tensorflow/demo
@@ -22,6 +16,8 @@ if [ "${CUDA_VERSION}" -ge "100" ]; then
 else
     pip install tensorflow-gpu==1.12
 fi
+pip uninstall -y nvidia-dali-tf-plugin || true
+pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
 
 export PATH=$PATH:/usr/local/mpi/bin
 # MPI might be present in CUDA 10 image already so no need to build it if that is the case

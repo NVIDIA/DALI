@@ -4,7 +4,7 @@ pip_packages="nose numpy opencv-python torchvision"
 
 pushd ../..
 
-source qa/setup_test.sh
+source qa/setup_dali_extra.sh
 cd dali/test/python
 
 test_body() {
