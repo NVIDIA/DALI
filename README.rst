@@ -303,11 +303,14 @@ Building DALI using Clang (experimental):
 -  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
+-  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
 
 .. note::
 
    DALI release packages are built with the options listed above set to ON. Testing is done with the same configuration.
+   We ensure that DALI compiles with all of those options turned off, but there may exist cross-dependencies
+   between those features.
 
 Install Python bindings
 ^^^^^^^^^^^^^^^^^^^^^^^

@@ -14,7 +14,9 @@
 
 #include <cstdlib>
 #include "dali/pipeline/util/thread_pool.h"
+#if NVML_ENABLED
 #include "dali/util/nvml.h"
+#endif
 #include "dali/util/cuda_utils.h"
 
 namespace dali {
@@ -25,7 +27,9 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity)
     work_complete_(true),
     active_threads_(0) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
+#if NVML_ENABLED
   nvml::Init();
+#endif
   // Start the threads in the main loop
   for (int i = 0; i < num_thread; ++i) {
       threads_[i] = std::thread(
@@ -47,7 +51,9 @@ ThreadPool::~ThreadPool() {
   for (auto &thread : threads_) {
     thread.join();
   }
+#if NVML_ENABLED
   nvml::Shutdown();
+#endif
 }
 
 void ThreadPool::DoWorkWithID(Work work) {
@@ -101,7 +107,9 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
                         to_string(vec.size()) + "). Ignoring...");
           }
         }
+#if NVML_ENABLED
         nvml::SetCPUAffinity(core);
+#endif
     }
   } catch(std::runtime_error &e) {
     tl_errors_[thread_id].push(e.what());
