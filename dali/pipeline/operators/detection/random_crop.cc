@@ -290,11 +290,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
         const auto *bbox_i = bbox_data + idx * 4;
         auto *bbox_o = bbox_out_data + j * 4;
 
-        // copy across (with clamping)
-        bbox_o[0] = (bbox_i[0] < left) ? left : bbox_i[0];
-        bbox_o[1] = (bbox_i[1] < top) ? top : bbox_i[1];
-        bbox_o[2] = (bbox_i[2] > right) ? right : bbox_i[2];
-        bbox_o[3] = (bbox_i[3] > bottom) ? bottom : bbox_i[3];
         // bbox_o[4] = bbox_i[4];
         label_out_data[j] = label_data[idx];
 
@@ -302,7 +297,10 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
         float minus[] = {left, top, left, top};
         float scale[] = {w, h, w, h};
         for (int k = 0; k < 4; ++k) {
-          bbox_o[k] = (bbox_o[k] - minus[k]) / scale[k];
+          // scale and translate the input box
+          float coord = (bbox_i[k] - minus[k]) / scale[k];;
+          // ..and clamp it to 0..1 range
+          bbox_o[k] = std::min(std::max(coord, 0.0f), 1.0f);
         }
       }  // end bbox copy
 
