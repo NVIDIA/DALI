@@ -452,6 +452,10 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
   const void *ptr = tensor_list.raw_data();
   size_t nbytes = tensor_list.nbytes();
 
+  // Allocate some memory in the hope of not getting the same pointer for a larger buffer.
+  TensorList<TypeParam> get_in_the_way;
+  get_in_the_way.reserve(1<<16);
+
   // Change the data type to something larger
   tensor_list.template mutable_data<double>();
 
