@@ -14,6 +14,8 @@
 
 add_subdirectory(cache)
 
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+
 # Get all the source files and dump test files
 if (BUILD_NVJPEG)
   if (NVJPEG_DECOUPLED_API)

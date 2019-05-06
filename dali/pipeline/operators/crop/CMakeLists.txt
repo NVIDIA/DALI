@@ -15,14 +15,6 @@
 add_subdirectory(kernel)
 
 # Get all the source files and dump test files
-file(GLOB tmp *.cc *.cu)
-file(GLOB tmp_test *_test.cc)
-remove(tmp "${tmp}" ${tmp_test})
-
-set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} ${tmp} PARENT_SCOPE)
-
-if (BUILD_TEST)
-  # get all the test srcs
-  file(GLOB tmp *_test.cc)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
-endif()
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)

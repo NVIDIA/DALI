@@ -13,6 +13,7 @@
 # limitations under the License.
 
 if (BUILD_BENCHMARK)
+  collect_headers(DALI_INST_HDRS PARENT_SCOPE)
   # Get basic benchmark sources that don't depend on any other options
   set(DALI_BENCHMARK_SRCS
     #"${CMAKE_CURRENT_SOURCE_DIR}/makecontiguous_bench.cc"

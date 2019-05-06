@@ -13,5 +13,5 @@
 # limitations under the License.
 
 # Get all the source files
-file(GLOB tmp *.cc)
-set(DALI_SRCS ${DALI_SRCS} ${tmp} PARENT_SCOPE)
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_SRCS PARENT_SCOPE)

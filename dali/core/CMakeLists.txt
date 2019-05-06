@@ -13,15 +13,8 @@
 # limitations under the License.
 
 # Get all the source files
-file(GLOB tmp *.cc *.cu)
-set(DALI_SRCS ${tmp})
-file(GLOB tmp *_test.cc)
-remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
-set(DALI_CORE_SRCS ${DALI_SRCS})
-cuda_add_library(${dali_core_lib} STATIC ${DALI_CORE_SRCS})
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_CORE_SRCS)
+collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
 
-if (BUILD_TEST)
-  # get all the test srcs
-  file(GLOB tmp *_test.cc)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
-endif()
+cuda_add_library(${dali_core_lib} STATIC ${DALI_CORE_SRCS})

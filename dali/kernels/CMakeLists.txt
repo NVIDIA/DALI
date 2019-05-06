@@ -19,15 +19,9 @@ add_subdirectory(common)
 add_subdirectory(imgproc)
 
 # Get all the source files and dump test files
-file(GLOB tmp *.cc *.cu)
-set(DALI_KERNEL_SRCS ${DALI_KERNEL_SRCS} ${tmp})
-file(GLOB tmp *_test.cc *_test.cu)
-remove(DALI_KERNEL_SRCS "${DALI_KERNEL_SRCS}" ${tmp})
-
-if (BUILD_TEST)
-  # get all the test srcs
-  file(GLOB tmp *_test.cc *_test.cu)
-endif()
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_KERNEL_SRCS)
+collect_test_sources(DALI_KERNEL_TEST_SRCS)
 
 cuda_add_library(${dali_kernel_lib} STATIC "${DALI_KERNEL_SRCS}")
 cuda_add_library(${dali_kernel_test_lib} STATIC "${DALI_KERNEL_TEST_SRCS}")

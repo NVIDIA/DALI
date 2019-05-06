@@ -13,12 +13,11 @@
 # limitations under the License.
 
 if (BUILD_TENSORFLOW)
+  collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+  collect_sources(DALI_TF_SRCS PARENT_SCOPE)
 
-  file(GLOB tmp *.cc)
-  set(DALI_TF_SRCS ${DALI_TF_SRCS} ${tmp} PARENT_SCOPE)
-
-  message( STATUS "Installing sources for dali_tf: ${tmp}")
-  file(COPY        ${tmp}
+  message( STATUS "Installing sources for dali_tf: ${DALI_TF_SRCS}")
+  file(COPY        ${DALI_TF_SRCS}
        DESTINATION ${PROJECT_BINARY_DIR}/dali/python/tf_plugin/nvidia/dali/plugin)
 
 endif()

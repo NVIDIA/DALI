@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,14 +13,6 @@
 # limitations under the License.
 
 # Get all the source files and dump test files
-file(GLOB tmp *.cc *.cu)
-file(GLOB tmp_test *_test.cc)
-remove(tmp "${tmp}" ${tmp_test})
-
-set(DALI_SRCS ${DALI_SRCS} ${tmp} PARENT_SCOPE)
-
-if (BUILD_TEST)
-  # get all the test srcs
-  file(GLOB tmp *_test.cc)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
-endif()
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(DALI_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
