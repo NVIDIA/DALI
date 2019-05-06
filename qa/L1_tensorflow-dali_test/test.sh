@@ -1,6 +1,12 @@
 #!/bin/bash -e
 pip_packages=""
 
+# TensorFlow doesn't support Python 3.7 yet
+PYTHON_VERSION=$(python -c "from __future__ import print_function; import sys; print(\"{}.{}\".format(sys.version_info[0],sys.version_info[1]))")
+if [ $PYTHON_VERSION == "3.7" ]; then
+    exit 0
+fi
+
 pushd ../..
 
 cd docs/examples/tensorflow/demo

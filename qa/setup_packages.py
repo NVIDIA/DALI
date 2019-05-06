@@ -19,7 +19,7 @@ except ImportError:
 # put {0} in pacage link as a placeholder for python pip package version (i.e. cp27-cp27mu-linux_x86_64)
 # and cuda_v for cuXX version
 # NOTE: First version will be picked in case of one_config_only
-packages = {"numpy" : ["1.11.1"],
+packages = {
             "opencv-python" : ["4.1.0.25"],
             "mxnet-cu90" : ["1.4.0"],
             "mxnet-cu100" : ["1.4.0"],
