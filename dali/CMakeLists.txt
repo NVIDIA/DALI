@@ -223,9 +223,10 @@ add_custom_target(install_headers ALL
 
 # Process the DALI_INST_HDRS list
 foreach(INSTALL_HEADER ${DALI_INST_HDRS})
+  file(RELATIVE_PATH HEADER_RELATIVE ${CMAKE_SOURCE_DIR} ${INSTALL_HEADER})
   add_custom_command(
     TARGET install_headers
-    COMMAND install -D "${CMAKE_SOURCE_DIR}/${INSTALL_HEADER}" "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/${INSTALL_HEADER}")
+    COMMAND install -D "${INSTALL_HEADER}" "${PROJECT_BINARY_DIR}/${DALI_INCLUDE_DIR}/${HEADER_RELATIVE}")
 endforeach(INSTALL_HEADER)
 
 # Copy proper `include` dir
