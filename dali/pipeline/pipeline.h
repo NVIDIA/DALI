@@ -442,7 +442,7 @@ class DLL_PUBLIC Pipeline {
   // serialized form
   vector<string> external_inputs_;
   vector<std::pair<string, OpSpec>> op_specs_;
-  vector<bool> op_specs_to_serialize_;
+  vector<std::pair<string, OpSpec>> op_specs_for_serialization_;
   vector<std::pair<string, string>> output_names_;
 };
 

@@ -18,11 +18,20 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import nvidia.dali as dali
+from nvidia.dali.backend_impl import TensorListGPU
 from timeit import default_timer as timer
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
+import os
 
-caffe_db_folder = "/data/imagenet/train-lmdb-256x256"
+test_data_root = os.environ['DALI_EXTRA_PATH']
+caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+c2lmdb_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb')
+recordio_db_folder = os.path.join(test_data_root, 'db', 'recordio')
+tfrecord_db_folder = os.path.join(test_data_root, 'db', 'tfrecord')
+jpeg_folder = os.path.join(test_data_root, 'db', 'single', 'jpeg')
+coco_image_folder = os.path.join(test_data_root, 'db', 'coco', 'images')
+coco_annotation_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
 def check_batch(batch1, batch2, batch_size, eps = 0.0000001):
     for i in range(batch_size):
@@ -65,12 +74,14 @@ def test_tensor_multiple_uses():
                                              device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
             self.dump_gpu = ops.DumpImage(device = "gpu", suffix = "gpu")
 
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
             images = self.decode(inputs)
+            images = self.res(images)
             images_cpu = self.dump_cpu(images)
             images_gpu = self.dump_gpu(images.gpu())
             return (images, images_cpu, images_gpu)
@@ -106,12 +117,14 @@ def test_pipeline_separated_exec_setup():
                                              device_id, prefetch_queue_depth = prefetch_queue_depth)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
             self.dump_gpu = ops.DumpImage(device = "gpu", suffix = "gpu")
 
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
             images = self.decode(inputs)
+            images = self.res(images)
             images_cpu = self.dump_cpu(images)
             images_gpu = self.dump_gpu(images.gpu())
             return (images, images_cpu, images_gpu)
@@ -407,6 +420,65 @@ def test_seed_serialize():
         if i == 0:
             img_chw = img_chw_test
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
+
+def test_make_continuous_serialize():
+    class COCOPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.COCOReader(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
+            self.decode = ops.nvJPEGDecoder(device="mixed")
+            self.crop = ops.RandomBBoxCrop(device="cpu", seed = 12)
+            self.slice = ops.Slice(device="gpu")
+
+        def define_graph(self):
+            inputs, bboxes, labels = self.input()
+            images = self.decode(inputs)
+            crop_begin, crop_size, bboxes, labels = self.crop(bboxes, labels)
+            images = self.slice(images, crop_begin, crop_size)
+            return images
+
+    pipe = COCOPipeline(batch_size=32, num_threads=2, device_id=0)
+    serialized_pipeline = pipe.serialize()
+    del(pipe)
+    new_pipe = Pipeline(batch_size=32, num_threads=2, device_id=0)
+    new_pipe.deserialize_and_build(serialized_pipeline)
+
+def compare(val_1, val_2):
+    return np.allclose(val_1, val_2)
+
+def to_array(dali_out):
+    if isinstance(dali_out, TensorListGPU):
+        dali_out = dali_out.as_cpu()
+    return np.squeeze(dali_out.as_array())
+
+def test_make_continuous_serialize_and_use():
+    class COCOPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.COCOReader(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
+            self.decode = ops.nvJPEGDecoder(device="mixed")
+            self.crop = ops.RandomBBoxCrop(device="cpu", seed = 25)
+            self.slice = ops.Slice(device="gpu")
+
+        def define_graph(self):
+            inputs, bboxes, labels = self.input()
+            images = self.decode(inputs)
+            crop_begin, crop_size, bboxes, labels = self.crop(bboxes, labels)
+            images = self.slice(images, crop_begin, crop_size)
+            return images
+
+    pipe = COCOPipeline(batch_size=1, num_threads=2, device_id=0)
+    serialized_pipeline = pipe.serialize()
+    new_pipe = Pipeline(batch_size=1, num_threads=2, device_id=0)
+    new_pipe.deserialize_and_build(serialized_pipeline)
+
+    pipe.build()
+    for _ in range(50):
+        out_ref = pipe.run()
+        out_serialalized = new_pipe.run()
+        out_ref = to_array(out_ref[0])
+        out_serialalized = to_array(out_serialalized[0])
+        assert compare(out_ref, out_serialalized) == True
 
 def test_rotate():
     class HybridPipe(Pipeline):
@@ -1136,35 +1208,34 @@ def test_pipeline_default_cuda_stream_priority():
             out2_data = out2[0].as_cpu()
             assert(np.sum(np.abs(out1_data.at(i)-out2_data.at(i)))==0)
 
-
 class CachedPipeline(Pipeline):
     def __init__(self, reader_type, batch_size, is_cached=False, is_cached_batch_copy=True,  seed=123456, skip_cached_images=False, num_shards=100000):
         super(CachedPipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1, seed=seed)
         self.reader_type = reader_type
         if reader_type == "MXNetReader":
-            self.input = ops.MXNetReader(path = "/data/imagenet/train-480-val-256-recordio/train.rec",
-                                         index_path = "/data/imagenet/train-480-val-256-recordio/train.idx",
+            self.input = ops.MXNetReader(path = os.path.join(recordio_db_folder, "train.rec"),
+                                         index_path = os.path.join(recordio_db_folder, "train.idx"),
                                          shard_id = 0,
                                          num_shards = num_shards,
                                          stick_to_shard = True,
                                          skip_cached_images = skip_cached_images,
                                          prefetch_queue_depth = 1)
         elif reader_type == "CaffeReader":
-            self.input = ops.CaffeReader(path = "/data/imagenet/train-lmdb-256x256",
+            self.input = ops.CaffeReader(path = caffe_db_folder,
                                          shard_id = 0,
                                          num_shards = num_shards,
                                          stick_to_shard = True,
                                          skip_cached_images = skip_cached_images,
                                          prefetch_queue_depth = 1)
         elif reader_type == "Caffe2Reader":
-            self.input = ops.Caffe2Reader(path = "/data/imagenet/train-c2lmdb-480",
+            self.input = ops.Caffe2Reader(path = c2lmdb_db_folder,
                                           shard_id = 0,
                                           num_shards = num_shards,
                                           stick_to_shard = True,
                                           skip_cached_images = skip_cached_images,
                                           prefetch_queue_depth = 1)
         elif reader_type == "FileReader":
-            self.input = ops.FileReader(file_root = "/data/imagenet/train-jpeg",
+            self.input = ops.FileReader(file_root = jpeg_folder,
                                         shard_id = 0,
                                         num_shards = num_shards,
                                         stick_to_shard = True,
@@ -1172,8 +1243,8 @@ class CachedPipeline(Pipeline):
                                         prefetch_queue_depth = 1)
 
         elif reader_type == "TFRecordReader":
-            tfrecord = sorted(glob.glob("/data/imagenet/train-val-tfrecord-480/train-*"))
-            tfrecord_idx = sorted(glob.glob("/data/imagenet/train-val-tfrecord-480.idx/train-*"))
+            tfrecord = sorted(glob.glob(os.path.join(tfrecord_db_folder, '*[!i][!d][!x]')))
+            tfrecord_idx = sorted(glob.glob(os.path.join(tfrecord_db_folder, '*idx')))
             self.input = ops.TFRecordReader(path = tfrecord,
                                             index_path = tfrecord_idx,
                                             shard_id = 0,
@@ -1213,7 +1284,7 @@ def test_nvjpeg_cached_batch_copy_pipelines():
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=True),
                           CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=False),
                           batch_size=batch_size, N_iterations=20)
-        
+
 def test_nvjpeg_cached_pipelines():
     batch_size = 26
     for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "TFRecordReader"}:
