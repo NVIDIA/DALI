@@ -405,20 +405,25 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   Tensor<TypeParam> tensor;
 
   // Get shape
-  vector<Index> shape = this->GetRandShape();
+  vector<Index> shape = { 4, 480, 640, 3 };
   tensor.Resize(shape);
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
+  size_t num_elements = volume(shape);
   ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
   for (size_t i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
+  ASSERT_EQ(num_elements * sizeof(float), tensor.nbytes());
 
   // Save the pointer
   const void *ptr = tensor.raw_data();
-  size_t nbytes = tensor.nbytes();
+
+  // Allocate some memory in the hope of not getting the same pointer for a larger buffer.
+  Tensor<TypeParam> get_in_the_way;
+  get_in_the_way.reserve(1<<16);
 
   // Change the type of the buffer
   tensor.template mutable_data<int>();
@@ -432,7 +437,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
 
   // No re-allocation should have occured
   ASSERT_EQ(ptr, tensor.raw_data());
-  ASSERT_EQ(nbytes, tensor.nbytes());
+  ASSERT_EQ(num_elements * sizeof(int), tensor.nbytes());
 
   // Change the type to a smaller type
   tensor.template mutable_data<uint8>();
@@ -446,7 +451,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
 
   // No re-allocation should have occured
   ASSERT_EQ(ptr, tensor.raw_data());
-  ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor.nbytes());
+  ASSERT_EQ(num_elements * sizeof(uint8), tensor.nbytes());
 
   // Change the type to a larger type
   tensor.template mutable_data<double>();
@@ -458,9 +463,8 @@ TYPED_TEST(TensorTest, TestTypeChange) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 
-  // The memory should have been re-allocated
-  ASSERT_NE(ptr, tensor.raw_data());
-  ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor.nbytes());
+  ASSERT_NE(tensor.raw_data(), ptr);
+  ASSERT_EQ(num_elements * sizeof(double), tensor.nbytes());
 }
 
 TYPED_TEST(TensorTest, TestSubspaceTensor) {

@@ -149,6 +149,7 @@ class ScratchpadAllocator {
     }
 
     if (new_capacity != buf.capacity) {
+      buf.mem.reset();
       buf.mem = memory::alloc_unique<char>(type, new_capacity + alignment);
       uintptr_t ptr = reinterpret_cast<uintptr_t>(buf.mem.get());
       size_t padding = (alignment-1) & (-ptr);
