@@ -31,6 +31,9 @@ option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
 
 option(WERROR "Threat all warnings as errors" OFF)
 
+# FFmpeg is required when we are using NVDEC for video reader
+set(BUILD_FFMPEG ${BUILD_NVDEC})
+
 include(cmake/Utils.cmake)
 
 propagate_option(BUILD_PYTHON)
@@ -41,6 +44,7 @@ propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVOF)
 propagate_option(BUILD_NVDEC)
 propagate_option(BUILD_NVML)
+propagate_option(BUILD_FFMPEG)
 
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 
