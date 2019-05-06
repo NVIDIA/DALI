@@ -208,9 +208,9 @@ cmake_parse_arguments(
   endif()
 endmacro(collect_headers)
 
-# Add a define for build option
-# for option(BUILD_SOMETHING "some description") creates a SOMETHING_ENABLED definition
-# passed to compiler, with appropriate value based on the value of the option
+# Add a define for build option.
+# for option(BUILD_FAUTRE "feature description") creates a FAUTRE_ENABLED definition
+# passed to compiler, with appropriate value based on the value of the option.
 #
 function(propagate_option BUILD_OPTION_NAME)
   string(REPLACE "BUILD_" "" OPTION_NAME ${BUILD_OPTION_NAME})

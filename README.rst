@@ -309,8 +309,9 @@ Building DALI using Clang (experimental):
 .. note::
 
    DALI release packages are built with the options listed above set to ON and NVTX turned OFF.
-   Testing is done with the same configuration.  We ensure that DALI compiles with all of those options turned off,
-   but there may exist cross-dependencies between some of those features.
+   Testing is done with the same configuration. 
+   We ensure that DALI compiles with all of those options turned OFF, but there may exist
+   cross-dependencies between some of those features.
 
 Install Python bindings
 ^^^^^^^^^^^^^^^^^^^^^^^
