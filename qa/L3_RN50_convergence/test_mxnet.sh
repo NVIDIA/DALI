@@ -18,12 +18,12 @@ mean=`awk 'BEGIN { sum = 0; n = 0 } { sum += $1; n += 1 } END { print sum / n }'
 
 rm tmp2.log tmp3.log
 
-if if [[ $(echo "$best > $threshold" | bc -l) == 0 ]]; then
+if [[ $(echo "$best > $threshold" | bc -l) == 0 ]]; then
     echo "acc = $best; TEST FAILED"
     exit -1
 fi
 
-if if [[ $(echo "$mean > $min_perf" | bc -l) == 0 ]]; then
+if [[ $(echo "$mean > $min_perf" | bc -l) == 0 ]]; then
     echo "perf = $mean; TEST FAILED"
     exit -1
 fi
