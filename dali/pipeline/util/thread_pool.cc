@@ -92,25 +92,25 @@ int ThreadPool::size() const {
 
 void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
   try {
-      CUDA_CALL(cudaSetDevice(device_id));
-      if (set_affinity) {
-        const char * env_affinity = std::getenv("DALI_AFFINITY_MASK");
-        int core = -1;
-        if (env_affinity) {
-          const auto& vec = string_split(env_affinity, ',');
-          if ((size_t)thread_id < vec.size()) {
-              core = std::stoi(vec[thread_id]);
-          } else {
-              DALI_WARN("DALI_AFFINITY_MASK environment variable is set, " +
-                        "but does not have enough entries: " +
-                        "thread_id (" + to_string(thread_id) + ") vs #entries (" +
-                        to_string(vec.size()) + "). Ignoring...");
-          }
-        }
+    CUDA_CALL(cudaSetDevice(device_id));
 #if NVML_ENABLED
-        nvml::SetCPUAffinity(core);
-#endif
+    if (set_affinity) {
+      const char * env_affinity = std::getenv("DALI_AFFINITY_MASK");
+      int core = -1;
+      if (env_affinity) {
+        const auto& vec = string_split(env_affinity, ',');
+        if ((size_t)thread_id < vec.size()) {
+          core = std::stoi(vec[thread_id]);
+        } else {
+          DALI_WARN("DALI_AFFINITY_MASK environment variable is set, " +
+                    "but does not have enough entries: " +
+                    "thread_id (" + to_string(thread_id) + ") vs #entries (" +
+                    to_string(vec.size()) + "). Ignoring...");
+        }
+      }
+      nvml::SetCPUAffinity(core);
     }
+#endif
   } catch(std::runtime_error &e) {
     tl_errors_[thread_id].push(e.what());
   } catch(...) {

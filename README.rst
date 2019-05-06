@@ -298,19 +298,19 @@ Building DALI using Clang (experimental):
 -  ``BUILD_LMDB`` - build with support for LMDB (default: OFF)
 -  ``BUILD_NVTX`` - build with NVTX profiling enabled (default: OFF)
 -  ``BUILD_TENSORFLOW`` - build TensorFlow plugin (default: OFF)
--  ``WERROR`` - treat all build warnings as errors (default: OFF)
--  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
 -  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
 -  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
+-  ``WERROR`` - treat all build warnings as errors (default: OFF)
+-  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
 
 .. note::
 
-   DALI release packages are built with the options listed above set to ON. Testing is done with the same configuration.
-   We ensure that DALI compiles with all of those options turned off, but there may exist cross-dependencies
-   between those features.
+   DALI release packages are built with the options listed above set to ON and NVTX turned OFF.
+   Testing is done with the same configuration.  We ensure that DALI compiles with all of those options turned off,
+   but there may exist cross-dependencies between some of those features.
 
 Install Python bindings
 ^^^^^^^^^^^^^^^^^^^^^^^
