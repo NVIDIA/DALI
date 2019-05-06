@@ -51,10 +51,4 @@ TYPED_TEST(DisplacementTest, Rotate) {
   this->RunTest({"Rotate", {"angle", "10", DALI_FLOAT}, 0.001});
 }
 
-TYPED_TEST(DisplacementTest, Flip) {
-  const OpArg params[] = {{"horizontal", "1", DALI_INT32},
-                          {"vertical", "1", DALI_INT32}};
-  this->RunTest("Flip", params, 2);
-}
-
 }  // namespace dali

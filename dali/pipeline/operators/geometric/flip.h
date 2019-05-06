@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_PIPELINE_OPERATORS_GEOMETRIC_FLIP_H_
+#define DALI_PIPELINE_OPERATORS_GEOMETRIC_FLIP_H_
 
-#include "dali/pipeline/operators/displacement/flip.h"
-#include "dali/pipeline/operators/displacement/displacement_filter_impl_gpu.cuh"
+#include <dali/pipeline/data/backend.h>
+#include <dali/pipeline/operators/operator.h>
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(Flip, Flip<GPUBackend>, GPU);
+template <typename Backend>
+class Flip: public Operator<Backend> {
+ public:
+  explicit Flip(const OpSpec &spec);
+
+  ~Flip() override = default;
+  DISABLE_COPY_MOVE_ASSIGN(Flip);
+
+ protected:
+  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+
+  int32 _horizontal;
+  int32 _vertical;
+};
 
 }  // namespace dali
 
+#endif  // DALI_PIPELINE_OPERATORS_GEOMETRIC_FLIP_H_
