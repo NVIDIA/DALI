@@ -66,7 +66,7 @@ RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
     ./autogen.sh && ./configure \
     CC=$QNX_HOST/usr/bin/aarch64-unknown-nto-qnx7.0.0-gcc \
 CXX=$QNX_HOST/usr/bin/aarch64-unknown-nto-qnx7.0.0-g++ \
-CXXFLAGS="-D__EXT_POSIX1_198808 -I$QNX_TARGET/usr/include -I$QNX_TARGET/usr/include/aarch64 -I$QNX_TARGET/usr/include/c++/v1 -L$QNX_TARGET/aarch64le/lib -D_POSIX_C_SOURCE=200112L -D_QNX_SOURCE -D_FILE_OFFSET_BITS=64" \
+CXXFLAGS="-fPIC -D__EXT_POSIX1_198808 -I$QNX_TARGET/usr/include -I$QNX_TARGET/usr/include/aarch64 -I$QNX_TARGET/usr/include/c++/v1 -L$QNX_TARGET/aarch64le/lib -D_POSIX_C_SOURCE=200112L -D_QNX_SOURCE -D_FILE_OFFSET_BITS=64" \
 --host=aarch64-unknown-nto-qnx7.0.0 \
 --build=x86_64-linux-gnu \
 --with-sysroot=$QNX_TARGET \
