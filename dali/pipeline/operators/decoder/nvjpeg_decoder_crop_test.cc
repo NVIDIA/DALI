@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cmath>
 #include "dali/pipeline/operators/decoder/decoder_test.h"
 
 namespace dali {
@@ -29,8 +30,8 @@ class nvJpegDecoderCropTest : public DecodeTestBase<ImgType> {
       CropWindow crop_window;
       crop_window.h = crop_H;
       crop_window.w = crop_W;
-      crop_window.y = 0.5f * (H - crop_window.h);
-      crop_window.x = 0.5f * (W - crop_window.w);
+      crop_window.y = std::round(0.5f * (H - crop_window.h));
+      crop_window.x = std::round(0.5f * (W - crop_window.w));
       return crop_window;
     };
   }
