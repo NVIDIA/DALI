@@ -22,4 +22,4 @@ target_include_directories(${python_function_lib}
 
 # Install python operator plugin to the wheel directory
 set_target_properties(${python_function_lib} PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali/)
+        LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/")

@@ -24,11 +24,27 @@ option(BUILD_PYTHON "Build python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
-option(BUILD_NVJPEG "Build with nvJPEG" ON)
+option(BUILD_NVJPEG "Build with nvJPEG support" ON)
+option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
+option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON)
+option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
 
 option(WERROR "Threat all warnings as errors" OFF)
 
+# FFmpeg is required when we are using NVDEC for video reader
+set(BUILD_FFMPEG ${BUILD_NVDEC})
+
 include(cmake/Utils.cmake)
+
+propagate_option(BUILD_PYTHON)
+propagate_option(BUILD_LMDB)
+propagate_option(BUILD_TENSORFLOW)
+propagate_option(BUILD_JPEG_TURBO)
+propagate_option(BUILD_NVJPEG)
+propagate_option(BUILD_NVOF)
+propagate_option(BUILD_NVDEC)
+propagate_option(BUILD_NVML)
+propagate_option(BUILD_FFMPEG)
 
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 

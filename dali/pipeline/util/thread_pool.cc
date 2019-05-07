@@ -14,7 +14,9 @@
 
 #include <cstdlib>
 #include "dali/pipeline/util/thread_pool.h"
+#if NVML_ENABLED
 #include "dali/util/nvml.h"
+#endif
 #include "dali/util/cuda_utils.h"
 
 namespace dali {
@@ -25,7 +27,9 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity)
     work_complete_(true),
     active_threads_(0) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
+#if NVML_ENABLED
   nvml::Init();
+#endif
   // Start the threads in the main loop
   for (int i = 0; i < num_thread; ++i) {
       threads_[i] = std::thread(
@@ -47,7 +51,9 @@ ThreadPool::~ThreadPool() {
   for (auto &thread : threads_) {
     thread.join();
   }
+#if NVML_ENABLED
   nvml::Shutdown();
+#endif
 }
 
 void ThreadPool::DoWorkWithID(Work work) {
@@ -86,23 +92,25 @@ int ThreadPool::size() const {
 
 void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
   try {
-      CUDA_CALL(cudaSetDevice(device_id));
-      if (set_affinity) {
-        const char * env_affinity = std::getenv("DALI_AFFINITY_MASK");
-        int core = -1;
-        if (env_affinity) {
-          const auto& vec = string_split(env_affinity, ',');
-          if ((size_t)thread_id < vec.size()) {
-              core = std::stoi(vec[thread_id]);
-          } else {
-              DALI_WARN("DALI_AFFINITY_MASK environment variable is set, " +
-                        "but does not have enough entries: " +
-                        "thread_id (" + to_string(thread_id) + ") vs #entries (" +
-                        to_string(vec.size()) + "). Ignoring...");
-          }
+    CUDA_CALL(cudaSetDevice(device_id));
+#if NVML_ENABLED
+    if (set_affinity) {
+      const char * env_affinity = std::getenv("DALI_AFFINITY_MASK");
+      int core = -1;
+      if (env_affinity) {
+        const auto& vec = string_split(env_affinity, ',');
+        if ((size_t)thread_id < vec.size()) {
+          core = std::stoi(vec[thread_id]);
+        } else {
+          DALI_WARN("DALI_AFFINITY_MASK environment variable is set, " +
+                    "but does not have enough entries: " +
+                    "thread_id (" + to_string(thread_id) + ") vs #entries (" +
+                    to_string(vec.size()) + "). Ignoring...");
         }
-        nvml::SetCPUAffinity(core);
+      }
+      nvml::SetCPUAffinity(core);
     }
+#endif
   } catch(std::runtime_error &e) {
     tl_errors_[thread_id].push(e.what());
   } catch(...) {
