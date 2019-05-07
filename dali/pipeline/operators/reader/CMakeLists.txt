@@ -14,14 +14,18 @@
 
 add_subdirectory(loader)
 add_subdirectory(parser)
-add_subdirectory(nvdecoder)
+if (BUILD_NVDEC)
+  add_subdirectory(nvdecoder)
+endif()
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE) # TODO (ONLY SUPPORTED ONES)
 
 list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_op.cc")
 list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/sequence_reader_op.cc")
 
-list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_op.cc")
+if(BUILD_NVDEC)
+  list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_op.cc")
+endif()
 
 if (BUILD_LMDB)
   list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe_reader_op.cc")

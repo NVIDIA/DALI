@@ -196,11 +196,11 @@ cmake_parse_arguments(
   "" # multi value keywords
   ${ARGV})
 
-  file(GLOB collect_headers_tmp RELATIVE ${CMAKE_SOURCE_DIR} *.h)
+  file(GLOB collect_headers_tmp *.h)
   set(${DALI_HEADERS_GROUP} ${${DALI_HEADERS_GROUP}} ${collect_headers_tmp})
   # We remove filenames containing substring test
   if(NOT COLLECT_HEADERS_INCLUDE_TEST)
-    file(GLOB collect_headers_tmp RELATIVE ${CMAKE_SOURCE_DIR} *test*)
+    file(GLOB collect_headers_tmp *test*)
     remove(${DALI_HEADERS_GROUP} "${${DALI_HEADERS_GROUP}}" ${collect_headers_tmp})
   endif()
   if(COLLECT_HEADERS_PARENT_SCOPE)
@@ -208,3 +208,16 @@ cmake_parse_arguments(
   endif()
 endmacro(collect_headers)
 
+# Add a define for build option.
+# for option(BUILD_FAUTRE "feature description") creates a FAUTRE_ENABLED definition
+# passed to compiler, with appropriate value based on the value of the option.
+#
+function(propagate_option BUILD_OPTION_NAME)
+  string(REPLACE "BUILD_" "" OPTION_NAME ${BUILD_OPTION_NAME})
+  set(DEFINE_NAME ${OPTION_NAME}_ENABLED)
+  if (${BUILD_OPTION_NAME})
+    add_definitions(-D${DEFINE_NAME}=1)
+  else()
+    add_definitions(-D${DEFINE_NAME}=0)
+  endif()
+endfunction(propagate_option)

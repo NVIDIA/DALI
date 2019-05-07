@@ -15,7 +15,6 @@
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 
 #include <cuda_runtime.h>
-#include <nvml.h>
 #include <unistd.h>
 
 #include <algorithm>
