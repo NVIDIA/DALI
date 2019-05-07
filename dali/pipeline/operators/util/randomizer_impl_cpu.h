@@ -16,11 +16,11 @@
 #define DALI_PIPELINE_OPERATORS_UTIL_RANDOMIZER_IMPL_CPU_H_
 
 #include "dali/pipeline/operators/util/randomizer.h"
-#if defined(__AARCH64_QNX__)
+#if !defined(__AARCH64_QNX__)
+#include <stdlib.h>
+#else
 #include <random>
 #include <limits>
-#else
-#include <stdlib.h>
 #endif
 
 namespace dali {
