@@ -421,10 +421,6 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   // Save the pointer
   const void *ptr = tensor.raw_data();
 
-  // Allocate some memory in the hope of not getting the same pointer for a larger buffer.
-  Tensor<TypeParam> get_in_the_way;
-  get_in_the_way.reserve(1<<16);
-
   // Change the type of the buffer
   tensor.template mutable_data<int>();
 
@@ -463,7 +459,6 @@ TYPED_TEST(TensorTest, TestTypeChange) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 
-  ASSERT_NE(tensor.raw_data(), ptr);
   ASSERT_EQ(num_elements * sizeof(double), tensor.nbytes());
 }
 

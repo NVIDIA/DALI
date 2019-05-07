@@ -452,10 +452,6 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
   const void *ptr = tensor_list.raw_data();
   size_t nbytes = tensor_list.nbytes();
 
-  // Allocate some memory in the hope of not getting the same pointer for a larger buffer.
-  TensorList<TypeParam> get_in_the_way;
-  get_in_the_way.reserve(1<<16);
-
   // Change the data type to something larger
   tensor_list.template mutable_data<double>();
 
@@ -465,9 +461,6 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
-
-  // Size doubled, memory allocation should have occured
-  ASSERT_NE(ptr, tensor_list.raw_data());
 
   // nbytes should have increased by a factor of 2
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor_list.nbytes());
