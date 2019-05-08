@@ -105,6 +105,46 @@ Installing this package will install ``nvidia-dali`` and its dependencies, if th
     OLDER_VERSION=0.6.1
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin==$OLDER_VERSION
 
+Nightly and weekly release channels
+"""""""""""""""""""""""""""""""""""
+
+.. note::
+
+  While binaries available to download from nightly and weekly builds include most recent changes available in the GitHub some functionalities may not work or provide inferior performance comparing to the official releases. Those builds are meant for the early adopters seeking for the most recent version available and being ready to boldly go where no man has gone before.
+
+.. note::
+
+  It is recommended to uninstall regular DALI and TensorFlow plugin before installing nvidia-dali-nightly or nvidia-dali-weekly as they are installed in the same path
+
+Nightly builds
+**************
+
+To access most recent nightly builds please use flowing release channel:
+
+* for CUDA9
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/9.0 nvidia-dali-nightly
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/9.0 nvidia-dali-tf-plugin-nightly
+
+* for CUDA10
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/10.0 nvidia-dali-nightly
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/10.0 nvidia-dali-tf-plugin-nightly
+
+Weekly builds
+**************
+
+Also, there is a weekly release channel with more thorough testing (only CUDA10 builds are provided there):
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly/cuda/10.0 nvidia-dali-weekly
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly/cuda/10.0 nvidia-dali-tf-plugin-weekly
+
 ----
 
 Compiling DALI from source (using Docker builder) - recommended
