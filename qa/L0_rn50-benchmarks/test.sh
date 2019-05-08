@@ -1,5 +1,7 @@
 #!/bin/bash -ex
 
+source ../setup_test_common.sh
+
 BINNAME=dali_benchmark.bin
 
 for DIRNAME in \
@@ -18,4 +20,3 @@ if [[ -z "$FULLPATH" ]]; then
 fi
 
 "$FULLPATH" --benchmark_filter="RN50*"
-

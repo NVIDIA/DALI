@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-source ../setup_test.sh
+source ../setup_dali_extra.sh
 
 # used pip packages
 pip_packages="jupyter matplotlib mxnet-cu##CUDA_VERSION## tensorflow-gpu torchvision torch"
@@ -20,10 +20,6 @@ test_body() {
     black_list_files="optical_flow_example.ipynb\|#" # optical flow requires TU102 architecture
                                                      # whilst currently L1_jupyter_plugins test
                                                      # can be run only on V100
-                                                     # TensorFlow doesn't support Python 3.7 yet
-    if [ $PYTHON_VERSION == "3.7" ]; then
-        black_list_files="tensorflow\|$black_list_files"
-    fi
 
     # test code
     find */* -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \

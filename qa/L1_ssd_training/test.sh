@@ -16,7 +16,6 @@ test_body() {
     pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
     popd
 
-    # test code
     python main.py --backbone resnet50 --warmup 300 --bs 64 --data /data/coco/coco-2017/coco2017/ --data_pipeline dali --epochs=4 --target 0.1
 }
 
