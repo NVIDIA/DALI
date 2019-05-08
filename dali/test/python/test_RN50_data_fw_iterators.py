@@ -22,6 +22,7 @@ import time
 import tensorflow as tf
 from nvidia.dali.plugin.mxnet import DALIClassificationIterator as MXNetIterator
 from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIterator
+from nvidia.dali.plugin.tf import DALIIterator as TensorFlowIterator
 
 data_paths = ["/data/imagenet/train-jpeg"]
 
@@ -71,8 +72,6 @@ parser.add_argument('-i', '--iters', default=-1, type=int, metavar='N',
                     help='Number of iterations to run (default: -1 - whole data set)')
 parser.add_argument('-e', '--epochs', default=1, type=int, metavar='N',
                     help='Number of epochs to run (default: 1)')
-parser.add_argument('--dissable_tf', action='store_true',
-                    help='Dissable TensorFlow test')
 args = parser.parse_args()
 
 print("GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, args.nhwc: {}"
@@ -99,11 +98,8 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 Iterators = [("mxnet.DALIClassificationIterator"   , MXNetIterator),
-             ("pytorch.DALIClassificationIterator" , PyTorchIterator)]
-
-if not args.dissable_tf:
-    from nvidia.dali.plugin.tf import DALIIterator as TensorFlowIterator
-    Iterators.append(("tf.DALIIterator" , TensorFlowIterator))
+             ("pytorch.DALIClassificationIterator" , PyTorchIterator),
+             ("tf.DALIIterator" , TensorFlowIterator)]
 
 for iterator_name, IteratorClass in Iterators:
     print("Start testing {}".format(iterator_name))
