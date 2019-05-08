@@ -1,3 +1,17 @@
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 #############################
 #        CUDA TOOLKIT
 #############################
@@ -32,7 +46,7 @@ find_cuda_helper_libs(culibos)
 list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
 list(APPEND DALI_EXCLUDES libculibos.a)
 
-include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)
+# TODO(klecki): Do we need host includes?
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 
 # NVTX for profiling
