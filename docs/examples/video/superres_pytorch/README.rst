@@ -126,7 +126,7 @@ This will create a 5 directories inside of ``<data_dir>``\ :
 Training
 --------
 
-Training can be run by running the following command:
+Training can be run by running the following command available in :fileref:`docs/examples/video/superres_pytorch/run.sh`:
 
 .. code-block::
 
