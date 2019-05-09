@@ -99,9 +99,3 @@ RUN if [ "${BUILD_PYTHON}" = "ON" ]; then \
         mv dist/nvidia-dali-tf-plugin*.tar.gz /wheelhouse/ && \
         popd ;\
     fi
-
-RUN pushd .. && \
-    doxygen Doxyfile && \
-    tar czvf nvidia_dali_doxygen.tar.gz doxygen && \
-    mv nvidia_dali_doxygen.tar.gz /wheelhouse && \
-    popd
