@@ -73,9 +73,16 @@ static_assert(align_up(5, 8) == 8, "Should align");
 template <typename DependentName, typename Result>
 using if_istype = typename std::conditional<false, DependentName, Result>::type;
 
-template <typename Collection, typename T>
+template <typename Collection, typename T = void>
 using if_iterable = if_istype<decltype(*std::end(std::declval<Collection>())),
                               if_istype<decltype(*std::begin(std::declval<Collection>())), T>>;
+
+template <typename Collection, typename T = void>
+using if_indexable = if_istype<decltype(std::declval<Collection>()[0]), T>;
+
+template <typename Collection, typename T = void>
+using if_array_like = if_indexable<Collection,
+                                   if_istype<decltype(size(std::declval<Collection>())), T>>;
 
 template <typename C>
 struct element_type {

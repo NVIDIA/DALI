@@ -168,8 +168,6 @@ void BatchResamplingSetup::SetupBatch(
   output_shape.resize(N);
   intermediate_size = 0;
 
-  ptrdiff_t in_offset = 0, out_offset = 0, tmp_offset = 0;
-
   total_blocks = { 0, 0 };
 
   for (int i = 0; i < N; i++) {
@@ -187,18 +185,11 @@ void BatchResamplingSetup::SetupBatch(
     ts_out[1] = desc.out_shape()[1];
     ts_out[2] = desc.channels;
 
-    desc.in_offset() += in_offset;
-    desc.tmp_offset() += tmp_offset;
-    desc.out_offset() += out_offset;
-
-    in_offset  += volume(ts_in);
-    tmp_offset += volume(ts_tmp);
-    out_offset += volume(ts_out);
+    intermediate_size += volume(ts_tmp);
 
     total_blocks.pass[0] += desc.block_count.pass[0];
     total_blocks.pass[1] += desc.block_count.pass[1];
   }
-  intermediate_size = tmp_offset;
 }
 
 void BatchResamplingSetup::InitializeSampleLookup(

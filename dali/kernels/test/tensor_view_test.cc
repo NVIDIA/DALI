@@ -21,15 +21,6 @@
 namespace dali {
 namespace kernels {
 
-TEST(ShapeDimTest, Value) {
-  int x1[] = {1, 2, 3};
-  EXPECT_EQ(ShapeDim(x1), 3);
-  std::array<int, 5> x2;
-  EXPECT_EQ(ShapeDim(x2), 5);
-  std::vector<int> x3 = {1, 2, 3, 4};
-  EXPECT_EQ(ShapeDim(x3), 4);
-}
-
 TEST(CompileTimeSize, DimInference) {
   std::array<int, 3> a;
   const auto *pa = &a;
@@ -79,7 +70,7 @@ TEST(TensorViewTest, Addressing) {
   EXPECT_EQ(tv(1, 0, 0), static_cast<int*>(nullptr) + 5000);
   EXPECT_EQ(tv(1, 1, 1), static_cast<int*>(nullptr) + 5051);
   EXPECT_EQ(tv(1, 1), static_cast<int*>(nullptr) + 5050);
-  // EXPECT_EQ(tv(1), static_cast<int*>(nullptr) + 5000); // TODO - this is ambigous
+  EXPECT_EQ(tv(1), static_cast<int*>(nullptr) + 5000);
 }
 
 TEST(TensorViewTest, TypePromotion) {
@@ -113,24 +104,77 @@ TEST(TensorViewTest, TypePromotion) {
   EXPECT_EQ(tvc_dyn.shape.shape.data(), ptr) << "Move is broken - a copy appeared somewhere.";
 }
 
-TEST(TensorListViewTest, Constructor) {
+TEST(TensorListViewTest, ConstructorNull) {
   TensorListView<EmptyBackendTag, int, 3> tlv{
-      static_cast<int*>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
-  ASSERT_EQ(tlv.size(), 4);
-  ASSERT_EQ(tlv.sample_dim(), 3);
+      nullptr, {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
+  EXPECT_EQ(tlv.size(), 4);
+  EXPECT_EQ(tlv.sample_dim(), 3);
   TensorListView<EmptyBackendTag, int> tlv_dynamic(tlv);
-  ASSERT_EQ(tlv_dynamic.size(), 4);
-  ASSERT_EQ(tlv_dynamic.sample_dim(), 3);
+  EXPECT_EQ(tlv_dynamic.size(), 4);
+  EXPECT_EQ(tlv_dynamic.sample_dim(), 3);
+  ASSERT_EQ(tlv.data.size(), 4);
+  ASSERT_EQ(tlv_dynamic.data.size(), 4);
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(tlv.tensor_data(i), nullptr);
+    EXPECT_EQ(tlv_dynamic.tensor_data(i), nullptr);
+  }
 }
 
-TEST(TensorListViewTest, OperatorSubscript) {
+TEST(TensorListViewTest, ConstructorContiguous) {
+  int dummy;
+  int *base_ptr = &dummy;
   TensorListView<EmptyBackendTag, int, 3> tlv{
-      static_cast<int*>(nullptr), {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
+      base_ptr, {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
   EXPECT_EQ(tlv[0].shape.size(), 3);
-  EXPECT_EQ(tlv[0].data, static_cast<int*>(nullptr));
-  EXPECT_EQ(tlv[1].data, static_cast<int*>(nullptr) + 4 * 100 * 50);
-  EXPECT_EQ(tlv[2].data, static_cast<int*>(nullptr) + 4 * 100 * 50 + 2 * 10 * 5);
-  EXPECT_EQ(tlv[3].data, static_cast<int*>(nullptr) + 4 * 100 * 50 + 2 * 10 * 5 + 4 * 50 * 25);
+  EXPECT_EQ(tlv[0].data, base_ptr);
+  EXPECT_EQ(tlv[1].data, base_ptr + 4 * 100 * 50);
+  EXPECT_EQ(tlv[2].data, base_ptr + 4 * 100 * 50 + 2 * 10 * 5);
+  EXPECT_EQ(tlv[3].data, base_ptr + 4 * 100 * 50 + 2 * 10 * 5 + 4 * 50 * 25);
+}
+
+TEST(TensorListViewTest, ConstructorScattered) {
+  int a[4];
+  int *pointers[4] = { &a[2], &a[3], &a[0], &a[1] };
+
+  TensorListShape<3> shape({{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}});
+  TensorListView<EmptyBackendTag, int, 3> tlv{
+      pointers, {{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}}};
+  EXPECT_EQ(tlv.sample_dim(), 3);
+  EXPECT_EQ(tlv.shape, shape);
+  TensorListView<EmptyBackendTag, int> tlv_dynamic(tlv);
+  EXPECT_EQ(tlv_dynamic.sample_dim(), 3);
+  EXPECT_EQ(tlv_dynamic.shape, shape);
+
+  EXPECT_EQ(tlv.size(), 4);
+  EXPECT_EQ(tlv_dynamic.size(), 4);
+
+  ASSERT_EQ(tlv.data.size(), 4);
+  ASSERT_EQ(tlv_dynamic.data.size(), 4);
+
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(tlv.tensor_data(i), pointers[i]);
+    EXPECT_EQ(tlv_dynamic.tensor_data(i), pointers[i]);
+  }
+}
+
+TEST(TensorListViewTest, ConstructorMove) {
+  int a[4];
+  int *pointers[4] = { &a[2], &a[3], &a[0], &a[1] };
+
+  TensorListShape<3> shape({{4, 100, 50}, {2, 10, 5}, {4, 50, 25}, {4, 100, 50}});
+  auto *shape_ptr = shape.shapes.data();
+  TensorListView<EmptyBackendTag, int, 3> tlv(pointers, std::move(shape));
+  EXPECT_EQ(tlv.shape.shapes.data(), shape_ptr) << "Should take over the original shape pointer";
+  auto **data_ptr = tlv.data.data();
+  TensorListView<EmptyBackendTag, const int, 3> tlv2 = std::move(tlv);
+  EXPECT_EQ(tlv2.shape.shapes.data(), shape_ptr) << "Should take over the original pointer";
+  EXPECT_EQ(tlv2.data.data(), data_ptr) << "Should take over the original pointer";
+
+  EXPECT_TRUE(tlv.empty()) << "Should be empty after moving";
+  EXPECT_EQ(tlv.num_samples(), 0) << "After move, num_samples should be 0";
+  EXPECT_EQ(tlv.shape.num_samples(), 0) << "After move, num_samples should be 0";
+  EXPECT_TRUE(tlv.shape.shapes.empty()) << "After TensorListView move, the shape should be empty";
+  EXPECT_TRUE(tlv.data.empty()) << "After move, data pointer array should be empty";
 }
 
 TEST(TensorListViewTest, ObtainingTensorViewFromStatic) {
@@ -172,27 +216,32 @@ TEST(TensorListViewTest, TypePromotion) {
   TensorListView<EmptyBackendTag, int, 3> tv{nullptr, shape};
   TensorListView<EmptyBackendTag, const int, 3> tvc = tv;
   EXPECT_EQ(tvc.shape, tv.shape);
-  EXPECT_EQ(tvc.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
   tvc = {};
   EXPECT_NE(tvc.shape, tv.shape);
-  EXPECT_EQ(tvc.data, nullptr);
+  EXPECT_TRUE(tvc.empty());
   tvc = tv;
   EXPECT_EQ(tvc.shape, tv.shape);
-  EXPECT_EQ(tvc.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
 
   TensorListView<EmptyBackendTag, int> tv_dyn = tv;
   EXPECT_EQ(tv_dyn.shape, tv.shape);
-  EXPECT_EQ(tv_dyn.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
 
   TensorListView<EmptyBackendTag, const int> tvc_dyn = tv;
   EXPECT_EQ(tvc_dyn.shape, tv.shape);
-  EXPECT_EQ(tvc_dyn.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
   tvc_dyn = {};
   EXPECT_NE(tvc_dyn.shape, tv.shape);
-  EXPECT_EQ(tvc_dyn.data, nullptr);
+  EXPECT_TRUE(tvc_dyn.empty());
   tvc_dyn = tv;
   EXPECT_EQ(tvc_dyn.shape, tv.shape);
-  EXPECT_EQ(tvc_dyn.data, tv.data);
+  for (int i = 0; i < tv.num_samples(); i++)
+    EXPECT_EQ(tvc.tensor_data(i), tv.tensor_data(i));
 
   auto *ptr = tv_dyn.shape.shapes.data();
   tvc_dyn = std::move(tv_dyn);
@@ -255,6 +304,29 @@ TEST(TensorViewTest, DynamicSubtensorTest) {
   for (int i = 0; i < dims[0]; i++) {
     auto ret = subtensor(tv, i);
     VerifySubtensor(ret.data, dims, i);
+  }
+}
+
+TEST(TensorListViewTest, SampleRange) {
+  const int D = 3;
+  unsigned seed = 42;
+  int N = 100;
+  std::vector<TensorShape<D>> shapes(N);
+  for (int i = 0; i < N; i++) {
+    for (int j = 0; j < D; j++)
+      shapes[i][j] = rand_r(&seed)%5 + 1;
+  }
+  TensorListShape<D> shape(shapes);
+  std::vector<int> data(shape.num_elements());
+  std::iota(data.begin(), data.end(), 1);
+  TensorListView<StorageCPU, int, D> whole(data.data(), shape);
+  int start = 33;
+  int length = 15;
+  auto slice = sample_range(whole, start, start + length);
+  ASSERT_EQ(slice.num_samples(), length);
+  for (int j = 0; j < length; j++) {
+    EXPECT_EQ(slice.tensor_data(j), whole.tensor_data(start + j));
+    EXPECT_EQ(slice.tensor_shape(j), whole.tensor_shape(start + j));
   }
 }
 
