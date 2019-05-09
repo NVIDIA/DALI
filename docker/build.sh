@@ -7,7 +7,7 @@ export NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-12345}
 export CREATE_WHL=${CREATE_WHL:-YES}
 export CREATE_RUNNER=${CREATE_RUNNER:-NO}
 export DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}
-export BUILD_TYPE=${BUILD_TYPE:-Debug}
+export BUILD_TYPE=${BUILD_TYPE:-Release}
 #################################
 export DEPS_IMAGE=dali_cu${CUDA_VERSION}.deps
 export BUILDER=dali_${PYV}_cu${CUDA_VERSION}.build
