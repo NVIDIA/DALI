@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/pipeline/data/tensor.h"
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/dali_operator_test_utils.h"
-#include "dali/pipeline/data/tensor.h"
 
 namespace dali {
 
@@ -24,6 +24,19 @@ const int data_width = 3;
 const int data_height = 2;
 const int data_channels = 3;
 
+struct TestTlData {
+  std::vector<float> _data;
+
+  explicit TestTlData(void *data_ptr) noexcept
+      : _data(2 * data_width * data_height * data_channels) {
+    auto data_size = data_width * data_height * data_channels * sizeof(float);
+    std::memcpy(_data.data(), data_ptr, data_size);
+    std::memcpy(_data.data() + data_size / sizeof(float), data_ptr, data_size);
+  }
+
+  float *data() { return _data.data(); }
+};
+
 float data_nhwc[2][2][2][3][3] = {{{{{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}},
                                     {{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}}},
                                    {{{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}},
@@ -32,21 +45,6 @@ float data_nhwc[2][2][2][3][3] = {{{{{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2
                                     {{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}}},
                                    {{{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}},
                                     {{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}}}}};
-
-struct TestTlData {
-  std::vector<float> _data;
-
-  explicit TestTlData(void *data_ptr) noexcept
-  : _data(2 * data_width * data_height * data_channels) {
-    auto data_size = data_width * data_height * data_channels * sizeof(float);
-    std::memcpy(_data.data(), data_ptr, data_size);
-    std::memcpy(_data.data() + data_size / sizeof(float), data_ptr, data_size);
-  }
-
-  float *data() {
-    return _data.data();
-  }
-};
 
 TestTlData nhwc_tensor_list_data(&data_nhwc[0][0]);
 
@@ -72,22 +70,17 @@ class FlipTest : public testing::DaliOperatorTest {
   }
 };
 
-std::vector<Arguments> arguments = {
-    {{"horizontal", 0}, {"vertical", 0}},
-    {{"horizontal", 1}, {"vertical", 0}},
-    {{"horizontal", 0}, {"vertical", 1}},
-    {{"horizontal", 1}, {"vertical", 1}}
-};
+std::vector<Arguments> arguments = {{{"horizontal", 0}, {"vertical", 0}},
+                                    {{"horizontal", 1}, {"vertical", 0}},
+                                    {{"horizontal", 0}, {"vertical", 1}},
+                                    {{"horizontal", 1}, {"vertical", 1}}};
 
 std::vector<Arguments> devices = {
     {{"device", std::string{"cpu"}}},
     {{"device", std::string{"gpu"}}},
 };
 
-std::vector<Arguments> layout = {
-    {{"nhwc", true}},
-    {{"nhwc", false}}
-};
+std::vector<Arguments> layout = {{{"nhwc", true}}, {{"nhwc", false}}};
 
 void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
   int _horizontal = args["horizontal"].GetValue<int>();
@@ -106,7 +99,7 @@ void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments arg
   }
 }
 
-TEST_P(FlipTest, NhwcTest) {
+TEST_P(FlipTest, BasicTest) {
   auto args = GetParam();
   auto nhwc = args["nhwc"].GetValue<bool>();
   auto data_size = data_width * data_height * data_channels * sizeof(float);

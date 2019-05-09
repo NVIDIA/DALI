@@ -13,15 +13,18 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
-#include <dali/pipeline/operators/geometric/flip.h>
+#include "dali/pipeline/operators/geometric/flip.h"
 
 namespace dali {
 
 template <>
-Flip<GPUBackend>::Flip(const OpSpec &spec)
-    : Operator<GPUBackend>(spec),
-      _horizontal(spec.GetArgument<int32>("horizontal")),
-      _vertical(spec.GetArgument<int32>("vertical")) {}
+Flip<GPUBackend>::Flip(const OpSpec &spec) : Operator<GPUBackend>(spec), spec_(spec) {}
+
+struct NoneIdxFlip {
+  static __device__ size_t OutputIdx(size_t height, size_t width, size_t r, size_t c) {
+    return r * width + c;
+  }
+};
 
 struct HorizontalIdxFlip {
   static __device__ size_t OutputIdx(size_t height, size_t width, size_t r, size_t c) {
@@ -42,46 +45,45 @@ struct HorizontalVerticalIdxFlip {
 };
 
 template <typename IndexFlip, typename T>
-__global__ void FlipKernel(T *output, const T *input, size_t height, size_t width,
-                           size_t channels) {
-  unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < height * width) {
-    size_t r = idx / width;
-    size_t c = idx % width;
-    size_t out_idx = IndexFlip::OutputIdx(height, width, r, c);
-    memcpy(&output[out_idx * channels], &input[(r * width + c) * channels], sizeof(T) * channels);
+__global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input, size_t height,
+                           size_t width, size_t channels_per_layer) {
+  size_t r = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t c = blockIdx.y * blockDim.y + threadIdx.y;
+  if (r < height && c < width) {
+    size_t channel = (blockIdx.z * blockDim.z + threadIdx.z) % channels_per_layer;
+    size_t layer = (blockIdx.z * blockDim.z + threadIdx.z) / channels_per_layer;
+    size_t input_coord = r * width + c;
+    size_t output_coord = IndexFlip::OutputIdx(height, width, r, c);
+    size_t layer_origin = layer * height * width * channels_per_layer;
+    output[layer_origin + output_coord * channels_per_layer + channel] =
+        input[layer_origin + input_coord * channels_per_layer + channel];
   }
 }
 
 template <typename IndexFlip>
 void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &input,
-               cudaStream_t stream) {
-  DALI_TYPE_SWITCH(input.type().id(), DType,
-    for (unsigned int i = 0; i < input.ntensor(); ++i) {
+               cudaStream_t stream, size_t i) {
+  DALI_TYPE_SWITCH(
+      input.type().id(), DType,
       const auto *input_ptr = input.tensor<DType>(i);
       auto *output_ptr = output.mutable_tensor<DType>(i);
+      int64_t height, width, channels, channels_per_layer;
       if (input.GetLayout() == DALI_NHWC) {
-        DALI_ENFORCE(input.tensor_shape(i).size() == 3);
-        ssize_t height = input.tensor_shape(i)[0], width = input.tensor_shape(i)[1];
-        const auto channels = input.tensor_shape(i)[2];
-        const auto total_size = height * width;
-        const unsigned int block = total_size < 1024 ? total_size : 1024;
-        const unsigned int grid = (total_size + block - 1) / block;
-        FlipKernel<IndexFlip>
-            <<<grid, block, 0, stream>>>(output_ptr, input_ptr, height, width, channels);
-      } else if (input.GetLayout() == DALI_NCHW) {
-        ssize_t height = input.tensor_shape(i)[1], width = input.tensor_shape(i)[2];
-        const auto channels = input.tensor_shape(i)[0];
-        const auto total_size = height * width;
-        const unsigned int block = total_size < 1024 ? total_size : 1024;
-        const unsigned int grid = (total_size + block - 1) / block;
-        for (ssize_t c = 0; c < channels; ++c) {
-          auto slice_origin = c * height * width;
-          FlipKernel<IndexFlip><<<grid, block, 0, stream>>>(
-              output_ptr + slice_origin, input_ptr + slice_origin, height, width, 1);
-        }
+        height = input.tensor_shape(i)[0];
+        width = input.tensor_shape(i)[1];
+        channels = input.tensor_shape(i)[2];
+        channels_per_layer = channels;
+      } else {
+        height = input.tensor_shape(i)[1];
+        width = input.tensor_shape(i)[2];
+        channels = input.tensor_shape(i)[0];
+        channels_per_layer = 1;
       }
-    }
+      unsigned int block_x = height < 32 ? height : 32;
+      unsigned int block_y = width < 32 ? width : 32; dim3 block(block_x, block_y, 1);
+      dim3 grid((height + block_x - 1) / block_x, (width + block_y - 1) / block_y, channels);
+      FlipKernel<IndexFlip>
+        <<<grid, block, 0, stream>>>(output_ptr, input_ptr, height, width, channels_per_layer);
   )
 }
 
@@ -89,18 +91,23 @@ template <>
 void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
   auto &output = ws->Output<GPUBackend>(idx);
+  DALI_ENFORCE(input.GetLayout() == DALI_NHWC || input.GetLayout() == DALI_NCHW);
   output.SetLayout(input.GetLayout());
   output.set_type(input.type());
   output.ResizeLike(input);
   auto stream = ws->stream();
-  if (_horizontal && _vertical) {
-    RunKernel<HorizontalVerticalIdxFlip>(output, input, stream);
-  } else if (_horizontal) {
-    RunKernel<HorizontalIdxFlip>(output, input, stream);
-  } else if (_vertical) {
-    RunKernel<VerticalIdxFlip>(output, input, stream);
-  } else {
-    output.Copy(input, stream);
+  for (size_t i = 0; i < input.ntensor(); ++i) {
+    auto _horizontal = GetHorizontal(ws, i);
+    auto _vertical = GetVertical(ws, i);
+    if (_horizontal && _vertical) {
+      RunKernel<HorizontalVerticalIdxFlip>(output, input, stream, i);
+    } else if (_horizontal) {
+      RunKernel<HorizontalIdxFlip>(output, input, stream, i);
+    } else if (_vertical) {
+      RunKernel<VerticalIdxFlip>(output, input, stream, i);
+    } else {
+      RunKernel<NoneIdxFlip>(output, input, stream, i);
+    }
   }
 }
 

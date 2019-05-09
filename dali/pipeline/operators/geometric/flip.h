@@ -15,8 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATORS_GEOMETRIC_FLIP_H_
 #define DALI_PIPELINE_OPERATORS_GEOMETRIC_FLIP_H_
 
-#include <dali/pipeline/data/backend.h>
-#include <dali/pipeline/operators/operator.h>
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
@@ -31,8 +31,16 @@ class Flip: public Operator<Backend> {
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
-  int32 _horizontal;
-  int32 _vertical;
+  bool GetHorizontal(const ArgumentWorkspace *ws, int idx) {
+    return spec_.GetArgument<int32>("horizontal", ws, idx);
+  }
+
+  bool GetVertical(const ArgumentWorkspace *ws, int idx) {
+    return spec_.GetArgument<int32>("vertical", ws, idx);
+  }
+
+ private:
+  OpSpec spec_;
 };
 
 }  // namespace dali
