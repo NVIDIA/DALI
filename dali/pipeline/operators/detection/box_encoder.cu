@@ -180,8 +180,10 @@ std::pair<int *, float *> BoxEncoder<GPUBackend>::ClearBuffers(const cudaStream_
   auto best_box_idx_data = best_box_idx_.mutable_data<int>();
   auto best_box_iou_data = best_box_iou_.mutable_data<float>();
 
-  CUDA_CALL(cudaMemsetAsync(best_box_idx_data, 0, batch_size_ * anchors_count_ * sizeof(int)));
-  CUDA_CALL(cudaMemsetAsync(best_box_iou_data, 0, batch_size_ * anchors_count_ * sizeof(float)));
+  CUDA_CALL(cudaMemsetAsync(
+    best_box_idx_data, 0, batch_size_ * anchors_count_ * sizeof(int), stream));
+  CUDA_CALL(cudaMemsetAsync(
+    best_box_iou_data, 0, batch_size_ * anchors_count_ * sizeof(float), stream));
 
   return {best_box_idx_data, best_box_iou_data};
 }
