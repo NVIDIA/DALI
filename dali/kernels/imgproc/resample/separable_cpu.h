@@ -114,15 +114,17 @@ struct SeparableResampleCPU  {
            const ResamplingParams2D &params) {
     auto &desc = setup.desc;
 
+    desc.set_base_pointers(input.data, static_cast<char*>(nullptr), output.data);
+
     auto in_ROI = as_surface_HWC(input);
     in_ROI.width  = desc.in_shape()[1];
     in_ROI.height = desc.in_shape()[0];
-    in_ROI.data  += desc.in_offset();
+    in_ROI.data   = desc.template in_ptr<InputElement>();
 
     auto out_ROI = as_surface_HWC(output);
     out_ROI.width  = desc.out_shape()[1];
     out_ROI.height = desc.out_shape()[0];
-    out_ROI.data  += desc.out_offset();
+    out_ROI.data   = desc.template out_ptr<OutputElement>();
 
     if (setup.IsPureNN(desc)) {
       ResampleNN(out_ROI, in_ROI,
