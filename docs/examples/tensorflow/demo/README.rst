@@ -6,7 +6,7 @@ augmentation pipeline from `the original paper`_.
 
 Common utilities for defining the network and performing basic training
 are located in the nvutils directory. Use of nvutils is demonstrated in
-the model scripts.
+the model scripts available in :fileref:`docs/examples/tensorflow/demo/resnet.py`.
 
 For parallelization, we use the Horovod distribution framework, which
 works in concert with MPI. To train ResNet-50 (``--layers=50``) using 8
