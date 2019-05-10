@@ -386,7 +386,7 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddOutput(t.name, t.device)
         op_instance.append_output(t)
         op_instance.spec.AddArg("function_id", id(self.function))
-        return [t]
+        return t
 
 
 def cpu_ops():
