@@ -23,14 +23,16 @@
 #include "dali/pipeline/operators/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/crop/crop_attr.h"
 
 namespace dali {
 
 template <typename Backend>
-class CropMirrorNormalize : public Operator<Backend> {
+class CropMirrorNormalize : public Operator<Backend>, protected CropAttr  {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec) :
     Operator<Backend>(spec),
+    CropAttr(spec),
     output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
     output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
     pad_(spec.GetArgument<bool>("pad_output")),

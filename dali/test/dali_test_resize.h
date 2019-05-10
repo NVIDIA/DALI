@@ -2,10 +2,11 @@
 #ifndef DALI_TEST_DALI_TEST_RESIZE_H_
 #define DALI_TEST_DALI_TEST_RESIZE_H_
 
-#include "dali/test/dali_test_single_op.h"
+#include <cmath>
 #include <utility>
 #include <vector>
 #include <string>
+#include "dali/test/dali_test_single_op.h"
 
 namespace dali {
 
@@ -133,8 +134,8 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
       if (resizeOptions & t_cropping) {
         finalImg = &crop_img;
 
-        const int crop_y = (rsz_h - crop_h) / 2;
-        const int crop_x = (rsz_w - crop_w) / 2;
+        const int crop_y = std::round(0.5f * (rsz_h - crop_h));
+        const int crop_x = std::round(0.5f * (rsz_w - crop_w));
 
         crop_img.create(crop_h, crop_w, cv_type);
         const int crop_offset = (crop_y * rsz_w + crop_x) * c;
