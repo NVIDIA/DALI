@@ -33,7 +33,12 @@ jpeg_folder = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 coco_image_folder = os.path.join(test_data_root, 'db', 'coco', 'images')
 coco_annotation_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
-def check_batch(batch1, batch2, batch_size, eps = 0.0000001):
+def check_batch(batch1, batch2, batch_size, eps = 1e-07):
+    if isinstance(batch1, dali.backend_impl.TensorListGPU):
+        batch1 = batch1.as_cpu()
+    if isinstance(batch2, dali.backend_impl.TensorListGPU):
+        batch2 = batch2.as_cpu()
+
     for i in range(batch_size):
         is_failed = False
         try:
@@ -59,10 +64,7 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations):
         out2 = pipe2.run()
         assert len(out1) == len(out2)
         for i in range(len(out1)):
-            if isinstance(out1[i].at(0), dali.backend_impl.TensorGPU):
-                check_batch(out1[i].as_cpu(), out2[i].as_cpu(), batch_size)
-            else:
-                check_batch(out1[i], out2[i], batch_size)
+            check_batch(out1[i], out2[i], batch_size)
     print("OK: ({} iterations)".format(N_iterations))
 
 def test_tensor_multiple_uses():
@@ -85,9 +87,6 @@ def test_tensor_multiple_uses():
             images_cpu = self.dump_cpu(images)
             images_gpu = self.dump_gpu(images.gpu())
             return (images, images_cpu, images_gpu)
-
-        def iter_setup(self):
-            pass
 
     pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     pipe.build()
@@ -129,9 +128,6 @@ def test_pipeline_separated_exec_setup():
             images_gpu = self.dump_gpu(images.gpu())
             return (images, images_cpu, images_gpu)
 
-        def iter_setup(self):
-            pass
-
     pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,
                       prefetch_queue_depth = {"cpu_size": 5, "gpu_size": 3})
     pipe.build()
@@ -172,9 +168,6 @@ def test_pipeline_simple_sync_no_prefetch():
             images_gpu = self.dump_gpu(images.gpu())
             return (images, images_gpu)
 
-        def iter_setup(self):
-            pass
-
     pipe = HybridPipe(batch_size=batch_size)
     pipe.build()
     for _ in range(n_iters):
@@ -210,9 +203,6 @@ def test_cropmirrornormalize_layout():
             output_nhwc = self.cmnp_nhwc(images.gpu())
             output_nchw = self.cmnp_nchw(images.gpu())
             return (output_nchw, output_nhwc)
-
-        def iter_setup(self):
-            pass
 
     pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     pipe.build()
@@ -263,9 +253,6 @@ def test_cropmirrornormalize_pad():
             output_pad = self.cmnp_pad(images.gpu())
             output = self.cmnp(images.gpu())
             return (output, output_pad)
-
-        def iter_setup(self):
-            pass
 
     for layout in [types.NCHW, types.NHWC]:
         pipe = HybridPipe(layout, batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
@@ -324,9 +311,6 @@ def test_cropmirrornormalize_multiple_inputs():
             output4 = self.cmnp([images2_device])
             return (output1, output2, output3, output4)
 
-        def iter_setup(self):
-            pass
-
     for device in ["cpu", "gpu"]:
         pipe = HybridPipe(batch_size=batch_size, device=device)
         pipe.build()
@@ -336,6 +320,53 @@ def test_cropmirrornormalize_multiple_inputs():
             check_batch(outs[0], outs[1], batch_size)
             check_batch(outs[0], outs[2], batch_size)
             check_batch(outs[1], outs[3], batch_size)
+
+def test_cropmirrornormalize_cpu_vs_gpu():
+    batch_size = 13
+
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1):
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            self.cmnp_cpu = ops.CropMirrorNormalize(device = "cpu",
+                                                    output_dtype = types.UINT8,
+                                                    output_layout = types.NHWC,
+                                                    crop = (224, 224),
+                                                    image_type = types.RGB,
+                                                    mean = [0., 0., 0.],
+                                                    std = [1., 1., 1.])
+
+            self.cmnp_gpu = ops.CropMirrorNormalize(device = "gpu",
+                                                    output_dtype = types.UINT8,
+                                                    output_layout = types.NHWC,
+                                                    crop = (224, 224),
+                                                    image_type = types.RGB,
+                                                    mean = [0., 0., 0.],
+                                                    std = [1., 1., 1.])
+
+            self.crop_cpu = ops.Crop(device = "cpu", crop = (224, 224),
+                                                image_type = types.RGB,)
+            self.uniform = ops.Uniform(range = (0.0, 1.0))
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            images = self.decode(inputs)
+            pos_x = self.uniform()
+            pos_y = self.uniform()
+            images_cmnp_cpu = self.cmnp_cpu(images, crop_pos_x = pos_x, crop_pos_y = pos_y)
+            images_cmnp_gpu = self.cmnp_gpu(images.gpu(), crop_pos_x = pos_x, crop_pos_y = pos_y)
+            images_ref_cpu = self.crop_cpu(images, crop_pos_x = pos_x, crop_pos_y = pos_y)
+            return (images_cmnp_cpu, images_cmnp_gpu, images_ref_cpu)
+
+    pipe = HybridPipe(batch_size=batch_size)
+    pipe.build()
+    for _ in range(10):
+        (images_cmnp_cpu, images_cmnp_gpu, images_ref_cpu) = pipe.run()
+        check_batch(images_cmnp_cpu, images_cmnp_gpu, batch_size)
+        check_batch(images_cmnp_cpu, images_ref_cpu, batch_size)
 
 def test_seed():
     batch_size = 64
@@ -364,8 +395,6 @@ def test_seed():
             output = self.cmnp(images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
             return (output, self.labels)
 
-        def iter_setup(self):
-            pass
     n = 30
     for i in range(50):
         pipe = HybridPipe(batch_size=batch_size,
@@ -406,8 +435,6 @@ def test_as_array():
             output = self.cmnp(images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
             return (output, self.labels)
 
-        def iter_setup(self):
-            pass
     n = 30
     for i in range(50):
         pipe = HybridPipe(batch_size=batch_size,
@@ -449,8 +476,6 @@ def test_seed_serialize():
             output = self.cmnp(images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
             return (output, self.labels)
 
-        def iter_setup(self):
-            pass
     n = 30
     orig_pipe = HybridPipe(batch_size=batch_size,
                            num_threads=2,
@@ -467,6 +492,7 @@ def test_seed_serialize():
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
 
 def test_make_continuous_serialize():
+    batch_size = 32
     class COCOPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
             super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
@@ -482,21 +508,14 @@ def test_make_continuous_serialize():
             images = self.slice(images, crop_begin, crop_size)
             return images
 
-    pipe = COCOPipeline(batch_size=32, num_threads=2, device_id=0)
+    pipe = COCOPipeline(batch_size=batch_size, num_threads=2, device_id=0)
     serialized_pipeline = pipe.serialize()
     del(pipe)
-    new_pipe = Pipeline(batch_size=32, num_threads=2, device_id=0)
+    new_pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0)
     new_pipe.deserialize_and_build(serialized_pipeline)
 
-def compare(val_1, val_2):
-    return np.allclose(val_1, val_2)
-
-def to_array(dali_out):
-    if isinstance(dali_out, TensorListGPU):
-        dali_out = dali_out.as_cpu()
-    return np.squeeze(dali_out.as_array())
-
 def test_make_continuous_serialize_and_use():
+    batch_size = 2
     class COCOPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
             super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
@@ -512,18 +531,12 @@ def test_make_continuous_serialize_and_use():
             images = self.slice(images, crop_begin, crop_size)
             return images
 
-    pipe = COCOPipeline(batch_size=1, num_threads=2, device_id=0)
+    pipe = COCOPipeline(batch_size=batch_size, num_threads=2, device_id=0)
     serialized_pipeline = pipe.serialize()
-    new_pipe = Pipeline(batch_size=1, num_threads=2, device_id=0)
+    new_pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0)
     new_pipe.deserialize_and_build(serialized_pipeline)
 
-    pipe.build()
-    for _ in range(50):
-        out_ref = pipe.run()
-        out_serialalized = new_pipe.run()
-        out_ref = to_array(out_ref[0])
-        out_serialalized = to_array(out_serialalized[0])
-        assert compare(out_ref, out_serialalized) == True
+    compare_pipelines(pipe, new_pipe, batch_size, 50)
 
 def test_rotate():
     class HybridPipe(Pipeline):
@@ -553,8 +566,6 @@ def test_rotate():
             outputs[1] = self.rotate(outputs[1])
             return [self.labels] + outputs
 
-        def iter_setup(self):
-            pass
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -599,8 +610,6 @@ def test_warpaffine():
             outputs[1] = self.affine(outputs[1])
             return [self.labels] + outputs
 
-        def iter_setup(self):
-            pass
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -777,10 +786,6 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
             crop = self.crop(images, crop_pos_x=pos_x, crop_pos_y=pos_y)
             return (crop, self.labels)
 
-
-        def iter_setup(self):
-            pass
-
     class FusedPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus):
             super(FusedPipeline, self).__init__(batch_size,
@@ -797,9 +802,6 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
             pos_y = self.pos_rng_y()
             images = self.decode(self.jpegs, crop_pos_x=pos_x, crop_pos_y=pos_y)
             return (images, self.labels)
-
-        def iter_setup(self):
-            pass
 
     nonfused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     nonfused_pipe.build()
@@ -840,9 +842,6 @@ def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
             output = self.cmnp(resized_images, mirror = mirror)
             return (output, resized_images, self.labels)
 
-        def iter_setup(self):
-            pass
-
     class FusedPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(FusedPipeline, self).__init__(batch_size, num_threads, device_id)
@@ -864,9 +863,6 @@ def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
             mirror = self.coin()
             output = self.cmnp(resized_images, mirror = mirror)
             return (output, resized_images, self.labels)
-
-        def iter_setup(self):
-            pass
 
     random_seed = 123456
     nonfused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, seed = random_seed)
@@ -1236,9 +1232,6 @@ def test_pipeline_default_cuda_stream_priority():
             images = self.decode(inputs)
             return images
 
-        def iter_setup(self):
-            pass
-
     HIGH_PRIORITY = -1
     LOW_PRIORITY = 0
     pipe1 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=HIGH_PRIORITY)
@@ -1318,9 +1311,6 @@ class CachedPipeline(Pipeline):
             jpegs, labels = self.input()
         images = self.decode(jpegs)
         return (images, labels)
-
-    def iter_setup(self):
-        pass
 
 
 def test_nvjpeg_cached_batch_copy_pipelines():

@@ -118,9 +118,18 @@ void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws,
   const int mirror_image = !has_mirror_ ? mirror_.data<int>()[0] :
      spec_.GetArgument<int>("mirror", ws, ws->data_idx());
 
+  vector<Index> input_shape = input.shape();
+  DALI_ENFORCE(input_shape.size() == 3,
+      "Expects 3-dimensional image input.");
+
+  int H = input_shape[0];
+  int W = input_shape[1];
+  auto coord = CropAttr::GetCropWindowGenerator(ws->data_idx())(H, W);
+  int crop_offsets = coord.y*W*C_ + coord.x*C_;
+
   CropMirrorNormalizePermuteKernel(
       C_, crop_h_, crop_w_, pad_, mirror_image, mean_.template data<float>(),
-      inv_std_.template data<float>(), input.template data<uint8>(), stride,
+      inv_std_.template data<float>(), input.template data<uint8>() + crop_offsets, stride,
       output_layout_, output_ptr);
 }
 
@@ -134,6 +143,7 @@ void CropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(
   if (output_type_ == DALI_NO_TYPE) {
     output_type_ = ws->Input<CPUBackend>(0).type().id();
   }
+  CropAttr::ProcessArguments(ws);
 }
 
 template <>
