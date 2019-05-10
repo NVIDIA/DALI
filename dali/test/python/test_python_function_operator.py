@@ -1,16 +1,16 @@
 from __future__ import print_function
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.edge import EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy
 import random
 import torchvision.transforms as transforms
 from PIL import Image
+import os
 
-images_dirs = [
-    "/data/imagenet/val-jpeg"
-]
-
+test_data_root = os.environ['DALI_EXTRA_PATH']
+images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
 def resize(image):
     res = transforms.Resize((300, 300))
@@ -52,6 +52,7 @@ class PythonOperatorPipeline(CommonPipeline):
     def define_graph(self):
         images, labels = self.load()
         processed = self.python_function(images)
+        isinstance(processed, EdgeReference)
         return processed
 
 
@@ -78,8 +79,8 @@ NUM_WORKERS = 6
 
 
 def run_case(func):
-    pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dirs[0])
-    pyfunc_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dirs[0], func)
+    pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    pyfunc_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func)
     pipe.build()
     pyfunc_pipe.build()
     for it in range(ITERS):
@@ -121,8 +122,8 @@ def test_python_operator_bias():
 
 
 def test_python_operator_flip():
-    dali_flip = FlippingPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dirs[0])
-    numpy_flip = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dirs[0], flip)
+    dali_flip = FlippingPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    numpy_flip = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, flip)
     dali_flip.build()
     numpy_flip.build()
     for it in range(ITERS):
