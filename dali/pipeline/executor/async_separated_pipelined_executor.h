@@ -87,6 +87,8 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
       SignalStop();
       throw;
     } catch (...) {
+      exec_error_ = true;
+      SignalStop();
       throw std::runtime_error("Unknown critical error in pipeline");
     }
   }

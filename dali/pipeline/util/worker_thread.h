@@ -155,8 +155,11 @@ class WorkerThread {
         nvml::SetCPUAffinity();
 #endif
       }
-    } catch(std::runtime_error &e) {
+    } catch (std::exception &e) {
       errors_.push(e.what());
+      running_ = false;
+    } catch (...) {
+      errors_.push("Unknown exception");
       running_ = false;
     }
 
@@ -179,14 +182,14 @@ class WorkerThread {
 
       try {
         work();
-      } catch(std::runtime_error &e) {
+      } catch (std::exception &e) {
         cout << std::this_thread::get_id() << " Exception in thread: " << e.what() << endl;
         lock.lock();
         errors_.push(e.what());
         lock.unlock();
         running_ = false;
         break;
-      } catch(...) {
+      } catch (...) {
         cout << std::this_thread::get_id() << " Exception in thread" << endl;
         lock.lock();
         errors_.push("Caught unknown exception in thread.");

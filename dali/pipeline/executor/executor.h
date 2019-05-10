@@ -117,6 +117,14 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
+
+  void HandleError(const char *message = "Unknown exception") {
+    exec_error_ = true;
+    ShutdownQueue();
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
+    errors_.push_back(message);
+  }
+
   void PruneUnusedGraphNodes() override;
 
   virtual std::vector<int> GetTensorQueueSizes(const OpGraph &graph);
@@ -294,11 +302,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
       op.Run(&ws);
     }
   } catch (std::exception &e) {
-    exec_error_ = true;
-    QueuePolicy::SignalStop();
-    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    errors_.push_back(e.what());
-    // Let the ReleaseIdx chain wake the output cv
+    HandleError(e.what());
+  } catch (...) {
+    HandleError();
   }
 
   QueuePolicy::ReleaseIdxs(OpType::SUPPORT, support_idxs);
@@ -330,12 +336,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   try {
     thread_pool_.WaitForWork();
   } catch (std::exception &e) {
-    exec_error_ = true;
-    QueuePolicy::SignalStop();
-    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    errors_.push_back(e.what());
-    // Let the ReleaseIdx chain wake the output cv
+    HandleError(e.what());
+  } catch (...) {
+    HandleError();
   }
+
   // Pass the work to the mixed stage
   QueuePolicy::ReleaseIdxs(OpType::CPU, cpu_idxs);
 }
@@ -365,11 +370,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
       }
     }
   } catch (std::exception &e) {
-    exec_error_ = true;
-    QueuePolicy::SignalStop();
-    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    errors_.push_back(e.what());
-    // Let the ReleaseIdx chain wake the output cv
+    HandleError(e.what());
+  } catch (...) {
+    HandleError();
   }
 
   if (callback_) {
@@ -443,12 +446,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
       }
     }
   } catch (std::exception &e) {
-    exec_error_ = true;
-    QueuePolicy::SignalStop();
-    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    errors_.push_back(e.what());
-    // Let the ReleaseIdx chain wake the output cv
+    HandleError(e.what());
+  } catch (...) {
+    HandleError();
   }
+
   // Update the ready queue to signal that all the work
   // in the `gpu_idxs` set of output buffers has been
   // issued. Notify any waiting threads.
