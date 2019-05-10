@@ -28,8 +28,8 @@
 #include <unordered_map>
 
 #include "dali/core/common.h"
-#include "dali/util/cuda_utils.h"
-#include "dali/error_handling.h"
+#include "dali/core/cuda_utils.h"
+#include "dali/core/error_handling.h"
 
 // Workaround missing "is_trivially_copyable" in libstdc++ for g++ < 5.0.
 // We have to first include some standard library headers, so to have __GLIBCXX__ symbol,

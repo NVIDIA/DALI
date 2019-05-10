@@ -19,7 +19,7 @@
 #include <cuda_profiler_api.h>
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
 #include "dali/util/dynlink_cuda.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 // For the CPU we use half_float lib and float16_cpu type
 namespace half_float {

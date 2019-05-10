@@ -17,7 +17,7 @@
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
-#include "dali/util/cuda_utils.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
 

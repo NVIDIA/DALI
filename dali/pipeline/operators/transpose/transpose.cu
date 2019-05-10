@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "dali/pipeline/operators/transpose/transpose.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 
 namespace dali {

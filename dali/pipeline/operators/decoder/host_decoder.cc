@@ -36,7 +36,7 @@ void HostDecoder::RunImpl(SampleWorkspace *ws, const int idx) {
     img = ImageFactory::CreateImage(input.data<uint8>(), input.size(), output_type_);
     img->SetCropWindowGenerator(GetCropWindowGenerator(ws->data_idx()));
     img->Decode();
-  } catch (std::runtime_error &e) {
+  } catch (std::exception &e) {
     DALI_FAIL(e.what() + "File: " + file_name);
   }
   const auto decoded = img->GetImage();

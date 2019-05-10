@@ -88,7 +88,7 @@ TYPED_TEST(DataLoadStoreTest, LoaderTestFail) {
             .AddArg("device_id", 0)));
         reader->PrepareMetadata();
   }
-  catch (std::runtime_error &e) {
+  catch (std::exception &e) {
     return;
   }
   throw std::runtime_error("LoaderTestFail failed");

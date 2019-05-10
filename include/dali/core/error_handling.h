@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_ERROR_HANDLING_H_
-#define DALI_ERROR_HANDLING_H_
+#ifndef DALI_CORE_ERROR_HANDLING_H_
+#define DALI_CORE_ERROR_HANDLING_H_
 
 #ifndef _MSC_VER
 #define DALI_USE_STACKTRACE 1
@@ -57,6 +57,11 @@ DLL_PUBLIC void DALISetLastError(string error_str);
 // Appends additional info to last error. Used internally by DALI to pass error
 // strings out to the user
 DLL_PUBLIC void DALIAppendToLastError(string error_str);
+
+class DALIException : public std::runtime_error {
+ public:
+  DALIException(const std::string &message) : std::runtime_error(message) {}
+};
 
 inline string BuildErrorString(string statement, string file, int line) {
   string line_str = std::to_string(line);
@@ -150,17 +155,6 @@ inline dali::string GetStacktrace() {
     return DALIError;            \
   }
 
-#define DALI_RETURN_ERROR(str)                                            \
-  do {                                                                    \
-    dali::string file = __FILE__;                                         \
-    dali::string line = std::to_string(__LINE__);                         \
-    dali::string error =  "[" + file + ":" + line + "]: Error in DALI: "; \
-    error += str;                                                         \
-    DALISetLastError(error);                                              \
-    return DALIError;                                                     \
-  } while (0)
-
-
 //////////////////////////////////////////////////////
 /// Error checking utilities for the DALI pipeline ///
 //////////////////////////////////////////////////////
@@ -221,22 +215,20 @@ inline dali::string GetStacktrace() {
 #define DALI_ENFORCE_VALID_INDEX(var, upper) \
   DALI_ENFORCE_IN_RANGE(var, 0, upper)
 
+#define DALI_STR2(x) #x
+#define DALI_STR(x) DALI_STR2(x)
+#define FILE_AND_LINE __FILE__ ":" DALI_STR(__LINE__)
 
-#define DALI_FAIL(str)                                              \
-  do {                                                              \
-    dali::string file = __FILE__;                                   \
-    dali::string line = std::to_string(__LINE__);                   \
-    dali::string error_str = "[" + file + ":" + line + "] " + str;  \
-    error_str += dali::GetStacktrace();                             \
-    throw std::runtime_error(error_str);                            \
-  } while (0)
+#define DALI_MESSAGE(str)\
+  (std::string("[" FILE_AND_LINE "] ") + str + dali::GetStacktrace())
 
-#define DALI_WARN(str)                                              \
-  do {                                                              \
-    dali::string file = __FILE__;                                   \
-    dali::string line = std::to_string(__LINE__);                   \
-    dali::string warn_str = "[" + file + ":" + line + "] " + str;   \
-    std::cerr << warn_str << std::endl;                             \
+#define DALI_FAIL(str)                            \
+    throw dali::DALIException(DALI_MESSAGE(str)); \
+
+
+#define DALI_WARN(str)                           \
+  do {                                           \
+    std::cerr << DALI_MESSAGE(str) << std::endl; \
   } while (0)
 
 void DALIReportFatalProblem(const char *file, int line, const char *pComment);
@@ -244,4 +236,4 @@ void DALIReportFatalProblem(const char *file, int line, const char *pComment);
 
 }  // namespace dali
 
-#endif  // DALI_ERROR_HANDLING_H_
+#endif  // DALI_CORE_ERROR_HANDLING_H_

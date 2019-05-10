@@ -24,7 +24,7 @@
 #include <set>
 
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/argument.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/operators/op_schema.h"
@@ -283,8 +283,8 @@ class DLL_PUBLIC OpSpec {
   template <typename T>
   DLL_PUBLIC inline bool TryGetArgument(T &result,
                                         const string &name,
-                                        const ArgumentWorkspace *ws,
-                                        Index idx) const {
+                                        const ArgumentWorkspace *ws = nullptr,
+                                        Index idx = 0) const {
     return TryGetArgumentImpl<T, T>(result, name, ws, idx);
   }
 

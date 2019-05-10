@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/util/custream.h"
-#include "dali/util/cuda_utils.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/util/device_guard.h"
 
 namespace dali {

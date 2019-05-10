@@ -15,7 +15,7 @@
 #include "dali/pipeline/operators/decoder/cache/image_cache_largest.h"
 #include <functional>
 #include <stack>
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 

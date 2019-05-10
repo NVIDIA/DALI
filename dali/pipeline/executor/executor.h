@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/queue_policy.h"
 #include "dali/pipeline/executor/workspace_policy.h"
@@ -293,7 +293,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
           TimeRange::kCyan);
       op.Run(&ws);
     }
-  } catch (std::runtime_error &e) {
+  } catch (std::exception &e) {
     exec_error_ = true;
     QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
@@ -329,7 +329,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   }
   try {
     thread_pool_.WaitForWork();
-  } catch (std::runtime_error& e) {
+  } catch (std::exception &e) {
     exec_error_ = true;
     QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
@@ -364,7 +364,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
     }
-  } catch (std::runtime_error &e) {
+  } catch (std::exception &e) {
     exec_error_ = true;
     QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
@@ -442,7 +442,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
         DALI_FAIL("Internal error. Output node is not gpu/mixed");
       }
     }
-  } catch (std::runtime_error &e) {
+  } catch (std::exception &e) {
     exec_error_ = true;
     QueuePolicy::SignalStop();
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);

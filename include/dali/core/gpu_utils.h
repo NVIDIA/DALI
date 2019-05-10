@@ -16,17 +16,27 @@
 #define DALI_CORE_GPU_UTILS_H_
 
 #include <cuda_runtime.h>
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
 
 class DeviceGuard {
  public:
+  DeviceGuard() {
+    cudaGetDevice(&original_device_);
+  }
   explicit DeviceGuard(int new_device) {
     cudaGetDevice(&original_device_);
-    cudaSetDevice(new_device);
+    CUDA_CALL(cudaSetDevice(new_device) != cudaSuccess);
   }
   ~DeviceGuard() {
-    cudaSetDevice(original_device_);
+    if (cudaSetDevice(original_device_) != cudaSuccess) {
+      auto err = cudaGetLastError();
+      auto errstr = cudaGetErrorString(err);
+      std::cerr << "Failed to recover from DeviceGuard - error " << err
+                << ":\n" << errstr << std::endl;
+      std::terminate();
+    }
   }
  private:
   int original_device_;

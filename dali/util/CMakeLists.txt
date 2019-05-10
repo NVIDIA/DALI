@@ -15,7 +15,6 @@
 set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/crop_window.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/cucontext.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/cuda_utils.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/custream.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/device_guard.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/dynlink_cuda.h"

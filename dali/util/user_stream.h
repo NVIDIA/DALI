@@ -22,7 +22,7 @@
 
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 // This file contains utilities helping inspection and interaction with DALI GPU buffers
 // without forcing synchronization of all pipelines.

@@ -31,7 +31,7 @@
 #include <tuple>
 
 #include "dali/util/local_file.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 static int _sysctl(struct __sysctl_args *args);
 

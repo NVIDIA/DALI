@@ -20,7 +20,7 @@
 #include <string>
 #include <memory>
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/util/crop_window.h"
 #include "dali/kernels/backend_tags.h"
 #include "dali/kernels/common/copy.h"
@@ -154,7 +154,7 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
     img = ImageFactory::CreateImage(data, size, image_type);
     img->SetCropWindow(crop_window);
     img->Decode();
-  } catch (std::runtime_error &e) {
+  } catch (std::exception &e) {
     DALI_FAIL(e.what() + ". File: " + file_name);
   }
   const auto decoded = img->GetImage();

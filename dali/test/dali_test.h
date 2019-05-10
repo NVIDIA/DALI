@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/image/jpeg.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/util/image.h"

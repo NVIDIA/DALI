@@ -18,7 +18,7 @@
 #include <cuda_runtime_api.h>
 #include <memory>
 
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/data/allocator.h"
 
 namespace dali {

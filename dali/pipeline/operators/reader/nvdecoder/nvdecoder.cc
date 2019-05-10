@@ -29,7 +29,7 @@
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/util/cucontext.h"
 #include "dali/util/dynlink_cuda.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/reader/nvdecoder/imgproc.h"
 #include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 

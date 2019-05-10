@@ -23,7 +23,7 @@
 #include <thread>
 
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif

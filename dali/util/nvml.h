@@ -22,8 +22,8 @@
 #include <mutex>
 #include <vector>
 
-#include "dali/error_handling.h"
-#include "dali/util/cuda_utils.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/util/nvml_wrap.h"
 
 namespace dali {

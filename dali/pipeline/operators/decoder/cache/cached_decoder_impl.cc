@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <memory>
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/pipeline/operators/decoder/cache/image_cache_factory.h"
 #include "dali/kernels/common/scatter_gather.h"

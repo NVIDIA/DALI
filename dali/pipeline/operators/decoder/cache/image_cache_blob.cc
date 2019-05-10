@@ -15,7 +15,7 @@
 #include <fstream>
 #include <mutex>
 #include <unordered_map>
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/kernels/alloc.h"
 #include "dali/core/span.h"
 #include "dali/pipeline/data/backend.h"

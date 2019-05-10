@@ -42,7 +42,7 @@ SOFTWARE.
 #include <unordered_map>
 
 #include "dali/util/dynlink_cuda.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 #include "dali/pipeline/operators/transpose/cutt/cuttplan.h"
 #include "dali/pipeline/operators/transpose/cutt/cuttkernel.h"
@@ -95,7 +95,7 @@ cuttResult cuttPlanCheckInput(int rank, int* dim, int* permutation, size_t sizeo
     }
   }
   delete [] check;
-  if (permutation_fail) return CUTT_INVALID_PARAMETER;  
+  if (permutation_fail) return CUTT_INVALID_PARAMETER;
 
   return CUTT_SUCCESS;
 }
@@ -141,7 +141,7 @@ cuttResult cuttPlan(cuttHandle* handle, int rank, int* dim, int* permutation, si
   // std::chrono::high_resolution_clock::time_point plan_start;
   // plan_start = std::chrono::high_resolution_clock::now();
 
-  if (!cuttPlan_t::createPlans(rank, dim, permutation, redDim.size(), redDim.data(), redPermutation.data(), 
+  if (!cuttPlan_t::createPlans(rank, dim, permutation, redDim.size(), redDim.data(), redPermutation.data(),
     sizeofType, deviceID, prop, plans)) return CUTT_INTERNAL_ERROR;
 
   // std::chrono::high_resolution_clock::time_point plan_end;
@@ -233,7 +233,7 @@ cuttResult cuttPlanMeasure(cuttHandle* handle, int rank, int* dim, int* permutat
   // Create plans from non-reduced ranks
   // if (!createPlans(rank, dim, permutation, sizeofType, prop, plans)) return CUTT_INTERNAL_ERROR;
 #else
-  if (!cuttPlan_t::createPlans(rank, dim, permutation, redDim.size(), redDim.data(), redPermutation.data(), 
+  if (!cuttPlan_t::createPlans(rank, dim, permutation, redDim.size(), redDim.data(), redPermutation.data(),
     sizeofType, deviceID, prop, plans)) return CUTT_INTERNAL_ERROR;
 #endif
 

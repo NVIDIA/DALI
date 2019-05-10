@@ -47,7 +47,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
         auto w_h = dynamic_cast<VideoLoader*>(loader_.get())->load_width_height(filenames_[0]);
         width_ = static_cast<int>(w_h.first * output_scale_);
         height_ = static_cast<int>(w_h.second * output_scale_);
-      } catch (std::runtime_error& e) {
+      } catch (std::exception &e) {
         DALI_FAIL(std::string(e.what()));
       }
 

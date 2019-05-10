@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
