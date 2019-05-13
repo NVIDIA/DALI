@@ -59,7 +59,7 @@ PERF_RESULT=$(echo "$PERF $MIN_PERF" | awk '{if ($1>=$2) {print "OK"} else { pri
 echo
 printf "TOP-1 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP1 $MIN_TOP1 $TOP1_RESULT
 printf "TOP-5 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP5 $MIN_TOP5 $TOP5_RESULT
-printf "mean speed %.2f% (expect at least %f%) samples/sec %s\n" $PERF $MIN_PERF $PERF_RESULT
+printf "mean speed %.2f (expect at least %f) samples/sec %s\n" $PERF $MIN_PERF $PERF_RESULT
 
 if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" && "$PERF_RESULT" == "OK" ]]; then
     CLEAN_AND_EXIT 0
