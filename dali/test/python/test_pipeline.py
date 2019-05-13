@@ -598,15 +598,12 @@ def test_warpaffine():
                                          fill_value = 128,
                                          interp_type = types.INTERP_LINEAR,
                                          use_image_center = True)
-            self.uniform = ops.Uniform(range = (0.0,1.0))
             self.iter = 0
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             images = self.decode(self.jpegs)
-            outputs = self.cmnp([images, images],
-                                crop_pos_x = self.uniform(),
-                                crop_pos_y = self.uniform())
+            outputs = self.cmnp([images, images])
             outputs[1] = self.affine(outputs[1])
             return [self.labels] + outputs
 
