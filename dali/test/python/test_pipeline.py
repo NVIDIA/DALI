@@ -1134,6 +1134,99 @@ def test_external_source():
             break
     assert(iter_num == i)
 
+def test_external_source_fail():
+    class ExternalSourcePipeline(Pipeline):
+        def __init__(self, batch_size, external_s_size, num_threads, device_id):
+            super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.ExternalSource()
+            self.batch_size_ = batch_size
+            self.external_s_size_ = external_s_size
+
+        def define_graph(self):
+            self.batch = self.input()
+            return [self.batch]
+
+        def iter_setup(self):
+            batch = np.zeros([self.external_s_size_,4,5])
+            self.feed_input(self.batch, batch)
+
+    batch_size = 3
+    pipe = ExternalSourcePipeline(batch_size, batch_size - 1, 3, 0)
+    pipe.build()
+    try:
+        pipe.run()
+    except RuntimeError:
+        pass
+    else:
+        assert False, "ExternalSource should throw"
+
+def test_external_source_fail_list():
+    class ExternalSourcePipeline(Pipeline):
+        def __init__(self, batch_size, external_s_size, num_threads, device_id):
+            super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.ExternalSource()
+            self.batch_size_ = batch_size
+            self.external_s_size_ = external_s_size
+
+        def define_graph(self):
+            self.batch = self.input()
+            return [self.batch]
+
+        def iter_setup(self):
+            batch = []
+            for _ in range(self.external_s_size_):
+                batch.append(np.zeros([3,4,5]))
+            self.feed_input(self.batch, batch)
+
+    batch_size = 3
+    pipe = ExternalSourcePipeline(batch_size, batch_size - 1, 3, 0)
+    pipe.build()
+    try:
+        pipe.run()
+    except RuntimeError:
+        pass
+    else:
+        assert False, "ExternalSource should throw"
+
+def test_external_source_scalar_list():
+    class ExternalSourcePipeline(Pipeline):
+        def __init__(self, batch_size, external_data, num_threads, device_id, label_data):
+            super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.ExternalSource()
+            self.batch_size_ = batch_size
+            self.external_data = external_data
+            self.label_data_ = label_data
+
+        def define_graph(self):
+            self.batch = self.input()
+            return [self.batch]
+
+        def iter_setup(self):
+            batch = []
+            for elm in self.external_data:
+                batch.append(np.array(elm, dtype=np.uint8))
+            self.feed_input(self.batch, batch)
+
+    batch_size = 3
+    label_data = 10
+    lists = []
+    scalars = []
+    for i in range(batch_size):
+        lists.append([label_data + i])
+        scalars.append(label_data + i * 10)
+    for external_data in [lists, scalars]:
+        print(external_data)
+        pipe = ExternalSourcePipeline(batch_size, external_data, 3, 0, label_data)
+        pipe.build()
+        for _ in range(10):
+            out = pipe.run()
+            for i in range(batch_size):
+                assert out[0].as_array()[i] == external_data[i]
+        yield external_data_veri, external_data
+
+def external_data_veri(external_data):
+    pass
+
 def test_element_extract_operator():
     batch_size = 4
     F = 10
