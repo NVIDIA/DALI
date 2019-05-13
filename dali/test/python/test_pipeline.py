@@ -603,9 +603,7 @@ def test_warpaffine():
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             images = self.decode(self.jpegs)
-            outputs = self.cmnp([images, images],
-                                crop_pos_x = 0.5,
-                                crop_pos_y = 0.5)
+            outputs = self.cmnp([images, images])
             outputs[1] = self.affine(outputs[1])
             return [self.labels] + outputs
 
