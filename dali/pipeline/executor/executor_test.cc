@@ -100,7 +100,9 @@ using ExecutorSyncTypes =
 TYPED_TEST_SUITE(ExecutorSyncTest, ExecutorSyncTypes);
 
 TYPED_TEST(ExecutorTest, TestPruneBasicGraph) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  auto device_context = std::make_shared<CUContext>(0);
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0,
+                               device_context, 1);
   exe->Init();
 
   // Build a basic cpu->gpu graph
@@ -173,7 +175,9 @@ TYPED_TEST(ExecutorTest, TestPruneBasicGraph) {
 }
 
 TYPED_TEST(ExecutorTest, TestPruneMultiple) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  auto device_context = std::make_shared<CUContext>(0);
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0,
+                               device_context, 1);
   exe->Init();
 
   // Build a basic cpu->gpu graph
@@ -237,7 +241,9 @@ TYPED_TEST(ExecutorTest, TestPruneMultiple) {
 }
 
 TYPED_TEST(ExecutorTest, TestPruneRecursive) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  auto device_context = std::make_shared<CUContext>(0);
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0,
+                               device_context, 1);
   exe->Init();
 
   // Build a basic cpu->gpu graph
@@ -300,7 +306,9 @@ TYPED_TEST(ExecutorTest, TestPruneRecursive) {
 }
 
 TYPED_TEST(ExecutorTest, TestPruneWholeGraph) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  auto device_context = std::make_shared<CUContext>(0);
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0,
+                               device_context, 1);
   exe->Init();
 
   // Build a basic cpu->gpu graph
@@ -332,7 +340,9 @@ TYPED_TEST(ExecutorTest, TestPruneWholeGraph) {
 
 // TODO(klecki): adjust to after refactor
 TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  auto device_context = std::make_shared<CUContext>(0);
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0,
+                               device_context, 1);
   exe->Init();
 
   // Build a basic cpu->gpu graph
@@ -388,7 +398,9 @@ TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
 }
 
 TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  auto device_context = std::make_shared<CUContext>(0);
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0,
+                               device_context, 1);
   exe->Init();
 
   // Build a basic cpu->gpu graph
@@ -433,7 +445,9 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
 }
 
 TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  auto device_context = std::make_shared<CUContext>(0);
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0,
+                               device_context, 1);
   exe->Init();
 
   // Build a basic cpu->gpu graph
@@ -493,8 +507,10 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   int batch_size = this->batch_size_ / 2;
   this->set_batch_size(batch_size);
   this->SetEps(1.6);
+  auto device_context = std::make_shared<CUContext>(0);
 
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0,
+                               device_context, 1);
   exe->Init();
 
   // Build a basic cpu->gpu graph

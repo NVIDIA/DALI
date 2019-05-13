@@ -16,30 +16,55 @@
 #define DALI_UTIL_CUCONTEXT_H_
 
 #include "dali/util/dynlink_cuda.h"
+#include "dali/core/api_helper.h"
 
 namespace dali {
 
-class CUContext {
+class DLL_PUBLIC CUContext {
  public:
-  CUContext();
-  explicit CUContext(CUdevice device, unsigned int flags = 0);
-  ~CUContext();
+  DLL_PUBLIC CUContext();
+  DLL_PUBLIC explicit CUContext(int device, unsigned int flags = 0);
+  DLL_PUBLIC ~CUContext();
 
   // no copying
-  CUContext(const CUContext&) = delete;
-  CUContext& operator=(const CUContext&) = delete;
+  DLL_PUBLIC CUContext(const CUContext&) = delete;
+  DLL_PUBLIC CUContext& operator=(const CUContext&) = delete;
 
-  CUContext(CUContext&& other);
-  CUContext& operator=(CUContext&& other);
+  DLL_PUBLIC CUContext(CUContext&& other);
+  DLL_PUBLIC CUContext& operator=(CUContext&& other);
 
-  operator CUcontext() const;
+  DLL_PUBLIC operator CUcontext() const;
 
-  void push() const;
-  bool initialized() const;
+  DLL_PUBLIC bool push() const;
+  DLL_PUBLIC void pop() const;
+  DLL_PUBLIC bool initialized() const;
  private:
   CUdevice device_;
+  int device_id_;
   CUcontext context_;
   bool initialized_;
+};
+
+ /**
+ * Simple RAII device handling:
+ * Switch to new device on construction, back to old
+ * device on destruction
+ */
+class DLL_PUBLIC ContextGuard {
+ public:
+  DLL_PUBLIC explicit ContextGuard(std::shared_ptr<CUContext> ctx): cu_context_{ctx} {
+    revert_ = cu_context_->push();
+  }
+
+  DLL_PUBLIC ~ContextGuard() {
+    if (revert_) {
+      cu_context_->pop();
+    }
+  }
+
+ private:
+  bool revert_;
+  std::shared_ptr<CUContext> cu_context_;
 };
 
 }  // namespace dali

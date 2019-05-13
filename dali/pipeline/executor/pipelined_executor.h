@@ -39,11 +39,12 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueuePolicy> {
  public:
   DLL_PUBLIC inline PipelinedExecutorImpl(int batch_size, int num_thread, int device_id,
+                                          std::shared_ptr<CUContext> device_context,
                                           size_t bytes_per_sample_hint, bool set_affinity = false,
                                           int max_num_stream = -1,
                                           int default_cuda_stream_priority = 0,
                                           QueueSizes prefetch_queue_depth = {2, 2})
-      : Executor<WorkspacePolicy, QueuePolicy>(batch_size, num_thread, device_id,
+      : Executor<WorkspacePolicy, QueuePolicy>(batch_size, num_thread, device_id, device_context,
                                                bytes_per_sample_hint, set_affinity, max_num_stream,
                                                default_cuda_stream_priority, prefetch_queue_depth) {
   }
@@ -74,6 +75,7 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
   std::vector<std::vector<TensorNodeId>> stage_outputs_;
 
   using Executor<WorkspacePolicy, QueuePolicy>::device_id_;
+  using Executor<WorkspacePolicy, QueuePolicy>::device_context_;
   using Executor<WorkspacePolicy, QueuePolicy>::stage_queue_depths_;
 };
 
@@ -85,7 +87,7 @@ void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph,
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
-  DeviceGuard g(device_id_);
+  ContextGuard g(device_context_);
   Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(graph);
   constexpr auto stages_count = static_cast<int>(OpType::COUNT);
   stage_outputs_.resize(stages_count);

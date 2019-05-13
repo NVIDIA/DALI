@@ -170,7 +170,7 @@ class NvDecoder {
   bool normalized_;
 
   CUdevice device_;
-  CUContext context_;
+  std::shared_ptr<CUContext> context_;
   CUVideoParser parser_;
   CUVideoDecoder decoder_;
 

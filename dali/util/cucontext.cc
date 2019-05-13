@@ -22,61 +22,73 @@ namespace dali {
 CUContext::CUContext() : context_{0}, initialized_{false} {
 }
 
-CUContext::CUContext(CUdevice device, unsigned int flags)
-    : device_{device}, context_{0}, initialized_{false} {
-    DALI_ENFORCE(cuInitChecked(),
-        "Failed to load libcuda.so. "
-        "Check your library paths and if the driver is installed correctly.");
-    CUDA_CALL(cuDevicePrimaryCtxRetain(&context_, device));
-    push();
-    CUdevice dev;
-    CUDA_CALL(cuCtxGetDevice(&dev));
-    initialized_ = true;
-    CUDA_CALL(cuCtxSynchronize());
+CUContext::CUContext(int device_id, unsigned int flags)
+    : device_{0}, device_id_{-1}, context_{0}, initialized_{false} {
+  DALI_ENFORCE(cuInitChecked(),
+    "Failed to load libcuda.so. "
+    "Check your library paths and if the driver is installed correctly.");
+  device_id_ = device_id;
+  CUDA_CALL(cuDeviceGet(&device_, device_id_));
+  CUDA_CALL(cuDevicePrimaryCtxRetain(&context_, device_));
+  initialized_ = true;
+  bool revert = push();
+  CUDA_CALL(cuCtxSynchronize());
+  if (revert) {
+    pop();
+  }
 }
 
 CUContext::~CUContext() {
-    if (initialized_) {
-        // cuCtxPopCurrent?
-        CUDA_CALL(cuDevicePrimaryCtxRelease(device_));
-    }
+  if (initialized_) {
+    CUDA_CALL(cuDevicePrimaryCtxRelease(device_));
+  }
 }
 
 CUContext::CUContext(CUContext&& other)
-    : device_{other.device_}, context_{other.context_},
-      initialized_{other.initialized_} {
-    other.device_ = 0;
-    other.context_ = 0;
-    other.initialized_ = false;
+  : device_{other.device_}, context_{other.context_},
+    initialized_{other.initialized_} {
+  other.device_ = 0;
+  other.context_ = 0;
+  other.initialized_ = false;
 }
 
 CUContext& CUContext::operator=(CUContext&& other) {
-    if (initialized_) {
-        CUDA_CALL(cuCtxDestroy(context_));
-    }
-    device_ = other.device_;
-    context_ = other.context_;
-    initialized_ = other.initialized_;
-    other.device_ = 0;
-    other.context_ = 0;
-    other.initialized_ = false;
-    return *this;
+  if (initialized_) {
+    CUDA_CALL(cuCtxDestroy(context_));
+  }
+  device_ = other.device_;
+  context_ = other.context_;
+  initialized_ = other.initialized_;
+  other.device_ = 0;
+  other.context_ = 0;
+  other.initialized_ = false;
+  return *this;
 }
 
-void CUContext::push() const {
-    CUcontext current;
-    CUDA_CALL(cuCtxGetCurrent(&current));
-    if (current != context_) {
-        CUDA_CALL(cuCtxPushCurrent(context_));
+bool CUContext::push() const {
+  CUcontext current;
+  CUDA_CALL(cuCtxGetCurrent(&current));
+  if (current != context_) {
+    CUDA_CALL(cuCtxPushCurrent(context_));
+    if  (current != NULL) {
+      return true;
     }
+  } 
+  return false;
+}
+
+
+void CUContext::pop() const {
+  CUcontext new_ctx;
+  CUDA_CALL(cuCtxPopCurrent(&new_ctx));
 }
 
 bool CUContext::initialized() const {
-    return initialized_;
+  return initialized_;
 }
 
 CUContext::operator CUcontext() const {
-    return context_;
+  return context_;
 }
 
 }  // namespace dali

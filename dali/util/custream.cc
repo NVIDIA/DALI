@@ -14,14 +14,13 @@
 
 #include "dali/util/custream.h"
 #include "dali/util/cuda_utils.h"
-#include "dali/util/device_guard.h"
 
 namespace dali {
 
-CUStream::CUStream(int device_id, bool default_stream, int priority) :
-        stream_{0} {
+CUStream::CUStream(std::shared_ptr<CUContext> device_ctx, bool default_stream, int priority) :
+        stream_{0}, device_context_{device_ctx} {
   if (!default_stream) {
-    DeviceGuard dg(device_id);
+    ContextGuard dg(device_context_);
     CUDA_CALL(cudaStreamCreateWithPriority(&stream_, cudaStreamNonBlocking, priority));
   }
 }
@@ -29,6 +28,7 @@ CUStream::CUStream(int device_id, bool default_stream, int priority) :
 
 CUStream::~CUStream() {
   if (stream_ != 0) {
+    ContextGuard dg(device_context_);
     auto err = cudaStreamDestroy(stream_);
     if (err != cudaSuccess) {
       std::cerr << "Critical error in destroying stream: " << err << std::endl;
@@ -39,8 +39,9 @@ CUStream::~CUStream() {
 
 
 CUStream::CUStream(CUStream &&other) :
-        stream_{other.stream_} {
+        stream_{other.stream_}, device_context_{other.device_context_} {
   other.stream_ = 0;
+  other.device_context_.reset();
 }
 
 

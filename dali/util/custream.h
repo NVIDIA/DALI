@@ -17,12 +17,14 @@
 
 #include <driver_types.h>
 #include "dali/core/common.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 
 class DLL_PUBLIC CUStream {
  public:
-  CUStream(int device_id, bool default_stream, int priority);
+  CUStream() {};
+  CUStream(std::shared_ptr<CUContext> device_ctx, bool default_stream, int priority);
 
   ~CUStream();
 
@@ -38,6 +40,7 @@ class DLL_PUBLIC CUStream {
 
  private:
   cudaStream_t stream_;
+  std::shared_ptr<CUContext> device_context_;
 };
 
 }  // namespace dali

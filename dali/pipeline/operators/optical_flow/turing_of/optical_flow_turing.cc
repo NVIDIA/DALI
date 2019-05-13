@@ -45,15 +45,12 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
 
   int device_id;
   CUDA_CALL(cudaGetDevice(&device_id));
-  CUDA_CALL(cuDeviceGet(&device_, device_id));
+  context_ = CUContext(device_id);
   LoadTuringOpticalFlow("libnvidia-opticalflow.so");
 
   SetInitParams(params);
 
-  context_ = CUContext(device_);
-  CUcontext ctx = context_;
-
-  TURING_OF_API_CALL(turing_of_.nvCreateOpticalFlowCuda(ctx, &of_handle_));
+  TURING_OF_API_CALL(turing_of_.nvCreateOpticalFlowCuda(context_, &of_handle_));
   TURING_OF_API_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
   VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
 

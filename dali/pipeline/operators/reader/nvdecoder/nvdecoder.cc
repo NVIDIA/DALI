@@ -44,7 +44,7 @@ NvDecoder::NvDecoder(int device_id,
                      DALIImageType image_type,
                      DALIDataType dtype,
                      bool normalized)
-    : device_id_(device_id), stream_(device_id, false, 0), codecpar_(codecpar),
+    : device_id_(device_id), codecpar_(codecpar),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
       device_(), context_(), parser_(), decoder_(),
       time_base_{time_base.num, time_base.den},
@@ -66,10 +66,11 @@ NvDecoder::NvDecoder(int device_id,
   CUDA_CALL(cuDeviceGetName(device_name, 100, device_));
   LOG_LINE << "Using device: " << device_name << std::endl;
 
-  context_ = CUContext(device_);
-  if (!context_.initialized()) {
+  context_ = std::make_shared<CUContext>(device_id_);
+  if (!context_->initialized()) {
     DALI_FAIL("Problem initializing context, not initializing VideoDecoder");
   }
+  stream_ = CUStream(context_, false, 0);
 
   auto codec = Codec::H264;
   switch (codecpar->codec_id) {
@@ -104,7 +105,7 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt) {
 
   CUVIDSOURCEDATAPACKET cupkt = {0};
 
-  context_.push();
+  ContextGuard g(context_);
 
   if (avpkt && avpkt->size) {
       cupkt.payload_size = avpkt->size;
@@ -342,7 +343,7 @@ void NvDecoder::push_req(FrameReq req) {
 void NvDecoder::receive_frames(SequenceWrapper& sequence) {
   LOG_LINE << "Sequence pushed with " << sequence.count << " frames" << std::endl;
 
-  context_.push();
+  ContextGuard g(context_);
   for (int i = 0; i < sequence.count; ++i) {
       LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
                << frame_queue_.size() << " reqs left"

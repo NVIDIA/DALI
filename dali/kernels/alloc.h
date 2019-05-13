@@ -19,18 +19,19 @@
 #include <memory>
 #include <type_traits>
 #include "dali/kernels/alloc_type.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 namespace kernels {
 namespace memory {
 
 void *Allocate(AllocType type, size_t size) noexcept;
-void Deallocate(AllocType type, void *mem, int device) noexcept;
+void Deallocate(AllocType type, void *mem, std::shared_ptr<CUContext> &ctx) noexcept;
 
 struct Deleter {
-  int device;
+  std::shared_ptr<CUContext> device_context_;
   AllocType alloc_type;
-  inline void operator()(void *p) noexcept { Deallocate(alloc_type, p, device); }
+  inline void operator()(void *p) noexcept { Deallocate(alloc_type, p, device_context_); }
 };
 Deleter GetDeleter(AllocType type) noexcept;
 

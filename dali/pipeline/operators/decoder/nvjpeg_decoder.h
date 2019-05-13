@@ -29,7 +29,7 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/util/device_guard.h"
+#include "dali/util/cucontext.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
@@ -128,7 +128,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     batched_image_idx_(batch_size_),
     batched_output_(batch_size_),
     device_id_(spec.GetArgument<int>("device_id")),
-    thread_pool_(max_streams_, device_id_, true /* pin threads */) {
+    thread_pool_(max_streams_, device_id_, true /* pin threads */),
+    device_context_(device_id_, 0) {
       // Setup the allocator struct to use our internal allocator
       nvjpegDevAllocator_t allocator;
       allocator.dev_malloc = &memory::DeviceNew;
@@ -159,7 +160,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   ~nvJPEGDecoder() noexcept override {
     try {
-      DeviceGuard g(device_id_);
+      ContextGuard g(&device_context_);
       for (int i = 0; i < max_streams_; ++i) {
         NVJPEG_CALL(nvjpegJpegStateDestroy(states_[i]));
         CUDA_CALL(cudaEventDestroy(events_[i]));
@@ -494,6 +495,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // Thread pool
   ThreadPool thread_pool_;
+  CUContext device_context_;
 };
 
 }  // namespace dali

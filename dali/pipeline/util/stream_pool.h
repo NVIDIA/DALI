@@ -21,7 +21,7 @@
 
 #include "dali/core/common.h"
 #include "dali/error_handling.h"
-#include "dali/util/device_guard.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 
@@ -44,8 +44,7 @@ class StreamPool {
 
   inline ~StreamPool() noexcept(false) {
     for (auto &stream : streams_) {
-      int device = stream_devices_[stream];
-      DeviceGuard g(device);
+      ContextGuard g(stream_devices_[stream]);
 
       CUDA_CALL(cudaStreamSynchronize(stream));
       CUDA_CALL(cudaStreamDestroy(stream));
@@ -62,10 +61,11 @@ class StreamPool {
       // Note: Why is device tracked? Is StreamPool intended to be used across devices?
       int dev;
       cudaGetDevice(&dev);
+      auto ctx = std::make_shared<CUContext>(dev);
       int flags = non_blocking_ ? cudaStreamNonBlocking : cudaStreamDefault;
       CUDA_CALL(cudaStreamCreateWithPriority(&new_stream, flags, default_cuda_stream_priority_));
       streams_.push_back(new_stream);
-      stream_devices_[new_stream] = dev;
+      stream_devices_[new_stream] = ctx;
       return new_stream;
     }
     cudaStream_t stream = streams_[idx_];
@@ -76,7 +76,7 @@ class StreamPool {
  private:
   vector<cudaStream_t> streams_;
   // track which streams are on which devices
-  std::map<cudaStream_t, int> stream_devices_;
+  std::map<cudaStream_t, std::shared_ptr<CUContext>> stream_devices_;
 
   int max_size_, idx_ = 0;
   bool non_blocking_;

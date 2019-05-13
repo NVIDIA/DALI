@@ -21,7 +21,7 @@
 
 #include "dali/core/common.h"
 #include "dali/error_handling.h"
-#include "dali/util/device_guard.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 
@@ -40,7 +40,7 @@ class EventPool {
 
   inline ~EventPool() noexcept(false) {
     for (auto &event : events_) {
-      DeviceGuard g(event_devices_[event]);
+      ContextGuard g(event_devices_[event]);
       CUDA_CALL(cudaEventSynchronize(event));
       CUDA_CALL(cudaEventDestroy(event));
     }
@@ -58,7 +58,8 @@ class EventPool {
 
       int dev;
       CUDA_CALL(cudaGetDevice(&dev));
-      event_devices_[new_event] = dev;
+      auto ctx = std::make_shared<CUContext>(dev);
+      event_devices_[new_event] = ctx;
 
       return new_event;
     }
@@ -69,7 +70,7 @@ class EventPool {
 
  private:
   vector<cudaEvent_t> events_;
-  std::map<cudaEvent_t, int> event_devices_;
+  std::map<cudaEvent_t, std::shared_ptr<CUContext>> event_devices_;
   int max_size_, idx_ = 0;
 };
 

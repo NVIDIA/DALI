@@ -27,92 +27,138 @@
 
 #include "dali/pipeline/operators/argument.h"
 #include "dali/pipeline/operators/common.h"
-#include "dali/util/device_guard.h"
 #include "dali/pipeline/dali.pb.h"
 
 namespace dali {
 
-  void DeserializeOpSpec(const dali_proto::OpDef& def, OpSpec* spec) {
-    spec->set_name(def.name());
+void DeserializeOpSpec(const dali_proto::OpDef& def, OpSpec* spec) {
+  spec->set_name(def.name());
 
-    // Extract all the arguments with correct types
-    for (auto &arg : def.args()) {
-      auto name = arg.name();
-      const DaliProtoPriv arg_wrap(&arg);
+  // Extract all the arguments with correct types
+  for (auto &arg : def.args()) {
+    auto name = arg.name();
+    const DaliProtoPriv arg_wrap(&arg);
 
-      spec->AddInitializedArg(name, DeserializeProtobuf(arg_wrap));
-    }
+    spec->AddInitializedArg(name, DeserializeProtobuf(arg_wrap));
+  }
 
-    for (int i = 0; i < def.input_size(); ++i) {
-      if (!def.input(i).is_argument_input()) {
-        spec->AddInput(def.input(i).name(), def.input(i).device());
-      }
-    }
-
-    for (int i = 0; i < def.input_size(); ++i) {
-      if (def.input(i).is_argument_input()) {
-        spec->AddArgumentInput(def.input(i).arg_name(), def.input(i).name());
-      }
-    }
-
-    for (int i = 0; i < def.output_size(); ++i) {
-      spec->AddOutput(def.output(i).name(), def.output(i).device());
+  for (int i = 0; i < def.input_size(); ++i) {
+    if (!def.input(i).is_argument_input()) {
+      spec->AddInput(def.input(i).name(), def.input(i).device());
     }
   }
 
-  Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
-                     bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
-                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
-                     int default_cuda_stream_priority)
-      : built_(false), separated_execution_(false) {
-    dali_proto::PipelineDef def;
-    def.ParseFromString(serialized_pipe);
+  for (int i = 0; i < def.input_size(); ++i) {
+    if (def.input(i).is_argument_input()) {
+      spec->AddArgumentInput(def.input(i).arg_name(), def.input(i).name());
+    }
+  }
 
-    // If not given, take parameters from the
-    // serialized pipeline
-    if (batch_size == -1) {
-      this->batch_size_ = def.batch_size();
-    } else {
-      this->batch_size_ = batch_size;
-    }
-    if (device_id == -1) {
-      this->device_id_ = def.device_id();
-    } else {
-      this->device_id_ = device_id;
-    }
-    if (num_threads == -1) {
-      this->num_threads_ = def.num_threads();
-    } else {
-      this->num_threads_ = num_threads;
-    }
+  for (int i = 0; i < def.output_size(); ++i) {
+    spec->AddOutput(def.output(i).name(), def.output(i).device());
+  }
+}
 
-    Init(this->batch_size_, this->num_threads_,
-         this->device_id_, def.seed(),
-         pipelined_execution,
-         separated_execution_,
-         async_execution,
-         bytes_per_sample_hint,
-         set_affinity,
-         max_num_stream,
-         default_cuda_stream_priority,
-         QueueSizes{prefetch_queue_depth});
+Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
+                    bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
+                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
+                    int default_cuda_stream_priority)
+    : built_(false), separated_execution_(false) {
+  dali_proto::PipelineDef def;
+  def.ParseFromString(serialized_pipe);
 
-    // from serialized pipeline, construct new pipeline
-    // All external inputs
-    for (auto& ex : def.external_inputs()) {
-      this->AddExternalInput(ex);
-    }
-    // all operators
-    for (auto& op_def : def.op()) {
-      OpSpec spec;
-      dali::DeserializeOpSpec(op_def, &spec);
+  // If not given, take parameters from the
+  // serialized pipeline
+  if (batch_size == -1) {
+    this->batch_size_ = def.batch_size();
+  } else {
+    this->batch_size_ = batch_size;
+  }
+  if (device_id == -1) {
+    this->device_id_ = def.device_id();
+  } else {
+    this->device_id_ = device_id;
+  }
+  if (num_threads == -1) {
+    this->num_threads_ = def.num_threads();
+  } else {
+    this->num_threads_ = num_threads;
+  }
 
-      this->AddOperator(spec, op_def.inst_name());
+  Init(this->batch_size_, this->num_threads_,
+        this->device_id_, def.seed(),
+        pipelined_execution,
+        separated_execution_,
+        async_execution,
+        bytes_per_sample_hint,
+        set_affinity,
+        max_num_stream,
+        default_cuda_stream_priority,
+        QueueSizes{prefetch_queue_depth});
+
+  // from serialized pipeline, construct new pipeline
+  // All external inputs
+  for (auto& ex : def.external_inputs()) {
+    this->AddExternalInput(ex);
+  }
+  // all operators
+  for (auto& op_def : def.op()) {
+    OpSpec spec;
+    dali::DeserializeOpSpec(op_def, &spec);
+
+    this->AddOperator(spec, op_def.inst_name());
+  }
+  // output names
+  for (auto& output : def.pipe_outputs()) {
+    this->output_names_.push_back(std::make_pair(output.name(), output.device()));
+  }
+}
+
+void Pipeline::Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
+            bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
+            bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
+            QueueSizes prefetch_queue_depth) {
+    // guard cudaDeviceGetStreamPriorityRange call
+    device_context_ = std::make_shared<CUContext>(device_id);
+    ContextGuard g(device_context_);
+    this->batch_size_ = batch_size;
+    this->num_threads_ = num_threads;
+    this->device_id_ = device_id;
+    this->original_seed_ = seed;
+    this->pipelined_execution_ = pipelined_execution;
+    this->separated_execution_ = separated_execution;
+    this->async_execution_ = async_execution;
+    this->bytes_per_sample_hint_ = bytes_per_sample_hint;
+    this->set_affinity_ = set_affinity;
+    this->max_num_stream_ = max_num_stream;
+    this->default_cuda_stream_priority_ = default_cuda_stream_priority;
+    this->prefetch_queue_depth_ = prefetch_queue_depth;
+    DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
+
+    int lowest_cuda_stream_priority, highest_cuda_stream_priority;
+    CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
+                                               &highest_cuda_stream_priority));
+    const auto min_priority_value =
+        std::min(lowest_cuda_stream_priority, highest_cuda_stream_priority);
+    const auto max_priority_value =
+        std::max(lowest_cuda_stream_priority, highest_cuda_stream_priority);
+    DALI_ENFORCE(
+        default_cuda_stream_priority >= min_priority_value &&
+        default_cuda_stream_priority <= max_priority_value,
+        "Provided default cuda stream priority `" + std::to_string(default_cuda_stream_priority) +
+        "` is outside the priority range [" + std::to_string(min_priority_value) + ", " +
+        std::to_string(max_priority_value) + "], with lowest priority being `" +
+        std::to_string(lowest_cuda_stream_priority) + "` and highest priority being `" +
+        std::to_string(highest_cuda_stream_priority) + "`");
+
+    seed_.resize(MAX_SEEDS);
+    current_seed_ = 0;
+    if (seed < 0) {
+      using Clock = std::chrono::high_resolution_clock;
+      seed = Clock::now().time_since_epoch().count();
     }
-    // output names
-    for (auto& output : def.pipe_outputs()) {
-      this->output_names_.push_back(std::make_pair(output.name(), output.device()));
-    }
+    std::seed_seq ss{seed};
+    ss.generate(seed_.begin(), seed_.end());
   }
 
 static bool has_prefix(const std::string &operator_name, const std::string& prefix) {
@@ -149,7 +195,7 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
       "device argument \"" + device + "\". Valid options are "
       "\"cpu\", \"gpu\", \"mixed\" or \"support\"");
 
-  DeviceGuard g(device_id_);
+  ContextGuard g(device_context_);
 
   // Verify the regular inputs to the op
   for (int i = 0; i < spec.NumInput(); ++i) {
@@ -331,13 +377,13 @@ void Pipeline::PropagateMemoryHint(OpNode &node) {
 }
 
 void Pipeline::Build(vector<std::pair<string, string>> output_names) {
-  DeviceGuard d(device_id_);
+  ContextGuard g(device_context_);
   output_names_ = output_names;
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
 
   executor_ = GetExecutor(pipelined_execution_, separated_execution_, async_execution_, batch_size_,
-                          num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_,
+                          num_threads_, device_id_, device_context_, bytes_per_sample_hint_, set_affinity_,
                           max_num_stream_, default_cuda_stream_priority_, prefetch_queue_depth_);
   executor_->Init();
 

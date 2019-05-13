@@ -18,7 +18,7 @@
 #include "dali/plugin/copy.h"
 #include "dali/error_handling.h"
 #include "dali/util/user_stream.h"
-#include "dali/util/device_guard.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 
@@ -48,7 +48,8 @@ void CopyToExternalTensorHelper<GPUBackend>(const dali::Buffer<GPUBackend> &src,
                                             device_type_t dst_type,
                                             size_t num,
                                             cudaStream_t stream) {
-  DeviceGuard d(src.device_id());
+  auto device_context = std::make_shared<CUContext>(src.device_id());
+  ContextGuard g(device_context);
   cudaMemcpyKind direction;
   if (dst_type == GPU) {
     direction = cudaMemcpyDeviceToDevice;

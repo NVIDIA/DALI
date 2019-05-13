@@ -27,8 +27,8 @@ struct Allocator;
 
 template <>
 struct Allocator<AllocType::Host> {
-  static void Deallocate(void *ptr, int device) noexcept {
-    (void)device;
+  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &ctx) noexcept {
+    (void)ctx;
     free(ptr);
   }
 
@@ -37,8 +37,8 @@ struct Allocator<AllocType::Host> {
 
 template <>
 struct Allocator<AllocType::Pinned> {
-  static void Deallocate(void *ptr, int device) noexcept {
-    DeviceGuard guard(device);
+  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &ctx) noexcept {
+    ContextGuard guard(ctx);
     cudaFreeHost(ptr);
   }
 
@@ -51,8 +51,8 @@ struct Allocator<AllocType::Pinned> {
 
 template <>
 struct Allocator<AllocType::GPU> {
-  static void Deallocate(void *ptr, int device) noexcept {
-    DeviceGuard guard(device);
+  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &ctx) noexcept {
+    ContextGuard guard(ctx);
     cudaFree(ptr);
   }
 
@@ -66,8 +66,8 @@ struct Allocator<AllocType::GPU> {
 
 template <>
 struct Allocator<AllocType::Unified> {
-  static void Deallocate(void *ptr, int device) noexcept {
-    DeviceGuard guard(device);
+  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &ctx) noexcept {
+    ContextGuard guard(ctx);
     cudaFree(ptr);
   }
 
@@ -87,10 +87,10 @@ void *Allocate(AllocType type, size_t size) noexcept {
   );  // NOLINT
 }
 
-void Deallocate(AllocType type, void *mem, int device) noexcept {
+void Deallocate(AllocType type, void *mem, std::shared_ptr<CUContext> &ctx) noexcept {
   VALUE_SWITCH(type, type_label,
     (AllocType::Host, AllocType::Pinned, AllocType::GPU, AllocType::Unified),
-    (return Allocator<type_label>::Deallocate(mem, device)),
+    (return Allocator<type_label>::Deallocate(mem, ctx)),
     (assert(!"Invalid allocation type requested");)
   );  // NOLINT
 }
@@ -98,9 +98,12 @@ void Deallocate(AllocType type, void *mem, int device) noexcept {
 Deleter GetDeleter(AllocType type) noexcept {
   Deleter del;
   del.alloc_type = type;
-  del.device = 0;
-  if (type != AllocType::Host)
-    cudaGetDevice(&del.device);
+  del.device_context_.reset();
+  if (type != AllocType::Host) {
+    int device_id;
+    cudaGetDevice(&device_id);
+    del.device_context_ = std::make_shared<CUContext>(device_id);
+  }
   return del;
 }
 

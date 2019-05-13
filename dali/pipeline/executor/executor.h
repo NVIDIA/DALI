@@ -39,6 +39,7 @@
 #include "dali/pipeline/workspace/mixed_workspace.h"
 #include "dali/pipeline/workspace/support_workspace.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 
@@ -82,11 +83,13 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public QueuePolicy {
  public:
   DLL_PUBLIC inline Executor(int batch_size, int num_thread, int device_id,
+                             std::shared_ptr<CUContext> device_context,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
                              int max_num_stream = -1, int default_cuda_stream_priority = 0,
                              QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : batch_size_(batch_size),
         device_id_(device_id),
+        device_context_(device_context),
         bytes_per_sample_hint_(bytes_per_sample_hint),
         callback_(nullptr),
         stream_pool_(max_num_stream, true, default_cuda_stream_priority),
@@ -150,6 +153,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   };
 
   int batch_size_, device_id_;
+  std::shared_ptr<CUContext> device_context_;
   size_t bytes_per_sample_hint_;
   int previous_gpu_queue_idx_ = -1;
 
@@ -224,7 +228,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   output_names_ = output_names;
   graph_ = graph;
 
-  DeviceGuard g(device_id_);
+  ContextGuard g(device_context_);
 
   // Remove any node from the graph whose output
   // will not be used as an output or by another node
@@ -244,7 +248,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   tensor_to_store_queue_ = CreateBackingStorageForTensorNodes(*graph_, batch_size_, queue_sizes);
   // Setup stream and events that will be used for execution
   {
-    DeviceGuard g(device_id_);
+    ContextGuard g(device_context_);
     mixed_op_stream_ = stream_pool_.GetStream();
     gpu_op_stream_ = stream_pool_.GetStream();
     mixed_op_events_ =
@@ -279,7 +283,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
     return;
   }
 
-  DeviceGuard g(device_id_);
+  ContextGuard g(device_context_);
 
   // Run the support ops
   try {
@@ -343,7 +347,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   TimeRange tr("[Executor] RunMixed");
-  DeviceGuard g(device_id_);
+  ContextGuard g(device_context_);
 
   auto mixed_idxs = QueuePolicy::AcquireIdxs(OpType::MIXED);
   if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(mixed_idxs)) {
@@ -390,7 +394,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
     QueuePolicy::ReleaseIdxs(OpType::GPU, gpu_idxs);
     return;
   }
-  DeviceGuard g(device_id_);
+  ContextGuard g(device_context_);
 
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
@@ -484,7 +488,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Outputs(DeviceWorkspace *ws) {
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
-  DeviceGuard g(device_id_);
+  ContextGuard g(device_context_);
   ws->Clear();
 
   if (exec_error_ || QueuePolicy::IsStopSignaled()) {
@@ -587,7 +591,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
-  DeviceGuard g(device_id_);
+  ContextGuard g(device_context_);
   pipeline_outputs_ = graph.GetOutputs(output_names_);
   for (auto tid : pipeline_outputs_) {
     auto &tensor = graph.Tensor(tid);
@@ -643,7 +647,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
     std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const OpGraph &graph) {
-  DeviceGuard g(device_id_);
+  ContextGuard g(device_context_);
   TimeRange tr("[Executor] PresizeData");
 
   // To avoid handling the arguments several times for each operator that

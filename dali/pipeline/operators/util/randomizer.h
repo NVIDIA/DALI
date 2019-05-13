@@ -17,6 +17,7 @@
 #define DALI_PIPELINE_OPERATORS_UTIL_RANDOMIZER_H_
 
 #include "dali/pipeline/data/backend.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 
@@ -36,6 +37,7 @@ class Randomizer {
     void *states_;
     size_t len_;
     int device_;
+    std::shared_ptr<CUContext> device_context_;
 };
 
 }  // namespace dali
