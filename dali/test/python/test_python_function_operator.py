@@ -52,7 +52,7 @@ class PythonOperatorPipeline(CommonPipeline):
     def define_graph(self):
         images, labels = self.load()
         processed = self.python_function(images)
-        isinstance(processed, EdgeReference)
+        assert isinstance(processed, EdgeReference)
         return processed
 
 
@@ -111,7 +111,6 @@ def flip(image):
 
 def test_python_operator_one_channel_normalize():
     run_case(one_channel_normalize)
-
 
 def test_python_operator_channels_mean():
     run_case(channels_mean)
