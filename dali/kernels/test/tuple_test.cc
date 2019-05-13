@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/type_tag.h"
-#include "dali/kernels/static_switch.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {

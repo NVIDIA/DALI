@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/test/dali_test.h"
@@ -41,8 +41,8 @@ TYPED_TEST_SUITE(DataLoadStoreTest, TestTypes);
 const char* path = std::getenv("DALI_TEST_CAFFE_LMDB_PATH");
 
 TYPED_TEST(DataLoadStoreTest, LMDBTest) {
-  shared_ptr<dali::LMDBReader> reader(
-      new LMDBReader(
+  shared_ptr<dali::LMDBLoader> reader(
+      new LMDBLoader(
           OpSpec("CaffeReader")
           .AddArg("batch_size", 32)
           .AddArg("path", string(path))
@@ -96,8 +96,8 @@ TYPED_TEST(DataLoadStoreTest, LoaderTestFail) {
 
 #if 0
 TYPED_TEST(DataLoadStoreTest, CachedLMDBTest) {
-  shared_ptr<dali::LMDBReader> reader(
-      new LMDBReader(
+  shared_ptr<dali::LMDBLoader> reader(
+      new LMDBLoader(
           OpSpec("CaffeReader")
           .AddArg("batch_size", 32)
           .AddArg("enable_cache", true)

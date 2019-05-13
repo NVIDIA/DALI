@@ -2,173 +2,95 @@ import torch
 import torch.nn as nn
 from torchvision.models.resnet import resnet18, resnet34, resnet50, resnet101, resnet152
 
-def _ModifyConvStrideDilation(conv, stride=(1, 1), padding=None):
-    conv.stride = stride
+# Apex imports
+try:
+    from apex.fp16_utils import *
+    from apex.parallel import DistributedDataParallel as DDP
+except ImportError:
+    raise ImportError("Please install APEX from https://github.com/nvidia/apex")
 
-    if padding is not None:
-        conv.padding = padding
 
-def _ModifyBlock(block, bottleneck=False, **kwargs):
-    for m in list(block.children()):
-        if bottleneck:
-           _ModifyConvStrideDilation(m.conv2, **kwargs)
-        else:
-           _ModifyConvStrideDilation(m.conv1, **kwargs)
-
-        if m.downsample is not None:
-            # need to make sure no padding for the 1x1 residual connection
-            _ModifyConvStrideDilation(list(m.downsample.children())[0], **kwargs)
-
-class ResNet18(nn.Module):
-    def __init__(self):
+class ResNet(nn.Module):
+    def __init__(self, backbone='resnet50'):
         super().__init__()
-        rn18 = resnet18(pretrained=True)
-
-        # discard last Resnet block, avrpooling and classification FC
-        # layer1 = up to and including conv3 block
-        self.layer1 = nn.Sequential(*list(rn18.children())[:6])
-        # layer2 = conv4 block only
-        self.layer2 = nn.Sequential(*list(rn18.children())[6:7])
-
-        # modify conv4 if necessary
-        # Always deal with stride in first block
-        modulelist = list(self.layer2.children())
-        _ModifyBlock(modulelist[0], stride=(1,1))
-
-    def forward(self, data):
-        layer1_activation = self.layer1(data)
-        x = layer1_activation
-        layer2_activation = self.layer2(x)
-
-        # Only need the output of conv4
-        return [layer2_activation]
-
-class ResNet34(nn.Module):
-    def __init__(self):
-        super().__init__()
-        rn34 = resnet34(pretrained=True)
-
-        # discard last Resnet block, avrpooling and classification FC
-        self.layer1 = nn.Sequential(*list(rn34.children())[:6])
-        self.layer2 = nn.Sequential(*list(rn34.children())[6:7])
-        # modify conv4 if necessary
-        # Always deal with stride in first block
-        modulelist = list(self.layer2.children())
-        _ModifyBlock(modulelist[0], stride=(1,1))
+        if backbone == 'resnet18':
+            backbone = resnet18(pretrained=True)
+            self.out_channels = [256, 512, 512, 256, 256, 128]
+        elif backbone == 'resnet34':
+            backbone = resnet34(pretrained=True)
+            self.out_channels = [256, 512, 512, 256, 256, 256]
+        elif backbone == 'resnet50':
+            backbone = resnet50(pretrained=True)
+            self.out_channels = [1024, 512, 512, 256, 256, 256]
+        elif backbone == 'resnet101':
+            backbone = resnet101(pretrained=True)
+            self.out_channels = [1024, 512, 512, 256, 256, 256]
+        else:  # backbone == 'resnet152':
+            backbone = resnet152(pretrained=True)
+            self.out_channels = [1024, 512, 512, 256, 256, 256]
 
 
-    def forward(self, data):
-        layer1_activation = self.layer1(data)
-        x = layer1_activation
-        layer2_activation = self.layer2(x)
+        self.feature_extractor = nn.Sequential(*list(backbone.children())[:7])
 
-        return [layer2_activation]
+        conv4_block1 = self.feature_extractor[-1][0]
+
+        conv4_block1.conv1.stride = (1, 1)
+        conv4_block1.conv2.stride = (1, 1)
+        conv4_block1.downsample[0].stride = (1, 1)
+
+    def forward(self, x):
+        x = self.feature_extractor(x)
+        return x
+
 
 class SSD300(nn.Module):
-    """
-        Build a SSD module to take 300x300 image input,
-        and output 8732 per class bounding boxes
+    def __init__(self, backbone='resnet50'):
+        super().__init__()
 
-        vggt: pretrained vgg16 (partial) model
-        label_num: number of classes (including background 0)
-    """
-    def __init__(self, label_num, backbone='resnet34', model_path="./resnet34-333f7ec4.pth"):
+        self.feature_extractor = ResNet(backbone=backbone)
 
-        super(SSD300, self).__init__()
-
-        self.label_num = label_num
-
-        if backbone == 'resnet34':
-            self.model = ResNet34()
-            out_channels = 256
-            out_size = 38
-            self.out_chan = [out_channels, 512, 512, 256, 256, 256]
-        else:
-            raise ValueError('Invalid backbone chosen')
-
-        self._build_additional_features(out_size, self.out_chan)
-
-        # after l2norm, conv7, conv8_2, conv9_2, conv10_2, conv11_2
-        # classifer 1, 2, 3, 4, 5 ,6
-
+        self.label_num = 81  # number of COCO classes
+        self._build_additional_features(self.feature_extractor.out_channels)
         self.num_defaults = [4, 6, 6, 6, 4, 4]
         self.loc = []
         self.conf = []
 
-        for nd, oc in zip(self.num_defaults, self.out_chan):
-            self.loc.append(nn.Conv2d(oc, nd*4, kernel_size=3, padding=1))
-            self.conf.append(nn.Conv2d(oc, nd*label_num, kernel_size=3, padding=1))
-
+        for nd, oc in zip(self.num_defaults, self.feature_extractor.out_channels):
+            self.loc.append(nn.Conv2d(oc, nd * 4, kernel_size=3, padding=1))
+            self.conf.append(nn.Conv2d(oc, nd * self.label_num, kernel_size=3, padding=1))
 
         self.loc = nn.ModuleList(self.loc)
         self.conf = nn.ModuleList(self.conf)
-        # intitalize all weights
         self._init_weights()
 
-    def _build_additional_features(self, input_size, input_channels):
-        idx = 0
-        if input_size == 38:
-            idx = 0
-        elif input_size == 19:
-            idx = 1
-        elif input_size == 10:
-            idx = 2
-
+    def _build_additional_features(self, input_size):
         self.additional_blocks = []
+        for i, (input_size, output_size, channels) in enumerate(zip(input_size[:-1], input_size[1:], [256, 256, 128, 128, 128])):
+            if i < 3:
+                layer = nn.Sequential(
+                    nn.Conv2d(input_size, channels, kernel_size=1, bias=False),
+                    nn.BatchNorm2d(channels),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(channels, output_size, kernel_size=3, padding=1, stride=2, bias=False),
+                    nn.BatchNorm2d(output_size),
+                    nn.ReLU(inplace=True),
+                )
+            else:
+                layer = nn.Sequential(
+                    nn.Conv2d(input_size, channels, kernel_size=1, bias=False),
+                    nn.BatchNorm2d(channels),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(channels, output_size, kernel_size=3, bias=False),
+                    nn.BatchNorm2d(output_size),
+                    nn.ReLU(inplace=True),
+                )
 
-        if input_size == 38:
-            self.additional_blocks.append(nn.Sequential(
-                nn.Conv2d(input_channels[idx], 256, kernel_size=1),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(256, input_channels[idx+1], kernel_size=3, padding=1, stride=2),
-                nn.ReLU(inplace=True),
-            ))
-            idx += 1
-
-        self.additional_blocks.append(nn.Sequential(
-            nn.Conv2d(input_channels[idx], 256, kernel_size=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, input_channels[idx+1], kernel_size=3, padding=1, stride=2),
-            nn.ReLU(inplace=True),
-        ))
-        idx += 1
-
-        # conv9_1, conv9_2
-        self.additional_blocks.append(nn.Sequential(
-            nn.Conv2d(input_channels[idx], 128, kernel_size=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, input_channels[idx+1], kernel_size=3, padding=1, stride=2),
-            nn.ReLU(inplace=True),
-        ))
-        idx += 1
-
-        # conv10_1, conv10_2
-        self.additional_blocks.append(nn.Sequential(
-            nn.Conv2d(input_channels[idx], 128, kernel_size=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, input_channels[idx+1], kernel_size=3),
-            nn.ReLU(inplace=True),
-        ))
-        idx += 1
-
-        # Only necessary in VGG for now
-        if input_size >= 19:
-            # conv11_1, conv11_2
-            self.additional_blocks.append(nn.Sequential(
-                nn.Conv2d(input_channels[idx], 128, kernel_size=1),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(128, input_channels[idx+1], kernel_size=3),
-                nn.ReLU(inplace=True),
-            ))
+            self.additional_blocks.append(layer)
 
         self.additional_blocks = nn.ModuleList(self.additional_blocks)
 
     def _init_weights(self):
-
-        layers = [
-            *self.additional_blocks,
-            *self.loc, *self.conf]
-
+        layers = [*self.additional_blocks, *self.loc, *self.conf]
         for layer in layers:
             for param in layer.parameters():
                 if param.dim() > 1: nn.init.xavier_uniform_(param)
@@ -183,24 +105,31 @@ class SSD300(nn.Module):
         locs, confs = torch.cat(locs, 2).contiguous(), torch.cat(confs, 2).contiguous()
         return locs, confs
 
-    def forward(self, data):
+    def forward(self, x):
+        x = self.feature_extractor(x)
 
-        layers = self.model(data)
-
-        # last result from network goes into additional blocks
-        x = layers[-1]
-        additional_results = []
-        for i, l in enumerate(self.additional_blocks):
+        detection_feed = [x]
+        for l in self.additional_blocks:
             x = l(x)
-            additional_results.append(x)
+            detection_feed.append(x)
 
-        src = [*layers, *additional_results]
         # Feature Map 38x38x4, 19x19x6, 10x10x6, 5x5x6, 3x3x4, 1x1x4
-
-        locs, confs = self.bbox_view(src, self.loc, self.conf)
+        locs, confs = self.bbox_view(detection_feed, self.loc, self.conf)
 
         # For SSD 300, shall return nbatch x 8732 x {nlabels, nlocs} results
         return locs, confs
+
+def model(args):
+    ssd300 = SSD300(backbone=args.backbone)
+    ssd300.cuda()
+
+    if args.fp16 and not args.amp:
+        ssd300 = network_to_half(ssd300)
+
+    if args.distributed:
+        ssd300 = DDP(ssd300)
+
+    return ssd300
 
 
 class Loss(nn.Module):
@@ -210,7 +139,6 @@ class Loss(nn.Module):
         2. Localization Loss: Only on positive labels
         Suppose input dboxes has the shape 8732x4
     """
-
     def __init__(self, dboxes):
         super(Loss, self).__init__()
         self.scale_xy = 1.0/dboxes.scale_xy
@@ -229,7 +157,6 @@ class Loss(nn.Module):
         """
         gxy = self.scale_xy*(loc[:, :2, :] - self.dboxes[:, :2, :])/self.dboxes[:, 2:, ]
         gwh = self.scale_wh*(loc[:, 2:, :]/self.dboxes[:, 2:, :]).log()
-
         return torch.cat((gxy, gwh), dim=1).contiguous()
 
     def forward(self, ploc, plabel, gloc, glabel):
@@ -240,7 +167,6 @@ class Loss(nn.Module):
             gloc, glabel: Nx4x8732, Nx8732
                 ground truth location and labels
         """
-
         mask = glabel > 0
         pos_num = mask.sum(dim=1)
 
@@ -263,12 +189,12 @@ class Loss(nn.Module):
         neg_num = torch.clamp(3*pos_num, max=mask.size(1)).unsqueeze(-1)
         neg_mask = con_rank < neg_num
 
+        #print(con.shape, mask.shape, neg_mask.shape)
         closs = (con*(mask.float() + neg_mask.float())).sum(dim=1)
 
         # avoid no object detected
         total_loss = sl1 + closs
         num_mask = (pos_num > 0).float()
         pos_num = pos_num.float().clamp(min=1e-6)
-
         ret = (total_loss*num_mask/pos_num).mean(dim=0)
         return ret

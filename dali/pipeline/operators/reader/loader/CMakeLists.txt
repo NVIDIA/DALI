@@ -13,10 +13,18 @@
 # limitations under the License.
 
 # Get all the source files and dump test files
-file(GLOB tmp *.cc *.cu)
-set(DALI_SRCS ${DALI_SRCS} ${tmp})
-file(GLOB tmp *_test.cc)
-remove(DALI_SRCS "${DALI_SRCS}" ${tmp})
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+
+set(DALI_SRCS ${DALI_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/coco_loader.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/file_loader.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/loader.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader.cc")
+
+if (BUILD_NVDEC)
+  set(DALI_SRCS ${DALI_SRCS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/video_loader.cc)
+endif()
 
 set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 

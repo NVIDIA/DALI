@@ -22,7 +22,7 @@ limitations under the License.
 #define DALI_IMAGE_JPEG_HANDLE_H_
 
 #include <string>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/image/jpeg_utils.h"
 
 namespace dali {

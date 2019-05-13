@@ -14,6 +14,8 @@
 
 add_subdirectory(cache)
 
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+
 # Get all the source files and dump test files
 if (BUILD_NVJPEG)
   if (NVJPEG_DECOUPLED_API)
@@ -42,8 +44,6 @@ if (BUILD_NVJPEG)
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_crop_test.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_slice_test.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_random_crop_test.cc")
-    else()
-      list(APPEND DALI_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_test.cc")
     endif()
   endif()
 endif()
@@ -59,7 +59,6 @@ set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
 
 if (BUILD_TEST)
   list(APPEND DALI_TEST_SRCS
-    "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_crop_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_slice_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_random_crop_test.cc"

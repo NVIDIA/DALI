@@ -499,7 +499,6 @@ class COCODetection(data.Dataset):
 
         self.img_keys = list(self.images.keys())
         self.transform = transform
-        #print("End parsing COCO data, total time {}".format(time.time()-start_time))
 
     @property
     def labelnum(self):

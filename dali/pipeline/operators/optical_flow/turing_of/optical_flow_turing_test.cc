@@ -234,7 +234,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CudaDecodeFlowVectorTest) {
 
 
 // DISABLED due to lack of test data. Enable on next possible chance
-TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
+TEST(OpticalFlowTuringTest, CalcOpticalFlowTest) {
   using namespace std;  // NOLINT
 
   auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/slow_preset/";
@@ -289,7 +289,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
     }
     float mean_err = accumulate(distances.begin(), distances.end(), 0.f) / distances.size();
     // Expecting, that average error would be less than 0.5[px]
-    ASSERT_GT(0.5, mean_err);
+    ASSERT_GT(0.9, mean_err);
   } catch (unsupported_exception &) {
     GTEST_SKIP() << "Test skipped due to module unavailability";
   }
@@ -297,7 +297,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowTest) {
 
 
 // DISABLED due to lack of test data. Enable on next possible chance
-TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowExternalHintsTest) {
+TEST(OpticalFlowTuringTest, CalcOpticalFlowExternalHintsTest) {
   using namespace std;  // NOLINT
 
   auto test_data_path = dali::testing::dali_extra_path() + "/db/optical_flow/slow_preset/";
@@ -358,7 +358,7 @@ TEST(OpticalFlowTuringTest, DISABLED_CalcOpticalFlowExternalHintsTest) {
     }
     float mean_err = accumulate(distances.begin(), distances.end(), 0.f) / distances.size();
     // Expecting, that average error would be less than 0.5[px]
-    EXPECT_GT(0.5, mean_err);
+    EXPECT_GT(0.9, mean_err);
   } catch (unsupported_exception &) {
     GTEST_SKIP() << "Test skipped due to module unavailability";
   }

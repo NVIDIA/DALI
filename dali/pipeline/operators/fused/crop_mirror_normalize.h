@@ -19,18 +19,20 @@
 #include <utility>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/crop/crop_attr.h"
 
 namespace dali {
 
 template <typename Backend>
-class CropMirrorNormalize : public Operator<Backend> {
+class CropMirrorNormalize : public Operator<Backend>, protected CropAttr  {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec) :
     Operator<Backend>(spec),
+    CropAttr(spec),
     output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
     output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
     pad_(spec.GetArgument<bool>("pad_output")),
@@ -38,7 +40,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     color_(IsColor(image_type_)),
     C_(color_ ? 3 : 1) {
     vector<float> temp_crop;
-    GetSingleOrRepeatedArg(spec, &temp_crop, "crop", 2);
+    GetSingleOrRepeatedArg(spec, temp_crop, "crop", 2);
 
     crop_h_ = temp_crop[0];
     crop_w_ = temp_crop[1];
@@ -53,8 +55,8 @@ class CropMirrorNormalize : public Operator<Backend> {
 
     DALI_ENFORCE(crop_h_ > 0 && crop_w_ > 0);
 
-    GetSingleOrRepeatedArg(spec, &mean_vec_, "mean", C_);
-    GetSingleOrRepeatedArg(spec, &inv_std_vec_, "std", C_);
+    GetSingleOrRepeatedArg(spec, mean_vec_, "mean", C_);
+    GetSingleOrRepeatedArg(spec, inv_std_vec_, "std", C_);
 
     // Inverse the std-deviation
     for (int i = 0; i < C_; ++i) {

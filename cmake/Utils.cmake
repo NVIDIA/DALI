@@ -11,29 +11,29 @@
 # All contributions by the University of California:
 # Copyright (c) 2014-2017 The Regents of the University of California (Regents)
 # All rights reserved.
-# 
+#
 # All other contributions:
 # Copyright (c) 2014-2017, the respective contributors
 # All rights reserved.
-# 
+#
 # Caffe uses a shared copyright model: each contributor holds copyright over
 # their contributions to Caffe. The project versioning records all such
 # contribution and copyright details. If a contributor wants to further mark
 # their specific copyright on a particular contribution, they should indicate
 # their copyright solely in the commit message of the change when it is
 # committed.
-# 
+#
 # LICENSE
-# 
+#
 # Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met: 
-# 
+# modification, are permitted provided that the following conditions are met:
+#
 # 1. Redistributions of source code must retain the above copyright notice, this
-#    list of conditions and the following disclaimer. 
+#    list of conditions and the following disclaimer.
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
-#    and/or other materials provided with the distribution. 
-# 
+#    and/or other materials provided with the distribution.
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 # ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -134,3 +134,90 @@ macro(copy_post_build TARGET_NAME SRC DST)
             "${SRC}"
             "${DST}")
 endmacro(copy_post_build)
+
+
+# Glob for source files in current dir
+# Usage: collect_sources(<SRCS_VAR_NAME> [PARENT_SCOPE])
+#
+# Adds source files globed in current dir to variable SRCS_VAR_NAME
+# at the current scope, and optionally at PARENT_SCOPE.
+#
+macro(collect_sources DALI_SRCS_GROUP)
+  cmake_parse_arguments(
+    COLLECT_SOURCES # prefix of output variables
+    "PARENT_SCOPE" # all options for the respective macro
+    "" # one value keywords
+    "" # multi value keywords
+    ${ARGV})
+
+  file(GLOB collect_sources_tmp *.cc *.cu)
+  file(GLOB collect_sources_tmp_test *_test.cc *_test.cu)
+  remove(collect_sources_tmp "${collect_sources_tmp}" ${collect_sources_tmp_test})
+  set(${DALI_SRCS_GROUP} ${${DALI_SRCS_GROUP}} ${collect_sources_tmp})
+  if (COLLECT_SOURCES_PARENT_SCOPE)
+    set(${DALI_SRCS_GROUP} ${${DALI_SRCS_GROUP}} PARENT_SCOPE)
+  endif()
+endmacro(collect_sources)
+
+# Glob for test source files in current dir
+# Usage: collect_test_sources(<SRCS_VAR_NAME> [PARENT_SCOPE])
+#
+# Adds test source files globed in current dir to variable SRCS_VAR_NAME
+# at the current scope, and optionally at PARENT_SCOPE.
+#
+macro(collect_test_sources DALI_TEST_SRCS_GROUP)
+  cmake_parse_arguments(
+    COLLECT_TEST_SOURCES # prefix of output variables
+    "PARENT_SCOPE" # all options for the respective macro
+    "" # one value keywords
+    "" # multi value keywords
+    ${ARGV})
+
+  file(GLOB collect_test_sources_tmp_test *_test.cc *_test.cu)
+  set(${DALI_TEST_SRCS_GROUP} ${${DALI_TEST_SRCS_GROUP}} ${collect_test_sources_tmp_test})
+  if (COLLECT_TEST_SOURCES_PARENT_SCOPE)
+    set(${DALI_TEST_SRCS_GROUP} ${${DALI_TEST_SRCS_GROUP}} PARENT_SCOPE)
+  endif()
+endmacro()
+
+
+# Glob for the header files in current dir
+# Usage: collect_headers(<HDRS_VAR_NAME> [PARENT_SCOPE] [INCLUDE_TEST])
+#
+# Adds *.h files to HDRS_VAR_NAME list at the current scope and optionally at PARENT_SCOPE.
+# Does not collect files that contain `test` substring it the filename,
+# unless INCLUDE_TEST is specified.
+#
+macro(collect_headers DALI_HEADERS_GROUP)
+cmake_parse_arguments(
+  COLLECT_HEADERS # prefix of output variables
+  "PARENT_SCOPE;INCLUDE_TEST" # all options for the respective macro
+  "" # one value keywords
+  "" # multi value keywords
+  ${ARGV})
+
+  file(GLOB collect_headers_tmp *.h)
+  set(${DALI_HEADERS_GROUP} ${${DALI_HEADERS_GROUP}} ${collect_headers_tmp})
+  # We remove filenames containing substring test
+  if(NOT COLLECT_HEADERS_INCLUDE_TEST)
+    file(GLOB collect_headers_tmp *test*)
+    remove(${DALI_HEADERS_GROUP} "${${DALI_HEADERS_GROUP}}" ${collect_headers_tmp})
+  endif()
+  if(COLLECT_HEADERS_PARENT_SCOPE)
+    set(${DALI_HEADERS_GROUP} ${${DALI_HEADERS_GROUP}} PARENT_SCOPE)
+  endif()
+endmacro(collect_headers)
+
+# Add a define for build option.
+# for option(BUILD_FAUTRE "feature description") creates a FAUTRE_ENABLED definition
+# passed to compiler, with appropriate value based on the value of the option.
+#
+function(propagate_option BUILD_OPTION_NAME)
+  string(REPLACE "BUILD_" "" OPTION_NAME ${BUILD_OPTION_NAME})
+  set(DEFINE_NAME ${OPTION_NAME}_ENABLED)
+  if (${BUILD_OPTION_NAME})
+    add_definitions(-D${DEFINE_NAME}=1)
+  else()
+    add_definitions(-D${DEFINE_NAME}=0)
+  endif()
+endfunction(propagate_option)

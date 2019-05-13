@@ -82,10 +82,10 @@ TEST(TestTensorList, Transfer) {
   auto seq_gen = [&]() { return num++; };
   Fill(ttl.cpu(0), seq_gen);
 
-  auto *ptr = ttl.cpu(0).data;
+  auto *ptr = ttl.cpu(0).data[0];
 
   auto gpu = ttl.gpu(0);
-  EXPECT_NE(gpu.data, nullptr);
+  EXPECT_FALSE(gpu.empty());
 
   ttl.invalidate_cpu();
 
@@ -93,9 +93,9 @@ TEST(TestTensorList, Transfer) {
                                  // same address from being allocated to the tensor list
 
   auto cpu = ttl.cpu(0);
-  EXPECT_NE(cpu.data, ptr) << "It's highly unlikely that we get exactly the same pointer";
+  EXPECT_NE(cpu.data[0], ptr) << "It's highly unlikely that we get exactly the same pointer";
   for (int i = 0; i < 1024; i++) {
-    ASSERT_EQ(cpu.data[i], i+1);
+    ASSERT_EQ(cpu.data[0][i], i+1);
   }
 }
 

@@ -39,7 +39,7 @@ class RandomResizedCrop : public Operator<Backend>
       , ResizeBase(spec)
       , RandomCropAttr(spec)
       , interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
-    GetSingleOrRepeatedArg(spec, &size_, "size", 2);
+    GetSingleOrRepeatedArg(spec, size_, "size", 2);
     InitParams(spec);
     BackendInit();
   }

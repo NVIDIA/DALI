@@ -462,9 +462,6 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
 
-  // Size doubled, memory allocation should have occured
-  ASSERT_NE(ptr, tensor_list.raw_data());
-
   // nbytes should have increased by a factor of 2
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor_list.nbytes());
 }

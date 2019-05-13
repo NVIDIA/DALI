@@ -12,23 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cuda_runtime_api.h>
 #include <chrono>
 
-#include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op.h"
-#include "tensorflow/core/framework/shape_inference.h"
+
+#define EIGEN_USE_GPU  // for Eigen::GpuDevice
+#include "tensorflow/core/framework/op_kernel.h"
+
 #include "tensorflow/core/framework/register_types.h"
+#include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.h"
 
 #define USE_TF_ALLOCATOR 0
-
 #if USE_TF_ALLOCATOR
 #include "dali/tensorflow/tfallocator.h"
 #endif
 
-#include "dali/common.h"
 #include "dali/c_api/c_api.h"
+#include "dali/core/common.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 
@@ -68,7 +71,9 @@ REGISTER_OP("Dali")
   .Attr("shapes: list(shape) >= 1")
   .Attr("num_threads: int = -1")
   .Attr("device_id: int = -1")
-  .Attr("prefetch_queue_depth: int = 2")
+  .Attr("exec_separated: bool = false")
+  .Attr("gpu_prefetch_queue_depth: int = 2")
+  .Attr("cpu_prefetch_queue_depth: int = 2")
   .Attr("sparse: list(bool) = []")
   .Attr("batch_size: int = -1")
   .Output("data: dtypes")
@@ -109,14 +114,20 @@ class DaliOp : public tf::OpKernel {
     int num_threads;
     int device_id;
     int batch_size;
+    bool exec_separated;
+    int cpu_prefetch_queue_depth;
 
     OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
     OP_REQUIRES_OK(context, context->GetAttr("dtypes", &types_));
     OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads));
     OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id));
-    OP_REQUIRES_OK(context, context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
+    OP_REQUIRES_OK(context, context->GetAttr("exec_separated", &exec_separated));
+    // In exec_separated==false case, gpu_prefetch_queue_depth is the global prefetch_queue_depth_
+    OP_REQUIRES_OK(context, context->GetAttr("gpu_prefetch_queue_depth", &prefetch_queue_depth_));
     OP_REQUIRES_OK(context, context->GetAttr("sparse", &sparse_));
     OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size));
+    OP_REQUIRES_OK(context, context->GetAttr("cpu_prefetch_queue_depth",
+                                             &cpu_prefetch_queue_depth));
 
     // TF doing constant propagation runs all operators on the CPU first, so we need to provide
     // ability to copy memory from the GPU pipeline to the CPU seamlessly
@@ -139,6 +150,9 @@ class DaliOp : public tf::OpKernel {
                    batch_size,
                    num_threads,
                    device_id,
+                   exec_separated,
+                   prefetch_queue_depth_,
+                   cpu_prefetch_queue_depth,
                    prefetch_queue_depth_));
 
 #if USE_TF_ALLOCATOR
@@ -147,8 +161,12 @@ class DaliOp : public tf::OpKernel {
 #endif
     LOG_LINE << "Pipeline created\n";
     LOG_LINE << "Prefetching...\n";
-    for (int i = 0; i < prefetch_queue_depth_; ++i) {
-      TF_DALI_CALL(daliRun(&pipe_handle_));
+    if (!exec_separated) {
+      TF_DALI_CALL(daliPrefetchUniform(&pipe_handle_, prefetch_queue_depth_));
+    } else {
+      TF_DALI_CALL(daliPrefetchSeparate(&pipe_handle_,
+                                        cpu_prefetch_queue_depth,
+                                        prefetch_queue_depth_));
     }
     LOG_LINE << "After first run\n";
   }
@@ -182,6 +200,11 @@ class DaliOp : public tf::OpKernel {
     data_output_tensors.resize(dali_num_out + additional_sparse_tensors);
 
     OP_REQUIRES_OK(context, context->output_list("data", &outputs));
+
+    cudaStream_t stream = 0;
+    if (this->device_type_ == device_type_t::GPU) {
+      stream = context->eigen_device<Eigen::GpuDevice>().stream();
+    }
 
     for (unsigned i = 0, j = 0; i < dali_num_out; ++i, ++j) {
       bool should_be_sparse_tensor = i < sparse_.size() && sparse_[i];
@@ -283,11 +306,12 @@ class DaliOp : public tf::OpKernel {
                                         "for tensor " + std::to_string(i)));
           break;
       }
+
       if (!should_be_sparse_tensor) {
-        TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_));
+        TF_DALI_CALL(daliCopyTensorNTo(&pipe_handle_, dst, i, this->device_type_, stream));
       } else {
         // copy values
-        TF_DALI_CALL(daliCopyTensorListNTo(&pipe_handle_, dst, i, this->device_type_));
+        TF_DALI_CALL(daliCopyTensorListNTo(&pipe_handle_, dst, i, this->device_type_, stream));
         ++j;
         // copy out shape
         OP_REQUIRES_OK(context, outputs.allocate(j, tf::TensorShape({dims}),

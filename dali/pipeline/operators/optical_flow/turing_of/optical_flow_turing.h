@@ -22,7 +22,7 @@
 #include "dali/util/custream.h"
 #include "nvOpticalFlowCuda.h"
 #include "nvOpticalFlowCommon.h"
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/optical_flow/optical_flow_adapter/optical_flow_adapter.h"
 #include "dali/pipeline/operators/optical_flow/turing_of/optical_flow_buffer.h"
 

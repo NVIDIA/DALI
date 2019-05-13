@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 #include "dali/pipeline/operators/decoder/cache/image_cache_blob.h"
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

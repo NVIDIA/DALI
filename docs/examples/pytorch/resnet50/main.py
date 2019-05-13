@@ -186,6 +186,8 @@ def main():
                                              init_method='env://')
         args.world_size = torch.distributed.get_world_size()
 
+    args.total_batch_size = args.world_size * args.batch_size
+
     if args.fp16:
         assert torch.backends.cudnn.enabled, "fp16 mode requires cudnn backend to be enabled."
 
@@ -261,9 +263,12 @@ def main():
         validate(val_loader, model, criterion)
         return
 
+    total_time = AverageMeter()
     for epoch in range(args.start_epoch, args.epochs):
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch)
+
+        avg_train_time = train(train_loader, model, criterion, optimizer, epoch)
+        total_time.update(avg_train_time)
         if args.prof:
             break
         # evaluate on validation set
@@ -282,7 +287,8 @@ def main():
             }, is_best)
             if epoch == args.epochs - 1:
                 print('##Top-1 {0}\n'
-                      '##Top-5 {1}'.format(prec1, prec5))
+                      '##Top-5 {1}\n'
+                      '##Perf  {2}'.format(prec1, prec5, args.total_batch_size / total_time.avg))
 
         # reset DALI iterators
         train_loader.reset()
@@ -356,10 +362,11 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    epoch, i, train_loader_len,
-                   args.world_size * args.batch_size / batch_time.val,
-                   args.world_size * args.batch_size / batch_time.avg,
+                   args.total_batch_size / batch_time.val,
+                   args.total_batch_size / batch_time.avg,
                    batch_time=batch_time,
                    data_time=data_time, loss=losses, top1=top1, top5=top5))
+    return batch_time.avg
 
 
 def validate(val_loader, model, criterion):
@@ -378,7 +385,7 @@ def validate(val_loader, model, criterion):
         target = data[0]["label"].squeeze().cuda().long()
         val_loader_len = int(val_loader._size / args.batch_size)
 
-        target = target.cuda(async=True)
+        target = target.cuda(non_blocking=True)
         input_var = Variable(input)
         target_var = Variable(target)
 
@@ -413,8 +420,8 @@ def validate(val_loader, model, criterion):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    i, val_loader_len,
-                   args.world_size * args.batch_size / batch_time.val,
-                   args.world_size * args.batch_size / batch_time.avg,
+                   args.total_batch_size / batch_time.val,
+                   args.total_batch_size / batch_time.avg,
                    batch_time=batch_time, loss=losses,
                    top1=top1, top5=top5))
 

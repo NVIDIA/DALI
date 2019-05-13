@@ -15,7 +15,7 @@
 #ifndef DALI_PIPELINE_UTIL_OP_TYPE_TO_WORKSPACE_H_
 #define DALI_PIPELINE_UTIL_OP_TYPE_TO_WORKSPACE_H_
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"

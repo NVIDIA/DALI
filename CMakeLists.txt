@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.11)
 
 project(DALI CXX)
 
@@ -24,13 +24,29 @@ option(BUILD_PYTHON "Build python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
-option(BUILD_NVJPEG "Build with nvJPEG" ON)
+option(BUILD_NVJPEG "Build with nvJPEG support" ON)
+option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
+option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON)
+option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
 
 option(WERROR "Threat all warnings as errors" OFF)
 
+# FFmpeg is required when we are using NVDEC for video reader
+set(BUILD_FFMPEG ${BUILD_NVDEC})
+
 include(cmake/Utils.cmake)
 
-get_dali_version(${CMAKE_SOURCE_DIR}/VERSION DALI_VERSION)
+propagate_option(BUILD_PYTHON)
+propagate_option(BUILD_LMDB)
+propagate_option(BUILD_TENSORFLOW)
+propagate_option(BUILD_JPEG_TURBO)
+propagate_option(BUILD_NVJPEG)
+propagate_option(BUILD_NVOF)
+propagate_option(BUILD_NVDEC)
+propagate_option(BUILD_NVML)
+propagate_option(BUILD_FFMPEG)
+
+get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 
 # Default to release build
 if (NOT CMAKE_BUILD_TYPE)
@@ -106,10 +122,14 @@ message(STATUS "Generated gencode flags: ${CUDA_gencode_flags}")
 # Add ptx & bin flags for cuda
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_gencode_flags}")
 
-# Project dir
-include_directories(BEFORE ${PROJECT_SOURCE_DIR})
-include_directories(BEFORE ${PROJECT_BINARY_DIR})
-cuda_include_directories(${PROJECT_SOURCE_DIR})
+# Include directories
+include_directories(BEFORE
+  "${PROJECT_SOURCE_DIR}"
+  "${PROJECT_SOURCE_DIR}/include"
+  "${PROJECT_BINARY_DIR}")
+cuda_include_directories(
+  "${PROJECT_SOURCE_DIR}"
+  "${PROJECT_SOURCE_DIR}/include")
 
 # Project build
 add_subdirectory(dali)

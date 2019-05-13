@@ -10,3 +10,9 @@
 [submodule "third_party/manylinux"]
 	path = third_party/manylinux
 	url = https://github.com/pypa/manylinux
+[submodule "third_party/boost/preprocessor"]
+	path = third_party/boost/preprocessor
+	url = https://github.com/boostorg/preprocessor
+[submodule "third_party/rapidjson"]
+	path = third_party/rapidjson
+	url = https://github.com/Tencent/rapidjson.git

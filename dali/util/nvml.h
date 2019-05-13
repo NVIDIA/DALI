@@ -109,6 +109,17 @@ inline void SetCPUAffinity(int core = -1) {
   }
 
   // Set the affinity
+  bool at_least_one_cpu_set = false;
+  for (std::size_t i = 0; i < num_cpus; i++) {
+    at_least_one_cpu_set |= CPU_ISSET(i, &requested_set);
+  }
+  if (!at_least_one_cpu_set) {
+    DALI_WARN("CPU affinity requested by user or recommended by nvml setting"
+              " does not meet allowed affinity for given DALI thread."
+              " Use taskset tool to check allowed affinity");
+    return;
+  }
+
   int error = pthread_setaffinity_np(pthread_self(), sizeof(requested_set), &requested_set);
   if (error != 0) {
       DALI_WARN("Setting affinity failed! Error code: " + to_string(error));

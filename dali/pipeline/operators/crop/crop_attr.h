@@ -15,9 +15,10 @@
 #ifndef DALI_PIPELINE_OPERATORS_CROP_CROP_ATTR_H_
 #define DALI_PIPELINE_OPERATORS_CROP_CROP_ATTR_H_
 
+#include <cmath>
 #include <utility>
 #include <vector>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
@@ -124,8 +125,8 @@ class CropAttr {
     DALI_ENFORCE(crop_H > 0 && crop_H <= H, "Invalid crop_heigth: " + std::to_string(crop_H)
       + " (image_heigth: " + std::to_string(H) + ")");
 
-    const int crop_y = crop_y_norm * (H - crop_H);
-    const int crop_x = crop_x_norm * (W - crop_W);
+    const int crop_y = std::round(crop_y_norm * (H - crop_H));
+    const int crop_x = std::round(crop_x_norm * (W - crop_W));
 
     return std::make_pair(crop_y, crop_x);
   }

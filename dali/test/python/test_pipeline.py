@@ -12,15 +12,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
+import nvidia.dali as dali
+from nvidia.dali.backend_impl import TensorListGPU
 from timeit import default_timer as timer
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
+import os
 
-caffe_db_folder = "/data/imagenet/train-lmdb-256x256"
+test_data_root = os.environ['DALI_EXTRA_PATH']
+caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+c2lmdb_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb')
+recordio_db_folder = os.path.join(test_data_root, 'db', 'recordio')
+tfrecord_db_folder = os.path.join(test_data_root, 'db', 'tfrecord')
+jpeg_folder = os.path.join(test_data_root, 'db', 'single', 'jpeg')
+coco_image_folder = os.path.join(test_data_root, 'db', 'coco', 'images')
+coco_annotation_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
+
+def check_batch(batch1, batch2, batch_size, eps = 1e-07):
+    if isinstance(batch1, dali.backend_impl.TensorListGPU):
+        batch1 = batch1.as_cpu()
+    if isinstance(batch2, dali.backend_impl.TensorListGPU):
+        batch2 = batch2.as_cpu()
+
+    for i in range(batch_size):
+        is_failed = False
+        try:
+            err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
+        except:
+            is_failed = True
+        if (is_failed or err > eps ):
+            try:
+                print("failed[{}] err[{}]".format(is_failed, err))
+                plt.imsave("err_1.png", batch1.at(i))
+                plt.imsave("err_2.png", batch2.at(i))
+            except:
+                print("Batch at {} can't be saved as an image".format(i))
+                print(batch1.at(i))
+                print(batch2.at(i))
+            assert(False)
+
+def compare_pipelines(pipe1, pipe2, batch_size, N_iterations):
+    pipe1.build()
+    pipe2.build()
+    for k in range(N_iterations):
+        out1 = pipe1.run()
+        out2 = pipe2.run()
+        assert len(out1) == len(out2)
+        for i in range(len(out1)):
+            check_batch(out1[i], out2[i], batch_size)
+    print("OK: ({} iterations)".format(N_iterations))
 
 def test_tensor_multiple_uses():
     batch_size = 128
@@ -31,18 +76,17 @@ def test_tensor_multiple_uses():
                                              device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
             self.dump_gpu = ops.DumpImage(device = "gpu", suffix = "gpu")
 
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
             images = self.decode(inputs)
+            images = self.res(images)
             images_cpu = self.dump_cpu(images)
             images_gpu = self.dump_gpu(images.gpu())
             return (images, images_cpu, images_gpu)
-
-        def iter_setup(self):
-            pass
 
     pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     pipe.build()
@@ -72,18 +116,17 @@ def test_pipeline_separated_exec_setup():
                                              device_id, prefetch_queue_depth = prefetch_queue_depth)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
             self.dump_cpu = ops.DumpImage(device = "cpu", suffix = "cpu")
             self.dump_gpu = ops.DumpImage(device = "gpu", suffix = "gpu")
 
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
             images = self.decode(inputs)
+            images = self.res(images)
             images_cpu = self.dump_cpu(images)
             images_gpu = self.dump_gpu(images.gpu())
             return (images, images_cpu, images_gpu)
-
-        def iter_setup(self):
-            pass
 
     pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1,
                       prefetch_queue_depth = {"cpu_size": 5, "gpu_size": 3})
@@ -125,9 +168,6 @@ def test_pipeline_simple_sync_no_prefetch():
             images_gpu = self.dump_gpu(images.gpu())
             return (images, images_gpu)
 
-        def iter_setup(self):
-            pass
-
     pipe = HybridPipe(batch_size=batch_size)
     pipe.build()
     for _ in range(n_iters):
@@ -163,9 +203,6 @@ def test_cropmirrornormalize_layout():
             output_nhwc = self.cmnp_nhwc(images.gpu())
             output_nchw = self.cmnp_nchw(images.gpu())
             return (output_nchw, output_nhwc)
-
-        def iter_setup(self):
-            pass
 
     pipe = HybridPipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     pipe.build()
@@ -217,9 +254,6 @@ def test_cropmirrornormalize_pad():
             output = self.cmnp(images.gpu())
             return (output, output_pad)
 
-        def iter_setup(self):
-            pass
-
     for layout in [types.NCHW, types.NHWC]:
         pipe = HybridPipe(layout, batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
         pipe.build()
@@ -244,6 +278,95 @@ def test_cropmirrornormalize_pad():
                 assert(t_pad.shape == (224,224,4))
                 assert(np.sum(np.abs(t - t_pad[:,:,:3])) == 0)
                 assert(np.sum(np.abs(t_pad[:,:,3])) == 0)
+
+def test_cropmirrornormalize_multiple_inputs():
+    batch_size = 13
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1, device="cpu"):
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.device = device
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            self.decode2 = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            self.cmnp = ops.CropMirrorNormalize(device = device,
+                                                output_dtype = types.FLOAT,
+                                                output_layout = types.NHWC,
+                                                crop = (224, 224),
+                                                image_type = types.RGB,
+                                                mean = [128., 128., 128.],
+                                                std = [1., 1., 1.])
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            images = self.decode(inputs)
+            images2 = self.decode2(inputs)
+
+            images_device  = images if self.device == "cpu" else images.gpu()
+            images2_device = images2 if self.device == "cpu" else images2.gpu()
+
+            output1, output2 = self.cmnp([images_device, images2_device])
+            output3 = self.cmnp([images_device])
+            output4 = self.cmnp([images2_device])
+            return (output1, output2, output3, output4)
+
+    for device in ["cpu", "gpu"]:
+        pipe = HybridPipe(batch_size=batch_size, device=device)
+        pipe.build()
+        for _ in range(5):
+            out1, out2, out3, out4 = pipe.run()
+            outs = [out.as_cpu() if device == 'gpu' else out for out in [out1, out2, out3, out4] ]
+            check_batch(outs[0], outs[1], batch_size)
+            check_batch(outs[0], outs[2], batch_size)
+            check_batch(outs[1], outs[3], batch_size)
+
+def test_cropmirrornormalize_cpu_vs_gpu():
+    batch_size = 13
+
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1):
+            super(HybridPipe, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+            self.cmnp_cpu = ops.CropMirrorNormalize(device = "cpu",
+                                                    output_dtype = types.UINT8,
+                                                    output_layout = types.NHWC,
+                                                    crop = (224, 224),
+                                                    image_type = types.RGB,
+                                                    mean = [0., 0., 0.],
+                                                    std = [1., 1., 1.])
+
+            self.cmnp_gpu = ops.CropMirrorNormalize(device = "gpu",
+                                                    output_dtype = types.UINT8,
+                                                    output_layout = types.NHWC,
+                                                    crop = (224, 224),
+                                                    image_type = types.RGB,
+                                                    mean = [0., 0., 0.],
+                                                    std = [1., 1., 1.])
+
+            self.crop_cpu = ops.Crop(device = "cpu", crop = (224, 224),
+                                                image_type = types.RGB,)
+            self.uniform = ops.Uniform(range = (0.0, 1.0))
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            images = self.decode(inputs)
+            pos_x = self.uniform()
+            pos_y = self.uniform()
+            images_cmnp_cpu = self.cmnp_cpu(images, crop_pos_x = pos_x, crop_pos_y = pos_y)
+            images_cmnp_gpu = self.cmnp_gpu(images.gpu(), crop_pos_x = pos_x, crop_pos_y = pos_y)
+            images_ref_cpu = self.crop_cpu(images, crop_pos_x = pos_x, crop_pos_y = pos_y)
+            return (images_cmnp_cpu, images_cmnp_gpu, images_ref_cpu)
+
+    pipe = HybridPipe(batch_size=batch_size)
+    pipe.build()
+    for _ in range(10):
+        (images_cmnp_cpu, images_cmnp_gpu, images_ref_cpu) = pipe.run()
+        check_batch(images_cmnp_cpu, images_cmnp_gpu, batch_size)
+        check_batch(images_cmnp_cpu, images_ref_cpu, batch_size)
 
 def test_seed():
     batch_size = 64
@@ -272,8 +395,6 @@ def test_seed():
             output = self.cmnp(images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
             return (output, self.labels)
 
-        def iter_setup(self):
-            pass
     n = 30
     for i in range(50):
         pipe = HybridPipe(batch_size=batch_size,
@@ -314,8 +435,6 @@ def test_as_array():
             output = self.cmnp(images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
             return (output, self.labels)
 
-        def iter_setup(self):
-            pass
     n = 30
     for i in range(50):
         pipe = HybridPipe(batch_size=batch_size,
@@ -357,8 +476,6 @@ def test_seed_serialize():
             output = self.cmnp(images, mirror = mirror, crop_pos_x = self.uniform(), crop_pos_y = self.uniform())
             return (output, self.labels)
 
-        def iter_setup(self):
-            pass
     n = 30
     orig_pipe = HybridPipe(batch_size=batch_size,
                            num_threads=2,
@@ -373,6 +490,53 @@ def test_seed_serialize():
         if i == 0:
             img_chw = img_chw_test
         assert(np.sum(np.abs(img_chw - img_chw_test)) == 0)
+
+def test_make_continuous_serialize():
+    batch_size = 32
+    class COCOPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.COCOReader(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
+            self.decode = ops.nvJPEGDecoder(device="mixed")
+            self.crop = ops.RandomBBoxCrop(device="cpu", seed = 12)
+            self.slice = ops.Slice(device="gpu")
+
+        def define_graph(self):
+            inputs, bboxes, labels = self.input()
+            images = self.decode(inputs)
+            crop_begin, crop_size, bboxes, labels = self.crop(bboxes, labels)
+            images = self.slice(images, crop_begin, crop_size)
+            return images
+
+    pipe = COCOPipeline(batch_size=batch_size, num_threads=2, device_id=0)
+    serialized_pipeline = pipe.serialize()
+    del(pipe)
+    new_pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0)
+    new_pipe.deserialize_and_build(serialized_pipeline)
+
+def test_make_continuous_serialize_and_use():
+    batch_size = 2
+    class COCOPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.COCOReader(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
+            self.decode = ops.nvJPEGDecoder(device="mixed")
+            self.crop = ops.RandomBBoxCrop(device="cpu", seed = 25)
+            self.slice = ops.Slice(device="gpu")
+
+        def define_graph(self):
+            inputs, bboxes, labels = self.input()
+            images = self.decode(inputs)
+            crop_begin, crop_size, bboxes, labels = self.crop(bboxes, labels)
+            images = self.slice(images, crop_begin, crop_size)
+            return images
+
+    pipe = COCOPipeline(batch_size=batch_size, num_threads=2, device_id=0)
+    serialized_pipeline = pipe.serialize()
+    new_pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0)
+    new_pipe.deserialize_and_build(serialized_pipeline)
+
+    compare_pipelines(pipe, new_pipe, batch_size, 50)
 
 def test_rotate():
     class HybridPipe(Pipeline):
@@ -402,8 +566,6 @@ def test_rotate():
             outputs[1] = self.rotate(outputs[1])
             return [self.labels] + outputs
 
-        def iter_setup(self):
-            pass
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -436,20 +598,15 @@ def test_warpaffine():
                                          fill_value = 128,
                                          interp_type = types.INTERP_LINEAR,
                                          use_image_center = True)
-            self.uniform = ops.Uniform(range = (0.0,1.0))
             self.iter = 0
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             images = self.decode(self.jpegs)
-            outputs = self.cmnp([images, images],
-                                crop_pos_x = self.uniform(),
-                                crop_pos_y = self.uniform())
+            outputs = self.cmnp([images, images])
             outputs[1] = self.affine(outputs[1])
             return [self.labels] + outputs
 
-        def iter_setup(self):
-            pass
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -626,10 +783,6 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
             crop = self.crop(images, crop_pos_x=pos_x, crop_pos_y=pos_y)
             return (crop, self.labels)
 
-
-        def iter_setup(self):
-            pass
-
     class FusedPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus):
             super(FusedPipeline, self).__init__(batch_size,
@@ -646,9 +799,6 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
             pos_y = self.pos_rng_y()
             images = self.decode(self.jpegs, crop_pos_x=pos_x, crop_pos_y=pos_y)
             return (images, self.labels)
-
-        def iter_setup(self):
-            pass
 
     nonfused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
     nonfused_pipe.build()
@@ -689,9 +839,6 @@ def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
             output = self.cmnp(resized_images, mirror = mirror)
             return (output, resized_images, self.labels)
 
-        def iter_setup(self):
-            pass
-
     class FusedPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(FusedPipeline, self).__init__(batch_size, num_threads, device_id)
@@ -713,9 +860,6 @@ def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
             mirror = self.coin()
             output = self.cmnp(resized_images, mirror = mirror)
             return (output, resized_images, self.labels)
-
-        def iter_setup(self):
-            pass
 
     random_seed = 123456
     nonfused_pipe = NonFusedPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1, seed = random_seed)
@@ -750,6 +894,53 @@ class ExternalInputIterator(object):
             self.i = (self.i + 1) % self.n
         return (pos, size)
     next = __next__
+
+class LazyPipeline(Pipeline):
+    def __init__(self, batch_size, db_folder, lazy_type, num_threads=1, device_id=0, num_gpus=1):
+        super(LazyPipeline, self).__init__(batch_size,
+                                           num_threads,
+                                           device_id)
+        self.input = ops.CaffeReader(path = db_folder, shard_id = device_id, num_shards = num_gpus, lazy_init = lazy_type)
+        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
+        self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
+        self.crop = ops.Crop(device="gpu", crop =(224,224))
+
+    def define_graph(self):
+        self.jpegs, self.labels = self.input()
+
+        pos_x = self.pos_rng_x()
+        pos_y = self.pos_rng_y()
+        images = self.decode(self.jpegs)
+        crop = self.crop(images, crop_pos_x=pos_x, crop_pos_y=pos_y)
+        return (crop, self.labels)
+
+def test_lazy_init_empty_data_path():
+    empty_db_folder="/data/empty"
+    batch_size = 128
+
+    nonlazy_pipe = LazyPipeline(batch_size, empty_db_folder, lazy_type=False)
+    try:
+        nonlazy_pipe.build()
+        assert(False)
+    except RuntimeError:
+        assert(True)
+
+    lazy_pipe = LazyPipeline(batch_size, empty_db_folder, lazy_type=True)
+    try:
+        lazy_pipe.build()
+        assert(True)
+    except BaseException:
+        assert(False)
+
+def test_lazy_init():
+    """
+        Comparing results of pipeline: lazy_init false and lazy_init true with empty folder and real folder
+    """
+    batch_size =128
+    compare_pipelines(LazyPipeline(batch_size, caffe_db_folder, lazy_type=False),
+                      LazyPipeline(batch_size, caffe_db_folder, lazy_type=True),
+                      batch_size=batch_size, N_iterations=20)
 
 def test_equal_nvJPEGDecoderSlice_nvJPEGDecoder():
     """
@@ -1038,9 +1229,6 @@ def test_pipeline_default_cuda_stream_priority():
             images = self.decode(inputs)
             return images
 
-        def iter_setup(self):
-            pass
-
     HIGH_PRIORITY = -1
     LOW_PRIORITY = 0
     pipe1 = HybridPipe(batch_size=batch_size, default_cuda_stream_priority=HIGH_PRIORITY)
@@ -1054,3 +1242,91 @@ def test_pipeline_default_cuda_stream_priority():
             out1_data = out1[0].as_cpu()
             out2_data = out2[0].as_cpu()
             assert(np.sum(np.abs(out1_data.at(i)-out2_data.at(i)))==0)
+
+class CachedPipeline(Pipeline):
+    def __init__(self, reader_type, batch_size, is_cached=False, is_cached_batch_copy=True,  seed=123456, skip_cached_images=False, num_shards=100000):
+        super(CachedPipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1, seed=seed)
+        self.reader_type = reader_type
+        if reader_type == "MXNetReader":
+            self.input = ops.MXNetReader(path = os.path.join(recordio_db_folder, "train.rec"),
+                                         index_path = os.path.join(recordio_db_folder, "train.idx"),
+                                         shard_id = 0,
+                                         num_shards = num_shards,
+                                         stick_to_shard = True,
+                                         skip_cached_images = skip_cached_images,
+                                         prefetch_queue_depth = 1)
+        elif reader_type == "CaffeReader":
+            self.input = ops.CaffeReader(path = caffe_db_folder,
+                                         shard_id = 0,
+                                         num_shards = num_shards,
+                                         stick_to_shard = True,
+                                         skip_cached_images = skip_cached_images,
+                                         prefetch_queue_depth = 1)
+        elif reader_type == "Caffe2Reader":
+            self.input = ops.Caffe2Reader(path = c2lmdb_db_folder,
+                                          shard_id = 0,
+                                          num_shards = num_shards,
+                                          stick_to_shard = True,
+                                          skip_cached_images = skip_cached_images,
+                                          prefetch_queue_depth = 1)
+        elif reader_type == "FileReader":
+            self.input = ops.FileReader(file_root = jpeg_folder,
+                                        shard_id = 0,
+                                        num_shards = num_shards,
+                                        stick_to_shard = True,
+                                        skip_cached_images = skip_cached_images,
+                                        prefetch_queue_depth = 1)
+
+        elif reader_type == "TFRecordReader":
+            tfrecord = sorted(glob.glob(os.path.join(tfrecord_db_folder, '*[!i][!d][!x]')))
+            tfrecord_idx = sorted(glob.glob(os.path.join(tfrecord_db_folder, '*idx')))
+            self.input = ops.TFRecordReader(path = tfrecord,
+                                            index_path = tfrecord_idx,
+                                            shard_id = 0,
+                                            num_shards = num_shards,
+                                            stick_to_shard = True,
+                                            skip_cached_images = skip_cached_images,
+                                            features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                                                        "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
+
+        if is_cached:
+            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
+                                            cache_size=2000,
+                                            cache_threshold=0,
+                                            cache_type='threshold',
+                                            cache_debug=False,
+                                            cache_batch_copy=is_cached_batch_copy)
+        else:
+           self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+
+    def define_graph(self):
+        if self.reader_type == "TFRecordReader":
+            inputs = self.input()
+            jpegs = inputs["image/encoded"]
+            labels = inputs["image/class/label"]
+        else:
+            jpegs, labels = self.input()
+        images = self.decode(jpegs)
+        return (images, labels)
+
+
+def test_nvjpeg_cached_batch_copy_pipelines():
+    batch_size = 26
+    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "TFRecordReader"}:
+        compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=True),
+                          CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=False),
+                          batch_size=batch_size, N_iterations=20)
+
+def test_nvjpeg_cached_pipelines():
+    batch_size = 26
+    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader", "TFRecordReader"}:
+        compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
+                          CachedPipeline(reader_type, batch_size, is_cached=True),
+                          batch_size=batch_size, N_iterations=20)
+
+def test_skip_cached_images():
+    batch_size = 1
+    for reader_type in {"MXNetReader", "CaffeReader", "Caffe2Reader", "FileReader"}:
+        compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
+                          CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
+                          batch_size=batch_size, N_iterations=100)

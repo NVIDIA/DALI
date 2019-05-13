@@ -23,7 +23,8 @@
 #include <utility>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
+#include "dali/core/traits.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/argument.h"
 
@@ -326,14 +327,19 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC void CheckArgs(const OpSpec &spec) const;
 
-  DLL_PUBLIC inline const OpSchema& GetSchemaWithArgument(const string& name) const;
-
   template<typename T>
   DLL_PUBLIC inline T GetDefaultValueForOptionalArgument(const std::string &s) const;
 
   DLL_PUBLIC bool HasRequiredArgument(const std::string &name, const bool local_only = false) const;
 
   DLL_PUBLIC bool HasOptionalArgument(const std::string &name, const bool local_only = false) const;
+
+  /// @brief Finds default value for a given argument
+  /// @return A pair of the defining schema and the value
+  DLL_PUBLIC std::pair<const OpSchema *, const Value *>
+  FindDefaultValue(const std::string &arg_name,
+                   bool local_only = false,
+                   bool include_internal = true) const;
 
   DLL_PUBLIC inline bool HasArgument(const std::string &name) const {
     return HasRequiredArgument(name) || HasOptionalArgument(name);
@@ -412,54 +418,16 @@ class SchemaRegistry {
   DLL_PUBLIC static std::map<string, OpSchema>& registry();
 };
 
-inline string GetSchemaWithArg(const string& start, const string& arg) {
-  const OpSchema& s = SchemaRegistry::GetSchema(start);
-
-  // Found locally, return immediately
-  if (s.HasOptionalArgument(arg, true)) {
-    return start;
-  }
-  // otherwise, loop over any parents
-  for (auto& parent : s.GetParents()) {
-    // recurse
-    string tmp = GetSchemaWithArg(parent, arg);
-
-    // we found the schema, return
-    if (!tmp.empty()) {
-      return tmp;
-    }
-  }
-  // default case, return empty string
-  return string{};
-}
-
 template<typename T>
 inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) const {
-  // check if argument exists in this schema
-  const bool argFound = HasOptionalArgument(s, true);
+  const Value *v = FindDefaultValue(s, false, true).second;
+  DALI_ENFORCE(v != nullptr, "Optional argument \"" + s + "\" is not defined for schema \""
+      + this->name() + "\"");
 
-  if (argFound || internal_arguments_.find(s) != internal_arguments_.end()) {
-    Value* v;
-    if (argFound) {
-      auto arg_pair = *optional_arguments_.find(s);
-      v = arg_pair.second.second;
-    } else {
-      auto arg_pair = *internal_arguments_.find(s);
-      v = arg_pair.second.second;
-    }
-    ValueInst<T> * vT = dynamic_cast<ValueInst<T>*>(v);
-    DALI_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s +
-         "\" of schema \"" + this->name() + "\"");
-    return vT->Get();
-  } else {
-    // get the parent schema that has the optional argument and return from there
-    string tmp = GetSchemaWithArg(name(), s);
-    DALI_ENFORCE(!tmp.empty(), "Optional argument \"" + s + "\" is not defined for schema \""
-        + this->name() + "\"");
-
-    const OpSchema& schema = SchemaRegistry::GetSchema(tmp);
-    return schema.template GetDefaultValueForOptionalArgument<T>(s);
-  }
+  const ValueInst<T> * vT = dynamic_cast<const ValueInst<T>*>(v);
+  DALI_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s +
+        "\" of schema \"" + this->name() + "\"");
+  return vT->Get();
 }
 
 #define DALI_SCHEMA_REG(OpName)      \

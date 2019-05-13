@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/util/image.h"
 
 namespace dali {

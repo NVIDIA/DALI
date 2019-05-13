@@ -29,12 +29,12 @@ class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
     loader_ = InitLoader<IndexedFileLoader>(spec);
     parser_.reset(new TFRecordParser(spec));
+    DALI_ENFORCE(!skip_cached_images_,
+      "TFRecordReader doesn't support `skip_cached_images` option");
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
     const auto& tensor = GetSample(ws->data_idx());
-    if (tensor.ShouldSkipSample())
-      return;
     parser_->Parse(tensor, ws);
   }
 

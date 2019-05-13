@@ -34,14 +34,14 @@ RUN CUDA_VERSION=10.0 && \
     curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux && \
     chmod +x cuda_${CUDA_BUILD}_linux && \
     ./cuda_${CUDA_BUILD}_linux --silent --no-opengl-libs --toolkit && \
-    rm -f cuda_${CUDA_BUILD}_linux; 
+    rm -f cuda_${CUDA_BUILD}_linux;
 
 FROM cuda-${USE_CUDA_VERSION} as cuda
 
 # Actual image
 FROM base
 # Install yum Dependencies
-RUN yum install -y zip wget yasm
+RUN yum install -y zip wget yasm doxygen graphviz
 
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m
@@ -53,8 +53,8 @@ RUN BOOST_VERSION=1.66.0 && \
     ln -s ../boost_${BOOST_VERSION//./_}/boost include/boost
 
 # CMake
-RUN CMAKE_VERSION=3.5 && \
-    CMAKE_BUILD=3.5.0 && \
+RUN CMAKE_VERSION=3.11 && \
+    CMAKE_BUILD=3.11.0 && \
     curl -L https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz | tar -xzf - && \
     cd /cmake-${CMAKE_BUILD} && \
     ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
@@ -112,7 +112,7 @@ RUN CLANG_VERSION=6.0.1 && \
 
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
-# FMpeg
+# FFmpeg
 RUN FFMPEG_VERSION=3.4.2 && \
     cd /tmp && wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
     tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \

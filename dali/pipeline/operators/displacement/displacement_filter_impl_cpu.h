@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
 
 namespace dali {

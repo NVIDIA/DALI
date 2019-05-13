@@ -6,10 +6,6 @@ import io
 
 from pycocotools.cocoeval import COCOeval
 
-from src.utils import dboxes300_coco
-from torch import Tensor
-import torch
-
 
 def evaluate(model, coco, cocoGt, encoder, inv_map, args):
     if args.distributed:
@@ -17,19 +13,15 @@ def evaluate(model, coco, cocoGt, encoder, inv_map, args):
     else:
         N_gpu = 1
 
-    try:
-        model.eval()
-        model.cuda()
-        ret = []
-        start = time.time()
-    except Exception as e:
-        print(e)
+    model.eval()
+    model.cuda()
+    
+    ret = []
+    start = time.time()
 
-    for nbatch, data in enumerate(coco):
-        (img, img_id, img_size, _, _) = data
-        size = len(coco)
-
-        print("Parsing batch: {}/{}".format(nbatch, size), end='\r')
+    # for idx, image_id in enumerate(coco.img_keys):
+    for nbatch, (img, img_id, img_size, _, _) in enumerate(coco):
+        print("Parsing batch: {}/{}".format(nbatch, len(coco)), end='\r')
         with torch.no_grad():
             inp = img.cuda()
             if args.fp16:
@@ -46,9 +38,6 @@ def evaluate(model, coco, cocoGt, encoder, inv_map, args):
                 ploc_i = ploc[idx, :, :].unsqueeze(0)
                 plabel_i = plabel[idx, :, :].unsqueeze(0)
 
-                img_info = cocoGt.imgs[img_id[idx].item()]
-                htot, wtot = img_info['height'], img_info['width']
-
                 try:
                     result = encoder.decode_batch(ploc_i, plabel_i, 0.50, 200)[0]
                 except:
@@ -57,6 +46,7 @@ def evaluate(model, coco, cocoGt, encoder, inv_map, args):
                     print("No object detected in idx: {}".format(idx))
                     continue
 
+                htot, wtot = img_size[0][idx].item(), img_size[1][idx].item()
                 loc, label, prob = [r.cpu().numpy() for r in result]
                 for loc_, label_, prob_ in zip(loc, label, prob):
                     ret.append([img_id[idx], loc_[0] * wtot, \

@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/test/dali_test_single_op.h"
 
 namespace dali {

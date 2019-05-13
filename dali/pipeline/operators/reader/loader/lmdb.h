@@ -18,7 +18,7 @@
 #include <lmdb.h>
 #include <string>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/reader/loader/loader.h"
 
 namespace dali {
@@ -61,18 +61,22 @@ namespace lmdb {
   }
 }  // namespace lmdb
 
-class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
+class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
-  explicit LMDBReader(const OpSpec& options)
+  explicit LMDBLoader(const OpSpec& options)
     : Loader(options),
       db_path_(options.GetArgument<string>("path")) {
   }
 
-  ~LMDBReader() override {
-    mdb_cursor_close(mdb_cursor_);
-    mdb_dbi_close(mdb_env_, mdb_dbi_);
-    mdb_txn_abort(mdb_transaction_);
-    mdb_env_close(mdb_env_);
+  ~LMDBLoader() override {
+    if (mdb_cursor_) {
+      mdb_cursor_close(mdb_cursor_);
+      mdb_dbi_close(mdb_env_, mdb_dbi_);
+    }
+    if (mdb_transaction_)
+      mdb_txn_abort(mdb_transaction_);
+    if (mdb_env_)
+      mdb_env_close(mdb_env_);
     mdb_env_ = nullptr;
   }
 
@@ -143,10 +147,10 @@ class LMDBReader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   using Loader<CPUBackend, Tensor<CPUBackend>>::shard_id_;
   using Loader<CPUBackend, Tensor<CPUBackend>>::num_shards_;
 
-  MDB_env* mdb_env_;
-  MDB_cursor* mdb_cursor_;
+  MDB_env* mdb_env_ = nullptr;
+  MDB_cursor* mdb_cursor_ = nullptr;
   MDB_dbi mdb_dbi_;
-  MDB_txn* mdb_transaction_;
+  MDB_txn* mdb_transaction_ = nullptr;
   size_t current_index_;
   Index lmdb_size_;
 

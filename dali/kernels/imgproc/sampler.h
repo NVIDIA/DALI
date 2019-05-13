@@ -16,8 +16,8 @@
 #define DALI_KERNELS_IMGPROC_SAMPLER_H_
 
 #include <cmath>
-#include "dali/common.h"
-#include "dali/kernels/common/convert.h"
+#include "dali/core/common.h"
+#include "dali/core/convert.h"
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/imgproc/surface.h"
 
@@ -128,7 +128,7 @@ struct Sampler<DALI_INTERP_LINEAR, In> {
 
     float s0 = s00 * px + s01 * qx;
     float s1 = s10 * px + s11 * qx;
-    return kernels::clamp<T>(s0 + (s1 - s0) * qy);
+    return clamp<T>(s0 + (s1 - s0) * qy);
   }
 
   template <typename T>
@@ -160,7 +160,7 @@ struct Sampler<DALI_INTERP_LINEAR, In> {
       In s11 = NN.at(x0+1, y0+1, c, border_value);
       float s0 = s00 * px + s01 * qx;
       float s1 = s10 * px + s11 * qx;
-      out_pixel[c] = kernels::clamp<T>(s0 + (s1 - s0) * qy);
+      out_pixel[c] = clamp<T>(s0 + (s1 - s0) * qy);
     }
   }
 

@@ -27,7 +27,7 @@
 #include <typeinfo>
 #include <unordered_map>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/util/cuda_utils.h"
 #include "dali/error_handling.h"
 
@@ -115,6 +115,7 @@ enum DALIDataType {
   DALI_DATA_TYPE = 17,
   DALI_INTERP_TYPE = 18,
   DALI_TENSOR_LAYOUT = 19,
+  DALI_PYTHON_OBJECT = 20,
   DALI_DATATYPE_END = 1000
 };
 

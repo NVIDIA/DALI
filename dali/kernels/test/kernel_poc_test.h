@@ -43,6 +43,7 @@ struct KernelPoCFixture : Base {
 
  private:
   KernelContext ctx;
+  Kernel kernel;
   TestTensorList<Input1> tl1;
   TestTensorList<Input2> tl2;
   TestTensorList<Output> tlo1, tlo2, tlref;
@@ -78,12 +79,13 @@ struct KernelPoCFixture : Base {
 
     tlref.reshape(list_shape);
     auto ref = tlref.template cpu<3>(0);
-    ptrdiff_t total = ref.num_elements();
 
-    // calculate the reference - since it's purely elementwise,
-    // we can skip the tedious multidimensional indexing
-    for (ptrdiff_t i = 0; i < total; i++) {
-      ref.data[i] = i1_cpu.data[i] * a + i2_cpu.data[i];
+    for (int sample = 0; sample < ref.num_samples(); sample++) {
+      ptrdiff_t elements = ref.tensor_shape(sample).num_elements();
+      for (ptrdiff_t i = 0; i < elements; i++) {
+        ref.tensor_data(sample)[i] =
+          i1_cpu.tensor_data(sample)[i] * a + i2_cpu.tensor_data(sample)[i];
+      }
     }
   }
 
@@ -91,19 +93,19 @@ struct KernelPoCFixture : Base {
     i1 = tl1.template get<StorageBackend, 3>();
     i2 = tl2.template get<StorageBackend, 3>();
 
-    auto req = Kernel::GetRequirements(ctx, i1, i2, a);
+    auto req = kernel.Setup(ctx, i1, i2, a);
     ASSERT_EQ((int)req.output_shapes.size(), 1);
     ASSERT_NO_FATAL_FAILURE(CheckEqual(req.output_shapes[0], i1.shape));
 
     // Kernel's native Run
     tlo1.reshape(req.output_shapes[0]);
     o1 = tlo1.template get<StorageBackend, 3>();
-    Kernel::Run(ctx, o1, i1, i2, a);
+    kernel.Run(ctx, o1, i1, i2, a);
 
     // use uniform call with argument tuples
     tlo2.reshape(req.output_shapes[0]);
     o2 = tlo2.template get<StorageBackend, 3>();
-    kernels::kernel::Run<Kernel>(ctx, std::tie(o2), std::tie(i1, i2), std::make_tuple(a) );
+    kernels::kernel::Run(kernel, ctx, std::tie(o2), std::tie(i1, i2), std::make_tuple(a) );
   }
 
   void Verify() {

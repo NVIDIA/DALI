@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_EXECUTOR_ASYNC_PIPELINED_EXECUTOR_H_
 
 #include <string>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/util/worker_thread.h"

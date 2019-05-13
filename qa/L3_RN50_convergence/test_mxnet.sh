@@ -2,6 +2,7 @@
 #!/bin/bash
 
 threshold=0.75
+min_perf=10000
 
 NUM_GPUS=`nvidia-smi -L | wc -l`
 
@@ -19,6 +20,11 @@ rm tmp2.log tmp3.log
 
 if [[ `echo "$best $threshold" | awk '{ print ($1 >= $2) ? "1" : "0" }'` -eq "0" ]]; then
     echo "acc = $best; TEST FAILED"
+    exit -1
+fi
+
+if [[ `echo "$mean $min_perf" | awk '{ print ($1 >= $2) ? "1" : "0" }'` -eq "0" ]]; then
+    echo "perf = $mean; TEST FAILED"
     exit -1
 fi
 

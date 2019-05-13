@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operators/op_spec.h"

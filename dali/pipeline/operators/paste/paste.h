@@ -20,7 +20,7 @@
 #include <vector>
 #include <random>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
@@ -42,7 +42,7 @@ class Paste : public Operator<Backend> {
     DALI_ENFORCE(C_ <= 1024,
       "n_channels of more than 1024 is not supported");
     std::vector<uint8> rgb;
-    GetSingleOrRepeatedArg(spec, &rgb, "fill_value", C_);
+    GetSingleOrRepeatedArg(spec, rgb, "fill_value", C_);
     fill_value_.Copy(rgb, 0);
 
     input_ptrs_.Resize({batch_size_});

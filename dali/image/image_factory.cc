@@ -18,6 +18,7 @@
 #include "dali/image/bmp.h"
 #include "dali/image/jpeg.h"
 #include "dali/image/tiff.h"
+#include "dali/image/pnm.h"
 
 namespace dali {
 
@@ -49,6 +50,10 @@ bool CheckIsBMP(const uint8_t *bmp, int size) {
   return (size > 2 && bmp[0] == 'B' && bmp[1] == 'M');
 }
 
+bool CheckIsPNM(const uint8_t *pnm, int size) {
+    return (size > 2 && pnm[0] == 'P' && pnm[1] >= '1' && pnm[1] <= '6');
+}
+
 
 constexpr std::array<int, 4> header_intel = {77, 77, 0, 42};
 constexpr std::array<int, 4> header_motorola = {73, 73, 42, 0};
@@ -73,8 +78,8 @@ bool CheckIsTiff(const uint8_t *tiff, int size) {
 std::unique_ptr<Image>
 ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type) {
   DALI_ENFORCE(CheckIsPNG(encoded_image, length) + CheckIsBMP(encoded_image, length) +
-               CheckIsGIF(encoded_image, length) + CheckIsJPEG(encoded_image, length)
-             + CheckIsTiff(encoded_image, length) == 1,
+               CheckIsGIF(encoded_image, length) + CheckIsJPEG(encoded_image, length) +
+               CheckIsTiff(encoded_image, length) + CheckIsPNM(encoded_image, length) == 1,
                "Encoded image has ambiguous format");
   if (CheckIsPNG(encoded_image, length)) {
     return std::unique_ptr<Image>(new PngImage(encoded_image, length, image_type));
@@ -82,6 +87,8 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
     return std::unique_ptr<Image>(new JpegImage(encoded_image, length, image_type));
   } else if (CheckIsBMP(encoded_image, length)) {
     return std::unique_ptr<Image>(new BmpImage(encoded_image, length, image_type));
+  } else if (CheckIsPNM(encoded_image, length)) {
+    return std::unique_ptr<Image>(new PnmImage(encoded_image, length, image_type));
   } else if (CheckIsGIF(encoded_image, length)) {
     DALI_FAIL("GIF format is not supported");
   } else if (CheckIsTiff(encoded_image, length)) {

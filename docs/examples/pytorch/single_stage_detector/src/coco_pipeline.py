@@ -18,6 +18,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 
+
 class COCOPipeline(Pipeline):
     def __init__(self, default_boxes, args, seed):
         super(COCOPipeline, self).__init__(
@@ -28,15 +29,17 @@ class COCOPipeline(Pipeline):
 
         try:
             shard_id = torch.distributed.get_rank()
+            num_shards = torch.distributed.get_world_size()
         except RuntimeError:
             shard_id = 0
+            num_shards = 1
 
         self.input = ops.COCOReader(
             file_root=args.train_coco_root, 
             annotations_file=args.train_annotate, 
             skip_empty=True,
             shard_id=shard_id, 
-            num_shards=args.N_gpu, 
+            num_shards=num_shards, 
             ratio=True, 
             ltrb=True, 
             random_shuffle=True,
@@ -86,6 +89,7 @@ class COCOPipeline(Pipeline):
             device="cpu",
             criteria=0.5,
             anchors=default_boxes.as_ltrb_list())
+
 
     def define_graph(self):
         saturation = self.rng1()

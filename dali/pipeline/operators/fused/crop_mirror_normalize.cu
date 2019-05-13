@@ -346,6 +346,7 @@ void CropMirrorNormalize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *w
   if (output_type_ == DALI_NO_TYPE) {
     output_type_ = input.type().id();
   }
+  CropAttr::ProcessArguments(ws);
 
   for (int i = 0; i < batch_size_; ++i) {
     vector<Index> input_shape = input.tensor_shape(i);
@@ -364,22 +365,8 @@ void CropMirrorNormalize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *w
         "the output image type. Expected input with "
         + to_string(C_) + " channels, got " + to_string(C) + ".");
 
-
-    // Crop
-    DALI_ENFORCE(H >= crop_h_);
-    DALI_ENFORCE(W >= crop_w_);
-
-    float crop_x_image_coord = spec_.GetArgument<float>("crop_pos_x", ws, i);
-    float crop_y_image_coord = spec_.GetArgument<float>("crop_pos_y", ws, i);
-
-    DALI_ENFORCE(crop_x_image_coord >= 0.f && crop_x_image_coord <= 1.f,
-        "Crop coordinates need to be in range [0.0, 1.0]");
-    DALI_ENFORCE(crop_y_image_coord >= 0.f && crop_y_image_coord <= 1.f,
-        "Crop coordinates need to be in range [0.0, 1.0]");
-
-    int crop_y = crop_y_image_coord * (H - crop_h_);
-    int crop_x = crop_x_image_coord * (W - crop_w_);
-    per_sample_crop_[i] = std::make_pair(crop_y, crop_x);
+    auto coord = CropAttr::GetCropWindowGenerator(i)(H, W);
+    per_sample_crop_[i] = std::make_pair(coord.y, coord.x);
   }
   if (has_mirror_) {
     const Tensor<CPUBackend> &mirror = ws->ArgumentInput("mirror");

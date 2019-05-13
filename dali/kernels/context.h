@@ -20,7 +20,6 @@
 #include <vector>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/alloc_type.h"
-#include "dali/kernels/any.h"
 
 namespace dali {
 namespace kernels {
@@ -86,10 +85,6 @@ struct KernelContext {
 
   /// @brief Caller-provided allocator for temporary data.
   Scratchpad *scratchpad;
-
-  /// @brief Kernel-provided context; should not be changed by the caller between
-  ///        calls to GetRequirements and Run
-  any kernel_data;
 };
 
 }  // namespace kernels

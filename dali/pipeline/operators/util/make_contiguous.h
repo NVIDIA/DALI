@@ -20,7 +20,7 @@
 
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/common.h"
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 // Found by benchmarking coalesced vs non coalesced on diff size images
 #define COALESCE_TRESHOLD 8192
@@ -33,7 +33,7 @@ class MakeContiguous : public Operator<MixedBackend> {
       Operator<MixedBackend>(spec),
       coalesced(true) {
     std::vector<int> hints;
-    GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
+    GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
     if (!hints.empty())
       bytes_per_sample_hint = hints[0];
   }

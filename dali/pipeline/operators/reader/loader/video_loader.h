@@ -29,7 +29,7 @@ extern "C" {
 #include <utility>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/operators/reader/loader/loader.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
@@ -112,7 +112,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       normalized_(spec.GetArgument<bool>("normalized")),
       filenames_(filenames),
       codec_id_(0),
-      done_(false) {
+      stop_(false) {
     if (step_ < 0)
       step_ = count_;
     DALI_ENFORCE(cuvidInitChecked(0),
@@ -129,7 +129,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   }
 
   ~VideoLoader() noexcept override {
-    done_ = true;
+    stop_ = true;
     send_queue_.shutdown();
     if (vid_decoder_) {
       vid_decoder_->finish();
@@ -213,7 +213,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   std::vector<std::pair<int, int>> frame_starts_;
   Index current_frame_idx_;
 
-  volatile bool done_;
+  volatile bool stop_;
 };
 
 }  // namespace dali

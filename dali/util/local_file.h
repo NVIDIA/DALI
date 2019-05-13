@@ -19,7 +19,7 @@
 #include <string>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/util/file.h"
 
 namespace dali {

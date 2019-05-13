@@ -15,9 +15,9 @@
 #ifndef DALI_C_API_C_API_H_
 #define DALI_C_API_C_API_H_
 
+#include <cuda_runtime_api.h>
 #include <inttypes.h>
-
-#include "dali/api_helper.h"
+#include "dali/core/api_helper.h"
 
 // Trick to bypass gcc4.9 old ABI name mangling used by TF
 extern "C" {
@@ -35,14 +35,21 @@ extern "C" {
    * @brief Create DALI pipeline. Setting batch_size,
    * num_threads or device_id here overrides
    * values stored in the serialized pipeline.
+   * When separated_execution is false, prefetch_queue_depth is considered,
+   * gpu_prefetch_queue_depth and cpu_prefetch_queue_depth are ignored.
+   * When separated_execution is true, cpu_prefetch_queue_depth and
+   * gpu_prefetch_queue_depth are considered and prefetch_queue_depth is ignored.
    */
   DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle* pipe_handle,
       const char *serialized_pipeline,
       int length,
-      int batch_size = -1,
-      int num_threads = -1,
-      int device_id = -1,
-      int prefetch_queue_depth = 2);
+      int batch_size,
+      int num_threads,
+      int device_id,
+      bool separated_execution,
+      int prefetch_queue_depth,
+      int cpu_prefetch_queue_depth,
+      int gpu_prefetch_queue_depth);
 
   /**
    * @brief Start the execution of the pipeline.
@@ -50,13 +57,24 @@ extern "C" {
   DLL_PUBLIC void daliRun(daliPipelineHandle* pipe_handle);
 
   /**
-   * @brief Wait till the output of the pipeline is ready.
+   * @brief Schedule first runs to fill buffers for Executor with UniformQueue policy.
+   */
+  DLL_PUBLIC void daliPrefetchUniform(daliPipelineHandle* pipe_handle, int queue_depth);
+
+  /**
+   * @brief Schedule first runs to fill buffers for Executor with SeparateQueue policy.
+   */
+  DLL_PUBLIC void daliPrefetchSeparate(daliPipelineHandle* pipe_handle,
+                                       int cpu_queue_depth, int gpu_queue_depth);
+
+  /**
+   * @brief Wait until the output of the pipeline is ready.
    * Releases previously returned buffers.
    */
   DLL_PUBLIC void daliOutput(daliPipelineHandle* pipe_handle);
 
   /**
-   * @brief Wait till the output of the pipeline is ready.
+   * @brief Wait until the output of the pipeline is ready.
    * Doesn't release previously returned buffers.
    */
   DLL_PUBLIC void daliShareOutput(daliPipelineHandle* pipe_handle);
@@ -115,7 +133,7 @@ extern "C" {
    * @remarks Tensor list doesn't need to be dense
    */
   DLL_PUBLIC void daliCopyTensorListNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
-                                          device_type_t dst_type);
+                                        device_type_t dst_type, cudaStream_t stream);
 
   /**
    * @brief Returns number of DALI pipeline outputs
@@ -128,7 +146,7 @@ extern "C" {
    * @remarks If the output is tensor list then it need to be dense
    */
   DLL_PUBLIC void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
-                                          device_type_t dst_type);
+                                    device_type_t dst_type, cudaStream_t stream);
 
   /**
    * @brief Delete the pipeline object.

@@ -17,7 +17,7 @@
 
 #include <cuda_runtime.h>
 #include <memory>
-#include "dali/kernels/span.h"
+#include "dali/core/span.h"
 #include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {
@@ -39,7 +39,7 @@ struct SeparableResamplingFilter {
   virtual void
   Run(KernelContext &context, const Output &out, const Input &in, const Params &params) = 0;
 
-  using Ptr = std::shared_ptr<SeparableResamplingFilter>;
+  using Ptr = std::unique_ptr<SeparableResamplingFilter>;
 
   static Ptr Create(const Params &params);
 };

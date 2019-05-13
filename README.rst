@@ -105,6 +105,46 @@ Installing this package will install ``nvidia-dali`` and its dependencies, if th
     OLDER_VERSION=0.6.1
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin==$OLDER_VERSION
 
+Nightly and weekly release channels
+"""""""""""""""""""""""""""""""""""
+
+.. note::
+
+  While binaries available to download from nightly and weekly builds include most recent changes available in the GitHub some functionalities may not work or provide inferior performance comparing to the official releases. Those builds are meant for the early adopters seeking for the most recent version available and being ready to boldly go where no man has gone before.
+
+.. note::
+
+  It is recommended to uninstall regular DALI and TensorFlow plugin before installing nvidia-dali-nightly or nvidia-dali-weekly as they are installed in the same path
+
+Nightly builds
+**************
+
+To access most recent nightly builds please use flowing release channel:
+
+* for CUDA9
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/9.0 nvidia-dali-nightly
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/9.0 nvidia-dali-tf-plugin-nightly
+
+* for CUDA10
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/10.0 nvidia-dali-nightly
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly/cuda/10.0 nvidia-dali-tf-plugin-nightly
+
+Weekly builds
+**************
+
+Also, there is a weekly release channel with more thorough testing (only CUDA10 builds are provided there):
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly/cuda/10.0 nvidia-dali-weekly
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/weekly/cuda/10.0 nvidia-dali-tf-plugin-weekly
+
 ----
 
 Compiling DALI from source (using Docker builder) - recommended
@@ -137,6 +177,7 @@ Change directory (``cd``) into Docker directory and run ``./build.sh``. If neede
 * NVIDIA_BUILD_ID - Custom ID of the build. Default is ``1234``.
 * CREATE_WHL - Create a standalone wheel. Default is ``YES``.
 * CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside. It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker`` and DALI wheel in the ``wheelhouse`` directory under$
+* DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package description, i.e. `nightly` will result in the `nvidia-dali-nightly`
 
 ----
 
@@ -151,7 +192,7 @@ Prerequisites
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg
 .. |protobuf link| replace:: **protobuf**
 .. _protobuf link: https://github.com/google/protobuf
-.. |cmake link| replace:: **CMake 3.5**
+.. |cmake link| replace:: **CMake 3.11**
 .. _cmake link: https://cmake.org
 .. |jpegturbo link| replace:: **libjpeg-turbo 1.5.x**
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
@@ -297,10 +338,20 @@ Building DALI using Clang (experimental):
 -  ``BUILD_LMDB`` - build with support for LMDB (default: OFF)
 -  ``BUILD_NVTX`` - build with NVTX profiling enabled (default: OFF)
 -  ``BUILD_TENSORFLOW`` - build TensorFlow plugin (default: OFF)
+-  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
+-  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
+-  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
+-  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
+-  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
--  *(Unofficial)* ``BUILD_NVJPEG`` - build with ``nvJPEG`` (default: ON)
 
+.. note::
+
+   DALI release packages are built with the options listed above set to ON and NVTX turned OFF.
+   Testing is done with the same configuration. 
+   We ensure that DALI compiles with all of those options turned OFF, but there may exist
+   cross-dependencies between some of those features.
 
 Install Python bindings
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -339,6 +390,7 @@ Contributing to DALI
 --------------------
 
 We welcome contributions to DALI. To contribute to DALI and make pull requests, follow the guidelines outlined in the `Contributing <CONTRIBUTING.md>`_ document.
+If you are looking for a task good for the start please check one from `external contribution welcome label <https://github.com/NVIDIA/DALI/labels/external%20contribution%20welcome>`_.
 
 Reporting problems, asking questions
 ------------------------------------

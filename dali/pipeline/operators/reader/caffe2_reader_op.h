@@ -25,15 +25,13 @@ class Caffe2Reader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit Caffe2Reader(const OpSpec& spec)
   : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
-    loader_ = InitLoader<LMDBReader>(spec);
+    loader_ = InitLoader<LMDBLoader>(spec);
     parser_.reset(new Caffe2Parser(spec));
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
     const auto& tensor = GetSample(ws->data_idx());
-    if (tensor.ShouldSkipSample())
-      return;
-    parser_->Parse(tensor, ws);
+    ParseIfNeeded(tensor, ws);
   }
 
  protected:

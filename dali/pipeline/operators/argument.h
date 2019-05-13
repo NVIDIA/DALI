@@ -21,7 +21,7 @@
 #include <utility>
 #include <memory>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/proto/dali_proto_utils.h"
@@ -142,6 +142,9 @@ class Argument {
   T Get();
 
   template<typename T>
+  bool IsType();
+
+  template<typename T>
   static Argument * Store(const std::string& s,
       const T& val);
 
@@ -232,6 +235,11 @@ class ArgumentInst<std::vector<T>> : public Argument {
 };
 
 DLL_PUBLIC Argument *DeserializeProtobuf(const DaliProtoPriv arg);
+
+template<typename T>
+bool Argument::IsType() {
+  return dynamic_cast<ArgumentInst<T>*>(this) != nullptr;
+}
 
 template<typename T>
 T Argument::Get() {

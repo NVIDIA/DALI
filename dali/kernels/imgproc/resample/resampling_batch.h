@@ -21,9 +21,9 @@ namespace dali {
 namespace kernels {
 
 template <int which_pass, typename Output, typename Input>
-void BatchedSeparableResample(Output *out, const Input *in,
+void BatchedSeparableResample(
   const SeparableResamplingSetup::SampleDesc *samples,
-  int num_samples, const SampleBlockInfo *block2sample, int num_blocks,
+  const SampleBlockInfo *block2sample, int num_blocks,
   int2 block_size,
   cudaStream_t stream);
 

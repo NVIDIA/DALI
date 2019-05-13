@@ -89,7 +89,7 @@ namespace dali {
     Init(this->batch_size_, this->num_threads_,
          this->device_id_, def.seed(),
          pipelined_execution,
-         separated_execution_,  // We use false as default for now
+         separated_execution_,
          async_execution,
          bytes_per_sample_hint,
          set_affinity,
@@ -124,6 +124,9 @@ static bool has_prefix(const std::string &operator_name, const std::string& pref
 void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   DALI_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
+
+  // Take a copy of the passed OpSpec for serialization purposes before any modification
+  this->op_specs_for_serialization_.push_back(make_pair(inst_name, spec));
 
   // If necessary, split nvJPEGDecoder operator in two separated stages (CPU and Mixed-GPU)
 #ifdef NVJPEG_DECOUPLED_API
@@ -253,9 +256,8 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
         "Output name insertion failure.");
   }
 
-  // Take a copy of the passed OpSpec for serialization purposes
+  // store updated spec
   this->op_specs_.push_back(make_pair(inst_name, spec));
-  this->op_specs_to_serialize_.push_back(true);
 }
 
 inline void Pipeline::AddSplitNvJPEGDecoder(OpSpec &spec, const std::string& inst_name) {
@@ -294,7 +296,7 @@ inline int GetMemoryHint(OpSpec &spec, int index) {
   if (!spec.HasArgument("bytes_per_sample_hint"))
     return 0;
   std::vector<int> hints;
-  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", spec.NumOutput());
+  GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
 
   DALI_ENFORCE(index < static_cast<int>(hints.size()),
                "Output index out of range: " + std::to_string(index));
@@ -308,7 +310,7 @@ inline void SetMemoryHint(OpSpec &spec, int index, int value) {
   DALI_ENFORCE(index < no, "Output index out of range: " +
     std::to_string(index) + " >= " + std::to_string(no));
 
-  GetSingleOrRepeatedArg(spec, &hints, "bytes_per_sample_hint", no);
+  GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", no);
   hints[index] = value;
   spec.SetArg("bytes_per_sample_hint", hints);
 }
@@ -488,8 +490,8 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddArg("device", "mixed")
       .AddInput(it->first, "cpu")
       .AddOutput("contiguous_" + it->first, "cpu");
+    // don't put it into op_specs_for_serialization_, only op_specs_
     this->op_specs_.push_back(make_pair("__MakeContiguous_" + it->first, make_contiguous_spec));
-    this->op_specs_to_serialize_.push_back(false);
     it->second.has_contiguous = true;
   }
 
@@ -508,8 +510,8 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
     .AddArg("device", "mixed")
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");
+  // don't put it into op_specs_for_serialization_, only op_specs_
   this->op_specs_.push_back(make_pair("__Copy_" + it->first, copy_to_dev_spec));
-  this->op_specs_to_serialize_.push_back(false);
   it->second.has_gpu = true;
 }
 
@@ -581,17 +583,15 @@ string Pipeline::SerializeToProtobuf() const {
   }
 
   // loop over ops, create messages and append
-  for (size_t i = 0; i < this->op_specs_.size(); ++i) {
-    if (op_specs_to_serialize_[i]) {
-      dali_proto::OpDef *op_def = pipe.add_op();
+  for (size_t i = 0; i < this->op_specs_for_serialization_.size(); ++i) {
+    dali_proto::OpDef *op_def = pipe.add_op();
 
-      const auto& p = this->op_specs_[i];
-      const OpSpec& spec = p.second;
+    const auto& p = this->op_specs_for_serialization_[i];
+    const OpSpec& spec = p.second;
 
-      // As long as spec isn't an ExternalSource node, serialize
-      if (spec.name() != "ExternalSource") {
-        dali::SerializeToProtobuf(op_def, p.first, spec);
-      }
+    // As long as spec isn't an ExternalSource node, serialize
+    if (spec.name() != "ExternalSource") {
+      dali::SerializeToProtobuf(op_def, p.first, spec);
     }
   }
 

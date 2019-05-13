@@ -79,14 +79,11 @@ struct SeparableResamplingGPUImpl : Interface {
 
   template <int which_pass, typename PassOutputElement, typename PassInputElement>
   void RunPass(
-      const OutListGPU<PassOutputElement, 3> &out,
-      const InListGPU<PassInputElement, 3> &in,
       const SampleDesc *descs_gpu,
       const InTensorGPU<SampleBlockInfo, 1> &block2sample,
       cudaStream_t stream) {
-    BatchedSeparableResample<which_pass>(
-        out.data, in.data, descs_gpu, in.num_samples(),
-        block2sample.data, block2sample.shape[0],
+    BatchedSeparableResample<which_pass, PassOutputElement, PassInputElement>(
+        descs_gpu, block2sample.data, block2sample.shape[0],
         setup.block_size,
         stream);
   }
@@ -113,12 +110,6 @@ struct SeparableResamplingGPUImpl : Interface {
     setup.InitializeSampleLookup(sample_lookup_cpu);
     copy(sample_lookup_gpu, sample_lookup_cpu, stream);  // NOLINT (it thinks it's std::copy)
 
-    cudaMemcpyAsync(
-        descs_gpu,
-        setup.sample_descs.data(),
-        setup.sample_descs.size()*sizeof(SampleDesc),
-        cudaMemcpyHostToDevice,
-        stream);
 
     InTensorGPU<SampleBlockInfo, 1> first_pass_lookup = make_tensor_gpu<1>(
         sample_lookup_gpu.data,
@@ -128,13 +119,27 @@ struct SeparableResamplingGPUImpl : Interface {
         sample_lookup_gpu.data + setup.total_blocks.pass[0],
         { setup.total_blocks.pass[1] });
 
-    intermediate.data = context.scratchpad->Allocate<IntermediateElement>(
-        AllocType::GPU, setup.intermediate_size);
+    intermediate.set_dense_data(context.scratchpad->Allocate<IntermediateElement>(
+        AllocType::GPU, setup.intermediate_size));
+
+    for (int i = 0; i <in.num_samples(); i++) {
+      setup.sample_descs[i].set_base_pointers(
+        in.tensor_data(i),
+        intermediate.tensor_data(i),
+        out.tensor_data(i));
+    }
+
+    cudaMemcpyAsync(
+        descs_gpu,
+        setup.sample_descs.data(),
+        setup.sample_descs.size()*sizeof(SampleDesc),
+        cudaMemcpyHostToDevice,
+        stream);
 
     RunPass<0, IntermediateElement, InputElement>(
-      intermediate, in, descs_gpu, first_pass_lookup, stream);
+      descs_gpu, first_pass_lookup, stream);
     RunPass<1, OutputElement, IntermediateElement>(
-      out, intermediate, descs_gpu, second_pass_lookup, stream);
+      descs_gpu, second_pass_lookup, stream);
   }
 };
 

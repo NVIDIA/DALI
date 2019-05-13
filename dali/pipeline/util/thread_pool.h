@@ -23,7 +23,7 @@
 #include <thread>
 #include <vector>
 #include <string>
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 
 namespace dali {

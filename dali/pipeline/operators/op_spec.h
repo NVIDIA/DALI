@@ -23,7 +23,7 @@
 #include <memory>
 #include <set>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/argument.h"
 #include "dali/pipeline/data/tensor.h"
@@ -280,15 +280,31 @@ class DLL_PUBLIC OpSpec {
     return GetArgument<T, T>(name, ws, idx);
   }
 
+  template <typename T>
+  DLL_PUBLIC inline bool TryGetArgument(T &result,
+                                        const string &name,
+                                        const ArgumentWorkspace *ws,
+                                        Index idx) const {
+    return TryGetArgumentImpl<T, T>(result, name, ws, idx);
+  }
+
   /**
    * @brief Checks the Spec for a repeated argument of the given name/type.
    * Returns the default if an argument with the given name does not exist.
    */
   template <typename T>
-  DLL_PUBLIC inline std::vector<T> GetRepeatedArgument(
-      const string &name, const ArgumentWorkspace *ws = nullptr, Index idx = 0) const {
-    DALI_ENFORCE(idx == 0, "Tensor arguments cannot be used for vector values");
-    return GetArgument<T, std::vector<T>>(name, ws, idx);
+  DLL_PUBLIC inline std::vector<T> GetRepeatedArgument(const string &name) const {
+    return GetArgument<T, std::vector<T>>(name, nullptr, 0);
+  }
+
+  /**
+   * @brief Checks the Spec for a repeated argument of the given name/type.
+   * Returns the default if an argument with the given name does not exist.
+   */
+  template <typename T>
+  DLL_PUBLIC inline bool TryGetRepeatedArgument(std::vector<T> &result,
+      const string &name) const {
+    return TryGetArgumentImpl<T, std::vector<T>>(result, name, nullptr, 0);
   }
 
   DLL_PUBLIC OpSpec& ShareArguments(OpSpec& other) {
@@ -342,6 +358,12 @@ class DLL_PUBLIC OpSpec {
   template <typename T, typename S>
   inline S GetArgument(const string &name, const ArgumentWorkspace *ws, Index idx) const;
 
+  template <typename T, typename S>
+  inline bool TryGetArgumentImpl(S &result,
+                                 const string &name,
+                                 const ArgumentWorkspace *ws,
+                                 Index idx) const;
+
   string name_;
   std::unordered_map<string, std::shared_ptr<Argument>> arguments_;
   std::unordered_map<string, Index> argument_inputs_;
@@ -374,6 +396,43 @@ inline S OpSpec::GetArgument(const string &name, const ArgumentWorkspace *ws, In
   }
 }
 
+template <typename T, typename S>
+inline bool OpSpec::TryGetArgumentImpl(
+      S &result,
+      const string &name,
+      const ArgumentWorkspace *ws,
+      Index idx) const {
+  // Search for the argument in tensor arguments first
+  if (this->HasTensorArgument(name)) {
+    if (ws == nullptr)
+      return false;
+    const auto& value = ws->ArgumentInput(name);
+    if (!IsType<S>(value.type()))
+      return false;
+    result = value.template data<S>()[idx];
+    return true;
+  }
+  // Search for the argument locally
+  auto arg_it = arguments_.find(name);
+  if (arg_it != arguments_.end()) {
+    // Found locally - return
+    if (arg_it->second->template IsType<S>()) {
+      result = arg_it->second->template Get<S>();
+      return true;
+    }
+  } else {
+    // Argument wasn't present locally, get the default from the associated schema
+    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    auto schema_val = schema.FindDefaultValue(name);
+    using VT = const ValueInst<S>;
+    if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {
+      result = vt->Get();
+      return true;
+    }
+  }
+  return false;
+}
+
 #define INSTANTIATE_ARGUMENT_AS_INT64(T)                                                        \
   template<>                                                                                    \
   inline OpSpec& OpSpec::SetArg(const string& name, const T& val) {                             \
@@ -391,25 +450,52 @@ inline S OpSpec::GetArgument(const string &name, const ArgumentWorkspace *ws, In
   }                                                                                             \
   template<>                                                                                    \
   inline T OpSpec::GetArgument(const string& name, const ArgumentWorkspace *ws, Index idx) const { \
-    if (this->HasTensorArgument(name)) {                                                           \
-      DALI_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");    \
-      const auto& value = ws->ArgumentInput(name);                                                 \
-      if (IsType<T>(value.type())) {                                                               \
-        return value.template data<T>()[idx];                                                      \
-      }                                                                                            \
-    }                                                                                              \
-    int64 tmp = this->GetArgument<int64>(name, ws, idx);                                           \
-    return static_cast<T>(tmp);                                                                    \
-  }                                                                                                \
-  template<>                                                                                       \
-  inline std::vector<T> OpSpec::GetRepeatedArgument(                                               \
-      const string& name, const ArgumentWorkspace *ws, Index idx) const {                          \
-    vector<int64> tmp = this->GetRepeatedArgument<int64>(name, ws, idx);                           \
-    vector<T> ret;                                                                                 \
-    for (auto t : tmp) {                                                                           \
-      ret.push_back(static_cast<T>(t));                                                            \
-    }                                                                                              \
-    return ret;                                                                                    \
+    if (this->HasTensorArgument(name)) {                                                          \
+      DALI_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");   \
+      const auto& value = ws->ArgumentInput(name);                                                \
+      if (IsType<T>(value.type())) {                                                              \
+        return value.template data<T>()[idx];                                                     \
+      }                                                                                           \
+    }                                                                                             \
+    int64 tmp = this->GetArgument<int64>(name, ws, idx);                                          \
+    return static_cast<T>(tmp);                                                                   \
+  }                                                                                               \
+  template<>                                                                                      \
+  inline bool OpSpec::TryGetArgument(T &result, const string& name,                               \
+                                     const ArgumentWorkspace *ws, Index idx) const {              \
+    if (this->HasTensorArgument(name)) {                                                          \
+      if (ws == nullptr)                                                                          \
+        return false;                                                                             \
+      const auto& value = ws->ArgumentInput(name);                                                \
+      if (IsType<T>(value.type())) {                                                              \
+        return value.template data<T>()[idx];                                                     \
+      }                                                                                           \
+    }                                                                                             \
+    int64 tmp;                                                                                    \
+    if (this->TryGetArgument<int64>(tmp, name, ws, idx)) {                                        \
+      result = static_cast<T>(tmp);                                                               \
+      return true;                                                                                \
+    }                                                                                             \
+    return false;                                                                                 \
+  }                                                                                               \
+  template<>                                                                                      \
+  inline std::vector<T> OpSpec::GetRepeatedArgument(const string& name) const {                   \
+    vector<int64> tmp = this->GetRepeatedArgument<int64>(name);                                   \
+    vector<T> ret(tmp.size());                                                                    \
+    for (size_t i = 0; i < tmp.size(); i++)                                                       \
+      ret[i] = static_cast<T>(tmp[i]);                                                            \
+    return ret;                                                                                   \
+  }                                                                                               \
+  template<>                                                                                      \
+  inline bool OpSpec::TryGetRepeatedArgument(                                                     \
+      vector<T> &ret, const string& name) const {                                                 \
+    vector<int64> tmp;                                                                            \
+    if (!this->TryGetRepeatedArgument<int64>(tmp, name))                                          \
+      return false;                                                                               \
+    ret.resize(tmp.size());                                                                       \
+    for (size_t i = 0; i < tmp.size(); i++)                                                       \
+      ret[i] = static_cast<T>(tmp[i]);                                                            \
+    return true;                                                                                  \
   }
 
 INSTANTIATE_ARGUMENT_AS_INT64(int);

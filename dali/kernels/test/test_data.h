@@ -16,7 +16,7 @@
 #define DALI_KERNELS_TEST_TEST_DATA_H_
 
 #include <opencv2/core.hpp>
-#include "dali/kernels/span.h"
+#include "dali/core/span.h"
 #include "dali/kernels/test/mat2tensor.h"
 
 namespace dali {

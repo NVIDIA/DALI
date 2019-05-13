@@ -70,13 +70,13 @@ TEST_P(ResamplingTestCPU, KernelAPI) {
   auto ref_tensor = view_as_tensor<const uint8_t, 3>(ref);
 
   using Kernel = ResampleCPU<uint8_t, uint8_t>;
+  Kernel kernel;
   KernelContext context;
   ScratchpadAllocator scratch_alloc;
 
   FilterDesc filter(ResamplingFilterType::Nearest);
 
-  auto req = Kernel::GetRequirements(context, in_tensor, param.params);
-  ASSERT_NE(any_cast<Kernel::Impl>(&context.kernel_data), nullptr);
+  auto req = kernel.Setup(context, in_tensor, param.params);
   scratch_alloc.Reserve(req.scratch_sizes);
   auto scratchpad = scratch_alloc.GetScratchpad();
   context.scratchpad = &scratchpad;
@@ -84,7 +84,7 @@ TEST_P(ResamplingTestCPU, KernelAPI) {
   auto out_mat = MatWithShape<uint8_t>(req.output_shapes[0].tensor_shape<3>(0));
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_mat);
 
-  Kernel::Run(context, out_tensor, in_tensor, param.params);
+  kernel.Run(context, out_tensor, in_tensor, param.params);
 
   Check(out_tensor, ref_tensor, EqualEps(param.epsilon));
 

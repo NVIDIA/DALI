@@ -33,7 +33,7 @@
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

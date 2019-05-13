@@ -115,7 +115,6 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
             (format->coded_height != decoder_info_.ulHeight) ||
             (format->chroma_format != decoder_info_.ChromaFormat)) {
             DALI_FAIL("Encountered a dynamic video format change.");
-            return 0;
         }
         return 1;
     }
@@ -146,7 +145,7 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
         ss << "Unsupported Codec " << GetVideoCodecString(format->codec)
             << " with chroma format "
             << GetVideoChromaFormatString(format->chroma_format);
-        throw std::runtime_error(ss.str());
+        DALI_FAIL(ss.str());
     }
     LOG_LINE << "NVDEC Capabilities" << std::endl
         << "\tMax width : " << caps.nMaxWidth << std::endl
@@ -156,14 +155,14 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
         << "\tMin height :" << caps.nMinHeight << std::endl;
     if (format->coded_width < caps.nMinWidth ||
         format->coded_height < caps.nMinHeight) {
-        throw std::runtime_error("Video is too small in at least one dimension.");
+        DALI_FAIL("Video is too small in at least one dimension.");
     }
     if (format->coded_width > caps.nMaxWidth ||
         format->coded_height > caps.nMaxHeight) {
-        throw std::runtime_error("Video is too large in at least one dimension.");
+        DALI_FAIL("Video is too large in at least one dimension.");
     }
     if (format->coded_width * format->coded_height / 256 > caps.nMaxMBCount) {
-        throw std::runtime_error("Video is too large (too many macroblocks).");
+        DALI_FAIL("Video is too large (too many macroblocks).");
     }
 
     decoder_info_.CodecType = format->codec;

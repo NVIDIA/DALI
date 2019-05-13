@@ -22,9 +22,11 @@
 #include <string>
 #include <thread>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
+#if NVML_ENABLED
 #include "dali/util/nvml.h"
+#endif
 
 namespace dali {
 
@@ -60,13 +62,17 @@ class WorkerThread {
 
   inline WorkerThread(int device_id, bool set_affinity) :
     running_(true), work_complete_(true), barrier_(2) {
+#if NVML_ENABLED
     nvml::Init();
+#endif
     thread_ = std::thread(&WorkerThread::ThreadMain,
         this, device_id, set_affinity);
   }
 
   inline ~WorkerThread() {
+#if NVML_ENABLED
     nvml::Shutdown();
+#endif
   }
 
   /*
@@ -145,7 +151,9 @@ class WorkerThread {
     try {
       CUDA_CALL(cudaSetDevice(device_id));
       if (set_affinity) {
+#if NVML_ENABLED
         nvml::SetCPUAffinity();
+#endif
       }
     } catch(std::runtime_error &e) {
       errors_.push(e.what());

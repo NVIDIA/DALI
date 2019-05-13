@@ -19,8 +19,8 @@
 #include <cstdint>
 #include <vector>
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/span.h"
-#include "dali/api_helper.h"
+#include "dali/core/span.h"
+#include "dali/core/api_helper.h"
 
 namespace dali {
 namespace kernels {

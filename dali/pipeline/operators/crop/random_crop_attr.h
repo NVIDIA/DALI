@@ -19,7 +19,7 @@
 #include <functional>
 #include <memory>
 #include <vector>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
@@ -39,11 +39,11 @@ class RandomCropAttr {
     int num_attempts = spec.GetArgument<int>("num_attempts");
 
     std::vector<float> aspect_ratio;
-    GetSingleOrRepeatedArg(spec, &aspect_ratio, "random_aspect_ratio", 2);
+    GetSingleOrRepeatedArg(spec, aspect_ratio, "random_aspect_ratio", 2);
     DALI_ENFORCE(aspect_ratio[0] <= aspect_ratio[1], "Provided empty range");
 
     std::vector<float> area;
-    GetSingleOrRepeatedArg(spec, &area, "random_area", 2);
+    GetSingleOrRepeatedArg(spec, area, "random_area", 2);
     DALI_ENFORCE(area[0] <= area[1], "Provided empty range");
 
     int64_t seed = spec.GetArgument<int64_t>("seed");

@@ -15,7 +15,7 @@
 #ifndef DALI_UTIL_TYPE_CONVERSION_H_
 #define DALI_UTIL_TYPE_CONVERSION_H_
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 
 namespace dali {
 

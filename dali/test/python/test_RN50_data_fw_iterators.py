@@ -97,12 +97,17 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
-Iterators = {"mxnet.DALIClassificationIterator"   : MXNetIterator,
-             "pytorch.DALIClassificationIterator" : PyTorchIterator,
-             "tf.DALIIterator"                    : TensorFlowIterator}
-for iterator_name in Iterators:
-    IteratorClass = Iterators[iterator_name]
+Iterators = [("mxnet.DALIClassificationIterator"   , MXNetIterator),
+             ("pytorch.DALIClassificationIterator" , PyTorchIterator),
+             ("tf.DALIIterator" , TensorFlowIterator)]
+
+for iterator_name, IteratorClass in Iterators:
     print("Start testing {}".format(iterator_name))
+    sess = None
+    daliop = None
+    dali_train_iter = None
+    images = []
+    labels = []
 
     pipes = [RN50Pipeline(batch_size=args.batch_size, num_threads=args.workers, device_id=n,
                           num_gpus=args.gpus, data_paths=data_paths, prefetch=args.prefetch,
@@ -122,9 +127,6 @@ for iterator_name in Iterators:
         if iters_tmp != iters * args.gpus:
             iters += 1
 
-    sess = None
-    images = []
-    labels = []
     if iterator_name == "tf.DALIIterator":
         daliop = IteratorClass()
         for dev in range(args.gpus):

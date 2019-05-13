@@ -24,7 +24,7 @@
 #include <utility>
 #include <vector>
 
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
@@ -325,6 +325,8 @@ class DLL_PUBLIC Pipeline {
             bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
             bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
             QueueSizes prefetch_queue_depth = QueueSizes{2}) {
+    // guard cudaDeviceGetStreamPriorityRange call
+    DeviceGuard g(device_id);
     this->batch_size_ = batch_size;
     this->num_threads_ = num_threads;
     this->device_id_ = device_id;
@@ -440,7 +442,7 @@ class DLL_PUBLIC Pipeline {
   // serialized form
   vector<string> external_inputs_;
   vector<std::pair<string, OpSpec>> op_specs_;
-  vector<bool> op_specs_to_serialize_;
+  vector<std::pair<string, OpSpec>> op_specs_for_serialization_;
   vector<std::pair<string, string>> output_names_;
 };
 

@@ -457,11 +457,11 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
 
   vector<string> outputs = {"final_images_cpu"};
   int cb_counter = 0;
-  std::promise<void> barrier;
+  std::promise<int> barrier;
   auto barrier_future = barrier.get_future();
   exe->SetCompletionCallback([&cb_counter, &barrier]() mutable {
     ++cb_counter;
-    barrier.set_value();
+    barrier.set_value(cb_counter);
   });
 
   exe->Build(&graph, outputs);
@@ -524,17 +524,17 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
 
   vector<string> outputs = {"final_images_gpu"};
   int cb_counter = 0;
-  std::promise<void> barrier_0, barrier_1;
-  auto barrier_future_0 = barrier_0.get_future();
+  std::promise<void> barrier_1, barrier_2;
   auto barrier_future_1 = barrier_1.get_future();
-  exe->SetCompletionCallback([&cb_counter, &barrier_0, &barrier_1]() mutable {
-    if (cb_counter == 0) {
-      barrier_0.set_value();
-    }
+  auto barrier_future_2 = barrier_2.get_future();
+  exe->SetCompletionCallback([&cb_counter, &barrier_1, &barrier_2]() mutable {
+    ++cb_counter;
     if (cb_counter == 1) {
       barrier_1.set_value();
     }
-    ++cb_counter;
+    if (cb_counter == 2) {
+      barrier_2.set_value();
+    }
   });
   exe->Build(&graph, outputs);
 
@@ -572,8 +572,8 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   exe->RunMixed();
   exe->RunGPU();
 
-  auto status_0 = barrier_future_0.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status_0, std::future_status::ready);
+  auto status_1 = barrier_future_1.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status_1, std::future_status::ready);
   ASSERT_EQ(cb_counter, 1);
   src_op->SetDataSource(tl2);
   exe->RunCPU();
@@ -599,8 +599,8 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
 
-  auto status_1 = barrier_future_1.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status_1, std::future_status::ready);
+  auto status_2 = barrier_future_2.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status_2, std::future_status::ready);
   ASSERT_EQ(cb_counter, 2);
   TensorList<GPUBackend> &res2 = ws.Output<GPUBackend>(0);
   for (int i = 0; i < batch_size; ++i) {

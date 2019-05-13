@@ -23,7 +23,7 @@
 #include <tuple>
 #include <utility>
 #include <functional>
-#include "dali/common.h"
+#include "dali/core/common.h"
 #include "dali/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/util/crop_window.h"
@@ -31,7 +31,8 @@
 namespace dali {
 
 static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
-                                              ".bmp", ".tif",  ".tiff"};
+                                              ".bmp", ".tif",  ".tiff",
+                                              ".pnm", ".ppm", ".pgm", ".pbm"};
 
 DLL_PUBLIC bool HasKnownImageExtension(std::string image_path);
 
