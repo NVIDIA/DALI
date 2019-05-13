@@ -46,12 +46,13 @@ struct HorizontalVerticalIdxFlip {
 
 template <typename IndexFlip, typename T>
 __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input, size_t height,
-                           size_t width, size_t channels_per_layer) {
+                           size_t width, size_t layers, size_t channels_per_layer) {
   size_t r = blockIdx.x * blockDim.x + threadIdx.x;
   size_t c = blockIdx.y * blockDim.y + threadIdx.y;
-  if (r < height && c < width) {
-    size_t channel = (blockIdx.z * blockDim.z + threadIdx.z) % channels_per_layer;
-    size_t layer = (blockIdx.z * blockDim.z + threadIdx.z) / channels_per_layer;
+  size_t z = blockIdx.z * blockDim.z + threadIdx.z;
+  if (r < height && c < width && z < layers * channels_per_layer) {
+    size_t channel = z % channels_per_layer;
+    size_t layer = z / channels_per_layer;
     size_t input_coord = r * width + c;
     size_t output_coord = IndexFlip::OutputIdx(height, width, r, c);
     size_t layer_origin = layer * height * width * channels_per_layer;
@@ -62,28 +63,30 @@ __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input, 
 
 template <typename IndexFlip>
 void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &input,
-               cudaStream_t stream, size_t i) {
+               cudaStream_t stream, size_t idx) {
   DALI_TYPE_SWITCH(
       input.type().id(), DType,
-      const auto *input_ptr = input.tensor<DType>(i);
-      auto *output_ptr = output.mutable_tensor<DType>(i);
-      int64_t height, width, channels, channels_per_layer;
+      const auto *input_ptr = input.tensor<DType>(idx);
+      auto *output_ptr = output.mutable_tensor<DType>(idx);
+      int64_t height, width, channels, layers;
+      DALI_ENFORCE(input.tensor_shape(idx).size() == 3);
       if (input.GetLayout() == DALI_NHWC) {
-        height = input.tensor_shape(i)[0];
-        width = input.tensor_shape(i)[1];
-        channels = input.tensor_shape(i)[2];
-        channels_per_layer = channels;
+        height = input.tensor_shape(idx)[0];
+        width = input.tensor_shape(idx)[1];
+        channels = input.tensor_shape(idx)[2];
+        layers = 1;
       } else {
-        height = input.tensor_shape(i)[1];
-        width = input.tensor_shape(i)[2];
-        channels = input.tensor_shape(i)[0];
-        channels_per_layer = 1;
+        height = input.tensor_shape(idx)[1];
+        width = input.tensor_shape(idx)[2];
+        channels = input.tensor_shape(idx)[0];
+        layers = channels;
       }
       unsigned int block_x = height < 32 ? height : 32;
-      unsigned int block_y = width < 32 ? width : 32; dim3 block(block_x, block_y, 1);
+      unsigned int block_y = width < 32 ? width : 32;
+      dim3 block(block_x, block_y, 1);
       dim3 grid((height + block_x - 1) / block_x, (width + block_y - 1) / block_y, channels);
       FlipKernel<IndexFlip>
-        <<<grid, block, 0, stream>>>(output_ptr, input_ptr, height, width, channels_per_layer);
+        <<<grid, block, 0, stream>>>(output_ptr, input_ptr, height, width, layers, channels/layers);
   )
 }
 

@@ -32,22 +32,11 @@ Flip<CPUBackend>::Flip(const OpSpec &spec)
     : Operator<CPUBackend>(spec), spec_(spec) {}
 
 int GetOcvType(const TypeInfo &type, size_t channels) {
-  if (channels > CV_CN_MAX) {
-    DALI_FAIL("Number of channels must be smaller than " + std::to_string(CV_CN_MAX+1) +
-    " and the sample has " + std::to_string(channels) + " channels.");
+  if (channels * type.size() > CV_CN_MAX) {
+    DALI_FAIL("Pixel size must not be greater than " + std::to_string(CV_CN_MAX) +
+    " bytes.");
   }
-  switch (type.size()) {
-    case 1:
-      return CV_8UC(channels);
-    case 2:
-      return CV_16UC(channels);
-    case 4:
-      return CV_32FC(channels);
-    case 8:
-      return CV_64FC(channels);
-    default:
-      DALI_FAIL(type.name() + " is not a valid type for the flip operator.");
-  }
+  return CV_8UC(type.size() * channels);
 }
 
 template <typename T>
