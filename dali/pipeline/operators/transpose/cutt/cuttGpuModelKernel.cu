@@ -38,7 +38,7 @@ SOFTWARE.
 
 #include "dali/pipeline/operators/transpose/cutt/cuttGpuModelKernel.h"
 
-#include "dali/util/dynlink_cuda.h"
+#include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 

@@ -36,7 +36,7 @@
 #define __CUDA_VIDEO_H__
 
 #ifndef __dynlink_cuda_h__
-#include "dali/util/dynlink_cuda.h"
+#include "dali/core/dynlink_cuda.h"
 #endif // __dynlink_cuda_h__
 
 #if defined(_WIN64) || defined(__LP64__) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
@@ -85,7 +85,7 @@ typedef enum cudaVideoCodec_enum {
 /*********************************************************************************/
 typedef enum cudaVideoSurfaceFormat_enum {
     cudaVideoSurfaceFormat_NV12=0,       /**< NV12 format          */
-    cudaVideoSurfaceFormat_P016=1        /**< 16 bit semiplaner format. Can be used for 10 bit(6LSB bits 0), 
+    cudaVideoSurfaceFormat_P016=1        /**< 16 bit semiplaner format. Can be used for 10 bit(6LSB bits 0),
                                               12 bit (4LSB bits 0) */
 } cudaVideoSurfaceFormat;
 
@@ -167,7 +167,7 @@ typedef struct _CUVIDDECODECREATEINFO
     unsigned long ulIntraDecodeOnly;    /**< IN: Set 1 only if video has all intra frames (default value is 0). This will
                                              optimize video memory for Intra frames only decoding. The support is limited
                                              to specific codecs(H264 rightnow), the flag will be ignored for codecs which
-                                             are not supported. However decoding might fail if the flag is enabled in case 
+                                             are not supported. However decoding might fail if the flag is enabled in case
                                              of supported codecs for regular bit streams having P and/or B frames.          */
     unsigned long Reserved1[3];         /**< Reserved for future use - set to zero                                          */
     /**
@@ -185,7 +185,7 @@ typedef struct _CUVIDDECODECREATEINFO
     unsigned long ulTargetWidth;               /**< IN: Post-processed output width (Should be aligned to 2)           */
     unsigned long ulTargetHeight;              /**< IN: Post-processed output height (Should be aligbed to 2)          */
     unsigned long ulNumOutputSurfaces;         /**< IN: Maximum number of output surfaces simultaneously mapped        */
-    CUvideoctxlock vidLock;                    /**< IN: If non-NULL, context lock used for synchronizing ownership of 
+    CUvideoctxlock vidLock;                    /**< IN: If non-NULL, context lock used for synchronizing ownership of
                                                     the cuda context. Needed for cudaVideoCreate_PreferCUDA decode     */
     /**
     * IN: target rectangle in the output frame (for aspect ratio conversion)
@@ -268,7 +268,7 @@ typedef struct _CUVIDH264SVCEXT
     short scaled_ref_layer_right_offset;
     short scaled_ref_layer_bottom_offset;
     unsigned short Reserved16Bits;
-    struct _CUVIDPICPARAMS *pNextLayer; /**< Points to the picparams for the next layer to be decoded. 
+    struct _CUVIDPICPARAMS *pNextLayer; /**< Points to the picparams for the next layer to be decoded.
                                              Linked list ends at the target layer. */
     int bRefBaseLayer;                  /**< whether to store ref base pic */
 } CUVIDH264SVCEXT;
@@ -686,7 +686,7 @@ typedef struct _CUVIDPICPARAMS
     unsigned int nBitstreamDataLen;        /**< IN: Number of bytes in bitstream data buffer                  */
     const unsigned char *pBitstreamData;   /**< IN: Ptr to bitstream data for this picture (slice-layer)      */
     unsigned int nNumSlices;               /**< IN: Number of slices in this picture                          */
-    const unsigned int *pSliceDataOffsets; /**< IN: nNumSlices entries, contains offset of each slice within 
+    const unsigned int *pSliceDataOffsets; /**< IN: nNumSlices entries, contains offset of each slice within
                                                         the bitstream data buffer                             */
     int ref_pic_flag;                      /**< IN: This picture is a reference picture                       */
     int intra_pic_flag;                    /**< IN: This picture is entirely intra coded                      */
@@ -768,7 +768,7 @@ typedef struct _CUVIDPROCPARAMS
 //!    If IN parameters passed to the driver are not supported by NVDEC-HW, then all OUT params are set to 0.
 //! E.g. on Geforce GTX 960:
 //!   App fills - eCodecType = cudaVideoCodec_H264; eChromaFormat = cudaVideoChromaFormat_420; nBitDepthMinus8 = 0;
-//!   Given IN parameters are supported, hence driver fills: bIsSupported = 1; nMinWidth   = 48; nMinHeight  = 16; 
+//!   Given IN parameters are supported, hence driver fills: bIsSupported = 1; nMinWidth   = 48; nMinHeight  = 16;
 //!   nMaxWidth = 4096; nMaxHeight = 4096; nMaxMBCount = 65536;
 //! CodedWidth*CodedHeight/256 must be less than or equal to nMaxMBCount
 /**********************************************************************************************************************/
@@ -788,7 +788,7 @@ typedef CUresult tcuvidDestroyDecoder(CUvideodecoder hDecoder);
 /********************************************************************************************************************/
 //! \fn CUresult cuvidDecodePicture(CUvideodecoder hDecoder, CUVIDPICPARAMS *pPicParams)
 //! Decode a single picture (field or frame)
-//! Kicks off HW decoding 
+//! Kicks off HW decoding
 /********************************************************************************************************************/
 typedef CUresult tcuvidDecodePicture(CUvideodecoder hDecoder, CUVIDPICPARAMS *pPicParams);
 

@@ -27,7 +27,7 @@
 
 #include "dali/pipeline/operators/argument.h"
 #include "dali/pipeline/operators/common.h"
-#include "dali/util/device_guard.h"
+#include "dali/core/device_guard.h"
 #include "dali/pipeline/dali.pb.h"
 
 namespace dali {

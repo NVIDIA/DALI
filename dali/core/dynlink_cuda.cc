@@ -21,7 +21,7 @@
 //#define CUDA_INIT_OPENGL
 
 #include <stdio.h>
-#include "dali/util/dynlink_cuda.h"
+#include "dali/core/dynlink_cuda.h"
 
 tcuInit                               *_cuInit;
 tcuDriverGetVersion                   *cuDriverGetVersion;
@@ -176,7 +176,7 @@ tcuMipmappedArrayGetLevel             *cuMipmappedArrayGetLevel;
 tcuMipmappedArrayDestroy              *cuMipmappedArrayDestroy;
 
 tcuProfilerStop                       *cuProfilerStop;
-#endif 
+#endif
 
 #ifdef CUDA_INIT_D3D9
 // D3D9/CUDA interop (CUDA 1.x compatible API). These functions
@@ -416,7 +416,7 @@ CUresult cuInit(unsigned int Flags, int cudaVersion)
     }
 
     #endif
-     
+
     // These could be _v2 interfaces
     if (cudaVersion >= 4000 && __CUDA_API_VERSION >= 4000)
     {

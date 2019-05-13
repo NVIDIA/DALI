@@ -117,7 +117,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
-
   void HandleError(const char *message = "Unknown exception") {
     exec_error_ = true;
     ShutdownQueue();

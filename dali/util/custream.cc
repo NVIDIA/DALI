@@ -14,7 +14,7 @@
 
 #include "dali/util/custream.h"
 #include "dali/core/cuda_utils.h"
-#include "dali/util/device_guard.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 

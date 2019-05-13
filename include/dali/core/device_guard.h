@@ -15,7 +15,7 @@
 #ifndef DALI_UTIL_DEVICE_GUARD_H_
 #define DALI_UTIL_DEVICE_GUARD_H_
 
-#include "dali/core/common.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/core/error_handling.h"
 
 namespace dali {
@@ -26,6 +26,12 @@ namespace dali {
  */
 class DeviceGuard {
  public:
+  /// @brief Saves current device id and restores it upon object destruction
+  DeviceGuard() {
+    CUDA_CALL(cudaGetDevice(&original_device_));
+  }
+  /// @brief Saves current device id, sets a new one and switches back
+  ///        to the original device upon object destruction.
   explicit DeviceGuard(int new_device) {
     CUDA_CALL(cudaGetDevice(&original_device_));
     CUDA_CALL(cudaSetDevice(new_device));

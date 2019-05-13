@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_CUDA_UTILS_H_
-#define DALI_UTIL_CUDA_UTILS_H_
+#ifndef DALI_CORE_CUDA_UTILS_H_
+#define DALI_CORE_CUDA_UTILS_H_
 
 #include <cuda_fp16.h>  // for __half & related methods
 #include <cuda_profiler_api.h>
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
-#include "dali/util/dynlink_cuda.h"
-#include "dali/core/error_handling.h"
+#include "dali/core/dynlink_cuda.h"
+#include "dali/core/cuda_error.h"
 
 // For the CPU we use half_float lib and float16_cpu type
 namespace half_float {
@@ -54,41 +54,6 @@ inline void DALIProfilerStart() { cudaProfilerStart(); }
 
 inline void DALIProfilerStop() { cudaProfilerStop(); }
 
-// CUDA checking
-template <typename T>
-inline void cudaResultCheck(T status);
+}  // namespace dalli
 
-template <typename T>
-inline void cudaResultCheck(T status) {}
-
-template <>
-inline void cudaResultCheck<cudaError_t>(cudaError_t status) {
-    if (status != cudaSuccess) {
-      dali::string error = dali::string("CUDA runtime api error \"") +
-        cudaGetErrorString(status) + "\"";
-      DALI_FAIL(error);
-    }
-}
-
-template <>
-inline void cudaResultCheck<CUresult>(CUresult status) {
-    if (status != CUDA_SUCCESS) {
-      const char *cudaErrorStr;
-      cuGetErrorString(status, &cudaErrorStr);
-      dali::string error = dali::string("CUDA driver api error \"") +
-        dali::string(cudaErrorStr) + "\"";
-      DALI_FAIL(error);
-    }
-}
-
-}  // end namespace dali
-
-// For calling CUDA library functions (cudaError_t from runtime API and CUresult from driver API)
-#define CUDA_CALL(code)                 \
-  do {                                  \
-    using CUDA_TYPE = decltype(code);   \
-    CUDA_TYPE status = code;            \
-    dali::cudaResultCheck<CUDA_TYPE>(status); \
-  } while (0)
-
-#endif  // DALI_UTIL_CUDA_UTILS_H_
+#endif  // DALI_CORE_CUDA_UTILS_H_

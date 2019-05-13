@@ -41,7 +41,7 @@ SOFTWARE.
 #include <mutex>
 #include <unordered_map>
 
-#include "dali/util/dynlink_cuda.h"
+#include "dali/core/dynlink_cuda.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 #include "dali/pipeline/operators/transpose/cutt/cuttplan.h"

@@ -11,11 +11,14 @@ file(GLOB_RECURSE LINT_INC "${DALI_INC_DIR}/*.h" "${DALI_INC_DIR}/*.cuh" "${DALI
 
 # nvdecoder
 list(REMOVE_ITEM LINT_SRC
-    ${DALI_SRC_DIR}/util/dynlink_cuda.h
-    ${DALI_SRC_DIR}/util/dynlink_cuda.cc
+    ${DALI_SRC_DIR}/core/dynlink_cuda.cc
     ${DALI_SRC_DIR}/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h
     ${DALI_SRC_DIR}/pipeline/operators/reader/nvdecoder/dynlink_cuviddec.h
     ${DALI_SRC_DIR}/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.cc
+)
+
+list(REMOVE_ITEM LINT_INC
+  ${DALI_INC_DIR}/core/dynlink_cuda.h
 )
 
 # cuTT
