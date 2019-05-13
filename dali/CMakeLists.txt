@@ -50,12 +50,7 @@ if (BUILD_PROTO3)
   list(APPEND DALI_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
 endif()
 
-set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
-if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
-  # In cmake 3.8.0 or lower, CUDA_LINK_LIBRARIES_KEYWORD is not available
-  # So this is a workaround to append PRIVATE in front of it
-  set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
-endif()
+
 cuda_add_library(${dali_operator_lib} STATIC ${DALI_OPERATOR_SRCS})
 target_link_libraries(${dali_operator_lib} PRIVATE "${dali_kernel_lib}" "${dali_core_lib}")
 

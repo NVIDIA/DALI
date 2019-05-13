@@ -19,6 +19,8 @@
 #define DALI_USE_STACKTRACE 1
 #endif  // _MSC_VER
 
+#include <fmt/core.h>
+
 #if DALI_USE_STACKTRACE
 #include <cxxabi.h>
 #include <execinfo.h>
@@ -31,6 +33,7 @@
 #include <iostream>
 
 #include "dali/core/common.h"
+
 
 namespace dali {
 
@@ -190,18 +193,15 @@ inline dali::string GetStacktrace() {
 #define ENFRC_1(code)                                                         \
   do {                                                                        \
     if (!(code)) {                                                            \
-      dali::string error = dali::string("Assert on \"") + #code +"\" failed"; \
-      DALI_FAIL(error);                                                       \
+      DALI_FAIL(fmt::format("Assert on {} failed.", #code));                  \
     }                                                                         \
   } while (0)
 
 #define ENFRC_2(code, str)                                                    \
   do {                                                                        \
     if (!(code)) {                                                            \
-      dali::string error = dali::string("Assert on \"") + #code +"\" failed"; \
       dali::string usr_str = str;                                             \
-      error += ": " + usr_str;                                                \
-      DALI_FAIL(error);                                                       \
+      DALI_FAIL(fmt::format("Assert on {} failed: {}", #code, usr_str));      \
     }                                                                         \
   } while (0)
 

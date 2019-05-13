@@ -87,6 +87,8 @@ if (BUILD_NVTX)
   add_definitions(-DDALI_USE_NVTX)
 endif()
 
+set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
+
 ##################################################################
 # libjpeg-turbo
 ##################################################################
@@ -217,3 +219,11 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/boost/preprocessor/include
 # RapidJSON
 ##################################################################
 include_directories(${PROJECT_SOURCE_DIR}/third_party/rapidjson/include)
+
+##################################################################
+# {fmt}
+##################################################################
+check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/fmt EXCLUDE_FROM_ALL)
+list(APPEND DALI_LIBS fmt::fmt)
+set_property(TARGET fmt PROPERTY POSITION_INDEPENDENT_CODE ON)
+include_directories($<TARGET_PROPERTY:fmt::fmt,INTERFACE_INCLUDE_DIRECTORIES>)
