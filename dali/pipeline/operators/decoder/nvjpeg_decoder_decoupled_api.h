@@ -28,6 +28,7 @@
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 
@@ -53,8 +54,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     device_buffer_(num_threads_),
     streams_(num_threads_),
     events_(num_threads_ * 2),
+    device_context_(std::make_shared<CUContext>(spec.GetArgument<int>("device_id"))),
     thread_pool_(num_threads_,
-                 spec.GetArgument<int>("device_id"),
+                 device_context_,
                  true /* pin threads */) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
 
@@ -103,6 +105,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   ~nvJPEGDecoder() noexcept override {
+    ContextGuard g(device_context_);
     try {
       thread_pool_.WaitForWork();
     } catch (...) {
@@ -363,6 +366,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<cudaEvent_t> events_;
 
   cudaEvent_t master_event_;
+
+  std::shared_ptr<CUContext> device_context_;
 
   ThreadPool thread_pool_;
 };

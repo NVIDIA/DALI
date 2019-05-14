@@ -69,6 +69,7 @@ class Tensor : public Buffer<Backend> {
                      [](void *) {});
     view.shares_data_ = true;
     view.device_ = device_;
+    view.device_context_ = device_context_;
     return view;
   }
 
@@ -104,6 +105,7 @@ class Tensor : public Buffer<Backend> {
   inline void Copy(const TensorList<InBackend> &other, int idx, cudaStream_t stream) {
     shape_ = other.tensor_shape(idx);
     device_ = other.device_id();
+    device_context_ = other.device_ctx()
     this->set_type(other.type());
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo(idx));
@@ -165,6 +167,7 @@ class Tensor : public Buffer<Backend> {
     num_bytes_ = type_.size() * size_;
     shares_data_ = true;
     device_ = tl->device_id();
+    device_context_ = tl->device_ctx();    
   }
 
   /**
@@ -193,6 +196,7 @@ class Tensor : public Buffer<Backend> {
     num_bytes_ = t->num_bytes_;
     shares_data_ = num_bytes_ > 0 ? true : false;
     device_ = t->device_id();
+    device_context_ = t->device_ctx();
   }
 
   /**
@@ -288,6 +292,7 @@ class Tensor : public Buffer<Backend> {
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
+    device_context_ = tl->device_ctx();
     shares_data_ = true;
   }
 

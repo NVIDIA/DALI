@@ -24,6 +24,7 @@
 
 #include "dali/core/common.h"
 #include "dali/error_handling.h"
+#include "dali/util/cucontext.h"
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
@@ -60,13 +61,13 @@ class WorkerThread {
  public:
   typedef std::function<void(void)> Work;
 
-  inline WorkerThread(int device_id, bool set_affinity) :
-    running_(true), work_complete_(true), barrier_(2) {
+  inline WorkerThread(std::shared_ptr<CUContext> device_context, bool set_affinity) :
+    running_(true), work_complete_(true), barrier_(2), device_context_(device_context) {
 #if NVML_ENABLED
     nvml::Init();
 #endif
     thread_ = std::thread(&WorkerThread::ThreadMain,
-        this, device_id, set_affinity);
+        this, set_affinity);
   }
 
   inline ~WorkerThread() {
@@ -147,9 +148,9 @@ class WorkerThread {
   }
 
  private:
-  void ThreadMain(int device_id, bool set_affinity) {
+  void ThreadMain(bool set_affinity) {
     try {
-      CUDA_CALL(cudaSetDevice(device_id));
+      ContextGuard g(device_context_);
       if (set_affinity) {
 #if NVML_ENABLED
         nvml::SetCPUAffinity();
@@ -213,6 +214,7 @@ class WorkerThread {
   std::queue<string> errors_;
 
   Barrier barrier_;
+  std::shared_ptr<CUContext> device_context_;
 };
 
 }  // namespace dali

@@ -27,6 +27,7 @@
 #include "dali/error_handling.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/core/util.h"
+#include "dali/util/cucontext.h"
 
 namespace dali {
 
@@ -75,7 +76,8 @@ class Buffer {
                     shares_data_(false),
                     num_bytes_(0),
                     pinned_(true),
-                    device_(-1)
+                    device_(-1),
+                    device_context_(-1)
     {}
 
   virtual ~Buffer() = default;
@@ -206,6 +208,14 @@ class Buffer {
   }
 
   /**
+   * @brief Returns a device context this buffer was allocated on
+   * If the backend is CPUBackend, return not intialized context
+   */
+  std::shared_ptr<CUContext> device_ctx() const {
+    return device_context_;
+  }
+
+  /**
    * @brief Sets the type of the buffer. If the buffer has not been
    * allocated because it does not yet have a type, the calling type
    * is taken to be the type of the data and the memory is allocated.
@@ -234,12 +244,15 @@ class Buffer {
     // re-allocating: get the device
     if (std::is_same<Backend, GPUBackend>::value) {
       CUDA_CALL(cudaGetDevice(&device_));
+    } else {
+      device_ = -1;
     }
+    device_context_ = std::make_shared<CUContext>(device_);
 
     data_.reset();
     data_.reset(
       Backend::New(new_num_bytes, pinned_),
-      std::bind(FreeMemory, std::placeholders::_1, new_num_bytes, device_, pinned_));
+      std::bind(FreeMemory, std::placeholders::_1, new_num_bytes, device_context_, pinned_));
 
     num_bytes_ = new_num_bytes;
 
@@ -260,20 +273,10 @@ class Buffer {
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
  protected:
-  static void FreeMemory(void *ptr, size_t bytes, int device, bool pinned) {
-    // change to correct device for deletion
-    // Note: Can't use device guard due to potentially not GPUBackend.
-    int current_device = 0;
-    if (std::is_same<Backend, GPUBackend>::value) {
-      CUDA_CALL(cudaGetDevice(&current_device));
-      CUDA_CALL(cudaSetDevice(device));
-    }
+  static void FreeMemory(void *ptr, size_t bytes, std::shared_ptr<CUContext> device_context, bool pinned) {
+    // if this is not the GPU backend then device_context is empty and ContextGuard is noop
+    ContextGuard g(device_context);
     Backend::Delete(ptr, bytes, pinned);
-
-    // reset to original calling device for consistency
-    if (std::is_same<Backend, GPUBackend>::value) {
-      CUDA_CALL(cudaSetDevice(current_device));
-    }
   }
 
   // Helper to resize the underlying allocation
@@ -322,6 +325,9 @@ class Buffer {
 
   // device the buffer was allocated on
   int device_;
+
+  // context for the device
+  std::shared_ptr<CUContext> device_context_;
 };
 
 // Macro so we don't have to list these in all
@@ -334,7 +340,8 @@ class Buffer {
   using Buffer<Backend>::size_;                 \
   using Buffer<Backend>::shares_data_;          \
   using Buffer<Backend>::num_bytes_;            \
-  using Buffer<Backend>::device_
+  using Buffer<Backend>::device_                \
+  using Buffer<Backend>::device_context_ 
 
 }  // namespace dali
 

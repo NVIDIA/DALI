@@ -21,7 +21,8 @@
 
 namespace dali {
 
-ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity)
+ThreadPool::ThreadPool(int num_thread, std::shared_ptr<CUContext> device_context,
+                       bool set_affinity)
   : threads_(num_thread),
     running_(true),
     work_complete_(true),
@@ -34,7 +35,7 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity)
   for (int i = 0; i < num_thread; ++i) {
       threads_[i] = std::thread(
           std::bind(&ThreadPool::ThreadMain,
-                    this, i, device_id, set_affinity));
+                    this, i, device_context, set_affinity));
   }
   tl_errors_.resize(num_thread);
 }
@@ -90,9 +91,10 @@ int ThreadPool::size() const {
   return threads_.size();
 }
 
-void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
+void ThreadPool::ThreadMain(int thread_id, std::shared_ptr<CUContext> device_context,
+                            bool set_affinity) {
   try {
-    CUDA_CALL(cudaSetDevice(device_id));
+    ContextGuard g(device_context);
 #if NVML_ENABLED
     if (set_affinity) {
       const char * env_affinity = std::getenv("DALI_AFFINITY_MASK");

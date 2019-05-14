@@ -164,6 +164,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     type_ = other->type_;
     num_bytes_ = other->num_bytes_;
     device_ = other->device_;
+    device_context_ = other->device_context_;
 
     // Tensor view of this TensorList is no longer valid
     if (tensor_view_) {
@@ -200,6 +201,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     shape_.clear();
     offsets_.clear();
     size_ = 0;
+    device_ = -1;
+    device_context_ = std::make_shared<CUContext>(device_);
 
     // Tensor view of this TensorList is no longer valid
     if (tensor_view_) {

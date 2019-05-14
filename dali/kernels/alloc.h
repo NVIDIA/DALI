@@ -26,7 +26,7 @@ namespace kernels {
 namespace memory {
 
 void *Allocate(AllocType type, size_t size) noexcept;
-void Deallocate(AllocType type, void *mem, std::shared_ptr<CUContext> &ctx) noexcept;
+void Deallocate(AllocType type, void *mem, std::shared_ptr<CUContext> &device_context) noexcept;
 
 struct Deleter {
   std::shared_ptr<CUContext> device_context_;

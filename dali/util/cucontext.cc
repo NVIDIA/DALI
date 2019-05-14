@@ -24,6 +24,10 @@ CUContext::CUContext() : context_{0}, initialized_{false} {
 
 CUContext::CUContext(int device_id, unsigned int flags)
     : device_{0}, device_id_{-1}, context_{0}, initialized_{false} {
+  // for invalid device create empty context
+  if (device_id == -1) {
+    return;
+  }
   DALI_ENFORCE(cuInitChecked(),
     "Failed to load libcuda.so. "
     "Check your library paths and if the driver is installed correctly.");
@@ -81,10 +85,6 @@ bool CUContext::push() const {
 void CUContext::pop() const {
   CUcontext new_ctx;
   CUDA_CALL(cuCtxPopCurrent(&new_ctx));
-}
-
-bool CUContext::initialized() const {
-  return initialized_;
 }
 
 CUContext::operator CUcontext() const {

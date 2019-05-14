@@ -24,6 +24,7 @@
 #include <vector>
 #include <string>
 #include "dali/core/common.h"
+#include "dali/util/cucontext.h"
 
 
 namespace dali {
@@ -33,7 +34,8 @@ class DLL_PUBLIC ThreadPool {
   // Basic unit of work that our threads do
   typedef std::function<void(int)> Work;
 
-  DLL_PUBLIC ThreadPool(int num_thread, int device_id, bool set_affinity);
+  DLL_PUBLIC ThreadPool(int num_thread, std::shared_ptr<CUContext> device_context,
+                        bool set_affinity);
 
   DLL_PUBLIC ~ThreadPool();
 
@@ -47,7 +49,8 @@ class DLL_PUBLIC ThreadPool {
   DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
 
  private:
-  DLL_PUBLIC void ThreadMain(int thread_id, int device_id, bool set_affinity);
+  DLL_PUBLIC void ThreadMain(int thread_id, std::shared_ptr<CUContext> device_context,
+                             bool set_affinity);
 
   vector<std::thread> threads_;
   std::queue<Work> work_queue_;

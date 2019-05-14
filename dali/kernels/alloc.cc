@@ -27,8 +27,8 @@ struct Allocator;
 
 template <>
 struct Allocator<AllocType::Host> {
-  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &ctx) noexcept {
-    (void)ctx;
+  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &device_context) noexcept {
+    (void)device_context;
     free(ptr);
   }
 
@@ -37,8 +37,8 @@ struct Allocator<AllocType::Host> {
 
 template <>
 struct Allocator<AllocType::Pinned> {
-  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &ctx) noexcept {
-    ContextGuard guard(ctx);
+  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &device_context) noexcept {
+    ContextGuard guard(device_context);
     cudaFreeHost(ptr);
   }
 
@@ -51,8 +51,8 @@ struct Allocator<AllocType::Pinned> {
 
 template <>
 struct Allocator<AllocType::GPU> {
-  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &ctx) noexcept {
-    ContextGuard guard(ctx);
+  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &device_context) noexcept {
+    ContextGuard guard(device_context);
     cudaFree(ptr);
   }
 
@@ -66,8 +66,8 @@ struct Allocator<AllocType::GPU> {
 
 template <>
 struct Allocator<AllocType::Unified> {
-  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &ctx) noexcept {
-    ContextGuard guard(ctx);
+  static void Deallocate(void *ptr, std::shared_ptr<CUContext> &device_context) noexcept {
+    ContextGuard guard(device_context);
     cudaFree(ptr);
   }
 
@@ -87,10 +87,10 @@ void *Allocate(AllocType type, size_t size) noexcept {
   );  // NOLINT
 }
 
-void Deallocate(AllocType type, void *mem, std::shared_ptr<CUContext> &ctx) noexcept {
+void Deallocate(AllocType type, void *mem, std::shared_ptr<CUContext> &device_context) noexcept {
   VALUE_SWITCH(type, type_label,
     (AllocType::Host, AllocType::Pinned, AllocType::GPU, AllocType::Unified),
-    (return Allocator<type_label>::Deallocate(mem, ctx)),
+    (return Allocator<type_label>::Deallocate(mem, device_context)),
     (assert(!"Invalid allocation type requested");)
   );  // NOLINT
 }

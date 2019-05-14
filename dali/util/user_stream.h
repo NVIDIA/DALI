@@ -23,6 +23,7 @@
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/error_handling.h"
+#include "dali/util/cucontext.h"
 
 // This file contains utilities helping inspection and interaction with DALI GPU buffers
 // without forcing synchronization of all pipelines.
@@ -40,57 +41,62 @@ class DLL_PUBLIC UserStream {
     return us_;
   }
 
+  //ToDo GetStream
   DLL_PUBLIC cudaStream_t GetStream(const dali::Buffer<GPUBackend> &b) {
-    size_t dev = GetDeviceForBuffer(b);
+    auto dev_pair = GetDevicePairForBuffer(b);
     std::lock_guard<std::mutex> lock(m_);
-    auto it = streams_.find(dev);
+    auto it = streams_.find(dev_pair.first);
     if (it != streams_.end()) {
       return it->second;
     } else {
+      ContextGuard g(dev_pair.second);
       constexpr int kDefaultStreamPriority = 0;
-      CUDA_CALL(cudaStreamCreateWithPriority(&streams_[dev], cudaStreamNonBlocking,
+      CUDA_CALL(cudaStreamCreateWithPriority(&streams_[dev_pair.first], cudaStreamNonBlocking,
                                              kDefaultStreamPriority));
-      return streams_.at(dev);
+      return streams_.at(dev_pair.first);
     }
   }
 
-  DLL_PUBLIC void WaitForDevice(const dali::Buffer<GPUBackend> &b) {
-    GetDeviceForBuffer(b);
-    // GetDeviceForBuffer sets proper current device
-    CUDA_CALL(cudaDeviceSynchronize());
-  }
+  // DLL_PUBLIC void WaitForDevice(const dali::Buffer<GPUBackend> &b) {
+  //   auto dev_pair = GetDevicePairForBuffer(b);
+  //   ContextGuard g(dev_pair.second);
+  //   // GetDevicePairForBuffer sets proper current device
+  //   CUDA_CALL(cudaDeviceSynchronize());
+  // }
 
-  DLL_PUBLIC void Wait(const dali::Buffer<GPUBackend> &b) {
-    size_t dev = GetDeviceForBuffer(b);
-    DALI_ENFORCE(streams_.find(dev) != streams_.end(),
-        "Can only wait on user streams");
-    CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
-  }
+  // DLL_PUBLIC void Wait(const dali::Buffer<GPUBackend> &b) {
+  //   auto dev_pair = GetDevicePairForBuffer(b);
+  //   DALI_ENFORCE(streams_.find(dev_pair.first) != streams_.end(),
+  //       "Can only wait on user streams");
+  //   ContextGuard g(dev_pair.second);
+  //   CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
+  // }
 
-  DLL_PUBLIC void Wait() {
-    int dev;
-    CUDA_CALL(cudaGetDevice(&dev));
-    DALI_ENFORCE(streams_.find(dev) != streams_.end(),
-        "Can only wait on user streams");
-    CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
-  }
+  // DLL_PUBLIC void Wait() {
+  //   int dev;
+  //   CUDA_CALL(cudaGetDevice(&dev));
+  //   DALI_ENFORCE(streams_.find(dev) != streams_.end(),
+  //       "Can only wait on user streams");
+  //   CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
+  // }
 
-  DLL_PUBLIC void WaitAll() {
-    for (const auto &dev_pair : streams_) {
-      CUDA_CALL(cudaSetDevice(dev_pair.first));
-      CUDA_CALL(cudaStreamSynchronize(dev_pair.second));
-    }
-  }
+  // DLL_PUBLIC void WaitAll() {
+  //   for (const auto &dev_pair : streams_) {
+  //     ContextGuard g(dev_pair.first.second);
+  //     CUDA_CALL(cudaSetDevice(dev_pair.first));
+  //     CUDA_CALL(cudaStreamSynchronize(dev_pair.second));
+  //   }
+  // }
 
  private:
   UserStream() {}
 
-  size_t GetDeviceForBuffer(const dali::Buffer<GPUBackend> &b) {
+  std::pair<size_t, std::shared_ptr<CUContext>>
+    GetDevicePairForBuffer(const dali::Buffer<GPUBackend> &b) {
     int dev = b.device_id();
     DALI_ENFORCE(dev != -1,
         "Used a pointer from unknown device");
-    CUDA_CALL(cudaSetDevice(dev));
-    return dev;
+    return std::make_pair(dev, b.device_ctx());
   }
 
   static std::mutex m_;

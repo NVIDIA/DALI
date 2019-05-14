@@ -37,7 +37,10 @@ class DLL_PUBLIC CUContext {
 
   DLL_PUBLIC bool push() const;
   DLL_PUBLIC void pop() const;
-  DLL_PUBLIC bool initialized() const;
+  DLL_PUBLIC bool initialized() const {
+    return initialized_;
+  }
+
  private:
   CUdevice device_;
   int device_id_;
@@ -47,16 +50,22 @@ class DLL_PUBLIC CUContext {
 
  /**
  * Simple RAII device handling:
- * Switch to new device on construction, back to old
- * device on destruction
+ * Switch to new context on construction, back to old
+ * context on destruction. Keeps increase ref count of
+ * shared ptr to context to make sure it exists during destruction
  */
 class DLL_PUBLIC ContextGuard {
  public:
-  DLL_PUBLIC explicit ContextGuard(std::shared_ptr<CUContext> ctx): cu_context_{ctx} {
-    revert_ = cu_context_->push();
+  DLL_PUBLIC explicit ContextGuard(std::shared_ptr<CUContext> ctx) :
+      revert_(false),
+      cu_context_{ctx} {
+    if (cu_context_->initialized()) {
+      revert_ = cu_context_->push();
+    }
   }
 
   DLL_PUBLIC ~ContextGuard() {
+    // if cu_context_ was not initialized then revert_ is false anyway
     if (revert_) {
       cu_context_->pop();
     }

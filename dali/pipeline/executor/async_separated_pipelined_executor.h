@@ -40,9 +40,9 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
       : SeparatedPipelinedExecutor(batch_size, num_thread, device_id, device_context,
                                    bytes_per_sample_hint, set_affinity, max_num_stream,
                                    default_cuda_stream_priority, prefetch_queue_depth),
-        cpu_thread_(device_id, set_affinity),
-        mixed_thread_(device_id, set_affinity),
-        gpu_thread_(device_id, set_affinity),
+        cpu_thread_(device_context, set_affinity),
+        mixed_thread_(device_context, set_affinity),
+        gpu_thread_(device_context, set_affinity),
         device_id_(device_id) {}
 
   DLL_PUBLIC ~AsyncSeparatedPipelinedExecutor() override {

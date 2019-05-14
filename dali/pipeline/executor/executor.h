@@ -94,7 +94,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         callback_(nullptr),
         stream_pool_(max_num_stream, true, default_cuda_stream_priority),
         event_pool_(max_num_stream),
-        thread_pool_(num_thread, device_id, set_affinity),
+        thread_pool_(num_thread, device_context_, set_affinity),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
