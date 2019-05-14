@@ -22,9 +22,12 @@ void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   auto &output = ws->Output<CPUBackend>(idx);
   cudaStream_t stream = ws->has_stream() ? ws->stream() : 0;
   if (data_in_tl_) {
+    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(tl_data_.ntensor()),
+      "Data list provided to ExternalSource needs to have batch_size length.");
     output.Copy(tl_data_, ws->data_idx(), stream);
   } else {
-    DALI_ENFORCE_VALID_INDEX(ws->data_idx(), t_data_.size());
+    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(t_data_.size()),
+      "Data list provided to ExternalSource needs to have batch_size length.");
     auto &data = t_data_[ws->data_idx()];
     output.Copy(data, stream);
   }

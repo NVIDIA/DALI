@@ -51,6 +51,8 @@ class ExternalSource : public Operator<Backend> {
    * on the next iteration.
    */
   inline void SetDataSource(const TensorList<Backend> &tl) {
+    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(tl.ntensor()),
+      "Data list provided to ExternalSource needs to have batch_size length.");
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.
@@ -66,6 +68,8 @@ class ExternalSource : public Operator<Backend> {
    * on the next iteration.
    */
   inline void SetDataSource(const vector<Tensor<Backend>> &t) {
+    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(t.size()),
+      "Data list provided to ExternalSource needs to have batch_size length.");
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
     // pass anything as it is ignored.

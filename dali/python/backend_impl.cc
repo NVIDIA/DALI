@@ -99,7 +99,7 @@ void ExposeTensor(py::module &m) { // NOLINT
   py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
-              "buffer info for tensor w/ invalid type.");
+            "buffer info for tensor w/ invalid type.");
 
           std::vector<ssize_t> shape(t.ndim()), stride(t.ndim());
           size_t dim_prod = 1;
@@ -125,6 +125,10 @@ void ExposeTensor(py::module &m) { // NOLINT
           std::vector<Index> i_shape;
           for (auto &dim : info.shape) {
             i_shape.push_back(dim);
+          }
+          // scalar
+          if (info.shape.size() == 0) {
+            i_shape.push_back(1);
           }
           size_t bytes = volume(i_shape) * info.itemsize;
 
@@ -711,6 +715,8 @@ PYBIND11_MODULE(backend_impl, m) {
           // instead, we cast to a reference type and manually
           // move into the vector.
           vector<Tensor<CPUBackend>> tensors(list.size());
+          DALI_ENFORCE(p->batch_size() == static_cast<int>(list.size()),
+             "Data list provided to feed_input needs to have batch_size length.");
           for (size_t i = 0; i < list.size(); ++i) {
             tensors[i] = std::move(list[i].cast<Tensor<CPUBackend>&>());
           }

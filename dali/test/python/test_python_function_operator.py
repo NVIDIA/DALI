@@ -16,8 +16,10 @@ def resize(image):
     res = transforms.Resize((300, 300))
     return numpy.array(res(Image.fromarray(image)))
 
+
 def Rotate(image):
     return numpy.rot90(image)
+
 
 class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, _seed, image_dir):
@@ -72,6 +74,7 @@ class FlippingPipeline(CommonPipeline):
 def random_seed():
     return int(random.random() * (1 << 32))
 
+
 class RotatePipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
         super(RotatePipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
@@ -80,6 +83,7 @@ class RotatePipeline(CommonPipeline):
         images, labels = self.load()
         rotate=self.rotate(images)
         return rotate
+
 
 DEVICE_ID = 0
 BATCH_SIZE = 8
@@ -141,6 +145,7 @@ def test_python_operator_flip():
         for i in range(len(numpy_output)):
             assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
 
+
 def test_python_operator_rotate():
     dali_rotate = RotatePipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
     numpy_rotate = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Rotate)
@@ -151,3 +156,4 @@ def test_python_operator_rotate():
         dali_output, = dali_rotate.run()
         for i in range(len(numpy_output)):
             assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
+
