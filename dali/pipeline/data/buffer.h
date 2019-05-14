@@ -77,7 +77,7 @@ class Buffer {
                     num_bytes_(0),
                     pinned_(true),
                     device_(-1),
-                    device_context_(-1)
+                    device_context_(std::make_shared<CUContext>(-1))
     {}
 
   virtual ~Buffer() = default;
@@ -340,7 +340,7 @@ class Buffer {
   using Buffer<Backend>::size_;                 \
   using Buffer<Backend>::shares_data_;          \
   using Buffer<Backend>::num_bytes_;            \
-  using Buffer<Backend>::device_                \
+  using Buffer<Backend>::device_;               \
   using Buffer<Backend>::device_context_ 
 
 }  // namespace dali

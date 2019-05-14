@@ -105,7 +105,7 @@ class Tensor : public Buffer<Backend> {
   inline void Copy(const TensorList<InBackend> &other, int idx, cudaStream_t stream) {
     shape_ = other.tensor_shape(idx);
     device_ = other.device_id();
-    device_context_ = other.device_ctx()
+    device_context_ = other.device_ctx();
     this->set_type(other.type());
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo(idx));

@@ -385,7 +385,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
           ret->Copy(t, s);
-          CUDA_CALL(cudaStreamSynchronize(s));
+          us->Wait(t);
           return ret;
         },
       R"code(

@@ -64,13 +64,13 @@ class DLL_PUBLIC UserStream {
   //   CUDA_CALL(cudaDeviceSynchronize());
   // }
 
-  // DLL_PUBLIC void Wait(const dali::Buffer<GPUBackend> &b) {
-  //   auto dev_pair = GetDevicePairForBuffer(b);
-  //   DALI_ENFORCE(streams_.find(dev_pair.first) != streams_.end(),
-  //       "Can only wait on user streams");
-  //   ContextGuard g(dev_pair.second);
-  //   CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
-  // }
+  DLL_PUBLIC void Wait(const dali::Buffer<GPUBackend> &b) {
+    auto dev_pair = GetDevicePairForBuffer(b);
+    DALI_ENFORCE(streams_.find(dev_pair.first) != streams_.end(),
+        "Can only wait on user streams");
+    ContextGuard g(dev_pair.second);
+    CUDA_CALL(cudaStreamSynchronize(streams_[dev_pair.first]));
+  }
 
   // DLL_PUBLIC void Wait() {
   //   int dev;

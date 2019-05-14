@@ -17,7 +17,6 @@
 
 #include "dali/plugin/copy.h"
 #include "dali/error_handling.h"
-#include "dali/util/user_stream.h"
 #include "dali/util/cucontext.h"
 
 namespace dali {
