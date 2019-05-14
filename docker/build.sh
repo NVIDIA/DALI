@@ -1,12 +1,13 @@
 #!/bin/bash -xe
 #########Set Me###############
-export PYVER=${PYVER:-2.7}
+export PYVER=${PYVER:-3.5}
 export PYV=${PYVER/./}
 export CUDA_VERSION=${CUDA_VERSION:-10}
 export NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-12345}
 export CREATE_WHL=${CREATE_WHL:-YES}
 export CREATE_RUNNER=${CREATE_RUNNER:-NO}
 export DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}
+export BUILD_TYPE=${BUILD_TYPE:-Release}
 #################################
 export DEPS_IMAGE=dali_cu${CUDA_VERSION}.deps
 export BUILDER=dali_${PYV}_cu${CUDA_VERSION}.build
@@ -35,7 +36,8 @@ pushd ../
 docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=manylinux3_x86_64 --build-arg "USE_CUDA_VERSION=${CUDA_VERSION}" -f Dockerfile.deps .
 echo "Build image:" ${BUILDER}
 docker build -t ${BUILDER} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
-                           --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" .
+                           --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
+                           --build-arg "CMAKE_BUILD_TYPE=${BUILD_TYPE}" .
 
 if [ "$CREATE_RUNNER" = "YES" ]; then
     echo "Runner image:" ${RUN_IMG}
