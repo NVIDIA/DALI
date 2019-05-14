@@ -92,10 +92,11 @@ void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments arg
     auto size =
         output_d->tensor_shape(i)[0] * output_d->tensor_shape(i)[1] * output_d->tensor_shape(i)[2];
     auto out_tensor = output_d->raw_tensor(i);
-    if (output_d->GetLayout() == DALI_NHWC)
+    if (output_d->GetLayout() == DALI_NHWC) {
       ASSERT_EQ(std::memcmp(out_tensor, &data_nhwc[_horizontal][_vertical], size * item_size), 0);
-    else if (output_d->GetLayout() == DALI_NCHW)
+    } else if (output_d->GetLayout() == DALI_NCHW) {
       ASSERT_EQ(std::memcmp(out_tensor, &data_nchw[_horizontal][_vertical], size * item_size), 0);
+    }
   }
 }
 
