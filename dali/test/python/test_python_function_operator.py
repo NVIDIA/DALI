@@ -19,6 +19,10 @@ def resize(image):
 def Rotate(image):
     return numpy.rot90(image)
 
+def Rotate(image):
+    return numpy.rot90(image)
+
+
 class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, _seed, image_dir):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id, seed=_seed, exec_async=False,
@@ -80,6 +84,16 @@ class RotatePipeline(CommonPipeline):
         images, labels = self.load()
         rotate=self.rotate(images)
         return rotate
+
+class RotatePipeline(CommonPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
+        super(RotatePipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
+        self.rotate=ops.Rotate(angle=90.0)
+    def define_graph(self):
+        images, labels = self.load()
+        rotate=self.rotate(images)
+        return rotate
+
 
 DEVICE_ID = 0
 BATCH_SIZE = 8
