@@ -18,6 +18,7 @@
 #include "dali/util/nvml.h"
 #endif
 #include "dali/core/cuda_utils.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 
@@ -91,8 +92,8 @@ int ThreadPool::size() const {
 }
 
 void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
+  DeviceGuard g(device_id);
   try {
-    CUDA_CALL(cudaSetDevice(device_id));
 #if NVML_ENABLED
     if (set_affinity) {
       const char * env_affinity = std::getenv("DALI_AFFINITY_MASK");

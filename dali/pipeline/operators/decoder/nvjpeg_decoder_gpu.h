@@ -22,6 +22,7 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
 #include "dali/util/ocv.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 
@@ -31,7 +32,8 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
  public:
   explicit nvJPEGDecoderGPUStage(const OpSpec& spec) :
     Operator<MixedBackend>(spec),
-    output_image_type_(spec.GetArgument<DALIImageType>("output_type")) {
+    output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
+    device_id_(spec.GetArgument<int>("device_id")) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
 
     NVJPEG_CALL(nvjpegDecoderCreate(handle_, NVJPEG_BACKEND_HYBRID, &decoder_host_));
@@ -47,6 +49,7 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
   }
 
   ~nvJPEGDecoderGPUStage() noexcept(false) {
+    DeviceGuard g(device_id_);
     NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
     NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
@@ -157,6 +160,8 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
   nvjpegJpegDecoder_t decoder_hybrid_;
 
   nvjpegBufferDevice_t device_buffer_;
+
+  int device_id_;
 };
 
 
