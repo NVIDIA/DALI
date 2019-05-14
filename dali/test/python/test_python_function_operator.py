@@ -130,3 +130,14 @@ def test_python_operator_flip():
         dali_output, = dali_flip.run()
         for i in range(len(numpy_output)):
             assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
+
+def invalid_function(image):
+    return img
+
+def test_python_operator_invalid_function():
+    invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, invalid_function)
+    invalid_pipe.build()
+    try:
+        invalid_pipe.run()
+    except Exception as e:
+        print(e)
