@@ -17,7 +17,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/types.h>
-#if !defined(__AARCH64_QNX__) && !defined(__AARCH64_GNU__)
+#if !defined(__AARCH64_GNU__)
 #include <linux/sysctl.h>
 #include <sys/syscall.h>
 #endif
@@ -39,7 +39,7 @@ static int _sysctl(struct __sysctl_args *args);
 
 static int get_max_vm_cnt() {
   int vm_cnt = 1;
-#if !defined(__AARCH64_QNX__) && !defined(__AARCH64_GNU__)
+#if !defined(__AARCH64_GNU__)
   size_t vm_cnt_sz;
   int name[] = { CTL_VM, VM_MAX_MAP_COUNT };
   struct __sysctl_args args = {0, };
@@ -69,7 +69,7 @@ static void *file_map(const char *path, size_t *length, bool read_ahead) {
   void *p = nullptr;
   int flags = MAP_PRIVATE;
   if (read_ahead) {
-#if !defined(__AARCH64_QNX__) && !defined(__AARCH64_GNU__)
+#if !defined(__AARCH64_GNU__)
     flags |= MAP_POPULATE;
 #endif
   }
@@ -152,7 +152,7 @@ inline uint8_t* ReadAheadHelper(std::shared_ptr<void> &p, size_t &pos,
   // Ask OS to load memory content to RAM to avoid sluggish page fault during actual access to
   // mmaped memory
   if (read_ahead) {
-#if !defined(__AARCH64_QNX__) && !defined(__AARCH64_GNU__)
+#if !defined(__AARCH64_GNU__)
     madvise(tmp, n_bytes, MADV_WILLNEED);
 #endif
   }
