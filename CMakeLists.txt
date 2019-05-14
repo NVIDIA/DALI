@@ -51,7 +51,7 @@ get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 # Default to release build
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING
-    "Build type from [Debug, Release]. For perf testing, build Release" FORCE)
+    "Build type from [Debug, DevDebug, Release, RelWithDebInfo]. For perf testing, build Release" FORCE)
 endif()
 message(STATUS "Build configuration: " ${CMAKE_BUILD_TYPE})
 
