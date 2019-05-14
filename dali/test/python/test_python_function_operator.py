@@ -142,7 +142,7 @@ def test_python_operator_flip():
             assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
 
 def test_python_operator_rotate():
-    dali_rotate = RotategPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    dali_rotate = RotatePipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
     numpy_rotate = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Rotate)
     dali_rotate.build()
     numpy_rotate.build()
