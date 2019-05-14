@@ -14,7 +14,7 @@
 
 #include <dlfcn.h>
 #include "dali/plugin/plugin_manager.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 

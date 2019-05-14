@@ -15,7 +15,7 @@
 #include <signal.h>
 #include <cstring>
 #include "dali/pipeline/init.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/data/backend.h"
 
 namespace dali {

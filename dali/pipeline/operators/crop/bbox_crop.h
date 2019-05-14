@@ -22,7 +22,7 @@
 #include <tuple>
 
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/util/bounding_box.h"

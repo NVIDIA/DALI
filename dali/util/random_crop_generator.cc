@@ -15,7 +15,7 @@
 #include <cmath>
 #include <utility>
 #include "dali/util/random_crop_generator.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 

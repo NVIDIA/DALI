@@ -120,6 +120,7 @@ if (BUILD_TEST)
     "${dali_kernel_test_lib}"
     "${DALI_LIBS}"
     "${dali_lib}"
+    "${dali_core_lib}"
     "gtest")
 
   set_target_properties(${test_main_bin} PROPERTIES

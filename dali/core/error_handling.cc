@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 
@@ -41,7 +41,7 @@ void DALIAppendToLastError(string error_str) {
 void DALIReportFatalProblem(const char *file, int lineNumb, const char *pComment) {
   dali::string line = std::to_string(lineNumb);
   dali::string error_str = "[" + dali::string(file) + ":" + line + "] " + pComment;
-  throw std::runtime_error(error_str);
+  throw DALIException(error_str);
 }
 
 

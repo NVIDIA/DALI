@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/util/cast.h"
-#include "dali/error_handling.h"
-#include "dali/util/cuda_utils.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
 

@@ -29,7 +29,7 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/util/device_guard.h"
+#include "dali/core/device_guard.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"

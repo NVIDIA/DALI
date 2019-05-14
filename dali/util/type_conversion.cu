@@ -14,7 +14,7 @@
 
 #include <cmath>
 #include "dali/util/type_conversion.h"
-#include "dali/util/cuda_utils.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
 

@@ -22,7 +22,7 @@
 #include <memory>
 
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operators/operator_factory.h"

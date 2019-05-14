@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_READER_NVDECODER_CUVIDEODECODER_H_
 
 #include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 

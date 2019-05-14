@@ -17,7 +17,7 @@
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
-#include "dali/util/cuda_utils.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
 
@@ -111,9 +111,9 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
       nvml::SetCPUAffinity(core);
     }
 #endif
-  } catch(std::runtime_error &e) {
+  } catch (std::exception &e) {
     tl_errors_[thread_id].push(e.what());
-  } catch(...) {
+  } catch (...) {
     tl_errors_[thread_id].push("Caught unknown exception");
   }
 
@@ -138,11 +138,11 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
     // in the threads and return an error if one occured.
     try {
       work(thread_id);
-    } catch(std::runtime_error &e) {
+    } catch (std::exception &e) {
       lock.lock();
       tl_errors_[thread_id].push(e.what());
       lock.unlock();
-    } catch(...) {
+    } catch (...) {
       lock.lock();
       tl_errors_[thread_id].push("Caught unknown exception");
       lock.unlock();

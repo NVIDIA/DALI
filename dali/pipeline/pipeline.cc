@@ -27,7 +27,7 @@
 
 #include "dali/pipeline/operators/argument.h"
 #include "dali/pipeline/operators/common.h"
-#include "dali/util/device_guard.h"
+#include "dali/core/device_guard.h"
 #include "dali/pipeline/dali.pb.h"
 
 namespace dali {
@@ -348,7 +348,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
     PrepareOpSpec(&op_spec);
     try {
       graph_.AddOp(op_spec, inst_name);
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       throw std::runtime_error("Critical error in pipeline: "
           + std::string(e.what())
           + "\nCurrent pipeline object is no longer valid.");
@@ -445,7 +445,7 @@ void Pipeline::Outputs(DeviceWorkspace *ws) {
       "\"Build()\" must be called prior to executing the pipeline.");
     try {
       executor_->Outputs(ws);
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       throw std::runtime_error("Critical error in pipeline: "
           + std::string(e.what())
           + "\nCurrent pipeline object is no longer valid.");
@@ -459,7 +459,7 @@ void Pipeline::ShareOutputs(DeviceWorkspace *ws) {
       "\"Build()\" must be called prior to executing the pipeline.");
     try {
       executor_->ShareOutputs(ws);
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       throw std::runtime_error("Critical error in pipeline: "
           + std::string(e.what())
           + "\nCurrent pipeline object is no longer valid.");
@@ -473,7 +473,7 @@ void Pipeline::ReleaseOutputs() {
       "\"Build()\" must be called prior to executing the pipeline.");
     try {
       executor_->ReleaseOutputs();
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       throw std::runtime_error("Critical error in pipeline: "
           + std::string(e.what())
           + "\nCurrent pipeline object is no longer valid.");

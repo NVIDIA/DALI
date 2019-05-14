@@ -38,8 +38,8 @@ SOFTWARE.
 
 #include "dali/pipeline/operators/transpose/cutt/cuttGpuModelKernel.h"
 
-#include "dali/util/dynlink_cuda.h"
-#include "dali/util/cuda_utils.h"
+#include "dali/core/dynlink_cuda.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 
 #define RESTRICT //__restrict__
@@ -449,7 +449,7 @@ countPacked(
 
   // Reduce memStat within thread block and write result to global memory
   writeMemStat(warpLane, memStat, glMemStat);
-  
+
 }
 
 //
@@ -655,7 +655,7 @@ countTiledCopy(
     }
 
   }
-  
+
   // Reduce memStat within thread block and write result to global memory
   writeMemStat(warpLane, memStat, glMemStat);
 
@@ -667,7 +667,7 @@ countTiledCopy(
 
 void runCounters(const int warpSize, const int* hostPosData, const int numPosData,
   const int accWidth, const int cacheWidth, int* host_tran, int* host_cl_full, int* host_cl_part) {
-  
+
   const int numWarp = numPosData/warpSize;
 
   int* devPosData;

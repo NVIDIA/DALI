@@ -16,7 +16,7 @@
 #include <cassert>
 #include "dali/kernels/alloc.h"
 #include "dali/core/static_switch.h"
-#include "dali/core/gpu_utils.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 namespace kernels {

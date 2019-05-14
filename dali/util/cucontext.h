@@ -15,7 +15,7 @@
 #ifndef DALI_UTIL_CUCONTEXT_H_
 #define DALI_UTIL_CUCONTEXT_H_
 
-#include "dali/util/dynlink_cuda.h"
+#include "dali/core/dynlink_cuda.h"
 
 namespace dali {
 

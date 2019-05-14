@@ -16,7 +16,7 @@
 #include <tuple>
 #include <vector>
 #include <memory>
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/operators/decoder/host_decoder_crop.h"
 #include "dali/pipeline/operators/common.h"

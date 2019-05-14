@@ -42,8 +42,8 @@ SOFTWARE.
 #include <stdio.h>
 #include <cuda_runtime.h>
 
-#include "dali/util/cuda_utils.h"
-#include "dali/util/dynlink_cuda.h"
+#include "dali/core/cuda_utils.h"
+#include "dali/core/dynlink_cuda.h"
 
 // Need by warp-level primitives
 #define FULL_MASK 0xffffffff

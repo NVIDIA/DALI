@@ -16,9 +16,9 @@
 #include <cuda_runtime.h>
 
 #include "dali/plugin/copy.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/util/user_stream.h"
-#include "dali/util/device_guard.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 
