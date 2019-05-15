@@ -16,7 +16,7 @@
 #define DALI_CORE_ERROR_HANDLING_H_
 
 #ifndef _MSC_VER
-  #if defined(__AARCH64_GNU__)
+  #if defined(__AARCH64_QNX__) || defined(__AARCH64_GNU__)
      #define DALI_USE_STACKTRACE 0
   #else
      #define DALI_USE_STACKTRACE 1
