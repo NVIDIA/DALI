@@ -114,7 +114,7 @@ RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | 
           -DINSTALL_C_EXAMPLES=OFF \
           -DINSTALL_TESTS=OFF \
           -DVIBRANTE=TRUE \
-          VERBOSE=1 ../  && \
+          VERBOSE=1 ../ && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /opencv-${OPENCV_VERSION}
 
