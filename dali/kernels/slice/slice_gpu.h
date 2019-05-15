@@ -74,7 +74,8 @@ class DLL_PUBLIC SliceGPU {
  public:
   SliceGPU() = default;
 
-  DLL_PUBLIC KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, Dims> &in,
+  DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
+                                      const InListGPU<InputType, Dims> &in,
                                       const std::vector<SliceArgs<Dims>> &slice_args) {
     KernelRequirements req;
 
@@ -101,7 +102,8 @@ class DLL_PUBLIC SliceGPU {
     return req;
   }
 
-  DLL_PUBLIC void Run(KernelContext &context, OutListGPU<OutputType, Dims> &out,
+  DLL_PUBLIC void Run(KernelContext &context,
+                      OutListGPU<OutputType, Dims> &out,
                       const InListGPU<InputType, Dims> &in,
                       const std::vector<SliceArgs<Dims>> &slice_args) {
     for (int i = 0; i < in.size(); i++) {
