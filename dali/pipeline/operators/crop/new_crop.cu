@@ -35,7 +35,6 @@ namespace detail {
     ctx.gpu.stream = stream;
     auto in_view = view<const InputType, D>(input);
 
-    // TODO(janton) : store slice_args instead of separated anchors, shape vectors
     std::vector<kernels::SliceArgs<D>> slice_args;
     slice_args.reserve(slice_anchors.size());
     for (std::size_t i = 0; i < slice_anchors.size(); i++) {
@@ -93,7 +92,7 @@ void NewCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
 }
 
 DALI_SCHEMA(NewCrop)
-    .DocStr(R"code(Crops image with a given window dimensions and window position (upper left corner))code")
+    .DocStr(R"code(Crops image with a given window dimensions and window position (upper left corner). **Experimental** Use `Crop` instead)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()

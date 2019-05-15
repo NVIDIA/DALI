@@ -17,6 +17,7 @@
 
 #include <cuda_runtime.h>
 #include <vector>
+#include <utility>
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/dev_array.h"
@@ -82,7 +83,8 @@ class DLL_PUBLIC SliceGPU {
     DALI_ENFORCE(slice_args.size() == static_cast<std::size_t>(in.size()),
       "Number of samples and size of slice arguments should match");
 
-    std::vector<TensorShape<Dims>> output_shapes;
+    TensorListShape<Dims> output_shapes;
+    output_shapes.resize(in.size(), Dims);
     for (int i = 0; i < in.size(); i++) {
       auto in_sample_shape = in.tensor_shape(i);
       TensorShape<Dims> out_sample_shape(slice_args[i].shape);
@@ -95,10 +97,9 @@ class DLL_PUBLIC SliceGPU {
           "] size[" + std::to_string(out_sample_shape[d]) + "] input dimension size[" +
           std::to_string(in_sample_shape[d]) + "]");
       }
-
-      output_shapes.push_back(out_sample_shape);
+      output_shapes.set_tensor_shape(i, out_sample_shape);
     }
-    req.output_shapes.push_back(TensorListShape<Dims>{output_shapes});
+    req.output_shapes.push_back(std::move(output_shapes));
     return req;
   }
 
@@ -111,8 +112,8 @@ class DLL_PUBLIC SliceGPU {
       const auto out_shape = out.tensor_shape(i);
       const auto &anchor = slice_args[i].anchor;
       const unsigned int total_size = volume(out_shape);
-      const unsigned int block = total_size < 1024 ? total_size : 1024;
-      const unsigned int grid = (total_size + block - 1) / block;
+      const unsigned int block = std::min(total_size, 1024u);
+      const unsigned int grid = div_ceil(total_size, block);
 
       SliceArgsDev<Dims> slice_args_dev;
       slice_args_dev.in_strides = GetStrides<Dims>(in_shape);

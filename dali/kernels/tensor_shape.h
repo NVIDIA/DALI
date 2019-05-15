@@ -455,6 +455,17 @@ struct TensorListShapeBase {
     return out;
   }
 
+  /// @brief Set a TensorShape for `sample`
+  template <typename SampleShape>
+  void set_tensor_shape(int64_t sample, const SampleShape &sample_shape) {
+    detail::check_compatible_ndim<sample_ndim, compile_time_size<SampleShape>::value>();
+    assert(size(sample_shape) == sample_dim());
+    int64_t base = sample_dim() * sample;
+    for (int i = 0; i < sample_dim(); i++) {
+      shapes[base + i] = sample_shape[i];
+    }
+  }
+
   std::vector<int64_t> shapes;
 
   decltype(shapes.data()) data() { return shapes.data(); }
@@ -559,6 +570,7 @@ struct TensorListShape<DynamicDimensions>
   TensorShape<DynamicDimensions> operator[](int64_t sample) const {
     return tensor_shape<DynamicDimensions>(sample);
   }
+
   int sample_dim() const { return dim; }
   int size() const { return shapes.size() / sample_dim(); }
   void set_sample_dim(int dim) { this->dim = dim; }
