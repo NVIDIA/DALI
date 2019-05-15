@@ -18,7 +18,7 @@
 #include <string>
 #include <utility>
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/data/tensor.h"
 
 namespace dali {

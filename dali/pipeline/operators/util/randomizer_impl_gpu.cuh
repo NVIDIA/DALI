@@ -20,7 +20,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-#include "dali/util/device_guard.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 

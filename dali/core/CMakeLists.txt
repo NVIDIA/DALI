@@ -15,6 +15,10 @@
 # Get all the source files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_CORE_SRCS)
+list(REMOVE_ITEM DALI_CORE_SRCS dynlink_cuda.cc)
 collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
 
+cuda_add_library(dynlink_cuda STATIC dynlink_cuda.cc)
+
 cuda_add_library(${dali_core_lib} STATIC ${DALI_CORE_SRCS})
+target_link_libraries(${dali_core_lib} dynlink_cuda)

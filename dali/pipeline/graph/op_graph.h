@@ -25,7 +25,7 @@
 #include <set>
 
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {

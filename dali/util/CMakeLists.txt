@@ -15,10 +15,7 @@
 set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/crop_window.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/cucontext.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/cuda_utils.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/custream.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/device_guard.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/dynlink_cuda.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/file.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/image.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/local_file.h"
@@ -32,7 +29,6 @@ set(DALI_INST_HDRS ${DALI_INST_HDRS}
 set(DALI_SRCS ${DALI_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/cucontext.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/custream.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/dynlink_cuda.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/file.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/image.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/local_file.cc"

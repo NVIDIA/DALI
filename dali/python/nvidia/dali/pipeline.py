@@ -244,6 +244,8 @@ class Pipeline(object):
                 .format(type(ref).__name__)
             )
         if isinstance(data, list):
+            if self._batch_size != len(data):
+                raise RuntimeError("Data list provided to feed_input needs to have batch_size length")
             inputs = []
             for datum in data:
                 inputs.append(Edge.TensorCPU(datum))

@@ -26,7 +26,7 @@
 #include "dali/kernels/test/mat2tensor.h"
 #include "dali/pipeline/operators/optical_flow/turing_of/optical_flow_turing.h"
 #include "dali/test/dali_test_config.h"
-#include "dali/util/cuda_utils.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
 namespace optical_flow {

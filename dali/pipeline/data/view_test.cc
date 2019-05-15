@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include "dali/pipeline/data/views.h"
 
-#define EXPECT_ENFORCE_FAIL(statement) EXPECT_THROW(statement, std::runtime_error)
+#define EXPECT_ENFORCE_FAIL(statement) EXPECT_THROW(statement, DALIException)
 
 namespace dali {
 

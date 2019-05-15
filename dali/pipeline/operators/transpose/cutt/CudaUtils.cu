@@ -44,7 +44,7 @@ SOFTWARE.
 
 #include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 //----------------------------------------------------------------------------------------
 
@@ -72,7 +72,7 @@ void allocate_device_T(void **pp, const size_t len, const size_t sizeofT) {
 // pp = memory pointer
 //
 void deallocate_device_T(void **pp) {
-  
+
   if (*pp != NULL) {
     CUDA_CALL(cudaFree((void *)(*pp)));
     *pp = NULL;

@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
 
 #include <sstream>
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/optical_flow/turing_of/utils.h"
 #include <nvOpticalFlowCuda.h>
 

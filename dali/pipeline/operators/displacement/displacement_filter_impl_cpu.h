@@ -38,15 +38,12 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
         interp_type_ == DALI_INTERP_NN || interp_type_ == DALI_INTERP_LINEAR,
         "Unsupported interpolation type, only NN and LINEAR are supported for "
         "this operation");
-    try {
-      fill_value_ = spec.GetArgument<float>("fill_value");
-    } catch (std::runtime_error e) {
-      try {
-        fill_value_ = spec.GetArgument<int>("fill_value");
-      } catch (std::runtime_error e) {
-        DALI_FAIL(
-            "Invalid type of argument \"fill_value\". Expected int or float");
+    if (!spec.TryGetArgument<float>(fill_value_, "fill_value")) {
+      int int_value = 0;
+      if (!spec.TryGetArgument<int>(int_value, "fill_value")) {
+        DALI_FAIL("Invalid type of argument \"fill_value\". Expected int or float");
       }
+      fill_value_ = int_value;
     }
   }
 

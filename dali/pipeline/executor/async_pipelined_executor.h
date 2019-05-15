@@ -17,7 +17,7 @@
 
 #include <string>
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/util/worker_thread.h"
 
@@ -80,13 +80,17 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
     CheckForErrors();
     try {
       PipelinedExecutor::Outputs(ws);
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       exec_error_ = true;
       mixed_work_cv_.notify_all();
       gpu_work_cv_.notify_all();
       SignalStop();
-      throw std::runtime_error(std::string(e.what()));
+      throw;
     } catch (...) {
+      exec_error_ = true;
+      mixed_work_cv_.notify_all();
+      gpu_work_cv_.notify_all();
+      SignalStop();
       throw std::runtime_error("Unknown critical error in pipeline");
     }
   }

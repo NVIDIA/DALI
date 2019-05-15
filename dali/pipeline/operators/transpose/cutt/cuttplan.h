@@ -43,7 +43,7 @@ SOFTWARE.
 #include <vector>
 #include <cuda_runtime_api.h>
 
-#include "dali/util/dynlink_cuda.h"
+#include "dali/core/dynlink_cuda.h"
 #include "dali/pipeline/operators/transpose/cutt/cuttTypes.h"
 
 const int TILEDIM = 32;
@@ -141,7 +141,7 @@ public:
 
   // Kernel launch configuration
   LaunchConfig launchConfig;
-  
+
   // Rank of the tensor
   int rank;
 

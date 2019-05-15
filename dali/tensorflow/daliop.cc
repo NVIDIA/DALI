@@ -41,7 +41,7 @@ namespace tf = tensorflow;
     do {                                                                           \
       try {                                                                        \
         FUNC;                                                                      \
-      } catch (std::runtime_error& e) {                                            \
+      } catch (std::exception &e) {                                            \
         std::string error = "DALI " + std::string(#FUNC)                           \
                             + " failed: " + std::string(e.what());                 \
         std::cout << error << std::endl;                                           \

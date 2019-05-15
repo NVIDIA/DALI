@@ -60,7 +60,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
     try {
       DALI_ENFORCE(example.ParseFromArray(raw_data, length),
           "Error in parsing - invalid TFRecord file!");
-    } catch(std::exception& e) {
+    } catch (std::exception& e) {
       std::string str = "Error while parsing TFRecord: " + std::string(e.what());
       DALI_FAIL(str);
     }

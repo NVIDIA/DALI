@@ -24,7 +24,7 @@
 #include "dali/pipeline/operators/reader/loader/file_loader.h"
 #include "dali/pipeline/operators/reader/parser/coco_parser.h"
 #include "dali/core/common.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 

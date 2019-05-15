@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/sequence/element_extract.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 

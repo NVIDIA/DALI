@@ -32,7 +32,7 @@ extern "C" {
 #include <vector>
 
 #include "dali/util/cucontext.h"
-#include "dali/util/dynlink_cuda.h"
+#include "dali/core/dynlink_cuda.h"
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"

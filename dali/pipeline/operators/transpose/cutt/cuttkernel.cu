@@ -40,8 +40,8 @@ SOFTWARE.
 
 #include <iostream>
 
-#include "dali/util/dynlink_cuda.h"
-#include "dali/util/cuda_utils.h"
+#include "dali/core/dynlink_cuda.h"
+#include "dali/core/cuda_utils.h"
 
 #include "dali/pipeline/operators/transpose/cutt/CudaUtils.h"
 #include "dali/pipeline/operators/transpose/cutt/LRUCache.h"
@@ -133,7 +133,7 @@ __global__ void transposeTiled(
     }
 
   }
-  
+
 }
 
 //
@@ -237,7 +237,7 @@ __global__ void transposePacked(
 
 
   }
-  
+
 }
 
 //
@@ -440,7 +440,7 @@ __global__ void transposeTiledCopy(
     }
 
   }
-  
+
 }
 //######################################################################################
 //######################################################################################
@@ -449,7 +449,7 @@ __global__ void transposeTiledCopy(
 //
 // Sets shared memory bank configuration for all kernels. Needs to be called once per device.
 //
-void cuttKernelSetSharedMemConfig() {  
+void cuttKernelSetSharedMemConfig() {
 #define CALL(NREG) CUDA_CALL(cudaFuncSetSharedMemConfig(transposePacked<float, NREG>, cudaSharedMemBankSizeFourByte ))
 #include "calls.h"
 #undef CALL
@@ -530,11 +530,11 @@ int getNumActiveBlock(const int method, const int sizeofType, const LaunchConfig
       }
       int key_reg = (lc.numRegStorage - 1);
       int key_type = (sizeofType == 4);
-      unsigned long long int key = 
-      (unsigned long long int)(lc.shmemsize/sizeofType)*MAX_NUMWARP*MAX_REG_STORAGE*MAX_NUMTYPE*numDevices + 
+      unsigned long long int key =
+      (unsigned long long int)(lc.shmemsize/sizeofType)*MAX_NUMWARP*MAX_REG_STORAGE*MAX_NUMTYPE*numDevices +
       (unsigned long long int)deviceID*MAX_NUMWARP*MAX_REG_STORAGE*MAX_NUMTYPE +
-      (unsigned long long int)key_type*MAX_NUMWARP*MAX_REG_STORAGE + 
-      (unsigned long long int)key_reg*MAX_NUMWARP + 
+      (unsigned long long int)key_type*MAX_NUMWARP*MAX_REG_STORAGE +
+      (unsigned long long int)key_reg*MAX_NUMWARP +
       (unsigned long long int)key_warp;
 
       numActiveBlock = nabCache.get(key);
@@ -646,7 +646,7 @@ int cuttKernelLaunchConfiguration(const int sizeofType, const TensorSplit& ts,
 
       // Min and max number of threads we can use
       int minNumthread = ((ts.volMmk - 1)/(prop.warpSize*MAX_REG_STORAGE) + 1)*prop.warpSize;
-      int maxNumthread = ((ts.volMmk - 1)/(prop.warpSize) + 1)*prop.warpSize;      
+      int maxNumthread = ((ts.volMmk - 1)/(prop.warpSize) + 1)*prop.warpSize;
       if (minNumthread > prop.maxThreadsPerBlock) return 0;
       maxNumthread = min(prop.maxThreadsPerBlock, maxNumthread);
       // printf("minNumthread %d maxNumthread %d\n", minNumthread, maxNumthread);
@@ -703,7 +703,7 @@ int cuttKernelLaunchConfiguration(const int sizeofType, const TensorSplit& ts,
 
       // Min and max number of threads we can use
       int minNumthread = ((volMmkWithSplit - 1)/(prop.warpSize*MAX_REG_STORAGE) + 1)*prop.warpSize;
-      int maxNumthread = ((volMmkWithSplit - 1)/(prop.warpSize) + 1)*prop.warpSize;      
+      int maxNumthread = ((volMmkWithSplit - 1)/(prop.warpSize) + 1)*prop.warpSize;
       if (minNumthread > prop.maxThreadsPerBlock) return 0;
       maxNumthread = min(prop.maxThreadsPerBlock, maxNumthread);
       // printf("minNumthread %d maxNumthread %d\n", minNumthread, maxNumthread);

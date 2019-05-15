@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <tuple>
 #include "dali/util/ocv.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 

@@ -17,7 +17,7 @@
 
 #include "dali/kernels/backend_tags.h"
 #include "dali/pipeline/operators/optical_flow/optical_flow_adapter/optical_flow_stub.h"
-#include "dali/util/cuda_utils.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
 namespace optical_flow {

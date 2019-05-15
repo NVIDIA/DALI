@@ -15,7 +15,7 @@
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideodecoder.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/pipeline/operators/reader/nvdecoder/nvdecoder.h"
-#include "dali/error_handling.h"
+#include "dali/core/error_handling.h"
 
 namespace dali {
 
