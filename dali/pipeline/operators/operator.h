@@ -163,7 +163,8 @@ class Operator : public OperatorBase {
  public:
   inline explicit Operator(const OpSpec &spec) :
     OperatorBase(spec),
-    sequences_allowed_(SchemaRegistry::GetSchema(spec.name()).AllowsSequences())
+    sequences_allowed_(SchemaRegistry::GetSchema(spec.name()).AllowsSequences()),
+    needs_flattening_(SchemaRegistry::GetSchema(spec.name()).NeedsFlattening())
   {}
 
   inline ~Operator() noexcept(false) override
@@ -173,7 +174,7 @@ class Operator : public OperatorBase {
   void Run(Workspace<Backend> *ws) override {
     std::vector<std::vector<int>> seq_sizes;
     if (std::is_same<Backend, GPUBackend>::value) {
-        if (sequences_allowed_) {
+        if (sequences_allowed_ && needs_flattening_) {
           Flatten(ws);
         }
     }
@@ -192,7 +193,7 @@ class Operator : public OperatorBase {
       RunImpl(ws, i);
     }
     if (std::is_same<Backend, GPUBackend>::value) {
-      if (sequences_allowed_) {
+      if (sequences_allowed_ && needs_flattening_) {
         Unflatten(ws);
       }
     }
@@ -311,6 +312,7 @@ class Operator : public OperatorBase {
   Unflatten(Workspace<B> */*unused*/) {}
 
   bool sequences_allowed_;
+  bool needs_flattening_;
   // store size of each sequence for each input set
   std::vector<int> seq_sizes_;
 };
