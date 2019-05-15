@@ -1,4 +1,3 @@
-
 Example VideoReader usage: Video Super-Resolution
 =================================================
 
@@ -85,10 +84,9 @@ We make use of the FlowNet2-SD PyTorch implementation available `here <https://g
 In order to use the pre-trained FlowNet2-SD network run the following from the
 root directory of this repo:
 
-.. code-block::
+.. code-block:: bash
 
    git clone https://github.com/NVIDIA/flownet2-pytorch
-
 
 Training the VSRNet implemented here requires the use of pre-trained weights from the FlowNet2-SD network.  We provided a converted Caffe pre-trained model below.  Should you use these weights, please adhere to the `license agreement <https://drive.google.com/file/d/1TVv0BnNFh3rpHZvD-easMb9jYrPE2Eqd/view?usp=sharing>`_\ :
 
@@ -128,10 +126,9 @@ Training
 
 Training can be run by running the following command available in :fileref:`docs/examples/video/superres_pytorch/run.sh`:
 
-.. code-block::
+.. code-block:: bash
 
    ./run.sh
-
 
 This file allows configuration of a variety of
 training options - it is expected that you will modify data paths appropriately
@@ -181,7 +178,7 @@ Reference
 
 If you find this implementation useful in your work, please acknowledge it appropriately and cite the following papers:
 
-.. code-block::
+.. code-block:: BibTeX
 
    @InProceedings{IB17,
      author       = "O. Makansi and E. Ilg and and Thomas Brox",
@@ -192,7 +189,7 @@ If you find this implementation useful in your work, please acknowledge it appro
      url          = "http://lmb.informatik.uni-freiburg.de/Publications/2017/IB17"
    }
 
-.. code-block::
+.. code-block:: BibTeX
 
    @InProceedings{IMKDB17,
      author       = "E. Ilg and N. Mayer and T. Saikia and M. Keuper and A. Dosovitskiy and T. Brox",

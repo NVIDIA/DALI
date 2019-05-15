@@ -24,9 +24,9 @@ Highlights of DALI are:
 
 .. overview-end-marker-do-not-remove
 
-.. installation-begin-marker-do-not-remove
-
 ----
+
+.. installation-begin-marker-do-not-remove
 
 DALI and NGC
 ------------
@@ -178,6 +178,7 @@ Change directory (``cd``) into Docker directory and run ``./build.sh``. If neede
 * CREATE_WHL - Create a standalone wheel. Default is ``YES``.
 * CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside. It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker`` and DALI wheel in the ``wheelhouse`` directory under$
 * DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package description, i.e. `nightly` will result in the `nvidia-dali-nightly`
+* BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo
 
 ----
 
@@ -352,6 +353,18 @@ Building DALI using Clang (experimental):
    Testing is done with the same configuration. 
    We ensure that DALI compiles with all of those options turned OFF, but there may exist
    cross-dependencies between some of those features.
+
+Following CMake parameters could be helpful in setting the right paths:
+
+.. |libjpeg-turbo_cmake link| replace:: **libjpeg CMake docs page**
+.. _libjpeg-turbo_cmake link: https://cmake.org/cmake/help/v3.11/module/FindJPEG.html
+.. |protobuf_cmake link| replace:: **protobuf CMake docs page**
+.. _protobuf_cmake link: https://cmake.org/cmake/help/v3.11/module/FindProtobuf.html
+
+* FFMPEG_ROOT_DIR - path to installed FFmpeg
+* NVJPEG_ROOT_DIR - where nvJPEG can be found (from CUDA 10.0 it is shipped with the CUDA toolkit so this option is not needed there)
+* libjpeg-turbo options can be obtained from |libjpeg-turbo_cmake link|_
+* protobuf options can be obtained from |protobuf_cmake link|_
 
 Install Python bindings
 ^^^^^^^^^^^^^^^^^^^^^^^
