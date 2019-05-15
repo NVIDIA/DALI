@@ -120,8 +120,12 @@ void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx)
   const auto &input = ws->Input<CPUBackend>(idx);
   auto &output = ws->Output<CPUBackend>(idx);
   py::gil_scoped_acquire guard{};
-  py::array output_array = python_function(TensorToNumpyArray(input));
-  CopyNumpyArrayToTensor(output, output_array);
+  try {
+    py::array output_array = python_function(TensorToNumpyArray(input));
+    CopyNumpyArrayToTensor(output, output_array);
+  } catch(const py::error_already_set & e) {
+    throw std::runtime_error(to_string("PythonFunction error: ") + to_string(e.what()));
+  }
 }
 
 DALI_REGISTER_OPERATOR(PythonFunctionImpl, PythonFunctionImpl<CPUBackend>, CPU);
