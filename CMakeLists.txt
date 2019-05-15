@@ -14,6 +14,10 @@
 
 cmake_minimum_required(VERSION 3.11)
 
+if (POLICY CMP0075)
+  cmake_policy(SET CMP0075 NEW)
+endif()
+
 project(DALI CXX)
 
 # Build options
