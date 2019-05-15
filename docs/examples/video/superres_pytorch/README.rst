@@ -86,7 +86,10 @@ root directory of this repo:
 
 .. code-block:: bash
 
-   git clone https://github.com/NVIDIA/flownet2-pytorch
+   git clone https://github.com/NVIDIA/flownet2-pytorch.git
+   pushd flownet2-pytorch
+   git checkout 6a0d9e70a5dcc37ef5577366a5163584fd7b4375
+   popd
 
 Training the VSRNet implemented here requires the use of pre-trained weights from the FlowNet2-SD network.  We provided a converted Caffe pre-trained model below.  Should you use these weights, please adhere to the `license agreement <https://drive.google.com/file/d/1TVv0BnNFh3rpHZvD-easMb9jYrPE2Eqd/view?usp=sharing>`_\ :
 

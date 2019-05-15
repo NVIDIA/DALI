@@ -39,6 +39,9 @@ cp ../video_files/* $DATA_DIR/val/
 FLOWNET_PATH=/data/dali/pretrained_models/FlowNet2-SD_checkpoint.pth.tar
 
 git clone https://github.com/NVIDIA/flownet2-pytorch.git
+cd flownet2-pytorch
+git checkout 6a0d9e70a5dcc37ef5577366a5163584fd7b4375
+cd ..
 
 cd ..
 
