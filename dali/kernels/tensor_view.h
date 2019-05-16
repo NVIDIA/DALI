@@ -277,7 +277,6 @@ struct TensorListViewBase {
     return { data, shape.template to_static<other_sample_ndim>() };
   }
 
-
   template <int other_sample_ndim>
   TensorListView<Backend, DataType, other_sample_ndim> to_static() && {
     static_assert(other_sample_ndim != DynamicDimensions,

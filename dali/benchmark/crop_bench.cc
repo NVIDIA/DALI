@@ -47,17 +47,26 @@ class CropBench : public DALIBenchmark {
     if (add_other_inputs)
       add_other_inputs(pipe);
 
-    pipe.AddOperator(
-      OpSpec("nvJPEGDecoder")
-        .AddArg("device", "mixed")
-        .AddArg("output_type", img_type)
-        .AddArg("max_streams", num_thread)
-        .AddArg("use_batched_decode", false)
-        .AddArg("cache_size", 1000)  // megabytes
-        .AddArg("cache_type", "largest")
-        .AddArg("cache_debug", false)
-        .AddInput("raw_jpegs", "cpu")
-        .AddOutput("decoded", "gpu"));
+    if (output_device == "cpu") {
+      pipe.AddOperator(
+        OpSpec("HostDecoder")
+          .AddArg("device", "cpu")
+          .AddArg("output_type", img_type)
+          .AddInput("raw_jpegs", "cpu")
+          .AddOutput("decoded", "cpu"));
+    } else {
+      pipe.AddOperator(
+        OpSpec("nvJPEGDecoder")
+          .AddArg("device", "mixed")
+          .AddArg("output_type", img_type)
+          .AddArg("max_streams", num_thread)
+          .AddArg("use_batched_decode", false)
+          .AddArg("cache_size", 1000)  // megabytes
+          .AddArg("cache_type", "largest")
+          .AddArg("cache_debug", false)
+          .AddInput("raw_jpegs", "cpu")
+          .AddOutput("decoded", "gpu"));
+    }
 
     pipe.AddOperator(crop_operator);
 
@@ -104,7 +113,7 @@ static void PipeArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
-BENCHMARK_DEFINE_F(CropBench, OldCrop)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(CropBench, OldCropGPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -119,12 +128,12 @@ BENCHMARK_DEFINE_F(CropBench, OldCrop)(benchmark::State& st) {
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(CropBench, OldCrop)->Iterations(200)
+BENCHMARK_REGISTER_F(CropBench, OldCropGPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(CropBench, NewCrop)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(CropBench, NewCropGPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -139,7 +148,47 @@ BENCHMARK_DEFINE_F(CropBench, NewCrop)(benchmark::State& st) {
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(CropBench, NewCrop)->Iterations(200)
+BENCHMARK_REGISTER_F(CropBench, NewCropGPU)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(PipeArgs);
+
+BENCHMARK_DEFINE_F(CropBench, OldCropCPU)(benchmark::State& st) {
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  DALIImageType img_type = DALI_RGB;
+
+  this->CropPipelineTest(
+    st, batch_size, num_thread, "cpu",
+    OpSpec("Crop")
+      .AddArg("device", "cpu")
+      .AddArg("output_type", img_type)
+      .AddArg("crop", std::vector<float>{224.0f, 224.0f})
+      .AddInput("decoded", "cpu")
+      .AddOutput("images", "cpu"));
+}
+
+BENCHMARK_REGISTER_F(CropBench, OldCropCPU)->Iterations(100)
+->Unit(benchmark::kMillisecond)
+->UseRealTime()
+->Apply(PipeArgs);
+
+BENCHMARK_DEFINE_F(CropBench, NewCropCPU)(benchmark::State& st) {
+  int batch_size = st.range(0);
+  int num_thread = st.range(1);
+  DALIImageType img_type = DALI_RGB;
+
+  this->CropPipelineTest(
+    st, batch_size, num_thread, "cpu",
+    OpSpec("NewCrop")
+      .AddArg("device", "cpu")
+      .AddArg("output_type", img_type)
+      .AddArg("crop", std::vector<float>{224.0f, 224.0f})
+      .AddInput("decoded", "cpu")
+      .AddOutput("images", "cpu"));
+}
+
+BENCHMARK_REGISTER_F(CropBench, NewCropCPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);

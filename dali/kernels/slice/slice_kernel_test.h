@@ -18,9 +18,9 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <string>
-#include "dali/kernels/slice/slice_gpu.h"
 #include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/kernels/test/test_tensors.h"
+#include "dali/kernels/slice/slice_kernel_utils.h"
 
 #define DEBUG_ENABLED 0
 #define DEBUG_OUTPUT \
@@ -43,7 +43,7 @@ std::string BatchToStr(const Container& batch, const std::string sample_prefix =
 
 template <typename InputType_, typename OutputType_, std::size_t Dims_, std::size_t NumSamples_,
           std::size_t DimSize_, typename SliceParamsGenerator_>
-struct SliceGPUTestArgs {
+struct SliceTestArgs {
   using InputType = InputType_;
   using OutputType = OutputType_;
   static constexpr std::size_t Dims = Dims_;
@@ -61,7 +61,7 @@ void AssertExpectedDimensions(const TensorShape<>& tensor_shape,
 }
 
 template <typename TestArgs>
-class SliceGPUTest : public ::testing::Test {
+class SliceTest : public ::testing::Test {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
@@ -70,9 +70,19 @@ class SliceGPUTest : public ::testing::Test {
   static constexpr std::size_t DimSize = TestArgs::DimSize;
   using SliceArgsGenerator = typename TestArgs::SliceArgsGenerator;
 
-  void PrepareExpectedOutut(TestTensorList<InputType, Dims>& input_data,
-                            std::vector<SliceArgs<Dims>>& slice_args,
-                            TestTensorList<OutputType, Dims>& output_data) {
+  void PrepareData(TestTensorList<InputType, Dims>& test_data) {
+    std::vector<int> sample_dims(Dims, DimSize);
+    TensorListShape<Dims> shape = uniform_list_shape<Dims>(NumSamples, sample_dims);
+    test_data.reshape(shape);
+
+    InputType num = 0;
+    auto seq_gen = [&num]() { return num++; };
+    Fill(test_data.cpu(), seq_gen);
+  }
+
+  void PrepareExpectedOutput(TestTensorList<InputType, Dims>& input_data,
+                             std::vector<SliceArgs<Dims>>& slice_args,
+                             TestTensorList<OutputType, Dims>& output_data) {
     auto in = input_data.cpu();
     std::vector<TensorShape<Dims>> output_shapes;
     for (int i = 0; i < in.size(); i++) {
@@ -113,16 +123,6 @@ class SliceGPUTest : public ::testing::Test {
     }
   }
 
-  void PrepareData(TestTensorList<InputType, Dims>& test_data) {
-    std::vector<int> sample_dims(Dims, DimSize);
-    TensorListShape<Dims> shape = uniform_list_shape<Dims>(NumSamples, sample_dims);
-    test_data.reshape(shape);
-
-    InputType num = 0;
-    auto seq_gen = [&num]() { return num++; };
-    Fill(test_data.cpu(), seq_gen);
-  }
-
   std::vector<SliceArgs<Dims>> GenerateSliceArgs(const InListCPU<InputType, Dims>& input_tlv) {
     SliceArgsGenerator generator;
     std::vector<SliceArgs<Dims>> slice_args;
@@ -133,39 +133,7 @@ class SliceGPUTest : public ::testing::Test {
     return slice_args;
   }
 
-  void Run() {
-    KernelContext ctx;
-
-    TestTensorList<InputType, Dims> test_data;
-    PrepareData(test_data);
-
-    DEBUG_OUTPUT << BatchToStr(test_data.cpu(), "Input sample ") << std::endl;
-
-    auto slice_args = GenerateSliceArgs(test_data.cpu());
-
-    SliceGPU<InputType, OutputType, Dims> kernel;
-    KernelRequirements kernel_req = kernel.Setup(ctx, test_data.gpu(), slice_args);
-
-    TensorListShape<> output_shapes = kernel_req.output_shapes[0];
-    for (int i = 0; i < output_shapes.size(); i++) {
-      AssertExpectedDimensions(output_shapes[i], slice_args[i].shape);
-    }
-
-    TestTensorList<OutputType, Dims> output_data;
-    DEBUG_OUTPUT << "OUTPUT SHAPE " << output_shapes.to_static<Dims>() << std::endl;
-    output_data.reshape(output_shapes.to_static<Dims>());
-    OutListGPU<OutputType, Dims> out_tlv = output_data.gpu();
-
-    kernel.Run(ctx, out_tlv, test_data.gpu(), slice_args);
-
-    DEBUG_OUTPUT << BatchToStr(output_data.cpu(), "Output sample ") << std::endl;
-
-    TestTensorList<OutputType, Dims> expected_output;
-    PrepareExpectedOutut(test_data, slice_args, expected_output);
-    DEBUG_OUTPUT << BatchToStr(expected_output.cpu(), "Expected sample ") << std::endl;
-
-    EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu()));
-  }
+  virtual void Run() = 0;
 };
 
 template <std::size_t Dims>
@@ -215,6 +183,23 @@ struct SliceArgsGenerator_ExtractCenterElement {
     return args;
   }
 };
+
+using SLICE_TEST_TYPES = ::testing::Types<
+    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<int, int, 4, 1, 2, SliceArgsGenerator_HalfAllDims<4>>,
+    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 0>>,
+    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 1>>,
+    SliceTestArgs<int, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
+    SliceTestArgs<float, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
+    SliceTestArgs<int, float, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
+    SliceTestArgs<float, int, 3, 1, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
+    SliceTestArgs<int, int, 3, 10, 2, SliceArgsGenerator_HalfOneDim<3, 2>>,
+    SliceTestArgs<int, int, 10, 1, 2, SliceArgsGenerator_HalfAllDims<10>>,
+    SliceTestArgs<unsigned char, unsigned char, 3, 1, 2, SliceArgsGenerator_HalfAllDims<3>>,
+    SliceTestArgs<unsigned char, unsigned char, 1, 1, 2, SliceArgsGenerator_HalfAllDims<1>>,
+    SliceTestArgs<unsigned char, unsigned char, 2, 1, 1024, SliceArgsGenerator_HalfAllDims<2>>,
+    SliceTestArgs<int, int, 2, 1, 3, SliceArgsGenerator_ExtractCenterElement<2>>
+>;
 
 }  // namespace kernels
 }  // namespace dali

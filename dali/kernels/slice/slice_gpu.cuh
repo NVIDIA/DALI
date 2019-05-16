@@ -18,11 +18,12 @@
 #include <cuda_runtime.h>
 #include <vector>
 #include <utility>
+#include "dali/kernels/slice/slice_kernel_utils.h"
+#include "dali/kernels/kernel.h"
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
-#include "dali/kernels/kernel.h"
 
 namespace dali {
 namespace kernels {
@@ -54,23 +55,7 @@ __global__ void SliceKernel(OutputType *__restrict__ output,
   output[out_idx] = clamp<OutputType>(input[in_idx]);
 }
 
-template <std::size_t Dims>
-struct SliceArgs {
-  std::array<int64_t, Dims> anchor;
-  std::array<int64_t, Dims> shape;
-};
-
-template <std::size_t Dims, typename Shape>
-std::array<int64_t, Dims> GetStrides(const Shape& shape) {
-  std::array<int64_t, Dims> strides;
-  strides[Dims - 1] = 1;
-  for (std::size_t d = Dims - 1; d > 0; d--) {
-    strides[d - 1] = strides[d] * shape[d];
-  }
-  return strides;
-}
-
-template <typename InputType, typename OutputType, std::size_t Dims>
+template <typename OutputType, typename InputType, std::size_t Dims>
 class DLL_PUBLIC SliceGPU {
  public:
   SliceGPU() = default;
@@ -79,27 +64,7 @@ class DLL_PUBLIC SliceGPU {
                                       const InListGPU<InputType, Dims> &in,
                                       const std::vector<SliceArgs<Dims>> &slice_args) {
     KernelRequirements req;
-
-    DALI_ENFORCE(slice_args.size() == static_cast<std::size_t>(in.size()),
-      "Number of samples and size of slice arguments should match");
-
-    TensorListShape<Dims> output_shapes;
-    output_shapes.resize(in.size(), Dims);
-    for (int i = 0; i < in.size(); i++) {
-      auto in_sample_shape = in.tensor_shape(i);
-      TensorShape<Dims> out_sample_shape(slice_args[i].shape);
-      auto &anchor = slice_args[i].anchor;
-
-      for (std::size_t d = 0; d < Dims; d++) {
-        DALI_ENFORCE(anchor[d] >= 0 && (anchor[d] + out_sample_shape[d]) <= in_sample_shape[d],
-          "Slice " + std::to_string(i) + " dimension " + std::to_string(d) +
-          " is out of bounds : " + "anchor[" + std::to_string(anchor[d]) +
-          "] size[" + std::to_string(out_sample_shape[d]) + "] input dimension size[" +
-          std::to_string(in_sample_shape[d]) + "]");
-      }
-      output_shapes.set_tensor_shape(i, out_sample_shape);
-    }
-    req.output_shapes.push_back(std::move(output_shapes));
+    req.output_shapes = { GetOutputShapes<Dims>(in.shape, slice_args) };
     return req;
   }
 
