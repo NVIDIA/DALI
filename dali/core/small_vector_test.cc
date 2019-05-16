@@ -1,0 +1,297 @@
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <gtest/gtest.h>
+#include "dali/core/small_vector.h"
+
+namespace dali {
+
+static_assert(SmallVector<int, 6>::static_size == 6, "Static doesn's match template argument");
+static_assert(sizeof(SmallVector<int, 7>) >= 7*sizeof(int) + sizeof(size_t),
+  "SmallVector must be large enough to house its data items and size");
+
+namespace {
+struct TestObj {
+  TestObj() {
+    total++;
+  }
+  TestObj(int value) : value(value) {
+    total++;
+  }
+  ~TestObj() {
+    total--;
+    if (zombie) {
+      zombies--;
+    }
+  }
+  TestObj(const TestObj &other) {
+    value = other.value;
+    total++;
+    if ((zombie = other.zombie))
+      zombies++;
+  }
+  TestObj(TestObj &&other) {
+    value = other.value;
+    total++;
+    other.zombie = true;
+    zombies++;
+  }
+  TestObj &operator=(const TestObj &other) {
+    value = other.value;
+    if (other.zombie && !other.zombie)
+      zombies++;
+    if (zombie && !other.zombie)
+      zombies--;
+    zombie = other.zombie;
+    return *this;
+  }
+  TestObj &operator=(TestObj &&other) {
+    value = other.value;
+    if (!zombie)
+      zombies++;
+    zombie = other.zombie;
+    other.zombie = true;
+    return *this;
+  }
+
+  bool operator==(const TestObj &other) const {
+    return value == other.value;
+  }
+
+  int value = 0;
+  bool zombie = false;
+  static size_t total, zombies;
+};
+size_t TestObj::total = 0;
+size_t TestObj::zombies = 0;
+}  // namespace
+
+TEST(TestObj, RefCount) {
+  EXPECT_EQ(TestObj::total, 0);
+  EXPECT_EQ(TestObj::zombies, 0);
+  {
+    TestObj a, b, c;
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(TestObj::zombies, 0);
+    a = b;
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(TestObj::zombies, 0);
+    a = std::move(b);
+    {
+      TestObj d = std::move(c);
+      EXPECT_EQ(TestObj::total, 4);
+      EXPECT_EQ(TestObj::zombies, 2);
+    }
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(TestObj::zombies, 2);
+    b = std::move(a);
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(TestObj::zombies, 2);
+    b = std::move(a);
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(TestObj::zombies, 3);
+    b = TestObj();
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(TestObj::zombies, 2);
+    a = c = b;
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(TestObj::zombies, 0);
+  }
+  EXPECT_EQ(TestObj::total, 0);
+  EXPECT_EQ(TestObj::zombies, 0);
+}
+
+struct A
+{
+  A() {
+    std::cout << this << "->A()\n";
+  }
+  A(int x) : x(x) {
+    std::cout << this << "->A(int x = " << x << ")\n";
+  }  // NOLINT
+  A(const A &a) : x(a.x) {
+    std::cout << this << "->A(const A &a) a.x == " << a.x << "\n";
+  }
+  A(A &&a) : x(a.x) {
+    std::cout << this << "->A(A &&a) a.x == " << a.x << "\n";
+  }
+  ~A() {
+    std::cout << this << "->~A()  x == " << x << "\n";
+  }
+  A &operator=(const A &a) {
+    std::cout << this << "->A (x == " << x << ") = (const A &a)  a.x == " << a.x << "\n";
+    x = a.x;
+    return *this;
+  }
+  A &operator=(A &&a) {
+    std::cout << this << "->A (x == " << x << ") = (A &&a)  a.x == " << a.x << "\n";
+    x = a.x;
+    return *this;
+  }
+  int x;
+};
+
+TEST(SmallVector, Static) {
+  {
+    SmallVector<TestObj, 5> a;
+    EXPECT_EQ(a.capacity(), 5);
+    a.push_back(1);
+    a.push_back(2);
+    a.push_back(3);
+    a.push_back(4);
+    a.push_back(5);
+    EXPECT_EQ(a.size(), 5);
+    EXPECT_EQ(a.capacity(), 5);
+    EXPECT_FALSE(a.is_dynamic());
+    for (int i = 0; i < 5; i++)
+      EXPECT_EQ(a[i].value, i+1);
+    EXPECT_EQ(TestObj::total, 5);
+  }
+  EXPECT_EQ(TestObj::total, 0);
+}
+
+TEST(SmallVector, Dynamic) {
+  {
+    SmallVector<TestObj, 3> a;
+    EXPECT_EQ(a.capacity(), 3);
+    a.push_back(1);
+    a.push_back(2);
+    a.push_back(3);
+    EXPECT_FALSE(a.is_dynamic());
+    EXPECT_EQ(TestObj::total, 3);
+    a.push_back(4);
+    EXPECT_EQ(TestObj::total, 4);
+    EXPECT_EQ(a.size(), 4);
+    EXPECT_EQ(a.capacity(), 6);
+    EXPECT_TRUE(a.is_dynamic());
+    a.push_back(5);
+    EXPECT_EQ(a.size(), 5);
+
+    EXPECT_EQ(TestObj::total, 5);
+  }
+  EXPECT_EQ(TestObj::total, 0);
+}
+
+TEST(SmallVector, InsertNoRealloc) {
+  {
+    SmallVector<TestObj, 3> a;
+    a.push_back(1);
+    a.push_back(3);
+    a.insert_at(1, 2);
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(a[0].value, 1);
+    EXPECT_EQ(a[1].value, 2);
+    EXPECT_EQ(a[2].value, 3);
+  }
+  EXPECT_EQ(TestObj::total, 0);
+}
+
+TEST(SmallVector, InsertRealloc) {
+  {
+    SmallVector<TestObj, 3> a;
+    a.push_back(1);
+    a.push_back(3);
+    a.push_back(4);
+    ASSERT_EQ(a.size(), 3);
+    ASSERT_EQ(a.capacity(), 3);
+    a.insert_at(1, 2);
+    EXPECT_TRUE(a.is_dynamic());
+    EXPECT_EQ(TestObj::zombies, 0);
+    EXPECT_EQ(TestObj::total, 4);
+    EXPECT_EQ(a[0].value, 1);
+    EXPECT_EQ(a[1].value, 2);
+    EXPECT_EQ(a[2].value, 3);
+    EXPECT_EQ(a[3].value, 4);
+  }
+  EXPECT_EQ(TestObj::total, 0);
+}
+
+template <typename T, typename U>
+inline void EXPECT_VEC_EQUAL(const T &a, const U &b) {
+  auto it_a = a.begin();
+  auto it_b = b.begin();
+  for (size_t i = 0; it_a != a.end() && it_b != b.end(); ++it_a, ++it_b, ++i) {
+    EXPECT_EQ(*it_a, *it_b) << " difference at index " << i;
+  }
+  EXPECT_EQ(it_a, a.end()) << "`a` is longer";
+  EXPECT_EQ(it_b, b.end()) << "`b` is longer";
+}
+
+TEST(SmallVector, Move) {
+  {
+    SmallVector<TestObj, 3> a, b;
+    a.push_back(1);
+    a.push_back(2);
+    a.push_back(3);
+    a.push_back(4);
+    b.push_back(11);
+    b.push_back(12);
+    EXPECT_EQ(TestObj::total, 6);
+    auto *ptr = a.data();
+    b = std::move(a);
+    EXPECT_EQ(b.data(), ptr) << "Pointer from dynamic vector should have been moved";
+    EXPECT_EQ(TestObj::total, 4);
+    EXPECT_TRUE(b.is_dynamic());
+    EXPECT_FALSE(a.is_dynamic());
+
+    a.push_back(11);
+    a.push_back(12);
+    EXPECT_FALSE(a.is_dynamic());
+    b = std::move(a);
+    EXPECT_FALSE(b.is_dynamic());
+    a.clear();
+    b.clear();
+    a.push_back(1);
+    a.push_back(2);
+    a.push_back(3);
+    a.push_back(4);
+
+    SmallVector<TestObj, 16> d = std::move(a);
+    EXPECT_FALSE(d.is_dynamic());
+    EXPECT_EQ(TestObj::total, 4);
+  }
+  EXPECT_EQ(TestObj::total, 0);
+}
+
+
+TEST(SmallVector, Copy) {
+  {
+    SmallVector<TestObj, 3> a, b;
+    a.push_back(1);
+    a.push_back(2);
+    a.push_back(3);
+    a.push_back(4);
+    b.push_back(11);
+    b.push_back(12);
+    EXPECT_EQ(TestObj::total, 6);
+    EXPECT_TRUE(a.is_dynamic());
+    EXPECT_FALSE(b.is_dynamic());
+    a = b;
+    EXPECT_VEC_EQUAL(a, b);
+    EXPECT_EQ(TestObj::total, 4);
+    a.push_back(13);
+    a.push_back(14);
+    EXPECT_EQ(TestObj::total, 6);
+    b = a;
+    EXPECT_VEC_EQUAL(a, b);
+    EXPECT_EQ(TestObj::total, 8);
+
+    SmallVector<TestObj, 16> c = a;
+    EXPECT_FALSE(c.is_dynamic());
+    EXPECT_VEC_EQUAL(a, c);
+  }
+  EXPECT_EQ(TestObj::total, 0);
+}
+
+}  // namespace dali
