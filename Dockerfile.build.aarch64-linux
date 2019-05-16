@@ -16,7 +16,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV REPO_DEBS="cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb"
 ENV CUDA_CROSS_VERSION=10-0
 ENV CUDA_CROSS_PACKAGES="cublas cudart cufft curand cusolver cusparse driver misc-headers npp"
-#nvml nvrtc nvgraph"
 
 RUN wget https://developer.download.nvidia.com/devzone/devcenter/mobile/jetpack_l4t/4.1.1/xddsn.im/JetPackL4T_4.1.1_b57/16.04/cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb && \
     dpkg -i $REPO_DEBS && \

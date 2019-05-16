@@ -29,24 +29,18 @@ endif()
 
 set(CUDA_TOOLKIT_ROOT_DIR ${CUDA_HOST})
 set(CUDA_TOOLKIT_TARGET_DIR ${CUDA_TARGET})
-set(CUDA_USE_STATIC_CUDA_RUNTIME OFF) # "QNX does not have librt.so"
 
 find_package(CUDA 10.0 REQUIRED)
 
-# find_library(CUDA_CUDART_LIBRARY cudart
-#   PATHS ${CUDA_TOOLKIT_TARGET_DIR}
-#   PATH_SUFFIXES lib64 lib)
-
 message(STATUS "Found cudart at ${CUDA_LIBRARIES}")
 
-# set(CUDA_TOOLKIT_ROOT_DIR_INTERNAL ${CUDA_TOOLKIT_ROOT_DIR} CACHE PATH "Cuda toolkit internal root location")
-# set(CUDA_TOOLKIT_TARGET_DIR_INTERNAL ${CUDA_TOOLKIT_TARGET_DIR} CACHE PATH "Cuda toolkit target location")
-
-# set(CUDA_LIBRARIES ${CUDA_TOOLKIT_TARGET_DIR}/lib)
-# set(CUDA_USE_STATIC_CUDA_RUNTIME OFF CACHE BOOL "QNX does not have librt.so")
+if (CUDA_USE_STATIC_CUDA_RUNTIME)
+  list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
+else()
+  list(APPEND DALI_LIBS ${${CUDA_CUDART_LIBRARY}})
+endif()
 
 include_directories(${CUDA_INCLUDE_DIRS})
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
 
 # NVIDIA NPPC library
 find_cuda_helper_libs(nppc_static)
@@ -62,10 +56,13 @@ list(APPEND DALI_EXCLUDES libnppicom_static.a
 list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
+# CULIBOS needed when using static CUDA libs
+find_cuda_helper_libs(culibos)
+list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
+list(APPEND DALI_EXCLUDES libculibos.a)
+
 include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -L${CUDA_LIBRARIES} -L${CUDA_LIBRARIES}/stubs -lcudart -lnppc_static -lnppicom_static -lnppicc_static -lnppig_static -lnpps -lnppc -lculibos")
 
 # NVTX for profiling
 if (BUILD_NVTX)
@@ -94,6 +91,5 @@ else()
 endif()
 
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
-list(APPEND DALI_LIBS ${PROTOBUF_LIBRARY})
 list(APPEND DALI_LIBS ${Protobuf_LIBRARY} ${Protobuf_PROTOC_LIBRARIES} ${Protobuf_LITE_LIBRARIES})
 list(APPEND DALI_EXCLUDES libprotobuf.a;libprotobuf-lite.a;libprotoc.a)

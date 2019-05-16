@@ -80,8 +80,11 @@ TEST(Tuple, ApplyAllNoParams) {
 template <typename T, typename U>
 constexpr auto Add(T a, U b)->decltype(a+b) { return a+b; }
 
+#if !defined(__AARCH64_QNX__)
+
 static_assert(apply_all(Add<int, char>, 1, 'a') == 'b', "Add(1, 'a') should yield 'b'");
 
+#endif
 
 }  // namespace kernels
 }  // namespace dali
