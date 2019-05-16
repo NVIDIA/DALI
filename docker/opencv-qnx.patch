@@ -32,7 +32,7 @@ index 0000000..efbf4a0
 +
 +set(CMAKE_SYSROOT $ENV{QNX_TARGET})
 +
-+set(CMAKE_SYSTEM_NAME QNX)
++ set(CMAKE_SYSTEM_NAME QNX)
 + set(CMAKE_SYSTEM_VERSION 1)
 + set(CMAKE_SYSTEM_PROCESSOR aarch64)
 + set(QNX_VERSION "qnx7.0.0")
@@ -50,7 +50,7 @@ index 0000000..efbf4a0
 + set(CMAKE_C_COMPILER_TARGET aarch64)
 + set(CMAKE_CXX_COMPILER_TARGET aarch64)
 + set(CMAKE_LINKER $ENV{QNX_HOST}/usr/bin/${CMAKE_SYSTEM_PROVESSOR}-unknown-nto-${QNX_VERSION}-ld)
-+ set(LINKER_FLAGS "-Wl,--no-undefined -Wl,--gc-sections -Wl,-z,noexecstack -Wl,- z,relro -Wl,-z,now,-lc")
++ set(LINKER_FLAGS "-Wl,--no-undefined -Wl,--gc-sections -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now,-lc")
 +
 + set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
 + set(CMAKE_FIND_LIBRARY_SUFFIXES ".so,.a")
@@ -81,3 +81,26 @@ index 0000000..efbf4a0
 +  message(WARNING "You use obsolete variable USE_VFPV3 to enable VFPV3 instruction set. Use -DENABLE_VFPV3=ON instead." )
 +  set(ENABLE_VFPV3 TRUE)
 +endif()
+diff --git a/modules/core/src/system.cpp b/modules/core/src/system.cpp
+index 1ebd993a2..a745f8fa2 100644
+--- a/modules/core/src/system.cpp
++++ b/modules/core/src/system.cpp
+@@ -702,7 +702,7 @@ int64 getTickCount(void)
+     LARGE_INTEGER counter;
+     QueryPerformanceCounter( &counter );
+     return (int64)counter.QuadPart;
+-#elif defined __linux || defined __linux__
++#elif defined __linux || defined __linux__ || defined __AARCH64_QNX__
+     struct timespec tp;
+     clock_gettime(CLOCK_MONOTONIC, &tp);
+     return (int64)tp.tv_sec*1000000000 + tp.tv_nsec;
+@@ -722,7 +722,7 @@ double getTickFrequency(void)
+     LARGE_INTEGER freq;
+     QueryPerformanceFrequency(&freq);
+     return (double)freq.QuadPart;
+-#elif defined __linux || defined __linux__
++#elif defined __linux || defined __linux__ || defined __AARCH64_QNX__
+     return 1e9;
+ #elif defined __MACH__ && defined __APPLE__
+     static double freq = 0;
+
