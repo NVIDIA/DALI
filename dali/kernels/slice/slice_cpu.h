@@ -32,7 +32,8 @@ void SliceKernel(OutputType *output,
                  const std::array<int64_t, Dims>& in_strides,
                  const std::array<int64_t, Dims>& out_strides,
                  const std::array<int64_t, Dims>& anchor,
-                 unsigned int total_pixels) {
+                 const TensorShape<(int)Dims> &out_shape) {
+  unsigned int total_pixels = volume(out_shape);
   for (unsigned int i = 0; i < total_pixels; i++) {
     unsigned int idx = i;
     unsigned int out_idx = idx;
@@ -43,6 +44,30 @@ void SliceKernel(OutputType *output,
         in_idx += (anchor[d] + i_d) * in_strides[d];
     }
     output[out_idx] = clamp<OutputType>(input[in_idx]);
+  }
+}
+
+/// @brief Optimized version for 3D tensors
+template <typename OutputType, typename InputType>
+void SliceKernel(OutputType *output,
+                 const InputType *input,
+                 const std::array<int64_t, 3u>& in_strides,
+                 const std::array<int64_t, 3u>& out_strides,
+                 const std::array<int64_t, 3u>& anchor,
+                 const TensorShape<3> &out_shape) {
+  for (int i_0 = 0; i_0 < out_shape[0]; i_0++) {
+    for (int i_1 = 0; i_1 < out_shape[1]; i_1++) {
+      for (int i_2 = 0; i_2 < out_shape[2]; i_2++) {
+        unsigned int out_idx = i_0 * out_strides[0] +
+                               i_1 * out_strides[1] +
+                               i_2 * out_strides[2];
+
+        unsigned int in_idx = (anchor[0] + i_0) * in_strides[0] +
+                              (anchor[1] + i_1) * in_strides[1] +
+                              (anchor[2] + i_2) * in_strides[2];
+        output[out_idx] = clamp<OutputType>(input[in_idx]);
+      }
+    }
   }
 }
 
@@ -66,14 +91,13 @@ class DLL_PUBLIC SliceCPU {
                       const SliceArgs<Dims> &slice_args) {
     const auto &in_shape = in.shape;
     const auto &out_shape = out.shape;
-    const unsigned int total_size = volume(out_shape);
     const auto &anchor = slice_args.anchor;
     auto in_strides = GetStrides<Dims>(in_shape);
     auto out_strides = GetStrides<Dims>(out_shape);
     const InputType *in_ptr = in.data;
     OutputType *out_ptr = out.data;
 
-    SliceKernel(out_ptr, in_ptr, in_strides, out_strides, anchor, total_size);
+    SliceKernel(out_ptr, in_ptr, in_strides, out_strides, anchor, out_shape);
   }
 };
 

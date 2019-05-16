@@ -36,7 +36,7 @@ class SliceGPUTest : public SliceTest<TestArgs> {
     TestTensorList<InputType, Dims> test_data;
     SliceTest<TestArgs>::PrepareData(test_data);
 
-    DEBUG_OUTPUT << BatchToStr(test_data.cpu(), "Input sample ") << std::endl;
+    LOG_LINE << BatchToStr(test_data.cpu(), "Input sample ") << std::endl;
 
     auto slice_args = SliceTest<TestArgs>::GenerateSliceArgs(test_data.cpu());
 
@@ -49,17 +49,17 @@ class SliceGPUTest : public SliceTest<TestArgs> {
     }
 
     TestTensorList<OutputType, Dims> output_data;
-    DEBUG_OUTPUT << "OUTPUT SHAPE " << output_shapes.to_static<Dims>() << std::endl;
+    LOG_LINE << "OUTPUT SHAPE " << output_shapes.to_static<Dims>() << std::endl;
     output_data.reshape(output_shapes.to_static<Dims>());
     OutListGPU<OutputType, Dims> out_tlv = output_data.gpu();
 
     kernel.Run(ctx, out_tlv, test_data.gpu(), slice_args);
 
-    DEBUG_OUTPUT << BatchToStr(output_data.cpu(), "Output sample ") << std::endl;
+    LOG_LINE << BatchToStr(output_data.cpu(), "Output sample ") << std::endl;
 
     TestTensorList<OutputType, Dims> expected_output;
     SliceTest<TestArgs>::PrepareExpectedOutput(test_data, slice_args, expected_output);
-    DEBUG_OUTPUT << BatchToStr(expected_output.cpu(), "Expected sample ") << std::endl;
+    LOG_LINE << BatchToStr(expected_output.cpu(), "Expected sample ") << std::endl;
 
     EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu()));
   }

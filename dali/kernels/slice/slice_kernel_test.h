@@ -22,21 +22,16 @@
 #include "dali/kernels/test/test_tensors.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
 
-#define DEBUG_ENABLED 0
-#define DEBUG_OUTPUT \
-  if (!DEBUG_ENABLED) ; \
-  else std::cout // NOLINT
-
 namespace dali {
 namespace kernels {
 
-template <typename Container>
-std::string BatchToStr(const Container& batch, const std::string sample_prefix = "Sample ") {
+template <typename TensorListView>
+std::string BatchToStr(const TensorListView& batch, const std::string sample_prefix = "Sample ") {
   std::stringstream ss;
   for (int i = 0; i < batch.num_samples(); i++) {
     ss << sample_prefix << i << ":";
     for (auto& x : make_span(batch[i].data, batch[i].num_elements()))
-      ss << " " << static_cast<int64_t>(x);
+      ss << " " << x;
   }
   return ss.str();
 }
