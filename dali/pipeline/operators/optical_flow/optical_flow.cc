@@ -45,7 +45,8 @@ Operator requires 2 inputs.)code",
                                 false, false)
                 .AddOptionalArg(detail::kImageTypeArgName,
                                 R"code(Type of input images (RGB, BGR, GRAY))code", DALI_RGB,
-                                false);
+                                false)
+                .AllowSequences(false);
 
 
 DALI_REGISTER_OPERATOR(OpticalFlow, OpticalFlow<GPUBackend>, GPU);
