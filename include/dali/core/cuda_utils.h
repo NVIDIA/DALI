@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@
 #define DALI_CORE_CUDA_UTILS_H_
 
 #include <cuda_fp16.h>  // for __half & related methods
-#include <cuda_profiler_api.h>
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_error.h"
+#include <type_traits>
 
 // For the CPU we use half_float lib and float16_cpu type
 namespace half_float {
@@ -49,10 +49,54 @@ __device__ inline float16 StaticCastGpu(float val) {
 }
 #endif  // defined(CUDART_VERSION) && CUDART_VERSION < 9000
 
-// Starts profiling DALI
-inline void DALIProfilerStart() { cudaProfilerStart(); }
+// allocator using device-side malloc/free
 
-inline void DALIProfilerStop() { cudaProfilerStop(); }
+template <typename T>
+struct device_side_allocator {
+  static __device__ T *allocate(size_t count) {
+    return static_cast<T *>(malloc(count * sizeof(T)));
+  }
+  static __device__ void deallocate(T *ptr, size_t) {
+    free(ptr);
+  }
+};
+
+// moving and perfect forwwarding
+
+template <typename T>
+constexpr typename std::remove_reference<T>::type &&
+__host__ __device__ cuda_move(T &&t) noexcept {
+  return static_cast<typename std::remove_reference<T>::type &&>(t);
+}
+
+template <class T>
+__host__ __device__ constexpr T&& cuda_forward(typename std::remove_reference<T>::type& t) noexcept {
+  return static_cast<T&&>(t);
+}
+
+template <class T>
+__host__ __device__ constexpr T&& cuda_forward(typename std::remove_reference<T>::type&& t) noexcept {
+  return static_cast<T&&>(t);
+}
+
+template <typename T>
+__host__ __device__ const T &cuda_max(const T &a, const T &b) {
+  return b > a ? b : a;
+}
+
+template <typename T>
+__host__ __device__ const T &cuda_min(const T &a, const T &b) {
+  return b < a ? b : a;
+}
+
+// swap values using move semantics
+
+template <typename T>
+__host__ __device__ void cuda_swap(T &a, T &b) {
+  T tmp = cuda_move(a);
+  a = cuda_move(b);
+  b = cuda_move(tmp);
+}
 
 }  // namespace dalli
 
