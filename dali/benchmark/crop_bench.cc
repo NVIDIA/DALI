@@ -15,6 +15,7 @@
 #include <benchmark/benchmark.h>
 #include "dali/pipeline/operators/crop/crop.h"
 #include "dali/pipeline/operators/crop/new_crop.h"
+#include "dali/benchmark/operator_bench.h"
 #include "dali/benchmark/dali_bench.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
@@ -193,44 +194,6 @@ BENCHMARK_REGISTER_F(CropBench, NewCropCPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
-
-class OperatorBench : public DALIBenchmark {
- public:
-  template <typename T>
-  void RunCPU(benchmark::State& st, OpSpec op_spec,
-              int W = 1920, int H = 1080, int C = 3,
-              int batch_size = 128, bool fill_in_data = false) {
-    const int N = W * H * C;
-
-    auto op_ptr = InstantiateOperator(op_spec);
-
-    shared_ptr<Tensor<CPUBackend>> tensor_in(new Tensor<CPUBackend>());
-    shared_ptr<Tensor<CPUBackend>> tensor_out(new Tensor<CPUBackend>());
-    tensor_in->set_type(TypeInfo::Create<T>());
-    tensor_in->Resize({W, H, C});
-
-    if (fill_in_data) {
-      auto *ptr = tensor_in->mutable_data<T>();
-      for (int i = 0; i < N; i++) {
-        ptr[i] = static_cast<T>(i);
-      }
-    }
-    // Create workspace and set input and output
-    SampleWorkspace ws;
-    ws.AddInput(tensor_in);
-    ws.AddOutput(tensor_out);
-    ws.set_data_idx(0);
-    ws.set_thread_idx(0);
-    ws.set_stream(0);
-
-    op_ptr->Run(&ws);
-    for (auto _ : st) {
-      op_ptr->Run(&ws);
-    }
-
-    op_ptr.reset();
-  }
-};
 
 BENCHMARK_DEFINE_F(OperatorBench, OldCropCPU_StandAlone)(benchmark::State& st) {
   this->RunCPU<uint8_t>(

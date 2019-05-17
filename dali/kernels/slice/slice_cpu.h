@@ -26,49 +26,50 @@
 namespace dali {
 namespace kernels {
 
+namespace detail {
+
 template <typename OutputType, typename InputType, std::size_t Dims>
-void SliceKernel(OutputType *output,
-                 const InputType *input,
-                 const std::array<int64_t, Dims>& in_strides,
-                 const std::array<int64_t, Dims>& out_strides,
-                 const std::array<int64_t, Dims>& anchor,
-                 const TensorShape<(int)Dims> &out_shape) {
-  unsigned int total_pixels = volume(out_shape);
-  for (unsigned int i = 0; i < total_pixels; i++) {
-    unsigned int idx = i;
-    unsigned int out_idx = idx;
-    unsigned int in_idx = 0;
-    for (std::size_t d = 0; d < Dims; d++) {
-        unsigned int i_d = idx / out_strides[d];
-        idx = idx % out_strides[d];
-        in_idx += (anchor[d] + i_d) * in_strides[d];
-    }
-    output[out_idx] = clamp<OutputType>(input[in_idx]);
+void SliceKernelImpl(OutputType *output,
+                     const InputType *input,
+                     const std::array<int64_t, Dims> &in_strides,
+                     const std::array<int64_t, Dims> &out_strides,
+                     const TensorShape<(int)Dims> &out_shape,
+                     std::integral_constant<size_t, 1>) {
+  for (int i = 0; i < out_shape[Dims - 1]; i++) {
+    output[i] = clamp<OutputType>(input[i]);
   }
 }
 
-/// @brief Optimized version for 3D tensors
-template <typename OutputType, typename InputType>
+template <typename OutputType, typename InputType, std::size_t Dims, std::size_t DimsLeft>
+void SliceKernelImpl(OutputType *output,
+                     const InputType *input,
+                     const std::array<int64_t, Dims> &in_strides,
+                     const std::array<int64_t, Dims> &out_strides,
+                     const TensorShape<(int)Dims> &out_shape,
+                     std::integral_constant<size_t, DimsLeft>) {
+  constexpr auto d = Dims - DimsLeft;  // NOLINT
+  for (int i = 0; i < out_shape[d]; i++) {
+    SliceKernelImpl(output, input, in_strides, out_strides, out_shape,
+                    std::integral_constant<size_t, DimsLeft - 1>());
+    input += in_strides[d];
+    output += out_strides[d];
+  }
+}
+
+}  // namespace detail
+
+template <typename OutputType, typename InputType, std::size_t Dims>
 void SliceKernel(OutputType *output,
                  const InputType *input,
-                 const std::array<int64_t, 3u>& in_strides,
-                 const std::array<int64_t, 3u>& out_strides,
-                 const std::array<int64_t, 3u>& anchor,
-                 const TensorShape<3> &out_shape) {
-  for (int i_0 = 0; i_0 < out_shape[0]; i_0++) {
-    for (int i_1 = 0; i_1 < out_shape[1]; i_1++) {
-      for (int i_2 = 0; i_2 < out_shape[2]; i_2++) {
-        unsigned int out_idx = i_0 * out_strides[0] +
-                               i_1 * out_strides[1] +
-                               i_2 * out_strides[2];
-
-        unsigned int in_idx = (anchor[0] + i_0) * in_strides[0] +
-                              (anchor[1] + i_1) * in_strides[1] +
-                              (anchor[2] + i_2) * in_strides[2];
-        output[out_idx] = clamp<OutputType>(input[in_idx]);
-      }
-    }
+                 const std::array<int64_t, Dims> &in_strides,
+                 const std::array<int64_t, Dims> &out_strides,
+                 const std::array<int64_t, Dims> &anchor,
+                 const TensorShape<(int)Dims> &out_shape) {
+  for (size_t d = 0; d < Dims; d++) {
+    input += in_strides[d] * anchor[d];
   }
+  detail::SliceKernelImpl(output, input, in_strides, out_strides, out_shape,
+                          std::integral_constant<size_t, Dims>());
 }
 
 template <typename OutputType, typename InputType, std::size_t Dims>
