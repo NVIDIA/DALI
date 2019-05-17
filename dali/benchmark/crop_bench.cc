@@ -13,7 +13,8 @@
 // limitations under the License.
 
 #include <benchmark/benchmark.h>
-
+#include "dali/pipeline/operators/crop/crop.h"
+#include "dali/pipeline/operators/crop/new_crop.h"
 #include "dali/benchmark/dali_bench.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
@@ -192,5 +193,79 @@ BENCHMARK_REGISTER_F(CropBench, NewCropCPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
+
+class OperatorBench : public DALIBenchmark {
+ public:
+  template <typename T>
+  void RunCPU(benchmark::State& st, OpSpec op_spec,
+              int W = 1920, int H = 1080, int C = 3,
+              int batch_size = 128, bool fill_in_data = false) {
+    const int N = W * H * C;
+
+    auto op_ptr = InstantiateOperator(op_spec);
+
+    shared_ptr<Tensor<CPUBackend>> tensor_in(new Tensor<CPUBackend>());
+    shared_ptr<Tensor<CPUBackend>> tensor_out(new Tensor<CPUBackend>());
+    tensor_in->set_type(TypeInfo::Create<T>());
+    tensor_in->Resize({W, H, C});
+
+    if (fill_in_data) {
+      auto *ptr = tensor_in->mutable_data<T>();
+      for (int i = 0; i < N; i++) {
+        ptr[i] = static_cast<T>(i);
+      }
+    }
+    // Create workspace and set input and output
+    SampleWorkspace ws;
+    ws.AddInput(tensor_in);
+    ws.AddOutput(tensor_out);
+    ws.set_data_idx(0);
+    ws.set_thread_idx(0);
+    ws.set_stream(0);
+
+    op_ptr->Run(&ws);
+    for (auto _ : st) {
+      op_ptr->Run(&ws);
+    }
+
+    op_ptr.reset();
+  }
+};
+
+BENCHMARK_DEFINE_F(OperatorBench, OldCropCPU_StandAlone)(benchmark::State& st) {
+  this->RunCPU<uint8_t>(
+    st,
+    OpSpec("Crop")
+      .AddArg("batch_size", 1)
+      .AddArg("num_threads", 1)
+      .AddArg("device", "cpu")
+      .AddArg("output_type", DALI_RGB)
+      .AddArg("crop", std::vector<float>{224.0f, 224.0f})
+      .AddArg("crop_pos_x", 0.5f)
+      .AddArg("crop_pos_y", 0.5f)
+  );
+}
+
+BENCHMARK_REGISTER_F(OperatorBench, OldCropCPU_StandAlone)->Iterations(1000)
+->Unit(benchmark::kMicrosecond)
+->UseRealTime();
+
+BENCHMARK_DEFINE_F(OperatorBench, NewCropCPU_StandAlone)(benchmark::State& st) {
+  this->RunCPU<uint8_t>(
+    st,
+    OpSpec("NewCrop")
+      .AddArg("batch_size", 1)
+      .AddArg("num_threads", 1)
+      .AddArg("device", "cpu")
+      .AddArg("output_type", DALI_RGB)
+      .AddArg("crop", std::vector<float>{224.0f, 224.0f})
+      .AddArg("crop_pos_x", 0.5f)
+      .AddArg("crop_pos_y", 0.5f)
+  );
+}
+
+BENCHMARK_REGISTER_F(OperatorBench, NewCropCPU_StandAlone)->Iterations(1000)
+->Unit(benchmark::kMicrosecond)
+->UseRealTime();
 
 }  // namespace dali
