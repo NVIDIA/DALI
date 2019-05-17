@@ -34,6 +34,7 @@ __host__ __device__ constexpr T min_value() { return const_limits<T>::min; }
 #define DEFINE_TYPE_RANGE(type, min_, max_) template <>\
 struct const_limits<type> { static constexpr type min = min_, max = max_; }
 
+DEFINE_TYPE_RANGE(bool, false, true);
 DEFINE_TYPE_RANGE(uint8_t,  0, 0xff);
 DEFINE_TYPE_RANGE(int8_t,  -0x80, 0x7f);
 DEFINE_TYPE_RANGE(uint16_t, 0, 0xffff);
@@ -123,6 +124,11 @@ template <>
 __host__ __device__ constexpr uint32_t clamp(uint64_t value, ret_type<uint32_t>) {
   return value > static_cast<uint64_t>(max_value<uint32_t>()) ? max_value<uint32_t>() :
          static_cast<uint32_t>(value);
+}
+
+template <typename T>
+__host__ __device__ constexpr bool clamp(T value, ret_type<bool>) {
+  return static_cast<bool>(value);
 }
 
 template <typename T, typename U>

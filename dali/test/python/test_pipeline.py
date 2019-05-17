@@ -1423,3 +1423,37 @@ def test_skip_cached_images():
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
                           batch_size=batch_size, N_iterations=100)
+
+class CropPipelineGPU(Pipeline):
+    def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1, is_old_crop=True):
+        super(CropPipelineGPU, self).__init__(batch_size,
+                                         num_threads,
+                                         device_id)
+        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+
+        if is_old_crop:
+            self.crop = ops.Crop(device = "gpu",
+                                 crop = (224, 224),
+                                 crop_pos_x = 0.3,
+                                 crop_pos_y = 0.2,
+                                 image_type = types.RGB)
+        else:
+            self.crop = ops.NewCrop(device = "gpu",
+                                    crop = (224, 224),
+                                    crop_pos_x = 0.3,
+                                    crop_pos_y = 0.2,
+                                    image_type = types.RGB)
+
+    def define_graph(self):
+        inputs, labels = self.input(name="Reader")
+        images = self.decode(inputs)
+        out = self.crop(images.gpu())
+        return out
+
+def test_old_crop_vs_new_crop():
+    for batch_size in {1, 32, 100}:
+        compare_pipelines(CropPipelineGPU(batch_size, is_old_crop=True),
+                          CropPipelineGPU(batch_size, is_old_crop=False),
+                          batch_size=batch_size, N_iterations=50)
+
