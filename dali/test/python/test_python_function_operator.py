@@ -141,3 +141,37 @@ def test_python_operator_invalid_function():
         invalid_pipe.run()
     except Exception as e:
         print(e)
+
+counter = 0
+def func_with_side_effects(images):
+    global counter
+    counter = counter + 1
+
+    return numpy.full_like(images, counter)
+
+def test_func_with_side_effects():
+    pipe_one = PythonOperatorPipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func_with_side_effects)
+    pipe_two = PythonOperatorPipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func_with_side_effects)
+
+    pipe_one.build()
+    pipe_two.build()
+
+    global counter
+
+    for it in range(ITERS):
+        out_one = pipe_one.run()
+        out_two = pipe_two.run()
+
+        assert counter == 2 * BATCH_SIZE
+
+        for s in range(BATCH_SIZE):
+            elem_one = out_one[0].at(s)[0][0][0]
+            elem_two = out_two[0].at(s)[0][0][0]
+
+            assert elem_one > 0 and elem_one <= BATCH_SIZE
+            assert elem_two > BATCH_SIZE and elem_two <= 2 * BATCH_SIZE
+
+        counter = 0
+        
