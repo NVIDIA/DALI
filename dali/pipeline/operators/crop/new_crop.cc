@@ -17,6 +17,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operators/crop/new_crop.h"
 #include "dali/kernels/slice/slice_cpu.h"
+#include "dali/util/half.hpp"
 
 namespace dali {
 
@@ -87,6 +88,15 @@ void NewCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto &output = ws->Output<CPUBackend>(idx);
   auto data_idx = ws->data_idx();
+
+  if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
+    DALI_ENFORCE (input_type_ == output_type_,
+      "type conversion is not supported for half precision floats");
+    detail::RunHelper<float16_cpu, float16_cpu, 3>(
+      output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
+    return;
+  }
+
   DALI_TYPE_SWITCH(input_type_, InputType,
     DALI_TYPE_SWITCH(output_type_, OutputType,
       detail::RunHelper<OutputType, InputType, 3>(
