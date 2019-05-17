@@ -349,7 +349,7 @@ Building DALI using Clang (experimental):
 .. note::
 
    DALI release packages are built with the options listed above set to ON and NVTX turned OFF.
-   Testing is done with the same configuration. 
+   Testing is done with the same configuration.
    We ensure that DALI compiles with all of those options turned OFF, but there may exist
    cross-dependencies between some of those features.
 
@@ -364,18 +364,22 @@ Install Python bindings
 
 Cross-compiling DALI C++ API for aarch64 Linux (Docker)
 -----------------------------------------
-Build the aarch64 Linux Build Container 
+Build the aarch64 Linux Build Container
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 .. code-block:: bash
+
     docker build -t dali_builder:aarch64-linux -f Dockerfile.build.aarch64-linux .
 
 Compile
 ^^^^^^^
 From the root of the DALI source tree
-.. code-block:: bash
-    docker run -u ${UID}:${GID} -v $(pwd):/dali dali_builder:aarch64-linux  
 
-The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali`` 
+.. code-block:: bash
+
+    docker run -v $(pwd):/dali dali_builder:aarch64-linux
+
+The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``
 
 Cross-compiling DALI C++ API for aarch64 QNX (Docker)
 -----------------------------------------
@@ -383,21 +387,25 @@ Setup
 ^^^^^
 After aquiring the QNX Toolchain, place it in a directory called ``qnx`` in the root of the DALI tree.
 Then using the SDK Manager for NVIDIA DRIVE, select **QNX** as the *Target Operating System* and select **DRIVE OS 5.1.0.0 SDK**
-In STEP 02 under **Download & Install Options**, select *Download Now. Install Later*. and agree to the Terms and Conditions. 
-Once downloaded move the **cuda-repo-cross-qnx** debian package into the ``qnx`` directory you created in the DALI tree. 
+In STEP 02 under **Download & Install Options**, select *Download Now. Install Later*. and agree to the Terms and Conditions.
+Once downloaded move the **cuda-repo-cross-qnx** debian package into the ``qnx`` directory you created in the DALI tree.
 
-Build the aarch64 Build Container 
+Build the aarch64 Build Container
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 .. code-block:: bash
+
     docker build -t dali_builder:aarch64-qnx -f Dockerfile.build.aarch64-qnx .
 
 Compile
 ^^^^^^^
 From the root of the DALI source tree
-.. code-block:: bash
-    docker run -u ${UID}:${GID} -v $(pwd):/dali dali_builder:aarch64-qnx  
 
-The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali`` 
+.. code-block:: bash
+
+    docker run -v $(pwd):/dali dali_builder:aarch64-qnx
+
+The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``
 
 Getting started
 ---------------

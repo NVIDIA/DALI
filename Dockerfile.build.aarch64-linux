@@ -13,20 +13,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++-aarch64-linux-gnu \
     && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://developer.download.nvidia.com/devzone/devcenter/mobile/jetpack_l4t/4.1.1/xddsn.im/JetPackL4T_4.1.1_b57/16.04/cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb
-
 ENV REPO_DEBS="cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb"
-
-RUN dpkg -i $REPO_DEBS
-
 ENV CUDA_CROSS_VERSION=10-0
-
 ENV CUDA_CROSS_PACKAGES="cublas cudart cufft curand cusolver cusparse driver misc-headers npp"
 #nvml nvrtc nvgraph"
 
-RUN echo "for i in \$CUDA_CROSS_PACKAGES; do echo \"cuda-\$i-cross-aarch64-\${CUDA_CROSS_VERSION}\";done" | bash > /tmp/cuda-packages.txt
-
-RUN apt-get update \
+RUN wget https://developer.download.nvidia.com/devzone/devcenter/mobile/jetpack_l4t/4.1.1/xddsn.im/JetPackL4T_4.1.1_b57/16.04/cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb && \
+    dpkg -i $REPO_DEBS && \
+    echo "for i in \$CUDA_CROSS_PACKAGES; do echo \"cuda-\$i-cross-aarch64-\${CUDA_CROSS_VERSION}\";done" | bash > /tmp/cuda-packages.txt && \
+    apt-get update \
    && apt-get install -y $(cat /tmp/cuda-packages.txt) \
    && rm -rf /var/lib/apt/lists/* \
    && rm -rf /tmp/cuda-packages.txt
@@ -134,8 +129,7 @@ ARG DALI_BUILD_DIR=build_aarch64_linux
 
 WORKDIR /dali/${DALI_BUILD_DIR}
 
-CMD echo "VERSIONS:\n    opencv-${OPENCV_VERSION}\n    protobuf-${PROTOBUF_VERSION}\n    ffmpeg-${FFMPEG_VERSION}\n\n" && \
-cmake \
+CMD cmake \
   -DCMAKE_TOOLCHAIN_FILE:STRING="$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake" \
   -DCMAKE_COLOR_MAKEFILE=ON \
   -DCMAKE_INSTALL_PREFIX=./install \

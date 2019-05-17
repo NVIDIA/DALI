@@ -70,11 +70,10 @@ namespace dali {
     //  Reading Protobuf file has a limitation of 64 MB
     //  Following instructions will increase the
     //  limits to support the given pipeline
-    google::protobuf::io::CodedInputStream *coded_input =
-        new google::protobuf::io::CodedInputStream(
+    google::protobuf::io::CodedInputStream coded_input(
             reinterpret_cast<const uint8_t *>(serialized_pipe.c_str()), serialized_pipe.size());
-    coded_input->SetTotalBytesLimit(serialized_pipe.size(), 67108864);
-    def.ParseFromCodedStream(coded_input);
+    coded_input.SetTotalBytesLimit(serialized_pipe.size(), 67108864);
+    def.ParseFromCodedStream(&coded_input);
 
     // If not given, take parameters from the
     // serialized pipeline

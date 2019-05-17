@@ -39,8 +39,9 @@ static int _sysctl(struct __sysctl_args *args);
 
 static int get_max_vm_cnt() {
   int vm_cnt = 1;
+  long int syscall_ret = -1; // NOLINT
+  size_t vm_cnt_sz = sizeof(vm_cnt);
 #if !defined(__AARCH64_GNU__)
-  size_t vm_cnt_sz;
   int name[] = { CTL_VM, VM_MAX_MAP_COUNT };
   struct __sysctl_args args = {0, };
 
@@ -49,8 +50,9 @@ static int get_max_vm_cnt() {
   args.oldval = &vm_cnt;
   args.oldlenp = &vm_cnt_sz;
 
-  vm_cnt_sz = sizeof(vm_cnt);
-  if (syscall(SYS__sysctl, &args) == -1) {
+  syscall_ret = syscall(SYS__sysctl, &args);
+#endif
+  if (syscall_ret == -1) {
     // fallback to reading /proc
     FILE * fp;
     int constexpr MAX_BUFF_SIZE = 256;
@@ -59,7 +61,6 @@ static int get_max_vm_cnt() {
     vm_cnt_sz = std::fread(buffer, 1, MAX_BUFF_SIZE, fp);
     vm_cnt = std::stoi(buffer, nullptr);
   }
-#endif
   return vm_cnt;
 }
 
