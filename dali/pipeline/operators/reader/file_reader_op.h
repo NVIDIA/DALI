@@ -15,6 +15,9 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_FILE_READER_OP_H_
 #define DALI_PIPELINE_OPERATORS_READER_FILE_READER_OP_H_
 
+#include <utility>
+#include <string>
+#include <vector>
 #include "dali/pipeline/operators/reader/reader_op.h"
 #include "dali/pipeline/operators/reader/loader/file_loader.h"
 
@@ -24,7 +27,9 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit FileReader(const OpSpec& spec)
     : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
-    loader_ = InitLoader<FileLoader>(spec);
+    bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
+    loader_ = InitLoader<FileLoader>(spec, std::vector<std::pair<string, int>>(),
+                                     shuffle_after_epoch);
   }
 
   void RunImpl(SampleWorkspace *ws, const int i) override {

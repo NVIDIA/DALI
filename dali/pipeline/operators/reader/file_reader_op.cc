@@ -31,6 +31,10 @@ DALI_SCHEMA(FileReader)
       R"code(Path to the file with a list of pairs ``file label``
 (leave empty to traverse the `file_root` directory to obtain files and labels))code",
       std::string())
+.AddOptionalArg("shuffle_after_epoch",
+      R"code(If true, reader shuffles whole dataset after each epoch. It is exclusive with
+`stick_to_shard` and `random_shuffle`.)code",
+      false)
   .AddParent("LoaderBase");
 
 }  // namespace dali

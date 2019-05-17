@@ -21,7 +21,7 @@ DALI_SCHEMA(COCOReader)
   .NumInput(0)
   .NumOutput(3)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
-and an anotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
+and an annotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
 Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
   .AddArg("file_root",
       R"code(Path to a directory containing data files.)code",
@@ -40,7 +40,8 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
       R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height.)code",
       false)
   .AddOptionalArg("size_threshold",
-      R"code(If width or height of a bounding box representing an instance of an object is under this value, object will be skipped during reading. It is represented as absolute value.)code",
+      R"code(If width or height of a bounding box representing an instance of an object is under this value,
+object will be skipped during reading. It is represented as absolute value.)code",
       0.1f,
       false)
   .AddOptionalArg("skip_empty",
