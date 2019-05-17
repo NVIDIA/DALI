@@ -33,7 +33,7 @@ void SliceKernelImpl(OutputType *output,
                      const InputType *input,
                      const std::array<int64_t, Dims> &in_strides,
                      const std::array<int64_t, Dims> &out_strides,
-                     const TensorShape<(int)Dims> &out_shape,
+                     const TensorShape<static_cast<int>(Dims)> &out_shape,
                      std::integral_constant<size_t, 1>) {
   for (int i = 0; i < out_shape[Dims - 1]; i++) {
     output[i] = clamp<OutputType>(input[i]);
@@ -45,7 +45,7 @@ void SliceKernelImpl(OutputType *output,
                      const InputType *input,
                      const std::array<int64_t, Dims> &in_strides,
                      const std::array<int64_t, Dims> &out_strides,
-                     const TensorShape<(int)Dims> &out_shape,
+                     const TensorShape<static_cast<int>(Dims)> &out_shape,
                      std::integral_constant<size_t, DimsLeft>) {
   constexpr auto d = Dims - DimsLeft;  // NOLINT
   for (int i = 0; i < out_shape[d]; i++) {
@@ -64,7 +64,7 @@ void SliceKernel(OutputType *output,
                  const std::array<int64_t, Dims> &in_strides,
                  const std::array<int64_t, Dims> &out_strides,
                  const std::array<int64_t, Dims> &anchor,
-                 const TensorShape<(int)Dims> &out_shape) {
+                 const TensorShape<static_cast<int>(Dims)> &out_shape) {
   for (size_t d = 0; d < Dims; d++) {
     input += in_strides[d] * anchor[d];
   }

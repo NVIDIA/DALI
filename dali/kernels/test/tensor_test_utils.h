@@ -20,6 +20,7 @@
 #include <cmath>
 #include <utility>
 #include <random>
+#include <string>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/tensor_shape_print.h"
 #include "dali/kernels/backend_tags.h"
