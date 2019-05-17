@@ -26,7 +26,7 @@ struct TestObj {
   TestObj() {
     total++;
   }
-  TestObj(int value) : value(value) {
+  TestObj(int value) : value(value) {  // NOLINT
     total++;
   }
   ~TestObj() {
@@ -111,36 +111,6 @@ TEST(TestObj, RefCount) {
   EXPECT_EQ(TestObj::total, 0);
   EXPECT_EQ(TestObj::zombies, 0);
 }
-
-struct A
-{
-  A() {
-    std::cout << this << "->A()\n";
-  }
-  A(int x) : x(x) {
-    std::cout << this << "->A(int x = " << x << ")\n";
-  }  // NOLINT
-  A(const A &a) : x(a.x) {
-    std::cout << this << "->A(const A &a) a.x == " << a.x << "\n";
-  }
-  A(A &&a) : x(a.x) {
-    std::cout << this << "->A(A &&a) a.x == " << a.x << "\n";
-  }
-  ~A() {
-    std::cout << this << "->~A()  x == " << x << "\n";
-  }
-  A &operator=(const A &a) {
-    std::cout << this << "->A (x == " << x << ") = (const A &a)  a.x == " << a.x << "\n";
-    x = a.x;
-    return *this;
-  }
-  A &operator=(A &&a) {
-    std::cout << this << "->A (x == " << x << ") = (A &&a)  a.x == " << a.x << "\n";
-    x = a.x;
-    return *this;
-  }
-  int x;
-};
 
 TEST(SmallVector, Static) {
   {

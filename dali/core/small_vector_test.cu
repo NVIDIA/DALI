@@ -13,8 +13,17 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include "dali/test/device_test.h"
 #include "dali/core/small_vector.h"
 
-namespace dali {
-
-}  // namespace dali
+DEVICE_TEST(SmallVector, DeviceTest, dim3(1), dim3(1)) {
+  dali::SmallVector<int, 3, dali::device_side_allocator<int>> v;
+  DEV_EXPECT_EQ(v.capacity(), 3);
+  DEV_EXPECT_EQ(v.size(), 0);
+  v.push_back(1);
+  v.push_back(3);
+  v.push_back(5);
+  DEV_EXPECT_FALSE(v.is_dynamic())
+  v.push_back(7);
+  DEV_EXPECT_TRUE(v.is_dynamic());
+}

@@ -18,9 +18,8 @@
 #include <cuda_runtime.h>
 #include <cassert>
 #include <utility>
-#include <memory>
 #include "dali/kernels/alloc.h"
-#include "dali/core/cuda_stl.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
 
@@ -81,7 +80,7 @@ class SmallVectorBase {
 template <typename T>
 class SmallVectorBase<T, true> {
  protected:
-  void move_and_destroy(T *dst, T *src, size_t count) noexcept
+  __host__ __device__ void move_and_destroy(T *dst, T *src, size_t count) noexcept
   {
 #ifdef __CUDA_ARCH__
     for (size_t i = 0; i < count; i++) {
@@ -92,7 +91,7 @@ class SmallVectorBase<T, true> {
   #endif
   }
 
-  static void destroy(T *, size_t) noexcept {}
+  __host__ __device__ static void destroy(T *, size_t) noexcept {}
 };
 
 template <typename T, size_t static_size_, typename allocator = std::allocator<T> >
@@ -100,7 +99,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   using Alloc = SmallVectorAlloc<T, allocator>;
  public:
   static constexpr const size_t static_size = static_size_;  // NOLINT (kOnstant)
-  SmallVector() = default;
+  __host__ __device__ SmallVector() {}
   __host__ __device__ explicit SmallVector(allocator &&alloc) : Alloc(cuda_move(alloc)) {}
   __host__ __device__ explicit SmallVector(const allocator &alloc) : Alloc(alloc) {}
 
@@ -113,6 +112,10 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     reset_capacity();
   }
 
+  SmallVector(const SmallVector &other) {
+    *this = other;
+  }
+
   template <size_t other_static_size, typename alloc>
   __host__ __device__ SmallVector(const SmallVector<T, other_static_size, alloc> &other) {
     *this = other;
@@ -123,28 +126,36 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     *this = cuda_move(other);
   }
 
+  __host__ __device__ SmallVector &operator=(const SmallVector &v) {
+    copy_assign(v);
+    return *this;
+  }
+
   template <size_t other_static_size, typename alloc>
   __host__ __device__ SmallVector &operator=(const SmallVector<T, other_static_size, alloc> &v) {
+    copy_assign(v);
+    return *this;
+  }
+
+
+  template <size_t other_static_size, typename alloc>
+  __host__ __device__ void copy_assign(const SmallVector<T, other_static_size, alloc> &v) {
     const T *src = v.data();
-    std::cout << "copy assign\n";
     if (capacity() >= v.size()) {
       size_t i;
       T  *ptr = data();
       // overwrite common length
       for (i = 0; i < v.size() && i < size(); i++) {
-        std::cout << "assign " << i << "\n";
         ptr[i] = src[i];
       }
       // construct new elements
       for (; i < v.size(); i++) {
-        std::cout << "construct " << i << "\n";
         new(ptr+i) T(src[i]);
         if (!noexcept(new(ptr+i) T(src[i])))
           set_size(i + 1);
       }
       // destroy tail, if any
       for (; i < size(); i++) {
-        std::cout << "destroy " << i << "\n";
         ptr[i].~T();
       }
       set_size(v.size());
@@ -166,7 +177,6 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
         set_size(v.size());
       }
     }
-    return *this;
   }
 
   template <size_t other_static_size, typename alloc>
@@ -420,7 +430,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     set_size(count);
   }
 
-  __host__ void reserve(size_t new_capacity) {
+  __host__ __device__ void reserve(size_t new_capacity) {
     if (new_capacity <= capacity())
       return;
     T *ptr = data();
@@ -434,7 +444,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     set_capacity(new_capacity);
   }
 
-  __host__ void shrink_to_fit() {
+  __host__ __device__ void shrink_to_fit() {
     size_t new_capacity = cuda_max(size_, static_size);
     if (capacity() > new_capacity) {
       T *ptr = data();
@@ -486,7 +496,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     capacity_ = static_size;
   }
 
-  inline __host__ T *allocate(size_t count, bool &dynamic) {
+  inline __host__ __device__ T *allocate(size_t count, bool &dynamic) {
     if (count <= static_size) {
       dynamic = false;
       return static_data();
