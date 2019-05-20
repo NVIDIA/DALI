@@ -25,8 +25,11 @@
 #include "dali/core/util.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/dev_array.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
+
+
 namespace kernels {
 
 constexpr int DynamicDimensions = -1;
@@ -76,7 +79,6 @@ struct TensorShape;
 template <int N>
 struct compile_time_size_impl<TensorShape<N>> : std::integral_constant<int, N> {};
 
-
 /// @brief Base class for TensorShape containing common code for iterators and operator[]
 /// @tparam Container - the data structure in which the sizes are stored
 /// @tparam ndim - number of dimensions
@@ -93,21 +95,30 @@ struct TensorShapeBase {
   reference operator[](int d) { return shape[d]; }
   const_reference operator[](int d) const { return shape[d]; }
 
-  iterator begin() noexcept { return shape.begin(); }
-  iterator end() noexcept { return shape.end(); }
-  const_iterator begin() const noexcept { return shape.begin(); }
-  const_iterator end() const noexcept { return shape.end(); }
-  const_iterator cbegin() const noexcept { return shape.cbegin(); }
-  const_iterator cend() const noexcept { return shape.cend(); }
-
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV iterator begin() noexcept { return shape.begin(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV iterator end() noexcept { return shape.end(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV const_iterator begin() const noexcept { return shape.begin(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV const_iterator end() const noexcept { return shape.end(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV const_iterator cbegin() const noexcept { return shape.cbegin(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV const_iterator cend() const noexcept { return shape.cend(); }
 
   /// @brief Returns number of dimensions in this shape
-  size_type size() const { return shape.size(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV size_type size() const noexcept { return shape.size(); }
   /// @brief Returns number of dimensions in this shape
-  size_type sample_dim() const { return shape.size(); }
-  constexpr bool empty() const { return size() == 0; }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV size_type sample_dim() const noexcept { return shape.size(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV constexpr bool empty() const noexcept { return size() == 0; }
 
-  volume_t<value_type> num_elements() const {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV volume_t<value_type> num_elements() const {
     return volume(shape);
   }
 
@@ -134,10 +145,12 @@ struct TensorShapeBase {
   // Disallow instantiation of Base class
 
   // Zero-fill the shape for Container=DeviceArray<int64_t> with shape{}
-  TensorShapeBase() : shape{} {}
-
-  TensorShapeBase(const Container &c) : shape(c) {}        // NOLINT
-  TensorShapeBase(Container &&c) : shape(std::move(c)) {}  // NOLINT
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV TensorShapeBase() : shape{} {}
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV TensorShapeBase(const Container &c) : shape(c) {}        // NOLINT
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV TensorShapeBase(Container &&c) : shape(std::move(c)) {}  // NOLINT
 };
 
 /// @brief Dynamic TensorShape can be constructed from any Static TensorShape
@@ -205,26 +218,30 @@ template <int ndim>
 struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
   using Base = TensorShapeBase<DeviceArray<int64_t, ndim>, ndim>;
   TensorShape(const std::array<int64_t, ndim> &s) : Base(s) {}  // NOLINT
-  TensorShape(const DeviceArray<int64_t, ndim> &s) : Base(s) {}  // NOLINT
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV TensorShape(const DeviceArray<int64_t, ndim> &s) : Base(s) {}  // NOLINT
   // Base class constructor will zero-initialize array
   TensorShape() = default;
   // We allow only explicit operations on TensorShape static dim
   TensorShape(const TensorShape &) = default;
   TensorShape &operator=(const TensorShape &other) = default;
 
+  DALI_NO_EXEC_CHECK
   template <typename... Ts>
-  TensorShape(int64_t i0, Ts... s)  // NOLINT
+  DALI_HOST_DEV TensorShape(int64_t i0, Ts... s)  // NOLINT
       : Base(typename Base::container_type{{i0, int64_t{s}...}}) {
     static_assert(sizeof...(Ts) == ndim - 1, "Number of shapes passed must match ndim");
   }
 
+  DALI_NO_EXEC_CHECK
   template <int other_ndim>
-  TensorShape<other_ndim> to_static() const {
+  DALI_HOST_DEV TensorShape<other_ndim> to_static() const {
     static_assert(other_ndim != ndim, "Cannot convert to other static ndim");
     return *this;
   }
 
-  void resize(typename Base::size_type count) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV void resize(typename Base::size_type count) {
     assert(count == ndim && "Not supported for count other than statically defined");
   }
 
