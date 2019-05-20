@@ -187,6 +187,36 @@ TEST(SmallVector, InsertRealloc) {
   EXPECT_EQ(TestObj::total, 0);
 }
 
+TEST(SmallVector, MultipleInsert_PoD) {
+  dali::SmallVector<int, 3, dali::device_side_allocator<int>> v;
+  EXPECT_EQ(v.capacity(), 3);
+  EXPECT_EQ(v.size(), 0);
+  v.push_back(1);
+  v.push_back(3);
+  v.push_back(5);
+  EXPECT_FALSE(v.is_dynamic());
+  v.push_back(7);
+  EXPECT_TRUE(v.is_dynamic());
+  v.insert(v.begin() + 1, 2);
+  v.insert(v.begin() + 3, 4);
+  v.insert(v.begin() + 5, 6);
+  v.insert(v.begin() + 7, 8);
+  EXPECT_EQ(v[0], 1);
+  EXPECT_EQ(v[1], 2);
+  EXPECT_EQ(v[2], 3);
+  EXPECT_EQ(v[3], 4);
+  EXPECT_EQ(v[4], 5);
+  EXPECT_EQ(v[5], 6);
+  EXPECT_EQ(v[6], 7);
+  EXPECT_EQ(v[7], 8);
+  v.erase(v.begin()+2, v.end()-2);
+  ASSERT_EQ(v.size(), 4);
+  EXPECT_EQ(v[0], 1);
+  EXPECT_EQ(v[1], 2);
+  EXPECT_EQ(v[2], 7);
+  EXPECT_EQ(v[3], 8);
+}
+
 template <typename T, typename U>
 inline void EXPECT_VEC_EQUAL(const T &a, const U &b) {
   auto it_a = a.begin();
@@ -261,6 +291,29 @@ TEST(SmallVector, Copy) {
     EXPECT_FALSE(c.is_dynamic());
     EXPECT_VEC_EQUAL(a, c);
   }
+  EXPECT_EQ(TestObj::total, 0);
+}
+
+TEST(SmallVector, Erase) {
+  SmallVector<TestObj, 3> a;
+  a.push_back(1);
+  a.push_back(2);
+  a.push_back(3);
+  EXPECT_EQ(TestObj::total, 3);
+  auto it = a.erase(a.begin() + 1);
+  EXPECT_EQ(a.size(), 2);
+  EXPECT_EQ(TestObj::total, 2);
+  EXPECT_EQ(*it, 3);
+  a.push_back(4);
+  EXPECT_FALSE(a.is_dynamic());
+  a.push_back(5);
+  EXPECT_TRUE(a.is_dynamic());
+  a.erase(a.begin() + 1, a.end()-1);
+  EXPECT_EQ(a.size(), 2);
+  EXPECT_EQ(a[0], 1);
+  EXPECT_EQ(a[1], 5);
+  a.erase(a.begin(), a.end());
+  EXPECT_TRUE(a.empty());
   EXPECT_EQ(TestObj::total, 0);
 }
 

@@ -16,7 +16,6 @@
 #define DALI_CORE_SMALL_VECTOR_H_
 
 #include <cuda_runtime.h>
-#include <cassert>
 #include <utility>
 #include "dali/kernels/alloc.h"
 #include "dali/core/cuda_utils.h"
@@ -88,7 +87,7 @@ class SmallVectorBase<T, true> {
     }
 #else
     memcpy(dst, src, count * sizeof(T));
-  #endif
+#endif
   }
 
   __host__ __device__ static void destroy(T *, size_t) noexcept {}
@@ -203,10 +202,10 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       if (is_dynamic()) {
         deallocate(dynamic_data(), capacity());
       }
-      dynamic_data_ptrref() = v.dynamic_data_ptrref();
-      size_ = v.size_;
-      capacity_ = v.capacity_;
-      v.dynamic_data_ptrref() = nullptr;
+      set_dynamic_data(v.dynamic_data());
+      set_size(v.size());
+      set_capacity(v.capacity());
+      v.set_dynamic_data(nullptr);
       v.set_size(0);
       v.reset_capacity();
     } else {
@@ -275,11 +274,15 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   }
 
   inline __host__ __device__ size_t size() const {
-    return size_;
+    return size_ & size_mask;
+  }
+
+  inline __host__ __device__ bool empty() const {
+    return size() == 0;
   }
 
   inline __host__ __device__ size_t capacity() const {
-    return capacity_;
+    return is_dynamic() ? dynamic.capacity : static_size;
   }
 
   inline __host__ __device__ T *data() {
@@ -299,7 +302,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   }
 
   inline __host__ __device__ bool is_dynamic() const {
-    return capacity() > static_size;
+    return (size_ & dynamic_flag) != 0;
   }
 
   inline __host__ __device__ reference operator[](ptrdiff_t index) {
@@ -364,7 +367,6 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       size_t new_capacity = cuda_max(size() + 1, 2 * capacity());
       bool dynamic;
       T *new_data = allocate(new_capacity, dynamic);
-      assert(dynamic);
       index_type i = -1;
       index_type n = size();
 
@@ -373,6 +375,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
           new_data[i] = ptr[i];
 
         new_data[i] = T(cuda_forward<Args>(args)...);
+        i++;
         for (; i <= n; i++)
           new_data[i] = ptr[i - 1];
       } else {
@@ -389,7 +392,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       if (is_dynamic())
         deallocate(ptr, capacity());
 
-      dynamic_data_ptrref() = new_data;
+      set_dynamic_data(new_data);
       set_capacity(new_capacity);
       set_size(size() + 1);
       return begin() + index;
@@ -400,8 +403,31 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     return begin() + index;
   }
 
+  inline __host__ __device__ iterator erase(const_iterator position) {
+    return erase_at(position - begin());
+  }
+
+  inline __host__ __device__ iterator erase(const_iterator first, const_iterator last) {
+    return erase_at(first - begin(), last - first);
+  }
+
+  inline __host__ __device__ iterator erase_at(index_type first, size_t count = 1) {
+    index_type n = size();
+    T *ptr = data();
+
+    for (index_type dst = first, src = first + count; src < n; dst++, src++)
+      ptr[dst] = cuda_move(ptr[src]);
+
+    if (!std::is_pod<T>::value) {
+      for (index_type i = n - count; i < n; i++)
+        ptr[i].~T();
+    }
+
+    set_size(n - count);
+    return ptr + first;
+  }
+
   inline __host__ __device__ void pop_back() {
-    assert(!empty());
     back().~T();
     set_size(size() - 1);
   }
@@ -436,11 +462,10 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     T *ptr = data();
     bool dynamic;
     T *new_data = allocate(new_capacity, dynamic);
-    assert(dynamic);
     this->move_and_destroy(new_data, ptr, size());
     if (is_dynamic())
       deallocate(ptr, capacity());
-    dynamic_data_ptrref() = new_data;
+    set_dynamic_data(new_data);
     set_capacity(new_capacity);
   }
 
@@ -456,7 +481,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       }
       deallocate(ptr);
       if (dynamic)
-        dynamic_data_ptrref() = new_data;
+        set_dynamic_data(new_data);
       set_capacity(new_capacity);
     }
   }
@@ -466,8 +491,16 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   friend class SmallVector;
 
   using storage_t = typename std::aligned_storage<sizeof(T) * static_size_, alignof(T)>::type;
-  storage_t storage;
-  size_t size_ = 0, capacity_ = static_size_;
+  union {
+    storage_t storage;
+    struct {
+      T *data;
+      size_t capacity;
+    } dynamic;
+  };
+  size_t size_ = 0;
+  static constexpr size_t size_mask = static_cast<size_t>(-1) >> 1;
+  static constexpr size_t dynamic_flag = ~size_mask;
 
   template <typename U>
   inline __host__ __device__ void swap(U &a, U &b) {
@@ -487,13 +520,18 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   }
 
   inline __host__ __device__ void set_size(size_t new_size) {
-    size_ = new_size;
+    size_ = new_size | (size_ & dynamic_flag);
   }
   inline __host__ __device__ void set_capacity(size_t new_capacity) {
-    capacity_ = new_capacity;
+    if (new_capacity > static_size) {
+      size_ |= dynamic_flag;
+      dynamic.capacity = new_capacity;
+    } else {
+      reset_capacity();
+    }
   }
   inline __host__ __device__ void reset_capacity() {
-    capacity_ = static_size;
+    size_ &= ~dynamic_flag;
   }
 
   inline __host__ __device__ T *allocate(size_t count, bool &dynamic) {
@@ -515,13 +553,13 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   }
 
   inline __host__ __device__ T *dynamic_data() {
-    return *reinterpret_cast<T **>(&storage);
+    return dynamic.data;
   }
   inline __host__ __device__ const T *dynamic_data() const {
-    return *reinterpret_cast<T *const*>(&storage);
+    return dynamic.data;
   }
-  inline __host__ __device__ T *&dynamic_data_ptrref() {
-    return *reinterpret_cast<T **>(&storage);
+  inline __host__ __device__ void set_dynamic_data(T *ptr) {
+    dynamic.data = ptr;
   }
 
   inline __host__ __device__ void pre_append(size_t count = 1) {

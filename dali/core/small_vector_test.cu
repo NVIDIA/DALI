@@ -23,7 +23,25 @@ DEVICE_TEST(SmallVector, DeviceTest, dim3(1), dim3(1)) {
   v.push_back(1);
   v.push_back(3);
   v.push_back(5);
-  DEV_EXPECT_FALSE(v.is_dynamic())
+  DEV_EXPECT_FALSE(v.is_dynamic());
   v.push_back(7);
   DEV_EXPECT_TRUE(v.is_dynamic());
+  v.insert(v.begin() + 1, 2);
+  v.insert(v.begin() + 3, 4);
+  v.insert(v.begin() + 5, 6);
+  v.insert(v.begin() + 7, 8);
+  DEV_EXPECT_EQ(v[0], 1);
+  DEV_EXPECT_EQ(v[1], 2);
+  DEV_EXPECT_EQ(v[2], 3);
+  DEV_EXPECT_EQ(v[3], 4);
+  DEV_EXPECT_EQ(v[4], 5);
+  DEV_EXPECT_EQ(v[5], 6);
+  DEV_EXPECT_EQ(v[6], 7);
+  DEV_EXPECT_EQ(v[7], 8);
+  v.erase(v.begin()+2, v.end()-2);
+  DEV_ASSERT_EQ(v.size(), 4);
+  DEV_EXPECT_EQ(v[0], 1);
+  DEV_EXPECT_EQ(v[1], 2);
+  DEV_EXPECT_EQ(v[2], 7);
+  DEV_EXPECT_EQ(v[3], 8);
 }
