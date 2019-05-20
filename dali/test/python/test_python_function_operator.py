@@ -161,9 +161,11 @@ def test_func_with_side_effects():
     global counter
 
     for it in range(ITERS):
+        counter = 0
         out_one = pipe_one.run()
         out_two = pipe_two.run()
 
+        print(counter)
         assert counter == 2 * BATCH_SIZE
 
         for s in range(BATCH_SIZE):
@@ -173,5 +175,4 @@ def test_func_with_side_effects():
             assert elem_one > 0 and elem_one <= BATCH_SIZE
             assert elem_two > BATCH_SIZE and elem_two <= 2 * BATCH_SIZE
 
-        counter = 0
         
