@@ -23,29 +23,43 @@ namespace dali {
 
 namespace detail {
 
-  template <typename InputType, typename OutputType, std::size_t D>
-  void RunHelper(TensorList<GPUBackend>& output,
-                 const TensorList<GPUBackend>& input,
-                 const std::vector<std::array<int64_t, D>>& slice_anchors,
-                 const std::vector<std::array<int64_t, D>>& slice_shapes,
-                 cudaStream_t stream) {
-    kernels::SliceGPU<OutputType, InputType, D> kernel;
+template <typename InputType, typename OutputType>
+void RunHelper(TensorList<GPUBackend>& output,
+               const TensorList<GPUBackend>& input,
+               const std::vector<std::vector<int64_t>>& slice_anchors,
+               const std::vector<std::vector<int64_t>>& slice_shapes,
+               cudaStream_t stream) {
+  std::size_t number_of_dims = input.shape().size();
+  VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
+    kernels::SliceGPU<OutputType, InputType, NumDims> kernel;
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = stream;
-    auto in_view = view<const InputType, D>(input);
+    auto in_view = view<const InputType, NumDims>(input);
 
-    std::vector<kernels::SliceArgs<D>> slice_args;
+    std::vector<kernels::SliceArgs<NumDims>> slice_args;
     slice_args.reserve(slice_anchors.size());
     for (std::size_t i = 0; i < slice_anchors.size(); i++) {
-      slice_args.push_back({slice_anchors[i], slice_shapes[i]});
+      std::array<int64_t, NumDims> anchor, shape;
+      const auto& slice_anchor = slice_anchors[i];
+      const auto& slice_shape = slice_shapes[i];
+      for (std::size_t d = 0; d < NumDims; d++) {
+        anchor[d] = slice_anchor[d];
+        shape[d] = slice_shape[d];
+      }
+      slice_args.push_back({anchor, shape});
     }
 
     kernels::KernelRequirements kernel_req = kernel.Setup(ctx, in_view, slice_args);
 
-    auto out_view = view<OutputType, D>(output);
+    auto out_view = view<OutputType, NumDims>(output);
     kernel.Run(ctx, out_view, in_view, slice_args);
-  }
+  ),  // NOLINT
+  (
+    DALI_FAIL("Not supported number of dimensions");
+  ));  // NOLINT
+}
+
 }  // namespace detail
 
 template <>
@@ -63,7 +77,8 @@ void NewCrop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx)
 
   const DALITensorLayout in_layout = input.GetLayout();
   // TODO(janton) : support other layouts
-  DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW,
+  DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW
+            || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW,
     "Unexpected data layout");
   DALITensorLayout out_layout = in_layout;
 
@@ -71,7 +86,11 @@ void NewCrop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx)
   for (int i = 0; i < batch_size_; ++i) {
     DataDependentSetup(i, in_layout, input.tensor_shape(i));
     auto &slice_shape = slice_shapes_[i];
-    output_shape[i] = { slice_shape[0], slice_shape[1], slice_shape[2] };
+    if (in_layout == DALI_NFHWC || in_layout == DALI_NFCHW) {
+      output_shape[i] = { slice_shape[0], slice_shape[1], slice_shape[2], slice_shape[3] };
+    } else {
+      output_shape[i] = { slice_shape[0], slice_shape[1], slice_shape[2] };
+    }
   }
   auto &output = ws->Output<GPUBackend>(idx);
   output.Resize(output_shape);
@@ -87,14 +106,14 @@ void NewCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
     DALI_ENFORCE(input_type_ == output_type_,
       "type conversion is not supported for half precision floats");
-    detail::RunHelper<float16, float16, 3>(
+    detail::RunHelper<float16, float16>(
       output, input, slice_anchors_, slice_shapes_, ws->stream());
     return;
   }
 
   DALI_TYPE_SWITCH(input_type_, InputType,
     DALI_TYPE_SWITCH(output_type_, OutputType,
-      detail::RunHelper<OutputType, InputType, 3>(
+      detail::RunHelper<OutputType, InputType>(
         output, input, slice_anchors_, slice_shapes_, ws->stream());
     )
   )
