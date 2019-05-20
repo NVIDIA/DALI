@@ -23,6 +23,8 @@
 #include <vector>
 #include "dali/core/span.h"
 #include "dali/core/util.h"
+#include "dali/core/small_vector.h"
+#include "dali/core/dev_array.h"
 
 namespace dali {
 namespace kernels {
@@ -60,9 +62,12 @@ struct compile_time_size_impl<T[N]> : std::integral_constant<int, N> {};
 template <typename T, size_t N>
 struct compile_time_size_impl<std::array<T, N>> : std::integral_constant<int, N> {};
 
+template <typename T, size_t N>
+struct compile_time_size_impl<DeviceArray<T, N>> : std::integral_constant<int, N> {};
+
 /// @brief Class representing shape of a Tensor
 ///
-/// Static shapes do not allocate additional memory as they are backed by std::array
+/// Static shapes do not allocate additional memory as they are backed by static array
 /// @tparam ndim Either non-negative integer representing static number of dimensions
 ///         or DynamicDimensions.
 template <int ndim = DynamicDimensions>
@@ -84,8 +89,6 @@ struct TensorShapeBase {
   using const_reference = const value_type &;
   using iterator = typename container_type::iterator;
   using const_iterator = typename container_type::const_iterator;
-  using reverse_iterator = typename container_type::reverse_iterator;
-  using const_reverse_iterator = typename container_type::const_reverse_iterator;
 
   reference operator[](int d) { return shape[d]; }
   const_reference operator[](int d) const { return shape[d]; }
@@ -96,12 +99,7 @@ struct TensorShapeBase {
   const_iterator end() const noexcept { return shape.end(); }
   const_iterator cbegin() const noexcept { return shape.cbegin(); }
   const_iterator cend() const noexcept { return shape.cend(); }
-  reverse_iterator rbegin() noexcept { return shape.rbegin(); }
-  reverse_iterator rend() noexcept { return shape.rend(); }
-  const_reverse_iterator rbegin() const noexcept { return shape.rbegin(); }
-  const_reverse_iterator rend() const noexcept { return shape.rend(); }
-  const_reverse_iterator crbegin() const noexcept { return shape.crbegin(); }
-  const_reverse_iterator crend() const noexcept { return shape.crend(); }
+
 
   /// @brief Returns number of dimensions in this shape
   size_type size() const { return shape.size(); }
@@ -135,7 +133,7 @@ struct TensorShapeBase {
  protected:
   // Disallow instantiation of Base class
 
-  // Zero-fill the shape for Container=std::array<int64_t> with shape{}
+  // Zero-fill the shape for Container=DeviceArray<int64_t> with shape{}
   TensorShapeBase() : shape{} {}
 
   TensorShapeBase(const Container &c) : shape(c) {}        // NOLINT
@@ -152,6 +150,10 @@ struct TensorShape<DynamicDimensions>
 
   template <size_t N>
   TensorShape(const std::array<int64_t, N> &s)  // NOLINT
+      : Base(typename Base::container_type(s.begin(), s.end())) {}
+
+  template <size_t N>
+  TensorShape(const DeviceArray<int64_t, N> &s)  // NOLINT
       : Base(typename Base::container_type(s.begin(), s.end())) {}
 
   template <typename... Ts,
@@ -200,9 +202,10 @@ struct TensorShape<DynamicDimensions>
 };
 
 template <int ndim>
-struct TensorShape : public TensorShapeBase<std::array<int64_t, ndim>, ndim> {
-  using Base = TensorShapeBase<std::array<int64_t, ndim>, ndim>;
+struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
+  using Base = TensorShapeBase<DeviceArray<int64_t, ndim>, ndim>;
   TensorShape(const std::array<int64_t, ndim> &s) : Base(s) {}  // NOLINT
+  TensorShape(const DeviceArray<int64_t, ndim> &s) : Base(s) {}  // NOLINT
   // Base class constructor will zero-initialize array
   TensorShape() = default;
   // We allow only explicit operations on TensorShape static dim
@@ -211,7 +214,7 @@ struct TensorShape : public TensorShapeBase<std::array<int64_t, ndim>, ndim> {
 
   template <typename... Ts>
   TensorShape(int64_t i0, Ts... s)  // NOLINT
-      : Base(typename Base::container_type{i0, int64_t{s}...}) {
+      : Base(typename Base::container_type{{i0, int64_t{s}...}}) {
     static_assert(sizeof...(Ts) == ndim - 1, "Number of shapes passed must match ndim");
   }
 

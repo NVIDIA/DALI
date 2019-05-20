@@ -36,6 +36,12 @@ class DeviceArray {
     return ret;
   }
 
+  using value_type = T;
+  using reference = T&;
+  using const_reference = const T&;
+  using iterator = T*;
+  using const_iterator = const T*;
+
   __host__ __device__ T &operator[](ptrdiff_t index)
   { return data_[index]; }
   __host__ __device__ constexpr const T &operator[](ptrdiff_t index) const
@@ -50,7 +56,7 @@ class DeviceArray {
   __host__ __device__ constexpr size_t size() const { return N; }
   __host__ __device__ constexpr bool empty() const { return N == 0; }
   __host__ __device__ inline T *data() { return data_; }
-  __host__ __device__ constexpr T *data() const { return data_; }
+  __host__ __device__ constexpr const T *data() const { return data_; }
 
   __host__ __device__ inline bool operator==(const DeviceArray &other) const {
     for (size_t i = 0; i < N; i++) {
@@ -66,6 +72,40 @@ class DeviceArray {
 
  private:
   T data_[N];
+};
+
+template <typename T>
+class DeviceArray<T, 0> {
+ public:
+  constexpr DeviceArray() = default;
+  __host__ DeviceArray(const std::array<T, 0> &) {
+  }
+
+  constexpr __host__ operator std::array<T, 0>() const noexcept {
+    return {};
+  }
+
+  using value_type = T;
+  using reference = T&;
+  using const_reference = const T&;
+  using iterator = T*;
+  using const_iterator = const T*;
+
+  __host__ __device__ T &operator[](ptrdiff_t index)
+  { return data()[index]; }
+  __host__ __device__ constexpr const T &operator[](ptrdiff_t index) const
+  { return data()[index]; }
+
+  __host__ __device__ inline T *begin() { return data(); }
+  __host__ __device__ constexpr const T *begin() const { return data(); }
+  __host__ __device__ constexpr const T *cbegin() const { return data(); }
+  __host__ __device__ inline T *end() { return data(); }
+  __host__ __device__ constexpr const T *end() const { return data(); }
+  __host__ __device__ constexpr const T *cend() const { return data(); }
+  __host__ __device__ constexpr size_t size() const { return 0; }
+  __host__ __device__ constexpr bool empty() const { return true; }
+  __host__ __device__ inline T *data() { return reinterpret_cast<T*>(this); }
+  __host__ __device__ constexpr const T *data() const { return reinterpret_cast<const T*>(this); }
 };
 
 }  // namespace dali
