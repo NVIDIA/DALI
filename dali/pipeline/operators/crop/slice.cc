@@ -28,7 +28,7 @@ Slice operation is a cropped version of the input tensor `Images`.)code")
     .NumInput(3)
     .NumOutput(1)
     .AllowMultipleInputSets()
-    .AllowSequences()
+    .AllowSequences(true)
     .AddOptionalArg(
         "image_type",
         R"code(The color space of input and output image)code",

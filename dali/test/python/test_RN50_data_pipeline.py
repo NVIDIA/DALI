@@ -176,7 +176,13 @@ parser.add_argument('-p', '--print-freq', default=10, type=int,
 parser.add_argument('-j', '--workers', default=3, type=int, metavar='N',
                     help='number of data loading workers (default: 3)')
 parser.add_argument('--prefetch', default=2, type=int, metavar='N',
-                    help='prefetch queue deptch (default: 2)')
+                    help='prefetch queue depth (default: 2)')
+parser.add_argument('--separate_queue', action='store_true',
+                    help='Use separate queues executor')
+parser.add_argument('--cpu_size', default=2, type=int, metavar='N',
+                    help='cpu prefetch queue depth (default: 2)')
+parser.add_argument('--gpu_size', default=2, type=int, metavar='N',
+                    help='gpu prefetch queue depth (default: 2)')
 parser.add_argument('--fp16', action='store_true',
                     help='Run fp16 pipeline')
 parser.add_argument('--nhwc', action='store_true',
@@ -204,7 +210,8 @@ BATCH_SIZE = args.batch   # batch size
 LOG_INTERVAL = args.print_freq
 WORKERS = args.workers
 PREFETCH = args.prefetch
-#PREFETCH = {'cpu_size': 2, 'gpu_size': 2}
+if args.separate_queue:
+    PREFETCH = {'cpu_size': args.cpu_size , 'gpu_size': args.gpu_size}
 FP16 = args.fp16
 NHWC = args.nhwc
 

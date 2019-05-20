@@ -62,6 +62,7 @@ Example:
                     R"code(Distance between consecutive frames in sequence)code", 1, false)
     .AddOptionalArg("image_type",
                     R"code(The color space of input and output image)code", DALI_RGB, false)
-    .AddParent("LoaderBase");
+    .AddParent("LoaderBase")
+    .AllowSequences(false);;
 
 }  // namespace dali
