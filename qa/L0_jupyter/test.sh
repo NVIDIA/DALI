@@ -1,6 +1,8 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter numpy matplotlib"
+pip_packages="jupyter numpy matplotlib pillow"
+
+source ../setup_dali_extra.sh
 
 pushd ../..
 
