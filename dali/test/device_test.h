@@ -157,6 +157,10 @@ __device__ void suite_name##_##test_name##_body( \
   auto err = cudaGetLastError(); \
   EXPECT_EQ(err, cudaSuccess) << "CUDA error: " \
     << cudaGetErrorName(err) << " " << cudaGetErrorString(err); \
+  if (err == cudaErrorIllegalAddress || err == cudaErrorIllegalInstruction) { \
+    std::cerr << "A fatal CUDA error was reported. Resetting the device!" << std::endl; \
+    exit(err); \
+  } \
   EXPECT_FALSE(host_status.failed) << "There were errors in device code";
 
 /// Simple test of a device function

@@ -53,15 +53,5 @@ TEST(DeviceTest, DeviceSideFailure) {
     num = host_status.num_messages;
   }, "There were errors in device code");
   EXPECT_EQ(num, 21);  // threadIdx.x == 0 succeeds once
-}
-
-DEFINE_TEST_KERNEL(DeviceTest, ReportCudaError, int *bad_pointer) {
-  *bad_pointer = threadIdx.x;
-}
-
-TEST(DeviceTest, ReportCudaError) {
-  int *bad_pointer = nullptr;
-  EXPECT_NONFATAL_FAILURE({
-    DEVICE_TEST_CASE_BODY(DeviceTest, ReportCudaError, dim3(1), dim3(32), bad_pointer)
-  }, "cudaErrorIllegalAddress");
+  EXPECT_EQ(cudaGetLastError(), cudaSuccess);
 }

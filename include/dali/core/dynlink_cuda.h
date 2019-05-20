@@ -1852,6 +1852,7 @@ extern tcuDeviceGetName                *cuDeviceGetName;
 extern tcuDeviceComputeCapability      *cuDeviceComputeCapability;
 extern tcuDeviceGetProperties          *cuDeviceGetProperties;
 extern tcuDeviceGetAttribute           *cuDeviceGetAttribute;
+extern tcuCtxCreate                    *cuCtxCreate;
 extern tcuCtxDestroy                   *cuCtxDestroy;
 extern tcuCtxAttach                    *cuCtxAttach;
 extern tcuCtxDetach                    *cuCtxDetach;
@@ -1888,7 +1889,6 @@ extern tcuMemcpyPeer                   *cuMemcpyPeer;
 
 #if 0
 extern tcuDeviceTotalMem               *cuDeviceTotalMem;
-extern tcuCtxCreate                    *cuCtxCreate;
 extern tcuModuleGetGlobal              *cuModuleGetGlobal;
 extern tcuMemGetInfo                   *cuMemGetInfo;
 extern tcuMemAlloc                     *cuMemAlloc;

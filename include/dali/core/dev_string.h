@@ -99,8 +99,8 @@ struct DeviceString {
   size_t length_ = 0;
 };
 
-__device__ const char *dev_to_string(char *literal) { return literal; }
-__device__ const char *dev_to_string(const char *literal) { return literal; }
+constexpr __device__ const char *dev_to_string(char *literal) { return literal; }
+constexpr __device__ const char *dev_to_string(const char *literal) { return literal; }
 inline __device__ DeviceString dev_to_string(long long x) {
   if (x == 0)
     return "0";
