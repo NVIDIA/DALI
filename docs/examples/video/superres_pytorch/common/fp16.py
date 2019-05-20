@@ -4,7 +4,7 @@ from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
-from nvidia.loss_scaler import DynamicLossScaler, LossScaler
+from common.loss_scaler import DynamicLossScaler, LossScaler
 
 FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
 HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)

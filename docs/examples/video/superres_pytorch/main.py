@@ -22,9 +22,9 @@ from dataloading.dataloaders import get_loader
 from model.model import VSRNet
 from model.clr import cyclic_learning_rate
 
-from nvidia.fp16 import FP16_Optimizer
-from nvidia.fp16util import network_to_half
-from nvidia.distributed import DistributedDataParallel
+from common.fp16 import FP16_Optimizer
+from common.fp16util import network_to_half
+from common.distributed import DistributedDataParallel
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=1, metavar='S',
@@ -132,7 +132,7 @@ def main(args):
         data_timer = 0.0
         compute_timer = 0.0
 
-        iter_start = time.perf_counter()
+        iter_start = time.clock()
 
         training_data_times = []
         training_start = datetime.datetime.now()
@@ -154,7 +154,7 @@ def main(args):
 
             if args.timing:
                 torch.cuda.synchronize()
-                data_end = time.perf_counter()
+                data_end = time.clock()
 
 
             optimizer.zero_grad()
@@ -176,13 +176,13 @@ def main(args):
             if args.rank == 0:
                 if args.timing:
                     torch.cuda.synchronize()
-                    iter_end = time.perf_counter()
+                    iter_end = time.clock()
                     sample_timer += (iter_end - iter_start)
                     data_duration = data_end - iter_start
                     data_timer += data_duration
                     compute_timer += (iter_end - data_end)
                     torch.cuda.synchronize()
-                    iter_start = time.perf_counter()
+                    iter_start = time.clock()
                 writer.add_scalar('learning_rate', scheduler.get_lr()[0], total_iter)
                 writer.add_scalar('train_loss', loss.item(), total_iter)
 
