@@ -29,7 +29,7 @@ void RunHelper(TensorList<GPUBackend>& output,
                const std::vector<std::vector<int64_t>>& slice_anchors,
                const std::vector<std::vector<int64_t>>& slice_shapes,
                cudaStream_t stream) {
-  std::size_t number_of_dims = input.shape().size();
+  std::size_t number_of_dims = input.tensor_shape(0).size();
   VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
     kernels::SliceGPU<OutputType, InputType, NumDims> kernel;
 
@@ -56,7 +56,7 @@ void RunHelper(TensorList<GPUBackend>& output,
     kernel.Run(ctx, out_view, in_view, slice_args);
   ),  // NOLINT
   (
-    DALI_FAIL("Not supported number of dimensions");
+    DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims));
   ));  // NOLINT
 }
 
