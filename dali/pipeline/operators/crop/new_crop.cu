@@ -14,6 +14,7 @@
 
 #include <vector>
 #include "dali/image/transform.h"
+#include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_gpu.cuh"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/operators/crop/new_crop.h"
@@ -50,7 +51,11 @@ void RunHelper(TensorList<GPUBackend>& output,
       slice_args.push_back({anchor, shape});
     }
 
-    kernels::KernelRequirements kernel_req = kernel.Setup(ctx, in_view, slice_args);
+    kernels::ScratchpadAllocator scratch_alloc;
+    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
+    scratch_alloc.Reserve(req.scratch_sizes);
+    auto scratchpad = scratch_alloc.GetScratchpad();
+    ctx.scratchpad = &scratchpad;
 
     auto out_view = view<OutputType, NumDims>(output);
     kernel.Run(ctx, out_view, in_view, slice_args);
