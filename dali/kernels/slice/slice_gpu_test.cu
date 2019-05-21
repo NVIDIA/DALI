@@ -34,9 +34,9 @@ class SliceGPUTest : public SliceTest<TestArgs> {
     KernelContext ctx;
 
     TestTensorList<InputType, Dims> test_data;
-    SliceTest<TestArgs>::PrepareData(test_data);
+    this->PrepareData(test_data);
 
-    auto slice_args = SliceTest<TestArgs>::GenerateSliceArgs(test_data.cpu());
+    auto slice_args = this->GenerateSliceArgs(test_data.cpu());
 
     KernelType kernel;
     KernelRequirements kernel_req = kernel.Setup(ctx, test_data.gpu(), slice_args);
@@ -53,7 +53,7 @@ class SliceGPUTest : public SliceTest<TestArgs> {
     kernel.Run(ctx, out_tlv, test_data.gpu(), slice_args);
 
     TestTensorList<OutputType, Dims> expected_output;
-    SliceTest<TestArgs>::PrepareExpectedOutput(test_data, slice_args, expected_output);
+    this->PrepareExpectedOutput(test_data, slice_args, expected_output);
 
     EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu()));
   }

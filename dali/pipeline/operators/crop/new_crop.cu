@@ -85,7 +85,7 @@ void NewCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   auto &output = ws->Output<GPUBackend>(idx);
 
   if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
-    DALI_ENFORCE (input_type_ == output_type_,
+    DALI_ENFORCE(input_type_ == output_type_,
       "type conversion is not supported for half precision floats");
     detail::RunHelper<float16, float16, 3>(
       output, input, slice_anchors_, slice_shapes_, ws->stream());

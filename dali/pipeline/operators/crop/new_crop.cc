@@ -90,7 +90,7 @@ void NewCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   auto data_idx = ws->data_idx();
 
   if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
-    DALI_ENFORCE (input_type_ == output_type_,
+    DALI_ENFORCE(input_type_ == output_type_,
       "type conversion is not supported for half precision floats");
     detail::RunHelper<float16_cpu, float16_cpu, 3>(
       output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);

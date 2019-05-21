@@ -34,13 +34,13 @@ class SliceCPUTest : public SliceTest<TestArgs> {
     KernelContext ctx;
 
     TestTensorList<InputType, Dims> test_data;
-    SliceTest<TestArgs>::PrepareData(test_data);
+    this->PrepareData(test_data);
 
     auto test_data_cpu = test_data.cpu();
-    auto slice_args = SliceTest<TestArgs>::GenerateSliceArgs(test_data_cpu);
+    auto slice_args = this->GenerateSliceArgs(test_data_cpu);
 
     TestTensorList<OutputType, Dims> expected_output;
-    SliceTest<TestArgs>::PrepareExpectedOutput(test_data, slice_args, expected_output);
+    this->PrepareExpectedOutput(test_data, slice_args, expected_output);
 
     TensorListShape<> output_shapes;
     output_shapes.resize(NumSamples, Dims);
@@ -53,7 +53,7 @@ class SliceCPUTest : public SliceTest<TestArgs> {
       output_shapes.set_tensor_shape(i, output_shape);
     }
     TestTensorList<OutputType, Dims> output_data;
-    output_data.reshape(output_shapes.to_static<Dims>());
+    output_data.reshape(std::move(output_shapes).to_static<Dims>());
     OutListCPU<OutputType, Dims> out_tlv = output_data.cpu();
 
     for (std::size_t i = 0; i < NumSamples; i++) {
