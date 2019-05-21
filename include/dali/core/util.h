@@ -238,7 +238,9 @@ volume(Iter shape_begin, Iter shape_end) {
 
 /// @brief Returns the product of all elements in shape
 /// @param shape - an iterable collection of extents
+DALI_NO_EXEC_CHECK
 template <typename Shape>
+DALI_HOST_DEV
 inline auto volume(const Shape &shape)->decltype(volume(dali::begin(shape), dali::end(shape))) {
   return volume(dali::begin(shape), dali::end(shape));
 }

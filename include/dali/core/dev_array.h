@@ -31,6 +31,12 @@ class DeviceArray {
       data_[i] = src[i];
   }
 
+  template <typename... Args>
+  __host__ __device__ DeviceArray(const T &arg0, const Args&... args)
+  : data_{arg0, args...} {
+    static_assert(sizeof...(Args) == N-1, "Wrong number of initializers");
+  }
+
   __host__ operator std::array<T, N>() const
   noexcept(noexcept(std::array<T, N>()[0] = *static_cast<T*>(nullptr))) {
     std::array<T, N> ret;
@@ -81,10 +87,10 @@ template <typename T>
 class DeviceArray<T, 0> {
  public:
   constexpr DeviceArray() = default;
-  __host__ DeviceArray(const std::array<T, 0> &) noexcept {
+  __host__ __device__ DeviceArray(const std::array<T, 0> &) noexcept {
   }
 
-  constexpr __host__ operator std::array<T, 0>() const noexcept {
+  constexpr __host__ __device__ operator std::array<T, 0>() const noexcept {
     return {};
   }
 
