@@ -59,7 +59,7 @@ void RunHelper(Tensor<CPUBackend> &output,
     kernel.Run(ctx, out_view, in_view, slice_args);
   ), // NOLINT
   (
-    DALI_FAIL("Number or dimensions not supported");
+    DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims));
   )); // NOLINT
 }
 
