@@ -57,5 +57,7 @@ number of frames).)code")
   .AddOptionalArg("dtype",
       R"code(The data type of the output frames (supports FLOAT and UINT8).)code",
       DALI_UINT8)
+  .AddOptionalArg("stride",
+      R"code(Distance between consecutive frames in sequence.)code", 1u, false)
   .AddParent("LoaderBase");
 }  // namespace dali
