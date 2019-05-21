@@ -17,7 +17,7 @@
 #include "dali/core/small_vector.h"
 
 DEVICE_TEST(SmallVector, DeviceTest, dim3(1), dim3(1)) {
-  dali::SmallVector<int, 3, dali::device_side_allocator<int>> v;
+  dali::SmallVector<int, 3> v;
   DEV_EXPECT_EQ(v.capacity(), 3);
   DEV_EXPECT_EQ(v.size(), 0);
   v.push_back(1);

@@ -93,7 +93,15 @@ class SmallVectorBase<T, true> {
   __host__ __device__ static void destroy(T *, size_t) noexcept {}
 };
 
-template <typename T, size_t static_size_, typename allocator = std::allocator<T> >
+#ifdef __CUDA_ARCH__
+template <typename T>
+using default_small_vector_allocator = device_side_allocator<T>;
+#else
+template <typename T>
+using default_small_vector_allocator = std::allocator<T>;
+#endif
+
+template <typename T, size_t static_size_, typename allocator = default_small_vector_allocator<T>>
 class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   using Alloc = SmallVectorAlloc<T, allocator>;
  public:

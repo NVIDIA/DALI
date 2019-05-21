@@ -188,7 +188,7 @@ TEST(SmallVector, InsertRealloc) {
 }
 
 TEST(SmallVector, MultipleInsert_PoD) {
-  dali::SmallVector<int, 3, dali::device_side_allocator<int>> v;
+  dali::SmallVector<int, 3> v;
   EXPECT_EQ(v.capacity(), 3);
   EXPECT_EQ(v.size(), 0);
   v.push_back(1);
@@ -215,6 +215,28 @@ TEST(SmallVector, MultipleInsert_PoD) {
   EXPECT_EQ(v[1], 2);
   EXPECT_EQ(v[2], 7);
   EXPECT_EQ(v[3], 8);
+}
+
+TEST(SmallVector, PopBack) {
+  dali::SmallVector<int, 3> v;
+  v.push_back(1);
+  v.pop_back();
+  EXPECT_TRUE(v.empty());
+  v.push_back(2);
+  EXPECT_EQ(v.back(), 2);
+  v.push_back(3);
+  v.push_back(4);
+  EXPECT_FALSE(v.is_dynamic());
+  EXPECT_EQ(v.back(), 4);
+  v.pop_back();
+  EXPECT_EQ(v.back(), 3);
+  v.push_back(5);
+  EXPECT_FALSE(v.is_dynamic());
+  v.push_back(6);
+  EXPECT_EQ(v.back(), 6);
+  EXPECT_TRUE(v.is_dynamic());
+  v.pop_back();
+  EXPECT_EQ(v.back(), 5);
 }
 
 template <typename T, typename U>
