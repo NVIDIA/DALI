@@ -57,6 +57,20 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
       current_index_(0),
       current_epoch_(0) {
       /*
+      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks differently
+      * after each epoch so coexistence with `stick_to_shard` doesn't make any sense
+      * Still when `shuffle_after_epoch` we will set `stick_to_shard` internally in the FileLoader so all
+      * DALI instances will do shuffling after each epoch
+      */
+      if (shuffle_after_epoch_ || stick_to_shard_)
+        DALI_ENFORCE(
+          !shuffle_after_epoch_ || !stick_to_shard_,
+          "shuffle_after_epoch and stick_to_shard cannot be both true");
+      if (shuffle_after_epoch_ || shuffle_)
+        DALI_ENFORCE(
+          !shuffle_after_epoch_ || !shuffle_,
+          "shuffle_after_epoch and random_shuffle cannot be both true");
+      /*
        * Imply `stick_to_shard` from  `shuffle_after_epoch`
        */
       if (shuffle_after_epoch_) {
