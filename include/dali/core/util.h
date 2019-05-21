@@ -19,43 +19,83 @@
 #include <utility>
 #include <initializer_list>
 
+#include "dali/core/host_dev.h"
+
 namespace dali {
 
 using std::size_t;
 
-template <typename Target, typename Source>
-void append(Target &target, const Source &source) {
-  target.insert(std::end(target), std::begin(source), std::end(source));
+template <typename T, size_t N>
+DALI_HOST_DEV constexpr T *begin(T (&array)[N]) noexcept { return array; }
+template <typename T, size_t N>
+DALI_HOST_DEV constexpr T *end(T (&array)[N]) noexcept { return array + N; }
+
+DALI_NO_EXEC_CHECK
+template <typename T>
+DALI_HOST_DEV constexpr auto begin(T &collection)->decltype(collection.begin()) {
+  return collection.begin();
 }
 
+DALI_NO_EXEC_CHECK
+template <typename T>
+DALI_HOST_DEV constexpr auto end(T &collection)->decltype(collection.end()) {
+  return collection.end();
+}
+
+DALI_NO_EXEC_CHECK
+template <typename T>
+DALI_HOST_DEV constexpr auto begin(const T &collection)->decltype(collection.begin()) {
+  return collection.begin();
+}
+
+DALI_NO_EXEC_CHECK
+template <typename T>
+DALI_HOST_DEV constexpr auto end(const T &collection)->decltype(collection.end()) {
+  return collection.end();
+}
+
+DALI_NO_EXEC_CHECK
+template <typename Target, typename Source>
+DALI_HOST_DEV
+void append(Target &target, const Source &source) {
+  target.insert(dali::end(target), dali::begin(source), dali::end(source));
+}
+
+DALI_NO_EXEC_CHECK
 template <typename Collection>
-auto size(const Collection &c)->decltype(c.size()) {
+DALI_HOST_DEV auto size(const Collection &c)->decltype(c.size()) {
   return c.size();
 }
 
 template <typename T, size_t N>
+DALI_HOST_DEV
 size_t size(const T (&a)[N]) {
   return N;
 }
 
 template <typename Value, typename Alignment>
+DALI_HOST_DEV
 constexpr Value align_up(Value v, Alignment a) {
   return v + ((a - 1) & -v);
 }
 
 
+DALI_HOST_DEV
 constexpr int32_t div_ceil(int32_t total, uint32_t grain) {
   return (total + grain - 1) / grain;
 }
 
+DALI_HOST_DEV
 constexpr uint32_t div_ceil(uint32_t total, uint32_t grain) {
   return (total + grain - 1) / grain;
 }
 
+DALI_HOST_DEV
 constexpr int64_t div_ceil(int64_t total, uint64_t grain) {
   return (total + grain - 1) / grain;
 }
 
+DALI_HOST_DEV
 constexpr uint64_t div_ceil(uint64_t total, uint64_t grain) {
   return (total + grain - 1) / grain;
 }
@@ -74,8 +114,8 @@ template <typename DependentName, typename Result>
 using if_istype = typename std::conditional<false, DependentName, Result>::type;
 
 template <typename Collection, typename T = void>
-using if_iterable = if_istype<decltype(*std::end(std::declval<Collection>())),
-                              if_istype<decltype(*std::begin(std::declval<Collection>())), T>>;
+using if_iterable = if_istype<decltype(*dali::end(std::declval<Collection>())),
+                              if_istype<decltype(*dali::begin(std::declval<Collection>())), T>>;
 
 template <typename Collection, typename T = void>
 using if_indexable = if_istype<decltype(std::declval<Collection>()[0]), T>;
@@ -182,7 +222,9 @@ using volume_t = typename volume_type<
 /// @brief Returns the product of all elements in shape
 /// @param shape_begin - start of the shape extent list
 /// @param shape_end - end of the shape extent list
+DALI_NO_EXEC_CHECK
 template <typename Iter>
+DALI_HOST_DEV
 inline volume_t<decltype(*std::declval<Iter>())>
 volume(Iter shape_begin, Iter shape_end) {
   if (shape_begin == shape_end)
@@ -197,8 +239,8 @@ volume(Iter shape_begin, Iter shape_end) {
 /// @brief Returns the product of all elements in shape
 /// @param shape - an iterable collection of extents
 template <typename Shape>
-inline auto volume(const Shape &shape)->decltype(volume(std::begin(shape), std::end(shape))) {
-  return volume(std::begin(shape), std::end(shape));
+inline auto volume(const Shape &shape)->decltype(volume(dali::begin(shape), dali::end(shape))) {
+  return volume(dali::begin(shape), dali::end(shape));
 }
 
 /// @brief Returns the product of all elements in shape
@@ -211,6 +253,7 @@ inline volume_t<Extent> volume(std::initializer_list<Extent> shape) {
 /// @brief Returns the argument, promoted to an appropriate volume_t
 /// @param single_dim - the sole dimension to be returned as a volume
 template <typename Extent>
+DALI_HOST_DEV
 constexpr volume_t<Extent> volume(Extent single_dim) {
   return single_dim;
 }

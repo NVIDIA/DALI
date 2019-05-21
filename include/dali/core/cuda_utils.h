@@ -17,16 +17,10 @@
 
 #include <cuda_fp16.h>  // for __half & related methods
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
+#include <type_traits>
+#include "dali/core/host_dev.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_error.h"
-#include <type_traits>
-
-#if defined(__CUDACC__) && !(defined(__CUDA__) && defined(__clang__))
-#define DALI_NO_EXEC_CHECK #pragma nv_exec_check_disable
-#else
-#define DALI_NO_EXEC_CHECK
-#endif
-#define DALI_HOST_DEV __host__ __device__
 
 // For the CPU we use half_float lib and float16_cpu type
 namespace half_float {
