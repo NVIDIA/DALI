@@ -14,7 +14,6 @@
 
 #include <vector>
 #include "dali/image/transform.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_gpu.cuh"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/operators/crop/new_crop.h"
@@ -29,7 +28,8 @@ void RunHelper(TensorList<GPUBackend>& output,
                const TensorList<GPUBackend>& input,
                const std::vector<std::vector<int64_t>>& slice_anchors,
                const std::vector<std::vector<int64_t>>& slice_shapes,
-               cudaStream_t stream) {
+               cudaStream_t stream,
+               kernels::ScratchpadAllocator &scratch_alloc) {
   std::size_t number_of_dims = input.tensor_shape(0).size();
   VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
     kernels::SliceGPU<OutputType, InputType, NumDims> kernel;
@@ -51,7 +51,6 @@ void RunHelper(TensorList<GPUBackend>& output,
       slice_args.push_back({anchor, shape});
     }
 
-    kernels::ScratchpadAllocator scratch_alloc;
     kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
     scratch_alloc.Reserve(req.scratch_sizes);
     auto scratchpad = scratch_alloc.GetScratchpad();
@@ -112,14 +111,14 @@ void NewCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     DALI_ENFORCE(input_type_ == output_type_,
       "type conversion is not supported for half precision floats");
     detail::RunHelper<float16, float16>(
-      output, input, slice_anchors_, slice_shapes_, ws->stream());
+      output, input, slice_anchors_, slice_shapes_, ws->stream(), scratch_alloc_);
     return;
   }
 
   DALI_TYPE_SWITCH(input_type_, InputType,
     DALI_TYPE_SWITCH(output_type_, OutputType,
       detail::RunHelper<OutputType, InputType>(
-        output, input, slice_anchors_, slice_shapes_, ws->stream());
+        output, input, slice_anchors_, slice_shapes_, ws->stream(), scratch_alloc_);
     )
   )
 }

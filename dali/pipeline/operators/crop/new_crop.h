@@ -20,6 +20,7 @@
 #include <tuple>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/kernels/scratch.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/crop/kernel/crop_kernel.h"
 #include "dali/pipeline/operators/crop/crop_attr.h"
@@ -46,6 +47,7 @@ class NewCrop : public Operator<Backend>, protected CropAttr {
   DALIDataType input_type_;
   DALIDataType output_type_;
   std::size_t C_;
+  kernels::ScratchpadAllocator scratch_alloc_;
 
   USE_OPERATOR_MEMBERS();
 
