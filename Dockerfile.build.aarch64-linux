@@ -130,6 +130,7 @@ ARG DALI_BUILD_DIR=build_aarch64_linux
 WORKDIR /dali/${DALI_BUILD_DIR}
 
 CMD cmake \
+  -DWERROR=ON \
   -DCMAKE_TOOLCHAIN_FILE:STRING="$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake" \
   -DCMAKE_COLOR_MAKEFILE=ON \
   -DCMAKE_INSTALL_PREFIX=./install \

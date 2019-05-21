@@ -363,7 +363,7 @@ Install Python bindings
 .. installation-end-marker-do-not-remove
 
 Cross-compiling DALI C++ API for aarch64 Linux (Docker)
------------------------------------------
+-------------------------------------------------------
 Build the aarch64 Linux Build Container
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -382,7 +382,7 @@ From the root of the DALI source tree
 The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``
 
 Cross-compiling DALI C++ API for aarch64 QNX (Docker)
------------------------------------------
+-----------------------------------------------------
 Setup
 ^^^^^
 After aquiring the QNX Toolchain, place it in a directory called ``qnx`` in the root of the DALI tree.
