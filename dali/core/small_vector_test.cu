@@ -16,7 +16,7 @@
 #include "dali/test/device_test.h"
 #include "dali/core/small_vector.h"
 
-DEVICE_TEST(SmallVector, DeviceTest, dim3(1), dim3(1)) {
+DEVICE_TEST(SmallVectorDev, Test, dim3(1), dim3(1)) {
   dali::SmallVector<int, 3> v;
   DEV_EXPECT_EQ(v.capacity(), 3);
   DEV_EXPECT_EQ(v.size(), 0);
@@ -44,4 +44,23 @@ DEVICE_TEST(SmallVector, DeviceTest, dim3(1), dim3(1)) {
   DEV_EXPECT_EQ(v[1], 2);
   DEV_EXPECT_EQ(v[2], 7);
   DEV_EXPECT_EQ(v[3], 8);
+}
+
+DEVICE_TEST(SmallVectorDev, MovePoD, 1, 1) {
+  dali::SmallVector<int, 4> a, b;
+  a.push_back(1);
+  a.push_back(2);
+  b.push_back(3);
+  b = std::move(a);
+  DEV_EXPECT_EQ(b[0], 1);
+  DEV_EXPECT_EQ(b[1], 2);
+  DEV_EXPECT_TRUE(a.empty());
+  b.push_back(3);
+  b.push_back(4);
+  b.push_back(5);
+  DEV_EXPECT_TRUE(b.is_dynamic());
+  auto *ptr = b.data();
+  a = std::move(b);
+  DEV_EXPECT_EQ(a.data(), ptr);
+  DEV_EXPECT_TRUE(b.empty());
 }

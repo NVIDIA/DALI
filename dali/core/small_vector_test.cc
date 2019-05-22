@@ -250,12 +250,39 @@ inline void EXPECT_VEC_EQUAL(const T &a, const U &b) {
   EXPECT_EQ(it_b, b.end()) << "`b` is longer";
 }
 
+TEST(SmallVector, MovePoD) {
+  SmallVector<int, 4> a, b;
+  a.push_back(1);
+  a.push_back(2);
+  b.push_back(3);
+  b = std::move(a);
+  EXPECT_EQ(b[0], 1);
+  EXPECT_EQ(b[1], 2);
+  EXPECT_TRUE(a.empty());
+  b.push_back(3);
+  b.push_back(4);
+  b.push_back(5);
+  EXPECT_TRUE(b.is_dynamic());
+  auto *ptr = b.data();
+  a = std::move(b);
+  EXPECT_EQ(a.data(), ptr);
+  EXPECT_TRUE(b.empty());
+}
+
 TEST(SmallVector, Move) {
   {
     SmallVector<TestObj, 3> a, b;
     a.push_back(1);
     a.push_back(2);
     a.push_back(3);
+    b = std::move(a);
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(TestObj::zombies, 0);
+    a = std::move(b);
+    EXPECT_EQ(TestObj::total, 3);
+    EXPECT_EQ(TestObj::zombies, 0);
+    EXPECT_TRUE(b.empty());
+
     a.push_back(4);
     b.push_back(11);
     b.push_back(12);

@@ -73,14 +73,18 @@ class SmallVectorBase {
       ptr[i].~T();
     }
   }
+
+  __host__ __device__ static void copy(T *dst, const T *src, size_t count) {
+    for (size_t i = 0; i <count; i++)
+      dst[i] = src[i];
+  }
 };
 
 
 template <typename T>
 class SmallVectorBase<T, true> {
  protected:
-  __host__ __device__ void move_and_destroy(T *dst, T *src, size_t count) noexcept
-  {
+  __host__ __device__ void copy(T *dst, const T *src, size_t count) noexcept {
 #ifdef __CUDA_ARCH__
     for (size_t i = 0; i < count; i++) {
       dst[i] = src[i];
@@ -89,8 +93,12 @@ class SmallVectorBase<T, true> {
     memcpy(dst, src, count * sizeof(T));
 #endif
   }
+  __host__ __device__ void move_and_destroy(T *dst, T *src, size_t count) noexcept {
+    copy(dst, src, count);
+  }
 
   __host__ __device__ static void destroy(T *, size_t) noexcept {}
+
 };
 
 #ifdef __CUDA_ARCH__
@@ -158,8 +166,10 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       // construct new elements
       for (; i < v.size(); i++) {
         new(ptr+i) T(src[i]);
+#ifndef __CUDA_ARCH__
         if (!noexcept(new(ptr+i) T(src[i])))
           set_size(i + 1);
+#endif
       }
       // destroy tail, if any
       for (; i < size(); i++) {
@@ -178,8 +188,10 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       } else {
         for (size_t i = 0; i < v.size(); i++) {
           new(ptr + i) T(src[i]);
+#ifndef __CUDA_ARCH__
           if (!noexcept(new(ptr + i) T(src[i])))
             set_size(i + 1);
+#endif
         }
         set_size(v.size());
       }
@@ -227,12 +239,17 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       T *src = v.data();
       T *dst = data();
       if (std::is_pod<T>::value) {
-
+        this->copy(dst, src, v.size());
+        set_size(v.size());
       } else {
         for (size_t i = 0; i < v.size(); i++) {
           new(dst + i) T(cuda_move(src[i]));
-          set_size(i + 1);  // if the `new` above throws, we're in a consistent state
+#ifndef __CUDA_ARCH__
+          if (!noexcept(new(dst + i) T(cuda_move(src[i]))))
+            set_size(i + 1);  // if the `new` above throws, we're in a consistent state
+#endif
         }
+        set_size(v.size());
       }
       v.clear();
     }
