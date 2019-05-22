@@ -51,7 +51,7 @@ DEVICE_TEST(SmallVectorDev, MovePoD, 1, 1) {
   a.push_back(1);
   a.push_back(2);
   b.push_back(3);
-  b = std::move(a);
+  b = cuda_move(a);
   DEV_EXPECT_EQ(b[0], 1);
   DEV_EXPECT_EQ(b[1], 2);
   DEV_EXPECT_TRUE(a.empty());
@@ -60,7 +60,7 @@ DEVICE_TEST(SmallVectorDev, MovePoD, 1, 1) {
   b.push_back(5);
   DEV_EXPECT_TRUE(b.is_dynamic());
   auto *ptr = b.data();
-  a = std::move(b);
+  a = cuda_move(b);
   DEV_EXPECT_EQ(a.data(), ptr);
   DEV_EXPECT_TRUE(b.empty());
 }
