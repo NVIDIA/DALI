@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
 #include "dali/pipeline/operators/geometric/flip.h"
+#include "dali/kernels/imgproc/flip_cpu.h"
+#include "dali/kernels/kernel_params.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/util/ocv.h"
 
@@ -29,28 +32,13 @@ DALI_SCHEMA(Flip)
 
 template <>
 Flip<CPUBackend>::Flip(const OpSpec &spec)
-    : Operator<CPUBackend>(spec), spec_(spec) {}
+    : Operator<CPUBackend>(spec) {}
 
-int GetOcvType(const TypeInfo &type, size_t channels) {
-  if (channels * type.size() > CV_CN_MAX) {
-    DALI_FAIL("Pixel size must not be greater than " + std::to_string(CV_CN_MAX) +
-    " bytes.");
-  }
-  return CV_8UC(type.size() * channels);
-}
-
-template <typename T>
-void FlipKernel(T *output, const T *input, size_t height, size_t width,
-    size_t channels_per_layer, size_t layers, bool horizontal, bool vertical) {
-  int flip_flag = -1;
-  if (!vertical) flip_flag = 1;
-  else if (!horizontal) flip_flag = 0;
-  auto ocv_type = GetOcvType(TypeInfo::Create<T>(), channels_per_layer);
-  size_t layer_size = height * width * channels_per_layer;
-  for (size_t layer = 0; layer < layers; ++layer) {
-    auto input_mat = CreateMatFromPtr(height, width, ocv_type, input + layer * layer_size);
-    auto output_mat = CreateMatFromPtr(height, width, ocv_type, output + layer * layer_size);
-    cv::flip(input_mat, output_mat, flip_flag);
+kernels::TensorShape<4> TransformShape(const std::vector<int64> &shape, bool nhwc_layout) {
+  if (nhwc_layout) {
+    return kernels::TensorShape<4>(std::array<int64, 4>{1, shape[0], shape[1], shape[2]});
+  } else {
+    return kernels::TensorShape<4>(std::array<int64, 4>{shape[0], shape[1], shape[2], 1});
   }
 }
 
@@ -60,13 +48,14 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
       input.type().id(), DType,
       auto output_ptr = output.mutable_data<DType>();
       auto input_ptr = input.data<DType>();
-      if (input.GetLayout() == DALI_NHWC) {
-        ssize_t height = input.dim(0), width = input.dim(1), channels = input.dim(2);
-        FlipKernel(output_ptr, input_ptr, height, width, channels, 1, horizontal, vertical);
-      } else if (input.GetLayout() == DALI_NCHW) {
-        ssize_t height = input.dim(1), width = input.dim(2), channels = input.dim(0);
-        FlipKernel(output_ptr, input_ptr, height, width, 1, channels, horizontal, vertical);
-      }
+      auto kernel = kernels::FlipCPU<DType>();
+      kernels::KernelContext ctx;
+      auto shape = TransformShape(input.shape(), input.GetLayout() == DALI_NHWC);
+      auto in_view = kernels::InTensorCPU<DType, 4>(input_ptr, shape);
+      auto reqs = kernel.Setup(ctx, in_view);
+      auto out_shape = reqs.output_shapes[0][0].to_static<4>();
+      auto out_view = kernels::OutTensorCPU<DType, 4>(output_ptr, out_shape);
+      kernel.Run(ctx, out_view, in_view, horizontal, vertical);
   )
 }
 
@@ -74,10 +63,10 @@ template <>
 void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto &output = ws->Output<CPUBackend>(idx);
+  DALI_ENFORCE(input.ndim() == 3);
   output.SetLayout(input.GetLayout());
   output.set_type(input.type());
   output.ResizeLike(input);
-  DALI_ENFORCE(input.ndim() == 3);
   auto _horizontal = GetHorizontal(ws, ws->data_idx());
   auto _vertical = GetVertical(ws, ws->data_idx());
   if (!_horizontal && !_vertical) {

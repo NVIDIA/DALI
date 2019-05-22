@@ -12,56 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cuda_runtime_api.h>
 #include "dali/pipeline/operators/geometric/flip.h"
+#include <cuda_runtime_api.h>
+#include <vector>
+#include "dali/kernels/imgproc/flip_gpu.cuh"
 
 namespace dali {
 
 template <>
-Flip<GPUBackend>::Flip(const OpSpec &spec) : Operator<GPUBackend>(spec), spec_(spec) {}
+Flip<GPUBackend>::Flip(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
 
-template <bool flipX, bool flipY, typename T>
-__global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input, size_t layers,
-                           size_t height, size_t width, size_t channels_per_layer) {
-  size_t xc = blockIdx.x * blockDim.x + threadIdx.x;
-  size_t y = blockIdx.y * blockDim.y + threadIdx.y;
-  size_t z = blockIdx.z * blockDim.z + threadIdx.z;
-  if (xc >= width * channels_per_layer || y >= height || z >= layers) {
-    return;
-  }
-  size_t channel = xc % channels_per_layer;
-  size_t x = xc / channels_per_layer;
-  size_t in_x = flipX ? width - 1 - x : x;
-  size_t in_y = flipY ? height - 1 - y : y;
-  size_t input_idx = channel + channels_per_layer * (in_x + width * (in_y + height * z));
-  size_t output_idx = channel + channels_per_layer * (x + width * (y + height * z));
-  output[output_idx] = input[input_idx];
+kernels::TensorListShape<4> TransformShapes(const std::vector<std::vector<int64>> &shapes,
+    bool nhwc_layout) {
+  std::vector<kernels::TensorShape<4>> result(shapes.size());
+  std::transform(shapes.begin(), shapes.end(), result.begin(),
+      [nhwc_layout](const std::vector<int64> &shape) {
+    if (nhwc_layout) {
+      return kernels::TensorShape<4>(std::array<int64, 4>{1, shape[0], shape[1], shape[2]});
+    } else {
+      return kernels::TensorShape<4>(std::array<int64, 4>{shape[0], shape[1], shape[2], 1});
+    }
+  });
+  return kernels::TensorListShape<4>(result);
 }
 
-template <bool flipX, bool flipY>
 void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &input,
-               cudaStream_t stream, size_t idx) {
+    const std::vector<int32> &horizontal, const std::vector<int32> &vertical, cudaStream_t stream) {
   DALI_TYPE_SWITCH(
-      input.type().id(), DType, const auto *input_ptr = input.tensor<DType>(idx);
-      auto *output_ptr = output.mutable_tensor<DType>(idx);
-      int64_t height, width, channels, layers;
-      DALI_ENFORCE(input.tensor_shape(idx).size() == 3);
-      if (input.GetLayout() == DALI_NHWC) {
-        height = input.tensor_shape(idx)[0];
-        width = input.tensor_shape(idx)[1];
-        channels = input.tensor_shape(idx)[2];
-        layers = 1;
-      } else {
-        height = input.tensor_shape(idx)[1];
-        width = input.tensor_shape(idx)[2];
-        channels = input.tensor_shape(idx)[0];
-        layers = channels;
-      }
-      unsigned int block_x = width * channels / layers < 32 ? width * channels / layers : 32;
-      unsigned int block_y = width < 32 ? width : 32; dim3 block(block_x, block_y, 1);
-      dim3 grid((width + block_x - 1) / block_x, (height + block_y - 1) / block_y, layers);
-      FlipKernel<flipX, flipY><<<grid, block, 0, stream>>>(output_ptr, input_ptr, layers, height,
-                                                           width, channels / layers);
+      input.type().id(), DType,
+      auto in_shape = TransformShapes(input.shape(), input.GetLayout() == DALI_NHWC);
+      kernels::InListGPU<DType, 4> in_view(input.data<DType>(), in_shape);
+      kernels::KernelContext ctx;
+      ctx.gpu.stream = stream;
+      kernels::FlipGPU<DType> kernel;
+      auto reqs = kernel.Setup(ctx, in_view);
+      kernels::OutListGPU<DType, 4> out_view(output.mutable_data<DType>(),
+          reqs.output_shapes[0].to_static<4>());
+      kernel.Run(ctx, out_view, in_view, horizontal, vertical);
   )
 }
 
@@ -73,20 +60,9 @@ void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   output.SetLayout(input.GetLayout());
   output.set_type(input.type());
   output.ResizeLike(input);
-  auto stream = ws->stream();
-  for (size_t i = 0; i < input.ntensor(); ++i) {
-    auto _horizontal = GetHorizontal(ws, i);
-    auto _vertical = GetVertical(ws, i);
-    if (_horizontal && _vertical) {
-      RunKernel<true, true>(output, input, stream, i);
-    } else if (_horizontal) {
-      RunKernel<true, false>(output, input, stream, i);
-    } else if (_vertical) {
-      RunKernel<false, true>(output, input, stream, i);
-    } else {
-      RunKernel<false, false>(output, input, stream, i);
-    }
-  }
+  auto horizontal = GetHorizontal(ws);
+  auto vertical = GetVertical(ws);
+  RunKernel(output, input, horizontal, vertical, ws->stream());
 }
 
 DALI_REGISTER_OPERATOR(Flip, Flip<GPUBackend>, GPU);
