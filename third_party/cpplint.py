@@ -6211,12 +6211,11 @@ def main():
 
   # Change stderr to write with replacement characters so we don't die
   # if we try to print something containing non-ASCII characters.
-
   if python2_version:
     sys.stderr = codecs.StreamReaderWriter(sys.stderr,
                                            codecs.getreader('utf8'),
-                                          codecs.getwriter('utf8'),
-                                          'replace')
+                                           codecs.getwriter('utf8'),
+                                           'replace')
 
   _cpplint_state.ResetErrorCounts()
   for filename in filenames:
