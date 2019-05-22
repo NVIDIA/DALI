@@ -10,11 +10,11 @@
 
 namespace dali {
 
-typedef enum {
+enum t_resizeOptions : uint32_t {
   t_externSizes = 1,
   t_cropping    = 2,
   t_mirroring   = 4
-} t_resizeOptions;
+};
 
 template <typename ImgType>
 class GenericResizeTest : public DALISingleOpTest<ImgType> {
@@ -29,7 +29,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     vector<Tensor<CPUBackend>> out(inputs[0]->ntensor());
     const TensorList<CPUBackend>& image_data = *inputs[0];
 
-    const uint resizeOptions = getResizeOptions();
+    const uint32_t resizeOptions = getResizeOptions();
 
     int resize_a = 0, resize_b = 0;
     bool warp_resize = true, resize_shorter = true;

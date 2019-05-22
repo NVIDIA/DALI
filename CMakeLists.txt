@@ -24,7 +24,7 @@ project(DALI CXX)
 option(BUILD_TEST "Build googletest test suite" ON)
 option(BUILD_BENCHMARK "Build benchmark suite" ON)
 option(BUILD_NVTX "Build with NVTX profiling enabled" OFF)
-option(BUILD_PYTHON "Build python bindings" ON)
+option(BUILD_PYTHON "Build Python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
@@ -63,7 +63,12 @@ message(STATUS "Build configuration: " ${CMAKE_BUILD_TYPE})
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 
 # Dependencies
-include(cmake/Dependencies.cmake)
+if(${ARCH} MATCHES "aarch64-linux")
+  message("Target set to aarch64-linux")
+  include(cmake/Dependencies.aarch64-linux.cmake)
+else()
+  include(cmake/Dependencies.cmake)
+endif()
 
 # add more flags after they are populated by find_package from Dependencies.cmake
 

@@ -16,7 +16,11 @@
 #define DALI_CORE_ERROR_HANDLING_H_
 
 #ifndef _MSC_VER
-#define DALI_USE_STACKTRACE 1
+  #if defined(__AARCH64_GNU__)
+     #define DALI_USE_STACKTRACE 0
+  #else
+     #define DALI_USE_STACKTRACE 1
+  #endif
 #endif  // _MSC_VER
 
 #if DALI_USE_STACKTRACE

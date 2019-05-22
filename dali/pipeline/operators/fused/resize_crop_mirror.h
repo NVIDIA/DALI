@@ -28,11 +28,11 @@
 
 namespace dali {
 
-typedef enum {
+enum t_idInfo : uint32_t {
   t_crop = 1,
   t_mirrorHor,
   t_mirrorVert
-} t_idInfo;
+};
 
 /**
  * @brief Stores parameters for resize+crop+mirror
@@ -62,7 +62,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
 
  protected:
   inline const TransformMeta GetTransformMeta(const OpSpec &spec, const vector<Index> &input_shape,
-                        const ArgumentWorkspace *ws, const Index index, const uint flag = 0) {
+                        const ArgumentWorkspace *ws, const Index index, const uint32_t flag = 0) {
     TransformMeta meta;
     meta.H = input_shape[0];
     meta.W = input_shape[1];
@@ -156,7 +156,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
   }
 
   DALIInterpType getInterpType() const        { return interp_type_; }
-  virtual uint ResizeInfoNeeded() const       { return t_crop + t_mirrorHor; }
+  virtual uint32_t ResizeInfoNeeded() const       { return t_crop + t_mirrorHor; }
 
   // Interpolation type
   DALIInterpType interp_type_;

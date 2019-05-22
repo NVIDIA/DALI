@@ -17,4 +17,4 @@ compile_debug
 .idea
 cmake-build-*
 ./data
-
+qnx/
