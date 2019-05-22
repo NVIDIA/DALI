@@ -20,6 +20,7 @@
 #include <cmath>
 #include <utility>
 #include <random>
+#include <string>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/tensor_shape_print.h"
 #include "dali/kernels/backend_tags.h"
@@ -245,6 +246,16 @@ void ConstantFill(
     ConstantFill(tlv[i], value);
 }
 
+template <typename TensorListView>
+std::string BatchToStr(const TensorListView& batch, const std::string sample_prefix = "Sample ") {
+  std::stringstream ss;
+  for (int i = 0; i < batch.num_samples(); i++) {
+    ss << sample_prefix << i << ":";
+    for (auto& x : make_span(batch[i].data, batch[i].num_elements()))
+      ss << " " << x;
+  }
+  return ss.str();
+}
 
 }  // namespace kernels
 }  // namespace dali
