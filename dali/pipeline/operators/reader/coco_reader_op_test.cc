@@ -191,6 +191,17 @@ TEST_F(CocoReaderTest, MutuallyExclusiveOptions) {
   EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
 }
 
+TEST_F(CocoReaderTest, MutuallyExclusiveOptions2) {
+  Pipeline pipe(1, 1, 0);
+
+  pipe.AddOperator(
+    this->CocoReaderOpSpec()
+    .AddArg("random_shuffle", true)
+    .AddArg("shuffle_after_epoch", true));
+
+  EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
+}
+
 TEST_F(CocoReaderTest, SkipEmpty) {
   Pipeline pipe(this->SmallCocoSize() - this->EmptyImages(), 1, 0);
 

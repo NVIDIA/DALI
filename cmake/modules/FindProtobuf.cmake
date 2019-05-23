@@ -26,6 +26,11 @@
 # ``Protobuf_USE_STATIC_LIBS``
 #   Set to ON to force the use of the static libraries.
 #   Default is OFF.
+# ``Protobuf_CROSS``
+#   Search for Protobuf libraries and includes with NO_SYSTEM_ENVIRONMENT_PATH
+#   argument - effectively skipping the standard system environment variables
+#   and allowing to find protobuf in CMAKE_SYSTEM_PREFIX_PATH set by toolchain
+#   definition. protoc binary is taken from native system.
 #
 # Defines the following variables:
 #
@@ -293,6 +298,10 @@ endif()
 #include(${CMAKE_CURRENT_LIST_DIR}/SelectLibraryConfigurations.cmake)
 include(SelectLibraryConfigurations)
 
+if(Protobuf_CROSS)
+  set(FIND_PATH_SELECTOR NO_SYSTEM_ENVIRONMENT_PATH)
+endif()
+
 # Internal function: search for normal library as well as a debug one
 #    if the debug one is specified also include debug/optimized keywords
 #    in *_LIBRARIES variable
@@ -306,12 +315,12 @@ function(_protobuf_find_libraries name filename)
   else()
     find_library(${name}_LIBRARY_RELEASE
       NAMES ${filename}
-      PATHS ${Protobuf_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Release)
+      PATHS ${Protobuf_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Release ${FIND_PATH_SELECTOR})
     mark_as_advanced(${name}_LIBRARY_RELEASE)
 
     find_library(${name}_LIBRARY_DEBUG
       NAMES ${filename}d ${filename}
-      PATHS ${Protobuf_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Debug)
+      PATHS ${Protobuf_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Debug ${FIND_PATH_SELECTOR})
     mark_as_advanced(${name}_LIBRARY_DEBUG)
 
     select_library_configurations(${name})
@@ -359,6 +368,11 @@ _protobuf_find_libraries(Protobuf_LITE protobuf-lite)
 # The Protobuf Protoc Library
 _protobuf_find_libraries(Protobuf_PROTOC protoc)
 
+if(Protobuf_DEBUG)
+    message(STATUS "[ ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE} ] "
+        "Found libraries path are: ${Protobuf_LIBRARY}, ${Protobuf_LITE_LIBRARY}, ${Protobuf_PROTOC_LIBRARY}")
+endif()
+
 # Restore original find library prefixes
 if(MSVC)
     set(CMAKE_FIND_LIBRARY_PREFIXES "${Protobuf_ORIG_FIND_LIBRARY_PREFIXES}")
@@ -372,10 +386,12 @@ endif()
 find_path(Protobuf_INCLUDE_DIR
     google/protobuf/service.h
     PATHS ${Protobuf_SRC_ROOT_FOLDER}/src
+    ${FIND_PATH_SELECTOR}
 )
 mark_as_advanced(Protobuf_INCLUDE_DIR)
 
 # Find the protoc Executable
+# We always look for the native version
 find_program(Protobuf_PROTOC_EXECUTABLE
     NAMES protoc
     DOC "The Google Protocol Buffers Compiler"

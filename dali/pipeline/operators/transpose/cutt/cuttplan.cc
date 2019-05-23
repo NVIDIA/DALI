@@ -1224,10 +1224,13 @@ bool cuttPlan_t::countCycles(cudaDeviceProp& prop, const int numPosMbarSample) {
         posMbarIn[i] += p0*cuDimMm;
         posMbarOut[i] += p0*cuDimMk;
       }
+      #pragma GCC diagnostic push
+      #pragma GCC diagnostic ignored "-Warray-bounds"
       for (int i=numPos;i < INT_VECTOR_LEN;i++) {
         posMbarIn[i]  = posMbarIn[numPos - 1];
         posMbarOut[i] = posMbarOut[numPos - 1];
       }
+      #pragma GCC diagnostic pop
 
       int gld_tran_tmp = 0;
       int gst_tran_tmp = 0;
@@ -1288,10 +1291,13 @@ bool cuttPlan_t::countCycles(cudaDeviceProp& prop, const int numPosMbarSample) {
         posMbarIn[i] += p0*cuDimMm;
         posMbarOut[i] += p0*cuDimMk;
       }
+      #pragma GCC diagnostic push
+      #pragma GCC diagnostic ignored "-Warray-bounds"
       for (int i=numPos;i < INT_VECTOR_LEN;i++) {
         posMbarIn[i]  = posMbarIn[numPos - 1];
         posMbarOut[i] = posMbarOut[numPos - 1];
       }
+      #pragma GCC diagnostic pop
 
       int gld_tran_tmp = 0;
       int gst_tran_tmp = 0;

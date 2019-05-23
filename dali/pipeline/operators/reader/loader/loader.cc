@@ -19,9 +19,11 @@ namespace dali {
 
 DALI_SCHEMA(LoaderBase)
   .AddOptionalArg("random_shuffle",
-      R"code(Whether to randomly shuffle data.)code", false)
+      R"code(Whether to randomly shuffle data. Prefetch buffer of `initial_fill` size is used
+to sequentially read data and then randomly sample it to form a batch.)code", false)
   .AddOptionalArg("initial_fill",
-      R"code(Size of the buffer used for shuffling.)code", 1024)
+      R"code(Size of the buffer used for shuffling. If `random_shuffle` is off then
+this parameter is ignored.)code", 1024)
   .AddOptionalArg("num_shards",
       R"code(Partition the data into this many parts (used for multiGPU training).)code", 1)
   .AddOptionalArg("shard_id",

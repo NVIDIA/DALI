@@ -87,7 +87,7 @@ DALI_SCHEMA(CachedDecoderAttr)
 images bigger than `cache_threshold` will be cached in memory.)code",
       0)
   .AddOptionalArg("cache_threshold",
-      R"code(Size threshold (in bytes) for images to be cached.)code",
+      R"code(Size threshold (in bytes) for images (after decoding) to be cached.)code",
       0)
   .AddOptionalArg("cache_debug",
       R"code(Print debug information about decoder cache.)code",

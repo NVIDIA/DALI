@@ -14,6 +14,7 @@
 
 #include <cuda_runtime.h>
 #include <cassert>
+#include <cstdlib>
 #include "dali/kernels/alloc.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/device_guard.h"
