@@ -69,7 +69,7 @@ class DALIGenericIterator(object):
                  for data or label correspondingly.
                  output_names should be distinct.
     size : int
-           Epoch size.
+          Number of samples in the epoch (Usually the size of the dataset).
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     fill_last_batch : bool, optional, default = True
@@ -280,7 +280,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     pipelines : list of nvidia.dali.pipeline.Pipeline
                 List of pipelines to use
     size : int
-           Epoch size.
+           Number of samples in the epoch (Usually the size of the dataset).
     data_name : str, optional, default = 'data'
                 Data name for provided symbols.
     label_name : str, optional, default = 'softmax_label'
