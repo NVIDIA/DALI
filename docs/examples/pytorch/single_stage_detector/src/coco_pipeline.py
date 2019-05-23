@@ -42,8 +42,8 @@ class COCOPipeline(Pipeline):
             num_shards=num_shards, 
             ratio=True, 
             ltrb=True, 
-            random_shuffle=True,
-            shuffle_after_epoch=False)
+            random_shuffle=False,
+            shuffle_after_epoch=True)
 
         self.decode = ops.HostDecoder(device="cpu", output_type=types.RGB)
 
