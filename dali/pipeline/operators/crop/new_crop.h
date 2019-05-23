@@ -42,7 +42,7 @@ class NewCrop : public Operator<Backend>, protected CropAttr {
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
-  std::vector<std::array<int64_t, 3>> slice_anchors_, slice_shapes_;
+  std::vector<std::vector<int64_t>> slice_anchors_, slice_shapes_;
   DALIDataType input_type_;
   DALIDataType output_type_;
   std::size_t C_;
@@ -53,14 +53,21 @@ class NewCrop : public Operator<Backend>, protected CropAttr {
   void DataDependentSetup(Workspace<Backend> *ws, int idx);
 
   void DataDependentSetup(int data_idx, DALITensorLayout layout, const vector<Index> &shape) {
-    Index H, W, C;
-    DALI_ENFORCE(shape.size() == 3, "Expected 3-dimensional input");
+    Index F = 1, H, W, C;
+    DALI_ENFORCE(shape.size() == 3 || shape.size() == 4,
+      "Unexpected number of dimensions: " + std::to_string(shape.size()));
     switch (layout) {
       case DALI_NHWC:
         std::tie(H, W, C) = std::make_tuple(shape[0], shape[1], shape[2]);
         break;
       case DALI_NCHW:
         std::tie(C, H, W) = std::make_tuple(shape[0], shape[1], shape[2]);
+        break;
+      case DALI_NFHWC:
+        std::tie(F, H, W, C) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
+        break;
+      case DALI_NFCHW:
+        std::tie(F, C, H, W) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
         break;
       default:
         DALI_FAIL("Not supported layout");
@@ -94,6 +101,14 @@ class NewCrop : public Operator<Backend>, protected CropAttr {
       case DALI_NCHW:
         slice_anchors_[data_idx] = {0, crop_y, crop_x};
         slice_shapes_[data_idx] = {C, crop_h, crop_w};
+        break;
+      case DALI_NFHWC:
+        slice_anchors_[data_idx] = {0, crop_y, crop_x, 0};
+        slice_shapes_[data_idx] = {F, crop_h, crop_w, C};
+        break;
+      case DALI_NFCHW:
+        slice_anchors_[data_idx] = {0, 0, crop_y, crop_x};
+        slice_shapes_[data_idx] = {F, C, crop_h, crop_w};
         break;
       default:
         DALI_FAIL("Not supported layout");

@@ -75,8 +75,6 @@ void SliceKernel(OutputType *output,
 template <typename OutputType, typename InputType, std::size_t Dims>
 class DLL_PUBLIC SliceCPU {
  public:
-  SliceCPU() = default;
-
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InTensorCPU<InputType, Dims> &in,
                                       const SliceArgs<Dims> &slice_args) {

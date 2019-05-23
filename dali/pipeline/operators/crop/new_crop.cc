@@ -18,6 +18,7 @@
 #include "dali/pipeline/operators/crop/new_crop.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/util/half.hpp"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 
@@ -34,21 +35,34 @@ DALI_SCHEMA(NewCrop)
 
 namespace detail {
 
-template <typename InputType, typename OutputType, std::size_t D>
+template <typename InputType, typename OutputType>
 void RunHelper(Tensor<CPUBackend> &output,
                const Tensor<CPUBackend> &input,
-               const std::array<int64_t, D> &slice_anchor,
-               const std::array<int64_t, D> &slice_shape) {
-  kernels::KernelContext ctx;
-  auto in_view = view<const InputType, D>(input);
+               const std::vector<int64_t> &slice_anchor,
+               const std::vector<int64_t> &slice_shape) {
+  std::size_t number_of_dims = input.shape().size();
+  VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
+    kernels::KernelContext ctx;
+    auto in_view = view<const InputType, NumDims>(input);
 
-  kernels::SliceArgs<D> slice_args = {slice_anchor, slice_shape};
+    kernels::SliceArgs<NumDims> slice_args;
+    auto &anchor = slice_args.anchor;
+    auto &shape = slice_args.shape;
+    for (std::size_t d = 0; d < NumDims; d++) {
+      anchor[d] = slice_anchor[d];
+      shape[d] = slice_shape[d];
+    }
 
-  kernels::SliceCPU<OutputType, InputType, D> kernel;
-  kernels::KernelRequirements kernel_req = kernel.Setup(ctx, in_view, slice_args);
+    kernels::SliceCPU<OutputType, InputType, NumDims> kernel;
+    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
+    output.Resize(req.output_shapes[0][0].shape);
 
-  auto out_view = view<OutputType, D>(output);
-  kernel.Run(ctx, out_view, in_view, slice_args);
+    auto out_view = view<OutputType, NumDims>(output);
+    kernel.Run(ctx, out_view, in_view, slice_args);
+  ), // NOLINT
+  (
+    DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims));
+  )); // NOLINT
 }
 
 }  // namespace detail
@@ -67,19 +81,17 @@ void NewCrop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx)
   const auto &input = ws->Input<CPUBackend>(idx);
 
   const DALITensorLayout in_layout = input.GetLayout();
-  // TODO(janton) : support other layouts
-  DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW,
+  DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW
+            || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW,
     "Unexpected data layout");
   DALITensorLayout out_layout = in_layout;
 
   auto data_idx = ws->data_idx();
   DataDependentSetup(data_idx, in_layout, input.shape());
   auto &slice_shape = slice_shapes_[data_idx];
-  Dims output_shape = { slice_shape[0], slice_shape[1], slice_shape[2] };
 
   auto &output = ws->Output<CPUBackend>(idx);
   output.SetLayout(out_layout);
-  output.Resize(output_shape);
 }
 
 template <>
@@ -92,14 +104,14 @@ void NewCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
     DALI_ENFORCE(input_type_ == output_type_,
       "type conversion is not supported for half precision floats");
-    detail::RunHelper<float16_cpu, float16_cpu, 3>(
+    detail::RunHelper<float16_cpu, float16_cpu>(
       output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
     return;
   }
 
   DALI_TYPE_SWITCH(input_type_, InputType,
     DALI_TYPE_SWITCH(output_type_, OutputType,
-      detail::RunHelper<OutputType, InputType, 3>(
+      detail::RunHelper<OutputType, InputType>(
         output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
     )
   )
