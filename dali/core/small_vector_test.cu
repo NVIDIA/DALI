@@ -64,3 +64,19 @@ DEVICE_TEST(SmallVectorDev, MovePoD, 1, 1) {
   DEV_EXPECT_EQ(a.data(), ptr);
   DEV_EXPECT_TRUE(b.empty());
 }
+
+
+DEVICE_TEST(SmallVectorDev, Resize, 1, 1) {
+  dali::SmallVector<int32_t, 4> v;
+  v.resize(3, 5);
+  DEV_ASSERT_EQ(v.size(), 3);
+  DEV_EXPECT_EQ(v[0], 5);
+  DEV_EXPECT_EQ(v[1], 5);
+  DEV_EXPECT_EQ(v[2], 5);
+  v.resize(16, 42);
+  DEV_ASSERT_EQ(v.size(), 16);
+  for (int i = 3; i < 16; i++)
+    DEV_EXPECT_EQ(v[i], 42);
+  v.resize(6);
+  DEV_EXPECT_EQ(v.size(), 6);
+}

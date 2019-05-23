@@ -52,6 +52,15 @@ DEVICE_TEST(TensorShapeDev, Copy, 1, 1) {
   DEV_EXPECT_EQ(a, c);
 }
 
+DEVICE_TEST(TensorShapeDev, Move, 1, 1) {
+  dali::kernels::TensorShape<3> a = { 4, 5, 6 };
+  dali::kernels::TensorShape<3> ref = a;
+  dali::kernels::TensorShape<3> c = dali::cuda_move(a), d;
+  DEV_EXPECT_EQ(c, ref);
+  d = dali::cuda_move(c);
+  DEV_EXPECT_EQ(d, ref);
+}
+
 DEVICE_TEST(TensorShapeDev, ForEach, 1, 1) {
   dali::kernels::TensorShape<3> a = { 4, 5, 6 };
   int64_t arr[3];
@@ -64,6 +73,24 @@ DEVICE_TEST(TensorShapeDev, ForEach, 1, 1) {
   DEV_EXPECT_EQ(arr[0], 4);
   DEV_EXPECT_EQ(arr[1], 5);
   DEV_EXPECT_EQ(arr[2], 6);
+}
+
+DEVICE_TEST(TensorShapeDev, FirstLast, 1, 1) {
+  dali::kernels::TensorShape<5> a = { 11, 22, 33, 44, 55 };
+  auto first = a.first<3>();
+  auto last = a.last<4>();
+  static_assert(std::is_same<decltype(first), dali::kernels::TensorShape<3>>::value,
+    "Wrong type inferred for first()");
+  static_assert(std::is_same<decltype(last), dali::kernels::TensorShape<4>>::value,
+    "Wrong type inferred for last()");
+  DEV_EXPECT_EQ(first[0], a[0]);
+  DEV_EXPECT_EQ(first[1], a[1]);
+  DEV_EXPECT_EQ(first[2], a[2]);
+
+  DEV_EXPECT_EQ(last[0], a[1]);
+  DEV_EXPECT_EQ(last[1], a[2]);
+  DEV_EXPECT_EQ(last[2], a[3]);
+  DEV_EXPECT_EQ(last[3], a[4]);
 }
 
 DEFINE_TEST_KERNEL(TensorShapeDev, KernelArg, dali::kernels::TensorShape<4> a) {
