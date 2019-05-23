@@ -40,7 +40,7 @@ class ResizeAttr : protected ResizeCropMirrorAttr {
   }
 
  protected:
-  uint ResizeInfoNeeded() const override { return 0; }
+  uint32_t ResizeInfoNeeded() const override { return 0; }
 
   // store per-thread data for same resize on multiple data
   std::vector<TransformMeta> per_sample_meta_;

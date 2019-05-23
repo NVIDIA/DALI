@@ -14,7 +14,7 @@
 
 #include <vector>
 #include "dali/image/transform.h"
-#include "dali/kernels/slice/slice_gpu.h"
+#include "dali/kernels/slice/slice_gpu.cuh"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/operators/crop/new_crop.h"
 #include "dali/pipeline/data/views.h"
@@ -29,7 +29,7 @@ namespace detail {
                  const std::vector<std::array<int64_t, D>>& slice_anchors,
                  const std::vector<std::array<int64_t, D>>& slice_shapes,
                  cudaStream_t stream) {
-    kernels::SliceGPU<InputType, OutputType, D> kernel;
+    kernels::SliceGPU<OutputType, InputType, D> kernel;
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = stream;
@@ -83,6 +83,15 @@ void NewCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   DataDependentSetup(ws, idx);
   const auto &input = ws->Input<GPUBackend>(idx);
   auto &output = ws->Output<GPUBackend>(idx);
+
+  if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
+    DALI_ENFORCE(input_type_ == output_type_,
+      "type conversion is not supported for half precision floats");
+    detail::RunHelper<float16, float16, 3>(
+      output, input, slice_anchors_, slice_shapes_, ws->stream());
+    return;
+  }
+
   DALI_TYPE_SWITCH(input_type_, InputType,
     DALI_TYPE_SWITCH(output_type_, OutputType,
       detail::RunHelper<OutputType, InputType, 3>(
@@ -90,17 +99,6 @@ void NewCrop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     )
   )
 }
-
-DALI_SCHEMA(NewCrop)
-    .DocStr(R"code(Crops image with a given window dimensions and window position (upper left corner). **Experimental** Use `Crop` instead)code")
-    .NumInput(1)
-    .NumOutput(1)
-    .AllowMultipleInputSets()
-    .AddOptionalArg(
-        "image_type",
-        R"code(The color space of input and output image)code",
-        DALI_RGB, false)
-    .AddParent("CropAttr");
 
 // Register operator
 DALI_REGISTER_OPERATOR(NewCrop, NewCrop<GPUBackend>, GPU);

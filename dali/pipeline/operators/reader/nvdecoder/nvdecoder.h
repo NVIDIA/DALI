@@ -55,6 +55,7 @@ struct FrameReq {
   std::string filename;
   int frame;
   int count;
+  int stride;
 };
 
 enum ScaleMethod {

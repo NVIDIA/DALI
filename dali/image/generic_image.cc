@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include "dali/image/generic_image.h"
 #include "dali/image/png.h"
 #include "dali/util/ocv.h"

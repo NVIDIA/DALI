@@ -14,13 +14,13 @@
 
 #include <gtest/gtest.h>
 #include "dali/kernels/slice/slice_kernel_test.h"
-#include "dali/kernels/slice/slice_gpu.cuh"
+#include "dali/kernels/slice/slice_cpu.h"
 
 namespace dali {
 namespace kernels {
 
 template <typename TestArgs>
-class SliceGPUTest : public SliceTest<TestArgs> {
+class SliceCPUTest : public SliceTest<TestArgs> {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
@@ -28,7 +28,7 @@ class SliceGPUTest : public SliceTest<TestArgs> {
   static constexpr std::size_t NumSamples = TestArgs::NumSamples;
   static constexpr std::size_t DimSize = TestArgs::DimSize;
   using SliceArgsGenerator = typename TestArgs::SliceArgsGenerator;
-  using KernelType = SliceGPU<OutputType, InputType, Dims>;
+  using KernelType = SliceCPU<OutputType, InputType, Dims>;
 
   void Run() override {
     KernelContext ctx;
@@ -36,32 +36,39 @@ class SliceGPUTest : public SliceTest<TestArgs> {
     TestTensorList<InputType, Dims> test_data;
     this->PrepareData(test_data);
 
-    auto slice_args = this->GenerateSliceArgs(test_data.cpu());
-
-    KernelType kernel;
-    KernelRequirements kernel_req = kernel.Setup(ctx, test_data.gpu(), slice_args);
-
-    TensorListShape<> output_shapes = kernel_req.output_shapes[0];
-    for (int i = 0; i < output_shapes.size(); i++) {
-      AssertExpectedDimensions(output_shapes[i], slice_args[i].shape);
-    }
-
-    TestTensorList<OutputType, Dims> output_data;
-    output_data.reshape(output_shapes.to_static<Dims>());
-    OutListGPU<OutputType, Dims> out_tlv = output_data.gpu();
-
-    kernel.Run(ctx, out_tlv, test_data.gpu(), slice_args);
+    auto test_data_cpu = test_data.cpu();
+    auto slice_args = this->GenerateSliceArgs(test_data_cpu);
 
     TestTensorList<OutputType, Dims> expected_output;
     this->PrepareExpectedOutput(test_data, slice_args, expected_output);
 
+    TensorListShape<> output_shapes;
+    output_shapes.resize(NumSamples, Dims);
+    std::vector<KernelType> kernels(NumSamples);
+    for (std::size_t i = 0; i < NumSamples; i++) {
+      auto &kernel = kernels[i];
+      KernelRequirements kernel_req = kernel.Setup(ctx, test_data_cpu[i], slice_args[i]);
+      TensorShape<Dims> output_shape = kernel_req.output_shapes[0][0].to_static<Dims>();
+      AssertExpectedDimensions(output_shape, slice_args[i].shape);
+      output_shapes.set_tensor_shape(i, output_shape);
+    }
+    TestTensorList<OutputType, Dims> output_data;
+    output_data.reshape(std::move(output_shapes).to_static<Dims>());
+    OutListCPU<OutputType, Dims> out_tlv = output_data.cpu();
+
+    for (std::size_t i = 0; i < NumSamples; i++) {
+      auto &kernel = kernels[i];
+      auto out_tv = out_tlv[i];
+      auto in_tv = test_data_cpu[i];
+      kernel.Run(ctx, out_tv, in_tv, slice_args[i]);
+    }
     EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu()));
   }
 };
 
-TYPED_TEST_SUITE(SliceGPUTest, SLICE_TEST_TYPES);
+TYPED_TEST_SUITE(SliceCPUTest, SLICE_TEST_TYPES);
 
-TYPED_TEST(SliceGPUTest, All) {
+TYPED_TEST(SliceCPUTest, All) {
   this->Run();
 }
 

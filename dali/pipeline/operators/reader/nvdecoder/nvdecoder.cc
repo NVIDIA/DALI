@@ -281,10 +281,11 @@ NvDecoder::TextureObject::operator cudaTextureObject_t() const {
 int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   auto frame = av_rescale_q(disp_info->timestamp,
                             nv_time_base_, frame_base_);
+
   if (current_recv_.count <= 0) {
     if (recv_queue_.empty()) {
       LOG_LINE << "Ditching frame " << frame << " since "
-              << "the receive queue is empty." << std::endl;
+               << "the receive queue is empty." << std::endl;
       return kNvcuvid_success;
     }
     LOG_LINE << "Moving on to next request, " << recv_queue_.size()
@@ -314,8 +315,8 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
               << " disp_info->picture_index: " << disp_info->picture_index
               << "\e[0m" << std::endl;
 
-  current_recv_.frame++;
-  current_recv_.count--;
+  current_recv_.frame += current_recv_.stride;
+  current_recv_.count -= current_recv_.stride;
 
   frame_in_use_[disp_info->picture_index] = true;
   frame_queue_.push(disp_info);

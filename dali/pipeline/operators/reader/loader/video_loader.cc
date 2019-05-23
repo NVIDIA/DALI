@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include "dali/pipeline/operators/reader/loader/video_loader.h"
 
 #include <unistd.h>
@@ -210,8 +209,8 @@ void VideoLoader::read_file() {
     auto req = send_queue_.pop();
 
     LOG_LINE << "Got a request for " << req.filename << " frame " << req.frame
-                << " send_queue_ has " << send_queue_.size() << " frames left"
-                << std::endl;
+             << " count " << req.count << " send_queue_ has " << send_queue_.size()
+             << " frames left" << std::endl;
 
     if (stop_) {
       break;
@@ -244,6 +243,7 @@ void VideoLoader::read_file() {
       auto frame = av_rescale_q(pkt->pts,
                                 file.stream_base_,
                                 file.frame_base_);
+      LOG_LINE << "Frame candidate " << frame << " (for " << req.frame  <<" )...\n";
 
       file.last_frame_ = frame;
       auto key = pkt->flags & AV_PKT_FLAG_KEY;
@@ -365,7 +365,8 @@ void VideoLoader::read_file() {
 }
 
 void VideoLoader::push_sequence_to_read(std::string filename, int frame, int count) {
-    auto req = FrameReq{filename, frame, count};
+    int total_count = 1 + (count - 1) * stride_;
+    auto req = FrameReq{filename, frame, total_count, stride_};
     // give both reader thread and decoder a copy of what is coming
     send_queue_.push(req);
 }

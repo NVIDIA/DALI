@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_UTIL_RANDOMIZER_IMPL_CPU_H_
 
 #include "dali/pipeline/operators/util/randomizer.h"
+#include <stdlib.h>
 
 namespace dali {
 
