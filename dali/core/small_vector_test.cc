@@ -366,4 +366,24 @@ TEST(SmallVector, Erase) {
   EXPECT_EQ(TestObj::total, 0);
 }
 
+TEST(SmallVector, Resize) {
+  SmallVector<TestObj, 4> v;
+  v.resize(3, 5);
+  ASSERT_EQ(v.size(), 3);
+  EXPECT_EQ(v[0], 5);
+  EXPECT_EQ(v[1], 5);
+  EXPECT_EQ(v[2], 5);
+  EXPECT_EQ(TestObj::total, 3);
+  v.resize(16, 42);
+  ASSERT_EQ(v.size(), 16);
+  EXPECT_EQ(TestObj::total, 16);
+  EXPECT_EQ(TestObj::zombies, 0);
+  for (int i = 3; i < 16; i++)
+    EXPECT_EQ(v[i], 42);
+  v.resize(6);
+  EXPECT_EQ(v.size(), 6);
+  EXPECT_EQ(TestObj::total, 6);
+  EXPECT_EQ(TestObj::zombies, 0);
+}
+
 }  // namespace dali

@@ -86,10 +86,36 @@ struct DeviceString {
     return *this;
   }
 
+  __device__ DeviceString operator+(const DeviceString &other) {
+    size_t l1 = length();
+    size_t l2 = other.length();
+    if (!l2)
+      return *this;
+    if (!l1)
+      return other;
+    DeviceString result;
+    result.data_ = static_cast<char*>(malloc(l1+l2+1));
+    for (size_t i = 0; i < l1; i++)
+      result.data_[i] = data_[i];
+    for (size_t i = 0; i < l2; i++)
+      result.data_[i + l1] = other.data_[i];
+    result.data_[l1+l2] = 0;
+    result.length_ = l1+l2;
+    return result;
+  }
+
   __device__ DeviceString &operator=(DeviceString &&other) {
     cuda_swap(data_, other.data_);
     cuda_swap(length_, other.length_);
     return *this;
+  }
+
+  __device__ DeviceString &operator+=(const DeviceString &other) {
+    if (!other.length())
+      return *this;
+    if (!length())
+      return *this = other;
+    return *this = (*this + other);
   }
 
   __device__ char &operator[](ptrdiff_t idx) { return data_[idx]; }
