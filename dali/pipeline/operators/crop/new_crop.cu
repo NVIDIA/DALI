@@ -50,7 +50,10 @@ void RunHelper(TensorList<GPUBackend>& output,
       slice_args.push_back({anchor, shape});
     }
 
-    kernels::KernelRequirements kernel_req = kernel.Setup(ctx, in_view, slice_args);
+    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
+    std::vector<Dims> out_shapes;
+    to_dims_vec(out_shapes, req.output_shapes[0]);
+    output.Resize(out_shapes);
 
     auto out_view = view<OutputType, NumDims>(output);
     kernel.Run(ctx, out_view, in_view, slice_args);
@@ -82,18 +85,10 @@ void NewCrop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx)
     "Unexpected data layout");
   DALITensorLayout out_layout = in_layout;
 
-  std::vector<Dims> output_shape(batch_size_);
   for (int i = 0; i < batch_size_; ++i) {
     DataDependentSetup(i, in_layout, input.tensor_shape(i));
-    auto &slice_shape = slice_shapes_[i];
-    if (in_layout == DALI_NFHWC || in_layout == DALI_NFCHW) {
-      output_shape[i] = { slice_shape[0], slice_shape[1], slice_shape[2], slice_shape[3] };
-    } else {
-      output_shape[i] = { slice_shape[0], slice_shape[1], slice_shape[2] };
-    }
   }
   auto &output = ws->Output<GPUBackend>(idx);
-  output.Resize(output_shape);
   output.SetLayout(out_layout);
 }
 
