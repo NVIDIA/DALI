@@ -32,46 +32,12 @@ namespace kernels {
 
 namespace detail {
 
-int device_id() {
-  int dev = -1;
-  CUDA_CALL(cudaGetDevice(&dev));
-  return dev;
-}
-
-int device_count() {
-  static int device_count = -1;
-  if (device_count < 0) {
-    CUDA_CALL(cudaGetDeviceCount(&device_count));
-  }
-  return device_count;
-}
-
-int device_multiprocessor_count(int device_id) {
-  static std::vector<int> sm_per_device;
-  if (sm_per_device.empty()) {
-    sm_per_device.resize(device_count());
-  }
-  auto &count = sm_per_device[device_id];
-  if (count <= 0) {
-    CUDA_CALL(cudaDeviceGetAttribute(&count, cudaDevAttrMultiProcessorCount, device_id));
-  }
-  return count;
-}
-
-std::size_t optimal_block_size(std::size_t total_size, std::size_t block_dim) {
-  return std::max(
-    block_dim,
-    total_size / (8 * device_multiprocessor_count(device_id()) * block_dim));
-}
-
 template <std::size_t Dims>
 struct SliceSampleDesc {
   void *__restrict__ out;
   const void *__restrict__ in;
   DeviceArray<int64_t, Dims> in_strides;
   DeviceArray<int64_t, Dims> out_strides;
-  DeviceArray<int64_t, Dims> anchor;
-  std::size_t total_size;
 };
 
 struct BlockDesc {
@@ -90,13 +56,13 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDes
   auto *in = static_cast<const InputType*>(sample.in);
 
   for (; offset < block_end; offset += blockDim.x) {
-    unsigned int idx = offset;
-    unsigned int out_idx = idx;
-    unsigned int in_idx = 0;
+    std::size_t idx = offset;
+    std::size_t out_idx = idx;
+    std::size_t in_idx = 0;
     for (std::size_t d = 0; d < Dims; d++) {
       unsigned int i_d = idx / sample.out_strides[d];
       idx = idx % sample.out_strides[d];
-      in_idx += (sample.anchor[d] + i_d) * sample.in_strides[d];
+      in_idx += i_d * sample.in_strides[d];
     }
     out[out_idx] = clamp<OutputType>(in[in_idx]);
   }
@@ -107,9 +73,9 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDes
 template <typename OutputType, typename InputType, std::size_t Dims>
 class SliceGPU {
  private:
-  static constexpr std::size_t kBlockDim = 64;
+  static constexpr std::size_t kBlockDim = 512;
+  static constexpr std::size_t kBlockSize = 32 * kBlockDim;
   std::size_t block_count_ = 0;
-  std::size_t block_size_ = 0;
 
  public:
   KernelRequirements Setup(KernelContext &context,
@@ -120,19 +86,16 @@ class SliceGPU {
     const std::size_t num_samples = in.size();
     se.add<detail::SliceSampleDesc<Dims>>(AllocType::GPU, num_samples);
 
-    std::size_t batch_total_size = 0;
     std::vector<std::size_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
     for (auto &args : slice_args) {
-        sample_sizes.push_back(volume(args.shape));
-        batch_total_size += sample_sizes.back();
+      sample_sizes.push_back(volume(args.shape));
     }
-    block_size_ = detail::optimal_block_size(batch_total_size, kBlockDim);
 
     block_count_ = 0;
     for (std::size_t sample_size : sample_sizes) {
       block_count_ += std::ceil(
-          sample_size / static_cast<float>(block_size_));
+        sample_size / static_cast<float>(kBlockSize));
     }
 
     se.add<detail::BlockDesc>(AllocType::GPU, block_count_);
@@ -149,16 +112,21 @@ class SliceGPU {
     const auto num_samples = in.size();
 
     std::vector<detail::SliceSampleDesc<Dims>> sample_descs_cpu(num_samples);
+    std::vector<std::size_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
       const auto out_shape = out.tensor_shape(i);
       auto &sample_desc = sample_descs_cpu[i];
       sample_desc.in_strides = GetStrides<Dims>(in_shape);
       sample_desc.out_strides = GetStrides<Dims>(out_shape);
-      sample_desc.anchor = slice_args[i].anchor;
-      sample_desc.in = in.tensor_data(i);
+      auto &anchor = slice_args[i].anchor;
+      std::size_t in_offset = 0;
+      for (std::size_t d = 0; d < Dims; d++) {
+        in_offset += anchor[d] * sample_desc.in_strides[d];
+      }
+      sample_desc.in = in.tensor_data(i) + in_offset;
       sample_desc.out = out.tensor_data(i);
-      sample_desc.total_size = volume(out_shape);
+      sample_sizes[i] = volume(out_shape);
     }
 
     detail::SliceSampleDesc<Dims> *sample_descs =
@@ -172,9 +140,9 @@ class SliceGPU {
     block_descs_cpu.reserve(block_count_);
     for (int i = 0; i < num_samples; i++) {
       std::size_t offset = 0;
-      std::size_t remaining = sample_descs_cpu[i].total_size;
+      std::size_t remaining = sample_sizes[i];
       while (remaining > 0) {
-        std::size_t size = remaining < block_size_ ? remaining : block_size_;
+        std::size_t size = remaining < kBlockSize ? remaining : kBlockSize;
         block_descs_cpu.push_back({i, offset, size});
         remaining -= size;
         offset += size;
