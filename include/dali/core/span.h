@@ -15,15 +15,10 @@
 #ifndef DALI_CORE_SPAN_H_
 #define DALI_CORE_SPAN_H_
 
-#if defined(__host__) || defined(__CUDACC__)
-#define DALI_HOST_DEVICE __host__ __device__
-#else
-#define DALI_HOST_DEVICE
-#endif
-
 #include <cstddef>
 #include <array>
 #include <type_traits>
+#include "dali/core/host_dev.h"
 
 namespace dali {
 
@@ -52,11 +47,11 @@ class span {
   // [span.cons], span constructors, copy, assignment, and destructor
   // This constructor shall not participate in overload resolution unless Extent <= 0 is true
   constexpr span() noexcept = delete;
-  DALI_HOST_DEVICE constexpr span(pointer ptr, index_type count = Extent) : data_(ptr) {  // NOLINT
+  DALI_HOST_DEV constexpr span(pointer ptr, index_type count = Extent) : data_(ptr) {  // NOLINT
     /* assert(count == Extent); */
   }
 
-  DALI_HOST_DEVICE constexpr span(pointer firstElem, pointer lastElem) : data_(firstElem) {
+  DALI_HOST_DEV constexpr span(pointer firstElem, pointer lastElem) : data_(firstElem) {
     /* assert(lastElem - firstElem == Extent); */
   }
 
@@ -66,22 +61,22 @@ class span {
   // [span.sub], span subviews
 
   // [span.obs], span observers
-  DALI_HOST_DEVICE constexpr index_type size() const noexcept { return Extent; }
-  DALI_HOST_DEVICE constexpr index_type size_bytes() const noexcept {
+  DALI_HOST_DEV constexpr index_type size() const noexcept { return Extent; }
+  DALI_HOST_DEV constexpr index_type size_bytes() const noexcept {
     return Extent * sizeof(value_type);
   }
-  DALI_HOST_DEVICE constexpr bool empty() const noexcept { return false; }
+  DALI_HOST_DEV constexpr bool empty() const noexcept { return false; }
 
   // [span.elem], span element access
-  DALI_HOST_DEVICE constexpr reference operator[](index_type idx) const { return data_[idx]; }
-  DALI_HOST_DEVICE constexpr reference operator()(index_type idx) const { return data_[idx]; }
-  DALI_HOST_DEVICE constexpr pointer data() const noexcept { return data_; }
+  DALI_HOST_DEV constexpr reference operator[](index_type idx) const { return data_[idx]; }
+  DALI_HOST_DEV constexpr reference operator()(index_type idx) const { return data_[idx]; }
+  DALI_HOST_DEV constexpr pointer data() const noexcept { return data_; }
 
   // [span.iterators], span iterator support
-  DALI_HOST_DEVICE constexpr iterator begin() const noexcept { return data_; }
-  DALI_HOST_DEVICE constexpr iterator end() const noexcept { return data_ + Extent; }
-  DALI_HOST_DEVICE constexpr const_iterator cbegin() const noexcept { return data_; }
-  DALI_HOST_DEVICE constexpr const_iterator cend() const noexcept { return data_ + Extent; }
+  DALI_HOST_DEV constexpr iterator begin() const noexcept { return data_; }
+  DALI_HOST_DEV constexpr iterator end() const noexcept { return data_ + Extent; }
+  DALI_HOST_DEV constexpr const_iterator cbegin() const noexcept { return data_; }
+  DALI_HOST_DEV constexpr const_iterator cend() const noexcept { return data_ + Extent; }
 
  private:
   pointer data_;
@@ -102,9 +97,9 @@ class span<ElementType, dynamic_extent> {
   static constexpr index_type extent = dynamic_extent;
 
   // [span.cons], span constructors, copy, assignment, and destructor
-  DALI_HOST_DEVICE constexpr span() noexcept : data_(nullptr), size_(0) {}
-  DALI_HOST_DEVICE constexpr span(pointer ptr, index_type count) : data_(ptr), size_(count) {}
-  DALI_HOST_DEVICE constexpr span(pointer firstElem, pointer lastElem)
+  DALI_HOST_DEV constexpr span() noexcept : data_(nullptr), size_(0) {}
+  DALI_HOST_DEV constexpr span(pointer ptr, index_type count) : data_(ptr), size_(count) {}
+  DALI_HOST_DEV constexpr span(pointer firstElem, pointer lastElem)
       : data_(firstElem), size_(lastElem - firstElem) {}
 
   constexpr span(const span &other) noexcept = default;
@@ -114,22 +109,22 @@ class span<ElementType, dynamic_extent> {
   // [span.sub], span subviews
 
   // [span.obs], span observers
-  DALI_HOST_DEVICE constexpr index_type size() const noexcept { return size_; }
-  DALI_HOST_DEVICE constexpr index_type size_bytes() const noexcept {
+  DALI_HOST_DEV constexpr index_type size() const noexcept { return size_; }
+  DALI_HOST_DEV constexpr index_type size_bytes() const noexcept {
     return size_ * sizeof(value_type);
   }
-  DALI_HOST_DEVICE constexpr bool empty() const noexcept { return size() == 0; }
+  DALI_HOST_DEV constexpr bool empty() const noexcept { return size() == 0; }
 
   // [span.elem], span element access
-  DALI_HOST_DEVICE constexpr reference operator[](index_type idx) const { return data_[idx]; }
-  DALI_HOST_DEVICE constexpr reference operator()(index_type idx) const { return data_[idx]; }
-  DALI_HOST_DEVICE constexpr pointer data() const noexcept { return data_; }
+  DALI_HOST_DEV constexpr reference operator[](index_type idx) const { return data_[idx]; }
+  DALI_HOST_DEV constexpr reference operator()(index_type idx) const { return data_[idx]; }
+  DALI_HOST_DEV constexpr pointer data() const noexcept { return data_; }
 
   // [span.iterators], span iterator support
-  DALI_HOST_DEVICE constexpr iterator begin() const noexcept { return data_; }
-  DALI_HOST_DEVICE constexpr iterator end() const noexcept { return data_ + size(); }
-  DALI_HOST_DEVICE constexpr const_iterator cbegin() const noexcept { return data_; }
-  DALI_HOST_DEVICE constexpr const_iterator cend() const noexcept { return data_ + size(); }
+  DALI_HOST_DEV constexpr iterator begin() const noexcept { return data_; }
+  DALI_HOST_DEV constexpr iterator end() const noexcept { return data_ + size(); }
+  DALI_HOST_DEV constexpr const_iterator cbegin() const noexcept { return data_; }
+  DALI_HOST_DEV constexpr const_iterator cend() const noexcept { return data_ + size(); }
 
  private:
   pointer data_;
@@ -138,7 +133,7 @@ class span<ElementType, dynamic_extent> {
 
 // [span.comparison], span comparison operators
 template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
-DALI_HOST_DEVICE /* constexpr */ bool
+DALI_HOST_DEV /* constexpr */ bool
 operator==(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
   if (l.size() != r.size()) {
     return false;
@@ -152,57 +147,55 @@ operator==(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
   return true;
 }
 template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
-DALI_HOST_DEVICE /* constexpr */ bool
+DALI_HOST_DEV /* constexpr */ bool
 operator!=(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
   return !(l == r);
 }
 
 // @brief Helper function for pre-C++17
 template <ptrdiff_t Extent, typename T>
-DALI_HOST_DEVICE constexpr span<T, Extent> make_span(T *data) { return { data }; }
+DALI_HOST_DEV constexpr span<T, Extent> make_span(T *data) { return { data }; }
 
 // @brief Helper function for pre-C++17
 template <ptrdiff_t Extent = dynamic_extent, typename T>
-DALI_HOST_DEVICE constexpr span<T, Extent> make_span(T *data, ptrdiff_t extent) {
+DALI_HOST_DEV constexpr span<T, Extent> make_span(T *data, ptrdiff_t extent) {
   return { data, extent };
 }
 
 template <typename Collection>
-DALI_HOST_DEVICE auto make_span(Collection &c)->decltype(make_span(c.data(), c.size())) {
+DALI_HOST_DEV auto make_span(Collection &c)->decltype(make_span(c.data(), c.size())) {
   return make_span(c.data(), c.size());
 }
 
 template <typename Collection>
-DALI_HOST_DEVICE auto make_span(Collection &&c)->decltype(make_span(c.data(), c.size())) {
+DALI_HOST_DEV auto make_span(Collection &&c)->decltype(make_span(c.data(), c.size())) {
   static_assert(!std::is_rvalue_reference<Collection&&>::value,
     "Cannot create a span from an r-value.");
   return make_span(c.data(), c.size());
 }
 
 template <typename T, size_t N>
-DALI_HOST_DEVICE constexpr span<T, N> make_span(std::array<T, N> &a) {
+DALI_HOST_DEV constexpr span<T, N> make_span(std::array<T, N> &a) {
   return { a.data() };
 }
 
 template <typename T, size_t N>
-DALI_HOST_DEVICE constexpr span<const T, N> make_span(const std::array<T, N> &a) {
+DALI_HOST_DEV constexpr span<const T, N> make_span(const std::array<T, N> &a) {
   return { a.data() };
 }
 
 template <typename T, size_t N>
-DALI_HOST_DEVICE constexpr span<const T, N> make_span(std::array<T, N> &&a) {
+DALI_HOST_DEV constexpr span<const T, N> make_span(std::array<T, N> &&a) {
   static_assert(!std::is_rvalue_reference<std::array<T, N> &&>::value,
     "Cannot create a span from an r-value.");
   return { a.data() };
 }
 
 template <typename T, size_t N>
-DALI_HOST_DEVICE constexpr span<const T, N> make_span(T (&a)[N]) {
+DALI_HOST_DEV constexpr span<const T, N> make_span(T (&a)[N]) {
   return { a };
 }
 
 }  // namespace dali
-
-#undef DALI_HOST_DEVICE
 
 #endif  // DALI_CORE_SPAN_H_

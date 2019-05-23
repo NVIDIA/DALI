@@ -23,8 +23,13 @@
 #include <vector>
 #include "dali/core/span.h"
 #include "dali/core/util.h"
+#include "dali/core/small_vector.h"
+#include "dali/core/dev_array.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
+
+
 namespace kernels {
 
 constexpr int DynamicDimensions = -1;
@@ -60,9 +65,12 @@ struct compile_time_size_impl<T[N]> : std::integral_constant<int, N> {};
 template <typename T, size_t N>
 struct compile_time_size_impl<std::array<T, N>> : std::integral_constant<int, N> {};
 
+template <typename T, size_t N>
+struct compile_time_size_impl<DeviceArray<T, N>> : std::integral_constant<int, N> {};
+
 /// @brief Class representing shape of a Tensor
 ///
-/// Static shapes do not allocate additional memory as they are backed by std::array
+/// Static shapes do not allocate additional memory as they are backed by static array
 /// @tparam ndim Either non-negative integer representing static number of dimensions
 ///         or DynamicDimensions.
 template <int ndim = DynamicDimensions>
@@ -70,7 +78,6 @@ struct TensorShape;
 
 template <int N>
 struct compile_time_size_impl<TensorShape<N>> : std::integral_constant<int, N> {};
-
 
 /// @brief Base class for TensorShape containing common code for iterators and operator[]
 /// @tparam Container - the data structure in which the sizes are stored
@@ -84,32 +91,36 @@ struct TensorShapeBase {
   using const_reference = const value_type &;
   using iterator = typename container_type::iterator;
   using const_iterator = typename container_type::const_iterator;
-  using reverse_iterator = typename container_type::reverse_iterator;
-  using const_reverse_iterator = typename container_type::const_reverse_iterator;
 
-  reference operator[](int d) { return shape[d]; }
-  const_reference operator[](int d) const { return shape[d]; }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV reference operator[](int d) { return shape[d]; }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV const_reference operator[](int d) const { return shape[d]; }
 
-  iterator begin() noexcept { return shape.begin(); }
-  iterator end() noexcept { return shape.end(); }
-  const_iterator begin() const noexcept { return shape.begin(); }
-  const_iterator end() const noexcept { return shape.end(); }
-  const_iterator cbegin() const noexcept { return shape.cbegin(); }
-  const_iterator cend() const noexcept { return shape.cend(); }
-  reverse_iterator rbegin() noexcept { return shape.rbegin(); }
-  reverse_iterator rend() noexcept { return shape.rend(); }
-  const_reverse_iterator rbegin() const noexcept { return shape.rbegin(); }
-  const_reverse_iterator rend() const noexcept { return shape.rend(); }
-  const_reverse_iterator crbegin() const noexcept { return shape.crbegin(); }
-  const_reverse_iterator crend() const noexcept { return shape.crend(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV iterator begin() noexcept { return shape.begin(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV iterator end() noexcept { return shape.end(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV const_iterator begin() const noexcept { return shape.begin(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV const_iterator end() const noexcept { return shape.end(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV const_iterator cbegin() const noexcept { return shape.cbegin(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV const_iterator cend() const noexcept { return shape.cend(); }
 
   /// @brief Returns number of dimensions in this shape
-  size_type size() const { return shape.size(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV size_type size() const noexcept { return shape.size(); }
   /// @brief Returns number of dimensions in this shape
-  size_type sample_dim() const { return shape.size(); }
-  constexpr bool empty() const { return size() == 0; }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV size_type sample_dim() const noexcept { return shape.size(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV constexpr bool empty() const noexcept { return size() == 0; }
 
-  volume_t<value_type> num_elements() const {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV volume_t<value_type> num_elements() const {
     return volume(shape);
   }
 
@@ -118,11 +129,15 @@ struct TensorShapeBase {
 
   /// @brief Returns a static subshape consisting of first other_ndim dimensions (outer dimensions)
   /// [1, 2, 3, 4].first<2>() -> [1, 2]
+  DALI_NO_EXEC_CHECK
   template <int other_ndim>
+  DALI_HOST_DEV
   TensorShape<other_ndim> first();
   /// @brief Returns a static subshape consisting of last other_ndim dimensions (inner dimensions)
   /// [1, 2, 3, 4].last<2>() -> [3, 4]
+  DALI_NO_EXEC_CHECK
   template <int other_ndim>
+  DALI_HOST_DEV
   TensorShape<other_ndim> last();
 
   /// @brief Returns a dynamic subshape consisting of first count dimensions (outer dimensions)
@@ -135,11 +150,13 @@ struct TensorShapeBase {
  protected:
   // Disallow instantiation of Base class
 
-  // Zero-fill the shape for Container=std::array<int64_t> with shape{}
-  TensorShapeBase() : shape{} {}
-
-  TensorShapeBase(const Container &c) : shape(c) {}        // NOLINT
-  TensorShapeBase(Container &&c) : shape(std::move(c)) {}  // NOLINT
+  // Zero-fill the shape for Container=DeviceArray<int64_t> with shape{}
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV TensorShapeBase() : shape{} {}
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV TensorShapeBase(const Container &c) : shape(c) {}        // NOLINT
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV TensorShapeBase(Container &&c) : shape(cuda_move(c)) {}  // NOLINT
 };
 
 /// @brief Dynamic TensorShape can be constructed from any Static TensorShape
@@ -152,6 +169,10 @@ struct TensorShape<DynamicDimensions>
 
   template <size_t N>
   TensorShape(const std::array<int64_t, N> &s)  // NOLINT
+      : Base(typename Base::container_type(s.begin(), s.end())) {}
+
+  template <size_t N>
+  TensorShape(const DeviceArray<int64_t, N> &s)  // NOLINT
       : Base(typename Base::container_type(s.begin(), s.end())) {}
 
   template <typename... Ts,
@@ -200,28 +221,32 @@ struct TensorShape<DynamicDimensions>
 };
 
 template <int ndim>
-struct TensorShape : public TensorShapeBase<std::array<int64_t, ndim>, ndim> {
-  using Base = TensorShapeBase<std::array<int64_t, ndim>, ndim>;
+struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
+  using Base = TensorShapeBase<DeviceArray<int64_t, ndim>, ndim>;
+
   TensorShape(const std::array<int64_t, ndim> &s) : Base(s) {}  // NOLINT
+  DALI_HOST_DEV TensorShape(const DeviceArray<int64_t, ndim> &s) : Base(s) {}  // NOLINT
   // Base class constructor will zero-initialize array
-  TensorShape() = default;
+  DALI_HOST_DEV
+  TensorShape() {}
   // We allow only explicit operations on TensorShape static dim
   TensorShape(const TensorShape &) = default;
   TensorShape &operator=(const TensorShape &other) = default;
 
   template <typename... Ts>
-  TensorShape(int64_t i0, Ts... s)  // NOLINT
+  DALI_HOST_DEV TensorShape(int64_t i0, Ts... s)  // NOLINT
       : Base(typename Base::container_type{i0, int64_t{s}...}) {
     static_assert(sizeof...(Ts) == ndim - 1, "Number of shapes passed must match ndim");
   }
 
   template <int other_ndim>
-  TensorShape<other_ndim> to_static() const {
-    static_assert(other_ndim != ndim, "Cannot convert to other static ndim");
+  DALI_HOST_DEV TensorShape<other_ndim> to_static() const {
+    static_assert(other_ndim == ndim, "Cannot convert to other static ndim");
     return *this;
   }
 
-  void resize(typename Base::size_type count) {
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV void resize(typename Base::size_type count) {
     assert(count == ndim && "Not supported for count other than statically defined");
   }
 
@@ -285,8 +310,10 @@ TensorShape<DynamicDimensions> TensorShapeBase<Container, ndim>::last(int count)
 }
 
 /// @brief Checks if both shapes have the same number of dimensions and all of them are equal
+DALI_NO_EXEC_CHECK
 template <int left_ndim, int right_ndim>
-bool operator==(const TensorShape<left_ndim> &left, const TensorShape<right_ndim> &right) {
+DALI_HOST_DEV bool operator==(const TensorShape<left_ndim> &left,
+                              const TensorShape<right_ndim> &right) {
   if (left.size() != right.size()) {
     return false;
   }
@@ -299,11 +326,14 @@ bool operator==(const TensorShape<left_ndim> &left, const TensorShape<right_ndim
   return true;
 }
 
+DALI_NO_EXEC_CHECK
 template <int left_ndim, int right_ndim>
-bool operator!=(const TensorShape<left_ndim> &left, const TensorShape<right_ndim> &right) {
+DALI_HOST_DEV bool operator!=(const TensorShape<left_ndim> &left,
+                              const TensorShape<right_ndim> &right) {
   return !(left == right);
 }
 
+DALI_HOST_DEV
 constexpr int shape_cat_ndim(int left_ndim, int right_ndim) {
   return (left_ndim == DynamicDimensions || right_ndim == DynamicDimensions)
              ? DynamicDimensions
@@ -313,7 +343,9 @@ constexpr int shape_cat_ndim(int left_ndim, int right_ndim) {
 /// @brief Concatenate shapes
 /// @return TensorShape<shape_cat_ndim(left_ndim, right_ndim)> Static shape if both of arguments
 ///         are static, otherwise dynamic
+DALI_NO_EXEC_CHECK
 template <int left_ndim, int right_ndim>
+DALI_HOST_DEV
 TensorShape<shape_cat_ndim(left_ndim, right_ndim)> shape_cat(const TensorShape<left_ndim> &left,
                                                              const TensorShape<right_ndim> &right) {
   TensorShape<shape_cat_ndim(left_ndim, right_ndim)> result;
@@ -329,7 +361,9 @@ TensorShape<shape_cat_ndim(left_ndim, right_ndim)> shape_cat(const TensorShape<l
 }
 
 /// @brief Appends a scalar to a shape
+DALI_NO_EXEC_CHECK
 template <int ndim, int out_dim = ndim == DynamicDimensions ? ndim : ndim + 1>
+DALI_HOST_DEV
 TensorShape<out_dim> shape_cat(const TensorShape<ndim> &left, int64_t right) {
   TensorShape<out_dim> result;
   result.resize(left.size() + 1);
@@ -341,7 +375,9 @@ TensorShape<out_dim> shape_cat(const TensorShape<ndim> &left, int64_t right) {
 }
 
 /// @brief Prepends a scalar to a shape
+DALI_NO_EXEC_CHECK
 template <int ndim, int out_dim = ndim == DynamicDimensions ? ndim : ndim + 1>
+DALI_HOST_DEV
 TensorShape<out_dim> shape_cat(int64_t left, const TensorShape<ndim> &right) {
   TensorShape<out_dim> result;
   result.resize(right.size() + 1);

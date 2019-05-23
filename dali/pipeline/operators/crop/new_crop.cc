@@ -45,15 +45,17 @@ void RunHelper(Tensor<CPUBackend> &output,
     kernels::KernelContext ctx;
     auto in_view = view<const InputType, NumDims>(input);
 
-    std::array<int64_t, NumDims> anchor, shape;
+    kernels::SliceArgs<NumDims> slice_args;
+    auto &anchor = slice_args.anchor;
+    auto &shape = slice_args.shape;
     for (std::size_t d = 0; d < NumDims; d++) {
       anchor[d] = slice_anchor[d];
       shape[d] = slice_shape[d];
     }
-    kernels::SliceArgs<NumDims> slice_args = {std::move(anchor), std::move(shape)};
 
     kernels::SliceCPU<OutputType, InputType, NumDims> kernel;
-    kernels::KernelRequirements kernel_req = kernel.Setup(ctx, in_view, slice_args);
+    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
+    output.Resize(req.output_shapes[0][0].shape);
 
     auto out_view = view<OutputType, NumDims>(output);
     kernel.Run(ctx, out_view, in_view, slice_args);
@@ -90,11 +92,6 @@ void NewCrop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx)
 
   auto &output = ws->Output<CPUBackend>(idx);
   output.SetLayout(out_layout);
-  if (in_layout == DALI_NFHWC || in_layout == DALI_NFCHW) {
-    output.Resize({slice_shape[0], slice_shape[1], slice_shape[2], slice_shape[3]});
-  } else {
-    output.Resize({slice_shape[0], slice_shape[1], slice_shape[2]});
-  }
 }
 
 template <>
