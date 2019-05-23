@@ -25,49 +25,75 @@
 namespace dali {
 namespace kernels {
 
-int GetOcvType(const TypeInfo &type, size_t channels) {
-  if (channels * type.size() > CV_CN_MAX) {
-    DALI_FAIL("Pixel size must not be greater than " + std::to_string(CV_CN_MAX) + " bytes.");
-  }
-  return CV_8UC(type.size() * channels);
-}
-
-template <typename T>
-void FlipKernel(T *output, const T *input, size_t layers, size_t height, size_t width,
-                size_t channels, bool horizontal, bool vertical) {
-  int flip_flag = -1;
-  if (!vertical) flip_flag = 1;
-  else if (!horizontal) flip_flag = 0;
-  auto ocv_type = GetOcvType(TypeInfo::Create<T>(), channels);
-  size_t layer_size = height * width * channels;
-  for (size_t layer = 0; layer < layers; ++layer) {
-    auto input_mat = CreateMatFromPtr(height, width, ocv_type, input + layer * layer_size);
-    auto output_mat = CreateMatFromPtr(height, width, ocv_type, output + layer * layer_size);
-    cv::flip(input_mat, output_mat, flip_flag);
-  }
-}
-
 template <typename Type>
 class DLL_PUBLIC FlipCPU {
+ private:
+  static int GetOcvType(const TypeInfo &type, size_t channels) {
+    if (channels * type.size() > CV_CN_MAX) {
+      DALI_FAIL("Pixel size must not be greater than " + std::to_string(CV_CN_MAX) + " bytes.");
+    }
+    return CV_8UC(type.size() * channels);
+  }
+
+  static void OcvFlip(Type *output, const Type *input,
+               size_t layers, size_t height, size_t width, size_t channels,
+               bool flip_x, bool flip_y, bool flip_z) {
+    assert(flip_x || flip_y);
+    int flip_flag = -1;
+    if (!flip_y)
+      flip_flag = 1;
+    else if (!flip_x)
+      flip_flag = 0;
+    auto ocv_type = GetOcvType(TypeInfo::Create<Type>(), channels);
+    size_t layer_size = height * width * channels;
+    for (size_t layer = 0; layer < layers; ++layer) {
+      auto output_layer = flip_z ? layers - layer - 1 : layer;
+      auto input_mat = CreateMatFromPtr(height, width, ocv_type, input + layer * layer_size);
+      auto output_mat = CreateMatFromPtr(height, width, ocv_type,
+          output + output_layer * layer_size);
+      cv::flip(input_mat, output_mat, flip_flag);
+    }
+  }
+
+  static void FlipZAxis(Type *output, const Type *input, size_t layers, size_t height, size_t width,
+                        size_t channels, bool flip_z) {
+    if (!flip_z) {
+      std::copy(input, input + layers * height * width * channels, output);
+      return;
+    }
+    size_t layer_size = height * width * channels;
+    for (size_t layer = 0; layer < layers; ++layer) {
+      auto out_layer = layers - layer - 1;
+      std::copy(input + layer * layer_size, input + (layer + 1) * layer_size,
+                output + out_layer * layer_size);
+    }
+  }
+
+  static void FlipKernel(Type *output, const Type *input,
+                         size_t layers, size_t height, size_t width,
+                         size_t channels, bool flip_x, bool flip_y, bool flip_z) {
+    if (flip_x || flip_y) {
+      OcvFlip(output, input, layers, height, width, channels, flip_x, flip_y, flip_z);
+    } else {
+      FlipZAxis(output, input, layers, height, width, channels, flip_z);
+    }
+  }
+
  public:
   DLL_PUBLIC FlipCPU() = default;
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context, const InTensorCPU<Type, 4> &in) {
     KernelRequirements req;
-    req.output_shapes.emplace_back(TensorListShape<DynamicDimensions>({in.shape}));
+    req.output_shapes = {TensorListShape<DynamicDimensions>({in.shape})};
     return req;
   }
 
   DLL_PUBLIC void Run(KernelContext &Context, OutTensorCPU<Type, 4> &out,
-      const InTensorCPU<Type, 4> &in, bool horizontal, bool vertical) {
+      const InTensorCPU<Type, 4> &in, bool flip_x, bool flip_y, bool flip_z) {
     auto in_data = in.data;
     auto out_data = out.data;
-    if (horizontal || vertical) {
-      FlipKernel(out_data, in_data, in.shape[0], in.shape[1], in.shape[2], in.shape[3], horizontal,
-                 vertical);
-    } else {
-      std::copy(in_data, in_data + in.num_elements(), out_data);
-    }
+    FlipKernel(out_data, in_data, in.shape[0], in.shape[1], in.shape[2], in.shape[3],
+        flip_x, flip_y, flip_z);
   }
 };
 

@@ -25,12 +25,14 @@
 namespace dali {
 namespace kernels {
 
-class FlipCpuTest: public ::testing::TestWithParam<std::tuple<int32, int32, std::array<int64, 4>>> {
+class FlipCpuTest
+    : public ::testing::TestWithParam<std::tuple<int32, int32, int32, std::array<int64, 4>>> {
  public:
   FlipCpuTest()
-  : shape(std::get<2>(GetParam()))
-  , horizontal(std::get<0>(GetParam()))
-  , vertical(std::get<1>(GetParam()))
+  : flip_x(std::get<0>(GetParam()))
+  , flip_y(std::get<1>(GetParam()))
+  , flip_z(std::get<2>(GetParam()))
+  , shape(std::get<3>(GetParam()))
   , data(volume(shape))
   , in_view(data.data(), shape) {}
 
@@ -42,9 +44,10 @@ class FlipCpuTest: public ::testing::TestWithParam<std::tuple<int32, int32, std:
     UniformRandomFill(in_view, rng, 0., 10.);
   }
 
+  int32 flip_x;
+  int32 flip_y;
+  int32 flip_z;
   kernels::TensorShape<4> shape;
-  int32 horizontal;
-  int32 vertical;
   std::vector<float> data;
   OutTensorCPU<float, 4> in_view;
 };
@@ -56,17 +59,15 @@ TEST_P(FlipCpuTest, BasicTest) {
   auto out_shape = reqs.output_shapes[0][0].to_static<4>();
   std::vector<float> out_data(volume(out_shape));
   auto out_view = OutTensorCPU<float, 4>(out_data.data(), out_shape);
-  kernel.Run(ctx, out_view, in_view, horizontal, vertical);
-  auto layer_size = shape[1] * shape[2] * shape[3];
-  for (int64 i = 0; i < shape[0]; ++i) {
-    ASSERT_TRUE(is_flipped(out_view.data + layer_size * i, in_view.data + layer_size * i,
-        shape[1], shape[2], shape[3], horizontal, vertical));
-  }
+  kernel.Run(ctx, out_view, in_view, flip_x, flip_y, flip_z);
+  ASSERT_TRUE(is_flipped(out_view.data, in_view.data,
+        shape[0], shape[1], shape[2], shape[3], flip_x, flip_y, flip_z));
 }
 
 INSTANTIATE_TEST_SUITE_P(FlipCpuTest, FlipCpuTest, testing::Combine(
-    testing::Values(0, 1, 0, 1),
-    testing::Values(0, 0, 1, 1),
+    testing::Values(0, 1, 0, 1, 0, 1, 0, 1),
+    testing::Values(0, 0, 1, 1, 0, 0, 1, 1),
+    testing::Values(0, 0, 0, 0, 1, 1, 1, 1),
     testing::Values(std::array<int64, 4>{8, 9, 9, 3}, std::array<int64, 4>{3, 18, 18, 2})));
 
 }  // namespace kernels

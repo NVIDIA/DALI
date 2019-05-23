@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #ifndef DALI_KERNELS_IMGPROC_FLIP_TEST_H_
 #define DALI_KERNELS_IMGPROC_FLIP_TEST_H_
 
@@ -20,15 +19,19 @@ namespace dali {
 namespace kernels {
 
 template <typename T>
-bool is_flipped(const T* lhs, const T* rhs, size_t height, size_t width, size_t channels,
-                bool horizontal, bool vertical) {
-  for (size_t y = 0; y < height; ++y) {
-    for (size_t x = 0; x < width; ++x) {
-      auto rhs_x = horizontal ? width - x - 1 : x;
-      auto rhs_y = vertical ? height - y - 1 : y;
-      for (size_t c = 0; c < channels; ++c) {
-        if (lhs[(y * width + x) * channels + c] != rhs[(rhs_y * width + rhs_x) * channels + c]) {
-          return false;
+bool is_flipped(const T* lhs, const T* rhs, size_t layers, size_t height, size_t width,
+                size_t channels, bool flip_x, bool flip_y, bool flip_z) {
+  for (size_t z = 0; z < layers; ++z) {
+    for (size_t y = 0; y < height; ++y) {
+      for (size_t x = 0; x < width; ++x) {
+        auto rhs_x = flip_x ? width - x - 1 : x;
+        auto rhs_y = flip_y ? height - y - 1 : y;
+        auto rhs_z = flip_z ? layers - z - 1 : z;
+        for (size_t c = 0; c < channels; ++c) {
+          if (lhs[channels * (width * (height * z + y) + x) + c] !=
+              rhs[channels * (width * (height * rhs_z + rhs_y) + rhs_x) + c]) {
+            return false;
+          }
         }
       }
     }

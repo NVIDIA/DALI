@@ -29,7 +29,8 @@ class FlipGpuTest: public testing::TestWithParam<std::array<int64, 4>> {
   FlipGpuTest()
   : tensor_shape(GetParam())
   , _volume(volume(tensor_shape))
-  , shape({tensor_shape, tensor_shape, tensor_shape, tensor_shape}) {}
+  , shape({tensor_shape, tensor_shape, tensor_shape, tensor_shape,
+           tensor_shape, tensor_shape, tensor_shape, tensor_shape}) {}
 
   void SetUp() override {
     ttl_in.reshape(shape);
@@ -39,8 +40,9 @@ class FlipGpuTest: public testing::TestWithParam<std::array<int64, 4>> {
   }
 
  protected:
-  std::vector<int32> horizontal{0, 0, 1, 1};
-  std::vector<int32> vertical{0, 1, 0, 1};
+  std::vector<int32> flip_x{0, 0, 1, 1, 0, 0, 1, 1};
+  std::vector<int32> flip_y{0, 1, 0, 1, 0, 1, 0, 1};
+  std::vector<int32> flip_z{0, 0, 0, 0, 1, 1, 1, 1};
   TensorShape<4> tensor_shape;
   size_t _volume;
   TensorListShape<4> shape;
@@ -56,18 +58,14 @@ TEST_P(FlipGpuTest, BasicTest) {
   KernelRequirements reqs = kernel.Setup(ctx, in_view);
   ttl_out.reshape(reqs.output_shapes[0].to_static<4>());
   auto out_view = ttl_out.gpu();
-  kernel.Run(ctx, out_view, in_view, horizontal, vertical);
+  kernel.Run(ctx, out_view, in_view, flip_x, flip_y, flip_z);
   auto out_view_cpu = ttl_out.cpu(nullptr);
   auto in_view_cpu = ttl_in.cpu(nullptr);
   for (int i = 0; i < out_view_cpu.num_samples(); ++i) {
-    auto layer_size = shape[i][1] * shape[i][2] * shape[i][3];
-    for (int d = 0; d < out_view_cpu.tensor_shape(i)[0]; ++d) {
-      ASSERT_TRUE(
-          is_flipped(out_view_cpu.tensor_data(i) + layer_size * d,
-              in_view_cpu.tensor_data(i) + layer_size * d,
-              shape[i][1], shape[i][2], shape[i][3],
-              horizontal[i], vertical[i]));
-    }
+    ASSERT_TRUE(is_flipped(out_view_cpu.tensor_data(i),
+              in_view_cpu.tensor_data(i),
+              shape[i][0], shape[i][1], shape[i][2], shape[i][3],
+              flip_x[i], flip_y[i], flip_z[i]));
   }
 }
 

@@ -20,21 +20,21 @@ namespace dali {
 
 namespace testing {
 
-const int data_width = 3;
-const int data_height = 2;
-const int data_channels = 3;
+const int kDataWidth = 3;
+const int kDataHeight = 2;
+const int kDataChannels = 3;
 
 struct TestTlData {
-  std::vector<float> _data;
+  std::vector<float> data;
 
   explicit TestTlData(void *data_ptr) noexcept
-      : _data(2 * data_width * data_height * data_channels) {
-    auto data_size = data_width * data_height * data_channels * sizeof(float);
-    std::memcpy(_data.data(), data_ptr, data_size);
-    std::memcpy(_data.data() + data_size / sizeof(float), data_ptr, data_size);
+      : data(2 * kDataWidth * kDataHeight * kDataChannels) {
+    auto data_size = kDataWidth * kDataHeight * kDataChannels * sizeof(float);
+    std::memcpy(data.data(), data_ptr, data_size);
+    std::memcpy(data.data() + data_size / sizeof(float), data_ptr, data_size);
   }
 
-  float *data() { return _data.data(); }
+  float *ptr() { return data.data(); }
 };
 
 float data_nhwc[2][2][2][3][3] = {{{{{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}},
@@ -75,11 +75,6 @@ std::vector<Arguments> arguments = {{{"horizontal", 0}, {"vertical", 0}},
                                     {{"horizontal", 0}, {"vertical", 1}},
                                     {{"horizontal", 1}, {"vertical", 1}}};
 
-std::vector<Arguments> devices = {
-    {{"device", std::string{"cpu"}}},
-    {{"device", std::string{"gpu"}}},
-};
-
 std::vector<Arguments> layout = {{{"nhwc", true}}, {{"nhwc", false}}};
 
 void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
@@ -103,25 +98,26 @@ void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments arg
 TEST_P(FlipTest, BasicTest) {
   auto args = GetParam();
   auto nhwc = args["nhwc"].GetValue<bool>();
-  auto data_size = data_width * data_height * data_channels * sizeof(float);
+  auto data_size = kDataWidth * kDataHeight * kDataChannels * sizeof(float);
   TensorList<CPUBackend> tl;
   if (nhwc) {
-    tl.ShareData(nhwc_tensor_list_data.data(), 2 * data_size);
+    tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size);
     tl.set_type(TypeInfo::Create<float>());
     tl.SetLayout(DALI_NHWC);
-    tl.Resize({{data_height, data_width, data_channels}, {data_height, data_width, data_channels}});
+    tl.Resize({{kDataHeight, kDataWidth, kDataChannels}, {kDataHeight, kDataWidth, kDataChannels}});
   } else {
-    tl.ShareData(nchw_tensor_list_data.data(), 2 * data_size);
+    tl.ShareData(nchw_tensor_list_data.ptr(), 2 * data_size);
     tl.set_type(TypeInfo::Create<float>());
     tl.SetLayout(DALI_NCHW);
-    tl.Resize({{data_channels, data_height, data_width}, {data_channels, data_height, data_width}});
+    tl.Resize({{kDataChannels, kDataHeight, kDataWidth}, {kDataChannels, kDataHeight, kDataWidth}});
   }
   TensorListWrapper tlout;
   this->RunTest(&tl, tlout, args, FlipVerify);
 }
 
 INSTANTIATE_TEST_SUITE_P(FlipTest, FlipTest,
-                         ::testing::ValuesIn(testing::cartesian(devices, arguments, layout)));
+                         ::testing::ValuesIn(
+                             testing::cartesian(testing::utils::kDevices, arguments, layout)));
 
 }  // namespace testing
 }  // namespace dali

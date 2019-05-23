@@ -25,9 +25,9 @@ namespace dali {
 namespace kernels {
 
 template <typename T>
-__global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input, size_t layers,
-                           size_t height, size_t width, size_t channels,
-                           int32 flip_x, int32 flip_y) {
+__global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
+                           size_t layers, size_t height, size_t width, size_t channels,
+                           bool flip_x, bool flip_y, bool flip_z) {
   size_t xc = blockIdx.x * blockDim.x + threadIdx.x;
   size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   size_t z = blockIdx.z * blockDim.z + threadIdx.z;
@@ -38,7 +38,8 @@ __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input, 
   size_t x = xc / channels;
   size_t in_x = flip_x ? width - 1 - x : x;
   size_t in_y = flip_y ? height - 1 - y : y;
-  size_t input_idx = channel + channels * (in_x + width * (in_y + height * z));
+  size_t in_z = flip_z ? layers - 1 - z : z;
+  size_t input_idx = channel + channels * (in_x + width * (in_y + height * in_z));
   size_t output_idx = channel + channels * (x + width * (y + height * z));
   output[output_idx] = input[input_idx];
 }
@@ -48,15 +49,16 @@ class DLL_PUBLIC FlipGPU {
  public:
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context, const InListGPU<Type, 4> &in) {
     KernelRequirements req;
-    req.output_shapes.emplace_back(in.shape);
+    req.output_shapes = {in.shape};
     return req;
   }
 
   DLL_PUBLIC void Run(KernelContext &context, OutListGPU<Type, 4> &out,
       const InListGPU<Type, 4> &in,
-      const std::vector<int32> &horizontal, const std::vector<int32> &vertical) {
+      const std::vector<int32> &flip_x, const std::vector<int32> &flip_y,
+      const std::vector<int32> &flip_z) {
     auto num_samples = static_cast<size_t>(in.num_samples());
-    DALI_ENFORCE(horizontal.size() == num_samples && vertical.size() == num_samples);
+    DALI_ENFORCE(flip_x.size() == num_samples && flip_y.size() == num_samples);
     for (size_t i = 0; i < num_samples; ++i) {
       auto layers = in.tensor_shape(i)[0];
       auto height = in.tensor_shape(i)[1];
@@ -70,7 +72,7 @@ class DLL_PUBLIC FlipGPU {
       dim3 block(block_x, block_y, 1);
       dim3 grid((layer_width + block_x - 1) / block_x, (height + block_y - 1) / block_y, layers);
       FlipKernel<<<grid, block, 0, context.gpu.stream>>>
-            (out_data, in_data, layers, height, width, channels, horizontal[i], vertical[i]);
+            (out_data, in_data, layers, height, width, channels, flip_x[i], flip_y[i], flip_z[i]);
     }
   }
 };
