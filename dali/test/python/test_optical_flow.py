@@ -12,28 +12,13 @@ from random import shuffle
 batch_size = 1
 sequence_length = 10
 dali_extra_path = os.environ['DALI_EXTRA_PATH']
-image_dir= os.path.join(dali_extra_path, "/db/optical_flow/slow_preset/")
-data_dir=os.path.join(image_dir, "/data")
-if not os.path.exists(data_dir):
-    os.makedirs(data_dir)
-    os.makedirs(data_dir+"/0")
-    
+image_dir= os.path.join(dali_extra_path, "/db/optical_flow/slow_preset/two_frames")
 
-def copy_image(source,target):
-    try:
-       shutil.copy(source, target)
-    except IOError as e:
-       print("Unable to copy file. %s" % e)
-    except:
-       print("Unexpected error:", sys.exc_info())
-       
-copy_image(image_dir + "/frame_input.png", data_dir+"/0/0001.png")
-copy_image(image_dir + "/frame_reference.png", data_dir+"/0/0002.png")
 
 class OFPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id):
         super(OFPipeline, self).__init__(batch_size, num_threads, device_id, seed=16)
-        self.input = ops.SequenceReader(file_root=data_dir, sequence_length=2)
+        self.input = ops.SequenceReader(file_root=image_dir, sequence_length=2)
         self.of_op = ops.OpticalFlow(device="gpu", output_format=4)
     def define_graph(self):
         seq = self.input(name="Reader")
