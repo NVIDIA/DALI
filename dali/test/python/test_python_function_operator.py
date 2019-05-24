@@ -5,16 +5,15 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy
 import random
-import torchvision.transforms as transforms
 from PIL import Image
 import os
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
+
 def resize(image):
-    res = transforms.Resize((300, 300))
-    return numpy.array(res(Image.fromarray(image)))
+    return numpy.array(Image.fromarray(image).resize((300, 300)))
 
 
 class CommonPipeline(Pipeline):
