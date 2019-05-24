@@ -20,22 +20,22 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/common.h"
-#include "dali/pipeline/operators/crop/new_crop.h"
+#include "dali/pipeline/operators/crop/slice_base.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class NewSlice : public NewCrop<Backend> {
+class NewSlice : public SliceBase<Backend> {
  public:
   explicit inline NewSlice(const OpSpec &spec)
-    : NewCrop<Backend>(spec) {}
+    : SliceBase<Backend>(spec) {}
 
  protected:
-  using NewCrop<Backend>::input_type_;
-  using NewCrop<Backend>::output_type_;
-  using NewCrop<Backend>::slice_anchors_;
-  using NewCrop<Backend>::slice_shapes_;
+  using SliceBase<Backend>::input_type_;
+  using SliceBase<Backend>::output_type_;
+  using SliceBase<Backend>::slice_anchors_;
+  using SliceBase<Backend>::slice_shapes_;
 
   void RunImpl(Workspace<Backend> *ws, int idx) override;
 
@@ -48,13 +48,12 @@ class NewSlice : public NewCrop<Backend> {
     }
   }
 
-private:
-  void DataDependentSetup(Workspace<Backend> *ws, int idx);
+  void DataDependentSetup(Workspace<Backend> *ws, int idx) override;
 
-  void DataDependentSetup(int data_idx,
-                          const Dims &shape,
-                          const float *anchor_norm,
-                          const float *slice_dims_norm) {
+  void SetupSample(int data_idx,
+                   const Dims &shape,
+                   const float *anchor_norm,
+                   const float *slice_dims_norm) {
     auto &anchor = slice_anchors_[data_idx];
     for (std::size_t d = 0; d < shape.size(); d++) {
       anchor[d] = anchor_norm[d] * shape[d];
@@ -73,4 +72,4 @@ private:
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_CROP_SLICE_H_
+#endif  // DALI_PIPELINE_OPERATORS_CROP_NEW_SLICE_H_

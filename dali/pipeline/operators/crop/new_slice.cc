@@ -42,13 +42,12 @@ void NewSlice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, int idx) {
   const auto shape = images.shape();
   const float* anchor_norm = anchor_tensor.template data<float>();
   const float* slice_shape_norm = slice_shape_tensor.template data<float>();
-  DataDependentSetup(ws->data_idx(), shape, anchor_norm, slice_shape_norm);
+  SetupSample(ws->data_idx(), shape, anchor_norm, slice_shape_norm);
 }
 
 template <>
 void NewSlice<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
-  DataDependentSetup(ws, idx);
-  NewCrop<CPUBackend>::RunImpl(ws, idx);
+  SliceBase<CPUBackend>::RunImpl(ws, idx);
 }
 
 DALI_REGISTER_OPERATOR(NewSlice, NewSlice<CPUBackend>, CPU);

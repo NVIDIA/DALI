@@ -26,14 +26,13 @@ void NewSlice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, int idx) {
     const auto shape = images.tensor_shape(sample_idx);
     const float* anchor_norm = anchor_tensor.tensor<float>(sample_idx);
     const float* slice_shape_norm = slice_shape_tensor.tensor<float>(sample_idx);
-    DataDependentSetup(sample_idx, shape, anchor_norm, slice_shape_norm);
+    SetupSample(sample_idx, shape, anchor_norm, slice_shape_norm);
   }
 }
 
 template <>
 void NewSlice<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
-  DataDependentSetup(ws, idx);
-  NewCrop<GPUBackend>::RunImpl(ws, idx);
+  SliceBase<GPUBackend>::RunImpl(ws, idx);
 }
 
 DALI_REGISTER_OPERATOR(NewSlice, NewSlice<GPUBackend>, GPU);
