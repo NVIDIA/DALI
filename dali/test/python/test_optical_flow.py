@@ -12,8 +12,8 @@ from random import shuffle
 batch_size = 1
 sequence_length = 10
 dali_extra_path = os.environ['DALI_EXTRA_PATH']
-image_dir=dali_extra_path + "/db/optical_flow/slow_preset/"
-data_dir=image_dir + "/data"
+image_dir= os.path.join(dali_extra_path, "/db/optical_flow/slow_preset/")
+data_dir=os.path.join(image_dir, "/data")
 if not os.path.exists(data_dir):
     os.makedirs(data_dir)
     os.makedirs(data_dir+"/0")
@@ -33,7 +33,7 @@ copy_image(image_dir + "/frame_reference.png", data_dir+"/0/0002.png")
 class OFPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id):
         super(OFPipeline, self).__init__(batch_size, num_threads, device_id, seed=16)
-        self.input = ops.SequenceReader(file_root=image_dir+"data", sequence_length=2)
+        self.input = ops.SequenceReader(file_root=data_dir, sequence_length=2)
         self.of_op = ops.OpticalFlow(device="gpu", output_format=4)
     def define_graph(self):
         seq = self.input(name="Reader")
@@ -41,12 +41,13 @@ class OFPipeline(Pipeline):
         return of,seq.gpu()
 
 
-pipe = OFPipeline(batch_size=batch_size, num_threads=1, device_id=0)
-pipe.build()
-pipe_out = pipe.run()
-frames = pipe_out[0].as_cpu().as_array()
-print(frames.shape)
-np.savetxt("array.txt", frames.flatten(), fmt="%s")
-myarray=np.loadtxt(image_dir+'decoded_flow_vector.dat')
-assert (0.9 < np.mean(np.abs(frames[0][0].flatten()-myarray)))
+def test_of:
+	pipe = OFPipeline(batch_size=batch_size, num_threads=1, device_id=0)
+	pipe.build()
+	pipe_out = pipe.run()
+	frames = pipe_out[0].as_cpu().as_array()
+	print(frames.shape)
+	myarray=np.loadtxt(image_dir+'decoded_flow_vector.dat')
+	assert (0.9 < np.mean(np.abs(frames[0][0].flatten()-myarray)))
+
 
