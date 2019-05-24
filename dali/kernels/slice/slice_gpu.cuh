@@ -149,13 +149,17 @@ class SliceGPU {
     }
 
     detail::SliceSampleDesc<Dims> *sample_descs =
-      context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(AllocType::GPU, num_samples);
+      context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(
+        AllocType::GPU, num_samples);
     detail::BlockDesc *block_descs =
-      context.scratchpad->Allocate<detail::BlockDesc>(AllocType::GPU, block_count_);
+      context.scratchpad->Allocate<detail::BlockDesc>(
+        AllocType::GPU, block_count_);
 
     // Memory is allocated contiguously, so we launch only one cudaMemcpyAsync
+    std::size_t total_bytes = num_samples * sizeof(detail::SliceSampleDesc<Dims>)
+      + block_count_ * sizeof(detail::BlockDesc);
     cudaMemcpyAsync(sample_descs, sample_descs_cpu,
-                    num_samples * sizeof(detail::SliceSampleDesc<Dims>) + block_count_ * sizeof(detail::BlockDesc),
+                    total_bytes,
                     cudaMemcpyHostToDevice,
                     context.gpu.stream);
 
