@@ -132,12 +132,14 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(XCOMPILER_FLAGS "${CMAKE_CXX_FLAGS}")
     string(STRIP "${CMAKE_CXX_FLAGS}" XCOMPILER_FLAGS)
     # String to list
-    string(REPLACE " " ";" XCOMPILER_FLAGS ${XCOMPILER_FLAGS})
+    string(REPLACE " " ";" XCOMPILER_FLAGS_LIST ${XCOMPILER_FLAGS})
+    set(XCOMPILER_FLAGS_QUOTED "")
     # Map list `element` to  ,\"element\"
-    list(TRANSFORM XCOMPILER_FLAGS APPEND "\\\"")
-    list(TRANSFORM XCOMPILER_FLAGS PREPEND ",\\\"")
+    foreach(flag ${XCOMPILER_FLAGS_LIST})
+      list(APPEND XCOMPILER_FLAGS_QUOTED ",\\\"${flag}\\\"")
+    endforeach(flag)
     # Rebuild a string
-    string(CONCAT XCOMPILER_FLAGS ${XCOMPILER_FLAGS})
+    string(CONCAT XCOMPILER_FLAGS ${XCOMPILER_FLAGS_QUOTED})
     message(STATUS "XCOMPILER_FLAGS = ${XCOMPILER_FLAGS}")
     # Turn off flags propagation and do it manually
     set(CUDA_PROPAGATE_HOST_FLAGS OFF)
