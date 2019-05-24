@@ -27,6 +27,7 @@ DALI_SCHEMA(NewCrop)
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
+    .AllowSequences(false)
     .AddOptionalArg(
         "image_type",
         R"code(The color space of input and output image)code",
