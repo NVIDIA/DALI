@@ -51,6 +51,7 @@ class FlipGpuTest: public testing::TestWithParam<std::array<int64, 4>> {
 };
 
 TEST_P(FlipGpuTest, BasicTest) {
+  GetParam();
   KernelContext ctx;
   FlipGPU<float> kernel;
   auto in_view = ttl_in.gpu(nullptr);
@@ -70,11 +71,11 @@ TEST_P(FlipGpuTest, BasicTest) {
 }
 
 INSTANTIATE_TEST_SUITE_P(FlipGpuTest, FlipGpuTest,
-    testing::Values(
+    ::testing::ValuesIn({
         std::array<int64, 4>{1, 2, 2, 1},
         std::array<int64, 4>{1, 2, 2, 2},
         std::array<int64, 4>{4, 9, 18, 3},
-        std::array<int64, 4>{3, 18, 9, 4}));
+        std::array<int64, 4>{3, 18, 9, 4}}));
 
 }  // namespace kernels
 }  // namespace dali
