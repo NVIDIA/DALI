@@ -39,10 +39,12 @@ void NewSlice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, int idx) {
   const auto &images = ws->Input<CPUBackend>(0);
   const auto &anchor_tensor = ws->Input<CPUBackend>(1);
   const auto &slice_shape_tensor = ws->Input<CPUBackend>(2);
-  const auto shape = images.shape();
+  const auto img_shape = images.shape();
+  const auto args_ndim = anchor_tensor.shape()[0];
   const float* anchor_norm = anchor_tensor.template data<float>();
   const float* slice_shape_norm = slice_shape_tensor.template data<float>();
-  SetupSample(ws->data_idx(), shape, anchor_norm, slice_shape_norm);
+  SetupSample(ws->data_idx(), images.GetLayout(), img_shape, args_ndim,
+              anchor_norm, slice_shape_norm);
 }
 
 template <>

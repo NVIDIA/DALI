@@ -65,7 +65,9 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations):
         out2 = pipe2.run()
         assert len(out1) == len(out2)
         for i in range(len(out1)):
-            check_batch(out1[i], out2[i], batch_size)
+            out1_data = out1[i].as_cpu() if isinstance(out1[i].at(0), dali.backend_impl.TensorGPU) else out1[i]
+            out2_data = out2[i].as_cpu() if isinstance(out2[i].at(0), dali.backend_impl.TensorGPU) else out2[i]
+            check_batch(out1_data, out2_data, batch_size)
     print("OK: ({} iterations)".format(N_iterations))
 
 def test_tensor_multiple_uses():
@@ -1499,3 +1501,113 @@ def test_crop_sequence_old_crop_vs_new_crop_gpu():
     compare_pipelines(CropSequencePipeline('gpu', batch_size, is_old_crop=True),
                       CropSequencePipeline('gpu', batch_size, is_old_crop=False),
                       batch_size=batch_size, N_iterations=10)
+
+class SlicePipeline(Pipeline):
+    def __init__(self, device, batch_size, pos_size_iter, num_threads=1, device_id=0, num_gpus=1, is_old_slice=True):
+        super(SlicePipeline, self).__init__(batch_size,
+                                           num_threads,
+                                           device_id)
+        self.pos_size_iter = pos_size_iter
+        self.device = device
+        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.input_crop_pos = ops.ExternalSource()
+        self.input_crop_size = ops.ExternalSource()
+        self.input_crop = ops.ExternalSource()
+        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+
+        if is_old_slice:
+            self.slice = ops.Slice(device = device,
+                                   image_type = types.RGB)
+        else:
+            self.slice = ops.NewSlice(device = device,
+                                      image_type = types.RGB)
+
+    def define_graph(self):
+        inputs, labels = self.input(name="Reader")
+        images = self.decode(inputs)
+        self.crop_pos = self.input_crop_pos()
+        self.crop_size = self.input_crop_size()
+        if self.device:
+            images = images.gpu()
+        out = self.slice(images, self.crop_pos, self.crop_size)
+        return out
+
+    def iter_setup(self):
+        (crop_pos, crop_size) = self.pos_size_iter.next()
+        self.feed_input(self.crop_pos, crop_pos)
+        self.feed_input(self.crop_size, crop_size)
+
+
+class SliceArgsIterator(object):
+    def __init__(self, batch_size):
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        self.i = 0
+        self.n = self.batch_size
+        return self
+
+    def __next__(self):
+        pos = []
+        size = []
+        for k in range(self.batch_size):
+            pos.append(np.asarray([0.4, 0.2], dtype=np.float32))
+            size.append(np.asarray([0.3, 0.5], dtype=np.float32))
+            self.i = (self.i + 1) % self.n
+        return (pos, size)
+    next = __next__
+
+def test_old_slice_vs_new_slice_gpu():
+    for batch_size in {1, 13, 64}:
+        eii1 = SliceArgsIterator(batch_size)
+        pos_size_iter1 = iter(eii1)
+
+        eii2 = SliceArgsIterator(batch_size)
+        pos_size_iter2 = iter(eii2)
+
+        compare_pipelines(SlicePipeline('gpu', batch_size, pos_size_iter1, is_old_slice=True),
+                          SlicePipeline('gpu', batch_size, pos_size_iter2, is_old_slice=False),
+                          batch_size=batch_size, N_iterations=10)
+
+class SliceArgsIteratorAllDims(object):
+    def __init__(self, batch_size):
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        self.i = 0
+        self.n = self.batch_size
+        return self
+
+    def __next__(self):
+        pos = []
+        size = []
+        for k in range(self.batch_size):
+            pos.append(np.asarray([0.2, 0.4, 0.0], dtype=np.float32)) # yxc
+            size.append(np.asarray([0.5, 0.3, 1.0], dtype=np.float32)) # HWC
+            self.i = (self.i + 1) % self.n
+        return (pos, size)
+    next = __next__
+
+def test_new_slice_gpu_args_WH_vs_args_HWC():
+    for batch_size in {3, 32, 64}:
+        eii1 = SliceArgsIterator(batch_size)
+        pos_size_iter1 = iter(eii1)
+
+        eii2 = SliceArgsIteratorAllDims(batch_size)
+        pos_size_iter2 = iter(eii2)
+
+        compare_pipelines(SlicePipeline('gpu', batch_size, pos_size_iter1, is_old_slice=False),
+                          SlicePipeline('gpu', batch_size, pos_size_iter2, is_old_slice=False),
+                          batch_size=batch_size, N_iterations=10)
+
+def test_new_slice_cpu_vs_gpu():
+    for batch_size in {3, 32, 64}:
+        eii1 = SliceArgsIterator(batch_size)
+        pos_size_iter1 = iter(eii1)
+
+        eii2 = SliceArgsIterator(batch_size)
+        pos_size_iter2 = iter(eii2)
+
+        compare_pipelines(SlicePipeline('gpu', batch_size, pos_size_iter1, is_old_slice=False),
+                          SlicePipeline('cpu', batch_size, pos_size_iter2, is_old_slice=False),
+                          batch_size=batch_size, N_iterations=10)
