@@ -18,6 +18,7 @@
 #include <random>
 #include <vector>
 #include <utility>
+#include <cmath>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -72,12 +73,12 @@ class ResizeCropMirrorAttr : protected CropAttr {
       // resize_shorter set
       const int shorter_side_size = spec.GetArgument<float>("resize_shorter", ws, index);
       if (meta.H < meta.W) {
-        const float scale = shorter_side_size/static_cast<float>(meta.H);
+        const float scale = shorter_side_size / static_cast<float>(meta.H);
         meta.rsz_h = shorter_side_size;
-        meta.rsz_w = scale * meta.W;
+        meta.rsz_w = static_cast<int>(round(scale * meta.W));
       } else {
-        const float scale = shorter_side_size/static_cast<float>(meta.W);
-        meta.rsz_h = scale * meta.H;
+        const float scale = shorter_side_size / static_cast<float>(meta.W);
+        meta.rsz_h = static_cast<int>(round(scale * meta.H));
         meta.rsz_w = shorter_side_size;
       }
     } else if (resize_longer_) {
@@ -85,13 +86,13 @@ class ResizeCropMirrorAttr : protected CropAttr {
         const int longer_side_size = spec.GetArgument<float>("resize_longer", ws, index);
 
         if (meta.H > meta.W) {
-          const float scale = longer_side_size/static_cast<float>(meta.H);
+          const float scale = longer_side_size / static_cast<float>(meta.H);
           meta.rsz_h = longer_side_size;
-          meta.rsz_w = scale * meta.W;
+          meta.rsz_w = static_cast<int>(round(scale * meta.W));
 
         } else {
-          const float scale = longer_side_size/static_cast<float>(meta.W);
-          meta.rsz_h = scale * meta.H;
+          const float scale = longer_side_size / static_cast<float>(meta.W);
+          meta.rsz_h = static_cast<int>(round(scale * meta.H));
           meta.rsz_w = longer_side_size;
       }
     } else {
@@ -103,13 +104,13 @@ class ResizeCropMirrorAttr : protected CropAttr {
         } else {
           // resize_x set only
           const float scale = static_cast<float>(meta.rsz_w) / meta.W;
-          meta.rsz_h = scale * meta.H;
+          meta.rsz_h = static_cast<int>(round(scale * meta.H));
         }
       } else {
         // resize_y set only
         meta.rsz_h = spec.GetArgument<float>("resize_y", ws, index);
         const float scale = static_cast<float>(meta.rsz_h) / meta.H;
-        meta.rsz_w = scale * meta.W;
+        meta.rsz_w = static_cast<int>(round(scale * meta.W));
       }
     }
 
