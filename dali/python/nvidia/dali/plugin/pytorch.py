@@ -68,7 +68,7 @@ class DALIGenericIterator(object):
                  of those names.
                  Each name should be distinct
     size : int
-           Epoch size.
+           Number of samples in the epoch (Usually the size of the dataset).
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -247,7 +247,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     pipelines : list of nvidia.dali.pipeline.Pipeline
                 List of pipelines to use
     size : int
-           Epoch size.
+           Number of samples in the epoch (Usually the size of the dataset).
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.

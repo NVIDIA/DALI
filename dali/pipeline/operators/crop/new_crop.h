@@ -89,8 +89,9 @@ class NewCrop : public SliceBase<Backend>, protected CropAttr {
 
     auto crop_h = crop_height_[data_idx];
     auto crop_w = crop_width_[data_idx];
-    auto crop_y = crop_pos_y_x.first;
-    auto crop_x = crop_pos_y_x.second;
+
+    int64_t crop_y, crop_x;
+    std::tie(crop_y, crop_x) = crop_pos_y_x;
 
     switch (layout) {
       case DALI_NHWC:
