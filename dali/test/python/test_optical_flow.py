@@ -10,7 +10,7 @@ import nvidia.dali.types as types
 from random import shuffle
 
 batch_size = 1
-sequence_length = 2
+sequence_length = 10
 dali_extra_path = os.environ['DALI_EXTRA_PATH']
 image_dir= os.path.join(dali_extra_path, "/db/optical_flow/slow_preset/two_frames")
 
