@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from __future__ import print_function
+from __future__ import division
 
 import argparse
 import itertools
@@ -23,7 +24,6 @@ from math import ceil, sqrt
 import numpy as np
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import torchvision.transforms as transforms
 from nvidia.dali.backend_impl import TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 from PIL import Image
@@ -93,19 +93,14 @@ def normalize_ref(image):
     normalization_mean = [0.485, 0.456, 0.406]
     normalization_std = [0.229, 0.224, 0.225]
 
-    normalize = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(
-            mean=normalization_mean,
-            std=normalization_std)])
-
-    return np.array(normalize(Image.fromarray(image)))
+    image = image.astype(dtype=np.float).transpose((2,0,1))/255
+    for plane, (m, s) in zip(range(len(image)), zip(normalization_mean, normalization_std)):
+        image[plane] = (image[plane]- m)/s
+    return image
 
 
 def resize_ref(image, size):
-    resize = transforms.Resize(size)
-
-    return np.array(resize(Image.fromarray(image)))
+    return np.array(Image.fromarray(image).resize(size, Image.BILINEAR))
 
 
 class DetectionPipeline(Pipeline):
@@ -267,7 +262,6 @@ def data_paths():
     val = os.path.join(coco, 'val2017')
     val_annotations = os.path.join(
         coco, 'annotations/instances_val2017.json')
-
     return [(train, train_annotations), (val, val_annotations)]
 
 
@@ -445,6 +439,8 @@ def make_parser():
     parser.add_argument(
         '-p', '--prefetch', default=2, type=int, metavar='N',
         help='prefetch queue depth (default: %(default)s)')
+    parser.add_argument('--dali_extra', action='store_true',
+        help='Use small data set from DALI_extra, for sanity testing')
 
     return parser
 

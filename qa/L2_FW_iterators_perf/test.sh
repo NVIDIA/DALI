@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="tensorflow-gpu torchvision mxnet-cu##CUDA_VERSION##"
+pip_packages="tensorflow-gpu torchvision mxnet-cu##CUDA_VERSION## torch"
 one_config_only=true
 
 pushd ../..

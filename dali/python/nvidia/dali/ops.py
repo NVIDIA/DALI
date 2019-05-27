@@ -264,17 +264,18 @@ def _load_ops():
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
     _support_ops = _support_ops.union(set(b.RegisteredSupportOps()))
     for op_name in _cpu_gpu_ops:
-        setattr(sys.modules[__name__], op_name,
-                python_op_factory(op_name, op_device = "cpu"))
+        if not hasattr(sys.modules[__name__], op_name):
+            setattr(sys.modules[__name__], op_name,
+                    python_op_factory(op_name, op_device = "cpu"))
     # add support ops
     for op_name in _support_ops:
-        setattr(sys.modules[__name__], op_name,
-                python_op_factory(op_name, op_device = "support"))
+        if not hasattr(sys.modules[__name__], op_name):
+            setattr(sys.modules[__name__], op_name,
+                    python_op_factory(op_name, op_device = "support"))
 _load_ops()
 
 def Reload():
     _load_ops()
-
 
 # custom wrappers around ops
 class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
@@ -342,7 +343,6 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddArg("features", features)
         return outputs
 
-
 class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
@@ -388,18 +388,14 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddArg("function_id", id(self.function))
         return t
 
-
 def cpu_ops():
     return _cpu_ops
-
 
 def gpu_ops():
     return _gpu_ops
 
-
 def support_ops():
     return _support_ops
-
 
 def mixed_ops():
     return _mixed_ops
