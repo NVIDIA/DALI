@@ -49,7 +49,7 @@ BENCHMARK_DEFINE_F(OperatorBench, OldCropCPU)(benchmark::State& st) {
     batch_size, H, W, C);
 }
 
-BENCHMARK_REGISTER_F(OperatorBench, OldCropCPU)->Iterations(100)
+BENCHMARK_REGISTER_F(OperatorBench, OldCropCPU)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(CropCPUArgs);
@@ -75,7 +75,7 @@ BENCHMARK_DEFINE_F(OperatorBench, NewCropCPU)(benchmark::State& st) {
     batch_size, H, W, C);
 }
 
-BENCHMARK_REGISTER_F(OperatorBench, NewCropCPU)->Iterations(100)
+BENCHMARK_REGISTER_F(OperatorBench, NewCropCPU)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(CropCPUArgs);
@@ -112,7 +112,7 @@ BENCHMARK_DEFINE_F(OperatorBench, OldCropGPU)(benchmark::State& st) {
     batch_size, H, W, C);
 }
 
-BENCHMARK_REGISTER_F(OperatorBench, OldCropGPU)->Iterations(100)
+BENCHMARK_REGISTER_F(OperatorBench, OldCropGPU)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(CropGPUArgs);
@@ -138,7 +138,7 @@ BENCHMARK_DEFINE_F(OperatorBench, NewCropGPU)(benchmark::State& st) {
     batch_size, H, W, C);
 }
 
-BENCHMARK_REGISTER_F(OperatorBench, NewCropGPU)->Iterations(100)
+BENCHMARK_REGISTER_F(OperatorBench, NewCropGPU)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(CropGPUArgs);

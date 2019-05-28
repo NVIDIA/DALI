@@ -182,6 +182,8 @@ using SLICE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<unsigned char, unsigned char, 3, 1, 2, SliceArgsGenerator_HalfAllDims<3>>,
     SliceTestArgs<unsigned char, unsigned char, 1, 1, 2, SliceArgsGenerator_HalfAllDims<1>>,
     SliceTestArgs<unsigned char, unsigned char, 2, 1, 1024, SliceArgsGenerator_HalfAllDims<2>>,
+    SliceTestArgs<unsigned char, unsigned char, 2, 100, 1024, SliceArgsGenerator_HalfAllDims<2>>,
+    SliceTestArgs<unsigned char, unsigned char, 3, 3, 256, SliceArgsGenerator_HalfAllDims<3>>,
     SliceTestArgs<int, int, 2, 1, 3, SliceArgsGenerator_ExtractCenterElement<2>>
 >;
 

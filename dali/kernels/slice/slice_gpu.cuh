@@ -24,73 +24,148 @@
 #include "dali/core/convert.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/cuda_error.h"
+#include "dali/kernels/common/copy.h"
 
 namespace dali {
 namespace kernels {
 
+namespace detail {
+
 template <std::size_t Dims>
-struct SliceArgsDev {
+struct SliceSampleDesc {
+  void *__restrict__ out;
+  const void *__restrict__ in;
   DeviceArray<int64_t, Dims> in_strides;
   DeviceArray<int64_t, Dims> out_strides;
-  DeviceArray<int64_t, Dims> anchor;
+};
+
+struct BlockDesc {
+  int sampleIdx;
+  std::size_t offset;
+  std::size_t size;
 };
 
 template <typename OutputType, typename InputType, std::size_t Dims>
-__global__ void SliceKernel(OutputType *__restrict__ output,
-                            const InputType *__restrict__ input,
-                            SliceArgsDev<Dims> slice_args_dev,
-                            unsigned int total_pixels) {
-  unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_pixels) {
-    return;
-  }
+__global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDesc *blocks) {
+  int sampleIdx = blocks[blockIdx.x].sampleIdx;
+  std::size_t offset = blocks[blockIdx.x].offset + threadIdx.x;
+  std::size_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
+  auto sample = samples[sampleIdx];
+  auto *out = static_cast<OutputType*>(sample.out);
+  auto *in = static_cast<const InputType*>(sample.in);
 
-  unsigned int out_idx = idx;
-  unsigned int in_idx = 0;
-  for (std::size_t d = 0; d < Dims; d++) {
-    unsigned int i_d = idx / slice_args_dev.out_strides[d];
-    idx = idx % slice_args_dev.out_strides[d];
-    in_idx += (slice_args_dev.anchor[d] + i_d) * slice_args_dev.in_strides[d];
+  for (; offset < block_end; offset += blockDim.x) {
+    std::size_t idx = offset;
+    std::size_t out_idx = idx;
+    std::size_t in_idx = 0;
+    for (int d = 0; d < Dims - 1; d++) {
+      int i_d = idx / sample.out_strides[d];
+      idx = idx % sample.out_strides[d];
+      in_idx += i_d * sample.in_strides[d];
+    }
+    in_idx += idx;  // last dim (stride is 1)
+    out[out_idx] = clamp<OutputType>(in[in_idx]);
   }
-  output[out_idx] = clamp<OutputType>(input[in_idx]);
 }
 
-template <typename OutputType, typename InputType, std::size_t Dims>
-class DLL_PUBLIC SliceGPU {
- public:
-  SliceGPU() = default;
+}  // namespace detail
 
-  DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
-                                      const InListGPU<InputType, Dims> &in,
-                                      const std::vector<SliceArgs<Dims>> &slice_args) {
+template <typename OutputType, typename InputType, std::size_t Dims>
+class SliceGPU {
+ private:
+  static constexpr std::size_t kBlockDim = 256;
+  static constexpr std::size_t kBlockSize = 64 * kBlockDim;
+  std::size_t block_count_ = 0;
+
+ public:
+  KernelRequirements Setup(KernelContext &context,
+                           const InListGPU<InputType, Dims> &in,
+                           const std::vector<SliceArgs<Dims>> &slice_args) {
     KernelRequirements req;
+    ScratchpadEstimator se;
+    const std::size_t num_samples = in.size();
+    se.add<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
+    se.add<detail::SliceSampleDesc<Dims>>(AllocType::GPU, num_samples);
+
+    std::vector<std::size_t> sample_sizes;
+    sample_sizes.reserve(slice_args.size());
+    for (auto &args : slice_args) {
+      sample_sizes.push_back(volume(args.shape));
+    }
+
+    block_count_ = 0;
+    for (std::size_t sample_size : sample_sizes) {
+      block_count_ += std::ceil(
+        sample_size / static_cast<float>(kBlockSize));
+    }
+
+    se.add<detail::BlockDesc>(AllocType::Host, block_count_);
+    se.add<detail::BlockDesc>(AllocType::GPU, block_count_);
+    req.scratch_sizes = se.sizes;
+
     req.output_shapes = { GetOutputShapes<Dims>(in.shape, slice_args) };
     return req;
   }
 
-  DLL_PUBLIC void Run(KernelContext &context,
-                      OutListGPU<OutputType, Dims> &out,
-                      const InListGPU<InputType, Dims> &in,
-                      const std::vector<SliceArgs<Dims>> &slice_args) {
+  void Run(KernelContext &context,
+           OutListGPU<OutputType, Dims> &out,
+           const InListGPU<InputType, Dims> &in,
+           const std::vector<SliceArgs<Dims>> &slice_args) {
+    const auto num_samples = in.size();
+
+    detail::SliceSampleDesc<Dims>* sample_descs_cpu =
+      context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
+    detail::BlockDesc *block_descs_cpu =
+      context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
+
+    std::vector<std::size_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
       const auto out_shape = out.tensor_shape(i);
-      const auto &anchor = slice_args[i].anchor;
-      const unsigned int total_size = volume(out_shape);
-      const unsigned int block = std::min(total_size, 1024u);
-      const unsigned int grid = div_ceil(total_size, block);
-
-      SliceArgsDev<Dims> slice_args_dev;
-      slice_args_dev.in_strides = GetStrides<Dims>(in_shape);
-      slice_args_dev.out_strides = GetStrides<Dims>(out_shape);
-      slice_args_dev.anchor = anchor;
-
-      const InputType *in_ptr = in.tensor_data(i);
-      OutputType *out_ptr = out.tensor_data(i);
-
-      SliceKernel<OutputType, InputType, Dims>
-          <<<grid, block, 0, context.gpu.stream>>>(out_ptr, in_ptr, slice_args_dev, total_size);
+      auto &sample_desc = sample_descs_cpu[i];
+      sample_desc.in_strides = GetStrides<Dims>(in_shape);
+      sample_desc.out_strides = GetStrides<Dims>(out_shape);
+      auto &anchor = slice_args[i].anchor;
+      std::size_t in_offset = 0;
+      for (std::size_t d = 0; d < Dims; d++) {
+        in_offset += anchor[d] * sample_desc.in_strides[d];
+      }
+      sample_desc.in = in.tensor_data(i) + in_offset;
+      sample_desc.out = out.tensor_data(i);
+      sample_sizes[i] = volume(out_shape);
     }
+
+    std::size_t block_idx = 0;
+    for (int i = 0; i < num_samples; i++) {
+      std::size_t offset = 0;
+      std::size_t remaining = sample_sizes[i];
+      while (remaining > 0) {
+        std::size_t size = remaining < kBlockSize ? remaining : kBlockSize;
+        block_descs_cpu[block_idx++] = {i, offset, size};
+        remaining -= size;
+        offset += size;
+      }
+    }
+
+    detail::SliceSampleDesc<Dims> *sample_descs =
+      context.scratchpad->Allocate<detail::SliceSampleDesc<Dims>>(
+        AllocType::GPU, num_samples);
+    detail::BlockDesc *block_descs =
+      context.scratchpad->Allocate<detail::BlockDesc>(
+        AllocType::GPU, block_count_);
+
+    // Memory is allocated contiguously, so we launch only one cudaMemcpyAsync
+    std::size_t total_bytes = num_samples * sizeof(detail::SliceSampleDesc<Dims>)
+      + block_count_ * sizeof(detail::BlockDesc);
+    cudaMemcpyAsync(sample_descs, sample_descs_cpu,
+                    total_bytes,
+                    cudaMemcpyHostToDevice,
+                    context.gpu.stream);
+
+    const auto grid = block_count_;
+    detail::SliceKernel<OutputType, InputType, Dims>
+      <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
   }
 };
 
