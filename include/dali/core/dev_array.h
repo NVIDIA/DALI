@@ -106,13 +106,13 @@ class DeviceArray<T, 0> {
   { return data()[index]; }
 
   __host__ __device__ inline T *begin() noexcept { return data(); }
-  __host__ __device__ constexpr const T *begin() const noexcept{ return data(); }
-  __host__ __device__ constexpr const T *cbegin() const noexcept{ return data(); }
+  __host__ __device__ constexpr const T *begin() const noexcept { return data(); }
+  __host__ __device__ constexpr const T *cbegin() const noexcept { return data(); }
   __host__ __device__ inline T *end() noexcept { return data(); }
   __host__ __device__ constexpr const T *end() const noexcept { return data(); }
-  __host__ __device__ constexpr const T *cend() const noexcept{ return data(); }
-  __host__ __device__ constexpr size_t size() const noexcept{ return 0; }
-  __host__ __device__ constexpr bool empty() const noexcept{ return true; }
+  __host__ __device__ constexpr const T *cend() const noexcept { return data(); }
+  __host__ __device__ constexpr size_t size() const noexcept { return 0; }
+  __host__ __device__ constexpr bool empty() const noexcept { return true; }
 
   __host__ __device__ inline T *data() noexcept {
     return reinterpret_cast<T*>(this);

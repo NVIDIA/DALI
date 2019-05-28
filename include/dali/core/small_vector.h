@@ -17,6 +17,7 @@
 
 #include <cuda_runtime.h>
 #include <utility>
+#include <memory>
 #include "dali/kernels/alloc.h"
 #include "dali/core/cuda_utils.h"
 
@@ -98,7 +99,6 @@ class SmallVectorBase<T, true> {
   }
 
   __host__ __device__ static void destroy(T *, size_t) noexcept {}
-
 };
 
 #ifdef __CUDA_ARCH__
@@ -112,6 +112,7 @@ using default_small_vector_allocator = std::allocator<T>;
 template <typename T, size_t static_size_, typename allocator = default_small_vector_allocator<T>>
 class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   using Alloc = SmallVectorAlloc<T, allocator>;
+
  public:
   static constexpr const size_t static_size = static_size_;  // NOLINT (kOnstant)
   __host__ __device__ SmallVector() {}
@@ -592,9 +593,8 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       reserve(cuda_max(2 * capacity(), size() + count));
     }
   }
-
 };
 
-}  // dali
+}  // namespace dali
 
-#endif  // DALI_KERNELS_CORE_VECTOR_H_
+#endif  // DALI_CORE_SMALL_VECTOR_H_
