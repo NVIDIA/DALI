@@ -173,12 +173,32 @@ Building Python wheel and (optionally) Docker image
 Change directory (``cd``) into Docker directory and run ``./build.sh``. If needed, set the following environment variables:
 
 * PYVER - Python version. Default is ``2.7``.
-* CUDA_VERSION - CUDA toolkit version (9.0 or 10.0). Default is ``10``.
+* CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). Default is ``10``.
 * NVIDIA_BUILD_ID - Custom ID of the build. Default is ``1234``.
 * CREATE_WHL - Create a standalone wheel. Default is ``YES``.
 * CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside. It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker`` and DALI wheel in the ``wheelhouse`` directory under$
 * DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package description, i.e. `nightly` will result in the `nvidia-dali-nightly`
-* BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo
+* CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo. Default is ``Release``.
+* BUILD_INHOST - ask docker to mount source code instead of copying it. Thank to that consecutive builds are resuing existing object files and are faster for the development. Uses $DALI_BUILD_DIR as a directory for build objects. Default is ``YES``.
+* REBUILD_BUILDERS - if builder docker images need to be rebuild or can be reused from the previous build. Default is ``NO``.
+* REBUILD_MANYLINUX - if manylinux base image need to be rebuild. Default is ``NO``.
+* DALI_BUILD_DIR - where DALI build should happen. It matters only bit the in-tree build where user may provide different path for every python/CUDA version. Default is ``build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}``.
+
+It is worth to mention that build.sh should accept the same set of environment variables as the project CMake.
+
+The recommended command line is:
+
+.. code-block:: bash
+
+  PYVER=X.Y CUDA_VERSION=Z ./build.sh
+
+For example:
+
+.. code-block:: bash
+
+  PYVER=3.6 CUDA_VERSION=10 ./build.sh
+
+Will build CUDA 10 based DALI for Python 3.6 and place relevant Python wheel inside DALI_root/wheelhouse
 
 ----
 
