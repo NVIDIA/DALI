@@ -1506,14 +1506,16 @@ def test_crop_sequence_old_crop_vs_new_crop_gpu():
                       CropSequencePipeline('gpu', batch_size, is_old_crop=False),
                       batch_size=batch_size, N_iterations=10)
 
+
 class SlicePipeline(Pipeline):
-    def __init__(self, device, batch_size, pos_size_iter, num_threads=1, device_id=0, num_gpus=1, is_old_slice=True):
+    def __init__(self, device, batch_size, pos_size_iter, num_threads=1, device_id=0, is_old_slice=True):
         super(SlicePipeline, self).__init__(batch_size,
-                                           num_threads,
-                                           device_id)
+                                            num_threads,
+                                            device_id,
+                                            seed=1234)
         self.pos_size_iter = pos_size_iter
         self.device = device
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle=False)
         self.input_crop_pos = ops.ExternalSource()
         self.input_crop_size = ops.ExternalSource()
         self.input_crop = ops.ExternalSource()
@@ -1636,12 +1638,12 @@ class SliceArgsIteratorExtractFirstChannel(object):
     next = __next__
 
 class CommonPipeline(Pipeline):
-    def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1):
+    def __init__(self, batch_size, num_threads=1, device_id=0):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id,
                                              exec_async=False,
-                                             exec_pipelined=False)
-        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id,
-                                     num_shards = num_gpus)
+                                             exec_pipelined=False,
+                                             seed=1234)
+        self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle=False)
         self.decode = ops.HostDecoder(device = 'cpu', output_type = types.RGB)
 
     def load(self):
@@ -1677,4 +1679,25 @@ def test_slice_extract_channel_gpu():
         eii = SliceArgsIteratorExtractFirstChannel(batch_size)
         compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii), is_old_slice=False),
                           PythonOperatorPipeline(extract_first_channel, batch_size),
+                          batch_size=batch_size, N_iterations=10)
+
+def slice_func(image):
+    start_y = int(np.float32(image.shape[0]) * np.float32(0.2))
+    end_y = int(np.float32(image.shape[0]) * np.float32(0.2 + 0.5))
+    start_x = int(np.float32(image.shape[1]) * np.float32(0.4))
+    end_x = int(np.float32(image.shape[1]) * np.float32(0.4 + 0.3))
+    return image[start_y:end_y, start_x:end_x, :]
+
+def test_slice_vs_numpy_slice_gpu():
+    for batch_size in {1, 32, 64}:
+        eii = SliceArgsIteratorAllDims(batch_size)
+        compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii), is_old_slice=False),
+                          PythonOperatorPipeline(slice_func, batch_size),
+                          batch_size=batch_size, N_iterations=10)
+
+def test_slice_vs_numpy_slice_cpu():
+    for batch_size in {1, 32, 64}:
+        eii = SliceArgsIteratorAllDims(batch_size)
+        compare_pipelines(SlicePipeline('cpu', batch_size, iter(eii), is_old_slice=False),
+                          PythonOperatorPipeline(slice_func, batch_size),
                           batch_size=batch_size, N_iterations=10)
