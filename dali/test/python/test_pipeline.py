@@ -14,6 +14,7 @@
 
 import glob
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.edge import EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
@@ -22,6 +23,7 @@ from nvidia.dali.backend_impl import TensorListGPU
 from timeit import default_timer as timer
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
+from PIL import Image
 import os
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
@@ -42,6 +44,8 @@ def check_batch(batch1, batch2, batch_size, eps = 1e-07):
 
     for i in range(batch_size):
         is_failed = False
+        assert(batch1.at(i).shape == batch2.at(i).shape), \
+            "Shape mismatch {} != {}".format(batch1.at(i).shape, batch2.at(i).shape)
         try:
             err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
         except:
@@ -1527,7 +1531,7 @@ class SlicePipeline(Pipeline):
         images = self.decode(inputs)
         self.crop_pos = self.input_crop_pos()
         self.crop_size = self.input_crop_size()
-        if self.device:
+        if self.device == 'gpu':
             images = images.gpu()
         out = self.slice(images, self.crop_pos, self.crop_size)
         return out
@@ -1551,8 +1555,8 @@ class SliceArgsIterator(object):
         pos = []
         size = []
         for k in range(self.batch_size):
-            pos.append(np.asarray([0.4, 0.2], dtype=np.float32))
-            size.append(np.asarray([0.3, 0.5], dtype=np.float32))
+            pos.append(np.asarray([0.4, 0.2], dtype=np.float32)) # xy
+            size.append(np.asarray([0.3, 0.5], dtype=np.float32)) # WH
             self.i = (self.i + 1) % self.n
         return (pos, size)
     next = __next__
@@ -1610,4 +1614,67 @@ def test_new_slice_cpu_vs_gpu():
 
         compare_pipelines(SlicePipeline('gpu', batch_size, pos_size_iter1, is_old_slice=False),
                           SlicePipeline('cpu', batch_size, pos_size_iter2, is_old_slice=False),
+                          batch_size=batch_size, N_iterations=10)
+
+class SliceArgsIteratorExtractFirstChannel(object):
+    def __init__(self, batch_size):
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        self.i = 0
+        self.n = self.batch_size
+        return self
+
+    def __next__(self):
+        pos = []
+        size = []
+        for k in range(self.batch_size):
+            pos.append(np.asarray([0.0, 0.0, 0.0], dtype=np.float32)) # yxc
+            size.append(np.asarray([1.0, 1.0, 1./3.], dtype=np.float32)) # HWC
+            self.i = (self.i + 1) % self.n
+        return (pos, size)
+    next = __next__
+
+class CommonPipeline(Pipeline):
+    def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1):
+        super(CommonPipeline, self).__init__(batch_size, num_threads, device_id,
+                                             exec_async=False,
+                                             exec_pipelined=False)
+        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id,
+                                     num_shards = num_gpus)
+        self.decode = ops.HostDecoder(device = 'cpu', output_type = types.RGB)
+
+    def load(self):
+        jpegs, _ = self.input()
+        decoded = self.decode(jpegs)
+        return decoded
+
+class PythonOperatorPipeline(CommonPipeline):
+    def __init__(self, function, batch_size, num_threads=1, device_id=0):
+        super(PythonOperatorPipeline, self).__init__(batch_size,
+                                                     num_threads,
+                                                     device_id)
+        self.python_function = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        images = self.load()
+        processed = self.python_function(images)
+        assert isinstance(processed, EdgeReference)
+        return processed
+
+def extract_first_channel(image):
+    return image[:,:,0].reshape(image.shape[0:2] + (1,))
+
+def test_slice_extract_channel_cpu():
+    for batch_size in {1, 32, 64}:
+        eii = SliceArgsIteratorExtractFirstChannel(batch_size)
+        compare_pipelines(SlicePipeline('cpu', batch_size, iter(eii), is_old_slice=False),
+                          PythonOperatorPipeline(extract_first_channel, batch_size),
+                          batch_size=batch_size, N_iterations=10)
+
+def test_slice_extract_channel_gpu():
+    for batch_size in {1, 32, 64}:
+        eii = SliceArgsIteratorExtractFirstChannel(batch_size)
+        compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii), is_old_slice=False),
+                          PythonOperatorPipeline(extract_first_channel, batch_size),
                           batch_size=batch_size, N_iterations=10)
