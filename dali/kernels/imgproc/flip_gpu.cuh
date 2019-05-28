@@ -20,27 +20,28 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {
 
-template <typename T>
+template <size_t C, typename T>
 __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
                            size_t layers, size_t height, size_t width, size_t channels,
-                           bool flip_x, bool flip_y, bool flip_z) {
+                           bool flip_z, bool flip_y, bool flip_x) {
   size_t xc = blockIdx.x * blockDim.x + threadIdx.x;
   size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   size_t z = blockIdx.z * blockDim.z + threadIdx.z;
   if (xc >= width * channels || y >= height || z >= layers) {
     return;
   }
-  size_t channel = xc % channels;
-  size_t x = xc / channels;
+  size_t channel = C ? xc % C : xc % channels;
+  size_t x = C ? xc / C : xc / channels;
   size_t in_x = flip_x ? width - 1 - x : x;
   size_t in_y = flip_y ? height - 1 - y : y;
   size_t in_z = flip_z ? layers - 1 - z : z;
-  size_t input_idx = channel + channels * (in_x + width * (in_y + height * in_z));
-  size_t output_idx = channel + channels * (x + width * (y + height * z));
+  size_t input_idx = channel + (C ? C : channels) * (in_x + width * (in_y + height * in_z));
+  size_t output_idx = channel + (C ? C : channels) * (x + width * (y + height * z));
   output[output_idx] = input[input_idx];
 }
 
@@ -55,8 +56,8 @@ class DLL_PUBLIC FlipGPU {
 
   DLL_PUBLIC void Run(KernelContext &context, OutListGPU<Type, 4> &out,
       const InListGPU<Type, 4> &in,
-      const std::vector<int32> &flip_x, const std::vector<int32> &flip_y,
-      const std::vector<int32> &flip_z) {
+      const std::vector<int32> &flip_z, const std::vector<int32> &flip_y,
+      const std::vector<int32> &flip_x) {
     auto num_samples = static_cast<size_t>(in.num_samples());
     DALI_ENFORCE(flip_x.size() == num_samples && flip_y.size() == num_samples);
     for (size_t i = 0; i < num_samples; ++i) {
@@ -71,8 +72,11 @@ class DLL_PUBLIC FlipGPU {
       unsigned int block_y = height < 32 ? height : 32;
       dim3 block(block_x, block_y, 1);
       dim3 grid((layer_width + block_x - 1) / block_x, (height + block_y - 1) / block_y, layers);
-      FlipKernel<<<grid, block, 0, context.gpu.stream>>>
-            (out_data, in_data, layers, height, width, channels, flip_x[i], flip_y[i], flip_z[i]);
+      VALUE_SWITCH(channels, c_channels, (1, 2, 3, 4, 5, 6, 7, 8), (
+        FlipKernel<c_channels><<<grid, block, 0, context.gpu.stream>>>
+          (out_data, in_data, layers, height, width, channels, flip_z[i], flip_y[i], flip_x[i]);), (
+        FlipKernel<0><<<grid, block, 0, context.gpu.stream>>>
+          (out_data, in_data, layers, height, width, channels, flip_z[i], flip_y[i], flip_x[i]);));
     }
   }
 };

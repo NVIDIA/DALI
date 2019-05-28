@@ -37,7 +37,7 @@ class DLL_PUBLIC FlipCPU {
 
   static void OcvFlip(Type *output, const Type *input,
                size_t layers, size_t height, size_t width, size_t channels,
-               bool flip_x, bool flip_y, bool flip_z) {
+               bool flip_z, bool flip_y, bool flip_x) {
     assert(flip_x || flip_y);
     int flip_flag = -1;
     if (!flip_y)
@@ -71,9 +71,9 @@ class DLL_PUBLIC FlipCPU {
 
   static void FlipKernel(Type *output, const Type *input,
                          size_t layers, size_t height, size_t width,
-                         size_t channels, bool flip_x, bool flip_y, bool flip_z) {
+                         size_t channels, bool flip_z, bool flip_y, bool flip_x) {
     if (flip_x || flip_y) {
-      OcvFlip(output, input, layers, height, width, channels, flip_x, flip_y, flip_z);
+      OcvFlip(output, input, layers, height, width, channels, flip_z, flip_y, flip_x);
     } else {
       FlipZAxis(output, input, layers, height, width, channels, flip_z);
     }
@@ -89,11 +89,11 @@ class DLL_PUBLIC FlipCPU {
   }
 
   DLL_PUBLIC void Run(KernelContext &Context, OutTensorCPU<Type, 4> &out,
-      const InTensorCPU<Type, 4> &in, bool flip_x, bool flip_y, bool flip_z) {
+      const InTensorCPU<Type, 4> &in, bool flip_z, bool flip_y, bool flip_x) {
     auto in_data = in.data;
     auto out_data = out.data;
     FlipKernel(out_data, in_data, in.shape[0], in.shape[1], in.shape[2], in.shape[3],
-        flip_x, flip_y, flip_z);
+        flip_z, flip_y, flip_x);
   }
 };
 

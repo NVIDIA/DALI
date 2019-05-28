@@ -55,7 +55,7 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
       auto reqs = kernel.Setup(ctx, in_view);
       auto out_shape = reqs.output_shapes[0][0].to_static<4>();
       auto out_view = kernels::OutTensorCPU<DType, 4>(output_ptr, out_shape);
-      kernel.Run(ctx, out_view, in_view, horizontal, vertical, false);
+      kernel.Run(ctx, out_view, in_view, false, vertical, horizontal);
   )
 }
 

@@ -59,20 +59,20 @@ TEST_P(FlipGpuTest, BasicTest) {
   KernelRequirements reqs = kernel.Setup(ctx, in_view);
   ttl_out.reshape(reqs.output_shapes[0].to_static<4>());
   auto out_view = ttl_out.gpu();
-  kernel.Run(ctx, out_view, in_view, flip_x, flip_y, flip_z);
+  kernel.Run(ctx, out_view, in_view, flip_z, flip_y, flip_x);
   auto out_view_cpu = ttl_out.cpu(nullptr);
   auto in_view_cpu = ttl_in.cpu(nullptr);
   for (int i = 0; i < out_view_cpu.num_samples(); ++i) {
     ASSERT_TRUE(is_flipped(out_view_cpu.tensor_data(i),
               in_view_cpu.tensor_data(i),
               shape[i][0], shape[i][1], shape[i][2], shape[i][3],
-              flip_x[i], flip_y[i], flip_z[i]));
+              flip_z[i], flip_y[i], flip_x[i]));
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(FlipGpuTest, FlipGpuTest,
     ::testing::ValuesIn({
-        std::array<int64, 4>{1, 2, 2, 1},
+        std::array<int64, 4>{1, 2, 2, 10},
         std::array<int64, 4>{1, 2, 2, 2},
         std::array<int64, 4>{4, 9, 18, 3},
         std::array<int64, 4>{3, 18, 9, 4}}));

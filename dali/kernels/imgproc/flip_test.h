@@ -20,7 +20,7 @@ namespace kernels {
 
 template <typename T>
 bool is_flipped(const T* lhs, const T* rhs, size_t layers, size_t height, size_t width,
-                size_t channels, bool flip_x, bool flip_y, bool flip_z) {
+                size_t channels, bool flip_z, bool flip_y, bool flip_x) {
   for (size_t z = 0; z < layers; ++z) {
     for (size_t y = 0; y < height; ++y) {
       for (size_t x = 0; x < width; ++x) {

@@ -59,15 +59,15 @@ TEST_P(FlipCpuTest, BasicTest) {
   auto out_shape = reqs.output_shapes[0][0].to_static<4>();
   std::vector<float> out_data(volume(out_shape));
   auto out_view = OutTensorCPU<float, 4>(out_data.data(), out_shape);
-  kernel.Run(ctx, out_view, in_view, flip_x, flip_y, flip_z);
+  kernel.Run(ctx, out_view, in_view, flip_z, flip_y, flip_x);
   ASSERT_TRUE(is_flipped(out_view.data, in_view.data,
-        shape[0], shape[1], shape[2], shape[3], flip_x, flip_y, flip_z));
+        shape[0], shape[1], shape[2], shape[3], flip_z, flip_y, flip_x));
 }
 
 INSTANTIATE_TEST_SUITE_P(FlipCpuTest, FlipCpuTest, testing::Combine(
-    testing::Values(0, 1, 0, 1, 0, 1, 0, 1),
-    testing::Values(0, 0, 1, 1, 0, 0, 1, 1),
-    testing::Values(0, 0, 0, 0, 1, 1, 1, 1),
+    testing::Values(0, 1),
+    testing::Values(0, 1),
+    testing::Values(0, 1),
     testing::Values(std::array<int64, 4>{8, 9, 9, 3}, std::array<int64, 4>{3, 18, 18, 2})));
 
 }  // namespace kernels

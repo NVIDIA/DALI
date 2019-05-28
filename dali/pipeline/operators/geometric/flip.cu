@@ -49,7 +49,7 @@ void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &inp
       kernels::OutListGPU<DType, 4> out_view(output.mutable_data<DType>(),
           reqs.output_shapes[0].to_static<4>());
       std::vector<int32> flip_z(horizontal.size());
-      kernel.Run(ctx, out_view, in_view, horizontal, vertical, flip_z);
+      kernel.Run(ctx, out_view, in_view, flip_z, vertical, horizontal);
   )
 }
 
