@@ -79,7 +79,7 @@ Starting DALI 0.8.0 for CUDA 10.0 based build use:
 
 .. note::
 
-  The ``nvidia-dali`` package contains prebuilt versions of the DALI TensorFlow plugin for several versions of TensorFlow. Starting DALI 0.6.1 you can also install DALI TensorFlow plugin for the currently installed version of TensorFlow, thus allowing forward compatibility:
+  Since 0.11.0  ``nvidia-dali`` package doesn't contain prebuilt versions of the DALI TensorFlow plugin, DALI TensorFlow plugin needs to be installed explicitly for the currently present version of TensorFlow:
 
 .. code-block:: bash
 
@@ -91,8 +91,9 @@ Starting DALI 0.8.0 for CUDA 10.0 based build execute:
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali-tf-plugin
 
+.. note::
 
-Installing this package will install ``nvidia-dali`` and its dependencies, if these dependencies are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin``.
+    Due to a `known issue with installing dependent packages <https://github.com/pypa/pip/issues/1386>`_), DALI needs to be installed before installing ``nvidia-dali-tf-plugin`` (in a separate pip install call). The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin``.
 
 .. note::
 

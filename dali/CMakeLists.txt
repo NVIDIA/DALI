@@ -152,9 +152,10 @@ endif()
 ################################################
 # Build the TensorFlow op
 ################################################
-if (BUILD_TENSORFLOW)
 
-  add_subdirectory(tensorflow)
+add_subdirectory(tensorflow)
+
+if (BUILD_TENSORFLOW)
 
   # get default TF installation path
    execute_process(
