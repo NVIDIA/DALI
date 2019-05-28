@@ -55,7 +55,7 @@ namespace {
 
 template<typename T>
 void ViewAsTensorGpuTest(T &mat) {
-  auto tvpair = kernels::view_as_tensor_gpu<uint8_t>(mat);
+  auto tvpair = kernels::copy_as_tensor<>(mat);
   cudaDeviceSynchronize();
   auto imgptr = mat.data;
   auto tvptr = tvpair.first.data;
@@ -69,10 +69,10 @@ void ViewAsTensorGpuTest(T &mat) {
 }  // namespace
 
 TEST(Mat2Tensor, ViewAsTensorGpuTest) {
-  {
-    cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
-    ViewAsTensorGpuTest(img);
-  }
+//  {
+//    cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
+//    ViewAsTensorGpuTest(img);
+//  }
   {
     const cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
     ViewAsTensorGpuTest(img);

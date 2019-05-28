@@ -67,28 +67,25 @@ TensorView<StorageCPU, T, ndim> view_as_tensor(cv::Mat &mat) {
 }
 
 
-template<typename T = uint8_t, int ndims = 3>
-std::pair<TensorView<StorageGPU, T, ndims>, memory::KernelUniquePtr<T>>
-view_as_tensor_gpu(const cv::Mat &mat) {
-  auto tvcpu = kernels::view_as_tensor<const T, ndims>(mat);
-  auto mem = kernels::memory::alloc_unique<T>(kernels::AllocType::Unified,
-                                              mat.cols * mat.rows * mat.channels());
-  auto tvgpu = kernels::make_tensor_gpu<ndims>(mem.get(), {mat.rows, mat.cols, mat.channels()});
-  kernels::copy(tvgpu, tvcpu);
-  return std::make_pair(tvgpu, std::move(mem));
+template<AllocType AType = AllocType::Unified, typename T = uint8_t, int ndims = 3>
+std::pair<TensorView<AllocBackend<AType>, T, ndims>, memory::KernelUniquePtr<T>> copy_as_tensor(const cv::Mat &mat) {
+//    static_assert(AType == AllocType::GPU || AType==AllocType::Unified, "Allocation type has to be GPU-specific");
+    auto tvin = kernels::view_as_tensor<const T, ndims>(mat);
+    return copy<AType>(tvin);
 }
 
 
-template<typename T = uint8_t, int ndims = 3>
-std::pair<TensorView<StorageGPU, T, ndims>, memory::KernelUniquePtr<T>>
-view_as_tensor_gpu(cv::Mat &mat) {
-  auto tvcpu = kernels::view_as_tensor<T, ndims>(mat);
-  auto mem = kernels::memory::alloc_unique<T>(kernels::AllocType::Unified,
-                                              mat.cols * mat.rows * mat.channels());
-  auto tvgpu = kernels::make_tensor_gpu<ndims>(mem.get(), {mat.rows, mat.cols, mat.channels()});
-  kernels::copy(tvgpu, tvcpu);
-  return std::make_pair(tvgpu, std::move(mem));
-}
+//template<typename T = uint8_t, int ndims = 3>
+//std::pair<TensorView<StorageGPU, T, ndims>, memory::KernelUniquePtr<T>>
+//view_as_tensor_gpu(const cv::Mat &mat) {
+//    auto tvcpu = kernels::view_as_tensor<const T, ndims>(mat);
+//    auto mem = kernels::memory::alloc_unique<T>(kernels::AllocType::Unified,
+//                                                mat.cols * mat.rows * mat.channels());
+//    auto tvgpu = kernels::make_tensor_gpu<ndims>(mem.get(), {mat.rows, mat.cols, mat.channels()});
+//    kernels::copy(tvgpu, tvcpu);
+//    return std::make_pair(tvgpu, std::move(mem));
+//}
+
 
 }  // namespace kernels
 }  // namespace dali

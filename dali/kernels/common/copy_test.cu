@@ -100,5 +100,23 @@ TEST_F(CopyTest, HostUnifiedDevHost) {
   Check(host, src);
 }
 
+TEST_F(CopyTest, CopyReturnTensorViewTestUnified) {
+    cudaDeviceSynchronize();
+    float data_src[kSize];
+    auto tv = make_tensor_cpu(data_src, shape);
+    UniformRandomFill(tv, rng, -1, 1);
+    auto tvcpy = copy<AllocType::Unified>(tv);
+    Check(tv, tvcpy.first);
+}
+
+TEST_F(CopyTest, CopyReturnTensorViewTestHost) {
+    cudaDeviceSynchronize();
+    float data_src[kSize];
+    auto tv = make_tensor_cpu(data_src, shape);
+    UniformRandomFill(tv, rng, -1, 1);
+    auto tvcpy = copy<AllocType::Host>(tv);
+    Check(tv, tvcpy.first);
+}
+
 }  // namespace kernels
 }  // namespace dali
