@@ -178,6 +178,8 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   JDIMENSION target_output_width = cinfo.output_width;
   JDIMENSION target_output_height = cinfo.output_height;
   JDIMENSION skipped_scanlines = 0;
+  int left_cor = 0;
+  int right_cor = 0;
 #if defined(LIBJPEG_TURBO_VERSION)
   if (flags.crop) {
     // Update target output height and width based on crop window.
@@ -196,13 +198,20 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
       return nullptr;
     }
 
+    // We are croping one pixel more left and right so pixel on the requested edge
+    // won't be intepolated by will use value of spare pixel we asked for
+    left_cor = flags.crop_x == 0 ? 0 : 1;
+    int r_bound = flags.crop_x + flags.crop_width;
+    right_cor = std::max(0, std::min(1, static_cast<int>(cinfo.output_width - r_bound)));
+
     // Update cinfo.output_width. It is tricky that cinfo.output_width must
     // fall on an Minimum Coded Unit (MCU) boundary; if it doesn't, then it will
     // be moved left to the nearest MCU boundary, and width will be increased
     // accordingly. Therefore, the final cinfo.crop_width might differ from the
     // given flags.crop_width. Please see libjpeg library for details.
-    JDIMENSION crop_width = flags.crop_width;
-    JDIMENSION crop_x = flags.crop_x;
+    JDIMENSION crop_width = flags.crop_width + left_cor + right_cor;
+    JDIMENSION crop_x = flags.crop_x - left_cor;
+
     jpeg_crop_scanline(&cinfo, &crop_x, &crop_width);
 
     // Update cinfo.output_scanline.
@@ -269,7 +278,7 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   // These variables are just to avoid repeated computation in the loop.
   const int max_scanlines_to_read = skipped_scanlines + target_output_height;
   const int mcu_align_offset =
-      (cinfo.output_width - target_output_width) * (use_cmyk ? 4 : components);
+      (cinfo.output_width - target_output_width - right_cor) * (use_cmyk ? 4 : components);
   while (cinfo.output_scanline < static_cast<JDIMENSION>(max_scanlines_to_read)) {
     int num_lines_read = 0;
     if (use_cmyk) {
@@ -352,7 +361,6 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
       break;
     }
     DALI_ENFORCE(num_lines_read == 1);
-    // TF_ANNOTATE_MEMORY_IS_INITIALIZED(output_line, min_stride);
     output_line += stride;
   }
   delete[] tempdata;
