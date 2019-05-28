@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CORE_CUDA_ERROR_H
-#define DALI_CORE_CUDA_ERROR_H
+#ifndef DALI_CORE_CUDA_ERROR_H_
+#define DALI_CORE_CUDA_ERROR_H_
 
 #include <cuda_runtime_api.h>
 #include <cstring>
 #include <cstdio>
+#include <string>
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/error_handling.h"
 
@@ -47,7 +48,7 @@ class CUDAError : public std::runtime_error {
     std::ostringstream ss;
     if (!name) name = "<unknown error>";
     ss << "CUDA driver API error "
-    << name << " (" << static_cast<unsigned>(status) << ")";
+       << name << " (" << static_cast<unsigned>(status) << ")";
     if (desc && *desc) ss << ":\n" << desc;
     return ss.str();
   }
@@ -58,7 +59,7 @@ class CUDAError : public std::runtime_error {
     if (!name) name = "<unknown error>";
     std::ostringstream ss;
     ss << "CUDA runtime API error "
-    << name << " (" << static_cast<unsigned>(status) << ")";
+       << name << " (" << static_cast<unsigned>(status) << ")";
     if (desc && *desc) ss << ":\n" << desc;
     return ss.str();
   }
@@ -69,7 +70,7 @@ class CUDABadAlloc : public std::bad_alloc {
   CUDABadAlloc() {
     std::strncpy(message, "CUDA allocation failed", sizeof(message));
   }
-  CUDABadAlloc(size_t requested_size, bool host = false) {
+  explicit CUDABadAlloc(size_t requested_size, bool host = false) {
     if (host) {
       std::snprintf(message, sizeof(message),
         "Can't allocate %zu bytes on host.", requested_size);
@@ -80,13 +81,12 @@ class CUDABadAlloc : public std::bad_alloc {
         "Can't allocate %zu bytes on device %d.", requested_size, dev);
     }
   }
-  const char *what() const noexcept override{
+  const char *what() const noexcept override {
     return message;
   }
  private:
   char message[64];
 };
-
 
 template <typename Code>
 inline void cudaResultCheck(Code code) {
@@ -100,10 +100,10 @@ inline void cudaResultCheck<cudaError_t>(cudaError_t status) {
   case cudaSuccess:
     return;
   case cudaErrorMemoryAllocation:
-    cudaGetLastError(); // clear the last error
+    cudaGetLastError();  // clear the last error
     throw dali::CUDABadAlloc();
   default:
-    cudaGetLastError(); // clear the last error
+    cudaGetLastError();  // clear the last error
     throw dali::CUDAError(status);
   }
 }
@@ -119,12 +119,11 @@ inline void cudaResultCheck<CUresult>(CUresult status) {
     throw dali::CUDAError(status);
   }
 }
-
-}  // end namespace dali
+}  // namespace dali
 
 template <typename T>
 inline void CUDA_CALL(T status) {
   return dali::cudaResultCheck(status);
 }
 
-#endif  // DALI_CORE_CUDA_ERROR_H
+#endif  // DALI_CORE_CUDA_ERROR_H_

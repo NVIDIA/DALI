@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_DEVICE_GUARD_H_
-#define DALI_UTIL_DEVICE_GUARD_H_
+#ifndef DALI_CORE_DEVICE_GUARD_H_
+#define DALI_CORE_DEVICE_GUARD_H_
 
 #include "dali/core/cuda_utils.h"
 #include "dali/core/error_handling.h"
@@ -53,4 +53,4 @@ class DeviceGuard {
 
 }  // namespace dali
 
-#endif  // DALI_UTIL_DEVICE_GUARD_H_
+#endif  // DALI_CORE_DEVICE_GUARD_H_

@@ -64,7 +64,7 @@ DLL_PUBLIC void DALIAppendToLastError(string error_str);
 
 class DALIException : public std::runtime_error {
  public:
-  DALIException(const std::string &message) : std::runtime_error(message) {}
+  explicit DALIException(const std::string &message) : std::runtime_error(message) {}
 };
 
 inline string BuildErrorString(string statement, string file, int line) {

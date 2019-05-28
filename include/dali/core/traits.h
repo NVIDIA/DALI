@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_CORE_TRAITS_H_
+#define DALI_CORE_TRAITS_H_
+
 #include <type_traits>
 #include <array>
 #include <vector>
@@ -35,3 +38,5 @@ template <bool Value, typename Type = void>
 using enable_if_t = typename std::enable_if<Value, Type>::type;
 
 }  // namespace dali
+
+#endif  // DALI_CORE_TRAITS_H_
