@@ -63,10 +63,11 @@ void copy(const TensorView<StorageOut, TOut, NDimIn>& out,
 template<AllocType DstAlloc, typename SrcBackend, typename T, int ndims>
 std::pair<TensorView<AllocBackend<DstAlloc>, T, ndims>, memory::KernelUniquePtr<T>>
 copy(const TensorView <SrcBackend, T, ndims> &src) {
-    auto mem = kernels::memory::alloc_unique<T>(DstAlloc, volume(src.shape));
-    auto tvgpu = kernels::make_tensor<AllocBackend<DstAlloc>, ndims>(mem.get(), src.shape);
-    kernels::copy(tvgpu, src);
-    return std::make_pair(tvgpu, std::move(mem));
+  auto mem = kernels::memory::alloc_unique<typename std::remove_const<T>::type>(DstAlloc,
+                                                                                volume(src.shape));
+  auto tvgpu = kernels::make_tensor<AllocBackend<DstAlloc>, ndims>(mem.get(), src.shape);
+  kernels::copy(tvgpu, src);
+  return std::make_pair(tvgpu, std::move(mem));
 }
 
 }  // namespace kernels

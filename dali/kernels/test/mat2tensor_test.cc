@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
 #include <dali/test/dali_test_config.h>
+#include "dali/kernels/alloc.h"
 #include "dali/kernels/test/mat2tensor.h"
 
 namespace dali {
@@ -55,8 +56,8 @@ TEST(Mat2Tensor, View) {
 namespace {
 
 template<typename T>
-void ViewAsTensorGpuTest(T &mat) {
-  auto tvpair = kernels::copy_as_tensor<>(mat);
+void CopyAsTensorGpuTest(T &mat) {
+  auto tvpair = kernels::copy_as_tensor<kernels::AllocType::Unified>(mat);
   cudaDeviceSynchronize();
   auto imgptr = mat.data;
   auto tvptr = tvpair.first.data;
@@ -69,16 +70,10 @@ void ViewAsTensorGpuTest(T &mat) {
 
 }  // namespace
 
-TEST(Mat2Tensor, ViewAsTensorGpuTest) {
+TEST(Mat2Tensor, CopyAsTensorGpuTest) {
   cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
-  ViewAsTensorGpuTest(img);
+  CopyAsTensorGpuTest(img);
 }
-
-
-//TEST(Mat2Tensor, ViewAsTensorGpuTestConstMat) {
-//  const cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
-//  ViewAsTensorGpuTest(img);
-//}
 
 }  // namespace testing
 }  // namespace dali
