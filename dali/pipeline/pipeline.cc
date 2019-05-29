@@ -182,16 +182,16 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   this->op_specs_for_serialization_.push_back(make_pair(inst_name, spec));
 
   // If necessary, split nvJPEGDecoder operator in two separated stages (CPU and Mixed-GPU)
-#ifdef NVJPEG_DECOUPLED_API
   auto operator_name = spec.name();
+  bool split_stages = false;
   if (has_prefix(operator_name, "nvJPEGDecoder") &&
       operator_name.find("CPUStage") == std::string::npos &&
       operator_name.find("GPUStage") == std::string::npos &&
-      spec.GetArgument<bool>("split_stages")) {
+      spec.TryGetArgument<bool>(split_stages, "split_stages") &&
+      split_stages) {
     AddSplitNvJPEGDecoder(spec, inst_name);
     return;
   }
-#endif
 
   // Validate op device
   string device = spec.GetArgument<string>("device");
