@@ -22,6 +22,7 @@ import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
 
+from test_utils import check_batch
 from test_utils import compare_pipelines
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
