@@ -118,20 +118,14 @@ class OpticalFlow : public Operator<Backend> {
       sequence_sizes_[i] = shape[i][0];
     }
 
-    DALI_ENFORCE([&]() -> bool {
-        for (const auto &seq : shape) {
-          if (seq[1] != frames_height_ || seq[2] != frames_width_ || seq[3] != depth_)
-            return false;
-        }
-        return true;
-    }(), "Width, height and depth must be equal for all sequences.");
+    for (const auto &seq : shape) {
+      DALI_ENFORCE(seq[1] != frames_height_ || seq[2] != frames_width_ || seq[3] != depth_,
+              "Width, height and depth must be equal for all sequences.");
+    }
 
-    DALI_ENFORCE([&]() -> bool {
-        for (const auto &sz : sequence_sizes_) {
-          if (sz < 2) return false;
-        }
-        return true;
-    }(), "Number of frames in every sequence must be greater or equal to 2.");
+    for (auto sz : sequence_sizes_) {
+      DALI_ENFORCE(sz < 2, "Number of frames in every sequence must be greater or equal to 2.");
+    }
   }
 
 
