@@ -18,6 +18,7 @@
 
 #include <opencv2/core.hpp>
 #include <stdexcept>
+#include <utility>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/common/copy.h"
@@ -69,10 +70,10 @@ TensorView<StorageCPU, T, ndim> view_as_tensor(cv::Mat &mat) {
 
 template<AllocType AType = AllocType::GPU, typename T = uint8_t, int ndims = 3>
 std::pair<TensorView<AllocBackend<AType>, T, ndims>, memory::KernelUniquePtr<T>>
-copy_as_tensor(cv::Mat &mat) {
-  static_assert(AType == AllocType::GPU || AType==AllocType::Unified,
+copy_as_tensor(const cv::Mat &mat) {
+  static_assert(AType == AllocType::GPU || AType == AllocType::Unified,
           "Allocation type has to be GPU-specific");
-  auto tvin = kernels::view_as_tensor<T, ndims>(mat);
+  auto tvin = kernels::view_as_tensor<const T, ndims>(mat);
   return copy<AType>(tvin);
 }
 

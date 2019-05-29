@@ -165,14 +165,13 @@ void Check(
 
 template<typename Backend1, typename Backend2, typename T1, typename T2, int dim1, int dim2>
 void Check(const TensorView <Backend1, T1, dim1> &t1, const TensorView <Backend2, T2, dim2> &t2) {
-    static_assert(is_cpu_accessible<Backend1>::value,"This function is applicable only for CPU accessible backends");
-    static_assert(is_cpu_accessible<Backend2>::value, "This function is applicable only for CPU accessible backends");
-    ASSERT_EQ(t1.shape, t2.shape) << "TensorViews have different shapes";
-    auto d1 = t1.data;
-    auto d2 = t2.data;
-    for (int i = 0; i < volume(t1.shape); i++) {
-        EXPECT_EQ(d1[i], d2[i]) << "Elements not equal at index: " << i;
-    }
+    static_assert(is_cpu_accessible<Backend1>::value,
+            "This function is applicable only for CPU accessible backends");
+    static_assert(is_cpu_accessible<Backend2>::value,
+            "This function is applicable only for CPU accessible backends");
+    auto t1cpu = make_tensor_cpu(t1.data, t1.shape);
+    auto t2cpu = make_tensor_cpu(t2.data, t2.shape);
+    Check(t1cpu, t2cpu);
 }
 
 

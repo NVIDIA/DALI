@@ -17,6 +17,7 @@
 
 #include <cuda_runtime.h>
 #include <cstring>
+#include <utility>
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/backend_tags.h"
 #include "dali/kernels/tensor_view.h"
@@ -58,13 +59,16 @@ void copy(const TensorView<StorageOut, TOut, NDimIn>& out,
  * Copies input TensorView and returns the output.
  * @tparam DstAlloc Requested allocation type of the output TensorView.
  *                  According to this parameter, StorageBackend of output TensorView will be determined
+ * @tparam NonconstT utility parameter, do not specify (leave default)
  * @return The output consists of new TensorView along with pointer to its memory (as the TensorView doesn't own any)
  */
-template<AllocType DstAlloc, typename SrcBackend, typename T, int ndims>
-std::pair<TensorView<AllocBackend<DstAlloc>, T, ndims>, memory::KernelUniquePtr<T>>
+template<
+        AllocType DstAlloc, typename SrcBackend, typename T,
+        int ndims, typename NonconstT = typename std::remove_const<T>::type
+                 >
+std::pair<TensorView<AllocBackend<DstAlloc>, NonconstT, ndims>, memory::KernelUniquePtr<NonconstT>>
 copy(const TensorView <SrcBackend, T, ndims> &src) {
-  auto mem = kernels::memory::alloc_unique<typename std::remove_const<T>::type>(DstAlloc,
-                                                                                volume(src.shape));
+  auto mem = kernels::memory::alloc_unique<NonconstT>(DstAlloc, volume(src.shape));
   auto tvgpu = kernels::make_tensor<AllocBackend<DstAlloc>, ndims>(mem.get(), src.shape);
   kernels::copy(tvgpu, src);
   return std::make_pair(tvgpu, std::move(mem));
