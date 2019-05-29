@@ -55,8 +55,7 @@ TEST(Mat2Tensor, View) {
 
 namespace {
 
-template<typename T>
-void CopyAsTensorGpuTest(T &mat) {
+void CopyAsTensorGpuTest(const cv::Mat &mat) {
   auto tvpair = kernels::copy_as_tensor<kernels::AllocType::Unified>(mat);
   cudaDeviceSynchronize();
   auto imgptr = mat.data;
@@ -71,7 +70,7 @@ void CopyAsTensorGpuTest(T &mat) {
 }  // namespace
 
 TEST(Mat2Tensor, CopyAsTensorGpuTest) {
-  const cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
+  cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
   CopyAsTensorGpuTest(img);
 }
 
