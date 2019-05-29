@@ -18,6 +18,7 @@
 #include <cuda_runtime.h>
 #include <utility>
 #include <memory>
+#include <vector>
 #include "dali/kernels/alloc.h"
 #include "dali/core/util.h"
 #include "dali/core/cuda_utils.h"

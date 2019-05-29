@@ -43,7 +43,7 @@ void RunHelper(Tensor<CPUBackend> &output,
 
     kernels::SliceCPU<OutputType, InputType, NumDims> kernel;
     kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
-    output.Resize(req.output_shapes[0][0].shape);
+    output.Resize(req.output_shapes[0][0].shape.to_vector());
 
     auto out_view = view<OutputType, NumDims>(output);
     kernel.Run(ctx, out_view, in_view, slice_args);
