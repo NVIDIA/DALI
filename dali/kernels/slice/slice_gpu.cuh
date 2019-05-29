@@ -46,6 +46,30 @@ struct BlockDesc {
   std::size_t size;
 };
 
+template <int Dims, typename OutputType, typename InputType>
+__device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
+    const int64_t *out_strides, const int64_t *in_strides,
+    std::size_t offset, std::size_t block_end) {
+  if (Dims > 1 && out_strides[Dims-1] == in_strides[Dims-1]) {
+    const int NextDims = Dims > 1 ? Dims-1 : 1;
+    SliceFunc<NextDims>(out, in, out_strides, in_strides, offset, block_end);
+    return;
+  }
+
+  for (; offset < block_end; offset += blockDim.x) {
+    int64_t idx = offset;
+    int64_t out_idx = idx;
+    int64_t in_idx = 0;
+    for (int d = 0; d < Dims; d++) {
+      int i_d = idx / out_strides[d];
+      idx %= out_strides[d];
+      in_idx += i_d * in_strides[d];
+    }
+    in_idx += idx;  // remaining dims have equal strides
+    out[out_idx] = clamp<OutputType>(in[in_idx]);
+  }
+}
+
 template <typename OutputType, typename InputType, std::size_t Dims>
 __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
@@ -54,19 +78,7 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDes
   auto sample = samples[sampleIdx];
   auto *out = static_cast<OutputType*>(sample.out);
   auto *in = static_cast<const InputType*>(sample.in);
-
-  for (; offset < block_end; offset += blockDim.x) {
-    std::size_t idx = offset;
-    std::size_t out_idx = idx;
-    std::size_t in_idx = 0;
-    for (int d = 0; d < Dims - 1; d++) {
-      int i_d = idx / sample.out_strides[d];
-      idx = idx % sample.out_strides[d];
-      in_idx += i_d * sample.in_strides[d];
-    }
-    in_idx += idx;  // last dim (stride is 1)
-    out[out_idx] = clamp<OutputType>(in[in_idx]);
-  }
+  SliceFunc<Dims>(out, in, sample.out_strides.data(), sample.in_strides.data(), offset, block_end);
 }
 
 }  // namespace detail
