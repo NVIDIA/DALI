@@ -363,12 +363,12 @@ Install Python bindings
 .. installation-end-marker-do-not-remove
 
 
-Testing Dali build
+Testing DALI build
 ^^^^^^^^^^^^^^^^^^
-For the purpose of testing Dali, we maintain DALI_extra_ repository, where all testing data can be found.
-Should you want to run tests for Dali build, please obtain DALI_extra_ and put path to root repo folder
-into ``DALI_EXTRA_PATH`` environment variable. Dali testing module reads it during runtime and runs
-tests using provided path.
+
+Testing data can be found in the DALI_extra_ repository. This repo is maintained for testing DALI.
+To run these tests, first set the environment variable ``DALI_EXTRA_PATH`` to point to the root repo folder of DALI_extra_.
+The DALI testing module reads this environment variable during runtime.
 
 .. code-block:: bash
 
