@@ -68,9 +68,9 @@ TensorView<StorageCPU, T, ndim> view_as_tensor(cv::Mat &mat) {
 
 
 template<AllocType AType = AllocType::Unified, typename T = uint8_t, int ndims = 3>
-std::pair<TensorView<AllocBackend<AType>, T, ndims>, memory::KernelUniquePtr<T>> copy_as_tensor(const cv::Mat &mat) {
-//    static_assert(AType == AllocType::GPU || AType==AllocType::Unified, "Allocation type has to be GPU-specific");
-    auto tvin = kernels::view_as_tensor<const T, ndims>(mat);
+std::pair<TensorView<AllocBackend<AType>, T, ndims>, memory::KernelUniquePtr<T>> copy_as_tensor(cv::Mat &mat) {
+    static_assert(AType == AllocType::GPU || AType==AllocType::Unified, "Allocation type has to be GPU-specific");
+    auto tvin = kernels::view_as_tensor<T, ndims>(mat);
     return copy<AType>(tvin);
 }
 

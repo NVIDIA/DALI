@@ -61,7 +61,7 @@ void copy(const TensorView<StorageOut, TOut, NDimIn>& out,
  * @return The output consists of new TensorView along with pointer to its memory (as the TensorView doesn't own any)
  */
 template<AllocType DstAlloc, typename SrcBackend, typename T, int ndims>
-std::pair<TensorView<AllocBackend<DstAlloc>, std::remove_const<T>, ndims>, memory::KernelUniquePtr<T>>
+std::pair<TensorView<AllocBackend<DstAlloc>, T, ndims>, memory::KernelUniquePtr<T>>
 copy(const TensorView <SrcBackend, T, ndims> &src) {
     auto mem = kernels::memory::alloc_unique<T>(DstAlloc, volume(src.shape));
     auto tvgpu = kernels::make_tensor<AllocBackend<DstAlloc>, ndims>(mem.get(), src.shape);

@@ -51,6 +51,7 @@ TEST(Mat2Tensor, View) {
   EXPECT_EQ(tensor3.data, cmat.ptr<float>(0));
 }
 
+
 namespace {
 
 template<typename T>
@@ -69,15 +70,15 @@ void ViewAsTensorGpuTest(T &mat) {
 }  // namespace
 
 TEST(Mat2Tensor, ViewAsTensorGpuTest) {
-//  {
-//    cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
-//    ViewAsTensorGpuTest(img);
-//  }
-  {
-    const cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
-    ViewAsTensorGpuTest(img);
-  }
+  cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
+  ViewAsTensorGpuTest(img);
 }
+
+
+//TEST(Mat2Tensor, ViewAsTensorGpuTestConstMat) {
+//  const cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
+//  ViewAsTensorGpuTest(img);
+//}
 
 }  // namespace testing
 }  // namespace dali
