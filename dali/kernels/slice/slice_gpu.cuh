@@ -32,7 +32,7 @@ namespace kernels {
 
 namespace detail {
 
-template <std::size_t Dims>
+template <size_t Dims>
 struct SliceSampleDesc {
   void *__restrict__ out;
   const void *__restrict__ in;
@@ -42,41 +42,53 @@ struct SliceSampleDesc {
 
 struct BlockDesc {
   int sampleIdx;
-  std::size_t offset;
-  std::size_t size;
+  size_t offset;
+  size_t size;
 };
 
-template <typename OutputType, typename InputType, std::size_t Dims>
-__global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDesc *blocks) {
-  int sampleIdx = blocks[blockIdx.x].sampleIdx;
-  std::size_t offset = blocks[blockIdx.x].offset + threadIdx.x;
-  std::size_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
-  auto sample = samples[sampleIdx];
-  auto *out = static_cast<OutputType*>(sample.out);
-  auto *in = static_cast<const InputType*>(sample.in);
+template <unsigned Dims, typename OutputType, typename InputType>
+__device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
+                          const int64_t *out_strides, const int64_t *in_strides,
+                          size_t offset, size_t block_end) {
+  if (Dims > 1 && out_strides[Dims-1] == in_strides[Dims-1]) {
+    const unsigned NextDims = Dims > 1 ? Dims-1 : 1;
+    SliceFunc<NextDims>(out, in, out_strides, in_strides, offset, block_end);
+    return;
+  }
 
   for (; offset < block_end; offset += blockDim.x) {
-    std::size_t idx = offset;
-    std::size_t out_idx = idx;
-    std::size_t in_idx = 0;
-    for (int d = 0; d < Dims - 1; d++) {
-      int i_d = idx / sample.out_strides[d];
-      idx = idx % sample.out_strides[d];
-      in_idx += i_d * sample.in_strides[d];
+    size_t idx = offset;
+    size_t out_idx = idx;
+    size_t in_idx = 0;
+    for (unsigned d = 0; d < Dims; d++) {
+      unsigned i_d = idx / static_cast<size_t>(out_strides[d]);
+      idx %= static_cast<size_t>(out_strides[d]);
+      in_idx += i_d * static_cast<size_t>(in_strides[d]);
     }
-    in_idx += idx;  // last dim (stride is 1)
+    in_idx += idx;  // remaining dims have equal strides
     out[out_idx] = clamp<OutputType>(in[in_idx]);
   }
 }
 
+template <typename OutputType, typename InputType, size_t Dims>
+__global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDesc *blocks) {
+  int sampleIdx = blocks[blockIdx.x].sampleIdx;
+  size_t offset = blocks[blockIdx.x].offset + threadIdx.x;
+  size_t block_end = blocks[blockIdx.x].offset + blocks[blockIdx.x].size;
+  auto sample = samples[sampleIdx];
+  auto *out = static_cast<OutputType*>(sample.out);
+  auto *in = static_cast<const InputType*>(sample.in);
+  SliceFunc<Dims>(out, in, sample.out_strides.data(), sample.in_strides.data(), offset, block_end);
+}
+
 }  // namespace detail
 
-template <typename OutputType, typename InputType, std::size_t Dims>
+template <typename OutputType, typename InputType, size_t Dims>
 class SliceGPU {
  private:
-  static constexpr std::size_t kBlockDim = 256;
-  static constexpr std::size_t kBlockSize = 64 * kBlockDim;
-  std::size_t block_count_ = 0;
+  static constexpr size_t kBlockDim = 256;
+  static constexpr size_t kBlockSize = 64 * kBlockDim;
+  size_t block_count_ = 0;
 
  public:
   KernelRequirements Setup(KernelContext &context,
@@ -84,18 +96,18 @@ class SliceGPU {
                            const std::vector<SliceArgs<Dims>> &slice_args) {
     KernelRequirements req;
     ScratchpadEstimator se;
-    const std::size_t num_samples = in.size();
+    const size_t num_samples = in.size();
     se.add<detail::SliceSampleDesc<Dims>>(AllocType::Host, num_samples);
     se.add<detail::SliceSampleDesc<Dims>>(AllocType::GPU, num_samples);
 
-    std::vector<std::size_t> sample_sizes;
+    std::vector<size_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
     for (auto &args : slice_args) {
       sample_sizes.push_back(volume(args.shape));
     }
 
     block_count_ = 0;
-    for (std::size_t sample_size : sample_sizes) {
+    for (size_t sample_size : sample_sizes) {
       block_count_ += std::ceil(
         sample_size / static_cast<float>(kBlockSize));
     }
@@ -119,7 +131,7 @@ class SliceGPU {
     detail::BlockDesc *block_descs_cpu =
       context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
 
-    std::vector<std::size_t> sample_sizes(in.size());
+    std::vector<size_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
       const auto out_shape = out.tensor_shape(i);
@@ -127,8 +139,8 @@ class SliceGPU {
       sample_desc.in_strides = GetStrides<Dims>(in_shape);
       sample_desc.out_strides = GetStrides<Dims>(out_shape);
       auto &anchor = slice_args[i].anchor;
-      std::size_t in_offset = 0;
-      for (std::size_t d = 0; d < Dims; d++) {
+      size_t in_offset = 0;
+      for (size_t d = 0; d < Dims; d++) {
         in_offset += anchor[d] * sample_desc.in_strides[d];
       }
       sample_desc.in = in.tensor_data(i) + in_offset;
@@ -136,12 +148,12 @@ class SliceGPU {
       sample_sizes[i] = volume(out_shape);
     }
 
-    std::size_t block_idx = 0;
+    size_t block_idx = 0;
     for (int i = 0; i < num_samples; i++) {
-      std::size_t offset = 0;
-      std::size_t remaining = sample_sizes[i];
+      size_t offset = 0;
+      size_t remaining = sample_sizes[i];
       while (remaining > 0) {
-        std::size_t size = remaining < kBlockSize ? remaining : kBlockSize;
+        size_t size = remaining < kBlockSize ? remaining : kBlockSize;
         block_descs_cpu[block_idx++] = {i, offset, size};
         remaining -= size;
         offset += size;
@@ -156,7 +168,7 @@ class SliceGPU {
         AllocType::GPU, block_count_);
 
     // Memory is allocated contiguously, so we launch only one cudaMemcpyAsync
-    std::size_t total_bytes = num_samples * sizeof(detail::SliceSampleDesc<Dims>)
+    size_t total_bytes = num_samples * sizeof(detail::SliceSampleDesc<Dims>)
       + block_count_ * sizeof(detail::BlockDesc);
     cudaMemcpyAsync(sample_descs, sample_descs_cpu,
                     total_bytes,
