@@ -263,7 +263,7 @@ TEST(OpticalFlowTuringTest, CalcOpticalFlowTest) {
 
   OpticalFlowParams params = {0.0, VectorGridSize::SIZE_4, true, false};
   try {
-    OpticalFlowTuring of(params, width, height, channels, DALIImageType::DALI_RGB);
+    OpticalFlowTuring of(params, width, height, channels, DALIImageType::DALI_RGB, 0);
 
     // Output
     auto out_shape = of.GetOutputShape().to_static<3>();
@@ -338,7 +338,7 @@ TEST(OpticalFlowTuringTest, CalcOpticalFlowExternalHintsTest) {
 
   OpticalFlowParams params = {0.0, VectorGridSize::SIZE_4, false, true};
   try {
-    OpticalFlowTuring of(params, width, height, channels, DALIImageType::DALI_RGB);
+    OpticalFlowTuring of(params, width, height, channels, DALIImageType::DALI_RGB, 0);
 
     // Output frame
     auto out_shape = of.GetOutputShape().to_static<3>();

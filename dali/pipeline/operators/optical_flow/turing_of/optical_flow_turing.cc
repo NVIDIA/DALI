@@ -15,6 +15,7 @@
 #include <dlfcn.h>
 
 #include "dali/pipeline/operators/optical_flow/turing_of/optical_flow_turing.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 namespace optical_flow {
@@ -37,23 +38,20 @@ void VerifySupport(NV_OF_STATUS status) {
 
 OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams params, size_t width,
                                      size_t height, size_t channels, DALIImageType image_type,
-                                     cudaStream_t stream) :
+                                     int device_id, cudaStream_t stream) :
         OpticalFlowAdapter<kernels::ComputeGPU>(params), width_(width), height_(height),
-        channels_(channels), device_(), context_(), stream_(stream), image_type_(image_type) {
+        channels_(channels), device_id_(device_id), context_(), stream_(stream),
+        image_type_(image_type) {
   DALI_ENFORCE(channels_ == 1 || channels_ == 3 || channels_ == 4);
   DALI_ENFORCE(cuInitChecked(), "Failed to initialize driver");
 
-  int device_id;
-  CUDA_CALL(cudaGetDevice(&device_id));
-  CUDA_CALL(cuDeviceGet(&device_, device_id));
   LoadTuringOpticalFlow("libnvidia-opticalflow.so");
 
   SetInitParams(params);
+  DeviceGuard g(device_id_);
+  CUDA_CALL(cuCtxGetCurrent(&context_));
 
-  context_ = CUContext(device_);
-  CUcontext ctx = context_;
-
-  TURING_OF_API_CALL(turing_of_.nvCreateOpticalFlowCuda(ctx, &of_handle_));
+  TURING_OF_API_CALL(turing_of_.nvCreateOpticalFlowCuda(context_, &of_handle_));
   TURING_OF_API_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
   VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
 
@@ -85,6 +83,7 @@ OpticalFlowTuring::~OpticalFlowTuring() {
   if (err != NV_OF_SUCCESS) {
     // Failing to destroy OF leads to significant GPU resource leak,
     // so we'd rather terminate than live with this
+    std::cerr << "Fatal error: failed to destroy optical flow" << std::endl;
     std::terminate();
   }
 }
