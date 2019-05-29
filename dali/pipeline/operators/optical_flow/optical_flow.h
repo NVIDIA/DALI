@@ -124,7 +124,14 @@ class OpticalFlow : public Operator<Backend> {
             return false;
         }
         return true;
-    }(), "Width, height and depth must be equal for all sequences");
+    }(), "Width, height and depth must be equal for all sequences.");
+
+    DALI_ENFORCE([&]() -> bool {
+        for (const auto &sz : sequence_sizes_) {
+          if (sz < 2) return false;
+        }
+        return true;
+    }(), "Number of frames in every sequence must be greater or equal to 2.");
   }
 
 
