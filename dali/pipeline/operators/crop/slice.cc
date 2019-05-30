@@ -31,6 +31,7 @@ DALI_SCHEMA(Slice)
     .NumInput(3)
     .NumOutput(1)
     .AllowSequences()
+    .AllowMultipleInputSets()
     .AddOptionalArg(
       "image_type",
       R"code(The color space of input and output image)code",
@@ -39,9 +40,9 @@ DALI_SCHEMA(Slice)
 
 template <>
 void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, int idx) {
-  const auto &images = ws->Input<CPUBackend>(0);
-  const auto &anchor_tensor = ws->Input<CPUBackend>(1);
-  const auto &slice_shape_tensor = ws->Input<CPUBackend>(2);
+  const auto &images = ws->Input<CPUBackend>(3 * idx);
+  const auto &anchor_tensor = ws->Input<CPUBackend>(3 * idx + 1);
+  const auto &slice_shape_tensor = ws->Input<CPUBackend>(3 * idx + 2);
   const auto img_shape = images.shape();
   const auto args_ndim = anchor_tensor.shape()[0];
   const float* anchor_norm = anchor_tensor.template data<float>();

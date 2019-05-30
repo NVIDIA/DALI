@@ -14,7 +14,6 @@
 
 import glob
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.edge import EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec

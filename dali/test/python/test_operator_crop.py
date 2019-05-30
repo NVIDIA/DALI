@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.edge import EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
@@ -66,18 +65,24 @@ class CropPipeline(Pipeline):
             images = self.crop(images)
         return images
 
+def check_crop_vs_fused_decoder(device, batch_size):
+    compare_pipelines(CropPipeline(device, batch_size, is_fused_decoder=True),
+                      CropPipeline(device, batch_size, is_fused_decoder=False),
+                      batch_size=batch_size, N_iterations=10)
+
 def test_crop_vs_fused_decoder():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 32, 100}:
-            compare_pipelines(CropPipeline(device, batch_size, is_fused_decoder=True),
-                              CropPipeline(device, batch_size, is_fused_decoder=False),
-                              batch_size=batch_size, N_iterations=10)
+            yield check_crop_vs_fused_decoder, device, batch_size
+
+def check_crop_cpu_vs_gpu(batch_size):
+    compare_pipelines(CropPipeline('cpu', batch_size),
+                      CropPipeline('gpu', batch_size),
+                      batch_size=batch_size, N_iterations=10)
 
 def test_crop_cpu_vs_gpu():
     for batch_size in {1, 32, 100}:
-        compare_pipelines(CropPipeline('cpu', batch_size),
-                          CropPipeline('gpu', batch_size),
-                          batch_size=batch_size, N_iterations=10)
+        yield check_crop_cpu_vs_gpu, batch_size
 
 class CropSequencePipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0):
@@ -156,23 +161,29 @@ def crop_NFHWC_func(image):
 def crop_NHWC_func(image):
     return crop_func_help(image, types.NHWC)
 
+def check_crop_NFHWC_vs_python_op_crop(device, batch_size):
+    eii1 = RandomDataIterator(batch_size, shape=(10, 600, 800, 3))
+    eii2 = RandomDataIterator(batch_size, shape=(10, 600, 800, 3))
+    compare_pipelines(CropSequencePipeline(device, batch_size, types.NFHWC, iter(eii1)),
+                      CropSequencePythonOpPipeline(crop_NFHWC_func, batch_size, types.NFHWC, iter(eii2)),
+                      batch_size=batch_size, N_iterations=10)
+
 def test_crop_NFHWC_vs_python_op_crop():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
-            eii1 = RandomDataIterator(batch_size, shape=(10, 600, 800, 3))
-            eii2 = RandomDataIterator(batch_size, shape=(10, 600, 800, 3))
-            compare_pipelines(CropSequencePipeline(device, batch_size, types.NFHWC, iter(eii1)),
-                              CropSequencePythonOpPipeline(crop_NFHWC_func, batch_size, types.NFHWC, iter(eii2)),
-                              batch_size=batch_size, N_iterations=10)
+            yield check_crop_NFHWC_vs_python_op_crop, device, batch_size
+
+def check_crop_NHWC_vs_python_op_crop(device, batch_size):
+    eii1 = RandomDataIterator(batch_size, shape=(600, 800, 3))
+    eii2 = RandomDataIterator(batch_size, shape=(600, 800, 3))
+    compare_pipelines(CropSequencePipeline(device, batch_size, types.NHWC, iter(eii1)),
+                      CropSequencePythonOpPipeline(crop_NHWC_func, batch_size, types.NHWC, iter(eii2)),
+                      batch_size=batch_size, N_iterations=10)
 
 def test_crop_NHWC_vs_python_op_crop():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
-            eii1 = RandomDataIterator(batch_size, shape=(600, 800, 3))
-            eii2 = RandomDataIterator(batch_size, shape=(600, 800, 3))
-            compare_pipelines(CropSequencePipeline(device, batch_size, types.NHWC, iter(eii1)),
-                              CropSequencePythonOpPipeline(crop_NHWC_func, batch_size, types.NHWC, iter(eii2)),
-                              batch_size=batch_size, N_iterations=10)
+            yield check_crop_NHWC_vs_python_op_crop, device, batch_size
 
 class CropCastPipeline(Pipeline):
     def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1, should_perform_cast=False):
@@ -217,9 +228,12 @@ class CropCastPipeline(Pipeline):
             images = self.crop(images)
         return images
 
+def check_crop_no_cast_vs_cast_to_float_and_back(device, batch_size):
+    compare_pipelines(CropCastPipeline(device, batch_size, should_perform_cast=False),
+                      CropCastPipeline(device, batch_size, should_perform_cast=True),
+                      batch_size=batch_size, N_iterations=10)
+
 def test_crop_no_cast_vs_cast_to_float_and_back():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
-            compare_pipelines(CropCastPipeline(device, batch_size, should_perform_cast=False),
-                              CropCastPipeline(device, batch_size, should_perform_cast=True),
-                              batch_size=batch_size, N_iterations=10)
+            yield check_crop_no_cast_vs_cast_to_float_and_back, device, batch_size

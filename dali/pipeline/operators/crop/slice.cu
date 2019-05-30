@@ -19,9 +19,9 @@ namespace dali {
 
 template <>
 void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, int idx) {
-  const auto &images = ws->Input<GPUBackend>(0);
-  const auto &anchor_tensor = ws->Input<CPUBackend>(1);
-  const auto &slice_shape_tensor = ws->Input<CPUBackend>(2);
+  const auto &images = ws->Input<GPUBackend>(3 * idx);
+  const auto &anchor_tensor = ws->Input<CPUBackend>(3 * idx + 1);
+  const auto &slice_shape_tensor = ws->Input<CPUBackend>(3 * idx + 2);
   for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
     const auto img_shape = images.tensor_shape(sample_idx);
     const auto args_ndims = anchor_tensor.tensor_shape(sample_idx)[0];
