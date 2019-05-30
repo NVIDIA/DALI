@@ -59,3 +59,24 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations):
             out2_data = out2[i].as_cpu() if isinstance(out2[i].at(0), dali.backend_impl.TensorGPU) else out2[i]
             check_batch(out1_data, out2_data, batch_size)
     print("OK: ({} iterations)".format(N_iterations))
+
+class RandomDataIterator(object):
+    def __init__(self, batch_size, shape=(10, 600, 800, 3)):
+        self.batch_size = batch_size
+        self.test_data = []
+        for _ in range(self.batch_size):
+            np.random.seed(0)
+            self.test_data.append(np.array(np.random.rand(*shape) * 255,
+                                  dtype = np.uint8 ) )
+
+    def __iter__(self):
+        self.i = 0
+        self.n = self.batch_size
+        return self
+
+    def __next__(self):
+        batch = self.test_data
+        self.i = (self.i + 1) % self.n
+        return (batch)
+
+    next = __next__

@@ -28,7 +28,7 @@ static void CropCPUArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
-BENCHMARK_DEFINE_F(OperatorBench, OldCropCPU)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(OperatorBench, CropCPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int H = st.range(1);
   int W = st.range(2);
@@ -49,33 +49,7 @@ BENCHMARK_DEFINE_F(OperatorBench, OldCropCPU)(benchmark::State& st) {
     batch_size, H, W, C);
 }
 
-BENCHMARK_REGISTER_F(OperatorBench, OldCropCPU)->Iterations(1000)
-->Unit(benchmark::kMicrosecond)
-->UseRealTime()
-->Apply(CropCPUArgs);
-
-BENCHMARK_DEFINE_F(OperatorBench, NewCropCPU)(benchmark::State& st) {
-  int batch_size = st.range(0);
-  int H = st.range(1);
-  int W = st.range(2);
-  int C = st.range(3);
-  int crop_h = st.range(4);
-  int crop_w = st.range(5);
-
-  this->RunCPU<uint8_t>(
-    st,
-    OpSpec("NewCrop")
-      .AddArg("batch_size", batch_size)
-      .AddArg("num_threads", 1)
-      .AddArg("device", "cpu")
-      .AddArg("output_type", DALI_RGB)
-      .AddArg("crop", std::vector<float>{static_cast<float>(crop_h), static_cast<float>(crop_w)})
-      .AddArg("crop_pos_x", 0.5f)
-      .AddArg("crop_pos_y", 0.5f),
-    batch_size, H, W, C);
-}
-
-BENCHMARK_REGISTER_F(OperatorBench, NewCropCPU)->Iterations(1000)
+BENCHMARK_REGISTER_F(OperatorBench, CropCPU)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(CropCPUArgs);
@@ -91,7 +65,7 @@ static void CropGPUArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
-BENCHMARK_DEFINE_F(OperatorBench, OldCropGPU)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(OperatorBench, CropGPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int H = st.range(1);
   int W = st.range(2);
@@ -112,33 +86,7 @@ BENCHMARK_DEFINE_F(OperatorBench, OldCropGPU)(benchmark::State& st) {
     batch_size, H, W, C);
 }
 
-BENCHMARK_REGISTER_F(OperatorBench, OldCropGPU)->Iterations(1000)
-->Unit(benchmark::kMicrosecond)
-->UseRealTime()
-->Apply(CropGPUArgs);
-
-BENCHMARK_DEFINE_F(OperatorBench, NewCropGPU)(benchmark::State& st) {
-  int batch_size = st.range(0);
-  int H = st.range(1);
-  int W = st.range(2);
-  int C = st.range(3);
-  int crop_h = st.range(4);
-  int crop_w = st.range(5);
-
-  this->RunGPU<uint8_t>(
-    st,
-    OpSpec("NewCrop")
-      .AddArg("batch_size", batch_size)
-      .AddArg("num_threads", 1)
-      .AddArg("device", "gpu")
-      .AddArg("output_type", DALI_RGB)
-      .AddArg("crop", std::vector<float>{static_cast<float>(crop_h), static_cast<float>(crop_w)})
-      .AddArg("crop_pos_x", 0.5f)
-      .AddArg("crop_pos_y", 0.5f),
-    batch_size, H, W, C);
-}
-
-BENCHMARK_REGISTER_F(OperatorBench, NewCropGPU)->Iterations(1000)
+BENCHMARK_REGISTER_F(OperatorBench, CropGPU)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(CropGPUArgs);

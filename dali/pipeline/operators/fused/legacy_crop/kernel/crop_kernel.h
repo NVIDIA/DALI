@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_CROP_KERNEL_CROP_KERNEL_H_
-#define DALI_PIPELINE_OPERATORS_CROP_KERNEL_CROP_KERNEL_H_
+#ifndef DALI_PIPELINE_OPERATORS_FUSED_LEGACY_CROP_KERNEL_CROP_KERNEL_H_
+#define DALI_PIPELINE_OPERATORS_FUSED_LEGACY_CROP_KERNEL_CROP_KERNEL_H_
 
 #include <tuple>
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/pipeline/operators/crop/kernel/coords.h"
-#include "dali/pipeline/operators/crop/kernel/sequence.h"
+#include "dali/pipeline/operators/fused/legacy_crop/kernel/coords.h"
+#include "dali/pipeline/operators/fused/legacy_crop/kernel/sequence.h"
 
 namespace dali {
 namespace detail {
@@ -90,4 +90,4 @@ using SequenceCropKernel = SequenceAdapter<CropKernel<InType, OutType, OutLayout
 }  // namespace detail
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_CROP_KERNEL_CROP_KERNEL_H_
+#endif  // DALI_PIPELINE_OPERATORS_FUSED_LEGACY_CROP_KERNEL_CROP_KERNEL_H_

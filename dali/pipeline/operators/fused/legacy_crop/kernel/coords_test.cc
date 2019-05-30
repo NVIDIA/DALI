@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <random>
 
-#include "dali/pipeline/operators/crop/kernel/coords.h"
+#include "dali/pipeline/operators/fused/legacy_crop/kernel/coords.h"
 
 namespace dali {
 namespace detail {

@@ -174,7 +174,7 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Notes that sequences can be used with this op
    */
-  DLL_PUBLIC inline OpSchema& AllowSequences(bool needs_flattening) {
+  DLL_PUBLIC inline OpSchema& AllowSequences(bool needs_flattening = false) {
     allow_sequences_ = true;
     needs_flattening_ = needs_flattening;
     return *this;

@@ -15,8 +15,8 @@
 #include <gtest/gtest.h>
 #include <limits>
 
-#include "dali/pipeline/operators/crop/kernel/coords.h"
-#include "dali/pipeline/operators/crop/kernel/crop_kernel.h"
+#include "dali/pipeline/operators/fused/legacy_crop/kernel/coords.h"
+#include "dali/pipeline/operators/fused/legacy_crop/kernel/crop_kernel.h"
 
 namespace dali {
 namespace detail {

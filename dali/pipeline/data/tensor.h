@@ -354,6 +354,7 @@ class Tensor : public Buffer<Backend> {
     shares_data_ = t.shares_data_;
     num_bytes_ = t.num_bytes_;
     device_ = t.device_;
+    meta_ = std::move(t.meta_);
 
     t.shape_.clear();
     t.backend_ = Backend();
@@ -362,6 +363,7 @@ class Tensor : public Buffer<Backend> {
     t.size_ = 0;
     t.shares_data_ = false;
     t.num_bytes_ = 0;
+    t.meta_ = {};
   }
 
   Tensor<Backend>& operator=(Tensor<Backend> &&t) noexcept {
@@ -374,7 +376,7 @@ class Tensor : public Buffer<Backend> {
       shares_data_ = t.shares_data_;
       num_bytes_ = t.num_bytes_;
       device_ = t.device_;
-
+      meta_ = std::move(t.meta_);
 
       t.shape_.clear();
       t.backend_ = Backend();
@@ -383,6 +385,7 @@ class Tensor : public Buffer<Backend> {
       t.size_ = 0;
       t.shares_data_ = false;
       t.num_bytes_ = 0;
+      t.meta_ = {};
     }
     return *this;
   }

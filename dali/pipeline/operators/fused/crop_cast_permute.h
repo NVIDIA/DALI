@@ -16,14 +16,15 @@
 #ifndef DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
 #define DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
 
-#include "dali/pipeline/operators/crop/crop.h"
+#include "dali/pipeline/operators/fused/legacy_crop/legacy_crop.h"
 
 namespace dali {
 
 template <typename Backend>
-class CropCastPermute : public Crop<Backend> {
+class CropCastPermute : public LegacyCrop<Backend> {
  public:
-  explicit inline CropCastPermute(const OpSpec &spec) : Crop<Backend>(spec) {
+  explicit inline CropCastPermute(const OpSpec &spec)
+    : LegacyCrop<Backend>(spec) {
     this->output_type_ = spec.GetArgument<DALIDataType>("output_dtype");
     this->output_layout_ = spec.GetArgument<DALITensorLayout>("output_layout");
   }
@@ -32,4 +33,3 @@ class CropCastPermute : public Crop<Backend> {
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_FUSED_CROP_CAST_PERMUTE_H_
-
