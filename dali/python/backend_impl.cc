@@ -225,7 +225,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
   // to numpy arrays currently.
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
     .def("__init__", [](TensorList<CPUBackend> &t, py::buffer b,
-                        DALITensorLayout layout = DALI_NHWC) {
+                        DALITensorLayout layout) {
           // We need to verify that the input data is C_CONTIGUOUS
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
