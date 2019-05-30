@@ -224,6 +224,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
   vector<TransformMeta> per_thread_meta_;
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
+  using Operator<Backend>::SetupSharedSampleParams;
 };
 
 /**
