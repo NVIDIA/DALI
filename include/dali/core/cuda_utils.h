@@ -71,12 +71,14 @@ __host__ __device__ cuda_move(T &&t) noexcept {
 }
 
 template <class T>
-__host__ __device__ constexpr T&& cuda_forward(typename std::remove_reference<T>::type& t) noexcept {
+__host__ __device__ constexpr T&&
+cuda_forward(typename std::remove_reference<T>::type& t) noexcept {
   return static_cast<T&&>(t);
 }
 
 template <class T>
-__host__ __device__ constexpr T&& cuda_forward(typename std::remove_reference<T>::type&& t) noexcept {
+__host__ __device__ constexpr T&&
+cuda_forward(typename std::remove_reference<T>::type&& t) noexcept {
   return static_cast<T&&>(t);
 }
 
@@ -98,7 +100,6 @@ __host__ __device__ void cuda_swap(T &a, T &b) {
   a = cuda_move(b);
   b = cuda_move(tmp);
 }
-
-}  // namespace dalli
+}  // namespace dali
 
 #endif  // DALI_CORE_CUDA_UTILS_H_

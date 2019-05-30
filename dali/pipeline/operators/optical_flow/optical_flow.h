@@ -64,7 +64,8 @@ class OpticalFlow : public Operator<Backend> {
                   detail::kEnableExternalHintsArgName)),
           optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
                   new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
-          image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)) {
+          image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)),
+          device_id_(spec.GetArgument<int>("device_id")) {
     // In case external hints are enabled, we need 2 inputs
     DALI_ENFORCE((enable_external_hints_ && spec.NumInput() == 2) || !enable_external_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
@@ -93,12 +94,17 @@ class OpticalFlow : public Operator<Backend> {
    * Optical flow lazy initialization
    */
   void of_lazy_init(size_t width, size_t height, size_t channels, DALIImageType image_type,
-                    cudaStream_t stream) {
+                    int device_id, cudaStream_t stream) {
     std::call_once(of_initialized_,
                    [&]() {
                        optical_flow_.reset(
-                               new optical_flow::OpticalFlowTuring(of_params_, width, height,
-                                                                   channels, image_type, stream));
+                               new optical_flow::OpticalFlowTuring(of_params_,
+                                                                   width,
+                                                                   height,
+                                                                   channels,
+                                                                   image_type,
+                                                                   device_id,
+                                                                   stream));
                    });
   }
 
@@ -165,6 +171,7 @@ class OpticalFlow : public Operator<Backend> {
   int hints_width_, hints_height_, hints_depth_;
   std::vector<int> sequence_sizes_;
   DALIImageType image_type_;
+  int device_id_;
 };
 
 }  // namespace dali

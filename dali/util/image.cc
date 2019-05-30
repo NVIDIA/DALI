@@ -66,7 +66,7 @@ std::vector<std::string> list_files(
 }  // namespace
 
 void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
-  for (auto img_name : image_names) {
+  for (const auto &img_name : image_names) {
     std::ifstream img_file(img_name);
     DALI_ENFORCE(img_file.is_open());
 

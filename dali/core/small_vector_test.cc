@@ -386,4 +386,48 @@ TEST(SmallVector, Resize) {
   EXPECT_EQ(TestObj::zombies, 0);
 }
 
+TEST(SmallVector, FromVector) {
+  std::vector<TestObj> vec = { 1, 2, 3, 4 };
+  SmallVector<TestObj, 3> v1 = vec;
+  SmallVector<TestObj, 5> v2;
+  ASSERT_EQ(v1.size(), 4);
+  EXPECT_TRUE(v1.is_dynamic());
+  EXPECT_EQ(v1[0], 1);
+  EXPECT_EQ(v1[1], 2);
+  EXPECT_EQ(v1[2], 3);
+  EXPECT_EQ(v1[3], 4);
+  EXPECT_EQ(TestObj::total, 8);
+  EXPECT_EQ(TestObj::zombies, 0);
+
+  v2.push_back(666);
+  v2 = vec;
+  EXPECT_FALSE(v2.is_dynamic());
+  ASSERT_EQ(v2.size(), 4);
+  EXPECT_EQ(v2[0], 1);
+  EXPECT_EQ(v2[1], 2);
+  EXPECT_EQ(v2[2], 3);
+  EXPECT_EQ(v2[3], 4);
+  EXPECT_EQ(TestObj::total, 12);
+  EXPECT_EQ(TestObj::zombies, 0);
+}
+
+TEST(SmallVector, InitList) {
+  SmallVector<TestObj, 3> v = { 1, 2, 3 };
+  EXPECT_EQ(v[0], 1);
+  EXPECT_EQ(v[1], 2);
+  EXPECT_EQ(v[2], 3);
+  EXPECT_EQ(TestObj::total, 3);
+  EXPECT_EQ(TestObj::zombies, 0);
+}
+
+TEST(SmallVector, ToVector) {
+  SmallVector<TestObj, 3> sv = { 1, 2, 3 };
+  std::vector<TestObj> vec = sv.to_vector();
+  EXPECT_EQ(vec[0], 1);
+  EXPECT_EQ(vec[1], 2);
+  EXPECT_EQ(vec[2], 3);
+  EXPECT_EQ(TestObj::total, 6);
+  EXPECT_EQ(TestObj::zombies, 0);
+}
+
 }  // namespace dali

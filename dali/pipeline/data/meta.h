@@ -40,7 +40,7 @@ class DALIMeta {
     return source_info_;
   }
 
-  inline void SetSourceInfo(std::string source_info) {
+  inline void SetSourceInfo(const std::string &source_info) {
     source_info_ = source_info;
   }
 

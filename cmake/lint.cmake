@@ -18,7 +18,7 @@ list(REMOVE_ITEM LINT_SRC
 )
 
 list(REMOVE_ITEM LINT_INC
-  ${DALI_INC_DIR}/core/dynlink_cuda.h
+  ${DALI_INC_DIR}/dali/core/dynlink_cuda.h
 )
 
 # cuTT
@@ -51,6 +51,12 @@ execute_process(
   OUTPUT_QUIET
 )
 
+if(LINT_RESULT)
+    message(FATAL_ERROR "Lint failed: ${LINT_ERROR}")
+else()
+    message(STATUS "Lint OK (headers)")
+endif()
+
 execute_process(
   COMMAND ${LINT_COMMAND} --linelength=100 ${LINT_SRC}
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
@@ -62,5 +68,5 @@ execute_process(
 if(LINT_RESULT)
     message(FATAL_ERROR "Lint failed: ${LINT_ERROR}")
 else()
-    message(STATUS "Lint OK")
+    message(STATUS "Lint OK (sources)")
 endif()

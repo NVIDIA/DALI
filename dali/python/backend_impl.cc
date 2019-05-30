@@ -29,6 +29,7 @@
 #include "dali/plugin/copy.h"
 #include "dali/plugin/plugin_manager.h"
 #include "dali/util/half.hpp"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 namespace python {
@@ -46,7 +47,7 @@ static void* ctypes_void_ptr(const py::object& object) {
   return ptr;
 }
 
-static std::string FormatStrFromType(TypeInfo type) {
+static std::string FormatStrFromType(const TypeInfo &type) {
   if (IsType<uint8>(type)) {
     return py::format_descriptor<uint8>::format();
   } else if (IsType<int16>(type)) {
@@ -71,7 +72,7 @@ static std::string FormatStrFromType(TypeInfo type) {
   }
 }
 
-static TypeInfo TypeFromFormatStr(std::string format) {
+static TypeInfo TypeFromFormatStr(const std::string &format) {
   if (format == py::format_descriptor<uint8>::format()) {
     return TypeInfo::Create<uint8>();
   } else if (format == py::format_descriptor<int16>::format()) {
@@ -332,7 +333,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           return py::array(py::buffer_info(
               raw_mutable_data,
               type_size,
-              std::move(format),
+              format,
               shape.size(), shape, strides));
         },
       R"code(
@@ -388,8 +389,9 @@ void ExposeTensorList(py::module &m) { // NOLINT
           ret->set_pinned(false);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
+          DeviceGuard g(t.device_id());
           ret->Copy(t, s);
-          CUDA_CALL(cudaStreamSynchronize(s));
+          us->Wait(t);
           return ret;
         },
       R"code(

@@ -13,6 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <opencv2/opencv.hpp>
+#include <dali/test/dali_test_config.h>
+#include "dali/kernels/alloc.h"
 #include "dali/kernels/test/mat2tensor.h"
 
 namespace dali {
@@ -33,6 +36,7 @@ TEST(Mat2Tensor, Shape) {
   EXPECT_EQ(tensor_shape<2>(mat), TensorShape(123, 321));
 }
 
+
 TEST(Mat2Tensor, View) {
   cv::Mat mat;
   mat.create(480, 640, CV_32FC3);
@@ -46,6 +50,28 @@ TEST(Mat2Tensor, View) {
   auto tensor3 = view_as_tensor<const float, 3>(cmat);
   EXPECT_EQ(tensor3.shape, TensorShape(480, 640, 3));
   EXPECT_EQ(tensor3.data, cmat.ptr<float>(0));
+}
+
+
+namespace {
+
+void CopyAsTensorGpuTest(const cv::Mat &mat) {
+  auto tvpair = kernels::copy_as_tensor<kernels::AllocType::Unified>(mat);
+  cudaDeviceSynchronize();
+  auto imgptr = mat.data;
+  auto tvptr = tvpair.first.data;
+  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), volume(tvpair.first.shape))
+                        << "Sizes don't match";
+  for (int i = 0; i < mat.cols * mat.rows * mat.channels(); i++) {
+    EXPECT_EQ(imgptr[i], tvptr[i]) << "Test failed at i=" << i;
+  }
+}
+
+}  // namespace
+
+TEST(Mat2Tensor, CopyAsTensorGpuTest) {
+  cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
+  CopyAsTensorGpuTest(img);
 }
 
 }  // namespace testing

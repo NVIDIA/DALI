@@ -39,7 +39,7 @@ class ElementExtractTest : public DaliOperatorTest {
         , H_(H)
         , W_(W)
         , C_(C)
-        , element_map_(element_map) {
+        , element_map_(std::move(element_map)) {
     }
 
     std::unique_ptr<TensorList<CPUBackend>>

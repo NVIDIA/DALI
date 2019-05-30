@@ -27,6 +27,7 @@
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
+#include "dali/core/device_guard.h"
 
 namespace dali {
 
@@ -148,8 +149,8 @@ class WorkerThread {
 
  private:
   void ThreadMain(int device_id, bool set_affinity) {
+    DeviceGuard g(device_id);
     try {
-      CUDA_CALL(cudaSetDevice(device_id));
       if (set_affinity) {
 #if NVML_ENABLED
         nvml::SetCPUAffinity();

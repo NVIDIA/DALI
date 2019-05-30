@@ -30,7 +30,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
   TensorList<CPUBackend> labels_;
   vector<float> anchors_;
 
-  void RunForCocoCpu(vector<float> anchors, float criteria) {
+  void RunForCocoCpu(const vector<float> &anchors, float criteria) {
     this->SetBatchSize(coco_batch_size);
     this->SetExternalInputs({{"bboxes", &this->boxes_}, {"labels", &this->labels_}});
     this->AddSingleOp(OpSpec("BoxEncoder")
@@ -47,7 +47,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
     this->CheckAnswersForCocoOnCpu(&ws);
   }
 
-  void RunForCocoGpu(vector<float> anchors, float criteria) {
+  void RunForCocoGpu(const vector<float> &anchors, float criteria) {
     this->SetBatchSize(coco_batch_size);
     this->SetExternalInputs({{"bboxes", &this->boxes_}, {"labels", &this->labels_}});
     this->AddSingleOp(OpSpec("BoxEncoder")
@@ -638,7 +638,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
     for (int idx = 0; idx < feat_count; ++idx) {
       auto sk1 = scales[idx] / fig_size;
       auto sk2 = scales[idx + 1] / fig_size;
-      auto sk3 = sqrt(sk1 * sk2);
+      auto sk3 = std::sqrt(sk1 * sk2);
       vector<std::pair<float, float>> all_sizes{{sk1, sk1}, {sk3, sk3}};
 
       for (auto &alpha : aspect_ratios[idx]) {

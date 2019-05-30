@@ -41,17 +41,17 @@ class ArgumentWorkspace {
     argument_inputs_.clear();
   }
 
-  void AddArgumentInput(shared_ptr<Tensor<CPUBackend>> input, std::string arg_name) {
-    argument_inputs_[arg_name] = input;
+  void AddArgumentInput(shared_ptr<Tensor<CPUBackend>> input, const std::string &arg_name) {
+    argument_inputs_[arg_name] = std::move(input);
   }
 
-  void SetArgumentInput(shared_ptr<Tensor<CPUBackend>> input, std::string arg_name) {
+  void SetArgumentInput(shared_ptr<Tensor<CPUBackend>> input, const std::string &arg_name) {
     DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
         "Argument \"" + arg_name + "\" not found.");
-    argument_inputs_[arg_name] = input;
+    argument_inputs_[arg_name] = std::move(input);
   }
 
-  const Tensor<CPUBackend>& ArgumentInput(std::string arg_name) const {
+  const Tensor<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
     DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
         "Argument \"" + arg_name + "\" not found.");
     return *(argument_inputs_.at(arg_name));

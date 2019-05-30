@@ -200,6 +200,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     shape_.clear();
     offsets_.clear();
     size_ = 0;
+    device_ = -1;
 
     // Tensor view of this TensorList is no longer valid
     if (tensor_view_) {

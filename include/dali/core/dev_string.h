@@ -127,7 +127,7 @@ struct DeviceString {
 
 constexpr __device__ const char *dev_to_string(char *literal) { return literal; }
 constexpr __device__ const char *dev_to_string(const char *literal) { return literal; }
-inline __device__ DeviceString dev_to_string(long long x) {
+inline __device__ DeviceString dev_to_string(long long x) {  // NOLINT
   if (x == 0)
     return "0";
   char buf[32];
@@ -151,7 +151,7 @@ inline __device__ DeviceString dev_to_string(long long x) {
 template <typename T>
 __device__ typename std::enable_if<std::is_integral<T>::value, DeviceString>::type
 dev_to_string(T x) {
-  return dev_to_string(static_cast<long long>(x));
+  return dev_to_string(static_cast<long long>(x));  // NOLINT
 }
 
 
@@ -237,8 +237,8 @@ inline __device__ DeviceString dev_to_string(float x) {
     buf[rcursor++] = exponent > 0 ? '+' : '-';
     int exp_digits = 0;
     exponent = abs(exponent);
-    for (int tmp = exponent; tmp; tmp /= 10, exp_digits++)
-      ;
+    for (int tmp = exponent; tmp; tmp /= 10, exp_digits++) {}
+
     int ecursor = rcursor + exp_digits;
     for (int tmp = exponent; tmp; tmp /= 10, exp_digits++)
       buf[--ecursor] = '0' + tmp%10;
