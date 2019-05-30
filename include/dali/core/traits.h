@@ -33,6 +33,11 @@ struct is_std_array : std::false_type {};
 template <typename T, size_t A>
 struct is_std_array<std::array<T, A> > : std::true_type {};
 
+template <typename T>
+using remove_const_t = typename std::remove_const<T>::type;
+
+template <typename T>
+using remove_cv_t = typename std::remove_cv<T>::type;
 
 template <bool Value, typename Type = void>
 using enable_if_t = typename std::enable_if<Value, Type>::type;

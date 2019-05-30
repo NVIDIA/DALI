@@ -164,6 +164,18 @@ void Check(
 }
 
 
+template<typename Backend1, typename Backend2, typename T1, typename T2, int dim1, int dim2>
+void Check(const TensorView <Backend1, T1, dim1> &t1, const TensorView <Backend2, T2, dim2> &t2) {
+    static_assert(is_cpu_accessible<Backend1>::value,
+            "This function is applicable only for CPU accessible backends");
+    static_assert(is_cpu_accessible<Backend2>::value,
+            "This function is applicable only for CPU accessible backends");
+    auto t1cpu = make_tensor_cpu(t1.data, t1.shape);
+    auto t2cpu = make_tensor_cpu(t2.data, t2.shape);
+    Check(t1cpu, t2cpu);
+}
+
+
 // FILLING
 
 template <typename Collection, typename Generator>
