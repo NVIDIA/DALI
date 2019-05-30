@@ -23,6 +23,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
@@ -83,6 +84,23 @@ class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputT
    */
   template <typename Backend>
   DLL_PUBLIC Tensor<Backend>& Output(int idx, int data_idx);
+
+
+  DLL_PUBLIC inline void SetThreadPool(ThreadPool *pool) {
+    thread_pool_ = pool;
+  }
+
+  DLL_PUBLIC inline bool HasThreadPool() const {
+    return thread_pool_ != nullptr;
+  }
+
+  DLL_PUBLIC inline ThreadPool &GetThreadPool() const {
+    DALI_ENFORCE(HasThreadPool(), "Workspace does not have a Thread Pool.");
+    return *thread_pool_;
+  }
+
+ private:
+  ThreadPool* thread_pool_ = nullptr;
 };
 
 }  // namespace dali
