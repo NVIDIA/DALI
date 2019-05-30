@@ -68,6 +68,7 @@ class NormalizePermute : public Operator<Backend> {
   vector<Dims> output_shape_;
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 };
 
 }  // namespace dali

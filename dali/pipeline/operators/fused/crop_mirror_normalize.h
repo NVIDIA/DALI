@@ -133,6 +133,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr  {
   std::vector<std::pair<int, int>> per_sample_dimensions_;
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 };
 
 }  // namespace dali

@@ -111,6 +111,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   USE_OPERATOR_MEMBERS();
+  using Operator<CPUBackend>::RunImpl;
 
  private:
   // TODO(klecki) We could probably interpolate with something other than float,

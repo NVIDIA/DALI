@@ -34,6 +34,7 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
 
  protected:
   void RunImpl(SampleWorkspace *ws, const int idx) override;
+  using Operator<CPUBackend>::RunImpl;
 
  private:
   /**
