@@ -27,11 +27,11 @@
 #include <utility>
 
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
-#include "dali/util/cucontext.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/reader/nvdecoder/imgproc.h"
 #include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 
@@ -46,7 +46,7 @@ NvDecoder::NvDecoder(int device_id,
                      bool normalized)
     : device_id_(device_id), stream_(device_id, false, 0), codecpar_(codecpar),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
-      device_(), context_(), parser_(), decoder_(),
+      device_(), parser_(), decoder_(),
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
@@ -65,11 +65,7 @@ NvDecoder::NvDecoder(int device_id,
   char device_name[100];
   CUDA_CALL(cuDeviceGetName(device_name, 100, device_));
   LOG_LINE << "Using device: " << device_name << std::endl;
-
-  context_ = CUContext(device_);
-  if (!context_.initialized()) {
-    DALI_FAIL("Problem initializing context, not initializing VideoDecoder");
-  }
+  DeviceGuard g(device_id_);
 
   auto codec = Codec::H264;
   switch (codecpar->codec_id) {
@@ -104,7 +100,7 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt) {
 
   CUVIDSOURCEDATAPACKET cupkt = {0};
 
-  context_.push();
+  DeviceGuard g(device_id_);
 
   if (avpkt && avpkt->size) {
       cupkt.payload_size = avpkt->size;
@@ -343,7 +339,7 @@ void NvDecoder::push_req(FrameReq req) {
 void NvDecoder::receive_frames(SequenceWrapper& sequence) {
   LOG_LINE << "Sequence pushed with " << sequence.count << " frames" << std::endl;
 
-  context_.push();
+  DeviceGuard g(device_id_);
   for (int i = 0; i < sequence.count; ++i) {
       LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
                << frame_queue_.size() << " reqs left"

@@ -171,7 +171,7 @@ class BoundingBox {
   }
 
  private:
-  static void CheckBounds(float value, float lower, float upper, string name) {
+  static void CheckBounds(float value, float lower, float upper, const string &name) {
     DALI_ENFORCE(
       value >= lower && value <= upper,
       "Expected " + to_string(lower) + " <= " + name + " <= " + to_string(upper) +

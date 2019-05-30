@@ -44,7 +44,7 @@ void OpSchema::CheckArgs(const OpSpec &spec) const {
   for (auto& arg_pair : required_arguments) {
     req_arguments_left.insert(arg_pair.first);
   }
-  for (std::string s : vec) {
+  for (const auto &s : vec) {
     DALI_ENFORCE(HasArgument(s) ||
         internal_arguments_.find(s) != internal_arguments_.end(),
         "Got an unexpected argument \"" + s + "\"");

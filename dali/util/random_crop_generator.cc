@@ -91,8 +91,8 @@ CropWindow RandomCropGenerator::GenerateCropWindowImpl(int H, int W) {
         crop.h = H;
       }
       float scale = std::min(1.0f, max_area / (crop.w * crop.h));
-      crop.w = std::max<int>(1, crop.w * sqrt(scale));
-      crop.h = std::max<int>(1, crop.h * sqrt(scale));
+      crop.w = std::max<int>(1, crop.w * std::sqrt(scale));
+      crop.h = std::max<int>(1, crop.h * std::sqrt(scale));
     }
   }
 

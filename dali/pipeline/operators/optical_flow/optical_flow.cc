@@ -67,7 +67,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     // Extract calculation params
     ExtractParams(input, hints);
 
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws->stream());
 
     std::vector<Dims> new_sizes;
     auto out_shape = optical_flow_->GetOutputShape();
@@ -109,7 +109,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     // Extract calculation params
     ExtractParams(input);
 
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, ws->stream());
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws->stream());
 
     std::vector<Dims> new_sizes;
     auto out_shape = optical_flow_->GetOutputShape();

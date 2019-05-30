@@ -27,6 +27,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/core/util.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 
@@ -234,6 +235,8 @@ class Buffer {
     // re-allocating: get the device
     if (std::is_same<Backend, GPUBackend>::value) {
       CUDA_CALL(cudaGetDevice(&device_));
+    } else {
+      device_ = -1;
     }
 
     data_.reset();
@@ -261,19 +264,9 @@ class Buffer {
 
  protected:
   static void FreeMemory(void *ptr, size_t bytes, int device, bool pinned) {
-    // change to correct device for deletion
-    // Note: Can't use device guard due to potentially not GPUBackend.
-    int current_device = 0;
-    if (std::is_same<Backend, GPUBackend>::value) {
-      CUDA_CALL(cudaGetDevice(&current_device));
-      CUDA_CALL(cudaSetDevice(device));
-    }
+    // for device == -1 it is noop
+    DeviceGuard g(device);
     Backend::Delete(ptr, bytes, pinned);
-
-    // reset to original calling device for consistency
-    if (std::is_same<Backend, GPUBackend>::value) {
-      CUDA_CALL(cudaSetDevice(current_device));
-    }
   }
 
   // Helper to resize the underlying allocation

@@ -234,7 +234,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Set name output_names of the pipeline. Used to update the graph without
    * running the executor.
    */
-  void SetOutputNames(vector<std::pair<string, string>> output_names);
+  void SetOutputNames(const vector<std::pair<string, string>> &output_names);
 
   /**
    * @brief Run the cpu portion of the pipeline.
@@ -288,7 +288,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Save graph in DOT direct graph format
    * in filename.
    */
-  DLL_PUBLIC void SaveGraphToDotFile(const std::string filename);
+  DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename);
 
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
@@ -324,48 +324,7 @@ class DLL_PUBLIC Pipeline {
   void Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
             bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
             bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
-            QueueSizes prefetch_queue_depth = QueueSizes{2}) {
-    // guard cudaDeviceGetStreamPriorityRange call
-    DeviceGuard g(device_id);
-    this->batch_size_ = batch_size;
-    this->num_threads_ = num_threads;
-    this->device_id_ = device_id;
-    this->original_seed_ = seed;
-    this->pipelined_execution_ = pipelined_execution;
-    this->separated_execution_ = separated_execution;
-    this->async_execution_ = async_execution;
-    this->bytes_per_sample_hint_ = bytes_per_sample_hint;
-    this->set_affinity_ = set_affinity;
-    this->max_num_stream_ = max_num_stream;
-    this->default_cuda_stream_priority_ = default_cuda_stream_priority;
-    this->prefetch_queue_depth_ = prefetch_queue_depth;
-    DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0");
-
-    int lowest_cuda_stream_priority, highest_cuda_stream_priority;
-    CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
-                                               &highest_cuda_stream_priority));
-    const auto min_priority_value =
-        std::min(lowest_cuda_stream_priority, highest_cuda_stream_priority);
-    const auto max_priority_value =
-        std::max(lowest_cuda_stream_priority, highest_cuda_stream_priority);
-    DALI_ENFORCE(
-        default_cuda_stream_priority >= min_priority_value &&
-        default_cuda_stream_priority <= max_priority_value,
-        "Provided default cuda stream priority `" + std::to_string(default_cuda_stream_priority) +
-        "` is outside the priority range [" + std::to_string(min_priority_value) + ", " +
-        std::to_string(max_priority_value) + "], with lowest priority being `" +
-        std::to_string(lowest_cuda_stream_priority) + "` and highest priority being `" +
-        std::to_string(highest_cuda_stream_priority) + "`");
-
-    seed_.resize(MAX_SEEDS);
-    current_seed_ = 0;
-    if (seed < 0) {
-      using Clock = std::chrono::high_resolution_clock;
-      seed = Clock::now().time_since_epoch().count();
-    }
-    std::seed_seq ss{seed};
-    ss.generate(seed_.begin(), seed_.end());
-  }
+            QueueSizes prefetch_queue_depth = QueueSizes{2});
 
   using EdgeMeta = struct {
     bool has_cpu, has_gpu, has_contiguous, is_support;
@@ -384,7 +343,7 @@ class DLL_PUBLIC Pipeline {
 
   void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);
 
-  inline EdgeMeta NewEdge(string device) {
+  inline EdgeMeta NewEdge(const std::string &device) {
     EdgeMeta edge;
     edge.has_cpu = false;
     edge.has_gpu = false;

@@ -104,7 +104,7 @@ class DLL_PUBLIC OpSchema {
    * does not need to be added to the schema
    */
   DLL_PUBLIC inline OpSchema& OutputFn(SpecFunc f) {
-    output_fn_ = f;
+    output_fn_ = std::move(f);
     return *this;
   }
 
@@ -120,7 +120,7 @@ class DLL_PUBLIC OpSchema {
    * numbers used within operators) to the user
    */
   DLL_PUBLIC inline OpSchema& AdditionalOutputsFn(SpecFunc f) {
-    additional_outputs_fn_ = f;
+    additional_outputs_fn_ = std::move(f);
     return *this;
   }
 
@@ -250,6 +250,7 @@ class DLL_PUBLIC OpSchema {
    * be executed in-place depending on the ops specification.
    */
   DLL_PUBLIC inline OpSchema& InPlaceFn(SpecFunc f) {
+    (void)f;
     REPORT_FATAL_PROBLEM("In-place op support not yet implemented.");
     return *this;
   }

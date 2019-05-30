@@ -18,7 +18,7 @@
 #include <cuda_runtime.h>
 #include <memory>
 #include <string>
-#include "dali/util/cucontext.h"
+#include "dali/core/dynlink_cuda.h"
 #include "dali/util/custream.h"
 #include "nvOpticalFlowCuda.h"
 #include "nvOpticalFlowCommon.h"
@@ -110,7 +110,7 @@ inline __host__ __device__ int16_t encode_flow_component(float value) {
 class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeGPU> {
  public:
   OpticalFlowTuring(OpticalFlowParams params, size_t width, size_t height, size_t channels,
-                    DALIImageType image_type, cudaStream_t stream = 0);
+                    DALIImageType image_type, int device_id_, cudaStream_t stream = 0);
 
 
   virtual ~OpticalFlowTuring();
@@ -148,8 +148,8 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
   const std::string kInitSymbol = "NvOFAPICreateInstanceCuda";
 
   const size_t width_, height_, channels_;
-  CUdevice device_;
-  dali::CUContext context_;
+  int device_id_;
+  CUcontext context_;
   cudaStream_t stream_;
   NvOFHandle of_handle_;
   NV_OF_CUDA_API_FUNCTION_LIST turing_of_;

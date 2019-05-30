@@ -31,7 +31,6 @@ extern "C" {
 #include <utility>
 #include <vector>
 
-#include "dali/util/cucontext.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/pipeline/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/pipeline/operators/reader/nvdecoder/cuvideoparser.h"
@@ -171,7 +170,6 @@ class NvDecoder {
   bool normalized_;
 
   CUdevice device_;
-  CUContext context_;
   CUVideoParser parser_;
   CUVideoDecoder decoder_;
 

@@ -34,7 +34,7 @@ static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
                                               ".bmp", ".tif",  ".tiff",
                                               ".pnm", ".ppm", ".pgm", ".pbm"};
 
-DLL_PUBLIC bool HasKnownImageExtension(std::string image_path);
+DLL_PUBLIC bool HasKnownImageExtension(const std::string &image_path);
 
 class Image {
  public:
