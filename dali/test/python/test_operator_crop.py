@@ -173,3 +173,53 @@ def test_crop_NHWC_vs_python_op_crop():
             compare_pipelines(CropSequencePipeline(device, batch_size, types.NHWC, iter(eii1)),
                               CropSequencePythonOpPipeline(crop_NHWC_func, batch_size, types.NHWC, iter(eii2)),
                               batch_size=batch_size, N_iterations=10)
+
+class CropCastPipeline(Pipeline):
+    def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1, should_perform_cast=False):
+        super(CropCastPipeline, self).__init__(batch_size,
+                                               num_threads,
+                                               device_id)
+        self.should_perform_cast = should_perform_cast
+        self.device = device
+        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.decode = ops.HostDecoder(device = "cpu",
+                                      output_type = types.RGB)
+
+        if self.should_perform_cast:
+            self.crop = ops.Crop(device = self.device,
+                                crop = (224, 224),
+                                crop_pos_x = 0.3,
+                                crop_pos_y = 0.2,
+                                image_type = types.RGB,
+                                output_dtype = types.FLOAT)
+            self.crop2 = ops.Crop(device = self.device,
+                                  crop = (224, 224),
+                                  crop_pos_x = 0.0,
+                                  crop_pos_y = 0.0,
+                                  image_type = types.RGB,
+                                  output_dtype = types.UINT8)
+        else:
+            self.crop = ops.Crop(device = self.device,
+                    crop = (224, 224),
+                    crop_pos_x = 0.3,
+                    crop_pos_y = 0.2,
+                    image_type = types.RGB)
+
+    def define_graph(self):
+        inputs, labels = self.input(name="Reader")
+        images = self.decode(inputs)
+        if self.device == 'gpu':
+            images = images.gpu()
+        if self.should_perform_cast:
+            images_float = self.crop(images)
+            images = self.crop2(images_float)
+        else:
+            images = self.crop(images)
+        return images
+
+def test_crop_no_cast_vs_cast_to_float_and_back():
+    for device in {'cpu', 'gpu'}:
+        for batch_size in {1, 4}:
+            compare_pipelines(CropCastPipeline(device, batch_size, should_perform_cast=False),
+                              CropCastPipeline(device, batch_size, should_perform_cast=True),
+                              batch_size=batch_size, N_iterations=10)

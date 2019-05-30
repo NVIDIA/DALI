@@ -42,10 +42,7 @@ class Slice : public SliceBase<Backend> {
   void SetupSharedSampleParams(Workspace<Backend> *ws) override {
     DALI_ENFORCE(ws->NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws->NumInput()));
-    input_type_ = ws->template Input<Backend>(0).type().id();
-    if (output_type_ == DALI_NO_TYPE) {
-      output_type_ = input_type_;
-    }
+    SliceBase<Backend>::SetupSharedSampleParams(ws);
   }
 
   void DataDependentSetup(Workspace<Backend> *ws, int idx) override;

@@ -33,11 +33,19 @@ class SliceBase : public Operator<Backend> {
   explicit inline SliceBase(const OpSpec &spec)
     : Operator<Backend>(spec)
     , slice_anchors_(batch_size_)
-    , slice_shapes_(batch_size_) {
+    , slice_shapes_(batch_size_)
+    , output_type_(spec.GetArgument<DALIDataType>("output_dtype")) {
   }
 
  protected:
   void RunImpl(Workspace<Backend> *ws, int idx) override;
+
+  void SetupSharedSampleParams(Workspace<Backend> *ws) override {
+    const auto &input = ws->template Input<Backend>(0);
+    input_type_ = input.type().id();
+    if (output_type_ == DALI_NO_TYPE)
+      output_type_ = input_type_;
+  }
 
   virtual void DataDependentSetup(Workspace<Backend> *ws, int idx) = 0;
 

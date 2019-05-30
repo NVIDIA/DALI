@@ -22,15 +22,6 @@
 namespace dali {
 
 template <>
-void Crop<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
-  CropAttr::ProcessArguments(ws);
-  const auto &input = ws->Input<GPUBackend>(0);
-  input_type_ = input.type().id();
-  if (output_type_ == DALI_NO_TYPE)
-    output_type_ = input_type_;
-}
-
-template <>
 void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
 
@@ -45,11 +36,6 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   }
   auto &output = ws->Output<GPUBackend>(idx);
   output.SetLayout(out_layout);
-}
-
-template <>
-void Crop<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  SliceBase<GPUBackend>::RunImpl(ws, idx);
 }
 
 // Register operator

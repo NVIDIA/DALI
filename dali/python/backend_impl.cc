@@ -814,7 +814,6 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
     .def("AllowsSequences", &OpSchema::AllowsSequences)
-    .def("NeedsFlattening", &OpSchema::NeedsFlattening)
     .def("IsInternal", &OpSchema::IsInternal);
 
   ExposeTensor(m);

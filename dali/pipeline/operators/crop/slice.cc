@@ -27,15 +27,15 @@ DALI_SCHEMA(Slice)
  data. For compatibility with the previous implementation of Slice, `anchor` and
  `slice` can be specified in format (x, y) and (w, h) respectively for images.
  This way of specifying the slice arguments is deprecated and shall be removed in
- future versions of DALI.
- **Experimental** Use `Slice` instead)code")
+ future versions of DALI.)code")
     .NumInput(3)
     .NumOutput(1)
     .AllowSequences()
     .AddOptionalArg(
       "image_type",
       R"code(The color space of input and output image)code",
-      DALI_RGB, false);
+      DALI_RGB, false)
+    .AddParent("SliceBase");
 
 template <>
 void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, int idx) {

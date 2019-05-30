@@ -23,7 +23,7 @@
 namespace dali {
 
 DALI_SCHEMA(Crop)
-    .DocStr(R"code(Crops image with a given window dimensions and window position (upper left corner). **Experimental** Use `Crop` instead)code")
+    .DocStr(R"code(Crops image with a given window dimensions and window position (upper left corner).)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
@@ -32,16 +32,8 @@ DALI_SCHEMA(Crop)
         "image_type",
         R"code(The color space of input and output image)code",
         DALI_RGB, false)
-    .AddParent("CropAttr");
-
-template <>
-void Crop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
-  CropAttr::ProcessArguments(ws);
-  const auto &input = ws->Input<CPUBackend>(0);
-  input_type_ = input.type().id();
-  if (output_type_ == DALI_NO_TYPE)
-    output_type_ = input_type_;
-}
+    .AddParent("CropAttr")
+    .AddParent("SliceBase");
 
 template <>
 void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
@@ -59,11 +51,6 @@ void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
 
   auto &output = ws->Output<CPUBackend>(idx);
   output.SetLayout(out_layout);
-}
-
-template <>
-void Crop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  SliceBase<CPUBackend>::RunImpl(ws, idx);
 }
 
 // Register operator
