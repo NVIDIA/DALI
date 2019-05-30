@@ -21,18 +21,6 @@ RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 RUN pip install future numpy setuptools wheel && \
     rm -rf /root/.cache/pip/
 
-RUN if [ ${PYV} != "37" ] ; then \
-        pip install tensorflow-gpu==1.7                                && \
-        pip install tensorflow-gpu==1.11   --target /tensorflow/1_11   && \
-        pip install tensorflow-gpu==1.12   --target /tensorflow/1_12   && \
-        pip install tensorflow-gpu==1.13.1 --target /tensorflow/1_13   && \
-        pip install tensorflow-gpu         --target /tensorflow/latest;   \
-    else                                                                  \
-        # Older versions not supported on python 3.7
-        pip install tensorflow-gpu; \
-    fi && \
-    rm -rf /root/.cache/pip/
-
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     ldconfig
 
@@ -49,29 +37,29 @@ ARG DALI_TIMESTAMP
 
 # Optional build arguments
 
-ARG CMAKE_BUILD_TYPE=Release
+ARG CMAKE_BUILD_TYPE
 ENV CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-ARG BUILD_TEST=ON
+ARG BUILD_TEST
 ENV BUILD_TEST=${BUILD_TEST}
-ARG BUILD_BENCHMARK=ON
+ARG BUILD_BENCHMARK
 ENV BUILD_BENCHMARK=${BUILD_BENCHMARK}
-ARG BUILD_NVTX=OFF
+ARG BUILD_NVTX
 ENV BUILD_NVTX=${BUILD_NVTX}
-ARG BUILD_PYTHON=ON
+ARG BUILD_PYTHON
 ENV BUILD_PYTHON=${BUILD_PYTHON}
-ARG BUILD_LMDB=ON
+ARG BUILD_LMDB
 ENV BUILD_LMDB=${BUILD_LMDB}
-ARG BUILD_TENSORFLOW=ON
+ARG BUILD_TENSORFLOW
 ENV BUILD_TENSORFLOW=${BUILD_TENSORFLOW}
-ARG BUILD_JPEG_TURBO=ON
+ARG BUILD_JPEG_TURBO
 ENV BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}
-ARG BUILD_NVJPEG=ON
+ARG BUILD_NVJPEG
 ENV BUILD_NVJPEG=${BUILD_NVJPEG}
-ARG BUILD_NVOF=ON
+ARG BUILD_NVOF
 ENV BUILD_NVOF=${BUILD_NVOF}
-ARG BUILD_NVDEC=ON
+ARG BUILD_NVDEC
 ENV BUILD_NVDEC=${BUILD_NVDEC}
-ARG BUILD_NVML=ON
+ARG BUILD_NVML
 ENV BUILD_NVML=${BUILD_NVML}
 
 ARG NVIDIA_BUILD_ID
