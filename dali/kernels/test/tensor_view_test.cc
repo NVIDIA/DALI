@@ -74,8 +74,9 @@ TEST(TensorViewTest, Addressing) {
 }
 
 TEST(TensorViewTest, TypePromotion) {
-  TensorView<EmptyBackendTag, int, 3> tv{nullptr, {1, 2, 3}};
-  TensorView<EmptyBackendTag, const int, 3> tvc = tv;
+  int junk_data = 0;
+  TensorView<EmptyBackendTag, int, 10> tv{&junk_data, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}};
+  TensorView<EmptyBackendTag, const int, 10> tvc = tv;
   EXPECT_EQ(tvc.shape, tv.shape);
   EXPECT_EQ(tvc.data, tv.data);
   tvc = {};

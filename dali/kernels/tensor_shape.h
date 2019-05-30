@@ -159,13 +159,17 @@ struct TensorShapeBase {
   DALI_HOST_DEV TensorShapeBase(Container &&c) : shape(cuda_move(c)) {}  // NOLINT
 };
 
+using DynamicTensorShapeContainer = SmallVector<int64_t, 6>;
+
 /// @brief Dynamic TensorShape can be constructed from any Static TensorShape
 template <>
 struct TensorShape<DynamicDimensions>
-    : public TensorShapeBase<std::vector<int64_t>, DynamicDimensions> {
-  using Base = TensorShapeBase<std::vector<int64_t>, DynamicDimensions>;
+    : public TensorShapeBase<DynamicTensorShapeContainer, DynamicDimensions> {
+  using Base = TensorShapeBase<DynamicTensorShapeContainer, DynamicDimensions>;
 
-  TensorShape(const std::vector<int64_t> &s) : Base(s) {}  // NOLINT
+  TensorShape(const std::vector<int64_t> &s)  // NOLINT
+  : Base(DynamicTensorShapeContainer(s.data(), s.size())) {}
+  TensorShape(const DynamicTensorShapeContainer &s) : Base(s) {}  // NOLINT
 
   template <size_t N>
   TensorShape(const std::array<int64_t, N> &s)  // NOLINT
