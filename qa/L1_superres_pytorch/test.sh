@@ -35,6 +35,7 @@ cp ../video_files/* $DATA_DIR/train/
 cp ../video_files/* $DATA_DIR/val/
 
 # Pre-trained FlowNet2.0 weights
+# publicly available on https://drive.google.com/file/d/1QW03eyYG_vD-dT-Mx4wopYvtPu_msTKn/view
 FLOWNET_PATH=/data/dali/pretrained_models/FlowNet2-SD_checkpoint.pth.tar
 
 git clone https://github.com/NVIDIA/flownet2-pytorch.git
