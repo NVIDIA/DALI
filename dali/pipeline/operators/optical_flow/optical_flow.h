@@ -120,11 +120,11 @@ class OpticalFlow : public Operator<Backend> {
 
     for (const auto &seq : shape) {
       DALI_ENFORCE(seq[1] != frames_height_ || seq[2] != frames_width_ || seq[3] != depth_,
-              "Width, height and depth must be equal for all sequences.");
+              "Width, height and depth for Optical Flow calculation must be equal for all sequences.");
     }
 
     for (auto sz : sequence_sizes_) {
-      DALI_ENFORCE(sz < 2, "Number of frames in every sequence must be greater or equal to 2.");
+      DALI_ENFORCE(sz < 2, "Optical Flow operator error: Number of frames in every sequence must be greater or equal to 2.");
     }
   }
 
