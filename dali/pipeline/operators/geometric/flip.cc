@@ -18,6 +18,7 @@
 #include "dali/kernels/kernel_params.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/util/ocv.h"
+#include "dali/pipeline/operators/geometric/flip_util.h"
 
 namespace dali {
 
@@ -34,14 +35,6 @@ template <>
 Flip<CPUBackend>::Flip(const OpSpec &spec)
     : Operator<CPUBackend>(spec) {}
 
-kernels::TensorShape<4> TransformShape(const std::vector<int64> &shape, bool nhwc_layout) {
-  if (nhwc_layout) {
-    return kernels::TensorShape<4>(std::array<int64, 4>{1, shape[0], shape[1], shape[2]});
-  } else {
-    return kernels::TensorShape<4>(std::array<int64, 4>{shape[0], shape[1], shape[2], 1});
-  }
-}
-
 void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
     bool horizontal, bool vertical) {
   DALI_TYPE_SWITCH(
@@ -50,7 +43,7 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
       auto input_ptr = input.data<DType>();
       auto kernel = kernels::FlipCPU<DType>();
       kernels::KernelContext ctx;
-      auto shape = TransformShape(input.shape(), input.GetLayout() == DALI_NHWC);
+      auto shape = TransformShapes({input.shape()}, input.GetLayout() == DALI_NHWC)[0];
       auto in_view = kernels::InTensorCPU<DType, 4>(input_ptr, shape);
       auto reqs = kernel.Setup(ctx, in_view);
       auto out_shape = reqs.output_shapes[0][0].to_static<4>();

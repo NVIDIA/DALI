@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <string>
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operators/operator.h"
 

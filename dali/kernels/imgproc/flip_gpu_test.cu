@@ -24,7 +24,7 @@
 namespace dali {
 namespace kernels {
 
-class FlipGpuTest: public testing::TestWithParam<std::array<int64, 4>> {
+class FlipGpuTest: public testing::TestWithParam<std::array<Index, 4>> {
  public:
   FlipGpuTest()
   : tensor_shape(GetParam())
@@ -40,9 +40,9 @@ class FlipGpuTest: public testing::TestWithParam<std::array<int64, 4>> {
   }
 
  protected:
-  std::vector<int32> flip_x{0, 0, 1, 1, 0, 0, 1, 1};
-  std::vector<int32> flip_y{0, 1, 0, 1, 0, 1, 0, 1};
-  std::vector<int32> flip_z{0, 0, 0, 0, 1, 1, 1, 1};
+  std::vector<int> flip_x{0, 0, 1, 1, 0, 0, 1, 1};
+  std::vector<int> flip_y{0, 1, 0, 1, 0, 1, 0, 1};
+  std::vector<int> flip_z{0, 0, 0, 0, 1, 1, 1, 1};
   TensorShape<4> tensor_shape;
   size_t _volume;
   TensorListShape<4> shape;
@@ -72,10 +72,10 @@ TEST_P(FlipGpuTest, BasicTest) {
 
 INSTANTIATE_TEST_SUITE_P(FlipGpuTest, FlipGpuTest,
     ::testing::ValuesIn({
-        std::array<int64, 4>{1, 2, 2, 10},
-        std::array<int64, 4>{1, 2, 2, 2},
-        std::array<int64, 4>{4, 9, 18, 3},
-        std::array<int64, 4>{3, 18, 9, 4}}));
+        std::array<Index, 4>{1, 2, 2, 10},
+        std::array<Index, 4>{1, 2, 2, 2},
+        std::array<Index, 4>{4, 9, 18, 3},
+        std::array<Index, 4>{3, 18, 9, 4}}));
 
 }  // namespace kernels
 }  // namespace dali

@@ -26,7 +26,7 @@ namespace dali {
 namespace kernels {
 
 class FlipCpuTest
-    : public ::testing::TestWithParam<std::tuple<int32, int32, int32, std::array<int64, 4>>> {
+    : public ::testing::TestWithParam<std::tuple<int, int, int, std::array<Index, 4>>> {
  public:
   FlipCpuTest()
   : flip_x(std::get<0>(GetParam()))
@@ -44,9 +44,9 @@ class FlipCpuTest
     UniformRandomFill(in_view, rng, 0., 10.);
   }
 
-  int32 flip_x;
-  int32 flip_y;
-  int32 flip_z;
+  int flip_x;
+  int flip_y;
+  int flip_z;
   kernels::TensorShape<4> shape;
   std::vector<float> data;
   OutTensorCPU<float, 4> in_view;
@@ -68,7 +68,7 @@ INSTANTIATE_TEST_SUITE_P(FlipCpuTest, FlipCpuTest, testing::Combine(
     testing::Values(0, 1),
     testing::Values(0, 1),
     testing::Values(0, 1),
-    testing::Values(std::array<int64, 4>{8, 9, 9, 3}, std::array<int64, 4>{3, 18, 18, 2})));
+    testing::Values(std::array<Index, 4>{8, 9, 9, 3}, std::array<Index, 4>{3, 18, 18, 2})));
 
 }  // namespace kernels
 }  // namespace dali

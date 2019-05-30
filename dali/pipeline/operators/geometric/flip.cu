@@ -16,25 +16,12 @@
 #include <cuda_runtime_api.h>
 #include <vector>
 #include "dali/kernels/imgproc/flip_gpu.cuh"
+#include "dali/pipeline/operators/geometric/flip_util.h"
 
 namespace dali {
 
 template <>
 Flip<GPUBackend>::Flip(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
-
-kernels::TensorListShape<4> TransformShapes(const std::vector<std::vector<int64>> &shapes,
-    bool nhwc_layout) {
-  std::vector<kernels::TensorShape<4>> result(shapes.size());
-  std::transform(shapes.begin(), shapes.end(), result.begin(),
-      [nhwc_layout](const std::vector<int64> &shape) {
-    if (nhwc_layout) {
-      return kernels::TensorShape<4>(std::array<int64, 4>{1, shape[0], shape[1], shape[2]});
-    } else {
-      return kernels::TensorShape<4>(std::array<int64, 4>{shape[0], shape[1], shape[2], 1});
-    }
-  });
-  return kernels::TensorListShape<4>(result);
-}
 
 void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &input,
     const std::vector<int32> &horizontal, const std::vector<int32> &vertical, cudaStream_t stream) {
