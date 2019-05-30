@@ -12,6 +12,9 @@ test_body() {
     nosetests --verbose test_pipeline.py
     nosetests --verbose test_decoders.py
     nosetests --verbose test_python_function_operator.py
+    for test_script in $(ls test_operator_*.py); do
+        nosetests --verbose ${test_script}
+    done
 
     python test_detection_pipeline.py -i 300
     python test_RN50_data_pipeline.py -i 10
