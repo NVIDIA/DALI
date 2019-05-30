@@ -124,7 +124,8 @@ class OpticalFlow : public Operator<Backend> {
     }
 
     for (auto sz : sequence_sizes_) {
-      DALI_ENFORCE(sz < 2, "Optical Flow operator error: Number of frames in every sequence must be greater or equal to 2.");
+      DALI_ENFORCE(sz < 2, 
+        "Optical Flow operator error: Number of frames in every sequence must be greater or equal to 2.");
     }
   }
 
