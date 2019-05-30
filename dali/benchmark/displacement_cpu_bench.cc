@@ -79,31 +79,38 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
 
   // The inputs and outputs to CPUBackend are: shared_ptr<Tensor<CPUBackend>>;
   // create input and output, initialize input
-  shared_ptr<Tensor<CPUBackend>> tensor_in(new Tensor<CPUBackend>());
-  shared_ptr<Tensor<CPUBackend>> tensor_out(new Tensor<CPUBackend>());
+  std::vector<std::shared_ptr<Tensor<CPUBackend>>> tensor_in;
+  std::vector<std::shared_ptr<Tensor<CPUBackend>>> tensor_out;
+  tensor_in.emplace_back(new Tensor<CPUBackend>());
+  tensor_out.emplace_back(new Tensor<CPUBackend>());
   // If we want to specify input, we can share data
   // tensor_in->ShareData(img, N * sizeof(T));
   // Here we let underlying buffer allocate it by itself. We have to specify size and type
-  tensor_in->set_type(TypeInfo::Create<T>());
-  tensor_in->Resize({W, H, C});
+  tensor_in[0]->set_type(TypeInfo::Create<T>());
+  tensor_in[0]->Resize({W, H, C});
   // tensor out is resized by operator itself in DisplacementFilter::DataDependentSetup()
 
   // TODO(klecki) Accomodate to use different inputs from test data
-  auto *ptr = tensor_in->mutable_data<T>();
+  auto *ptr = tensor_in[0]->mutable_data<T>();
   for (int i = 0; i < N; i++) {
     ptr[i] = i;
   }
 
+  // We need a thread pool
+  ThreadPool tp(4, 0, false);
+
   // Create workspace and set input and output
-  SampleWorkspace s_ws;
-  s_ws.AddInput(tensor_in);
-  s_ws.AddOutput(tensor_out);
+  HostWorkspace ws;
+  ws.AddInput(tensor_in);
+  ws.AddOutput(tensor_out);
+
+  ws.SetThreadPool(&tp);
 
   // Run once so output is allocated
-  df.Run(&s_ws);
+  df.Run(&ws);
 
   for (auto _ : st) {
-    df.Run(&s_ws);
+    df.Run(&ws);
   }
 }
 

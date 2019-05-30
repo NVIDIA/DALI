@@ -73,11 +73,17 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     }
   }
 
-  virtual ~nvJPEGDecoderCPUStage() noexcept(false) {
-    NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
-    NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
-    NVJPEG_CALL(nvjpegDestroy(handle_));
-    PinnedAllocator::FreeBuffers();
+  virtual ~nvJPEGDecoderCPUStage() {
+    try {
+      NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
+      NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
+      NVJPEG_CALL(nvjpegDestroy(handle_));
+      PinnedAllocator::FreeBuffers();
+    } catch (const std::exception &e) {
+      // If destroying nvJPEG resources failed we are leaking something so terminate
+      std::cerr << "Fatal error: exception in ~nvJPEGDecoderCPUStage():\n" << e.what() << std::endl;
+      std::terminate();
+    }
   }
 
   void RunImpl(SampleWorkspace *ws, const int idx) {

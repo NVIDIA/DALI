@@ -104,7 +104,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CUDA_CALL(cudaEventCreate(&master_event_));
   }
 
-  ~nvJPEGDecoder() noexcept(false) override {
+  ~nvJPEGDecoder() override {
     try {
       thread_pool_.WaitForWork();
     } catch (...) {

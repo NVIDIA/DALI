@@ -315,30 +315,22 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
     return;
   }
 
-  // Run the cpu-ops in the thread pool
-  for (int i = 0; i < batch_size_; ++i) {
-    thread_pool_.DoWorkWithID(std::bind(
-          [this, cpu_idxs] (int data_idx, int tid) {
-          TimeRange tr("[Executor] RunCPU on " + to_string(data_idx));
-          SampleWorkspace ws;
-          for (int j = 0; j < graph_->NumOp(OpType::CPU); ++j) {
-            OpNode &op_node = graph_->Node(OpType::CPU, j);
-            OperatorBase &op = *op_node.op;
-            WorkspacePolicy::template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, op_node)
-                .GetSample(&ws, data_idx, tid);
-            TimeRange tr("[Executor] Run CPU op " + op_node.instance_name
-                + " on " + to_string(data_idx),
-                TimeRange::kBlue1);
-            op.Run(&ws);
-          }
-          }, i, std::placeholders::_1));
-  }
-  try {
-    thread_pool_.WaitForWork();
-  } catch (std::exception &e) {
-    HandleError(e.what());
-  } catch (...) {
-    HandleError();
+  // Run the cpu-ops in the thread
+  // Process each CPU Op in batch
+  for (int cpu_op_id = 0; cpu_op_id < graph_->NumOp(OpType::CPU); ++cpu_op_id) {
+    OpNode *op_node = &graph_->Node(OpType::CPU, cpu_op_id);
+    typename WorkspacePolicy::template ws_t<OpType::CPU> ws =
+        WorkspacePolicy::template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
+    TimeRange tr("[Executor] Run CPU op " + op_node->instance_name, TimeRange::kBlue1);
+    OperatorBase &op = *op_node->op;
+
+    try {
+      op.Run(&ws);
+    } catch (std::exception &e) {
+      HandleError(e.what());
+    } catch (...) {
+      HandleError();
+    }
   }
 
   // Pass the work to the mixed stage

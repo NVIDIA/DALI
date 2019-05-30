@@ -31,10 +31,10 @@ class nvJPEGDecoderCPUStageSlice : public nvJPEGDecoderCPUStage, public SliceAtt
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderCPUStageSlice);
 
  protected:
-  using OperatorBase::Run;
-  void Run(SampleWorkspace *ws) override {
+  using Operator<CPUBackend>::RunImpl;
+  void RunImpl(SampleWorkspace *ws, int idx) override {
     SliceAttr::ProcessArguments(ws);
-    nvJPEGDecoderCPUStage::Run(ws);
+    nvJPEGDecoderCPUStage::RunImpl(ws, idx);
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
