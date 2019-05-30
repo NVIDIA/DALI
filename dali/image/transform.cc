@@ -166,7 +166,7 @@ inline bool SupportsSequence(const std::string &opname) {
 }
 
 void CheckParam(const Tensor<CPUBackend> &input, const std::string &opName) {
-  const auto shape = input.shape();
+  const auto &shape = input.shape();
   if (SupportsSequence(opName)) {
     DALI_ENFORCE(shape.size() == 3 || shape.size() == 4);
   } else {

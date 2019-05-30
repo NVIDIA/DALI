@@ -50,7 +50,7 @@ class DLL_PUBLIC OpSpec {
    * @brief Returns a full tensor name
    * given its name and device
    */
-  DLL_PUBLIC static std::string TensorName(std::string name, std::string device) {
+  DLL_PUBLIC static std::string TensorName(const std::string &name, const std::string &device) {
     return name + "_" + device;
   }
 

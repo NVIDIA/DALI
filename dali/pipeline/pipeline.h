@@ -234,7 +234,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Set name output_names of the pipeline. Used to update the graph without
    * running the executor.
    */
-  void SetOutputNames(vector<std::pair<string, string>> output_names);
+  void SetOutputNames(const vector<std::pair<string, string>> &output_names);
 
   /**
    * @brief Run the cpu portion of the pipeline.
@@ -288,7 +288,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Save graph in DOT direct graph format
    * in filename.
    */
-  DLL_PUBLIC void SaveGraphToDotFile(const std::string filename);
+  DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename);
 
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
@@ -343,7 +343,7 @@ class DLL_PUBLIC Pipeline {
 
   void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);
 
-  inline EdgeMeta NewEdge(string device) {
+  inline EdgeMeta NewEdge(const std::string &device) {
     EdgeMeta edge;
     edge.has_cpu = false;
     edge.has_gpu = false;

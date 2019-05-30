@@ -56,11 +56,11 @@ enum DALIError_t {
 DLL_PUBLIC string DALIGetLastError();
 
 // Sets the error string. Used internally by DALI to pass error strings out to the user
-DLL_PUBLIC void DALISetLastError(string error_str);
+DLL_PUBLIC void DALISetLastError(const string &error_str);
 
 // Appends additional info to last error. Used internally by DALI to pass error
 // strings out to the user
-DLL_PUBLIC void DALIAppendToLastError(string error_str);
+DLL_PUBLIC void DALIAppendToLastError(const string &error_str);
 
 class DALIException : public std::runtime_error {
  public:
@@ -69,8 +69,8 @@ class DALIException : public std::runtime_error {
 
 inline string BuildErrorString(string statement, string file, int line) {
   string line_str = std::to_string(line);
-  string error = "[" + file + ":" + line_str +
-    "]: Assert on \"" + statement +
+  string error = "[" + std::move(file) + ":" + std::move(line_str) +
+    "]: Assert on \"" + std::move(statement) +
     "\" failed";
   return error;
 }

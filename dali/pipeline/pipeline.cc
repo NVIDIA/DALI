@@ -472,7 +472,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   built_ = true;
 }
 
-void Pipeline::SetOutputNames(vector<std::pair<string, string>> output_names) {
+void Pipeline::SetOutputNames(const vector<std::pair<string, string>> &output_names) {
   output_names_ = output_names;
 }
 
@@ -490,7 +490,7 @@ void Pipeline::RunGPU() {
 }
 
 void Pipeline::SetCompletionCallback(ExecutorBase::ExecutorCallback cb) {
-  executor_->SetCompletionCallback(cb);
+  executor_->SetCompletionCallback(std::move(cb));
 }
 
 void Pipeline::Outputs(DeviceWorkspace *ws) {
@@ -690,7 +690,7 @@ std::map<std::string, Index> Pipeline::EpochSize() {
   return ret;
 }
 
-void Pipeline::SaveGraphToDotFile(const std::string filename) {
+void Pipeline::SaveGraphToDotFile(const std::string &filename) {
   graph_.SaveToDotFile(filename);
 }
 

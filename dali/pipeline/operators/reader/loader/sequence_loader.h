@@ -58,7 +58,7 @@ using Stream = std::pair<std::string, std::vector<std::string>>;
  * @param file_root
  * @return std::vector<Stream> GatherExtractedStreams
  */
-std::vector<Stream> DLL_PUBLIC GatherExtractedStreams(string file_root);
+std::vector<Stream> DLL_PUBLIC GatherExtractedStreams(const string &file_root);
 
 }  // namespace filesystem
 

@@ -286,14 +286,14 @@ inline std::string to_string(const DALIDataType& dtype) {
  * @brief Utility to check types
  */
 template <typename T>
-DLL_PUBLIC inline bool IsType(TypeInfo type) {
+DLL_PUBLIC inline bool IsType(const TypeInfo &type) {
   return type.id() == TypeTable::GetTypeID<T>();
 }
 
 /**
  * @brief Utility to check for valid type
  */
-DLL_PUBLIC inline bool IsValidType(TypeInfo type) {
+DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
   return !IsType<NoType>(type);
 }
 

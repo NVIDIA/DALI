@@ -399,7 +399,7 @@ class Tensor : public Buffer<Backend> {
     return meta_.GetSourceInfo();
   }
 
-  inline void SetSourceInfo(string source_info) {
+  inline void SetSourceInfo(const string &source_info) {
     meta_.SetSourceInfo(source_info);
   }
 

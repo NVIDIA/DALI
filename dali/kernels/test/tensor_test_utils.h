@@ -259,7 +259,7 @@ void ConstantFill(
 }
 
 template <typename TensorListView>
-std::string BatchToStr(const TensorListView& batch, const std::string sample_prefix = "Sample ") {
+std::string BatchToStr(const TensorListView& batch, const std::string &sample_prefix = "Sample ") {
   std::stringstream ss;
   for (int i = 0; i < batch.num_samples(); i++) {
     ss << sample_prefix << i << ":";

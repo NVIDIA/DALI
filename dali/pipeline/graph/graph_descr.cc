@@ -96,7 +96,7 @@ StorageDevice ParseStorageDevice(const std::string &io_device) {
 
 }  // namespace
 
-OpNode& OpGraph::PlaceNewOp(OpType op_type, OpSpec op_spec, std::string instance_name) {
+OpNode& OpGraph::PlaceNewOp(OpType op_type, const OpSpec &op_spec, std::string instance_name) {
   op_nodes_.push_back(OpNode());
   auto &node = op_nodes_.back();
   node.id = op_nodes_.size() - 1;
