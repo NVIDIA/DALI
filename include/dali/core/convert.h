@@ -27,9 +27,13 @@ struct const_limits;
 
 // std::numeric_limits are not compatible with CUDA
 template <typename T>
-__host__ __device__ constexpr T max_value() { return const_limits<T>::max; }
+__host__ __device__ constexpr T max_value() {
+  return const_limits<typename std::remove_cv<T>::type>::max;
+}
 template <typename T>
-__host__ __device__ constexpr T min_value() { return const_limits<T>::min; }
+__host__ __device__ constexpr T min_value() {
+  return const_limits<typename std::remove_cv<T>::type>::min;
+}
 
 #define DEFINE_TYPE_RANGE(type, min_, max_) template <>\
 struct const_limits<type> { static constexpr type min = min_, max = max_; }
@@ -187,4 +191,3 @@ ConvertNorm(In value) {
 }  // namespace dali
 
 #endif  // DALI_CORE_CONVERT_H_
-

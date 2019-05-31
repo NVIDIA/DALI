@@ -28,7 +28,7 @@ class SliceGPUTest : public SliceTest<TestArgs> {
   static constexpr std::size_t Dims = TestArgs::Dims;
   static constexpr std::size_t NumSamples = TestArgs::NumSamples;
   static constexpr std::size_t DimSize = TestArgs::DimSize;
-  using SliceArgsGenerator = typename TestArgs::SliceArgsGenerator;
+  using ArgsGenerator = typename TestArgs::ArgsGenerator;
   using KernelType = SliceGPU<OutputType, InputType, Dims>;
 
   void Run() override {
@@ -37,7 +37,7 @@ class SliceGPUTest : public SliceTest<TestArgs> {
     TestTensorList<InputType, Dims> test_data;
     this->PrepareData(test_data);
 
-    auto slice_args = this->GenerateSliceArgs(test_data.cpu());
+    auto slice_args = this->GenerateArgs(test_data.cpu());
 
     KernelType kernel;
     KernelRequirements req = kernel.Setup(ctx, test_data.gpu(), slice_args);
