@@ -92,17 +92,18 @@ class Slice : public SliceBase<Backend> {
       anchor[i_w] = anchor_norm[0] * img_shape[i_w];
       anchor[i_h] = anchor_norm[1] * img_shape[i_h];
 
-      float slice_end_norm_h = anchor_norm[i_h] + slice_dims_norm[0];
+      float slice_end_norm_w = anchor_norm[0] + slice_dims_norm[0];
+      slice_shape[i_w] = slice_end_norm_w * img_shape[i_w] - anchor[i_w];
+
+      float slice_end_norm_h = anchor_norm[1] + slice_dims_norm[1];
       slice_shape[i_h] = slice_end_norm_h * img_shape[i_h] - anchor[i_h];
 
-      float slice_end_norm_w = anchor_norm[i_w] + slice_dims_norm[1];
-      slice_shape[i_w] = slice_end_norm_w * img_shape[i_w] - anchor[i_w];
     } else {
       // General case expects same number of dimensions in the
       // slice arguments as in the input image
 
-      // To decrease floating point error, first calculate the bounding box of crop and then
-      // calculate the width and height having left and top coordinates
+      // To decrease floating point error, first calculate the end of the
+      // bounding box and then calculate the shape
       for (std::size_t d = 0; d < img_shape.size(); d++) {
         anchor[d] = anchor_norm[d] * img_shape[d];
         float slice_end_norm = anchor_norm[d] + slice_dims_norm[d];
