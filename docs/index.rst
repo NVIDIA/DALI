@@ -26,7 +26,7 @@ This library is open sourced and it is available in the `NVIDIA GitHub repositor
    :maxdepth: 2
    :caption: User Guide
 
-   quickstart
+   installation
    examples/getting started.ipynb
    examples/index
    framework_plugins
