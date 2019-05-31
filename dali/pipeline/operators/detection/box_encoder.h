@@ -32,8 +32,7 @@ template <>
 class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
  public:
   explicit BoxEncoder(const OpSpec &spec)
-      : Operator<CPUBackend>(spec), 
-        criteria_(spec.GetArgument<float>("criteria")),
+      : Operator<CPUBackend>(spec), criteria_(spec.GetArgument<float>("criteria")),
         offset_(spec.GetArgument<bool>("offset")),
         scale_(spec.GetArgument<float>("scale")) {
     DALI_ENFORCE(

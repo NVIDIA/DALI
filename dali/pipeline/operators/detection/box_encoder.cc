@@ -204,8 +204,8 @@ encoded box.")code")
         0.5f, false)
     .AddOptionalArg(
         "offset",
-        R"code(Returns offset in `EncodedBBoxes` (encoded_bboxes - anchors).
-               Optional normalization by providing `std`, `mean` and `scale`.)code",
+        R"code(Returns normalized offsets `(encoded_bboxes*scale - anchors*scale) - mean) / stds`
+               in `EncodedBBoxes` using `std`, `mean` and `scale` arguments (default values are transparent).)code",
         false)
     .AddOptionalArg("scale",
             R"code(Rescale the box and anchors values before offset calculation (e.g. to get back to absolute values).)code",
