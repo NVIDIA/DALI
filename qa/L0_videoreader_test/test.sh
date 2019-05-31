@@ -16,11 +16,11 @@ mkdir -p video_files
 container_path=${DALI_EXTRA_PATH}/db/optical_flow/sintel_trailer/sintel_trailer.mp4
 
 IFS='/' read -a container_name <<< "$container_path"
-IFS='.' read -a splitted <<< "${container_name[-1]}"
+IFS='.' read -a split <<< "${container_name[-1]}"
 
 for i in {0..4};
 do
-    ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_path -vcodec copy -acodec copy -y video_files/${splitted[0]}_$i.${splitted[1]}
+    ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_path -vcodec copy -acodec copy -y video_files/${split[0]}_$i.${split[1]}
 done
 
 
