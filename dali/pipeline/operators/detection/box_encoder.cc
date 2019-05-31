@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cmath>
 
 #include "dali/pipeline/operators/detection/box_encoder.h"
 
@@ -93,26 +94,62 @@ vector<BoundingBox> BoxEncoder<CPUBackend>::ReadBoxesFromInput(
   return boxes;
 }
 
-void BoxEncoder<CPUBackend>::WriteBoxToOutput(const BoundingBox &box, float *out_box_data) const {
-  const auto out_box = box.AsCenterWh();
-
+void BoxEncoder<CPUBackend>::WriteBoxToOutput(const std::array<float, BoundingBox::kSize> &box,
+                                              float *out_box_data) const {
   for (unsigned idx = 0; idx < BoundingBox::kSize; ++idx)
-    out_box_data[idx] = out_box[idx];
+    out_box_data[idx] = box[idx];
 }
 
 void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_labels) const {
-  for (unsigned idx = 0; idx < anchors_.size(); ++idx) {
-    WriteBoxToOutput(anchors_[idx], out_boxes + idx * BoundingBox::kSize);
-    out_labels[idx] = 0;
+  if (offset_) {
+    std::memset(out_boxes, 0,
+      sizeof(std::remove_pointer<decltype(out_boxes)>::type)*BoundingBox::kSize*anchors_.size());
+    std::memset(out_labels, 0,
+       sizeof(std::remove_pointer<decltype(out_labels)>::type)*anchors_.size());
+  } else {
+    for (unsigned idx = 0; idx < anchors_.size(); ++idx) {
+      const auto box = anchors_[idx].AsCenterWh();
+      WriteBoxToOutput(box, out_boxes + idx * BoundingBox::kSize);
+      out_labels[idx] = 0;
+    }
   }
+}
+
+// Calculate offset from CenterWH ref box and anchor
+// based on eq (2)  in https://arxiv.org/abs/1512.02325 with extra normalization
+std::array<float, BoundingBox::kSize>
+GetOffsets(std::array<float, BoundingBox::kSize> box,
+           std::array<float, BoundingBox::kSize> anchor,
+           const std::vector<float>& means,
+           const std::vector<float>& stds,
+           float scale) {
+  for (std::size_t i = 0; i < BoundingBox::kSize; ++i) {
+    box[i] *= scale;
+    anchor[i] *= scale;
+  }
+  return {((box[0] - anchor[0]) / anchor[2] - means[0]) / stds[0],
+          ((box[1] - anchor[1]) / anchor[3] - means[1]) / stds[1],
+          (std::log(box[2] / anchor[2]) - means[2]) / stds[2],
+          (std::log(box[3] / anchor[3]) - means[3]) / stds[3]};
 }
 
 void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
   const vector<std::pair<unsigned, unsigned>> matches, const vector<BoundingBox> &boxes,
   const int *labels, float *out_boxes, int *out_labels) const {
-  for (const auto &match : matches) {
-    WriteBoxToOutput(boxes[match.first], out_boxes + match.second * BoundingBox::kSize);
-    out_labels[match.second] = labels[match.first];
+  if (offset_) {
+    for (const auto &match : matches) {
+      const auto box = boxes[match.first].AsCenterWh();
+      const auto anchor = anchors_[match.second].AsCenterWh();
+      WriteBoxToOutput(GetOffsets(box, anchor, means_, stds_, scale_),
+                       out_boxes + match.second * BoundingBox::kSize);
+      out_labels[match.second] = labels[match.first];
+    }
+  } else {
+    for (const auto &match : matches) {
+      const auto box = boxes[match.first].AsCenterWh();
+      WriteBoxToOutput(box, out_boxes + match.second * BoundingBox::kSize);
+      out_labels[match.second] = labels[match.first];
+    }
   }
 }
 
@@ -137,7 +174,6 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   auto out_labels = labels_output.mutable_data<int>();
 
   WriteAnchorsToOutput(out_boxes, out_labels);
-
   if (num_boxes == 0)
     return;
 
@@ -165,6 +201,20 @@ encoded box.")code")
     .AddOptionalArg(
         "criteria",
         R"code(Threshold IOU for matching bounding boxes with anchors. Value between 0 and 1.)code",
-        0.5f, false);
+        0.5f, false)
+    .AddOptionalArg(
+        "offset",
+        R"code(Returns offset in `EncodedBBoxes` (encoded_bboxes - anchors).
+               Optional normalization by providing `std`, `mean` and `scale`.)code",
+        false)
+    .AddOptionalArg("scale",
+            R"code(Rescale the box and anchors values before offset calculation (e.g. to get back to absolute values).)code",
+            1.0f)
+    .AddOptionalArg("means",
+            R"code([x y w h] means for offset normalization.)code",
+            std::vector<float>{0.f, 0.f, 0.f, 0.f})
+    .AddOptionalArg("stds",
+            R"code([x y w h] standard deviations for offset normalization.)code",
+            std::vector<float>{1.f, 1.f, 1.f, 1.f});
 
 }  // namespace dali

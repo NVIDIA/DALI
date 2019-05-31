@@ -26,7 +26,10 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   static constexpr int BlockSize = 256;
 
   explicit BoxEncoder(const OpSpec &spec)
-      : Operator<GPUBackend>(spec), criteria_(spec.GetArgument<float>("criteria")) {
+      : Operator<GPUBackend>(spec), 
+        criteria_(spec.GetArgument<float>("criteria")),
+        offset_(spec.GetArgument<bool>("offset")),
+        scale_(spec.GetArgument<float>("scale")) {
     DALI_ENFORCE(criteria_ >= 0.f,
                  "Expected criteria >= 0, actual value = " + std::to_string(criteria_));
     DALI_ENFORCE(criteria_ <= 1.f,
@@ -38,6 +41,16 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
 
     best_box_idx_.Resize({batch_size_ * anchors_count_});
     best_box_iou_.Resize({batch_size_ * anchors_count_});
+
+    means_ = spec.GetArgument<vector<float>>("means");
+    DALI_ENFORCE(means_.size() == 4,
+      "means size must be a list of 4 values.");
+
+    stds_ = spec.GetArgument<vector<float>>("stds");
+    DALI_ENFORCE(stds_.size() == 4,
+      "stds size must be a list of 4 values.");
+    DALI_ENFORCE(std::find(stds_.begin(), stds_.end(), 0) == stds_.end(),
+       "stds values must be != 0.");
   }
 
   virtual ~BoxEncoder() = default;
@@ -55,6 +68,11 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   Tensor<GPUBackend> boxes_offsets_;
   Tensor<GPUBackend> best_box_idx_;
   Tensor<GPUBackend> best_box_iou_;
+
+  bool offset_;
+  vector<float> means_;
+  vector<float> stds_;
+  float scale_;
 
   std::pair<int*, float*> ClearBuffers(const cudaStream_t &stream);
 
