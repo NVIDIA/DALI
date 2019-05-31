@@ -20,10 +20,9 @@ DALI_SCHEMA(Transpose)
   .DocStr("Transpose tensor dimension to a new permutated dimension specified by `perm`.")
   .NumInput(1)
   .NumOutput(1)
-  .AllowSequences(false)
+  .AllowSequences()
   .AllowMultipleInputSets()
   .AddArg("perm",
       R"code(Permutation of the dimensions of the input (e.g. [2, 0, 1]).)code",
       DALI_INT_VEC);
 }  // namespace dali
-
