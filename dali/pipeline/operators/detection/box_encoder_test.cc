@@ -1065,8 +1065,14 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
         auto expected = offset ? coco_offsets[sample][i] : match.second.first;
 
         ASSERT_EQ(labels_data[match.first], match.second.second);
-        ASSERT_FLOAT_EQ(actual.x, expected.x);
-        ASSERT_FLOAT_EQ(actual.y, expected.y);
+        
+        if(!offset) {
+          ASSERT_FLOAT_EQ(actual.x, expected.x);
+          ASSERT_FLOAT_EQ(actual.y, expected.y);
+        } else {
+          ASSERT_NEAR(actual.x, expected.x, 0.00001);
+          ASSERT_NEAR(actual.y, expected.y, 0.00001);
+        }
         ASSERT_FLOAT_EQ(actual.z, expected.z);
         ASSERT_FLOAT_EQ(actual.w, expected.w);
         ++idx;

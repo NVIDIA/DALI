@@ -42,15 +42,24 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
     best_box_idx_.Resize({batch_size_ * anchors_count_});
     best_box_iou_.Resize({batch_size_ * anchors_count_});
 
-    means_ = spec.GetArgument<vector<float>>("means");
-    DALI_ENFORCE(means_.size() == 4,
+    auto means = spec.GetArgument<vector<float>>("means");
+    DALI_ENFORCE(means.size() == BoundingBox::kSize,
       "means size must be a list of 4 values.");
 
-    stds_ = spec.GetArgument<vector<float>>("stds");
-    DALI_ENFORCE(stds_.size() == 4,
+    means_.Resize({BoundingBox::kSize});
+    auto means_data = means_.mutable_data<float>();
+    MemCopy(means_data, means.data(), BoundingBox::kSize * sizeof(float));
+
+    auto stds = spec.GetArgument<vector<float>>("stds");
+    DALI_ENFORCE(stds.size() == BoundingBox::kSize,
       "stds size must be a list of 4 values.");
-    DALI_ENFORCE(std::find(stds_.begin(), stds_.end(), 0) == stds_.end(),
+    DALI_ENFORCE(std::find(stds.begin(), stds.end(), 0) == stds.end(),
        "stds values must be != 0.");
+    stds_.Resize({BoundingBox::kSize});
+    auto stds_data = stds_.mutable_data<float>();
+    MemCopy(stds_data, stds.data(), BoundingBox::kSize * sizeof(float));
+
+    
   }
 
   virtual ~BoxEncoder() = default;
@@ -70,8 +79,8 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   Tensor<GPUBackend> best_box_iou_;
 
   bool offset_;
-  vector<float> means_;
-  vector<float> stds_;
+  Tensor<GPUBackend> means_;
+  Tensor<GPUBackend> stds_;
   float scale_;
 
   std::pair<int*, float*> ClearBuffers(const cudaStream_t &stream);
@@ -84,7 +93,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   std::pair<vector<Dims>, vector<Dims>> CalculateDims(
     const TensorList<GPUBackend> &boxes_input);
 
-  int *CalculateOffsets(
+  int *CalculateBoxesOffsets(
     const TensorList<GPUBackend> &boxes_input, const cudaStream_t &stream);
 };
 }  // namespace dali
