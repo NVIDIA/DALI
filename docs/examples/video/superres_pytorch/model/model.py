@@ -103,7 +103,7 @@ class VSRNet(nn.Module):
 
         self.frames = frames
         self.fp16 = fp16
-        self.mi = floor(self.frames / 2)
+        self.mi = int(floor(self.frames / 2))
 
         self.pooling = nn.AvgPool2d(4, ceil_mode=False)
         self.upsample = nn.Upsample(scale_factor=4, mode='bilinear')
