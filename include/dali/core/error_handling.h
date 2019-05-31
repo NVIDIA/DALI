@@ -28,11 +28,12 @@
 #include <execinfo.h>
 #endif  // DALI_USE_STACKTRACE
 
+#include <algorithm>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <algorithm>
-#include <iostream>
+#include <utility>
 
 #include "dali/core/common.h"
 
