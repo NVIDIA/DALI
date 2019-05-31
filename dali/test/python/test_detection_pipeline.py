@@ -424,6 +424,8 @@ def run_for_dataset(args, dataset):
                 print('  encoded_boxes_offset =', encoded_boxes_offset)
                 print('  encoded_labels =', encoded_labels)
                 print('  encoded_labels_offset =', encoded_labels_offset)
+                print('  encoded_labels_cpu =', encoded_labels_cpu)
+                print('  encoded_labels_gpu =', encoded_labels_gpu)
 
                 exit(1)
 
