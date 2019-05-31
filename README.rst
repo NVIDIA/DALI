@@ -45,9 +45,8 @@ Highlights
 Table of Contents
 -----------------
 
-- `Installation <https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/quickstart.html>`_
-- `Getting started <https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/examples/getting%20started.html>`_
-- `Examples`_
+- `Installing or building DALI`_
+- `Examples and tutorials`_
 - `Additional resources`_
 - `Contributing to DALI`_
 - `Reporting problems, asking questions`_
@@ -55,13 +54,34 @@ Table of Contents
 
 ----
 
-Examples
---------
+Installing or building DALI
+---------------------------
+
+DALI is preinstalled in the `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_ TensorFlow, PyTorch,
+and MXNet containers in versions 18.07 and later.
+
+Latest DALI release as well as weekly and nightly developer builds can be installed using pip.
+Detailed instructions can be found in the documentation |docs_install|_.
+Build instructions for DALI can be found in |dali_compile|_.
+
+.. |docs_install| replace:: installation guide
+.. _docs_install: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/installation.html
+.. |dali_compile| replace:: compilation guide
+.. _dali_compile: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/compilation.html
+
+
+Examples and tutorials
+----------------------
+
+Introduction to DALI can be found at |dali_start|_ docs page.
 
 The `docs/examples <https://github.com/NVIDIA/DALI/blob/master/docs/examples>`_
 directory contains a few examples (in the form of Jupyter notebooks)
 highlighting different features of DALI and how to use DALI to interface
 with deep learning frameworks.
+
+.. |dali_start| replace:: Getting started
+.. _dali_start: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/examples/getting%20started.html
 
 Also note:
 
