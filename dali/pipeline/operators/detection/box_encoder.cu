@@ -104,7 +104,7 @@ __device__ void WriteMatchesToOutput(
       labels_out[anchor] = labels_in[box_idx];
       float4 box = boxes_in[box_idx];
 
-      if(!offset)
+      if (!offset)
         boxes_out[anchor] = ToCenterWidthHeight(box);
       else
         boxes_out[anchor] = MatchOffsets(
@@ -227,6 +227,22 @@ void BoxEncoder<GPUBackend>::WriteAnchorsToOutput(
       stream);
 }
 
+void BoxEncoder<GPUBackend>::ClearOutput(
+  float4 *boxes_out_data, int *labels_out_data,  const cudaStream_t &stream) {
+  CUDA_CALL(cudaMemsetAsync(
+    labels_out_data,
+    0,
+    batch_size_ * anchors_count_ * sizeof(int),
+    stream));
+
+  for (int sample = 0; sample < batch_size_; ++sample)
+    CUDA_CALL(cudaMemsetAsync(
+      boxes_out_data + sample * anchors_count_,
+      0,
+      anchors_count_ * BoundingBox::kSize * sizeof(float),
+      stream));
+}
+
 std::pair<vector<Dims>, vector<Dims>> BoxEncoder<GPUBackend>::CalculateDims(
   const TensorList<GPUBackend> &boxes_input) {
   vector<Dims> boxes_output_dim;
@@ -256,7 +272,7 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   const auto &labels_input = ws->Input<GPUBackend>(1);
 
   const auto anchors_data = reinterpret_cast<const float4 *>(anchors_.data<float>());
-  const auto anchors_as_cwh_data = 
+  const auto anchors_as_cwh_data =
     reinterpret_cast<const float4 *>(anchors_as_center_wh_.data<float>());
   const auto boxes_data = reinterpret_cast<const float4 *>(boxes_input.data<float>());
   const auto labels_data = labels_input.data<int>();
@@ -279,8 +295,10 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   const auto means_data = means_.data<float>();
   const auto stds_data = stds_.data<float>();
 
-  if(!offset_)
+  if (!offset_)
     WriteAnchorsToOutput(boxes_out_data, labels_out_data, ws->stream());
+  else
+    ClearOutput(boxes_out_data, labels_out_data, ws->stream());
 
   Encode<BlockSize><<<batch_size_, BlockSize, 0, ws->stream()>>>(
     boxes_data,

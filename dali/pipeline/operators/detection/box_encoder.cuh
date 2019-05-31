@@ -26,7 +26,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   static constexpr int BlockSize = 256;
 
   explicit BoxEncoder(const OpSpec &spec)
-      : Operator<GPUBackend>(spec), 
+      : Operator<GPUBackend>(spec),
         criteria_(spec.GetArgument<float>("criteria")),
         offset_(spec.GetArgument<bool>("offset")),
         scale_(spec.GetArgument<float>("scale")) {
@@ -58,8 +58,6 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
     stds_.Resize({BoundingBox::kSize});
     auto stds_data = stds_.mutable_data<float>();
     MemCopy(stds_data, stds.data(), BoundingBox::kSize * sizeof(float));
-
-    
   }
 
   virtual ~BoxEncoder() = default;
@@ -88,6 +86,9 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   void PrepareAnchors(const vector<float> &anchors);
 
   void WriteAnchorsToOutput(
+    float4 *out_boxes, int *out_labels, const cudaStream_t &stream);
+
+  void ClearOutput(
     float4 *out_boxes, int *out_labels, const cudaStream_t &stream);
 
   std::pair<vector<Dims>, vector<Dims>> CalculateDims(
