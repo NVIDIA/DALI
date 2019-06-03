@@ -36,9 +36,8 @@ Flip<CPUBackend>::Flip(const OpSpec &spec)
     : Operator<CPUBackend>(spec) {}
 
 void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
-    bool horizontal, bool vertical) {
-  DALI_TYPE_SWITCH(
-      input.type().id(), DType,
+             bool horizontal, bool vertical) {
+  DALI_TYPE_SWITCH(input.type().id(), DType,
       auto output_ptr = output.mutable_data<DType>();
       auto input_ptr = input.data<DType>();
       auto kernel = kernels::FlipCPU<DType>();

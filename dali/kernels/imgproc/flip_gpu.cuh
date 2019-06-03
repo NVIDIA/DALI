@@ -55,9 +55,9 @@ class DLL_PUBLIC FlipGPU {
   }
 
   DLL_PUBLIC void Run(KernelContext &context, OutListGPU<Type, 4> &out,
-      const InListGPU<Type, 4> &in,
-      const std::vector<int> &flip_z, const std::vector<int> &flip_y,
-      const std::vector<int> &flip_x) {
+                      const InListGPU<Type, 4> &in,
+                      const std::vector<int> &flip_z, const std::vector<int> &flip_y,
+                      const std::vector<int> &flip_x) {
     auto num_samples = static_cast<size_t>(in.num_samples());
     DALI_ENFORCE(flip_x.size() == num_samples && flip_y.size() == num_samples);
     for (size_t i = 0; i < num_samples; ++i) {

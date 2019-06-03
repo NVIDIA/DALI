@@ -30,7 +30,7 @@ inline kernels::TensorShape<4> TransformShapeNCHW(const Dims &shape) {
 }
 
 inline kernels::TensorListShape<4> TransformShapes(const std::vector<Dims> &shapes,
-                                            bool nhwc_layout) {
+                                                   bool nhwc_layout) {
   std::vector<kernels::TensorShape<4>> result(shapes.size());
   if (nhwc_layout) {
     std::transform(shapes.begin(), shapes.end(), result.begin(), TransformShapeNHWC);

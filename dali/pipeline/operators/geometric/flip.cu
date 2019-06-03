@@ -24,7 +24,8 @@ template <>
 Flip<GPUBackend>::Flip(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
 
 void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &input,
-    const std::vector<int32> &horizontal, const std::vector<int32> &vertical, cudaStream_t stream) {
+               const std::vector<int32> &horizontal,
+               const std::vector<int32> &vertical, cudaStream_t stream) {
   DALI_TYPE_SWITCH(
       input.type().id(), DType,
       auto in_shape = TransformShapes(input.shape(), input.GetLayout() == DALI_NHWC);
