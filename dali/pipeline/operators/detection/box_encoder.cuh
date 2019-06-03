@@ -26,7 +26,10 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   static constexpr int BlockSize = 256;
 
   explicit BoxEncoder(const OpSpec &spec)
-      : Operator<GPUBackend>(spec), criteria_(spec.GetArgument<float>("criteria")) {
+      : Operator<GPUBackend>(spec),
+        criteria_(spec.GetArgument<float>("criteria")),
+        offset_(spec.GetArgument<bool>("offset")),
+        scale_(spec.GetArgument<float>("scale")) {
     DALI_ENFORCE(criteria_ >= 0.f,
                  "Expected criteria >= 0, actual value = " + std::to_string(criteria_));
     DALI_ENFORCE(criteria_ <= 1.f,
@@ -38,6 +41,23 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
 
     best_box_idx_.Resize({batch_size_ * anchors_count_});
     best_box_iou_.Resize({batch_size_ * anchors_count_});
+
+    auto means = spec.GetArgument<vector<float>>("means");
+    DALI_ENFORCE(means.size() == BoundingBox::kSize,
+      "means size must be a list of 4 values.");
+
+    means_.Resize({BoundingBox::kSize});
+    auto means_data = means_.mutable_data<float>();
+    MemCopy(means_data, means.data(), BoundingBox::kSize * sizeof(float));
+
+    auto stds = spec.GetArgument<vector<float>>("stds");
+    DALI_ENFORCE(stds.size() == BoundingBox::kSize,
+      "stds size must be a list of 4 values.");
+    DALI_ENFORCE(std::find(stds.begin(), stds.end(), 0) == stds.end(),
+       "stds values must be != 0.");
+    stds_.Resize({BoundingBox::kSize});
+    auto stds_data = stds_.mutable_data<float>();
+    MemCopy(stds_data, stds.data(), BoundingBox::kSize * sizeof(float));
   }
 
   virtual ~BoxEncoder() = default;
@@ -56,6 +76,11 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   Tensor<GPUBackend> best_box_idx_;
   Tensor<GPUBackend> best_box_iou_;
 
+  bool offset_;
+  Tensor<GPUBackend> means_;
+  Tensor<GPUBackend> stds_;
+  float scale_;
+
   std::pair<int*, float*> ClearBuffers(const cudaStream_t &stream);
 
   void PrepareAnchors(const vector<float> &anchors);
@@ -63,10 +88,13 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   void WriteAnchorsToOutput(
     float4 *out_boxes, int *out_labels, const cudaStream_t &stream);
 
+  void ClearOutput(
+    float4 *out_boxes, int *out_labels, const cudaStream_t &stream);
+
   std::pair<vector<Dims>, vector<Dims>> CalculateDims(
     const TensorList<GPUBackend> &boxes_input);
 
-  int *CalculateOffsets(
+  int *CalculateBoxesOffsets(
     const TensorList<GPUBackend> &boxes_input, const cudaStream_t &stream);
 };
 }  // namespace dali

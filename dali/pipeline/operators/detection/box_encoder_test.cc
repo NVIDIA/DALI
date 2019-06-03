@@ -50,13 +50,16 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
     this->CheckAnswersForCocoOnCpu(&ws, offset);
   }
 
-  void RunForCocoGpu(const vector<float> &anchors, float criteria) {
+  void RunForCocoGpu(const vector<float> &anchors, float criteria, bool offset = false) {
     this->SetBatchSize(coco_batch_size);
     this->SetExternalInputs({{"bboxes", &this->boxes_}, {"labels", &this->labels_}});
     this->AddSingleOp(OpSpec("BoxEncoder")
                           .AddArg("device", "gpu")
                           .AddArg("criteria", criteria)
                           .AddArg("anchors", anchors)
+                          .AddArg("offset", offset)
+                          .AddArg("scale", 300.0f)
+                          .AddArg("stds", std::vector<float>({0.1f, 0.1f, 0.2f, 0.2f}))
                           .AddInput("bboxes", "gpu")
                           .AddInput("labels", "gpu")
                           .AddOutput("encoded_bboxes", "gpu")
@@ -64,7 +67,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
 
     dali::DeviceWorkspace ws;
     this->RunOperator(&ws);
-    this->CheckAnswersForCocoOnGpu(&ws);
+    this->CheckAnswersForCocoOnGpu(&ws, offset);
   }
 
   const vector<int> coco_object_count = { 9, 7, 3, 6, 12, 31, 31, 32, 13};
@@ -1062,8 +1065,14 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
         auto expected = offset ? coco_offsets[sample][i] : match.second.first;
 
         ASSERT_EQ(labels_data[match.first], match.second.second);
-        ASSERT_FLOAT_EQ(actual.x, expected.x);
-        ASSERT_FLOAT_EQ(actual.y, expected.y);
+
+        if (!offset) {
+          ASSERT_FLOAT_EQ(actual.x, expected.x);
+          ASSERT_FLOAT_EQ(actual.y, expected.y);
+        } else {
+          ASSERT_NEAR(actual.x, expected.x, 0.00001);
+          ASSERT_NEAR(actual.y, expected.y, 0.00001);
+        }
         ASSERT_FLOAT_EQ(actual.z, expected.z);
         ASSERT_FLOAT_EQ(actual.w, expected.w);
         ++idx;
@@ -1102,6 +1111,10 @@ TYPED_TEST(BoxEncoderTest, TestOffsetOnCocoObjects) {
 
 TYPED_TEST(BoxEncoderTest, TestOnCocoObjectsOnGpu) {
   this->RunForCocoGpu(this->anchors_, 0.5f);
+}
+
+TYPED_TEST(BoxEncoderTest, TestOffsetOnCocoObjectsGpu) {
+  this->RunForCocoGpu(this->anchors_, 0.5f, true);
 }
 
 TYPED_TEST(BoxEncoderTest, TestNegativeCriteria) {

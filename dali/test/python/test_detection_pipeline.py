@@ -182,6 +182,20 @@ class DetectionPipeline(Pipeline):
             device="gpu",
             criteria=0.5,
             anchors=default_boxes)
+        self.box_encoder_cpu_offsets = ops.BoxEncoder(
+            device="cpu",
+            criteria=0.5,
+            offset=True,
+            scale=2,
+            stds=[0.1, 0.1, 0.2, 0.2],
+            anchors=default_boxes)
+        self.box_encoder_gpu_offsets = ops.BoxEncoder(
+            device="gpu",
+            criteria=0.5,
+            offset=True,
+            scale=2,
+            stds=[0.1, 0.1, 0.2, 0.2],
+            anchors=default_boxes)
 
         # Random variables
         self.rng1 = ops.Uniform(range=[0.5, 1.5])
@@ -238,6 +252,11 @@ class DetectionPipeline(Pipeline):
         encoded_boxes_gpu, encoded_labels_gpu = self.box_encoder_gpu(
             boxes_ssd_crop.gpu(), labels_ssd_crop.gpu())
 
+        encoded_offset_boxes_cpu, encoded_offset_labels_cpu = self.box_encoder_cpu_offsets(
+            boxes_ssd_crop, labels_ssd_crop)
+        encoded_offset_boxes_gpu, encoded_offset_labels_gpu = self.box_encoder_gpu_offsets(
+            boxes_ssd_crop.gpu(), labels_ssd_crop.gpu())
+
         return (
             image_ssd_crop, image_decode_crop,
             image_slice_cpu, image_slice_gpu,
@@ -250,6 +269,8 @@ class DetectionPipeline(Pipeline):
             boxes_flipped_cpu, boxes_flipped_gpu,
             encoded_boxes_cpu, encoded_boxes_gpu,
             encoded_labels_cpu, encoded_labels_gpu,
+            encoded_offset_boxes_cpu, encoded_offset_boxes_gpu,
+            encoded_offset_labels_cpu, encoded_offset_labels_gpu,
         )
 
 
@@ -332,7 +353,9 @@ def run_for_dataset(args, dataset):
                 image_flipped_cpu, image_flipped_gpu,\
                 boxes_flipped_cpu, boxes_flipped_gpu, \
                 encoded_boxes_cpu, encoded_boxes_gpu, \
-                encoded_labels_cpu, encoded_labels_gpu = \
+                encoded_labels_cpu, encoded_labels_gpu, \
+                encoded_offset_boxes_cpu, encoded_offset_boxes_gpu, \
+                encoded_offset_labels_cpu, encoded_offset_labels_gpu = \
                 [to_array(out) for out in pipe.run()]
 
             # Check cropping ops
@@ -371,7 +394,11 @@ def run_for_dataset(args, dataset):
             # Check box encoding ops
             encoded_boxes = compare(encoded_boxes_cpu, encoded_boxes_gpu)
             encoded_labels = compare(encoded_labels_cpu, encoded_labels_gpu)
-            box_encoder = encoded_boxes and encoded_labels
+            encoded_boxes_offset = compare(encoded_offset_boxes_cpu, encoded_offset_boxes_gpu)
+            encoded_labels_offset = compare(encoded_offset_labels_cpu, encoded_offset_labels_gpu)
+            encoded_labels_cpu = compare(encoded_labels_cpu, encoded_offset_labels_cpu)
+            encoded_labels_gpu = compare(encoded_labels_gpu, encoded_offset_labels_gpu)
+            box_encoder = encoded_boxes and encoded_boxes_offset and encoded_labels and encoded_labels_offset and encoded_labels_cpu and encoded_labels_gpu
 
             if not crop or not resize or not normalize or not twist or not flip or not box_encoder:
                 print('Error during iteration', iter)
@@ -394,7 +421,11 @@ def run_for_dataset(args, dataset):
 
                 print('Box encoder =', box_encoder)
                 print('  encoded_boxes =', encoded_boxes)
+                print('  encoded_boxes_offset =', encoded_boxes_offset)
                 print('  encoded_labels =', encoded_labels)
+                print('  encoded_labels_offset =', encoded_labels_offset)
+                print('  encoded_labels_cpu =', encoded_labels_cpu)
+                print('  encoded_labels_gpu =', encoded_labels_gpu)
 
                 exit(1)
 
