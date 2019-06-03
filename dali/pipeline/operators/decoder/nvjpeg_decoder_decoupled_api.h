@@ -28,6 +28,7 @@
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 
@@ -53,6 +54,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     device_buffer_(num_threads_),
     streams_(num_threads_),
     events_(num_threads_ * 2),
+    device_id_(spec.GetArgument<int>("device_id")),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
                  true /* pin threads */) {
@@ -102,31 +104,38 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CUDA_CALL(cudaEventCreate(&master_event_));
   }
 
-  ~nvJPEGDecoder() noexcept override {
+  ~nvJPEGDecoder() noexcept(false) override {
     try {
       thread_pool_.WaitForWork();
     } catch (...) {
       // As other images being process might fail, but we don't care
     }
 
-    for (int i = 0; i < batch_size_; ++i) {
-      NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
-      NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_huff_hybrid_state_[i]));
-    }
-    NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
-    NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
-    for (int i = 0; i < num_threads_ * 2; ++i) {
-      NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
-      NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
-      CUDA_CALL(cudaEventDestroy(events_[i]));
-    }
+    try {
+      DeviceGuard g(device_id_);
+      for (int i = 0; i < batch_size_; ++i) {
+        NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_host_state_[i]));
+        NVJPEG_CALL(nvjpegJpegStateDestroy(decoder_huff_hybrid_state_[i]));
+      }
+      NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_host_));
+      NVJPEG_CALL(nvjpegDecoderDestroy(decoder_huff_hybrid_));
+      for (int i = 0; i < num_threads_ * 2; ++i) {
+        NVJPEG_CALL(nvjpegJpegStreamDestroy(jpeg_streams_[i]));
+        NVJPEG_CALL(nvjpegBufferPinnedDestroy(pinned_buffer_[i]));
+        CUDA_CALL(cudaEventDestroy(events_[i]));
+      }
 
-    for (int i = 0; i < num_threads_; ++i) {
-      NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_[i]));
-      CUDA_CALL(cudaStreamDestroy(streams_[i]));
+      for (int i = 0; i < num_threads_; ++i) {
+        NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_[i]));
+        CUDA_CALL(cudaStreamDestroy(streams_[i]));
+      }
+      CUDA_CALL(cudaEventDestroy(master_event_));
+      NVJPEG_CALL(nvjpegDestroy(handle_));
+    } catch (const std::exception &e) {
+      // If destroying nvJPEG resources failed we are leaking something so terminate
+      std::cerr << "Fatal error: exception in ~nvJPEGDecoder():\n" << e.what() << std::endl;
+      std::terminate();
     }
-    CUDA_CALL(cudaEventDestroy(master_event_));
-    NVJPEG_CALL(nvjpegDestroy(handle_));
   }
 
   using dali::OperatorBase::Run;
@@ -363,6 +372,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<cudaEvent_t> events_;
 
   cudaEvent_t master_event_;
+  int device_id_;
 
   ThreadPool thread_pool_;
 };

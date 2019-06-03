@@ -79,7 +79,7 @@ Starting DALI 0.8.0 for CUDA 10.0 based build use:
 
 .. note::
 
-  The ``nvidia-dali`` package contains prebuilt versions of the DALI TensorFlow plugin for several versions of TensorFlow. Starting DALI 0.6.1 you can also install DALI TensorFlow plugin for the currently installed version of TensorFlow, thus allowing forward compatibility:
+  Since 0.11.0  ``nvidia-dali`` package doesn't contain prebuilt versions of the DALI TensorFlow plugin, DALI TensorFlow plugin needs to be installed explicitly for the currently present version of TensorFlow:
 
 .. code-block:: bash
 
@@ -91,8 +91,9 @@ Starting DALI 0.8.0 for CUDA 10.0 based build execute:
 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/10.0 nvidia-dali-tf-plugin
 
+.. note::
 
-Installing this package will install ``nvidia-dali`` and its dependencies, if these dependencies are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin``.
+    Due to a `known issue with installing dependent packages <https://github.com/pypa/pip/issues/1386>`_), DALI needs to be installed before installing ``nvidia-dali-tf-plugin`` (in a separate pip install call). The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin``.
 
 .. note::
 
@@ -173,12 +174,32 @@ Building Python wheel and (optionally) Docker image
 Change directory (``cd``) into Docker directory and run ``./build.sh``. If needed, set the following environment variables:
 
 * PYVER - Python version. Default is ``2.7``.
-* CUDA_VERSION - CUDA toolkit version (9.0 or 10.0). Default is ``10``.
+* CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). Default is ``10``.
 * NVIDIA_BUILD_ID - Custom ID of the build. Default is ``1234``.
 * CREATE_WHL - Create a standalone wheel. Default is ``YES``.
 * CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside. It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker`` and DALI wheel in the ``wheelhouse`` directory under$
 * DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package description, i.e. `nightly` will result in the `nvidia-dali-nightly`
-* BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo
+* CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo. Default is ``Release``.
+* BUILD_INHOST - ask docker to mount source code instead of copying it. Thank to that consecutive builds are resuing existing object files and are faster for the development. Uses $DALI_BUILD_DIR as a directory for build objects. Default is ``YES``.
+* REBUILD_BUILDERS - if builder docker images need to be rebuild or can be reused from the previous build. Default is ``NO``.
+* REBUILD_MANYLINUX - if manylinux base image need to be rebuild. Default is ``NO``.
+* DALI_BUILD_DIR - where DALI build should happen. It matters only bit the in-tree build where user may provide different path for every python/CUDA version. Default is ``build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}``.
+
+It is worth to mention that build.sh should accept the same set of environment variables as the project CMake.
+
+The recommended command line is:
+
+.. code-block:: bash
+
+  PYVER=X.Y CUDA_VERSION=Z ./build.sh
+
+For example:
+
+.. code-block:: bash
+
+  PYVER=3.6 CUDA_VERSION=10 ./build.sh
+
+Will build CUDA 10 based DALI for Python 3.6 and place relevant Python wheel inside DALI_root/wheelhouse
 
 ----
 
@@ -373,10 +394,16 @@ Install Python bindings
 
     pip install dali/python
 
-.. installation-end-marker-do-not-remove
 
 Cross-compiling DALI C++ API for aarch64 Linux (Docker)
 -------------------------------------------------------
+
+.. note::
+
+  Support for aarch64 Linux platform is experimental. Some of the features are available only for
+  x86-64 target and they are turned off in this build. There is no support for DALI Python library
+  on aarch64 yet. Some Operators may not work as intended due to x86-64 specific implementations.
+
 Build the aarch64 Linux Build Container
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -394,31 +421,8 @@ From the root of the DALI source tree
 
 The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``
 
-Cross-compiling DALI C++ API for aarch64 QNX (Docker)
------------------------------------------------------
-Setup
-^^^^^
-After aquiring the QNX Toolchain, place it in a directory called ``qnx`` in the root of the DALI tree.
-Then using the SDK Manager for NVIDIA DRIVE, select **QNX** as the *Target Operating System* and select **DRIVE OS 5.1.0.0 SDK**
-In STEP 02 under **Download & Install Options**, select *Download Now. Install Later*. and agree to the Terms and Conditions.
-Once downloaded move the **cuda-repo-cross-qnx** debian package into the ``qnx`` directory you created in the DALI tree.
+.. installation-end-marker-do-not-remove
 
-Build the aarch64 Build Container
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: bash
-
-    docker build -t dali_builder:aarch64-qnx -f Dockerfile.build.aarch64-qnx .
-
-Compile
-^^^^^^^
-From the root of the DALI source tree
-
-.. code-block:: bash
-
-    docker run -v $(pwd):/dali dali_builder:aarch64-qnx
-
-The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``
 
 Getting started
 ---------------
@@ -438,7 +442,11 @@ Also note:
 Additional resources
 --------------------
 
-- GPU Technology Conference 2018 presentation about DALI, T. Gale, S. Layton and P. Tredak: `slides <http://on-demand.gputechconf.com/gtc/2018/presentation/s8906-fast-data-pipelines-for-deep-learning-training.pdf>`_, `recording <http://on-demand.gputechconf.com/gtc/2018/video/S8906/>`_.
+- GPU Technology Conference 2018; Fast data pipeline for deep learning training, T. Gale, S. Layton and P. Trędak: `slides <http://on-demand.gputechconf.com/gtc/2018/presentation/s8906-fast-data-pipelines-for-deep-learning-training.pdf>`_, `recording <http://on-demand.gputechconf.com/gtc/2018/video/S8906/>`_.
+- GPU Technology Conference 2019; Fast AI data pre-preprocessing with DALI; Janusz Lisiecki, Michał Zientkiewicz: `slides <https://developer.download.nvidia.com/video/gputechconf/gtc/2019/presentation/s9925-fast-ai-data-pre-processing-with-nvidia-dali.pdf>`_, `recording <https://developer.nvidia.com/gtc/2019/video/S9925/video>`_.
+- GPU Technology Conference 2019; Integration of DALI with TensorRT on Xavier; Josh Park and Anurag Dixit: `slides <https://developer.download.nvidia.com/video/gputechconf/gtc/2019/presentation/s9818-integration-of-tensorrt-with-dali-on-xavier.pdf>`_, `recording <https://developer.nvidia.com/gtc/2019/video/S9818/video>`_.
+- `Developer page <https://developer.nvidia.com/DALI>`_.
+- `Blog post <https://devblogs.nvidia.com/fast-ai-data-preprocessing-with-nvidia-dali/>`_.
 
 ----
 

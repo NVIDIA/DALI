@@ -47,7 +47,7 @@ add_input(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &
 // If parent op_type or device is not allowed this is a no-op
 template <OpType op_type, OpType producer_type, StorageDevice device>
 enable_if_t<!allows_op_input<op_type>(producer_type) || !allows_tensor_input<op_type>(device)>
-add_input(op_type_to_workspace_t<op_type>, const tensor_data_store_queue_t, int = 0) {}
+add_input(op_type_to_workspace_t<op_type>, const tensor_data_store_queue_t &, int = 0) {}
 
 template <OpType op_type, StorageDevice device>
 void add_output(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &storage,

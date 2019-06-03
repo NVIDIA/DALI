@@ -26,6 +26,7 @@
 #include "dali/plugin/copy.h"
 #include "dali/plugin/plugin_manager.h"
 #include "dali/util/half.hpp"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 namespace python {
@@ -279,7 +280,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           return py::array(py::buffer_info(
               raw_mutable_data,
               type_size,
-              std::move(format),
+              format,
               shape.size(), shape, strides));
         },
       R"code(
@@ -335,8 +336,9 @@ void ExposeTensorList(py::module &m) { // NOLINT
           ret->set_pinned(false);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
+          DeviceGuard g(t.device_id());
           ret->Copy(t, s);
-          CUDA_CALL(cudaStreamSynchronize(s));
+          us->Wait(t);
           return ret;
         },
       R"code(

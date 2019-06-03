@@ -14,7 +14,6 @@
 
 set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/crop_window.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/cucontext.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/custream.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/file.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/image.h"
@@ -27,7 +26,6 @@ set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.h")
 
 set(DALI_SRCS ${DALI_SRCS}
-  "${CMAKE_CURRENT_SOURCE_DIR}/cucontext.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/custream.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/file.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/image.cc"

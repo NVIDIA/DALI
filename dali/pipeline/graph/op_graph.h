@@ -318,7 +318,7 @@ class DLL_PUBLIC OpGraph {
    * @brief Save graph in DOT directed graph format
    * in filename.
    */
-  DLL_PUBLIC void SaveToDotFile(const string filename, bool show_tensors = false,
+  DLL_PUBLIC void SaveToDotFile(const string &filename, bool show_tensors = false,
                                 bool show_ids = false, bool use_colors = false) {
     std::ofstream ofs(filename);
     ofs << "digraph graphname {\n";
@@ -350,7 +350,7 @@ class DLL_PUBLIC OpGraph {
    *
    * @return Reference to the newly added OpNode.
    */
-  OpNode& PlaceNewOp(OpType op_type, OpSpec op_spec, std::string instance_name);
+  OpNode& PlaceNewOp(OpType op_type, const OpSpec &op_spec, std::string instance_name);
 
   /**
    * @brief Creates new tensor node with conscutive id.

@@ -15,15 +15,15 @@
 #ifndef DALI_PIPELINE_OPERATORS_ARGUMENT_H_
 #define DALI_PIPELINE_OPERATORS_ARGUMENT_H_
 
-#include <vector>
-#include <string>
 #include <map>
-#include <utility>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "dali/core/common.h"
-#include "dali/pipeline/data/types.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/proto/dali_proto_utils.h"
 
 namespace dali {
@@ -73,20 +73,20 @@ inline std::unique_ptr<Value> Value::construct(const T& val) {
   return std::unique_ptr<Value>(new ValueInst<T>(val));
 }
 
-#define INSTANTIATE_VALUE_AS_INT64(T)                  \
-  template<>                                           \
-  inline std::unique_ptr<Value> Value::construct(const T& val) {      \
-    auto ret = std::unique_ptr<Value>(new ValueInst<Index>(val));     \
-    return ret;                                                       \
+#define INSTANTIATE_VALUE_AS_INT64(T)                             \
+  template <>                                                     \
+  inline std::unique_ptr<Value> Value::construct(const T& val) {  \
+    auto ret = std::unique_ptr<Value>(new ValueInst<Index>(val)); \
+    return ret;                                                   \
   }
 
-#define INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(T)                  \
-  template<>                                                         \
-  inline std::unique_ptr<Value> Value::construct(const T& val) {     \
-    auto ret = std::unique_ptr<Value>(new ValueInst<Index>(val));    \
-    /* preserve type information */                                  \
-    ret->SetTypeID(TypeTable::GetTypeID<T>());                       \
-    return ret;                                                      \
+#define INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(T)               \
+  template <>                                                     \
+  inline std::unique_ptr<Value> Value::construct(const T& val) {  \
+    auto ret = std::unique_ptr<Value>(new ValueInst<Index>(val)); \
+    /* preserve type information */                               \
+    ret->SetTypeID(TypeTable::GetTypeID<T>());                    \
+    return ret;                                                   \
   }
 
 INSTANTIATE_VALUE_AS_INT64(int);
@@ -102,29 +102,28 @@ INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(DALITensorLayout);
 /**
  * @brief Stores a single argument.
  *
- * Argument class is the wrapper parent class
- * for wrapper classes storing arguments
- * given to ops.
- * In order to add a new type of argument,
- * one needs to expose the type to Python
- * in python/dali_backend.cc file
- * by using py::class_<new_type> and
- * DALI_OPSPEC_ADDARG macro. For integral
- * types (like enums), one needs to use
- * INSTANTIATE_ARGUMENT_AS_INT64 macro
+ * Argument class is the wrapper parent class for wrapper classes storing arguments given to ops.
+ * In order to add a new type of argument, one needs to expose the type to Python
+ * in python/dali_backend.cc file by using py::class_<new_type> and DALI_OPSPEC_ADDARG macro.
+ * For integral types (like enums), one needs to use INSTANTIATE_ARGUMENT_AS_INT64 macro
  * in pipeline/operators/op_spec.h instead.
  */
 class Argument {
  public:
   // Setters & getters for name
-  inline bool has_name() const { return has_name_; }
-  inline const string get_name() const {
-    return has_name()?name_:"<no name>";
+  inline bool has_name() const {
+    return has_name_;
   }
+
+  inline const string get_name() const {
+    return has_name() ? name_ : "<no name>";
+  }
+
   inline void set_name(string name) {
     has_name_ = true;
-    name_ = name;
+    name_ = std::move(name);
   }
+
   inline void clear_name() {
     has_name_ = false;
     name_ = "";
@@ -136,44 +135,37 @@ class Argument {
 
   virtual DALIDataType GetTypeID() const = 0;
 
-  virtual void SerializeToProtobuf(DaliProtoPriv *arg) = 0;
+  virtual void SerializeToProtobuf(DaliProtoPriv* arg) = 0;
 
-  template<typename T>
+  template <typename T>
   T Get();
 
-  template<typename T>
+  template <typename T>
   bool IsType();
 
-  template<typename T>
-  static Argument * Store(const std::string& s,
-      const T& val);
+  template <typename T>
+  static Argument* Store(const std::string& s, const T& val);
 
   virtual ~Argument() = default;
 
  protected:
-  Argument() :
-    has_name_(false)
-    {}
+  Argument() : has_name_(false) {}
 
-  explicit Argument(const std::string& s) :
-    name_(s),
-    has_name_(true)
-    {}
+  explicit Argument(const std::string& s) : name_(s), has_name_(true) {}
 
  private:
   std::string name_;
   bool has_name_;
 };
 
-template<typename T>
+template <typename T>
 class ArgumentInst : public Argument {
  public:
-  explicit ArgumentInst(const std::string& s, const T& v) :
-    Argument(s),
-    val(v)
-    {}
+  explicit ArgumentInst(const std::string& s, const T& v) : Argument(s), val(v) {}
 
-  T Get() { return val.Get(); }
+  T Get() {
+    return val.Get();
+  }
 
   std::string ToString() const override {
     string ret = Argument::ToString();
@@ -186,7 +178,7 @@ class ArgumentInst : public Argument {
     return val.GetTypeID();
   }
 
-  void SerializeToProtobuf(DaliProtoPriv *arg) override {
+  void SerializeToProtobuf(DaliProtoPriv* arg) override {
     arg->set_name(Argument::ToString());
     dali::SerializeToProtobuf(val.Get(), arg);
   }
@@ -195,15 +187,14 @@ class ArgumentInst : public Argument {
   ValueInst<T> val;
 };
 
-template<typename T>
+template <typename T>
 class ArgumentInst<std::vector<T>> : public Argument {
  public:
-  explicit ArgumentInst(const std::string& s, const std::vector<T>& v) :
-    Argument(s),
-    val(v)
-    {}
+  explicit ArgumentInst(const std::string& s, const std::vector<T>& v) : Argument(s), val(v) {}
 
-  std::vector<T> Get() { return val.Get(); }
+  std::vector<T> Get() {
+    return val.Get();
+  }
 
   std::string ToString() const override {
     string ret = Argument::ToString();
@@ -216,43 +207,42 @@ class ArgumentInst<std::vector<T>> : public Argument {
     return val.GetTypeID();
   }
 
-  void SerializeToProtobuf(DaliProtoPriv *arg) override {
+  void SerializeToProtobuf(DaliProtoPriv* arg) override {
     const std::vector<T>& vec = val.Get();
     DALI_ENFORCE(vec.size() > 0, "List arguments need to have at least 1 element.");
     arg->set_name(Argument::ToString());
     arg->set_type(dali::serialize_type(vec[0]));
     arg->set_is_vector(true);
     for (size_t i = 0; i < vec.size(); ++i) {
-      ArgumentInst<T> tmp("element " + to_string(i),
-                          vec[i]);
+      ArgumentInst<T> tmp("element " + to_string(i), vec[i]);
       auto extra_arg = arg->add_extra_args();
       tmp.SerializeToProtobuf(&extra_arg);
     }
   }
 
  private:
-  ValueInst<std::vector<T> > val;
+  ValueInst<std::vector<T>> val;
 };
 
-DLL_PUBLIC Argument *DeserializeProtobuf(const DaliProtoPriv arg);
+DLL_PUBLIC Argument* DeserializeProtobuf(const DaliProtoPriv arg);
 
-template<typename T>
+template <typename T>
 bool Argument::IsType() {
   return dynamic_cast<ArgumentInst<T>*>(this) != nullptr;
 }
 
-template<typename T>
+template <typename T>
 T Argument::Get() {
-  ArgumentInst<T> * self = dynamic_cast<ArgumentInst<T>*>(this);
+  ArgumentInst<T>* self = dynamic_cast<ArgumentInst<T>*>(this);
   if (self == nullptr) {
-    DALI_FAIL("Invalid type of argument \"" + this->get_name() +
-        "\". Expected " + typeid(T).name());
+    DALI_FAIL("Invalid type of argument \"" + this->get_name() + "\". Expected " +
+              typeid(T).name());
   }
   return self->Get();
 }
 
-template<typename T>
-Argument * Argument::Store(const std::string& s, const T& val) {
+template <typename T>
+Argument* Argument::Store(const std::string& s, const T& val) {
   return new ArgumentInst<T>(s, val);
 }
 

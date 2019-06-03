@@ -27,45 +27,12 @@ DALI_SCHEMA(NewCrop)
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
+    .AllowSequences(false)
     .AddOptionalArg(
         "image_type",
         R"code(The color space of input and output image)code",
         DALI_RGB, false)
     .AddParent("CropAttr");
-
-namespace detail {
-
-template <typename InputType, typename OutputType>
-void RunHelper(Tensor<CPUBackend> &output,
-               const Tensor<CPUBackend> &input,
-               const std::vector<int64_t> &slice_anchor,
-               const std::vector<int64_t> &slice_shape) {
-  std::size_t number_of_dims = input.shape().size();
-  VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
-    kernels::KernelContext ctx;
-    auto in_view = view<const InputType, NumDims>(input);
-
-    kernels::SliceArgs<NumDims> slice_args;
-    auto &anchor = slice_args.anchor;
-    auto &shape = slice_args.shape;
-    for (std::size_t d = 0; d < NumDims; d++) {
-      anchor[d] = slice_anchor[d];
-      shape[d] = slice_shape[d];
-    }
-
-    kernels::SliceCPU<OutputType, InputType, NumDims> kernel;
-    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
-    output.Resize(req.output_shapes[0][0].shape);
-
-    auto out_view = view<OutputType, NumDims>(output);
-    kernel.Run(ctx, out_view, in_view, slice_args);
-  ), // NOLINT
-  (
-    DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims));
-  )); // NOLINT
-}
-
-}  // namespace detail
 
 template <>
 void NewCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
@@ -87,7 +54,7 @@ void NewCrop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx)
   DALITensorLayout out_layout = in_layout;
 
   auto data_idx = ws->data_idx();
-  DataDependentSetup(data_idx, in_layout, input.shape());
+  SetupSample(data_idx, in_layout, input.shape());
   auto &slice_shape = slice_shapes_[data_idx];
 
   auto &output = ws->Output<CPUBackend>(idx);
@@ -96,25 +63,7 @@ void NewCrop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx)
 
 template <>
 void NewCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  DataDependentSetup(ws, idx);
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
-  auto data_idx = ws->data_idx();
-
-  if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
-    DALI_ENFORCE(input_type_ == output_type_,
-      "type conversion is not supported for half precision floats");
-    detail::RunHelper<float16_cpu, float16_cpu>(
-      output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
-    return;
-  }
-
-  DALI_TYPE_SWITCH(input_type_, InputType,
-    DALI_TYPE_SWITCH(output_type_, OutputType,
-      detail::RunHelper<OutputType, InputType>(
-        output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
-    )
-  )
+  SliceBase<CPUBackend>::RunImpl(ws, idx);
 }
 
 // Register operator

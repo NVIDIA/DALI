@@ -79,18 +79,18 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
           if (H >= W) {
             if (resize_shorter) {
               rsz_w = resize_a;
-              rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+              rsz_h = static_cast<int>(std::round(H * static_cast<float>(rsz_w) / W));
             } else {
               rsz_h = resize_a;
-              rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+              rsz_w = static_cast<int>(std::round(W * static_cast<float>(rsz_h) / H));
             }
           } else {  // W > H
             if (resize_shorter) {
               rsz_h = resize_a;
-              rsz_w = static_cast<int>(W * static_cast<float>(rsz_h) / H);
+              rsz_w = static_cast<int>(std::round(W * static_cast<float>(rsz_h) / H));
             } else {
               rsz_w = resize_a;
-              rsz_h = static_cast<int>(H * static_cast<float>(rsz_w) / W);
+              rsz_h = static_cast<int>(std::round(H * static_cast<float>(rsz_w) / W));
             }
           }
         }

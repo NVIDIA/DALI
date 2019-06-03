@@ -118,7 +118,7 @@ macro(get_dali_version FILENAME FILE_VAR)
 endmacro()
 
 # add a post-build step to the provided target which copies
-# files or directories recursively from SRC to DSTrunnable
+# files or directories recursively from SRC to DST
 # create phony target first (if not exists with given name yet)
 # and add comand attached to it
 macro(copy_post_build TARGET_NAME SRC DST)
@@ -130,7 +130,7 @@ macro(copy_post_build TARGET_NAME SRC DST)
 
     add_custom_command(
     TARGET install_${TARGET_NAME}
-    COMMAND cp -r
+    COMMAND mkdir -p "${DST}" && cp -r
             "${SRC}"
             "${DST}")
 endmacro(copy_post_build)

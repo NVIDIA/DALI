@@ -20,21 +20,21 @@
 #include <tuple>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/kernels/scratch.h"
 #include "dali/pipeline/operators/common.h"
-#include "dali/pipeline/operators/crop/kernel/crop_kernel.h"
 #include "dali/pipeline/operators/crop/crop_attr.h"
+#include "dali/pipeline/operators/crop/slice_base.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class NewCrop : public Operator<Backend>, protected CropAttr {
+class NewCrop : public SliceBase<Backend>, protected CropAttr {
  public:
   explicit inline NewCrop(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    SliceBase<Backend>(spec),
     CropAttr(spec),
     C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
-    Init(batch_size_);
   }
 
  protected:
@@ -42,17 +42,16 @@ class NewCrop : public Operator<Backend>, protected CropAttr {
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
-  std::vector<std::vector<int64_t>> slice_anchors_, slice_shapes_;
-  DALIDataType input_type_;
-  DALIDataType output_type_;
+  void DataDependentSetup(Workspace<Backend> *ws, int idx) override;
+
+  using SliceBase<Backend>::slice_anchors_;
+  using SliceBase<Backend>::slice_shapes_;
+  using SliceBase<Backend>::input_type_;
+  using SliceBase<Backend>::output_type_;
+  USE_OPERATOR_MEMBERS();
   std::size_t C_;
 
-  USE_OPERATOR_MEMBERS();
-
- private:
-  void DataDependentSetup(Workspace<Backend> *ws, int idx);
-
-  void DataDependentSetup(int data_idx, DALITensorLayout layout, const vector<Index> &shape) {
+  void SetupSample(int data_idx, DALITensorLayout layout, const vector<Index> &shape) {
     Index F = 1, H, W, C;
     DALI_ENFORCE(shape.size() == 3 || shape.size() == 4,
       "Unexpected number of dimensions: " + std::to_string(shape.size()));
@@ -90,8 +89,9 @@ class NewCrop : public Operator<Backend>, protected CropAttr {
 
     auto crop_h = crop_height_[data_idx];
     auto crop_w = crop_width_[data_idx];
-    auto crop_y = crop_pos_y_x.first;
-    auto crop_x = crop_pos_y_x.second;
+
+    int64_t crop_y, crop_x;
+    std::tie(crop_y, crop_x) = crop_pos_y_x;
 
     switch (layout) {
       case DALI_NHWC:
@@ -113,12 +113,6 @@ class NewCrop : public Operator<Backend>, protected CropAttr {
       default:
         DALI_FAIL("Not supported layout");
     }
-  }
-
-  void Init(int size) {
-    slice_anchors_.resize(size);
-    slice_shapes_.resize(size);
-    output_type_ = DALI_NO_TYPE;
   }
 };
 

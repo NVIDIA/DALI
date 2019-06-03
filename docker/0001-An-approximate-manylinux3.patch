@@ -1,4 +1,4 @@
-From 116046ccbf0b1811931443ed41fef8a27b59fdbe Mon Sep 17 00:00:00 2001
+From 713edd116c0322317bb643488f64abcad12d2021 Mon Sep 17 00:00:00 2001
 From: jwoolley <jwoolley@nvidia.com>
 Date: Tue, 26 Jun 2018 10:10:00 -0700
 Subject: [PATCH] An approximate 'manylinux3'
@@ -6,9 +6,9 @@ Subject: [PATCH] An approximate 'manylinux3'
 ---
  build.sh                          |  5 +--
  docker/Dockerfile-x86_64          |  8 ++--
- docker/build_scripts/build.sh     | 65 ++++++++-----------------------
+ docker/build_scripts/build.sh     | 66 +++++++++----------------------
  docker/build_scripts/build_env.sh |  3 +-
- 4 files changed, 25 insertions(+), 56 deletions(-)
+ 4 files changed, 27 insertions(+), 55 deletions(-)
 
 diff --git a/build.sh b/build.sh
 index 56b42ff..ba02a29 100755
@@ -26,7 +26,7 @@ index 56b42ff..ba02a29 100755
 -docker system prune -f
 +docker build --rm -t manylinux3_x86_64 -f docker/Dockerfile-$PLATFORM docker/
 diff --git a/docker/Dockerfile-x86_64 b/docker/Dockerfile-x86_64
-index 0c2f4b1..6715697 100644
+index 0c2f4b1..be290c1 100644
 --- a/docker/Dockerfile-x86_64
 +++ b/docker/Dockerfile-x86_64
 @@ -1,15 +1,15 @@
@@ -40,8 +40,8 @@ index 0c2f4b1..6715697 100644
  ENV LANGUAGE en_US.UTF-8
 -ENV PATH /opt/rh/devtoolset-2/root/usr/bin:$PATH
 -ENV LD_LIBRARY_PATH /opt/rh/devtoolset-2/root/usr/lib64:/opt/rh/devtoolset-2/root/usr/lib:/usr/local/lib64:/usr/local/lib
-+ENV PATH /opt/rh/devtoolset-3/root/usr/bin:$PATH
-+ENV LD_LIBRARY_PATH /opt/rh/devtoolset-3/root/usr/lib64:/opt/rh/devtoolset-3/root/usr/lib:/usr/local/lib64:/usr/local/lib
++ENV PATH /opt/rh/devtoolset-4/root/usr/bin:$PATH
++ENV LD_LIBRARY_PATH /opt/rh/devtoolset-4/root/usr/lib64:/opt/rh/devtoolset-4/root/usr/lib:/usr/local/lib64:/usr/local/lib
  ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
  
  COPY build_scripts /build_scripts
@@ -50,7 +50,7 @@ index 0c2f4b1..6715697 100644
  
  ENV SSL_CERT_FILE=/opt/_internal/certs.pem
 diff --git a/docker/build_scripts/build.sh b/docker/build_scripts/build.sh
-index 219703a..504e72c 100755
+index 219703a..b05615b 100755
 --- a/docker/build_scripts/build.sh
 +++ b/docker/build_scripts/build.sh
 @@ -1,4 +1,5 @@
@@ -75,7 +75,7 @@ index 219703a..504e72c 100755
  # Get build utilities
  source $MY_DIR/build_utils.sh
  
-@@ -48,59 +40,39 @@ cp $MY_DIR/epel-release-5-4.noarch.rpm .
+@@ -48,59 +40,42 @@ cp $MY_DIR/epel-release-5-4.noarch.rpm .
  check_sha256sum epel-release-5-4.noarch.rpm $EPEL_RPM_HASH
  
  # Dev toolset (for LLVM and other projects requiring C++11 support)
@@ -86,13 +86,15 @@ index 219703a..504e72c 100755
 -rm -f epel-release-5*.rpm
 +yum -y install centos-release-scl
 +yum-config-manager --enable rhel-server-rhscl-7-rpms
-+yum -y install devtoolset-3
-+sed -i 's| \. scl_source.*$| echo|' /opt/rh/devtoolset-3/enable
-+source /opt/rh/devtoolset-3/enable
++yum -y install devtoolset-4
++sed -i 's| \. scl_source.*$| echo|' /opt/rh/devtoolset-4/enable
++source /opt/rh/devtoolset-4/enable
  
  # Development tools and libraries
  yum -y install \
--    automake \
+     automake \
++    autoconf \
++    libtool \
 +    autotools-latest \
      bison \
      bzip2 \
@@ -102,10 +104,10 @@ index 219703a..504e72c 100755
 -    devtoolset-2-gcc-c++ \
 -    devtoolset-2-gcc-gfortran \
 +    curl \
-+    devtoolset-3-binutils \
-+    devtoolset-3-gcc \
-+    devtoolset-3-gcc-c++ \
-+    devtoolset-3-gcc-gfortran \
++    devtoolset-4-binutils \
++    devtoolset-4-gcc \
++    devtoolset-4-gcc-c++ \
++    devtoolset-4-gcc-gfortran \
      diffutils \
      expat-devel \
      gettext \
@@ -150,7 +152,7 @@ index 219703a..504e72c 100755
  # Install a more recent SQLite3
  curl -fsSLO $SQLITE_AUTOCONF_DOWNLOAD_URL/$SQLITE_AUTOCONF_VERSION.tar.gz
  check_sha256sum $SQLITE_AUTOCONF_VERSION.tar.gz $SQLITE_AUTOCONF_HASH
-@@ -132,9 +104,6 @@ ln -s $($PY36_BIN/python -c 'import certifi; print(certifi.where())') \
+@@ -132,9 +107,6 @@ ln -s $($PY36_BIN/python -c 'import certifi; print(certifi.where())') \
  # Dockerfiles:
  export SSL_CERT_FILE=/opt/_internal/certs.pem
  
@@ -160,7 +162,7 @@ index 219703a..504e72c 100755
  # Install patchelf (latest with unreleased bug fixes)
  curl -fsSL -o patchelf.tar.gz https://github.com/NixOS/patchelf/archive/$PATCHELF_VERSION.tar.gz
  check_sha256sum patchelf.tar.gz $PATCHELF_HASH
-@@ -154,7 +123,7 @@ yum -y erase \
+@@ -154,7 +126,7 @@ yum -y erase \
      hicolor-icon-theme \
      libX11 \
      wireless-tools \

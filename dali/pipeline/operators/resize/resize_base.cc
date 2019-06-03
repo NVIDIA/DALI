@@ -186,7 +186,7 @@ void ResizeBase::RunCPU(Tensor<CPUBackend> &output,
   const auto &input_shape = input.shape();
 
   auto out_shape = kdata.requirements.output_shapes[0][0];
-  out_shape_[thread_idx] = out_shape.shape;
+  out_shape_[thread_idx] = out_shape.shape.to_vector();
 
   // Resize the output & run
   output.Resize(out_shape_[thread_idx]);

@@ -23,6 +23,7 @@
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/device_guard.h"
 
 // This file contains utilities helping inspection and interaction with DALI GPU buffers
 // without forcing synchronization of all pipelines.
@@ -32,6 +33,7 @@
 namespace dali {
 class DLL_PUBLIC UserStream {
  public:
+  /// @brief Gets UserStream instance
   DLL_PUBLIC static UserStream* Get() {
     std::lock_guard<std::mutex> lock(m_);
     if (us_ == nullptr) {
@@ -40,6 +42,8 @@ class DLL_PUBLIC UserStream {
     return us_;
   }
 
+  /// @brief Obtains cudaStream_t for provided buffer. If there is no for given device,
+  //  new one is created and stored in the internal map
   DLL_PUBLIC cudaStream_t GetStream(const dali::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
     std::lock_guard<std::mutex> lock(m_);
@@ -47,6 +51,7 @@ class DLL_PUBLIC UserStream {
     if (it != streams_.end()) {
       return it->second;
     } else {
+      DeviceGuard g(dev);
       constexpr int kDefaultStreamPriority = 0;
       CUDA_CALL(cudaStreamCreateWithPriority(&streams_[dev], cudaStreamNonBlocking,
                                              kDefaultStreamPriority));
@@ -54,30 +59,36 @@ class DLL_PUBLIC UserStream {
     }
   }
 
+  /// @brief Synchronizes on the device where given buffer b exists
   DLL_PUBLIC void WaitForDevice(const dali::Buffer<GPUBackend> &b) {
-    GetDeviceForBuffer(b);
-    // GetDeviceForBuffer sets proper current device
+    size_t dev = GetDeviceForBuffer(b);
+    DeviceGuard g(dev);
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
+  /// @brief Synchronizes on the the stream where buffer b was created
   DLL_PUBLIC void Wait(const dali::Buffer<GPUBackend> &b) {
     size_t dev = GetDeviceForBuffer(b);
     DALI_ENFORCE(streams_.find(dev) != streams_.end(),
         "Can only wait on user streams");
+    DeviceGuard g(dev);
     CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
   }
 
+  /// @brief Synchronizes stream connected with the current device
   DLL_PUBLIC void Wait() {
     int dev;
     CUDA_CALL(cudaGetDevice(&dev));
     DALI_ENFORCE(streams_.find(dev) != streams_.end(),
         "Can only wait on user streams");
+    DeviceGuard g(dev);
     CUDA_CALL(cudaStreamSynchronize(streams_[dev]));
   }
 
+  /// @brief Synchronizes all tracked streams
   DLL_PUBLIC void WaitAll() {
     for (const auto &dev_pair : streams_) {
-      CUDA_CALL(cudaSetDevice(dev_pair.first));
+      DeviceGuard g(dev_pair.first);
       CUDA_CALL(cudaStreamSynchronize(dev_pair.second));
     }
   }
@@ -89,7 +100,6 @@ class DLL_PUBLIC UserStream {
     int dev = b.device_id();
     DALI_ENFORCE(dev != -1,
         "Used a pointer from unknown device");
-    CUDA_CALL(cudaSetDevice(dev));
     return dev;
   }
 

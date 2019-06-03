@@ -58,6 +58,7 @@ class OpticalFlowBuffer {
     if (err != NV_OF_SUCCESS) {
       // Failing to destroy GPU CUDA buffer leads to significant memory leak,
       // thus we'll rather terminate, than live with that memleak.
+      std::cerr << "Fatal error: failed to destroy optical flow CUDA buffer" << std::endl;
       std::terminate();
     }
   }

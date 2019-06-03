@@ -59,7 +59,7 @@ void ImageCacheLargest::Add(const ImageKey& image_key,
             && biggest_images_total_ + data_size > cache_size_
             && biggest_images_.top().first < data_size) {
           biggest_images_total_ -= biggest_images_.top().first;
-          to_be_discarded.push(std::move(biggest_images_.top()));
+          to_be_discarded.push(biggest_images_.top());
           biggest_images_.pop();
         }
 

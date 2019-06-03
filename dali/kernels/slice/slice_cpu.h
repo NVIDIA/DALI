@@ -73,21 +73,21 @@ void SliceKernel(OutputType *output,
 }
 
 template <typename OutputType, typename InputType, std::size_t Dims>
-class DLL_PUBLIC SliceCPU {
+class SliceCPU {
  public:
-  DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
-                                      const InTensorCPU<InputType, Dims> &in,
-                                      const SliceArgs<Dims> &slice_args) {
+  KernelRequirements Setup(KernelContext &context,
+                           const InTensorCPU<InputType, Dims> &in,
+                           const SliceArgs<Dims> &slice_args) {
     KernelRequirements req;
     auto shape = GetOutputShape<Dims>(in.shape, slice_args);
     req.output_shapes.push_back(uniform_list_shape<Dims>(1, shape));
     return req;
   }
 
-  DLL_PUBLIC void Run(KernelContext &context,
-                      OutTensorCPU<OutputType, Dims> &out,
-                      const InTensorCPU<InputType, Dims> &in,
-                      const SliceArgs<Dims> &slice_args) {
+  void Run(KernelContext &context,
+           OutTensorCPU<OutputType, Dims> &out,
+           const InTensorCPU<InputType, Dims> &in,
+           const SliceArgs<Dims> &slice_args) {
     const auto &in_shape = in.shape;
     const auto &out_shape = out.shape;
     const auto &anchor = slice_args.anchor;

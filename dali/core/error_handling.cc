@@ -27,13 +27,13 @@ string DALIGetLastError() {
   return error_str;
 }
 
-void DALISetLastError(string error_str) {
+void DALISetLastError(const string &error_str) {
   // Note: This currently overwrites the string if there is
   // already an error string stored.
   g_dali_error_string = error_str;
 }
 
-void DALIAppendToLastError(string error_str) {
+void DALIAppendToLastError(const string &error_str) {
   // Adds additional info to previously returned error
   g_dali_error_string += error_str;
 }

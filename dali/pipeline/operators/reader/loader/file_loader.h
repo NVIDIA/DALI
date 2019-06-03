@@ -52,7 +52,7 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
     : Loader<CPUBackend, ImageLabelWrapper>(spec),
       file_root_(spec.GetArgument<string>("file_root")),
       file_list_(spec.GetArgument<string>("file_list")),
-      image_label_pairs_(image_label_pairs),
+      image_label_pairs_(std::move(image_label_pairs)),
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
       current_epoch_(0) {

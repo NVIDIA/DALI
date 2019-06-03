@@ -147,7 +147,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void PrepareEmpty(SequenceWrapper &tensor) override;
   void ReadSample(SequenceWrapper &tensor) override;
 
-  OpenFile& get_or_open_file(std::string filename);
+  OpenFile& get_or_open_file(const std::string &filename);
   void seek(OpenFile& file, int frame);
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);

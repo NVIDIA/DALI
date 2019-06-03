@@ -17,7 +17,10 @@
 
 #include <cuda_runtime.h>
 #include <utility>
+#include <memory>
+#include <vector>
 #include "dali/kernels/alloc.h"
+#include "dali/core/util.h"
 #include "dali/core/cuda_utils.h"
 
 namespace dali {
@@ -98,7 +101,6 @@ class SmallVectorBase<T, true> {
   }
 
   __host__ __device__ static void destroy(T *, size_t) noexcept {}
-
 };
 
 #ifdef __CUDA_ARCH__
@@ -112,11 +114,32 @@ using default_small_vector_allocator = std::allocator<T>;
 template <typename T, size_t static_size_, typename allocator = default_small_vector_allocator<T>>
 class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   using Alloc = SmallVectorAlloc<T, allocator>;
+
  public:
   static constexpr const size_t static_size = static_size_;  // NOLINT (kOnstant)
   __host__ __device__ SmallVector() {}
   __host__ __device__ explicit SmallVector(allocator &&alloc) : Alloc(cuda_move(alloc)) {}
   __host__ __device__ explicit SmallVector(const allocator &alloc) : Alloc(alloc) {}
+
+  __host__ __device__ SmallVector(const T *data, size_t count) {
+    copy_assign(data, count);
+  }
+
+  template <typename Iterator>
+  __host__ __device__ SmallVector(Iterator begin, Iterator end) {
+    copy_assign(begin, end);
+  }
+
+  __host__ __device__ SmallVector(const std::vector<T> &v) {
+    *this = v;
+  }
+
+
+  __host__ __device__ SmallVector(std::initializer_list<T> il) {
+    auto *data = &*il.begin();
+    auto count = il.end() - il.begin();
+    copy_assign(data, count);
+  }
 
   __host__ __device__ ~SmallVector() {
     T *ptr = data();
@@ -152,6 +175,51 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     return *this;
   }
 
+  template <typename Collection>
+  __host__ __device__ if_array_like<Collection, SmallVector &> operator=(const Collection &c) {
+    auto n = dali::size(c);
+    clear();
+    reserve(n);
+    T *ptr = data();
+    for (size_t i = 0; i < n; i++) {
+      new(ptr+i) T(c[i]);
+      if (!noexcept(new(ptr+i) T(c[i])))
+        set_size(i+1);
+    }
+    set_size(n);
+    return *this;
+  }
+
+  template <typename Iterator>
+  __host__ __device__ void copy_assign(Iterator begin, Iterator end) {
+    auto n = end - begin;
+    clear();
+    reserve(n);
+    for (Iterator i = begin; i != end; i++) {
+      push_back(*i);
+    }
+  }
+
+  __host__ __device__ void copy_assign(const T *begin, const T *end) {
+    copy_assign(begin, end-begin);
+  }
+
+  __host__ __device__ void copy_assign(const T *data, size_t count) {
+    clear();
+    reserve(count);
+    T *ptr = this->data();
+    if (std::is_pod<T>::value) {
+      this->copy(ptr, data, count);
+      set_size(count);
+    } else {
+      for (size_t i = 0; i < count; i++) {
+        new(ptr+i) T(data[i]);
+        if (!noexcept(new(ptr+i) T(data[i])))
+          set_size(i+1);
+      }
+      set_size(count);
+    }
+  }
 
   template <size_t other_static_size, typename alloc>
   __host__ __device__ void copy_assign(const SmallVector<T, other_static_size, alloc> &v) {
@@ -511,6 +579,10 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     }
   }
 
+  __host__ std::vector<T> to_vector() const {
+    return std::vector<T>(begin(), end());
+  }
+
  private:
   template <typename U, size_t n, typename A>
   friend class SmallVector;
@@ -592,9 +664,8 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       reserve(cuda_max(2 * capacity(), size() + count));
     }
   }
-
 };
 
-}  // dali
+}  // namespace dali
 
-#endif  // DALI_KERNELS_CORE_VECTOR_H_
+#endif  // DALI_CORE_SMALL_VECTOR_H_
