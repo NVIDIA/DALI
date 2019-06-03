@@ -124,11 +124,10 @@ class OpticalFlow : public Operator<Backend> {
     }
 
     for (auto sz : sequence_sizes_) {
-      DALI_ENFORCE(sz >= 2, (sz == 0 ? "Empty sequence encountered. "
-        "Make sure, that all input sequences for Optical Flow have at least 2 frames." : 
-        "One-frame sequence encountered. "
-        "Make sure, that input sequences for Optical Flow have at least 2 frames."));
-      DALI_ENFORCE(sz >= 0, "Negative length of a sequence encountered.");
+      DALI_ENFORCE(sz >= 2, (sz == 1 ? "One-frame sequence encountered. "
+        "Make sure that all input sequences for Optical Flow have at least 2 frames." :
+        "Empty sequence encountered. "
+        "Make sure that all input sequences for Optical Flow have at least 2 frames."));
     }
   }
 
