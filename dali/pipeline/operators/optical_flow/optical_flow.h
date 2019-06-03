@@ -124,9 +124,11 @@ class OpticalFlow : public Operator<Backend> {
     }
 
     for (auto sz : sequence_sizes_) {
-      DALI_ENFORCE(sz < 2, 
-        "At least two frames are necessary to calculate optical flow. "
-        "Make sure, that number of frames in every sequence is greater or equal to 2.");
+      DALI_ENFORCE(sz >= 2, (sz == 0 ? "Empty sequence encountered. "
+        "Make sure, that all input sequences for Optical Flow have at least 2 frames." : 
+        "One-frame sequence encountered. "
+        "Make sure, that input sequences for Optical Flow have at least 2 frames."));
+      DALI_ENFORCE(sz >= 0, "Negative length of a sequence encountered.");
     }
   }
 
