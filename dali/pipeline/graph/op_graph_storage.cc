@@ -35,10 +35,9 @@ std::vector<tensor_data_store_queue_t> CreateBackingStorageForTensorNodes(
   return result;
 }
 
-std::vector<std::vector<cudaEvent_t>> CreateEventsForMixedOps(EventPool &event_pool,
-                                                              const OpGraph &op_graph,
-                                                              int mixed_queue_depth) {
-  std::vector<std::vector<cudaEvent_t>> result;
+MixedOpEventMap CreateEventsForMixedOps(EventPool &event_pool, const OpGraph &op_graph,
+                                        int mixed_queue_depth) {
+  MixedOpEventMap result;
   result.resize(op_graph.NumOp(OpType::MIXED));
   for (int i = 0; i < op_graph.NumOp(OpType::MIXED); i++) {
     result[i].resize(mixed_queue_depth);
