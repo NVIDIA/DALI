@@ -52,7 +52,17 @@ class FlipCpuTest
   OutTensorCPU<float, 4> in_view_;
 };
 
-TEST_P(FlipCpuTest, BasicTest) {
+TEST_P(FlipCpuTest, ImplTest) {
+  std::vector<float> out_data(volume(shape_));
+  detail::cpu::FlipImpl(
+      out_data.data(), in_view_.data,
+      shape_[0], shape_[1], shape_[2], shape_[3],
+      flip_z_, flip_y_, flip_x_);
+  ASSERT_TRUE(is_flipped(out_data.data(), in_view_.data,
+                         shape_[0], shape_[1], shape_[2], shape_[3], flip_z_, flip_y_, flip_x_));
+}
+
+TEST_P(FlipCpuTest, KernelTest) {
   KernelContext ctx;
   FlipCPU<float> kernel;
   KernelRequirements reqs = kernel.Setup(ctx, in_view_);
@@ -61,7 +71,7 @@ TEST_P(FlipCpuTest, BasicTest) {
   auto out_view = OutTensorCPU<float, 4>(out_data.data(), out_shape);
   kernel.Run(ctx, out_view, in_view_, flip_z_, flip_y_, flip_x_);
   ASSERT_TRUE(is_flipped(out_view.data, in_view_.data,
-        shape_[0], shape_[1], shape_[2], shape_[3], flip_z_, flip_y_, flip_x_));
+      shape_[0], shape_[1], shape_[2], shape_[3], flip_z_, flip_y_, flip_x_));
 }
 
 INSTANTIATE_TEST_SUITE_P(FlipCpuTest, FlipCpuTest, testing::Combine(

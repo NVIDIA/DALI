@@ -50,8 +50,32 @@ class FlipGpuTest: public testing::TestWithParam<std::array<Index, 4>> {
   TestTensorList<float, 4> ttl_out_;
 };
 
-TEST_P(FlipGpuTest, BasicTest) {
-  GetParam();
+TEST_P(FlipGpuTest, ImplTest) {
+  KernelContext ctx;
+  FlipGPU<float> kernel;
+  auto in_view = ttl_in_.gpu(nullptr);
+  ttl_in_.invalidate_cpu();
+  KernelRequirements reqs = kernel.Setup(ctx, in_view);
+  ttl_out_.reshape(reqs.output_shapes[0].to_static<4>());
+  auto out_view = ttl_out_.gpu();
+  for (int i = 0; i < in_view.num_samples(); ++i) {
+    detail::gpu::FlipImpl(
+        out_view.tensor_data(i), in_view.tensor_data(i),
+        tensor_shape_[0], tensor_shape_[1], tensor_shape_[2], tensor_shape_[3],
+        flip_z_[i], flip_y_[i], flip_z_[i], nullptr);
+  }
+  kernel.Run(ctx, out_view, in_view, flip_z_, flip_y_, flip_x_);
+  auto out_view_cpu = ttl_out_.cpu(nullptr);
+  auto in_view_cpu = ttl_in_.cpu(nullptr);
+  for (int i = 0; i < out_view_cpu.num_samples(); ++i) {
+    ASSERT_TRUE(is_flipped(out_view_cpu.tensor_data(i),
+                           in_view_cpu.tensor_data(i),
+                           shape_[i][0], shape_[i][1], shape_[i][2], shape_[i][3],
+                           flip_z_[i], flip_y_[i], flip_x_[i]));
+  }
+}
+
+TEST_P(FlipGpuTest, KernelTest) {
   KernelContext ctx;
   FlipGPU<float> kernel;
   auto in_view = ttl_in_.gpu(nullptr);
@@ -64,9 +88,9 @@ TEST_P(FlipGpuTest, BasicTest) {
   auto in_view_cpu = ttl_in_.cpu(nullptr);
   for (int i = 0; i < out_view_cpu.num_samples(); ++i) {
     ASSERT_TRUE(is_flipped(out_view_cpu.tensor_data(i),
-              in_view_cpu.tensor_data(i),
-              shape_[i][0], shape_[i][1], shape_[i][2], shape_[i][3],
-              flip_z_[i], flip_y_[i], flip_x_[i]));
+                           in_view_cpu.tensor_data(i),
+                           shape_[i][0], shape_[i][1], shape_[i][2], shape_[i][3],
+                           flip_z_[i], flip_y_[i], flip_x_[i]));
   }
 }
 

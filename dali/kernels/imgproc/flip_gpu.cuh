@@ -47,6 +47,22 @@ __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
   output[output_idx] = input[input_idx];
 }
 
+template <typename T>
+void FlipImpl(T *__restrict__ output, const T *__restrict__ input,
+              size_t layers, size_t height, size_t width, size_t channels,
+              bool flip_z, bool flip_y, bool flip_x, cudaStream_t stream) {
+  auto layer_width = width * channels;
+  unsigned int block_x = layer_width < 32 ? layer_width : 32;
+  unsigned int block_y = height < 32 ? height : 32;
+  dim3 block(block_x, block_y, 1);
+  dim3 grid((layer_width + block_x - 1) / block_x, (height + block_y - 1) / block_y, layers);
+  VALUE_SWITCH(channels, c_channels, (1, 2, 3, 4, 5, 6, 7, 8), (
+      detail::gpu::FlipKernel<c_channels><<<grid, block, 0, stream>>>
+        (output, input, layers, height, width, channels, flip_z, flip_y, flip_x);), (
+      detail::gpu::FlipKernel<0><<<grid, block, 0, stream>>>
+        (output, input, layers, height, width, channels, flip_z, flip_y, flip_x);));
+}
+
 }  // namespace gpu
 }  // namespace detail
 
@@ -72,16 +88,8 @@ class DLL_PUBLIC FlipGPU {
       auto channels = in.tensor_shape(i)[3];
       auto in_data = in[i].data;
       auto out_data = out[i].data;
-      auto layer_width = width * channels;
-      unsigned int block_x = layer_width < 32 ? layer_width : 32;
-      unsigned int block_y = height < 32 ? height : 32;
-      dim3 block(block_x, block_y, 1);
-      dim3 grid((layer_width + block_x - 1) / block_x, (height + block_y - 1) / block_y, layers);
-      VALUE_SWITCH(channels, c_channels, (1, 2, 3, 4, 5, 6, 7, 8), (
-        detail::gpu::FlipKernel<c_channels><<<grid, block, 0, context.gpu.stream>>>
-          (out_data, in_data, layers, height, width, channels, flip_z[i], flip_y[i], flip_x[i]);), (
-        detail::gpu::FlipKernel<0><<<grid, block, 0, context.gpu.stream>>>
-          (out_data, in_data, layers, height, width, channels, flip_z[i], flip_y[i], flip_x[i]);));
+      detail::gpu::FlipImpl(out_data, in_data, layers, height, width, channels,
+          flip_z[i], flip_y[i], flip_x[i], context.gpu.stream);
     }
   }
 };

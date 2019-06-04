@@ -71,7 +71,7 @@ void FlipZAxis(Type *output, const Type *input, size_t layers, size_t height, si
 }
 
 template <typename Type>
-void FlipKernel(Type *output, const Type *input,
+void FlipImpl(Type *output, const Type *input,
                        size_t layers, size_t height, size_t width,
                        size_t channels, bool flip_z, bool flip_y, bool flip_x) {
   if (flip_x || flip_y) {
@@ -99,7 +99,7 @@ class DLL_PUBLIC FlipCPU {
       const InTensorCPU<Type, 4> &in, bool flip_z, bool flip_y, bool flip_x) {
     auto in_data = in.data;
     auto out_data = out.data;
-    detail::cpu::FlipKernel(out_data, in_data, in.shape[0], in.shape[1], in.shape[2], in.shape[3],
+    detail::cpu::FlipImpl(out_data, in_data, in.shape[0], in.shape[1], in.shape[2], in.shape[3],
         flip_z, flip_y, flip_x);
   }
 };
