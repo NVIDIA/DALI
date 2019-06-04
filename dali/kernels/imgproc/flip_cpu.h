@@ -27,7 +27,7 @@ namespace kernels {
 namespace detail {
 namespace cpu {
 
-static int GetOcvType(const TypeInfo &type, size_t channels) {
+inline int GetOcvType(const TypeInfo &type, size_t channels) {
   if (channels * type.size() > CV_CN_MAX) {
     DALI_FAIL("Pixel size must not be greater than " + std::to_string(CV_CN_MAX) + " bytes.");
   }
@@ -35,7 +35,7 @@ static int GetOcvType(const TypeInfo &type, size_t channels) {
 }
 
 template <typename Type>
-static void OcvFlip(Type *output, const Type *input,
+void OcvFlip(Type *output, const Type *input,
                     size_t layers, size_t height, size_t width, size_t channels,
                     bool flip_z, bool flip_y, bool flip_x) {
   assert(flip_x || flip_y);
@@ -56,7 +56,7 @@ static void OcvFlip(Type *output, const Type *input,
 }
 
 template <typename Type>
-static void FlipZAxis(Type *output, const Type *input, size_t layers, size_t height, size_t width,
+void FlipZAxis(Type *output, const Type *input, size_t layers, size_t height, size_t width,
                       size_t channels, bool flip_z) {
   if (!flip_z) {
     std::copy(input, input + layers * height * width * channels, output);
@@ -71,7 +71,7 @@ static void FlipZAxis(Type *output, const Type *input, size_t layers, size_t hei
 }
 
 template <typename Type>
-static void FlipKernel(Type *output, const Type *input,
+void FlipKernel(Type *output, const Type *input,
                        size_t layers, size_t height, size_t width,
                        size_t channels, bool flip_z, bool flip_y, bool flip_x) {
   if (flip_x || flip_y) {

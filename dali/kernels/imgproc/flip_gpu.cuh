@@ -28,7 +28,7 @@ namespace detail {
 namespace gpu {
 
 template <size_t C, typename T>
-static __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
+__global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
                            size_t layers, size_t height, size_t width, size_t channels,
                            bool flip_z, bool flip_y, bool flip_x) {
   size_t xc = blockIdx.x * blockDim.x + threadIdx.x;
