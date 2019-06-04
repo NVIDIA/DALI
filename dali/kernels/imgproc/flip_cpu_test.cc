@@ -26,42 +26,42 @@ namespace dali {
 namespace kernels {
 
 class FlipCpuTest
-    : public ::testing::TestWithParam<std::tuple<int, int, int, std::array<Index, 4>>> {
+    : public::testing::TestWithParam<std::tuple<int, int, int, std::array<Index, 4>>> {
  public:
   FlipCpuTest()
-  : flip_x(std::get<0>(GetParam()))
-  , flip_y(std::get<1>(GetParam()))
-  , flip_z(std::get<2>(GetParam()))
-  , shape(std::get<3>(GetParam()))
-  , data(volume(shape))
-  , in_view(data.data(), shape) {}
+  : flip_x_(std::get<0>(GetParam()))
+  , flip_y_(std::get<1>(GetParam()))
+  , flip_z_(std::get<2>(GetParam()))
+  , shape_(std::get<3>(GetParam()))
+  , data_(volume(shape_))
+  , in_view_(data_.data(), shape_) {}
 
   ~FlipCpuTest() override = default;
 
  protected:
-  void SetUp() override {
+  void SetUp() final {
     std::mt19937_64 rng;
-    UniformRandomFill(in_view, rng, 0., 10.);
+    UniformRandomFill(in_view_, rng, 0., 10.);
   }
 
-  int flip_x;
-  int flip_y;
-  int flip_z;
-  kernels::TensorShape<4> shape;
-  std::vector<float> data;
-  OutTensorCPU<float, 4> in_view;
+  int flip_x_;
+  int flip_y_;
+  int flip_z_;
+  kernels::TensorShape<4> shape_;
+  std::vector<float> data_;
+  OutTensorCPU<float, 4> in_view_;
 };
 
 TEST_P(FlipCpuTest, BasicTest) {
   KernelContext ctx;
   FlipCPU<float> kernel;
-  KernelRequirements reqs = kernel.Setup(ctx, in_view);
+  KernelRequirements reqs = kernel.Setup(ctx, in_view_);
   auto out_shape = reqs.output_shapes[0][0].to_static<4>();
   std::vector<float> out_data(volume(out_shape));
   auto out_view = OutTensorCPU<float, 4>(out_data.data(), out_shape);
-  kernel.Run(ctx, out_view, in_view, flip_z, flip_y, flip_x);
-  ASSERT_TRUE(is_flipped(out_view.data, in_view.data,
-        shape[0], shape[1], shape[2], shape[3], flip_z, flip_y, flip_x));
+  kernel.Run(ctx, out_view, in_view_, flip_z_, flip_y_, flip_x_);
+  ASSERT_TRUE(is_flipped(out_view.data, in_view_.data,
+        shape_[0], shape_[1], shape_[2], shape_[3], flip_z_, flip_y_, flip_x_));
 }
 
 INSTANTIATE_TEST_SUITE_P(FlipCpuTest, FlipCpuTest, testing::Combine(

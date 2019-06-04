@@ -27,46 +27,46 @@ namespace kernels {
 class FlipGpuTest: public testing::TestWithParam<std::array<Index, 4>> {
  public:
   FlipGpuTest()
-  : tensor_shape(GetParam())
-  , _volume(volume(tensor_shape))
-  , shape({tensor_shape, tensor_shape, tensor_shape, tensor_shape,
-           tensor_shape, tensor_shape, tensor_shape, tensor_shape}) {}
+  : tensor_shape_(GetParam())
+  , volume_(volume(tensor_shape_))
+  , shape_({tensor_shape_, tensor_shape_, tensor_shape_, tensor_shape_,
+           tensor_shape_, tensor_shape_, tensor_shape_, tensor_shape_}) {}
 
-  void SetUp() override {
-    ttl_in.reshape(shape);
-    auto tlv = ttl_in.cpu(nullptr);
+  void SetUp() final {
+    ttl_in_.reshape(shape_);
+    auto tlv = ttl_in_.cpu(nullptr);
     std::mt19937_64 rng;
     UniformRandomFill(tlv, rng, 0., 10.);
   }
 
  protected:
-  std::vector<int> flip_x{0, 0, 1, 1, 0, 0, 1, 1};
-  std::vector<int> flip_y{0, 1, 0, 1, 0, 1, 0, 1};
-  std::vector<int> flip_z{0, 0, 0, 0, 1, 1, 1, 1};
-  TensorShape<4> tensor_shape;
-  size_t _volume;
-  TensorListShape<4> shape;
-  TestTensorList<float, 4> ttl_in;
-  TestTensorList<float, 4> ttl_out;
+  std::vector<int> flip_x_{0, 0, 1, 1, 0, 0, 1, 1};
+  std::vector<int> flip_y_{0, 1, 0, 1, 0, 1, 0, 1};
+  std::vector<int> flip_z_{0, 0, 0, 0, 1, 1, 1, 1};
+  TensorShape<4> tensor_shape_;
+  size_t volume_;
+  TensorListShape<4> shape_;
+  TestTensorList<float, 4> ttl_in_;
+  TestTensorList<float, 4> ttl_out_;
 };
 
 TEST_P(FlipGpuTest, BasicTest) {
   GetParam();
   KernelContext ctx;
   FlipGPU<float> kernel;
-  auto in_view = ttl_in.gpu(nullptr);
-  ttl_in.invalidate_cpu();
+  auto in_view = ttl_in_.gpu(nullptr);
+  ttl_in_.invalidate_cpu();
   KernelRequirements reqs = kernel.Setup(ctx, in_view);
-  ttl_out.reshape(reqs.output_shapes[0].to_static<4>());
-  auto out_view = ttl_out.gpu();
-  kernel.Run(ctx, out_view, in_view, flip_z, flip_y, flip_x);
-  auto out_view_cpu = ttl_out.cpu(nullptr);
-  auto in_view_cpu = ttl_in.cpu(nullptr);
+  ttl_out_.reshape(reqs.output_shapes[0].to_static<4>());
+  auto out_view = ttl_out_.gpu();
+  kernel.Run(ctx, out_view, in_view, flip_z_, flip_y_, flip_x_);
+  auto out_view_cpu = ttl_out_.cpu(nullptr);
+  auto in_view_cpu = ttl_in_.cpu(nullptr);
   for (int i = 0; i < out_view_cpu.num_samples(); ++i) {
     ASSERT_TRUE(is_flipped(out_view_cpu.tensor_data(i),
               in_view_cpu.tensor_data(i),
-              shape[i][0], shape[i][1], shape[i][2], shape[i][3],
-              flip_z[i], flip_y[i], flip_x[i]));
+              shape_[i][0], shape_[i][1], shape_[i][2], shape_[i][3],
+              flip_z_[i], flip_y_[i], flip_x_[i]));
   }
 }
 

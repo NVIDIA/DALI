@@ -24,61 +24,68 @@
 
 namespace dali {
 namespace kernels {
+namespace detail {
+namespace cpu {
+
+static int GetOcvType(const TypeInfo &type, size_t channels) {
+  if (channels * type.size() > CV_CN_MAX) {
+    DALI_FAIL("Pixel size must not be greater than " + std::to_string(CV_CN_MAX) + " bytes.");
+  }
+  return CV_8UC(type.size() * channels);
+}
+
+template <typename Type>
+static void OcvFlip(Type *output, const Type *input,
+                    size_t layers, size_t height, size_t width, size_t channels,
+                    bool flip_z, bool flip_y, bool flip_x) {
+  assert(flip_x || flip_y);
+  int flip_flag = -1;
+  if (!flip_y)
+    flip_flag = 1;
+  else if (!flip_x)
+    flip_flag = 0;
+  auto ocv_type = GetOcvType(TypeInfo::Create<Type>(), channels);
+  size_t layer_size = height * width * channels;
+  for (size_t layer = 0; layer < layers; ++layer) {
+    auto output_layer = flip_z ? layers - layer - 1 : layer;
+    auto input_mat = CreateMatFromPtr(height, width, ocv_type, input + layer * layer_size);
+    auto output_mat = CreateMatFromPtr(height, width, ocv_type,
+                                       output + output_layer * layer_size);
+    cv::flip(input_mat, output_mat, flip_flag);
+  }
+}
+
+template <typename Type>
+static void FlipZAxis(Type *output, const Type *input, size_t layers, size_t height, size_t width,
+                      size_t channels, bool flip_z) {
+  if (!flip_z) {
+    std::copy(input, input + layers * height * width * channels, output);
+    return;
+  }
+  size_t layer_size = height * width * channels;
+  for (size_t layer = 0; layer < layers; ++layer) {
+    auto out_layer = layers - layer - 1;
+    std::copy(input + layer * layer_size, input + (layer + 1) * layer_size,
+              output + out_layer * layer_size);
+  }
+}
+
+template <typename Type>
+static void FlipKernel(Type *output, const Type *input,
+                       size_t layers, size_t height, size_t width,
+                       size_t channels, bool flip_z, bool flip_y, bool flip_x) {
+  if (flip_x || flip_y) {
+    OcvFlip(output, input, layers, height, width, channels, flip_z, flip_y, flip_x);
+  } else {
+    FlipZAxis(output, input, layers, height, width, channels, flip_z);
+  }
+}
+
+}  // namespace cpu
+}  // namespace detail
 
 template <typename Type>
 class DLL_PUBLIC FlipCPU {
- private:
-  static int GetOcvType(const TypeInfo &type, size_t channels) {
-    if (channels * type.size() > CV_CN_MAX) {
-      DALI_FAIL("Pixel size must not be greater than " + std::to_string(CV_CN_MAX) + " bytes.");
-    }
-    return CV_8UC(type.size() * channels);
-  }
-
-  static void OcvFlip(Type *output, const Type *input,
-               size_t layers, size_t height, size_t width, size_t channels,
-               bool flip_z, bool flip_y, bool flip_x) {
-    assert(flip_x || flip_y);
-    int flip_flag = -1;
-    if (!flip_y)
-      flip_flag = 1;
-    else if (!flip_x)
-      flip_flag = 0;
-    auto ocv_type = GetOcvType(TypeInfo::Create<Type>(), channels);
-    size_t layer_size = height * width * channels;
-    for (size_t layer = 0; layer < layers; ++layer) {
-      auto output_layer = flip_z ? layers - layer - 1 : layer;
-      auto input_mat = CreateMatFromPtr(height, width, ocv_type, input + layer * layer_size);
-      auto output_mat = CreateMatFromPtr(height, width, ocv_type,
-          output + output_layer * layer_size);
-      cv::flip(input_mat, output_mat, flip_flag);
-    }
-  }
-
-  static void FlipZAxis(Type *output, const Type *input, size_t layers, size_t height, size_t width,
-                        size_t channels, bool flip_z) {
-    if (!flip_z) {
-      std::copy(input, input + layers * height * width * channels, output);
-      return;
-    }
-    size_t layer_size = height * width * channels;
-    for (size_t layer = 0; layer < layers; ++layer) {
-      auto out_layer = layers - layer - 1;
-      std::copy(input + layer * layer_size, input + (layer + 1) * layer_size,
-                output + out_layer * layer_size);
-    }
-  }
-
-  static void FlipKernel(Type *output, const Type *input,
-                         size_t layers, size_t height, size_t width,
-                         size_t channels, bool flip_z, bool flip_y, bool flip_x) {
-    if (flip_x || flip_y) {
-      OcvFlip(output, input, layers, height, width, channels, flip_z, flip_y, flip_x);
-    } else {
-      FlipZAxis(output, input, layers, height, width, channels, flip_z);
-    }
-  }
-
  public:
   DLL_PUBLIC FlipCPU() = default;
 
@@ -92,7 +99,7 @@ class DLL_PUBLIC FlipCPU {
       const InTensorCPU<Type, 4> &in, bool flip_z, bool flip_y, bool flip_x) {
     auto in_data = in.data;
     auto out_data = out.data;
-    FlipKernel(out_data, in_data, in.shape[0], in.shape[1], in.shape[2], in.shape[3],
+    detail::cpu::FlipKernel(out_data, in_data, in.shape[0], in.shape[1], in.shape[2], in.shape[3],
         flip_z, flip_y, flip_x);
   }
 };

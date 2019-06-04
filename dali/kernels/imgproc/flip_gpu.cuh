@@ -24,9 +24,11 @@
 
 namespace dali {
 namespace kernels {
+namespace detail {
+namespace gpu {
 
 template <size_t C, typename T>
-__global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
+static __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
                            size_t layers, size_t height, size_t width, size_t channels,
                            bool flip_z, bool flip_y, bool flip_x) {
   size_t xc = blockIdx.x * blockDim.x + threadIdx.x;
@@ -44,6 +46,9 @@ __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
   size_t output_idx = channel + (C ? C : channels) * (x + width * (y + height * z));
   output[output_idx] = input[input_idx];
 }
+
+}  // namespace gpu
+}  // namespace detail
 
 template <typename Type>
 class DLL_PUBLIC FlipGPU {
@@ -73,9 +78,9 @@ class DLL_PUBLIC FlipGPU {
       dim3 block(block_x, block_y, 1);
       dim3 grid((layer_width + block_x - 1) / block_x, (height + block_y - 1) / block_y, layers);
       VALUE_SWITCH(channels, c_channels, (1, 2, 3, 4, 5, 6, 7, 8), (
-        FlipKernel<c_channels><<<grid, block, 0, context.gpu.stream>>>
+        detail::gpu::FlipKernel<c_channels><<<grid, block, 0, context.gpu.stream>>>
           (out_data, in_data, layers, height, width, channels, flip_z[i], flip_y[i], flip_x[i]);), (
-        FlipKernel<0><<<grid, block, 0, context.gpu.stream>>>
+        detail::gpu::FlipKernel<0><<<grid, block, 0, context.gpu.stream>>>
           (out_data, in_data, layers, height, width, channels, flip_z[i], flip_y[i], flip_x[i]);));
     }
   }

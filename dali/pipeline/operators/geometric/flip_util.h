@@ -25,6 +25,7 @@ inline kernels::TensorShape<4> TransformShapeNHWC(const Dims &shape) {
   return kernels::TensorShape<4>(std::array<Index, 4>{1, shape[0], shape[1], shape[2]});
 }
 
+// In the NCHW layout every channel is treated as a separate plane in a volumetric image
 inline kernels::TensorShape<4> TransformShapeNCHW(const Dims &shape) {
   return kernels::TensorShape<4>(std::array<Index, 4>{shape[0], shape[1], shape[2], 1});
 }

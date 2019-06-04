@@ -80,7 +80,6 @@ std::vector<Arguments> layout = {{{"nhwc", true}}, {{"nhwc", false}}};
 void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
   int _horizontal = args["horizontal"].GetValue<int>();
   int _vertical = args["vertical"].GetValue<int>();
-  std::string dev = args["device"].GetValue<std::string>();
   auto output_d = output.CopyTo<CPUBackend>();
   auto item_size = output_d->type().size();
   for (size_t i = 0; i < output_d->ntensor(); ++i) {

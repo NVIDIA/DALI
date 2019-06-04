@@ -34,32 +34,32 @@ class Flip: public Operator<Backend> {
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
-  bool GetHorizontal(const ArgumentWorkspace *ws, int idx) {
-    return this->spec_.template GetArgument<int32>("horizontal", ws, idx);
+  int GetHorizontal(const ArgumentWorkspace *ws, int idx) {
+    return this->spec_.template GetArgument<int>("horizontal", ws, idx);
   }
 
-  bool GetVertical(const ArgumentWorkspace *ws, int idx) {
-    return this->spec_.template GetArgument<int32>("vertical", ws, idx);
+  int GetVertical(const ArgumentWorkspace *ws, int idx) {
+    return this->spec_.template GetArgument<int>("vertical", ws, idx);
   }
 
-  std::vector<int32> GetHorizontal(const ArgumentWorkspace *ws) {
+  std::vector<int> GetHorizontal(const ArgumentWorkspace *ws) {
     return GetTensorArgument(ws, "horizontal");
   }
 
-  std::vector<int32> GetVertical(const ArgumentWorkspace *ws) {
+  std::vector<int> GetVertical(const ArgumentWorkspace *ws) {
     return GetTensorArgument(ws, "vertical");
   }
 
  private:
-  std::vector<int32> GetTensorArgument(const ArgumentWorkspace *ws, const std::string &name) {
-    std::vector<int32> result(this->batch_size_);
+  std::vector<int> GetTensorArgument(const ArgumentWorkspace *ws, const std::string &name) {
+    std::vector<int> result(this->batch_size_);
     if (this->spec_.HasTensorArgument(name)) {
       auto &arg = ws->ArgumentInput(name);
-      auto *ptr = arg.data<int32>();
+      auto *ptr = arg.data<int>();
       DALI_ENFORCE(arg.size() == this->batch_size_);
       std::copy(ptr, ptr + arg.size(), result.begin());
     } else {
-      auto value = this->spec_.template GetArgument<int32>(name, ws, 0);
+      auto value = this->spec_.template GetArgument<int>(name, ws, 0);
       std::fill(std::begin(result), std::end(result), value);
     }
     return result;

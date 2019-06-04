@@ -23,7 +23,7 @@
 namespace dali {
 
 DALI_SCHEMA(Flip)
-    .DocStr(R"code(Flip the image on the horizontal and/or vertical axes.)code")
+    .DocStr(R"code(Flip the image over the horizontal and/or vertical axes.)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowMultipleInputSets()
