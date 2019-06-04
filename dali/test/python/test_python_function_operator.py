@@ -176,12 +176,15 @@ def invalid_function(image):
     return img
 
 def test_python_operator_invalid_function():
-    invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, invalid_function)
+    invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
+                                          invalid_function)
     invalid_pipe.build()
     try:
         invalid_pipe.run()
     except Exception as e:
         print(e)
+        return
+    raise Exception('Should not pass')
 
 
 def split_red_blue(image):
@@ -248,3 +251,17 @@ def test_split_and_mix():
 
 def test_output_with_stride_mixed_types():
     run_multi_input_multi_output(output_with_stride_mixed_types)
+
+
+def test_wrong_outputs_number():
+    invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                    images_dir, flip)
+    invalid_pipe.build()
+    try:
+        invalid_pipe.run()
+    except Exception as e:
+        print(e)
+        return
+    raise Exception('Should not pass')
+
+
