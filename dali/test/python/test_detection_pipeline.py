@@ -28,6 +28,7 @@ from nvidia.dali.backend_impl import TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 from PIL import Image
 
+test_data_root = os.environ['DALI_EXTRA_PATH']
 
 def coco_anchors():
     anchors = []
@@ -121,6 +122,10 @@ class DetectionPipeline(Pipeline):
         self.decode_cpu = ops.HostDecoder(device="cpu", output_type=types.RGB)
         self.decode_crop = ops.HostDecoderSlice(
             device="cpu", output_type=types.RGB)
+
+        self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu_crop = ops.nvJPEGDecoderSlice(
+            device="mixed", output_type=types.RGB)
 
         self.ssd_crop = ops.SSDRandomCrop(
             device="cpu", num_attempts=1, seed=args.seed)
@@ -257,6 +262,10 @@ class DetectionPipeline(Pipeline):
         encoded_offset_boxes_gpu, encoded_offset_labels_gpu = self.box_encoder_gpu_offsets(
             boxes_ssd_crop.gpu(), labels_ssd_crop.gpu())
 
+        image_gpu = self.decode_gpu(inputs)
+        image_gpu_slice_gpu = self.slice_gpu(image_gpu, crop_begin, crop_size)
+        image_decode_crop_gpu = self.decode_gpu_crop(inputs, crop_begin, crop_size)
+
         return (
             image_ssd_crop, image_decode_crop,
             image_slice_cpu, image_slice_gpu,
@@ -271,19 +280,27 @@ class DetectionPipeline(Pipeline):
             encoded_labels_cpu, encoded_labels_gpu,
             encoded_offset_boxes_cpu, encoded_offset_boxes_gpu,
             encoded_offset_labels_cpu, encoded_offset_labels_gpu,
+            image_decode_crop_gpu, image_gpu_slice_gpu
         )
 
 
-def data_paths():
-    coco = '/data/coco/coco-2017/coco2017/'
-    train = os.path.join(coco, 'train2017')
-    train_annotations = os.path.join(
-        coco, 'annotations/instances_train2017.json')
+def data_paths(use_full_coco):
+    if use_full_coco:
+        coco = '/data/coco/coco-2017/coco2017/'
+        train = os.path.join(coco, 'train2017')
+        train_annotations = os.path.join(
+            coco, 'annotations/instances_train2017.json')
 
-    val = os.path.join(coco, 'val2017')
-    val_annotations = os.path.join(
-        coco, 'annotations/instances_val2017.json')
-    return [(train, train_annotations), (val, val_annotations)]
+        val = os.path.join(coco, 'val2017')
+        val_annotations = os.path.join(
+            coco, 'annotations/instances_val2017.json')
+        dataset = [(train, train_annotations), (val, val_annotations)]
+    else:
+        train = os.path.join(test_data_root, 'db', 'coco', 'images')
+        train_annotations = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
+        dataset = [(train, train_annotations)]
+
+    return dataset
 
 
 def set_iters(args, dataset_size):
@@ -332,6 +349,7 @@ def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
 
     return test
 
+from PIL import Image
 
 def run_for_dataset(args, dataset):
     print("Build pipeline")
@@ -355,14 +373,15 @@ def run_for_dataset(args, dataset):
                 encoded_boxes_cpu, encoded_boxes_gpu, \
                 encoded_labels_cpu, encoded_labels_gpu, \
                 encoded_offset_boxes_cpu, encoded_offset_boxes_gpu, \
-                encoded_offset_labels_cpu, encoded_offset_labels_gpu = \
+                encoded_offset_labels_cpu, encoded_offset_labels_gpu, \
+                image_decode_crop_gpu, image_gpu_slice_gpu = \
                 [to_array(out) for out in pipe.run()]
-
             # Check cropping ops
             decode_crop = compare(image_ssd_crop, image_decode_crop)
             slice_cpu = compare(image_ssd_crop, image_slice_cpu)
             slice_gpu = compare(image_ssd_crop, image_slice_gpu)
-            image_crop = decode_crop and slice_cpu and slice_gpu
+            decode_crop_gpu = compare(image_gpu_slice_gpu, image_decode_crop_gpu)
+            image_crop = decode_crop and slice_cpu and slice_gpu and decode_crop_gpu
             boxes_crop = compare(boxes_ssd_crop, boxes_random_crop)
             labels_crop = compare(labels_ssd_crop, labels_random_crop)
             crop = image_crop and boxes_crop and labels_crop
@@ -404,6 +423,7 @@ def run_for_dataset(args, dataset):
                 print('Error during iteration', iter)
                 print('Crop = ', crop)
                 print('  decode_crop =', decode_crop)
+                print('  decode_crop_gpu =', decode_crop_gpu)
                 print('  slice_cpu =', slice_cpu)
                 print('  slice_gpu =', slice_gpu)
                 print('  boxes_crop =', boxes_crop)
@@ -431,7 +451,7 @@ def run_for_dataset(args, dataset):
 
         if not iter % 100:
             print("Iteration: {}/ {}".format(iter + 1, args.iters))
-    print()
+    print("OK")
 
 
 def print_args(args):
@@ -444,7 +464,7 @@ def print_args(args):
 def run_test(args):
     print_args(args)
 
-    for dataset in data_paths():
+    for dataset in data_paths(args.use_full_coco):
         print('Run DetectionPipeline test for', dataset[0])
         run_for_dataset(args, dataset)
 
@@ -470,8 +490,8 @@ def make_parser():
     parser.add_argument(
         '-p', '--prefetch', default=2, type=int, metavar='N',
         help='prefetch queue depth (default: %(default)s)')
-    parser.add_argument('--dali_extra', action='store_true',
-        help='Use small data set from DALI_extra, for sanity testing')
+    parser.add_argument('--use_full_coco', action='store_true',
+        help='Use full COCO data set for this test')
 
     return parser
 
