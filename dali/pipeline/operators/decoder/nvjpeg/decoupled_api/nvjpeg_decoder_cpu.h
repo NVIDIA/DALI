@@ -77,6 +77,9 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     try {
       NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
       NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
+      for (int i = 0; i < batch_size_; i++) {
+        NVJPEG_CALL(nvjpegDecodeParamsDestroy(decode_params_[i]));
+      }
       NVJPEG_CALL(nvjpegDestroy(handle_));
       PinnedAllocator::FreeBuffers();
     } catch (const std::exception &e) {
@@ -146,9 +149,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                      info->heights));
       NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(state_nvjpeg->jpeg_stream,
                                                    &info->c));
-      state_nvjpeg->nvjpeg_backend =
-                    ShouldUseHybridHuffman(*info, input_data, in_size, hybrid_huffman_threshold_)
-                    ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
       if (crop_generator) {
         info->crop_window = crop_generator(info->heights[0], info->widths[0]);
@@ -159,6 +159,10 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         info->widths[0] = crop_window.w;
         info->heights[0] = crop_window.h;
       }
+
+      state_nvjpeg->nvjpeg_backend =
+                    ShouldUseHybridHuffman(*info, input_data, in_size, hybrid_huffman_threshold_)
+                    ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
       nvjpegJpegState_t state = GetNvjpegState(*state_nvjpeg);
       NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(state,
@@ -205,6 +209,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
           NVJPEG_CALL(nvjpegBufferPinnedDestroy(s->pinned_buffer));
           NVJPEG_CALL(nvjpegJpegStateDestroy(s->decoder_host_state));
           NVJPEG_CALL(nvjpegJpegStateDestroy(s->decoder_hybrid_state));
+          delete s;
       });
 
       // We want to use nvJPEG default pinned allocator

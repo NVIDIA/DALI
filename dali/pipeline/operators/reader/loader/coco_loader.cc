@@ -301,10 +301,11 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
     DALI_ENFORCE(f, "Could not open JSON annotations file");
     f.seekg(0, std::ios::end);
     size_t file_size = f.tellg();
-    std::unique_ptr<char, std::function<void(char*)>> buff(new char[file_size],
-                          [](char* data) {delete [] data;});
+    std::unique_ptr<char, std::function<void(char*)>> buff(new char[file_size + 1],
+                                                           [](char* data) {delete [] data;});
     f.seekg(0, std::ios::beg);
     f.read(buff.get(), file_size);
+    buff.get()[file_size] = '\0';
 
     LookaheadParser r(buff.get());
 

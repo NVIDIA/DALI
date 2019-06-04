@@ -150,6 +150,8 @@ void StringToVector(const char *name, const char *val, OpSpec *spec, DALIDataTyp
 template<typename ImgType, typename OutputImgType = ImgType>
 class DALISingleOpTest : public DALITest {
  public:
+  // need to do that in the setup as derived classes will set values in
+  // their constructors obtained by GetImageLoadingFlags here
   inline void SetUp() override {
     DALITest::SetUp();
     c_ = (IsColor(OutputImageType()) ? 3 : 1);
@@ -180,9 +182,6 @@ class DALISingleOpTest : public DALITest {
 
     // Set the pipeline batch size
     SetBatchSize(32);
-  }
-  inline void TearDown() override {
-    DALITest::TearDown();
   }
 
   inline void SetBatchSize(int b) {
@@ -257,8 +256,8 @@ class DALISingleOpTest : public DALITest {
   }
 
   virtual
-  vector<TensorList<CPUBackend>*>
-  Reference(const vector<TensorList<CPUBackend>*> &inputs,
+  vector<std::shared_ptr<TensorList<CPUBackend>>>
+  Reference(const vector<TensorList<CPUBackend> *> &inputs,
             DeviceWorkspace *ws) = 0;
 
   /**
@@ -268,7 +267,7 @@ class DALISingleOpTest : public DALITest {
   void CheckAnswers(DeviceWorkspace *ws,
                     const vector<int>& output_indices) {
     // outputs_ contains map of idx -> (name, device)
-    vector<TensorList<CPUBackend>*> res = Reference(input_data_, ws);
+    auto res = Reference(input_data_, ws);
 
     std::unique_ptr<TensorList<CPUBackend>> calc_output(new TensorList<CPUBackend>());
     // get outputs from pipeline, copy to host if necessary
@@ -283,16 +282,11 @@ class DALISingleOpTest : public DALITest {
         calc_output->Copy(ws->Output<CPUBackend>(idx), nullptr);
       }
 
-      auto ref_output = res[i];
+      auto& ref_output = res[i];
       calc_output->SetLayout(ref_output->GetLayout());
 
       // check calculated vs. reference answers
-      CheckTensorLists(calc_output.get(), ref_output);
-    }
-
-    for (auto *&ref_output : res) {
-      delete ref_output;
-      ref_output = nullptr;
+      CheckTensorLists(calc_output.get(), ref_output.get());
     }
   }
 
@@ -425,17 +419,17 @@ class DALISingleOpTest : public DALITest {
   }
 
   template <typename T>
-  vector<TensorList<CPUBackend> *>CopyToHost(const TensorList<T> &calcOutput) {
+  vector<std::shared_ptr<TensorList<CPUBackend>>> CopyToHost(const TensorList<T> &calcOutput) {
     // copy to host
-    vector<TensorList<CPUBackend> *> outputs(1);
-    outputs[0] = new TensorList<CPUBackend>();
+    vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;
+    outputs.push_back(std::make_shared<TensorList<CPUBackend>>());
     outputs[0]->Copy(calcOutput, 0);
     return outputs;
   }
 
   template <typename T>
-  std::unique_ptr<TensorList<CPUBackend>> CopyTensorListToHost(const TensorList<T> &calcOutput) {
-    std::unique_ptr<TensorList<CPUBackend>> output(new TensorList<CPUBackend>());
+  std::shared_ptr<TensorList<CPUBackend>> CopyTensorListToHost(const TensorList<T> &calcOutput) {
+    auto output = std::make_shared<TensorList<CPUBackend>>();
     output->Copy(calcOutput, 0);
 
     return output;
@@ -751,7 +745,7 @@ class DALISingleOpTest : public DALITest {
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
 
-  vector<uint8*> jpeg_decoded_, png_decoded_, tiff_decoded_;
+  vector<vector<uint8>> jpeg_decoded_, png_decoded_, tiff_decoded_;
   vector<DimPair> jpeg_dims_, png_dims_, tiff_dims_;
 
 
