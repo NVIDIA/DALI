@@ -203,7 +203,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   cudaStream_t mixed_op_stream_, gpu_op_stream_;
   // MixedOpId -> queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED to GPU Ops
-  std::vector<std::vector<cudaEvent_t>> mixed_op_events_;
+  MixedOpEventMap mixed_op_events_;
   // queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED stage to GPU stage for callback only
   // in some edge cases where there are no operators
