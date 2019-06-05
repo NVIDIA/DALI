@@ -12,18 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #ifndef DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
 #define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
 
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
 #include <pybind11/embed.h>
+#include "dali/util/pybind.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
-
-namespace py = pybind11;
 
 template <typename Backend>
 class PythonFunctionImpl : public Operator<Backend> {

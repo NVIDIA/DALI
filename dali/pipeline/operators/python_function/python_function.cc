@@ -19,21 +19,21 @@ namespace dali {
 
 DALI_SCHEMA(PythonFunctionImpl)
         .DocStr(R"code(This is an auxiliary operator. Use PythonFunction instead.)code")
-        .NumInput(1)
-        .NumOutput(1)
+        .NumInput(0, 256)
         .AllowMultipleInputSets()
-        .AddArg("function_id",
-                R"code(Id of the python function.)code",
-                DALI_INT64)
+        .AddArg("function_id", R"code(Id of the python function)code", DALI_INT64)
+        .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
+        .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
         .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
         .DocStr("Executes a python function")
-        .NumInput(1)
-        .NumOutput(1)
+        .NumInput(0, 256)
+        .AllowMultipleInputSets()
         .AddArg("function",
-                R"code(Function object consuming and producing a single numpy array.)code",
-                DALI_PYTHON_OBJECT);
+                R"code(Function object consuming and producing a single numpy array)code",
+                DALI_PYTHON_OBJECT)
+        .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1);
 
 struct PyBindInitializer {
   PyBindInitializer() {
@@ -47,65 +47,16 @@ struct PyBindInitializer {
 // so this workaround initializes them manually
 static PyBindInitializer pybind_initializer{}; // NOLINT
 
-py::array TensorToNumpyArray(const Tensor<CPUBackend> &tensor) {
-  DALI_TYPE_SWITCH(tensor.type().id(), DType,
-    return py::array_t<DType, py::array::c_style>(tensor.shape(), tensor.template data<DType>());
-  )
-}
-
-TypeInfo GetDaliType(const py::array &array) {
-  switch (array.dtype().kind()) {
-    case 'i': {
-      switch (array.itemsize()) {
-        case sizeof(int16):
-          return TypeInfo::Create<int16>();
-        case sizeof(int32):
-          return TypeInfo::Create<int32>();
-        case sizeof(int64):
-          return TypeInfo::Create<int64>();
-        default: {}
-      }
-      break;
-    }
-    case 'u': {
-      switch (array.itemsize()) {
-        case sizeof(uint8):
-          return TypeInfo::Create<uint8>();
-        default: {}
-      }
-      break;
-    }
-    case 'f': {
-      switch (array.itemsize()) {
-        case sizeof(float16):
-          return TypeInfo::Create<float16>();
-        case sizeof(float):
-          return TypeInfo::Create<float>();
-        case sizeof(double):
-          return TypeInfo::Create<double>();
-        default: {}
-      }
-      break;
-    }
-    case 'b': {
-      return TypeInfo::Create<bool>();
-    }
-    default: {}
-  }
-  DALI_FAIL(
-      "Unexpected numpy array type: " + array.dtype().kind() + std::to_string(array.itemsize()));
-}
-
 py::array NumpyArrayAsContiguous(const TypeInfo &type, const py::array &array) {
   DALI_TYPE_SWITCH(type.id(), DType,
     return py::array_t<DType, py::array::c_style>::ensure(array);
   )
 }
 
-void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, const py::array &array) {
+void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, py::array &array) {
   std::vector<Index> shape(static_cast<size_t>(array.ndim()));
   std::copy(array.shape(), array.shape() + array.ndim(), shape.begin());
-  TypeInfo type = GetDaliType(array);
+  TypeInfo type = TypeFromFormatStr(array.request().format);
   tensor.set_type(type);
   tensor.Resize(shape);
   py::array contiguous = NumpyArrayAsContiguous(type, array);
@@ -115,17 +66,40 @@ void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, const py::array &array) 
       static_cast<size_t>(contiguous.size() * contiguous.itemsize()));
 }
 
+py::list PrepareInputList(SampleWorkspace *ws, int idx) {
+  py::list args_list;
+  for (int i = 0; i < ws->NumInput(); ++i) {
+    auto &input = ws->Input<CPUBackend>(ws->NumInput() * idx + i);
+    py::dtype dtype(FormatStrFromType(input.type()));
+    auto input_array = py::array(dtype, input.shape(), input.raw_data(), py::array());
+    args_list.append(input_array);
+  }
+  return args_list;
+}
+
+void CopyOutputs(SampleWorkspace *ws, int idx, const py::tuple &output) {
+  for (int i = 0; i < ws->NumOutput(); ++i) {
+    auto &output_tensor = ws->Output<CPUBackend>(ws->NumInput() * idx + i);
+    auto output_array = py::cast<py::array>(output[i]);
+    CopyNumpyArrayToTensor(output_tensor, output_array);
+  }
+}
+
 template<>
 void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
   py::gil_scoped_acquire guard{};
+  py::list args_list = PrepareInputList(ws, idx);
+  py::object output_o;
   try {
-    py::array output_array = python_function(TensorToNumpyArray(input));
-    CopyNumpyArrayToTensor(output, output_array);
+    output_o = python_function(*py::tuple(args_list));
   } catch(const py::error_already_set & e) {
     throw std::runtime_error(to_string("PythonFunction error: ") + to_string(e.what()));
   }
+  py::tuple output = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
+  DALI_ENFORCE(output.size() == static_cast<size_t>(ws->NumOutput()),
+               "Python function returned " + std::to_string(output.size()) + " outputs and "
+                   + std::to_string(ws->NumOutput()) + " were expected.");
+  CopyOutputs(ws, idx, output);
 }
 
 DALI_REGISTER_OPERATOR(PythonFunctionImpl, PythonFunctionImpl<CPUBackend>, CPU);
