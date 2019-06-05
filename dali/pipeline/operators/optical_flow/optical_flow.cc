@@ -72,7 +72,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     std::vector<Dims> new_sizes;
     auto out_shape = optical_flow_->GetOutputShape();
     for (int i = 0; i < nsequences_; i++) {
-      Dims shape = {sequence_sizes_[i]};
+      Dims shape = {sequence_sizes_[i] - 1};
       shape.insert(shape.end(), out_shape.begin(), out_shape.end());
       new_sizes.emplace_back(shape);
     }
@@ -114,7 +114,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     std::vector<Dims> new_sizes;
     auto out_shape = optical_flow_->GetOutputShape();
     for (int i = 0; i < nsequences_; i++) {
-      Dims shape = {sequence_sizes_[i]};
+      Dims shape = {sequence_sizes_[i] - 1};
       shape.insert(shape.end(), out_shape.begin(), out_shape.end());
       new_sizes.emplace_back(shape);
     }

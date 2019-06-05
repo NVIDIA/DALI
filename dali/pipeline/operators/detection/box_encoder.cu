@@ -80,17 +80,35 @@ __device__ inline void FindBestMatch(const int N, volatile float *vals, volatile
   }
 }
 
+__device__ float4 MatchOffsets(
+  float4 box, float4 anchor, const float *means, const float *stds, float scale) {
+  box.x *= scale; box.y *= scale; box.z *= scale; box.w *= scale;
+  anchor.x *= scale; anchor.y *= scale; anchor.z *= scale; anchor.w *= scale;
+
+  float x = ((box.x - anchor.x) / anchor.z - means[0]) / stds[0];
+  float y = ((box.y - anchor.y) / anchor.w - means[1]) / stds[1];
+  float z = (log(box.z / anchor.z) - means[2]) / stds[2];
+  float w = (log(box.w / anchor.w) - means[3]) / stds[3];
+
+  return {x, y, z, w};
+}
+
 __device__ void WriteMatchesToOutput(
   int anchors_count, float criteria, int *labels_out, const int *labels_in,
   float4 *boxes_out, const float4 *boxes_in,
-  volatile int *best_box_idx, volatile float *best_box_iou) {
+  volatile int *best_box_idx, volatile float *best_box_iou, bool offset,
+  const float* means, const float* stds, float scale, const float4 *anchors_as_cwh) {
   for (unsigned int anchor = threadIdx.x; anchor < anchors_count; anchor += blockDim.x) {
     if (best_box_iou[anchor] > criteria) {
       int box_idx = best_box_idx[anchor];
       labels_out[anchor] = labels_in[box_idx];
       float4 box = boxes_in[box_idx];
 
-      boxes_out[anchor] = ToCenterWidthHeight(box);
+      if (!offset)
+        boxes_out[anchor] = ToCenterWidthHeight(box);
+      else
+        boxes_out[anchor] = MatchOffsets(
+          ToCenterWidthHeight(box), anchors_as_cwh[anchor], means, stds, scale);
     }
   }
 }
@@ -124,7 +142,8 @@ template <int BLOCK_SIZE>
 __global__ void Encode(
   const float4 *boxes_in, const int *labels_in, const int *offsets, const int anchors_count,
   const float4 *anchors, const float criteria, float4 *boxes_out,  int *labels_out,
-  int *box_idx_buffer, float *box_iou_buffer) {
+  int *box_idx_buffer, float *box_iou_buffer, bool offset, const float* means,
+  const float* stds, float scale, const float4 *anchors_as_cwh) {
   const int sample = blockIdx.x;
 
   // Remark: This algorithm is very fragile to floating point arithmetic effects.
@@ -173,7 +192,12 @@ __global__ void Encode(
     boxes_out + sample * anchors_count,
     boxes_in + offsets[sample],
     best_box_idx,
-    best_box_iou);
+    best_box_iou,
+    offset,
+    means,
+    stds,
+    scale,
+    anchors_as_cwh);
 }
 
 std::pair<int *, float *> BoxEncoder<GPUBackend>::ClearBuffers(const cudaStream_t &stream) {
@@ -203,6 +227,22 @@ void BoxEncoder<GPUBackend>::WriteAnchorsToOutput(
       stream);
 }
 
+void BoxEncoder<GPUBackend>::ClearOutput(
+  float4 *boxes_out_data, int *labels_out_data,  const cudaStream_t &stream) {
+  CUDA_CALL(cudaMemsetAsync(
+    labels_out_data,
+    0,
+    batch_size_ * anchors_count_ * sizeof(int),
+    stream));
+
+  for (int sample = 0; sample < batch_size_; ++sample)
+    CUDA_CALL(cudaMemsetAsync(
+      boxes_out_data + sample * anchors_count_,
+      0,
+      anchors_count_ * BoundingBox::kSize * sizeof(float),
+      stream));
+}
+
 std::pair<vector<Dims>, vector<Dims>> BoxEncoder<GPUBackend>::CalculateDims(
   const TensorList<GPUBackend> &boxes_input) {
   vector<Dims> boxes_output_dim;
@@ -215,7 +255,7 @@ std::pair<vector<Dims>, vector<Dims>> BoxEncoder<GPUBackend>::CalculateDims(
   return {boxes_output_dim, labels_output_dim};
 }
 
-int *BoxEncoder<GPUBackend>::CalculateOffsets(
+int *BoxEncoder<GPUBackend>::CalculateBoxesOffsets(
   const TensorList<GPUBackend> &boxes_input, const cudaStream_t &stream) {
   vector<int> offsets {0};
   for (const auto &sample_boxes_shape : boxes_input.shape())
@@ -232,12 +272,14 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   const auto &labels_input = ws->Input<GPUBackend>(1);
 
   const auto anchors_data = reinterpret_cast<const float4 *>(anchors_.data<float>());
+  const auto anchors_as_cwh_data =
+    reinterpret_cast<const float4 *>(anchors_as_center_wh_.data<float>());
   const auto boxes_data = reinterpret_cast<const float4 *>(boxes_input.data<float>());
   const auto labels_data = labels_input.data<int>();
 
   const auto buffers = ClearBuffers(ws->stream());
 
-  auto offsets_data = CalculateOffsets(boxes_input, ws->stream());
+  auto boxes_offsets_data = CalculateBoxesOffsets(boxes_input, ws->stream());
   auto dims = CalculateDims(boxes_input);
 
   auto &boxes_output = ws->Output<GPUBackend>(0);
@@ -250,19 +292,30 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   labels_output.Resize(dims.second);
   auto labels_out_data = labels_output.mutable_data<int>();
 
-  WriteAnchorsToOutput(boxes_out_data, labels_out_data, ws->stream());
+  const auto means_data = means_.data<float>();
+  const auto stds_data = stds_.data<float>();
+
+  if (!offset_)
+    WriteAnchorsToOutput(boxes_out_data, labels_out_data, ws->stream());
+  else
+    ClearOutput(boxes_out_data, labels_out_data, ws->stream());
 
   Encode<BlockSize><<<batch_size_, BlockSize, 0, ws->stream()>>>(
     boxes_data,
     labels_data,
-    offsets_data,
+    boxes_offsets_data,
     anchors_count_,
     anchors_data,
     criteria_,
     boxes_out_data,
     labels_out_data,
     buffers.first,
-    buffers.second);
+    buffers.second,
+    offset_,
+    means_data,
+    stds_data,
+    scale_,
+    anchors_as_cwh_data);
 }
 
 DALI_REGISTER_OPERATOR(BoxEncoder, BoxEncoder<GPUBackend>, GPU);
