@@ -23,7 +23,7 @@
 namespace dali {
 namespace detail {
 
-template <typename InputType, typename OutputType>
+template <typename OutputType, typename InputType>
 void RunHelper(Tensor<CPUBackend> &output,
                const Tensor<CPUBackend> &input,
                const std::vector<int64_t> &slice_anchor,
@@ -43,6 +43,9 @@ void RunHelper(Tensor<CPUBackend> &output,
 
     kernels::SliceCPU<OutputType, InputType, NumDims> kernel;
     kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
+
+    output.set_type(TypeInfo::Create<OutputType>());
+    output.SetLayout(input.GetLayout());
     output.Resize(req.output_shapes[0][0].shape.to_vector());
 
     auto out_view = view<OutputType, NumDims>(output);
@@ -54,6 +57,13 @@ void RunHelper(Tensor<CPUBackend> &output,
 }
 
 }  // namespace detail
+
+DALI_SCHEMA(SliceBase)
+    .DocStr(R"code(Base implementation for `Slice`, `Crop` and related operators)code")
+    .MakeInternal()
+    .AddOptionalArg("output_dtype",
+      R"code(Output data type. By default same data type as the input will be used)code",
+      DALI_NO_TYPE);
 
 template <>
 void SliceBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {

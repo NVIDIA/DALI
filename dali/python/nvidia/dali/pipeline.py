@@ -16,6 +16,7 @@
 from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import edge as Edge
+from nvidia.dali import types
 
 class Pipeline(object):
     """Pipeline class encapsulates all data required to define and run
@@ -230,7 +231,7 @@ class Pipeline(object):
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, ref, data):
+    def feed_input(self, ref, data, layout=types.NHWC):
         """Bind the NumPy array to a tensor produced by ExternalSource
         operator. It is worth mentioning that `ref` should not be overriden
         with other operator outputs."""
@@ -248,10 +249,10 @@ class Pipeline(object):
                 raise RuntimeError("Data list provided to feed_input needs to have batch_size length")
             inputs = []
             for datum in data:
-                inputs.append(Edge.TensorCPU(datum))
+                inputs.append(Edge.TensorCPU(datum, layout))
             self._pipe.SetExternalTensorInput(ref.name, inputs)
         else:
-            inp = Edge.TensorListCPU(data)
+            inp = Edge.TensorListCPU(data, layout)
             self._pipe.SetExternalTLInput(ref.name, inp)
 
     def _run_cpu(self):

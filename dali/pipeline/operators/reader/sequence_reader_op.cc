@@ -81,6 +81,6 @@ Example:
     .AddOptionalArg("image_type",
                     R"code(The color space of input and output image)code", DALI_RGB, false)
     .AddParent("LoaderBase")
-    .AllowSequences(false);;
+    .AllowSequences();
 
 }  // namespace dali

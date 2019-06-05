@@ -65,7 +65,7 @@ void ExposeTensor(py::module &m) { // NOLINT
               FormatStrFromType(t.type()),
               t.ndim(), shape, stride);
         })
-    .def("__init__", [](Tensor<CPUBackend> &t, py::buffer b) {
+    .def("__init__", [](Tensor<CPUBackend> &t, py::buffer b, DALITensorLayout layout = DALI_NHWC) {
           // We need to verify that hte input data is c contiguous
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -93,6 +93,7 @@ void ExposeTensor(py::module &m) { // NOLINT
           TypeInfo type = TypeFromFormatStr(info.format);
           t.ShareData(info.ptr, bytes);
           t.set_type(type);
+          t.SetLayout(layout);
           t.Resize(i_shape);
         },
       R"code(
@@ -170,7 +171,8 @@ void ExposeTensorList(py::module &m) { // NOLINT
   // the backend. We do not support converting from TensorLists
   // to numpy arrays currently.
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
-    .def("__init__", [](TensorList<CPUBackend> &t, py::buffer b) {
+    .def("__init__", [](TensorList<CPUBackend> &t, py::buffer b,
+                        DALITensorLayout layout) {
           // We need to verify that the input data is C_CONTIGUOUS
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -199,6 +201,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           TypeInfo type = TypeFromFormatStr(info.format);
           t.ShareData(info.ptr, bytes);
           t.set_type(type);
+          t.SetLayout(layout);
           t.Resize(i_shape);
         },
       R"code(
@@ -758,7 +761,6 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
     .def("AllowsSequences", &OpSchema::AllowsSequences)
-    .def("NeedsFlattening", &OpSchema::NeedsFlattening)
     .def("IsInternal", &OpSchema::IsInternal);
 
   ExposeTensor(m);

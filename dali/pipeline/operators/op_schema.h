@@ -174,9 +174,8 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Notes that sequences can be used with this op
    */
-  DLL_PUBLIC inline OpSchema& AllowSequences(bool needs_flattening) {
+  DLL_PUBLIC inline OpSchema& AllowSequences() {
     allow_sequences_ = true;
-    needs_flattening_ = needs_flattening;
     return *this;
   }
 
@@ -307,10 +306,6 @@ class DLL_PUBLIC OpSchema {
     return allow_sequences_;
   }
 
-  DLL_PUBLIC inline bool NeedsFlattening() const {
-    return needs_flattening_;
-  }
-
   DLL_PUBLIC inline bool IsInternal() const {
     return is_internal_;
   }
@@ -384,7 +379,6 @@ class DLL_PUBLIC OpSchema {
   DALITensorLayout layout_;
 
   bool allow_sequences_;
-  bool needs_flattening_;
   bool is_sequence_operator_;
 
   bool is_internal_;

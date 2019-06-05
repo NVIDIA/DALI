@@ -22,7 +22,7 @@
 namespace dali {
 namespace detail {
 
-template <typename InputType, typename OutputType>
+template <typename OutputType, typename InputType>
 void RunHelper(TensorList<GPUBackend>& output,
                const TensorList<GPUBackend>& input,
                const std::vector<std::vector<int64_t>>& slice_anchors,
@@ -53,6 +53,9 @@ void RunHelper(TensorList<GPUBackend>& output,
     kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
     std::vector<Dims> out_shapes;
     to_dims_vec(out_shapes, req.output_shapes[0]);
+
+    output.set_type(TypeInfo::Create<OutputType>());
+    output.SetLayout(input.GetLayout());
     output.Resize(out_shapes);
 
     scratch_alloc.Reserve(req.scratch_sizes);

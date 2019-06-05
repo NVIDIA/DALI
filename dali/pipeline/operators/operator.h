@@ -162,9 +162,7 @@ template <typename Backend>
 class Operator : public OperatorBase {
  public:
   inline explicit Operator(const OpSpec &spec) :
-    OperatorBase(spec),
-    sequences_allowed_(SchemaRegistry::GetSchema(spec.name()).AllowsSequences()),
-    needs_flattening_(SchemaRegistry::GetSchema(spec.name()).NeedsFlattening())
+    OperatorBase(spec)
   {}
 
   inline ~Operator() noexcept(false) override
@@ -172,12 +170,6 @@ class Operator : public OperatorBase {
 
   using OperatorBase::Run;
   void Run(Workspace<Backend> *ws) override {
-    std::vector<std::vector<int>> seq_sizes;
-    if (std::is_same<Backend, GPUBackend>::value) {
-        if (sequences_allowed_ && needs_flattening_) {
-          Flatten(ws);
-        }
-    }
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     for (int i = 0; i < input_sets_; ++i) {
@@ -192,11 +184,6 @@ class Operator : public OperatorBase {
       }
       RunImpl(ws, i);
     }
-    if (std::is_same<Backend, GPUBackend>::value) {
-      if (sequences_allowed_ && needs_flattening_) {
-        Unflatten(ws);
-      }
-    }
   }
 
   /**
@@ -209,14 +196,6 @@ class Operator : public OperatorBase {
    * implemented by derived ops.
    */
   virtual void RunImpl(Workspace<Backend> *ws, int idx = 0) = 0;
-
-  int SequenceSize(int idx = 0) {
-    DALI_ENFORCE(sequences_allowed_,
-      "This operator is not implemented for sequences. "
-      "Use AllowSequences() is OpSchema to enable it.");
-    DALI_ENFORCE_VALID_INDEX(idx, seq_sizes_.size());
-    return std::max(1, seq_sizes_[idx]);
-  }
 
  private:
   // SINFAE for Run is not possible as we want it to be virtual
@@ -231,90 +210,6 @@ class Operator : public OperatorBase {
   template <typename B = Backend>
   typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
   SyncHelper(int /*unused*/, Workspace<B> */*unused*/) {}
-
-  template <typename B = Backend>
-  typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
-  Flatten(Workspace<Backend> *ws) {
-    seq_sizes_.clear();
-    seq_sizes_.resize(input_sets_, 0);
-    for (int i = 0; i < input_sets_; ++i) {
-      auto &input = ws->template MutableInput<Backend>(i);
-      const std::vector<Dims>& old_shapes = input.shape();
-      DALITensorLayout layout = input.GetLayout();
-      if (IsSequence(layout)) {
-        // size of seq is the first dim in each tensor
-        seq_sizes_[i] = old_shapes[0][0];
-
-        std::vector<Dims> new_shapes;
-        for (const Dims &old_shape : old_shapes) {
-          // batch of sequences of different size not implemented
-          DALI_ENFORCE(seq_sizes_[i] == old_shape[0],
-            "Operator " + spec_.name() + " expects a batch of sequences of same length.");
-          // getting only the need 3 dimensions
-          Dims new_shape(old_shape.begin() + 1, old_shape.end());
-          for (int s = 0; s < seq_sizes_[i]; ++s) {
-            new_shapes.emplace_back(new_shape);
-          }
-        }
-        input.Resize(new_shapes);
-        input.SetLayout(GetElementLayout(input.GetLayout()));
-      }
-    }
-  }
-
-  template <typename B = Backend>
-  typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
-  Flatten(Workspace<B> */*unused*/) {}
-
-
-  template <typename B = Backend>
-  typename std::enable_if<std::is_same<B, GPUBackend>::value>::type
-  Unflatten(Workspace<Backend> *ws) {
-    for (int idx = 0; idx < input_sets_; ++idx) {
-      CUDA_CALL(cudaStreamSynchronize(ws->stream()));
-      if (seq_sizes_[idx] > 0) {
-        auto &input = ws->template MutableInput<Backend>(idx);
-        auto &output = ws->template Output<Backend>(idx);
-        const std::vector<Dims>& old_shapes_input = input.shape();
-        const std::vector<Dims>& old_shapes_output = output.shape();
-        std::vector<Dims> new_shapes_input;
-        std::vector<Dims> new_shapes_output;
-        for (unsigned int i = 0; i < old_shapes_input.size(); i += seq_sizes_[idx]) {
-          {
-            Dims shape_input;
-            shape_input.reserve(old_shapes_input[i].size() + 1);
-            shape_input.push_back(static_cast<Index>(seq_sizes_[idx]));
-            shape_input.insert(shape_input.end(),
-                               old_shapes_input[i].begin(),
-                               old_shapes_input[i].end());
-            new_shapes_input.push_back(std::move(shape_input));
-          }
-          {
-            Dims shape_output;
-            shape_output.reserve(old_shapes_output[i].size() + 1);
-            shape_output.push_back(static_cast<Index>(seq_sizes_[idx]));
-            shape_output.insert(shape_output.end(),
-                                old_shapes_output[i].begin(),
-                                old_shapes_output[i].end());
-            new_shapes_output.push_back(std::move(shape_output));
-          }
-        }
-        input.Resize(new_shapes_input);
-        output.Resize(new_shapes_output);
-        input.SetLayout(GetSequenceLayout(input.GetLayout()));
-        output.SetLayout(GetSequenceLayout(output.GetLayout()));
-      }
-    }
-  }
-
-  template <typename B = Backend>
-  typename std::enable_if<!std::is_same<B, GPUBackend>::value>::type
-  Unflatten(Workspace<B> */*unused*/) {}
-
-  bool sequences_allowed_;
-  bool needs_flattening_;
-  // store size of each sequence for each input set
-  std::vector<int> seq_sizes_;
 };
 
 template<>
