@@ -38,25 +38,24 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
     this->PrepareData(test_data);
 
     auto test_data_cpu = test_data.cpu();
-    auto slice_args = this->GenerateArgs(test_data_cpu);
+    auto args = this->GenerateArgs(test_data_cpu);
 
     TestTensorList<OutputType, Dims> expected_output;
-    this->PrepareExpectedOutput(test_data, slice_args, expected_output);
+    this->PrepareExpectedOutput(test_data, args, expected_output);
 
     TensorListShape<> output_shapes;
     output_shapes.resize(NumSamples, Dims);
     std::vector<KernelType> kernels(NumSamples);
     for (size_t i = 0; i < NumSamples; i++) {
       auto &kernel = kernels[i];
-      KernelRequirements kernel_req = kernel.Setup(ctx, test_data_cpu[i], slice_args[i]);
+      KernelRequirements kernel_req = kernel.Setup(ctx, test_data_cpu[i], args[i]);
       TensorShape<Dims> output_shape = kernel_req.output_shapes[0][0].to_static<Dims>();
 
-      auto expected_shape = slice_args[i].shape;
-      if (slice_args[i].should_permute) {
-        auto permuted_dims = slice_args[i].permuted_dims;
-        for (size_t d = 0; d < Dims; d++) {
-          expected_shape[d] = slice_args[i].shape[permuted_dims[d]];
-        }
+      auto padded_out_shape = args[i].should_pad ? args[i].padded_shape : args[i].shape;
+      auto expected_shape = padded_out_shape;
+      for (size_t d = 0; d < Dims; d++) {
+        size_t perm_d = args[i].should_permute ? args[i].permuted_dims[d] : d;
+        expected_shape[d] = padded_out_shape[perm_d];
       }
       AssertExpectedDimensions(output_shape, expected_shape);
       output_shapes.set_tensor_shape(i, output_shape);
@@ -69,7 +68,7 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
       auto &kernel = kernels[i];
       auto out_tv = out_tlv[i];
       auto in_tv = test_data_cpu[i];
-      kernel.Run(ctx, out_tv, in_tv, slice_args[i]);
+      kernel.Run(ctx, out_tv, in_tv, args[i]);
     }
     EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu()));
   }

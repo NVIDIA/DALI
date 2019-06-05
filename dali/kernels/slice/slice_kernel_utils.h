@@ -41,9 +41,9 @@ std::array<int64_t, Dims> GetStrides(const Shape& shape) {
 }
 
 template <size_t Dims, typename Args>
-TensorShape<Dims> GetOutputShape(const TensorShape<Dims>& in_sample_shape,
-                                 const Args& args) {
-  TensorShape<Dims> out_sample_shape(args.shape);
+void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,
+                           const TensorShape<Dims>& out_sample_shape,
+                           const Args& args) {
   for (size_t d = 0; d < Dims; d++) {
     DALI_ENFORCE(
       args.anchor[d] >= 0 && (args.anchor[d] + out_sample_shape[d]) <= in_sample_shape[d],
@@ -51,6 +51,13 @@ TensorShape<Dims> GetOutputShape(const TensorShape<Dims>& in_sample_shape,
       + std::to_string(args.anchor[d]) + "] size[" + std::to_string(out_sample_shape[d])
       + "] input dimension size[" + std::to_string(in_sample_shape[d]) + "]");
   }
+}
+
+template <size_t Dims, typename Args>
+TensorShape<Dims> GetOutputShape(const TensorShape<Dims>& in_sample_shape,
+                                 const Args& args) {
+  TensorShape<Dims> out_sample_shape(args.shape);
+  CheckValidOutputShape<Dims>(in_sample_shape, out_sample_shape, args);
   return out_sample_shape;
 }
 
