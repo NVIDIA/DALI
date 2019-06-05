@@ -33,7 +33,6 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
         displace_(num_threads_, Displacement(spec)),
         interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     has_mask_ = spec.HasTensorArgument("mask");
-    param_.set_pinned(false);
     DALI_ENFORCE(
         interp_type_ == DALI_INTERP_NN || interp_type_ == DALI_INTERP_LINEAR,
         "Unsupported interpolation type, only NN and LINEAR are supported for "
@@ -86,12 +85,8 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   template <typename U = Displacement>
   typename std::enable_if<HasParam<U>::value>::type PrepareDisplacement(
       SampleWorkspace *ws) {
-    param_.Resize({1});
-    param_.mutable_data<typename U::Param>();
-
-    typename U::Param &p = param_.mutable_data<typename U::Param>()[0];
-    displace_[ws->thread_idx()].Prepare(&p, spec_, ws, ws->data_idx());
-    displace_[ws->thread_idx()].param = p;
+    auto *p = &displace_[ws->thread_idx()].param;
+    displace_[ws->thread_idx()].Prepare(p, spec_, ws, ws->data_idx());
   }
 
   template <typename U = Displacement>
@@ -296,8 +291,6 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
 
   bool has_mask_;
   const Tensor<CPUBackend> *mask_;
-
-  Tensor<CPUBackend> param_;
 };
 
 }  // namespace dali
