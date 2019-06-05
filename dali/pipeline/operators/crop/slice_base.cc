@@ -63,8 +63,7 @@ DALI_SCHEMA(SliceBase)
     .MakeInternal()
     .AddOptionalArg("output_dtype",
       R"code(Output data type. By default same data type as the input will be used)code",
-      DALI_NO_TYPE)
-    .AddParent("CropAttr");
+      DALI_NO_TYPE);
 
 template <>
 void SliceBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
