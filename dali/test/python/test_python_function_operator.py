@@ -66,6 +66,47 @@ class FlippingPipeline(CommonPipeline):
         return flipped
 
 
+class TwoOutputsPythonOperatorPipeline(CommonPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
+        super(TwoOutputsPythonOperatorPipeline, self).__init__(batch_size, num_threads,
+                                                               device_id, seed, image_dir)
+        self.python_function = ops.PythonFunction(function=function, num_outputs=2)
+
+    def define_graph(self):
+        images, labels = self.load()
+        out1, out2 = self.python_function(images)
+        assert isinstance(out1, EdgeReference)
+        assert isinstance(out2, EdgeReference)
+        return out1, out2
+
+
+class MultiInputMultiOutputPipeline(CommonPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
+        super(MultiInputMultiOutputPipeline, self).__init__(batch_size, num_threads,
+                                                            device_id, seed, image_dir)
+        self.python_function = ops.PythonFunction(function=function, num_outputs=3)
+
+    def define_graph(self):
+        images1, labels1 = self.load()
+        images2, labels2 = self.load()
+        out1, out2, out3 = self.python_function(images1, images2)
+        assert isinstance(out1, EdgeReference)
+        assert isinstance(out2, EdgeReference)
+        assert isinstance(out3, EdgeReference)
+        return out1, out2, out3
+
+
+class DoubleLoadPipeline(CommonPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
+        super(DoubleLoadPipeline, self).__init__(batch_size, num_threads,
+                                                 device_id, seed, image_dir)
+
+    def define_graph(self):
+        images1, labels1 = self.load()
+        images2, labels2 = self.load()
+        return images1, images2
+
+
 def random_seed():
     return int(random.random() * (1 << 32))
 
@@ -111,6 +152,7 @@ def flip(image):
 def test_python_operator_one_channel_normalize():
     run_case(one_channel_normalize)
 
+
 def test_python_operator_channels_mean():
     run_case(channels_mean)
 
@@ -134,9 +176,92 @@ def invalid_function(image):
     return img
 
 def test_python_operator_invalid_function():
-    invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, invalid_function)
+    invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
+                                          invalid_function)
     invalid_pipe.build()
     try:
         invalid_pipe.run()
     except Exception as e:
         print(e)
+        return
+    raise Exception('Should not pass')
+
+
+def split_red_blue(image):
+    return image[:, :, 0], image[:, :, 2]
+
+
+def mixed_types(image):
+    return bias(image), one_channel_normalize(image)
+
+
+def run_two_outputs(func):
+    pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    pyfunc_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                   images_dir, func)
+    pipe.build()
+    pyfunc_pipe.build()
+    for it in range(ITERS):
+        preprocessed_output, = pipe.run()
+        output1, output2 = pyfunc_pipe.run()
+        for i in range(len(output1)):
+            pro1, pro2 = func(preprocessed_output.at(i))
+            assert numpy.array_equal(output1.at(i), pro1)
+            assert numpy.array_equal(output2.at(i), pro2)
+
+
+def test_split():
+    run_two_outputs(split_red_blue)
+
+
+def test_mixed_types():
+    run_two_outputs(mixed_types)
+
+
+def run_multi_input_multi_output(func):
+    pipe = DoubleLoadPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    pyfunc_pipe = MultiInputMultiOutputPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                images_dir, func)
+    pipe.build()
+    pyfunc_pipe.build()
+    for it in range(ITERS):
+        preprocessed_output1, preprocessed_output2 = pipe.run()
+        out1, out2, out3 = pyfunc_pipe.run()
+        for i in range(len(out1)):
+            pro1, pro2, pro3 = func(preprocessed_output1.at(i), preprocessed_output2.at(i))
+            assert numpy.array_equal(out1.at(i), pro1)
+            assert numpy.array_equal(out2.at(i), pro2)
+            assert numpy.array_equal(out3.at(i), pro3)
+
+
+def split_and_mix(images1, images2):
+    r = (images1[:, :, 0] + images2[:, :, 0]) // 2
+    g = (images1[:, :, 1] + images2[:, :, 1]) // 2
+    b = (images1[:, :, 2] + images2[:, :, 2]) // 2
+    return r, g, b
+
+
+def output_with_stride_mixed_types(images1, images2):
+    return images1[:, :, 2], one_channel_normalize(images2), images1 > images2
+
+
+def test_split_and_mix():
+    run_multi_input_multi_output(split_and_mix)
+
+
+def test_output_with_stride_mixed_types():
+    run_multi_input_multi_output(output_with_stride_mixed_types)
+
+
+def test_wrong_outputs_number():
+    invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                    images_dir, flip)
+    invalid_pipe.build()
+    try:
+        invalid_pipe.run()
+    except Exception as e:
+        print(e)
+        return
+    raise Exception('Should not pass')
+
+

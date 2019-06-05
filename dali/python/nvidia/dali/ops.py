@@ -347,7 +347,7 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
 
-    def __init__(self, function, **kwargs):
+    def __init__(self, function, num_outputs=1, **kwargs):
         self._schema = b.GetSchema("PythonFunctionImpl")
         self._spec = b.OpSpec("PythonFunctionImpl")
         self._device = "cpu"
@@ -356,6 +356,7 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
             self._spec.AddArg(key, value)
 
         self.function = function
+        self.num_outputs = num_outputs
 
     @property
     def spec(self):
@@ -381,12 +382,16 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
                         len(inputs)))
 
         op_instance = _OperatorInstance(inputs, self, **kwargs)
-        t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id)
-        t = EdgeReference(t_name, self._device, op_instance)
-        op_instance.spec.AddOutput(t.name, t.device)
-        op_instance.append_output(t)
         op_instance.spec.AddArg("function_id", id(self.function))
-        return t
+        op_instance.spec.AddArg("num_outputs", self.num_outputs)
+        outputs = []
+        for i in range(self.num_outputs):
+            t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id) + "_output_" + str(i)
+            t = EdgeReference(t_name, self._device, op_instance)
+            op_instance.spec.AddOutput(t.name, t.device)
+            op_instance.append_output(t)
+            outputs.append(t)
+        return outputs[0] if len(outputs) == 1 else outputs
 
 def cpu_ops():
     return _cpu_ops
