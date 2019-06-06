@@ -24,10 +24,10 @@ void Cast<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
 
   DALIDataType itype = input.type().id();
 
-  DALI_TYPE_SWITCH(output_type_, OType,
+  DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OType,
       output.mutable_data<OType>();
       output.ResizeLike(input);
-      DALI_TYPE_SWITCH(itype, IType,
+      DALI_TYPE_SWITCH_WITH_FP16_CPU(itype, IType,
         CPUHelper<IType, OType>(
           output.mutable_data<OType>(),
           input.data<IType>(),
