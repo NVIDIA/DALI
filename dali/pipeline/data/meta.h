@@ -53,7 +53,7 @@ class DALIMeta {
   }
 
  private:
-  DALITensorLayout layout_;
+  DALITensorLayout layout_ = DALITensorLayout::DALI_UNKNOWN;
   std::string source_info_;
   bool skip_sample_ = false;
 };
