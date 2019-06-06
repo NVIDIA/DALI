@@ -31,7 +31,6 @@ def test_of:
 	pipe.build()
 	pipe_out = pipe.run()
 	frames = pipe_out[0].as_cpu().as_array()
-	print(frames.shape)
 	myarray=np.loadtxt(image_dir+'decoded_flow_vector.dat')
 	assert (0.9 < np.mean(np.abs(frames[0][0].flatten()-myarray)))
 
