@@ -29,29 +29,33 @@ class OperatorBench : public DALIBenchmark {
   void RunCPU(benchmark::State& st, OpSpec op_spec,
               int batch_size = 128,
               int H = 1080, int W = 1920, int C = 3,
-              bool fill_in_data = false) {
+              bool fill_in_data = false, int num_threads = 4) {
     const int N = W * H * C;
 
     auto op_ptr = InstantiateOperator(op_spec);
 
-    shared_ptr<Tensor<CPUBackend>> data_in(new Tensor<CPUBackend>());
-    shared_ptr<Tensor<CPUBackend>> data_out(new Tensor<CPUBackend>());
-    data_in->set_type(TypeInfo::Create<T>());
-    data_in->Resize({W, H, C});
+    std::vector<std::shared_ptr<Tensor<CPUBackend>>> data_in(batch_size);
+    std::vector<std::shared_ptr<Tensor<CPUBackend>>> data_out(batch_size);
+    for (auto &in_ptr : data_in) {
+      in_ptr = std::make_shared<Tensor<CPUBackend>>();
+      in_ptr->set_type(TypeInfo::Create<T>());
+      in_ptr->Resize({W, H, C});
+    }
 
     if (fill_in_data) {
-      auto *ptr = data_in->mutable_data<T>();
-      for (int i = 0; i < N; i++) {
-        ptr[i] = static_cast<T>(i);
+      for (auto &in_ptr : data_in) {
+        auto *ptr = in_ptr->mutable_data<T>();
+        for (int i = 0; i < N; i++) {
+          ptr[i] = static_cast<T>(i);
+        }
       }
     }
     // Create workspace and set input and output
-    SampleWorkspace ws;
+    HostWorkspace ws;
     ws.AddInput(data_in);
     ws.AddOutput(data_out);
-    ws.set_data_idx(0);
-    ws.set_thread_idx(0);
-    ws.set_stream(0);
+    ThreadPool tp(num_threads, 0, false);
+    ws.SetThreadPool(&tp);
 
     op_ptr->Run(&ws);
     for (auto _ : st) {

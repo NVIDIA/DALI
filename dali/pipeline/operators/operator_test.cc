@@ -40,8 +40,7 @@ TEST(InstantiateOperator, InvalidOperatorName) {
 }
 
 TEST(InstantiateOperator, RunMethodIsAccessible) {
-  SampleWorkspace ws;
-  ws.set_data_idx(0);
+  HostWorkspace ws;
   auto op = InstantiateOperator(MakeOpSpec("Crop"));
   // We just want to test that Run method is visible (exported to the so file)
   // It is expected that the call throws as the worspace is empty

@@ -48,12 +48,18 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
     NVJPEG_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding, handle_));
   }
 
-  ~nvJPEGDecoderGPUStage() noexcept(false) {
+  ~nvJPEGDecoderGPUStage() {
     DeviceGuard g(device_id_);
-    NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_));
-    NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
-    NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
-    NVJPEG_CALL(nvjpegDestroy(handle_));
+    try {
+      NVJPEG_CALL(nvjpegBufferDeviceDestroy(device_buffer_));
+      NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
+      NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
+      NVJPEG_CALL(nvjpegDestroy(handle_));
+    } catch (const std::exception &e) {
+      // If destroying nvJPEG resources failed we are leaking something so terminate
+      std::cerr << "Fatal error: exception in ~nvJPEGDecoder():\n" << e.what() << std::endl;
+      std::terminate();
+    }
   }
 
   using dali::OperatorBase::Run;

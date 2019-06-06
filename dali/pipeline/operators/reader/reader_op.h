@@ -120,22 +120,23 @@ class DataReader : public Operator<Backend> {
   }
 
   // CPUBackend operators
-  void Run(SampleWorkspace* ws) override {
+  void Run(HostWorkspace* ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     StartPrefetchThread();
     ConsumerWait();
 
-    // consume sample
+    // consume batch
     TimeRange tr("DataReader::Run #" + to_string(curr_batch_consumer_), TimeRange::kViolet);
+
+    // This is synchronous call for CPU Backend
     Operator<Backend>::Run(ws);
-    const auto data_idx = ws->data_idx();
-    loader_->RecycleTensor(MoveSample(data_idx));
-    auto curr_sample_id = samples_processed_.fetch_add(1);
-    // if we've processed the whole batch, notify it
-    if (curr_sample_id == Operator<Backend>::batch_size_ - 1) {
-      samples_processed_ = 0;
-      ConsumerAdvanceQueue();
+
+    for (int sample_idx = 0; sample_idx < Operator<Backend>::batch_size_; sample_idx++) {
+      loader_->RecycleTensor(MoveSample(sample_idx));
     }
+
+    // Notify that we have consumed whole batch
+    ConsumerAdvanceQueue();
   }
 
   // GPUBackend operators
