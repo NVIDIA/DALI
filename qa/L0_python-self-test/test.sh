@@ -8,7 +8,6 @@ source qa/setup_dali_extra.sh
 cd dali/test/python
 
 test_body() {
-    nosetests --verbose test_optical_flow.py
     nosetests --verbose test_backend_impl.py
     nosetests --verbose test_pipeline.py
     nosetests --verbose test_decoders.py
