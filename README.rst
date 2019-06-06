@@ -33,7 +33,7 @@ Highlights
 - Support for image classification and segmentation workloads.
 - Ease of integration through direct framework plugins and open
   source bindings.
-- Portable training workflows with multiple input formats--JPEG,
+- Portable training workflows with multiple input formats: JPEG,
   PNG (fallback to CPU), TIFF (fallback to CPU), BMP (fallback to CPU),
   raw formats, LMDB, RecordIO, TFRecord.
 - Extensible for user-specific needs through open source license.
@@ -69,6 +69,7 @@ Build instructions for DALI can be found in |dali_compile|_.
 .. |dali_compile| replace:: compilation guide
 .. _dali_compile: https://docs.nvidia.com/deeplearning/sdk/dali-developer-guide/docs/compilation.html
 
+----
 
 Examples and tutorials
 ----------------------
