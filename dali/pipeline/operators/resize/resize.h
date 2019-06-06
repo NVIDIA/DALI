@@ -67,6 +67,7 @@ class Resize : public Operator<Backend>
   }
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
   bool save_attrs_;
   int outputs_per_idx_;
 };

@@ -56,6 +56,7 @@ class Transpose : public Operator<Backend> {
   Dims previous_iter_shape_;
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 };
 
 }  // namespace dali

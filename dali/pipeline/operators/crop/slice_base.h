@@ -60,6 +60,7 @@ class SliceBase : public Operator<Backend> {
     kernels::ScratchpadAllocator, std::vector<kernels::ScratchpadAllocator>>::type scratch_alloc_;
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 };
 
 }  // namespace dali

@@ -18,7 +18,6 @@
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
 #include "dali/pipeline/operators/displacement/displacement_filter_impl_cpu.h"
-#include "dali/pipeline/operators/displacement/flip.h"
 #include "dali/pipeline/operators/displacement/rotate.h"
 #include "dali/pipeline/operators/displacement/sphere.h"
 #include "dali/pipeline/operators/displacement/water.h"
@@ -128,7 +127,6 @@ DALI_DECLARE_OP_INFO(OP_TYPE, OP_SPEC)                     \
 DALI_BENCHMARK_DISPLACEMENT(OP_TYPE)
 
 DALI_BENCHMARK_DISPLACEMENT_CASE(DisplacementFilter<CPUBackend>, OpSpec("DisplacementFilter"));
-DALI_BENCHMARK_DISPLACEMENT_CASE(Flip<CPUBackend>, OpSpec("Flip"));
 DALI_BENCHMARK_DISPLACEMENT_CASE(Rotate<CPUBackend>, OpSpec("Rotate").AddArg("angle", 42.f));
 namespace {
 std::vector<float> affine_mat = { 1.0f, 0.8f, 0.0f, 0.0f, 1.2f, 0.0f };

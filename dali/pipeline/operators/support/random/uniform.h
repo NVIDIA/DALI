@@ -38,6 +38,7 @@ class Uniform : public Operator<SupportBackend> {
   DISABLE_COPY_MOVE_ASSIGN(Uniform);
 
   USE_OPERATOR_MEMBERS();
+  using Operator<SupportBackend>::RunImpl;
 
  protected:
   void RunImpl(Workspace<SupportBackend> * ws, const int idx) override;

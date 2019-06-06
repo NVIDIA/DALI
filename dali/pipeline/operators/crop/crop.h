@@ -54,6 +54,7 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
   using SliceBase<Backend>::input_type_;
   using SliceBase<Backend>::output_type_;
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
   std::size_t C_;
 
   void SetupSample(int data_idx, DALITensorLayout layout, const vector<Index> &shape) {

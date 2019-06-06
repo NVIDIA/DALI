@@ -67,6 +67,7 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
 
  protected:
   void RunImpl(Workspace<CPUBackend> *ws, const int idx) override;
+  using Operator<CPUBackend>::RunImpl;
 
  private:
   const float criteria_;

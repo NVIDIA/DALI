@@ -357,6 +357,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
   USE_OPERATOR_MEMBERS();
+  using Operator<GPUBackend>::RunImpl;
 
  private:
   static const size_t nDims = 3;

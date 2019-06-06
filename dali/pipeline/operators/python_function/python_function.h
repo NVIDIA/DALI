@@ -33,6 +33,7 @@ class PythonFunctionImpl : public Operator<Backend> {
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 
   py::object python_function;
 };
