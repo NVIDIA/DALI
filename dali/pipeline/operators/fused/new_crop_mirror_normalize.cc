@@ -15,10 +15,76 @@
 #include "dali/pipeline/operators/fused/new_crop_mirror_normalize.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_cpu.h"
 #include "dali/util/half.hpp"
+#include "dali/core/static_switch.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
 namespace detail {
+
+size_t horizontal_dim_idx(DALITensorLayout layout) {
+  switch (layout) {
+    case DALI_NHWC:
+      return 1;
+    case DALI_NCHW:
+      return 2;
+    case DALI_NFHWC:
+      return 2;
+    case DALI_NFCHW:
+      return 3;
+    default:
+      DALI_FAIL("not supported layout: " + std::to_string(layout));
+  }
+}
+
+template <size_t Dims>
+std::array<int64_t, Dims> permuted_dims(DALITensorLayout in_layout,
+                                        DALITensorLayout out_layout) {
+  std::array<int64_t, Dims> perm_dims;
+  for (size_t d = 0; d < Dims; d++) {
+    perm_dims[d] = d;
+  }
+
+  if (in_layout != out_layout) {
+    if (in_layout == DALI_NHWC && out_layout == DALI_NCHW) {
+      perm_dims[0] = 2;
+      perm_dims[1] = 0;
+      perm_dims[2] = 1;
+    } else if (in_layout == DALI_NCHW && out_layout == DALI_NHWC) {
+      perm_dims[0] = 1;
+      perm_dims[1] = 2;
+      perm_dims[2] = 0;
+    } else if (in_layout == DALI_NFHWC && out_layout == DALI_NFCHW) {
+      perm_dims[1] = 3;
+      perm_dims[2] = 1;
+      perm_dims[3] = 2;
+    } else if (in_layout == DALI_NFCHW && out_layout == DALI_NFHWC) {
+      perm_dims[1] = 2;
+      perm_dims[2] = 3;
+      perm_dims[3] = 1;
+    } else {
+      DALI_FAIL("layout conversion from " + std::to_string(in_layout) + " to "
+        + std::to_string(out_layout) + " not supported");
+    }
+  }
+
+  return perm_dims;
+}
+
+size_t channels_dim(DALITensorLayout in_layout) {
+  switch (in_layout) {
+    case DALI_NHWC:
+      return 2;
+    case DALI_NCHW:
+      return 0;
+    case DALI_NFHWC:
+      return 3;
+    case DALI_NFCHW:
+      return 1;
+    default:
+      DALI_FAIL("not supported layout: " + std::to_string(in_layout));
+  }
+}
 
 template <typename OutputType, typename InputType>
 void RunHelper(Tensor<CPUBackend> &output,
@@ -26,71 +92,67 @@ void RunHelper(Tensor<CPUBackend> &output,
                const std::vector<int64_t> &slice_anchor,
                const std::vector<int64_t> &slice_shape,
                bool horizontal_flip,
-               ) {
+               bool pad_output,
+               const std::vector<float> &mean,
+               const std::vector<float> &inv_std_dev) {
   std::size_t number_of_dims = input.shape().size();
-  VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
-    kernels::KernelContext ctx;
-    auto in_view = view<const InputType, NumDims>(input);
+  auto input_layout = input.GetLayout();
+  auto output_layout = output.GetLayout();
+  VALUE_SWITCH(number_of_dims, Dims, (3, 4), (
+    auto in_view = view<const InputType, Dims>(input);
 
-    kernels::SliceFlipNormalizePermuteArgs<NumDims> args;
+    kernels::SliceFlipNormalizePermuteArgs<OutputType, Dims> args;
     auto &anchor = args.anchor;
     auto &shape = args.shape;
-    for (std::size_t d = 0; d < NumDims; d++) {
+    for (std::size_t d = 0; d < Dims; d++) {
       anchor[d] = slice_anchor[d];
       shape[d] = slice_shape[d];
     }
 
+    if (pad_output) {
+      args.should_pad = true;
+      args.padded_shape = args.shape;
+      args.padded_shape[channels_dim(input_layout)] = 4;
+    }
+
     if (horizontal_flip) {
       args.should_flip = true;
-      size_t horizontal_dim = 0;
-      switch (input_layout_) {
-        case DALI_NHWC:
-          horizontal_dim = 1;
-          break;
-        case DALI_NCHW:
-          horizontal_dim = 2;
-          break;
-        case DALI_NFHWC:
-          horizontal_dim = 2;
-          break;
-        case DALI_NFCHW:
-          horizontal_dim = 3;
-          break;
-        default:
-          DALI_FAIL("not supported layout: " + std::to_string(input_layout_));
+      auto flip_dim = horizontal_dim_idx(input_layout);
+      for (size_t d = 0; d < Dims; d++) {
+        args.flip[d] = (d == flip_dim);
       }
-      args.flip[horizontal_dim] = true;
     }
 
     // Check if permutation is needed
-    if (input_layout_ != output_layout_) {
-      switch (input_layout_) {
-        case DALI_NHWC:
-          horizontal_dim = 1;
-          break;
-        case DALI_NCHW:
-          horizontal_dim = 2;
-          break;
-        case DALI_NFHWC:
-          horizontal_dim = 2;
-          break;
-        case DALI_NFCHW:
-          horizontal_dim = 3;
-          break;
-        default:
-          DALI_FAIL("not supported layout: " + std::to_string(input_layout_));
+    if (input_layout != output_layout) {
+      args.should_permute = true;
+      args.permuted_dims = permuted_dims<Dims>(input_layout, output_layout);
+    }
+
+    args.should_normalize =
+         !std::all_of(mean.begin(), mean.end(), [](float x){ return x == 0.0f; })
+      || !std::all_of(inv_std_dev.begin(), inv_std_dev.end(), [](float x){ return x == 1.0f; });
+
+    if (args.should_normalize) {
+      args.mean.resize(mean.size());
+      args.inv_stddev.resize(mean.size());
+      args.normalization_dim = channels_dim(input_layout);
+      for (size_t i = 0; i < mean.size(); i++) {
+        args.mean[i] = static_cast<OutputType>(mean[i]);
+        args.inv_stddev[i] = static_cast<OutputType>(inv_std_dev[i]);
       }
     }
 
-    kernels::SliceFlipNormalizePermuteCPU<OutputType, InputType, NumDims> kernel;
-    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
+    kernels::SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims> kernel;
+    kernels::KernelContext ctx;
+    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, args);
 
     output.set_type(TypeInfo::Create<OutputType>());
     output.SetLayout(input.GetLayout());
     output.Resize(req.output_shapes[0][0].shape.to_vector());
 
-    auto out_view = view<OutputType, NumDims>(output);
-    kernel.Run(ctx, out_view, in_view, slice_args);
+    auto out_view = view<OutputType, Dims>(output);
+    kernel.Run(ctx, out_view, in_view, args);
   ), // NOLINT
   (
     DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims));
@@ -128,65 +190,32 @@ Normalization takes input image and produces output using formula:
     R"code(Standard deviation values for image normalization.)code", DALI_FLOAT_VEC)
   .AddParent("Crop");
 
-/*template <typename Out>
-void RunHelper(SampleWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<CPUBackend>(0);
-  auto &output = ws->Output<CPUBackend>(idx);
-
-  Out *output_ptr = output.template mutable_data<Out>();
-  const int stride = input.dim(1) * C_;
-  const int mirror_image = !has_mirror_ ? mirror_.data<int>()[0] :
-     spec_.GetArgument<int>("mirror", ws, ws->data_idx());
-
-  vector<Index> input_shape = input.shape();
-  DALI_ENFORCE(input_shape.size() == 3,
-      "Expects 3-dimensional image input.");
-
-  int H = input_shape[0];
-  int W = input_shape[1];
-  auto coord = CropAttr::GetCropWindowGenerator(ws->data_idx())(H, W);
-  int crop_offsets = coord.y*W*C_ + coord.x*C_;
-}*/
-
 template <>
 void NewCropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
+  input_layout_ = ws->Input<CPUBackend>(0).GetLayout();
   if (output_layout_ == DALI_SAME) {
-    output_layout_ = ws->Input<CPUBackend>(0).GetLayout();
+    output_layout_ = input_layout_;
   }
+  DALI_ENFORCE(input_layout_ == DALI_NHWC || input_layout_ == DALI_NCHW
+            || input_layout_ == DALI_NFHWC || input_layout_ == DALI_NFCHW,
+    "Unexpected data layout");
 
+  input_type_ = ws->Input<CPUBackend>(0).type().id();
   if (output_type_ == DALI_NO_TYPE) {
-    output_type_ = ws->Input<CPUBackend>(0).type().id();
+    output_type_ = input_type_;
   }
   CropAttr::ProcessArguments(ws);
+
+  mirror_[ws->data_idx()] = spec_.GetArgument<int>("mirror", ws, ws->data_idx());
 }
 
 template <>
 void NewCropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
-
-  const DALITensorLayout in_layout = input.GetLayout();
-  DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW
-            || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW,
-    "Unexpected data layout");
-  DALITensorLayout out_layout = in_layout;
-
-  auto data_idx = ws->data_idx();
-  SetupSample(data_idx, in_layout, input.shape());
-  auto &slice_shape = slice_shapes_[data_idx];
+  SetupSample(ws->data_idx(), input_layout_, input.shape());
 
   auto &output = ws->Output<CPUBackend>(idx);
-  output.SetLayout(out_layout);
-}
-
-
-template <>
-void NewCropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
-
-  // DALITensorLayout outLayout;
-  // output.Resize(GetOutShape(input.GetLayout(), &outLayout));
-  // output.SetLayout(outLayout);
+  output.SetLayout(output_layout_);
 }
 
 template <>
@@ -196,18 +225,11 @@ void NewCropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int 
   auto &output = ws->Output<CPUBackend>(idx);
   auto data_idx = ws->data_idx();
 
-  if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
-    DALI_ENFORCE(input_type_ == output_type_,
-      "type conversion is not supported for half precision floats");
-    detail::RunHelper<float16_cpu, float16_cpu>(
-      output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
-    return;
-  }
-
-  DALI_TYPE_SWITCH(input_type_, InputType,
-    DALI_TYPE_SWITCH(output_type_, OutputType,
+  DALI_TYPE_SWITCH_WITH_FP16_CPU(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OutputType,
       detail::RunHelper<OutputType, InputType>(
-        output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
+        output, input, slice_anchors_[data_idx], slice_shapes_[data_idx],
+        mirror_[data_idx], pad_output_, mean_vec_, inv_std_vec_);
     )
   )
 }

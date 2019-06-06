@@ -71,5 +71,14 @@ TYPED_TEST(SliceGPUTest, All) {
   this->Run();
 }
 
+template <typename TestArgs>
+class SliceGPUTest_GPUOnlyTests : public SliceGPUTest<TestArgs> {};
+
+TYPED_TEST_SUITE(SliceGPUTest_GPUOnlyTests, SLICE_TEST_TYPES_GPU_ONLY);
+
+TYPED_TEST(SliceGPUTest_GPUOnlyTests, All) {
+  this->Run();
+}
+
 }  // namespace kernels
 }  // namespace dali

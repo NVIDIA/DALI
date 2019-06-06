@@ -421,7 +421,13 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<uint8_t, float, 3, 1, 3,
       SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 1, 10>, 10, 10>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,
-      SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 0, 10>, 10, 10>
+      SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 0, 10>, 10, 10>,
+    SliceTestArgs<int, bool, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SliceOnly<bool, 3>>,
+    SliceTestArgs<uint8_t, float16_cpu, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SliceOnly<float16_cpu, 3>>,
+    SliceTestArgs<float16_cpu, uint8_t, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SliceOnly<uint8_t, 3>>
 >;
 
 }  // namespace kernels

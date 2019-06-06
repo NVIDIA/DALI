@@ -72,5 +72,14 @@ TYPED_TEST(SliceCPUTest, All) {
   this->Run();
 }
 
+template <typename TestArgs>
+class SliceCPUTest_CPUOnlyTests : public SliceCPUTest<TestArgs> {};
+
+TYPED_TEST_SUITE(SliceCPUTest_CPUOnlyTests, SLICE_TEST_TYPES_CPU_ONLY);
+
+TYPED_TEST(SliceCPUTest_CPUOnlyTests, All) {
+  this->Run();
+}
+
 }  // namespace kernels
 }  // namespace dali

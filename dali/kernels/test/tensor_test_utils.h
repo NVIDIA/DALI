@@ -77,6 +77,7 @@ T printable(T t) { return t; }
 inline int printable(char c) { return c; }
 inline int printable(signed char c) { return c; }
 inline int printable(unsigned char c) { return c; }
+inline float printable(__half c) { return c; }
 
 template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc>
 void Check(

@@ -72,16 +72,8 @@ void SliceBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   auto &output = ws->Output<CPUBackend>(idx);
   auto data_idx = ws->data_idx();
 
-  if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
-    DALI_ENFORCE(input_type_ == output_type_,
-      "type conversion is not supported for half precision floats");
-    detail::RunHelper<float16_cpu, float16_cpu>(
-      output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
-    return;
-  }
-
-  DALI_TYPE_SWITCH(input_type_, InputType,
-    DALI_TYPE_SWITCH(output_type_, OutputType,
+  DALI_TYPE_SWITCH_WITH_FP16_CPU(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OutputType,
       detail::RunHelper<OutputType, InputType>(
         output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
     )

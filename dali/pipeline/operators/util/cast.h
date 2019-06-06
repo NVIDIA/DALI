@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_UTIL_CAST_H_
 
 #include "dali/pipeline/operators/operator.h"
+#include "dali/core/convert.h"
 
 namespace dali {
 
@@ -36,9 +37,9 @@ class Cast : public Operator<Backend> {
 
  private:
   template <typename IType, typename OType>
-  inline void CPUHelper(OType * out, const IType * in, size_t N) {
+  inline void CPUHelper(OType *out, const IType *in, size_t N) {
     for (size_t i = 0; i < N; ++i) {
-      out[i] = static_cast<OType>(in[i]);
+      out[i] = clamp<OType>(in[i]);
     }
   }
 

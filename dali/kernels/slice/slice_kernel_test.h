@@ -191,6 +191,18 @@ using SLICE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<int, int, 2, 1, 3, SliceArgsGenerator_ExtractCenterElement<2>>
 >;
 
+using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
+    SliceTestArgs<int, float16_cpu, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<float16_cpu, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<float16_cpu, float16_cpu, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>
+>;
+
+using SLICE_TEST_TYPES_GPU_ONLY = ::testing::Types<
+    SliceTestArgs<int, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<float16, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>
+>;
+
 }  // namespace kernels
 }  // namespace dali
 

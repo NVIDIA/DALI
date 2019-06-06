@@ -19,7 +19,11 @@
 #include <cstdint>
 #include <limits>
 #include <type_traits>
-
+#ifndef __CUDA_ARCH__
+#include "dali/util/half.hpp"
+#else
+#include "dali/core/cuda_utils.h"
+#endif
 namespace dali {
 
 template <typename T>
@@ -134,6 +138,53 @@ template <typename T>
 __host__ __device__ constexpr bool clamp(T value, ret_type<bool>) {
   return static_cast<bool>(value);
 }
+
+#ifndef __CUDA_ARCH__
+template <typename T>
+__host__ __device__ constexpr half_float::half clamp(T value, ret_type<half_float::half>) {
+  return static_cast<half_float::half>(value);
+}
+
+template <typename T>
+__host__ __device__ constexpr T clamp(half_float::half value, ret_type<T>) {
+  return clamp(static_cast<float>(value), ret_type<T>());
+}
+
+__host__ __device__ inline bool clamp(half_float::half value, ret_type<bool>) {
+  return static_cast<bool>(value);
+}
+
+__host__ __device__ constexpr half_float::half clamp(half_float::half value,
+                                                     ret_type<half_float::half>) {
+  return value;
+}
+
+#else
+
+template <typename T>
+__host__ __device__ constexpr float16 clamp(T value, ret_type<float16>) {
+  return static_cast<float16>(value);
+}
+
+// __half does not have a constructor for int64_t, use long long
+__host__ __device__ inline float16 clamp(int64_t value, ret_type<float16>) {
+  return static_cast<float16>(static_cast<long long int>(value));  // NOLINT
+}
+
+template <typename T>
+__host__ __device__ constexpr T clamp(float16 value, ret_type<T>) {
+  return clamp(static_cast<float>(value), ret_type<T>());
+}
+
+__host__ __device__ inline bool clamp(float16 value, ret_type<bool>) {
+  return static_cast<bool>(value);
+}
+
+__host__ __device__ constexpr float16 clamp(float16 value, ret_type<float16>) {
+  return value;
+}
+
+#endif
 
 template <typename T, typename U>
 __host__ __device__ constexpr T clamp(U value) {
