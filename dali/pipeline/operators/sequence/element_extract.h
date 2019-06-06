@@ -53,6 +53,7 @@ class ElementExtract : public Operator<Backend> {
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 
  private:
   std::vector<int> element_map_;

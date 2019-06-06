@@ -33,6 +33,7 @@ class CoinFlip : public Operator<SupportBackend> {
   DISABLE_COPY_MOVE_ASSIGN(CoinFlip);
 
   USE_OPERATOR_MEMBERS();
+  using Operator<SupportBackend>::RunImpl;
 
  protected:
   void RunImpl(Workspace<SupportBackend> * ws, const int idx) override;

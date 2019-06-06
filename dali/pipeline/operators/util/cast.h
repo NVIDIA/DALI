@@ -45,6 +45,7 @@ class Cast : public Operator<Backend> {
   DALIDataType output_type_;
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 };
 
 }  // namespace dali

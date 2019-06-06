@@ -33,6 +33,7 @@ class ColorSpaceConversion : public Operator<Backend> {
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 
   const DALIImageType input_type_;
   const DALIImageType output_type_;

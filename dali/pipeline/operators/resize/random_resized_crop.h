@@ -49,6 +49,7 @@ class RandomResizedCrop : public Operator<Backend>
   DISABLE_COPY_MOVE_ASSIGN(RandomResizedCrop);
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 
  protected:
   void RunImpl(Workspace<Backend> * ws, const int idx) override;

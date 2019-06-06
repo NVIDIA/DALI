@@ -187,6 +187,7 @@ class ColorTwistBase : public Operator<Backend> {
   const int C_;
 
   USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::RunImpl;
 
  private:
   void IdentityMatrix(float * matrix) {
