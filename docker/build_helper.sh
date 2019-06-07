@@ -58,12 +58,12 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then \
     UNZIP_PATH="$(mktemp -d)" && \
     unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH && \
     python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ') && \
-    rm -rf $UNZIP_PATH ;\
+    rm -rf $UNZIP_PATH || exit 1
 fi
 
 if [ "${BUILD_PYTHON}" = "ON" ]; then \
     pushd dali/python/tf_plugin/ && \
     python setup.py sdist && \
     mv dist/nvidia-dali-tf-plugin*.tar.gz /wheelhouse/ && \
-    popd ;\
+    popd || exit 1
 fi
