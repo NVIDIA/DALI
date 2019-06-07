@@ -221,3 +221,12 @@ function(propagate_option BUILD_OPTION_NAME)
     add_definitions(-D${DEFINE_NAME}=0)
   endif()
 endfunction(propagate_option)
+
+function(add_sources_to_lint LINT_TARGET LINT_EXTRA LIST_SRC)
+  add_custom_command(
+    TARGET ${LINT_TARGET}
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    COMMAND ${LINT_COMMAND} ${LINT_EXTRA} ${LIST_SRC}
+    )
+endfunction(add_sources_to_lint)
+

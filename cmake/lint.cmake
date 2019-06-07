@@ -43,30 +43,8 @@ list(REMOVE_ITEM LINT_SRC
     ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/LRUCache.h
 )
 
-execute_process(
-  COMMAND ${LINT_COMMAND} --linelength=100 --root=include ${LINT_INC}
-  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-  RESULT_VARIABLE LINT_RESULT
-  ERROR_VARIABLE LINT_ERROR
-  OUTPUT_QUIET
-)
+set(LINT_TARGET lint)
 
-if(LINT_RESULT)
-    message(FATAL_ERROR "Lint failed: ${LINT_ERROR}")
-else()
-    message(STATUS "Lint OK (headers)")
-endif()
-
-execute_process(
-  COMMAND ${LINT_COMMAND} --linelength=100 ${LINT_SRC}
-  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-  RESULT_VARIABLE LINT_RESULT
-  ERROR_VARIABLE LINT_ERROR
-  OUTPUT_QUIET
-)
-
-if(LINT_RESULT)
-    message(FATAL_ERROR "Lint failed: ${LINT_ERROR}")
-else()
-    message(STATUS "Lint OK (sources)")
-endif()
+add_custom_target(${LINT_TARGET} ALL)
+add_sources_to_lint(${LINT_TARGET} "--linelength=100;--root=${PROJECT_SOURCE_DIR}" "${LINT_SRC}")
+add_sources_to_lint(${LINT_TARGET} "--linelength=100;--root=${PROJECT_SOURCE_DIR}/include" "${LINT_INC}")
