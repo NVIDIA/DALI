@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy opencv-python"
+pip_packages="nose numpy"
 
 pushd ../..
 
