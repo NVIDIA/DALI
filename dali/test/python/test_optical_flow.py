@@ -26,7 +26,7 @@ class OFPipeline(Pipeline):
         return of,seq.gpu()
 
 
-def test_of:
+def test_of():
     pipe = OFPipeline(batch_size=batch_size, num_threads=1, device_id=0)
     pipe.build()
     pipe_out = pipe.run()
