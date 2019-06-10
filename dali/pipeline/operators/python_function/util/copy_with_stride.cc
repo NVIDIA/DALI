@@ -69,8 +69,8 @@ inline void CopyWithStrideHelper(void *output, const void *input,
 }
 
 inline Index DeepestContiguous(const std::vector<Index>& in_strides,
-                        const std::vector<Index>& shape,
-                        size_t item_size) {
+                               const std::vector<Index>& shape,
+                               size_t item_size) {
   ssize_t dim_prod = 1;
   for (int i = in_strides.size()-1; i >= 0; --i) {
     if (in_strides[i] != dim_prod*static_cast<Index>(item_size)) {
