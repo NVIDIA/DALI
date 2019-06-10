@@ -162,10 +162,9 @@ class SliceFlipNormalizePermuteCPU {
            const Args &args) {
     auto processed_args = detail::ProcessArgs<OutputType, Dims>(args, in.shape);
     detail::SliceFlipNormalizePermute(
-        out.data, in.data + processed_args.input_offset, processed_args.in_strides, processed_args.out_strides,
-        processed_args.out_shape, processed_args.padded_out_shape,
-        processed_args.mean, processed_args.inv_stddev,
-        processed_args.normalization_dim);
+        out.data, in.data + processed_args.input_offset, processed_args.in_strides,
+        processed_args.out_strides, processed_args.out_shape, processed_args.padded_out_shape,
+        processed_args.mean, processed_args.inv_stddev, processed_args.normalization_dim);
   }
 };
 
