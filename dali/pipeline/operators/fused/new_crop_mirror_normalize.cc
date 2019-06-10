@@ -20,6 +20,37 @@
 
 namespace dali {
 
+DALI_SCHEMA(NewCropMirrorNormalize)
+  .DocStr(R"code(Perform fused cropping, normalization, format conversion
+(NHWC to NCHW) if desired, and type casting.
+Normalization takes input image and produces output using formula:
+
+  output = (input - mean) / std
+)code")
+  .NumInput(1)
+  .NumOutput(1)
+  .AllowMultipleInputSets()
+  .AddOptionalArg("output_dtype",
+    R"code(Output data type.)code", DALI_FLOAT)
+  .AddOptionalArg("output_layout",
+    R"code(Output tensor data layout)code", DALI_NCHW)
+  .AddOptionalArg(
+    "pad_output",
+    R"code(Whether to pad the output to number of channels being multiple of 4.)code", false)
+  .AddOptionalArg("mirror",
+    R"code(Mask for horizontal flip.
+- `0` - do not perform horizontal flip for this image
+- `1` - perform horizontal flip for this image.
+)code",
+    0, true)
+  .AddArg("mean",
+    R"code(Mean pixel values for image normalization.)code", DALI_FLOAT_VEC)
+  .AddArg("std",
+    R"code(Standard deviation values for image normalization.)code", DALI_FLOAT_VEC)
+  .AddParent("Crop");
+
+DALI_REGISTER_OPERATOR(NewCropMirrorNormalize, NewCropMirrorNormalize<CPUBackend>, CPU);
+
 namespace detail {
 
 size_t horizontal_dim_idx(DALITensorLayout layout) {
@@ -157,35 +188,6 @@ void RunHelper(Tensor<CPUBackend> &output,
 
 }  // namespace detail
 
-DALI_SCHEMA(NewCropMirrorNormalize)
-  .DocStr(R"code(Perform fused cropping, normalization, format conversion
-(NHWC to NCHW) if desired, and type casting.
-Normalization takes input image and produces output using formula:
-
-  output = (input - mean) / std
-)code")
-  .NumInput(1)
-  .NumOutput(1)
-  .AllowMultipleInputSets()
-  .AddOptionalArg("output_dtype",
-    R"code(Output data type.)code", DALI_FLOAT)
-  .AddOptionalArg("output_layout",
-    R"code(Output tensor data layout)code", DALI_NCHW)
-  .AddOptionalArg(
-    "pad_output",
-    R"code(Whether to pad the output to number of channels being multiple of 4.)code", false)
-  .AddOptionalArg("mirror",
-    R"code(Mask for horizontal flip.
-- `0` - do not perform horizontal flip for this image
-- `1` - perform horizontal flip for this image.
-)code",
-    0, true)
-  .AddArg("mean",
-    R"code(Mean pixel values for image normalization.)code", DALI_FLOAT_VEC)
-  .AddArg("std",
-    R"code(Standard deviation values for image normalization.)code", DALI_FLOAT_VEC)
-  .AddParent("Crop");
-
 template <>
 void NewCropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
   input_layout_ = ws->Input<CPUBackend>(0).GetLayout();
@@ -229,7 +231,5 @@ void NewCropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int 
     )
   )
 }
-
-DALI_REGISTER_OPERATOR(NewCropMirrorNormalize, NewCropMirrorNormalize<CPUBackend>, CPU);
 
 }  // namespace dali
