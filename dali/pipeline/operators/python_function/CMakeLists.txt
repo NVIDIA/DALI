@@ -13,7 +13,7 @@
 # limitations under the License.
 
 set(python_function_lib "python_function_plugin")
-add_library(${python_function_lib} SHARED python_function.cc)
+add_library(${python_function_lib} SHARED python_function.cc util/copy_with_stride.cc)
 target_link_libraries(${python_function_lib} ${dali_lib})
 target_include_directories(${python_function_lib}
         PRIVATE ${PYBIND11_INCLUDE_DIR}  # from project CMakeLists.txt
