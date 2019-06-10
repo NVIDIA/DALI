@@ -19,7 +19,7 @@
 #include <vector>
 #include <string>
 #include "dali/kernels/slice/slice_kernel_test.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_cpu.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_common.h"
 
 namespace dali {
 namespace kernels {
@@ -423,7 +423,10 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<uint8_t, float, 3, 1, 3,
       SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 0, 10>, 10, 10>,
     SliceTestArgs<int, bool, 3, 1, 2,
-      SliceFlipNormPermArgsGen_SliceOnly<bool, 3>>,
+      SliceFlipNormPermArgsGen_SliceOnly<bool, 3>>
+>;
+
+using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES_CPU_ONLY = ::testing::Types<
     SliceTestArgs<uint8_t, float16_cpu, 3, 1, 2,
       SliceFlipNormPermArgsGen_SliceOnly<float16_cpu, 3>>,
     SliceTestArgs<float16_cpu, uint8_t, 3, 1, 2,

@@ -80,5 +80,16 @@ TYPED_TEST(SliceFlipNormalizePermuteCPUTest, All) {
   this->Run();
 }
 
+template <typename TestArgs>
+class SliceFlipNormalizePermuteCPUTest_CPUOnlyTests
+  : public SliceFlipNormalizePermuteCPUTest<TestArgs> {};
+
+TYPED_TEST_SUITE(SliceFlipNormalizePermuteCPUTest_CPUOnlyTests,
+                 SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES_CPU_ONLY);
+
+TYPED_TEST(SliceFlipNormalizePermuteCPUTest_CPUOnlyTests, All) {
+  this->Run();
+}
+
 }  // namespace kernels
 }  // namespace dali
