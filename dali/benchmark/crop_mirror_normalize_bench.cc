@@ -19,7 +19,7 @@
 namespace dali {
 
 static void CropMirrorNormalizeCPUArgs(benchmark::internal::Benchmark *b) {
-  int batch_size = 1;
+  int batch_size = 8;
   int mean = 128, std = 1;
   for (auto &output_dtype : {DALI_FLOAT}) {
     for (auto &output_layout : {DALI_NHWC, DALI_NCHW}) {

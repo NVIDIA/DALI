@@ -40,6 +40,7 @@ class OperatorBench : public DALIBenchmark {
       in_ptr = std::make_shared<Tensor<CPUBackend>>();
       in_ptr->set_type(TypeInfo::Create<T>());
       in_ptr->Resize({W, H, C});
+      in_ptr->SetLayout(DALI_NHWC);
     }
 
     for (auto &out_ptr : data_out) {
@@ -81,6 +82,7 @@ class OperatorBench : public DALIBenchmark {
     auto data_in_cpu = std::make_shared<TensorList<CPUBackend>>();
     data_in_cpu->set_type(TypeInfo::Create<T>());
     data_in_cpu->Resize(std::vector<Dims>(batch_size, {W, H, C}));
+    data_in_cpu->SetLayout(DALI_NHWC);
     if (fill_in_data) {
       for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
         auto *ptr = data_in_cpu->mutable_tensor<T>(sample_idx);
