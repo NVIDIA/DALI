@@ -33,7 +33,18 @@ DALI_SCHEMA(ResizeAttr)
       "The op will keep the aspect ratio of the original image.", 0.f, true)
   .AddOptionalArg("resize_longer", "The length of the longer dimension of the resized image. "
       "This option is mutually exclusive with `resize_shorter`,`resize_x` and `resize_y`. "
-      "The op will keep the aspect ratio of the original image.", 0.f, true);
+      "The op will keep the aspect ratio of the original image.", 0.f, true)
+  .AddOptionalArg("max_size", R"code("Maximum size of the longer dimension when resizing with `resize_shorter`.
+      When set with `resize_shorter`, the shortest dimension will be resized to `resize_shorter` iff
+      the longest dim is smaller or equal to `max_size`. If not, the shortest dimension is resized to
+      satisfy the constraint "longest_dim == `max_size`.
+      Example:
+        Original image = "400x1200".
+        Resized with:
+        `resize_shorter`="200"  (`max_size` not set) => "200x600"
+        `resize_shorter`="200", `max_size`="400      => "132x400"
+        `resize_shorter`="200", `max_size`=1000      => "200x600"
+      ")code", 0.f, true);
 
 DALI_SCHEMA(Resize)
   .DocStr(R"code(Resize images.)code")
