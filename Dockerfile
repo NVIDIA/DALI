@@ -73,4 +73,4 @@ COPY . .
 ARG DALI_BUILD_DIR=build-docker-release
 WORKDIR /opt/dali/${DALI_BUILD_DIR}
 
-RUN /opt/dali/docker/build_helper.sh
+RUN bash /opt/dali/docker/build_helper.sh
