@@ -88,7 +88,7 @@ make_wheel_record() {
 }
 
 DEPS_LIST=(
-    "/usr/local/lib/libjpeg.so.62"
+    "/usr/local/lib64/libjpeg.so.62"
     "/usr/local/lib/libavformat.so.57"
     "/usr/local/lib/libavcodec.so.57"
     "/usr/local/lib/libavfilter.so.6"
