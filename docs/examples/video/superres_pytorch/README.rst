@@ -124,6 +124,24 @@ This will create a 5 directories inside of ``<data_dir>``\ :
 * 4k
   Each of these diretories contain scenes (short extracts of the origin video) seperated in two directories ``train`` and ``val``. 
 
+The script used in prepare_data.sh are the follwing:
+
+tools/split_scenes.py : split the video into scenes and remove audio track:
+
+.. code-block:: bash
+
+   python ./tools/split_scenes.py --raw_data <path_to_mp4_file> --out_data <data_dir>
+
+The scenes will be written to <data_dir>/orig/scenes. The scenes will be split into training and validation folders.
+
+tools/transcode_scenes.py : transcode the scenes to have a smaller keyframe interval and possibly a lower resolution:
+
+.. code-block:: bash
+
+   python ./tools/transcode_scenes.py --master_data <data_dir> --resolution <resolution>
+
+where <resolution> can be one of: '4K', 1080p, 720p or 540p. The transcoded scenes will be written to <data_dir>/<resolution>/scenes and split into training and validation folders. Run the script with --help to see more options. Note that while you can split and transcode the original video in one step, we found it to be much faster to split first, then transcode.
+
 Training
 --------
 
