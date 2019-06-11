@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "dali/pipeline/operators/reader/loader/video_loader.h"
 
+#include <dirent.h>
 #include <unistd.h>
 
 #include <iomanip>
@@ -41,6 +42,79 @@ auto codecpar(AVStream* stream) -> decltype(stream->codec) {
 }
 #endif
 
+inline void assemble_video_list(const std::string& path, const std::string& curr_entry, int label,
+                        std::vector<std::pair<std::string, int>> &file_label_pairs) {
+  std::string curr_dir_path = path + "/" + curr_entry;
+  DIR *dir = opendir(curr_dir_path.c_str());
+  DALI_ENFORCE(dir != nullptr, "Directory " + curr_dir_path + " could not be opened");
+
+  struct dirent *entry;
+
+  while ((entry = readdir(dir))) {
+    std::string full_path = curr_dir_path + "/" + std::string{entry->d_name};
+#ifdef _DIRENT_HAVE_D_TYPE
+    /*
+     * Regular files and symlinks supported. If FS returns DT_UNKNOWN,
+     * filename is validated.
+     */
+    if (entry->d_type != DT_REG && entry->d_type != DT_LNK &&
+        entry->d_type != DT_UNKNOWN) {
+      continue;
+    }
+#endif
+    file_label_pairs.push_back(std::make_pair(full_path, label));
+  }
+  closedir(dir);
+}
+
+vector<std::pair<string, int>> filesystem::get_file_label_pair(
+    const std::string& file_root,
+    const std::vector<std::string>& filenames) {
+  // open the root
+  std::vector<std::pair<std::string, int>> file_label_pairs;
+  std::vector<std::string> entry_name_list;
+
+  if (!file_root.empty()) {
+    DIR *dir = opendir(file_root.c_str());
+
+    DALI_ENFORCE(dir != nullptr,
+        "Directory " + file_root + " could not be opened.");
+
+    struct dirent *entry;
+
+    while ((entry = readdir(dir))) {
+      struct stat s;
+      std::string entry_name(entry->d_name);
+      std::string full_path = file_root + "/" + entry_name;
+      int ret = stat(full_path.c_str(), &s);
+      DALI_ENFORCE(ret == 0,
+          "Could not access " + full_path + " during directory traversal.");
+      if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+      if (S_ISDIR(s.st_mode)) {
+        entry_name_list.push_back(entry_name);
+      }
+    }
+    closedir(dir);
+    // sort directories to preserve class alphabetic order, as readdir could
+    // return unordered dir list. Otherwise file reader for training and validation
+    // could return directories with the same names in completely different order
+    std::sort(entry_name_list.begin(), entry_name_list.end());
+    for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
+        assemble_video_list(file_root, entry_name_list[dir_count], dir_count, file_label_pairs);
+    }
+
+    // sort file names as well
+    std::sort(file_label_pairs.begin(), file_label_pairs.end());
+  } else {
+    for (unsigned file_count = 0; file_count < filenames.size(); ++file_count)
+        file_label_pairs.push_back(std::make_pair(filenames[file_count], 0));
+  }
+
+  LOG_LINE << "read " << file_label_pairs.size() << " files from "
+              << entry_name_list.size() << " directories\n";
+
+  return file_label_pairs;
+}
 
 // Are these good numbers? Allow them to be set?
 static constexpr auto frames_used_warning_ratio = 3.0f;
@@ -402,10 +476,14 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
   sequence.wait();
 }
 
-std::pair<int, int> VideoLoader::load_width_height(const std::string& filename) {
+std::pair<int, int> VideoLoader::load_width_height() {
   av_register_all();
 
   AVFormatContext* raw_fmt_ctx = nullptr;
+
+  DALI_ENFORCE(!file_label_pair_.empty(), "Could not read any files.");
+  std::string filename =  file_label_pair_[0].first;
+
   auto ret = avformat_open_input(&raw_fmt_ctx, filename.c_str(), NULL, NULL);
   if (ret < 0) {
     std::stringstream ss;
@@ -445,11 +523,13 @@ void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {
 
 void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
-    auto& fileidx_frame = frame_starts_[current_frame_idx_];
-    push_sequence_to_read(filenames_[fileidx_frame.first], fileidx_frame.second, count_);
+    auto& seq_meta = frame_starts_[current_frame_idx_];
+    push_sequence_to_read(file_label_pair_[seq_meta.filename_idx].first,
+                          seq_meta.frame_idx, count_);
     receive_frames(tensor);
     ++current_frame_idx_;
 
+    tensor.label = seq_meta.label;
     MoveToNextShard(current_frame_idx_);
 }
 
