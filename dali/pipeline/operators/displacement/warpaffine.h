@@ -48,9 +48,6 @@ class WarpAffineAugment {
       newY += H/2.0f;
     }
 
-    newX -= 0.5f;
-    newY -= 0.5f;
-
     return { static_cast<T>(newX), static_cast<T>(newY) };
   }
 
