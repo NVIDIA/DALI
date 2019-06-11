@@ -71,7 +71,7 @@ BENCHMARK_DEFINE_F(OperatorBench, CropMirrorNormalizeCPU)(benchmark::State& st) 
     batch_size, H, W, C);
 }
 
-BENCHMARK_REGISTER_F(OperatorBench, CropMirrorNormalizeCPU)->Iterations(100)
+BENCHMARK_REGISTER_F(OperatorBench, CropMirrorNormalizeCPU)->Iterations(500)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(CropMirrorNormalizeCPUArgs);
@@ -109,7 +109,7 @@ BENCHMARK_DEFINE_F(OperatorBench, NewCropMirrorNormalizeCPU)(benchmark::State& s
     batch_size, H, W, C);
 }
 
-BENCHMARK_REGISTER_F(OperatorBench, NewCropMirrorNormalizeCPU)->Iterations(100)
+BENCHMARK_REGISTER_F(OperatorBench, NewCropMirrorNormalizeCPU)->Iterations(500)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(CropMirrorNormalizeCPUArgs);

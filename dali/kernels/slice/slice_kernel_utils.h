@@ -46,10 +46,12 @@ void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,
                            const Args& args) {
   for (size_t d = 0; d < Dims; d++) {
     DALI_ENFORCE(
-      args.anchor[d] >= 0 && (args.anchor[d] + out_sample_shape[d]) <= in_sample_shape[d],
+      args.anchor[d] >= 0 && (args.anchor[d] + args.shape[d]) <= in_sample_shape[d],
       "Slice dimension " + std::to_string(d) + " is out of bounds : anchor["
-      + std::to_string(args.anchor[d]) + "] size[" + std::to_string(out_sample_shape[d])
+      + std::to_string(args.anchor[d]) + "] size[" + std::to_string(args.shape[d])
       + "] input dimension size[" + std::to_string(in_sample_shape[d]) + "]");
+    DALI_ENFORCE(args.shape[d] <= out_sample_shape[d],
+      "Output shape dimension " + std::to_string(d) + " is too small");
   }
 }
 

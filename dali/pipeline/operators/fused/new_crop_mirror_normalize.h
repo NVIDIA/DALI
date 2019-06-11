@@ -37,13 +37,17 @@ class NewCropMirrorNormalize : public Operator<Backend>, protected CropAttr {
         output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
         output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
         pad_output_(spec.GetArgument<bool>("pad_output")),
-        image_type_(spec.GetArgument<DALIImageType>("image_type")),
-        C_(IsColor(image_type_) ? 3 : 1),
         slice_anchors_(batch_size_),
         slice_shapes_(batch_size_),
         mirror_(batch_size_) {
-    GetSingleOrRepeatedArg(spec, mean_vec_, "mean", C_);
-    GetSingleOrRepeatedArg(spec, inv_std_vec_, "std", C_);
+    if (!spec.TryGetRepeatedArgument(mean_vec_, "mean")) {
+      mean_vec_ = { spec.GetArgument<float>("mean") };
+    }
+
+    if (!spec.TryGetRepeatedArgument(inv_std_vec_, "std")) {
+      inv_std_vec_ = { spec.GetArgument<float>("std") };
+    }
+
     // Inverse the std-deviation
     for (auto &element : inv_std_vec_) {
       element = 1.f / element;
@@ -137,10 +141,6 @@ class NewCropMirrorNormalize : public Operator<Backend>, protected CropAttr {
 
   // Whether to pad output to 4 channels
   bool pad_output_;
-
-  // Input/output channel meta-data
-  DALIImageType image_type_;
-  int C_;
 
   std::vector<std::vector<int64_t>> slice_anchors_, slice_shapes_;
 

@@ -51,10 +51,10 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
       KernelRequirements kernel_req = kernel.Setup(ctx, test_data_cpu[i], args[i]);
       TensorShape<Dims> output_shape = kernel_req.output_shapes[0][0].to_static<Dims>();
 
-      auto padded_out_shape = args[i].should_pad ? args[i].padded_shape : args[i].shape;
+      auto padded_out_shape = args[i].padded_shape;
       auto expected_shape = padded_out_shape;
       for (size_t d = 0; d < Dims; d++) {
-        size_t perm_d = args[i].should_permute ? args[i].permuted_dims[d] : d;
+        size_t perm_d = args[i].permuted_dims[d];
         expected_shape[d] = padded_out_shape[perm_d];
       }
       AssertExpectedDimensions(output_shape, expected_shape);

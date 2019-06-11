@@ -89,13 +89,10 @@ inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *i
   constexpr auto d = Dims - 1;
   int64_t i = 0;
   for (; i < out_shape[d]; i++) {
-    Policy::Fill(*output, *input, mean, inv_stddev);
+    const size_t norm_idx = IsNormalizationDim ? i : 0;
+    Policy::Fill(*output, *input, mean + norm_idx, inv_stddev + norm_idx);
     input += in_strides[d];
     output += out_strides[d];
-    if (IsNormalizationDim) {
-      mean++;
-      inv_stddev++;
-    }
   }
 
   // zero pad
@@ -128,15 +125,12 @@ inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *i
     }
   } else {
     for (; i < out_shape[d]; i++) {
+      const size_t norm_idx = IsNormalizationDim ? i : 0;
       SliceFlipNormalizePermuteImpl<Policy, false>(
-          output, input, in_strides, out_strides, out_shape, padded_out_shape, mean, inv_stddev,
-          normalization_dim, std::integral_constant<size_t, DimsLeft - 1>());
+          output, input, in_strides, out_strides, out_shape, padded_out_shape, mean + norm_idx,
+          inv_stddev + norm_idx, normalization_dim, std::integral_constant<size_t, DimsLeft - 1>());
       input += in_strides[d];
       output += out_strides[d];
-      if (IsNormalizationDim) {
-        mean++;
-        inv_stddev++;
-      }
     }
   }
 
@@ -157,7 +151,18 @@ void SliceFlipNormalizePermute(OutputType *output, const InputType *input,
                                const std::vector<float> &mean,
                                const std::vector<float> &inv_stddev,
                                size_t normalization_dim) {
-  const bool should_normalize = !mean.empty() && !inv_stddev.empty();
+  const size_t norm_dim_size = out_shape[normalization_dim];
+  DALI_ENFORCE(mean.size() == inv_stddev.size());
+  const size_t norm_args_size = mean.size();
+  const bool should_normalize = !mean.empty();
+  DALI_ENFORCE(norm_args_size == 0 || norm_args_size == 1
+            || norm_dim_size == norm_args_size);
+  // Detect scalar value for mean and inv_stddev. In that case we set normalization_dim
+  // to Dims+1 so that we never advance mean and inv_stddev pointers
+  if (norm_args_size <= 1) {
+    normalization_dim = Dims + 1;
+  }
+
   const bool IsNextNormalizationDim = (0 == normalization_dim);
   if (should_normalize) {
     if (IsNextNormalizationDim) {
@@ -184,22 +189,15 @@ void SliceFlipNormalizePermute(OutputType *output, const InputType *input,
 template <typename OutputType, typename InputType, size_t Dims>
 class SliceFlipNormalizePermuteCPU {
  public:
-  using Args = SliceFlipNormalizePermuteArgs<OutputType, Dims>;
+  using Args = SliceFlipNormalizePermuteArgs<Dims>;
 
   KernelRequirements Setup(KernelContext &context,
                            const InTensorCPU<InputType, Dims> &in,
                            const Args &args) {
     KernelRequirements req;
-    TensorShape<Dims> out_shape(args.shape);
+    TensorShape<Dims> out_shape(args.padded_shape);
     CheckValidOutputShape<Dims>(in.shape, out_shape, args);
-
-    if (args.should_pad) {
-      out_shape = TensorShape<Dims>(args.padded_shape);
-    }
-
-    if (args.should_permute) {
-      out_shape = detail::permute<Dims>(out_shape, args.permuted_dims);
-    }
+    out_shape = detail::permute<Dims>(out_shape, args.permuted_dims);
     req.output_shapes.push_back(uniform_list_shape<Dims>(1, out_shape));
     return req;
   }

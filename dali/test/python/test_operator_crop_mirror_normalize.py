@@ -87,6 +87,7 @@ def test_cmn_cpu_vs_gpu():
             for output_layout in [types.NHWC, types.NCHW]:
                 for mirror_probability in [0.0, 0.5, 1.0]:
                     for (mean, std) in [ ([0., 0., 0.], [1., 1., 1.]),
+                                         ([0.5 * 255], [0.225 * 255]),
                                          ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]:
                         for pad_output in [False]: # padding doesn't work in the old CPU version
                             yield check_cmn_cpu_vs_gpu, batch_size, output_dtype, output_layout, mirror_probability, mean, std, pad_output
@@ -110,10 +111,12 @@ def test_cmn_cpu_old_vs_new():
                     for output_layout in [types.NHWC, types.NCHW]:
                         for mirror_probability in [0.0, 0.5, 1.0]:
                             norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
+                                          ([0.5 * 255], [0.225 * 255]),
                                           ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ] \
                                         if output_dtype != types.INT32 else \
                                         [ ([0., 0., 0.], [1., 1., 1.]),
-                                        ([10, 10, 10], [10, 10, 10]) ]
+                                          ([9, 8, 10], [10, 8, 9]),
+                                          ([10, 10, 10], [10, 10, 10]) ]
                             for (mean, std) in norm_data:
                                 for pad_output in [False, True] if device_old != 'cpu' else [False]: # padding doesn't work in the old CPU version
                                     yield check_cmn_cpu_old_vs_new, device_new, device_old, batch_size, output_dtype, \

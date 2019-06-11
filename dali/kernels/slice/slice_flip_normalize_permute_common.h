@@ -24,21 +24,24 @@
 namespace dali {
 namespace kernels {
 
-template <typename OutputType, size_t Dims>
+template <size_t Dims>
 struct SliceFlipNormalizePermuteArgs {
+  template <typename Shape>
+  explicit SliceFlipNormalizePermuteArgs(const Shape &_shape) {
+    for (size_t d = 0; d < Dims; d++) {
+      anchor[d] = 0;
+      shape[d] = _shape[d];
+      padded_shape[d] = _shape[d];
+      flip[d] = false;
+      permuted_dims[d] = d;
+    }
+  }
+
   std::array<int64_t, Dims> anchor;
   std::array<int64_t, Dims> shape;
-
-  bool should_pad = false;
   std::array<int64_t, Dims> padded_shape;
-
-  bool should_flip = false;
   std::array<bool, Dims> flip;
-
-  bool should_permute = false;
   std::array<int64_t, Dims> permuted_dims;
-
-  bool should_normalize = false;
   size_t normalization_dim = Dims-1;
   size_t normalization_index = 0;
   std::vector<float> mean;
@@ -81,7 +84,7 @@ std::array<int64_t, Dims> inverse_permutation(const std::array<int64_t, Dims> &p
 
 template <typename OutputType, size_t Dims, typename Shape>
 SliceFlipNormalizePermuteProcessedArgs<OutputType, Dims> ProcessArgs(
-    const SliceFlipNormalizePermuteArgs<OutputType, Dims> &args,
+    const SliceFlipNormalizePermuteArgs<Dims> &args,
     const Shape &in_shape) {
   SliceFlipNormalizePermuteProcessedArgs<OutputType, Dims> processed_args;
 
@@ -89,54 +92,29 @@ SliceFlipNormalizePermuteProcessedArgs<OutputType, Dims> ProcessArgs(
   processed_args.in_strides = GetStrides<Dims>(in_shape);
 
   auto slice_shape = args.shape;
-  processed_args.out_shape = slice_shape;
-  processed_args.padded_out_shape = args.should_pad ? args.padded_shape : args.shape;
-
-  if (args.should_permute) {
-    processed_args.out_shape = detail::permute<Dims>(processed_args.out_shape, args.permuted_dims);
-    processed_args.padded_out_shape =
-        detail::permute<Dims>(processed_args.padded_out_shape, args.permuted_dims);
-  }
+  processed_args.out_shape = detail::permute<Dims>(slice_shape, args.permuted_dims);
+  processed_args.padded_out_shape =
+    detail::permute<Dims>(args.padded_shape, args.permuted_dims);
   processed_args.out_strides = GetStrides<Dims>(processed_args.padded_out_shape);
 
   // Flip operation is implemented by manipulating the anchor and the sign of the input strides
-  if (args.should_flip) {
-    for (size_t d = 0; d < Dims; d++) {
-      if (args.flip[d]) {
-        processed_args.input_offset +=
-            (args.anchor[d] + slice_shape[d] - 1) * processed_args.in_strides[d];
-        processed_args.in_strides[d] = -processed_args.in_strides[d];
-      } else {
-        processed_args.input_offset += args.anchor[d] * processed_args.in_strides[d];
-      }
-    }
-  } else {
-    for (size_t d = 0; d < Dims; d++) {
+  for (size_t d = 0; d < Dims; d++) {
+    if (args.flip[d]) {
+      processed_args.input_offset +=
+          (args.anchor[d] + slice_shape[d] - 1) * processed_args.in_strides[d];
+      processed_args.in_strides[d] = -processed_args.in_strides[d];
+    } else {
       processed_args.input_offset += args.anchor[d] * processed_args.in_strides[d];
     }
   }
 
-  if (args.should_permute) {
-    processed_args.in_strides = detail::permute(processed_args.in_strides, args.permuted_dims);
-  }
-
+  processed_args.in_strides = detail::permute(processed_args.in_strides, args.permuted_dims);
   processed_args.normalization_dim = args.normalization_dim;
-  if (args.should_normalize) {
+  if (!args.mean.empty() && !args.inv_stddev.empty()) {
     processed_args.mean = args.mean;
-    DALI_ENFORCE(!processed_args.mean.empty());
     processed_args.inv_stddev = args.inv_stddev;
-    DALI_ENFORCE(!processed_args.inv_stddev.empty());
-
-    if (args.should_permute) {
-      processed_args.normalization_dim =
-          detail::inverse_permutation(args.permuted_dims)[processed_args.normalization_dim];
-    }
-
-    // Detect the case where the last dimension is flipped
-    if (args.should_flip && args.flip[Dims - 1]) {
-      std::reverse(processed_args.mean.begin(), processed_args.mean.end());
-      std::reverse(processed_args.inv_stddev.begin(), processed_args.inv_stddev.end());
-    }
+    processed_args.normalization_dim =
+      detail::inverse_permutation(args.permuted_dims)[args.normalization_dim];
   }
   return processed_args;
 }

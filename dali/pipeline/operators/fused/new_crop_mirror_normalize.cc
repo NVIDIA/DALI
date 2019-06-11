@@ -132,39 +132,28 @@ void RunHelper(Tensor<CPUBackend> &output,
   VALUE_SWITCH(number_of_dims, Dims, (3, 4), (
     auto in_view = view<const InputType, Dims>(input);
 
-    kernels::SliceFlipNormalizePermuteArgs<OutputType, Dims> args;
-    auto &anchor = args.anchor;
-    auto &shape = args.shape;
+    kernels::SliceFlipNormalizePermuteArgs<Dims> args(slice_shape);
     for (std::size_t d = 0; d < Dims; d++) {
-      anchor[d] = slice_anchor[d];
-      shape[d] = slice_shape[d];
+      args.anchor[d] = slice_anchor[d];
     }
 
     if (pad_output) {
-      args.should_pad = true;
-      args.padded_shape = args.shape;
       args.padded_shape[channels_dim(input_layout)] = 4;
     }
 
     if (horizontal_flip) {
-      args.should_flip = true;
-      auto flip_dim = horizontal_dim_idx(input_layout);
-      for (size_t d = 0; d < Dims; d++) {
-        args.flip[d] = (d == flip_dim);
-      }
+      args.flip[horizontal_dim_idx(input_layout)] = true;
     }
 
     // Check if permutation is needed
     if (input_layout != output_layout) {
-      args.should_permute = true;
       args.permuted_dims = permuted_dims<Dims>(input_layout, output_layout);
     }
 
-    args.should_normalize =
+    const bool should_normalize =
          !std::all_of(mean.begin(), mean.end(), [](float x){ return x == 0.0f; })
       || !std::all_of(inv_std_dev.begin(), inv_std_dev.end(), [](float x){ return x == 1.0f; });
-
-    if (args.should_normalize) {
+    if (should_normalize) {
       args.mean = mean;
       args.inv_stddev = inv_std_dev;
       args.normalization_dim = channels_dim(input_layout);
