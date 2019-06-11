@@ -83,7 +83,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
           const float max_size = spec.GetArgument<float>("max_size");
           if (meta.rsz_w > max_size) {
             const float ratio = meta.H / meta.W;
-            meta.rsz_h = ratio * max_size;
+            meta.rsz_h = static_cast<int>(std::round(ratio * max_size));
             meta.rsz_w = max_size;
           }
         }
@@ -96,7 +96,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
           if (meta.rsz_h > max_size) {
             const float ratio = meta.W / meta.H;
             meta.rsz_h = max_size;
-            meta.rsz_w = ratio * max_size;
+            meta.rsz_w = static_cast<int>(std::round(ratio * max_size));
           }
         }
       }
