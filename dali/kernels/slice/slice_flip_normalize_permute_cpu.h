@@ -151,18 +151,9 @@ void SliceFlipNormalizePermute(OutputType *output, const InputType *input,
                                const std::vector<float> &mean,
                                const std::vector<float> &inv_stddev,
                                size_t normalization_dim) {
-  const size_t norm_dim_size = out_shape[normalization_dim];
   DALI_ENFORCE(mean.size() == inv_stddev.size());
-  const size_t norm_args_size = mean.size();
+  DALI_ENFORCE(mean.size() <= 1 || normalization_dim < Dims);
   const bool should_normalize = !mean.empty();
-  DALI_ENFORCE(norm_args_size == 0 || norm_args_size == 1
-            || norm_dim_size == norm_args_size);
-  // Detect scalar value for mean and inv_stddev. In that case we set normalization_dim
-  // to Dims+1 so that we never advance mean and inv_stddev pointers
-  if (norm_args_size <= 1) {
-    normalization_dim = Dims + 1;
-  }
-
   const bool IsNextNormalizationDim = (0 == normalization_dim);
   if (should_normalize) {
     if (IsNextNormalizationDim) {

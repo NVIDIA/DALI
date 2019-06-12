@@ -50,7 +50,13 @@ class SliceFlipNormalizePermuteGPUTest : public SliceFlipNormalizePermuteTest<Te
 
     TensorListShape<> output_shapes = req.output_shapes[0];
     for (int i = 0; i < output_shapes.size(); i++) {
-      AssertExpectedDimensions(output_shapes[i], args[i].shape);
+      auto padded_out_shape = args[i].padded_shape;
+      auto expected_shape = padded_out_shape;
+      for (size_t d = 0; d < Dims; d++) {
+        size_t perm_d = args[i].permuted_dims[d];
+        expected_shape[d] = padded_out_shape[perm_d];
+      }
+      AssertExpectedDimensions(output_shapes[i], expected_shape);
     }
 
     TestTensorList<OutputType, Dims> output_data;

@@ -116,12 +116,12 @@ BENCHMARK_REGISTER_F(OperatorBench, NewCropMirrorNormalizeCPU)->Iterations(500)
 
 static void CropMirrorNormalizeGPUArgs(benchmark::internal::Benchmark *b) {
   int mean = 128, std = 1;
-  for (int batch_size : {1, 128}) {
+  for (int batch_size : {1, 8, 128, 256}) {
     for (auto &output_dtype : {DALI_FLOAT}) {
       for (auto &output_layout : {DALI_NHWC, DALI_NCHW}) {
         for (int mirror : {0, 1}) {
           for (int pad : {0, 1}) {
-            for (int H = 1000; H >= 500; H /= 2) {
+            for (int H = 1000; H >= 250; H /= 2) {
               int W = H, C = 3;
               int crop_h = static_cast<float>(9 * H / 10);
               int crop_w = static_cast<float>(9 * W / 10);
@@ -187,7 +187,7 @@ BENCHMARK_DEFINE_F(OperatorBench, NewCropMirrorNormalizeGPU)(benchmark::State& s
   float mean = static_cast<float>(st.range(10));
   float std = static_cast<float>(st.range(11));
 
-  this->RunCPU<uint8_t>(
+  this->RunGPU<uint8_t>(
     st,
     OpSpec("NewCropMirrorNormalize")
       .AddArg("batch_size", batch_size)

@@ -109,12 +109,20 @@ SliceFlipNormalizePermuteProcessedArgs<Dims> ProcessArgs(
   }
 
   processed_args.in_strides = detail::permute(processed_args.in_strides, args.permuted_dims);
-  processed_args.normalization_dim = args.normalization_dim;
-  if (!args.mean.empty() && !args.inv_stddev.empty()) {
+
+  DALI_ENFORCE(args.mean.size() == args.inv_stddev.size());
+  const bool should_normalize = !args.mean.empty();
+  processed_args.normalization_dim = Dims + 1;
+  if (should_normalize) {
     processed_args.mean = args.mean;
     processed_args.inv_stddev = args.inv_stddev;
-    processed_args.normalization_dim =
-      detail::inverse_permutation(args.permuted_dims)[args.normalization_dim];
+    const bool is_scalar_norm = args.mean.size() == 1;
+    if (!is_scalar_norm) {
+      processed_args.normalization_dim =
+        detail::inverse_permutation(args.permuted_dims)[args.normalization_dim];
+      DALI_ENFORCE(args.mean.size() ==
+                   static_cast<size_t>(processed_args.out_shape[processed_args.normalization_dim]));
+    }
   }
   return processed_args;
 }

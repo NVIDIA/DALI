@@ -349,6 +349,8 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES = ::testing::Types<
       SliceFlipNormPermArgsGen_PermuteAndSliceHalf_PermuteHW<uint8_t, 3>, 1000, 1000>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,
       SliceFlipNormPermArgsGen_PermuteAndSliceHalf_PermuteHW<float, 3>, 1000, 1000>,
+    SliceTestArgs<uint8_t, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 2, 1>, 2, 2>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,
       SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 2, 1>, 10, 10>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,
