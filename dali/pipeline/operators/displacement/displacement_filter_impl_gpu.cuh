@@ -16,117 +16,31 @@
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_GPU_CUH_
 
 #include "dali/core/common.h"
+#include "dali/kernels/imgproc/sampler.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
 
 namespace dali {
 
 template <typename T, class Displacement, DALIInterpType interp_type>
-__device__ inline T GetPixelValueSingleC(const Index h, const Index w, const Index c,
-                                         const Index H, const Index W, const Index C,
+__device__ inline T GetPixelValueSingleC(int h, int w, int c,
+                                         int H, int W, int C,
                                          const T * input,
-                                         Displacement& displace, const T fill_value) {  // NOLINT
-  T ret;
-  if (interp_type == DALI_INTERP_NN) {
-    // NN interpolation
-
-    // calculate input idx from function
-    Point<Index> p = displace.template operator()<Index>(h, w, c, H, W, C);
-    if (p.x >= 0 && p.y >= 0) {
-      auto in_idx = (p.y * W + p.x) * C + c;
-
-      ret = input[in_idx];
-    } else {
-      ret = fill_value;
-    }
-  } else {
-    // LINEAR interpolation
-    Point<float> p = displace.template operator()<float>(h, w, c, H, W, C);
-    if (p.x >= 0 && p.y >= 0) {
-      T inter_values[4];
-      const Index x = p.x;
-      const Index y = p.y;
-      const Index xp = x < W - 1 ? x + 1 : x;
-      const Index yp = y < H - 1 ? y + 1 : y;
-      // 0, 0
-      inter_values[0] = __ldg(&input[(y * W + x) * C + c]);
-      // 1, 0
-      inter_values[1] = __ldg(&input[(y * W + xp) * C + c]);
-      // 0, 1
-      inter_values[2] = __ldg(&input[(yp * W + x) * C + c]);
-      // 1, 1
-      inter_values[3] = __ldg(&input[(yp * W + xp) * C + c]);
-      const float rx = p.x - x;
-      const float ry = p.y - y;
-      const float mrx = 1 - rx;
-      const float mry = 1 - ry;
-      ret = static_cast<T>(
-          inter_values[0] * mrx * mry +
-          inter_values[1] * rx * mry +
-          inter_values[2] * mrx * ry +
-          inter_values[3] * rx * ry);
-    } else {
-      ret = fill_value;
-    }
-  }
-
-  return ret;
+                                         Displacement& displace, const T fill_value) {
+  kernels::Surface2D<const T> in_surface = { input, W, H, C, C, C*W, 1 };
+  auto sampler = kernels::make_sampler<interp_type>(in_surface);
+  auto p = displace(h, w, c, H, W, C);
+  return sampler.template at<T>(p.x, p.y, c, fill_value);
 }
 
 template <typename T, class Displacement, DALIInterpType interp_type>
-__device__ inline void GetPixelValueMultiC(const Index h, const Index w,
-                                           const Index H, const Index W, const Index C,
+__device__ inline void GetPixelValueMultiC(int h, int w,
+                                           int H, int W, int C,
                                            const T * input, T * output,
-                                           Displacement& displace, const T fill_value) {  // NOLINT
-  if (interp_type == DALI_INTERP_NN) {
-    // NN interpolation
-
-    // calculate input idx from function
-    Point<Index> p = displace.template operator()<Index>(h, w, 0, H, W, C);
-    if (p.x >= 0 && p.y >= 0) {
-      auto in_idx = (p.y * W + p.x) * C;
-
-      for (int c = 0; c < C; ++c) {
-        output[c] = input[in_idx + c];
-      }
-    } else {
-      for (int c = 0; c < C; ++c) {
-        output[c] = fill_value;
-      }
-    }
-  } else {
-    // LINEAR interpolation
-    Point<float> p = displace.template operator()<float>(h, w, 0, H, W, C);
-    if (p.x >= 0 && p.y >= 0) {
-      T inter_values[4];
-      const Index x = p.x;
-      const Index y = p.y;
-      const Index xp = x < W - 1 ? x + 1 : x;
-      const Index yp = y < H - 1 ? y + 1 : y;
-      const float rx = p.x - x;
-      const float ry = p.y - y;
-      const float mrx = 1 - rx;
-      const float mry = 1 - ry;
-      for (int c = 0; c < C; ++c) {
-        // 0, 0
-        inter_values[0] = __ldg(&input[(y * W + x) * C + c]);
-        // 1, 0
-        inter_values[1] = __ldg(&input[(y * W + xp) * C + c]);
-        // 0, 1
-        inter_values[2] = __ldg(&input[(yp * W + x) * C + c]);
-        // 1, 1
-        inter_values[3] = __ldg(&input[(yp * W + xp) * C + c]);
-        output[c] = static_cast<T>(
-            inter_values[0] * mrx * mry +
-            inter_values[1] * rx * mry +
-            inter_values[2] * mrx * ry +
-            inter_values[3] * rx * ry);
-      }
-    } else {
-      for (int c = 0; c < C; ++c) {
-        output[c] = fill_value;
-      }
-    }
-  }
+                                           Displacement& displace, const T fill_value) {
+  kernels::Surface2D<const T> in_surface = { input, W, H, C, C, C*W, 1 };
+  auto sampler = kernels::make_sampler<interp_type>(in_surface);
+  auto p = displace(h, w, 0, H, W, C);
+  sampler(output, p.x, p.y, fill_value);
 }
 
 template <class Displacement, bool has_param = HasParam<Displacement>::value>

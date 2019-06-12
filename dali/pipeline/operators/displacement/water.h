@@ -19,7 +19,7 @@
 #include <ctgmath>
 #include <vector>
 #include <string>
-
+#include "dali/core/host_dev.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
 
 namespace dali {
@@ -44,16 +44,15 @@ class WaterAugment {
 
   void Cleanup() {}
 
-  template <typename T>
-  DISPLACEMENT_IMPL
-  Point<T> operator()(float h, float w, int c, int H, int W, int C) {
+  DALI_HOST_DEV
+  Point<float> operator()(float h, float w, int c, int H, int W, int C) {
     const WaveDescr &wX = x_desc_;
     const WaveDescr &wY = y_desc_;
 
-    const T newX = w + wX.ampl * sinf(wX.freq * h + wX.phase);
-    const T newY = h + wY.ampl * cosf(wY.freq * w + wY.phase);
-
-    return CreatePointLimited(newX, newY, W, H);
+    return {
+      w + wX.ampl * sinf(wX.freq * h + wX.phase),
+      h + wY.ampl * cosf(wY.freq * w + wY.phase)
+    };
   }
 
  private:

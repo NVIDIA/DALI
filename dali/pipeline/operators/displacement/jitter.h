@@ -18,6 +18,7 @@
 
 #include <ctgmath>
 #include <vector>
+#include "dali/core/host_dev.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
 #include "dali/pipeline/operators/util/randomizer.h"
@@ -31,11 +32,7 @@ class JitterAugment {
         nDegree_(spec.GetArgument<int>("nDegree")),
         rnd_(spec.GetArgument<int64_t>("seed"), 128*256) {}
 
-template <typename T>
-#ifdef __CUDA_ARCH__
-  __host__ __device__
-#endif
-  Point<T> operator()(int y, int x, int c, int H, int W, int C) {
+  DALI_HOST_DEV Point<int> operator()(int y, int x, int c, int H, int W, int C) {
     // JITTER_PREAMBLE
     const uint16_t degr = nDegree_;
     const uint16_t nHalf = degr/2;
@@ -48,10 +45,10 @@ template <typename T>
     const int idx = 0;
 #endif
 
-    const T newX = rnd_.rand(idx) % degr - nHalf + x;
-    const T newY = rnd_.rand(idx) % degr - nHalf + y;
+    const int newX = rnd_.rand(idx) % degr - nHalf + x;
+    const int newY = rnd_.rand(idx) % degr - nHalf + y;
 
-    return CreatePointLimited(newX, newY, W, H);
+    return { cuda_min(cuda_max(0, newX), W), cuda_min(cuda_max(0, newY), H) };
   }
 
   void Cleanup() {

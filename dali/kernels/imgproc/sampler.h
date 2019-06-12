@@ -17,86 +17,121 @@
 
 #include <cmath>
 #include "dali/core/common.h"
+#include "dali/core/traits.h"
 #include "dali/core/convert.h"
+#include "dali/core/math_util.h"
+#include "dali/core/host_dev.h"
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/imgproc/surface.h"
 
 namespace dali {
 namespace kernels {
 
+struct BorderClamp {};
+
 template <DALIInterpType interp, typename In>
 struct Sampler;
 
 template <DALIInterpType interp, typename T>
-__host__ __device__ Sampler<interp, T> make_sampler(const Surface2D<T> &surface) {
+DALI_HOST_DEV Sampler<interp, T> make_sampler(const Surface2D<T> &surface) {
   return Sampler<interp, T>(surface);
+}
+
+template <typename T>
+DALI_HOST_DEV T GetChannel(const T *values, int c) {
+  return values[c];
+}
+
+template <typename T>
+DALI_HOST_DEV constexpr
+enable_if_t<!std::is_pointer<T>::value, T> GetChannel(const T &value, int) {
+  return value;
 }
 
 template <typename In>
 struct Sampler<DALI_INTERP_NN, In> {
   Sampler() = default;
-  __host__ __device__ explicit Sampler(const Surface2D<const In> &surface)
+  DALI_HOST_DEV explicit Sampler(const Surface2D<const In> &surface)
   : surface(surface) {}
 
   Surface2D<const In> surface;
 
-  template <typename T = In>
-  __host__ __device__ T at(
+  template <typename T = In, typename BorderValue>
+  DALI_HOST_DEV T at(
       int x, int y, int c,
-      const In *border_value) const {
+      BorderValue border_value) const {
     if (x < 0 || x >= surface.width ||
         y < 0 || y >= surface.height) {
-      return clamp<T>(border_value[c]);
+      return ConvertSat<T>(GetChannel<In>(border_value, c));
     } else {
-      return clamp<T>(surface(x, y, c));
+      return ConvertSat<T>(surface(x, y, c));
     }
   }
 
-  template <typename T = In>
-  __host__ __device__ T at(
+  template <typename T = In, typename BorderValue>
+  DALI_HOST_DEV T at(
+      int x, int y, int c,
+      BorderClamp) const {
+    x = clamp(x, 0, surface.width - 1);
+    y = clamp(y, 0, surface.height - 1);
+
+    return ConvertSat<T>(surface(x, y, c));
+  }
+
+  template <typename T = In, typename BorderValue>
+  DALI_HOST_DEV T at(
       float x, float y, int c,
-      const In *border_value) const {
-    return at<T>(
-      static_cast<int>(floorf(x)),
-      static_cast<int>(floorf(y)),
-      c, border_value);
+      BorderValue border_value) const {
+    return at<T>(floor_int(x), floor_int(y), c, border_value);
   }
 
-  template <typename T>
-  __host__ __device__ void
-  operator()(T *pixel, int x, int y, int c, const In *border_value) const {
-    pixel[c] = at(floorf(x), floorf(y), c, border_value);
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV void
+  operator()(T *pixel, int x, int y, int c, BorderValue border_value) const {
+    pixel[c] = at<T>(x, y, c, border_value);
   }
 
-  template <typename T>
-  __host__ __device__ void
-  operator()(T *pixel, float x, float y, int c, const In *border_value) const {
-    pixel[c] = at(x, y, c, border_value);
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV void
+  operator()(T *pixel, float x, float y, int c, BorderValue border_value) const {
+    pixel[c] = at<T>(x, y, c, border_value);
   }
 
-  template <typename T>
-  __host__ __device__ void operator()(
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV void operator()(
       T *pixel,
       int x, int y,
-      const In *border_value) const {
+      BorderValue border_value) const {
     if (x < 0 || x >= surface.width ||
         y < 0 || y >= surface.height) {
       for (int c = 0; c < surface.channels; c++) {
-        pixel[c] = border_value[c];
+        pixel[c] = GetChannel(border_value, c);
       }
     } else {
       for (int c = 0; c < surface.channels; c++) {
-        pixel[c] = surface(x, y, c);
+        pixel[c] = ConvertSat<T>(surface(x, y, c));
       }
     }
   }
 
-  template <typename T>
-  __host__ __device__ void operator()(
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV void operator()(
+      T *pixel,
+      int x, int y,
+      BorderClamp) const {
+    x = clamp(x, 0, surface.width - 1);
+    y = clamp(y, 0, surface.height - 1);
+    for (int c = 0; c < surface.channels; c++) {
+      pixel[c] = ConvertSat<T>(surface(x, y, c));
+    }
+  }
+
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV void operator()(
       T *pixel,
       float x, float y,
-      const In *border_value) const {
-    (*this)(pixel, static_cast<int>(floorf(x)), static_cast<int>(floorf(y)), border_value);
+      BorderValue border_value) const {
+    (*this)(pixel, floor_int(x), floor_int(y), border_value);
   }
 };
 
@@ -104,20 +139,20 @@ struct Sampler<DALI_INTERP_NN, In> {
 template <typename In>
 struct Sampler<DALI_INTERP_LINEAR, In> {
   Sampler() = default;
-  __host__ __device__ explicit Sampler(const Surface2D<const In> &surface)
+  DALI_HOST_DEV explicit Sampler(const Surface2D<const In> &surface)
   : surface(surface) {}
 
   Surface2D<const In> surface;
 
-  template <typename T>
-  __host__ __device__ T at(
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV T at(
       float x, float y, int c,
-      const In *border_value) const {
+      BorderValue border_value) const {
     Sampler<DALI_INTERP_NN, In> NN(surface);
     x -= 0.5f;
     y -= 0.5f;
-    int x0 = floorf(x);
-    int y0 = floorf(y);
+    int x0 = floor_int(x);
+    int y0 = floor_int(y);
     In s00 = NN.at(x0,   y0,   c, border_value);
     In s01 = NN.at(x0+1, y0,   c, border_value);
     In s10 = NN.at(x0,   y0+1, c, border_value);
@@ -131,24 +166,24 @@ struct Sampler<DALI_INTERP_LINEAR, In> {
     return clamp<T>(s0 + (s1 - s0) * qy);
   }
 
-  template <typename T>
-  __host__ __device__ void operator()(
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV void operator()(
       T *out_pixel,
       float x, float y, int c,
-      const In *border_value) const {
+      BorderValue border_value) const {
     out_pixel[c] = at<T>(x, y, c, border_value);
   }
 
-  template <typename T>
-  __host__ __device__ void operator()(
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV void operator()(
       T *out_pixel,
       float x, float y,
-      const In *border_value) const {
+      BorderValue border_value) const {
     Sampler<DALI_INTERP_NN, In> NN(surface);
     x -= 0.5f;
     y -= 0.5f;
-    int x0 = floorf(x);
-    int y0 = floorf(y);
+    int x0 = floor_int(x);
+    int y0 = floor_int(y);
     float qx = x - x0;
     float px = 1 - qx;
     float qy = y - y0;
@@ -164,20 +199,22 @@ struct Sampler<DALI_INTERP_LINEAR, In> {
     }
   }
 
-  template <typename T>
-  __host__ __device__ T operator()(
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV void operator()(
       T *pixel,
       int x, int y, int c,
-      const In *border_value) const {
-    return Sampler<DALI_INTERP_NN, In>(surface)(pixel, x, y, c, border_value);
+      BorderValue border_value) const {
+    Sampler<DALI_INTERP_NN, In> s(surface);
+    s(pixel, x, y, c, border_value);
   }
 
-  template <typename T>
-  __host__ __device__ In operator()(
+  template <typename T, typename BorderValue>
+  DALI_HOST_DEV void operator()(
       T *pixel,
       int x, int y,
-      const In *border_value) const {
-    return Sampler<DALI_INTERP_NN, In>(surface)(pixel, x, y, border_value);
+      BorderValue border_value) const {
+    Sampler<DALI_INTERP_NN, In> s(surface);
+    s(pixel, x, y, border_value);
   }
 };
 

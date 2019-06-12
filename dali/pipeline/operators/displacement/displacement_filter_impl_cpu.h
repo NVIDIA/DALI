@@ -30,12 +30,12 @@
 namespace dali {
 
 template <DALIInterpType interp_type, bool per_channel,
-          typename Out, typename In, typename Displacement>
+          typename Out, typename In, typename Displacement, typename Border>
 void Warp(
     const kernels::OutTensorCPU<Out, 3> &out,
     const kernels::InTensorCPU<In, 3> &in,
     Displacement &displacement,
-    const Out *fillValue) {
+    Border border) {
   DALI_ENFORCE(in.shape[2] == out.shape[2], "Number of channels in input and output must match");
   int outH = out.shape[0];
   int outW = out.shape[1];
@@ -50,12 +50,12 @@ void Warp(
     for (int x = 0; x < outW; x++) {
       if (per_channel) {
         for (int c = 0; c < C; c++) {
-          auto p = displacement.template operator()<float>(y, x, c, inH, inW, C);
-          sampler(&out_row[C*x], p.x, p.y, c, fillValue);
+          auto p = displacement(y, x, c, inH, inW, C);
+          sampler(&out_row[C*x], p.x, p.y, c, border);
         }
       } else {
-        auto p = displacement.template operator()<float>(y, x, 0, inH, inW, C);
-        sampler(&out_row[C*x], p.x, p.y, fillValue);
+        auto p = displacement(y, x, 0, inH, inW, C);
+        sampler(&out_row[C*x], p.x, p.y, border);
       }
     }
   }
@@ -104,7 +104,6 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     }
 
     Warp<interp, per_channel_transform>(out, in, displace, fill);
-
   }
 
   void RunImpl(SampleWorkspace *ws, const int idx) override {
