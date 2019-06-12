@@ -38,13 +38,6 @@ using TensorPartitionId = int64_t;
 // using consumer_edge_t = std::pair<OpNodeId, Index>;
 
 
-// What device is this tensor stored on
-enum class StorageDevice {
-  CPU = 0,
-  GPU = 1,
-  COUNT = 2,
-};
-
 template <StorageDevice>
 struct storage_backend_type;
 
