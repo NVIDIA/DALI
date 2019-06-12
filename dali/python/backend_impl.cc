@@ -39,6 +39,9 @@ static void* ctypes_void_ptr(const py::object& object) {
     return nullptr;
   }
   PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
+  if (ptr_as_int == Py_None) {
+    return nullptr;
+  }
   void *ptr = PyLong_AsVoidPtr(ptr_as_int);
   return ptr;
 }
