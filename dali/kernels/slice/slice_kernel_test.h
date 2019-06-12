@@ -25,15 +25,19 @@
 namespace dali {
 namespace kernels {
 
-template <typename InputType_, typename OutputType_, std::size_t Dims_, std::size_t NumSamples_,
-          std::size_t DimSize_, typename SliceParamsGenerator_>
+template <typename InputType_, typename OutputType_, size_t Dims_, size_t NumSamples_,
+          size_t DimSize_, typename ParamsGenerator_, size_t DimSize0_ = DimSize_,
+          size_t DimSize1_ = DimSize_, size_t DimSize2_ = DimSize_>
 struct SliceTestArgs {
   using InputType = InputType_;
   using OutputType = OutputType_;
-  static constexpr std::size_t Dims = Dims_;
-  static constexpr std::size_t NumSamples = NumSamples_;
-  static constexpr std::size_t DimSize = DimSize_;
-  using SliceArgsGenerator = SliceParamsGenerator_;
+  static constexpr size_t Dims = Dims_;
+  static constexpr size_t NumSamples = NumSamples_;
+  static constexpr size_t DimSize = DimSize_;
+  static constexpr size_t DimSize0 = DimSize0_;
+  static constexpr size_t DimSize1 = DimSize1_;
+  static constexpr size_t DimSize2 = DimSize2_;
+  using ArgsGenerator = ParamsGenerator_;
 };
 
 template <typename ExpectedShape>
@@ -49,10 +53,10 @@ class SliceTest : public ::testing::Test {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
-  static constexpr std::size_t Dims = TestArgs::Dims;
-  static constexpr std::size_t NumSamples = TestArgs::NumSamples;
-  static constexpr std::size_t DimSize = TestArgs::DimSize;
-  using SliceArgsGenerator = typename TestArgs::SliceArgsGenerator;
+  static constexpr size_t Dims = TestArgs::Dims;
+  static constexpr size_t NumSamples = TestArgs::NumSamples;
+  static constexpr size_t DimSize = TestArgs::DimSize;
+  using ArgsGenerator = typename TestArgs::ArgsGenerator;
 
   void PrepareData(TestTensorList<InputType, Dims>& test_data) {
     std::vector<int> sample_dims(Dims, DimSize);
@@ -74,7 +78,7 @@ class SliceTest : public ::testing::Test {
       TensorShape<Dims> out_sample_shape(slice_args[i].shape);
       auto& anchor = slice_args[i].anchor;
 
-      for (std::size_t d = 0; d < Dims; d++) {
+      for (size_t d = 0; d < Dims; d++) {
         ASSERT_TRUE(anchor[d] >= 0 && (anchor[d] + out_sample_shape[d]) <= in_sample_shape[d]);
       }
 
@@ -93,12 +97,12 @@ class SliceTest : public ::testing::Test {
       std::array<int64_t, Dims> in_strides = GetStrides<Dims>(in_shape);
       std::array<int64_t, Dims> out_strides = GetStrides<Dims>(out_shape);
 
-      std::size_t total_size = volume(out_shape);
-      for (std::size_t out_idx = 0; out_idx < total_size; out_idx++) {
-        std::size_t idx = out_idx;
-        std::size_t in_idx = 0;
-        for (std::size_t d = 0; d < Dims; d++) {
-          std::size_t i_d = idx / out_strides[d];
+      size_t total_size = volume(out_shape);
+      for (size_t out_idx = 0; out_idx < total_size; out_idx++) {
+        size_t idx = out_idx;
+        size_t in_idx = 0;
+        for (size_t d = 0; d < Dims; d++) {
+          size_t i_d = idx / out_strides[d];
           idx = idx % out_strides[d];
           in_idx += (anchor[d] + i_d) * in_strides[d];
         }
@@ -107,10 +111,10 @@ class SliceTest : public ::testing::Test {
     }
   }
 
-  std::vector<SliceArgs<Dims>> GenerateSliceArgs(const InListCPU<InputType, Dims>& input_tlv) {
-    SliceArgsGenerator generator;
+  std::vector<SliceArgs<Dims>> GenerateArgs(const InListCPU<InputType, Dims>& input_tlv) {
+    ArgsGenerator generator;
     std::vector<SliceArgs<Dims>> slice_args;
-    for (std::size_t i = 0; i < NumSamples; i++) {
+    for (size_t i = 0; i < NumSamples; i++) {
       auto shape = input_tlv.tensor_shape(i);
       slice_args.push_back(generator.Get(shape));
     }
@@ -120,11 +124,11 @@ class SliceTest : public ::testing::Test {
   virtual void Run() = 0;
 };
 
-template <std::size_t Dims>
+template <size_t Dims>
 struct SliceArgsGenerator_WholeTensor {
   SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceArgs<Dims> args;
-    for (std::size_t d = 0; d < Dims; d++) {
+    for (size_t d = 0; d < Dims; d++) {
       args.anchor[d] = 0;
       args.shape[d] = input_shape[d];
     }
@@ -132,11 +136,11 @@ struct SliceArgsGenerator_WholeTensor {
   }
 };
 
-template <std::size_t Dims>
+template <size_t Dims>
 struct SliceArgsGenerator_HalfAllDims {
   SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceArgs<Dims> args;
-    for (std::size_t d = 0; d < Dims; d++) {
+    for (size_t d = 0; d < Dims; d++) {
       args.anchor[d] = input_shape[d] / 2;
       args.shape[d] = input_shape[d] / 2;
     }
@@ -144,11 +148,11 @@ struct SliceArgsGenerator_HalfAllDims {
   }
 };
 
-template <std::size_t Dims, int ExtractDim>
+template <size_t Dims, int ExtractDim>
 struct SliceArgsGenerator_HalfOneDim {
   SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceArgs<Dims> args;
-    for (std::size_t d = 0; d < Dims; d++) {
+    for (size_t d = 0; d < Dims; d++) {
       args.anchor[d] = 0;
       args.shape[d] = (d == ExtractDim) ? input_shape[d] / 2 : input_shape[d];
     }
@@ -156,11 +160,11 @@ struct SliceArgsGenerator_HalfOneDim {
   }
 };
 
-template <std::size_t Dims>
+template <size_t Dims>
 struct SliceArgsGenerator_ExtractCenterElement {
   SliceArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceArgs<Dims> args;
-    for (std::size_t d = 0; d < Dims; d++) {
+    for (size_t d = 0; d < Dims; d++) {
       args.anchor[d] = input_shape[d] / 2;
       args.shape[d] = 1;
     }
@@ -185,6 +189,12 @@ using SLICE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<unsigned char, unsigned char, 2, 100, 1024, SliceArgsGenerator_HalfAllDims<2>>,
     SliceTestArgs<unsigned char, unsigned char, 3, 3, 256, SliceArgsGenerator_HalfAllDims<3>>,
     SliceTestArgs<int, int, 2, 1, 3, SliceArgsGenerator_ExtractCenterElement<2>>
+>;
+
+using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
+    SliceTestArgs<int, float16_cpu, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<float16_cpu, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<float16_cpu, float16_cpu, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>
 >;
 
 }  // namespace kernels

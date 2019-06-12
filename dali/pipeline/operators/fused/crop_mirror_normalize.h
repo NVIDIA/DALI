@@ -93,10 +93,12 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr  {
 
   inline Dims GetOutShape(DALITensorLayout inputLayout, DALITensorLayout *pOutLayout) {
     *pOutLayout = output_layout_ == DALI_SAME ? inputLayout : output_layout_;
+    // Pad to 4 channels
+    int pad_C = pad_ ? 4 : C_;
     if (*pOutLayout == DALI_NCHW)
-      return {C_, crop_h_, crop_w_};
+      return {pad_C, crop_h_, crop_w_};
     else
-      return {crop_h_, crop_w_, C_};
+      return {crop_h_, crop_w_, pad_C};
   }
 
   // Output data type
