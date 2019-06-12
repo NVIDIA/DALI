@@ -51,8 +51,8 @@ struct NormalizePolicy {
 
 template <typename OutputType, size_t Dims>
 inline void ZeroPad(OutputType *output,
-                    const std::array<int64_t, Dims> out_strides,
-                    const std::array<int64_t, Dims> padded_out_shape,
+                    std::array<int64_t, Dims> out_strides,
+                    std::array<int64_t, Dims> padded_out_shape,
                     std::integral_constant<size_t, 1>) {
   constexpr auto d = Dims - 1;
   // zero pad
@@ -64,8 +64,8 @@ inline void ZeroPad(OutputType *output,
 
 template <typename OutputType, size_t Dims, size_t DimsLeft>
 inline void ZeroPad(OutputType *output,
-                    const std::array<int64_t, Dims> out_strides,
-                    const std::array<int64_t, Dims> padded_out_shape,
+                    std::array<int64_t, Dims> out_strides,
+                    std::array<int64_t, Dims> padded_out_shape,
                     std::integral_constant<size_t, DimsLeft>) {
   constexpr auto d = Dims - DimsLeft;
   // zero pad
@@ -79,10 +79,10 @@ inline void ZeroPad(OutputType *output,
 template <typename Policy, bool IsNormalizationDim, typename OutputType, typename InputType,
           size_t Dims>
 inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *input,
-                                          const std::array<int64_t, Dims> in_strides,
-                                          const std::array<int64_t, Dims> out_strides,
-                                          const std::array<int64_t, Dims> out_shape,
-                                          const std::array<int64_t, Dims> padded_out_shape,
+                                          std::array<int64_t, Dims> in_strides,
+                                          std::array<int64_t, Dims> out_strides,
+                                          std::array<int64_t, Dims> out_shape,
+                                          std::array<int64_t, Dims> padded_out_shape,
                                           const float *mean, const float *inv_stddev,
                                           size_t normalization_dim,
                                           std::integral_constant<size_t, 1>) {
@@ -105,10 +105,10 @@ inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *i
 template <typename Policy, bool IsNormalizationDim, typename OutputType, typename InputType,
           size_t Dims, size_t DimsLeft>
 inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *input,
-                                          const std::array<int64_t, Dims> in_strides,
-                                          const std::array<int64_t, Dims> out_strides,
-                                          const std::array<int64_t, Dims> out_shape,
-                                          const std::array<int64_t, Dims> padded_out_shape,
+                                          std::array<int64_t, Dims> in_strides,
+                                          std::array<int64_t, Dims> out_strides,
+                                          std::array<int64_t, Dims> out_shape,
+                                          std::array<int64_t, Dims> padded_out_shape,
                                           const float *mean, const float *inv_stddev,
                                           size_t normalization_dim,
                                           std::integral_constant<size_t, DimsLeft>) {
