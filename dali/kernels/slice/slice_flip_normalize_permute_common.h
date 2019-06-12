@@ -50,7 +50,7 @@ struct SliceFlipNormalizePermuteArgs {
 
 namespace detail {
 
-template <typename OutputType, size_t Dims>
+template <size_t Dims>
 struct SliceFlipNormalizePermuteProcessedArgs {
   size_t input_offset;
   std::array<int64_t, Dims> in_shape;
@@ -82,11 +82,11 @@ std::array<int64_t, Dims> inverse_permutation(const std::array<int64_t, Dims> &p
   return inv_perm;
 }
 
-template <typename OutputType, size_t Dims, typename Shape>
-SliceFlipNormalizePermuteProcessedArgs<OutputType, Dims> ProcessArgs(
+template <size_t Dims, typename Shape>
+SliceFlipNormalizePermuteProcessedArgs<Dims> ProcessArgs(
     const SliceFlipNormalizePermuteArgs<Dims> &args,
     const Shape &in_shape) {
-  SliceFlipNormalizePermuteProcessedArgs<OutputType, Dims> processed_args;
+  SliceFlipNormalizePermuteProcessedArgs<Dims> processed_args;
 
   processed_args.input_offset = 0;
   processed_args.in_strides = GetStrides<Dims>(in_shape);

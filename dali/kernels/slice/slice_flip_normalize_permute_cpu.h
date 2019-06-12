@@ -70,8 +70,8 @@ inline void ZeroPad(OutputType *output,
   constexpr auto d = Dims - DimsLeft;
   // zero pad
   for (int64_t i = 0; i < padded_out_shape[d]; i++) {
-    ZeroPad<OutputType>(output, out_strides, padded_out_shape,
-                        std::integral_constant<size_t, DimsLeft - 1>());
+    ZeroPad(output, out_strides, padded_out_shape,
+            std::integral_constant<size_t, DimsLeft - 1>());
     output += out_strides[d];
   }
 }
@@ -136,8 +136,8 @@ inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *i
 
   // zero pad
   for (; i < padded_out_shape[d]; i++) {
-    ZeroPad<OutputType>(output, out_strides, padded_out_shape,
-                        std::integral_constant<size_t, DimsLeft - 1>());
+    ZeroPad(output, out_strides, padded_out_shape,
+            std::integral_constant<size_t, DimsLeft - 1>());
     output += out_strides[d];
   }
 }
@@ -206,7 +206,7 @@ class SliceFlipNormalizePermuteCPU {
            OutTensorCPU<OutputType, Dims> &out,
            const InTensorCPU<InputType, Dims> &in,
            const Args &args) {
-    auto processed_args = detail::ProcessArgs<OutputType, Dims>(args, in.shape);
+    auto processed_args = detail::ProcessArgs<Dims>(args, in.shape);
     detail::SliceFlipNormalizePermute(
         out.data, in.data + processed_args.input_offset, processed_args.in_strides,
         processed_args.out_strides, processed_args.out_shape, processed_args.padded_out_shape,
