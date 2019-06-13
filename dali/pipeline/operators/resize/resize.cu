@@ -47,7 +47,7 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
   }
 
   for (int i = 0; i < batch_size_; ++i) {
-    vector<Index> input_shape = input.tensor_shape(i);
+    auto input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
 
     per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, ws, i, ResizeInfoNeeded());
@@ -72,7 +72,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
     }
 
     attr_output_cpu.Resize(resize_shape);
-    auto in_shape = list_shape<3>(input);
+    auto in_shape = input.shape().to_static<3>();
 
     for (int i = 0; i < in_shape.num_samples(); ++i) {
       int *t = attr_output_cpu.mutable_tensor<int>(i);

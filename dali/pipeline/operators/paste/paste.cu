@@ -126,10 +126,10 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
   auto &output = ws->Output<GPUBackend>(idx);
 
-  std::vector<Dims> output_shape(batch_size_);
+  std::vector<kernels::TensorShape<>> output_shape(batch_size_);
 
   for (int i = 0; i < batch_size_; ++i) {
-    std::vector<Index> input_shape = input.tensor_shape(i);
+    auto input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3,
         "Expects 3-dimensional image input.");
 
@@ -172,7 +172,7 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
   }
 
   output.set_type(input.type());
-  output.Resize(output_shape);
+  output.Resize({output_shape});
   output.SetLayout(DALI_NHWC);
 
   for (int i = 0; i < batch_size_; ++i) {

@@ -61,13 +61,13 @@ TYPED_TEST(SliceTest, RunCPUCheckImageOutputShapesMatch) {
                                       {"boxes", &this->boxes_},
                                       {"labels", &this->labels_}});
 
-  for (size_t i = 0; i < this->images_.shape().size(); i++) {
+  for (int i = 0; i < this->images_.shape().size(); i++) {
     auto src_shape = this->images_.shape()[i];
     auto dst_shape = this->outputs_.at(0)->shape()[i];
 
     EXPECT_EQ(src_shape.size(), dst_shape.size());
 
-    for (size_t j = 0; j < src_shape.size(); j++) {
+    for (int j = 0; j < src_shape.size(); j++) {
       EXPECT_EQ(src_shape[j], dst_shape[j]);
     }
   }
@@ -83,13 +83,13 @@ TYPED_TEST(SliceTest, RunCPUCheckBoxesOutputShapesMatch) {
                                       {"boxes", &this->boxes_},
                                       {"labels", &this->labels_}});
 
-  for (size_t i = 0; i < this->boxes_.shape().size(); i++) {
+  for (int i = 0; i < this->boxes_.shape().size(); i++) {
     auto src_shape = this->boxes_.shape()[i];
     auto dst_shape = this->outputs_.at(1)->shape()[i];
 
     EXPECT_EQ(src_shape.size(), dst_shape.size());
 
-    for (size_t j = 0; j < src_shape.size(); j++) {
+    for (int j = 0; j < src_shape.size(); j++) {
       EXPECT_EQ(src_shape[j], dst_shape[j]);
     }
   }
@@ -121,13 +121,13 @@ TYPED_TEST(SliceTest, RunGPUCheckImageOutputShapesMatch) {
                                       {"boxes", &this->boxes_},
                                       {"labels", &this->labels_}});
 
-  for (size_t i = 0; i < this->images_.shape().size(); i++) {
+  for (int i = 0; i < this->images_.shape().size(); i++) {
     auto src_shape = this->images_.shape()[i];
     auto dst_shape = this->outputs_.at(0)->shape()[i];
 
     EXPECT_EQ(src_shape.size(), dst_shape.size());
 
-    for (size_t j = 0; j < src_shape.size(); j++) {
+    for (int j = 0; j < src_shape.size(); j++) {
       EXPECT_EQ(src_shape[j], dst_shape[j]);
     }
   }
@@ -143,13 +143,13 @@ TYPED_TEST(SliceTest, RunGPUCheckBoxesOutputShapesMatch) {
                                       {"boxes", &this->boxes_},
                                       {"labels", &this->labels_}});
 
-  for (size_t i = 0; i < this->boxes_.shape().size(); i++) {
+  for (int i = 0; i < this->boxes_.shape().size(); i++) {
     auto src_shape = this->boxes_.shape()[i];
     auto dst_shape = this->outputs_.at(1)->shape()[i];
 
     EXPECT_EQ(src_shape.size(), dst_shape.size());
 
-    for (size_t j = 0; j < src_shape.size(); j++) {
+    for (int j = 0; j < src_shape.size(); j++) {
       EXPECT_EQ(src_shape[j], dst_shape[j]);
     }
   }

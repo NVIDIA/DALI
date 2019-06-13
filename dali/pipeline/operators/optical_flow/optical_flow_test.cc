@@ -30,7 +30,7 @@ namespace {
 std::unique_ptr<TensorList<CPUBackend>> ToTensorList(const std::vector<cv::Mat> &images) {
   std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
   auto img = images[0];
-  tl->Resize({images.size(), {img.rows, img.cols, img.channels()}});
+  tl->Resize(kernels::uniform_list_shape(images.size(), {img.rows, img.cols, img.channels()}));
   auto tl_ptr = tl->template mutable_data<std::remove_pointer<decltype(img.data)>::type>();
   for (const auto &image : images) {
     auto img_ptr = image.data;

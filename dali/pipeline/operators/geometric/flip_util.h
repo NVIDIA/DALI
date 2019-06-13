@@ -21,22 +21,26 @@
 
 namespace dali {
 
-inline kernels::TensorShape<4> TransformShapeNHWC(const Dims &shape) {
+inline kernels::TensorShape<4> TransformShapeNHWC(const kernels::TensorShape<> &shape) {
   return kernels::TensorShape<4>(std::array<Index, 4>{1, shape[0], shape[1], shape[2]});
 }
 
 // In the NCHW layout every channel is treated as a separate plane in a volumetric image
-inline kernels::TensorShape<4> TransformShapeNCHW(const Dims &shape) {
+inline kernels::TensorShape<4> TransformShapeNCHW(const kernels::TensorShape<> &shape) {
   return kernels::TensorShape<4>(std::array<Index, 4>{shape[0], shape[1], shape[2], 1});
 }
 
-inline kernels::TensorListShape<4> TransformShapes(const std::vector<Dims> &shapes,
+inline kernels::TensorListShape<4> TransformShapes(const kernels::TensorListShape<> &shapes,
                                                    bool nhwc_layout) {
   std::vector<kernels::TensorShape<4>> result(shapes.size());
   if (nhwc_layout) {
-    std::transform(shapes.begin(), shapes.end(), result.begin(), TransformShapeNHWC);
+    for (int i = 0; i < shapes.size(); i++) {
+      result[i] = TransformShapeNHWC(shapes[i]);
+    }
   } else {
-    std::transform(shapes.begin(), shapes.end(), result.begin(), TransformShapeNCHW);
+    for (int i = 0; i < shapes.size(); i++) {
+      result[i] = TransformShapeNCHW(shapes[i]);
+    }
   }
   return kernels::TensorListShape<4>(result);
 }

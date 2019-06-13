@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #include <functional>
-#include "dali/test/dali_operator_test.h"
+
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/test/dali_operator_test.h"
 
 namespace dali {
 namespace testing {
@@ -44,9 +46,9 @@ class CropSequenceTest : public DaliOperatorTest {
  public:
     std::unique_ptr<TensorList<CPUBackend>>
     GetSequenceData() {
-        std::unique_ptr<TensorList<CPUBackend>> data(
-            new TensorList<CPUBackend>);
-        std::vector<Dims> shape(TestArgs::N, {TestArgs::F, TestArgs::W, TestArgs::H, TestArgs::C});
+        std::unique_ptr<TensorList<CPUBackend>> data(new TensorList<CPUBackend>);
+        auto shape = kernels::uniform_list_shape(TestArgs::N,
+            kernels::TensorShape<>{TestArgs::F, TestArgs::W, TestArgs::H, TestArgs::C});
         data->set_type(TypeInfo::Create<typename TestArgs::T>());
         data->SetLayout(DALITensorLayout::DALI_NFHWC);
         data->Resize(shape);
@@ -76,7 +78,7 @@ class CropSequenceTest : public DaliOperatorTest {
         int nouttensors = output_tl->ntensor();
         ASSERT_EQ(nintensors, nouttensors);
         for (int idx = 0; idx < nouttensors; idx++) {
-            const Dims shape = output_tl->tensor_shape(idx);
+            auto shape = output_tl->tensor_shape(idx);
             const auto *data = output_tl->tensor<typename TestArgs::T>(idx);
             ASSERT_EQ(TestArgs::F, shape[0]);
             ASSERT_EQ(TestArgs::crop_H, shape[1]);

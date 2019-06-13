@@ -548,13 +548,13 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   // Split the batch into two
   TensorList<CPUBackend> tl2;
   TensorList<CPUBackend> tl1;
-  vector<Dims> shape1(batch_size), shape2(batch_size);
+  vector<kernels::TensorShape<>> shape1(batch_size), shape2(batch_size);
   for (int i = 0; i < batch_size; ++i) {
     shape1[i] = tl.tensor_shape(i);
     shape2[i] = tl.tensor_shape(i+batch_size);
   }
-  tl1.Resize(shape1);
-  tl2.Resize(shape2);
+  tl1.Resize({shape1});
+  tl2.Resize({shape2});
   for (int i = 0; i < batch_size; ++i) {
     std::memcpy(
         tl1.template mutable_tensor<uint8>(i),

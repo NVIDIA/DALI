@@ -21,7 +21,7 @@ namespace dali {
 
 TEST(TensorList, View) {
   TensorList<CPUBackend> tl;
-  std::vector<Dims> shapes = { { 640, 480, 3}, { 320, 240, 1 } };
+  kernels::TensorListShape<> shapes = { { kernels::TensorShape<>{640, 480, 3}, {320, 240, 1} } };
   tl.Resize(shapes);
   auto tlv = view<float>(tl);
 
@@ -34,7 +34,7 @@ TEST(TensorList, View) {
 
 TEST(TensorList, View_StaticDim) {
   TensorList<CPUBackend> tl;
-  std::vector<Dims> shapes = { { 640, 480, 3}, { 320, 240, 1 } };
+  kernels::TensorListShape<>  shapes = { { kernels::TensorShape<>{640, 480, 3}, {320, 240, 1} } };
   tl.Resize(shapes);
   auto tlv = view<float, 3>(tl);
 
@@ -49,7 +49,7 @@ TEST(TensorList, View_StaticDim) {
 
 TEST(TensorList, ViewAsTensor_Fail_NonUniform) {
   TensorList<CPUBackend> tl;
-  std::vector<Dims> shapes = { { 640, 480, 3}, { 640, 360, 3 } };
+  kernels::TensorListShape<> shapes = { { kernels::TensorShape<>{640, 480, 3}, {640, 360, 3} } };
   tl.Resize(shapes);
   EXPECT_ENFORCE_FAIL((view_as_tensor<float>(tl)))
     << "Non-uniform tensor list cannot be viewed as a tensor and view_as_tensor should throw";
@@ -57,7 +57,7 @@ TEST(TensorList, ViewAsTensor_Fail_NonUniform) {
 
 TEST(TensorList, ViewAsTensor_StaticDim) {
   TensorList<CPUBackend> tl;
-  std::vector<Dims> shapes = { { 640, 480, 3}, { 640, 480, 3 } };
+  kernels::TensorListShape<> shapes = { { kernels::TensorShape<>{640, 480, 3}, {640, 480, 3} } };
   tl.Resize(shapes);
   EXPECT_ENFORCE_FAIL((view_as_tensor<float, 3>(tl)))
     << "List of 3D tensor should yield a 4D flattened tensor";
@@ -78,7 +78,7 @@ TEST(TensorList, ViewAsTensor_StaticDim) {
 
 TEST(TensorList, ViewAsTensor) {
   TensorList<CPUBackend> tl;
-  std::vector<Dims> shapes = { { 640, 480, 3}, { 640, 480, 3 } };
+  kernels::TensorListShape<> shapes = { { kernels::TensorShape<>{640, 480, 3}, {640, 480, 3} } };
   tl.Resize(shapes);
   auto tv = view_as_tensor<float>(tl);
 

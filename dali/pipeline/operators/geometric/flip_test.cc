@@ -103,12 +103,16 @@ TEST_P(FlipTest, BasicTest) {
     tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size);
     tl.set_type(TypeInfo::Create<float>());
     tl.SetLayout(DALI_NHWC);
-    tl.Resize({{kDataHeight, kDataWidth, kDataChannels}, {kDataHeight, kDataWidth, kDataChannels}});
+    auto shape = kernels::TensorListShape<>{{
+        kernels::TensorShape<>{kDataHeight, kDataWidth, kDataChannels},
+        kernels::TensorShape<>{kDataHeight, kDataWidth, kDataChannels}}};
+    tl.Resize(shape);
   } else {
     tl.ShareData(nchw_tensor_list_data.ptr(), 2 * data_size);
     tl.set_type(TypeInfo::Create<float>());
     tl.SetLayout(DALI_NCHW);
-    tl.Resize({{kDataChannels, kDataHeight, kDataWidth}, {kDataChannels, kDataHeight, kDataWidth}});
+    tl.Resize({{kernels::TensorShape<>{kDataChannels, kDataHeight, kDataWidth},
+              kernels::TensorShape<>{kDataChannels, kDataHeight, kDataWidth}}});
   }
   TensorListWrapper tlout;
   this->RunTest(&tl, tlout, args, FlipVerify);

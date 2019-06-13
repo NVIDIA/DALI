@@ -19,6 +19,22 @@
 
 namespace dali {
 
+namespace {
+
+template <int ndim>
+void to_dims_vec(std::vector<Dims> &dims_vec, const kernels::TensorListShape<ndim> &tls) {
+  const int dim = tls.sample_dim();
+  const int N = tls.num_samples();
+  dims_vec.resize(N);
+  for (int i = 0; i < N; i++) {
+    dims_vec[i].resize(dim);
+    for (int j = 0; j < dim; j++)
+      dims_vec[i][j] = tls.tensor_shape_span(i)[j];
+  }
+}
+
+}  // namespace
+
 inline kernels::ResamplingFilterType interp2resample(DALIInterpType interp) {
 #define DALI_MAP_INTERP_TO_RESAMPLE(interp, resample) case DALI_INTERP_##interp:\
   return kernels::ResamplingFilterType::resample;

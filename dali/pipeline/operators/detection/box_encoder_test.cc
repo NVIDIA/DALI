@@ -1029,17 +1029,17 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
                            bool offset) {
     auto boxes_shape = boxes->shape();
     ASSERT_EQ(boxes_shape.size(), coco_batch_size);
-    for (auto& shape : boxes_shape) {
-      ASSERT_EQ(shape.size(), 2);
-      ASSERT_EQ(shape[0], coco_anchors_count_);
-      ASSERT_EQ(shape[1], 4);
+    for (int i = 0; i < boxes_shape.size(); i++) {
+      ASSERT_EQ(boxes_shape[i].size(), 2);
+      ASSERT_EQ(boxes_shape[i][0], coco_anchors_count_);
+      ASSERT_EQ(boxes_shape[i][1], 4);
     }
 
     auto labels_shape = labels->shape();
     ASSERT_EQ(labels_shape.size(), coco_batch_size);
-    for (auto& shape : labels_shape) {
-      ASSERT_EQ(shape.size(), 1);
-      ASSERT_EQ(shape[0], coco_anchors_count_);
+    for (int i = 0; i < labels_shape.size(); i++) {
+      ASSERT_EQ(labels_shape[i].size(), 1);
+      ASSERT_EQ(labels_shape[i][0], coco_anchors_count_);
     }
 
     vector<float4> boxes_data(coco_anchors_count_);

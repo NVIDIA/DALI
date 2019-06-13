@@ -128,7 +128,10 @@ class Tensor : public Buffer<Backend> {
   inline void Resize(const kernels::TensorShape<> &shape) {
     Index new_size = volume(shape);
     ResizeHelper(new_size);
-    shape_ = shape;
+    shape_.resize(shape.size());
+    for (int i = 0; i < shape.size(); i++) {
+      shape_[i] = shape[i];
+    }
   }
 
   /**
@@ -281,10 +284,7 @@ class Tensor : public Buffer<Backend> {
         "the input TensorList must have a valid data type.");
     DALI_ENFORCE(tl->IsContinuousTensor(),
       "All tensors in the input TensorList must be continuous in memory.");
-    Index product = 0;
-    for (auto &shape : tl->shape()) {
-       product += volume(shape);
-    }
+    Index product = tl->shape().num_elements();
     DALI_ENFORCE(product == volume(new_shape),
       "Requested shape need to have the same volume as the tensor list.");
     data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
@@ -316,10 +316,8 @@ class Tensor : public Buffer<Backend> {
     data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
 
     // Get the meta-data for the target tensor
-    auto new_shape = tl->tensor_shape(0);
-    new_shape.insert(new_shape.begin(), tl->ntensor());
-    size_ = volume(new_shape);
-    shape_ = kernels::TensorShape<>(new_shape);
+    shape_ = kernels::shape_cat(tl->ntensor(), tl->tensor_shape(0));
+    size_ = volume(shape_);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
@@ -345,7 +343,7 @@ class Tensor : public Buffer<Backend> {
    */
   inline virtual Index dim(int idx) const {
 #ifndef NDEBUG
-    DALI_ENFORCE((size_t)idx < shape_.size(), "index exceeds ndim");
+    DALI_ENFORCE(idx < shape_.size(), "index exceeds ndim");
     DALI_ENFORCE(idx >= 0, "negative index not supported");
 #endif
     return shape_[idx];

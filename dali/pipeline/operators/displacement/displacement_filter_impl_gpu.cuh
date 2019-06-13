@@ -291,7 +291,7 @@ class DisplacementFilter<GPUBackend, Displacement,
 
     Index offset = 0;
     for (size_t i = 0; i < N; ++i) {
-      const auto& shape = input.tensor_shape(i);
+      auto shape = input.tensor_shape(i);
       DALI_ENFORCE(shape.size() == nDims,
           "All augmented tensors need to have the same number of dimensions");
       Index current_size = nDims != 0 ? 1 : 0;

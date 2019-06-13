@@ -26,14 +26,15 @@
 #include <functional>
 #include <string>
 #include <memory>
-#include "dali/pipeline/operators/operator.h"
+
+#include "dali/core/common.h"
+#include "dali/core/device_guard.h"
+#include "dali/image/image_factory.h"
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/core/device_guard.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
-#include "dali/image/image_factory.h"
-#include "dali/core/common.h"
 
 #define NVJPEG_CALL(code)                                    \
   do {                                                       \
@@ -147,7 +148,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CachedDecoderImpl(spec),
     max_streams_(spec.GetArgument<int>("num_threads")),
     output_type_(spec.GetArgument<DALIImageType>("output_type")),
-    output_shape_(batch_size_),
+    output_shape_(batch_size_, 3),
     output_info_(batch_size_),
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
     batched_image_idx_(batch_size_),
@@ -250,7 +251,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       // Store pertinent info for later
       const int image_depth = (output_type_ == DALI_GRAY) ? 1 : 3;
-      output_shape_[i] = Dims({info.heights[0], info.widths[0], image_depth});
+      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], image_depth});
       output_info_[i] = info;
       image_order[i] = std::make_pair(volume(output_shape_[i]), i);
     }
@@ -335,7 +336,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
           continue;
 
-        const auto &dims = output_shape_[j];
+        const auto dims = output_shape_[j];
         const ImageCache::ImageShape output_shape{dims[0], dims[1], dims[2]};
         auto info = output_info_[j];
 
@@ -502,7 +503,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
  protected:
   // Storage for per-image info
-  vector<Dims> output_shape_;
+  kernels::TensorListShape<> output_shape_;
   vector<EncodedImageInfo> output_info_;
 
   bool use_batched_decode_;
