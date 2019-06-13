@@ -38,7 +38,7 @@ This option is mutually exclusive with `resize_shorter`,`resize_x` and `resize_y
 The op will keep the aspect ratio of the original image.)code", 0.f, true)
   .AddOptionalArg("max_size", R"code(Maximum size of the longer dimension when resizing with `resize_shorter`.
 When set with `resize_shorter`, the shortest dimension will be resized to `resize_shorter` iff
-the longest dim is smaller or equal to `max_size`. If not, the shortest dimension is resized to
+the longest dimension is smaller or equal to `max_size`. If not, the shortest dimension is resized to
 satisfy the constraint "longest_dim == `max_size`.
 
 Example:
