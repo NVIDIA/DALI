@@ -284,29 +284,72 @@ class Pipeline(object):
         self._gpu_batches_to_consume -= 1
         return self._outputs()
 
-    def _share_outputs(self):
+    def schedule_run(self):
+        """Run the pipeline without returning the resulting buffers.
+
+        If the pipeline was created with `exec_pipelined` option set to `True`,
+        this function will also start prefetching the next iteration for
+        faster execution. It provides better control to the users about when they
+        want to run the pipeline, when they want to obtain resulting buffers
+        and return them to DALI buffer pool when the results have been consumed.
+        Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
+        and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`.
+        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
+        if self._first_iter and self._exec_pipelined:
+            self._prefetch()
+        else:
+            self._run_once()
+
+    # for the backward compatibility
+    def _run(self):
+        """Deprecated. Use `nvidia.dali.pipeline.Pipeline.schedule_run` instead."""
+        self.schedule_run()
+
+    def share_outputs(self):
         """Returns the outputs of the pipeline.
 
-        Main difference to outputs is that _share_outputs doesn't release
-        returned buffers, _release_outputs need to be called for that.
-        If the pipeline is executed asynchronously, this function blocks
-        until the results become available."""
+        Main difference to :meth:`nvidia.dali.pipeline.Pipeline.outputs`
+        is that share_outputs doesn't release returned buffers, release_outputs
+        need to be called for that. If the pipeline is executed asynchronously,
+        this function blocks until the results become available. It provides
+        the user with better control about when he wants to run the pipeline, when he wants
+        to obtain the resulting buffers and when they can be returned to DALI pool when the
+        results have been consumed.
+        Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
+        and :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
+        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
         return self._pipe.ShareOutputs()
 
-    def _release_outputs(self):
-        """Release buffers returned by _share_outputs calls.
+    # for the backward compatibility
+    def _share_outputs(self):
+        """Deprecated. Use :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` instead"""
+        self.share_outputs()
+
+    def release_outputs(self):
+        """Release buffers returned by share_outputs calls.
 
         It helps in case when output call result is consumed (copied)
-        and buffers can be set free before next _share_outputs call"""
+        and buffers can be marked as free before the next call to share_outputs. It provides
+        the user with better control about when he wants to run the pipeline, when he wants
+        to obtain the resulting buffers and when they can be returned to DALI pool when the
+        results have been consumed.
+        Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
+        and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`
+        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.ReleaseOutputs()
 
+    # for the backward compatibility
+    def _release_outputs(self):
+        """Deprecated. Use :meth:`nvidia.dali.pipeline.Pipeline.release_outputs` instead"""
+        self.release_outputs()
+
     def _outputs(self):
         """Release buffers previously returned and returns  the calls.
 
-        Calling this function is equivalent to calling _release_outputs
-        then calling _share_outputs"""
+        Calling this function is equivalent to calling release_outputs
+        then calling share_outputs"""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
@@ -316,16 +359,12 @@ class Pipeline(object):
 
         If the pipeline was created with `exec_pipelined` option set to `True`,
         this function will also start prefetching the next iteration for
-        faster execution."""
-        self._run()
+        faster execution.
+        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run` in the same pipeline,
+        :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` and
+        :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`"""
+        self.schedule_run()
         return self.outputs()
-
-    def _run(self):
-        """Run the pipeline without returning the results."""
-        if self._first_iter and self._exec_pipelined:
-            self._prefetch()
-        else:
-            self._run_once()
 
     def _prefetch(self):
         """Executes pipeline to fill executor's pipeline."""
@@ -350,7 +389,7 @@ class Pipeline(object):
                 self._batches_to_consume += 1
             # Special case to prevent a deadlock if user didn't release the only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
-                self._release_outputs()
+                self.release_outputs()
             self._run_cpu()
             self._run_gpu()
         except StopIteration:
