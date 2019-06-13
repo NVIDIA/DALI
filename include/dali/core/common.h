@@ -64,6 +64,13 @@ enum class OpType {
   COUNT = 4
 };
 
+// What device is this tensor stored on
+enum class StorageDevice {
+  CPU = 0,
+  GPU = 1,
+  COUNT = 2,
+};
+
 static std::string to_string(OpType op_type) {
   switch (op_type) {
     case OpType::CPU:

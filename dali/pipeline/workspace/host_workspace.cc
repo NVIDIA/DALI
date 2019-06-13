@@ -25,17 +25,17 @@ void HostWorkspace::GetSample(SampleWorkspace *ws,
   ws->set_data_idx(data_idx);
   ws->set_thread_idx(thread_idx);
   for (const auto &input_meta : input_index_map_) {
-    if (input_meta.first) {
-      ws->AddInput(cpu_inputs_[input_meta.second][data_idx]);
+    if (input_meta.storage_device == StorageDevice::CPU) {
+      ws->AddInput(cpu_inputs_[input_meta.index][data_idx]);
     } else {
-      ws->AddInput(gpu_inputs_[input_meta.second][data_idx]);
+      ws->AddInput(gpu_inputs_[input_meta.index][data_idx]);
     }
   }
   for (const auto &output_meta : output_index_map_) {
-    if (output_meta.first) {
-      ws->AddOutput(cpu_outputs_[output_meta.second][data_idx]);
+    if (output_meta.storage_device == StorageDevice::CPU) {
+      ws->AddOutput(cpu_outputs_[output_meta.index][data_idx]);
     } else {
-      ws->AddOutput(gpu_outputs_[output_meta.second][data_idx]);
+      ws->AddOutput(gpu_outputs_[output_meta.index][data_idx]);
     }
   }
   for (auto& arg_pair : argument_inputs_) {
@@ -46,71 +46,71 @@ void HostWorkspace::GetSample(SampleWorkspace *ws,
 int HostWorkspace::NumInputAtIdx(int idx) const {
   DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
   auto tensor_meta = input_index_map_[idx];
-  if (tensor_meta.first) {
-    return cpu_inputs_[tensor_meta.second].size();
+  if (tensor_meta.storage_device == StorageDevice::CPU) {
+    return cpu_inputs_[tensor_meta.index].size();
   }
-  return gpu_inputs_[tensor_meta.second].size();
+  return gpu_inputs_[tensor_meta.index].size();
 }
 
 int HostWorkspace::NumOutputAtIdx(int idx) const {
   DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];
-  if (tensor_meta.first) {
-    return cpu_outputs_[tensor_meta.second].size();
+  if (tensor_meta.storage_device == StorageDevice::CPU) {
+    return cpu_outputs_[tensor_meta.index].size();
   }
-  return gpu_outputs_[tensor_meta.second].size();
+  return gpu_outputs_[tensor_meta.index].size();
 }
 
 template <>
 const Tensor<CPUBackend>& HostWorkspace::Input(int idx, int data_idx) const {
   DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
   auto tensor_meta = input_index_map_[idx];
-  DALI_ENFORCE(tensor_meta.first, "Input with given index does not "
+  DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Input with given index does not "
       "have the calling backend type (CPUBackend)");
 
   DALI_ENFORCE_VALID_INDEX(data_idx,
-      cpu_inputs_[tensor_meta.second].size());
+      cpu_inputs_[tensor_meta.index].size());
 
-  return *cpu_inputs_[tensor_meta.second][data_idx];
+  return *cpu_inputs_[tensor_meta.index][data_idx];
 }
 
 template <>
 const Tensor<GPUBackend>& HostWorkspace::Input(int idx, int data_idx) const {
   DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
   auto tensor_meta = input_index_map_[idx];
-  DALI_ENFORCE(!tensor_meta.first, "Input TensorList with given "
+  DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Input TensorList with given "
       "index does not have the calling backend type (GPUBackend)");
 
   DALI_ENFORCE_VALID_INDEX(data_idx,
-      gpu_inputs_[tensor_meta.second].size());
+      gpu_inputs_[tensor_meta.index].size());
 
-  return *gpu_inputs_[tensor_meta.second][data_idx];
+  return *gpu_inputs_[tensor_meta.index][data_idx];
 }
 
 template <>
 Tensor<CPUBackend>& HostWorkspace::Output(int idx, int data_idx) {
   DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];
-  DALI_ENFORCE(tensor_meta.first, "Output with given index does not "
+  DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Output with given index does not "
       "have the calling backend type (CPUBackend)");
 
   DALI_ENFORCE_VALID_INDEX(data_idx,
-      cpu_outputs_[tensor_meta.second].size());
+      cpu_outputs_[tensor_meta.index].size());
 
-  return *cpu_outputs_[tensor_meta.second][data_idx].get();
+  return *cpu_outputs_[tensor_meta.index][data_idx].get();
 }
 
 template <>
 Tensor<GPUBackend>& HostWorkspace::Output(int idx, int data_idx) {
   DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
   auto tensor_meta = output_index_map_[idx];
-  DALI_ENFORCE(!tensor_meta.first, "Output TensorList with given "
+  DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output TensorList with given "
       "index does not have the calling backend type (GPUBackend)");
 
   DALI_ENFORCE_VALID_INDEX(data_idx,
-      gpu_outputs_[tensor_meta.second].size());
+      gpu_outputs_[tensor_meta.index].size());
 
-  return *gpu_outputs_[tensor_meta.second][data_idx].get();
+  return *gpu_outputs_[tensor_meta.index][data_idx].get();
 }
 
 }  // namespace dali

@@ -115,9 +115,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   template <typename Backend>
   bool InputIsType(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
-    // input_index_map_.first is true if the input is stored on CPU
-    // so we do XOR of it with the Backend being GPUBackend
-    return input_index_map_[idx].first != std::is_same<Backend, GPUBackend>::value;
+    return input_index_map_[idx].storage_device == backend_to_storage_device<Backend>::value;
   }
 
   /**
@@ -127,23 +125,21 @@ class WorkspaceBase : public ArgumentWorkspace {
   template <typename Backend>
   bool OutputIsType(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
-    // input_index_map_.first is true if the input is stored on CPU
-    // so we do XOR of it with the Backend being GPUBackend
-    return output_index_map_[idx].first != std::is_same<Backend, GPUBackend>::value;
+    return output_index_map_[idx].storage_device == backend_to_storage_device<Backend>::value;
   }
 
   /**
    * @brief Adds new CPU input.
    */
   void AddInput(InputType<CPUBackend> input) {
-    AddHelper(input, &cpu_inputs_, &cpu_inputs_index_, &input_index_map_, true);
+    AddHelper(input, &cpu_inputs_, &cpu_inputs_index_, &input_index_map_, StorageDevice::CPU);
   }
 
   /**
    * @brief Adds new GPU input.
    */
   void AddInput(InputType<GPUBackend> input) {
-    AddHelper(input, &gpu_inputs_, &gpu_inputs_index_, &input_index_map_, false);
+    AddHelper(input, &gpu_inputs_, &gpu_inputs_index_, &input_index_map_, StorageDevice::GPU);
   }
 
   /**
@@ -159,7 +155,7 @@ class WorkspaceBase : public ArgumentWorkspace {
                                      &cpu_inputs_index_,
                                      &gpu_inputs_,
                                      &gpu_inputs_index_,
-                                     true);
+                                     StorageDevice::CPU);
   }
 
   /**
@@ -175,21 +171,21 @@ class WorkspaceBase : public ArgumentWorkspace {
                                      &cpu_inputs_index_,
                                      &gpu_inputs_,
                                      &gpu_inputs_index_,
-                                     false);
+                                     StorageDevice::GPU);
   }
 
   /**
    * @brief Adds new CPU output
    */
   void AddOutput(OutputType<CPUBackend> output) {
-    AddHelper(output, &cpu_outputs_, &cpu_outputs_index_, &output_index_map_, true);
+    AddHelper(output, &cpu_outputs_, &cpu_outputs_index_, &output_index_map_, StorageDevice::CPU);
   }
 
   /**
    * @brief Adds new GPU output
    */
   void AddOutput(OutputType<GPUBackend> output) {
-    AddHelper(output, &gpu_outputs_, &gpu_outputs_index_, &output_index_map_, false);
+    AddHelper(output, &gpu_outputs_, &gpu_outputs_index_, &output_index_map_, StorageDevice::GPU);
   }
 
   /**
@@ -205,7 +201,7 @@ class WorkspaceBase : public ArgumentWorkspace {
                                       &cpu_outputs_index_,
                                       &gpu_outputs_,
                                       &gpu_outputs_index_,
-                                      true);
+                                      StorageDevice::CPU);
   }
 
   /**
@@ -221,7 +217,7 @@ class WorkspaceBase : public ArgumentWorkspace {
                                       &cpu_outputs_index_,
                                       &gpu_outputs_,
                                       &gpu_outputs_index_,
-                                      false);
+                                      StorageDevice::GPU);
   }
 
   /**
@@ -233,9 +229,9 @@ class WorkspaceBase : public ArgumentWorkspace {
   OutputType<CPUBackend> SharedCPUOutput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
     auto tensor_meta = output_index_map_[idx];
-    DALI_ENFORCE(tensor_meta.first, "Output with given "
+    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Output with given "
         "index does not have the calling backend type (CPUBackend)");
-    return cpu_outputs_[tensor_meta.second];
+    return cpu_outputs_[tensor_meta.index];
   }
 
   /**
@@ -247,23 +243,34 @@ class WorkspaceBase : public ArgumentWorkspace {
   OutputType<GPUBackend> SharedGPUOutput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
     auto tensor_meta = output_index_map_[idx];
-    DALI_ENFORCE(!tensor_meta.first, "Output with given "
+    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output with given "
         "index does not have the calling backend type (GPUBackend)");
-    return gpu_outputs_[tensor_meta.second];
+    return gpu_outputs_[tensor_meta.index];
   }
 
  protected:
+  struct InOutMeta {
+    // Storage device of given Input/Output
+    StorageDevice storage_device;
+    // Position in dedicated buffer for given storage_device
+    int index;
+
+    InOutMeta() : storage_device(static_cast<StorageDevice>(-1)), index(-1) {}
+    InOutMeta(StorageDevice storage_device, int index)
+        : storage_device(storage_device), index(index) {}
+  };
+
   template <typename T>
   void AddHelper(T entry,
                  vector<T>* vec,
                  vector<int>* index,
-                 vector<std::pair<bool, int>>* index_map,
-                 const bool on_cpu) {
+                 vector<InOutMeta>* index_map,
+                 StorageDevice storage_device) {
     // Save the vector of tensors
     vec->push_back(entry);
 
     // Update the input index map
-    index_map->push_back(std::make_pair(on_cpu, vec->size()-1));
+    index_map->emplace_back(storage_device, vec->size()-1);
     index->push_back(index_map->size()-1);
   }
 
@@ -272,12 +279,12 @@ class WorkspaceBase : public ArgumentWorkspace {
                  T<Backend> entry,
                  vector<T<Backend>>* vec,
                  vector<int>* index,
-                 vector<std::pair<bool, int>>* index_map,
+                 vector<InOutMeta>* index_map,
                  vector<T<CPUBackend>>* cpu_vec,
                  vector<int>* cpu_index,
                  vector<T<GPUBackend>>* gpu_vec,
                  vector<int>* gpu_index,
-                 bool on_cpu
+                 StorageDevice storage_device
                  ) {
     DALI_ENFORCE_VALID_INDEX(idx, index_map->size());
 
@@ -285,58 +292,58 @@ class WorkspaceBase : public ArgumentWorkspace {
     // from its typed vector and update the index_map
     // entry for all the elements in the vector following it.
     auto tensor_meta = (*index_map)[idx];
-    if (tensor_meta.first) {
-      for (size_t i = tensor_meta.second; i < cpu_vec->size(); ++i) {
-        int &input_idx = (*index_map)[(*cpu_index)[i]].second;
+    if (tensor_meta.storage_device == StorageDevice::CPU) {
+      for (size_t i = tensor_meta.index; i < cpu_vec->size(); ++i) {
+        int &input_idx = (*index_map)[(*cpu_index)[i]].index;
         --input_idx;
       }
-      cpu_vec->erase(cpu_vec->begin() + tensor_meta.second);
-      cpu_index->erase(cpu_index->begin() + tensor_meta.second);
+      cpu_vec->erase(cpu_vec->begin() + tensor_meta.index);
+      cpu_index->erase(cpu_index->begin() + tensor_meta.index);
     } else {
-      for (size_t i = tensor_meta.second; i < gpu_vec->size(); ++i) {
-        int &input_idx = (*index_map)[(*gpu_index)[i]].second;
+      for (size_t i = tensor_meta.index; i < gpu_vec->size(); ++i) {
+        int &input_idx = (*index_map)[(*gpu_index)[i]].index;
         --input_idx;
       }
-      gpu_vec->erase(gpu_vec->begin() + tensor_meta.second);
-      gpu_index->erase(gpu_index->begin() + tensor_meta.second);
+      gpu_vec->erase(gpu_vec->begin() + tensor_meta.index);
+      gpu_index->erase(gpu_index->begin() + tensor_meta.index);
     }
 
     // Now we insert the new input and update its meta data
     vec->push_back(entry);
     index->push_back(idx);
-    (*index_map)[idx] = std::make_pair(on_cpu, vec->size()-1);
+    (*index_map)[idx] = InOutMeta(storage_device, vec->size()-1);
   }
 
   inline const InputType<GPUBackend>& GPUInput(int idx) const {
     auto tensor_meta = FetchAtIndex(input_index_map_, idx);
-    DALI_ENFORCE(!tensor_meta.first, "Input with given "
+    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Input with given "
         "index (" + std::to_string(idx) +
         ") does not have the calling backend type (GPUBackend)");
-    return gpu_inputs_[tensor_meta.second];
+    return gpu_inputs_[tensor_meta.index];
   }
 
   inline const InputType<CPUBackend>& CPUInput(int idx) const {
     auto tensor_meta = FetchAtIndex(input_index_map_, idx);
-    DALI_ENFORCE(tensor_meta.first, "Input with given "
+    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Input with given "
         "index (" + std::to_string(idx) +
         ") does not have the calling backend type (CPUBackend)");
-    return cpu_inputs_[tensor_meta.second];
+    return cpu_inputs_[tensor_meta.index];
   }
 
   inline const InputType<GPUBackend>& GPUOutput(int idx) const {
     auto tensor_meta = FetchAtIndex(output_index_map_, idx);
-    DALI_ENFORCE(!tensor_meta.first, "Output with given "
+    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output with given "
         "index (" + std::to_string(idx) +
-        ")does not have the calling backend type (GPUBackend)");
-    return gpu_outputs_[tensor_meta.second];
+        ") does not have the calling backend type (GPUBackend)");
+    return gpu_outputs_[tensor_meta.index];
   }
 
   inline const InputType<CPUBackend>& CPUOutput(int idx) const {
     auto tensor_meta = FetchAtIndex(output_index_map_, idx);
-    DALI_ENFORCE(tensor_meta.first, "Output with given "
+    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Output with given "
         "index (" + std::to_string(idx) +
         ") does not have the calling backend type (CPUBackend)");
-    return cpu_outputs_[tensor_meta.second];
+    return cpu_outputs_[tensor_meta.index];
   }
 
   vector<InputType<CPUBackend>> cpu_inputs_;
@@ -352,11 +359,10 @@ class WorkspaceBase : public ArgumentWorkspace {
   // to actual tensor objects. The first element indicates if the
   // Tensor is stored on cpu, and the second element is the index of
   // that tensor in the {cpu, gpu}_inputs_ vector.
-  vector<std::pair<bool, int>> input_index_map_, output_index_map_;
+  vector<InOutMeta> input_index_map_, output_index_map_;
 
  private:
-  inline const std::pair<bool, int>& FetchAtIndex(
-    const vector<std::pair<bool, int>>& index_map, int idx) const {
+  inline const InOutMeta& FetchAtIndex(const vector<InOutMeta>& index_map, int idx) const {
     DALI_ENFORCE(idx >= 0 && idx < (int) index_map.size(),
       "Index out of range." + std::to_string(idx) +
       " not in range [0, " + std::to_string(index_map.size())
