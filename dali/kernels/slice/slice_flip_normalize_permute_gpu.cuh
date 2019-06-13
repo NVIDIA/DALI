@@ -48,7 +48,7 @@ struct BlockDesc {
   size_t size;
 };
 
-template <unsigned Dims, typename OutputType, typename InputType>
+template <typename OutputType, typename InputType, unsigned Dims>
 __device__ inline void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ out,
                                                      const InputType *__restrict__ in,
                                                      const int64_t *out_strides,
@@ -65,7 +65,7 @@ __device__ inline void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ ou
       out_strides[Dims - 1] == in_strides[Dims - 1] &&
       out_shape[Dims - 1] == padded_out_shape[Dims - 1]) {
     const unsigned NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFlipNormalizePermuteFunc<NextDims>(
+    SliceFlipNormalizePermuteFunc<OutputType, InputType, NextDims>(
         out, in, out_strides, in_strides, out_shape, padded_out_shape, should_normalize,
         should_zero_pad, norm_dim, mean, inv_stddev, offset, block_end);
     return;
@@ -126,7 +126,7 @@ __global__ void SliceFlipNormalizePermuteKernel(const SampleDesc<Dims> *samples,
   }
 
   bool should_normalize = mean != nullptr && inv_stddev != nullptr;
-  SliceFlipNormalizePermuteFunc<Dims>(
+  SliceFlipNormalizePermuteFunc<OutputType, InputType, Dims>(
     out, in, sample.out_strides.data(), sample.in_strides.data(),
     sample.out_shape.data(), sample.padded_out_shape.data(),
     should_normalize, should_zero_pad,
