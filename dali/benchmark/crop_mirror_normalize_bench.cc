@@ -117,16 +117,17 @@ BENCHMARK_REGISTER_F(OperatorBench, NewCropMirrorNormalizeCPU)->Iterations(500)
 static void CropMirrorNormalizeGPUArgs(benchmark::internal::Benchmark *b) {
   int mean = 128, std = 1;
   for (int batch_size : {1, 8, 128, 256}) {
-    for (auto &output_dtype : {DALI_FLOAT}) {
-      for (auto &output_layout : {DALI_NHWC, DALI_NCHW}) {
-        for (int mirror : {0, 1}) {
-          for (int pad : {0, 1}) {
-            for (int H = 1000; H >= 250; H /= 2) {
-              int W = H, C = 3;
-              int crop_h = static_cast<float>(9 * H / 10);
-              int crop_w = static_cast<float>(9 * W / 10);
-              b->Args({output_dtype, output_layout, mirror, pad, batch_size, H, W, C, crop_h,
-                       crop_w, mean, std});
+    for (int H = 1000; H >= 250; H /= 2) {
+      int W = H, C = 3;
+      int crop_h = static_cast<float>(9 * H / 10);
+      int crop_w = static_cast<float>(9 * W / 10);
+      for (auto &output_dtype : {DALI_FLOAT}) {
+        for (auto &output_layout : {DALI_NHWC, DALI_NCHW}) {
+          for (int mirror : {0, 1}) {
+            for (int pad : {0, 1}) {
+              b->Args({batch_size, H, W, C, crop_h, crop_w,
+                       output_dtype, output_layout, mirror,
+                       pad, mean, std});
             }
           }
         }
@@ -136,16 +137,16 @@ static void CropMirrorNormalizeGPUArgs(benchmark::internal::Benchmark *b) {
 }
 
 BENCHMARK_DEFINE_F(OperatorBench, CropMirrorNormalizeGPU)(benchmark::State& st) {
-  DALIDataType output_dtype = static_cast<DALIDataType>(st.range(0));
-  DALITensorLayout output_layout = static_cast<DALITensorLayout>(st.range(1));
-  int mirror = st.range(2);
-  int pad = st.range(3);
-  int batch_size = st.range(4);
-  int H = st.range(5);
-  int W = st.range(6);
-  int C = st.range(7);
-  int crop_h = st.range(8);
-  int crop_w = st.range(9);
+  int batch_size = st.range(0);
+  int H = st.range(1);
+  int W = st.range(2);
+  int C = st.range(3);
+  int crop_h = st.range(4);
+  int crop_w = st.range(5);
+  DALIDataType output_dtype = static_cast<DALIDataType>(st.range(6));
+  DALITensorLayout output_layout = static_cast<DALITensorLayout>(st.range(7));
+  int mirror = st.range(8);
+  int pad = st.range(9);
   float mean = static_cast<float>(st.range(10));
   float std = static_cast<float>(st.range(11));
 
@@ -174,16 +175,16 @@ BENCHMARK_REGISTER_F(OperatorBench, CropMirrorNormalizeGPU)->Iterations(500)
 
 
 BENCHMARK_DEFINE_F(OperatorBench, NewCropMirrorNormalizeGPU)(benchmark::State& st) {
-  DALIDataType output_dtype = static_cast<DALIDataType>(st.range(0));
-  DALITensorLayout output_layout = static_cast<DALITensorLayout>(st.range(1));
-  int mirror = st.range(2);
-  int pad = st.range(3);
-  int batch_size = st.range(4);
-  int H = st.range(5);
-  int W = st.range(6);
-  int C = st.range(7);
-  int crop_h = st.range(8);
-  int crop_w = st.range(9);
+  int batch_size = st.range(0);
+  int H = st.range(1);
+  int W = st.range(2);
+  int C = st.range(3);
+  int crop_h = st.range(4);
+  int crop_w = st.range(5);
+  DALIDataType output_dtype = static_cast<DALIDataType>(st.range(6));
+  DALITensorLayout output_layout = static_cast<DALITensorLayout>(st.range(7));
+  int mirror = st.range(8);
+  int pad = st.range(9);
   float mean = static_cast<float>(st.range(10));
   float std = static_cast<float>(st.range(11));
 
