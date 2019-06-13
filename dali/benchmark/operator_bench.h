@@ -47,6 +47,10 @@ class OperatorBench : public DALIBenchmark {
       out_ptr = std::make_shared<Tensor<CPUBackend>>();
     }
 
+    for (auto &out_ptr : data_out) {
+      out_ptr = std::make_shared<Tensor<CPUBackend>>();
+    }
+
     if (fill_in_data) {
       for (auto &in_ptr : data_in) {
         auto *ptr = in_ptr->mutable_data<T>();
