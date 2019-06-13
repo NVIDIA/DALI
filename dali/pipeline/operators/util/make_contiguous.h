@@ -49,7 +49,7 @@ class MakeContiguous : public Operator<MixedBackend> {
     size_t total_bytes = 0;
     for (int i = 0; i < batch_size_; ++i) {
       auto &sample = ws->Input<CPUBackend>(0, i);
-      output_shape[i] = sample.shape();
+      output_shape[i] = std::vector<int64_t>{sample.shape().begin(), sample.shape().end()};
       size_t sample_bytes = sample.nbytes();
       if (coalesced && sample_bytes > COALESCE_TRESHOLD)
         coalesced = false;

@@ -24,11 +24,12 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/util.h"
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
-#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/meta.h"
-#include "dali/core/util.h"
+#include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
 
@@ -59,7 +60,7 @@ class Tensor : public Buffer<Backend> {
                  "To obtain subspace tensor, source tensor should have at least 2 dimensions");
     DALI_ENFORCE(0 <= x && x < dim(0), "'x' should be valid index to first dimension: [0, dim(0))");
     Tensor<Backend> view;
-    view.shape_ = std::vector<Index>(shape_.begin() + 1, shape_.end());
+    view.shape_ = shape_.last(shape_.size() - 1);
     view.backend_ = backend_;
     view.type_ = type_;
     view.size_ = size_ / shape_[0];
@@ -124,7 +125,7 @@ class Tensor : public Buffer<Backend> {
    * the current buffer is not large enough for the requested
    * number of elements.
    */
-  inline void Resize(const vector<Index> &shape) {
+  inline void Resize(const kernels::TensorShape<> &shape) {
     Index new_size = volume(shape);
     ResizeHelper(new_size);
     shape_ = shape;
@@ -210,7 +211,8 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const vector<Index> &shape) {
+  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
+                        const kernels::TensorShape<> &shape) {
     DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
@@ -241,7 +243,7 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes, const vector<Index> &shape) {
+  inline void ShareData(void *ptr, size_t bytes, const kernels::TensorShape<> &shape) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape);
   }
 
@@ -261,7 +263,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes) {
-    ShareData(ptr, bytes, vector<Index>());
+    ShareData(ptr, bytes, {});
   }
 
   /**
@@ -272,7 +274,7 @@ class Tensor : public Buffer<Backend> {
    * all tensors need to be stored without
    * any padding between them)
    */
-  inline void ShareDataReshape(TensorList<Backend> *tl, const vector<Index> &new_shape) {
+  inline void ShareDataReshape(TensorList<Backend> *tl, const kernels::TensorShape<> &new_shape) {
     DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
     DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
@@ -314,9 +316,10 @@ class Tensor : public Buffer<Backend> {
     data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
 
     // Get the meta-data for the target tensor
-    shape_ = tl->tensor_shape(0);
-    shape_.insert(shape_.begin(), tl->ntensor());
-    size_ = volume(shape_);
+    auto new_shape = tl->tensor_shape(0);
+    new_shape.insert(new_shape.begin(), tl->ntensor());
+    size_ = volume(new_shape);
+    shape_ = kernels::TensorShape<>(new_shape);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
@@ -326,7 +329,7 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Returns the shape of the Tensor
    */
-  inline const vector<Index> &shape() const {
+  inline const kernels::TensorShape<> &shape() const {
     return shape_;
   }
 
@@ -353,10 +356,12 @@ class Tensor : public Buffer<Backend> {
    * of a Tensor
    */
   inline void Squeeze() {
-    shape_.erase(std::remove(shape_.begin(), shape_.end(), 1), shape_.end());
-    if (shape_.empty()) {
-      shape_.push_back(1);
+    std::vector<Index> shape(shape_.begin(), shape_.end());
+    shape.erase(std::remove(shape.begin(), shape.end(), 1), shape.end());
+    if (shape.empty()) {
+      shape.push_back(1);
     }
+    shape_ = shape;
   }
 
   /**
@@ -388,7 +393,7 @@ class Tensor : public Buffer<Backend> {
     device_ = t.device_;
     meta_ = std::move(t.meta_);
 
-    t.shape_.clear();
+    t.shape_ = kernels::TensorShape<>();
     t.backend_ = Backend();
     t.type_ = TypeInfo::Create<NoType>();
     t.data_.reset();
@@ -410,7 +415,7 @@ class Tensor : public Buffer<Backend> {
       device_ = t.device_;
       meta_ = std::move(t.meta_);
 
-      t.shape_.clear();
+      t.shape_ = kernels::TensorShape<>();
       t.backend_ = Backend();
       t.type_ = TypeInfo::Create<NoType>();
       t.data_.reset();
@@ -447,7 +452,7 @@ class Tensor : public Buffer<Backend> {
   }
 
  protected:
-  vector<Index> shape_;
+  kernels::TensorShape<> shape_;
   DALIMeta meta_;
   USE_BUFFER_MEMBERS();
 };

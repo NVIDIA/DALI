@@ -169,7 +169,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
 
     DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
 
-    return input.shape();
+    return std::vector<Index>{input.shape().begin(), input.shape().end()};
   }
 
   inline const TransformMeta GetTransfomMeta(const SampleWorkspace *ws, const OpSpec &spec) {
@@ -230,7 +230,8 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
     const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
 
     // Resize the output & run
-    output.Resize({crop_height_[ws->data_idx()], crop_width_[ws->data_idx()], meta.C});
+    output.Resize(
+        std::vector<Index>{crop_height_[ws->data_idx()], crop_width_[ws->data_idx()], meta.C});
 
     tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
     DALI_CALL((*func)(

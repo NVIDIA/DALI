@@ -42,10 +42,9 @@ class TensorTest : public DALITest {
   }
 
 
-  vector<Index> GetRandShape(int dims = -1) {
-    if (dims < 0) {
-      dims = this->RandInt(1, 5);
-    }
+
+  kernels::TensorShape<> GetRandShape(int dim_start = 1, int dim_end = 5) {
+    int dims = this->RandInt(dim_start, dim_end);
     vector<Index> shape(dims, 0);
     for (auto &val : shape) {
       val = this->RandInt(1, 32);
@@ -134,7 +133,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   // Verify internals
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), vector<Index>{});
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>{});
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -144,7 +143,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), vector<Index>{});
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>{});
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -173,7 +172,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   // Verify internals
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), vector<Index>{});
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>{});
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -183,7 +182,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), vector<Index>{});
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>{});
   ASSERT_TRUE(IsType<double>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -212,7 +211,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   // Verify internals
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), vector<Index>{});
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>{});
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -249,7 +248,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   // Verify internals
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), vector<Index>{});
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>{});
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
@@ -292,7 +291,7 @@ TYPED_TEST(TensorTest, TestShareData) {
     ASSERT_TRUE(tensor.shares_data());
     ASSERT_EQ(tensor.raw_data(), tl.raw_tensor(i));
     ASSERT_EQ(tensor.type(), tl.type());
-    ASSERT_EQ(tensor.shape(), tl.tensor_shape(i));
+    ASSERT_EQ(tensor.shape(), kernels::TensorShape<>(tl.tensor_shape(i)));
 
     Index size = volume(tl.tensor_shape(i));
     ASSERT_EQ(tensor.size(), size);
@@ -303,7 +302,7 @@ TYPED_TEST(TensorTest, TestShareData) {
 TYPED_TEST(TensorTest, TestCopyToTensorList) {
   std::vector<Tensor<TypeParam>> tensors(16);
   for (auto& t : tensors) {
-    vector<Index> shape = this->GetRandShape(4);
+    auto shape = this->GetRandShape(4, 4);
     t.Resize(shape);
     t.template mutable_data<float>();
   }
@@ -315,7 +314,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
   ASSERT_EQ(num_tensor, tensors.size());
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_EQ(tensors[i].type(), tl.type());
-    ASSERT_EQ(tensors[i].shape(), tl.tensor_shape(i));
+    ASSERT_EQ(tensors[i].shape(), kernels::TensorShape<>(tl.tensor_shape(i)));
     Index size = volume(tl.tensor_shape(i));
     ASSERT_EQ(tensors[i].size(), size);
     ASSERT_EQ(tensors[i].nbytes(), size*sizeof(float));
@@ -344,14 +343,14 @@ TYPED_TEST(TensorTest, TestResize) {
   Tensor<TypeParam> tensor;
 
   // Get shape
-  vector<Index> shape = this->GetRandShape();
+  auto shape = this->GetRandShape();
   tensor.Resize(shape);
 
   // Verify the settings
   ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
-  for (size_t i = 0; i < shape.size(); ++i) {
+  for (int i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 }
@@ -362,14 +361,14 @@ TYPED_TEST(TensorTest, TestMultipleResize) {
   int num = this->RandInt(2, 20);
   for (int i = 0; i < num; ++i) {
     // Get shape
-    vector<Index> shape = this->GetRandShape();
+    auto shape = this->GetRandShape();
     tensor.Resize(shape);
 
     // Verify the settings
     ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
     ASSERT_EQ(tensor.size(), volume(shape));
     ASSERT_EQ(tensor.ndim(), shape.size());
-    for (size_t i = 0; i < shape.size(); ++i) {
+    for (int i = 0; i < shape.size(); ++i) {
       ASSERT_EQ(tensor.dim(i), shape[i]);
     }
   }
@@ -379,7 +378,7 @@ TYPED_TEST(TensorTest, TestResizeScalar) {
   Tensor<TypeParam> tensor;
 
   // Get shape
-  vector<Index> shape = {1};
+  kernels::TensorShape<> shape = {1};
   tensor.Resize(shape);
 
   // Verify the settings
@@ -392,7 +391,7 @@ TYPED_TEST(TensorTest, TestResizeZeroSize) {
   Tensor<TypeParam> tensor;
 
   // Get shape
-  vector<Index> shape = {};
+  kernels::TensorShape<> shape = {};
   tensor.Resize(shape);
 
   // Verify the settings
@@ -405,7 +404,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   Tensor<TypeParam> tensor;
 
   // Get shape
-  vector<Index> shape = { 4, 480, 640, 3 };
+  kernels::TensorShape<> shape = { 4, 480, 640, 3 };
   tensor.Resize(shape);
 
   // Verify the settings
@@ -413,7 +412,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   size_t num_elements = volume(shape);
   ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
-  for (size_t i = 0; i < shape.size(); ++i) {
+  for (int i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
   ASSERT_EQ(num_elements * sizeof(float), tensor.nbytes());
@@ -427,7 +426,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   // Verify the settings
   ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
-  for (size_t i = 0; i < shape.size(); ++i) {
+  for (int i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 
@@ -441,7 +440,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   // Verify the settings
   ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
-  for (size_t i = 0; i < shape.size(); ++i) {
+  for (int i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 
@@ -455,7 +454,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   // Verify the settings
   ASSERT_EQ(tensor.size(), volume(shape));
   ASSERT_EQ(tensor.ndim(), shape.size());
-  for (size_t i = 0; i < shape.size(); ++i) {
+  for (int i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
 
@@ -466,14 +465,14 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
   // Insufficient dimensions
   {
     Tensor<TypeParam> empty_tensor;
-    vector<Index> empty_shape = {};
+    kernels::TensorShape<> empty_shape = {};
     empty_tensor.Resize(empty_shape);
     empty_tensor.set_type(TypeInfo::Create<uint8_t>());
     ASSERT_ANY_THROW(empty_tensor.SubspaceTensor(0));
   }
   {
     Tensor<TypeParam> one_dim_tensor;
-    vector<Index> one_dim_shape = {42};
+    kernels::TensorShape<> one_dim_shape = {42};
     one_dim_tensor.Resize(one_dim_shape);
     one_dim_tensor.set_type(TypeInfo::Create<uint8_t>());
     ASSERT_ANY_THROW(one_dim_tensor.SubspaceTensor(0));
@@ -482,8 +481,7 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
   // Wrong subspace
   {
     Tensor<TypeParam> tensor;
-    auto shape = this->GetRandShape();
-    shape.push_back(42);  // ensure we have at least two dims
+    auto shape = this->GetRandShape(2, 6);
     tensor.Resize(shape);
     tensor.set_type(TypeInfo::Create<uint8_t>());
     ASSERT_ANY_THROW(tensor.SubspaceTensor(-1));
@@ -494,12 +492,11 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
   // Valid subspace:
   {
     Tensor<TypeParam> tensor;
-    auto shape = this->GetRandShape();
-    shape.push_back(42);  // ensure we have at least two dims
+    auto shape = this->GetRandShape(2, 6);
     tensor.Resize(shape);
     tensor.set_type(TypeInfo::Create<uint8_t>());
     int plane_size = 1;
-    for (size_t i = 1; i < shape.size(); i++) {
+    for (int i = 1; i < shape.size(); i++) {
       plane_size *= shape[i];
     }
     auto *base_source_data = tensor.template data<uint8_t>();
