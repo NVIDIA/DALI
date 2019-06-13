@@ -40,6 +40,7 @@ The op will keep the aspect ratio of the original image.)code", 0.f, true)
 When set with `resize_shorter`, the shortest dimension will be resized to `resize_shorter` iff
 the longest dimension is smaller or equal to `max_size`. If not, the shortest dimension is resized to
 satisfy the constraint "longest_dim == `max_size`.
+Can be also an array of size 2, where the two elements are maximum size per dimension (H, W).
 
 Example:
 
@@ -49,7 +50,7 @@ Resized with:
 
 * `resize_shorter`="200"  (`max_size` not set) => "200x600"
 * `resize_shorter`="200", `max_size`="400      => "132x400"
-* `resize_shorter`="200", `max_size`=1000      => "200x600")code", 0.f, true);
+* `resize_shorter`="200", `max_size`=1000      => "200x600")code", std::vector<float>{0.f, 0.f}, true);
 
 DALI_SCHEMA(Resize)
   .DocStr(R"code(Resize images.)code")

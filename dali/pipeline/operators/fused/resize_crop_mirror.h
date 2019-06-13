@@ -74,17 +74,26 @@ class ResizeCropMirrorAttr : protected CropAttr {
       const int shorter_side_size = spec.GetArgument<float>("resize_shorter", ws, index);
 
       bool max_size_enforced = spec.ArgumentDefined("max_size");
+      // Contains (H, W) max sizes
+      std::vector<float> max_size;
+      if (max_size_enforced) {
+        max_size = spec.GetRepeatedArgument<float>("max_size");
+        DALI_ENFORCE(max.size() > 0 && max_size() <= 2,
+                     "max_size has to be either a scalar or a size 2 array.");
+        if (max_size.size() == 1) {
+          max_size.push_back(max_size[0]);
+        }
+      }
 
       if (meta.H < meta.W) {
         const float scale = shorter_side_size / static_cast<float>(meta.H);
         meta.rsz_h = shorter_side_size;
         meta.rsz_w = static_cast<int>(std::round(scale * meta.W));
         if (max_size_enforced) {
-          const float max_size = spec.GetArgument<float>("max_size");
-          if (meta.rsz_w > max_size) {
+          if (meta.rsz_w > max_size[1]) {
             const float ratio = meta.H / meta.W;
-            meta.rsz_h = static_cast<int>(std::round(ratio * max_size));
-            meta.rsz_w = max_size;
+            meta.rsz_h = static_cast<int>(std::round(ratio * max_size[1]));
+            meta.rsz_w = max_size[1];
           }
         }
       } else {
@@ -92,11 +101,10 @@ class ResizeCropMirrorAttr : protected CropAttr {
         meta.rsz_h = static_cast<int>(std::round(scale * meta.H));
         meta.rsz_w = shorter_side_size;
         if (max_size_enforced) {
-          const float max_size = spec.GetArgument<float>("max_size");
-          if (meta.rsz_h > max_size) {
+          if (meta.rsz_h > max_size[0]) {
             const float ratio = meta.W / meta.H;
-            meta.rsz_h = max_size;
-            meta.rsz_w = static_cast<int>(std::round(ratio * max_size));
+            meta.rsz_h = max_size[0];
+            meta.rsz_w = static_cast<int>(std::round(ratio * max_size[0]));
           }
         }
       }
