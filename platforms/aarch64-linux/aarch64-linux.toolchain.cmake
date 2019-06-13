@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 set(CMAKE_SYSTEM_NAME Linux) # Set it to force CMAKE_CROSSCOMPILING to true
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fexceptions -fPIC -D_XOPEN_SOURCE=600 -std=gnu++0x -L/usr/aarch64-linux-gnu/lib")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -fPIC -D_XOPEN_SOURCE=600 -L/usr/aarch64-linux-gnu/lib")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -D_XOPEN_SOURCE=600 -std=gnu99")
 
 set(CMAKE_AS /usr/bin/${CMAKE_SYSTEM_PROCESSOR}-linux-gnu-as)
