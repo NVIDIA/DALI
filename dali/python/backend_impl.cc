@@ -790,6 +790,13 @@ PYBIND11_MODULE(backend_impl, m) {
           ConvertTFRecordDefaultValue(converted_type, default_value);
         return new TFFeature(converted_type, converted_default_value);
       });
+  tfrecord_m.def("VarLenFeature",
+      [](vector<Index> partial_shape, int type, py::object default_value) {
+        TFFeatureType converted_type = static_cast<TFFeatureType>(type);
+        TFValue converted_default_value =
+          ConvertTFRecordDefaultValue(converted_type, default_value);
+        return new TFFeature(converted_type, converted_default_value, partial_shape);
+      });
 #endif  // DALI_BUILD_PROTO3
 }
 

@@ -20,6 +20,7 @@
 #include <vector>
 #include <string>
 #include <exception>
+#include <functional>
 
 #include "dali/core/common.h"
 #include "dali/pipeline/operators/argument.h"
@@ -80,7 +81,19 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
       switch (f.GetType()) {
         case FeatureType::int64:
           if (!f.HasShape()) {
-            output.Resize({encoded_feature.int64_list().value().size()});
+            if (f.HasPartialShape()) {
+              auto partial_shape = f.PartialShape();
+              auto m = std::accumulate(
+                partial_shape.begin(), partial_shape.end(), 1, std::multiplies<int>());
+              auto feature_size = encoded_feature.int64_list().value().size();
+              if (feature_size % m != 0) {
+                DALI_FAIL("Feature size not matching partial shape");
+              }
+              partial_shape.insert(partial_shape.begin(), feature_size / m);
+              output.Resize(partial_shape);
+            } else {
+              output.Resize({encoded_feature.int64_list().value().size()});
+            }
           }
           std::memcpy(output.mutable_data<int64_t>(),
               encoded_feature.int64_list().value().data(),
@@ -97,7 +110,19 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
           break;
         case FeatureType::float32:
           if (!f.HasShape()) {
-            output.Resize({encoded_feature.float_list().value().size()});
+            if (f.HasPartialShape()) {
+              auto partial_shape = f.PartialShape();
+              auto m = std::accumulate(
+                partial_shape.begin(), partial_shape.end(), 1, std::multiplies<int>());
+              auto feature_size = encoded_feature.float_list().value().size();
+              if (feature_size % m != 0) {
+                DALI_FAIL("Feature size not matching partial shape");
+              }
+              partial_shape.insert(partial_shape.begin(), feature_size / m);
+              output.Resize(partial_shape);
+            } else {
+              output.Resize({encoded_feature.float_list().value().size()});
+            }
           }
           std::memcpy(output.mutable_data<float>(),
               encoded_feature.float_list().value().data(),
