@@ -47,7 +47,7 @@ TEST(OpticalFlowAdapter, StubApiCpuBackend) {
 
 
 TEST(OpticalFlowAdapter, StubApiGpuBackend) {
-  using StubValueType = std::remove_const<decltype(OpticalFlowStub<ComputeGPU>::kStubValue)>::type;
+  using StubValueType = std::remove_const_t<decltype(OpticalFlowStub<ComputeGPU>::kStubValue)>;
   StubValueType *tvout_data;
   CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&tvout_data),
                        kTestDataSize * sizeof(StubValueType)));

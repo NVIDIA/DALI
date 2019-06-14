@@ -35,7 +35,7 @@ struct Surface2D {
   /// @remarks The template magic is a workaround to avoid conversion to self
   ///          when T is already const
   template <typename U = T,
-            typename V = typename std::enable_if<!std::is_const<U>::value, const U>::type>
+            typename V = std::enable_if_t<!std::is_const<U>::value, const U>>
   __host__ __device__ operator Surface2D<V>&() {
     return *reinterpret_cast<Surface2D<V>*>(this);
   }
@@ -46,7 +46,7 @@ struct Surface2D {
   /// @remarks The template magic is a workaround to avoid conversion to self
   ///          when T is already const
   template <typename U = T,
-            typename V = typename std::enable_if<!std::is_const<U>::value, const U>::type>
+            typename V = std::enable_if_t<!std::is_const<U>::value, const U>>
   __host__ __device__ constexpr operator const Surface2D<V>&() const {
     return *reinterpret_cast<const Surface2D<V>*>(this);
   }

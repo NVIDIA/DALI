@@ -143,14 +143,14 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   template <typename U = Displacement>
-  typename std::enable_if<HasParam<U>::value>::type PrepareDisplacement(
+  std::enable_if_t<HasParam<U>::value> PrepareDisplacement(
       SampleWorkspace *ws) {
     auto *p = &displace_[ws->thread_idx()].param;
     displace_[ws->thread_idx()].Prepare(p, spec_, ws, ws->data_idx());
   }
 
   template <typename U = Displacement>
-  typename std::enable_if<!HasParam<U>::value>::type PrepareDisplacement(
+  std::enable_if_t<!HasParam<U>::value> PrepareDisplacement(
       SampleWorkspace *) {}
 
   /**

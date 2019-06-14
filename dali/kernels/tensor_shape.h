@@ -55,9 +55,9 @@ struct compile_time_size_impl : std::integral_constant<int, DynamicDimensions> {
 
 template <typename T>
 using compile_time_size = compile_time_size_impl<
-  typename std::remove_cv<
-    typename std::remove_reference<T>::type
-  >::type>;
+  std::remove_cv_t<
+    std::remove_reference_t<T>
+  >>;
 
 template <typename T, size_t N>
 struct compile_time_size_impl<T[N]> : std::integral_constant<int, N> {};
@@ -180,14 +180,14 @@ struct TensorShape<DynamicDimensions>
       : Base(typename Base::container_type(s.begin(), s.end())) {}
 
   template <typename... Ts,
-            typename = typename std::enable_if<
-              all_of<std::is_convertible<Ts, int64_t>::value...>::value>::type>
+            typename = std::enable_if_t<
+              all_of<std::is_convertible<Ts, int64_t>::value...>::value>>
   TensorShape(int64_t i0, Ts... s)  // NOLINT
       : Base(typename Base::container_type{i0, int64_t{s}...}) {}
 
   template <typename It,
-            typename = typename std::enable_if<
-              std::is_same<typename std::iterator_traits<It>::value_type, int64_t>::value>::type>
+            typename = std::enable_if_t<
+              std::is_same<typename std::iterator_traits<It>::value_type, int64_t>::value>>
   TensorShape(It first, It last)
       : Base(typename Base::container_type{first, last}) {}
 
@@ -394,7 +394,7 @@ TensorShape<out_dim> shape_cat(int64_t left, const TensorShape<ndim> &right) {
 
 /// @brief Flatten list of shapes into contigous vector
 template <int sample_ndim>
-typename std::enable_if<sample_ndim != DynamicDimensions, std::vector<int64_t>>::type
+std::enable_if_t<sample_ndim != DynamicDimensions, std::vector<int64_t>>
 flatten_shapes(const std::vector<TensorShape<sample_ndim>> &shapes) {
   std::vector<int64_t> result;
   result.resize(sample_ndim * shapes.size());
@@ -409,9 +409,9 @@ flatten_shapes(const std::vector<TensorShape<sample_ndim>> &shapes) {
 /// @brief Get the dim from list of shapes that have uniform dimensions.
 /// @return 0 if list is empty, otherwise dim of first element
 template <typename T>
-typename std::enable_if<std::is_same<T, TensorShape<DynamicDimensions>>::value ||
-                            std::is_same<T, std::vector<int64_t>>::value,
-                        int>::type
+std::enable_if_t<std::is_same<T, TensorShape<DynamicDimensions>>::value ||
+                 std::is_same<T, std::vector<int64_t>>::value,
+                 int>
 get_dim_from_uniform(const std::vector<T> &shapes) {
   if (shapes.empty()) {
     return 0;
@@ -420,9 +420,9 @@ get_dim_from_uniform(const std::vector<T> &shapes) {
 }
 
 template <typename T>
-typename std::enable_if<std::is_same<T, TensorShape<DynamicDimensions>>::value ||
-                            std::is_same<T, std::vector<int64_t>>::value,
-                        std::vector<int64_t>>::type
+std::enable_if_t<std::is_same<T, TensorShape<DynamicDimensions>>::value ||
+                 std::is_same<T, std::vector<int64_t>>::value,
+                 std::vector<int64_t>>
 flatten_shapes(const std::vector<T> &shapes) {
   std::vector<int64_t> result;
   int uniform_sample_ndim = get_dim_from_uniform(shapes);
@@ -837,7 +837,7 @@ convert_dim<DynamicDimensions, DynamicDimensions>(TensorShape<DynamicDimensions>
 }
 
 template <int out_dim, int in_dim>
-typename std::enable_if<(out_dim != DynamicDimensions), TensorListShape<out_dim>>::type
+std::enable_if_t<(out_dim != DynamicDimensions), TensorListShape<out_dim>>
 convert_dim(const TensorListShape<in_dim> &in) {
   static_assert(out_dim == DynamicDimensions || in_dim == DynamicDimensions ||
                 in_dim == out_dim, "Incompatible number of dimensions"
@@ -847,14 +847,14 @@ convert_dim(const TensorListShape<in_dim> &in) {
 }
 
 template <int out_dim, int in_dim>
-typename std::enable_if<(out_dim == DynamicDimensions), TensorListShape<out_dim>>::type
+std::enable_if_t<(out_dim == DynamicDimensions), TensorListShape<out_dim>>
 convert_dim(const TensorListShape<in_dim> &in) {
   return in;  // use implicit conversion
 }
 
 
 template <int out_dim, int in_dim>
-typename std::enable_if<(out_dim != DynamicDimensions), TensorListShape<out_dim>>::type
+std::enable_if_t<(out_dim != DynamicDimensions), TensorListShape<out_dim>>
 convert_dim(TensorListShape<in_dim> &&in) {
   static_assert(out_dim == DynamicDimensions || in_dim == DynamicDimensions ||
                 in_dim == out_dim, "Incompatible number of dimensions"
@@ -864,7 +864,7 @@ convert_dim(TensorListShape<in_dim> &&in) {
 }
 
 template <int out_dim, int in_dim>
-typename std::enable_if<(out_dim == DynamicDimensions), TensorListShape<out_dim>>::type
+std::enable_if_t<(out_dim == DynamicDimensions), TensorListShape<out_dim>>
 convert_dim(TensorListShape<in_dim> &&in) {
   return std::move(in);  // use implicit conversion
 }

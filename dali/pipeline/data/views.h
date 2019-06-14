@@ -100,7 +100,7 @@ kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
-  using U = typename std::remove_const<T>::type;
+  using U = std::remove_const_t<T>;
   return { data.template mutable_data<U>(), list_shape<ndim>(data) };
 }
 
@@ -113,7 +113,7 @@ view(const TensorList<Backend> &data) {
                 "Missing `const` in T?");
   if (data.ntensor() == 0)
     return {};
-  using U = typename std::remove_const<T>::type;
+  using U = std::remove_const_t<T>;
   return { data.template data<U>(), list_shape<ndim>(data) };
 }
 
@@ -122,7 +122,7 @@ kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(Tensor<Backend> &data) {
   if (data.shape().empty())
     return {};
-  using U = typename std::remove_const<T>::type;
+  using U = std::remove_const_t<T>;
   return { data.template mutable_data<U>(), tensor_shape<ndim>(data) };
 }
 
@@ -137,7 +137,7 @@ kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
-  using U = typename std::remove_const<T>::type;
+  using U = std::remove_const_t<T>;
   return { data.template mutable_data<U>(), tensor_shape<ndim>(data) };
 }
 
@@ -149,7 +149,7 @@ view(const Tensor<Backend> &data) {
                 "Missing `const` in T?");
   if (data.shape().empty())
     return {};
-  using U = typename std::remove_const<T>::type;
+  using U = std::remove_const_t<T>;
   return { data.template data<U>(), tensor_shape<ndim>(data) };
 }
 
@@ -167,7 +167,7 @@ view_as_tensor(const TensorList<Backend> &data) {
                 "Missing `const` in T?");
   if (data.ntensor() == 0)
     return {};
-  using U = typename std::remove_const<T>::type;
+  using U = std::remove_const_t<T>;
   return { data.template data<U>(), tensor_shape<ndim>(data) };
 }
 

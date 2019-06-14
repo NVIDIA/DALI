@@ -34,13 +34,13 @@ template <typename T, size_t A>
 struct is_std_array<std::array<T, A> > : std::true_type {};
 
 template <typename T>
-using remove_const_t = typename std::remove_const<T>::type;
+using remove_const_t = std::remove_const_t<T>;
 
 template <typename T>
-using remove_cv_t = typename std::remove_cv<T>::type;
+using remove_cv_t = std::remove_cv_t<T>;
 
 template <bool Value, typename Type = void>
-using enable_if_t = typename std::enable_if<Value, Type>::type;
+using enable_if_t = std::enable_if_t<Value, Type>;
 
 }  // namespace dali
 

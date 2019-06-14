@@ -108,7 +108,7 @@ std::vector<testing::Arguments> devices = {
 namespace detail {
 
 template <typename T, int Rank, int CurrDim>
-inline typename std::enable_if<Rank == CurrDim>::type
+inline std::enable_if_t<Rank == CurrDim>
 tensor_loop_impl(const T* in_tensor,
                  const T* out_tensor,
                  const std::vector<Index>& /*unused*/,
@@ -119,7 +119,7 @@ tensor_loop_impl(const T* in_tensor,
 }
 
 template <typename T, int Rank, int CurrDim>
-inline typename std::enable_if<Rank != CurrDim>::type
+inline std::enable_if_t<Rank != CurrDim>
 tensor_loop_impl(const T* in_tensor,
                  const T* out_tensor,
                  const std::vector<Index>& shape,

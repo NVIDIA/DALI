@@ -27,7 +27,7 @@ namespace resample_test {
 
 template <typename ElementType>
 cv::Mat MatWithShape(TensorShape<3> shape) {
-  using U = typename std::remove_const<ElementType>::type;
+  using U = std::remove_const_t<ElementType>;
   int depth = cv::DataDepth<U>::value;
   return cv::Mat(shape[0], shape[1], CV_MAKETYPE(depth, shape[2]));
 }

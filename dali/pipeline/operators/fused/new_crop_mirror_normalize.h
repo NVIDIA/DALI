@@ -150,9 +150,9 @@ class NewCropMirrorNormalize : public Operator<Backend>, protected CropAttr {
   // In current implementation scratchpad memory is only used in the GPU kernel
   // In case of using scratchpad in the CPU kernel a scratchpad allocator per thread
   // should be instantiated
-  typename std::conditional<std::is_same<Backend, GPUBackend>::value,
+  std::conditional_t<std::is_same<Backend, GPUBackend>::value,
     kernels::ScratchpadAllocator,
-    std::vector<kernels::ScratchpadAllocator>>::type scratch_alloc_;
+    std::vector<kernels::ScratchpadAllocator>> scratch_alloc_;
 
   USE_OPERATOR_MEMBERS();
 };
