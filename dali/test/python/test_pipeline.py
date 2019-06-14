@@ -24,6 +24,7 @@ from timeit import default_timer as timer
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
+import random
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -1396,3 +1397,45 @@ def test_skip_cached_images():
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
                           batch_size=batch_size, N_iterations=100)
+
+def test_as_tensor():
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+
+        def define_graph(self):
+            _, self.labels = self.input()
+            return self.labels
+    batch_size = 8
+    shape = [[2, 2, 2], [8, 1], [1, 8], [4, 2], [2, 4], [8], [1, 2, 1, 2, 1, 2], [1, 1, 1, 8]]
+    pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id = 0)
+    pipe.build()
+    for sh in shape:
+        pipe_out = pipe.run()[0]
+        assert(pipe_out.as_tensor().shape() == [batch_size, 1])
+        assert(pipe_out.as_reshaped_tensor(sh).shape() == sh)
+        different_shape = random.choice(shape)
+        assert(pipe_out.as_reshaped_tensor(different_shape).shape() == different_shape)
+
+def test_as_tensor_fail():
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+
+        def define_graph(self):
+            _, self.labels = self.input()
+            return self.labels
+    batch_size = 8
+    shape = [[2, 2, 2, 3], [8, 1, 6], [1, 8, 4], [4, 2, 9], [2, 4, 0], [8, 2], [1, 2, 1, 2, 1, 2, 3], [7, 1, 1, 1, 8]]
+    pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id = 0)
+    pipe.build()
+    for sh in shape:
+        pipe_out = pipe.run()[0]
+        assert(pipe_out.as_tensor().shape() == [batch_size, 1])
+        try:
+            assert(pipe_out.as_reshaped_tensor(sh).shape() == sh)
+            assert(False)
+        except RuntimeError:
+            assert(True)

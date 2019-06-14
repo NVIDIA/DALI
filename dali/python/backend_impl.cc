@@ -321,6 +321,17 @@ void ExposeTensorList(py::module &m) { // NOLINT
       Parameters
       ----------
       )code")
+    .def("as_reshaped_tensor",
+        [](TensorList<CPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<CPUBackend>* {
+          return tl.AsReshapedTensor(new_shape);
+        },
+      R"code(
+      Returns a tensor that is a view of this `TensorList` cast to the given shape.
+
+      This function can only be called if `TensorList` is continuous in memory and
+      the volumes of requested `Tensor` and `TensorList` matches.
+      )code",
+      py::return_value_policy::reference_internal)
     .def("as_tensor", &TensorList<CPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
@@ -399,6 +410,17 @@ void ExposeTensorList(py::module &m) { // NOLINT
       ----------
       )code",
       py::keep_alive<0, 1>())
+    .def("as_reshaped_tensor",
+        [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<GPUBackend>* {
+          return tl.AsReshapedTensor(new_shape);
+        },
+      R"code(
+      Returns a tensor that is a view of this `TensorList` cast to the given shape.
+
+      This function can only be called if `TensorList` is continuous in memory and
+      the volumes of requested `Tensor` and `TensorList` matches.
+      )code",
+      py::return_value_policy::reference_internal)
     .def("as_tensor", &TensorList<GPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.

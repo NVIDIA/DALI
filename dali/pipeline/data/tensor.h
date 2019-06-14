@@ -265,6 +265,38 @@ class Tensor : public Buffer<Backend> {
   }
 
   /**
+   * @brief Wraps a TensorList and gives it a new shape
+   * TensorList has to be a valid tensor
+   * (there must be at least 1 tensor stored in the TensorList,
+   * volumes of the new and old shape need to match and
+   * all tensors need to be stored without
+   * any padding between them)
+   */
+  inline void ShareDataReshape(TensorList<Backend> *tl, const vector<Index> &new_shape) {
+    DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
+    DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
+    DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
+        "the input TensorList must have a valid data type.");
+    DALI_ENFORCE(tl->IsContinuousTensor(),
+      "All tensors in the input TensorList must be continuous in memory.");
+    Index product = 0;
+    for (auto &shape : tl->shape()) {
+       product += volume(shape);
+    }
+    DALI_ENFORCE(product == volume(new_shape),
+      "Requested shape need to have the same volume as the tensor list.");
+    data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
+
+    // Get the meta-data for the target tensor
+    shape_ = new_shape;
+    size_ = volume(shape_);
+    type_ = tl->type();
+    num_bytes_ = type_.size() * size_;
+    device_ = tl->device_id();
+    shares_data_ = true;
+  }
+
+  /**
    * @brief Wraps a TensorList
    * TensorList has to be a valid tensor
    * (there must be at least 1 tensor stored in TensorList,
@@ -274,11 +306,11 @@ class Tensor : public Buffer<Backend> {
    */
   inline void ShareData(TensorList<Backend> *tl) {
     DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
+    DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
         "the input TensorList must have a valid data type.");
     DALI_ENFORCE(tl->IsDenseTensor(),
       "All tensors in the input TensorList must have the same shape and be densely packed.");
-    DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
     data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
 
     // Get the meta-data for the target tensor
