@@ -311,19 +311,9 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
     // mapping each image_id to its WH dimension
     std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
 
-    // Change categories IDs to be in range [1, 80]
-    std::vector<int> deleted_categories{ 12, 26, 29, 30, 45, 66, 68, 69, 71, 83, 91 };
-    std::map<int, int> new_category_ids;
+    // mapping each category_id to its actual category
+    std::map<int, int> category_ids;
     int current_id = 1;
-    int vector_id = 0;
-    for (int i = 1; i <= 90; i++) {
-      if (i == deleted_categories[vector_id]) {
-        vector_id++;
-      } else {
-        new_category_ids.insert(std::make_pair(i, current_id));
-        current_id++;
-      }
-    }
 
     RAPIDJSON_ASSERT(r.PeekType() == kObjectType);
     r.EnterObject();
@@ -355,6 +345,27 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
           }
           image_id_pairs.push_back(std::make_pair(image_file_name, id));
           image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
+        }
+      } else if (0 == strcmp(key, "categories")) {
+        RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
+        r.EnterArray();
+        int id = -1;
+        while (r.NextArrayValue()) {
+          if (r.PeekType() != kObjectType) {
+            continue;
+          }
+          r.EnterObject();
+          while (const char* internal_key = r.NextObjectKey()) {
+            if (0 == strcmp(internal_key, "id")) {
+              id = r.GetInt();
+            } else {
+              r.SkipValue();
+            }
+          }
+          if (id != -1) {
+            category_ids.insert(std::make_pair(id, current_id));
+            current_id++;
+          }
         }
       } else if (0 == strcmp(key, "annotations")) {
         RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
@@ -395,11 +406,14 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
 
           annotations_multimap.insert(
             std::make_pair(image_id,
-              Annotation(bbox[0], bbox[1], bbox[2], bbox[3], new_category_ids[category_id])));
+              Annotation(bbox[0], bbox[1], bbox[2], bbox[3], category_id)));
         }
       } else {
         r.SkipValue();
       }
+    }
+    for (auto &elm : annotations_multimap) {
+      elm.second.category_id = category_ids[elm.second.category_id];
     }
     if (skip_empty) {
       std::vector<std::pair<std::string, int>> non_empty_ids;
