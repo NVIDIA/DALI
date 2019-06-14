@@ -16,20 +16,13 @@
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_H_
 
 #include "dali/core/common.h"
+#include "dali/core/host_dev.h"
 #include "dali/pipeline/operators/operator.h"
 
 /**
  * @brief Provides a framework for doing displacement filter operations
  * such as flip, jitter, water, swirl, etc.
  */
-
-#ifndef DISPLACEMENT_IMPL
-#ifdef __CUDA_ARCH__
-#define DISPLACEMENT_IMPL __host__ __device__
-#else
-#define DISPLACEMENT_IMPL
-#endif
-#endif
 
 namespace dali {
 
@@ -51,12 +44,12 @@ struct Point {
 };
 
 template <typename T>
-DISPLACEMENT_IMPL
+DALI_HOST_DEV
 T ToValidCoord(T coord, Index limit) {
   return coord >= 0 && coord < limit ? coord : -1;
 }
 template <typename T>
-DISPLACEMENT_IMPL
+DALI_HOST_DEV
 Point<T> CreatePointLimited(T x, T y, Index W, Index H) {
   return {ToValidCoord(x, W), ToValidCoord(y, H)};
 }
@@ -65,12 +58,11 @@ class DisplacementIdentity {
  public:
   explicit DisplacementIdentity(const OpSpec& spec) {}
 
-  template<typename T>
-  DISPLACEMENT_IMPL
-  Point<T> operator()(const Index h, const Index w, const Index c,
-                      const Index H, const Index W, const Index C) {
+  DALI_HOST_DEV
+  Point<int> operator()(const int h, const int w, const int c,
+                        const int H, const int W, const int C) {
     // identity
-    return {static_cast<T>(w), static_cast<T>(h)};
+    return { w, h };
   }
 
   void Cleanup() {}

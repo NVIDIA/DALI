@@ -32,23 +32,22 @@ class WarpAffineAugment {
   explicit WarpAffineAugment(const OpSpec& spec)
     : use_image_center(spec.GetArgument<bool>("use_image_center")) {}
 
-  template <typename T>
-  DISPLACEMENT_IMPL
-  Point<T> operator()(int h, int w, int c, int H, int W, int C) {
-    T hp = h;
-    T wp = w;
+  DALI_HOST_DEV
+  Point<float> operator()(int iy, int ix, int c, int H, int W, int C) {
+    float y = iy + 0.5f;
+    float x = ix + 0.5f;
     if (use_image_center) {
-      hp -= H/2.0f;
-      wp -= W/2.0f;
+      y -= H*0.5f;
+      x -= W*0.5f;
     }
-    T newX = param.matrix[0] * wp + param.matrix[1] * hp + param.matrix[2];
-    T newY = param.matrix[3] * wp + param.matrix[4] * hp + param.matrix[5];
+    float newX = param.matrix[0] * x + param.matrix[1] * y + param.matrix[2];
+    float newY = param.matrix[3] * x + param.matrix[4] * y + param.matrix[5];
     if (use_image_center) {
-      newX += W/2.0f;
-      newY += H/2.0f;
+      newX += W*0.5f;
+      newY += H*0.5f;
     }
 
-    return CreatePointLimited(newX, newY, W, H);
+    return { newX, newY };
   }
 
   void Cleanup() {}

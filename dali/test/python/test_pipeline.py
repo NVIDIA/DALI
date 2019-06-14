@@ -544,8 +544,9 @@ def test_rotate():
     orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):
         orig = orig_cpu.at(i)
-        M = cv2.getRotationMatrix2D((112,112),45, 1)
-        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_REPLICATE, flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
+        M = cv2.getRotationMatrix2D(((224-1)*0.5,(224-1)*0.5),45, 1)
+        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_CONSTANT, borderValue = (128, 128, 128),
+                             flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
         rotated_dali = pipe_out[2].as_cpu().at(i)
         diff = out - rotated_dali
         diff[rotated_dali==[128.,128.,128.]] = 0
@@ -585,8 +586,9 @@ def test_warpaffine():
     orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):
         orig = orig_cpu.at(i)
-        M = np.array([1.0, 0.8, -0.8*112, 0.0, 1.2, -0.2*112]).reshape((2,3))
-        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_REPLICATE, flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
+        M = np.array([1.0, 0.8, -0.8*111.5, 0.0, 1.2, -0.2*111.5]).reshape((2,3))
+        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_CONSTANT, borderValue = (128, 128, 128),
+                             flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
         dali_output = pipe_out[2].as_cpu().at(i)
         diff = out - dali_output
         diff[dali_output==[128.,128.,128.]] = 0
