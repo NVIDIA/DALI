@@ -111,7 +111,8 @@ class SliceFlipNormalizePermuteTest : public ::testing::Test {
         if (!is_zero_pad) {
           if (!mean.empty() && !inv_stddev.empty()) {
             auto c = mean.size() == 1 ? 0 : out_idx % out_shape[Dims - 1];
-            output_value = (clamp<OutputType>(in_tensor[in_idx]) - mean[c]) * inv_stddev[c];
+            output_value = clamp<OutputType>(
+              (static_cast<float>(in_tensor[in_idx]) - mean[c]) * inv_stddev[c]);
           } else {
             output_value = clamp<OutputType>(in_tensor[in_idx]);
           }
