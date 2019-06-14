@@ -19,13 +19,10 @@ import argparse
 import os
 from math import ceil, sqrt
 
-import numpy as np
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-from nvidia.dali.backend_impl import TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 
-import tensorflow as tf
 import nvidia.dali.tfrecord as tfrec
 
 from test_utils import compare_pipelines
