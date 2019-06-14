@@ -212,12 +212,11 @@ class DLL_PUBLIC OpSchema {
    * @brief Adds an optional non-vector argument to op
    */
   template <typename T>
-  DLL_PUBLIC inline typename std::enable_if<
-    !is_vector<T>::value && !is_std_array<T>::value,
-    OpSchema&>::type AddOptionalArg(const std::string &s,
-                                    const std::string &doc,
-                                    T default_value,
-                                    bool enable_tensor_input = false) {
+  DLL_PUBLIC inline std::enable_if_t<!is_vector<T>::value && !is_std_array<T>::value, OpSchema&>
+  AddOptionalArg(const std::string &s,
+                 const std::string &doc,
+                 T default_value,
+                 bool enable_tensor_input = false) {
     CheckArgument(s);
     auto to_store = Value::construct(default_value);
     optional_arguments_[s] = std::make_pair(doc, to_store.get());

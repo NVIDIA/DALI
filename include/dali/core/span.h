@@ -35,7 +35,7 @@ class span {
  public:
   // constants and types
   using element_type = ElementType;
-  using value_type = typename std::remove_cv<ElementType>::type;
+  using value_type = std::remove_cv_t<ElementType>;
   using index_type = ptrdiff_t;
   using difference_type = ptrdiff_t;
   using pointer = element_type *;
@@ -87,7 +87,7 @@ class span<ElementType, dynamic_extent> {
  public:
   // constants and types
   using element_type = ElementType;
-  using value_type = typename std::remove_cv<ElementType>::type;
+  using value_type = std::remove_cv_t<ElementType>;
   using index_type = ptrdiff_t;
   using difference_type = ptrdiff_t;
   using pointer = element_type *;

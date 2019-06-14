@@ -86,7 +86,7 @@ class Loader {
   }
 
   template <typename T>
-  typename std::enable_if<std::is_same<T, Tensor<CPUBackend>>::value>::type
+  std::enable_if_t<std::is_same<T, Tensor<CPUBackend>>::value>
   PrepareEmptyTensor(T& tensor) {
     tensor.set_pinned(false);
     // Initialize tensors to a set size to limit expensive reallocations
@@ -95,7 +95,7 @@ class Loader {
   }
 
   template <typename T>
-  typename std::enable_if<!std::is_same<T, Tensor<CPUBackend>>::value>::type
+  std::enable_if_t<!std::is_same<T, Tensor<CPUBackend>>::value>
   PrepareEmptyTensor(T&) {
     constexpr bool T_is_Tensor = std::is_same<T, Tensor<CPUBackend>>::value;
     DALI_ENFORCE(T_is_Tensor,

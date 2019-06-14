@@ -19,7 +19,7 @@
 
 template <typename Enum>
 std::string EnumToString(Enum value) {
-  return std::to_string(static_cast<typename std::underlying_type<Enum>::type>(value));
+  return std::to_string(static_cast<std::underlying_type_t<Enum>>(value));
 }
 
 namespace dali {

@@ -111,7 +111,7 @@ static_assert(align_up(5, 8) == 8, "Should align");
 
 
 template <typename DependentName, typename Result>
-using if_istype = typename std::conditional<false, DependentName, Result>::type;
+using if_istype = std::conditional_t<false, DependentName, Result>;
 
 template <typename Collection, typename T = void>
 using if_iterable = if_istype<decltype(*dali::end(std::declval<Collection>())),
@@ -217,7 +217,7 @@ struct volume_type<uint32_t, true> {
 
 template <typename ExtentType>
 using volume_t = typename volume_type<
-  typename std::remove_const<typename std::remove_reference<ExtentType>::type>::type>::type;
+  std::remove_const_t<std::remove_reference_t<ExtentType>>>::type;
 
 /// @brief Returns the product of all elements in shape
 /// @param shape_begin - start of the shape extent list

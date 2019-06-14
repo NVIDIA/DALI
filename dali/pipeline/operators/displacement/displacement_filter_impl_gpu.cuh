@@ -245,7 +245,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
   template <typename U = Displacement>
-  typename std::enable_if<HasParam<U>::value>::type PrepareDisplacement(DeviceWorkspace *ws) {
+  std::enable_if_t<HasParam<U>::value> PrepareDisplacement(DeviceWorkspace *ws) {
     params_.Resize({batch_size_});
     params_.mutable_data<typename U::Param>();
 
@@ -258,7 +258,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
   template <typename U = Displacement>
-  typename std::enable_if<!HasParam<U>::value>::type PrepareDisplacement(DeviceWorkspace *) {}
+  std::enable_if_t<!HasParam<U>::value> PrepareDisplacement(DeviceWorkspace *) {}
 
   void SetupSharedSampleParams(DeviceWorkspace *ws) override {
     if (has_mask_) {

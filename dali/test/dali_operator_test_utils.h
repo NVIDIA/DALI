@@ -33,7 +33,7 @@ extern const std::vector<Arguments> kDevices;  /// List of all devices used in t
  * Remove const pointer: const T* -> T
  */
 template<typename T>
-using remove_cp = typename std::remove_const<typename std::remove_pointer<T>::type>::type;
+using remove_cp = std::remove_const_t<std::remove_pointer_t<T>>;
 
 
 /**

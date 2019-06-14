@@ -197,14 +197,14 @@ void Fill(const TensorListView<StorageCPU, DataType, ndim> &tlv, Generator &gene
 }
 
 template <typename T>
-typename std::enable_if<std::is_floating_point<T>::value,
-                        std::uniform_real_distribution<T>>::type
+std::enable_if_t<std::is_floating_point<T>::value,
+                 std::uniform_real_distribution<T>>
 uniform_distribution(T lo, T hi) {
   return std::uniform_real_distribution<T>(lo, hi);
 }
 template <typename T>
-typename std::enable_if<std::is_integral<T>::value,
-                        std::uniform_int_distribution<T>>::type
+std::enable_if_t<std::is_integral<T>::value,
+                 std::uniform_int_distribution<T>>
 uniform_distribution(T lo, T hi) {
   return std::uniform_int_distribution<T>(lo, hi);
 }

@@ -149,7 +149,7 @@ inline __device__ DeviceString dev_to_string(long long x) {  // NOLINT
 }
 
 template <typename T>
-__device__ typename std::enable_if<std::is_integral<T>::value, DeviceString>::type
+__device__ std::enable_if_t<std::is_integral<T>::value, DeviceString>
 dev_to_string(T x) {
   return dev_to_string(static_cast<long long>(x));  // NOLINT
 }

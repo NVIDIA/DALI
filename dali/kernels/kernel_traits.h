@@ -61,7 +61,7 @@ template <>
 struct is_kernel_arg<KernelContext> : std::false_type {};
 
 template <typename T, template <typename> class Predicate, bool value = Predicate<
-  typename std::remove_const<typename std::remove_reference<T>::type>::type
+  std::remove_const_t<std::remove_reference_t<T>>
   >::value>
 struct filter {
   using type = std::tuple<T>;

@@ -29,8 +29,8 @@ template <typename From, typename To>
 struct check_implicit_conversion {
   static_assert(std::is_convertible<From*, To*>::value, "Conversion impossible");
   static_assert(std::is_same<
-    typename std::remove_cv<From>::type,
-    typename std::remove_cv<To>::type>::value,
+    std::remove_cv_t<From>,
+    std::remove_cv_t<To>>::value,
     "Implicit conversion can only change CV qualifiers");
 };
 

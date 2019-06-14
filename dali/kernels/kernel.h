@@ -133,7 +133,7 @@ void Run(
       const outputs<Kernel> &output,
       const inputs<Kernel> &input,
       const args<Kernel> &args) {
-  check_kernel<typename std::remove_const<Kernel>::type>();
+  check_kernel<std::remove_const_t<Kernel>>();
   apply_all(std::mem_fn(&Kernel::Run), instance, context, output, input, args);
 }
 

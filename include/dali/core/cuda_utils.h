@@ -65,20 +65,20 @@ struct device_side_allocator {
 // moving and perfect forwwarding
 
 template <typename T>
-constexpr typename std::remove_reference<T>::type &&
+constexpr std::remove_reference_t<T> &&
 __host__ __device__ cuda_move(T &&t) noexcept {
-  return static_cast<typename std::remove_reference<T>::type &&>(t);
+  return static_cast<std::remove_reference_t<T> &&>(t);
 }
 
 template <class T>
 __host__ __device__ constexpr T&&
-cuda_forward(typename std::remove_reference<T>::type& t) noexcept {
+cuda_forward(std::remove_reference_t<T>& t) noexcept {
   return static_cast<T&&>(t);
 }
 
 template <class T>
 __host__ __device__ constexpr T&&
-cuda_forward(typename std::remove_reference<T>::type&& t) noexcept {
+cuda_forward(std::remove_reference_t<T>&& t) noexcept {
   return static_cast<T&&>(t);
 }
 
