@@ -55,7 +55,7 @@ class FlipPythonOpPipeline(Pipeline):
 	
 def check_flip_cpu_vs_gpu(batch_size, vertical, horizontal):
     compare_pipelines(FlipPipeline('cpu', batch_size, is_vertical=vertical, is_horizontal=horizontal),
-                              FlipPipeline('gpu', batch_size, is_vertical=vertical, is_horizontal=horizontal),
+                      FlipPipeline('gpu', batch_size, is_vertical=vertical, is_horizontal=horizontal),
                       batch_size=batch_size, N_iterations=10)
 			
 def test_flip_cpu_vs_gpu():
@@ -81,7 +81,7 @@ def check_flip_vs_numpy(device, batch_size, vertical, horizontal):
     else:
         python_func = flip_vertical if vertical else flip_horizontal
     compare_pipelines(FlipPipeline(device, batch_size, is_vertical=vertical, is_horizontal=horizontal),
-                          FlipPythonOpPipeline(batch_size, python_func),                                                                                                               batch_size=batch_size, N_iterations=10)
+                      FlipPythonOpPipeline(batch_size, python_func),                                                                                                               batch_size=batch_size, N_iterations=10)
 
 def test_flip_vs_numpy():
     for device in ['cpu', 'gpu']:
