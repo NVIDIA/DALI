@@ -20,6 +20,7 @@ from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
+from functools import partial
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -159,3 +160,94 @@ def test_cmn_no_crop_args_vs_decoder_only():
     for device in {'cpu'}:
         for batch_size in {1, 4}:
             yield check_cmn_no_crop_args_vs_decoder_only, device, batch_size
+
+class PythonOpPipeline(Pipeline):
+    def __init__(self, batch_size, function, num_threads=1, device_id=0, num_gpus=1):
+
+        super(PythonOpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
+        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+        self.cmn = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        inputs, labels = self.input(name="Reader")
+        images = self.decode(inputs)
+        images = self.cmn(images)
+        return images
+
+def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, should_flip, should_pad, mean, std,
+                               input_layout, output_layout, image):
+    assert input_layout == types.NHWC
+    if input_layout == types.NHWC:
+        assert len(image.shape) == 3
+        H, W, C = image.shape[0], image.shape[1], image.shape[2]
+    assert H >= crop_h and W >= crop_w
+
+    start_y = int(np.round(np.float32(crop_y) * np.float32(H - crop_h)))
+    end_y = start_y + crop_h
+    start_x = int(np.round(np.float32(crop_x) * np.float32(W - crop_w)))
+    end_x = start_x + crop_w
+
+    out = image[start_y:end_y, start_x:end_x, :]
+    H, W, C = out.shape[0], out.shape[1], out.shape[2]
+
+    if len(mean) == 1:
+        mean = C * mean
+        std = C * std
+    assert len(mean) == C and len(std) == C
+    inv_std = [np.float32(1.0) / np.float32(std[c]) for c in range(C)]
+
+    dim_h = 1
+    out1 = np.flip(out, dim_h) if should_flip else out
+
+    out_C = C+1 if should_pad else C
+    if output_layout == types.NHWC:
+        output_shape = [H, W, out_C]
+    elif output_layout == types.NCHW:
+        output_shape = [out_C, H, W]
+    else:
+        assert False
+
+    out2 = np.zeros(output_shape, dtype=np.float32)
+    for y in range(H):
+        for x in range(W):
+            for c in range(C):
+                output_value = (np.float32(out1[y, x, c]) - np.float32(mean[c])) * inv_std[c]
+                if output_layout == types.NHWC:
+                    out2[y, x, c] = output_value
+                elif output_layout == types.NCHW:
+                    out2[c, y, x] = output_value
+                else:
+                    assert False
+    return out2
+
+def check_cmn_vs_numpy(device, batch_size, output_dtype, output_layout,
+                       mirror_probability, mean, std, should_pad, is_new_cmn):
+    # TODO(janton) figure out how to handle per sample parameters
+    should_flip = True if mirror_probability == 1.0 else False
+    assert mirror_probability == 1.0 or mirror_probability == 0.0
+    crop_y, crop_x, crop_h, crop_w = (0.2, 0.3, 224, 224)
+    function = partial(crop_mirror_normalize_func,
+                       crop_y, crop_x, crop_h, crop_w, should_flip, should_pad,
+                       mean, std, types.NHWC, output_layout)
+
+    iterations = 8 if batch_size == 1 else 1
+    compare_pipelines(CropMirrorNormalizePipeline(device, batch_size, output_dtype=output_dtype,
+                                                  output_layout=output_layout, mirror_probability=mirror_probability,
+                                                  mean=mean, std=std, pad_output=should_pad, is_new_cmn=True),
+                      PythonOpPipeline(batch_size, function),
+                      batch_size=batch_size, N_iterations=iterations)
+
+def test_cmn_python_op():
+    norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
+                  ([0.5 * 255], [0.225 * 255]),
+                  ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]
+    for device in ['cpu', 'gpu']:
+        for batch_size in [1, 8]:
+            for output_dtype in [types.FLOAT]:
+                for output_layout in [types.NHWC, types.NCHW]:
+                    for mirror_probability in [0.0, 1.0]:
+                        for (mean, std) in norm_data:
+                            for should_pad in [False, True]:
+                                yield check_cmn_vs_numpy, device, batch_size, output_dtype, output_layout, mirror_probability, \
+                                    mean, std, should_pad, True
