@@ -50,7 +50,7 @@ Resized with:
 
 * `resize_shorter`="200"  (`max_size` not set) => "200x600"
 * `resize_shorter`="200", `max_size`="400      => "132x400"
-* `resize_shorter`="200", `max_size`=1000      => "200x600")code", std::vector<float>{0.f, 0.f}, true);
+* `resize_shorter`="200", `max_size`=1000      => "200x600")code", std::vector<float>{0.f, 0.f}, false);
 
 DALI_SCHEMA(Resize)
   .DocStr(R"code(Resize images.)code")
