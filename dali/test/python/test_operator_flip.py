@@ -45,7 +45,6 @@ class FlipPythonOpPipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
         self.flip = ops.PythonFunction(function=function)
-        
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
