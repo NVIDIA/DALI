@@ -121,3 +121,38 @@ def test_cmn_cpu_old_vs_new():
                                 for pad_output in [False, True] if device_old != 'cpu' else [False]: # padding doesn't work in the old CPU version
                                     yield check_cmn_cpu_old_vs_new, device_new, device_old, batch_size, output_dtype, \
                                         output_layout, mirror_probability, mean, std, pad_output
+
+
+class NoCropPipeline(Pipeline):
+    def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1, decoder_only=False):
+        super(NoCropPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.decoder_only = decoder_only
+        self.device = device
+        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+        if not self.decoder_only:
+            self.cmn = ops.NewCropMirrorNormalize(device = self.device,
+                                                  image_type = types.RGB,
+                                                  output_dtype = types.UINT8,
+                                                  output_layout = types.NHWC)
+
+    def define_graph(self):
+        inputs, labels = self.input(name="Reader")
+
+        images = self.decode(inputs)
+        if not self.decoder_only:
+            images = self.decode(inputs)
+            if self.device == 'gpu':
+                images = images.gpu()
+            images = self.cmn(images)
+        return images
+
+def check_cmn_no_crop_args_vs_decoder_only(device, batch_size):
+    compare_pipelines(NoCropPipeline(device, batch_size, decoder_only=True),
+                      NoCropPipeline(device, batch_size, decoder_only=False),
+                      batch_size=batch_size, N_iterations=10)
+
+def test_cmn_no_crop_args_vs_decoder_only():
+    for device in {'cpu'}:
+        for batch_size in {1, 4}:
+            yield check_cmn_no_crop_args_vs_decoder_only, device, batch_size
