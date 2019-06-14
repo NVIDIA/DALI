@@ -61,7 +61,12 @@ class DataReader : public Operator<Backend> {
         curr_batch_producer_(0),
         consumer_cycle_(false),
         producer_cycle_(false),
-        samples_processed_(0) {}
+        device_id_(-1),
+        samples_processed_(0) {
+          if (std::is_same<Backend, GPUBackend>::value) {
+            device_id_ = spec.GetArgument<int>("device_id");
+          }
+        }
 
   ~DataReader() noexcept override {
     StopPrefetchThread();
@@ -87,6 +92,7 @@ class DataReader : public Operator<Backend> {
 
   // Main prefetch work loop
   void PrefetchWorker() {
+    DeviceGuard g(device_id_);
     ProducerWait();
     while (!finished_) {
       try {
@@ -296,6 +302,7 @@ class DataReader : public Operator<Backend> {
   int curr_batch_producer_;
   bool consumer_cycle_;
   bool producer_cycle_;
+  int device_id_;
 
   // keep track of how many samples have been processed over all threads.
   std::atomic<int> samples_processed_;

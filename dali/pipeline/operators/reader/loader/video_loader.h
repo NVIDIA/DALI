@@ -112,6 +112,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       dtype_(spec.GetArgument<DALIDataType>("dtype")),
       normalized_(spec.GetArgument<bool>("normalized")),
       filenames_(filenames),
+      device_id_(spec.GetArgument<int>("device_id")),
       codec_id_(0),
       stop_(false) {
     if (step_ < 0)
@@ -123,8 +124,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     /* Required to use libavformat: Initialize libavformat and register all
      * the muxers, demuxers and protocols.
      */
-
-    CUDA_CALL(cudaGetDevice(&device_id_));
 
     av_register_all();
   }
