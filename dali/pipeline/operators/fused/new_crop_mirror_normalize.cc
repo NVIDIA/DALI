@@ -43,10 +43,12 @@ Normalization takes input image and produces output using formula:
 - `1` - perform horizontal flip for this image.
 )code",
     0, true)
-  .AddArg("mean",
-    R"code(Mean pixel values for image normalization.)code", DALI_FLOAT_VEC)
-  .AddArg("std",
-    R"code(Standard deviation values for image normalization.)code", DALI_FLOAT_VEC)
+  .AddOptionalArg("mean",
+    R"code(Mean pixel values for image normalization.)code",
+    std::vector<float>{0.0f})
+  .AddOptionalArg("std",
+    R"code(Standard deviation values for image normalization.)code",
+    std::vector<float>{1.0f})
   .AddParent("Crop");
 
 DALI_REGISTER_OPERATOR(NewCropMirrorNormalize, NewCropMirrorNormalize<CPUBackend>, CPU);

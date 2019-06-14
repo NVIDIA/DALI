@@ -78,23 +78,10 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
         DALI_FAIL("Not supported layout");
     }
 
-    DALI_ENFORCE(H >= crop_height_[data_idx] && W >= crop_width_[data_idx],
-      "Image dimensions for sample " + std::to_string(data_idx)
-      + " (" + std::to_string(H)
-      + ", " + std::to_string(W) + ")"
-      + " are smaller than the cropping window"
-      + " (" + std::to_string(crop_height_[data_idx])
-      + ", " + std::to_string(crop_width_[data_idx]) + ")");
-
-    auto crop_pos_y_x = CalculateCropYX(
-      crop_y_norm_[data_idx],
-      crop_x_norm_[data_idx],
-      crop_height_[data_idx],
-      crop_width_[data_idx],
-      H, W);
-
     auto crop_h = crop_height_[data_idx];
     auto crop_w = crop_width_[data_idx];
+    auto crop_pos_y_x = CalculateCropYX(crop_y_norm_[data_idx], crop_x_norm_[data_idx],
+                                        crop_h, crop_w, H, W);
 
     int64_t crop_y, crop_x;
     std::tie(crop_y, crop_x) = crop_pos_y_x;
