@@ -38,10 +38,10 @@ class FlipPipeline(Pipeline):
 class FlipPythonOpPipeline(Pipeline):
     def __init__(self,  batch_size,function, num_threads=1, device_id=0, num_gpus=1 ):
         super(FlipPythonOpPipeline, self).__init__(batch_size,
-                                           num_threads,
-                                           device_id, 
-                                           exec_async=False,
-                                           exec_pipelined=False)
+                                                   num_threads,
+                                                   device_id, 
+                                                   exec_async=False,
+                                                   exec_pipelined=False)
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
         self.flip = ops.PythonFunction(function=function)
