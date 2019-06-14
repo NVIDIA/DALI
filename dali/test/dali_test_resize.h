@@ -54,10 +54,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
         } else {
           max_size_enforced = spec.ArgumentDefined("max_size");
           if (max_size_enforced) {
-            max_size = spec.GetRepeatedArgument<float>("max_size");
-            if (max_size.size() == 1) {
-              max_size.push_back(max_size[0]);
-            }
+            GetSingleOrRepeatedArg(spec, max_size, "max_size", 2);
           }
         }
       }

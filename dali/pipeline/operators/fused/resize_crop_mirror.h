@@ -55,12 +55,9 @@ class ResizeCropMirrorAttr : protected CropAttr {
 
     max_size_enforced_ = spec.ArgumentDefined("max_size");
     if (max_size_enforced_) {
-      max_size_ = spec.GetRepeatedArgument<float>("max_size");
+      GetSingleOrRepeatedArg(spec, max_size_, "max_size", 2);
       DALI_ENFORCE(max_size_.size() > 0 && max_size_.size() <= 2,
-                    "max_size has to be either a scalar or a size 2 array.");
-      if (max_size_.size() == 1) {
-        max_size_.push_back(max_size_[0]);
-      }
+                   "max_size has to be either a scalar or a size 2 array.");
     }
   }
 
