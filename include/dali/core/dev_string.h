@@ -127,6 +127,8 @@ struct DeviceString {
 
 constexpr __device__ const char *dev_to_string(char *literal) { return literal; }
 constexpr __device__ const char *dev_to_string(const char *literal) { return literal; }
+inline __device__ DeviceString dev_to_string(bool b) { return b ? "true" : "false"; }
+
 inline __device__ DeviceString dev_to_string(long long x) {  // NOLINT
   if (x == 0)
     return "0";
@@ -144,7 +146,7 @@ inline __device__ DeviceString dev_to_string(long long x) {  // NOLINT
     buf[--cursor] = digit + '0';
   }
   if (neg)
-    buf[--cursor] = '0';
+    buf[--cursor] = '-';
   return buf+cursor;
 }
 
@@ -247,7 +249,7 @@ inline __device__ DeviceString dev_to_string(float x) {
 
   buf[rcursor] = 0;
   if (neg)
-    buf[--lcursor] = '0';
+    buf[--lcursor] = '-';
   return buf+lcursor;
 }
 

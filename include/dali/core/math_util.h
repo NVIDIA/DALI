@@ -15,6 +15,9 @@
 #ifndef DALI_CORE_MATH_UTIL_H_
 #define DALI_CORE_MATH_UTIL_H_
 
+#ifdef __SSE__
+#include <xmmintrin.h>
+#endif
 #ifdef __CUDA_ARCH__
 #include <cuda_runtime.h>
 #else
@@ -51,6 +54,71 @@ inline DALI_HOST_DEV int round_int(float x) {
 template <typename T>
 DALI_HOST_DEV constexpr T clamp(const T &value, const T &lo, const T &hi) {
   return value < lo ? lo : value > hi ? hi : value;
+}
+
+DALI_HOST_DEV inline float rsqrt(float x) {
+#ifdef __CUDA_ARCH__
+  return __frsqrt_rn(x);
+#elif defined __SSE__
+  __m128 X = _mm_set_ss(x);
+  __m128 tmp = _mm_rsqrt_ss(X);
+  float y = _mm_cvtss_f32(tmp);
+  return y * (1.5f - x*0.5f * y*y);
+#else
+  int32_t i;
+  float x2, y;
+  x2 = x * 0.5f;
+  y  = x;
+  i  = *(const int32_t*)&y;
+  i  = 0x5F375A86 - (i >> 1);
+  y  = *(const float *)&i;
+  y  = y * (1.5f - (x2 * y * y));
+  y  = y * (1.5f - (x2 * y * y));
+  return y;
+#endif
+}
+
+DALI_HOST_DEV inline float fast_rsqrt(float x) {
+#ifdef __CUDA_ARCH__
+  return __frsqrt_rn(x);
+#elif defined __SSE__
+  __m128 X = _mm_set_ss(x);
+  __m128 tmp = _mm_rsqrt_ss(X);
+  return _mm_cvtss_f32(tmp);
+#else
+  int32_t i;
+  float x2, y;
+  x2 = x * 0.5f;
+  y  = x;
+  i  = *(const int32_t*)&y;
+  i  = 0x5F375A86 - (i >> 1);
+  y  = *(const float *)&i;
+  y  = y * (1.5f - (x2 * y * y));
+  return y;
+#endif
+}
+
+DALI_HOST_DEV inline double rsqrt(double x) {
+  return 1.0/sqrt(x);
+}
+
+DALI_HOST_DEV inline double fast_rsqrt(double x) {
+#ifdef  __CUDA_ARCH__
+  // not likely to be used at device side anyway
+  return fast_rsqrt(static_cast<float>(x));
+#else
+  int64_t i;
+  double x2, y;
+  x2 = x * 0.5;
+  y  = x;
+  i  = *(const int64_t*)&y;
+  i  = 0x5FE6EB50C7B537A9 - (i >> 1);
+  y  = *(const double *)&i;
+  y  = y * (1.5 - (x2 * y * y));
+  y  = y * (1.5 - (x2 * y * y));
+  y  = y * (1.5 - (x2 * y * y));
+  return y;
+#endif
 }
 
 }  // namespace dali
