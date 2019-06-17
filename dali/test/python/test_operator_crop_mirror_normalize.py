@@ -175,12 +175,25 @@ class PythonOpPipeline(Pipeline):
         images = self.cmn(images)
         return images
 
-def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, should_flip, should_pad, mean, std,
+# Those are hardcoded coin flip results when using `seed=7865`
+cmn_coin_flip_samples = {
+  0.0 : [False],
+  1.0 : [True],
+  0.5 : [False, False, True, True, False, True, True]
+}
+cmn_idx = 0
+
+def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, mirror_probability, should_pad, mean, std,
                                input_layout, output_layout, image):
-    assert input_layout == types.NHWC
+    assert input_layout == types.NHWC or input_layout == types.NFHWC
     if input_layout == types.NHWC:
+        assert output_layout == types.NHWC or output_layout == types.NCHW
         assert len(image.shape) == 3
-        H, W, C = image.shape[0], image.shape[1], image.shape[2]
+        F, H, W, C = 1, image.shape[0], image.shape[1], image.shape[2]
+    elif input_layout == types.NFHWC:
+        assert output_layout == types.NFHWC or output_layout == types.NFCHW
+        assert len(image.shape) == 4
+        F, H, W, C = image.shape[0], image.shape[1], image.shape[2], image.shape[3]
     assert H >= crop_h and W >= crop_w
 
     start_y = int(np.round(np.float32(crop_y) * np.float32(H - crop_h)))
@@ -188,47 +201,51 @@ def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, should_flip, shou
     start_x = int(np.round(np.float32(crop_x) * np.float32(W - crop_w)))
     end_x = start_x + crop_w
 
-    out = image[start_y:end_y, start_x:end_x, :]
-    H, W, C = out.shape[0], out.shape[1], out.shape[2]
+    # Crop
+    if input_layout == types.NHWC:
+        out = image[start_y:end_y, start_x:end_x, :]
+        H, W = out.shape[0], out.shape[1]
+    elif input_layout == types.NFHWC:
+        out = image[:, start_y:end_y, start_x:end_x, :]
+        H, W = out.shape[1], out.shape[2]
 
     if len(mean) == 1:
         mean = C * mean
         std = C * std
     assert len(mean) == C and len(std) == C
     inv_std = [np.float32(1.0) / np.float32(std[c]) for c in range(C)]
+    mean = np.float32(mean)
 
-    dim_h = 1
+    # Flip
+    global cmn_coin_flip_samples, cmn_idx
+    should_flip = cmn_coin_flip_samples[mirror_probability][cmn_idx]
+    cmn_idx = (cmn_idx + 1) % len(cmn_coin_flip_samples[mirror_probability])
+
+    dim_h = 2 if input_layout == types.NFHWC else 1
     out1 = np.flip(out, dim_h) if should_flip else out
 
-    out_C = C+1 if should_pad else C
-    if output_layout == types.NHWC:
-        output_shape = [H, W, out_C]
-    elif output_layout == types.NCHW:
-        output_shape = [out_C, H, W]
+    # Pad, normalize, transpose
+    out_C = C + 1 if should_pad else C
+    if input_layout == types.NHWC:
+        out2 = np.zeros([H, W, out_C], dtype=np.float32)
+        out2[:, :, 0:C] = (np.float32(out1) - mean) * inv_std
+        return np.transpose(out2, (2, 0, 1)) if output_layout == types.NCHW else out2
+    elif input_layout == types.NFHWC:
+        out2 = np.zeros([F, H, W, out_C], dtype=np.float32)
+        out2[:, :, :, 0:C] = (np.float32(out1) - mean) * inv_std
+        return np.transpose(out2, (0, 3, 1, 2)) if output_layout == types.NFCHW else out2
     else:
         assert False
 
-    out2 = np.zeros(output_shape, dtype=np.float32)
-    for y in range(H):
-        for x in range(W):
-            for c in range(C):
-                output_value = (np.float32(out1[y, x, c]) - np.float32(mean[c])) * inv_std[c]
-                if output_layout == types.NHWC:
-                    out2[y, x, c] = output_value
-                elif output_layout == types.NCHW:
-                    out2[c, y, x] = output_value
-                else:
-                    assert False
-    return out2
-
 def check_cmn_vs_numpy(device, batch_size, output_dtype, output_layout,
                        mirror_probability, mean, std, should_pad, is_new_cmn):
-    # TODO(janton) figure out how to handle per sample parameters
-    should_flip = True if mirror_probability == 1.0 else False
-    assert mirror_probability == 1.0 or mirror_probability == 0.0
+    assert mirror_probability in cmn_coin_flip_samples
+    global cmn_idx
+    cmn_idx = 0
+
     crop_y, crop_x, crop_h, crop_w = (0.2, 0.3, 224, 224)
     function = partial(crop_mirror_normalize_func,
-                       crop_y, crop_x, crop_h, crop_w, should_flip, should_pad,
+                       crop_y, crop_x, crop_h, crop_w, mirror_probability, should_pad,
                        mean, std, types.NHWC, output_layout)
 
     iterations = 8 if batch_size == 1 else 1
@@ -246,8 +263,115 @@ def test_cmn_python_op():
         for batch_size in [1, 8]:
             for output_dtype in [types.FLOAT]:
                 for output_layout in [types.NHWC, types.NCHW]:
-                    for mirror_probability in [0.0, 1.0]:
+                    mirror_probs = [0.0, 0.5, 1.0] if batch_size > 1 else [0.0, 1.0]
+                    for mirror_probability in mirror_probs:
                         for (mean, std) in norm_data:
                             for should_pad in [False, True]:
                                 yield check_cmn_vs_numpy, device, batch_size, output_dtype, output_layout, mirror_probability, \
                                     mean, std, should_pad, True
+
+
+class CMNRandomDataPipeline(Pipeline):
+    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0, num_gpus=1,
+                 output_dtype = types.FLOAT, output_layout = types.NFHWC,
+                 mirror_probability = 0.0, mean=[0., 0., 0.], std=[1., 1., 1.], pad_output=False):
+        super(CMNRandomDataPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.device = device
+        self.layout = layout
+        self.iterator = iterator
+        self.inputs = ops.ExternalSource()
+        self.cmn = ops.NewCropMirrorNormalize(device = self.device,
+                                              output_dtype = output_dtype,
+                                              output_layout = output_layout,
+                                              crop = (224, 224),
+                                              crop_pos_x = 0.3,
+                                              crop_pos_y = 0.2,
+                                              image_type = types.RGB,
+                                              mean = mean,
+                                              std = std,
+                                              pad_output = pad_output)
+        self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
+
+    def define_graph(self):
+        self.data = self.inputs()
+        random_data = self.data.gpu() if self.device == 'gpu' else self.data
+        rng = self.coin()
+        out = self.cmn(random_data, mirror=rng)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data, layout=self.layout)
+
+class CMNRandomDataPythonOpPipeline(Pipeline):
+    def __init__(self, function, batch_size, layout, iterator, num_threads=1, device_id=0):
+        super(CMNRandomDataPythonOpPipeline, self).__init__(batch_size,
+                                                          num_threads,
+                                                          device_id,
+                                                          exec_async=False,
+                                                          exec_pipelined=False)
+        self.layout = layout
+        self.iterator = iterator
+        self.inputs = ops.ExternalSource()
+        self.cmn = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        self.data = self.inputs()
+        out = self.cmn(self.data)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data, layout=self.layout)
+
+def check_cmn_random_data_vs_numpy(device, batch_size, output_dtype, input_layout, input_shape,
+                                   output_layout, mirror_probability, mean, std, should_pad):
+    crop_y, crop_x, crop_h, crop_w = (0.2, 0.3, 224, 224)
+    eii1 = RandomDataIterator(batch_size, shape=input_shape)
+    eii2 = RandomDataIterator(batch_size, shape=input_shape)
+
+    assert mirror_probability in cmn_coin_flip_samples
+    global cmn_idx
+    cmn_idx = 0
+
+    function = partial(crop_mirror_normalize_func,
+                       crop_y, crop_x, crop_h, crop_w, mirror_probability, should_pad,
+                       mean, std, input_layout, output_layout)
+
+    compare_pipelines(CMNRandomDataPipeline(device, batch_size, input_layout, iter(eii1),
+                                          output_dtype = output_dtype, output_layout = output_layout,
+                                          mirror_probability = mirror_probability, mean = mean, std= std,
+                                          pad_output = should_pad),
+                      CMNRandomDataPythonOpPipeline(function, batch_size, input_layout, iter(eii2)),
+                      batch_size=batch_size, N_iterations=1)
+
+def test_cmn_random_data_vs_numpy():
+    norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
+                  ([0.5 * 255], [0.225 * 255]),
+                  ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]
+    output_layouts = {
+        types.NHWC : [types.NHWC, types.NCHW],
+        types.NFHWC : [types.NFHWC, types.NFCHW]
+    }
+
+    input_shapes = {
+        types.NHWC : [(600, 800, 3)],
+        types.NFHWC : [(5, 600, 800, 3)],
+    }
+
+    for device in ['cpu', 'gpu']:
+        for batch_size in [1, 8]:
+            for output_dtype in [types.FLOAT]:
+                for input_layout in [types.NHWC, types.NFHWC]:
+                    for input_shape in input_shapes[input_layout]:
+                        if input_layout == types.NFHWC:
+                            assert len(input_shape) == 4
+                        elif input_layout == types.NHWC:
+                            assert len(input_shape) == 3
+                        for output_layout in output_layouts[input_layout]:
+                            mirror_probs = [0.0, 0.5, 1.0] if batch_size > 1 else [0.0, 1.0]
+                            for mirror_probability in mirror_probs:
+                                for (mean, std) in norm_data:
+                                    for should_pad in [False, True]:
+                                        yield check_cmn_random_data_vs_numpy, device, batch_size, output_dtype, input_layout, input_shape, \
+                                            output_layout, mirror_probability, mean, std, should_pad

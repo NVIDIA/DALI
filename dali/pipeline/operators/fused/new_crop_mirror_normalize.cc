@@ -26,10 +26,14 @@ DALI_SCHEMA(NewCropMirrorNormalize)
 Normalization takes input image and produces output using formula:
 
   output = (input - mean) / std
+
+Note that not providing any crop argument will result into mirroring and
+normalization only.
 )code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
+  .AllowSequences()
   .AddOptionalArg("output_dtype",
     R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
