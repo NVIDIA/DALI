@@ -349,11 +349,12 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
       } else if (0 == strcmp(key, "categories")) {
         RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
         r.EnterArray();
-        int id = -1;
+        int id;
         while (r.NextArrayValue()) {
           if (r.PeekType() != kObjectType) {
             continue;
           }
+          id = -1;
           r.EnterObject();
           while (const char* internal_key = r.NextObjectKey()) {
             if (0 == strcmp(internal_key, "id")) {
@@ -362,10 +363,9 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
               r.SkipValue();
             }
           }
-          if (id != -1) {
-            category_ids.insert(std::make_pair(id, current_id));
-            current_id++;
-          }
+          DALI_ENFORCE(id != -1, "Missing category ID in the JSON annotations file");
+          category_ids.insert(std::make_pair(id, current_id));
+          current_id++;
         }
       } else if (0 == strcmp(key, "annotations")) {
         RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
