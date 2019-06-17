@@ -12,7 +12,7 @@ from random import shuffle
 batch_size = 1
 sequence_length = 2
 dali_extra_path = os.environ['DALI_EXTRA_PATH']
-image_dir = dali_extra_path + "/db/optical_flow/slow_preset/two_frames/"
+image_dir = os.path.join(dali_extra_path, "db", "optical_flow", "slow_preset", "two_frames")
 
 
 class OFPipeline(Pipeline):
@@ -34,5 +34,3 @@ def test_of():
     myarray = np.loadtxt(image_dir + '/../decoded_flow_vector.dat')
     assert (0.9 > np.mean(np.abs(frames[0][0].flatten() - myarray)))
 
-if __name__ == '__main__':
-    test_of()
