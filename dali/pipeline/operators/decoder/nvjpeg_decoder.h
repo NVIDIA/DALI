@@ -28,6 +28,7 @@
 #include <memory>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
+#include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/util/image.h"
@@ -36,28 +37,6 @@
 #include "dali/core/common.h"
 
 namespace dali {
-
-#define NVJPEG_CALL(code)                                    \
-  do {                                                       \
-    nvjpegStatus_t status = code;                            \
-    if (status != NVJPEG_STATUS_SUCCESS) {                   \
-      dali::string error = dali::string("NVJPEG error \"") + \
-        std::to_string(static_cast<int>(status)) + "\"";     \
-      DALI_FAIL(error);                                      \
-    }                                                        \
-  } while (0)
-
-#define NVJPEG_CALL_EX(code, extra)                          \
-  do {                                                       \
-    nvjpegStatus_t status = code;                            \
-    string extra_info = extra;                               \
-    if (status != NVJPEG_STATUS_SUCCESS) {                   \
-      dali::string error = dali::string("NVJPEG error \"") + \
-        std::to_string(static_cast<int>(status)) + "\"" +    \
-        " " + extra_info;                                    \
-      DALI_FAIL(error);                                      \
-    }                                                        \
-  } while (0)
 
 namespace memory {
 
