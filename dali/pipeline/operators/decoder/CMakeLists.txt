@@ -18,6 +18,9 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 
 # Get all the source files and dump test files
 if (BUILD_NVJPEG)
+  list(APPEND DALI_SRCS
+    "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_helper.cc"
+  )
   if (NVJPEG_DECOUPLED_API)
     list(APPEND DALI_SRCS
       "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_allocator.cc"
