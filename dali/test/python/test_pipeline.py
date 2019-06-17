@@ -1439,3 +1439,31 @@ def test_as_tensor_fail():
             assert(False)
         except RuntimeError:
             assert(True)
+
+def test_python_formats():
+    class TestPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus, test_array):
+            super(TestPipeline, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.input_data = ops.ExternalSource()
+            self.test_array = test_array
+
+        def define_graph(self):
+            self.data = self.input_data()
+            return (self.data)
+
+
+        def iter_setup(self):
+            self.feed_input(self.data, self.test_array)
+
+    for t in [np.bool_, np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
+             np.uint8, np.uint16, np.uint32, np.uint64, np.float_, np.float32, np.float16,
+             np.short, np.long, np.longlong, np.ushort, np.ulonglong]:
+        test_array = np.array([[1, 1], [1, 1]], dtype=t)
+        pipe = TestPipeline(2, 1, 0, 1, test_array)
+        pipe.build()
+        out = pipe.run()[0]
+        out_dtype = out.at(0).dtype
+        assert(test_array.dtype.itemsize == out_dtype.itemsize)
+        assert(test_array.dtype.str == out_dtype.str)
