@@ -48,26 +48,25 @@ struct BlockDesc {
   size_t size;
 };
 
-template <typename OutputType, typename InputType, unsigned Dims>
+template <typename OutputType, typename InputType, unsigned Dims, bool should_normalize>
 __device__ inline void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ out,
                                                      const InputType *__restrict__ in,
                                                      const int64_t *out_strides,
                                                      const int64_t *in_strides,
                                                      const int64_t *out_shape,
                                                      const int64_t *padded_out_shape,
-                                                     bool should_normalize,
                                                      bool should_zero_pad,
                                                      unsigned norm_dim,
-                                                     const float *mean,
-                                                     const float *inv_stddev,
+                                                     const float *norm_add,
+                                                     const float *norm_mul,
                                                      size_t offset, size_t block_end) {
   if (Dims > 1 && !should_normalize &&
       out_strides[Dims - 1] == in_strides[Dims - 1] &&
       out_shape[Dims - 1] == padded_out_shape[Dims - 1]) {
     const unsigned NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFlipNormalizePermuteFunc<OutputType, InputType, NextDims>(
-        out, in, out_strides, in_strides, out_shape, padded_out_shape, should_normalize,
-        should_zero_pad, norm_dim, mean, inv_stddev, offset, block_end);
+    SliceFlipNormalizePermuteFunc<OutputType, InputType, NextDims, should_normalize>(
+        out, in, out_strides, in_strides, out_shape, padded_out_shape,
+        should_zero_pad, norm_dim, norm_add, norm_mul, offset, block_end);
     return;
   }
 
@@ -97,7 +96,7 @@ __device__ inline void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ ou
       in_idx += idx;  // remaining dims have equal strides
       if (should_normalize) {
         out[out_idx] = clamp<OutputType>(
-          (static_cast<float>(in[in_idx]) - mean[norm_i]) * inv_stddev[norm_i]);
+          fmaf(static_cast<float>(in[in_idx]), norm_mul[norm_i], norm_add[norm_i]));
       } else {
         out[out_idx] = clamp<OutputType>(in[in_idx]);
       }
@@ -105,11 +104,11 @@ __device__ inline void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ ou
   }
 }
 
-template <typename OutputType, typename InputType, size_t Dims>
+template <typename OutputType, typename InputType, size_t Dims, bool should_normalize>
 __global__ void SliceFlipNormalizePermuteKernel(const SampleDesc<Dims> *samples,
                                                 const BlockDesc *blocks,
-                                                const float *mean,
-                                                const float *inv_stddev,
+                                                const float *norm_add,
+                                                const float *norm_mul,
                                                 unsigned normalization_dim) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
   size_t offset = blocks[blockIdx.x].offset + threadIdx.x;
@@ -125,12 +124,10 @@ __global__ void SliceFlipNormalizePermuteKernel(const SampleDesc<Dims> *samples,
     }
   }
 
-  bool should_normalize = mean != nullptr && inv_stddev != nullptr;
-  SliceFlipNormalizePermuteFunc<OutputType, InputType, Dims>(
+  SliceFlipNormalizePermuteFunc<OutputType, InputType, Dims, should_normalize>(
     out, in, sample.out_strides.data(), sample.in_strides.data(),
     sample.out_shape.data(), sample.padded_out_shape.data(),
-    should_normalize, should_zero_pad,
-    normalization_dim, mean, inv_stddev, offset, block_end);
+    should_zero_pad, normalization_dim, norm_add, norm_mul, offset, block_end);
 }
 
 }  // namespace detail
@@ -191,16 +188,16 @@ class SliceFlipNormalizePermuteGPU {
 
     detail::SampleDesc<Dims>* sample_descs_cpu =
       context.scratchpad->Allocate<detail::SampleDesc<Dims>>(AllocType::Host, num_samples);
-    float *mean_cpu = mean_data.empty() ? nullptr :
+    float *norm_add_cpu = mean_data.empty() ? nullptr :
       context.scratchpad->Allocate<float>(AllocType::Host, mean_data.size());
-    float *inv_stddev_cpu = inv_stddev_data.empty() ? nullptr :
+    float *norm_mul_cpu = inv_stddev_data.empty() ? nullptr :
       context.scratchpad->Allocate<float>(AllocType::Host, inv_stddev_data.size());
     detail::BlockDesc *block_descs_cpu =
       context.scratchpad->Allocate<detail::BlockDesc>(AllocType::Host, block_count_);
 
     for (size_t i = 0; i < mean_data.size(); i++) {
-      mean_cpu[i] = mean_data[i];
-      inv_stddev_cpu[i] = inv_stddev_data[i];
+      norm_add_cpu[i] = -mean_data[i] * inv_stddev_data[i];
+      norm_mul_cpu[i] = inv_stddev_data[i];
     }
     unsigned normalization_dim;
     std::vector<size_t> sample_sizes(in.size());
@@ -238,11 +235,11 @@ class SliceFlipNormalizePermuteGPU {
       context.scratchpad->Allocate<detail::SampleDesc<Dims>>(
         AllocType::GPU, num_samples);
 
-    float *mean = mean_data.empty() ? nullptr :
+    float *norm_add = mean_data.empty() ? nullptr :
       context.scratchpad->Allocate<float>(
         AllocType::GPU, mean_data.size());
 
-    float *inv_stddev = inv_stddev_data.empty() ? nullptr :
+    float *norm_mul = inv_stddev_data.empty() ? nullptr :
       context.scratchpad->Allocate<float>(
         AllocType::GPU, inv_stddev_data.size());
 
@@ -261,9 +258,15 @@ class SliceFlipNormalizePermuteGPU {
                     context.gpu.stream);
 
     const auto grid = block_count_;
-    detail::SliceFlipNormalizePermuteKernel<OutputType, InputType, Dims>
-        <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs, mean, inv_stddev,
-                                                     normalization_dim);
+    if (norm_add != nullptr && norm_mul != nullptr) {
+      detail::SliceFlipNormalizePermuteKernel<OutputType, InputType, Dims, true>
+          <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs, norm_add, norm_mul,
+                                                       normalization_dim);
+    } else {
+      detail::SliceFlipNormalizePermuteKernel<OutputType, InputType, Dims, false>
+          <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs, norm_add, norm_mul,
+                                                       normalization_dim);
+    }
   }
 };
 
