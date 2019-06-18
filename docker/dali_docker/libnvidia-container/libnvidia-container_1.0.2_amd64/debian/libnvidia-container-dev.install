@@ -1,0 +1,4 @@
+usr/include/*.h
+usr/lib/x86_64-linux-gnu/lib*.so
+usr/lib/x86_64-linux-gnu/lib*.a
+usr/lib/x86_64-linux-gnu/pkgconfig/*.pc

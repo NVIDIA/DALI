@@ -1,0 +1,11 @@
+prefix=/usr
+exec_prefix=/usr
+libdir=/usr/lib/x86_64-linux-gnu
+includedir=/usr/include
+
+Name: libnvidia-container
+Description: NVIDIA container library
+Version: 1.0.2
+Libs: -L${libdir} -lnvidia-container
+Libs.private: -ldl -lcap -lseccomp
+Cflags: -I${includedir}

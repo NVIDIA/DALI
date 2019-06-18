@@ -1,0 +1,35 @@
+Format: 1.8
+Source: libnvidia-container
+Binary: libnvidia-container1 libnvidia-container-dev libnvidia-container1-dbg libnvidia-container-tools
+Architecture: amd64
+Version: 1.0.2-1
+Distribution: UNRELEASED
+Urgency: medium
+Maintainer: NVIDIA CORPORATION <cudatools@nvidia.com>
+Description:
+ libnvidia-container-dev - NVIDIA container runtime library (development files)
+ libnvidia-container-tools - NVIDIA container runtime library (command-line tools)
+ libnvidia-container1 - NVIDIA container runtime library
+ libnvidia-container1-dbg - NVIDIA container runtime library (debugging symbols)
+Changes:
+ libnvidia-container (1.0.2-1) UNRELEASED; urgency=medium
+ .
+   * 4045013 Adds support for libnvidia-opticalflow
+Checksums-Sha1:
+ 9c720040fe8b39baaea516bdb838acad4fb586ec 72000 libnvidia-container-dev_1.0.2-1_amd64.deb
+ 8d3d2939fd1efed80d6cceeac551e602aa59caca 15388 libnvidia-container-tools_1.0.2-1_amd64.deb
+ 987e83ed0a49fcc78a8b5d50024169987f49102b 204904 libnvidia-container1-dbg_1.0.2-1_amd64.deb
+ 6a3d916c883a63418abf245b484b4d738aab14d7 59132 libnvidia-container1_1.0.2-1_amd64.deb
+ ad01300b27dfb2c77a6d9b07dc29dcca3ed6edf5 6021 libnvidia-container_1.0.2-1_amd64.buildinfo
+Checksums-Sha256:
+ fd7d5264e1b42f05d024b607fe6467baaf3db6f74d92695e041df64e9e0e1e87 72000 libnvidia-container-dev_1.0.2-1_amd64.deb
+ 3c06977a6a3673a0d2545809d8f9a9849f8e74eed3bd071e52b718ca126f7a8b 15388 libnvidia-container-tools_1.0.2-1_amd64.deb
+ 5814183aba4a479baf7e7284322ba974899d54a5dc9acf76615b5ade66002f22 204904 libnvidia-container1-dbg_1.0.2-1_amd64.deb
+ 5a6be634c59f0edcf55a7f371c9cd857ac2533ff09fa3f6c7a49b816ddd617c5 59132 libnvidia-container1_1.0.2-1_amd64.deb
+ e46d4caee2c3ccbc54c28286c97a27408f08c3de4210ee67999d4abbb661f257 6021 libnvidia-container_1.0.2-1_amd64.buildinfo
+Files:
+ b839de8553394a7d67d424e0c4f6f012 72000 libdevel optional libnvidia-container-dev_1.0.2-1_amd64.deb
+ 97027c5da931d988348db74bab5f69df 15388 utils optional libnvidia-container-tools_1.0.2-1_amd64.deb
+ 923130d97fd8cf15f13ecb421924d9f3 204904 debug extra libnvidia-container1-dbg_1.0.2-1_amd64.deb
+ a3c7b1251c577ddd96ffc413ac42f1b8 59132 libs optional libnvidia-container1_1.0.2-1_amd64.deb
+ 4deaa9e085c72a5851c971008739b737 6021 - - libnvidia-container_1.0.2-1_amd64.buildinfo

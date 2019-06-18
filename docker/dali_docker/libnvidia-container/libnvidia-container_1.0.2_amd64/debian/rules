@@ -1,0 +1,8 @@
+#!/usr/bin/make -f
+#export DH_VERBOSE = 1
+
+override_dh_fixperms:
+	dh_fixperms -X libnvidia-container.so.1.0.2
+
+%:
+	dh $@

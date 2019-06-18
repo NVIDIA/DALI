@@ -1,0 +1,4 @@
+ dpkg-buildpackage -rfakeroot -us -uc -ui clean
+dpkg-buildpackage: error: unknown option or argument clean
+
+Use --help for program usage information.

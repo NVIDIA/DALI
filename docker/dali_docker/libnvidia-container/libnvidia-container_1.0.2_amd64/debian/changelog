@@ -1,0 +1,87 @@
+libnvidia-container (1.0.2-1) UNRELEASED; urgency=medium
+
+  * 4045013 Adds support for libnvidia-opticalflow
+
+libnvidia-container (1.0.1-1) UNRELEASED; urgency=medium
+
+  * deccb28 Allow yet more syscalls in ldconfig
+
+ -- NVIDIA CORPORATION <cudatools@nvidia.com>  Mon, 14 Jan 2019 17:52:52 -0700
+
+libnvidia-container (1.0.0-1) UNRELEASED; urgency=medium
+
+  * 35a9f27 Add support for CUDA forward compatibility
+  * ebed710 Add device brand to the device informations and requirements
+  * a141a7a Handle 32-bit PCI domains in procfs
+  * 391c4b6 Preload glibc libraries before switching root
+  * bcf69c6 Bump libtirpc to 1.1.4
+  * 30aec17 Bump nvidia-modprobe-utils to 396.51
+  * d05745f Bump the address space limits for ldconfig
+
+ -- NVIDIA CORPORATION <cudatools@nvidia.com>  Thu, 20 Sep 2018 11:52:52 -0700
+
+libnvidia-container (1.0.0~rc.2-1) UNRELEASED; urgency=medium
+
+  * 7ea554a Rework capabilities to support more unprivileged use-cases
+  * f06cbbb Fix driver process DEATHSIG teardown
+  * 931bd4f Allow more syscalls in ldconfig
+  * a0644ea Fix off-by-one error
+
+ -- NVIDIA CORPORATION <cudatools@nvidia.com>  Mon, 11 Jun 2018 13:39:47 -0700
+
+libnvidia-container (1.0.0~rc.1-1) UNRELEASED; urgency=medium
+
+  * 4d43665 Bump nvidia-modprobe-utils to 396.18
+  * d8338a6 Bump libtirpc to 1.0.3
+  * cef6c8f Add execveat to the list of allowed syscalls
+
+ -- NVIDIA CORPORATION <cudatools@nvidia.com>  Thu, 26 Apr 2018 15:35:29 -0700
+
+libnvidia-container (1.0.0~beta.1-1) UNRELEASED; urgency=medium
+
+  * 6822b13 Bump nvidia-modprobe-utils to 390.25
+  * 8245f6c Slightly improve RPC error messages
+  * 9398d41 Add support for display capability
+  * 57a0dd5 Increase driver service timeout from 1s to 10s
+  * e48a0d4 Add device minor to the CLI info command
+  * 019fdc1 Add support for custom driver root directory
+  * b78a28c Add ppc64le support
+  * 41656bf Add --ldcache option to the CLI
+
+ -- NVIDIA CORPORATION <cudatools@nvidia.com>  Mon, 05 Mar 2018 16:10:35 -0800
+
+libnvidia-container (1.0.0~alpha.3-1) UNRELEASED; urgency=medium
+
+  * d268f8f Improve error message if driver installed in the container
+  * 3fdac29 Add optional support for libelf from the elfutils project
+  * 584bca5 Remove top directory bind mounts to prevent EXDEV errors
+  * c6dc820 Add info command to nvidia-container-cli
+  * 44b74ee Add device model to the device informations
+  * cbdd58f Strip RPC prefix from error messages
+  * d4ee216 Rework the CLI list command
+  * b0c4865 Improve the --userspec CLI option and rename it to --user
+  * e6fa331 Refactor the CLI and split it into multiple files
+  * fa9853b Bump nvidia-modprobe-utils to 387.34
+  * 7888296 Move the driver capabilities to the container options
+  * ea2f780 Add support for EGL device isolation
+  * b5bffa3 Fix driver procfs remount to work with unpatched kernels
+
+ -- NVIDIA CORPORATION <cudatools@nvidia.com>  Wed, 10 Jan 2018 16:01:11 -0800
+
+libnvidia-container (1.0.0~alpha.2-1) UNRELEASED; urgency=medium
+
+  * b80e4b6 Relax some requirement constraints
+  * 3cd1bb6 Handle 32-bit PCI domains
+  * 6c67a19 Add support for device architecture requirement
+  * 7584e96 Filter NVRM proc filesystem based on visible devices
+  * 93c46e1 Prevent the driver process from triggering MPS
+  * fe4925e Reject invalid device identifier "GPU-"
+  * dabef1c Do not change bind mount attributes on top-level directories
+
+ -- NVIDIA CORPORATION <cudatools@nvidia.com>  Mon, 30 Oct 2017 14:03:39 -0700
+
+libnvidia-container (1.0.0~alpha.1-1) UNRELEASED; urgency=medium
+
+  * Initial release
+
+ -- NVIDIA CORPORATION <cudatools@nvidia.com>  Tue, 05 Sep 2017 14:31:33 -0700

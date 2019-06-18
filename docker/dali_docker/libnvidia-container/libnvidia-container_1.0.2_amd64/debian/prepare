@@ -1,0 +1,30 @@
+#! /bin/bash
+
+set -e
+
+# Replace templated files/contents according to the package version and architecture.
+# Also set the package distribution and section area if the environment specifies it.
+
+VERSION=${1%%[-~+]*}
+MAJOR=${1%%.*}
+
+if [ -z "$VERSION" ] || [ -z "$MAJOR" ] || [ -z "$DEB_HOST_MULTIARCH" ]; then
+    echo "Error: invalid package version or architecture"
+    exit 1
+fi
+
+find . -type d -name '*x86_64-linux-gnu*' | sed "p;s;@DEB_HOST_MULTIARCH@;$DEB_HOST_MULTIARCH;" | \
+  xargs -r -n2 sh -c 'rm -rf $1 && mv -T $0 $1'
+
+find . -type f -name '*1*' | sed "p;s;@MAJOR@;$MAJOR;" | \
+  xargs -r -n2 sh -c 'rm -f $1 && mv -T $0 $1'
+
+grep -rIlE '@(SECTION|VERSION|MAJOR|DEB_HOST_MULTIARCH)@' . | \
+  xargs -r sed -i "s;;${SECTION:+$SECTION/};
+                   s;1.0.2;$VERSION;
+                   s;1;$MAJOR;
+                   s;x86_64-linux-gnu;$DEB_HOST_MULTIARCH;"
+
+if [ -n "$DISTRIB" ]; then
+    sed -i "s;UNRELEASED;$DISTRIB;" debian/changelog
+fi
