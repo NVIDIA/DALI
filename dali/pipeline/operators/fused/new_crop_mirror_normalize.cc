@@ -26,10 +26,14 @@ DALI_SCHEMA(NewCropMirrorNormalize)
 Normalization takes input image and produces output using formula:
 
   output = (input - mean) / std
+
+Note that not providing any crop argument will result into mirroring and
+normalization only.
 )code")
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
+  .AllowSequences()
   .AddOptionalArg("output_dtype",
     R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
@@ -54,70 +58,6 @@ Normalization takes input image and produces output using formula:
 DALI_REGISTER_OPERATOR(NewCropMirrorNormalize, NewCropMirrorNormalize<CPUBackend>, CPU);
 
 namespace detail {
-
-size_t horizontal_dim_idx(DALITensorLayout layout) {
-  switch (layout) {
-    case DALI_NHWC:
-      return 1;
-    case DALI_NCHW:
-      return 2;
-    case DALI_NFHWC:
-      return 2;
-    case DALI_NFCHW:
-      return 3;
-    default:
-      DALI_FAIL("not supported layout: " + std::to_string(layout));
-  }
-}
-
-template <size_t Dims>
-std::array<int64_t, Dims> permuted_dims(DALITensorLayout in_layout,
-                                        DALITensorLayout out_layout) {
-  std::array<int64_t, Dims> perm_dims;
-  for (size_t d = 0; d < Dims; d++) {
-    perm_dims[d] = d;
-  }
-
-  if (in_layout != out_layout) {
-    if (in_layout == DALI_NHWC && out_layout == DALI_NCHW) {
-      perm_dims[0] = 2;
-      perm_dims[1] = 0;
-      perm_dims[2] = 1;
-    } else if (in_layout == DALI_NCHW && out_layout == DALI_NHWC) {
-      perm_dims[0] = 1;
-      perm_dims[1] = 2;
-      perm_dims[2] = 0;
-    } else if (in_layout == DALI_NFHWC && out_layout == DALI_NFCHW) {
-      perm_dims[1] = 3;
-      perm_dims[2] = 1;
-      perm_dims[3] = 2;
-    } else if (in_layout == DALI_NFCHW && out_layout == DALI_NFHWC) {
-      perm_dims[1] = 2;
-      perm_dims[2] = 3;
-      perm_dims[3] = 1;
-    } else {
-      DALI_FAIL("layout conversion from " + std::to_string(in_layout) + " to "
-        + std::to_string(out_layout) + " not supported");
-    }
-  }
-
-  return perm_dims;
-}
-
-size_t channels_dim(DALITensorLayout in_layout) {
-  switch (in_layout) {
-    case DALI_NHWC:
-      return 2;
-    case DALI_NCHW:
-      return 0;
-    case DALI_NFHWC:
-      return 3;
-    case DALI_NFCHW:
-      return 1;
-    default:
-      DALI_FAIL("not supported layout: " + std::to_string(in_layout));
-  }
-}
 
 template <typename OutputType, typename InputType>
 void RunHelper(Tensor<CPUBackend> &output,
@@ -180,28 +120,10 @@ void RunHelper(Tensor<CPUBackend> &output,
 }  // namespace detail
 
 template <>
-void NewCropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
-  input_layout_ = ws->Input<CPUBackend>(0).GetLayout();
-  if (output_layout_ == DALI_SAME) {
-    output_layout_ = input_layout_;
-  }
-  DALI_ENFORCE(input_layout_ == DALI_NHWC || input_layout_ == DALI_NCHW
-            || input_layout_ == DALI_NFHWC || input_layout_ == DALI_NFCHW,
-    "Unexpected data layout");
-
-  input_type_ = ws->Input<CPUBackend>(0).type().id();
-  if (output_type_ == DALI_NO_TYPE) {
-    output_type_ = input_type_;
-  }
-  CropAttr::ProcessArguments(ws);
-
-  mirror_[ws->data_idx()] = spec_.GetArgument<int>("mirror", ws, ws->data_idx());
-}
-
-template <>
 void NewCropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   SetupSample(ws->data_idx(), input_layout_, input.shape());
+  mirror_[ws->data_idx()] = spec_.GetArgument<int>("mirror", ws, ws->data_idx());
 
   auto &output = ws->Output<CPUBackend>(idx);
   output.SetLayout(output_layout_);
