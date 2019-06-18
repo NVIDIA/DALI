@@ -31,7 +31,7 @@ RUN pip install future numpy setuptools wheel && \
     rm -rf /root/.cache/pip/
 RUN ls -la /usr/local/cuda && cat /usr/local/cuda/version.txt
 
-RUN cd /usr/local/cuda/lib64/stubs/ && ln -s libcuda.so libcuda.so.1
+RUN ls -la /usr/local/cuda && cat /usr/local/cuda/version.txt && cd /usr/local/cuda/lib64/stubs/ && ln -s libcuda.so libcuda.so.1 && ls -la /usr/local/cuda && cat /usr/local/cuda/version.txt
 RUN ls -la /usr/local/cuda && cat /usr/local/cuda/version.txt
 RUN ldconfig
 RUN ls -la /usr/local/cuda && cat /usr/local/cuda/version.txt
