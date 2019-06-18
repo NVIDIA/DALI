@@ -20,7 +20,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(NewCropMirrorNormalize)
+DALI_SCHEMA(CropMirrorNormalize)
   .DocStr(R"code(Perform fused cropping, normalization, format conversion
 (NHWC to NCHW) if desired, and type casting.
 Normalization takes input image and produces output using formula:
@@ -55,7 +55,7 @@ normalization only.
     std::vector<float>{1.0f})
   .AddParent("Crop");
 
-DALI_REGISTER_OPERATOR(NewCropMirrorNormalize, NewCropMirrorNormalize<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>, CPU);
 
 namespace detail {
 
@@ -120,7 +120,7 @@ void RunHelper(Tensor<CPUBackend> &output,
 }  // namespace detail
 
 template <>
-void NewCropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
+void CropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   SetupSample(ws->data_idx(), input_layout_, input.shape());
   mirror_[ws->data_idx()] = spec_.GetArgument<int>("mirror", ws, ws->data_idx());
@@ -130,7 +130,7 @@ void NewCropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws,
 }
 
 template <>
-void NewCropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   this->DataDependentSetup(ws, idx);
   const auto &input = ws->Input<CPUBackend>(idx);
   auto &output = ws->Output<CPUBackend>(idx);

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_FUSED_CROP_MIRROR_NORMALIZE_H_
-#define DALI_PIPELINE_OPERATORS_FUSED_CROP_MIRROR_NORMALIZE_H_
+#ifndef DALI_PIPELINE_OPERATORS_FUSED_OLD_CROP_MIRROR_NORMALIZE_H_
+#define DALI_PIPELINE_OPERATORS_FUSED_OLD_CROP_MIRROR_NORMALIZE_H_
 
 #include <cstring>
 #include <utility>
@@ -28,9 +28,9 @@
 namespace dali {
 
 template <typename Backend>
-class CropMirrorNormalize : public Operator<Backend>, protected CropAttr  {
+class OldCropMirrorNormalize : public Operator<Backend>, protected CropAttr  {
  public:
-  explicit inline CropMirrorNormalize(const OpSpec &spec) :
+  explicit inline OldCropMirrorNormalize(const OpSpec &spec) :
     Operator<Backend>(spec),
     CropAttr(spec),
     output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
@@ -76,7 +76,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr  {
     per_sample_dimensions_.resize(batch_size_);
   }
 
-  inline ~CropMirrorNormalize() override = default;
+  inline ~OldCropMirrorNormalize() override = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;
@@ -140,4 +140,4 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr  {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_FUSED_CROP_MIRROR_NORMALIZE_H_
+#endif  // DALI_PIPELINE_OPERATORS_FUSED_OLD_CROP_MIRROR_NORMALIZE_H_

@@ -98,7 +98,7 @@ void RunHelper(TensorList<GPUBackend> &output,
 }  // namespace detail
 
 template <>
-void NewCropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
+void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
   for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
     SetupSample(sample_idx, input_layout_, input.tensor_shape(sample_idx));
@@ -109,7 +109,7 @@ void NewCropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws,
 }
 
 template<>
-void NewCropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   this->DataDependentSetup(ws, idx);
   const auto &input = ws->Input<GPUBackend>(idx);
   auto &output = ws->Output<GPUBackend>(idx);
@@ -125,6 +125,6 @@ void NewCropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int 
   )
 }
 
-DALI_REGISTER_OPERATOR(NewCropMirrorNormalize, NewCropMirrorNormalize<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<GPUBackend>, GPU);
 
 }  // namespace dali

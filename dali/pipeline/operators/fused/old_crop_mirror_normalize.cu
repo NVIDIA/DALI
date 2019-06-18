@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/fused/crop_mirror_normalize.h"
+#include "dali/pipeline/operators/fused/old_crop_mirror_normalize.h"
 
 #include <utility>
 #include <vector>
@@ -23,7 +23,7 @@ namespace {
 
 // Crop, mirror, mean sub, stddev div, NHWC->NCHW, Npp8u->fp32
 template <DALITensorLayout Layout, typename Out, bool pad>
-__global__ void BatchedCropMirrorNormalizePermuteKernel(
+__global__ void BatchedOldCropMirrorNormalizePermuteKernel(
     const int N,
     const int C,
     const int H,
@@ -141,7 +141,7 @@ __global__ void BatchedCropMirrorNormalizePermuteKernel(
  * @param stream cuda stream to operate in
  */
 template <DALITensorLayout L, typename OUT>
-DALIError_t BatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
+DALIError_t BatchedOldCropMirrorNormalizePermute(const uint8 * const *in_batch,
     const int *in_strides, int N, int H, int W, int C, bool pad, const int *mirror,
     const float *mean, const float *inv_std, OUT *out_batch, cudaStream_t stream) {
   DALI_ASSERT(in_batch != nullptr);
@@ -151,21 +151,21 @@ DALIError_t BatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
   DALI_ASSERT(inv_std != nullptr);
   DALI_ASSERT(out_batch != nullptr);
   if (pad) {
-    BatchedCropMirrorNormalizePermuteKernel<L, OUT, true><<<N, dim3(32, 32), 0, stream>>>(
+    BatchedOldCropMirrorNormalizePermuteKernel<L, OUT, true><<<N, dim3(32, 32), 0, stream>>>(
         N, C, H, W, mirror, mean, inv_std, in_batch, in_strides, out_batch);
   } else {
-    BatchedCropMirrorNormalizePermuteKernel<L, OUT, false><<<N, dim3(32, 32), 0, stream>>>(
+    BatchedOldCropMirrorNormalizePermuteKernel<L, OUT, false><<<N, dim3(32, 32), 0, stream>>>(
         N, C, H, W, mirror, mean, inv_std, in_batch, in_strides, out_batch);
   }
   return DALISuccess;
 }
 
 /**
- * @brief Validates the parameters for 'BatchedCropMirrorNormalizePermute'
+ * @brief Validates the parameters for 'BatchedOldCropMirrorNormalizePermute'
  * on host
  *
  * All parameters are host-side versions of the arguments to
- * 'BatchedCropMirrorNormalizePermute'. This method exists so that
+ * 'BatchedOldCropMirrorNormalizePermute'. This method exists so that
  * the user can efficiently manage memory copies to the GPU, but stil
  * have a method for validating input arguments before calling the
  * batched function.
@@ -176,7 +176,7 @@ DALIError_t BatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
  * - N > 0, H > 0, W > 0, C == 1 || C == 3
  */
 template <typename OUT>
-DALIError_t ValidateBatchedCropMirrorNormalizePermute(const uint8 * const *in_batch,
+DALIError_t ValidateBatchedOldCropMirrorNormalizePermute(const uint8 * const *in_batch,
     const int *in_strides, int N, int H, int W, int C,
     const float *mean, const float *inv_std, OUT *out_batch) {
   DALI_ASSERT(N > 0);
@@ -196,10 +196,10 @@ DALIError_t ValidateBatchedCropMirrorNormalizePermute(const uint8 * const *in_ba
 
 template<>
 template <typename OUT>
-void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
+void OldCropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const int idx) {
   auto &output = ws->Output<GPUBackend>(idx);
   if (output_layout_ == DALI_NCHW) {
-    DALI_CALL((BatchedCropMirrorNormalizePermute<DALI_NCHW, OUT>(
+    DALI_CALL((BatchedOldCropMirrorNormalizePermute<DALI_NCHW, OUT>(
             input_ptrs_gpu_.template data<const uint8*>(),
             input_strides_gpu_.template data<int>(),
             batch_size_, crop_h_, crop_w_, C_, pad_,
@@ -209,7 +209,7 @@ void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const
             output.template mutable_data<OUT>(),
             ws->stream())));
   } else {
-    DALI_CALL((BatchedCropMirrorNormalizePermute<DALI_NHWC, OUT>(
+    DALI_CALL((BatchedOldCropMirrorNormalizePermute<DALI_NHWC, OUT>(
             input_ptrs_gpu_.template data<const uint8*>(),
             input_strides_gpu_.template data<int>(),
             batch_size_, crop_h_, crop_w_, C_, pad_,
@@ -223,9 +223,9 @@ void CropMirrorNormalize<GPUBackend>::RunHelper(Workspace<GPUBackend> *ws, const
 
 template<>
 template <typename OUT>
-void CropMirrorNormalize<GPUBackend>::ValidateHelper(TensorList<GPUBackend> &output) {
+void OldCropMirrorNormalize<GPUBackend>::ValidateHelper(TensorList<GPUBackend> &output) {
   // Validate parameters
-  DALI_CALL(ValidateBatchedCropMirrorNormalizePermute(
+  DALI_CALL(ValidateBatchedOldCropMirrorNormalizePermute(
           input_ptrs_.template mutable_data<const uint8*>(),
           input_strides_.template mutable_data<int>(),
           batch_size_, crop_h_, crop_w_, C_,
@@ -234,7 +234,7 @@ void CropMirrorNormalize<GPUBackend>::ValidateHelper(TensorList<GPUBackend> &out
 }
 
 template<>
-void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
+void OldCropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   auto &input = ws->Input<GPUBackend>(idx);
   auto &output = ws->Output<GPUBackend>(idx);
   DALI_ENFORCE(IsType<uint8>(input.type()),
@@ -314,7 +314,7 @@ void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, co
 }
 
 template<>
-void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+void OldCropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   DataDependentSetup(ws, idx);
   if (output_type_ == DALI_FLOAT) {
     RunHelper<float>(ws, idx);
@@ -334,7 +334,7 @@ void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx
 }
 
 template<>
-void CropMirrorNormalize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
+void OldCropMirrorNormalize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
   auto &input = ws->Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8>(input.type()),
       "Expected input data as uint8.");
@@ -377,6 +377,6 @@ void CropMirrorNormalize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *w
 }
 
 // Register operator
-DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(OldCropMirrorNormalize, OldCropMirrorNormalize<GPUBackend>, GPU);
 
 }  // namespace dali

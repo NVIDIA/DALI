@@ -39,17 +39,6 @@ class CropMirrorNormalizePipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
         if self.is_new_cmn:
-            self.cmn = ops.NewCropMirrorNormalize(device = self.device,
-                                                  output_dtype = output_dtype,
-                                                  output_layout = output_layout,
-                                                  crop = (224, 224),
-                                                  crop_pos_x = 0.3,
-                                                  crop_pos_y = 0.2,
-                                                  image_type = types.RGB,
-                                                  mean = mean,
-                                                  std = std,
-                                                  pad_output = pad_output)
-        else:
             self.cmn = ops.CropMirrorNormalize(device = self.device,
                                                output_dtype = output_dtype,
                                                output_layout = output_layout,
@@ -60,6 +49,17 @@ class CropMirrorNormalizePipeline(Pipeline):
                                                mean = mean,
                                                std = std,
                                                pad_output = pad_output)
+        else:
+            self.cmn = ops.OldCropMirrorNormalize(device = self.device,
+                                                  output_dtype = output_dtype,
+                                                  output_layout = output_layout,
+                                                  crop = (224, 224),
+                                                  crop_pos_x = 0.3,
+                                                  crop_pos_y = 0.2,
+                                                  image_type = types.RGB,
+                                                  mean = mean,
+                                                  std = std,
+                                                  pad_output = pad_output)
         self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
@@ -142,10 +142,10 @@ class NoCropPipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
         if not self.decoder_only:
-            self.cmn = ops.NewCropMirrorNormalize(device = self.device,
-                                                  image_type = types.RGB,
-                                                  output_dtype = types.UINT8,
-                                                  output_layout = types.NHWC)
+            self.cmn = ops.CropMirrorNormalize(device = self.device,
+                                               image_type = types.RGB,
+                                               output_dtype = types.UINT8,
+                                               output_layout = types.NHWC)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -287,16 +287,16 @@ class CMNRandomDataPipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.cmn = ops.NewCropMirrorNormalize(device = self.device,
-                                              output_dtype = output_dtype,
-                                              output_layout = output_layout,
-                                              crop = (224, 224),
-                                              crop_pos_x = 0.3,
-                                              crop_pos_y = 0.2,
-                                              image_type = types.RGB,
-                                              mean = mean,
-                                              std = std,
-                                              pad_output = pad_output)
+        self.cmn = ops.CropMirrorNormalize(device = self.device,
+                                           output_dtype = output_dtype,
+                                           output_layout = output_layout,
+                                           crop = (224, 224),
+                                           crop_pos_x = 0.3,
+                                           crop_pos_y = 0.2,
+                                           image_type = types.RGB,
+                                           mean = mean,
+                                           std = std,
+                                           pad_output = pad_output)
         self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
