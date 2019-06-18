@@ -25,6 +25,41 @@ namespace dali {
 template <size_t N, typename T = float>
 struct vec;
 
+template <size_t N>
+using ivec = vec<N, int32_t>;
+template <size_t N>
+using uvec = vec<N, uint32_t>;
+template <size_t N>
+using i16vec = vec<N, int16_t>;
+template <size_t N>
+using u16vec = vec<N, uint16_t>;
+template <size_t N>
+using i8vec = vec<N, int8_t>;
+template <size_t N>
+using u8vec = vec<N, uint8_t>;
+template <size_t N>
+using dvec = vec<N, double>;
+template <size_t N>
+using bvec = vec<N, bool>;
+
+#define DEFINE_VEC_ALIASES(prefix)\
+using prefix##vec1 = prefix##vec<1>;\
+using prefix##vec2 = prefix##vec<2>;\
+using prefix##vec3 = prefix##vec<3>;\
+using prefix##vec4 = prefix##vec<4>;\
+using prefix##vec8 = prefix##vec<8>;\
+using prefix##vec16 = prefix##vec<16>;\
+
+DEFINE_VEC_ALIASES(i)
+DEFINE_VEC_ALIASES(i16)
+DEFINE_VEC_ALIASES(i8)
+DEFINE_VEC_ALIASES(u)
+DEFINE_VEC_ALIASES(u16)
+DEFINE_VEC_ALIASES(u8)
+DEFINE_VEC_ALIASES(d)
+DEFINE_VEC_ALIASES(b)
+DEFINE_VEC_ALIASES( )
+
 template <typename T>
 struct is_vec : std::false_type {};
 
@@ -33,23 +68,19 @@ struct is_vec<vec<N, T>> : std::true_type {};
 
 template <size_t N, typename T>
 struct vec_base {
-  DALI_HOST_DEV
-  constexpr vec_base() : v{} {}
+  constexpr vec_base() = default;
 
   DALI_HOST_DEV
-  constexpr vec_base(T scalar) {  // NOLINT
+  constexpr vec_base(T scalar) {
     for (size_t i = 0; i < N; i++)
       v[i] = scalar;
   }
 
-  template <typename... Args, typename =
-            std::enable_if_t<dali::all_of<std::is_convertible<Args, T>::value...>::value>>
+  template <typename... Components,
+            typename = std::enable_if_t<sizeof...(Components) == N>>
   DALI_HOST_DEV
-  constexpr vec_base(T v0, T v1, Args... args) : v{v0, v1, T(args)... } {}
+  constexpr vec_base(Components... components) : v{T(components)... } {}
   T v[N];
-
-  T &operator[](size_t i) { return v[i]; }
-  const T &operator[](size_t i) const { return v[i]; }
 };
 
 template <typename T>
@@ -59,10 +90,9 @@ struct vec_base<1, T> {
     T x;
   };
 
+  constexpr vec_base() = default;
   DALI_HOST_DEV
-  constexpr vec_base() : x() {}
-  DALI_HOST_DEV
-  constexpr vec_base(const T &x) : x(x) {}  // NOLINT
+  constexpr vec_base(const T &x) : v{x} {}  // NOLINT
 };
 
 template <typename T>
@@ -72,12 +102,11 @@ struct vec_base<2, T> {
     struct { T x, y; };
   };
 
+  constexpr vec_base() = default;
   DALI_HOST_DEV
-  constexpr vec_base() : x() {}
+  constexpr vec_base(const T &scalar) : v{scalar, scalar} {}  // NOLINT
   DALI_HOST_DEV
-  constexpr vec_base(const T &scalar) : x(scalar), y(scalar) {}  // NOLINT
-  DALI_HOST_DEV
-  constexpr vec_base(const T &x, const T &y) : x(x), y(y) {}
+  constexpr vec_base(const T &x, const T &y) : v{x, y} {}
 };
 
 template <typename T>
@@ -87,12 +116,11 @@ struct vec_base<3, T> {
     struct { T x, y, z; };
   };
 
+  constexpr vec_base() = default;
   DALI_HOST_DEV
-  constexpr vec_base() : x() {}
+  constexpr vec_base(const T &scalar) : v{scalar, scalar, scalar} {}  // NOLINT
   DALI_HOST_DEV
-  constexpr vec_base(const T &scalar) : x(scalar), y(scalar), z(scalar) {}  // NOLINT
-  DALI_HOST_DEV
-  constexpr vec_base(const T &x, const T &y, const T &z) : x(x), y(y), z(z) {}
+  constexpr vec_base(const T &x, const T &y, const T &z) : v{x, y, z} {}
 };
 
 template <typename T>
@@ -102,19 +130,26 @@ struct vec_base<4, T> {
     struct { T x, y, z, w; };
   };
 
+  constexpr vec_base() = default;
   DALI_HOST_DEV
-  constexpr vec_base() : x() {}
+  constexpr vec_base(const T &scalar) : v{scalar, scalar, scalar, scalar} {}  // NOLINT
   DALI_HOST_DEV
-  constexpr vec_base(const T &scalar) : x(scalar), y(scalar), z(scalar), w(scalar) {}  // NOLINT
-  DALI_HOST_DEV
-  constexpr vec_base(const T &x, const T &y, const T &z, const T &w) : x(x), y(y), z(z), w(w) {}
+  constexpr vec_base(const T &x, const T &y, const T &z, const T &w) : v{x, y, z, w} {}
 };
 
 template <size_t N, typename T>
 struct vec : vec_base<N, T> {
   static_assert(std::is_standard_layout<T>::value,
                 "Cannot create a vector ofa non-standard layout type");
-  using vec_base<N, T>::vec_base;
+  constexpr vec() = default;
+  DALI_HOST_DEV
+  constexpr vec(T scalar) : vec_base<N, T>(scalar) {}
+
+  template <typename... Components,
+            typename = std::enable_if_t<sizeof...(Components) == N>>
+  DALI_HOST_DEV
+  constexpr vec(Components... components) : vec_base<N, T>(components...) {}
+
   using vec_base<N, T>::v;
 
   DALI_HOST_DEV
@@ -125,7 +160,7 @@ struct vec : vec_base<N, T> {
   template <typename U>
   DALI_HOST_DEV
   constexpr vec<N, U> cast() const {
-    vec<N, U> ret;
+    vec<N, U> ret = {};
     for (size_t i = 0; i < N; i++) {
       ret.v[i] = static_cast<U>(v[i]);
     }
@@ -161,7 +196,7 @@ struct vec : vec_base<N, T> {
 
   DALI_HOST_DEV
   constexpr vec operator-() const {
-    vec<N, T> ret;
+    vec<N, T> ret = {};
     for (size_t i = 0; i < N; i++) {
       ret.v[i] = -v[i];
     }
@@ -169,7 +204,7 @@ struct vec : vec_base<N, T> {
   }
   DALI_HOST_DEV
   constexpr vec operator~() const {
-    vec<N, T> ret;
+    vec<N, T> ret = {};
     for (size_t i = 0; i < N; i++) {
       ret.v[i] = ~v[i];
     }
@@ -201,6 +236,7 @@ struct vec : vec_base<N, T> {
   DEFINE_ASSIGN_VEC_OP(^=)
   DEFINE_ASSIGN_VEC_OP(<<=)
   DEFINE_ASSIGN_VEC_OP(>>=)
+  #undef DEFINE_ASSIGN_VEC_OP
 };
 
 
@@ -213,10 +249,22 @@ constexpr auto dot(const vec<N, T> &a, const vec<N, U> &b) {
   return ret;
 }
 
+template <size_t N, typename T, typename U>
+DALI_HOST_DEV
+constexpr auto cross(const vec<3, T> &a, const vec<3, U> &b) {
+  using R = decltype(a[0]*b[0] + a[0]*b[0]);
+  return vec<3, R>{
+    a.y * b.z - b.y * a.z,
+    a.z * b.x - b.z * a.x,
+    a.x * b.y - b.x * a.y
+  };
+}
+
+
 #define DEFINE_ELEMENTIWSE_VEC_BIN_OP(op)\
 template <size_t N, typename T, typename U>\
 DALI_HOST_DEV constexpr auto operator op(const vec<N, T> &a, const vec<N, U> &b) {\
-  vec<N, decltype(T() op U())> ret;\
+  vec<N, decltype(T() op U())> ret = {};\
   for (size_t i = 0; i < N; i++)\
     ret[i] = a[i] op b[i];\
   return ret;\
@@ -224,7 +272,7 @@ DALI_HOST_DEV constexpr auto operator op(const vec<N, T> &a, const vec<N, U> &b)
 template <size_t N, typename T, typename U, typename R = decltype(T() op U())>\
 DALI_HOST_DEV constexpr std::enable_if<!is_vec<U>::value, vec<N, R>> \
 operator op(const vec<N, T> &a, const U &b) {\
-  vec<N, R> ret;\
+  vec<N, R> ret = {};\
   for (size_t i = 0; i < N; i++)\
     ret[i] = a[i] op b;\
   return ret;\
@@ -232,7 +280,7 @@ operator op(const vec<N, T> &a, const U &b) {\
 template <size_t N, typename T, typename U, typename R = decltype(T() op U())>\
 DALI_HOST_DEV constexpr std::enable_if<!is_vec<T>::value, vec<N, R>> \
 operator op(const T &a, const vec<N, U> &b) {\
-  vec<N, R> ret;\
+  vec<N, R> ret = {};\
   for (size_t i = 0; i < N; i++)\
     ret[i] = a op b[i];\
   return ret;\
@@ -254,7 +302,7 @@ DEFINE_ELEMENTIWSE_VEC_BIN_OP(>=)
 #define DEFINE_SHIFT_VEC_BIN_OP(op)\
 template <size_t N, typename T, typename U>\
 DALI_HOST_DEV constexpr vec<N, T> operator op(const vec<N, T> &a, const vec<N, U> &b) {\
-  vec<N, T> ret;\
+  vec<N, T> ret = {};\
   for (size_t i = 0; i < N; i++)\
     ret[i] = a[i] op b[i];\
   return ret;\
@@ -262,7 +310,7 @@ DALI_HOST_DEV constexpr vec<N, T> operator op(const vec<N, T> &a, const vec<N, U
 template <size_t N, typename T, typename U>\
 DALI_HOST_DEV constexpr std::enable_if<!is_vec<U>::value, vec<N, T>> \
 operator op(const vec<N, T> &a, const U &b) {\
-  vec<N, T> ret;\
+  vec<N, T> ret = {};\
   for (size_t i = 0; i < N; i++)\
     ret[i] = a[i] op b;\
   return ret;\
@@ -270,7 +318,7 @@ operator op(const vec<N, T> &a, const U &b) {\
 template <size_t N, typename T, typename U>\
 DALI_HOST_DEV constexpr std::enable_if<!is_vec<T>::value, vec<N, T>> \
 operator op(const T &a, const vec<N, U> &b) {\
-  vec<N, T> ret;\
+  vec<N, T> ret = {};\
   for (size_t i = 0; i < N; i++)\
     ret[i] = a op b[i];\
   return ret;\
@@ -318,42 +366,35 @@ DALI_HOST_DEV constexpr bool operator!=(const vec<N, T> &a, const vec<N, U> &b) 
   return false;
 }
 
-template <typename U, size_t N, typename T>
-DALI_HOST_DEV constexpr auto cast(const vec<N, T> &v) { return v.template cast<U>(); }
-
 template <typename F, size_t N, typename... Elements>
 DALI_HOST_DEV constexpr auto elementwise(F f, const vec<N, Elements>&... vecs) {
   using R = decltype(f(vecs[0]...));
-  vec<N, R> result;
+  vec<N, R> result = {};
   for (size_t i = 0; i < N; i++) {
     result[i] = f(vecs[i]...);
   }
   return result;
 }
 
+template <typename To, size_t N, typename From>
+DALI_HOST_DEV constexpr vec<N, To> cast(const vec<N, From> &v) {
+  return v.template cast<To>();
+}
+
 template <size_t N, typename T>
-constexpr vec<N, T> clamp(const vec<N, T> &in, const vec<N, T> &lo, const vec<N, T> &hi) {
+DALI_HOST_DEV constexpr vec<N, T>
+clamp(const vec<N, T> &in, const vec<N, T> &lo, const vec<N, T> &hi) {
   return elementwise(clamp, in, lo, hi);
 }
 
 template <size_t N, typename T>
-constexpr vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
+DALI_HOST_DEV constexpr vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
   return elementwise(min, a, b);
 }
 
 template <size_t N, typename T>
-constexpr vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
+DALI_HOST_DEV constexpr vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
   return elementwise(max, a, b);
-}
-
-template <size_t N, typename T>
-constexpr vec<N, T> floor(const vec<N, T> &a) {
-  return elementwise(std::floor, a);
-}
-
-template <size_t N, typename T>
-constexpr vec<N, T> ceil(const vec<N, T> &a) {
-  return elementwise(std::ceil, a);
 }
 
 #ifdef __CUDA_ARCH__
@@ -366,12 +407,77 @@ template <size_t N>
 __device__ constexpr vec<N> ceil(const vec<N> &a, const vec<N> &b) {
   return elementwise(ceilf, a);
 }
+#else
+
+template <size_t N, typename T>
+constexpr vec<N, T> floor(const vec<N, T> &a) {
+  return elementwise(std::floor, a);
+}
+
+template <size_t N, typename T>
+constexpr vec<N, T> ceil(const vec<N, T> &a) {
+  return elementwise(std::ceil, a);
+}
+
 #endif
 
 template <size_t N>
-DALI_HOST_DEV vec<N, int> round_int(const vec<N> &a) {
+DALI_HOST_DEV ivec<N> round_int(const vec<N> &a) {
   return elementwise(static_cast<int(&)(float)>(round_int), a);
 }
+
+template <typename T, size_t size0, size_t size1>
+DALI_HOST_DEV
+constexpr auto cat(const vec<size0, T> &v0, const vec<size1, T> &v1) {
+  vec<size0 + size1, T> ret = {};
+  for (size_t i = 0; i < size0; i ++) {
+    ret[i] = v0[i];
+  }
+  for (size_t i = 0; i < size1; i ++) {
+    ret[i + size0] = v1[i];
+  }
+  return ret;
+}
+
+template <typename T, size_t size0>
+DALI_HOST_DEV
+constexpr auto cat(const vec<size0, T> &v0, T v1) {
+  vec<size0 + 1, T> ret = {};
+  for (size_t i = 0; i < size0; i ++) {
+    ret[i] = v0[i];
+  }
+  ret[size0] = v1;
+  return ret;
+}
+
+template <typename T, size_t size1>
+DALI_HOST_DEV
+constexpr auto cat(T v0, const vec<size1, T> &v1) {
+  vec<size1 + 1, T> ret = {};
+  ret[0] = v0;
+  for (size_t i = 0; i < size1; i ++) {
+    ret[i+1] = v1[i];
+  }
+  return ret;
+}
+
+template <typename T, size_t size0, size_t... sizes>
+DALI_HOST_DEV
+constexpr auto cat(const vec<size0, T> &v0, const vec<sizes, T> &...tail) {
+  return cat(v0, cat(tail...));
+}
+
+template <typename To, size_t size, typename From, typename OutputType = vec<size*sizeof(From)/sizeof(To), To>>
+DALI_HOST_DEV
+constexpr OutputType bitcast(const vec<size, From> &v) {
+  static_assert(sizeof(OutputType) == sizeof(vec<size, From>),
+                "Cannot bitcast to a type of different size");
+  return *reinterpret_cast<const OutputType*>(reinterpret_cast<const char*>(&v));
+}
+
+static_assert(std::is_pod<vec<1>>::value, "vec<N, T> must be a POD type");
+static_assert(std::is_pod<vec<3>>::value, "vec<N, T> must be a POD type");
+static_assert(std::is_pod<vec<5>>::value, "vec<N, T> must be a POD type");
 
 }  // namespace dali
 

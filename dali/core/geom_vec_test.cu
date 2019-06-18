@@ -27,29 +27,29 @@ __device__ DeviceString dev_to_string(const vec<N, T> &v) {
   return str;
 }
 
-static_assert(sizeof(vec<1, float>) == sizeof(float));
-static_assert(sizeof(vec<2, int16_t>) == sizeof(int16_t)*2);
-static_assert(sizeof(vec<2, float>) == sizeof(float)*2);
-static_assert(sizeof(vec<3, char>)  == sizeof(char)*3);
-static_assert(sizeof(vec<4, float>) == sizeof(float)*4);
-static_assert(sizeof(vec<5, float>) == sizeof(float)*5);
+static_assert(sizeof(vec<1, float>)   == 1*sizeof(float),   "Invalid size for a vector");
+static_assert(sizeof(vec<2, int16_t>) == 2*sizeof(int16_t), "Invalid size for a vector");
+static_assert(sizeof(vec<2, float>)   == 2*sizeof(float),   "Invalid size for a vector");
+static_assert(sizeof(vec<3, char>)    == 3*sizeof(char),    "Invalid size for a vector");
+static_assert(sizeof(vec<4, float>)   == 4*sizeof(float),   "Invalid size for a vector");
+static_assert(sizeof(vec<5, float>)   == 5*sizeof(float),   "Invalid size for a vector");
 
-TEST(Vec, DefaultConstruct) {
-  vec<1> v1;
+TEST(Vec, BraceConstruct) {
+  vec<1> v1 = {};
   EXPECT_EQ(v1.x, 0) << "vec should be zero-initialized by default";
-  vec<2> v2;
+  vec<2> v2 = {};
   EXPECT_EQ(v2.x, 0) << "vec should be zero-initialized by default";
   EXPECT_EQ(v2.x, 0) << "vec should be zero-initialized by default";
-  vec<3> v3;
+  vec<3> v3 = {};
   EXPECT_EQ(v3.x, 0) << "vec should be zero-initialized by default";
   EXPECT_EQ(v3.y, 0) << "vec should be zero-initialized by default";
   EXPECT_EQ(v3.z, 0) << "vec should be zero-initialized by default";
-  vec<4> v4;
+  vec<4> v4 = {};
   EXPECT_EQ(v4[0], 0) << "vec should be zero-initialized by default";
   EXPECT_EQ(v4[1], 0) << "vec should be zero-initialized by default";
   EXPECT_EQ(v4[2], 0) << "vec should be zero-initialized by default";
   EXPECT_EQ(v4[3], 0) << "vec should be zero-initialized by default";
-  vec<5> v5;
+  vec<5> v5 = {};
   EXPECT_EQ(v5[0], 0) << "vec should be zero-initialized by default";
   EXPECT_EQ(v5[1], 0) << "vec should be zero-initialized by default";
   EXPECT_EQ(v5[2], 0) << "vec should be zero-initialized by default";
@@ -141,20 +141,29 @@ TEST(Vec, Iteration) {
 }
 
 TEST(Vec, Dot) {
-  vec<3, float> a = { 1, 10, 100 }, b = { 2, 3, 4 };
+  vec<3> a = { 1, 10, 100 }, b = { 2, 3, 4 };
   EXPECT_EQ(dot(a, b), 432);
 }
 
 TEST(Vec, RoundInt) {
-  vec<3, float> f = { -0.6f, 0.1f, 0.7f };
+  vec<3> f = { -0.6f, 0.1f, 0.7f };
   auto i = round_int(f);
   EXPECT_EQ(i, (vec<3, int>(-1, 0, 1)));
 }
 
 DEVICE_TEST(Dev_Vec, RoundInt, 1, 1) {
-  vec<3, float> f = { -0.6f, 0.1f, 0.7f };
+  vec<3> f = { -0.6f, 0.1f, 0.7f };
   auto i = round_int(f);
   DEV_EXPECT_EQ(i, (vec<3, int>(-1, 0, 1)));
+}
+
+DEVICE_TEST(Dev_Vec, Cat, 1, 1) {
+  vec<3> a = { 1, 2, 3 };
+  vec<2> b = { 4, 5 };
+  DEV_EXPECT_EQ(cat(a, b), (vec<5>(1,2,3,4,5)));
+  DEV_EXPECT_EQ(cat(b, a), (vec<5>(4,5,1,2,3)));
+  DEV_EXPECT_EQ(cat(a, 4.0f), vec4(1,2,3,4));
+  DEV_EXPECT_EQ(cat(0.5f, b), vec3(0.5f, 4, 5));
 }
 
 }  // namespace dali
