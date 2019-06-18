@@ -70,6 +70,7 @@ __device__ inline void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ ou
     return;
   }
 
+  const bool innermost_is_dense = (out_strides[Dims-1] == 1);
   for (; offset < block_end; offset += blockDim.x) {
     size_t idx = offset;
     size_t out_idx = offset;
@@ -79,8 +80,14 @@ __device__ inline void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ ou
 
     for (unsigned d = 0; d < Dims; d++) {
       unsigned out_stride = static_cast<unsigned>(out_strides[d]);
-      unsigned i_d = idx / out_stride;
-      idx %= out_stride;
+      unsigned i_d;
+      if (d == Dims-1 && innermost_is_dense) {
+        i_d = idx;
+        idx = 0;
+      } else {
+        i_d = idx / out_stride;
+        idx %= out_stride;
+      }
       if (zero_pad = (should_zero_pad && i_d >= out_shape[d]))
         break;
 
