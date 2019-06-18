@@ -78,6 +78,14 @@ class DALIGenericIterator(object):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
+    squeeze_labels: bool, optional, default = True
+                 Whether the iterator should squeeze the labels before
+                 copying them to the ndarray.
+    dynamic_shape: bool, optional, default = False
+                 Whether the shape of the output of the DALI pipeline can
+                 change during execution. If True, the mxnet.ndarray will be resized accordingly
+                 if the shape of DALI returned tensors changes during execution.
+                 If False, the iterator will fail in case of change.
     """
     def __init__(self,
                  pipelines,
@@ -85,7 +93,9 @@ class DALIGenericIterator(object):
                  size,
                  data_layout='NCHW',
                  fill_last_batch=True,
-                 auto_reset=False):
+                 auto_reset=False,
+                 squeeze_labels=True,
+                 dynamic_shape=False):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
@@ -95,6 +105,8 @@ class DALIGenericIterator(object):
         self._pipes = pipelines
         self._fill_last_batch = fill_last_batch
         self._auto_reset = auto_reset
+        self._squeeze_labels = squeeze_labels
+        self._dynamic_shape = dynamic_shape
         # Build all pipelines
         for p in self._pipes:
             p.build()
@@ -165,8 +177,9 @@ class DALIGenericIterator(object):
             # For labels we squeeze the tensors
             category_tensors[DALIGenericIterator.LABEL_TAG] = \
                 [x.as_tensor() for x in category_outputs[DALIGenericIterator.LABEL_TAG]]
-            for label in category_tensors[DALIGenericIterator.LABEL_TAG]:
-                label.squeeze()
+            if self._squeeze_labels:
+                for label in category_tensors[DALIGenericIterator.LABEL_TAG]:
+                    label.squeeze()
             category_info[DALIGenericIterator.LABEL_TAG] = \
                 [(x.shape(), np.dtype(x.dtype())) for x in category_tensors[DALIGenericIterator.LABEL_TAG]]
 
@@ -194,6 +207,14 @@ class DALIGenericIterator(object):
             d = self._data_batches[i][self._current_data_batch].data
             l = self._data_batches[i][self._current_data_batch].label
             # Copy data from DALI Tensors to MXNet NDArrays
+            if self._dynamic_shape:
+                for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.DATA_TAG]):
+                    if list(d[j].shape) != shape:
+                        d[j] = mx.nd.zeros(shape, d[j].context, dtype = dtype)
+                for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
+                    if list(l[j].shape) != shape:
+                        l[j] = mx.nd.zeros(shape, l[j].context, dtype = dtype)
+
             for j, d_arr in enumerate(d):
                 feed_ndarray(category_tensors[DALIGenericIterator.DATA_TAG][j], d_arr)
             for j, l_arr in enumerate(l):
@@ -293,6 +314,14 @@ class DALIClassificationIterator(DALIGenericIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
+    squeeze_labels: bool, optional, default = True
+                 Whether the iterator should squeeze the labels before
+                 copying them to the ndarray.
+    dynamic_shape: bool, optional, default = False
+                 Whether the shape of the output of the DALI pipeline can
+                 change during execution. If True, the mxnet.ndarray will be resized accordingly
+                 if the shape of DALI returned tensors changes during execution.
+                 If False, the iterator will fail in case of change.
     """
     def __init__(self,
                  pipelines,
@@ -301,11 +330,15 @@ class DALIClassificationIterator(DALIGenericIterator):
                  label_name='softmax_label',
                  data_layout='NCHW',
                  fill_last_batch=True,
-                 auto_reset=False):
+                 auto_reset=False,
+                 squeeze_labels=True,
+                 dynamic_shape=False):
         super(DALIClassificationIterator, self).__init__(pipelines,
                                                          [(data_name, DALIClassificationIterator.DATA_TAG),
                                                           (label_name, DALIClassificationIterator.LABEL_TAG)],
                                                          size,
                                                          data_layout     = data_layout,
                                                          fill_last_batch = fill_last_batch,
-                                                         auto_reset = auto_reset)
+                                                         auto_reset = auto_reset,
+                                                         squeeze_labels=squeeze_labels,
+                                                         dynamic_shape=dynamic_shape)
