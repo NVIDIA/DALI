@@ -12,6 +12,7 @@ execute_process(
 string(STRIP ${DALI_COMPILE_FLAGS} DALI_COMPILE_FLAGS)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 ${DALI_COMPILE_FLAGS} ")
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++14 ${DALI_COMPILE_FLAGS} ")
 link_directories( "${DALI_LIB_DIR}" )
 
 cuda_add_library(customdummy SHARED dummy.cc dummy.cu )
