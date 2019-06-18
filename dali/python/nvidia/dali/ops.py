@@ -19,6 +19,7 @@ from itertools import count
 from nvidia.dali import backend as b
 from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
+from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 
 _cpu_ops = set({})
@@ -233,6 +234,10 @@ def python_op_factory(name, op_device = "cpu"):
             return self._device
 
         def __call__(self, *inputs, **kwargs):
+            pipeline = Pipeline.current()
+            if pipeline is None:
+              raise RuntimeError("""Unknown pipeline!
+Graph edges must be created from within `define_graph` or Pipeline.set_current() must be explicitly used.""")
             if (len(inputs) > self._schema.MaxNumInput() or
                     len(inputs) < self._schema.MinNumInput()):
                 raise ValueError(
@@ -316,6 +321,10 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         return self._device
 
     def __call__(self, *inputs, **kwargs):
+        pipeline = Pipeline.current()
+        if pipeline is None:
+          raise RuntimeError("""Unknown pipeline!
+Graph edges must be created from within `define_graph` or Pipeline.set_current() must be explicitly used.""")
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
@@ -371,6 +380,10 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
         return self._device
 
     def __call__(self, *inputs, **kwargs):
+        pipeline = Pipeline.current()
+        if pipeline is None:
+          raise RuntimeError("""Unknown pipeline!
+Graph edges must be created from within `define_graph` or Pipeline.set_current() must be explicitly used.""")
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
