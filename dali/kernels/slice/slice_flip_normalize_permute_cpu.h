@@ -36,7 +36,11 @@ struct ClampPolicy {
                           const float *mean, const float *inv_stddev) {
     (void) mean;
     (void) inv_stddev;
-    destination = clamp<OutputType>(element);
+    if (std::is_integral<OutputType>::value && std::is_floating_point<InputType>::value) {
+      destination = clamp<OutputType>(std::roundf(element));
+    } else {
+      destination = clamp<OutputType>(element);
+    }
   }
 };
 

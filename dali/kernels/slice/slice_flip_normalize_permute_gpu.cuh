@@ -109,7 +109,11 @@ __device__ inline void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ ou
           out[out_idx] = clamp<OutputType>(fpout);
         }
       } else {
-        out[out_idx] = clamp<OutputType>(in[in_idx]);
+        if (std::is_integral<OutputType>::value && std::is_floating_point<InputType>::value) {
+          out[out_idx] = clamp<OutputType>(__float2int_rn(in[in_idx]));
+        } else {
+          out[out_idx] = clamp<OutputType>(in[in_idx]);
+        }
       }
     }
   }
@@ -271,12 +275,12 @@ class SliceFlipNormalizePermuteGPU {
     const auto grid = block_count_;
     if (norm_add != nullptr && norm_mul != nullptr) {
       detail::SliceFlipNormalizePermuteKernel<OutputType, InputType, Dims, true>
-          <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs, norm_add, norm_mul,
-                                                       normalization_dim);
+          <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs, norm_add,
+                                                       norm_mul, normalization_dim);
     } else {
       detail::SliceFlipNormalizePermuteKernel<OutputType, InputType, Dims, false>
-          <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs, norm_add, norm_mul,
-                                                       normalization_dim);
+          <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs, norm_add,
+                                                       norm_mul, normalization_dim);
     }
   }
 };

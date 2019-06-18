@@ -68,7 +68,7 @@ class SliceFlipNormalizePermuteGPUTest : public SliceFlipNormalizePermuteTest<Te
     TestTensorList<OutputType, Dims> expected_output;
     this->PrepareExpectedOutput(test_data, args, expected_output);
 
-    EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu()));
+    EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu(), EqualEps(1e-6)));
   }
 };
 

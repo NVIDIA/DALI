@@ -70,7 +70,7 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
       auto in_tv = test_data_cpu[i];
       kernel.Run(ctx, out_tv, in_tv, args[i]);
     }
-    EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu()));
+    EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu(), EqualEps(1e-6)));
   }
 };
 
