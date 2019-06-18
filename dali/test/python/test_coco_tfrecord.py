@@ -59,8 +59,7 @@ def coco_anchors():
             all_sizes.append([h, w])
 
         for sizes in all_sizes:
-            w = sizes[0]
-            h = sizes[1]
+            w, h = sizes[0], sizes[1]
 
             for i in range(feat_sizes[idx]):
                 for j in range(feat_sizes[idx]):

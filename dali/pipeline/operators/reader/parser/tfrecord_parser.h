@@ -86,9 +86,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               auto m = std::accumulate(
                 partial_shape.begin(), partial_shape.end(), 1, std::multiplies<int>());
               auto feature_size = encoded_feature.int64_list().value().size();
-              if (feature_size % m != 0) {
-                DALI_FAIL("Feature size not matching partial shape");
-              }
+              DALI_ENFORCE(feature_size % m == 0, "Feature size not matching partial shape");
               partial_shape.insert(partial_shape.begin(), feature_size / m);
               output.Resize(partial_shape);
             } else {
@@ -109,15 +107,14 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
               encoded_feature.bytes_list().value(0).size()*sizeof(uint8_t));
           break;
         case FeatureType::float32:
+
           if (!f.HasShape()) {
             if (f.HasPartialShape()) {
               auto partial_shape = f.PartialShape();
               auto m = std::accumulate(
                 partial_shape.begin(), partial_shape.end(), 1, std::multiplies<int>());
               auto feature_size = encoded_feature.float_list().value().size();
-              if (feature_size % m != 0) {
-                DALI_FAIL("Feature size not matching partial shape");
-              }
+              DALI_ENFORCE(feature_size % m == 0, "Feature size not matching partial shape");
               partial_shape.insert(partial_shape.begin(), feature_size / m);
               output.Resize(partial_shape);
             } else {
