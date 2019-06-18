@@ -185,6 +185,7 @@ class RotatePipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
         super(RotatePipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
         self.rotate=ops.Rotate(angle=90.0)
+
     def define_graph(self):
         images, labels = self.load()
         rotate=self.rotate(images)
