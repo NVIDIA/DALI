@@ -5,6 +5,10 @@ ARG DEPS_IMAGE_NAME
 # clean builder without source code inside
 FROM ${DEPS_IMAGE_NAME} as builder
 
+
+RUN ls -la /usr/local/cuda
+RUN cat /usr/local/cuda/version.txt
+
 ARG PYVER=2.7
 ARG PYV=27
 
@@ -73,7 +77,5 @@ COPY . .
 ARG DALI_BUILD_DIR=build-docker-release
 WORKDIR /opt/dali/${DALI_BUILD_DIR}
 
-RUN ls -la /usr/local/cuda
-RUN cat /usr/local/cuda/version.txt
 
 RUN /opt/dali/docker/build_helper.sh
