@@ -44,8 +44,12 @@ struct NormalizePolicy {
   template <typename OutputType, typename InputType>
   static inline void Fill(OutputType &destination, InputType element,
                           const float *mean, const float *inv_stddev) {
-    destination = clamp<OutputType>(
-      (static_cast<float>(element) - (*mean)) * (*inv_stddev));
+    float fpout = (static_cast<float>(element) - (*mean)) * (*inv_stddev);
+    if (std::is_integral<OutputType>::value) {
+      destination = clamp<OutputType>(std::roundf(fpout));
+    } else {
+      destination = clamp<OutputType>(fpout);
+    }
   }
 };
 

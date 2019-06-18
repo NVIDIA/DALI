@@ -102,8 +102,12 @@ __device__ inline void SliceFlipNormalizePermuteFunc(OutputType *__restrict__ ou
     } else {
       in_idx += idx;  // remaining dims have equal strides
       if (should_normalize) {
-        out[out_idx] = clamp<OutputType>(
-          fmaf(static_cast<float>(in[in_idx]), norm_mul[norm_i], norm_add[norm_i]));
+        float fpout = fmaf(static_cast<float>(in[in_idx]), norm_mul[norm_i], norm_add[norm_i]);
+        if (std::is_integral<OutputType>::value) {
+          out[out_idx] = clamp<OutputType>(__float2int_rn(fpout));
+        } else {
+          out[out_idx] = clamp<OutputType>(fpout);
+        }
       } else {
         out[out_idx] = clamp<OutputType>(in[in_idx]);
       }
