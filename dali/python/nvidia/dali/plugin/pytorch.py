@@ -80,7 +80,7 @@ class DALIGenericIterator(object):
                  of self._num_gpus * self.batch_size which exceeds 'size'.
     dynamic_shape: bool, optional, default = False
                  Whether the shape of the output of the DALI pipeline can
-                 change during execution. If True, the mxnet.ndarray will be resized accordingly
+                 change during execution. If True, the pytorch tensor will be resized accordingly
                  if the shape of DALI returned tensors changes during execution.
                  If False, the iterator will fail in case of change.
     """
@@ -270,7 +270,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                  of self._num_gpus * self.batch_size which exceeds 'size'.
     dynamic_shape: bool, optional, default = False
                  Whether the shape of the output of the DALI pipeline can
-                 change during execution. If True, the mxnet.ndarray will be resized accordingly
+                 change during execution. If True, the pytorch tensor will be resized accordingly
                  if the shape of DALI returned tensors changes during execution.
                  If False, the iterator will fail in case of change.
     """

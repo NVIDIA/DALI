@@ -1,6 +1,8 @@
 #!/bin/bash -e
 # used pip packages
 
+source ../setup_dali_extra.sh
+
 pip_packages="nose tensorflow-gpu torchvision mxnet-cu##CUDA_VERSION##"
 one_config_only=true
 
