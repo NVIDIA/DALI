@@ -45,13 +45,11 @@ class C2Pipe(Pipeline):
         self.input = ops.ExternalSource()
         self.decode = ops.HostDecoder(output_type = types.RGB)
         self.rcm = ops.FastResizeCropMirror(crop = (224, 224))
-        self.np = ops.NormalizePermute(device = "gpu",
-                                       output_dtype = types.FLOAT16,
-                                       mean = [128., 128., 128.],
-                                       std = [1., 1., 1.],
-                                       height = 224,
-                                       width = 224,
-                                       image_type = types.RGB)
+        self.np = ops.CropMirrorNormalize(device = "gpu",
+                                          output_dtype = types.FLOAT16,
+                                          mean = [128., 128., 128.],
+                                          std = [1., 1., 1.],
+                                          image_type = types.RGB)
         self.uniform = ops.Uniform(range = (0., 1.))
         self.resize_uniform = ops.Uniform(range = (256., 480.))
         self.mirror = ops.CoinFlip(probability = 0.5)
@@ -150,4 +148,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
