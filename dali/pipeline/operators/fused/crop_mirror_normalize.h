@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_FUSED_NEW_CROP_MIRROR_NORMALIZE_H_
-#define DALI_PIPELINE_OPERATORS_FUSED_NEW_CROP_MIRROR_NORMALIZE_H_
+#ifndef DALI_PIPELINE_OPERATORS_FUSED_CROP_MIRROR_NORMALIZE_H_
+#define DALI_PIPELINE_OPERATORS_FUSED_CROP_MIRROR_NORMALIZE_H_
 
 #include <cstring>
 #include <utility>
@@ -224,4 +224,4 @@ inline size_t channels_dim(DALITensorLayout in_layout) {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_FUSED_NEW_CROP_MIRROR_NORMALIZE_H_
+#endif  // DALI_PIPELINE_OPERATORS_FUSED_CROP_MIRROR_NORMALIZE_H_

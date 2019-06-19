@@ -14,7 +14,7 @@
 
 #include <utility>
 #include <vector>
-#include "dali/pipeline/operators/fused/new_crop_mirror_normalize.h"
+#include "dali/pipeline/operators/fused/crop_mirror_normalize.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_gpu.cuh"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
