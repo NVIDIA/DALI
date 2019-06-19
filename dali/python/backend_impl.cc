@@ -68,7 +68,7 @@ void ExposeTensor(py::module &m) { // NOLINT
               FormatStrFromType(t.type()),
               t.ndim(), shape, stride);
         })
-    .def("__init__", [](Tensor<CPUBackend> &t, py::buffer b, DALITensorLayout layout = DALI_NHWC) {
+    .def(py::init([](py::buffer b, DALITensorLayout layout = DALI_NHWC) {
           // We need to verify that hte input data is c contiguous
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -92,13 +92,14 @@ void ExposeTensor(py::module &m) { // NOLINT
           }
 
           // Create the Tensor and wrap the data
-          new (&t) Tensor<CPUBackend>;
+          auto t = new Tensor<CPUBackend>;
           TypeInfo type = TypeFromFormatStr(info.format);
-          t.ShareData(info.ptr, bytes);
-          t.set_type(type);
-          t.SetLayout(layout);
-          t.Resize(i_shape);
-        },
+          t->ShareData(info.ptr, bytes);
+          t->set_type(type);
+          t->SetLayout(layout);
+          t->Resize(i_shape);
+          return t;
+        }),
       R"code(
       Tensor residing in the CPU memory.
       )code")
@@ -174,8 +175,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
   // the backend. We do not support converting from TensorLists
   // to numpy arrays currently.
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
-    .def("__init__", [](TensorList<CPUBackend> &t, py::buffer b,
-                        DALITensorLayout layout) {
+    .def(py::init([](py::buffer b, DALITensorLayout layout) {
           // We need to verify that the input data is C_CONTIGUOUS
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -200,13 +200,14 @@ void ExposeTensorList(py::module &m) { // NOLINT
           }
 
           // Create the Tensor and wrap the data
-          new (&t) TensorList<CPUBackend>;
+          auto t = new TensorList<CPUBackend>;
           TypeInfo type = TypeFromFormatStr(info.format);
-          t.ShareData(info.ptr, bytes);
-          t.set_type(type);
-          t.SetLayout(layout);
-          t.Resize(i_shape);
-        },
+          t->ShareData(info.ptr, bytes);
+          t->set_type(type);
+          t->SetLayout(layout);
+          t->Resize(i_shape);
+          return t;
+        }),
       R"code(
       List of tensors residing in the CPU memory.
 
@@ -341,10 +342,10 @@ void ExposeTensorList(py::module &m) { // NOLINT
       py::return_value_policy::reference_internal);
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
-    .def("__init__", [](TensorList<GPUBackend> &t) {
+    .def(py::init([]() {
           // Construct a default TensorList on GPU
-          new (&t) TensorList<GPUBackend>;
-        },
+          return new TensorList<GPUBackend>;
+        }),
       R"code(
       List of tensors residing in the GPU memory.
       )code")
