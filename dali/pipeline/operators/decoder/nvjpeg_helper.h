@@ -28,12 +28,15 @@
 
 namespace dali {
 
+const char* nvjpeg_parse_error_code(nvjpegStatus_t code);
+
 #define NVJPEG_CALL(code)                                    \
   do {                                                       \
     nvjpegStatus_t status = code;                            \
     if (status != NVJPEG_STATUS_SUCCESS) {                   \
       dali::string error = dali::string("NVJPEG error \"") + \
-        std::to_string(static_cast<int>(status)) + "\"";     \
+        std::to_string(static_cast<int>(status)) + "\""  +   \
+        " : " + nvjpeg_parse_error_code(status);             \
       DALI_FAIL(error);                                      \
     }                                                        \
   } while (0)
@@ -44,8 +47,9 @@ namespace dali {
     string extra_info = extra;                               \
     if (status != NVJPEG_STATUS_SUCCESS) {                   \
       dali::string error = dali::string("NVJPEG error \"") + \
-        std::to_string(static_cast<int>(status)) + "\"" +    \
-        " " + extra_info;                                    \
+        std::to_string(static_cast<int>(status)) + "\""      \
+        + " : " + nvjpeg_parse_error_code(status) + " "      \
+        + extra_info;                                        \
       DALI_FAIL(error);                                      \
     }                                                        \
   } while (0)

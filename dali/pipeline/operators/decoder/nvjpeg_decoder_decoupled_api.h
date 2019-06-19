@@ -334,22 +334,22 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       nvjpeg_image.pitch[0] = NumberOfChannels(output_image_type_) * info.widths[0];
 
       CUDA_CALL(cudaEventSynchronize(decode_events_[thread_id]));
-      NVJPEG_CALL(nvjpegStateAttachDeviceBuffer(image_states_[sample_idx],
-                                                device_buffers_[thread_id]));
+      NVJPEG_CALL_EX(nvjpegStateAttachDeviceBuffer(image_states_[sample_idx],
+                                                   device_buffers_[thread_id]), file_name);
 
-      NVJPEG_CALL(nvjpegDecodeJpegTransferToDevice(
+      NVJPEG_CALL_EX(nvjpegDecodeJpegTransferToDevice(
           handle_,
           image_decoders_[sample_idx],
           image_states_[sample_idx],
           jpeg_streams_[jpeg_stream_idx],
-          stream));
+          stream), file_name);
 
-      NVJPEG_CALL(nvjpegDecodeJpegDevice(
+      NVJPEG_CALL_EX(nvjpegDecodeJpegDevice(
           handle_,
           image_decoders_[sample_idx],
           image_states_[sample_idx],
           &nvjpeg_image,
-          stream));
+          stream), file_name);
       CUDA_CALL(cudaEventRecord(decode_events_[thread_id], stream));
 
     } else {
