@@ -29,9 +29,9 @@
 namespace dali {
 
 template <typename Backend>
-class NewCropMirrorNormalize : public Operator<Backend>, protected CropAttr {
+class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
  public:
-  explicit inline NewCropMirrorNormalize(const OpSpec &spec)
+  explicit inline CropMirrorNormalize(const OpSpec &spec)
       : Operator<Backend>(spec),
         CropAttr(spec),
         output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
@@ -54,7 +54,7 @@ class NewCropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     }
   }
 
-  inline ~NewCropMirrorNormalize() override = default;
+  inline ~CropMirrorNormalize() override = default;
 
  protected:
   void RunImpl(Workspace<Backend> *ws, const int idx) override;

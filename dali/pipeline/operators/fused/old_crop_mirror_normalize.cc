@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/fused/crop_mirror_normalize.h"
+#include "dali/pipeline/operators/fused/old_crop_mirror_normalize.h"
 #include "dali/util/half.hpp"
 
 namespace dali {
 
-DALI_SCHEMA(CropMirrorNormalize)
+DALI_SCHEMA(OldCropMirrorNormalize)
         .DocStr(R"code(Perform fused cropping, normalization, format conversion
 (NHWC to NCHW) if desired, and type casting.
 Normalization takes input image and produces output using formula:
@@ -49,7 +49,7 @@ Normalization takes input image and produces output using formula:
 
 // Crop, mirror, mean sub, stddev div, NHWC->NCHW, Npp8u->fp32
 template <typename Out>
-void CropMirrorNormalizePermuteKernel(const int C, const int H, const int W,
+void OldCropMirrorNormalizePermuteKernel(const int C, const int H, const int W,
                                       const bool pad, const int mirror_image,
                                       const float *mean, const float *inv_std,
                                       const uint8 *input_ptr, const int in_step,
@@ -108,7 +108,7 @@ void CropMirrorNormalizePermuteKernel(const int C, const int H, const int W,
 
 template <>
 template <typename Out>
-void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws,
+void OldCropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws,
                                                 const int idx) {
   const auto &input = ws->Input<CPUBackend>(0);
   auto &output = ws->Output<CPUBackend>(idx);
@@ -127,14 +127,14 @@ void CropMirrorNormalize<CPUBackend>::RunHelper(SampleWorkspace *ws,
   auto coord = CropAttr::GetCropWindowGenerator(ws->data_idx())(H, W);
   int crop_offsets = coord.y*W*C_ + coord.x*C_;
 
-  CropMirrorNormalizePermuteKernel(
+  OldCropMirrorNormalizePermuteKernel(
       C_, crop_h_, crop_w_, pad_, mirror_image, mean_.template data<float>(),
       inv_std_.template data<float>(), input.template data<uint8>() + crop_offsets, stride,
       output_layout_, output_ptr);
 }
 
 template <>
-void CropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(
+void OldCropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(
     SampleWorkspace *ws) {
   if (output_layout_ == DALI_SAME) {
     output_layout_ = ws->Input<CPUBackend>(0).GetLayout();
@@ -147,7 +147,7 @@ void CropMirrorNormalize<CPUBackend>::SetupSharedSampleParams(
 }
 
 template <>
-void CropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws,
+void OldCropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws,
                                                          const int idx) {
   const auto &input = ws->Input<CPUBackend>(idx);
   auto &output = ws->Output<CPUBackend>(idx);
@@ -158,7 +158,7 @@ void CropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws,
 }
 
 template <>
-void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws,
+void OldCropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws,
                                               const int idx) {
   DataDependentSetup(ws, idx);
 
@@ -180,7 +180,7 @@ void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws,
 }
 
 // Register operator
-DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>,
+DALI_REGISTER_OPERATOR(OldCropMirrorNormalize, OldCropMirrorNormalize<CPUBackend>,
                        CPU);
 
 }  // namespace dali

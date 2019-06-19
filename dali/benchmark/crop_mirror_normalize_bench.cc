@@ -39,6 +39,44 @@ static void CropMirrorNormalizeCPUArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
+BENCHMARK_DEFINE_F(OperatorBench, OldCropMirrorNormalizeCPU)(benchmark::State& st) {
+  DALIDataType output_dtype = static_cast<DALIDataType>(st.range(0));
+  DALITensorLayout output_layout = static_cast<DALITensorLayout>(st.range(1));
+  int mirror = st.range(2);
+  int pad = st.range(3);
+  int batch_size = st.range(4);
+  int H = st.range(5);
+  int W = st.range(6);
+  int C = st.range(7);
+  int crop_h = st.range(8);
+  int crop_w = st.range(9);
+  float mean = static_cast<float>(st.range(10));
+  float std = static_cast<float>(st.range(11));
+
+  this->RunCPU<uint8_t>(
+    st,
+    OpSpec("OldCropMirrorNormalize")
+      .AddArg("batch_size", batch_size)
+      .AddArg("num_threads", 1)
+      .AddArg("device", "cpu")
+      .AddArg("output_type", DALI_RGB)
+      .AddArg("output_layout", output_layout)
+      .AddArg("output_dtype", output_dtype)
+      .AddArg("crop", std::vector<float>{static_cast<float>(crop_h), static_cast<float>(crop_w)})
+      .AddArg("crop_pos_x", 0.5f)
+      .AddArg("crop_pos_y", 0.5f)
+      .AddArg("mean", std::vector<float>(C, mean))
+      .AddArg("std", std::vector<float>(C, std))
+      .AddArg("mirror", mirror),
+    batch_size, H, W, C);
+}
+
+BENCHMARK_REGISTER_F(OperatorBench, OldCropMirrorNormalizeCPU)->Iterations(500)
+->Unit(benchmark::kMicrosecond)
+->UseRealTime()
+->Apply(CropMirrorNormalizeCPUArgs);
+
+
 BENCHMARK_DEFINE_F(OperatorBench, CropMirrorNormalizeCPU)(benchmark::State& st) {
   DALIDataType output_dtype = static_cast<DALIDataType>(st.range(0));
   DALITensorLayout output_layout = static_cast<DALITensorLayout>(st.range(1));
@@ -76,44 +114,6 @@ BENCHMARK_REGISTER_F(OperatorBench, CropMirrorNormalizeCPU)->Iterations(500)
 ->UseRealTime()
 ->Apply(CropMirrorNormalizeCPUArgs);
 
-
-BENCHMARK_DEFINE_F(OperatorBench, NewCropMirrorNormalizeCPU)(benchmark::State& st) {
-  DALIDataType output_dtype = static_cast<DALIDataType>(st.range(0));
-  DALITensorLayout output_layout = static_cast<DALITensorLayout>(st.range(1));
-  int mirror = st.range(2);
-  int pad = st.range(3);
-  int batch_size = st.range(4);
-  int H = st.range(5);
-  int W = st.range(6);
-  int C = st.range(7);
-  int crop_h = st.range(8);
-  int crop_w = st.range(9);
-  float mean = static_cast<float>(st.range(10));
-  float std = static_cast<float>(st.range(11));
-
-  this->RunCPU<uint8_t>(
-    st,
-    OpSpec("NewCropMirrorNormalize")
-      .AddArg("batch_size", batch_size)
-      .AddArg("num_threads", 1)
-      .AddArg("device", "cpu")
-      .AddArg("output_type", DALI_RGB)
-      .AddArg("output_layout", output_layout)
-      .AddArg("output_dtype", output_dtype)
-      .AddArg("crop", std::vector<float>{static_cast<float>(crop_h), static_cast<float>(crop_w)})
-      .AddArg("crop_pos_x", 0.5f)
-      .AddArg("crop_pos_y", 0.5f)
-      .AddArg("mean", std::vector<float>(C, mean))
-      .AddArg("std", std::vector<float>(C, std))
-      .AddArg("mirror", mirror),
-    batch_size, H, W, C);
-}
-
-BENCHMARK_REGISTER_F(OperatorBench, NewCropMirrorNormalizeCPU)->Iterations(500)
-->Unit(benchmark::kMicrosecond)
-->UseRealTime()
-->Apply(CropMirrorNormalizeCPUArgs);
-
 static void CropMirrorNormalizeGPUArgs(benchmark::internal::Benchmark *b) {
   int mean = 128, std = 1;
   for (int batch_size : {1, 8, 128, 256}) {
@@ -135,6 +135,44 @@ static void CropMirrorNormalizeGPUArgs(benchmark::internal::Benchmark *b) {
     }
   }
 }
+
+BENCHMARK_DEFINE_F(OperatorBench, OldCropMirrorNormalizeGPU)(benchmark::State& st) {
+  int batch_size = st.range(0);
+  int H = st.range(1);
+  int W = st.range(2);
+  int C = st.range(3);
+  int crop_h = st.range(4);
+  int crop_w = st.range(5);
+  DALIDataType output_dtype = static_cast<DALIDataType>(st.range(6));
+  DALITensorLayout output_layout = static_cast<DALITensorLayout>(st.range(7));
+  int mirror = st.range(8);
+  int pad = st.range(9);
+  float mean = static_cast<float>(st.range(10));
+  float std = static_cast<float>(st.range(11));
+
+  this->RunGPU<uint8_t>(
+    st,
+    OpSpec("OldCropMirrorNormalize")
+      .AddArg("batch_size", batch_size)
+      .AddArg("num_threads", 1)
+      .AddArg("device", "gpu")
+      .AddArg("output_type", DALI_RGB)
+      .AddArg("output_layout", output_layout)
+      .AddArg("output_dtype", output_dtype)
+      .AddArg("crop", std::vector<float>{static_cast<float>(crop_h), static_cast<float>(crop_w)})
+      .AddArg("crop_pos_x", 0.5f)
+      .AddArg("crop_pos_y", 0.5f)
+      .AddArg("mean", std::vector<float>(C, mean))
+      .AddArg("std", std::vector<float>(C, std))
+      .AddArg("mirror", mirror),
+    batch_size, H, W, C);
+}
+
+BENCHMARK_REGISTER_F(OperatorBench, OldCropMirrorNormalizeGPU)->Iterations(500)
+->Unit(benchmark::kMicrosecond)
+->UseRealTime()
+->Apply(CropMirrorNormalizeGPUArgs);
+
 
 BENCHMARK_DEFINE_F(OperatorBench, CropMirrorNormalizeGPU)(benchmark::State& st) {
   int batch_size = st.range(0);
@@ -169,44 +207,6 @@ BENCHMARK_DEFINE_F(OperatorBench, CropMirrorNormalizeGPU)(benchmark::State& st) 
 }
 
 BENCHMARK_REGISTER_F(OperatorBench, CropMirrorNormalizeGPU)->Iterations(500)
-->Unit(benchmark::kMicrosecond)
-->UseRealTime()
-->Apply(CropMirrorNormalizeGPUArgs);
-
-
-BENCHMARK_DEFINE_F(OperatorBench, NewCropMirrorNormalizeGPU)(benchmark::State& st) {
-  int batch_size = st.range(0);
-  int H = st.range(1);
-  int W = st.range(2);
-  int C = st.range(3);
-  int crop_h = st.range(4);
-  int crop_w = st.range(5);
-  DALIDataType output_dtype = static_cast<DALIDataType>(st.range(6));
-  DALITensorLayout output_layout = static_cast<DALITensorLayout>(st.range(7));
-  int mirror = st.range(8);
-  int pad = st.range(9);
-  float mean = static_cast<float>(st.range(10));
-  float std = static_cast<float>(st.range(11));
-
-  this->RunGPU<uint8_t>(
-    st,
-    OpSpec("NewCropMirrorNormalize")
-      .AddArg("batch_size", batch_size)
-      .AddArg("num_threads", 1)
-      .AddArg("device", "gpu")
-      .AddArg("output_type", DALI_RGB)
-      .AddArg("output_layout", output_layout)
-      .AddArg("output_dtype", output_dtype)
-      .AddArg("crop", std::vector<float>{static_cast<float>(crop_h), static_cast<float>(crop_w)})
-      .AddArg("crop_pos_x", 0.5f)
-      .AddArg("crop_pos_y", 0.5f)
-      .AddArg("mean", std::vector<float>(C, mean))
-      .AddArg("std", std::vector<float>(C, std))
-      .AddArg("mirror", mirror),
-    batch_size, H, W, C);
-}
-
-BENCHMARK_REGISTER_F(OperatorBench, NewCropMirrorNormalizeGPU)->Iterations(500)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(CropMirrorNormalizeGPUArgs);

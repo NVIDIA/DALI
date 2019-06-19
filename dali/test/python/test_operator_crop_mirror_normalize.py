@@ -31,35 +31,22 @@ caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 class CropMirrorNormalizePipeline(Pipeline):
     def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1,
-                 is_new_cmn = False, output_dtype = types.FLOAT, output_layout = types.NHWC,
+                 output_dtype = types.FLOAT, output_layout = types.NHWC,
                  mirror_probability = 0.0, mean=[0., 0., 0.], std=[1., 1., 1.], pad_output=False):
         super(CropMirrorNormalizePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865)
         self.device = device
-        self.is_new_cmn = is_new_cmn
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
-        if self.is_new_cmn:
-            self.cmn = ops.NewCropMirrorNormalize(device = self.device,
-                                                  output_dtype = output_dtype,
-                                                  output_layout = output_layout,
-                                                  crop = (224, 224),
-                                                  crop_pos_x = 0.3,
-                                                  crop_pos_y = 0.2,
-                                                  image_type = types.RGB,
-                                                  mean = mean,
-                                                  std = std,
-                                                  pad_output = pad_output)
-        else:
-            self.cmn = ops.CropMirrorNormalize(device = self.device,
-                                               output_dtype = output_dtype,
-                                               output_layout = output_layout,
-                                               crop = (224, 224),
-                                               crop_pos_x = 0.3,
-                                               crop_pos_y = 0.2,
-                                               image_type = types.RGB,
-                                               mean = mean,
-                                               std = std,
-                                               pad_output = pad_output)
+        self.cmn = ops.CropMirrorNormalize(device = self.device,
+                                           output_dtype = output_dtype,
+                                           output_layout = output_layout,
+                                           crop = (224, 224),
+                                           crop_pos_x = 0.3,
+                                           crop_pos_y = 0.2,
+                                           image_type = types.RGB,
+                                           mean = mean,
+                                           std = std,
+                                           pad_output = pad_output)
         self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
@@ -71,17 +58,15 @@ class CropMirrorNormalizePipeline(Pipeline):
         images = self.cmn(images, mirror=rng)
         return images
 
-def check_cmn_cpu_vs_gpu(batch_size, output_dtype, output_layout, mirror_probability, mean, std, pad_output, is_new_cmn):
+def check_cmn_cpu_vs_gpu(batch_size, output_dtype, output_layout, mirror_probability, mean, std, pad_output):
     iterations = 8 if batch_size == 1 else 1
     eps = 1e-07 if output_dtype != types.INT32 else 0.01
     compare_pipelines(CropMirrorNormalizePipeline('cpu', batch_size, output_dtype=output_dtype,
                                                   output_layout=output_layout, mirror_probability=mirror_probability,
-                                                  mean=mean, std=std, pad_output=pad_output,
-                                                  is_new_cmn=is_new_cmn),
+                                                  mean=mean, std=std, pad_output=pad_output),
                       CropMirrorNormalizePipeline('gpu', batch_size, output_dtype=output_dtype,
                                                   output_layout=output_layout, mirror_probability=mirror_probability,
-                                                  mean=mean, std=std, pad_output=pad_output,
-                                                  is_new_cmn=is_new_cmn),
+                                                  mean=mean, std=std, pad_output=pad_output),
                       batch_size=batch_size, N_iterations=iterations, eps=eps)
 
 def test_cmn_cpu_vs_gpu():
@@ -98,41 +83,7 @@ def test_cmn_cpu_vs_gpu():
                                   ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229, 0.224, 0.225]) ]
                     for (mean, std) in norm_data:
                         for pad_output in [False, True]:
-                            for is_new_cmn in [False, True]:
-                                yield check_cmn_cpu_vs_gpu, batch_size, output_dtype, output_layout, mirror_probability, mean, std, pad_output, True
-
-def check_cmn_cpu_old_vs_new(device_new, device_old, batch_size, output_dtype, output_layout, mirror_probability, mean, std, pad_output):
-    iterations = 8 if batch_size == 1 else 1
-    eps = 1e-07 if output_dtype != types.INT32 else 0.75
-    compare_pipelines(CropMirrorNormalizePipeline(device_old, batch_size, output_dtype=output_dtype,
-                                                  output_layout=output_layout, mirror_probability=mirror_probability,
-                                                  mean=mean, std=std, pad_output=pad_output,
-                                                  is_new_cmn=False),
-                      CropMirrorNormalizePipeline(device_new, batch_size, output_dtype=output_dtype,
-                                                  output_layout=output_layout, mirror_probability=mirror_probability,
-                                                  mean=mean, std=std, pad_output=pad_output,
-                                                  is_new_cmn=True),
-                      batch_size=batch_size, N_iterations=iterations, eps=eps)
-
-def test_cmn_cpu_old_vs_new():
-    for device_new in ['cpu', 'gpu']:
-        for device_old in ['cpu', 'gpu']:
-            for batch_size in [1, 8]:
-                for output_dtype in [types.FLOAT, types.INT32]:
-                    for output_layout in [types.NHWC, types.NCHW]:
-                        for mirror_probability in [0.0, 0.5, 1.0]:
-                            norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
-                                          ([0.5 * 255], [0.225 * 255]),
-                                          ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ] \
-                                        if output_dtype != types.INT32 else \
-                                        [ ([0., 0., 0.], [1., 1., 1.]),
-                                          ([0.5 * 255], [0.225]),
-                                          ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229, 0.224, 0.225]) ]
-                            for (mean, std) in norm_data:
-                                for pad_output in [False, True] if device_old != 'cpu' else [False]: # padding doesn't work in the old CPU version
-                                    yield check_cmn_cpu_old_vs_new, device_new, device_old, batch_size, output_dtype, \
-                                        output_layout, mirror_probability, mean, std, pad_output
-
+                            yield check_cmn_cpu_vs_gpu, batch_size, output_dtype, output_layout, mirror_probability, mean, std, pad_output
 
 class NoCropPipeline(Pipeline):
     def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1, decoder_only=False):
@@ -142,10 +93,10 @@ class NoCropPipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
         if not self.decoder_only:
-            self.cmn = ops.NewCropMirrorNormalize(device = self.device,
-                                                  image_type = types.RGB,
-                                                  output_dtype = types.UINT8,
-                                                  output_layout = types.NHWC)
+            self.cmn = ops.CropMirrorNormalize(device = self.device,
+                                               image_type = types.RGB,
+                                               output_dtype = types.UINT8,
+                                               output_layout = types.NHWC)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -245,7 +196,7 @@ def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, mirror_probabilit
         assert False
 
 def check_cmn_vs_numpy(device, batch_size, output_dtype, output_layout,
-                       mirror_probability, mean, std, should_pad, is_new_cmn):
+                       mirror_probability, mean, std, should_pad):
     assert mirror_probability in cmn_coin_flip_samples
     global cmn_idx
     cmn_idx = 0
@@ -258,11 +209,11 @@ def check_cmn_vs_numpy(device, batch_size, output_dtype, output_layout,
     iterations = 8 if batch_size == 1 else 1
     compare_pipelines(CropMirrorNormalizePipeline(device, batch_size, output_dtype=output_dtype,
                                                   output_layout=output_layout, mirror_probability=mirror_probability,
-                                                  mean=mean, std=std, pad_output=should_pad, is_new_cmn=True),
+                                                  mean=mean, std=std, pad_output=should_pad),
                       PythonOpPipeline(batch_size, function),
                       batch_size=batch_size, N_iterations=iterations)
 
-def test_cmn_python_op():
+def test_cmn_vs_numpy():
     norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
                   ([0.5 * 255], [0.225 * 255]),
                   ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]
@@ -275,7 +226,7 @@ def test_cmn_python_op():
                         for (mean, std) in norm_data:
                             for should_pad in [False, True]:
                                 yield check_cmn_vs_numpy, device, batch_size, output_dtype, output_layout, mirror_probability, \
-                                    mean, std, should_pad, True
+                                    mean, std, should_pad
 
 
 class CMNRandomDataPipeline(Pipeline):
@@ -287,16 +238,16 @@ class CMNRandomDataPipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.cmn = ops.NewCropMirrorNormalize(device = self.device,
-                                              output_dtype = output_dtype,
-                                              output_layout = output_layout,
-                                              crop = (224, 224),
-                                              crop_pos_x = 0.3,
-                                              crop_pos_y = 0.2,
-                                              image_type = types.RGB,
-                                              mean = mean,
-                                              std = std,
-                                              pad_output = pad_output)
+        self.cmn = ops.CropMirrorNormalize(device = self.device,
+                                           output_dtype = output_dtype,
+                                           output_layout = output_layout,
+                                           crop = (224, 224),
+                                           crop_pos_x = 0.3,
+                                           crop_pos_y = 0.2,
+                                           image_type = types.RGB,
+                                           mean = mean,
+                                           std = std,
+                                           pad_output = pad_output)
         self.coin = ops.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
@@ -313,10 +264,10 @@ class CMNRandomDataPipeline(Pipeline):
 class CMNRandomDataPythonOpPipeline(Pipeline):
     def __init__(self, function, batch_size, layout, iterator, num_threads=1, device_id=0):
         super(CMNRandomDataPythonOpPipeline, self).__init__(batch_size,
-                                                          num_threads,
-                                                          device_id,
-                                                          exec_async=False,
-                                                          exec_pipelined=False)
+                                                            num_threads,
+                                                            device_id,
+                                                            exec_async=False,
+                                                            exec_pipelined=False)
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
@@ -354,7 +305,6 @@ def check_cmn_random_data_vs_numpy(device, batch_size, output_dtype, input_layou
 
 def test_cmn_random_data_vs_numpy():
     norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
-                  ([0.5 * 255], [0.225 * 255]),
                   ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]
     output_layouts = {
         types.NHWC : [types.NHWC, types.NCHW],
@@ -376,7 +326,7 @@ def test_cmn_random_data_vs_numpy():
                         elif input_layout == types.NHWC:
                             assert len(input_shape) == 3
                         for output_layout in output_layouts[input_layout]:
-                            mirror_probs = [0.0, 0.5, 1.0] if batch_size > 1 else [0.0, 1.0]
+                            mirror_probs = [0.5] if batch_size > 1 else [0.0, 1.0]
                             for mirror_probability in mirror_probs:
                                 for (mean, std) in norm_data:
                                     for should_pad in [False, True]:
