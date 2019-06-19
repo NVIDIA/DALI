@@ -12,7 +12,7 @@ from random import shuffle
 batch_size = 1
 sequence_length = 2
 dali_extra_path = os.environ['DALI_EXTRA_PATH']
-image_dir= os.path.join(dali_extra_path, "/db/optical_flow/slow_preset/two_frames")
+image_dir = os.path.join(dali_extra_path, "db", "optical_flow", "slow_preset", "two_frames")
 
 
 class OFPipeline(Pipeline):
@@ -23,7 +23,7 @@ class OFPipeline(Pipeline):
     def define_graph(self):
         seq = self.input(name="Reader")
         of = self.of_op(seq.gpu())
-        return of,seq.gpu()
+        return of
 
 
 def test_of():
@@ -31,5 +31,7 @@ def test_of():
     pipe.build()
     pipe_out = pipe.run()
     frames = pipe_out[0].as_cpu().as_array()
-    myarray=np.loadtxt(image_dir+'decoded_flow_vector.dat')
-    assert (0.9 < np.mean(np.abs(frames[0][0].flatten()-myarray)))
+    myarray = np.loadtxt(os.path.join(dali_extra_path, "db", "optical_flow", "slow_preset",
+                                      "decoded_flow_vector.dat"))
+    assert (0.9 > np.mean(np.abs(frames[0][0].flatten() - myarray)))
+

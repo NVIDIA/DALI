@@ -111,10 +111,18 @@ class SliceFlipNormalizePermuteTest : public ::testing::Test {
         if (!is_zero_pad) {
           if (!mean.empty() && !inv_stddev.empty()) {
             auto c = mean.size() == 1 ? 0 : out_idx % out_shape[Dims - 1];
-            output_value = clamp<OutputType>(
-              (static_cast<float>(in_tensor[in_idx]) - mean[c]) * inv_stddev[c]);
+            float fpout = (static_cast<float>(in_tensor[in_idx]) - mean[c]) * inv_stddev[c];
+            if (std::is_integral<OutputType>::value) {
+              output_value = clamp<OutputType>(std::roundf(fpout));
+            } else {
+              output_value = clamp<OutputType>(fpout);
+            }
           } else {
-            output_value = clamp<OutputType>(in_tensor[in_idx]);
+            if (std::is_integral<OutputType>::value && std::is_floating_point<InputType>::value) {
+              output_value = clamp<OutputType>(std::roundf(in_tensor[in_idx]));
+            } else {
+              output_value = clamp<OutputType>(in_tensor[in_idx]);
+            }
           }
         }
         out_tensor[out_idx] = output_value;
@@ -349,6 +357,8 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES = ::testing::Types<
       SliceFlipNormPermArgsGen_PermuteAndSliceHalf_PermuteHW<uint8_t, 3>, 1000, 1000>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,
       SliceFlipNormPermArgsGen_PermuteAndSliceHalf_PermuteHW<float, 3>, 1000, 1000>,
+    SliceTestArgs<uint8_t, float, 3, 1, 2,
+      SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 2, 1>, 2, 2>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,
       SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 2, 1>, 10, 10>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,

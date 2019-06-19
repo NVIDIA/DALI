@@ -14,6 +14,7 @@
 
 #include "dali/pipeline/operators/python_function/python_function.h"
 #include <vector>
+#include "dali/pipeline/operators/python_function/util/copy_with_stride.h"
 
 namespace dali {
 
@@ -47,23 +48,15 @@ struct PyBindInitializer {
 // so this workaround initializes them manually
 static PyBindInitializer pybind_initializer{}; // NOLINT
 
-py::array NumpyArrayAsContiguous(const TypeInfo &type, const py::array &array) {
-  DALI_TYPE_SWITCH(type.id(), DType,
-    return py::array_t<DType, py::array::c_style>::ensure(array);
-  )
-}
-
 void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, py::array &array) {
   std::vector<Index> shape(static_cast<size_t>(array.ndim()));
   std::copy(array.shape(), array.shape() + array.ndim(), shape.begin());
-  TypeInfo type = TypeFromFormatStr(array.request().format);
+  auto buffer_info = array.request();
+  TypeInfo type = TypeFromFormatStr(buffer_info.format);
   tensor.set_type(type);
   tensor.Resize(shape);
-  py::array contiguous = NumpyArrayAsContiguous(type, array);
-  std::memcpy(
-      tensor.raw_mutable_data(),
-      contiguous.data(),
-      static_cast<size_t>(contiguous.size() * contiguous.itemsize()));
+  CopyWithStride(tensor.raw_mutable_data(), buffer_info.ptr,
+      buffer_info.strides, shape, buffer_info.itemsize);
 }
 
 py::list PrepareInputList(SampleWorkspace *ws, int idx) {

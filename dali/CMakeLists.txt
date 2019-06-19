@@ -158,9 +158,9 @@ add_subdirectory(tensorflow)
 if (BUILD_TENSORFLOW)
 
   # get default TF installation path
-   execute_process(
-     COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p] ; print(f[0], end=\"\")"
-     OUTPUT_VARIABLE DIST_PACKAGES_DIR)
+  execute_process(
+    COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p] ; print(f[0], end=\"\")"
+    OUTPUT_VARIABLE DIST_PACKAGES_DIR)
 
   set(TF_PATHS)
   set(TF_VER)
@@ -187,14 +187,20 @@ if (BUILD_TENSORFLOW)
     set(customop_lib "dali_tf${VER}")
 
     cuda_add_library(${customop_lib} SHARED ${DALI_TF_SRCS})
-
-    separate_arguments(TF_CFLAGS UNIX_COMMAND "-I${FULL_PATH}/tensorflow/include -I${FULL_PATH}/external/nsync/public -D_GLIBCXX_USE_CXX11_ABI=0")
+    execute_process(
+      COMMAND python -c "from __future__ import print_function; import sys; import tensorflow; sys.path.insert(0, '${FULL_PATH}'); print(';'.join(tensorflow.sysconfig.get_compile_flags()), end=\"\")"
+      OUTPUT_VARIABLE TF_CFLAGS)
+     
+    # set(TF_CFLAGS TF_CFLAGS "-I${FULL_PATH}/external/nsync/public")
     target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS})
 
     message(STATUS "Adding dependencies to ${customop_lib}: '${dali_lib}'")
     add_dependencies(${customop_lib} ${dali_lib})
 
-    target_link_libraries(${customop_lib} PRIVATE -L${FULL_PATH}/tensorflow -ltensorflow_framework)
+    execute_process(
+      COMMAND python -c "from __future__ import print_function; import sys; import tensorflow; sys.path.insert(0, '${FULL_PATH}'); print(';'.join(tensorflow.sysconfig.get_link_flags()), end=\"\")"
+      OUTPUT_VARIABLE TF_LFLAGS)
+    target_link_libraries(${customop_lib} PRIVATE ${TF_LFLAGS})
     target_link_libraries(${customop_lib} PRIVATE ${dali_lib})
 
     set_target_properties(${customop_lib} PROPERTIES

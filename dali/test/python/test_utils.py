@@ -32,22 +32,25 @@ def check_batch(batch1, batch2, batch_size, eps = 1e-07):
         is_failed = False
         assert(batch1.at(i).shape == batch2.at(i).shape), \
             "Shape mismatch {} != {}".format(batch1.at(i).shape, batch2.at(i).shape)
-        try:
-            err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
-        except:
-            is_failed = True
-        if (is_failed or err > eps ):
+        assert(batch1.at(i).size == batch2.at(i).size), \
+            "Size mismatch {} != {}".format(batch1.at(i).size, batch2.at(i).size)
+        if batch1.at(i).size != 0:
             try:
-                print("failed[{}] err[{}]".format(is_failed, err))
-                plt.imsave("err_1.png", batch1.at(i))
-                plt.imsave("err_2.png", batch2.at(i))
+                err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
             except:
-                print("Batch at {} can't be saved as an image".format(i))
-                print(batch1.at(i))
-                print(batch2.at(i))
-            assert(False)
+                is_failed = True
+            if (is_failed or err > eps ):
+                try:
+                    print("failed[{}] err[{}]".format(is_failed, err))
+                    plt.imsave("err_1.png", batch1.at(i))
+                    plt.imsave("err_2.png", batch2.at(i))
+                except:
+                    print("Batch at {} can't be saved as an image".format(i))
+                    print(batch1.at(i))
+                    print(batch2.at(i))
+                assert(False)
 
-def compare_pipelines(pipe1, pipe2, batch_size, N_iterations):
+def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
     pipe1.build()
     pipe2.build()
     for k in range(N_iterations):
@@ -57,7 +60,7 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations):
         for i in range(len(out1)):
             out1_data = out1[i].as_cpu() if isinstance(out1[i].at(0), dali.backend_impl.TensorGPU) else out1[i]
             out2_data = out2[i].as_cpu() if isinstance(out2[i].at(0), dali.backend_impl.TensorGPU) else out2[i]
-            check_batch(out1_data, out2_data, batch_size)
+            check_batch(out1_data, out2_data, batch_size, eps)
     print("OK: ({} iterations)".format(N_iterations))
 
 class RandomDataIterator(object):

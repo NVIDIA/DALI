@@ -267,6 +267,7 @@ class DetectionPipeline(Pipeline):
         image_decode_crop_gpu = self.decode_gpu_crop(inputs, crop_begin, crop_size)
 
         return (
+            labels,
             image_ssd_crop, image_decode_crop,
             image_slice_cpu, image_slice_gpu,
             boxes_ssd_crop, boxes_random_crop,
@@ -324,7 +325,6 @@ def compare(val_1, val_2, reference=None):
 
     return test
 
-
 def crop_border(image, border):
     return image[border:-border, border:-border, :]
 
@@ -361,7 +361,8 @@ def run_for_dataset(args, dataset):
 
     for iter in range(args.iters):
         for pipe in pipes:
-            image_ssd_crop, image_decode_crop, \
+            labels, \
+                image_ssd_crop, image_decode_crop, \
                 image_slice_cpu, image_slice_gpu, \
                 boxes_ssd_crop, boxes_random_crop, \
                 labels_ssd_crop, labels_random_crop,\
@@ -376,6 +377,9 @@ def run_for_dataset(args, dataset):
                 encoded_offset_labels_cpu, encoded_offset_labels_gpu, \
                 image_decode_crop_gpu, image_gpu_slice_gpu = \
                 [to_array(out) for out in pipe.run()]
+            # Check reader
+            labels = ((labels > 0) & (labels <= 80)).all()
+            
             # Check cropping ops
             decode_crop = compare(image_ssd_crop, image_decode_crop)
             slice_cpu = compare(image_ssd_crop, image_slice_cpu)
@@ -419,8 +423,10 @@ def run_for_dataset(args, dataset):
             encoded_labels_gpu = compare(encoded_labels_gpu, encoded_offset_labels_gpu)
             box_encoder = encoded_boxes and encoded_boxes_offset and encoded_labels and encoded_labels_offset and encoded_labels_cpu and encoded_labels_gpu
 
-            if not crop or not resize or not normalize or not twist or not flip or not box_encoder:
+            if not labels or not crop or not resize or not normalize or not twist or not flip or not box_encoder:
                 print('Error during iteration', iter)
+                print('Labels = ', labels)
+
                 print('Crop = ', crop)
                 print('  decode_crop =', decode_crop)
                 print('  decode_crop_gpu =', decode_crop_gpu)

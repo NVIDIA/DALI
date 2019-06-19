@@ -143,17 +143,17 @@ def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 224, crop
     assert H >= crop_h
     assert W >= crop_w
 
-    start_y = int(np.round(np.float32(0.2) * np.float32(H - 224)))
-    end_y = start_y + 224
-    start_x = int(np.round(np.float32(0.3) * np.float32(W - 224)))
-    end_x = start_x + 224
+    start_y = int(np.round(np.float32(crop_y) * np.float32(H - crop_h)))
+    end_y = start_y + crop_h
+    start_x = int(np.round(np.float32(crop_x) * np.float32(W - crop_w)))
+    end_x = start_x + crop_w
 
     if layout == types.NFHWC:
         return image[:, start_y:end_y, start_x:end_x, :]
     elif layout == types.NHWC:
         return image[start_y:end_y, start_x:end_x, :]
     else:
-        assert(True)  # should not happen
+        assert(False)  # should not happen
 
 def crop_NFHWC_func(image):
     return crop_func_help(image, types.NFHWC)

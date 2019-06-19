@@ -36,7 +36,11 @@ struct ClampPolicy {
                           const float *mean, const float *inv_stddev) {
     (void) mean;
     (void) inv_stddev;
-    destination = clamp<OutputType>(element);
+    if (std::is_integral<OutputType>::value && std::is_floating_point<InputType>::value) {
+      destination = clamp<OutputType>(std::roundf(element));
+    } else {
+      destination = clamp<OutputType>(element);
+    }
   }
 };
 
@@ -44,8 +48,12 @@ struct NormalizePolicy {
   template <typename OutputType, typename InputType>
   static inline void Fill(OutputType &destination, InputType element,
                           const float *mean, const float *inv_stddev) {
-    destination = clamp<OutputType>(
-      (static_cast<float>(element) - (*mean)) * (*inv_stddev));
+    float fpout = (static_cast<float>(element) - (*mean)) * (*inv_stddev);
+    if (std::is_integral<OutputType>::value) {
+      destination = clamp<OutputType>(std::roundf(fpout));
+    } else {
+      destination = clamp<OutputType>(fpout);
+    }
   }
 };
 
@@ -151,18 +159,9 @@ void SliceFlipNormalizePermute(OutputType *output, const InputType *input,
                                const std::vector<float> &mean,
                                const std::vector<float> &inv_stddev,
                                size_t normalization_dim) {
-  const size_t norm_dim_size = out_shape[normalization_dim];
   DALI_ENFORCE(mean.size() == inv_stddev.size());
-  const size_t norm_args_size = mean.size();
+  DALI_ENFORCE(mean.size() <= 1 || normalization_dim < Dims);
   const bool should_normalize = !mean.empty();
-  DALI_ENFORCE(norm_args_size == 0 || norm_args_size == 1
-            || norm_dim_size == norm_args_size);
-  // Detect scalar value for mean and inv_stddev. In that case we set normalization_dim
-  // to Dims+1 so that we never advance mean and inv_stddev pointers
-  if (norm_args_size <= 1) {
-    normalization_dim = Dims + 1;
-  }
-
   const bool IsNextNormalizationDim = (0 == normalization_dim);
   if (should_normalize) {
     if (IsNextNormalizationDim) {
