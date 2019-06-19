@@ -23,16 +23,17 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(HostDecoderRandomCrop, HostDecoderRandomCrop, CPU);
-
 DALI_SCHEMA(HostDecoderRandomCrop)
   .DocStr(R"code(Decode images on the host with a random cropping anchor/window.
 When possible, will make use of partial decoding (e.g. libjpeg-turbo).
 When not supported, will decode the whole image and then crop.
-Output of the decoder is in `HWC` ordering.)code")
+Output of the decoder is in `HWC` ordering.
+**Deprecated** Use `ImageDecoderRandomCrop` instead)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("HostDecoder")
-  .AddParent("RandomCropAttr");
+  .AddParent("ImageDecoderRandomCrop");
+
+DALI_REGISTER_OPERATOR(HostDecoderRandomCrop, HostDecoderRandomCrop, CPU);
+DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);
 
 }  // namespace dali

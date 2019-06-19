@@ -32,12 +32,13 @@ DALI_SCHEMA(HostDecoderCrop)
   .DocStr(R"code(Decode images on the host with a fixed cropping window size and variable anchor.
 When possible, will make use of partial decoding (e.g. libjpeg-turbo).
 When not supported, will decode the whole image and then crop.
-Output of the decoder is in `HWC` ordering.)code")
+Output of the decoder is in `HWC` ordering.
+**Deprecated** Use `ImageDecoderCrop` instead)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("HostDecoder")
-  .AddParent("CropAttr");
+  .AddParent("ImageDecoderCrop");
 
 DALI_REGISTER_OPERATOR(HostDecoderCrop, HostDecoderCrop, CPU);
+DALI_REGISTER_OPERATOR(ImageDecoderCrop, HostDecoderCrop, CPU);
 
 }  // namespace dali

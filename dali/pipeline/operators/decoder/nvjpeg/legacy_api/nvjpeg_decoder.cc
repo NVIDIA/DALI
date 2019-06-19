@@ -17,29 +17,15 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(nvJPEGDecoder, nvJPEGDecoder, Mixed);
-
 DALI_SCHEMA(nvJPEGDecoder)
-  .DocStr(R"code(Decode JPEG images using the nvJPEG library.
-Output of the decoder is on the GPU and uses `HWC` ordering.)code")
+  .DocStr(R"code(Specific implementation of `ImageDecoder` `mixed` backend.
+**Deprecated** Use `ImageDecoder` instead
+)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("output_type",
-      R"code(The color space of output image.)code",
-      DALI_RGB)
-  .AddOptionalArg("use_batched_decode",
-      R"code(Use nvJPEG's batched decoding API.)code",
-      false)
-  .AddOptionalArg("device_memory_padding",
-      R"code(Padding for nvJPEG's device memory allocations in bytes.
-This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and internal buffer needs to be reallocated to decode it.)code",
-      16*1024*1024)
-  .AddOptionalArg("host_memory_padding",
-      R"code(Padding for nvJPEG's host memory allocations in bytes.
-This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
-is encountered and internal buffer needs to be reallocated to decode it.)code",
-      16*1024*1024)
-  .AddParent("CachedDecoderAttr");
+  .AddParent("ImageDecoder")
+
+DALI_REGISTER_OPERATOR(nvJPEGDecoder, nvJPEGDecoder, Mixed);
+DALI_REGISTER_OPERATOR(ImageDecoder, nvJPEGDecoder, Mixed);
 
 }  // namespace dali
