@@ -13,15 +13,16 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_kernel_test.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_cpu.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_gpu.cuh"
 #include "dali/kernels/slice/slice_flip_normalize_permute_kernel_test.h"
 
 namespace dali {
 namespace kernels {
 
 template <typename TestArgs>
-class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<TestArgs> {
+class SliceFlipNormalizePermuteGPUTest : public SliceFlipNormalizePermuteTest<TestArgs> {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
@@ -29,7 +30,7 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
   static constexpr size_t NumSamples = TestArgs::NumSamples;
   static constexpr size_t DimSize = TestArgs::DimSize;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
-  using KernelType = SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims>;
+  using KernelType = SliceFlipNormalizePermuteGPU<OutputType, InputType, Dims>;
 
   void Run() override {
     KernelContext ctx;
@@ -37,59 +38,47 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
     TestTensorList<InputType, Dims> test_data;
     this->PrepareData(test_data);
 
-    auto test_data_cpu = test_data.cpu();
-    auto args = this->GenerateArgs(test_data_cpu);
+    auto args = this->GenerateArgs(test_data.cpu());
 
-    TestTensorList<OutputType, Dims> expected_output;
-    this->PrepareExpectedOutput(test_data, args, expected_output);
+    KernelType kernel;
+    KernelRequirements req = kernel.Setup(ctx, test_data.gpu(), args);
 
-    TensorListShape<> output_shapes;
-    output_shapes.resize(NumSamples, Dims);
-    std::vector<KernelType> kernels(NumSamples);
-    for (size_t i = 0; i < NumSamples; i++) {
-      auto &kernel = kernels[i];
-      KernelRequirements kernel_req = kernel.Setup(ctx, test_data_cpu[i], args[i]);
-      TensorShape<Dims> output_shape = kernel_req.output_shapes[0][0].to_static<Dims>();
+    ScratchpadAllocator scratch_alloc;
+    scratch_alloc.Reserve(req.scratch_sizes);
+    auto scratchpad = scratch_alloc.GetScratchpad();
+    ctx.scratchpad = &scratchpad;
 
+    TensorListShape<> output_shapes = req.output_shapes[0];
+    for (int i = 0; i < output_shapes.size(); i++) {
       auto padded_out_shape = args[i].padded_shape;
       auto expected_shape = padded_out_shape;
       for (size_t d = 0; d < Dims; d++) {
         size_t perm_d = args[i].permuted_dims[d];
         expected_shape[d] = padded_out_shape[perm_d];
       }
-      AssertExpectedDimensions(output_shape, expected_shape);
-      output_shapes.set_tensor_shape(i, output_shape);
+      AssertExpectedDimensions(output_shapes[i], expected_shape);
     }
-    TestTensorList<OutputType, Dims> output_data;
-    output_data.reshape(std::move(output_shapes).to_static<Dims>());
-    OutListCPU<OutputType, Dims> out_tlv = output_data.cpu();
 
-    for (size_t i = 0; i < NumSamples; i++) {
-      auto &kernel = kernels[i];
-      auto out_tv = out_tlv[i];
-      auto in_tv = test_data_cpu[i];
-      kernel.Run(ctx, out_tv, in_tv, args[i]);
-    }
+    TestTensorList<OutputType, Dims> output_data;
+    output_data.reshape(output_shapes.to_static<Dims>());
+    OutListGPU<OutputType, Dims> out_tlv = output_data.gpu();
+
+    kernel.Run(ctx, out_tlv, test_data.gpu(), args);
+
+    TestTensorList<OutputType, Dims> expected_output;
+    this->PrepareExpectedOutput(test_data, args, expected_output);
+
     EXPECT_NO_FATAL_FAILURE(Check(output_data.cpu(), expected_output.cpu(), EqualEps(1e-6)));
   }
 };
 
-TYPED_TEST_SUITE(SliceFlipNormalizePermuteCPUTest, SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES);
+TYPED_TEST_SUITE(SliceFlipNormalizePermuteGPUTest, SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES);
 
-TYPED_TEST(SliceFlipNormalizePermuteCPUTest, All) {
+TYPED_TEST(SliceFlipNormalizePermuteGPUTest, All) {
   this->Run();
 }
 
-template <typename TestArgs>
-class SliceFlipNormalizePermuteCPUTest_CPUOnlyTests
-  : public SliceFlipNormalizePermuteCPUTest<TestArgs> {};
 
-TYPED_TEST_SUITE(SliceFlipNormalizePermuteCPUTest_CPUOnlyTests,
-                 SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES_CPU_ONLY);
-
-TYPED_TEST(SliceFlipNormalizePermuteCPUTest_CPUOnlyTests, All) {
-  this->Run();
-}
 
 }  // namespace kernels
 }  // namespace dali

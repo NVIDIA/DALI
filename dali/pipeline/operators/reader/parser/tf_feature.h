@@ -50,6 +50,14 @@ class Feature {
     val_ = std::move(val);
   }
 
+  Feature(FeatureType type, Value val, std::vector<Index> partial_shape) {
+    has_shape_ = false;
+    has_partial_shape_ = true;
+    partial_shape_ = std::move(partial_shape);
+    type_ = type;
+    val_ = std::move(val);
+  }
+
   Feature(FeatureType type, Value val) {
     has_shape_ = false;
     type_ = type;
@@ -58,8 +66,12 @@ class Feature {
 
   FeatureType GetType() const { return type_; }
   bool HasShape() const { return has_shape_; }
+  bool HasPartialShape() const { return has_partial_shape_; }
   const std::vector<Index>& Shape() const {
     return shape_;
+  }
+  std::vector<Index> PartialShape() const {
+    return partial_shape_;
   }
   const Value GetValue() const { return val_; }
 
@@ -196,6 +208,8 @@ class Feature {
   std::vector<Index> shape_;
   FeatureType type_;
   Value val_;
+  bool has_partial_shape_ = false;
+  std::vector<Index> partial_shape_;
 };
 
 }  // namespace TFUtil

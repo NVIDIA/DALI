@@ -52,6 +52,13 @@ class ResizeCropMirrorAttr : protected CropAttr {
     DALI_ENFORCE((resize_shorter_ || resize_longer_) != (resize_x_ || resize_y_),
                  "Options `resize_{shorter,longer}` and `resize_x` or `resize_y` "
                  "are mutually exclusive for schema \"" + spec.name() + "\"");
+
+    max_size_enforced_ = spec.ArgumentDefined("max_size");
+    if (max_size_enforced_) {
+      GetSingleOrRepeatedArg(spec, max_size_, "max_size", 2);
+      DALI_ENFORCE(max_size_.size() > 0 && max_size_.size() <= 2,
+                   "max_size has to be either a scalar or a size 2 array.");
+    }
   }
 
   struct TransformMeta {
@@ -72,14 +79,29 @@ class ResizeCropMirrorAttr : protected CropAttr {
     if (resize_shorter_) {
       // resize_shorter set
       const int shorter_side_size = spec.GetArgument<float>("resize_shorter", ws, index);
+
       if (meta.H < meta.W) {
         const float scale = shorter_side_size / static_cast<float>(meta.H);
         meta.rsz_h = shorter_side_size;
         meta.rsz_w = static_cast<int>(std::round(scale * meta.W));
+        if (max_size_enforced_) {
+          if (meta.rsz_w > max_size_[1]) {
+            const float ratio = meta.H / meta.W;
+            meta.rsz_h = static_cast<int>(std::round(ratio * max_size_[1]));
+            meta.rsz_w = max_size_[1];
+          }
+        }
       } else {
         const float scale = shorter_side_size / static_cast<float>(meta.W);
         meta.rsz_h = static_cast<int>(std::round(scale * meta.H));
         meta.rsz_w = shorter_side_size;
+        if (max_size_enforced_) {
+          if (meta.rsz_h > max_size_[0]) {
+            const float ratio = meta.W / meta.H;
+            meta.rsz_h = max_size_[0];
+            meta.rsz_w = static_cast<int>(std::round(ratio * max_size_[0]));
+          }
+        }
       }
     } else if (resize_longer_) {
         // resize_longer set
@@ -89,7 +111,6 @@ class ResizeCropMirrorAttr : protected CropAttr {
           const float scale = longer_side_size / static_cast<float>(meta.H);
           meta.rsz_h = longer_side_size;
           meta.rsz_w = static_cast<int>(std::round(scale * meta.W));
-
         } else {
           const float scale = longer_side_size / static_cast<float>(meta.W);
           meta.rsz_h = static_cast<int>(std::round(scale * meta.H));
@@ -165,6 +186,10 @@ class ResizeCropMirrorAttr : protected CropAttr {
  private:
   // Resize meta-data
   bool resize_shorter_, resize_longer_, resize_x_, resize_y_;
+
+  bool max_size_enforced_;
+  // Contains (H, W) max sizes
+  std::vector<float> max_size_;
 };
 
 typedef DALIError_t (*resizeCropMirroHost)(const uint8 *img, int H, int W, int C,

@@ -58,7 +58,9 @@ DALI_SCHEMA(TFRecordReader)
       R"code(Dictionary of names and configuration of features existing in TFRecord file.
 Typically obtained using helper functions `dali.tfrecord.FixedLenFeature`
 and `dali.tfrecord.VarLenFeature`, they are equivalent to TensorFlow's `tf.FixedLenFeature` and
-`tf.VarLenFeature` respectively.)code",
+`tf.VarLenFeature` respectively. For more flexibility `dali.tfrecord.VarLenFeature`
+supports `partial_shape` parameter. If provided, data will be reshaped to match its value.
+First dimension will be inferred from the data size.)code",
       DALI_TF_FEATURE_DICT)
   .AddParent("_TFRecordReaderBase")
   .AddParent("LoaderBase");

@@ -1,4 +1,7 @@
-#!/bin/bash -xe
+#!/bin/bash
+
+# Stop at any error, show all commands
+set -ex
 
 usage="ENV1=VAL1 ENV2=VAL2 [...] $(basename "$0") [-h] -- this DALI build helper mean to run from the docker environment.
 Please don't call it directly.
@@ -48,25 +51,27 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=. -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
       -DWERROR=${WERROR} \
       -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
-      -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA} && \
-if [ "${WERROR}" = "ON" ]; then make -j lint; fi && \
-make -j"$(grep ^processor /proc/cpuinfo | wc -l)" || exit 1
+      -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA}
+if [ "${WERROR}" = "ON" ]; then
+    make -j lint
+fi
+make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
 if [ "${BUILD_PYTHON}" = "ON" ]; then \
     pip wheel -v dali/python \
         --build-option --python-tag=$(basename /opt/python/cp${PYV}-*) \
         --build-option --plat-name=manylinux1_x86_64 \
-        --build-option --build-number=${NVIDIA_BUILD_ID} && \
-    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl && \
-    UNZIP_PATH="$(mktemp -d)" && \
-    unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH && \
-    python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ') && \
-    rm -rf $UNZIP_PATH || exit 1
+        --build-option --build-number=${NVIDIA_BUILD_ID}
+    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl
+    export UNZIP_PATH="$(mktemp -d)"
+    unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH
+    python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ')
+    rm -rf $UNZIP_PATH
 fi
 
-if [ "${BUILD_PYTHON}" = "ON" ]; then \
-    pushd dali/python/tf_plugin/ && \
-    python setup.py sdist && \
-    mv dist/nvidia-dali-tf-plugin*.tar.gz /wheelhouse/ && \
-    popd || exit 1
+if [ "${BUILD_PYTHON}" = "ON" ]; then
+    pushd dali/python/tf_plugin/
+    python setup.py sdist
+    mv dist/nvidia-dali-tf-plugin*.tar.gz /wheelhouse/
+    popd
 fi
