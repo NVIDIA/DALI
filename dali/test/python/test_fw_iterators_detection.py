@@ -24,7 +24,7 @@ from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
 DALI_EXTRA_PATH = os.environ['DALI_EXTRA_PATH']
 EPOCH_SIZE = 32
-BATCH_SIZE = 8
+BATCH_SIZE = 1
 
 class DetectionPipeline(Pipeline):
     def __init__(self, batch_size, device_id, file_root, annotations_file):
