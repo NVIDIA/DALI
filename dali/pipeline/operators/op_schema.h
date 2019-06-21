@@ -47,7 +47,8 @@ class DLL_PUBLIC OpSchema {
     , enforce_layout_(false)
     , allow_sequences_(false)
     , is_sequence_operator_(false)
-    , is_internal_(false) {
+    , is_internal_(false)
+    , is_deprecated_(false) {
     // Fill internal arguments
     auto v = Value::construct(-1);
     internal_arguments_["num_threads"] =
@@ -188,6 +189,15 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
+   * @brief Notes that this operator is deprecated and optionally specifies the operator to be used instead
+   */
+  DLL_PUBLIC inline OpSchema& MakeDeprecatedInFavorOf(const std::string &deprecated_in_favor_of) {
+    is_deprecated_ = true;
+    deprecated_in_favor_of_ = deprecated_in_favor_of;
+    return *this;
+  }
+
+  /**
    * @brief Adds a required argument to op with its type
    */
   DLL_PUBLIC inline OpSchema& AddArg(const std::string &s,
@@ -309,6 +319,14 @@ class DLL_PUBLIC OpSchema {
     return is_internal_;
   }
 
+  DLL_PUBLIC inline bool IsDeprecated() const {
+    return is_deprecated_;
+  }
+
+  DLL_PUBLIC inline const std::string& DeprecatedInFavorOf() const {
+    return deprecated_in_favor_of_;
+  }
+
   DLL_PUBLIC inline bool HasOutputFn() const {
     return static_cast<bool>(output_fn_);
   }
@@ -381,6 +399,9 @@ class DLL_PUBLIC OpSchema {
   bool is_sequence_operator_;
 
   bool is_internal_;
+
+  bool is_deprecated_;
+  string deprecated_in_favor_of_;
 
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
