@@ -183,10 +183,10 @@ DEVICE_TEST(Dev_Vec, OpScalar, 1, 1) {
 DEVICE_TEST(Dev_Vec, OpAssignScalar, 1, 1) {
   vec4 v;
   v = 3;
-  DEV_EXPECT_EQ(v, vec4(3,3,3,3));
+  DEV_EXPECT_EQ(v, vec4(3, 3, 3, 3));
   v = { 1, 2, 3, 4 };
   v += 1;
-  DEV_EXPECT_EQ(v, vec4(2,3,4,5));
+  DEV_EXPECT_EQ(v, vec4(2, 3, 4, 5));
 }
 
 TEST(Vec, Promote) {
@@ -198,7 +198,7 @@ TEST(Vec, Promote) {
   auto minus = 0-i8vec4(1, 2, 3, 4);
   static_assert(std::is_same<decltype(minus)::element_t, int>::value,
     "Wrong element type inferred. Should be int.");
-  EXPECT_EQ(minus, ivec4(-1,-2,-3,-4));
+  EXPECT_EQ(minus, ivec4(-1, -2, -3, -4));
 }
 
 }  // namespace dali

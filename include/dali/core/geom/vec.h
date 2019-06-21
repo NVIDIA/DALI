@@ -168,7 +168,7 @@ struct vec : vec_base<N, T> {
 
   template <typename U>
   DALI_HOST_DEV
-  constexpr vec(mat<N, 1, U> &m) : vec(m.col(0).template cast<T>()) {}
+  constexpr vec(mat<N, 1, U> &m) : vec(m.col(0).template cast<T>()) {}  // NOLINT
 
   DALI_HOST_DEV
   constexpr T &operator[](size_t i) { return v[i]; }

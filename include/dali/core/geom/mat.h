@@ -270,7 +270,7 @@ constexpr auto sub(const mat<rows, cols, Element> &m, int r, int c) {
 template <size_t rows, size_t cols, typename T1, typename T2> \
 DALI_HOST_DEV \
 inline auto operator op(const mat<rows, cols, T1> &a, const mat<rows, cols, T2> &b) { \
-  using R = decltype(a(0,0) op b(0,0)); \
+  using R = decltype(a(0, 0) op b(0, 0)); \
   mat<rows, cols, R> result; \
   MAT_ELEMENT_LOOP(i, j) \
     result(i, j) = a(i, j) op b(i, j); \
@@ -278,9 +278,10 @@ inline auto operator op(const mat<rows, cols, T1> &a, const mat<rows, cols, T2> 
 }
 
 #define DEFINE_ELEMENTWISE_RHS_BINOP(op) \
-template <size_t rows, size_t cols, typename T1, typename T2, typename R = decltype(T1() op T2())> \
+template <size_t rows, size_t cols, typename T1, typename T2, typename R = decltype(T1() op T2())>\
 DALI_HOST_DEV \
-inline std::enable_if_t<is_scalar<T2>::value, mat<rows, cols, R>> operator op(const mat<rows, cols, T1> &a, const T2 &b) { \
+inline std::enable_if_t<is_scalar<T2>::value, mat<rows, cols, R>> \
+operator op(const mat<rows, cols, T1> &a, const T2 &b) { \
   mat<rows, cols, R> result; \
   MAT_ELEMENT_LOOP(i, j) \
     result(i, j) = a(i, j) op b; \
@@ -288,9 +289,10 @@ inline std::enable_if_t<is_scalar<T2>::value, mat<rows, cols, R>> operator op(co
 }
 
 #define DEFINE_ELEMENTWISE_LHS_BINOP(op)\
-template <size_t rows, size_t cols, typename T1, typename T2, typename R = decltype(T1() op T2())> \
+template <size_t rows, size_t cols, typename T1, typename T2, typename R = decltype(T1() op T2())>\
 DALI_HOST_DEV \
-inline std::enable_if_t<is_scalar<T1>::value, mat<rows, cols, R>> operator op(const T1 &a, const mat<rows, cols, T2> &b) { \
+inline std::enable_if_t<is_scalar<T1>::value, mat<rows, cols, R>> \
+operator op(const T1 &a, const mat<rows, cols, T2> &b) { \
   mat<rows, cols, R> result; \
   MAT_ELEMENT_LOOP(i, j) \
     result(i, j) = a op b(i, j); \
