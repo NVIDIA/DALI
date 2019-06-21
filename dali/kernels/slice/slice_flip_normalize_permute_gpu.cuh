@@ -164,8 +164,13 @@ class SliceFlipNormalizePermuteGPU {
     const size_t num_samples = in.size();
     se.add<detail::SampleDesc<Dims>>(AllocType::Host, num_samples);
     se.add<detail::SampleDesc<Dims>>(AllocType::GPU, num_samples);
-    se.add<float>(AllocType::GPU, args[0].mean.size());
-    se.add<float>(AllocType::GPU, args[0].inv_stddev.size());
+
+    DALI_ENFORCE(args[0].mean.size() == args[0].inv_stddev.size());
+    size_t norm_args_size = args[0].mean.size();
+    if (norm_args_size > 0) {
+      se.add<float>(AllocType::Host, 2 * norm_args_size);
+      se.add<float>(AllocType::GPU,  2 * norm_args_size);
+    }
 
     block_count_ = 0;
     for (auto &elem : args) {
