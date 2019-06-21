@@ -160,10 +160,45 @@ DEVICE_TEST(Dev_Vec, RoundInt, 1, 1) {
 DEVICE_TEST(Dev_Vec, Cat, 1, 1) {
   vec<3> a = { 1, 2, 3 };
   vec<2> b = { 4, 5 };
-  DEV_EXPECT_EQ(cat(a, b), (vec<5>(1,2,3,4,5)));
-  DEV_EXPECT_EQ(cat(b, a), (vec<5>(4,5,1,2,3)));
-  DEV_EXPECT_EQ(cat(a, 4.0f), vec4(1,2,3,4));
+  DEV_EXPECT_EQ(cat(a, b), (vec<5>(1, 2, 3, 4, 5)));
+  DEV_EXPECT_EQ(cat(b, a), (vec<5>(4, 5, 1, 2, 3)));
+  DEV_EXPECT_EQ(cat(a, 4.0f), vec4(1, 2, 3, 4));
   DEV_EXPECT_EQ(cat(0.5f, b), vec3(0.5f, 4, 5));
+}
+
+DEVICE_TEST(Dev_Vec, OpScalar, 1, 1) {
+  vec4 v = { -1, 1, 2, 3 };
+  vec4 v1 = v * 2;
+  vec4 v2 = v / 2;
+  vec4 v3 = v + 0.5f;
+  vec4 v4 = v - 0.5f;
+  vec4 v5 = 0.5f - v;
+  DEV_EXPECT_EQ(v1, vec4(-2, 2, 4, 6));
+  DEV_EXPECT_EQ(v2, vec4(-0.5f, 0.5f, 1.0f, 1.5f));
+  DEV_EXPECT_EQ(v3, vec4(-0.5f, 1.5f, 2.5f, 3.5f));
+  DEV_EXPECT_EQ(v4, vec4(-1.5f, 0.5f, 1.5f, 2.5f));
+  DEV_EXPECT_EQ(v5, vec4(1.5f, -0.5f, -1.5f, -2.5f));
+}
+
+DEVICE_TEST(Dev_Vec, OpAssignScalar, 1, 1) {
+  vec4 v;
+  v = 3;
+  DEV_EXPECT_EQ(v, vec4(3,3,3,3));
+  v = { 1, 2, 3, 4 };
+  v += 1;
+  DEV_EXPECT_EQ(v, vec4(2,3,4,5));
+}
+
+TEST(Vec, Promote) {
+  vec4 vi = { 1, 2, 3, 4 };
+  vec4 vf = vi + 0.5f;
+  EXPECT_EQ(vf, vec4(1.5f, 2.5f, 3.5f, 4.5f));
+  vf = vi + vf;
+  EXPECT_EQ(vf, vec4(2.5f, 4.5f, 6.5f, 8.5f));
+  auto minus = 0-i8vec4(1, 2, 3, 4);
+  static_assert(std::is_same<decltype(minus)::element_t, int>::value,
+    "Wrong element type inferred. Should be int.");
+  EXPECT_EQ(minus, ivec4(-1,-2,-3,-4));
 }
 
 }  // namespace dali
