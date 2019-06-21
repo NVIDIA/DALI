@@ -89,7 +89,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
               rsz_h = static_cast<int>(std::round(H * static_cast<float>(rsz_w) / W));
               if (max_size_enforced) {
                 if (rsz_h > max_size[0]) {
-                  const float ratio = W / H;
+                  const float ratio = static_cast<float>(W) / static_cast<float>(H);
                   rsz_w = static_cast<int>(std::round(ratio * max_size[0]));
                   rsz_h = max_size[0];
                 }
@@ -104,7 +104,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
               rsz_w = static_cast<int>(std::round(W * static_cast<float>(rsz_h) / H));
                if (max_size_enforced) {
                 if (rsz_w > max_size[1]) {
-                  const float ratio = H / W;
+                  const float ratio = static_cast<float>(H) / static_cast<float>(W);
                   rsz_h = static_cast<int>(std::round(ratio * max_size[1]));
                   rsz_w = max_size[1];
                 }

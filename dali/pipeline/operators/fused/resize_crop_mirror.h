@@ -86,7 +86,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
         meta.rsz_w = static_cast<int>(std::round(scale * meta.W));
         if (max_size_enforced_) {
           if (meta.rsz_w > max_size_[1]) {
-            const float ratio = meta.H / meta.W;
+            const float ratio = static_cast<float>(meta.H) / static_cast<float>(meta.W);
             meta.rsz_h = static_cast<int>(std::round(ratio * max_size_[1]));
             meta.rsz_w = max_size_[1];
           }
@@ -97,7 +97,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
         meta.rsz_w = shorter_side_size;
         if (max_size_enforced_) {
           if (meta.rsz_h > max_size_[0]) {
-            const float ratio = meta.W / meta.H;
+            const float ratio = static_cast<float>(meta.W) / static_cast<float>(meta.H);
             meta.rsz_h = max_size_[0];
             meta.rsz_w = static_cast<int>(std::round(ratio * max_size_[0]));
           }
