@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <string>
-#include "dali/pipeline/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/pipeline/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
 
 namespace dali {
 

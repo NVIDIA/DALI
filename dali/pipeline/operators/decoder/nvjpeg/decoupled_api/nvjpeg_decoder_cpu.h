@@ -24,7 +24,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "dali/pipeline/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/pipeline/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
 #include "dali/pipeline/operators/decoder/nvjpeg/decoupled_api/nvjpeg_allocator.h"
 
 #include "dali/image/image_factory.h"
