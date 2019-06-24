@@ -137,7 +137,6 @@ class OpticalFlow : public Operator<Backend> {
                    "Width, height and depth for Optical Flow calculation "
                    "must be equal for all sequences.");
     }
-
   }
 
 
