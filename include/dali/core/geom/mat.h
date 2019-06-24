@@ -258,9 +258,15 @@ struct mat {
   DALI_HOST_DEV
   inline auto operator*(const vec<cols, U> &v) {
     using R = decltype(dot(row(0), v));
+  #if MAT_LAYOUT_ROW_MAJOR
+    vec<rows, R> result;
+    for (size_t i = 0; i < rows; i++)
+      result[i] = dot(v, m[i]);
+  #else
     vec<rows, R> result = v[0] * m[0];
     for (size_t i = 1; i < cols; i++)
       result += v[i] * m[i];
+  #endif
     return result;
   }
 };
@@ -383,7 +389,7 @@ mat<rows, c1+c2, T> cat_cols(const mat<rows, c1, T> &a, const mat<rows, c2, T> &
   mat<rows, c1+c2, T> ret;
 #if MAT_LAYOUT_ROW_MAJOR
   for (size_t i = 0; i < rows; i++)
-    ret.set_row(i, cat(a.row(i), b.row(i));
+    ret.set_row(i, cat(a.row(i), b.row(i)));
 #else
   for (size_t j = 0; j < c1; j++)
     ret.set_col(j, a.col(j));
