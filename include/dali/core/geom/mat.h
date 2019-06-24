@@ -63,6 +63,11 @@ struct mat {
   constexpr mat() = default;
   constexpr mat(const mat &) = default;
   constexpr mat(mat &&) = default;
+  constexpr mat(Element scalar) : m{} {  // NOLINT
+    size_t n = rows < cols ? rows : cols;
+    for (size_t i = 0; i < n; i++)
+      at(i, i) = scalar;
+  }
 
   DALI_HOST_DEV
   constexpr mat(const Element(&values)[rows][cols]) : m{} {  // NOLINT
@@ -255,6 +260,19 @@ struct mat {
     return result;
   }
 };
+
+template <size_t rows, size_t cols, typename T, typename U>
+constexpr bool operator==(const mat<rows, cols, T> &a, const mat<rows, cols, U> &b) {
+  MAT_ELEMENT_LOOP(i, j)
+    if (a(i, j) != b(i, j))
+      return false;
+  return true;
+}
+
+template <size_t rows, size_t cols, typename T, typename U>
+constexpr bool operator!=(const mat<rows, cols, T> &a, const mat<rows, cols, U> &b) {
+  return !(a ==b );
+}
 
 template <size_t sub_r, size_t sub_c, size_t rows, size_t cols, typename Element>
 DALI_HOST_DEV
