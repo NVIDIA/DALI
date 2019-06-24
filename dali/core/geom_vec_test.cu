@@ -145,6 +145,19 @@ TEST(Vec, Dot) {
   EXPECT_EQ(dot(a, b), 432);
 }
 
+TEST(Vec, Length) {
+  vec2 v = { 3, 4 };
+  EXPECT_EQ(v.length_square(), 25);
+  EXPECT_EQ(v.length(), 5.0f);
+}
+
+TEST(Vec, Normalized) {
+  vec2 v = { 1, 2 };
+  v = v.normalized();
+  EXPECT_NEAR(v.x / v.y, 0.5f, 1e-7f);
+  EXPECT_NEAR(v.length(), 1.0f, 1e-6f);
+}
+
 TEST(Vec, RoundInt) {
   vec<3> f = { -0.6f, 0.1f, 0.7f };
   auto i = round_int(f);

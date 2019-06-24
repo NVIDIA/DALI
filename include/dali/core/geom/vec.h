@@ -210,7 +210,7 @@ struct vec : vec_base<N, T> {
   /// @brief Calculates Euclidean length of the vector.
   DALI_HOST_DEV inline auto length() const {
 #ifdef __CUDA_ARCH__
-    return sqrtf(length_square);
+    return sqrtf(length_square());
 #else
   return std::sqrt(length_square());
 #endif
