@@ -25,6 +25,7 @@ import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
 import random
+from PIL import Image
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -545,9 +546,9 @@ def test_rotate():
     orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):
         orig = orig_cpu.at(i)
-        M = cv2.getRotationMatrix2D(((224-1)*0.5,(224-1)*0.5),45, 1)
+        M = cv2.getRotationMatrix2D(((224-1)*0.5, (224-1)*0.5), 45, 1)
         out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_CONSTANT, borderValue = (128, 128, 128),
-                             flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
+                             flags = (cv2.INTER_LINEAR))
         rotated_dali = pipe_out[2].as_cpu().at(i)
         diff = out - rotated_dali
         diff[rotated_dali==[128.,128.,128.]] = 0
