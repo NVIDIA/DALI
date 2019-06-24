@@ -19,7 +19,11 @@
 #include <cstdint>
 #include <limits>
 #include <type_traits>
-
+#ifndef __CUDA_ARCH__
+#include "dali/util/half.hpp"
+#else
+#include "dali/core/cuda_utils.h"
+#endif
 namespace dali {
 
 template <typename T>
@@ -27,9 +31,13 @@ struct const_limits;
 
 // std::numeric_limits are not compatible with CUDA
 template <typename T>
-__host__ __device__ constexpr T max_value() { return const_limits<T>::max; }
+__host__ __device__ constexpr T max_value() {
+  return const_limits<std::remove_cv_t<T>>::max;
+}
 template <typename T>
-__host__ __device__ constexpr T min_value() { return const_limits<T>::min; }
+__host__ __device__ constexpr T min_value() {
+  return const_limits<std::remove_cv_t<T>>::min;
+}
 
 #define DEFINE_TYPE_RANGE(type, min_, max_) template <>\
 struct const_limits<type> { static constexpr type min = min_, max = max_; }
@@ -70,9 +78,9 @@ struct ret_type {  // a placeholder for return type
 };
 
 template <typename T, typename U>
-__host__ __device__ constexpr typename std::enable_if<
+__host__ __device__ constexpr std::enable_if_t<
     needs_clamp<U, T>::value && std::is_signed<U>::value,
-    T>::type
+    T>
 clamp(U value, ret_type<T>) {
   return value < min_value<T>() ? min_value<T>() :
          value > max_value<T>() ? max_value<T>() :
@@ -80,17 +88,17 @@ clamp(U value, ret_type<T>) {
 }
 
 template <typename T, typename U>
-__host__ __device__ constexpr typename std::enable_if<
+__host__ __device__ constexpr std::enable_if_t<
     needs_clamp<U, T>::value && std::is_unsigned<U>::value,
-    T>::type
+    T>
 clamp(U value, ret_type<T>) {
   return value > max_value<T>() ? max_value<T>() : static_cast<T>(value);
 }
 
 template <typename T, typename U>
-__host__ __device__ constexpr typename std::enable_if<
+__host__ __device__ constexpr std::enable_if_t<
     !needs_clamp<U, T>::value,
-    T>::type
+    T>
 clamp(U value, ret_type<T>) { return value; }
 
 __host__ __device__ constexpr int32_t clamp(uint32_t value, ret_type<int32_t>) {
@@ -131,6 +139,53 @@ __host__ __device__ constexpr bool clamp(T value, ret_type<bool>) {
   return static_cast<bool>(value);
 }
 
+#ifndef __CUDA_ARCH__
+template <typename T>
+__host__ __device__ constexpr half_float::half clamp(T value, ret_type<half_float::half>) {
+  return static_cast<half_float::half>(value);
+}
+
+template <typename T>
+__host__ __device__ constexpr T clamp(half_float::half value, ret_type<T>) {
+  return clamp(static_cast<float>(value), ret_type<T>());
+}
+
+__host__ __device__ inline bool clamp(half_float::half value, ret_type<bool>) {
+  return static_cast<bool>(value);
+}
+
+__host__ __device__ constexpr half_float::half clamp(half_float::half value,
+                                                     ret_type<half_float::half>) {
+  return value;
+}
+
+#else
+
+template <typename T>
+__host__ __device__ constexpr float16 clamp(T value, ret_type<float16>) {
+  return static_cast<float16>(value);
+}
+
+// __half does not have a constructor for int64_t, use long long
+__host__ __device__ inline float16 clamp(int64_t value, ret_type<float16>) {
+  return static_cast<float16>(static_cast<long long int>(value));  // NOLINT
+}
+
+template <typename T>
+__host__ __device__ constexpr T clamp(float16 value, ret_type<T>) {
+  return clamp(static_cast<float>(value), ret_type<T>());
+}
+
+__host__ __device__ inline bool clamp(float16 value, ret_type<bool>) {
+  return static_cast<bool>(value);
+}
+
+__host__ __device__ constexpr float16 clamp(float16 value, ret_type<float16>) {
+  return value;
+}
+
+#endif
+
 template <typename T, typename U>
 __host__ __device__ constexpr T clamp(U value) {
   return clamp(value, ret_type<T>());
@@ -147,21 +202,21 @@ __host__ __device__ constexpr Out ConvertSat(In value) {
 }
 
 template <typename Out, typename In>
-__host__ __device__ constexpr typename std::enable_if<
-    std::is_floating_point<Out>::value && !std::is_floating_point<In>::value, Out>::type
+__host__ __device__ constexpr std::enable_if_t<
+    std::is_floating_point<Out>::value && !std::is_floating_point<In>::value, Out>
 ConvertNorm(In value) {
   return value * (Out(1) / max_value<In>());
 }
 
 template <typename Out, typename In>
-__host__ __device__ constexpr typename std::enable_if<
-    std::is_floating_point<Out>::value && std::is_floating_point<In>::value, Out>::type
+__host__ __device__ constexpr std::enable_if_t<
+    std::is_floating_point<Out>::value && std::is_floating_point<In>::value, Out>
 ConvertNorm(In value) {
   return static_cast<Out>(value);
 }
 
 template <typename Out>
-constexpr __device__ __host__ typename std::enable_if<std::is_unsigned<Out>::value, Out>::type
+constexpr __device__ __host__ std::enable_if_t<std::is_unsigned<Out>::value, Out>
 ConvertSatNorm(float value) {
 #ifdef __CUDA_ARCH__
   return max_value<Out>() * __saturatef(value);
@@ -171,15 +226,15 @@ ConvertSatNorm(float value) {
 }
 
 template <typename Out>
-constexpr __device__ __host__ typename std::enable_if<
-  std::is_signed<Out>::value && std::is_integral<Out>::value, Out>::type
+constexpr __device__ __host__ std::enable_if_t<
+  std::is_signed<Out>::value && std::is_integral<Out>::value, Out>
 ConvertSatNorm(float value) {
   return clamp<Out>(value * static_cast<float>(max_value<Out>()));
 }
 
 template <typename Out, typename In>
-__host__ __device__ constexpr typename std::enable_if<
-    !std::is_floating_point<Out>::value && std::is_floating_point<In>::value, Out>::type
+__host__ __device__ constexpr std::enable_if_t<
+    !std::is_floating_point<Out>::value && std::is_floating_point<In>::value, Out>
 ConvertNorm(In value) {
   return ConvertSatNorm<Out>(value);
 }
@@ -187,4 +242,3 @@ ConvertNorm(In value) {
 }  // namespace dali
 
 #endif  // DALI_CORE_CONVERT_H_
-

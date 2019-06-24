@@ -104,6 +104,7 @@ if [ "$BUILD_INHOST" = "YES" ]; then
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
                                         BUILD_NVML=${BUILD_NVML}                  \
+                                        WERROR=${WERROR}                          \
                                         NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}        \
                                         GIT_SHA=${GIT_SHA}                        \
                                         DALI_TIMESTAMP=${DALI_TIMESTAMP}          \

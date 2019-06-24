@@ -47,7 +47,6 @@ void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
 
   auto data_idx = ws->data_idx();
   SetupSample(data_idx, in_layout, input.shape());
-  auto &slice_shape = slice_shapes_[data_idx];
 
   auto &output = ws->Output<CPUBackend>(idx);
   output.SetLayout(out_layout);

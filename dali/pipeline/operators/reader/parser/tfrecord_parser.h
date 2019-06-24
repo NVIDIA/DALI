@@ -20,6 +20,7 @@
 #include <vector>
 #include <string>
 #include <exception>
+#include <functional>
 
 #include "dali/core/common.h"
 #include "dali/pipeline/operators/argument.h"
@@ -80,7 +81,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
       switch (f.GetType()) {
         case FeatureType::int64:
           if (!f.HasShape()) {
-            output.Resize({encoded_feature.int64_list().value().size()});
+            output.Resize(InferShape(f, encoded_feature.int64_list().value().size()));
           }
           std::memcpy(output.mutable_data<int64_t>(),
               encoded_feature.int64_list().value().data(),
@@ -97,7 +98,7 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
           break;
         case FeatureType::float32:
           if (!f.HasShape()) {
-            output.Resize({encoded_feature.float_list().value().size()});
+            output.Resize(InferShape(f, encoded_feature.float_list().value().size()));
           }
           std::memcpy(output.mutable_data<float>(),
               encoded_feature.float_list().value().data(),
@@ -111,6 +112,19 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
  private:
   std::vector<std::string> feature_names_;
   std::vector<Feature> features_;
+
+  std::vector<Index> InferShape(Feature& feature, size_t feature_size) {
+    if (feature.HasPartialShape()) {
+      auto partial_shape = feature.PartialShape();
+      auto m = std::accumulate(
+        partial_shape.begin(), partial_shape.end(), 1, std::multiplies<int>());
+      DALI_ENFORCE(feature_size % m == 0, "Feature size not matching partial shape");
+      partial_shape.insert(partial_shape.begin(), feature_size / m);
+      return partial_shape;
+    } else {
+      return {static_cast<Index>(feature_size)};
+    }
+  }
 };
 
 };  // namespace dali

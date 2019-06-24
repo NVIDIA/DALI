@@ -89,11 +89,10 @@ RUN LMDB_VERSION=0.9.22 && \
     rm -rf /lmdb
 
 # libjpeg-turbo
-RUN JPEG_TURBO_VERSION=1.5.3 && \
+RUN JPEG_TURBO_VERSION=2.0.2 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
-    cd /libjpeg-turbo-${JPEG_TURBO_VERSION} && \
-    autoreconf -fiv && \
-    ./configure --enable-shared --prefix=/usr/local 2>&1 >/dev/null && \
+    cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
+    cmake -G"Unix Makefiles" -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=/usr/local . 2>&1 >/dev/null && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 

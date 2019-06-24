@@ -337,28 +337,28 @@ inline tensor_data_store_queue_t BatchFactory(OpType op_type, StorageDevice devi
  * retrive the appropriate Workspace::OutputType from the tensor_data_store_queue_t tuple
  */
 template <OpType op_type, StorageDevice device>
-typename std::tuple_element<GetTensorStoreIndex(op_type, device), tensor_data_store_queue_t>::type &
+std::tuple_element_t<GetTensorStoreIndex(op_type, device), tensor_data_store_queue_t> &
 get_queue(tensor_data_store_queue_t &owner) noexcept {
   return std::get<GetTensorStoreIndex(op_type, device)>(owner);
 }
 
 template <OpType op_type, StorageDevice device>
-typename std::tuple_element<GetTensorStoreIndex(op_type, device),
-                            tensor_data_store_queue_t>::type &&
+std::tuple_element_t<GetTensorStoreIndex(op_type, device),
+                     tensor_data_store_queue_t> &&
     get_queue(tensor_data_store_queue_t &&owner) noexcept {
   return std::get<GetTensorStoreIndex(op_type, device)>(owner);
 }
 
 template <OpType op_type, StorageDevice device>
-typename std::tuple_element<GetTensorStoreIndex(op_type, device),
-                            tensor_data_store_queue_t>::type const &
+std::tuple_element_t<GetTensorStoreIndex(op_type, device),
+                     tensor_data_store_queue_t> const &
 get_queue(const tensor_data_store_queue_t &owner) noexcept {
   return std::get<GetTensorStoreIndex(op_type, device)>(owner);
 }
 
 template <OpType op_type, StorageDevice device>
-typename std::tuple_element<GetTensorStoreIndex(op_type, device),
-                            tensor_data_store_queue_t>::type const &&
+std::tuple_element_t<GetTensorStoreIndex(op_type, device),
+                     tensor_data_store_queue_t> const &&
 get_queue(const tensor_data_store_queue_t &&owner) noexcept {
   return std::get<GetTensorStoreIndex(op_type, device)>(owner);
 }

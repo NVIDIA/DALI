@@ -18,11 +18,51 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
-import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
-from PIL import Image
+import subprocess
+
+# those functions import modules on demand to no impose additional dependency on numpy or matplot
+# to test that are using these utilities
+np = None
+assert_array_equal = None
+assert_allclose = None
+def import_numpy():
+    global np
+    global assert_array_equal
+    global assert_allclose
+    import numpy as np
+    from numpy.testing import assert_array_equal, assert_allclose
+
+Image = None
+def import_pil():
+    global Image
+    from PIL import Image
+
+def save_image(image, file_name):
+    import_numpy()
+    import_pil()
+    if image.dtype == np.float32:
+        min = np.min(image)
+        max = np.max(image)
+        if min >= 0 and max <= 1:
+            image = image * 256
+        elif min >= -1 and max <= 1:
+            image = ((image + 1) * 128)
+        elif min >= -128 and max <= 127:
+            image = image + 128
+    else:
+        image = (image - np.iinfo(image.dtype).min) / (np.iinfo(image.dtype).max - np.iinfo(image.dtype).min)
+    image = image.astype(np.uint8)
+    Image.fromarray(image).save(file_name)
+
+def get_gpu_num():
+    sp = subprocess.Popen(['nvidia-smi', '-L'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    out_str = sp.communicate()
+    out_list = out_str[0].split('\n')
+    out_list = [elm for elm in out_list if len(elm) > 0]
+    return len(out_list)
 
 def check_batch(batch1, batch2, batch_size, eps = 1e-07):
+    import_numpy()
     if isinstance(batch1, dali.backend_impl.TensorListGPU):
         batch1 = batch1.as_cpu()
     if isinstance(batch2, dali.backend_impl.TensorListGPU):
@@ -32,22 +72,26 @@ def check_batch(batch1, batch2, batch_size, eps = 1e-07):
         is_failed = False
         assert(batch1.at(i).shape == batch2.at(i).shape), \
             "Shape mismatch {} != {}".format(batch1.at(i).shape, batch2.at(i).shape)
-        try:
+        assert(batch1.at(i).size == batch2.at(i).size), \
+            "Size mismatch {} != {}".format(batch1.at(i).size, batch2.at(i).size)
+        if batch1.at(i).size != 0:
             err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
-        except:
-            is_failed = True
-        if (is_failed or err > eps ):
             try:
-                print("failed[{}] err[{}]".format(is_failed, err))
-                plt.imsave("err_1.png", batch1.at(i))
-                plt.imsave("err_2.png", batch2.at(i))
+                err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
             except:
-                print("Batch at {} can't be saved as an image".format(i))
-                print(batch1.at(i))
-                print(batch2.at(i))
-            assert(False)
+                is_failed = True
+            if is_failed or err > eps:
+                try:
+                    print("failed[{}] err[{}]".format(is_failed, err))
+                    save_image(batch1.at(i), "err_1.png")
+                    save_image(batch2.at(i), "err_2.png")
+                except:
+                    print("Batch at {} can't be saved as an image".format(i))
+                    print(batch1.at(i))
+                    print(batch2.at(i))
+                assert(False)
 
-def compare_pipelines(pipe1, pipe2, batch_size, N_iterations):
+def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
     pipe1.build()
     pipe2.build()
     for k in range(N_iterations):
@@ -57,10 +101,11 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations):
         for i in range(len(out1)):
             out1_data = out1[i].as_cpu() if isinstance(out1[i].at(0), dali.backend_impl.TensorGPU) else out1[i]
             out2_data = out2[i].as_cpu() if isinstance(out2[i].at(0), dali.backend_impl.TensorGPU) else out2[i]
-            check_batch(out1_data, out2_data, batch_size)
+            check_batch(out1_data, out2_data, batch_size, eps)
     print("OK: ({} iterations)".format(N_iterations))
 
 class RandomDataIterator(object):
+    import_numpy()
     def __init__(self, batch_size, shape=(10, 600, 800, 3)):
         self.batch_size = batch_size
         self.test_data = []

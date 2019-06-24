@@ -207,7 +207,7 @@ class any {
 
   template <typename T>
   any &operator=(T &&value) {
-    using U = typename std::remove_reference<T>::type;
+    using U = std::remove_reference_t<T>;
     emplace<U>(std::forward<T>(value));
     return *this;
   }

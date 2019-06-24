@@ -19,6 +19,9 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <list>
+#include <memory>
+#include <utility>
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/meta.h"
@@ -43,12 +46,9 @@ template <typename Backend>
 class DLL_PUBLIC TensorList : public Buffer<Backend> {
  public:
   DLL_PUBLIC TensorList()
-    : layout_(DALI_NHWC)
-    , tensor_view_(nullptr) {}
+    : layout_(DALI_NHWC) {}
 
-  DLL_PUBLIC ~TensorList() override {
-    delete tensor_view_;
-  }
+  DLL_PUBLIC ~TensorList() = default;
 
   /**
    * @brief Resizes this TensorList to match the shape of the input.
@@ -132,10 +132,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     ResizeHelper(new_size);
     shape_ = new_shape;
 
-    // Tensor view of this TensorList is no longer valid
-    if (tensor_view_) {
-      tensor_view_->ShareData(this);
-    }
+    // Tensor views of this TensorList is no longer valid
+    tensor_views_.clear();
 
     meta_.resize(num_tensor, DALIMeta(layout_));
   }
@@ -165,10 +163,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     num_bytes_ = other->num_bytes_;
     device_ = other->device_;
 
-    // Tensor view of this TensorList is no longer valid
-    if (tensor_view_) {
-      tensor_view_->ShareData(this);
-    }
+    // Tensor views of this TensorList is no longer valid
+    tensor_views_.clear();
 
     // If the other tensor has a non-zero size allocation, mark that
     // we are now sharing an allocation with another buffer
@@ -202,10 +198,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     size_ = 0;
     device_ = -1;
 
-    // Tensor view of this TensorList is no longer valid
-    if (tensor_view_) {
-      tensor_view_->ShareData(this);
-    }
+    // Tensor views of this TensorList is no longer valid
+    tensor_views_.clear();
 
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
@@ -284,6 +278,26 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   /**
    * @brief Checks whether the TensorList is
+   * continuous. It returns true if and only if
+   * all of the stored Tensors are densely packed in memory.
+   */
+  inline bool IsContinuousTensor() const {
+    if (ntensor() == 0 || size_ == 0) {
+      return true;
+    }
+    Index offset = 0;
+
+    for (size_t i = 0; i < shape_.size(); ++i) {
+      if (offset != offsets_[i]) {
+        return false;
+      }
+      offset += volume(shape_[i]);
+    }
+    return true;
+  }
+
+  /**
+   * @brief Checks whether the TensorList is
    * a dense Tensor. It returns true if and only if
    * all of the stored Tensors have the same shape
    * and they are densely packed in memory.
@@ -322,18 +336,55 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
   /**
-   * @brief Returns a Tensor which shares the data
-   * with this TensorList. The tensor obtained
-   * through this function stays valid for the lifetime
-   * of the parent TensorList.
+   * @brief Returns a Tensor view with given shape or nullptr if no
+   * such exists
    */
-  Tensor<Backend> * AsTensor() {
-    if (tensor_view_ == nullptr) {
-      tensor_view_ = new Tensor<Backend>();
-      tensor_view_->ShareData(this);
+  inline Tensor<Backend> * GetViewWithShape(const vector<Index> &shape) {
+    for (auto &t : tensor_views_) {
+      if (t.shape() == shape) {
+        return &t;
+      }
+    }
+    return nullptr;
+  }
+
+  /**
+   * @brief Returns a pointer to Tensor which shares the data
+   * with this TensorList and give it the provided shape.
+   * Tensor list owns the memory. The tensor obtained through
+   * this function stays valid for as long as TensorList data is unchanged.
+   */
+  DLL_PUBLIC inline Tensor<Backend> * AsReshapedTensor(const vector<Index> &new_shape) {
+    auto t = GetViewWithShape(new_shape);
+    if (t) {
+      return t;
     }
 
-    return tensor_view_;
+    // need to create a new view
+    tensor_views_.emplace_back();
+    tensor_views_.back().ShareDataReshape(this, new_shape);
+
+    return &tensor_views_.back();
+  }
+
+  /**
+   * @brief Returns a pointer to Tensor which shares the data
+   * with this TensorList. Tensor list owns the memory. The tensor
+   * obtained through this function stays valid for as long
+   * as TensorList data is unchanged.
+   */
+  DLL_PUBLIC inline Tensor<Backend> * AsTensor() {
+    // To prevent situation when AsReshapedTensor is called first with some shape, and then
+    // AsTensor which return non-dense tensor after all
+    // i.e. [[2], [3], [1]] is not dense but requesting [3, 2] AsReshapedTensor will work
+    // while AsTensor should not return for that case
+    DALI_ENFORCE(this->IsDenseTensor(),
+      "All tensors in the input TensorList must have the same shape and be densely packed.");
+    vector<Index> requested_shape;
+    requested_shape = this->tensor_shape(0);
+    requested_shape.insert(requested_shape.begin(), this->ntensor());
+
+    return this->AsReshapedTensor(requested_shape);
   }
 
 
@@ -385,7 +436,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   // when sharing data with a Tensor, we will store a pointer to
   // Tensor that shares the data with this TensorList (valid only
   // if IsDenseTensor returns true)
-  Tensor<Backend> * tensor_view_;
+  std::list<Tensor<Backend> > tensor_views_;
 
   USE_BUFFER_MEMBERS();
 };

@@ -52,15 +52,15 @@ class OpticalFlow : public Operator<Backend> {
  public:
   explicit OpticalFlow(const OpSpec &spec) :
           Operator<Backend>(spec),
-          quality_factor_(spec.GetArgument<typename std::remove_const<
-                  decltype(this->quality_factor_)>::type>(detail::kPresetArgName)),
-          grid_size_(spec.GetArgument<typename std::remove_const<
-                  decltype(this->grid_size_)>::type>(detail::kOutputFormatArgName)),
-          enable_temporal_hints_(spec.GetArgument<typename std::remove_const<
-                  decltype(this->enable_temporal_hints_)>::type>(
+          quality_factor_(spec.GetArgument<std::remove_const_t<
+                  decltype(this->quality_factor_)>>(detail::kPresetArgName)),
+          grid_size_(spec.GetArgument<std::remove_const_t<
+                  decltype(this->grid_size_)>>(detail::kOutputFormatArgName)),
+          enable_temporal_hints_(spec.GetArgument<std::remove_const_t<
+                  decltype(this->enable_temporal_hints_)>>(
                   detail::kEnableTemporalHintsArgName)),
-          enable_external_hints_(spec.GetArgument<typename std::remove_const<
-                  decltype(this->enable_external_hints_)>::type>(
+          enable_external_hints_(spec.GetArgument<std::remove_const_t<
+                  decltype(this->enable_external_hints_)>>(
                   detail::kEnableExternalHintsArgName)),
           optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
                   new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),

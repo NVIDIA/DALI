@@ -5,7 +5,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy
 import random
-from PIL import Image
+from PIL import Image, ImageEnhance
 import os
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
@@ -160,6 +160,14 @@ def flip(image):
     return numpy.fliplr(image)
 
 
+def Rotate(image):
+    return numpy.rot90(image)
+
+
+def Brightness(image):
+    return numpy.array(ImageEnhance.Brightness(Image.fromarray(image)).enhance(0.5))
+
+
 def test_python_operator_one_channel_normalize():
     run_case(one_channel_normalize)
 
@@ -183,8 +191,56 @@ def test_python_operator_flip():
         for i in range(len(numpy_output)):
             assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
 
+
+class RotatePipeline(CommonPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
+        super(RotatePipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
+        self.rotate=ops.Rotate(angle=90.0)
+
+    def define_graph(self):
+        images, labels = self.load()
+        rotate=self.rotate(images)
+        return rotate
+
+
+class BrightnessPipeline(CommonPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
+        super(BrightnessPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
+        self.brightness=ops.Brightness(device = "gpu", brightness = 0.5)
+
+    def define_graph(self):
+        images, labels = self.load()
+        bright=self.brightness(images.gpu())
+        return bright
+
+
+def test_python_operator_rotate():
+    dali_rotate = RotatePipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    numpy_rotate = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Rotate)
+    dali_rotate.build()
+    numpy_rotate.build()
+    for it in range(ITERS):
+        numpy_output, = numpy_rotate.run()
+        dali_output, = dali_rotate.run()
+        for i in range(len(numpy_output)):
+            assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
+
+
+def test_python_operator_brightness():
+    dali_brightness = BrightnessPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    numpy_brightness = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Brightness)
+    dali_brightness.build()
+    numpy_brightness.build()
+    for it in range(ITERS):
+        numpy_output, = numpy_brightness.run()
+        dali_output, = dali_brightness.run()
+        for i in range(len(dali_output)):
+            assert numpy.array_equal(numpy_output.at(i), dali_output.as_cpu().at(i))
+
+
 def invalid_function(image):
     return img
+
 
 def test_python_operator_invalid_function():
     invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,

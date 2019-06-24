@@ -33,11 +33,11 @@ class RotateAugment : public WarpAffineAugment {
     float angle = spec.GetArgument<float>("angle", ws, index);
     float angle_rad = angle * (M_PI / 180.0);
     p->matrix[0] = std::cos(angle_rad);
-    p->matrix[1] = std::sin(angle_rad);
-    p->matrix[2] = 0.0;
-    p->matrix[3] = -std::sin(angle_rad);
+    p->matrix[1] = -std::sin(angle_rad);
+    p->matrix[2] = 0;
+    p->matrix[3] = std::sin(angle_rad);
     p->matrix[4] = std::cos(angle_rad);
-    p->matrix[5] = 0.0;
+    p->matrix[5] = 0;
   }
 };
 

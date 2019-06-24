@@ -400,7 +400,7 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
   std::vector<std::vector<DeviceWorkspace>> gpu_workspaces_;
 
   template <OpType op_type>
-  using ws_collection_t = typename std::vector<std::vector<op_type_to_workspace_t<op_type>>>;
+  using ws_collection_t = std::vector<std::vector<op_type_to_workspace_t<op_type>>>;
 
   // Access one of `support_workspaces_`, `cpu_workspaces_`, `mixed_workspaces_`, `gpu_workspaces_`
   // based on op_type. Below are specialization for the sake of simplicity

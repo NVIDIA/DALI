@@ -33,6 +33,8 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
     int resize_a = 0, resize_b = 0;
     bool warp_resize = true, resize_shorter = true;
+    bool max_size_enforced = false;
+    std::vector<float> max_size;
     const OpSpec &spec = this->GetOperationSpec();
     const bool useExternSizes = (resizeOptions & t_externSizes) &&
                                 spec.GetArgument<bool>("save_attrs");
@@ -49,6 +51,11 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
         if (resize_a == 0) {
           resize_a = spec.GetArgument<float>("resize_longer");
           resize_shorter = false;
+        } else {
+          max_size_enforced = spec.ArgumentDefined("max_size");
+          if (max_size_enforced) {
+            GetSingleOrRepeatedArg(spec, max_size, "max_size", 2);
+          }
         }
       }
     }
@@ -80,6 +87,13 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
             if (resize_shorter) {
               rsz_w = resize_a;
               rsz_h = static_cast<int>(std::round(H * static_cast<float>(rsz_w) / W));
+              if (max_size_enforced) {
+                if (rsz_h > max_size[0]) {
+                  const float ratio = static_cast<float>(W) / static_cast<float>(H);
+                  rsz_w = static_cast<int>(std::round(ratio * max_size[0]));
+                  rsz_h = max_size[0];
+                }
+              }
             } else {
               rsz_h = resize_a;
               rsz_w = static_cast<int>(std::round(W * static_cast<float>(rsz_h) / H));
@@ -88,6 +102,13 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
             if (resize_shorter) {
               rsz_h = resize_a;
               rsz_w = static_cast<int>(std::round(W * static_cast<float>(rsz_h) / H));
+               if (max_size_enforced) {
+                if (rsz_w > max_size[1]) {
+                  const float ratio = static_cast<float>(H) / static_cast<float>(W);
+                  rsz_h = static_cast<int>(std::round(ratio * max_size[1]));
+                  rsz_w = max_size[1];
+                }
+              }
             } else {
               rsz_w = resize_a;
               rsz_h = static_cast<int>(std::round(H * static_cast<float>(rsz_w) / W));

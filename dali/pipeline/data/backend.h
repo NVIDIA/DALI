@@ -78,6 +78,18 @@ inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t strea
   CUDA_CALL(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDefault, stream));
 }
 
+// This is defined only for backends that map to actual storage devices
+template <typename Backend>
+struct backend_to_storage_device;
+
+template <>
+struct backend_to_storage_device<CPUBackend>
+    : std::integral_constant<StorageDevice, StorageDevice::CPU> {};
+
+template <>
+struct backend_to_storage_device<GPUBackend>
+    : std::integral_constant<StorageDevice, StorageDevice::GPU> {};
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_DATA_BACKEND_H_

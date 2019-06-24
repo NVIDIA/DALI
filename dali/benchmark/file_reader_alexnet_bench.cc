@@ -89,14 +89,11 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
       .AddOutput("resized", "cpu"));
 
   pipe.AddOperator(
-      OpSpec("NormalizePermute")
+      OpSpec("CropMirrorNormalize")
       .AddArg("device", "gpu")
       .AddArg("output_type", DALI_FLOAT16)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
-      .AddArg("height", 224)
-      .AddArg("width", 224)
-      .AddArg("channels", 3)
       .AddInput("resized", "gpu")
       .AddOutput("final_batch", "gpu"));
 

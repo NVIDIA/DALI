@@ -25,18 +25,24 @@ namespace dali {
 static double testEps[] = {     //     TEST:
                     0.2, 0.3,   // ResizeShorter_LINEAR
                     0.2, 0.3,   // ResizeShorter_A_LINEAR
+                    0.2, 0.3,   // ResizeShorterMax_LINEAR
+                    0.2, 0.3,   // ResizeShorterMax_A_LINEAR
                     0.2, 0.3,   // ResizeLonger_LINEAR
                     0.2, 0.3,   // ResizeLonger_A_LINEAR
                     0.2, 0.3,   // ResizeXY_LINEAR
                     0.2, 0.3,   // ResizeXY_A_LINEAR
                     1.1, 2.2,   // ResizeShorter_NN
                     1.1, 2.2,   // ResizeShorter_A_NN
+                    1.1, 2.2,   // ResizeShorterMax_NN
+                    1.1, 2.2,   // ResizeShorterMax_A_NN
                     1.1, 2.2,   // ResizeLonger_NN
                     1.1, 2.2,   // ResizeLonger_A_NN
                     1.1, 2.2,   // ResizeXY_NN
                     1.1, 2.2,   // ResizeXY_A_NN
                     0.3, 0.6,   // ResizeShorter_CUBIC
                     0.3, 0.6,   // ResizeShorter_A_CUBIC
+                    0.3, 0.6,   // ResizeShorterMax_CUBIC
+                    0.3, 0.6,   // ResizeShorterMax_A_CUBIC
                     0.3, 0.6,   // ResizeLonger_CUBIC
                     0.3, 0.6,   // ResizeLonger_A_CUBIC
                     0.3, 0.6,   // ResizeXY_CUBIC
@@ -63,18 +69,24 @@ TYPED_TEST_SUITE(ResizeTest, Types);
 typedef enum {
   t_ResizeShorter_LINEAR,
   t_ResizeShorter_A_LINEAR,
+  t_ResizeShorterMax_LINEAR,
+  t_ResizeShorterMax_A_LINEAR,
   t_ResizeLonger_LINEAR,
   t_ResizeLonger_A_LINEAR,
   t_ResizeXY_LINEAR,
   t_ResizeXY_A_LINEAR,
   t_ResizeShorter_NN,
   t_ResizeShorter_A_NN,
+  t_ResizeShorterMax_NN,
+  t_ResizeShorterMax_A_NN,
   t_ResizeLonger_NN,
   t_ResizeLonger_A_NN,
   t_ResizeXY_NN,
   t_ResizeXY_A_NN,
   t_ResizeShorter_CUBIC,
   t_ResizeShorter_A_CUBIC,
+  t_ResizeShorterMax_CUBIC,
+  t_ResizeShorterMax_A_CUBIC,
   t_ResizeLonger_CUBIC,
   t_ResizeLonger_A_CUBIC,
   t_ResizeXY_CUBIC,
@@ -119,29 +131,42 @@ enum {
             TESTS_WITH_CHECK(testName, interp, testArgs, Default)       \
             TESTS_WITH_CHECK(testName, interp, testArgs, Elements)
 
-TYPED_TESTS(ResizeShorter,   LINEAR, .AddArg("resize_shorter", 480.f))
-TYPED_TESTS(ResizeShorter_A, LINEAR, .AddArg("resize_shorter", 224.f))
-TYPED_TESTS(ResizeLonger,    LINEAR, .AddArg("resize_longer",  640.f))
-TYPED_TESTS(ResizeLonger_A,  LINEAR, .AddArg("resize_longer",  960.f))
-TYPED_TESTS(ResizeXY,        LINEAR, .AddArg("resize_x", 224.f)         \
-                                     .AddArg("resize_y", 224.f))
-TYPED_TESTS(ResizeXY_A,      LINEAR, .AddArg("resize_x", 240.f)         \
-                                     .AddArg("resize_y", 480.f))
-TYPED_TESTS(ResizeShorter,       NN, .AddArg("resize_shorter", 480.f))
-TYPED_TESTS(ResizeShorter_A,     NN, .AddArg("resize_shorter", 224.f))
-TYPED_TESTS(ResizeLonger,        NN, .AddArg("resize_longer",  640.f))
-TYPED_TESTS(ResizeLonger_A,      NN, .AddArg("resize_longer",  960.f))
-TYPED_TESTS(ResizeXY,            NN, .AddArg("resize_x", 224.f)         \
-                                     .AddArg("resize_y", 224.f))
-TYPED_TESTS(ResizeXY_A,          NN, .AddArg("resize_x", 240.f)         \
-                                     .AddArg("resize_y", 480.f))
-TYPED_TESTS(ResizeShorter,    CUBIC, .AddArg("resize_shorter", 480.f))
-TYPED_TESTS(ResizeShorter_A,  CUBIC, .AddArg("resize_shorter", 224.f))
-TYPED_TESTS(ResizeLonger,     CUBIC, .AddArg("resize_longer",  640.f))
-TYPED_TESTS(ResizeLonger_A,   CUBIC, .AddArg("resize_longer",  960.f))
-TYPED_TESTS(ResizeXY,         CUBIC, .AddArg("resize_x", 224.f)         \
-                                     .AddArg("resize_y", 224.f))
-TYPED_TESTS(ResizeXY_A,       CUBIC, .AddArg("resize_x", 240.f)         \
-                                     .AddArg("resize_y", 480.f))
+TYPED_TESTS(ResizeShorter,       LINEAR, .AddArg("resize_shorter", 480.f))
+TYPED_TESTS(ResizeShorter_A,     LINEAR, .AddArg("resize_shorter", 224.f))
+TYPED_TESTS(ResizeShorterMax,    LINEAR, .AddArg("resize_shorter", 240.f)   \
+                                         .AddArg("max_size",      400.f))
+TYPED_TESTS(ResizeShorterMax_A,  LINEAR, .AddArg("resize_shorter", 400.f)   \
+                                         .AddArg("max_size",      1000.f))
+TYPED_TESTS(ResizeLonger,        LINEAR, .AddArg("resize_longer",  640.f))
+TYPED_TESTS(ResizeLonger_A,      LINEAR, .AddArg("resize_longer",  960.f))
+TYPED_TESTS(ResizeXY,            LINEAR, .AddArg("resize_x", 224.f)         \
+                                         .AddArg("resize_y", 224.f))
+TYPED_TESTS(ResizeXY_A,          LINEAR, .AddArg("resize_x", 240.f)         \
+                                         .AddArg("resize_y", 480.f))
+TYPED_TESTS(ResizeShorter,           NN, .AddArg("resize_shorter", 480.f))
+TYPED_TESTS(ResizeShorter_A,         NN, .AddArg("resize_shorter", 224.f))
+TYPED_TESTS(ResizeShorterMax,        NN, .AddArg("resize_shorter", 240.f)   \
+                                         .AddArg("max_size",      400.f))
+TYPED_TESTS(ResizeShorterMax_A,      NN, .AddArg("resize_shorter", 400.f)   \
+                                         .AddArg("max_size",      1000.f))
+TYPED_TESTS(ResizeLonger,            NN, .AddArg("resize_longer",  640.f))
+TYPED_TESTS(ResizeLonger_A,          NN, .AddArg("resize_longer",  960.f))
+TYPED_TESTS(ResizeXY,                NN, .AddArg("resize_x", 224.f)         \
+                                         .AddArg("resize_y", 224.f))
+TYPED_TESTS(ResizeXY_A,              NN, .AddArg("resize_x", 240.f)         \
+                                         .AddArg("resize_y", 480.f))
+TYPED_TESTS(ResizeShorter,        CUBIC, .AddArg("resize_shorter", 480.f))
+TYPED_TESTS(ResizeShorter_A,      CUBIC, .AddArg("resize_shorter", 224.f))
+TYPED_TESTS(ResizeShorterMax,     CUBIC, .AddArg("resize_shorter", 240.f)   \
+                                         .AddArg("max_size",      400.f))
+TYPED_TESTS(ResizeShorterMax_A,   CUBIC, .AddArg("resize_shorter", 400.f)   \
+                                         .AddArg("max_size",      1000.f))
+TYPED_TESTS(ResizeLonger,         CUBIC, .AddArg("resize_longer",  640.f))
+TYPED_TESTS(ResizeLonger_A,       CUBIC, .AddArg("resize_longer",  960.f))
+TYPED_TESTS(ResizeXY,             CUBIC, .AddArg("resize_x", 224.f)         \
+                                         .AddArg("resize_y", 224.f))
+TYPED_TESTS(ResizeXY_A,           CUBIC, .AddArg("resize_x", 240.f)         \
+                                         .AddArg("resize_y", 480.f))
+
 
 }  // namespace dali

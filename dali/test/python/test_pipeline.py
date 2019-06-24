@@ -24,6 +24,8 @@ from timeit import default_timer as timer
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
+import random
+from PIL import Image
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
@@ -544,8 +546,9 @@ def test_rotate():
     orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):
         orig = orig_cpu.at(i)
-        M = cv2.getRotationMatrix2D((112,112),45, 1)
-        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_REPLICATE, flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
+        M = cv2.getRotationMatrix2D(((224-1)*0.5, (224-1)*0.5), 45, 1)
+        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_CONSTANT, borderValue = (128, 128, 128),
+                             flags = (cv2.INTER_LINEAR))
         rotated_dali = pipe_out[2].as_cpu().at(i)
         diff = out - rotated_dali
         diff[rotated_dali==[128.,128.,128.]] = 0
@@ -585,8 +588,9 @@ def test_warpaffine():
     orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):
         orig = orig_cpu.at(i)
-        M = np.array([1.0, 0.8, -0.8*112, 0.0, 1.2, -0.2*112]).reshape((2,3))
-        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_REPLICATE, flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
+        M = np.array([1.0, 0.8, -0.8*111.5, 0.0, 1.2, -0.2*111.5]).reshape((2,3))
+        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_CONSTANT, borderValue = (128, 128, 128),
+                             flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
         dali_output = pipe_out[2].as_cpu().at(i)
         diff = out - dali_output
         diff[dali_output==[128.,128.,128.]] = 0
@@ -1394,3 +1398,73 @@ def test_skip_cached_images():
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
                           batch_size=batch_size, N_iterations=100)
+
+def test_as_tensor():
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+
+        def define_graph(self):
+            _, self.labels = self.input()
+            return self.labels
+    batch_size = 8
+    shape = [[2, 2, 2], [8, 1], [1, 8], [4, 2], [2, 4], [8], [1, 2, 1, 2, 1, 2], [1, 1, 1, 8]]
+    pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id = 0)
+    pipe.build()
+    for sh in shape:
+        pipe_out = pipe.run()[0]
+        assert(pipe_out.as_tensor().shape() == [batch_size, 1])
+        assert(pipe_out.as_reshaped_tensor(sh).shape() == sh)
+        different_shape = random.choice(shape)
+        assert(pipe_out.as_reshaped_tensor(different_shape).shape() == different_shape)
+
+def test_as_tensor_fail():
+    class HybridPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+
+        def define_graph(self):
+            _, self.labels = self.input()
+            return self.labels
+    batch_size = 8
+    shape = [[2, 2, 2, 3], [8, 1, 6], [1, 8, 4], [4, 2, 9], [2, 4, 0], [8, 2], [1, 2, 1, 2, 1, 2, 3], [7, 1, 1, 1, 8]]
+    pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id = 0)
+    pipe.build()
+    for sh in shape:
+        pipe_out = pipe.run()[0]
+        assert(pipe_out.as_tensor().shape() == [batch_size, 1])
+        try:
+            assert(pipe_out.as_reshaped_tensor(sh).shape() == sh)
+            assert(False)
+        except RuntimeError:
+            assert(True)
+
+def test_python_formats():
+    class TestPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus, test_array):
+            super(TestPipeline, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.input_data = ops.ExternalSource()
+            self.test_array = test_array
+
+        def define_graph(self):
+            self.data = self.input_data()
+            return (self.data)
+
+
+        def iter_setup(self):
+            self.feed_input(self.data, self.test_array)
+
+    for t in [np.bool_, np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
+             np.uint8, np.uint16, np.uint32, np.uint64, np.float_, np.float32, np.float16,
+             np.short, np.long, np.longlong, np.ushort, np.ulonglong]:
+        test_array = np.array([[1, 1], [1, 1]], dtype=t)
+        pipe = TestPipeline(2, 1, 0, 1, test_array)
+        pipe.build()
+        out = pipe.run()[0]
+        out_dtype = out.at(0).dtype
+        assert(test_array.dtype.itemsize == out_dtype.itemsize)
+        assert(test_array.dtype.str == out_dtype.str)

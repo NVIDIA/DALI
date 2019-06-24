@@ -39,6 +39,9 @@ static void* ctypes_void_ptr(const py::object& object) {
     return nullptr;
   }
   PyObject *ptr_as_int = PyObject_GetAttr(p_ptr, PyUnicode_FromString("value"));
+  if (ptr_as_int == Py_None) {
+    return nullptr;
+  }
   void *ptr = PyLong_AsVoidPtr(ptr_as_int);
   return ptr;
 }
@@ -65,7 +68,7 @@ void ExposeTensor(py::module &m) { // NOLINT
               FormatStrFromType(t.type()),
               t.ndim(), shape, stride);
         })
-    .def("__init__", [](Tensor<CPUBackend> &t, py::buffer b, DALITensorLayout layout = DALI_NHWC) {
+    .def(py::init([](py::buffer b, DALITensorLayout layout = DALI_NHWC) {
           // We need to verify that hte input data is c contiguous
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -89,13 +92,14 @@ void ExposeTensor(py::module &m) { // NOLINT
           }
 
           // Create the Tensor and wrap the data
-          new (&t) Tensor<CPUBackend>;
+          auto t = new Tensor<CPUBackend>;
           TypeInfo type = TypeFromFormatStr(info.format);
-          t.ShareData(info.ptr, bytes);
-          t.set_type(type);
-          t.SetLayout(layout);
-          t.Resize(i_shape);
-        },
+          t->ShareData(info.ptr, bytes);
+          t->set_type(type);
+          t->SetLayout(layout);
+          t->Resize(i_shape);
+          return t;
+        }),
       R"code(
       Tensor residing in the CPU memory.
       )code")
@@ -171,8 +175,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
   // the backend. We do not support converting from TensorLists
   // to numpy arrays currently.
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
-    .def("__init__", [](TensorList<CPUBackend> &t, py::buffer b,
-                        DALITensorLayout layout) {
+    .def(py::init([](py::buffer b, DALITensorLayout layout) {
           // We need to verify that the input data is C_CONTIGUOUS
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -197,13 +200,14 @@ void ExposeTensorList(py::module &m) { // NOLINT
           }
 
           // Create the Tensor and wrap the data
-          new (&t) TensorList<CPUBackend>;
+          auto t = new TensorList<CPUBackend>;
           TypeInfo type = TypeFromFormatStr(info.format);
-          t.ShareData(info.ptr, bytes);
-          t.set_type(type);
-          t.SetLayout(layout);
-          t.Resize(i_shape);
-        },
+          t->ShareData(info.ptr, bytes);
+          t->set_type(type);
+          t->SetLayout(layout);
+          t->Resize(i_shape);
+          return t;
+        }),
       R"code(
       List of tensors residing in the CPU memory.
 
@@ -318,6 +322,17 @@ void ExposeTensorList(py::module &m) { // NOLINT
       Parameters
       ----------
       )code")
+    .def("as_reshaped_tensor",
+        [](TensorList<CPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<CPUBackend>* {
+          return tl.AsReshapedTensor(new_shape);
+        },
+      R"code(
+      Returns a tensor that is a view of this `TensorList` cast to the given shape.
+
+      This function can only be called if `TensorList` is continuous in memory and
+      the volumes of requested `Tensor` and `TensorList` matches.
+      )code",
+      py::return_value_policy::reference_internal)
     .def("as_tensor", &TensorList<CPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
@@ -327,10 +342,10 @@ void ExposeTensorList(py::module &m) { // NOLINT
       py::return_value_policy::reference_internal);
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
-    .def("__init__", [](TensorList<GPUBackend> &t) {
+    .def(py::init([]() {
           // Construct a default TensorList on GPU
-          new (&t) TensorList<GPUBackend>;
-        },
+          return new TensorList<GPUBackend>;
+        }),
       R"code(
       List of tensors residing in the GPU memory.
       )code")
@@ -396,6 +411,17 @@ void ExposeTensorList(py::module &m) { // NOLINT
       ----------
       )code",
       py::keep_alive<0, 1>())
+    .def("as_reshaped_tensor",
+        [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<GPUBackend>* {
+          return tl.AsReshapedTensor(new_shape);
+        },
+      R"code(
+      Returns a tensor that is a view of this `TensorList` cast to the given shape.
+
+      This function can only be called if `TensorList` is continuous in memory and
+      the volumes of requested `Tensor` and `TensorList` matches.
+      )code",
+      py::return_value_policy::reference_internal)
     .def("as_tensor", &TensorList<GPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
@@ -789,6 +815,13 @@ PYBIND11_MODULE(backend_impl, m) {
         TFValue converted_default_value =
           ConvertTFRecordDefaultValue(converted_type, default_value);
         return new TFFeature(converted_type, converted_default_value);
+      });
+  tfrecord_m.def("VarLenFeature",
+      [](vector<Index> partial_shape, int type, py::object default_value) {
+        TFFeatureType converted_type = static_cast<TFFeatureType>(type);
+        TFValue converted_default_value =
+          ConvertTFRecordDefaultValue(converted_type, default_value);
+        return new TFFeature(converted_type, converted_default_value, partial_shape);
       });
 #endif  // DALI_BUILD_PROTO3
 }

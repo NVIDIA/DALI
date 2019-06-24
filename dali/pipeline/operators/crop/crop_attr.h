@@ -38,11 +38,16 @@ class CropAttr {
     , batch_size__(spec__.GetArgument<int>("batch_size")) {
     int crop_h = 0, crop_w = 0;
     bool has_crop_arg = spec__.HasArgument("crop");
-    bool has_crop_w_arg = spec__.HasArgument("crop_w");
-    bool has_crop_h_arg = spec__.HasArgument("crop_h");
+    bool has_crop_w_arg = spec__.ArgumentDefined("crop_w");
+    bool has_crop_h_arg = spec__.ArgumentDefined("crop_h");
+    is_whole_image_ = !has_crop_arg && !has_crop_w_arg && !has_crop_h_arg;
+
+    DALI_ENFORCE(has_crop_w_arg == has_crop_h_arg,
+      "`crop_w` and `crop_h` arguments must be provided together");
+
     if (has_crop_arg) {
       DALI_ENFORCE(!has_crop_h_arg && !has_crop_w_arg,
-        "crop argument is not compatible with crop_h, crop_w");
+        "`crop` argument is not compatible with `crop_h`, `crop_w`");
 
       auto cropArg = spec.GetRepeatedArgument<float>("crop");
       DALI_ENFORCE(cropArg.size() > 0 && cropArg.size() <= 2);
@@ -56,9 +61,6 @@ class CropAttr {
       DALI_ENFORCE(crop_w >= 0,
         "Crop width must be greater than zero. Received: " +
         std::to_string(crop_w));
-    } else if (has_crop_h_arg || has_crop_w_arg) {
-      DALI_ENFORCE(has_crop_w_arg && has_crop_h_arg,
-        "Both crop_w and crop_h arguments must be provided");
     }
 
     crop_height_.resize(batch_size__, crop_h);
@@ -71,13 +73,15 @@ class CropAttr {
   void ProcessArguments(const ArgumentWorkspace *ws, std::size_t data_idx) {
     crop_x_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_x", ws, data_idx);
     crop_y_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_y", ws, data_idx);
-    if (crop_width_[data_idx] == 0) {
-      crop_width_[data_idx] =
-        static_cast<int>(spec__.GetArgument<float>("crop_w", ws, data_idx));
-    }
-    if (crop_height_[data_idx] == 0) {
-      crop_height_[data_idx] =
-          static_cast<int>(spec__.GetArgument<float>("crop_h", ws, data_idx));
+    if (!is_whole_image_) {
+      if (crop_width_[data_idx] == 0) {
+        crop_width_[data_idx] = static_cast<int>(
+          spec__.GetArgument<float>("crop_w", ws, data_idx));
+      }
+      if (crop_height_[data_idx] == 0) {
+        crop_height_[data_idx] = static_cast<int>(
+          spec__.GetArgument<float>("crop_h", ws, data_idx));
+      }
     }
 
     crop_window_generators_[data_idx] =
@@ -131,11 +135,16 @@ class CropAttr {
     return std::make_pair(crop_y, crop_x);
   }
 
+  inline bool IsWholeImage() const {
+    return is_whole_image_;
+  }
+
   std::vector<int> crop_height_;
   std::vector<int> crop_width_;
   std::vector<float> crop_x_norm_;
   std::vector<float> crop_y_norm_;
   std::vector<CropWindowGenerator> crop_window_generators_;
+  bool is_whole_image_ = false;
 
  private:
   OpSpec spec__;

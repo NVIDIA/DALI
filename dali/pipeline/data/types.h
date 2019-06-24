@@ -62,14 +62,14 @@ namespace detail {
 typedef void (*Copier)(void *, const void*, Index);
 
 template <typename T>
-inline typename std::enable_if<IS_TRIVIALLY_COPYABLE(T)>::type
+inline std::enable_if_t<IS_TRIVIALLY_COPYABLE(T)>
 CopyFunc(void *dst, const void *src, Index n) {
   // T is trivially copyable, we can copy using raw memcopy
   std::memcpy(dst, src, n*sizeof(T));
 }
 
 template <typename T>
-inline typename std::enable_if<!IS_TRIVIALLY_COPYABLE(T)>::type
+inline std::enable_if_t<!IS_TRIVIALLY_COPYABLE(T)>
 CopyFunc(void *dst, const void *src, Index n) {
   T *typed_dst = static_cast<T*>(dst);
   const T* typed_src = static_cast<const T*>(src);

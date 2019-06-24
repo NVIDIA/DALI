@@ -27,7 +27,7 @@ class SliceCPUTest : public SliceTest<TestArgs> {
   static constexpr std::size_t Dims = TestArgs::Dims;
   static constexpr std::size_t NumSamples = TestArgs::NumSamples;
   static constexpr std::size_t DimSize = TestArgs::DimSize;
-  using SliceArgsGenerator = typename TestArgs::SliceArgsGenerator;
+  using ArgsGenerator = typename TestArgs::ArgsGenerator;
   using KernelType = SliceCPU<OutputType, InputType, Dims>;
 
   void Run() override {
@@ -37,7 +37,7 @@ class SliceCPUTest : public SliceTest<TestArgs> {
     this->PrepareData(test_data);
 
     auto test_data_cpu = test_data.cpu();
-    auto slice_args = this->GenerateSliceArgs(test_data_cpu);
+    auto slice_args = this->GenerateArgs(test_data_cpu);
 
     TestTensorList<OutputType, Dims> expected_output;
     this->PrepareExpectedOutput(test_data, slice_args, expected_output);
@@ -69,6 +69,15 @@ class SliceCPUTest : public SliceTest<TestArgs> {
 TYPED_TEST_SUITE(SliceCPUTest, SLICE_TEST_TYPES);
 
 TYPED_TEST(SliceCPUTest, All) {
+  this->Run();
+}
+
+template <typename TestArgs>
+class SliceCPUTest_CPUOnlyTests : public SliceCPUTest<TestArgs> {};
+
+TYPED_TEST_SUITE(SliceCPUTest_CPUOnlyTests, SLICE_TEST_TYPES_CPU_ONLY);
+
+TYPED_TEST(SliceCPUTest_CPUOnlyTests, All) {
   this->Run();
 }
 

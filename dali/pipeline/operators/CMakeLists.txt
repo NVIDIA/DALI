@@ -30,6 +30,7 @@ add_subdirectory(sequence)
 add_subdirectory(support)
 add_subdirectory(transpose)
 add_subdirectory(util)
+add_subdirectory(python_function/util)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)

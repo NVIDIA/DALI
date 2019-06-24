@@ -28,18 +28,18 @@ struct SimpleKernelTestBase {
   using Kernel = Kernel_;
 
   template <int i>
-  using Input = typename std::remove_reference<
-      typename std::tuple_element<i, kernels::kernel_inputs<Kernel>>::type>::type;
+  using Input =  std::remove_reference_t<
+      std::tuple_element_t<i, kernels::kernel_inputs<Kernel>>>;
 
   template <int i>
-  using Output = typename std::remove_reference<
-      typename std::tuple_element<i, kernels::kernel_outputs<Kernel>>::type>::type;
+  using Output = std::remove_reference_t<
+      std::tuple_element_t<i, kernels::kernel_outputs<Kernel>>>;
 
   template <int i>
-  using Arg = typename std::tuple_element<i, kernels::kernel_args<Kernel>>::type;
+  using Arg = std::tuple_element_t<i, kernels::kernel_args<Kernel>>;
 
   template <int i>
-  using InputElement = typename std::remove_const<element_t<Input<i>>>::type;
+  using InputElement = std::remove_const_t<element_t<Input<i>>>;
   template <int i>
   using OutputElement = element_t<Output<i>>;
 };

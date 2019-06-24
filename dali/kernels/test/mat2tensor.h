@@ -46,7 +46,7 @@ TensorShape<ndim> tensor_shape(const cv::Mat &mat) {
 
 template <typename T>
 void enforce_type(const cv::Mat &mat) {
-  using U = typename std::remove_const<T>::type;
+  using U = std::remove_const_t<T>;
   int depth = cv::DataDepth<U>::value;
   if (depth != mat.depth())
     throw std::logic_error("Invalid matrix data type");

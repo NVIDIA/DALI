@@ -79,16 +79,8 @@ void SliceBase<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   const auto &input = ws->Input<GPUBackend>(idx);
   auto &output = ws->Output<GPUBackend>(idx);
 
-  if (input_type_ == DALI_FLOAT16 || output_type_ == DALI_FLOAT16) {
-    DALI_ENFORCE(input_type_ == output_type_,
-      "type conversion is not supported for half precision floats");
-    detail::RunHelper<float16, float16>(
-      output, input, slice_anchors_, slice_shapes_, ws->stream(), scratch_alloc_);
-    return;
-  }
-
-  DALI_TYPE_SWITCH(input_type_, InputType,
-    DALI_TYPE_SWITCH(output_type_, OutputType,
+  DALI_TYPE_SWITCH_WITH_FP16_GPU(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16_GPU(output_type_, OutputType,
       detail::RunHelper<OutputType, InputType>(
         output, input, slice_anchors_, slice_shapes_, ws->stream(), scratch_alloc_);
     )

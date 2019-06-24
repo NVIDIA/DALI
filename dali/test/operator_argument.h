@@ -38,7 +38,7 @@ struct TestOpArgToStringImpl {
 };
 
 template <typename T>
-struct TestOpArgToStringImpl<T, typename std::enable_if<std::is_arithmetic<T>::value>::type> {
+struct TestOpArgToStringImpl<T, std::enable_if_t<std::is_arithmetic<T>::value>> {
   static std::string to_string(const T& val) {
     return std::to_string(val);
   }

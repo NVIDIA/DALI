@@ -1,4 +1,7 @@
-#!/bin/bash -xe
+#!/bin/bash
+
+# Stop at any error, show all commands
+set -ex
 
 usage="ENV1=VAL1 ENV2=VAL2 [...] $(basename "$0") [-h] -- this DALI build helper mean to run from the docker environment.
 Please don't call it directly.
@@ -31,6 +34,7 @@ export BUILD_NVJPEG=${BUILD_NVJPEG:-ON}
 export BUILD_NVOF=${BUILD_NVOF:-ON}
 export BUILD_NVDEC=${BUILD_NVDEC:-ON}
 export BUILD_NVML=${BUILD_NVML:-ON}
+export WERROR=${WERROR:-ON}
 export NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-0}
 export GIT_SHA=${GIT_SHA}
 export DALI_TIMESTAMP=${DALI_TIMESTAMP}
@@ -44,26 +48,29 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=. -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
       -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO} -DBUILD_NVJPEG=${BUILD_NVJPEG} \
       -DBUILD_NVOF=${BUILD_NVOF} -DBUILD_NVDEC=${BUILD_NVDEC} \
       -DBUILD_NVML=${BUILD_NVML} \
-      -DWERROR=ON \
+      -DWERROR=${WERROR} \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
-      -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA} && \
+      -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA}
+if [ "${WERROR}" = "ON" ]; then
+    make -j lint
+fi
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
 if [ "${BUILD_PYTHON}" = "ON" ]; then \
     pip wheel -v dali/python \
         --build-option --python-tag=$(basename /opt/python/cp${PYV}-*) \
         --build-option --plat-name=manylinux1_x86_64 \
-        --build-option --build-number=${NVIDIA_BUILD_ID} && \
-    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl && \
-    UNZIP_PATH="$(mktemp -d)" && \
-    unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH && \
-    python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ') && \
-    rm -rf $UNZIP_PATH ;\
+        --build-option --build-number=${NVIDIA_BUILD_ID}
+    ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl
+    export UNZIP_PATH="$(mktemp -d)"
+    unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH
+    python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ')
+    rm -rf $UNZIP_PATH
 fi
 
-if [ "${BUILD_PYTHON}" = "ON" ]; then \
-    pushd dali/python/tf_plugin/ && \
-    python setup.py sdist && \
-    mv dist/nvidia-dali-tf-plugin*.tar.gz /wheelhouse/ && \
-    popd ;\
+if [ "${BUILD_PYTHON}" = "ON" ]; then
+    pushd dali/python/tf_plugin/
+    python setup.py sdist
+    mv dist/nvidia-dali-tf-plugin*.tar.gz /wheelhouse/
+    popd
 fi
