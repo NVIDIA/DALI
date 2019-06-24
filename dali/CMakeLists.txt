@@ -159,7 +159,7 @@ if (BUILD_TENSORFLOW)
 
   # get default TF installation path
   execute_process(
-    COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p] ; print(f[0], end=\"\")"
+    COMMAND python -c "from __future__ import print_function; import os; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p and \"tensorflow\" in os.listdir(p)] ; print(f[0] if f else \"\", end=\"\")"
     OUTPUT_VARIABLE DIST_PACKAGES_DIR)
 
   set(TF_PATHS)
@@ -187,19 +187,23 @@ if (BUILD_TENSORFLOW)
     set(customop_lib "dali_tf${VER}")
 
     cuda_add_library(${customop_lib} SHARED ${DALI_TF_SRCS})
+    set(TF_PYTHON_CALL "from __future__ import print_function; import os; import sys; sys.path.insert(0, '${FULL_PATH}'); sys.stdout = open(os.devnull, 'w'); sys.stderr = open(os.devnull, 'w'); import tensorflow; sys.stdout = sys.__stdout__; sys.stderr = sys.__stderr__;")
     execute_process(
-      COMMAND python -c "from __future__ import print_function; import sys; import tensorflow; sys.path.insert(0, '${FULL_PATH}'); print(';'.join(tensorflow.sysconfig.get_compile_flags()), end=\"\")"
+      COMMAND python -c "${TF_PYTHON_CALL} print(';'.join(tensorflow.sysconfig.get_compile_flags()), end=\"\")"
       OUTPUT_VARIABLE TF_CFLAGS)
-     
-    # set(TF_CFLAGS TF_CFLAGS "-I${FULL_PATH}/external/nsync/public")
-    target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS})
-
-    message(STATUS "Adding dependencies to ${customop_lib}: '${dali_lib}'")
-    add_dependencies(${customop_lib} ${dali_lib})
-
     execute_process(
-      COMMAND python -c "from __future__ import print_function; import sys; import tensorflow; sys.path.insert(0, '${FULL_PATH}'); print(';'.join(tensorflow.sysconfig.get_link_flags()), end=\"\")"
+      COMMAND python -c "${TF_PYTHON_CALL} print(';'.join(tensorflow.sysconfig.get_link_flags()), end=\"\")"
       OUTPUT_VARIABLE TF_LFLAGS)
+
+    if ("${TF_CFLAGS}" STREQUAL "" OR "${TF_LFLAGS}" STREQUAL "")
+      message(STATUS "could not get build flags from '${FULL_PATH}', falling back to the default values")
+      set(TF_CFLAGS "-I${FULL_PATH}/tensorflow/include;-D_GLIBCXX_USE_CXX11_ABI=0")
+      set(TF_LFLAGS "-L${FULL_PATH}/tensorflow;-l:libtensorflow_framework.so")
+    endif()
+
+    message(STATUS "'${customop_lib}': TF_CFLAGS: '${TF_CFLAGS}' TF_LFLAGS: '${TF_LFLAGS}'")
+    target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS})
+    add_dependencies(${customop_lib} ${dali_lib})
     target_link_libraries(${customop_lib} PRIVATE ${TF_LFLAGS})
     target_link_libraries(${customop_lib} PRIVATE ${dali_lib})
 
