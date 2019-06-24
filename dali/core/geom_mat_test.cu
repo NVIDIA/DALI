@@ -257,4 +257,88 @@ TEST(Mat, SelectCol) {
   EXPECT_EQ(v, vec3(2, 5, 8));
 }
 
+TEST(Mat, CatCols) {
+  mat3 a = {{
+    { 1, 2, 3 },
+    { 4, 5, 6 },
+    { 7, 8, 9 }
+  }};
+  mat3x2 b = {{
+    { 10, 20 },
+    { 30, 40 },
+    { 50, 60 }
+  }};
+  mat<3, 5> result = cat_cols(a, b);
+  mat<3, 5> ref = {{
+    { 1, 2, 3, 10, 20 },
+    { 4, 5, 6, 30, 40 },
+    { 7, 8, 9, 50, 60 }
+  }};
+  for (size_t i = 0; i < 3; i++)
+    for (size_t j = 0; j < 5; j++)
+      EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
+}
+
+TEST(Mat, CatColsVec) {
+  mat3 a = {{
+    { 1, 2, 3 },
+    { 4, 5, 6 },
+    { 7, 8, 9 }
+  }};
+  vec3 b = { 10, 20, 30 };
+  vec3 c = { 40, 50, 60 };
+  mat3x4 result = cat_cols(a, b);
+  mat3x4 ref = {{
+    { 1, 2, 3, 10 },
+    { 4, 5, 6, 20 },
+    { 7, 8, 9, 30 }
+  }};
+  for (size_t i = 0; i < 3; i++)
+    for (size_t j = 0; j < 4; j++)
+      EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
+
+  result = cat_cols(b, a);
+  ref = mat3x4{{
+    { 10, 1, 2, 3 },
+    { 20, 4, 5, 6 },
+    { 30, 7, 8, 9 }
+  }};
+  for (size_t i = 0; i < 3; i++)
+    for (size_t j = 0; j < 4; j++)
+      EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
+
+  mat3x2 result2 = cat_cols(b, c);
+  mat3x2 ref2 = {{
+    { 10, 40 },
+    { 20, 50 },
+    { 30, 60 }
+  }};
+  for (size_t i = 0; i < 3; i++)
+    for (size_t j = 0; j < 2; j++)
+      EXPECT_EQ(result2(i, j), ref2(i, j)) << "@ " << i << ", " << j;
+}
+
+TEST(Mat, CatRows) {
+  mat3 a = {{
+    { 1, 2, 3 },
+    { 4, 5, 6 },
+    { 7, 8, 9 }
+  }};
+  mat2x3 b = {{
+    { 10, 20, 30 },
+    { 40, 50, 60 }
+  }};
+  mat<5, 3> result = cat_rows(a, b);
+  mat<5, 3> ref = {{
+    { 1, 2, 3 },
+    { 4, 5, 6 },
+    { 7, 8, 9 },
+    { 10, 20, 30 },
+    { 40, 50, 60 }
+  }};
+  for (size_t i = 0; i < 5; i++)
+    for (size_t j = 0; j < 3; j++)
+      EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
+}
+
 }  // namespace dali

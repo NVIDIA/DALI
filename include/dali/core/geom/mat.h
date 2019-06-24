@@ -60,9 +60,13 @@ struct mat {
   static_assert(std::is_standard_layout<Element>::value,
                 "Cannot create a matrix of a non-standard layout type");
 
+  /// @brief Default constructor doesn't initialize the matrix for fundamental type.
   constexpr mat() = default;
   constexpr mat(const mat &) = default;
   constexpr mat(mat &&) = default;
+
+  /// @brief Fills the diagonal with a scalar value
+  DALI_HOST_DEV
   constexpr mat(Element scalar) : m{} {  // NOLINT
     size_t n = rows < cols ? rows : cols;
     for (size_t i = 0; i < n; i++)
@@ -374,6 +378,76 @@ DEFINE_MAT_ALIASES(3, 4)
 DEFINE_MAT_ALIASES(4, 3)
 DEFINE_MAT_ALIASES(4, 4)
 
+template <typename T, size_t rows, size_t c1, size_t c2>
+mat<rows, c1+c2, T> cat_cols(const mat<rows, c1, T> &a, const mat<rows, c2, T> &b) {
+  mat<rows, c1+c2, T> ret;
+#if MAT_LAYOUT_ROW_MAJOR
+  for (size_t i = 0; i < rows; i++)
+    ret.set_row(i, cat(a.row(i), b.row(i));
+#else
+  for (size_t j = 0; j < c1; j++)
+    ret.set_col(j, a.col(j));
+  for (size_t j = 0; j < c2; j++)
+    ret.set_col(j+c1, b.col(j));
+#endif
+  return ret;
+}
+
+template <typename T, size_t rows, size_t cols>
+mat<rows, cols+1> cat_cols(const mat<rows, cols, T> &a, const vec<rows, T> &v) {
+  mat<rows, cols+1, T> ret;
+#if MAT_LAYOUT_ROW_MAJOR
+  for (size_t i = 0; i < rows; i++)
+    ret.set_row(i, cat(a.row(i), v[i]));
+#else
+  for (size_t j = 0; j < cols; j++)
+    ret.set_col(j, a.col(j));
+  ret.set_col(cols, v);
+#endif
+  return ret;
+}
+
+template <typename T, size_t rows, size_t cols>
+mat<rows, cols+1> cat_cols(const vec<rows, T> &v, const mat<rows, cols, T> &a) {
+  mat<rows, cols+1, T> ret;
+#if MAT_LAYOUT_ROW_MAJOR
+  for (size_t i = 0; i < rows; i++)
+    ret.set_row(i, cat(v[i], a.row(i)));
+#else
+  ret.set_col(0, v);
+  for (size_t j = 0; j < cols; j++)
+    ret.set_col(j+1, a.col(j));
+#endif
+  return ret;
+}
+
+template <typename T, size_t rows>
+mat<rows, 2> cat_cols(const vec<rows, T> &a, const vec<rows, T> &b) {
+  mat<rows, 2, T> ret;
+#if MAT_LAYOUT_ROW_MAJOR
+  for (size_t i = 0; i < rows; i++)
+    ret.set_row(i, vec<2, T>(a[i], b[i]));
+#else
+  ret.set_col(0, a);
+  ret.set_col(1, b);
+#endif
+  return ret;
+}
+
+template <size_t r1, size_t r2, size_t cols, typename T>
+mat<r1+r2, cols, T> cat_rows(const mat<r1, cols, T> &a, const mat<r2, cols, T> &b) {
+  mat<r1+r2, cols, T> ret;
+#if MAT_LAYOUT_ROW_MAJOR
+  for (size_t i = 0; i < r1; i++)
+    ret.set_row(i, a.row(i));
+  for (size_t i = 0; i < r2; i++)
+    ret.set_row(i+r1, b.row(i));
+#else
+  for (size_t j = 0; j < cols; j++)
+    ret.set_col(j, cat(a.col(j), b.col(j)));
+#endif
+  return ret;
+}
 
 }  // namespace dali
 

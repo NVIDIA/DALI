@@ -83,6 +83,7 @@ template <size_t N, typename T>
 struct vec_base {
   constexpr vec_base() = default;
 
+  /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
   constexpr vec_base(T scalar) {  // NOLINT
     for (size_t i = 0; i < N; i++)
@@ -116,6 +117,7 @@ struct vec_base<2, T> {
   };
 
   constexpr vec_base() = default;
+  /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
   constexpr vec_base(const T &scalar) : v{scalar, scalar} {}  // NOLINT
   DALI_HOST_DEV
@@ -130,6 +132,7 @@ struct vec_base<3, T> {
   };
 
   constexpr vec_base() = default;
+  /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
   constexpr vec_base(const T &scalar) : v{scalar, scalar, scalar} {}  // NOLINT
   DALI_HOST_DEV
@@ -144,6 +147,7 @@ struct vec_base<4, T> {
   };
 
   constexpr vec_base() = default;
+  /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
   constexpr vec_base(const T &scalar) : v{scalar, scalar, scalar, scalar} {}  // NOLINT
   DALI_HOST_DEV
@@ -156,6 +160,7 @@ struct vec : vec_base<N, T> {
                 "Cannot create a vector ofa non-standard layout type");
   using element_t = T;
   constexpr vec() = default;
+  /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
   constexpr vec(T scalar) : vec_base<N, T>(scalar) {}  // NOLINT
 
@@ -186,7 +191,7 @@ struct vec : vec_base<N, T> {
   }
 
   DALI_HOST_DEV constexpr size_t size() const { return N; }
-  DALI_HOST_DEV constexpr vec operator+() const { return *this; }
+
   DALI_HOST_DEV constexpr T *begin() { return &v[0]; }
   DALI_HOST_DEV constexpr const T *cbegin() const { return &v[0]; }
   DALI_HOST_DEV constexpr const T *begin() const { return &v[0]; }
@@ -194,12 +199,15 @@ struct vec : vec_base<N, T> {
   DALI_HOST_DEV constexpr const T *cend() const { return &v[N]; }
   DALI_HOST_DEV constexpr const T *end() const { return &v[N]; }
 
+  /// @brief Calculates the sum of squares of components.
   DALI_HOST_DEV constexpr auto length_square() const {
     decltype(v[0]*v[0] + v[0]*v[0]) ret = v[0]*v[0];
     for (size_t i = 1; i < N; i++)
       ret += v[i]*v[i];
     return ret;
   }
+
+  /// @brief Calculates Euclidean length of the vector.
   DALI_HOST_DEV inline auto length() const {
 #ifdef __CUDA_ARCH__
     return sqrtf(length_square);
@@ -212,6 +220,10 @@ struct vec : vec_base<N, T> {
     return *this * rsqrt(lsq);
   }
 
+  /// @brief Returns a copy. Doesn't promoto type to int.
+  DALI_HOST_DEV constexpr vec operator+() const { return *this; }
+
+  /// @brief Negates all components. Doesn't promote type to int.
   DALI_HOST_DEV
   inline vec operator-() const {
     vec<N, T> ret;
@@ -267,7 +279,7 @@ constexpr auto dot(const vec<N, T> &a, const vec<N, U> &b) {
   return ret;
 }
 
-template <size_t N, typename T, typename U>
+template <typename T, typename U>
 DALI_HOST_DEV
 constexpr auto cross(const vec<3, T> &a, const vec<3, U> &b) {
   using R = decltype(a[0]*b[0] + a[0]*b[0]);
@@ -278,6 +290,12 @@ constexpr auto cross(const vec<3, T> &a, const vec<3, U> &b) {
   };
 }
 
+/// @brief Calculates `z` coordinate of a cross product of two 2D vectors
+template <typename T, typename U>
+DALI_HOST_DEV
+constexpr auto cross(const vec<2, T> &a, const vec<2, U> &b) {
+  return a.x * b.y - b.x * a.y;
+}
 
 #define DEFINE_ELEMENTIWSE_VEC_BIN_OP(op)\
 template <size_t N, typename T, typename U>\
