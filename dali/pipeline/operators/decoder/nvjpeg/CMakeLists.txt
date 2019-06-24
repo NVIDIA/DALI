@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(cache)
-add_subdirectory(host)
-if (BUILD_NVJPEG)
-  add_subdirectory(nvjpeg)
+if (NVJPEG_DECOUPLED_API)
+    add_subdirectory(decoupled_api)
+else()
+    add_subdirectory(legacy_api)
 endif()
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
