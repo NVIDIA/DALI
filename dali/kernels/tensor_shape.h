@@ -444,7 +444,7 @@ flatten_shapes(const std::vector<T> &shapes) {
 template <int sample_ndim = DynamicDimensions>
 struct TensorListShape;
 
-/// @tparam Derived - actual class of an object (CRPR)
+/// @tparam Derived - actual class of an object (CRTP)
 /// @tparam sample_dim - number of dimensions of each sample in the list
 template <typename Derived, int sample_ndim>
 struct TensorListShapeBase {
@@ -495,6 +495,10 @@ struct TensorListShapeBase {
     return out;
   }
 
+  void set_tensor_shape(int64_t sample, const TensorShape<sample_ndim> &sample_shape) {
+    set_tensor_shape<TensorShape<sample_ndim>>(sample, sample_shape);
+  }
+
   /// @brief Set a TensorShape for `sample`
   template <typename SampleShape>
   void set_tensor_shape(int64_t sample, const SampleShape &sample_shape) {
@@ -510,6 +514,7 @@ struct TensorListShapeBase {
 
   decltype(shapes.data()) data() { return shapes.data(); }
   constexpr bool empty() const { return size() == 0; }
+  int size() const { return num_samples_; }
   int num_samples() const { return size(); }
 
   ptrdiff_t num_elements() const {
@@ -522,13 +527,16 @@ struct TensorListShapeBase {
 
   template <typename SampleShape>
   static Derived make_uniform(int num_samples, const SampleShape &ss) {
-    if (num_samples < 1)
+    if (num_samples < 0)
       return {};
 
     Derived ret;
     int dim = dali::size(ss);
-    ret.set_sample_dim(dim);
-    ret.shapes.resize(dim * num_samples);
+    ret.resize(num_samples, dim);
+
+    if (num_samples == 0) {
+      return ret;
+    }
 
     // copy the sample shape to the first entry
     auto it = std::begin(ss);
@@ -545,21 +553,26 @@ struct TensorListShapeBase {
   }
 
   void resize(int num_samples) {
+    num_samples_ = num_samples;
     shapes.resize(num_samples * sample_dim());
   }
 
   void resize(int num_samples, int dim) {
+    num_samples_ = num_samples;
     set_sample_dim(dim);
     shapes.resize(num_samples * dim);
   }
 
  protected:
-  int size() const { return static_cast<const Derived *>(this)->size(); }
   int sample_dim() const { return static_cast<const Derived *>(this)->sample_dim(); }
   void set_sample_dim(int dim) { static_cast<Derived *>(this)->set_sample_dim(dim); }
   TensorListShapeBase() = default;
-  TensorListShapeBase(const std::vector<int64_t> &shapes) : shapes(shapes) {}        // NOLINT
-  TensorListShapeBase(std::vector<int64_t> &&shapes) : shapes(std::move(shapes)) {}  // NOLINT
+  TensorListShapeBase(const std::vector<int64_t> &shapes, int num_samples)
+      : shapes(shapes), num_samples_(num_samples) {}
+  TensorListShapeBase(std::vector<int64_t> &&shapes, int num_samples)
+      : shapes(std::move(shapes)), num_samples_(num_samples) {}
+
+  int num_samples_ = 0;
 };
 
 template <>
@@ -574,27 +587,40 @@ struct TensorListShape<DynamicDimensions>
 
   template <int other_sample_ndim>
   TensorListShape(const TensorListShape<other_sample_ndim> &other)
-      : Base(other.shapes), dim(other.sample_dim()) {}
+      : Base(other.shapes, other.size()), dim(other.sample_dim()) {}
 
   template <int other_sample_ndim>
   TensorListShape(TensorListShape<other_sample_ndim> &&other)
-      : Base(std::move(other.shapes)), dim(other.sample_dim()) {}
+      : Base(std::move(other.shapes), other.size()), dim(other.sample_dim()) {
+    other.num_samples_ = 0;
+  }
 
   TensorListShape(const std::vector<std::vector<int64_t>> &sample_shapes)  // NOLINT
-      : Base(flatten_shapes(sample_shapes)), dim(get_dim_from_uniform(sample_shapes)) {}
+      : Base(flatten_shapes(sample_shapes), sample_shapes.size()),
+        dim(get_dim_from_uniform(sample_shapes)) {}
 
   TensorListShape(const std::vector<TensorShape<DynamicDimensions>> &sample_shapes)  // NOLINT
-      : Base(flatten_shapes(sample_shapes)), dim(get_dim_from_uniform(sample_shapes)) {}
+      : Base(flatten_shapes(sample_shapes), sample_shapes.size()),
+        dim(get_dim_from_uniform(sample_shapes)) {}
 
-  TensorListShape(const std::vector<int64_t> &shapes, int ndim) : Base(shapes), dim(ndim) {}
-  TensorListShape(std::vector<int64_t> &&shapes, int ndim) : Base(std::move(shapes)), dim(ndim) {}
+  TensorListShape(const std::vector<int64_t> &shapes, int ndim)
+      : Base(shapes, shapes.size() / ndim), dim(ndim) {}
+  TensorListShape(std::vector<int64_t> &&shapes, int ndim)
+      : Base(std::move(shapes), shapes.size() / ndim), dim(ndim) {}
 
   TensorListShape &operator=(const TensorListShape &) = default;
-  TensorListShape &operator=(TensorListShape &&) = default;
+  TensorListShape &operator=(TensorListShape &&other) {
+    shapes = std::move(other.shapes);
+    num_samples_ = other.size();
+    dim = other.sample_dim();
+    other.num_samples_ = 0;
+    return *this;
+  }
 
   template <int other_sample_ndim>
   TensorListShape &operator=(const TensorListShape<other_sample_ndim> &other) {
     shapes = other.shapes;
+    num_samples_ = other.size();
     dim = other.sample_dim();
     return *this;
   }
@@ -602,7 +628,9 @@ struct TensorListShape<DynamicDimensions>
   template <int other_sample_ndim>
   TensorListShape &operator=(TensorListShape<other_sample_ndim> &&other) {
     shapes = std::move(other.shapes);
+    num_samples_ = other.size();
     dim = other.sample_dim();
+    other.num_samples_ = 0;
     return *this;
   }
 
@@ -612,7 +640,7 @@ struct TensorListShape<DynamicDimensions>
   }
 
   int sample_dim() const { return dim; }
-  int size() const { return shapes.size() / sample_dim(); }
+
   void set_sample_dim(int dim) { this->dim = dim; }
 
   int dim;
@@ -627,7 +655,7 @@ struct TensorListShape<DynamicDimensions>
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
-    return { shapes, other_ndim };
+    return { shapes, size(), other_ndim };
   }
 
   template <int other_ndim>
@@ -635,7 +663,7 @@ struct TensorListShape<DynamicDimensions>
     static_assert(other_ndim != DynamicDimensions,
                   "Conversion to static only allowed for static shape");
     assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
-    return { std::move(shapes), other_ndim };
+    return { std::move(shapes), size(), other_ndim };
   }
 };
 
@@ -645,23 +673,31 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
 
   TensorListShape() = default;
   TensorListShape(const TensorListShape &) = default;
-  TensorListShape(TensorListShape &&) = default;
-
-  TensorListShape(const std::vector<TensorShape<sample_ndim>> &sample_shapes)  // NOLINT
-      : Base(flatten_shapes(sample_shapes)) {}
-
-  TensorListShape(const std::vector<int64_t> &shapes, int ndim)
-      : Base(shapes) {
-    assert(ndim == sample_ndim);
+  TensorListShape(TensorListShape &&other) : Base(std::move(other.shapes), other.num_samples_) {
+    other.num_samples_ = 0;
   }
 
-  TensorListShape(std::vector<int64_t> &&shapes, int ndim)
-      : Base(std::move(shapes)) {
+  TensorListShape(const std::vector<TensorShape<sample_ndim>> &sample_shapes)  // NOLINT
+      : Base(flatten_shapes(sample_shapes), sample_shapes.size()) {}
+
+  TensorListShape(const std::vector<int64_t> &shapes, int num_samples, int ndim)
+      : Base(shapes, num_samples) {
+    assert(ndim == sample_ndim);
+    assert(num_samples == static_cast<int>(shapes.size()) / ndim);
+  }
+
+  TensorListShape(std::vector<int64_t> &&shapes, int num_samples, int ndim)
+      : Base(std::move(shapes), num_samples) {
     assert(ndim == sample_ndim);
   }
 
   TensorListShape &operator=(const TensorListShape &) = default;
-  TensorListShape &operator=(TensorListShape &&) = default;
+  TensorListShape &operator=(TensorListShape &&other) {
+    shapes = std::move(other.shapes);
+    num_samples_ = other.size();
+    other.num_samples_ = 0;
+    return *this;
+  }
 
   /// @brief Return a static TensorShape for `sample`
   TensorShape<sample_ndim> operator[](int64_t sample) const {
@@ -674,24 +710,28 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   }
 
   constexpr int sample_dim() const noexcept { return sample_ndim; }
-  int size() const noexcept { return shapes.size() / sample_dim(); }
+
   void set_sample_dim(int dim) {
     assert(dim == sample_ndim && "Cannot change number of dimensions");
   }
 
   using Base::shapes;
+  using Base::num_samples_;
 
   template <int other_ndim>
   TensorListShape<other_ndim> to_static() const & {
     static_assert(other_ndim == sample_ndim, "Cannot convert to other static ndim");
-    return { shapes, other_ndim };
+    return { shapes, this->size(), other_ndim };
   }
 
   template <int other_ndim>
   TensorListShape<other_ndim> to_static() && {
     static_assert(other_ndim == sample_ndim, "Cannot convert to other static ndim");
-    return { std::move(shapes), other_ndim };
+    return { std::move(shapes), num_samples_, other_ndim };
   }
+
+  template <int other_sample_ndim>
+  friend struct TensorListShape;
 };
 
 
@@ -704,7 +744,7 @@ TensorListShape<other_ndim> TensorListShapeBase<Derived, sample_ndim>::first() {
   assert(0 <= other_ndim && other_ndim <= sample_dim() &&
          "Number of dimensions in subshape must be between 0 and sample_dim()");
   TensorListShape<other_ndim> result;
-  result.shapes.resize(other_ndim * size());
+  result.resize(size());
   for (int sample = 0; sample < size(); sample++) {
     for (int d = 0; d < other_ndim; d++) {
       result.shapes[sample * other_ndim + d] = shapes[sample * sample_dim() + d];
@@ -722,7 +762,7 @@ TensorListShape<other_ndim> TensorListShapeBase<Derived, sample_ndim>::last() {
   assert(0 <= other_ndim && other_ndim <= sample_dim() &&
          "Number of dimensions in subshape must be between 0 and sample_dim()");
   TensorListShape<other_ndim> result;
-  result.shapes.resize(other_ndim * size());
+  result.resize(size());
   int start_offset = sample_dim() - other_ndim;
   for (int sample = 0; sample < size(); sample++) {
     for (int d = 0; d < other_ndim; d++) {
@@ -737,8 +777,7 @@ TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::fi
   assert(0 <= count && count <= sample_dim() &&
          "Number of dimensions in subshape must be between 0 and sample_dim()");
   TensorListShape<DynamicDimensions> result;
-  result.shapes.resize(count * size());
-  result.dim = count;
+  result.resize(size(), count);
   for (int sample = 0; sample < size(); sample++) {
     for (int d = 0; d < count; d++) {
       result.shapes[sample * count + d] = shapes[sample * sample_dim() + d];
@@ -752,8 +791,7 @@ TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::la
   assert(0 <= count && count <= sample_dim() &&
          "Number of dimensions in subshape must be between 0 and sample_dim()");
   TensorListShape<DynamicDimensions> result;
-  result.shapes.resize(count * size());
-  result.dim = count;
+  result.resize(size(), count);
   int start_offset = sample_dim() - count;
   for (int sample = 0; sample < size(); sample++) {
     for (int d = 0; d < count; d++) {
@@ -766,6 +804,9 @@ TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::la
 template <int left_ndim, int right_ndim>
 bool operator==(const TensorListShape<left_ndim> &left, const TensorListShape<right_ndim> &right) {
   if (left.sample_dim() != right.sample_dim()) {
+    return false;
+  }
+  if (left.num_samples() != right.num_samples()) {
     return false;
   }
   return left.shapes == right.shapes;

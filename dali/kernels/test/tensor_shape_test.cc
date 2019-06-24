@@ -213,6 +213,45 @@ TEST(TensorShapeTest, StaticDynamicConversions) {
   }
 }
 
+TEST(TensorListShapeTest, UniformListShapeDynamic) {
+  auto dynamic0 = uniform_list_shape(0, std::vector<int64_t>{});
+  EXPECT_EQ(dynamic0.size(), 0);
+  EXPECT_EQ(dynamic0.sample_dim(), 0);
+  EXPECT_EQ(dynamic0.shapes.size(), 0);
+  auto dynamic1 = uniform_list_shape(0, std::vector<int64_t>{0, 1, 2, 3});
+  EXPECT_EQ(dynamic1.size(), 0);
+  EXPECT_EQ(dynamic1.sample_dim(), 4);
+  EXPECT_EQ(dynamic1.shapes.size(), 0);
+  auto dynamic2 = uniform_list_shape(2, std::vector<int64_t>{});
+  EXPECT_EQ(dynamic2.size(), 2);
+  EXPECT_EQ(dynamic2.sample_dim(), 0);
+  EXPECT_EQ(dynamic2.shapes.size(), 0);
+  auto dynamic3 = uniform_list_shape(2, std::vector<int64_t>{0, 1, 2, 3});
+  EXPECT_EQ(dynamic3.size(), 2);
+  EXPECT_EQ(dynamic3.sample_dim(), 4);
+  EXPECT_EQ(dynamic3.shapes.size(), 8);
+}
+
+
+TEST(TensorListShapeTest, UniformListShapeStatic) {
+  auto static0 = uniform_list_shape<0>(0, std::vector<int64_t>{});
+  EXPECT_EQ(static0.size(), 0);
+  EXPECT_EQ(static0.sample_dim(), 0);
+  EXPECT_EQ(static0.shapes.size(), 0);
+  auto static1 = uniform_list_shape<4>(0, std::vector<int64_t>{0, 1, 2, 3});
+  EXPECT_EQ(static1.size(), 0);
+  EXPECT_EQ(static1.sample_dim(), 4);
+  EXPECT_EQ(static1.shapes.size(), 0);
+  auto static2 = uniform_list_shape<0>(2, std::vector<int64_t>{});
+  EXPECT_EQ(static2.size(), 2);
+  EXPECT_EQ(static2.sample_dim(), 0);
+  EXPECT_EQ(static2.shapes.size(), 0);
+  auto static3 = uniform_list_shape<4>(2, std::vector<int64_t>{0, 1, 2, 3});
+  EXPECT_EQ(static3.size(), 2);
+  EXPECT_EQ(static3.sample_dim(), 4);
+  EXPECT_EQ(static3.shapes.size(), 8);
+}
+
 TEST(TensorShapeTest, StaticComparisons) {
   // Static ndim
   EXPECT_TRUE(TensorShape<1>(1) == TensorShape<1>(1));
@@ -456,6 +495,33 @@ TEST(CalculatePointersTest, Result) {
   EXPECT_EQ(dynamic_ptrs, expected);
 }
 
+TEST(TensorListShapeTest, Size) {
+  TensorListShape<> tls_0(
+    std::vector<TensorShape<DynamicDimensions>>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  TensorListShape<3> tls_1({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+  ASSERT_EQ(tls_0.size(), 3);
+  ASSERT_EQ(tls_1.size(), 3);
+  TensorListShape<> resized_empty{};
+  resized_empty.resize(10);
+  ASSERT_EQ(resized_empty.size(), 10);
+  ASSERT_EQ(resized_empty.sample_dim(), 0);
+  ASSERT_EQ(resized_empty.shapes, std::vector<int64_t>());
+
+  TensorListShape<> empty_1{}, empty_2{std::vector<std::vector<int64_t>>{{}, {}}};
+  ASSERT_EQ(empty_1.size(), 0);
+  ASSERT_EQ(empty_2.size(), 2);
+
+  TensorListShape<3> empty_3{}, one_zeros_static{std::vector<TensorShape<3>>{{}}};
+  ASSERT_EQ(empty_3.size(), 0);
+  ASSERT_TRUE(empty_3.shapes.empty());
+  ASSERT_EQ(one_zeros_static.size(), 1);
+  ASSERT_EQ(one_zeros_static.shapes, std::vector<int64_t>(3, 0));
+  TensorListShape<0> empty_5{}, single_empty_6{std::vector<TensorShape<0>>{{}}};
+  ASSERT_EQ(empty_5.size(), 0);
+  ASSERT_EQ(single_empty_6.size(), 1);
+}
+
+
 TEST(TensorListShapeTest, IsUniform) {
   TensorListShape<3> non_uniform({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
   EXPECT_FALSE(is_uniform(non_uniform));
@@ -475,6 +541,13 @@ TEST(TensorListShapeTest, Comparisons) {
   EXPECT_TRUE(tls_1 == tls_1);
   TensorListShape<> tls_2(tls_1);
   EXPECT_TRUE(tls_1 == tls_2);
+
+  TensorListShape<0> dim_0_10_0, dim_0_10_1, dim_0_11;
+  dim_0_10_0.resize(10);
+  dim_0_10_1.resize(10);
+  dim_0_11.resize(11);
+  EXPECT_TRUE(dim_0_10_0 == dim_0_10_1);
+  EXPECT_FALSE(dim_0_10_0 == dim_0_11);
 }
 
 TEST(TensorListShapeTest, FirstStaticFromStatic) {
@@ -490,10 +563,16 @@ TEST(TensorListShapeTest, FirstStaticFromStatic) {
   auto first_1 = tls.first<1>();
   auto first_2 = tls.first<2>();
   auto first_3 = tls.first<3>();
+
   EXPECT_EQ(first_0, expected_static_0);
   EXPECT_EQ(first_1, expected_static_1);
   EXPECT_EQ(first_2, expected_static_2);
   EXPECT_EQ(first_3, expected_static_3);
+
+  EXPECT_EQ(first_0.size(), expected_static_0.size());
+  EXPECT_EQ(first_1.size(), expected_static_1.size());
+  EXPECT_EQ(first_2.size(), expected_static_2.size());
+  EXPECT_EQ(first_3.size(), expected_static_3.size());
 }
 
 TEST(TensorListShapeTest, FirstStaticFromDynamic) {
@@ -510,10 +589,16 @@ TEST(TensorListShapeTest, FirstStaticFromDynamic) {
   auto first_1 = tls.first<1>();
   auto first_2 = tls.first<2>();
   auto first_3 = tls.first<3>();
+
   EXPECT_EQ(first_0, expected_static_0);
   EXPECT_EQ(first_1, expected_static_1);
   EXPECT_EQ(first_2, expected_static_2);
   EXPECT_EQ(first_3, expected_static_3);
+
+  EXPECT_EQ(first_0.size(), expected_static_0.size());
+  EXPECT_EQ(first_1.size(), expected_static_1.size());
+  EXPECT_EQ(first_2.size(), expected_static_2.size());
+  EXPECT_EQ(first_3.size(), expected_static_3.size());
 }
 
 TEST(TensorListShapeTest, FirstDynamicFromStatic) {
@@ -529,10 +614,16 @@ TEST(TensorListShapeTest, FirstDynamicFromStatic) {
   auto first_1 = tls.first(1);
   auto first_2 = tls.first(2);
   auto first_3 = tls.first(3);
+
   EXPECT_EQ(first_0, expected_static_0);
   EXPECT_EQ(first_1, expected_static_1);
   EXPECT_EQ(first_2, expected_static_2);
   EXPECT_EQ(first_3, expected_static_3);
+
+  EXPECT_EQ(first_0.size(), expected_static_0.size());
+  EXPECT_EQ(first_1.size(), expected_static_1.size());
+  EXPECT_EQ(first_2.size(), expected_static_2.size());
+  EXPECT_EQ(first_3.size(), expected_static_3.size());
 }
 
 TEST(TensorListShapeTest, FirstDynamicFromDynamic) {
@@ -549,10 +640,16 @@ TEST(TensorListShapeTest, FirstDynamicFromDynamic) {
   auto first_1 = tls.first(1);
   auto first_2 = tls.first(2);
   auto first_3 = tls.first(3);
+
   EXPECT_EQ(first_0, expected_static_0);
   EXPECT_EQ(first_1, expected_static_1);
   EXPECT_EQ(first_2, expected_static_2);
   EXPECT_EQ(first_3, expected_static_3);
+
+  EXPECT_EQ(first_0.size(), expected_static_0.size());
+  EXPECT_EQ(first_1.size(), expected_static_1.size());
+  EXPECT_EQ(first_2.size(), expected_static_2.size());
+  EXPECT_EQ(first_3.size(), expected_static_3.size());
 }
 
 TEST(TensorListShapeTest, LastStaticFromStatic) {
@@ -568,10 +665,16 @@ TEST(TensorListShapeTest, LastStaticFromStatic) {
   auto last_1 = tls.last<1>();
   auto last_2 = tls.last<2>();
   auto last_3 = tls.last<3>();
+
   EXPECT_EQ(last_0, expected_static_0);
   EXPECT_EQ(last_1, expected_static_1);
   EXPECT_EQ(last_2, expected_static_2);
   EXPECT_EQ(last_3, expected_static_3);
+
+  EXPECT_EQ(last_0.size(), expected_static_0.size());
+  EXPECT_EQ(last_1.size(), expected_static_1.size());
+  EXPECT_EQ(last_2.size(), expected_static_2.size());
+  EXPECT_EQ(last_3.size(), expected_static_3.size());
 }
 
 TEST(TensorListShapeTest, LastStaticFromDynamic) {
@@ -588,10 +691,16 @@ TEST(TensorListShapeTest, LastStaticFromDynamic) {
   auto last_1 = tls.last<1>();
   auto last_2 = tls.last<2>();
   auto last_3 = tls.last<3>();
+
   EXPECT_EQ(last_0, expected_static_0);
   EXPECT_EQ(last_1, expected_static_1);
   EXPECT_EQ(last_2, expected_static_2);
   EXPECT_EQ(last_3, expected_static_3);
+
+  EXPECT_EQ(last_0.size(), expected_static_0.size());
+  EXPECT_EQ(last_1.size(), expected_static_1.size());
+  EXPECT_EQ(last_2.size(), expected_static_2.size());
+  EXPECT_EQ(last_3.size(), expected_static_3.size());
 }
 
 TEST(TensorListShapeTest, LastDynamicFromStatic) {
@@ -607,10 +716,16 @@ TEST(TensorListShapeTest, LastDynamicFromStatic) {
   auto last_1 = tls.last(1);
   auto last_2 = tls.last(2);
   auto last_3 = tls.last(3);
+
   EXPECT_EQ(last_0, expected_static_0);
   EXPECT_EQ(last_1, expected_static_1);
   EXPECT_EQ(last_2, expected_static_2);
   EXPECT_EQ(last_3, expected_static_3);
+
+  EXPECT_EQ(last_0.size(), expected_static_0.size());
+  EXPECT_EQ(last_1.size(), expected_static_1.size());
+  EXPECT_EQ(last_2.size(), expected_static_2.size());
+  EXPECT_EQ(last_3.size(), expected_static_3.size());
 }
 
 TEST(TensorListShapeTest, LastDynamicFromDynamic) {
@@ -627,10 +742,16 @@ TEST(TensorListShapeTest, LastDynamicFromDynamic) {
   auto last_1 = tls.last(1);
   auto last_2 = tls.last(2);
   auto last_3 = tls.last(3);
+
   EXPECT_EQ(last_0, expected_static_0);
   EXPECT_EQ(last_1, expected_static_1);
   EXPECT_EQ(last_2, expected_static_2);
   EXPECT_EQ(last_3, expected_static_3);
+
+  EXPECT_EQ(last_0.size(), expected_static_0.size());
+  EXPECT_EQ(last_1.size(), expected_static_1.size());
+  EXPECT_EQ(last_2.size(), expected_static_2.size());
+  EXPECT_EQ(last_3.size(), expected_static_3.size());
 }
 
 TEST(TensorListShapeTest, ToStatic) {
