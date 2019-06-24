@@ -45,15 +45,8 @@ class DetectionPipeline(Pipeline):
         return inputs, boxes.gpu(), labels
 
 def data_paths():
-    if not DALI_EXTRA_PATH:
-        coco = '/data/coco/coco-2017/coco2017/'
-        root = os.path.join(coco, 'val2017')
-        annotations = os.path.join(
-            coco, 'annotations/instances_val2017.json')
-    else:
-        root = os.path.join(DALI_EXTRA_PATH, 'db', 'coco', 'images')
-        annotations = os.path.join(DALI_EXTRA_PATH, 'db', 'coco', 'instances.json')
-
+    root = os.path.join(DALI_EXTRA_PATH, 'db', 'coco', 'images')
+    annotations = os.path.join(DALI_EXTRA_PATH, 'db', 'coco', 'instances.json')
     return root, annotations
 
 #####################################
