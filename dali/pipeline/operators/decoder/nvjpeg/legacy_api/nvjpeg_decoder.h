@@ -28,13 +28,36 @@
 #include <memory>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
-#include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/image/image_factory.h"
 #include "dali/core/common.h"
+
+#define NVJPEG_CALL(code)                                    \
+  do {                                                       \
+    nvjpegStatus_t status = code;                            \
+    if (status != NVJPEG_STATUS_SUCCESS) {                   \
+      dali::string error = dali::string("NVJPEG error \"") + \
+        std::to_string(static_cast<int>(status)) + "\""  +   \
+        " : " + nvjpeg_parse_error_code(status);             \
+      DALI_FAIL(error);                                      \
+    }                                                        \
+  } while (0)
+
+#define NVJPEG_CALL_EX(code, extra)                          \
+  do {                                                       \
+    nvjpegStatus_t status = code;                            \
+    string extra_info = extra;                               \
+    if (status != NVJPEG_STATUS_SUCCESS) {                   \
+      dali::string error = dali::string("NVJPEG error \"") + \
+        std::to_string(static_cast<int>(status)) + "\""      \
+        + " : " + nvjpeg_parse_error_code(status) + " "      \
+        + extra_info;                                        \
+      DALI_FAIL(error);                                      \
+    }                                                        \
+  } while (0)
 
 namespace dali {
 
@@ -91,6 +114,29 @@ inline bool SupportedSubsampling(const nvjpegChromaSubsampling_t &subsampling) {
       return true;
     default:
       return false;
+  }
+}
+
+const char* nvjpeg_parse_error_code(nvjpegStatus_t code) {
+  switch (code) {
+    case NVJPEG_STATUS_NOT_INITIALIZED:
+      return "NVJPEG_STATUS_NOT_INITIALIZED";
+    case NVJPEG_STATUS_INVALID_PARAMETER:
+      return "NVJPEG_STATUS_INVALID_PARAMETER";
+    case NVJPEG_STATUS_BAD_JPEG:
+      return "NVJPEG_STATUS_BAD_JPEG";
+    case NVJPEG_STATUS_JPEG_NOT_SUPPORTED:
+      return "NVJPEG_STATUS_JPEG_NOT_SUPPORTED";
+    case NVJPEG_STATUS_ALLOCATOR_FAILURE:
+      return "NVJPEG_STATUS_ALLOCATOR_FAILURE";
+    case NVJPEG_STATUS_EXECUTION_FAILED:
+      return "NVJPEG_STATUS_EXECUTION_FAILED";
+    case NVJPEG_STATUS_ARCH_MISMATCH:
+      return "NVJPEG_STATUS_ARCH_MISMATCH";
+    case NVJPEG_STATUS_INTERNAL_ERROR:
+      return "NVJPEG_STATUS_INTERNAL_ERROR";
+    default:
+      return "";
   }
 }
 
@@ -449,11 +495,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   vector<cudaStream_t> streams_;
   vector<cudaEvent_t> events_;
 
-  // output colour format
-  DALIImageType output_type_;
-
   // maximum number of streams to use to decode + convert
   const int max_streams_;
+  // output colour format
+  DALIImageType output_type_;
 
  protected:
   // Storage for per-image info

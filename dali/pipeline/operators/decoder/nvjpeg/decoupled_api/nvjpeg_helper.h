@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_NVJPEG_HELPER_H_
-#define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_NVJPEG_HELPER_H_
+#ifndef DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_HELPER_H_
+#define DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_HELPER_H_
 
 #include <nvjpeg.h>
 
@@ -172,4 +172,4 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_NVJPEG_HELPER_H_
+#endif  // DALI_PIPELINE_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_NVJPEG_HELPER_H_
