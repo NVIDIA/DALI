@@ -17,6 +17,10 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import edge as Edge
 from nvidia.dali import types
+from threading import local as tls
+
+pipeline_tls = tls()
+
 
 class Pipeline(object):
     """Pipeline class encapsulates all data required to define and run
@@ -80,6 +84,7 @@ class Pipeline(object):
                  exec_pipelined=True, prefetch_queue_depth=2,
                  exec_async=True, bytes_per_sample=0,
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0):
+        self._sinks = []
         self._batch_size = batch_size
         self._num_threads = num_threads
         self._device_id = device_id
@@ -146,6 +151,19 @@ class Pipeline(object):
             return self._pipe.epoch_size(name)
         return self._pipe.epoch_size()
 
+    @staticmethod
+    def current():
+        return getattr(pipeline_tls, 'current_pipeline', None)
+
+    @staticmethod
+    def set_current(pipeline):
+        prev = Pipeline.current()
+        pipeline_tls.current_pipeline = pipeline
+        return prev
+
+    def add_sink(self, edge):
+        self._sinks.append(edge)
+
     def _prepare_graph(self):
         self._pipe = b.Pipeline(self._batch_size,
                                 self._num_threads,
@@ -160,7 +178,9 @@ class Pipeline(object):
                                 self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
+        prev_pipeline = Pipeline.set_current(self)
         outputs = self.define_graph()
+        Pipeline.set_current(prev_pipeline)
         if (not isinstance(outputs, tuple) and
             not isinstance(outputs, list)):
             outputs = (outputs,)
@@ -176,7 +196,7 @@ class Pipeline(object):
 
         # Backtrack to construct the graph
         op_ids = set()
-        edges = deque(outputs)
+        edges = deque(list(outputs) + self._sinks)
         ops = []
         while edges:
             current_edge = edges.popleft()

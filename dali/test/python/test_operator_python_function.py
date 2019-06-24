@@ -107,6 +107,17 @@ class DoubleLoadPipeline(CommonPipeline):
         return images1, images2
 
 
+class SinkTestPipeline(CommonPipeline):
+    def __init__(self, batch_size, device_id, seed, image_dir, function):
+        super(SinkTestPipeline, self).__init__(batch_size, 1, device_id, seed, image_dir)
+        self.python_function = ops.PythonFunction(function=function, num_outputs=0)
+
+    def define_graph(self):
+        images, labels = self.load()
+        self.python_function(images)
+        return images
+
+
 def random_seed():
     return int(random.random() * (1 << 32))
 
@@ -319,3 +330,18 @@ def test_wrong_outputs_number():
         print(e)
         return
     raise Exception('Should not pass')
+
+
+counter = 0
+
+
+def increase(images):
+    global counter
+    counter += 1
+
+
+def test_sink():
+    pipe = SinkTestPipeline(BATCH_SIZE, DEVICE_ID, SEED, images_dir, increase)
+    pipe.build()
+    pipe.run()
+    assert counter == BATCH_SIZE

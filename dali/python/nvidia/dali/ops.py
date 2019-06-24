@@ -19,6 +19,7 @@ from itertools import count
 from nvidia.dali import backend as b
 from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
+from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 
 _cpu_ops = set({})
@@ -154,6 +155,11 @@ class _OperatorInstance(object):
         self._op.schema.CheckArgs(self._spec)
 
     def generate_outputs(self):
+        pipeline = Pipeline.current()
+        if pipeline is None:
+            raise RuntimeError("Unknown pipeline! "
+                               "Graph edges must be created from within `define_graph` "
+                               " or Pipeline.set_current() must be explicitly used.")
         # Add outputs
         if self._op.device == "gpu" or self._op.device == "mixed":
             output_device = "gpu"
@@ -161,6 +167,11 @@ class _OperatorInstance(object):
             output_device = "cpu"
 
         num_output = self._op.schema.CalculateOutputs(self._spec) + self._op.schema.CalculateAdditionalOutputs(self._spec)
+
+        if num_output == 0:
+            t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
+            pipeline.add_sink(EdgeReference(t_name, output_device, self))
+            return
 
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
@@ -316,6 +327,11 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         return self._device
 
     def __call__(self, *inputs, **kwargs):
+        pipeline = Pipeline.current()
+        if pipeline is None:
+            raise RuntimeError("Unknown pipeline! "
+                               "Graph edges must be created from within `define_graph` "
+                               "or Pipeline.set_current() must be explicitly used.")
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
@@ -371,6 +387,11 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
         return self._device
 
     def __call__(self, *inputs, **kwargs):
+        pipeline = Pipeline.current()
+        if pipeline is None:
+            raise RuntimeError("Unknown pipeline! "
+                               "Graph edges must be created from within `define_graph` "
+                               "or Pipeline.set_current() must be explicitly used.")
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
@@ -384,6 +405,11 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)
+        if self.num_outputs == 0:
+            t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id) + "_sink"
+            t = EdgeReference(t_name, self._device, op_instance)
+            pipeline.add_sink(t)
+            return
         outputs = []
         for i in range(self.num_outputs):
             t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id) + "_output_" + str(i)

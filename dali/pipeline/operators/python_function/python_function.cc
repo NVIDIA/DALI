@@ -88,11 +88,13 @@ void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx)
   } catch(const py::error_already_set & e) {
     throw std::runtime_error(to_string("PythonFunction error: ") + to_string(e.what()));
   }
-  py::tuple output = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
-  DALI_ENFORCE(output.size() == static_cast<size_t>(ws->NumOutput()),
-               "Python function returned " + std::to_string(output.size()) + " outputs and "
-                   + std::to_string(ws->NumOutput()) + " were expected.");
-  CopyOutputs(ws, idx, output);
+  if (!output_o.is_none()) {
+    py::tuple output = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
+    DALI_ENFORCE(output.size() == static_cast<size_t>(ws->NumOutput()),
+                 "Python function returned " + std::to_string(output.size()) + " outputs and "
+                     + std::to_string(ws->NumOutput()) + " were expected.");
+    CopyOutputs(ws, idx, output);
+  }
 }
 
 DALI_REGISTER_OPERATOR(PythonFunctionImpl, PythonFunctionImpl<CPUBackend>, CPU);
