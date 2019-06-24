@@ -133,7 +133,7 @@ class OpticalFlow : public Operator<Backend> {
     }
 
     for (const auto &seq : shape) {
-      DALI_ENFORCE(seq[2] != frames_height_ || seq[3] != frames_width_ || seq[4] != depth_,
+      DALI_ENFORCE(seq[1] == frames_height_ && seq[2] == frames_width_ && seq[3] == depth_,
                    "Width, height and depth for Optical Flow calculation "
                    "must be equal for all sequences.");
     }
