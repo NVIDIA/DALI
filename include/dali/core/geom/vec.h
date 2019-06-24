@@ -79,6 +79,46 @@ template <typename T>
 struct is_scalar : std::integral_constant<bool, !is_mat<T>::value && !is_vec<T>::value> {};
 
 
+template <typename Arg1,
+          typename Arg2,
+          bool is_fp1 = std::is_floating_point<Arg1>::value,
+          bool is_fp2 = std::is_floating_point<Arg2>::value>
+struct promote_vec {
+  static_assert(std::is_same<Arg1, Arg2>::value,
+    "Implicit conversion of vectors only happens from integral to floating point types");
+  using type = Arg1;
+};
+
+template <typename Arg1, typename Arg2>
+struct promote_vec<Arg1, Arg2, true, false> {
+  using type = Arg1;
+};
+
+template <typename Arg1, typename Arg2>
+struct promote_vec<Arg1, Arg2, false, true> {
+  using type = Arg2;
+};
+
+template <typename VecElement,
+          typename Scalar,
+          bool is_fp_vector = std::is_floating_point<VecElement>::value,
+          bool is_fp_scalar = std::is_floating_point<Scalar>::value>
+struct promote_vec_scalar {
+  using type = VecElement;
+};
+
+template <typename VecElement,
+          typename Scalar>
+struct promote_vec_scalar<VecElement, Scalar, false, true> {
+  using type = Scalar;
+};
+
+template <typename T, typename U>
+using promote_vec_t = typename promote_vec<T, U>::type;
+
+template <typename T, typename U>
+using promote_vec_scalar_t = typename promote_vec_scalar<T, U>::type;
+
 template <size_t N, typename T>
 struct vec_base {
   constexpr vec_base() = default;
@@ -106,7 +146,7 @@ struct vec_base<1, T> {
 
   constexpr vec_base() = default;
   DALI_HOST_DEV
-  constexpr vec_base(const T &x) : v{x} {}  // NOLINT
+  constexpr vec_base(T x) : v{x} {}  // NOLINT
 };
 
 template <typename T>
@@ -162,7 +202,7 @@ struct vec : vec_base<N, T> {
   constexpr vec() = default;
   /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
-  constexpr vec(T scalar) : vec_base<N, T>(scalar) {}  // NOLINT
+  constexpr vec(const T &scalar) : vec_base<N, T>(scalar) {}  // NOLINT
 
   template <typename... Components,
             typename = std::enable_if_t<sizeof...(Components) == N>>
@@ -220,7 +260,7 @@ struct vec : vec_base<N, T> {
     return *this * rsqrt(lsq);
   }
 
-  /// @brief Returns a copy. Doesn't promoto type to int.
+  /// @brief Returns a copy. Doesn't promote type to int.
   DALI_HOST_DEV constexpr vec operator+() const { return *this; }
 
   /// @brief Negates all components. Doesn't promote type to int.
@@ -249,7 +289,7 @@ struct vec : vec_base<N, T> {
     return *this;\
   }\
   template <typename U>\
-  DALI_HOST_DEV std::enable_if_t<!is_vec<U>::value, vec &> operator op(const U &rhs) {\
+  DALI_HOST_DEV std::enable_if_t<is_scalar<U>::value, vec &> operator op(const U &rhs) {\
     for (size_t i = 0; i < N; i++)\
       v[i] op rhs;\
     return *this;\
@@ -300,21 +340,21 @@ constexpr auto cross(const vec<2, T> &a, const vec<2, U> &b) {
 #define DEFINE_ELEMENTIWSE_VEC_BIN_OP(op)\
 template <size_t N, typename T, typename U>\
 DALI_HOST_DEV inline auto operator op(const vec<N, T> &a, const vec<N, U> &b) {\
-  vec<N, decltype(T() op U())> ret;\
+  vec<N, promote_vec_t<T, U>> ret;\
   for (size_t i = 0; i < N; i++)\
     ret[i] = a[i] op b[i];\
   return ret;\
 }\
-template <size_t N, typename T, typename U, typename R = decltype(T() op U())>\
-DALI_HOST_DEV inline std::enable_if_t<!is_vec<U>::value, vec<N, R>> \
+template <size_t N, typename T, typename U, typename R = promote_vec_scalar_t<T, U>>\
+DALI_HOST_DEV inline std::enable_if_t<is_scalar<U>::value, vec<N, R>> \
 operator op(const vec<N, T> &a, const U &b) {\
   vec<N, R> ret;\
   for (size_t i = 0; i < N; i++)\
     ret[i] = a[i] op b;\
   return ret;\
 }\
-template <size_t N, typename T, typename U, typename R = decltype(T() op U())>\
-DALI_HOST_DEV inline std::enable_if_t<!is_vec<T>::value, vec<N, R>> \
+template <size_t N, typename T, typename U, typename R = promote_vec_scalar_t<U, T>>\
+DALI_HOST_DEV inline std::enable_if_t<is_scalar<T>::value, vec<N, R>> \
 operator op(const T &a, const vec<N, U> &b) {\
   vec<N, R> ret;\
   for (size_t i = 0; i < N; i++)\
@@ -344,7 +384,7 @@ DALI_HOST_DEV vec<N, T> operator op(const vec<N, T> &a, const vec<N, U> &b) {\
   return ret;\
 }\
 template <size_t N, typename T, typename U>\
-DALI_HOST_DEV std::enable_if_t<!is_vec<U>::value, vec<N, T>> \
+DALI_HOST_DEV std::enable_if_t<is_scalar<U>::value, vec<N, T>> \
 operator op(const vec<N, T> &a, const U &b) {\
   vec<N, T> ret;\
   for (size_t i = 0; i < N; i++)\
@@ -352,7 +392,7 @@ operator op(const vec<N, T> &a, const U &b) {\
   return ret;\
 }\
 template <size_t N, typename T, typename U>\
-DALI_HOST_DEV std::enable_if_t<!is_vec<T>::value, vec<N, T>> \
+DALI_HOST_DEV std::enable_if_t<is_scalar<T>::value, vec<N, T>> \
 operator op(const T &a, const vec<N, U> &b) {\
   vec<N, T> ret;\
   for (size_t i = 0; i < N; i++)\

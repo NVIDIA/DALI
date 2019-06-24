@@ -203,15 +203,19 @@ DEVICE_TEST(Dev_Vec, OpAssignScalar, 1, 1) {
 }
 
 TEST(Vec, Promote) {
-  vec4 vi = { 1, 2, 3, 4 };
+  ivec4 vi = { 1, 2, 3, 4 };
   vec4 vf = vi + 0.5f;
   EXPECT_EQ(vf, vec4(1.5f, 2.5f, 3.5f, 4.5f));
   vf = vi + vf;
   EXPECT_EQ(vf, vec4(2.5f, 4.5f, 6.5f, 8.5f));
   auto minus = 0-i8vec4(1, 2, 3, 4);
-  static_assert(std::is_same<decltype(minus)::element_t, int>::value,
-    "Wrong element type inferred. Should be int.");
-  EXPECT_EQ(minus, ivec4(-1, -2, -3, -4));
+  static_assert(std::is_same<decltype(minus)::element_t, int8_t>::value,
+    "Operations on integral vectors and scalars maintain vector type.");
+  EXPECT_EQ(minus, i8vec4(-1, -2, -3, -4));
+  auto minusf = 0.5f-i8vec4(1, 2, 3, 4);
+  static_assert(std::is_same<decltype(minusf)::element_t, float>::value,
+    "Operations on integral vectors and fp scalars are promoted to fp type.");
+  EXPECT_EQ(minusf, vec4(-0.5f, -1.5f, -2.5f, -3.5f));
 }
 
 }  // namespace dali
