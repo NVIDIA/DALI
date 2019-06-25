@@ -21,16 +21,6 @@ RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 RUN pip install future numpy setuptools wheel && \
     rm -rf /root/.cache/pip/
 
-RUN export CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.* Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/') && \
-    if [ "${PYV}" -lt "37" ] && [ "${CUDA_VERSION}" -lt "100" ]; then     \
-        pip install tensorflow-gpu==1.7.0  --target /tensorflow/1_7   && \
-        pip install tensorflow-gpu==1.11.0 --target /tensorflow/1_11  && \
-        pip install tensorflow-gpu==1.12.0 --target /tensorflow/1_12;    \
-    fi                                                                && \
-    pip install tensorflow-gpu==1.13.1 --target /tensorflow/1_13      && \
-    pip install tensorflow-gpu==1.14.0 --target /tensorflow/1_14;        \
-    rm -rf /root/.cache/pip/
-
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     ldconfig
 
