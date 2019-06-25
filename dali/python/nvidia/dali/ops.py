@@ -50,6 +50,8 @@ def _docstring_generator(cls):
         ret += "\nThis operator expects sequence inputs\n"
     elif schema.AllowsSequences():
         ret += "\nThis operator allows sequence inputs\n"
+    if schema.SideEffectsAllowed():
+        ret += "\nThis operator can have side effects and will not be optimized out of the graph\n"
     ret += """
 Parameters
 ----------
@@ -168,7 +170,7 @@ class _OperatorInstance(object):
 
         num_output = self._op.schema.CalculateOutputs(self._spec) + self._op.schema.CalculateAdditionalOutputs(self._spec)
 
-        if num_output == 0:
+        if num_output == 0 and self._op.preserve:
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
             pipeline.add_sink(EdgeReference(t_name, output_device, self))
             return
@@ -177,6 +179,8 @@ class _OperatorInstance(object):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
             t = EdgeReference(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
+            if self._op.preserve:
+                pipeline.add_sink(t)
             self.append_output(t)
 
     @property
@@ -209,7 +213,7 @@ class _DaliOperatorMeta(type):
 
 def python_op_factory(name, op_device = "cpu"):
     class Operator(with_metaclass(_DaliOperatorMeta, object)):
-        def __init__(self, **kwargs):
+        def __init__(self, preserve=False, **kwargs):
             self._spec = b.OpSpec(type(self).__name__)
             self._schema = b.GetSchema(type(self).__name__)
 
@@ -221,6 +225,10 @@ def python_op_factory(name, op_device = "cpu"):
             else:
                 self._device = op_device
             self._spec.AddArg("device", self._device)
+
+            self._preserve = preserve
+            self._spec.AddArg("preserve", self._preserve)
+            self._preserve = preserve or self._schema.SideEffectsAllowed()
 
             # Store the specified arguments
             for key, value in kwargs.items():
@@ -242,6 +250,10 @@ def python_op_factory(name, op_device = "cpu"):
         @property
         def device(self):
             return self._device
+
+        @property
+        def preserve(self):
+            return self._preserve
 
         def __call__(self, *inputs, **kwargs):
             if (len(inputs) > self._schema.MaxNumInput() or
@@ -327,11 +339,6 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         return self._device
 
     def __call__(self, *inputs, **kwargs):
-        pipeline = Pipeline.current()
-        if pipeline is None:
-            raise RuntimeError("Unknown pipeline! "
-                               "Graph edges must be created from within `define_graph` "
-                               "or Pipeline.set_current() must be explicitly used.")
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
@@ -373,6 +380,7 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
 
         self.function = function
         self.num_outputs = num_outputs
+        self._preserve = True
 
     @property
     def spec(self):
@@ -385,6 +393,10 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
     @property
     def device(self):
         return self._device
+
+    @property
+    def preserve(self):
+        return self.preserve
 
     def __call__(self, *inputs, **kwargs):
         pipeline = Pipeline.current()
@@ -405,6 +417,7 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)
+        op_instance.spec.AddArg("preserve", self._preserve)
         if self.num_outputs == 0:
             t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id) + "_sink"
             t = EdgeReference(t_name, self._device, op_instance)
@@ -416,6 +429,8 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
             t = EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
+            if self._preserve:
+                pipeline.add_sink(t)
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
 

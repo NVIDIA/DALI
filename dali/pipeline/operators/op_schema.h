@@ -76,6 +76,9 @@ class DLL_PUBLIC OpSchema {
 
     AddOptionalArg("bytes_per_sample_hint", "Output size hint (bytes), "
       "per sample. The memory will be preallocated if it uses GPU or page-locked memory", 0);
+
+    AddOptionalArg("preserve", "Do not remove the Op from the "
+                               "graph even if its outputs are unused.", false);
   }
 
   DLL_PUBLIC inline ~OpSchema() = default;
@@ -267,6 +270,11 @@ class DLL_PUBLIC OpSchema {
     return *this;
   }
 
+  DLL_PUBLIC inline OpSchema& AllowSideEffects() {
+    side_effects_allowed_ = true;
+    return *this;
+  }
+
   DLL_PUBLIC inline const vector<std::string>& GetParents() const {
     return parents_;
   }
@@ -311,6 +319,10 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC inline bool HasOutputFn() const {
     return static_cast<bool>(output_fn_);
+  }
+
+  DLL_PUBLIC inline bool SideEffectsAllowed() const {
+    return side_effects_allowed_;
   }
 
   DLL_PUBLIC int CalculateOutputs(const OpSpec &spec) const;
@@ -381,6 +393,8 @@ class DLL_PUBLIC OpSchema {
   bool is_sequence_operator_;
 
   bool is_internal_;
+
+  bool side_effects_allowed_;
 
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;

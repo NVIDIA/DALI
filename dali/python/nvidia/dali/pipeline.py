@@ -161,6 +161,7 @@ class Pipeline(object):
         pipeline_tls.current_pipeline = pipeline
         return prev
 
+    # graph edges that are not connected to the output must be manually added to a pipeline
     def add_sink(self, edge):
         self._sinks.append(edge)
 

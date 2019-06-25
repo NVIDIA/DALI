@@ -7,6 +7,8 @@ import numpy
 import random
 from PIL import Image, ImageEnhance
 import os
+import time
+import glob
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -332,16 +334,18 @@ def test_wrong_outputs_number():
     raise Exception('Should not pass')
 
 
-counter = 0
-
-
-def increase(images):
-    global counter
-    counter += 1
+def save(image):
+    Image.fromarray(image).save('/tmp/sink_test/sink_img' + str(time.time()) + '.jpg', 'JPEG')
 
 
 def test_sink():
-    pipe = SinkTestPipeline(BATCH_SIZE, DEVICE_ID, SEED, images_dir, increase)
+    pipe = SinkTestPipeline(BATCH_SIZE, DEVICE_ID, SEED, images_dir, save)
     pipe.build()
+    if not os.path.exists('/tmp/sink_test'):
+        os.mkdir('/tmp/sink_test')
+    assert len(glob.glob('/tmp/sink_test/sink_img*')) == 0
     pipe.run()
-    assert counter == BATCH_SIZE
+    created_files = glob.glob('/tmp/sink_test/sink_img*')
+    assert len(created_files) == BATCH_SIZE
+    for file in created_files:
+        os.remove(file)

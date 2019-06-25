@@ -208,6 +208,7 @@ TYPED_TEST(ExecutorTest, TestPruneMultiple) {
           OpSpec("DummyOp")
           .AddArg("device", "cpu")
           .AddArg("num_outputs", 0)
+          .AddArg("preserve", true)
           .AddInput("data1", "cpu")), "");
 
   vector<string> outputs = {"data1_cont_cpu"};
