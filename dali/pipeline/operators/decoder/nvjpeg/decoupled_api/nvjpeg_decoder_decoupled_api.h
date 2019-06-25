@@ -215,14 +215,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           DALI_FAIL(e.what() + "File: " + file_name);
         }
       } else {
-        if (ShouldUseHybridHuffman(info, input_data, in_size, hybrid_huffman_threshold_)) {
-          image_decoders_[i] = decoder_huff_hybrid_;
-          image_states_[i] = decoder_huff_hybrid_state_[i];
-        } else {
-          image_decoders_[i] = decoder_huff_host_;
-          image_states_[i] = decoder_host_state_[i];
-        }
-
         if (crop_generator) {
           info.crop_window = crop_generator(info.heights[0], info.widths[0]);
           auto &crop_window = info.crop_window;
@@ -231,6 +223,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
             crop_window.x, crop_window.y, crop_window.w, crop_window.h);
           info.widths[0] = crop_window.w;
           info.heights[0] = crop_window.h;
+        }
+
+        if (ShouldUseHybridHuffman(info, input_data, in_size, hybrid_huffman_threshold_)) {
+          image_decoders_[i] = decoder_huff_hybrid_;
+          image_states_[i] = decoder_huff_hybrid_state_[i];
+        } else {
+          image_decoders_[i] = decoder_huff_host_;
+          image_states_[i] = decoder_host_state_[i];
         }
       }
       output_shape_[i] = Dims({info.heights[0], info.widths[0], c});

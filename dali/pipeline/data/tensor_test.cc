@@ -126,10 +126,10 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   // Get an allocation
   auto shape = this->GetRandShape();
   auto size = volume(shape);
-  float *ptr = new float[size];
+  std::vector<float> source_data(size);
 
   // Wrap the allocation
-  t.ShareData(ptr, size*sizeof(float));
+  t.ShareData(source_data.data(), size*sizeof(float));
 
   // Verify internals
   ASSERT_EQ(t.size(), 0);
@@ -141,7 +141,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   // Give the Tensor a type
   t.template mutable_data<int16>();
 
-  ASSERT_EQ(t.raw_data(), ptr);
+  ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
   ASSERT_EQ(t.shape(), vector<Index>{});
@@ -151,7 +151,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   // Give the Tensor a size - should not trigger allocation
   t.Resize(shape);
 
-  ASSERT_EQ(t.raw_data(), ptr);
+  ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.nbytes(), size*sizeof(int16));
   ASSERT_EQ(t.shape(), shape);
@@ -165,10 +165,10 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   // Get an allocation
   auto shape = this->GetRandShape();
   auto size = volume(shape);
-  float *ptr = new float[size];
+  std::vector<float> source_data(size);
 
   // Wrap the allocation
-  t.ShareData(ptr, size*sizeof(float));
+  t.ShareData(source_data.data(), size*sizeof(float));
 
   // Verify internals
   ASSERT_EQ(t.size(), 0);
@@ -180,7 +180,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   // Give the Tensor a type
   t.template mutable_data<double>();
 
-  ASSERT_EQ(t.raw_data(), ptr);
+  ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
   ASSERT_EQ(t.shape(), vector<Index>{});
@@ -190,7 +190,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   // Give the Tensor a size - should not trigger allocation
   t.Resize(shape);
 
-  ASSERT_NE(t.raw_data(), ptr);
+  ASSERT_NE(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.nbytes(), size*sizeof(double));
   ASSERT_EQ(t.shape(), shape);
@@ -204,10 +204,10 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   // Get an allocation
   auto shape = this->GetRandShape();
   auto size = volume(shape);
-  float *ptr = new float[size];
+  std::vector<float> source_data(size);
 
   // Wrap the allocation
-  t.ShareData(ptr, size*sizeof(float));
+  t.ShareData(source_data.data(), size*sizeof(float));
 
   // Verify internals
   ASSERT_EQ(t.size(), 0);
@@ -227,7 +227,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   // Give the Tensor a type
   t.template mutable_data<int16>();
 
-  ASSERT_EQ(t.raw_data(), ptr);
+  ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.nbytes(), size*sizeof(int16));
   ASSERT_EQ(t.shape(), shape);
@@ -241,10 +241,10 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   // Get an allocation
   auto shape = this->GetRandShape();
   auto size = volume(shape);
-  float *ptr = new float[size];
+  std::vector<float> source_data(size);
 
   // Wrap the allocation
-  t.ShareData(ptr, size*sizeof(float));
+  t.ShareData(source_data.data(), size*sizeof(float));
 
   // Verify internals
   ASSERT_EQ(t.size(), 0);
@@ -264,7 +264,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   // Give the Tensor a type
   t.template mutable_data<double>();
 
-  ASSERT_NE(t.raw_data(), ptr);
+  ASSERT_NE(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
   ASSERT_EQ(t.nbytes(), size*sizeof(double));
   ASSERT_EQ(t.shape(), shape);
@@ -419,7 +419,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   ASSERT_EQ(num_elements * sizeof(float), tensor.nbytes());
 
   // Save the pointer
-  const void *ptr = tensor.raw_data();
+  const void *source_data = tensor.raw_data();
 
   // Change the type of the buffer
   tensor.template mutable_data<int>();
@@ -432,7 +432,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   }
 
   // No re-allocation should have occured
-  ASSERT_EQ(ptr, tensor.raw_data());
+  ASSERT_EQ(source_data, tensor.raw_data());
   ASSERT_EQ(num_elements * sizeof(int), tensor.nbytes());
 
   // Change the type to a smaller type
@@ -446,7 +446,7 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   }
 
   // No re-allocation should have occured
-  ASSERT_EQ(ptr, tensor.raw_data());
+  ASSERT_EQ(source_data, tensor.raw_data());
   ASSERT_EQ(num_elements * sizeof(uint8), tensor.nbytes());
 
   // Change the type to a larger type
@@ -502,10 +502,10 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
     for (size_t i = 1; i < shape.size(); i++) {
       plane_size *= shape[i];
     }
-    auto *base_ptr = tensor.template data<uint8_t>();
+    auto *base_source_data = tensor.template data<uint8_t>();
     for (Index i = 0; i < shape[0]; i++) {
       auto subspace = tensor.SubspaceTensor(i);
-      ASSERT_EQ(subspace.template data<uint8_t>(), base_ptr + plane_size * i);
+      ASSERT_EQ(subspace.template data<uint8_t>(), base_source_data + plane_size * i);
       ASSERT_EQ(subspace.ndim(), tensor.ndim() - 1);
       for (int j = 0; j < subspace.ndim(); j++) {
         ASSERT_EQ(subspace.dim(j), tensor.dim(j + 1));
