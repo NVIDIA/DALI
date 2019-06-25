@@ -557,6 +557,7 @@ constexpr auto sub(const vec<n, T> &orig, size_t start = 0) {
 
 template <size_t... indices, size_t N, typename T>
 constexpr vec<sizeof...(indices), T> shuffle(const vec<N, T> &v) {
+  static_assert(all_of<(indices < N)...>::value, "Vector component index out of range");
   return { v[indices]... };
 }
 
