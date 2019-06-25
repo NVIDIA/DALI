@@ -158,6 +158,26 @@ TEST(Vec, Normalized) {
   EXPECT_NEAR(v.length(), 1.0f, 1e-6f);
 }
 
+TEST(Vec, Func) {
+  vec3 f = { -0.6f, 0.1f, 1.7f };
+  auto a = floor(f);
+  auto b = ceil(f);
+  auto c = clamp(f, vec3(0, 0, 0), vec3(1, 1, 1));
+  EXPECT_EQ(a, vec3(-1, 0, 1));
+  EXPECT_EQ(b, vec3(0, 1, 2));
+  EXPECT_EQ(c, vec3(0, 0.1f, 1.0f));
+}
+
+DEVICE_TEST(Dev_Vec, Func, 1, 1) {
+  vec3 f = { -0.6f, 0.1f, 1.7f };
+  auto a = floor(f);
+  auto b = ceil(f);
+  auto c = clamp(f, vec3(0, 0, 0), vec3(1, 1, 1));
+  DEV_EXPECT_EQ(a, vec3(-1, 0, 1));
+  DEV_EXPECT_EQ(b, vec3(0, 1, 2));
+  DEV_EXPECT_EQ(c, vec3(0, 0.1f, 1.0f));
+}
+
 TEST(Vec, RoundInt) {
   vec<3> f = { -0.6f, 0.1f, 0.7f };
   auto i = round_int(f);
@@ -177,6 +197,13 @@ DEVICE_TEST(Dev_Vec, Cat, 1, 1) {
   DEV_EXPECT_EQ(cat(b, a), (vec<5>(4, 5, 1, 2, 3)));
   DEV_EXPECT_EQ(cat(a, 4.0f), vec4(1, 2, 3, 4));
   DEV_EXPECT_EQ(cat(0.5f, b), vec3(0.5f, 4, 5));
+}
+
+DEVICE_TEST(Dev_Vec, Sub, 1, 1) {
+  vec4 a = { 1, 2, 3, 4 };
+  DEV_EXPECT_EQ(sub<3>(a, 0), vec3(1, 2, 3));
+  DEV_EXPECT_EQ(sub<2>(a, 1), vec2(2, 3));
+  DEV_EXPECT_EQ(sub<2>(a, 2), vec2(3, 4));
 }
 
 DEVICE_TEST(Dev_Vec, OpScalar, 1, 1) {

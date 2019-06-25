@@ -442,15 +442,17 @@ DALI_HOST_DEV constexpr bool operator!=(const vec<N, T> &a, const vec<N, U> &b) 
   return false;
 }
 
-template <typename F, size_t N, typename... Elements>
-DALI_HOST_DEV auto elementwise(F f, const vec<N, Elements>&... vecs) {
-  using R = decltype(f(vecs[0]...));
-  vec<N, R> result;
-  for (size_t i = 0; i < N; i++) {
-    result[i] = f(vecs[i]...);
-  }
-  return result;
-}
+/// @brief Implements an elementwise vector function by evaluating given expression
+///        with an index `i` ranging from 0 to N-1. `N` must be a compile-time constant
+///        present at evaluation site.
+#define IMPL_VEC_ELEMENTWISE(...)\
+size_t i = 0;\
+using R = std::remove_cv_t<std::remove_reference_t<decltype(__VA_ARGS__)>>;\
+vec<N, R> result = {};\
+for (i = 0; i < N; i++) {\
+  result[i] = (__VA_ARGS__);\
+}\
+return result;
 
 template <typename To, size_t N, typename From>
 DALI_HOST_DEV inline vec<N, To> cast(const vec<N, From> &v) {
@@ -460,46 +462,46 @@ DALI_HOST_DEV inline vec<N, To> cast(const vec<N, From> &v) {
 template <size_t N, typename T>
 DALI_HOST_DEV vec<N, T>
 clamp(const vec<N, T> &in, const vec<N, T> &lo, const vec<N, T> &hi) {
-  return elementwise(clamp, in, lo, hi);
+  IMPL_VEC_ELEMENTWISE(clamp(in[i], lo[i], hi[i]));
 }
 
 template <size_t N, typename T>
 DALI_HOST_DEV vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
-  return elementwise(min, a, b);
+  IMPL_VEC_ELEMENTWISE(min(a[i], b[i]));
 }
 
 template <size_t N, typename T>
 DALI_HOST_DEV vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
-  return elementwise(max, a, b);
+  IMPL_VEC_ELEMENTWISE(max(a[i], b[i]));
 }
 
 #ifdef __CUDA_ARCH__
 template <size_t N>
-__device__ vec<N> floor(const vec<N> &a, const vec<N> &b) {
-  return elementwise(floorf, a);
+__device__ vec<N> floor(const vec<N> &a) {
+  IMPL_VEC_ELEMENTWISE(floorf(a[i]));
 }
 
 template <size_t N>
-__device__ vec<N> ceil(const vec<N> &a, const vec<N> &b) {
-  return elementwise(ceilf, a);
+__device__ vec<N> ceil(const vec<N> &a) {
+  IMPL_VEC_ELEMENTWISE(ceilf(a[i]));
 }
 #else
 
 template <size_t N, typename T>
 constexpr vec<N, T> floor(const vec<N, T> &a) {
-  return elementwise(std::floor, a);
+  IMPL_VEC_ELEMENTWISE(std::floor(a[i]));
 }
 
 template <size_t N, typename T>
 constexpr vec<N, T> ceil(const vec<N, T> &a) {
-  return elementwise(std::ceil, a);
+  IMPL_VEC_ELEMENTWISE(std::ceil(a[i]));
 }
 
 #endif
 
 template <size_t N>
 DALI_HOST_DEV ivec<N> round_int(const vec<N> &a) {
-  return elementwise(static_cast<int(&)(float)>(round_int), a);
+  IMPL_VEC_ELEMENTWISE(round_int(a[i]));
 }
 
 template <typename T, size_t size0, size_t size1>
@@ -551,15 +553,6 @@ constexpr auto sub(const vec<n, T> &orig, size_t start = 0) {
   for (size_t i = 0; i < sub_n; i++)
     ret[i] = orig[i + start];
   return ret;
-}
-
-template <typename To, size_t size, typename From,
-          typename OutputType = vec<size*sizeof(From)/sizeof(To), To>>
-DALI_HOST_DEV
-constexpr OutputType bitcast(const vec<size, From> &v) {
-  static_assert(sizeof(OutputType) == sizeof(vec<size, From>),
-                "Cannot bitcast to a type of different size");
-  return *reinterpret_cast<const OutputType*>(reinterpret_cast<const char*>(&v));
 }
 
 static_assert(std::is_pod<vec<1>>::value, "vec<1, T> must be a POD type");
