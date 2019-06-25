@@ -35,11 +35,13 @@ class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
   }
 
   void PngTestDecode(int num_threads) {
+    hybrid_huffman_threshold_ = 0;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_pngImgType);
   }
 
   void TiffTestDecode(int num_threads) {
+    hybrid_huffman_threshold_ = 0;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_tiffImgType);
   }

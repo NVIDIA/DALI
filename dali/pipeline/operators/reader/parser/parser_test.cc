@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <memory>
+#include <vector>
 
 #include "dali/core/common.h"
 #include "dali/pipeline/pipeline.h"
@@ -66,22 +67,22 @@ TYPED_TEST_SUITE(ParserTest, TestTypes);
 
 TYPED_TEST(ParserTest, BasicTest) {
   const int H = 64, W = 64, C = 3;
-  int *data = new int[3 + H*W*C];
+  std::vector<int> data(3 + H*W*C);
   data[0] = H;
   data[1] = W;
   data[2] = C;
 
   HostWorkspace workspace;
-  SampleWorkspace* ws = new SampleWorkspace;
+  SampleWorkspace ws;
 
-  workspace.GetSample(ws, 0, 0);
+  workspace.GetSample(&ws, 0, 0);
 
   shared_ptr<Tensor<CPUBackend>> t(new Tensor<CPUBackend>());
-  ws->AddOutput(t);
+  ws.AddOutput(t);
 
   IntArrayParser<CPUBackend> parser(OpSpec("temp"));
-  IntArrayWrapper ia_wrapper = {data, 3 + H*W*C};
-  parser.Parse(ia_wrapper, ws);
+  IntArrayWrapper ia_wrapper = {data.data(), data.size()};
+  parser.Parse(ia_wrapper, &ws);
 }
 
 

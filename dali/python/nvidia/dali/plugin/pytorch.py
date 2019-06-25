@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,13 +78,19 @@ class DALIGenericIterator(object):
                  iterator == 'size'. Setting this flag to False will
                  cause the iterator to return the first integer multiple
                  of self._num_gpus * self.batch_size which exceeds 'size'.
+    dynamic_shape: bool, optional, default = False
+                 Whether the shape of the output of the DALI pipeline can
+                 change during execution. If True, the pytorch tensor will be resized accordingly
+                 if the shape of DALI returned tensors changes during execution.
+                 If False, the iterator will fail in case of change.
     """
     def __init__(self,
                  pipelines,
                  output_map,
                  size,
                  auto_reset=False,
-                 stop_at_epoch=False):
+                 stop_at_epoch=False,
+                 dynamic_shape=False):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
@@ -93,6 +99,7 @@ class DALIGenericIterator(object):
         self._size = int(size)
         self._auto_reset = auto_reset
         self._stop_at_epoch = stop_at_epoch
+        self._dynamic_shape = dynamic_shape
         self._pipes = pipelines
         # Build all pipelines
         for p in self._pipes:
@@ -158,8 +165,8 @@ class DALIGenericIterator(object):
                 pyt_tensors = dict()
                 for category in self._output_categories:
                     pyt_tensors[category] = torch.zeros(category_shapes[category],
-                                                         dtype=category_torch_type[category],
-                                                         device=category_device[category])
+                                                        dtype=category_torch_type[category],
+                                                        device=category_device[category])
 
                 self._data_batches[i][self._current_data_batch] = pyt_tensors
             else:
@@ -167,6 +174,10 @@ class DALIGenericIterator(object):
 
             # Copy data from DALI Tensors to torch tensors
             for category, tensor in category_tensors.items():
+                  if self._dynamic_shape and tensor.shape() != list(pyt_tensors[category].size()):
+                      pyt_tensors[category] = torch.zeros(category_shapes[category],
+                                                          dtype=pyt_tensors[category].dtype,
+                                                          device=pyt_tensors[category].device)
                   feed_ndarray(tensor, pyt_tensors[category])
 
         for p in self._pipes:
@@ -257,12 +268,19 @@ class DALIClassificationIterator(DALIGenericIterator):
                  iterator == 'size'. Setting this flag to False will
                  cause the iterator to return the first integer multiple
                  of self._num_gpus * self.batch_size which exceeds 'size'.
+    dynamic_shape: bool, optional, default = False
+                 Whether the shape of the output of the DALI pipeline can
+                 change during execution. If True, the pytorch tensor will be resized accordingly
+                 if the shape of DALI returned tensors changes during execution.
+                 If False, the iterator will fail in case of change.
     """
     def __init__(self,
                  pipelines,
                  size,
                  auto_reset=False,
-                 stop_at_epoch=False):
+                 stop_at_epoch=False,
+                 dynamic_shape=False):
         super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
                                                          size, auto_reset = auto_reset,
-                                                         stop_at_epoch = stop_at_epoch)
+                                                         stop_at_epoch = stop_at_epoch,
+                                                         dynamic_shape = dynamic_shape)

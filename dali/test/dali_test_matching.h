@@ -30,7 +30,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
     this->MakeJPEGBatch(&data, batch_size);
     this->SetExternalInputs({{"jpegs", &data}});
 
-    shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
+    auto pipe = this->GetPipeline();
     // Decode the images
     pipe->AddOperator(
       OpSpec("HostDecoder")
@@ -43,7 +43,7 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
     this->RunOperator(descr);
   }
 
-  vector<TensorList<CPUBackend>*>
+  vector<std::shared_ptr<TensorList<CPUBackend>>>
   Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
     if (GetOpType() == OpType::GPU)
       return this->CopyToHost(ws->Output<GPUBackend>(1));

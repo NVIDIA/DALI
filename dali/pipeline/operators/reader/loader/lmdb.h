@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_READER_LOADER_LMDB_H_
 
 #include <lmdb.h>
+#include <memory>
 #include <string>
 
 #include "dali/core/common.h"
@@ -42,22 +43,19 @@ namespace lmdb {
   }
 
   inline uint64_t LMDB_size(MDB_txn* txn, MDB_dbi dbi) {
-    MDB_stat* stat = new MDB_stat;
+    MDB_stat stat;
 
-    CHECK_LMDB(mdb_stat(txn, dbi, stat));
+    CHECK_LMDB(mdb_stat(txn, dbi, &stat));
 
-    uint64_t size = stat->ms_entries;
-    delete stat;
-
-    return size;
+    return stat.ms_entries;
   }
 
   inline void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi) {
-    MDB_stat* stat = new MDB_stat;
+    MDB_stat stat;
 
-    CHECK_LMDB(mdb_stat(txn, dbi, stat));
+    CHECK_LMDB(mdb_stat(txn, dbi, &stat));
 
-    printf("DB has %d entries\n", static_cast<int>(stat->ms_entries));
+    printf("DB has %d entries\n", static_cast<int>(stat.ms_entries));
   }
 }  // namespace lmdb
 

@@ -365,6 +365,11 @@ Building DALI using Clang (experimental):
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
 -  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
+-  ``BUILD_WITH_ASAN`` - build with ASAN support (default: OFF). To run issue: LD_LIBRARY_PATH=.
+   ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0 ASAN_SYMBOLIZER_PATH=$(shell which llvm-symbolizer)
+   LD_PRELOAD=*PATH_TO_LIB_ASAN*/libasan.so.*X* *PATH_TO_BINARY*
+   where *X* depends on used compiler version (for example GCC 7.x uses 4). Tested with GCC 7.4, CUDA 10.0
+   and libasan.4. Any earierl version may not work.
 -  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
 

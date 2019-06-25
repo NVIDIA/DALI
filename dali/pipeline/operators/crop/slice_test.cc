@@ -29,7 +29,7 @@ class SliceTest : public GenericBBoxesTest<ImgType> {
   TensorList<CPUBackend> images_;
   TensorList<CPUBackend> boxes_;
   TensorList<CPUBackend> labels_;
-  std::vector<TensorList<CPUBackend>*> outputs_;
+  std::vector<std::shared_ptr<TensorList<CPUBackend>>> outputs_;
 };
 
 typedef ::testing::Types<RGB> Types;

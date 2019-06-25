@@ -24,6 +24,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <numeric>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -58,14 +59,10 @@ struct YCbCr {
 // Main testing fixture to provide common functionality across tests
 class DALITest : public ::testing::Test {
  public:
-  inline void SetUp() override {
+  DALITest() {
     rand_gen_.seed(time(nullptr));
     jpeg_names_ = ImageList(image_folder, {".jpg"});
     LoadImages(jpeg_names_, &jpegs_);
-  }
-
-  inline void TearDown() override {
-    for (auto &ptr : images_) delete[] ptr;
   }
 
   inline int RandInt(int a, int b) {
@@ -112,7 +109,7 @@ class DALITest : public ::testing::Test {
   }
 
   inline void DecodeImages(DALIImageType type, const ImgSetDescr &imgs,
-                           vector<uint8 *> *images,
+                           vector<vector<uint8>> *images,
                            vector<DimPair> *image_dims) {
     c_ = IsColor(type) ? 3 : 1;
     const int flag =
@@ -141,8 +138,8 @@ class DALITest : public ::testing::Test {
 
       // Copy the decoded image out & save the dims
       ASSERT_TRUE(out_img.isContinuous());
-      (*images)[i] = new uint8[h * w * c_];
-      std::memcpy((*images)[i], out_img.ptr(), h * w * c_);
+      (*images)[i].resize(h * w * c_);
+      std::memcpy((*images)[i].data(), out_img.ptr(), h * w * c_);
     }
   }
 
@@ -151,7 +148,7 @@ class DALITest : public ::testing::Test {
   }
 
   inline void MakeDecodedBatch(int n, TensorList<CPUBackend> *tl,
-                               const vector<uint8 *> &images,
+                               const vector<vector<uint8>> &images,
                                const vector<DimPair> &image_dims, const int c) {
     DALI_ENFORCE(!images.empty(), "Images must be populated to create batches");
     vector<Dims> shape(n);
@@ -163,7 +160,7 @@ class DALITest : public ::testing::Test {
     tl->Resize(shape);
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
-                  images[i % images.size()], volume(tl->tensor_shape(i)));
+                  images[i % images.size()].data(), volume(tl->tensor_shape(i)));
     }
   }
 
@@ -298,9 +295,7 @@ class DALITest : public ::testing::Test {
     ASSERT_NE(N, 0);
 
     double sum = 0, var_sum = 0;
-    for (auto &val : diff) {
-      sum += val;
-    }
+    sum = std::accumulate(diff.begin(), diff.end(), 0);
     *mean = sum / N;
     for (auto &val : diff) {
       var_sum += (val - *mean) * (val - *mean);
@@ -380,7 +375,7 @@ class DALITest : public ::testing::Test {
   ImgSetDescr jpegs_, png_, tiff_;
 
   // Decoded images
-  vector<uint8 *> images_;
+  vector<vector<uint8>> images_;
   vector<DimPair> image_dims_;
   int c_;
 
