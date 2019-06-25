@@ -641,8 +641,6 @@ struct TensorListShape<DynamicDimensions>
 
   int sample_dim() const { return dim; }
 
-  void set_sample_dim(int dim) { this->dim = dim; }
-
   int dim;
   using Base::shapes;
 
@@ -665,6 +663,11 @@ struct TensorListShape<DynamicDimensions>
     assert(sample_dim() == other_ndim && "Cannot convert to other ndim");
     return { std::move(shapes), size(), other_ndim };
   }
+
+ private:
+  void set_sample_dim(int dim) { this->dim = dim; }
+
+  friend struct TensorListShapeBase<TensorListShape<DynamicDimensions>, DynamicDimensions>;
 };
 
 template <int sample_ndim>
@@ -711,10 +714,6 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
 
   constexpr int sample_dim() const noexcept { return sample_ndim; }
 
-  void set_sample_dim(int dim) {
-    assert(dim == sample_ndim && "Cannot change number of dimensions");
-  }
-
   using Base::shapes;
   using Base::num_samples_;
 
@@ -730,8 +729,12 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
     return { std::move(shapes), num_samples_, other_ndim };
   }
 
-  template <int other_sample_ndim>
-  friend struct TensorListShape;
+ private:
+  void set_sample_dim(int dim) {
+    assert(dim == sample_ndim && "Cannot change number of dimensions");
+  }
+
+  friend struct TensorListShapeBase<TensorListShape<sample_ndim>, sample_ndim>;
 };
 
 
