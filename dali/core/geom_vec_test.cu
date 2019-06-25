@@ -245,4 +245,9 @@ TEST(Vec, Promote) {
   EXPECT_EQ(minusf, vec4(-0.5f, -1.5f, -2.5f, -3.5f));
 }
 
+TEST(Vec, Shuffle) {
+  vec4 v = shuffle<1, 2, 0, 1>(vec3(10, 20, 30));
+  EXPECT_EQ(v, vec4(20, 30, 10, 20));
+}
+
 }  // namespace dali

@@ -159,9 +159,9 @@ struct vec_base<2, T> {
   constexpr vec_base() = default;
   /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
-  constexpr vec_base(const T &scalar) : v{scalar, scalar} {}  // NOLINT
+  constexpr vec_base(T scalar) : v{scalar, scalar} {}  // NOLINT
   DALI_HOST_DEV
-  constexpr vec_base(const T &x, const T &y) : v{x, y} {}
+  constexpr vec_base(T x, T y) : v{x, y} {}
 };
 
 template <typename T>
@@ -174,9 +174,9 @@ struct vec_base<3, T> {
   constexpr vec_base() = default;
   /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
-  constexpr vec_base(const T &scalar) : v{scalar, scalar, scalar} {}  // NOLINT
+  constexpr vec_base(T scalar) : v{scalar, scalar, scalar} {}  // NOLINT
   DALI_HOST_DEV
-  constexpr vec_base(const T &x, const T &y, const T &z) : v{x, y, z} {}
+  constexpr vec_base(T x, T y, T z) : v{x, y, z} {}
 };
 
 template <typename T>
@@ -189,9 +189,9 @@ struct vec_base<4, T> {
   constexpr vec_base() = default;
   /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
-  constexpr vec_base(const T &scalar) : v{scalar, scalar, scalar, scalar} {}  // NOLINT
+  constexpr vec_base(T scalar) : v{scalar, scalar, scalar, scalar} {}  // NOLINT
   DALI_HOST_DEV
-  constexpr vec_base(const T &x, const T &y, const T &z, const T &w) : v{x, y, z, w} {}
+  constexpr vec_base(T x, T y, T z, T w) : v{x, y, z, w} {}
 };
 
 template <size_t N, typename T>
@@ -202,7 +202,7 @@ struct vec : vec_base<N, T> {
   constexpr vec() = default;
   /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
-  constexpr vec(const T &scalar) : vec_base<N, T>(scalar) {}  // NOLINT
+  constexpr vec(T scalar) : vec_base<N, T>(scalar) {}  // NOLINT
 
   template <typename... Components,
             typename = std::enable_if_t<sizeof...(Components) == N>>
@@ -553,6 +553,11 @@ constexpr auto sub(const vec<n, T> &orig, size_t start = 0) {
   for (size_t i = 0; i < sub_n; i++)
     ret[i] = orig[i + start];
   return ret;
+}
+
+template <size_t... indices, size_t N, typename T>
+constexpr vec<sizeof...(indices), T> shuffle(const vec<N, T> &v) {
+  return { v[indices]... };
 }
 
 static_assert(std::is_pod<vec<1>>::value, "vec<1, T> must be a POD type");
