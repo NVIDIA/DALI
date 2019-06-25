@@ -806,6 +806,7 @@ TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::la
 
 template <int left_ndim, int right_ndim>
 bool operator==(const TensorListShape<left_ndim> &left, const TensorListShape<right_ndim> &right) {
+  detail::check_compatible_ndim<left_ndim, right_ndim>();
   if (left.sample_dim() != right.sample_dim()) {
     return false;
   }
@@ -817,6 +818,7 @@ bool operator==(const TensorListShape<left_ndim> &left, const TensorListShape<ri
 
 template <int left_ndim, int right_ndim>
 bool operator!=(const TensorListShape<left_ndim> &left, const TensorListShape<right_ndim> &right) {
+  detail::check_compatible_ndim<left_ndim, right_ndim>();
   return !(left == right);
 }
 
