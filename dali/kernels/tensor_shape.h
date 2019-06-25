@@ -495,6 +495,7 @@ struct TensorListShapeBase {
     return out;
   }
 
+  // Resolves ambiguity when used with brace-enclosed initializer list
   void set_tensor_shape(int64_t sample, const TensorShape<sample_ndim> &sample_shape) {
     set_tensor_shape<TensorShape<sample_ndim>>(sample, sample_shape);
   }
