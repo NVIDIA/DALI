@@ -16,7 +16,18 @@ from setuptools import setup, find_packages
 from setuptools.command.install import install
 import subprocess
 import os
+import re
 import sys
+import platform
+
+import os, fnmatch
+def find(pattern, path):
+    result = []
+    for root, dirs, files in os.walk(path):
+        for name in files:
+            if fnmatch.fnmatch(name, pattern):
+                result.append(os.path.join(root, name))
+    return result
 
 def get_module_path(module_name):
     module_path = ''
@@ -45,6 +56,29 @@ def get_tf_build_flags():
         raise ImportError('Could not find Tensorflow. Tensorflow must be installed before installing nvidia-dali-tf-plugin')
     return (tf_cflags, tf_lflags)
 
+def get_tf_compiler_version():
+    tensorflow_path = get_module_path('tensorflow')
+    tensorflow_libs = find('libtensorflow_framework*so*', tensorflow_path)
+    if not tensorflow_libs:
+        return ''
+    lib = tensorflow_libs[0]
+    cmd = 'strings -a ' + lib + ' | grep "GCC: ("'
+    s = str(subprocess.check_output(cmd, shell=True))
+    version = re.search("GCC:\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
+    return version
+
+def get_tf_version():
+    import pkg_resources
+    s = pkg_resources.get_distribution("tensorflow-gpu").version
+    version = re.search("(\d+.\d+).\d+", s).group(1)
+    return version
+
+def get_gcc_compiler_version():
+    cmd = 'gcc --version | grep "gcc ("'
+    s = str(subprocess.check_output(cmd, shell=True))
+    version = re.search("gcc\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
+    return version
+
 def get_dali_build_flags():
     dali_cflags = ''
     dali_lflags = ''
@@ -72,21 +106,68 @@ def get_cuda_build_flags():
     cuda_lflags=" ".join([])
     return (cuda_cflags, cuda_lflags)
 
+def which(program):
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+    return None
+
+def test():
+    dali_lib_path = get_module_path('nvidia/dali')
+    src_path = '/opt/dali/src'
+    # https://github.com/tensorflow/tensorflow/issues/29643
+    # From tensorflow team:
+    # Our pip packages are still built with gcc 4.8."
+    # To make anything that uses C++ APIs work, all custom ops need to be built
+    # with the same compiler (and the version) we use to build the pip packages.
+    # Anything not built with that may break due to compilers generating ABIs differently."
+    has_gcc_4_8 = which('g++-4.8') is not None or get_gcc_compiler_version() == '4.8'
+    is_compatible_with_prebuilt_bin = platform.system() == 'Linux' and platform.machine() == 'x86_64'
+    if not has_gcc_4_8:
+        # TODO(janton) check that the architecture matches the one of the prebuilt package
+        tf_version_underscore = get_tf_version().replace('.', '_')
+        plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
+        prebuilt_plugin_path = src_path + '/plugin/' + plugin_name
+        plugin_path_destination = dali_lib_path + '/plugin/' + plugin_name
+        print('Installed TF was compiled with ABI incompatible g++ 4.8. Providing prebuilt binary: {} -> {}'.format(prebuilt_plugin_path, plugin_path_destination))
+
 
 class CustomInstall(install, object):
     def run(self):
-        dali_cflags, dali_lflags = get_dali_build_flags()
         dali_lib_path = get_module_path('nvidia/dali')
-        tf_cflags, tf_lflags = get_tf_build_flags()
-        cuda_cflags, cuda_lflags = get_cuda_build_flags()
-
         src_path = os.path.dirname(os.path.realpath(__file__)) + '/nvidia/dali'
-        plugin_src = src_path + '/plugin/daliop.cc'
-        lib_path = dali_lib_path + '/plugin/libdali_tf_current.so'
+        # https://github.com/tensorflow/tensorflow/issues/29643
+        # From tensorflow team:
+        # Our pip packages are still built with gcc 4.8."
+        # To make anything that uses C++ APIs work, all custom ops need to be built
+        # with the same compiler (and the version) we use to build the pip packages.
+        # Anything not built with that may break due to compilers generating ABIs differently."
+        has_gcc_4_8 = which('g++-4.8') is not None or get_gcc_compiler_version() == '4.8'
+        is_compatible_with_prebuilt_bin = platform.system() == 'Linux' and platform.machine() == 'x86_64'
+        if not has_gcc_4_8 and is_compatible_with_prebuilt_bin:
+            tf_version_underscore = get_tf_version().replace('.', '_')
+            plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
+            prebuilt_plugin_path = src_path + '/plugin/' + plugin_name
+            plugin_path_destination = dali_lib_path + '/plugin/' + plugin_name
+            print('Installed TF was compiled with ABI incompatible g++ 4.8. Providing prebuilt binary: {} -> {}'.format(prebuilt_plugin_path, plugin_path_destination))
+        else:
+            dali_cflags, dali_lflags = get_dali_build_flags()
+            tf_cflags, tf_lflags = get_tf_build_flags()
+            cuda_cflags, cuda_lflags = get_cuda_build_flags()
 
-        cmd = 'g++ -Wl,-R,\'$ORIGIN/..\' -std=c++14 -shared ' + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' + cuda_lflags + ' -O2'
-        subprocess.check_call(cmd, cwd=src_path, shell=True)
+            plugin_src = src_path + '/plugin/daliop.cc'
+            lib_path = dali_lib_path + '/plugin/libdali_tf_current.so'
 
+            cmd = 'g++ -Wl,-R,\'$ORIGIN/..\' -std=c++14 -shared ' + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' + cuda_lflags + ' -O2'
+            subprocess.check_call(cmd, cwd=src_path, shell=True)
         super(CustomInstall, self).run()
 
 setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
