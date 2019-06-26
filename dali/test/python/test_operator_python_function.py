@@ -334,18 +334,22 @@ def test_wrong_outputs_number():
     raise Exception('Should not pass')
 
 
+SINK_PATH = '/tmp/sink_test' + str(SEED) + '/'
+
+
 def save(image):
-    Image.fromarray(image).save('/tmp/sink_test/sink_img' + str(time.time()) + '.jpg', 'JPEG')
+    Image.fromarray(image).save(SINK_PATH + 'sink_img' + str(time.time()) + '.jpg', 'JPEG')
 
 
 def test_sink():
     pipe = SinkTestPipeline(BATCH_SIZE, DEVICE_ID, SEED, images_dir, save)
     pipe.build()
-    if not os.path.exists('/tmp/sink_test'):
-        os.mkdir('/tmp/sink_test')
-    assert len(glob.glob('/tmp/sink_test/sink_img*')) == 0
+    if not os.path.exists(SINK_PATH):
+        os.mkdir(SINK_PATH)
+    assert len(glob.glob(SINK_PATH + 'sink_img*')) == 0
     pipe.run()
-    created_files = glob.glob('/tmp/sink_test/sink_img*')
+    created_files = glob.glob(SINK_PATH + 'sink_img*')
     assert len(created_files) == BATCH_SIZE
     for file in created_files:
         os.remove(file)
+    os.rmdir(SINK_PATH)
