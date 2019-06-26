@@ -80,7 +80,7 @@ DALI_HOST_DEV inline float rsqrt(float x) {
   i  = *(const int32_t*)&y;
   i  = 0x5F375A86 - (i >> 1);
   y  = *(const float *)&i;
-  // Two Newton-Raphson steps gives 6-7 significant digits
+  // Two Newton-Raphson steps gives 5-6 significant digits
   y  = y * (1.5f - (x2 * y * y));
   y  = y * (1.5f - (x2 * y * y));
   return y;
@@ -107,7 +107,7 @@ DALI_HOST_DEV inline float fast_rsqrt(float x) {
   i  = *(const int32_t*)&y;
   i  = 0x5F375A86 - (i >> 1);
   y  = *(const float *)&i;
-  // One Newton-Raphson step gives 4-5 significant digits
+  // One Newton-Raphson step gives 3 significant digits
   y  = y * (1.5f - (x2 * y * y));
   return y;
 #endif

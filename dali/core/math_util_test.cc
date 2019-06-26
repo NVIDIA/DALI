@@ -18,15 +18,31 @@
 namespace dali {
 
 TEST(MathUtil, rsqrt) {
-  EXPECT_NEAR(rsqrt(0.25f), 2.0f, 1e-6f);
-  EXPECT_NEAR(rsqrt(0.16f), 2.5f, 1e-6f);
-  EXPECT_NEAR(rsqrt(16.0f), 0.25f, 1e-7f);
+  constexpr float rel_err = 5e-6f;
+  EXPECT_NEAR(rsqrt(0.25f), 2.0f, 2.0f * rel_err);
+  EXPECT_NEAR(rsqrt(0.16f), 2.5f, 2.5f * rel_err);
+  EXPECT_NEAR(rsqrt(16.0f), 0.25f, 0.25f * rel_err);
+}
+
+TEST(MathUtil, fast_rsqrt) {
+  constexpr float rel_err = 2e-3f;
+  EXPECT_NEAR(fast_rsqrt(0.25f), 2.0f, 2.0f * rel_err);
+  EXPECT_NEAR(fast_rsqrt(0.16f), 2.5f, 2.5f * rel_err);
+  EXPECT_NEAR(fast_rsqrt(16.0f), 0.25f, 0.25f * rel_err);
 }
 
 TEST(MathUtil, rsqrtd) {
-  EXPECT_NEAR(rsqrt(0.25), 2.0, 1e-11);
-  EXPECT_NEAR(rsqrt(0.16), 2.5, 1e-11);
-  EXPECT_NEAR(rsqrt(16.0), 0.25, 1e-12);
+  constexpr double rel_err = 1e-11;
+  EXPECT_NEAR(rsqrt(0.25), 2.0, 2.0 * rel_err);
+  EXPECT_NEAR(rsqrt(0.16), 2.5, 2.0 * rel_err);
+  EXPECT_NEAR(rsqrt(16.0), 0.25, 0.25 * rel_err);
+}
+
+TEST(MathUtil, fast_rsqrtd) {
+  constexpr double rel_err = 1e-10;
+  EXPECT_NEAR(fast_rsqrt(0.25), 2.0, 2.0 * rel_err);
+  EXPECT_NEAR(fast_rsqrt(0.16), 2.5, 2.0 * rel_err);
+  EXPECT_NEAR(fast_rsqrt(16.0), 0.25, 0.25 * rel_err);
 }
 
 }  // namespace dali
