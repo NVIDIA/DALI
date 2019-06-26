@@ -338,7 +338,7 @@ SINK_PATH = '/tmp/sink_test' + str(SEED) + '/'
 
 
 def save(image):
-    Image.fromarray(image).save(SINK_PATH + 'sink_img' + str(time.time()) + '.jpg', 'JPEG')
+    Image.fromarray(image).save(SINK_PATH + 'sink_img' + str(time.clock()) + '.jpg', 'JPEG')
 
 
 def test_sink():
