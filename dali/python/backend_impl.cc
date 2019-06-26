@@ -103,7 +103,14 @@ void ExposeTensor(py::module &m) { // NOLINT
       R"code(
       Tensor residing in the CPU memory.
       )code")
-    .def("shape", &Tensor<CPUBackend>::shape,
+    .def("shape",
+        [](Tensor<CPUBackend> &t) -> py::list {
+          py::list ret(t.shape().size());
+          for (int i = 0; i < t.shape().size(); i++) {
+            ret[i] = t.shape()[i];
+          }
+          return ret;
+        },
          R"code(
          Shape of the tensor.
          )code")
@@ -133,7 +140,14 @@ void ExposeTensor(py::module &m) { // NOLINT
       )code");
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
-    .def("shape", &Tensor<GPUBackend>::shape,
+    .def("shape",
+        [](Tensor<GPUBackend> &t) -> py::list {
+          py::list ret(t.shape().size());
+          for (int i = 0; i < t.shape().size(); i++) {
+            ret[i] = t.shape()[i];
+          }
+          return ret;
+        },
          R"code(
          Shape of the tensor.
          )code")
