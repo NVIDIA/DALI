@@ -2,8 +2,6 @@
 
 set -o xtrace
 
-pip install whl/*.whl
-
 SRCS="daliop.cc"
 
 SUFFIX=$(echo $TF_VERSION | sed 's/\([0-9]\+\)\.\([0-9]\+\).*/\1_\2/')
@@ -25,4 +23,4 @@ DALI_CFLAGS="-I${DALI_TOPDIR}/include -D_GLIBCXX_USE_CXX11_ABI=0"
 # DALI_LFLAGS=( $(python -c 'import nvidia.dali as dali; print(" ".join(dali.sysconfig.get_link_flags()))') )
 DALI_LFLAGS="-L${DALI_TOPDIR} -ldali"
 
-g++ -std=c++11 -O2 -shared -fPIC ${SRCS} -o ${LIB_NAME} ${INCL_DIRS} ${TF_CFLAGS[@]} ${TF_LFLAGS[@]} ${DALI_CFLAGS[@]} ${DALI_LFLAGS[@]}
+g++ -std=c++11 -O2 -shared -fPIC ${SRCS} -o /dali_tf_plugins/${LIB_NAME} ${INCL_DIRS} ${TF_CFLAGS[@]} ${TF_LFLAGS[@]} ${DALI_CFLAGS[@]} ${DALI_LFLAGS[@]}
