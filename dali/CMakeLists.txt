@@ -168,55 +168,26 @@ if (BUILD_PYTHON)
   add_subdirectory(pipeline/operators/python_function)
   # Get all python srcs
   add_subdirectory(python)
-  # Get python tests
-  add_subdirectory(test/python)
 
-  set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
-  set(PYTHON_TEST_PATH ${PROJECT_SOURCE_DIR}/dali/test/python/)
-
+  # prepare check-python target
   set(CHECK_PYTHON_TARGET "check-python")
   add_custom_target("${CHECK_PYTHON_TARGET}")
 
-  set(CHECK_PYTHON_NOSE_TARGET "check-python-nose")
-  add_custom_target("${CHECK_PYTHON_NOSE_TARGET}")
-  set(CHECK_PYTHON_TEST_TARGET "check-python-test")
-  add_custom_target("${CHECK_PYTHON_TEST_TARGET}")
-
-
+  set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
   if($ENV{PYTHONPATH})
     set(PYTHONPATH "${PYTHON_TARGET_PATH}:$ENV{PYTHONPATH}")
   else()
     set(PYTHONPATH "${PYTHON_TARGET_PATH}")
   endif()
 
-  foreach(NOSETEST ${DALI_PYTHON_NOSETESTS})
-    set(TARGET_NAME "${CHECK_PYTHON_NOSE_TARGET}-${NOSETEST}")
-    add_custom_target(${TARGET_NAME}
-      COMMAND PYTHONPATH=${PYTHONPATH} nosetests --verbose ${NOSETEST}
-      WORKING_DIRECTORY ${PYTHON_TEST_PATH}
-    )
-    add_dependencies(${CHECK_PYTHON_NOSE_TARGET} ${TARGET_NAME})
-    add_dependencies(${TARGET_NAME} ${dali_lib})
-  endforeach(NOSETEST)
-
-  foreach(TEST_COMMAND ${DALI_PYTHON_TESTS})
-    string(REPLACE " " ";" TEST_COMMAND_LIST ${TEST_COMMAND})
-    list(GET TEST_COMMAND_LIST 1 TEST_NAME)
-    set(TARGET_NAME "${CHECK_PYTHON_TEST_TARGET}-${TEST_NAME}")
-    set(COMMAND_LIST PYTHONPATH=${PYTHONPATH} ${TEST_COMMAND_LIST})
-    add_custom_target(${TARGET_NAME}
-      COMMAND ${COMMAND_LIST}
-      WORKING_DIRECTORY ${PYTHON_TEST_PATH}
-      COMMAND_EXPAND_LISTS
-    )
-    add_dependencies(${CHECK_PYTHON_TEST_TARGET} ${TARGET_NAME})
-    add_dependencies(${TARGET_NAME} ${dali_lib})
-  endforeach(TEST_COMMAND)
-
-  add_dependencies(${CHECK_PYTHON_TARGET} ${CHECK_PYTHON_NOSE_TARGET})
-  add_dependencies(${CHECK_PYTHON_TARGET} ${CHECK_PYTHON_TEST_TARGET})
+  add_custom_command(
+    TARGET ${CHECK_PYTHON_TARGET}
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/qa/L0_python-self-test/
+    COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/qa/L0_python-self-test/test_no_setup.sh
+  )
   add_dependencies(${CHECK_TARGET} ${CHECK_PYTHON_TARGET})
-
+  add_dependencies(${CHECK_PYTHON_TARGET} ${dali_python_lib})
+  add_dependencies(${CHECK_PYTHON_TARGET} ${dali_lib})
 endif()
 
 
