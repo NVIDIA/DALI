@@ -10,4 +10,5 @@ Data Loading
    external_input.ipynb
    coco_reader.ipynb
    video/video_reader_simple_example.ipynb
+   video/video_reader_label_example.ipynb
    sequence_reader_simple_example.ipynb
