@@ -113,10 +113,6 @@ if [ "$BUILD_INHOST" = "YES" ]; then
                                         /opt/dali/docker/build_helper.sh &&       \
                                         rm -rf /opt/dali/${DALI_BUILD_DIR}/nvidia* && \
                                         cp /wheelhouse/* ./"
-    if [ "$CREATE_WHL" = "YES" ]; then
-        mkdir -p ./wheelhouse
-        cp $(pwd)/${DALI_BUILD_DIR}/nvidia* ./wheelhouse/
-    fi
 else
     echo "Build image:" ${BUILDER_WHL}
     docker build -t ${BUILDER_WHL} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
@@ -156,16 +152,38 @@ if [ "$CREATE_RUNNER" = "YES" ]; then
     fi
 fi
 
+rm -rf ./new_wheelhouse
 if [ "$CREATE_WHL" = "YES" ]; then
     if [ "$BUILD_INHOST" = "YES" ]; then
-        mkdir -p ./wheelhouse
-        cp $(pwd)/${DALI_BUILD_DIR}/nvidia* ./wheelhouse/
+        mkdir -p ./new_wheelhouse
+        cp $(pwd)/${DALI_BUILD_DIR}/nvidia* ./new_wheelhouse/
     else
         export CONTAINER="extract-tmp"
         docker create --name "${CONTAINER}" ${BUILDER_WHL}
-        rm -rf ./wheelhouse
-        docker cp "${CONTAINER}:/wheelhouse/" "./"
+        docker cp "${CONTAINER}:/wheelhouse/" "./new_wheelhouse"
         docker rm -f "${CONTAINER}"
     fi
 fi
+
+# Build DALI TF plugin
+export CUSTOM_OP_BUILDER_CLEAN_IMAGE_NAME="tf_custom_op_builder_${PYVER}_clean"
+docker build -t ${CUSTOM_OP_BUILDER_CLEAN_IMAGE_NAME} --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" -f docker/Dockerfile.customopbuilder.clean docker
+
+export CUSTOM_OP_BUILDER_IMAGE_NAME="tf_custom_op_builder_${PYVER}_tf_build"
+export CUSTOM_OP_BUILDER_CONTAINER="${CUSTOM_OP_BUILDER_IMAGE_NAME}_container"
+
+mkdir -p dali_tf_plugin/whl
+cp ./new_wheelhouse/*.whl dali_tf_plugin/whl/
+docker build -t ${CUSTOM_OP_BUILDER_IMAGE_NAME} -f Dockerfile_dali_tf --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${CUSTOM_OP_BUILDER_CLEAN_IMAGE_NAME}"  .
+nvidia-docker run --name ${CUSTOM_OP_BUILDER_CONTAINER} ${CUSTOM_OP_BUILDER_IMAGE_NAME}
+docker cp "${CUSTOM_OP_BUILDER_CONTAINER}:/dali_tf_sdist/" "dali_tf_sdist/"
+mv ./dali_tf_sdist/*.tar.gz ./new_wheelhouse/
+rm -rf dali_tf_sdist
+docker rm -f "${CUSTOM_OP_BUILDER_CONTAINER}"
+rm -rf dali_tf_plugin/whl
+
+mkdir -p ./wheelhouse/
+mv ./new_wheelhouse/* ./wheelhouse
+rm -rf ./new_wheelhouse
+
 popd

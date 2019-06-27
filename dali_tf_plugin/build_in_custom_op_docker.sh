@@ -16,7 +16,7 @@ CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\
 test ${CUDA_VERSION} = "9"  && export SUPPORTED_TF_VERSIONS="1.7.0 1.11.0 1.12.0"
 test ${CUDA_VERSION} = "10" && export SUPPORTED_TF_VERSIONS="1.13.1 1.14.0"
 
-for TF_VERSION in ${TF_VERSIONS}; do
+for TF_VERSION in ${SUPPORTED_TF_VERSIONS}; do
     echo "Building DALI TF plugin for TF version ${TF_VERSION}"
     pip install tensorflow-gpu=="${TF_VERSION}"
 
