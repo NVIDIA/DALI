@@ -1,0 +1,175 @@
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from setuptools import setup, find_packages
+from setuptools.command.install import install
+import subprocess
+import os
+import re
+import sys
+import platform
+from shutil import copyfile
+
+import os, fnmatch
+def find(pattern, path):
+    result = []
+    for root, dirs, files in os.walk(path):
+        for name in files:
+            if fnmatch.fnmatch(name, pattern):
+                result.append(os.path.join(root, name))
+    return result
+
+def get_module_path(module_name):
+    module_path = ''
+    for d in sys.path:
+        possible_path = os.path.join(d, module_name)
+        # skip current dir as this is plugin dir
+        if os.path.isdir(possible_path) and len(d) != 0:
+            module_path = possible_path
+            break
+    return module_path
+
+def get_tf_build_flags():
+    tf_cflags = ''
+    tf_lflags = ''
+    try:
+        import tensorflow as tensorflow
+        tf_cflags=" ".join(tensorflow.sysconfig.get_compile_flags())
+        tf_lflags=" ".join(tensorflow.sysconfig.get_link_flags())
+    except:
+        tensorflow_path = get_module_path('tensorflow')
+        if tensorflow_path is not '':
+            tf_cflags=" ".join(["-I" + tensorflow_path + "/include",  "-I" + tensorflow_path + "/include/external/nsync/public", "-D_GLIBCXX_USE_CXX11_ABI=0"])
+            tf_lflags=" ".join(["-L" + tensorflow_path, "-ltensorflow_framework"])
+
+    if tf_cflags is '' and tf_lflags is '':
+        raise ImportError('Could not find Tensorflow. Tensorflow must be installed before installing nvidia-dali-tf-plugin')
+    return (tf_cflags, tf_lflags)
+
+def get_tf_compiler_version():
+    tensorflow_path = get_module_path('tensorflow')
+    tensorflow_libs = find('libtensorflow_framework*so*', tensorflow_path)
+    if not tensorflow_libs:
+        return ''
+    lib = tensorflow_libs[0]
+    cmd = 'strings -a ' + lib + ' | grep "GCC: ("'
+    s = str(subprocess.check_output(cmd, shell=True))
+    version = re.search("GCC:\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
+    return version
+
+def get_tf_version():
+    import pkg_resources
+    s = pkg_resources.get_distribution("tensorflow-gpu").version
+    version = re.search("(\d+.\d+).\d+", s).group(1)
+    return version
+
+def get_gcc_compiler_version():
+    cmd = 'gcc --version | grep "gcc ("'
+    s = str(subprocess.check_output(cmd, shell=True))
+    version = re.search("gcc\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
+    return version
+
+def get_dali_build_flags():
+    dali_cflags = ''
+    dali_lflags = ''
+    try:
+        import nvidia.dali.sysconfig as dali_sc
+        dali_lib_path = dali_sc.get_lib_dir()
+        dali_cflags=" ".join(dali_sc.get_compile_flags())
+        dali_lflags=" ".join(dali_sc.get_link_flags())
+    except:
+        dali_path = get_module_path('nvidia/dali')
+        if dali_path is not '':
+            dali_cflags=" ".join(["-I" + dali_path + "/include", "-D_GLIBCXX_USE_CXX11_ABI=0"])
+            dali_lflags=" ".join(["-L" + dali_path, "-ldali"])
+    if dali_cflags is '' and dali_lflags is '':
+        raise ImportError('Could not find DALI.')
+    return (dali_cflags, dali_lflags)
+
+def get_cuda_build_flags():
+    cuda_cflags = ''
+    cuda_lflags = ''
+    cuda_home = os.environ.get('CUDA_HOME')
+    if not cuda_home:
+        cuda_home = '/usr/local/cuda'
+    cuda_cflags=" ".join(["-I" + cuda_home + "/include"])
+    cuda_lflags=" ".join([])
+    return (cuda_cflags, cuda_lflags)
+
+def which(program):
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+    return None
+
+class CustomInstall(install, object):
+    def run(self):
+        dali_lib_path = get_module_path('nvidia/dali')
+        src_path = os.path.dirname(os.path.realpath(__file__))
+        plugin_dest_dir = dali_lib_path + '/plugin'
+        # https://github.com/tensorflow/tensorflow/issues/29643
+        # From tensorflow team:
+        # Our pip packages are still built with gcc 4.8."
+        # To make anything that uses C++ APIs work, all custom ops need to be built
+        # with the same compiler (and the version) we use to build the pip packages.
+        # Anything not built with that may break due to compilers generating ABIs differently."
+        has_gcc_4_8 = which('g++-4.8') is not None or get_gcc_compiler_version() == '4.8'
+        is_compatible_with_prebuilt_bin = platform.system() == 'Linux' and platform.machine() == 'x86_64'
+        if not has_gcc_4_8 and is_compatible_with_prebuilt_bin:
+            tf_version_underscore = get_tf_version().replace('.', '_')
+            plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
+            prebuilt_plugin = src_path + '/' + plugin_name
+            plugin_dest = plugin_dest_dir + '/' + plugin_name
+            print('Installed TF was compiled with ABI incompatible g++ 4.8. Providing prebuilt binary')
+            if not os.path.isfile(prebuilt_plugin):
+                available_files = ", ".join(find('libdali_tf_*.so', src_path))
+                raise ImportError('File {} is not present. Avaiable files: {}'.format(prebuilt_plugin, available_files))
+            print('Copy {} to {}'.format(prebuilt_plugin, plugin_dest))
+            copyfile(prebuilt_plugin, plugin_dest)
+        else:
+            dali_cflags, dali_lflags = get_dali_build_flags()
+            tf_cflags, tf_lflags = get_tf_build_flags()
+            cuda_cflags, cuda_lflags = get_cuda_build_flags()
+
+            plugin_src = src_path + '/daliop.cc'
+            lib_path = plugin_dest_dir + '/libdali_tf_current.so'
+
+            cmd = 'g++ -Wl,-R,\'$ORIGIN/..\' -std=c++11 -shared ' + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' + cuda_lflags + ' -O2'
+            subprocess.check_call(cmd, cwd=src_path, shell=True)
+        super(CustomInstall, self).run()
+
+setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@',
+      description='NVIDIA DALI @DALI_FLAVOR@Tensorflow plugin for CUDA @CUDA_VERSION@. Git SHA: @GIT_SHA@',
+      url='https://github.com/NVIDIA/dali',
+      version='@DALI_VERSION@',
+      author='NVIDIA Corporation',
+      license='Apache License 2.0',
+      packages=find_packages(),
+      include_package_data=True,
+      zip_safe=False,
+      install_requires = [
+          'nvidia-dali@DALI_FLAVOR_MINUS@==@DALI_VERSION@'
+          ],
+      cmdclass = {
+          'install': CustomInstall
+      }
+     )
