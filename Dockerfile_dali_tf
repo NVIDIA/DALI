@@ -1,4 +1,5 @@
-FROM tensorflow/tensorflow:custom-op-gpu
+ARG TF_CUSTOM_OP_BUILDER_IMAGE="tensorflow/tensorflow:custom-op-gpu"
+FROM ${TF_CUSTOM_OP_BUILDER_IMAGE}
 
 WORKDIR /opt/dali_tf_build
 
