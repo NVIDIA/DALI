@@ -38,6 +38,7 @@ add_subdirectory(util)
 add_subdirectory(plugin)
 add_subdirectory(c_api)
 
+
 # Collect source files for dali
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
@@ -125,6 +126,18 @@ if (BUILD_TEST)
 
   set_target_properties(${test_main_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
+
+  set(CHECK_GTEST_TARGET "check-gtest")
+  add_custom_target("${CHECK_GTEST_TARGET}")
+
+  add_custom_command(
+    TARGET ${CHECK_GTEST_TARGET}
+    WORKING_DIRECTORY ${TEST_BINARY_DIR}
+    COMMAND ${test_main_bin}
+    DEPENDS ${test_main_bin}
+  )
+
+  add_dependencies(${CHECK_TARGET} ${CHECK_GTEST_TARGET})
 endif()
 
 
@@ -155,6 +168,55 @@ if (BUILD_PYTHON)
   add_subdirectory(pipeline/operators/python_function)
   # Get all python srcs
   add_subdirectory(python)
+  # Get python tests
+  add_subdirectory(test/python)
+
+  set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
+  set(PYTHON_TEST_PATH ${PROJECT_SOURCE_DIR}/dali/test/python/)
+
+  set(CHECK_PYTHON_TARGET "check-python")
+  add_custom_target("${CHECK_PYTHON_TARGET}")
+
+  set(CHECK_PYTHON_NOSE_TARGET "check-python-nose")
+  add_custom_target("${CHECK_PYTHON_NOSE_TARGET}")
+  set(CHECK_PYTHON_TEST_TARGET "check-python-test")
+  add_custom_target("${CHECK_PYTHON_TEST_TARGET}")
+
+
+  if($ENV{PYTHONPATH})
+    set(PYTHONPATH "${PYTHON_TARGET_PATH}:$ENV{PYTHONPATH}")
+  else()
+    set(PYTHONPATH "${PYTHON_TARGET_PATH}")
+  endif()
+
+  foreach(NOSETEST ${DALI_PYTHON_NOSETESTS})
+    set(TARGET_NAME "${CHECK_PYTHON_NOSE_TARGET}-${NOSETEST}")
+    add_custom_target(${TARGET_NAME}
+      COMMAND PYTHONPATH=${PYTHONPATH} nosetests --verbose ${NOSETEST}
+      WORKING_DIRECTORY ${PYTHON_TEST_PATH}
+    )
+    add_dependencies(${CHECK_PYTHON_NOSE_TARGET} ${TARGET_NAME})
+    add_dependencies(${TARGET_NAME} ${dali_lib})
+  endforeach(NOSETEST)
+
+  foreach(TEST_COMMAND ${DALI_PYTHON_TESTS})
+    string(REPLACE " " ";" TEST_COMMAND_LIST ${TEST_COMMAND})
+    list(GET TEST_COMMAND_LIST 1 TEST_NAME)
+    set(TARGET_NAME "${CHECK_PYTHON_TEST_TARGET}-${TEST_NAME}")
+    set(COMMAND_LIST PYTHONPATH=${PYTHONPATH} ${TEST_COMMAND_LIST})
+    add_custom_target(${TARGET_NAME}
+      COMMAND ${COMMAND_LIST}
+      WORKING_DIRECTORY ${PYTHON_TEST_PATH}
+      COMMAND_EXPAND_LISTS
+    )
+    add_dependencies(${CHECK_PYTHON_TEST_TARGET} ${TARGET_NAME})
+    add_dependencies(${TARGET_NAME} ${dali_lib})
+  endforeach(TEST_COMMAND)
+
+  add_dependencies(${CHECK_PYTHON_TARGET} ${CHECK_PYTHON_NOSE_TARGET})
+  add_dependencies(${CHECK_PYTHON_TARGET} ${CHECK_PYTHON_TEST_TARGET})
+  add_dependencies(${CHECK_TARGET} ${CHECK_PYTHON_TARGET})
+
 endif()
 
 
