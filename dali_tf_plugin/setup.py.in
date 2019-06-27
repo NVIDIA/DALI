@@ -80,6 +80,19 @@ def get_gcc_compiler_version():
     version = re.search("gcc\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
     return version
 
+def find_available_prebuilt_tf(requested_version, available_libs):
+    req_ver_first, req_ver_second = [int(v) for v in requested_version.split('.', 2)]
+    selected_ver = None
+    for file in available_libs:
+        re_match = re.search(".*(\d+)_(\d+).*", file)
+        if re_match is None:
+            continue
+        ver_first, ver_second = [int(v) for v in re_match.groups()]
+        if ver_first == req_ver_first:
+            if ver_second <= req_ver_second and (selected_ver is None or selected_ver < (ver_first, ver_second)):
+                selected_ver = (ver_first, ver_second)
+    return '.'.join([str(v) for v in selected_ver]) if selected_ver is not None else None
+
 def get_dali_build_flags():
     dali_cflags = ''
     dali_lflags = ''
@@ -132,18 +145,28 @@ class CustomInstall(install, object):
         # To make anything that uses C++ APIs work, all custom ops need to be built
         # with the same compiler (and the version) we use to build the pip packages.
         # Anything not built with that may break due to compilers generating ABIs differently."
-        is_tf_built_with_gcc_4_8 = get_tf_compiler_version() == '4.8'
-        has_gcc_4_8 = which('g++-4.8') is not None or get_gcc_compiler_version() == '4.8'
+        tf_compiler = get_tf_compiler_version()
+        default_gcc_version = get_gcc_compiler_version()
+        is_tf_built_with_gcc_4_8 = tf_compiler == '4.8'
+        has_gcc_4_8 = which('g++-4.8') is not None
         is_compatible_with_prebuilt_bin = platform.system() == 'Linux' and platform.machine() == 'x86_64'
-        if is_tf_built_with_gcc_4_8 and not has_gcc_4_8 and is_compatible_with_prebuilt_bin:
-            tf_version_underscore = get_tf_version().replace('.', '_')
+        if is_tf_built_with_gcc_4_8 and default_gcc_version != '4.8' and not has_gcc_4_8 and is_compatible_with_prebuilt_bin:
+            tf_version = get_tf_version()
+            tf_version_underscore = tf_version.replace('.', '_')
             plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
             prebuilt_plugin = src_path + '/' + plugin_name
-            plugin_dest = plugin_dest_dir + '/' + plugin_name
             print('Installed TF was compiled with ABI incompatible g++ 4.8. Providing prebuilt binary')
             if not os.path.isfile(prebuilt_plugin):
-                available_files = ", ".join(find('libdali_tf_*.so', src_path))
-                raise ImportError('File {} is not present. Available files: {}'.format(prebuilt_plugin, available_files))
+                available_files = find('libdali_tf_*.so', src_path)
+                best_version = find_available_prebuilt_tf(tf_version, available_files)
+                if best_version is None:
+                    raise ImportError('File {} is not present. Available files: {}'.format(prebuilt_plugin, ", ".join(available_files)))
+                print('Version {} is not present. Best match is {}'.format(tf_version, best_version))
+                tf_version_underscore = best_version.replace('.', '_')
+                plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
+                prebuilt_plugin = src_path + '/' + plugin_name
+
+            plugin_dest = plugin_dest_dir + '/' + plugin_name
             print('Copy {} to {}'.format(prebuilt_plugin, plugin_dest))
             copyfile(prebuilt_plugin, plugin_dest)
         else:
@@ -154,7 +177,11 @@ class CustomInstall(install, object):
             plugin_src = src_path + '/daliop.cc'
             lib_path = plugin_dest_dir + '/libdali_tf_current.so'
 
-            cmd = 'g++ -Wl,-R,\'$ORIGIN/..\' -std=c++11 -shared ' + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' + cuda_lflags + ' -O2'
+            gcc_compiler = 'g++'
+            if tf_compiler == '4.8' and default_gcc_version != '4.8' and has_gcc_4_8:
+                gcc_compiler = 'g++-4.8'
+
+            cmd = gcc_compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -shared ' + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' + cuda_lflags + ' -O2'
             subprocess.check_call(cmd, cwd=src_path, shell=True)
         super(CustomInstall, self).run()
 
