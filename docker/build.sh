@@ -98,7 +98,6 @@ if [ "$BUILD_INHOST" = "YES" ]; then
                                         BUILD_NVTX=${BUILD_NVTX}        \
                                         BUILD_PYTHON=${BUILD_PYTHON}              \
                                         BUILD_LMDB=${BUILD_LMDB}                  \
-                                        BUILD_TENSORFLOW=${BUILD_TENSORFLOW}      \
                                         BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}      \
                                         BUILD_NVJPEG=${BUILD_NVJPEG}              \
                                         BUILD_NVOF=${BUILD_NVOF}                  \
