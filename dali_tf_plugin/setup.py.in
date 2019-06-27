@@ -132,9 +132,10 @@ class CustomInstall(install, object):
         # To make anything that uses C++ APIs work, all custom ops need to be built
         # with the same compiler (and the version) we use to build the pip packages.
         # Anything not built with that may break due to compilers generating ABIs differently."
+        is_tf_built_with_gcc_4_8 = get_tf_compiler_version() == '4.8'
         has_gcc_4_8 = which('g++-4.8') is not None or get_gcc_compiler_version() == '4.8'
         is_compatible_with_prebuilt_bin = platform.system() == 'Linux' and platform.machine() == 'x86_64'
-        if not has_gcc_4_8 and is_compatible_with_prebuilt_bin:
+        if is_tf_built_with_gcc_4_8 and not has_gcc_4_8 and is_compatible_with_prebuilt_bin:
             tf_version_underscore = get_tf_version().replace('.', '_')
             plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
             prebuilt_plugin = src_path + '/' + plugin_name
