@@ -220,7 +220,6 @@ Building DALI using Clang (experimental):
 -  ``BUILD_BENCHMARK`` - include building benchmarks (default: ON)
 -  ``BUILD_LMDB`` - build with support for LMDB (default: OFF)
 -  ``BUILD_NVTX`` - build with NVTX profiling enabled (default: OFF)
--  ``BUILD_TENSORFLOW`` - build TensorFlow plugin (default: OFF)
 -  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
@@ -288,4 +287,3 @@ From the root of the DALI source tree
     docker run -v $(pwd):/dali dali_builder:aarch64-linux
 
 The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``
-
