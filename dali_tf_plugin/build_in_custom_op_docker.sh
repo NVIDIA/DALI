@@ -4,23 +4,35 @@ set -o xtrace
 
 SRCS="daliop.cc"
 
-SUFFIX=$(echo $TF_VERSION | sed 's/\([0-9]\+\)\.\([0-9]\+\).*/\1_\2/')
-LIB_NAME=libdali_tf_${SUFFIX}.so
-
 INCL_DIRS="-I/usr/local/cuda/targets/x86_64-linux/include/"
-
-TF_CFLAGS=( $(python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
-TF_LFLAGS=( $(python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))') )
 
 PYTHON_DIST_PACKAGES=( $(python -c "import site; print(site.getsitepackages()[0])") )
 DALI_TOPDIR="${PYTHON_DIST_PACKAGES}/nvidia/dali"
 
-# Requires CUDA
-# DALI_CFLAGS=( $(python -c 'import nvidia.dali as dali; print(" ".join(dali.sysconfig.get_compile_flags()))') )
-DALI_CFLAGS="-I${DALI_TOPDIR}/include -D_GLIBCXX_USE_CXX11_ABI=0"
+DALI_CFLAGS=( $(python -c 'import nvidia.dali as dali; print(" ".join(dali.sysconfig.get_compile_flags()))') )
+DALI_LFLAGS=( $(python -c 'import nvidia.dali as dali; print(" ".join(dali.sysconfig.get_link_flags()))') )
 
-# Requires CUDA
-# DALI_LFLAGS=( $(python -c 'import nvidia.dali as dali; print(" ".join(dali.sysconfig.get_link_flags()))') )
-DALI_LFLAGS="-L${DALI_TOPDIR} -ldali"
+CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1/')
+test ${CUDA_VERSION} = "9"  && export SUPPORTED_TF_VERSIONS="1.7.0 1.11.0 1.12.0"
+test ${CUDA_VERSION} = "10" && export SUPPORTED_TF_VERSIONS="1.13.1 1.14.0"
 
-g++ -std=c++11 -O2 -shared -fPIC ${SRCS} -o /dali_tf_plugins/${LIB_NAME} ${INCL_DIRS} ${TF_CFLAGS[@]} ${TF_LFLAGS[@]} ${DALI_CFLAGS[@]} ${DALI_LFLAGS[@]}
+for TF_VERSION in ${TF_VERSIONS}; do
+    echo "Building DALI TF plugin for TF version ${TF_VERSION}"
+    pip install tensorflow-gpu=="${TF_VERSION}"
+
+    SUFFIX=$(echo $TF_VERSION | sed 's/\([0-9]\+\)\.\([0-9]\+\).*/\1_\2/')
+    LIB_NAME=libdali_tf_${SUFFIX}.so
+    TF_CFLAGS=( $(python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
+    TF_LFLAGS=( $(python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))') )
+
+    g++ -std=c++11 -O2 -shared -fPIC ${SRCS} -o ${LIB_NAME} ${INCL_DIRS} ${TF_CFLAGS[@]} ${TF_LFLAGS[@]} ${DALI_CFLAGS[@]} ${DALI_LFLAGS[@]}
+
+    pip uninstall -y tensorflow-gpu
+done
+
+mkdir -p dali_tf_sdist_build
+cd dali_tf_sdist_build
+cmake ..
+make -j
+python setup.py sdist
+cp dist/*.tar.gz /dali_tf_sdist

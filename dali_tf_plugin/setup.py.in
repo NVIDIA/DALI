@@ -126,8 +126,8 @@ class CustomInstall(install, object):
         dali_lib_path = get_module_path('nvidia/dali')
         src_path = os.path.dirname(os.path.realpath(__file__))
         plugin_dest_dir = dali_lib_path + '/plugin'
-        # https://github.com/tensorflow/tensorflow/issues/29643
-        # From tensorflow team:
+
+        # From tensorflow team (https://github.com/tensorflow/tensorflow/issues/29643):
         # Our pip packages are still built with gcc 4.8."
         # To make anything that uses C++ APIs work, all custom ops need to be built
         # with the same compiler (and the version) we use to build the pip packages.
@@ -142,7 +142,7 @@ class CustomInstall(install, object):
             print('Installed TF was compiled with ABI incompatible g++ 4.8. Providing prebuilt binary')
             if not os.path.isfile(prebuilt_plugin):
                 available_files = ", ".join(find('libdali_tf_*.so', src_path))
-                raise ImportError('File {} is not present. Avaiable files: {}'.format(prebuilt_plugin, available_files))
+                raise ImportError('File {} is not present. Available files: {}'.format(prebuilt_plugin, available_files))
             print('Copy {} to {}'.format(prebuilt_plugin, plugin_dest))
             copyfile(prebuilt_plugin, plugin_dest)
         else:

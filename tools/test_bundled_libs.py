@@ -40,10 +40,7 @@ def main():
                         "libstdc++.so.6",
                         "libgcc_s.so.1",
                         "libz.so.1"
-                    ],
-                    "libdali_tf": ["libtensorflow_framework.so",
-                                   "libtensorflow_framework.so.1"]
-                    }
+                    ]}
 
     bundled_libs = argv[1:]
 
