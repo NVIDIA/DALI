@@ -1,2 +1,0 @@
-include Acknowledgements.txt LICENSE COPYRIGHT
-recursive-include nvidia/dali *.cc
