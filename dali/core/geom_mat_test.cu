@@ -122,14 +122,76 @@ TEST(Mat, Mul4x4) {
 }
 
 
+TEST(Mat, CompoundAssignMatrix) {
+  #define TEST_ASSIGN_OP(op)                          \
+  {                                                   \
+    m1 op##= m2;                                      \
+    for (size_t i = 0; i < 3; i++)                    \
+      for (size_t j = 0; j < 4; j++)                  \
+        EXPECT_EQ(m1(i, j), orig(i, j) op m2(i, j));  \
+    m1 = orig;                                        \
+  }
+
+  {
+    mat3x4 m1 = {{
+      { 1, 10, 100, 1000 },
+      { 2, 20, 200, 2000 },
+      { 4, 40, 400, 4000 },
+    }};
+    mat3x4 m2 = {{
+      { 5, 10, 200, 7000 },
+      { 6, 90, 300, 6000 },
+      { 7, 80, 400, 5000 },
+    }};
+    auto orig = m1;
+    TEST_ASSIGN_OP(+)
+    TEST_ASSIGN_OP(-)
+  }
+
+  {
+    imat3x4 m1 = {{
+      { 1, 10, 100, 1324 },
+      { 2, 23, 245, 2456 },
+      { 4, 45, 413, 4789 },
+    }};
+    imat3x4 m2 = {{
+      { 0, -1, 134, 5423 },
+      { 2, 23, 23456, 3, },
+      { 4, 45, 413, 4533 },
+    }};
+    auto orig = m1;
+
+    TEST_ASSIGN_OP(&)
+    TEST_ASSIGN_OP(|)
+    TEST_ASSIGN_OP(^)
+  }
+  {
+    imat3x4 m1 = {{
+      { 1, 10, 100, 1324 },
+      { 2, 23, 245, 2456 },
+      { 4, 45, 413, 4789 },
+    }};
+    imat3x4 m2 = {{
+      { 0, 1, 2, 3 },
+      { 4, 5, 6, 7, },
+      { 8, 9, 10, 20 },
+    }};
+    auto orig = m1;
+
+    TEST_ASSIGN_OP(<<)
+    TEST_ASSIGN_OP(>>)
+  }
+  #undef TEST_ASSIGN_OP
+}
+
 TEST(Mat, CompoundAssignScalar) {
-  #define TEST_OP(op)\
-  {\
-    m1 op##= s;\
-    for (size_t i = 0; i < 3; i++)\
-      for (size_t j = 0; j < 4; j++)\
-        EXPECT_EQ(m1(i, j), orig(i, j) op s);\
-    m1 = orig;\
+#define TEST_ASSIGN_OP(op)                    \
+  {                                           \
+    m1 op## = s;                              \
+    for (size_t i = 0; i < 3; i++)            \
+      for (size_t j = 0; j < 4; j++)          \
+        EXPECT_EQ(m1(i, j), orig(i, j) op s); \
+    m1 = orig;                                \
   }
 
   {
@@ -140,10 +202,10 @@ TEST(Mat, CompoundAssignScalar) {
     }};
     float s = 42;
     auto orig = m1;
-    TEST_OP(+)
-    TEST_OP(-)
-    TEST_OP(*)
-    TEST_OP(/)
+    TEST_ASSIGN_OP(+)
+    TEST_ASSIGN_OP(-)
+    TEST_ASSIGN_OP(*)
+    TEST_ASSIGN_OP(/)
   }
 
   {
@@ -155,10 +217,15 @@ TEST(Mat, CompoundAssignScalar) {
     int s = 0b1010101;
     auto orig = m1;
 
-    TEST_OP(&)
-    TEST_OP(|)
-    TEST_OP(^)
+    TEST_ASSIGN_OP(&)
+    TEST_ASSIGN_OP(|)
+    TEST_ASSIGN_OP(^)
+
+    s = 5;
+    TEST_ASSIGN_OP(<<)
+    TEST_ASSIGN_OP(>>)
   }
+  #undef TEST_ASSIGN_OP
 }
 
 struct cuda_rng {
@@ -177,39 +244,39 @@ void RandomFill(mat<rows, cols, T> &m, RNG &rng, int lo, int hi) {
 }
 
 TEST(Mat, BinOp) {
-#define TEST_OPERATOR_SIZE(op, mat_type) { \
-    mat_type m1, m2; \
-    int lo = 0, hi = 31; \
-    cuda_rng rng = { 12345 }; \
+#define TEST_OPERATOR_SIZE(op, mat_type) {                    \
+    mat_type m1, m2;                                          \
+    int lo = 0, hi = 31;                                      \
+    cuda_rng rng = { 12345 };                                 \
     RandomFill(m1, rng, lo, hi); RandomFill(m2, rng, lo, hi); \
-    mat_type result = m1 op m2; \
-    for (size_t i = 0; i < result.rows; i++) \
-      for (size_t j = 0; j < result.cols; j++) \
-        EXPECT_EQ(result(i, j), m1(i, j) op m2(i, j)); \
-    int scalar = rng()&31; \
-    result = m1 op scalar; \
-    for (size_t i = 0; i < result.rows; i++) \
-      for (size_t j = 0; j < result.cols; j++) \
-        EXPECT_EQ(result(i, j), m1(i, j) op scalar); \
-    result = scalar op m2; \
-    for (size_t i = 0; i < result.rows; i++) \
-      for (size_t j = 0; j < result.cols; j++) \
-        EXPECT_EQ(result(i, j), scalar op m2(i, j)); \
+    mat_type result = m1 op m2;                               \
+    for (size_t i = 0; i < result.rows; i++)                  \
+      for (size_t j = 0; j < result.cols; j++)                \
+        EXPECT_EQ(result(i, j), m1(i, j) op m2(i, j));        \
+    int scalar = rng()&31;                                    \
+    result = m1 op scalar;                                    \
+    for (size_t i = 0; i < result.rows; i++)                  \
+      for (size_t j = 0; j < result.cols; j++)                \
+        EXPECT_EQ(result(i, j), m1(i, j) op scalar);          \
+    result = scalar op m2;                                    \
+    for (size_t i = 0; i < result.rows; i++)                  \
+      for (size_t j = 0; j < result.cols; j++)                \
+        EXPECT_EQ(result(i, j), scalar op m2(i, j));          \
   }
 
-#define TEST_OPERATOR_TYPE(op, prefix)\
-  TEST_OPERATOR_SIZE(op, prefix##mat2)\
-  TEST_OPERATOR_SIZE(op, prefix##mat3)\
-  TEST_OPERATOR_SIZE(op, prefix##mat4)\
-  TEST_OPERATOR_SIZE(op, prefix##mat2x3)\
-  TEST_OPERATOR_SIZE(op, prefix##mat3x2)\
-  TEST_OPERATOR_SIZE(op, prefix##mat3x4)\
-  TEST_OPERATOR_SIZE(op, prefix##mat4x3)\
-  TEST_OPERATOR_SIZE(op, prefix##mat2x4)\
+#define TEST_OPERATOR_TYPE(op, prefix)   \
+  TEST_OPERATOR_SIZE(op, prefix##mat2)   \
+  TEST_OPERATOR_SIZE(op, prefix##mat3)   \
+  TEST_OPERATOR_SIZE(op, prefix##mat4)   \
+  TEST_OPERATOR_SIZE(op, prefix##mat2x3) \
+  TEST_OPERATOR_SIZE(op, prefix##mat3x2) \
+  TEST_OPERATOR_SIZE(op, prefix##mat3x4) \
+  TEST_OPERATOR_SIZE(op, prefix##mat4x3) \
+  TEST_OPERATOR_SIZE(op, prefix##mat2x4) \
   TEST_OPERATOR_SIZE(op, prefix##mat4x2)
 
-#define TEST_OPERATOR(op)\
-  TEST_OPERATOR_TYPE(op, /* empty */)\
+#define TEST_OPERATOR(op)             \
+  TEST_OPERATOR_TYPE(op, /* empty */) \
   TEST_OPERATOR_TYPE(op, i)
 
   TEST_OPERATOR(+)
