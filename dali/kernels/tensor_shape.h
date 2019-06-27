@@ -132,20 +132,20 @@ struct TensorShapeBase {
   DALI_NO_EXEC_CHECK
   template <int other_ndim>
   DALI_HOST_DEV
-  TensorShape<other_ndim> first();
+  TensorShape<other_ndim> first() const;
   /// @brief Returns a static subshape consisting of last other_ndim dimensions (inner dimensions)
   /// [1, 2, 3, 4].last<2>() -> [3, 4]
   DALI_NO_EXEC_CHECK
   template <int other_ndim>
   DALI_HOST_DEV
-  TensorShape<other_ndim> last();
+  TensorShape<other_ndim> last() const;
 
   /// @brief Returns a dynamic subshape consisting of first count dimensions (outer dimensions)
   /// [1, 2, 3, 4].first(2) -> [1, 2]
-  TensorShape<DynamicDimensions> first(int count);
+  TensorShape<DynamicDimensions> first(int count) const;
   /// @brief Returns a dynamic subshape consisting of last count dimensions (inner dimensions)
   /// [1, 2, 3, 4].last(2) -> [3, 4]
-  TensorShape<DynamicDimensions> last(int count);
+  TensorShape<DynamicDimensions> last(int count) const;
 
  protected:
   // Disallow instantiation of Base class
@@ -259,7 +259,7 @@ struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
 
 template <typename Container, int ndim>
 template <int other_ndim>
-TensorShape<other_ndim> TensorShapeBase<Container, ndim>::first() {
+TensorShape<other_ndim> TensorShapeBase<Container, ndim>::first() const {
   static_assert(other_ndim <= ndim || ndim == DynamicDimensions,
                 "Number of dimensions in subshape must be between 0 and size()");
   static_assert(other_ndim != DynamicDimensions, "This function can produce only static shapes");
@@ -274,7 +274,7 @@ TensorShape<other_ndim> TensorShapeBase<Container, ndim>::first() {
 
 template <typename Container, int ndim>
 template <int other_ndim>
-TensorShape<other_ndim> TensorShapeBase<Container, ndim>::last() {
+TensorShape<other_ndim> TensorShapeBase<Container, ndim>::last() const {
   static_assert(other_ndim <= ndim || ndim == DynamicDimensions,
                 "Number of dimensions in subshape must be between 0 and size()");
   static_assert(other_ndim != DynamicDimensions, "This function can produce only static shapes");
@@ -289,7 +289,7 @@ TensorShape<other_ndim> TensorShapeBase<Container, ndim>::last() {
 }
 
 template <typename Container, int ndim>
-TensorShape<DynamicDimensions> TensorShapeBase<Container, ndim>::first(int count) {
+TensorShape<DynamicDimensions> TensorShapeBase<Container, ndim>::first(int count) const {
   assert(0 <= count && count <= size() &&
          "Number of dimensions in subshape must be between 0 and size()");
   TensorShape<DynamicDimensions> result;
@@ -301,7 +301,7 @@ TensorShape<DynamicDimensions> TensorShapeBase<Container, ndim>::first(int count
 }
 
 template <typename Container, int ndim>
-TensorShape<DynamicDimensions> TensorShapeBase<Container, ndim>::last(int count) {
+TensorShape<DynamicDimensions> TensorShapeBase<Container, ndim>::last(int count) const {
   assert(0 <= count && count <= size() &&
          "Number of dimensions in subshape must be between 0 and size()");
   TensorShape<DynamicDimensions> result;
@@ -451,18 +451,18 @@ struct TensorListShapeBase {
   /// @brief Returns a static subshape list consisting of first other_ndim dimensions
   ///        (outer dimensions) for each sample
   template <int other_ndim>
-  TensorListShape<other_ndim> first();
+  TensorListShape<other_ndim> first() const;
   /// @brief Returns a static subshape list consisting of last other_ndim dimensions
   ///        (inner dimensions) for each sample
   template <int other_ndim>
-  TensorListShape<other_ndim> last();
+  TensorListShape<other_ndim> last() const;
 
   /// @brief Returns a dynamic subshape list consisting of first count dimensions
   ///        (outer dimensions) for each sample
-  TensorListShape<DynamicDimensions> first(int count);
+  TensorListShape<DynamicDimensions> first(int count) const;
   /// @brief Returns a dynamic subshape list consisting of last count dimensions
   ///        (inner dimensions) for each sample
-  TensorListShape<DynamicDimensions> last(int count);
+  TensorListShape<DynamicDimensions> last(int count) const;
 
   /// @brief Return a span containing the shape of `sample`
   span<int64_t, sample_ndim == DynamicDimensions ? dynamic_extent : sample_ndim>
@@ -780,7 +780,7 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
 
 template <typename Derived, int sample_ndim>
 template <int other_ndim>
-TensorListShape<other_ndim> TensorListShapeBase<Derived, sample_ndim>::first() {
+TensorListShape<other_ndim> TensorListShapeBase<Derived, sample_ndim>::first() const {
   static_assert(other_ndim <= sample_ndim || sample_ndim == DynamicDimensions,
                 "Number of dimensions in subshape must be between 0 and sample_dim()");
   static_assert(other_ndim != DynamicDimensions, "This function can produce only static shapes");
@@ -798,7 +798,7 @@ TensorListShape<other_ndim> TensorListShapeBase<Derived, sample_ndim>::first() {
 
 template <typename Derived, int sample_ndim>
 template <int other_ndim>
-TensorListShape<other_ndim> TensorListShapeBase<Derived, sample_ndim>::last() {
+TensorListShape<other_ndim> TensorListShapeBase<Derived, sample_ndim>::last() const {
   static_assert(other_ndim <= sample_ndim || sample_ndim == DynamicDimensions,
                 "Number of dimensions in subshape must be between 0 and sample_dim()");
   static_assert(other_ndim != DynamicDimensions, "This function can produce only static shapes");
@@ -816,7 +816,8 @@ TensorListShape<other_ndim> TensorListShapeBase<Derived, sample_ndim>::last() {
 }
 
 template <typename Derived, int sample_ndim>
-TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::first(int count) {
+TensorListShape<DynamicDimensions>
+TensorListShapeBase<Derived, sample_ndim>::first(int count) const {
   assert(0 <= count && count <= sample_dim() &&
          "Number of dimensions in subshape must be between 0 and sample_dim()");
   TensorListShape<DynamicDimensions> result;
@@ -830,7 +831,8 @@ TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::fi
 }
 
 template <typename Derived, int sample_ndim>
-TensorListShape<DynamicDimensions> TensorListShapeBase<Derived, sample_ndim>::last(int count) {
+TensorListShape<DynamicDimensions>
+TensorListShapeBase<Derived, sample_ndim>::last(int count) const {
   assert(0 <= count && count <= sample_dim() &&
          "Number of dimensions in subshape must be between 0 and sample_dim()");
   TensorListShape<DynamicDimensions> result;
