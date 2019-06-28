@@ -95,7 +95,7 @@ TEST(TensorList, ViewAsTensor) {
 
 TEST(Tensor, ViewAsTensor) {
   Tensor<CPUBackend> t;
-  Dims shape = { 320, 240, 3};
+  kernels::TensorShape<> shape = { 320, 240, 3};
   t.Resize(shape);
   auto tv = view<float>(t);
   ASSERT_EQ(tv.dim(), 3) << "Expected a 3D tensor as a result";

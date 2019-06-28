@@ -120,11 +120,13 @@ Transpose<GPUBackend>::~Transpose() {
 
 inline kernels::TensorShape<> GetPermutedDims(const kernels::TensorShape<>& dims,
                                               const std::vector<int>& permutation) {
-  Dims permuted_dims;
-  for (auto idx : permutation) {
-    permuted_dims.push_back(dims[idx]);
+  kernels::TensorShape<> permuted_dims;
+  permuted_dims.resize(permutation.size());
+  for (int i = 0; i < permutation.size(); i++) {
+    auto idx = permutation[i];
+    permuted_dims[i] = dims[idx];
   }
-  return {permuted_dims};
+  return permuted_dims;
 }
 
 template<>

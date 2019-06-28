@@ -73,7 +73,7 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
       const ImageInfo* info =
           reinterpret_cast<const ImageInfo*>(info_tensor.raw_data());
       int c = NumberOfChannels(output_image_type_);
-      output_shape[i] = Dims({info->heights[0], info->widths[0], c});
+      output_shape[i] = {info->heights[0], info->widths[0], c};
       image_order[i] = std::make_pair(volume(output_shape[i]), i);
     }
     std::sort(image_order.begin(), image_order.end(),

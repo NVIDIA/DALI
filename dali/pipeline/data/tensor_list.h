@@ -32,8 +32,6 @@ namespace dali {
 template <typename Backend>
 class Tensor;
 
-typedef vector<Index> Dims;
-
 /**
  * @brief Stores a number of Tensors in a contiguous buffer.
  * Functions similar to a jagged tensor, i.e. a tensor

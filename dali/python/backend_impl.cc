@@ -202,7 +202,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           for (size_t i = 1; i < info.shape.size(); ++i) {
             tensor_shape[i-1] = info.shape[i];
           }
-          std::vector<Dims> i_shape(info.shape[0], tensor_shape);
+          auto i_shape = kernels::uniform_list_shape(info.shape[0], tensor_shape);
           size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
           // Validate the stride

@@ -42,20 +42,23 @@ class MakeContiguous : public Operator<MixedBackend> {
 
   using Operator<MixedBackend>::Run;
   void Run(MixedWorkspace *ws) override {
-    vector<Dims> output_shape(batch_size_);
     const auto& input = ws->Input<CPUBackend>(0, 0);
+    int sample_dim = input.shape().sample_dim();
+    kernels::TensorListShape<> output_shape(batch_size_, sample_dim);
     DALITensorLayout layout = input.GetLayout();
     TypeInfo type = input.type();
     size_t total_bytes = 0;
     for (int i = 0; i < batch_size_; ++i) {
       auto &sample = ws->Input<CPUBackend>(0, i);
-      output_shape[i] = std::vector<int64_t>{sample.shape().begin(), sample.shape().end()};
+      output_shape.set_tensor_shape(i, sample.shape());
       size_t sample_bytes = sample.nbytes();
       if (coalesced && sample_bytes > COALESCE_TRESHOLD)
         coalesced = false;
       total_bytes += sample_bytes;
       DALI_ENFORCE(type == sample.type(), "Inconsistent types in "
           "input batch. Cannot copy to contiguous device buffer.");
+      DALI_ENFORCE(sample_dim == sample.shape().sample_dim(), "Inconsistent sample dim in input batch."
+          "Cannot copy to contiguous device buffer.");
     }
 
     if (ws->OutputIsType<CPUBackend>(0)) {
