@@ -59,10 +59,7 @@ class TransposeTest : public testing::DaliOperatorTest {
     if (rank > 4) {
       seq_shape.push_back(3);
     }
-    std::vector<std::vector<Index>> batch_shape;
-    for (int i = 0; i < batch_size; i++) {
-      batch_shape.push_back(seq_shape);
-    }
+    auto batch_shape = kernels::uniform_list_shape(batch_size, seq_shape);
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
     tl->Resize(batch_shape);
