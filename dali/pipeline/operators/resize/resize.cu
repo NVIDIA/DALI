@@ -65,10 +65,10 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
   // Setup and output the resize attributes if necessary
   if (save_attrs_) {
     TensorList<CPUBackend> attr_output_cpu;
-    vector<Dims> resize_shape(input.ntensor());
+    kernels::TensorListShape<> resize_shape(input.ntensor(), 1);
 
     for (size_t i = 0; i < input.ntensor(); ++i) {
-      resize_shape[i] = Dims{2};
+      resize_shape.set_tensor_shape(i, {2});
     }
 
     attr_output_cpu.Resize(resize_shape);

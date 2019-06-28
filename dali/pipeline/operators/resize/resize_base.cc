@@ -115,7 +115,8 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   for (auto &size : scratch_sizes)
     size = 0;
 
-  out_shape_.clear();
+  // TODO(klecki): Resize it once
+  out_shape_ = kernels::TensorListShape<>();
   for (size_t b = 0; b < minibatches_.size(); b++) {
     auto &kdata = kernel_data_[b];
     auto &kernel = kdata.KernelInstance<Kernel>();
@@ -133,8 +134,13 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
         scratch_sizes[type] = s;
     }
 
-    to_dims_vec(mb.out_shape, kdata.requirements.output_shapes[0]);
-    append(out_shape_, mb.out_shape);
+    mb.out_shape = kdata.requirements.output_shapes[0];
+    // minbatches have uniform dim
+    int current_output_size = out_shape_.size();
+    out_shape_.resize(current_output_size + mb.out_shape.size(), mb.out_shape.sample_dim());
+    for (int i = 0; i < mb.out_shape.size(); i++) {
+      out_shape_.set_tensor_shape(i + current_output_size, mb.out_shape[i]);
+    }
   }
 
   alloc.Reserve(scratch_sizes);
@@ -156,7 +162,7 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
 
 void ResizeBase::Initialize(int num_threads) {
   kernel_data_.resize(num_threads);
-  out_shape_.resize(num_threads);
+  out_shape_.resize(num_threads, 3);
   resample_params_.resize(num_threads);
 }
 
@@ -202,7 +208,7 @@ void ResizeBase::RunCPU(Tensor<CPUBackend> &output,
   const auto &input_shape = input.shape();
 
   auto out_shape = kdata.requirements.output_shapes[0][0];
-  out_shape_[thread_idx] = out_shape.shape.to_vector();
+  out_shape_.set_tensor_shape(thread_idx, out_shape.shape);
 
   // Resize the output & run
   output.Resize(out_shape_[thread_idx]);

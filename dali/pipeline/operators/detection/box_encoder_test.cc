@@ -255,11 +255,11 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
   };
 
   void CreateCocoObjects() {
-    vector<Dims> boxes_shape;
-    vector<Dims> labels_shape;
-    for (auto &object_count : coco_object_count) {
-      boxes_shape.push_back({object_count, 4});
-      labels_shape.push_back({object_count});
+    kernels::TensorListShape<> boxes_shape(coco_object_count.size(), 2);
+    kernels::TensorListShape<> labels_shape(coco_object_count.size(), 1);
+    for (size_t i = 0; i < coco_object_count.size(); i++) {
+      boxes_shape.set_tensor_shape(i, {coco_object_count[i], 4});
+      labels_shape.set_tensor_shape(i, {coco_object_count[i]});
     }
 
     boxes_.Resize(boxes_shape);
