@@ -77,7 +77,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
 
   void DataDependentSetup(Workspace<Backend> *ws, const int idx);
 
-  void SetupSample(int data_idx, DALITensorLayout layout, const vector<Index> &shape) {
+  void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
     Index F = 1, H, W, C;
     DALI_ENFORCE(shape.size() == 3 || shape.size() == 4,
       "Unexpected number of dimensions: " + std::to_string(shape.size()));

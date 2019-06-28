@@ -42,6 +42,16 @@ struct storage_tag_map<GPUBackend> {
 template <typename Backend>
 using storage_tag_map_t = typename storage_tag_map<Backend>::type;
 
+template <int ndim, typename ShapeType>
+void enforce_dim_in_view(const ShapeType &shape) {
+  if (ndim != kernels::DynamicDimensions) {
+    DALI_ENFORCE(shape.sample_dim() == ndim,
+             "Input with dimension (" + to_string(shape.sample_dim())
+             + ") cannot be converted to dimension (" + to_string(ndim) + ").");
+  }
+}
+
+
 }  // namespace detail
 
 template <int ndim, typename Backend>
@@ -74,27 +84,6 @@ kernels::TensorShape<ndim> tensor_shape(const TensorList<Backend> &tl) {
   return out;
 }
 
-
-/// @brief Returns an equivalent tensor list shape for a tensor.
-///        Outermost dimension is converted into sample index.
-template<int ndim, typename Backend>
-kernels::TensorShape<ndim> tensor_shape(const Tensor<Backend> &tl) {
-  const auto &tshape = tl.shape();
-  kernels::TensorShape<ndim> out;
-  int dim = tshape.size();
-  if (ndim != kernels::DynamicDimensions) {
-    DALI_ENFORCE(dim == ndim,
-                 "Input has a wrong number of dimensions:"
-                 " (" + to_string(dim) + ") vs (" + to_string(ndim) + ")");
-  } else {
-    out.resize(dim);
-  }
-  for (int i = 0; i < dim; i++) {
-    out[i] = tshape[i];
-  }
-  return out;
-}
-
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
 kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(TensorList<Backend> &data) {
@@ -123,7 +112,8 @@ view(Tensor<Backend> &data) {
   if (data.shape().empty())
     return {};
   using U = std::remove_const_t<T>;
-  return { data.template mutable_data<U>(), tensor_shape<ndim>(data) };
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return { data.template mutable_data<U>(),  kernels::convert_dim<ndim>(data.shape()) };
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
@@ -150,7 +140,8 @@ view(const Tensor<Backend> &data) {
   if (data.shape().empty())
     return {};
   using U = std::remove_const_t<T>;
-  return { data.template data<U>(), tensor_shape<ndim>(data) };
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return { data.template data<U>(), kernels::convert_dim<ndim>(data.shape()) };
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
