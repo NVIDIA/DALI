@@ -46,6 +46,20 @@ static void* ctypes_void_ptr(const py::object& object) {
   return ptr;
 }
 
+template <int ndim>
+py::list as_py_list(const kernels::TensorShape<ndim> &shape) {
+  py::list ret(shape.size());
+  for (int i = 0; i < shape.size(); i++) {
+    ret[i] = shape[i];
+  }
+  return ret;
+}
+
+template <typename Backend>
+py::list py_shape(const Tensor<Backend> &t) {
+  return as_py_list(t.shape());
+}
+
 void ExposeTensor(py::module &m) { // NOLINT
   py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
@@ -103,14 +117,7 @@ void ExposeTensor(py::module &m) { // NOLINT
       R"code(
       Tensor residing in the CPU memory.
       )code")
-    .def("shape",
-        [](Tensor<CPUBackend> &t) -> py::list {
-          py::list ret(t.shape().size());
-          for (int i = 0; i < t.shape().size(); i++) {
-            ret[i] = t.shape()[i];
-          }
-          return ret;
-        },
+    .def("shape", &py_shape<CPUBackend>,
          R"code(
          Shape of the tensor.
          )code")
@@ -140,14 +147,7 @@ void ExposeTensor(py::module &m) { // NOLINT
       )code");
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
-    .def("shape",
-        [](Tensor<GPUBackend> &t) -> py::list {
-          py::list ret(t.shape().size());
-          for (int i = 0; i < t.shape().size(); i++) {
-            ret[i] = t.shape()[i];
-          }
-          return ret;
-        },
+    .def("shape", &py_shape<GPUBackend>,
          R"code(
          Shape of the tensor.
          )code")
