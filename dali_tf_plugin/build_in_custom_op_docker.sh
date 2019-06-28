@@ -4,7 +4,7 @@ set -o xtrace
 
 SRCS="daliop.cc"
 
-INCL_DIRS="-I/usr/local/cuda/targets/x86_64-linux/include/"
+INCL_DIRS="-I/usr/local/cuda/include/"
 
 PYTHON_DIST_PACKAGES=( $(python -c "import site; print(site.getsitepackages()[0])") )
 DALI_TOPDIR="${PYTHON_DIST_PACKAGES}/nvidia/dali"
