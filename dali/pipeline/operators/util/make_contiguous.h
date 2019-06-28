@@ -57,8 +57,8 @@ class MakeContiguous : public Operator<MixedBackend> {
       total_bytes += sample_bytes;
       DALI_ENFORCE(type == sample.type(), "Inconsistent types in "
           "input batch. Cannot copy to contiguous device buffer.");
-      DALI_ENFORCE(sample_dim == sample.shape().sample_dim(), "Inconsistent sample dim in input batch."
-          "Cannot copy to contiguous device buffer.");
+      DALI_ENFORCE(sample_dim == sample.shape().sample_dim(), "Inconsistent sample dimensions "
+          "in input batch. Cannot copy to contiguous device buffer.");
     }
 
     if (ws->OutputIsType<CPUBackend>(0)) {
