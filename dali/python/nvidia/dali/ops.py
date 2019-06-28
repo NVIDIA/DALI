@@ -52,7 +52,7 @@ def _docstring_generator(cls):
 
     if schema.IsDeprecated():
         use_instead = schema.DeprecatedInFavorOf()
-        ret += "\n.. warning::\nThis operator is now deprecated"
+        ret += "\n.. warning::\n\n   This operator is now deprecated"
         if use_instead:
             ret +=". Use `" + use_instead + "` instead"
         ret += "\n"
