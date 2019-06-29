@@ -122,7 +122,7 @@ inline kernels::TensorShape<> GetPermutedDims(const kernels::TensorShape<>& dims
                                               const std::vector<int>& permutation) {
   kernels::TensorShape<> permuted_dims;
   permuted_dims.resize(permutation.size());
-  for (int i = 0; i < permutation.size(); i++) {
+  for (size_t i = 0; i < permutation.size(); i++) {
     auto idx = permutation[i];
     permuted_dims[i] = dims[idx];
   }
