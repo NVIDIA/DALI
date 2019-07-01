@@ -43,7 +43,7 @@ class C2Pipe(Pipeline):
                                      exec_pipelined=pipelined,
                                      exec_async=exec_async)
         self.input = ops.ExternalSource()
-        self.decode = ops.HostDecoder(output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = 'cpu', output_type = types.RGB)
         self.rcm = ops.FastResizeCropMirror(crop = (224, 224))
         self.np = ops.CropMirrorNormalize(device = "gpu",
                                           output_dtype = types.FLOAT16,

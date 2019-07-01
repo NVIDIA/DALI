@@ -21,7 +21,7 @@ class CommonPipeline(Pipeline):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id, seed=_seed, exec_async=False,
                                              exec_pipelined=False)
         self.input = ops.FileReader(file_root=image_dir)
-        self.decode = ops.HostDecoder(output_type=types.RGB)
+        self.decode = ops.ImageDecoder(device = 'cpu', output_type=types.RGB)
         self.resize = ops.PythonFunction(function=resize)
 
     def load(self):

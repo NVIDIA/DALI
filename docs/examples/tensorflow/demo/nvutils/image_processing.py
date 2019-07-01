@@ -63,7 +63,7 @@ class HybridPipe(dali.pipeline.Pipeline):
 
         if training:
             if dali_cpu:
-                self.decode = dali.ops.HostDecoderRandomCrop(
+                self.decode = dali.ops.ImageDecoderRandomCrop(
                     device="cpu",
                     output_type=dali.types.RGB,
                     random_aspect_ratio=[0.8, 1.25],
@@ -81,7 +81,7 @@ class HybridPipe(dali.pipeline.Pipeline):
             self.resize = dali.ops.Resize (device=resize_device, resize_x=width, resize_y=height)
         else:
             if dali_cpu:
-                self.decode = dali.ops.HostDecoder(
+                self.decode = dali.ops.ImageDecoder(
                     device="cpu",
                     output_type=dali.types.RGB)
                 resize_device = "cpu"

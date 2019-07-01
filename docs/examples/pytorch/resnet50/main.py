@@ -82,20 +82,16 @@ class HybridTrainPipe(Pipeline):
         super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed=12 + device_id)
         self.input = ops.FileReader(file_root=data_dir, shard_id=args.local_rank, num_shards=args.world_size, random_shuffle=True)
         #let user decide which pipeline works him bets for RN version he runs
-        if dali_cpu:
-            dali_device = "cpu"
-            self.decode = ops.HostDecoderRandomCrop(device=dali_device, output_type=types.RGB,
-                                                    random_aspect_ratio=[0.8, 1.25],
-                                                    random_area=[0.1, 1.0],
-                                                    num_attempts=100)
-        else:
-            dali_device = "gpu"
-            # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
-            # without additional reallocations
-            self.decode = ops.nvJPEGDecoderRandomCrop(device="mixed", output_type=types.RGB, device_memory_padding=211025920, host_memory_padding=140544512,
-                                                      random_aspect_ratio=[0.8, 1.25],
-                                                      random_area=[0.1, 1.0],
-                                                      num_attempts=100)
+        dali_device = 'cpu' if dali_cpu else 'gpu'
+        decoder_device = 'cpu' if dali_cpu else 'mixed'
+        # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
+        # without additional reallocations
+        self.decode = ops.ImageDecoderRandomCrop(device=decoder_device, output_type=types.RGB,
+                                                 device_memory_padding=211025920,
+                                                 host_memory_padding=140544512,
+                                                 random_aspect_ratio=[0.8, 1.25],
+                                                 random_area=[0.1, 1.0],
+                                                 num_attempts=100)
         self.res = ops.Resize(device=dali_device, resize_x=crop, resize_y=crop, interp_type=types.INTERP_TRIANGULAR)
         self.cmnp = ops.CropMirrorNormalize(device="gpu",
                                             output_dtype=types.FLOAT,

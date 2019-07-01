@@ -36,7 +36,7 @@ class CropMirrorNormalizePipeline(Pipeline):
         super(CropMirrorNormalizePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865)
         self.device = device
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.cmn = ops.CropMirrorNormalize(device = self.device,
                                            output_dtype = output_dtype,
                                            output_layout = output_layout,
@@ -91,7 +91,7 @@ class NoCropPipeline(Pipeline):
         self.decoder_only = decoder_only
         self.device = device
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         if not self.decoder_only:
             self.cmn = ops.CropMirrorNormalize(device = self.device,
                                                image_type = types.RGB,
@@ -124,7 +124,7 @@ class PythonOpPipeline(Pipeline):
 
         super(PythonOpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.cmn = ops.PythonFunction(function=function)
 
     def define_graph(self):

@@ -22,9 +22,9 @@ import nvidia.dali.types as types
 class COCOPipeline(Pipeline):
     def __init__(self, default_boxes, args, seed):
         super(COCOPipeline, self).__init__(
-            batch_size=args.batch_size, 
+            batch_size=args.batch_size,
             device_id=args.local_rank,
-            num_threads=args.num_workers, 
+            num_threads=args.num_workers,
             seed=seed)
 
         try:
@@ -35,17 +35,17 @@ class COCOPipeline(Pipeline):
             num_shards = 1
 
         self.input = ops.COCOReader(
-            file_root=args.train_coco_root, 
-            annotations_file=args.train_annotate, 
+            file_root=args.train_coco_root,
+            annotations_file=args.train_annotate,
             skip_empty=True,
-            shard_id=shard_id, 
-            num_shards=num_shards, 
-            ratio=True, 
-            ltrb=True, 
+            shard_id=shard_id,
+            num_shards=num_shards,
+            ratio=True,
+            ltrb=True,
             random_shuffle=False,
             shuffle_after_epoch=True)
 
-        self.decode = ops.HostDecoder(device="cpu", output_type=types.RGB)
+        self.decode = ops.ImageDecoder(device="cpu", output_type=types.RGB)
 
         # Augumentation techniques
         self.crop = ops.RandomBBoxCrop(
@@ -59,15 +59,15 @@ class COCOPipeline(Pipeline):
         self.slice = ops.Slice(device="cpu")
         self.twist = ops.ColorTwist(device="gpu")
         self.resize = ops.Resize(
-            device="cpu", 
-            resize_x=300, 
+            device="cpu",
+            resize_x=300,
             resize_y=300,
             min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
 
         output_dtype = types.FLOAT16 if args.fp16 else types.FLOAT
 
         self.normalize = ops.CropMirrorNormalize(
-            device="gpu", 
+            device="gpu",
             crop=(300, 300),
             mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
             std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
@@ -109,10 +109,10 @@ class COCOPipeline(Pipeline):
         images = self.resize(images)
         images = images.gpu()
         images = self.twist(
-            images, 
-            saturation=saturation, 
-            contrast=contrast, 
-            brightness=brightness, 
+            images,
+            saturation=saturation,
+            contrast=contrast,
+            brightness=brightness,
             hue=hue)
         images = self.normalize(images)
         bboxes, labels = self.box_encoder(bboxes, labels)
