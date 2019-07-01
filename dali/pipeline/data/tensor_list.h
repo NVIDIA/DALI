@@ -22,6 +22,7 @@
 #include <list>
 #include <memory>
 #include <utility>
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/meta.h"
@@ -83,7 +84,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     for (size_t i = 0; i < other.size(); ++i) {
       assert(type == other[i].type());
       assert(layout == other[i].GetLayout());
-      new_shape[i] = other[i].shape();
+      new_shape[i] = std::vector<int64_t>(other[i].shape().begin(), other[i].shape().end());
     }
 
     this->Resize(new_shape);
@@ -339,7 +340,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * @brief Returns a Tensor view with given shape or nullptr if no
    * such exists
    */
-  inline Tensor<Backend> * GetViewWithShape(const vector<Index> &shape) {
+  inline Tensor<Backend> * GetViewWithShape(const kernels::TensorShape<> &shape) {
     for (auto &t : tensor_views_) {
       if (t.shape() == shape) {
         return &t;
@@ -354,7 +355,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * Tensor list owns the memory. The tensor obtained through
    * this function stays valid for as long as TensorList data is unchanged.
    */
-  DLL_PUBLIC inline Tensor<Backend> * AsReshapedTensor(const vector<Index> &new_shape) {
+  DLL_PUBLIC inline Tensor<Backend> * AsReshapedTensor(const kernels::TensorShape<> &new_shape) {
     auto t = GetViewWithShape(new_shape);
     if (t) {
       return t;

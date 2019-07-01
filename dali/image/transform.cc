@@ -174,7 +174,7 @@ void CheckParam(const Tensor<CPUBackend> &input, const std::string &opName) {
   }
   DALI_ENFORCE(IsType<uint8>(input.type()),
                opName + " expects input data in uint8.");
-  DALI_ENFORCE(shape.back() == 1 || shape.back() == 3,
+  DALI_ENFORCE(shape[shape.size() - 1] == 1 || shape[shape.size() - 1] == 3,
                opName + " supports hwc rgb & grayscale inputs.");
 }
 

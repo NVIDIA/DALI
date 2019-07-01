@@ -79,6 +79,7 @@ struct SequenceWrapper {
   int height;
   int width;
   int channels;
+  int label;
 
  private:
   void wait_until_started_() const {

@@ -42,7 +42,8 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
       auto input_ptr = input.data<DType>();
       auto kernel = kernels::FlipCPU<DType>();
       kernels::KernelContext ctx;
-      auto shape = TransformShapes({input.shape()}, input.GetLayout() == DALI_NHWC)[0];
+      auto shape_dims = std::vector<Index>(input.shape().begin(), input.shape().end());
+      auto shape = TransformShapes({shape_dims}, input.GetLayout() == DALI_NHWC)[0];
       auto in_view = kernels::InTensorCPU<DType, 4>(input_ptr, shape);
       auto reqs = kernel.Setup(ctx, in_view);
       auto out_shape = reqs.output_shapes[0][0].to_static<4>();
