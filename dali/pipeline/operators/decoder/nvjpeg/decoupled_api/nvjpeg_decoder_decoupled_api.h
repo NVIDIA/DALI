@@ -50,7 +50,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     decode_params_(batch_size_),
     decoder_host_state_(batch_size_),
     decoder_huff_hybrid_state_(batch_size_),
-    output_shape_(batch_size_, 3),
+    output_shape_(batch_size_, kOutputDim),
     pinned_buffers_(num_threads_*2),
     jpeg_streams_(num_threads_*2),
     device_buffers_(num_threads_),
@@ -397,6 +397,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   int device_id_;
 
   ThreadPool thread_pool_;
+  static constexpr int kOutputDim = 3;
 };
 
 }  // namespace dali

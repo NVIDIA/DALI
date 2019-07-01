@@ -172,7 +172,7 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
   }
 
   output.set_type(input.type());
-  output.Resize({output_shape});
+  output.Resize(output_shape);
   output.SetLayout(DALI_NHWC);
 
   for (int i = 0; i < batch_size_; ++i) {

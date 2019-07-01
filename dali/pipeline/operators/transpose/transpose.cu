@@ -172,7 +172,7 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
       auto in_shape = input.tensor_shape(i);
       tl_shape.emplace_back(GetPermutedDims(in_shape, perm_));
     }
-    output.Resize({tl_shape});
+    output.Resize(tl_shape);
     if (itype.size() == 1) {
       kernel::cuTTKernel<uint8_t>(input, output, perm_, ws->stream());
     } else if (itype.size() == 2) {

@@ -128,10 +128,7 @@ class Tensor : public Buffer<Backend> {
   inline void Resize(const kernels::TensorShape<> &shape) {
     Index new_size = volume(shape);
     ResizeHelper(new_size);
-    shape_.resize(shape.size());
-    for (int i = 0; i < shape.size(); i++) {
-      shape_[i] = shape[i];
-    }
+    shape_ = shape;
   }
 
   /**

@@ -148,7 +148,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CachedDecoderImpl(spec),
     max_streams_(spec.GetArgument<int>("num_threads")),
     output_type_(spec.GetArgument<DALIImageType>("output_type")),
-    output_shape_(batch_size_, 3),
+    output_shape_(batch_size_, kOutputDim),
     output_info_(batch_size_),
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
     batched_image_idx_(batch_size_),
@@ -519,6 +519,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // Thread pool
   ThreadPool thread_pool_;
+  static constexpr int kOutputDim = 3;
 };
 
 }  // namespace dali

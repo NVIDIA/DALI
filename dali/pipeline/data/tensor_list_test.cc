@@ -281,7 +281,7 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
 
   int num_tensor = this->RandInt(0, 128);
   auto shape = kernels::uniform_list_shape(num_tensor, TensorShape<>{});
-  tensor_list.Resize({shape});
+  tensor_list.Resize(shape);
 
   ASSERT_EQ(tensor_list.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor_list.nbytes(), 0);
