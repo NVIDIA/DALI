@@ -436,6 +436,15 @@ flatten_shapes(const std::vector<T> &shapes) {
   return result;
 }
 
+static int get_dim_from_uniform(std::initializer_list<std::vector<int64_t>> shapes) {
+  return get_dim_from_uniform(std::vector<std::vector<int64_t>>(shapes));
+}
+
+static std::vector<int64_t> flatten_shapes(std::initializer_list<std::vector<int64_t>> shapes) {
+  return flatten_shapes(std::vector<std::vector<int64_t>>(shapes));
+}
+
+
 /// @brief List of TensorShapes stored as contigous vector.
 ///        All shapes have the same number of dimensions
 ///
@@ -609,6 +618,11 @@ struct TensorListShape<DynamicDimensions>
         ndim(get_dim_from_uniform(sample_shapes)) {}
 
   TensorListShape(const std::vector<TensorShape<DynamicDimensions>> &sample_shapes)  // NOLINT
+      : Base(flatten_shapes(sample_shapes), sample_shapes.size()),
+        ndim(get_dim_from_uniform(sample_shapes)) {}
+
+  // Constructor disambiguating brace initialization
+  TensorListShape(std::initializer_list<std::vector<int64_t>> sample_shapes)  // NOLINT
       : Base(flatten_shapes(sample_shapes), sample_shapes.size()),
         ndim(get_dim_from_uniform(sample_shapes)) {}
 
