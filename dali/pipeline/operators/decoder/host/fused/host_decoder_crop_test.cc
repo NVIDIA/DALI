@@ -18,7 +18,7 @@
 namespace dali {
 
 template <typename ImgType>
-class ImageDecoderCropCPUTest : public DecodeTestBase<ImgType> {
+class ImageDecoderCropTest_CPU : public DecodeTestBase<ImgType> {
  protected:
   OpSpec DecodingOp() const override {
     return this->GetOpSpec("ImageDecoderCrop")
@@ -40,17 +40,17 @@ class ImageDecoderCropCPUTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_SUITE(ImageDecoderCropCPUTest, Types);
+TYPED_TEST_SUITE(ImageDecoderCropTest_CPU, Types);
 
-TYPED_TEST(ImageDecoderCropCPUTest, JpegDecode) {
+TYPED_TEST(ImageDecoderCropTest_CPU, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(ImageDecoderCropCPUTest, PngDecode) {
+TYPED_TEST(ImageDecoderCropTest_CPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(ImageDecoderCropCPUTest, TiffDecode) {
+TYPED_TEST(ImageDecoderCropTest_CPU, TiffDecode) {
   this->crop_H = 100;
   this->crop_W = 90;
   this->Run(t_tiffImgType);

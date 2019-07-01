@@ -24,7 +24,7 @@ class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id)
 
-        self.decode_gpu = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.decode_gpu = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
         self.decode_host = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
 
     def base_define_graph(self, inputs, labels):

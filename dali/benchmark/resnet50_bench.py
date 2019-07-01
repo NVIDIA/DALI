@@ -79,7 +79,7 @@ class HybridPipe(Pipeline):
                                          exec_pipelined=pipelined,
                                          exec_async=exec_async)
         self.input = ops.ExternalSource()
-        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
         self.resize = ops.Resize(device = "gpu",
                                  image_type = types.RGB,
                                  interp_type = types.INTERP_LINEAR)

@@ -174,7 +174,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
 
   // Add a hybrid jpeg decoder
   pipe.AddOperator(
-      OpSpec("nvJPEGDecoder")
+      OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddInput("compressed_images", "cpu")
       .AddArg("output_type", img_type)

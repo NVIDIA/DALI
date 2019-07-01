@@ -350,7 +350,7 @@ def test_seed():
                                              device_id,
                                              seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 crop = (224, 224),
@@ -390,7 +390,7 @@ def test_as_array():
                                              device_id,
                                              seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 crop = (224, 224),
@@ -431,7 +431,7 @@ def test_seed_serialize():
                                              device_id,
                                              seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 crop = (224, 224),
@@ -470,7 +470,7 @@ def test_make_continuous_serialize():
         def __init__(self, batch_size, num_threads, device_id):
             super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
             self.input = ops.COCOReader(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
-            self.decode = ops.nvJPEGDecoder(device="mixed")
+            self.decode = ops.ImageDecoder(device="mixed")
             self.crop = ops.RandomBBoxCrop(device="cpu", seed = 12)
             self.slice = ops.Slice(device="gpu")
 
@@ -493,7 +493,7 @@ def test_make_continuous_serialize_and_use():
         def __init__(self, batch_size, num_threads, device_id):
             super(COCOPipeline, self).__init__(batch_size, num_threads, device_id)
             self.input = ops.COCOReader(file_root=coco_image_folder, annotations_file=coco_annotation_file, ratio=True, ltrb=True)
-            self.decode = ops.nvJPEGDecoder(device="mixed")
+            self.decode = ops.ImageDecoder(device="mixed")
             self.crop = ops.RandomBBoxCrop(device="cpu", seed = 25)
             self.slice = ops.Slice(device="gpu")
 
@@ -516,7 +516,7 @@ def test_rotate():
         def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
@@ -559,7 +559,7 @@ def test_warpaffine():
         def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
                                                 output_layout = types.NHWC,
@@ -601,7 +601,7 @@ def test_type_conversion():
         def __init__(self, batch_size, num_threads, device_id):
             super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmnp_all = ops.CropMirrorNormalize(device = "gpu",
                                                     output_dtype = types.FLOAT,
                                                     output_layout = types.NHWC,
@@ -657,7 +657,7 @@ def test_crop():
         def __init__(self, batch_size, num_threads, device_id):
             super(CMNvsCropPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.cmn = ops.CropMirrorNormalize(device = "gpu",
                                                 output_layout = types.NHWC,
                                                 output_dtype = types.FLOAT,
@@ -703,7 +703,7 @@ def test_transpose():
         def __init__(self, batch_size, num_threads, device_id):
             super(TransposePipe, self).__init__(batch_size, num_threads, device_id, seed=12)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.crop = ops.Crop(device = "gpu",
                                  crop = (224, 224),
                                  image_type = types.RGB)
@@ -732,9 +732,9 @@ def test_transpose():
             np_transposed = np.ascontiguousarray(np_transposed)
             assert(np.array_equal(np_transposed, images_transposed[b]))
 
-def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
+def test_equal_ImageDecoderCrop_ImageDecoder():
     """
-        Comparing results of pipeline: (nvJPEGDecoder -> Crop), with the same operation performed by fused operator
+        Comparing results of pipeline: (ImageDecoder -> Crop), with the same operation performed by fused operator
     """
     batch_size =128
 
@@ -744,7 +744,7 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
                                              num_threads,
                                              device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
             self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
             self.crop = ops.Crop(device="gpu", crop =(224,224))
@@ -766,7 +766,7 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
             self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
             self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
-            self.decode = ops.nvJPEGDecoderCrop(device = 'mixed', output_type = types.RGB, crop = (224, 224))
+            self.decode = ops.ImageDecoderCrop(device = 'mixed', output_type = types.RGB, crop = (224, 224))
 
         def define_graph(self):
             self.jpegs, self.labels = self.input()
@@ -786,9 +786,9 @@ def test_equal_nvJPEGDecoderCrop_nvJPEGDecoder():
         fused_pipe_out_cpu = fused_pipe_out[0].as_cpu()
         assert(np.sum(np.abs(nonfused_pipe_out_cpu.at(i)-fused_pipe_out_cpu.at(i)))==0)
 
-def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
+def test_equal_ImageDecoderRandomCrop_ImageDecoder():
     """
-        Comparing results of pipeline: (nvJPEGDecoder -> RandomCrop), with the same operation performed by fused operator
+        Comparing results of pipeline: (ImageDecoder -> RandomCrop), with the same operation performed by fused operator
     """
     batch_size =128
 
@@ -796,7 +796,7 @@ def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(NonFusedPipeline, self).__init__(batch_size, num_threads, device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.res = ops.RandomResizedCrop(device="gpu", size =(224,224), seed=seed)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
@@ -818,7 +818,7 @@ def test_equal_nvJPEGDecoderRandomCrop_nvJPEGDecoder():
         def __init__(self, batch_size, num_threads, device_id, num_gpus, seed):
             super(FusedPipeline, self).__init__(batch_size, num_threads, device_id)
             self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus, seed = seed)
-            self.decode = ops.nvJPEGDecoderRandomCrop(device = "mixed", output_type = types.RGB, seed=seed)
+            self.decode = ops.ImageDecoderRandomCrop(device = "mixed", output_type = types.RGB, seed=seed)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
             self.cmnp = ops.CropMirrorNormalize(device = "gpu",
                                                 output_dtype = types.FLOAT,
@@ -876,7 +876,7 @@ class LazyPipeline(Pipeline):
                                            num_threads,
                                            device_id)
         self.input = ops.CaffeReader(path = db_folder, shard_id = device_id, num_shards = num_gpus, lazy_init = lazy_type)
-        self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
         self.pos_rng_x = ops.Uniform(range = (0.0, 1.0), seed=1234)
         self.pos_rng_y = ops.Uniform(range = (0.0, 1.0), seed=5678)
         self.crop = ops.Crop(device="gpu", crop =(224,224))
@@ -917,9 +917,9 @@ def test_lazy_init():
                       LazyPipeline(batch_size, caffe_db_folder, lazy_type=True),
                       batch_size=batch_size, N_iterations=20)
 
-def test_equal_nvJPEGDecoderSlice_nvJPEGDecoder():
+def test_equal_ImageDecoderSlice_ImageDecoder():
     """
-        Comparing results of pipeline: (nvJPEGDecoder -> Slice), with the same operation performed by fused operator
+        Comparing results of pipeline: (ImageDecoder -> Slice), with the same operation performed by fused operator
     """
     batch_size =128
     eii = ExternalInputIterator(128)
@@ -934,7 +934,7 @@ def test_equal_nvJPEGDecoderSlice_nvJPEGDecoder():
             self.input_crop_pos = ops.ExternalSource()
             self.input_crop_size = ops.ExternalSource()
             self.input_crop = ops.ExternalSource()
-            self.decode = ops.nvJPEGDecoder(device='mixed', output_type=types.RGB)
+            self.decode = ops.ImageDecoder(device='mixed', output_type=types.RGB)
             self.slice = ops.Slice(device = 'gpu')
 
         def define_graph(self):
@@ -960,7 +960,7 @@ def test_equal_nvJPEGDecoderSlice_nvJPEGDecoder():
             self.input_crop_pos = ops.ExternalSource()
             self.input_crop_size = ops.ExternalSource()
             self.input_crop = ops.ExternalSource()
-            self.decode = ops.nvJPEGDecoderSlice(device = 'mixed', output_type = types.RGB)
+            self.decode = ops.ImageDecoderSlice(device = 'mixed', output_type = types.RGB)
 
         def define_graph(self):
             jpegs, labels = self.input()
@@ -1290,7 +1290,7 @@ def test_pipeline_default_cuda_stream_priority():
                                              exec_async=False, exec_pipelined=False,
                                              default_cuda_stream_priority=default_cuda_stream_priority)
             self.input = ops.CaffeReader(path = caffe_db_folder)
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
 
         def define_graph(self):
             inputs, labels = self.input(name="Reader")
@@ -1358,14 +1358,14 @@ class CachedPipeline(Pipeline):
                                                         "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
 
         if is_cached:
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
+            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB,
                                             cache_size=2000,
                                             cache_threshold=0,
                                             cache_type='threshold',
                                             cache_debug=False,
                                             cache_batch_copy=is_cached_batch_copy)
         else:
-           self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+           self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
 
     def define_graph(self):
         if self.reader_type == "TFRecordReader":

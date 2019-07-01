@@ -46,7 +46,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
     .AddOutput("labels", "cpu"));
 
   pipe.AddOperator(
-    OpSpec("nvJPEGDecoder")
+    OpSpec("ImageDecoder")
     .AddArg("device", "mixed")
     .AddArg("output_type", img_type)
     .AddArg("max_streams", num_thread)

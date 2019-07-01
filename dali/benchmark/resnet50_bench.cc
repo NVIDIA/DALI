@@ -174,7 +174,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
 
   // Add a hybrid jpeg decoder
   pipe.AddOperator(
-      OpSpec("nvJPEGDecoder")
+      OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddInput("raw_jpegs", "cpu")
@@ -305,7 +305,7 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
   pipe.SetExternalInput("raw_jpegs", data);
 
   pipe.AddOperator(
-              OpSpec("nvJPEGDecoder")
+              OpSpec("ImageDecoder")
               .AddArg("device", "mixed")
               .AddArg("output_type", img_type)
               .AddArg("max_streams", num_thread)
