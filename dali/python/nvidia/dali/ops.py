@@ -49,6 +49,14 @@ def _docstring_generator(cls):
         ret += "\nThis operator expects sequence inputs\n"
     elif schema.AllowsSequences():
         ret += "\nThis operator allows sequence inputs\n"
+
+    if schema.IsDeprecated():
+        use_instead = schema.DeprecatedInFavorOf()
+        ret += "\n.. warning::\n\n   This operator is now deprecated"
+        if use_instead:
+            ret +=". Use `" + use_instead + "` instead"
+        ret += "\n"
+
     ret += """
 Parameters
 ----------
