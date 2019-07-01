@@ -191,9 +191,9 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Notes that this operator is deprecated and optionally specifies the operator to be used instead
    */
-  DLL_PUBLIC inline OpSchema& MakeDeprecatedInFavorOf(const std::string &deprecated_in_favor_of) {
+  DLL_PUBLIC inline OpSchema& Deprecate(const std::string &in_favor_of) {
     is_deprecated_ = true;
-    deprecated_in_favor_of_ = deprecated_in_favor_of;
+    deprecated_in_favor_of_ = in_favor_of;
     return *this;
   }
 

@@ -74,7 +74,7 @@ output = (input - mean) / std
   .NumInput(1)
   .NumOutput(1)
   .AllowMultipleInputSets()
-  .MakeDeprecatedInFavorOf("CropMirrorNormalize")
+  .Deprecate("CropMirrorNormalize")
   .AddOptionalArg("output_dtype",
       R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("image_type",
