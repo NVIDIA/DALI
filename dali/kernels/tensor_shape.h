@@ -624,9 +624,7 @@ struct TensorListShape<DynamicDimensions>
   }
 
   TensorListShape(std::vector<int64_t> &&shapes, int num_samples, int sample_dim)
-      : Base(std::move(shapes), num_samples), ndim(sample_dim) {
-    assert(num_samples == static_cast<int>(shapes.size()) / sample_dim);
-  }
+      : Base(std::move(shapes), num_samples), ndim(sample_dim) {}
 
   TensorListShape &operator=(const TensorListShape &) = default;
   TensorListShape &operator=(TensorListShape &&other) {
@@ -731,7 +729,6 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   TensorListShape(std::vector<int64_t> &&shapes, int num_samples, int sample_dim)
       : Base(std::move(shapes), num_samples) {
     assert(sample_dim == sample_ndim);
-    assert(num_samples == static_cast<int>(shapes.size()) / sample_dim);
   }
 
   TensorListShape &operator=(const TensorListShape &) = default;
