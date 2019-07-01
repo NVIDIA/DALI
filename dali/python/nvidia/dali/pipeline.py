@@ -161,10 +161,11 @@ class Pipeline(object):
         pipeline_tls.current_pipeline = pipeline
         return prev
 
-    # graph edges that are not connected to the output must be manually added to a pipeline
+    # Graph edges that are not connected to the output must be manually added to a pipeline
     def add_sink(self, edge):
         self._sinks.append(edge)
 
+    # Graph is constructed by backtracking from the output edges and the edges marked as sinks
     def _prepare_graph(self):
         self._pipe = b.Pipeline(self._batch_size,
                                 self._num_threads,
