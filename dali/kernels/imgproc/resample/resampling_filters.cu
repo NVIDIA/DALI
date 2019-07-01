@@ -19,6 +19,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+#include <utility>
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/kernels/imgproc/resample/resampling_windows.h"
 #include "dali/kernels/alloc.h"
@@ -70,7 +71,8 @@ void InitFilters(ResamplingFilters &filters, AllocType alloc) {
   const int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
   const int total_size = triangular_size + gaussian_size + cubic_size + lanczos_size;
 
-  filters.filter_data = memory::alloc_unique<float>(alloc, total_size);
+  filters.filter_data =
+      memory::alloc_unique<float>((alloc == AllocType::GPU) ? AllocType::Host : alloc, total_size);
 
   auto add_filter = [&](int size) {
     float *base = filters.filters.empty()
@@ -96,6 +98,16 @@ void InitFilters(ResamplingFilters &filters, AllocType alloc) {
 
   filters[2].rescale(6);
   filters[3].rescale(4);
+
+  if (alloc == AllocType::GPU) {
+    auto filter_data_gpu = memory::alloc_unique<float>(AllocType::GPU, total_size);
+    cudaMemcpy(filter_data_gpu.get(), filters.filter_data.get(),
+               total_size * sizeof(float), cudaMemcpyHostToDevice);
+    ptrdiff_t  diff = filter_data_gpu.get() - filters.filter_data.get();
+    filters.filter_data = std::move(filter_data_gpu);
+    for (auto &f : filters.filters)
+      f.coeffs += diff;
+  }
 }
 
 ResamplingFilter ResamplingFilters::Cubic() const noexcept {
@@ -138,7 +150,7 @@ std::shared_ptr<ResamplingFilters> GetResamplingFilters() {
   auto ptr = filters[device].lock();
   if (!ptr) {
     ptr = std::make_shared<ResamplingFilters>();
-    InitFilters(*ptr, AllocType::Unified);
+    InitFilters(*ptr, AllocType::GPU);
     filters[device] = ptr;
   }
   return ptr;
