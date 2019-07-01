@@ -21,27 +21,27 @@ namespace dali {
 
 TEST(TensorList, View) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<> shapes = { { kernels::TensorShape<>{640, 480, 3}, {320, 240, 1} } };
+  kernels::TensorListShape<> shapes = { { {640, 480, 3}, {320, 240, 1} } };
   tl.Resize(shapes);
   auto tlv = view<float>(tl);
 
   ASSERT_EQ(static_cast<int>(tlv.num_samples()), static_cast<int>(shapes.size()));
 
   for (int i = 0; i < tlv.num_samples(); i++) {
-    EXPECT_EQ(tlv.shape[i], kernels::TensorShape<>(shapes[i]));
+    EXPECT_EQ(tlv.shape[i], shapes[i]);
   }
 }
 
 TEST(TensorList, View_StaticDim) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<>  shapes = { { kernels::TensorShape<>{640, 480, 3}, {320, 240, 1} } };
+  kernels::TensorListShape<>  shapes = { { {640, 480, 3}, {320, 240, 1} } };
   tl.Resize(shapes);
   auto tlv = view<float, 3>(tl);
 
   ASSERT_EQ(static_cast<int>(tlv.num_samples()), static_cast<int>(shapes.size()));
 
   for (int i = 0; i < tlv.num_samples(); i++) {
-    EXPECT_EQ(tlv.shape[i], kernels::TensorShape<>(shapes[i]));
+    EXPECT_EQ(tlv.shape[i], shapes[i]);
   }
 
   EXPECT_ENFORCE_FAIL((view<float, 2>(tl)));
@@ -49,7 +49,7 @@ TEST(TensorList, View_StaticDim) {
 
 TEST(TensorList, ViewAsTensor_Fail_NonUniform) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<> shapes = { { kernels::TensorShape<>{640, 480, 3}, {640, 360, 3} } };
+  kernels::TensorListShape<> shapes = { { {640, 480, 3}, {640, 360, 3} } };
   tl.Resize(shapes);
   EXPECT_ENFORCE_FAIL((view_as_tensor<float>(tl)))
     << "Non-uniform tensor list cannot be viewed as a tensor and view_as_tensor should throw";
@@ -57,7 +57,7 @@ TEST(TensorList, ViewAsTensor_Fail_NonUniform) {
 
 TEST(TensorList, ViewAsTensor_StaticDim) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<> shapes = { { kernels::TensorShape<>{640, 480, 3}, {640, 480, 3} } };
+  kernels::TensorListShape<> shapes = { { {640, 480, 3}, {640, 480, 3} } };
   tl.Resize(shapes);
   EXPECT_ENFORCE_FAIL((view_as_tensor<float, 3>(tl)))
     << "List of 3D tensor should yield a 4D flattened tensor";
@@ -78,7 +78,7 @@ TEST(TensorList, ViewAsTensor_StaticDim) {
 
 TEST(TensorList, ViewAsTensor) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<> shapes = { { kernels::TensorShape<>{640, 480, 3}, {640, 480, 3} } };
+  kernels::TensorListShape<> shapes = { { {640, 480, 3}, {640, 480, 3} } };
   tl.Resize(shapes);
   auto tv = view_as_tensor<float>(tl);
 
@@ -102,7 +102,7 @@ TEST(Tensor, ViewAsTensor) {
   kernels::TensorView<kernels::StorageCPU, float, 3> tv3;
   EXPECT_NO_THROW((tv3 = view<float, 3>(t)));
   EXPECT_ENFORCE_FAIL((view<float, 4>(t)));
-  EXPECT_EQ(tv.shape, kernels::TensorShape<>(shape));
+  EXPECT_EQ(tv.shape, shape);
   EXPECT_EQ(tv.shape, tv3.shape);
 }
 
