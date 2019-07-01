@@ -270,8 +270,12 @@ class DLL_PUBLIC OpSchema {
     return *this;
   }
 
-  DLL_PUBLIC inline OpSchema& AllowSideEffects() {
-    side_effects_allowed_ = true;
+  /**
+   * @brief Notes that this operator should not be pruned from
+   * a graph even if its outputs are unused.
+   */
+  DLL_PUBLIC inline OpSchema& NoPrune() {
+    no_prune_ = true;
     return *this;
   }
 
@@ -321,8 +325,8 @@ class DLL_PUBLIC OpSchema {
     return static_cast<bool>(output_fn_);
   }
 
-  DLL_PUBLIC inline bool SideEffectsAllowed() const {
-    return side_effects_allowed_;
+  DLL_PUBLIC inline bool IsNoPrune() const {
+    return no_prune_;
   }
 
   DLL_PUBLIC int CalculateOutputs(const OpSpec &spec) const;
@@ -394,7 +398,7 @@ class DLL_PUBLIC OpSchema {
 
   bool is_internal_;
 
-  bool side_effects_allowed_;
+  bool no_prune_;
 
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;

@@ -50,8 +50,8 @@ def _docstring_generator(cls):
         ret += "\nThis operator expects sequence inputs\n"
     elif schema.AllowsSequences():
         ret += "\nThis operator allows sequence inputs\n"
-    if schema.SideEffectsAllowed():
-        ret += "\nThis operator can have side effects and will not be optimized out of the graph\n"
+    if schema.IsNoPrune():
+        ret += "\nThis operator will not be optimized out of the graph\n"
     ret += """
 Parameters
 ----------
@@ -228,7 +228,7 @@ def python_op_factory(name, op_device = "cpu"):
 
             self._preserve = preserve
             self._spec.AddArg("preserve", self._preserve)
-            self._preserve = preserve or self._schema.SideEffectsAllowed()
+            self._preserve = preserve or self._schema.IsNoPrune()
 
             # Store the specified arguments
             for key, value in kwargs.items():

@@ -25,8 +25,8 @@ DALI_SCHEMA(PythonFunctionImpl)
         .AddArg("function_id", R"code(Id of the python function)code", DALI_INT64)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
         .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
-        .AllowSideEffects()
-        .MakeInternal();
+        .MakeInternal()
+        .NoPrune();
 
 DALI_SCHEMA(PythonFunction)
         .DocStr("Executes a python function")
@@ -36,7 +36,7 @@ DALI_SCHEMA(PythonFunction)
                 R"code(Function object consuming and producing a single numpy array)code",
                 DALI_PYTHON_OBJECT)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
-        .AllowSideEffects();
+        .NoPrune();
 
 struct PyBindInitializer {
   PyBindInitializer() {

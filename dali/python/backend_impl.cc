@@ -788,7 +788,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
     .def("AllowsSequences", &OpSchema::AllowsSequences)
     .def("IsInternal", &OpSchema::IsInternal)
-    .def("SideEffectsAllowed", &OpSchema::SideEffectsAllowed);
+    .def("IsNoPrune", &OpSchema::IsNoPrune);
 
   ExposeTensor(m);
   ExposeTensorList(m);
