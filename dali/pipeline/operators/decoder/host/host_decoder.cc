@@ -51,11 +51,11 @@ void HostDecoder::RunImpl(SampleWorkspace *ws, const int idx) {
 }
 
 DALI_SCHEMA(HostDecoder)
-  .DocStr(R"code(Specific implementation of `ImageDecoder` for `cpu` backend.
-**Deprecated** Use `ImageDecoder` instead)code")
+  .DocStr(R"code(Specific implementation of `ImageDecoder` for `cpu` backend)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ImageDecoder");
+  .AddParent("ImageDecoder")
+  .Deprecate("ImageDecoder");
 
 DALI_REGISTER_OPERATOR(HostDecoder, HostDecoder, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoder, HostDecoder, CPU);

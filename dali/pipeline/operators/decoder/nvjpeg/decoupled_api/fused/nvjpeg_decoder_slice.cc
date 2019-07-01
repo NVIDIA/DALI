@@ -23,11 +23,11 @@ Inputs must be supplied as 3 tensors in a specific order: `encoded_data` contain
 image data, `begin` containing the starting pixel coordinates for the `crop` in `(x,y)`
 format, and `size` containing the pixel dimensions of the `crop` in `(w,h)` format.
 For both `begin` and `size`, coordinates must be in the interval `[0.0, 1.0]`.
-Output of the decoder is in `HWC` ordering.
-**Deprecated** Use `ImageDecoderSlice` instead)code")
+Output of the decoder is in `HWC` ordering)code")
   .NumInput(3)
   .NumOutput(1)
-  .AddParent("ImageDecoderSlice");
+  .AddParent("ImageDecoderSlice")
+  .Deprecate("ImageDecoderSlice");
 
 DALI_REGISTER_OPERATOR(nvJPEGDecoderSlice, nvJPEGDecoderSlice, Mixed);
 DALI_REGISTER_OPERATOR(ImageDecoderSlice, nvJPEGDecoderSlice, Mixed);

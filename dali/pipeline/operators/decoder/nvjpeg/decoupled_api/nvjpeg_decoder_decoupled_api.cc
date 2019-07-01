@@ -19,12 +19,11 @@
 namespace dali {
 
 DALI_SCHEMA(nvJPEGDecoder)
-  .DocStr(R"code(Specific implementation of `ImageDecoder` for `mixed` backend.
-**Deprecated** Use `ImageDecoder` instead
-)code")
+  .DocStr(R"code(Specific implementation of `ImageDecoder` for `mixed` backend)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ImageDecoder");
+  .AddParent("ImageDecoder")
+  .Deprecate("ImageDecoder");
 
 DALI_REGISTER_OPERATOR(nvJPEGDecoder, nvJPEGDecoder, Mixed);
 DALI_REGISTER_OPERATOR(ImageDecoder, nvJPEGDecoder, Mixed);

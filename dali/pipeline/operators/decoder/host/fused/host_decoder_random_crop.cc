@@ -27,11 +27,11 @@ DALI_SCHEMA(HostDecoderRandomCrop)
   .DocStr(R"code(Decode images on the host with a random cropping anchor/window.
 When possible, will make use of partial decoding (e.g. libjpeg-turbo).
 When not supported, will decode the whole image and then crop.
-Output of the decoder is in `HWC` ordering.
-**Deprecated** Use `ImageDecoderRandomCrop` instead)code")
+Output of the decoder is in `HWC` ordering)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ImageDecoderRandomCrop");
+  .AddParent("ImageDecoderRandomCrop")
+  .Deprecate("ImageDecoderRandomCrop");
 
 DALI_REGISTER_OPERATOR(HostDecoderRandomCrop, HostDecoderRandomCrop, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);

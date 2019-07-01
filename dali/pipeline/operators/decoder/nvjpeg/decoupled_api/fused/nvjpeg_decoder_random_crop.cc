@@ -21,11 +21,11 @@ namespace dali {
 
 DALI_SCHEMA(nvJPEGDecoderRandomCrop)
   .DocStr(R"code(Partially decode JPEG images using the nvJPEG library, using a random cropping anchor/window.
-Output of the decoder is on the GPU and uses `HWC` ordering.
-**Deprecated** Use `ImageDecoderRandomCrop` instead)code")
+Output of the decoder is on the GPU and uses `HWC` ordering)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ImageDecoderRandomCrop");
+  .AddParent("ImageDecoderRandomCrop")
+  .Deprecate("ImageDecoderRandomCrop");
 
 DALI_REGISTER_OPERATOR(nvJPEGDecoderRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
 DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, nvJPEGDecoderRandomCrop, Mixed);

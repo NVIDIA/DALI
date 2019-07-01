@@ -36,11 +36,11 @@ format, and `size` containing the pixel dimensions of the `crop` in `(w,h)` form
 For both `begin` and `size`, coordinates must be in the interval `[0.0, 1.0]`.
 When possible, will make use of partial decoding (e.g. libjpeg-turbo).
 When not supported, will decode the whole image and then crop.
-Output of the decoder is in `HWC` ordering.
-**Deprecated** Use `ImageDecoderSlice` instead)code")
+Output of the decoder is in `HWC` ordering)code")
   .NumInput(3)
   .NumOutput(1)
-  .AddParent("ImageDecoderSlice");
+  .AddParent("ImageDecoderSlice")
+  .Deprecate("ImageDecoderSlice");
 
 DALI_REGISTER_OPERATOR(HostDecoderSlice, HostDecoderSlice, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderSlice, HostDecoderSlice, CPU);
