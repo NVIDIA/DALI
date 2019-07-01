@@ -9,10 +9,10 @@ INCL_DIRS="-I/usr/local/cuda/include/"
 PYTHON_DIST_PACKAGES=( $(python -c "import site; print(site.getsitepackages()[0])") )
 DALI_TOPDIR="${PYTHON_DIST_PACKAGES}/nvidia/dali"
 
-DALI_CFLAGS=( $(python -c 'import nvidia.dali as dali; print(" ".join(dali.sysconfig.get_compile_flags()))') )
-DALI_LFLAGS=( $(python -c 'import nvidia.dali as dali; print(" ".join(dali.sysconfig.get_link_flags()))') )
+DALI_CFLAGS=( $(python ./dali_compile_flags.py --cflags) )
+DALI_LFLAGS=( $(python ./dali_compile_flags.py --lflags) )
 
-CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1/')
+CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1/')
 test ${CUDA_VERSION} = "9"  && export SUPPORTED_TF_VERSIONS="1.7.0 1.11.0 1.12.0"
 test ${CUDA_VERSION} = "10" && export SUPPORTED_TF_VERSIONS="1.13.1 1.14.0"
 
