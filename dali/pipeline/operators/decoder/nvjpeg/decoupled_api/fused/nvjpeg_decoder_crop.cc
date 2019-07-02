@@ -17,14 +17,15 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(nvJPEGDecoderCrop, nvJPEGDecoderCrop, Mixed);
-
 DALI_SCHEMA(nvJPEGDecoderCrop)
   .DocStr(R"code(Partially decode JPEG images using the nvJPEG library and a cropping window.
-Output of the decoder is on the GPU and uses `HWC` ordering.)code")
+Output of the decoder is on the GPU and uses `HWC` ordering)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("nvJPEGDecoder")
-  .AddParent("CropAttr");
+  .AddParent("ImageDecoderCrop")
+  .Deprecate("ImageDecoderCrop");
+
+DALI_REGISTER_OPERATOR(nvJPEGDecoderCrop, nvJPEGDecoderCrop, Mixed);
+DALI_REGISTER_OPERATOR(ImageDecoderCrop, nvJPEGDecoderCrop, Mixed);
 
 }  // namespace dali

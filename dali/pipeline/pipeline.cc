@@ -181,10 +181,19 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back(make_pair(inst_name, spec));
 
+  // Validate op device
+  string device = spec.GetArgument<string>("device");
+  DALI_ENFORCE(device == "cpu" || device == "gpu" || device == "mixed" || device == "support",
+    "Invalid device argument \"" +  device +
+    "\". Valid options are \"cpu\", \"gpu\", \"mixed\" or \"support\"");
+
   // If necessary, split nvJPEGDecoder operator in two separated stages (CPU and Mixed-GPU)
   auto operator_name = spec.name();
   bool split_stages = false;
-  if (has_prefix(operator_name, "nvJPEGDecoder") &&
+  bool is_nvjpeg_decoder = device == "mixed" &&
+    (has_prefix(operator_name, "nvJPEGDecoder") || has_prefix(operator_name, "ImageDecoder"));
+
+  if (is_nvjpeg_decoder &&
       operator_name.find("CPUStage") == std::string::npos &&
       operator_name.find("GPUStage") == std::string::npos &&
       spec.TryGetArgument<bool>(split_stages, "split_stages") &&
@@ -192,15 +201,6 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
     AddSplitNvJPEGDecoder(spec, inst_name);
     return;
   }
-
-  // Validate op device
-  string device = spec.GetArgument<string>("device");
-  DALI_ENFORCE(device == "cpu" ||
-               device == "gpu" ||
-               device == "mixed" ||
-               device == "support", "Invalid "
-      "device argument \"" + device + "\". Valid options are "
-      "\"cpu\", \"gpu\", \"mixed\" or \"support\"");
 
   DeviceGuard g(device_id_);
 

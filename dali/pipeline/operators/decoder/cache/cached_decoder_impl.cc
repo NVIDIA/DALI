@@ -83,21 +83,21 @@ void CachedDecoderImpl::CacheStore(const std::string& file_name, const uint8_t *
 DALI_SCHEMA(CachedDecoderAttr)
   .DocStr(R"code(Attributes for cached decoder.)code")
   .AddOptionalArg("cache_size",
-      R"code(Total size of the decoder cache in megabytes. When provided, decoded
-images bigger than `cache_threshold` will be cached in memory.)code",
+      R"code(**`mixed` backend only** Total size of the decoder cache in megabytes. When provided, decoded
+images bigger than `cache_threshold` will be cached in GPU memory.)code",
       0)
   .AddOptionalArg("cache_threshold",
-      R"code(Size threshold (in bytes) for images (after decoding) to be cached.)code",
+      R"code(**`mixed` backend only** Size threshold (in bytes) for images (after decoding) to be cached.)code",
       0)
   .AddOptionalArg("cache_debug",
-      R"code(Print debug information about decoder cache.)code",
+      R"code(**`mixed` backend only** Print debug information about decoder cache.)code",
       false)
   .AddOptionalArg("cache_batch_copy",
-      R"code(If true, multiple images from cache are copied with a single batched copy kernel call;
+      R"code(**`mixed` backend only** If true, multiple images from cache are copied with a single batched copy kernel call;
 otherwise, each image is copied using cudaMemcpy unless order in the batch is the same as in the cache)code",
       true)
   .AddOptionalArg("cache_type",
-      R"code(Choose cache type:
+      R"code(**`mixed` backend only** Choose cache type:
 `threshold`: Caches every image with size bigger than `cache_threshold` until cache is full.
 Warm up time for `threshold` policy is 1 epoch.
 `largest`: Store largest images that can fit the cache.
