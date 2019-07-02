@@ -56,7 +56,7 @@ auto codecpar(AVStream* stream) -> decltype(stream->codec);
 namespace filesystem {
 
 std::vector<std::pair<std::string, int>> get_file_label_pair(const std::string& path,
-    const std::vector<std::string>& filenames);
+    const std::vector<std::string>& filenames, const std::string& file_list);
 
 }  // namespace filesystem
 
@@ -120,6 +120,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     const std::vector<std::string>& filenames)
     : Loader<GPUBackend, SequenceWrapper>(spec),
       file_root_(spec.GetArgument<std::string>("file_root")),
+      file_list_(spec.GetArgument<std::string>("file_list")),
       count_(spec.GetArgument<int>("sequence_length")),
       step_(spec.GetArgument<int>("step")),
       stride_(spec.GetArgument<int>("stride")),
@@ -135,7 +136,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     if (step_ < 0)
       step_ = count_ * stride_;
 
-    file_label_pair_ = filesystem::get_file_label_pair(file_root_, filenames_);
+    file_label_pair_ = filesystem::get_file_label_pair(file_root_, filenames_,
+                                                       file_list_);
 
     DALI_ENFORCE(cuvidInitChecked(0),
      "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
@@ -209,6 +211,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   }
   // Params
   std::string file_root_;
+  std::string file_list_;
   int count_;
   int step_;
   int stride_;

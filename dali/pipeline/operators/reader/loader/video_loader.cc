@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <fstream>
 
 namespace dali {
 
@@ -69,7 +70,8 @@ inline void assemble_video_list(const std::string& path, const std::string& curr
 
 vector<std::pair<string, int>> filesystem::get_file_label_pair(
     const std::string& file_root,
-    const std::vector<std::string>& filenames) {
+    const std::vector<std::string>& filenames,
+    const std::string& file_list) {
   // open the root
   std::vector<std::pair<std::string, int>> file_label_pairs;
   std::vector<std::string> entry_name_list;
@@ -105,6 +107,19 @@ vector<std::pair<string, int>> filesystem::get_file_label_pair(
 
     // sort file names as well
     std::sort(file_label_pairs.begin(), file_label_pairs.end());
+  } else if (!file_list.empty()) {
+    // load (path, label) pairs from list
+    std::ifstream s(file_list);
+    DALI_ENFORCE(s.is_open());
+
+    string video_file;
+    int label;
+    while (s >> video_file >> label) {
+      file_label_pairs.push_back(std::make_pair(video_file, label));
+    }
+
+    DALI_ENFORCE(s.eof(), "Wrong format of file_list.");
+    s.close();
   } else {
     for (unsigned file_count = 0; file_count < filenames.size(); ++file_count)
         file_label_pairs.push_back(std::make_pair(filenames[file_count], 0));

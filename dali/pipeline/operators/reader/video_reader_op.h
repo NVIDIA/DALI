@@ -29,15 +29,18 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   : DataReader<GPUBackend, SequenceWrapper>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     file_root_(spec.GetArgument<std::string>("file_root")),
+    file_list_(spec.GetArgument<std::string>("file_list")),
     count_(spec.GetArgument<int>("sequence_length")),
     channels_(spec.GetArgument<int>("channels")),
     output_scale_(spec.GetArgument<float>("scale")),
     dtype_(spec.GetArgument<DALIDataType>("dtype")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
 
-    DALI_ENFORCE(filenames_.empty() ^ file_root_.empty(),
-                 "Either `filenames` or `file_root` argument must be specified"
-                 " but not both");
+    int arg_count = !filenames_.empty() + !file_root_.empty() + !file_list_.empty();
+
+    DALI_ENFORCE(arg_count == 1,
+                 "Only one of `filenames`, `file_root` or `file_list` argument "
+                 "must be specified at once");
 
     DALI_ENFORCE(image_type == DALI_RGB || image_type == DALI_YCbCr,
                  "Image type must be RGB or YCbCr.");
@@ -59,9 +62,9 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
       tl_shape_ = kernels::uniform_list_shape(batch_size_, {count_, height_, width_, channels_});
 
-      enable_file_root_ = !file_root_.empty();
+      enable_label_output_ = !file_root_.empty() || !file_list_.empty();
 
-      if (enable_file_root_) {
+      if (enable_label_output_) {
         label_shape_ = kernels::uniform_list_shape(batch_size_, {1});
       }
   }
@@ -85,7 +88,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     tl_sequence_output.Resize(tl_shape_);
     tl_sequence_output.SetLayout(DALI_NFHWC);
 
-    if (enable_file_root_) {
+    if (enable_label_output_) {
       label_output = &ws->Output<GPUBackend>(idx + 1);
       label_output->set_type(TypeInfo::Create<int>());
       label_output->Resize(label_shape_);
@@ -100,7 +103,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
                                   prefetched_sequence.sequence.size(),
                                   ws->stream());
 
-        if (enable_file_root_) {
+        if (enable_label_output_) {
           auto *label = label_output->mutable_tensor<int>(data_idx);
           CUDA_CALL(cudaMemcpyAsync(label, &prefetched_sequence.label, sizeof(int),
                                     cudaMemcpyDefault, ws->stream()));
@@ -112,6 +115,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
  private:
   std::vector<std::string> filenames_;
   std::string file_root_;
+  std::string file_list_;
   int count_;
   int height_;
   int width_;
@@ -123,7 +127,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   kernels::TensorListShape<> label_shape_;
 
   DALIDataType dtype_;
-  bool enable_file_root_;
+  bool enable_label_output_;
 
   USE_READER_OPERATOR_MEMBERS(GPUBackend, SequenceWrapper);
 };
