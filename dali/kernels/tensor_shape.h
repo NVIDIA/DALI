@@ -465,14 +465,16 @@ struct TensorListShapeBase {
   TensorListShape<DynamicDimensions> last(int count) const;
 
   /// @brief Return a span containing the shape of `sample`
-  span<int64_t, sample_ndim == DynamicDimensions ? dynamic_extent : sample_ndim>
+  span<int64_t, sample_ndim == DynamicDimensions ?
+                dynamic_extent : span_extent_t(sample_ndim)>
   tensor_shape_span(int64_t sample) {
-    return {&shapes[sample * sample_dim()], sample_dim()};
+    return {&shapes[sample * sample_dim()], span_extent_t(sample_dim())};
   }
 
-  span<const int64_t, sample_ndim == DynamicDimensions ? dynamic_extent : sample_ndim>
+  span<const int64_t, sample_ndim == DynamicDimensions ?
+                      dynamic_extent : span_extent_t(sample_ndim)>
   tensor_shape_span(int64_t sample) const {
-    return {&shapes[sample * sample_dim()], sample_dim()};
+    return {&shapes[sample * sample_dim()], span_extent_t(sample_dim())};
   }
 
   /// @brief Return the TensorShape for given `sample`
