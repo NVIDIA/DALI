@@ -60,6 +60,6 @@ def check_rotate_cpu_vs_gpu(batch_size, angle):
 
 def test_rotate_cpu_vs_gpu():
     for batch_size in {1, 32, 100}:
-        for angle in range(0,360):
+        for angle in range(0,360,20):
             yield check_rotate_cpu_vs_gpu, batch_size, float(angle)
 
