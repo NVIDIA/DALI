@@ -444,7 +444,6 @@ static std::vector<int64_t> flatten_shapes(std::initializer_list<std::vector<int
   return flatten_shapes(std::vector<std::vector<int64_t>>(shapes));
 }
 
-
 /// @brief List of TensorShapes stored as contigous vector.
 ///        All shapes have the same number of dimensions
 ///

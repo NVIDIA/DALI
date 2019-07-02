@@ -32,17 +32,17 @@ inline kernels::TensorShape<4> TransformShapeNCHW(const kernels::TensorShape<> &
 
 inline kernels::TensorListShape<4> TransformShapes(const kernels::TensorListShape<> &shapes,
                                                    bool nhwc_layout) {
-  std::vector<kernels::TensorShape<4>> result(shapes.size());
+  kernels::TensorListShape<4> result(shapes.size());
   if (nhwc_layout) {
     for (int i = 0; i < shapes.size(); i++) {
-      result[i] = TransformShapeNHWC(shapes[i]);
+      result.set_tensor_shape(i, TransformShapeNHWC(shapes[i]));
     }
   } else {
     for (int i = 0; i < shapes.size(); i++) {
-      result[i] = TransformShapeNCHW(shapes[i]);
+      result.set_tensor_shape(i, TransformShapeNCHW(shapes[i]));
     }
   }
-  return kernels::TensorListShape<4>(result);
+  return result;
 }
 
 }  // namespace dali
