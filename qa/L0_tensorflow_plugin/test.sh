@@ -18,6 +18,9 @@ test_body() {
     # Installing "current" dali tf (built against installed TF)
     pip install ../../../nvidia-dali-tf-plugin*.tar.gz
     nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
+
+    # DALI TF run
+    nosetests --verbose test_dali_tf_plugin_run.py
 }
 
 source ../../../qa/test_template.sh

@@ -1,0 +1,19 @@
+ARG TF_CUSTOM_OP_BUILDER_IMAGE="tensorflow/tensorflow:custom-op-gpu"
+FROM ${TF_CUSTOM_OP_BUILDER_IMAGE}
+
+WORKDIR /opt/dali_tf_build
+
+RUN mkdir /dali_tf_sdist && chmod 0777 /dali_tf_sdist
+
+COPY Acknowledgements.txt .
+COPY COPYRIGHT .
+COPY LICENSE .
+COPY VERSION .
+COPY cmake cmake
+COPY dali_tf_plugin dali_tf_plugin
+
+WORKDIR /opt/dali_tf_build/dali_tf_plugin
+
+RUN pip install whl/*.whl
+
+ENTRYPOINT /bin/bash build_in_custom_op_docker.sh

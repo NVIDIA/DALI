@@ -148,67 +148,6 @@ if (BUILD_BENCHMARK)
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 endif()
 
-
-################################################
-# Build the TensorFlow op
-################################################
-
-add_subdirectory(tensorflow)
-
-if (BUILD_TENSORFLOW)
-
-  # get default TF installation path
-  execute_process(
-    COMMAND python -c "from __future__ import print_function; import sys; paths = sys.path; f = [p for p in paths if \"-packages\" in p] ; print(f[0], end=\"\")"
-    OUTPUT_VARIABLE DIST_PACKAGES_DIR)
-
-  set(TF_PATHS)
-  set(TF_VER)
-  # obtain custom versions of TF we want to build aganist
-  file(GLOB TF_VERSIONS RELATIVE /tensorflow /tensorflow/*)
-  foreach(VER ${TF_VERSIONS})
-    set(FULL_PATH /tensorflow/${VER})
-    if(IS_DIRECTORY ${FULL_PATH})
-      list(APPEND TF_PATHS ${FULL_PATH})
-      list(APPEND TF_VER "_${VER}")
-    ENDIF()
-  ENDFOREACH()
-
-  # append default TF version
-  list(APPEND TF_PATHS ${DIST_PACKAGES_DIR})
-  list(APPEND TF_VER ";")
-
-  # build TF plugin for each TF version we want to support
-  list(LENGTH TF_PATHS TF_LIST_L)
-  math(EXPR TF_LIST_L_ITER "${TF_LIST_L} - 1")
-  foreach(IDX RANGE ${TF_LIST_L_ITER})
-    list(GET TF_PATHS ${IDX} FULL_PATH)
-    list(GET TF_VER ${IDX} VER)
-    set(customop_lib "dali_tf${VER}")
-
-    cuda_add_library(${customop_lib} SHARED ${DALI_TF_SRCS})
-    execute_process(
-      COMMAND python -c "from __future__ import print_function; import sys; import tensorflow; sys.path.insert(0, '${FULL_PATH}'); print(';'.join(tensorflow.sysconfig.get_compile_flags()), end=\"\")"
-      OUTPUT_VARIABLE TF_CFLAGS)
-     
-    # set(TF_CFLAGS TF_CFLAGS "-I${FULL_PATH}/external/nsync/public")
-    target_compile_options(${customop_lib} PRIVATE ${TF_CFLAGS})
-
-    message(STATUS "Adding dependencies to ${customop_lib}: '${dali_lib}'")
-    add_dependencies(${customop_lib} ${dali_lib})
-
-    execute_process(
-      COMMAND python -c "from __future__ import print_function; import sys; import tensorflow; sys.path.insert(0, '${FULL_PATH}'); print(';'.join(tensorflow.sysconfig.get_link_flags()), end=\"\")"
-      OUTPUT_VARIABLE TF_LFLAGS)
-    target_link_libraries(${customop_lib} PRIVATE ${TF_LFLAGS})
-    target_link_libraries(${customop_lib} PRIVATE ${dali_lib})
-
-    set_target_properties(${customop_lib} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/plugin")
-  ENDFOREACH()
-endif()
-
-
 ################################################
 # Build the DALI python bindings
 ################################################
