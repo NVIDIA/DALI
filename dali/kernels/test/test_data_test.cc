@@ -51,7 +51,7 @@ struct TestDataImpl {
       file.resize(length);
       f.read(file.data(), length);
     }
-    return { reinterpret_cast<uint8_t*>(file.data()), (ptrdiff_t)file.size() };
+    return { reinterpret_cast<uint8_t*>(file.data()), (span_extent_t)file.size() };
   }
 
   const cv::Mat &image(const char *name, bool color) {
