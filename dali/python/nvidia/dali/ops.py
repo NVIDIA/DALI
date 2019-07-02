@@ -412,3 +412,7 @@ def support_ops():
 
 def mixed_ops():
     return _mixed_ops
+
+def register_cpu_op(name):
+    global _cpu_ops
+    _cpu_ops = _cpu_ops.union({name})

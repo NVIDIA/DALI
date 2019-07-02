@@ -7,6 +7,8 @@ import numpy
 import random
 from PIL import Image, ImageEnhance
 import os
+import nvidia.dali.plugin.pytorch as dalitorch
+import torch
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -105,6 +107,17 @@ class DoubleLoadPipeline(CommonPipeline):
         images1, labels1 = self.load()
         images2, labels2 = self.load()
         return images1, images2
+
+
+class PyTorchFunctionPipeline(CommonPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
+        super(PyTorchFunctionPipeline, self).__init__(batch_size, num_threads,
+                                                      device_id, seed, image_dir)
+        self.pytorch_function = dalitorch.PyTorchFunction(function=function, num_outputs=2)
+
+    def define_graph(self):
+        images, labels = self.load()
+        return self.pytorch_function(images)
 
 
 def random_seed():
@@ -319,3 +332,25 @@ def test_wrong_outputs_number():
         print(e)
         return
     raise Exception('Should not pass')
+
+
+def torch_operation(tensor):
+    tensor_n = tensor.double() / 255.
+    return tensor_n.sin(), tensor_n.cos()
+
+
+def test_torch_operator():
+    pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    pt_pipe = PyTorchFunctionPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID,
+                                      SEED, images_dir, torch_operation)
+    pipe.build()
+    pt_pipe.build()
+    for it in range(ITERS):
+        preprocessed_output, = pipe.run()
+        output1, output2 = pt_pipe.run()
+        for i in range(len(output1)):
+            res1 = output1.at(i)
+            res2 = output2.at(i)
+            exp1_t, exp2_t = torch_operation(torch.from_numpy(preprocessed_output.at(i)))
+            assert numpy.array_equal(res1, exp1_t.numpy())
+            assert numpy.array_equal(res2, exp2_t.numpy())
