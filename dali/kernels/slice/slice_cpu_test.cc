@@ -42,8 +42,7 @@ class SliceCPUTest : public SliceTest<TestArgs> {
     TestTensorList<OutputType, Dims> expected_output;
     this->PrepareExpectedOutput(test_data, slice_args, expected_output);
 
-    TensorListShape<> output_shapes;
-    output_shapes.resize(NumSamples, Dims);
+    TensorListShape<> output_shapes(NumSamples, Dims);
     std::vector<KernelType> kernels(NumSamples);
     for (std::size_t i = 0; i < NumSamples; i++) {
       auto &kernel = kernels[i];

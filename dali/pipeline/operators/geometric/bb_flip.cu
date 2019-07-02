@@ -98,7 +98,7 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, int idx) {
 
     // populate the index map
     auto shape = input.shape();
-    for (size_t sample = 0; sample < shape.size(); sample++) {
+    for (int sample = 0; sample < shape.size(); sample++) {
       auto dim = shape[sample].size();
 
       DALI_ENFORCE(dim < 2 || shape[sample][dim-1] == 4,

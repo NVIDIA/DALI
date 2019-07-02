@@ -31,9 +31,9 @@ class BBoxPasteTest<std::integral_constant<bool, ltrb>> : public DALISingleOpTes
 
   static void ToTensorList(TensorList<CPUBackend> *out,
                            const std::vector<std::vector<BBox>> &boxes) {
-    vector<Dims> dims(boxes.size());
-    for (size_t i = 0; i < dims.size(); i++)
-      dims[i] = { (Index)boxes[i].size(), 4 };
+    kernels::TensorListShape<> dims(boxes.size(), 2);
+    for (int i = 0; i < dims.size(); i++)
+      dims.set_tensor_shape(i, { (Index)boxes[i].size(), 4 });
 
     out->Resize(dims);
 

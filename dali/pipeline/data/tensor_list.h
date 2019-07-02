@@ -32,8 +32,6 @@ namespace dali {
 template <typename Backend>
 class Tensor;
 
-typedef vector<Index> Dims;
-
 /**
  * @brief Stores a number of Tensors in a contiguous buffer.
  * Functions similar to a jagged tensor, i.e. a tensor
@@ -80,11 +78,16 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     auto type = other[0].type();
     auto layout = other[0].GetLayout();
 
-    vector<Dims> new_shape(other.size());
+    int dim = other[0].shape().sample_dim();
+    kernels::TensorListShape<> new_shape(other.size(), dim);
     for (size_t i = 0; i < other.size(); ++i) {
+      DALI_ENFORCE(other[i].shape().sample_dim() == dim,
+         "TensorList can only have uniform dimensions across all samples, mismatch at index "
+         + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
+         + " found Tensor with dim = " + to_string(other[i].shape().sample_dim()));
       assert(type == other[i].type());
       assert(layout == other[i].GetLayout());
-      new_shape[i] = std::vector<int64_t>(other[i].shape().begin(), other[i].shape().end());
+      new_shape.set_tensor_shape(i, other[i].shape());
     }
 
     this->Resize(new_shape);
@@ -108,18 +111,12 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * contains a set of dimensions for each tensor to be allocated in the
    * list.
    */
-  DLL_PUBLIC inline void Resize(const vector<Dims> &new_shape) {
+  DLL_PUBLIC inline void Resize(const kernels::TensorListShape<> &new_shape) {
     if (new_shape == shape_) return;
 
     // Calculate the new size
     Index num_tensor = new_shape.size(), new_size = 0;
     offsets_.resize(num_tensor);
-    if (!new_shape.empty()) {
-      size_t dim = new_shape[0].size();
-      for (auto &s : new_shape) {
-        DALI_ENFORCE(s.size() == dim, "All items should have same number of dimensions");
-      }
-    }
     for (Index i = 0; i < num_tensor; ++i) {
       auto tensor_size = volume(new_shape[i]);
 
@@ -194,7 +191,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     data_.reset(ptr, [](void *) {});
     num_bytes_ = bytes;
     type_ = TypeInfo::Create<NoType>();
-    shape_.clear();
+    shape_ = kernels::TensorListShape<>();
     offsets_.clear();
     size_ = 0;
     device_ = -1;
@@ -262,18 +259,29 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   /**
    * @brief Return the shape of the tensor with the given index.
    */
-  inline const vector<Index> &tensor_shape(int idx) const {
+  inline kernels::TensorShape<> tensor_shape(int idx) const {
 #ifndef NDEBUG
     DALI_ENFORCE(idx >= 0, "Negative index not supported");
-    DALI_ENFORCE((size_t)idx < shape_.size(), "Index out of offset range");
+    DALI_ENFORCE(idx < shape_.size(), "Index out of offset range");
 #endif
     return shape_[idx];
   }
 
   /**
+   * @brief Return the shape of the tensor with the given index.
+   */
+  inline span<const int64_t> tensor_shape_span(int idx) const {
+#ifndef NDEBUG
+    DALI_ENFORCE(idx >= 0, "Negative index not supported");
+    DALI_ENFORCE(idx < shape_.size(), "Index out of offset range");
+#endif
+    return shape_.tensor_shape_span(idx);
+  }
+
+  /**
    * @brief Returns the shape of the entire TensorList.
    */
-  inline const vector<Dims> &shape() const {
+  inline const kernels::TensorListShape<> &shape() const {
     return shape_;
   }
 
@@ -288,7 +296,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     }
     Index offset = 0;
 
-    for (size_t i = 0; i < shape_.size(); ++i) {
+    for (int i = 0; i < shape_.size(); ++i) {
       if (offset != offsets_[i]) {
         return false;
       }
@@ -307,18 +315,18 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     if (ntensor() == 0 || size_ == 0) {
       return true;
     }
-    const Dims& d = shape_[0];
+    if (!kernels::is_uniform(shape_)) {
+      return false;
+    }
+    // shapes are uniform, check if offsets are packed
+    auto tensor_volume = volume(shape_[0]);
     Index offset = 0;
 
-    for (size_t i = 0; i < shape_.size(); ++i) {
-      const auto& o = shape_[i];
-      if (d != o) {
-        return false;
-      }
+    for (int i = 0; i < shape_.size(); ++i) {
       if (offset != offsets_[i]) {
         return false;
       }
-      offset += volume(o);
+      offset += tensor_volume;
     }
     return true;
   }
@@ -328,12 +336,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    *  in the TensorList
    */
   inline size_t GetElementsNumber() const {
-    size_t elms = 0;
-
-    for (auto &shape : shape_) {
-      elms += volume(shape);
-    }
-    return elms;
+    return shape_.num_elements();
   }
 
   /**
@@ -381,9 +384,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     // while AsTensor should not return for that case
     DALI_ENFORCE(this->IsDenseTensor(),
       "All tensors in the input TensorList must have the same shape and be densely packed.");
-    vector<Index> requested_shape;
-    requested_shape = this->tensor_shape(0);
-    requested_shape.insert(requested_shape.begin(), this->ntensor());
+    auto requested_shape = kernels::shape_cat(static_cast<int64_t>(this->ntensor()), shape_[0]);
 
     return this->AsReshapedTensor(requested_shape);
   }
@@ -428,7 +429,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   // We store a set of dimension for each tensor in the list.
   // We also pre-compute the offsets of each tensor in the
   // underlying allocation for random access
-  vector<Dims> shape_;
+  kernels::TensorListShape<> shape_;
   vector<Index> offsets_;
   vector<DALIMeta> meta_;
   DALITensorLayout layout_;

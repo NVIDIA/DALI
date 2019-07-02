@@ -57,17 +57,12 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
         DALI_FAIL(std::string(e.what()));
       }
 
-      std::vector<Index> t_shape({count_, height_, width_, channels_});
+      tl_shape_ = kernels::uniform_list_shape(batch_size_, {count_, height_, width_, channels_});
+
       enable_file_root_ = !file_root_.empty();
 
-      for (int i = 0; i < batch_size_; ++i) {
-        tl_shape_.push_back(t_shape);
-      }
-
       if (enable_file_root_) {
-        for (int i = 0; i < batch_size_; ++i) {
-          label_shape_.push_back({1});
-        }
+        label_shape_ = kernels::uniform_list_shape(batch_size_, {1});
       }
   }
 
@@ -124,8 +119,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
   float output_scale_;
 
-  std::vector<std::vector<Index>> tl_shape_;
-  std::vector<std::vector<Index>> label_shape_;
+  kernels::TensorListShape<> tl_shape_;
+  kernels::TensorListShape<> label_shape_;
 
   DALIDataType dtype_;
   bool enable_file_root_;

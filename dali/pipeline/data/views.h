@@ -51,37 +51,22 @@ void enforce_dim_in_view(const ShapeType &shape) {
   }
 }
 
-
 }  // namespace detail
-
-template <int ndim, typename Backend>
-kernels::TensorListShape<ndim> list_shape(const TensorList<Backend> &tl) {
-  const auto &tshape = tl.tensor_shape(0);
-  if (ndim != kernels::DynamicDimensions)
-    DALI_ENFORCE((int)tshape.size() == ndim, "Input has a wrong number of dimensions");
-  return kernels::convert_dim<ndim>(kernels::TensorListShape<>(tl.shape()));
-}
 
 /// @brief Returns an equivalent tensor shape for a dense, uniform tensor list.
 /// @return Tensor shape with outermost dimension corresponding to samples.
 /// @remarks If the argument is not a dense tensor, an error is raised.
 template <int ndim, typename Backend>
-kernels::TensorShape<ndim> tensor_shape(const TensorList<Backend> &tl) {
-  const auto &tshape = tl.tensor_shape(0);
+kernels::TensorShape<ndim> get_tensor_shape(const TensorList<Backend> &tl) {
   DALI_ENFORCE(tl.IsDenseTensor(), "Uniform, dense tensor expected");
   if (ndim != kernels::DynamicDimensions) {
-    DALI_ENFORCE((int)tshape.size()+1 == ndim,
+    DALI_ENFORCE(tl.shape().sample_dim() + 1 == ndim,
     "Input has a wrong number of dimensions!\n"
     "Hint: Converting tensor list to a tensor adds extra dimension");
   }
-  int dim = (ndim != kernels::DynamicDimensions) ? ndim : tshape.size()+1;
-  kernels::TensorShape<ndim> out;
-  out.resize(dim);
-  out[0] = tl.ntensor();
-  for (int i = 0; i < dim-1; i++) {
-    out[i+1] = tshape[i];
-  }
-  return out;
+  int dim = (ndim != kernels::DynamicDimensions) ? ndim : tl.shape().sample_dim() + 1;
+  auto out = shape_cat(tl.ntensor(), tl.tensor_shape(0));
+  return kernels::convert_dim<ndim>(out);
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
@@ -90,7 +75,8 @@ view(TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
   using U = std::remove_const_t<T>;
-  return { data.template mutable_data<U>(), list_shape<ndim>(data) };
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return { data.template mutable_data<U>(), kernels::convert_dim<ndim>(data.shape()) };
 }
 
 
@@ -103,7 +89,8 @@ view(const TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
   using U = std::remove_const_t<T>;
-  return { data.template data<U>(), list_shape<ndim>(data) };
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return { data.template data<U>(), kernels::convert_dim<ndim>(data.shape()) };
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
@@ -128,7 +115,7 @@ view_as_tensor(TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
   using U = std::remove_const_t<T>;
-  return { data.template mutable_data<U>(), tensor_shape<ndim>(data) };
+  return { data.template mutable_data<U>(), get_tensor_shape<ndim>(data) };
 }
 
 template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
@@ -159,19 +146,7 @@ view_as_tensor(const TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
   using U = std::remove_const_t<T>;
-  return { data.template data<U>(), tensor_shape<ndim>(data) };
-}
-
-template <int ndim>
-void to_dims_vec(std::vector<Dims> &dims_vec, const kernels::TensorListShape<ndim> &tls) {
-  const int dim = tls.sample_dim();
-  const int N = tls.num_samples();
-  dims_vec.resize(N);
-  for (int i = 0; i < N; i++) {
-    dims_vec[i].resize(dim);
-    for (int j = 0; j < dim; j++)
-      dims_vec[i][j] = tls.tensor_shape_span(i)[j];
-  }
+  return { data.template data<U>(), get_tensor_shape<ndim>(data) };
 }
 
 }  // namespace dali

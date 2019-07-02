@@ -69,12 +69,11 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
 
     of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws->stream());
 
-    std::vector<Dims> new_sizes;
     auto out_shape = optical_flow_->GetOutputShape();
+    kernels::TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
     for (int i = 0; i < nsequences_; i++) {
-      Dims shape = {sequence_sizes_[i] - 1};
-      shape.insert(shape.end(), out_shape.begin(), out_shape.end());
-      new_sizes.emplace_back(shape);
+      auto shape = kernels::shape_cat(sequence_sizes_[i] - 1, out_shape);
+      new_sizes.set_tensor_shape(1, shape);
     }
     output.Resize(new_sizes);
 
@@ -111,12 +110,11 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
 
     of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws->stream());
 
-    std::vector<Dims> new_sizes;
     auto out_shape = optical_flow_->GetOutputShape();
+    kernels::TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
     for (int i = 0; i < nsequences_; i++) {
-      Dims shape = {sequence_sizes_[i] - 1};
-      shape.insert(shape.end(), out_shape.begin(), out_shape.end());
-      new_sizes.emplace_back(shape);
+      auto shape = kernels::shape_cat(sequence_sizes_[i] - 1, out_shape);
+      new_sizes.set_tensor_shape(1, shape);
     }
     output.Resize(new_sizes);
 

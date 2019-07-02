@@ -69,8 +69,7 @@ TensorListShape<Dims> GetOutputShapes(const TensorListShape<Dims>& in_shapes,
     DALI_ENFORCE(args.size() == static_cast<size_t>(in_shapes.size()),
       "Number of samples and size of slice arguments should match");
 
-    TensorListShape<Dims> output_shapes;
-    output_shapes.resize(in_shapes.size(), Dims);
+    TensorListShape<Dims> output_shapes(in_shapes.size(), Dims);
     for (int i = 0; i < in_shapes.size(); i++) {
       auto out_sample_shape = GetOutputShape<Dims>(in_shapes[i], args[i]);
       output_shapes.set_tensor_shape(i, out_sample_shape);

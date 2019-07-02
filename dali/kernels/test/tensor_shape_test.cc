@@ -528,6 +528,10 @@ TEST(TensorListShapeTest, Constructors) {
   EXPECT_EQ(tls_5samples_2dim.size(), 5);
   EXPECT_EQ(tls_5samples_2dim.sample_dim(), 2);
   EXPECT_EQ(tls_5samples_2dim, uniform_list_shape(5, {0, 0}));
+  // Check if we do not fall into calling initializer_list constructor for uniform initialization
+  TensorListShape<> tls_5samples_brace{5}, tls_5samples_2dim_brace{5, 2};
+  EXPECT_EQ(tls_5samples, tls_5samples_brace);
+  EXPECT_EQ(tls_5samples_2dim, tls_5samples_2dim_brace);
 
   TensorListShape<2> tls_5samples_static2dim(5), tls_5samples_static2dim_2(5, 2);
   EXPECT_EQ(tls_5samples_static2dim.size(), 5);
@@ -536,6 +540,33 @@ TEST(TensorListShapeTest, Constructors) {
   EXPECT_EQ(tls_5samples_static2dim_2.size(), 5);
   EXPECT_EQ(tls_5samples_static2dim_2.sample_dim(), 2);
   EXPECT_EQ(tls_5samples_static2dim_2, uniform_list_shape(5, {0, 0}));
+}
+
+TEST(TensorListShapeTest, ConstructorInitializerList) {
+  auto vec = std::vector<int64_t>{1, 2, 3, 4};
+
+  TensorListShape<> tls_0{{1, 2}, {3, 4}};
+  EXPECT_EQ(tls_0.size(), 2);
+  EXPECT_EQ(tls_0.sample_dim(), 2);
+  EXPECT_EQ(tls_0.shapes, vec);
+
+  TensorListShape<> tls_1({{1, 2}, {3, 4}});
+  EXPECT_EQ(tls_1.size(), 2);
+  EXPECT_EQ(tls_1.sample_dim(), 2);
+  EXPECT_EQ(tls_1.shapes, vec);
+
+
+  auto vec_2 = std::vector<int64_t>{1, 2};
+  TensorListShape<> tls_2({{1}, {2}});
+  EXPECT_EQ(tls_2.size(), 2);
+  EXPECT_EQ(tls_2.sample_dim(), 1);
+  EXPECT_EQ(tls_2.shapes, vec_2);
+
+  auto vec_3 = std::vector<int64_t>{1, 2, 3, 4};
+  TensorListShape<> tls_3 = {{kernels::TensorShape<>{1, 2}, kernels::TensorShape<>{3, 4}}};
+  EXPECT_EQ(tls_3.size(), 2);
+  EXPECT_EQ(tls_3.sample_dim(), 2);
+  EXPECT_EQ(tls_3.shapes, vec_3);
 }
 
 TEST(TensorListShapeTest, Resize) {

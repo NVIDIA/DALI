@@ -625,13 +625,13 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
 
   // Split the batch into 5
   std::array<TensorList<CPUBackend>, N> splited_tl;
-  std::array<std::vector<Dims>, N> shapes;
+  std::array<std::vector<kernels::TensorShape<>>, N> shapes;
   for (int i = 0; i < N; i++) {
     shapes[i].resize(batch_size);
     for (int j = 0; j < batch_size; j++) {
       shapes[i][j] = tl.tensor_shape(i * batch_size + j);
     }
-    splited_tl[i].Resize(shapes[i]);
+    splited_tl[i].Resize({shapes[i]});
   }
 
   for (int i = 0; i < N; i++) {
