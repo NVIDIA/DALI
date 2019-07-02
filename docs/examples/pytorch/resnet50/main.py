@@ -86,9 +86,11 @@ class HybridTrainPipe(Pipeline):
         decoder_device = 'cpu' if dali_cpu else 'mixed'
         # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
         # without additional reallocations
+        device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
+        host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
         self.decode = ops.ImageDecoderRandomCrop(device=decoder_device, output_type=types.RGB,
-                                                 device_memory_padding=211025920,
-                                                 host_memory_padding=140544512,
+                                                 device_memory_padding=device_memory_padding,
+                                                 host_memory_padding=host_memory_padding,
                                                  random_aspect_ratio=[0.8, 1.25],
                                                  random_area=[0.1, 1.0],
                                                  num_attempts=100)
