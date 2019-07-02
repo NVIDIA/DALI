@@ -74,10 +74,13 @@ def get_tf_version():
     version = re.search("(\d+.\d+).\d+", s).group(1)
     return version
 
-def get_gcc_compiler_version():
-    cmd = 'gcc --version | grep "gcc ("'
-    s = str(subprocess.check_output(cmd, shell=True))
-    version = re.search("gcc\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
+def get_gpp_compiler():
+    return os.environ.get('CXX') or 'g++'
+
+def get_gpp_compiler_version():
+    cmd = get_gpp_compiler() + ' --version | head -1 | grep "g++ ("'
+    s = str(subprocess.check_output(cmd, shell=True).strip())
+    version = re.search("g\+\+\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
     return version
 
 def find_available_prebuilt_tf(requested_version, available_libs):
@@ -121,18 +124,10 @@ def get_cuda_build_flags():
     return (cuda_cflags, cuda_lflags)
 
 def which(program):
-    def is_exe(fpath):
-        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
-    fpath, fname = os.path.split(program)
-    if fpath:
-        if is_exe(program):
-            return program
-    else:
-        for path in os.environ["PATH"].split(os.pathsep):
-            exe_file = os.path.join(path, program)
-            if is_exe(exe_file):
-                return exe_file
-    return None
+    try:
+        return subprocess.check_output('which ' + program, shell=True).strip()
+    except:
+        return None
 
 class CustomInstall(install, object):
     def run(self):
@@ -146,16 +141,17 @@ class CustomInstall(install, object):
         # with the same compiler (and the version) we use to build the pip packages.
         # Anything not built with that may break due to compilers generating ABIs differently."
         tf_compiler = get_tf_compiler_version()
-        default_gcc_version = get_gcc_compiler_version()
-        is_tf_built_with_gcc_4_8 = tf_compiler == '4.8'
-        has_gcc_4_8 = which('g++-4.8') is not None
+        gpp_compiler = get_gpp_compiler()
+        default_gpp_version = get_gpp_compiler_version()
+        is_tf_built_with_gpp_4_8 = tf_compiler == '4.8'
+        has_gpp_4_8 = which('g++-4.8') is not None
         is_compatible_with_prebuilt_bin = platform.system() == 'Linux' and platform.machine() == 'x86_64'
-        if is_tf_built_with_gcc_4_8 and default_gcc_version != '4.8' and not has_gcc_4_8 and is_compatible_with_prebuilt_bin:
+        if is_tf_built_with_gpp_4_8 and default_gpp_version != '4.8' and not has_gpp_4_8 and is_compatible_with_prebuilt_bin:
             tf_version = get_tf_version()
             tf_version_underscore = tf_version.replace('.', '_')
             plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
             prebuilt_plugin = src_path + '/' + plugin_name
-            print('Installed TF was compiled with ABI incompatible g++ 4.8. Providing prebuilt binary')
+            print('Cannot build compatible DALI TensorFlow plugin with available gcc version. Providing prebuilt binary')
             if not os.path.isfile(prebuilt_plugin):
                 available_files = find('libdali_tf_*.so', src_path)
                 best_version = find_available_prebuilt_tf(tf_version, available_files)
@@ -177,11 +173,10 @@ class CustomInstall(install, object):
             plugin_src = src_path + '/daliop.cc'
             lib_path = plugin_dest_dir + '/libdali_tf_current.so'
 
-            gcc_compiler = 'g++'
-            if tf_compiler == '4.8' and default_gcc_version != '4.8' and has_gcc_4_8:
-                gcc_compiler = 'g++-4.8'
+            if tf_compiler == '4.8' and default_gpp_version != '4.8' and has_gpp_4_8:
+                gpp_compiler = 'g++-4.8'
 
-            cmd = gcc_compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -shared ' + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' + cuda_lflags + ' -O2'
+            cmd = gpp_compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -shared ' + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' + cuda_lflags + ' -O2'
             subprocess.check_call(cmd, cwd=src_path, shell=True)
         super(CustomInstall, self).run()
 

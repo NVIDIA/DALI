@@ -1,47 +1,11 @@
-FROM tensorflow/tensorflow:custom-op-gpu as base
+ARG USE_CUDA_VERSION=10
+FROM gitlab-master.nvidia.com:5005/dl/dali/dali-gh-mirror:master_cuda_${USE_CUDA_VERSION}-deps as cuda
+FROM tensorflow/tensorflow:custom-op-gpu
 
 ARG PYVER=2.7
 ENV PYVER=${PYVER}
 ARG PYV=27
 ENV PYV=${PYV}
-ARG USE_CUDA_VERSION=10
-ENV USE_CUDA_VERSION=${USE_CUDA_VERSION}
-
-RUN if [ "${USE_CUDA_VERSION}" = "9" ]; then \
-        CUDA_VERSION=9.0 && \
-        CUDA_BUILD=9.0.176_384.81 && \
-        curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux-run && \
-        chmod +x cuda_${CUDA_BUILD}_linux-run && \
-        ./cuda_${CUDA_BUILD}_linux-run --silent --no-opengl-libs --toolkit && \
-        rm -f cuda_${CUDA_BUILD}_linux-run; \
-        # nvJpeg
-        NVJPEG_VERSION=719-25900922 && \
-        NVJPEG_BUILD=9.0.${NVJPEG_VERSION} && \
-        curl -L https://developer.download.nvidia.com/compute/redist/libnvjpeg/cuda-linux64-nvjpeg-${NVJPEG_BUILD}.tar.gz | tar -xzf - && \
-        cd /cuda-linux64-nvjpeg/ && \
-        mv lib64/libnvjpeg*.a* /usr/local/cuda/lib64/ && \
-        mv include/nvjpeg.h /usr/local/cuda/include/ && \
-        rm -rf /cuda-linux64-nvjpeg; \
-    else \
-        CUDA_VERSION=10.0 && \
-        CUDA_BUILD=10.0.130_410.48 && \
-        curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux && \
-        chmod +x cuda_${CUDA_BUILD}_linux && \
-        ./cuda_${CUDA_BUILD}_linux --silent --no-opengl-libs --toolkit && \
-        rm -f cuda_${CUDA_BUILD}_linux; \
-        # nvJpeg
-        CUDA_VERSION=10.0 && \
-        CUDA_PATCH=1 && \
-        CUDA_BUILD=10.0.130.1 && \
-        curl -LO  https://developer.download.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/patches/${CUDA_PATCH}/cuda_${CUDA_BUILD}_linux.run && \
-        chmod +x cuda_${CUDA_BUILD}_linux.run && \
-        ./cuda_${CUDA_BUILD}_linux.run --silent --accept-eula --installdir=/usr/local/cuda-10.0 && \
-        rm -f cuda_${CUDA_BUILD}_linux-run; \
-    fi
-
-ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64/:/usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH}
-RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
-    ldconfig
 
 # Python 3.6 and 3.7 are not available in Ubuntu 14
 # Python 3.7 can't be installed with PPA method in this Ubuntu 14
@@ -90,3 +54,6 @@ RUN rm -f /usr/bin/python && \
     fi && \
     python --version && \
     pip --version
+
+COPY --from=cuda /usr/local/cuda /usr/local/cuda
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs/:${LD_LIBRARY_PATH}

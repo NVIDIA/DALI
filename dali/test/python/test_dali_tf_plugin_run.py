@@ -8,8 +8,9 @@ import nvidia.dali.tfrecord as tfrec
 import tensorflow as tf
 import nvidia.dali.plugin.tf as dali_tf
 
-# Caffe LMDB
-lmdb_folder = "/data/imagenet/train-lmdb-256x256"
+test_data_root = os.environ['DALI_EXTRA_PATH']
+lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
+
 IMG_SIZE = 227
 NUM_GPUS = 1
 
@@ -46,8 +47,8 @@ class CaffeReadPipeline(CommonPipeline):
         images, labels = self.input()
         return self.base_define_graph(images, labels)
 
-def get_batch_dali(batch_size, pipe_name, label_type, num_gpus=1):
-    pipes = [pipe_name(batch_size=batch_size, num_threads=2, device_id = device_id, num_gpus = num_gpus) for device_id in range(num_gpus)]
+def get_batch_dali(batch_size, pipe_type, label_type, num_gpus=1):
+    pipes = [pipe_type(batch_size=batch_size, num_threads=2, device_id = device_id, num_gpus = num_gpus) for device_id in range(num_gpus)]
 
     daliop = dali_tf.DALIIterator()
     images = []
@@ -63,9 +64,8 @@ def get_batch_dali(batch_size, pipe_name, label_type, num_gpus=1):
 
     return [images, labels]
 
-def check_dali_tf_op(pipe_name, batch_size, iterations=32):
-    test_batch = get_batch_dali(batch_size, pipe_name, tf.int32)
-    x = tf.placeholder(tf.float32, shape=[batch_size, IMG_SIZE, IMG_SIZE, 3], name='x')
+def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=32, iterations=32):
+    test_batch = get_batch_dali(batch_size, pipe_type, tf.int32)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
     config = tf.ConfigProto(gpu_options=gpu_options)
 
@@ -76,11 +76,5 @@ def check_dali_tf_op(pipe_name, batch_size, iterations=32):
             for label in labels:
                 ## labels need to be integers
                 assert(np.equal(np.mod(label, 1), 0).all())
-                ## labels need to be in range pipe_name[2]
                 assert((label >= 0).all())
                 assert((label <= 999).all())
-
-def test_dali_tf_op():
-    for pipe_name in [CaffeReadPipeline]:
-        for batch_size in [32]:
-            yield check_dali_tf_op, pipe_name, batch_size
