@@ -29,6 +29,9 @@ do
     ffmpeg -ss 00:00:$((i*5)) -t 00:00:05 -i $container_path -vcodec copy -acodec copy -y labelled_videos/$((i % 3))//${split[0]}_$i.${split[1]}
 done
 
+# generate file_list.txt from video_files directory
+ls -d video_files/*  | tr " " "\n" | awk '{print $0, NR;}' > file_list.txt
+
 test_body() {
     # test code
     # First running simple code
