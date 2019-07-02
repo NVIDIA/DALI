@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <functional>
+#include <memory>
 
 #include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/tensor.h"
@@ -46,7 +47,7 @@ class CropSequenceTest : public DaliOperatorTest {
  public:
     std::unique_ptr<TensorList<CPUBackend>>
     GetSequenceData() {
-        std::unique_ptr<TensorList<CPUBackend>> data(new TensorList<CPUBackend>);
+        auto data = std::make_unique<TensorList<CPUBackend>>();
         auto shape = kernels::uniform_list_shape(TestArgs::N,
             kernels::TensorShape<>{TestArgs::F, TestArgs::W, TestArgs::H, TestArgs::C});
         data->set_type(TypeInfo::Create<typename TestArgs::T>());
