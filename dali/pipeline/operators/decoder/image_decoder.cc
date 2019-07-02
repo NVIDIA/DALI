@@ -49,6 +49,11 @@ is encountered and internal buffer needs to be reallocated to decode it.)code",
 `batch_size*prefetch_queue_depth` during the construction and suballocate them
 in runtime. Ignored when `split_stages` is false.)code",
       false)
+  .AddOptionalArg("use_fast_idct",
+      R"code(Enables fast IDCT in CPU based decompressor when GPU implementation cannot handle given image.
+According to libjpeg-turbo documentation, decompression performance is improved by 4-14% with very little
+loss in quality.)code",
+      false)
   .AddParent("CachedDecoderAttr");
 
 // Fused

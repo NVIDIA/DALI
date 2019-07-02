@@ -82,19 +82,19 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
                CheckIsTiff(encoded_image, length) + CheckIsPNM(encoded_image, length) == 1,
                "Encoded image has ambiguous format");
   if (CheckIsPNG(encoded_image, length)) {
-    return std::unique_ptr<Image>(new PngImage(encoded_image, length, image_type));
+    return std::make_unique<PngImage>(encoded_image, length, image_type);
   } else if (CheckIsJPEG(encoded_image, length)) {
-    return std::unique_ptr<Image>(new JpegImage(encoded_image, length, image_type));
+    return std::make_unique<JpegImage>(encoded_image, length, image_type);
   } else if (CheckIsBMP(encoded_image, length)) {
-    return std::unique_ptr<Image>(new BmpImage(encoded_image, length, image_type));
+    return std::make_unique<BmpImage>(encoded_image, length, image_type);
   } else if (CheckIsPNM(encoded_image, length)) {
-    return std::unique_ptr<Image>(new PnmImage(encoded_image, length, image_type));
+    return std::make_unique<PnmImage>(encoded_image, length, image_type);
   } else if (CheckIsGIF(encoded_image, length)) {
     DALI_FAIL("GIF format is not supported");
   } else if (CheckIsTiff(encoded_image, length)) {
-    return std::unique_ptr<Image>(new TiffImage(encoded_image, length, image_type));
+    return std::make_unique<TiffImage>(encoded_image, length, image_type);
   }
-  return std::unique_ptr<Image>(new GenericImage(encoded_image, length, image_type));
+  return std::make_unique<GenericImage>(encoded_image, length, image_type);
 }
 
 }  // namespace dali

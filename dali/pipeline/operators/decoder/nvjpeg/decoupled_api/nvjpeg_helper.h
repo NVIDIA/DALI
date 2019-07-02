@@ -152,11 +152,13 @@ inline bool ShouldUseHybridHuffman(EncodedImageInfo<T>& info,
 
 template <typename StorageType>
 void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8_t *output_buffer,
-                  cudaStream_t stream, std::string file_name, CropWindow crop_window) {
+                  cudaStream_t stream, std::string file_name, CropWindow crop_window,
+                  bool use_fast_idct) {
   std::unique_ptr<Image> img;
   try {
     img = ImageFactory::CreateImage(data, size, image_type);
     img->SetCropWindow(crop_window);
+    img->SetUseFastIdct(use_fast_idct);
     img->Decode();
   } catch (std::exception &e) {
     DALI_FAIL(e.what() + ". File: " + file_name);

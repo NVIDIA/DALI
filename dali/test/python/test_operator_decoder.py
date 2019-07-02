@@ -23,12 +23,12 @@ from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 
 class DecoderPipeline(Pipeline):
-    def __init__(self, data_path, batch_size, num_threads, device_id, device):
+    def __init__(self, data_path, batch_size, num_threads, device_id, device, use_fast_idct=False):
         super(DecoderPipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=1)
         self.input = ops.FileReader(file_root = data_path,
                                     shard_id = 0,
                                     num_shards = 1)
-        self.decode = ops.ImageDecoder(device = device, output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = device, output_type = types.RGB, use_fast_idct=use_fast_idct)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -68,3 +68,31 @@ def test_missnamed_host_decoder():
 
 def check(img_type, size, device, threads):
     pass
+
+class DecoderPipelineFastIDC(Pipeline):
+    def __init__(self, data_path, batch_size, num_threads, use_fast_idct=False):
+        super(DecoderPipelineFastIDC, self).__init__(batch_size, num_threads, 0, prefetch_queue_depth=1)
+        self.input = ops.FileReader(file_root = data_path,
+                                    shard_id = 0,
+                                    num_shards = 1)
+        self.decode = ops.ImageDecoder(device = 'cpu', output_type = types.RGB, use_fast_idct=use_fast_idct)
+
+    def define_graph(self):
+        inputs, labels = self.input(name="Reader")
+        output = self.decode(inputs)
+        return (output, labels)
+
+def check_FastDCT_body(batch_size, img_type, device):
+    data_path = os.path.join(test_data_root, good_path, img_type)
+    compare_pipelines(DecoderPipeline(data_path=data_path, batch_size=batch_size, num_threads=3,
+                                      device_id=0, device=device, use_fast_idct=False),
+                      DecoderPipeline(data_path=data_path, batch_size=batch_size, num_threads=3,
+                                      device_id=0, device='cpu', use_fast_idct=True),
+                      # average difference should be no bigger by off-by-3
+                      batch_size=batch_size, N_iterations=3, eps=3)
+
+def check_FastDCT():
+    for device in {'cpu', 'mixed'}:
+        for batch_size in {1, 8}:
+            for img_type in test_good_path:
+              yield check_FastDCT_body, batch_size, img_type, device
