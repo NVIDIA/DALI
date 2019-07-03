@@ -23,7 +23,7 @@ namespace kernels {
 
 template <int dim>
 struct JitterMappingCPU {
-  ivec<dim> operator()(const ivec<dim> &v) {
+  ivec<dim> operator()(const ivec<dim> &v) const {
     return v;
   }
 };

@@ -15,61 +15,26 @@
 #ifndef DALI_KERNELS_IMGPROC_WARP_VARIABLE_SIZE_IMPL_CUH_
 #define DALI_KERNELS_IMGPROC_WARP_VARIABLE_SIZE_IMPL_CUH_
 
-#include "dali/kernels/kernel.h"
-#include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/warp/warp_setup.cuh"
-#include "dali/kernels/imgproc/warp/mapping_traits.h"
+#include "dali/kernels/imgproc/warp/block_warp.cuh"
 
 namespace dali {
 namespace kernels {
 namespace warp {
 
-  template <DALIInterpType interp_type, typename OutputType, typename InputType,
-            int ndim, typename Mapping, typename BorderValue>
-__device__ void BlockWarp(
-    SampleDesc<2> sample,
-    BlockDesc<2> block,
-    Mapping mapping, BorderValue border) {
-  // Get the data pointers - un-erase type
-  OutputType *__restrict__ output_data = static_cast<OutputType*>(sample.output);
-  const InputType *__restrict__ input_data = static_cast<const InputType*>(sample.input);
-  // Create input and output surfaces
-  const Surface2D<OutputType> out = {
-      output_data, sample.out_size.x, sample.out_size.y, sample.channels,
-      sample.out_strides.x, sample.out_strides.y, 1
-  };
-  const Surface2D<const InputType> in = {
-      input_data, sample.in_size.x, sample.in_size.y, sample.channels,
-      sample.in_strides.x, sample.in_strides.y, 1
-  };
-  // ...and a sampler
-  const auto sampler = make_sampler<interp_type>(in);
-
-  // Run this HW block of threads over the logical block
-  for (int y = block.start.y + threadIdx.y; y < block.end.y; y += blockDim.y) {
-    for (int x = block.start.x + threadIdx.x; x < block.end.x; x += blockDim.y) {
-      if (is_fp_mapping<Mapping>()) {
-        vec2 src = mapping(vec2(x, y) + 0.5f);
-        sampler(&out(x, y), src, border);
-      } else {
-        ivec2 src = mapping(ivec2(x, y));
-        sampler(&out(x, y), src, border);
-      }
-    }
-  }
-}
-
 
 template <DALIInterpType interp_type, typename OutputType, typename InputType,
          int ndim, typename Mapping, typename BorderValue>
-__global__ void BlockBatchWarpVariable(
+__global__ void BatchWarpVariableSize(
     const SampleDesc<ndim> *samples,
     const BlockDesc<ndim> *blocks,
-    Mapping mapping, BorderValue border) {
+    const Mapping *mapping,
+    BorderValue border) {
 
   auto block = blocks[blockIdx.x];
   auto sample = samples[block.sample_idx];
-  BlockWarp<interp_type, OutputType, InputType>(block, sample, mapping, border);
+  BlockWarp<interp_type, OutputType, InputType, ndim, Mapping, BorderValue>(
+    sample, block, mapping[block.sample_idx], border);
 }
 
 }  // namespace warp

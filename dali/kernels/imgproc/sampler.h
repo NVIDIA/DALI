@@ -207,11 +207,6 @@ struct Sampler<DALI_INTERP_LINEAR, In> {
   }
 
   template <typename T, typename BorderValue>
-  DALI_HOST_DEV T at(vec2 xy, int c) {
-    return at(xy.x, xy.y, c);
-  }
-
-  template <typename T, typename BorderValue>
   DALI_HOST_DEV void operator()(
       T *out_pixel,
       float x, float y, int c,
