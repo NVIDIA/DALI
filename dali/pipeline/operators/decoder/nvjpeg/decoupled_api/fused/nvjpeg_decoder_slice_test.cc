@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/operators/decoder/decoder_test.h"
 
 namespace dali {
@@ -28,7 +29,7 @@ class nvJpegDecoderSliceTest : public DecodeTestBase<ImgType> {
 
   void AddAdditionalInputs(
     vector<std::pair<string, TensorList<CPUBackend>*>>& inputs) override {
-      vector<Dims> shape(this->batch_size_, {2});
+      auto shape = kernels::uniform_list_shape(this->batch_size_, {2});
 
       begin_data.set_type(TypeInfo::Create<float>());
       begin_data.Resize(shape);

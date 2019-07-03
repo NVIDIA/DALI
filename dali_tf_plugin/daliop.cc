@@ -27,7 +27,7 @@
 
 #define USE_TF_ALLOCATOR 0
 #if USE_TF_ALLOCATOR
-#include "dali/tensorflow/tfallocator.h"
+#include "tfallocator.h"
 #endif
 
 #include "dali/c_api/c_api.h"

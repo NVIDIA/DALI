@@ -158,6 +158,13 @@ class _OperatorInstance(object):
                 self._spec.AddArgumentInput(k, kwargs[k].name)
                 self._inputs = list(self._inputs) + [kwargs[k]]
 
+        if self._op.schema.IsDeprecated():
+            use_instead = self._op.schema.DeprecatedInFavorOf()
+            msg = "WARNING: `{}` is now deprecated".format(type(self._op).__name__)
+            if use_instead:
+                msg +=". Use `" + use_instead + "` instead"
+            print(msg)
+
     def check_args(self):
         self._op.schema.CheckArgs(self._spec)
 

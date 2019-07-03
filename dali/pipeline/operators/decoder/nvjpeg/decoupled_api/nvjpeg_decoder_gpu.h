@@ -64,7 +64,7 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
 
   using dali::OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
-    std::vector<Dims> output_shape(batch_size_);
+    std::vector<std::vector<Index>> output_shape(batch_size_);
     // Creating output shape and setting the order of images so the largest are processed first
     // (for load balancing)
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
@@ -73,7 +73,7 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
       const ImageInfo* info =
           reinterpret_cast<const ImageInfo*>(info_tensor.raw_data());
       int c = NumberOfChannels(output_image_type_);
-      output_shape[i] = Dims({info->heights[0], info->widths[0], c});
+      output_shape[i] = {info->heights[0], info->widths[0], c};
       image_order[i] = std::make_pair(volume(output_shape[i]), i);
     }
     std::sort(image_order.begin(), image_order.end(),

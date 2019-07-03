@@ -19,6 +19,7 @@
 #include <memory>
 #include <vector>
 #include "dali/benchmark/dali_bench.h"
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
@@ -85,7 +86,7 @@ class OperatorBench : public DALIBenchmark {
 
     auto data_in_cpu = std::make_shared<TensorList<CPUBackend>>();
     data_in_cpu->set_type(TypeInfo::Create<T>());
-    data_in_cpu->Resize(std::vector<Dims>(batch_size, {W, H, C}));
+    data_in_cpu->Resize(kernels::uniform_list_shape(batch_size, {W, H, C}));
     data_in_cpu->SetLayout(DALI_NHWC);
     if (fill_in_data) {
       for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {

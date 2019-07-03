@@ -76,12 +76,10 @@ void RunHelper(TensorList<GPUBackend> &output,
     }
 
     kernels::KernelRequirements req = kernel.Setup(ctx, in_view, per_sample_args);
-    std::vector<Dims> out_shapes;
-    to_dims_vec(out_shapes, req.output_shapes[0]);
 
     output.set_type(TypeInfo::Create<OutputType>());
     output.SetLayout(input_layout);
-    output.Resize(out_shapes);
+    output.Resize(req.output_shapes[0]);
 
     scratch_alloc.Reserve(req.scratch_sizes);
     auto scratchpad = scratch_alloc.GetScratchpad();

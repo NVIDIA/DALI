@@ -69,8 +69,10 @@ class ResizeCropMirrorAttr : protected CropAttr {
   };
 
  protected:
-  inline const TransformMeta GetTransformMeta(const OpSpec &spec, const vector<Index> &input_shape,
-                        const ArgumentWorkspace *ws, const Index index, const uint32_t flag = 0) {
+  inline const TransformMeta GetTransformMeta(const OpSpec &spec,
+                                              const kernels::TensorShape<> &input_shape,
+                                              const ArgumentWorkspace *ws, const Index index,
+                                              const uint32_t flag = 0) {
     TransformMeta meta;
     meta.H = input_shape[0];
     meta.W = input_shape[1];
