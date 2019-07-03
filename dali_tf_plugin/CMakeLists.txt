@@ -24,6 +24,9 @@ if (DALI_BUILD_FLAVOR)
   set(DALI_VERSION "${DALI_VERSION}.${TIMESTAMP}")
 endif()
 
+# Note: CUDA 8 support is unofficial. CUDA 9 is officially supported
+find_package(CUDA 8.0 REQUIRED)
+
 configure_file("${PROJECT_SOURCE_DIR}/setup.py.in" "${PROJECT_BINARY_DIR}/setup.py")
 file(GLOB PREBUILT_PLUGINS "libdali_tf_*.so")
 file(COPY ${PREBUILT_PLUGINS} DESTINATION "${PROJECT_BINARY_DIR}")

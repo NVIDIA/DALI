@@ -173,7 +173,14 @@ export CUSTOM_OP_BUILDER_CONTAINER="${CUSTOM_OP_BUILDER_IMAGE_NAME}_container"
 
 mkdir -p dali_tf_plugin/whl
 cp ${tmp_wheelhouse}/*.whl dali_tf_plugin/whl/
-docker build -t ${CUSTOM_OP_BUILDER_IMAGE_NAME} -f docker/Dockerfile_dali_tf --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${CUSTOM_OP_BUILDER_CLEAN_IMAGE_NAME}"  .
+docker build -t ${CUSTOM_OP_BUILDER_IMAGE_NAME} -f docker/Dockerfile_dali_tf \
+             --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${CUSTOM_OP_BUILDER_CLEAN_IMAGE_NAME}" \
+             --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
+             --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" \
+             --build-arg "GIT_SHA=${GIT_SHA}" \
+             --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
+             .
+
 nvidia-docker run --name ${CUSTOM_OP_BUILDER_CONTAINER} ${CUSTOM_OP_BUILDER_IMAGE_NAME}
 tmp_dali_tf_sdist=$(mktemp -d)
 docker cp "${CUSTOM_OP_BUILDER_CONTAINER}:/dali_tf_sdist/" "${tmp_dali_tf_sdist}"
