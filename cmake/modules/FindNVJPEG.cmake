@@ -9,6 +9,7 @@
 #  NVJPEG_FOUND
 #  NVJPEG_INCLUDE_DIR
 #  NVJPEG_LIBRARY
+include(CheckSymbolExists)
 
 set(NVJPEG_ROOT_DIR "" CACHE PATH "Folder contains NVJPEG")
 
