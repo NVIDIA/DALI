@@ -22,53 +22,29 @@ int MixedWorkspace::NumInputAtIdx(int idx) const {
   DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
   auto tensor_meta = input_index_map_[idx];
   if (tensor_meta.storage_device == StorageDevice::CPU) {
-    return cpu_inputs_[tensor_meta.index].size();
+    return cpu_inputs_[tensor_meta.index]->size();
   }
-  return gpu_inputs_[tensor_meta.index].size();
+  return gpu_inputs_[tensor_meta.index]->size();
 }
 
 template <>
 const Tensor<CPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
-  DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
-  auto tensor_meta = input_index_map_[idx];
-  DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Input with given index does not "
-      "have the calling backend type (CPUBackend)");
-
-  DALI_ENFORCE_VALID_INDEX(data_idx,
-      cpu_inputs_[tensor_meta.index].size());
-
-  return *cpu_inputs_[tensor_meta.index][data_idx];
+  return *(*InputHandle<CPUBackend>(idx))[data_idx];
 }
 
 template <>
 const Tensor<GPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
-  DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
-  auto tensor_meta = input_index_map_[idx];
-  DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output TensorList with given "
-      "index does not have the calling backend type (GPUBackend)");
-
-  DALI_ENFORCE_VALID_INDEX(data_idx,
-      gpu_inputs_[tensor_meta.index].size());
-
-  return *gpu_inputs_[tensor_meta.index][data_idx];
+  return *(*InputHandle<GPUBackend>(idx))[data_idx];
 }
 
 template <>
 TensorList<CPUBackend>& MixedWorkspace::Output(int idx) {
-  DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
-  auto tensor_meta = output_index_map_[idx];
-  DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Output TensorList with given "
-      "index does not have the calling backend type (CPUBackend)");
-  return *cpu_outputs_[tensor_meta.index].get();
+  return *OutputHandle<CPUBackend>(idx);
 }
 
 template <>
 TensorList<GPUBackend>& MixedWorkspace::Output(int idx) {
-  DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
-  auto tensor_meta = output_index_map_[idx];
-  DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output TensorList with given "
-      "index does not have the calling backend type (GPUBackend)");
-  return *gpu_outputs_[tensor_meta.index].get();
+  return  *OutputHandle<GPUBackend>(idx);
 }
 
 }  // namespace dali

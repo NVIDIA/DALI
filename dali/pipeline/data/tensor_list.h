@@ -47,6 +47,10 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   DLL_PUBLIC TensorList()
     : layout_(DALI_NHWC) {}
 
+  DLL_PUBLIC TensorList(int batch_size) : layout_(DALI_NHWC) {
+    Resize(kernels::TensorListShape<>(batch_size));
+  }
+
   DLL_PUBLIC ~TensorList() = default;
 
   /**
@@ -104,6 +108,15 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
       this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
+  }
+
+  using Buffer<Backend>::reserve;
+
+  inline void reserve(size_t bytes_per_tensor, int batch_size) {
+    if (shape_.empty()) {
+      Resize(kernels::TensorListShape<>(batch_size));
+    }
+    reserve(bytes_per_tensor * batch_size);
   }
 
   /**

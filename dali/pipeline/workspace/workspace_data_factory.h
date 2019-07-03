@@ -32,83 +32,6 @@
 
 namespace dali {
 
-
-template <typename Backend>
-void SetPinned(SupportWorkspace::output_t<Backend> &t, bool pinned) {
-  t->set_pinned(pinned);
-}
-
-template <typename Backend>
-void SetPinned(HostWorkspace::output_t<Backend> &t, bool pinned) {
-  for (auto &tensor_ptr : t) {
-    tensor_ptr->set_pinned(pinned);
-  }
-}
-
-// Device is the same as Mixed
-template <typename Backend>
-void SetPinned(DeviceWorkspace::output_t<Backend> &t, bool pinned) {
-  t->set_pinned(pinned);
-}
-
-template <typename Backend>
-bool IsPinned(SupportWorkspace::output_t<Backend> &t) {
-  return t->is_pinned();
-}
-
-template <typename Backend>
-bool IsPinned(HostWorkspace::output_t<Backend> &t) {
-  for (auto &tensor_ptr : t) {
-    if (!tensor_ptr->is_pinned()) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Device is the same as Mixed
-template <typename Backend>
-bool IsPinned(DeviceWorkspace::output_t<Backend> &t) {
-  return t->is_pinned();
-}
-
-template <typename Backend>
-void Reserve(SupportWorkspace::output_t<Backend> &t, size_t new_num_bytes, int batch_size) {
-  t->reserve(new_num_bytes);
-}
-
-template <typename Backend>
-void Reserve(HostWorkspace::output_t<Backend> &t, size_t new_num_bytes, int batch_size) {
-  for (auto &tensor_ptr : t) {
-    tensor_ptr->reserve(new_num_bytes);
-  }
-}
-
-// Device is the same as Mixed
-template <typename Backend>
-void Reserve(DeviceWorkspace::output_t<Backend> &t, size_t new_num_bytes, int batch_size) {
-  t->reserve(new_num_bytes * batch_size);
-}
-
-template <typename Backend>
-void Reserve(SupportWorkspace::output_t<Backend> &t, size_t new_num_bytes) {
-  t->reserve(new_num_bytes);
-}
-
-template <typename Backend>
-void Reserve(HostWorkspace::output_t<Backend> &t, size_t new_num_bytes) {
-  for (auto &tensor_ptr : t) {
-    tensor_ptr->reserve(new_num_bytes);
-  }
-}
-
-// Device is the same as Mixed
-template <typename Backend>
-bool Reserve(DeviceWorkspace::output_t<Backend> &t, size_t new_num_bytes) {
-  return t->reserve(new_num_bytes);
-}
-
-
 /*
  * Mappings from OpType, StorageDevice to index in tensor_data_store_queue_t
  */
@@ -231,41 +154,14 @@ struct BatchFactoryImpl {
   static tensor_store_elem_t<op_type, device> CreateOutputBatch(int batch_size) {
     // Output batch from GPU, MIXED and SUPPORT Ops are shared_ptr<Something>
     using BatchType = typename tensor_store_elem_t<op_type, device>::element_type;
-    return std::make_shared<BatchType>();
-  }
-  static_assert(op_type == OpType::GPU || op_type == OpType::MIXED,
-                "Only GPU and MIXED handled by default case due to use of outermost shared_ptr and "
-                "pinned mem usage");
-};
-
-// TODO(klecki): Should we use make_shared here as well?
-template <StorageDevice device>
-struct BatchFactoryImpl<OpType::CPU, device> {
-  static tensor_store_elem_t<OpType::CPU, device> CreateOutputBatch(
-      int batch_size) {
-    DALI_ENFORCE(device == StorageDevice::CPU, "Only CPU outputs allowed");
-    // Allocate `batch_size` Tensors for this ops
-    // results and add them to the workspace.
-    tensor_store_elem_t<OpType::CPU, device> output(batch_size, nullptr);
-    for (auto &tensor_ptr : output) {
-      tensor_ptr.reset(new Tensor<storage_backend_t<device>>);
+    auto output = std::make_shared<BatchType>(batch_size);
+    if (op_type == OpType::CPU || op_type == OpType::SUPPORT) {
+      output->set_pinned(false);
     }
-    SetPinned(output, false);
     return output;
   }
 };
 
-template <StorageDevice device>
-struct BatchFactoryImpl<OpType::SUPPORT, device> {
-  static tensor_store_elem_t<OpType::SUPPORT, device> CreateOutputBatch(
-      int batch_size) {
-    DALI_ENFORCE(device == StorageDevice::CPU, "Only CPU outputs allowed");
-    tensor_store_elem_t<OpType::SUPPORT, device> output(
-        new Tensor<storage_backend_t<device>>);
-    SetPinned(output, false);
-    return output;
-  }
-};
 
 template <OpType op_type, StorageDevice device>
 struct FillStorageOwner {

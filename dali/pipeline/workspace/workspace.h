@@ -98,6 +98,16 @@ class WorkspaceBase : public ArgumentWorkspace {
     gpu_outputs_index_.clear();
   }
 
+  template <typename Backend>
+  const InputType<Backend>& InputHandle(int idx) const {
+    return InputHandle(idx, Backend{});
+  }
+
+  template <typename Backend>
+  const OutputType<Backend>& OutputHandle(int idx) const {
+    return OutputHandle(idx, Backend{});
+  }
+
   /**
    * @brief Returns the number of inputs.
    */
@@ -314,6 +324,23 @@ class WorkspaceBase : public ArgumentWorkspace {
     (*index_map)[idx] = InOutMeta(storage_device, vec->size()-1);
   }
 
+
+  const InputType<CPUBackend>& InputHandle(int idx, const CPUBackend&) const {
+    return CPUInput(idx);
+  }
+
+  const InputType<GPUBackend>& InputHandle(int idx, const GPUBackend&) const {
+    return GPUInput(idx);
+  }
+
+  const OutputType<CPUBackend>& OutputHandle(int idx, const CPUBackend&) const {
+    return CPUOutput(idx);
+  }
+
+  const OutputType<GPUBackend>& OutputHandle(int idx, const GPUBackend&) const {
+    return GPUOutput(idx);
+  }
+
   inline const InputType<GPUBackend>& GPUInput(int idx) const {
     auto tensor_meta = FetchAtIndex(input_index_map_, idx);
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Input with given "
@@ -330,7 +357,7 @@ class WorkspaceBase : public ArgumentWorkspace {
     return cpu_inputs_[tensor_meta.index];
   }
 
-  inline const InputType<GPUBackend>& GPUOutput(int idx) const {
+  inline const OutputType<GPUBackend>& GPUOutput(int idx) const {
     auto tensor_meta = FetchAtIndex(output_index_map_, idx);
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output with given "
         "index (" + std::to_string(idx) +
@@ -338,7 +365,7 @@ class WorkspaceBase : public ArgumentWorkspace {
     return gpu_outputs_[tensor_meta.index];
   }
 
-  inline const InputType<CPUBackend>& CPUOutput(int idx) const {
+  inline const OutputType<CPUBackend>& CPUOutput(int idx) const {
     auto tensor_meta = FetchAtIndex(output_index_map_, idx);
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Output with given "
         "index (" + std::to_string(idx) +

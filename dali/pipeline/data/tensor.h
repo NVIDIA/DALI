@@ -41,7 +41,12 @@ template <typename Backend>
 class Tensor : public Buffer<Backend> {
  public:
   inline Tensor() : meta_(DALI_NHWC) {}
+  explicit inline Tensor(int batch_size) : meta_(DALI_NHWC) {
+    // We only set the size, but not the type. Pinned status can still be set
+    Resize({batch_size});
+  }
   inline ~Tensor() override = default;
+
 
   /**
    *
@@ -129,6 +134,12 @@ class Tensor : public Buffer<Backend> {
     Index new_size = volume(shape);
     ResizeHelper(new_size);
     shape_ = shape;
+  }
+
+  using Buffer<Backend>::reserve;
+  // For having complete API, Tensor is not a batch
+  void reserve(size_t bytes_per_tensor, int) {
+    reserve(bytes_per_tensor);
   }
 
   /**

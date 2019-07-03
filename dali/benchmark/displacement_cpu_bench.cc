@@ -79,19 +79,17 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
 
   // The inputs and outputs to CPUBackend are: shared_ptr<Tensor<CPUBackend>>;
   // create input and output, initialize input
-  std::vector<std::shared_ptr<Tensor<CPUBackend>>> tensor_in;
-  std::vector<std::shared_ptr<Tensor<CPUBackend>>> tensor_out;
-  tensor_in.emplace_back(new Tensor<CPUBackend>());
-  tensor_out.emplace_back(new Tensor<CPUBackend>());
+  auto tensor_in = std::make_shared<TensorVector<CPUBackend>>(1);
+  auto tensor_out = std::make_shared<TensorVector<CPUBackend>>(1);
   // If we want to specify input, we can share data
   // tensor_in->ShareData(img, N * sizeof(T));
   // Here we let underlying buffer allocate it by itself. We have to specify size and type
-  tensor_in[0]->set_type(TypeInfo::Create<T>());
-  tensor_in[0]->Resize({W, H, C});
+  tensor_in->set_type(TypeInfo::Create<T>());
+  tensor_in->Resize({{W, H, C}});
   // tensor out is resized by operator itself in DisplacementFilter::DataDependentSetup()
 
   // TODO(klecki) Accomodate to use different inputs from test data
-  auto *ptr = tensor_in[0]->mutable_data<T>();
+  auto *ptr = (*tensor_in)[0]->template mutable_data<T>();
   for (int i = 0; i < N; i++) {
     ptr[i] = i;
   }
