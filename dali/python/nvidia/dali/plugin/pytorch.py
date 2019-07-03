@@ -115,7 +115,7 @@ class DALIGenericIterator(object):
         # We need data about the batches (like shape information),
         # so we need to run a single batch as part of setup to get that info
         for p in self._pipes:
-            p._run()
+            p.schedule_run()
         self._first_batch = None
         self._first_batch = self.next()
 
@@ -131,7 +131,7 @@ class DALIGenericIterator(object):
         # Gather outputs
         outputs = []
         for p in self._pipes:
-            outputs.append(p._share_outputs())
+            outputs.append(p.share_outputs())
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
             # initialize dict for all output categories
@@ -181,8 +181,8 @@ class DALIGenericIterator(object):
                   feed_ndarray(tensor, pyt_tensors[category])
 
         for p in self._pipes:
-            p._release_outputs()
-            p._run()
+            p.release_outputs()
+            p.schedule_run()
 
         copy_db_index = self._current_data_batch
         # Change index for double buffering

@@ -46,6 +46,24 @@ Prefetching queue depth
 The purpose of this functionality is to average the processing time between batches when the variation from batch to batch is high.
 DALI pipeline allows buffering one or more batches of data ahead. This becomes important when the data processing time between batches could vary a lot. Default prefetch depth is 2. The user can change this value using the ``prefetch_queue_depth`` pipeline argument. For example, if the variation is bigger then it is recommended to prefetch more ahead.
 
+Running DALI pipeline
+---------------------
+
+DALI provides a couple of ways to run a pipeline:
+
+- simple `run` method, which runs the computations and returns the results
+- `schedule_run`, `share_outputs` and `release_outputs` with fine grain control of the output buffers' lifetime
+- built-in iterators for MXNet, PyTorch, and TensorFlow
+
+The first API - `run` method launches the DALI pipeline, executing prefetch iterations if necessary, waits until the first batch is ready and returns the resulting buffers. Buffers are marked as in-use till the call to `run`. In many cases, it is wasteful as data is usually copied out to the native framework tensors after which they can be returned to DALI for reuse
+
+The second API, consisting of `schedule_run`, `share_outputs` and `release_outputs` allows the user to explicitly manage the lifetime of the output buffers. The `schedule_run` method instructs DALI to prepare the next batch of data, doing prefetching if necessary. If the execution mode is set to asynchronous, this call returns immediately, without waiting for the results, so another task can be executed in parallel. The data batch can be requested from DALI by calling `share_outputs`, which returns the result buffer. If it is not ready yet, DALI will wait for it. The data is ready as soon as the `share_outputs` method returns. When DALI buffers are no longer needed, because data was copied or already consumed, `release_outputs` should be called to return DALI buffers for reuse in subsequent iterations.
+
+Built-in iterators use the second API to provide convenient wrappers for immediate use in DL frameworks. The data is returned in framework's native buffers - the iterator's implementation internally copies the data from DALI buffers and recycles them by calling `release_outputs`.
+
+It is not recommended to mix any of the aforementioned APIs together, because they follow different logic for output buffer lifetime management and the details of the process are subject to change without notice. Mixing the APIs may result in an undefined behavior, like a deadlock or attempt to access an invalid buffer.
+
+
 C++ API
 -------
 
