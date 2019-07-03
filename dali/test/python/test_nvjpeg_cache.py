@@ -35,14 +35,14 @@ def compare(tl1, tl2):
     for i in range(0, len(tl1_cpu)):
         assert_array_equal(tl1_cpu.at(i), tl2_cpu.at(i), "cached and non-cached images differ")
 
-class nvJPEGDecoderPipeline(Pipeline):
+class HybridDecoderPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, cache_size):
-        super(nvJPEGDecoderPipeline, self).__init__(batch_size, num_threads, device_id, seed = seed)
+        super(HybridDecoderPipeline, self).__init__(batch_size, num_threads, device_id, seed = seed)
         self.input = ops.FileReader(file_root = image_dir)
         policy = None
         if cache_size > 0:
           policy = "threshold"
-        self.decode = ops.nvJPEGDecoder(device = 'mixed', output_type = types.RGB, cache_debug = False, cache_size = cache_size, cache_type = policy, cache_batch_copy = True)
+        self.decode = ops.ImageDecoder(device = 'mixed', output_type = types.RGB, cache_debug = False, cache_size = cache_size, cache_type = policy, cache_batch_copy = True)
 
     def define_graph(self):
         jpegs, labels = self.input(name="Reader")
@@ -50,9 +50,9 @@ class nvJPEGDecoderPipeline(Pipeline):
         return (images, labels)
 
 def test_nvjpeg_cached():
-    ref_pipe = nvJPEGDecoderPipeline(batch_size, 1, 0, 0)
+    ref_pipe = HybridDecoderPipeline(batch_size, 1, 0, 0)
     ref_pipe.build()
-    cached_pipe = nvJPEGDecoderPipeline(batch_size, 1, 0, 100)
+    cached_pipe = HybridDecoderPipeline(batch_size, 1, 0, 100)
     cached_pipe.build()
     epoch_size = ref_pipe.epoch_size("Reader")
 

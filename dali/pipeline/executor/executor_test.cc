@@ -399,7 +399,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("HostDecoder")
+          OpSpec("ImageDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
@@ -444,7 +444,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("HostDecoder")
+          OpSpec("ImageDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
@@ -505,7 +505,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("HostDecoder")
+          OpSpec("ImageDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");

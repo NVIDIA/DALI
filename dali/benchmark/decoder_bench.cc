@@ -93,33 +93,33 @@ static void PipeArgs(benchmark::internal::Benchmark *b) {
   }
 }
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoder)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoder_CPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "cpu",
-    OpSpec("HostDecoder")
+    OpSpec("ImageDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "cpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, HostDecoder)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoder_CPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoder_GPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "gpu",
-    OpSpec("nvJPEGDecoder")
+    OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("max_streams", num_thread)
@@ -129,19 +129,19 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoder)(benchmark::State& st) {
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoder)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoder_GPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSplitStages)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSplitStages_GPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "gpu",
-    OpSpec("nvJPEGDecoder")
+    OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("max_streams", num_thread)
@@ -152,20 +152,20 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSplitStages)(benchmark::State& st)
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderSplitStages)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderSplitStages_GPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedThreshold)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCachedThreshold_GPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "gpu",
-    OpSpec("nvJPEGDecoder")
+    OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("max_streams", num_thread)
@@ -178,19 +178,19 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedThreshold)(benchmark::State&
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCachedThreshold)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderCachedThreshold_GPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedLargest)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCachedLargest_GPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "gpu",
-    OpSpec("nvJPEGDecoder")
+    OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("max_streams", num_thread)
@@ -202,19 +202,19 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCachedLargest)(benchmark::State& s
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCachedLargest)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderCachedLargest_GPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderBatched_GPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "gpu",
-    OpSpec("nvJPEGDecoder")
+    OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("max_streams", num_thread)
@@ -223,38 +223,38 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderBatched)(benchmark::State& st) {
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderBatched)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderBatched_GPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoderRandomCrop)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderRandomCrop_CPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "cpu",
-    OpSpec("HostDecoderRandomCrop")
+    OpSpec("ImageDecoderRandomCrop")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "cpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, HostDecoderRandomCrop)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderRandomCrop_CPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoderCrop)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCrop_CPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "cpu",
-    OpSpec("HostDecoderCrop")
+    OpSpec("ImageDecoderCrop")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddArg("crop", std::vector<float>{224.0f, 224.0f})
@@ -262,12 +262,12 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderCrop)(benchmark::State& st) {
       .AddOutput("images", "cpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, HostDecoderCrop)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderCrop_CPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, HostDecoderSlice)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_CPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -293,7 +293,7 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderSlice)(benchmark::State& st) {
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "cpu",
-    OpSpec("HostDecoderSlice")
+    OpSpec("ImageDecoderSlice")
       .AddArg("device", "cpu")
       .AddArg("output_type", DALI_RGB)
       .AddInput("raw_jpegs", "cpu")
@@ -308,38 +308,38 @@ BENCHMARK_DEFINE_F(DecoderBench, HostDecoderSlice)(benchmark::State& st) {
     });
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, HostDecoderSlice)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderSlice_CPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderRandomCrop)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderRandomCrop_GPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "gpu",
-    OpSpec("nvJPEGDecoderRandomCrop")
+    OpSpec("ImageDecoderRandomCrop")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddInput("raw_jpegs", "cpu")
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderRandomCrop)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderRandomCrop_GPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCrop)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderCrop_GPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "gpu",
-    OpSpec("nvJPEGDecoderCrop")
+    OpSpec("ImageDecoderCrop")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddArg("crop", std::vector<float>{224.0f, 224.0f})
@@ -347,12 +347,12 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderCrop)(benchmark::State& st) {
       .AddOutput("images", "gpu"));
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderCrop)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderCrop_GPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
 
-BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSlice)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_GPU)(benchmark::State& st) {
   int batch_size = st.range(0);
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
@@ -378,7 +378,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSlice)(benchmark::State& st) {
 
   this->DecoderPipelineTest(
     st, batch_size, num_thread, "gpu",
-    OpSpec("nvJPEGDecoderSlice")
+    OpSpec("ImageDecoderSlice")
       .AddArg("device", "mixed")
       .AddArg("output_type", DALI_RGB)
       .AddInput("raw_jpegs", "cpu")
@@ -393,7 +393,7 @@ BENCHMARK_DEFINE_F(DecoderBench, nvJPEGDecoderSlice)(benchmark::State& st) {
     });
 }
 
-BENCHMARK_REGISTER_F(DecoderBench, nvJPEGDecoderSlice)->Iterations(100)
+BENCHMARK_REGISTER_F(DecoderBench, ImageDecoderSlice_GPU)->Iterations(100)
 ->Unit(benchmark::kMillisecond)
 ->UseRealTime()
 ->Apply(PipeArgs);
