@@ -32,6 +32,8 @@ from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
 from nvidia.dali.data_node import DataNode as _DataNode
 
+from nvidia.dali import tfrecord as tfrec
+
 cupy = None
 def _setup_cupy():
     global cupy
@@ -585,6 +587,9 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         self._spec = _b.OpSpec("_TFRecordReader")
         self._device = "cpu"
 
+        self._parse_meta_files = 'meta_files_path' in kwargs
+
+
         self._spec.AddArg("path", self._path)
         self._spec.AddArg("index_path", self._index_path)
 
@@ -621,6 +626,7 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         outputs = {}
         feature_names = []
         features = []
+
         for i, (feature_name, feature) in enumerate(self._features.items()):
             t_name = op_instance._name
             if len(self._features.items()) > 1:
@@ -632,6 +638,23 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
             outputs[feature_name] = t
             feature_names.append(feature_name)
             features.append(feature)
+
+        if self._parse_meta_files:
+            i = i + 1
+            t_name = op_instance._name
+            t_name += "[{}]".format(i)
+            t = _DataNode(t_name, self._device, op_instance)
+            op_instance.spec.AddOutput(t.name, t.device)
+            op_instance.append_output(t)
+            outputs['image/object/bbox'] = t
+
+            i = i + 1
+            t_name = op_instance._name
+            t_name += "[{}]".format(i)
+            t = _DataNode(t_name, self._device, op_instance)
+            op_instance.spec.AddOutput(t.name, t.device)
+            op_instance.append_output(t)
+            outputs['image/object/class/label'] = t
 
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)
