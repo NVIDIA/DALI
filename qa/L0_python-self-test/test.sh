@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy opencv-python pillow"
+pip_packages="nose numpy opencv-python pillow torch"
 
 pushd ../..
 
