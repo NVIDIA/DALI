@@ -46,6 +46,15 @@ DALI_SCHEMA(_TFRecordReader)
       DALI_STRING_VEC)
   .AddArg("features", "List of features.",
       DALI_TF_FEATURE_VEC)
+  .AddOptionalArg("meta_files_path", "Path to directory with boxes and labels meta files",
+    std::string())
+  .AdditionalOutputsFn([](const OpSpec& spec) {
+    auto meta_files_path = spec.GetArgument<std::string>("meta_files_path");
+    if (meta_files_path != std::string())
+      return 2;
+
+    return 0;
+  })
   .AddParent("_TFRecordReaderBase")
   .AddParent("LoaderBase")
   .MakeInternal();

@@ -295,6 +295,9 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         self._spec = b.OpSpec("_TFRecordReader")
         self._device = "cpu"
 
+        self._parse_meta_files = 'meta_files_path' in kwargs
+
+
         self._spec.AddArg("path", self._path)
         self._spec.AddArg("index_path", self._index_path)
 
@@ -338,6 +341,21 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
             outputs[feature_name] = t
             feature_names.append(feature_name)
             features.append(feature)
+
+        if self._parse_meta_files:
+            i = i + 1
+            t_name = "_TFRecordReader" + "_id_" + str(op_instance.id) + "_output_" + str(i)
+            t = EdgeReference(t_name, self._device, op_instance)
+            op_instance.spec.AddOutput(t.name, t.device)
+            op_instance.append_output(t)
+            outputs['boxes'] = t
+
+            i = i + 1
+            t_name = "_TFRecordReader" + "_id_" + str(op_instance.id) + "_output_" + str(i)
+            t = EdgeReference(t_name, self._device, op_instance)
+            op_instance.spec.AddOutput(t.name, t.device)
+            op_instance.append_output(t)
+            outputs['labels'] = t
 
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)
