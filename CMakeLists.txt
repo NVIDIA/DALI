@@ -13,6 +13,8 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.11)
+# allow usage of check_symbol_exists() macro
+include(CheckSymbolExists)
 
 if (POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
