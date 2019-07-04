@@ -32,10 +32,18 @@ The video codecs can be contained in most of container file formats. FFmpeg is u
 Returns a batch of sequences of `sequence_length` frames of shape [N, F, H, W, C] (N being the batch size and F the
 number of frames).)code")
   .NumInput(0)
-  .NumOutput(1)
-  .AddArg("filenames",
-      R"code(File names of the video files to load.)code",
-      DALI_STRING_VEC)
+  .OutputFn([](const OpSpec &spec) {
+      std::string file_root = spec.GetArgument<std::string>("file_root");
+      return file_root.empty() ? 1 : 2;
+    })
+  .AddOptionalArg("filenames",
+      R"code(File names of the video files to load.
+This option is mutually exclusive with `file_root`.)code",
+      std::vector<std::string>{})
+  .AddOptionalArg("file_root",
+      R"code(Path to a directory containing data files.
+This option is mutually exclusive with `filenames`.)code",
+      std::string())
   .AddArg("sequence_length",
       R"code(Frames to load per sequence.)code",
       DALI_INT32)

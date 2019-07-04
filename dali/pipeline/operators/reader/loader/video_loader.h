@@ -18,6 +18,9 @@
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <errno.h>
 }
 
 #include <algorithm>
@@ -49,6 +52,13 @@ auto codecpar(AVStream* stream) -> decltype(stream->codecpar);
 #else
 auto codecpar(AVStream* stream) -> decltype(stream->codec);
 #endif
+
+namespace filesystem {
+
+std::vector<std::pair<std::string, int>> get_file_label_pair(const std::string& path,
+    const std::vector<std::string>& filenames);
+
+}  // namespace filesystem
 
 struct OpenFile {
   bool open = false;
@@ -97,12 +107,19 @@ struct VideoLoaderStats {
   uint64_t frames_used;
 };
 
+struct sequence_meta {
+  size_t filename_idx;
+  int frame_idx;
+  int label;
+};
+
 
 class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
  public:
   explicit inline VideoLoader(const OpSpec& spec,
     const std::vector<std::string>& filenames)
     : Loader<GPUBackend, SequenceWrapper>(spec),
+      file_root_(spec.GetArgument<std::string>("file_root")),
       count_(spec.GetArgument<int>("sequence_length")),
       step_(spec.GetArgument<int>("step")),
       stride_(spec.GetArgument<int>("stride")),
@@ -112,10 +129,14 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       dtype_(spec.GetArgument<DALIDataType>("dtype")),
       normalized_(spec.GetArgument<bool>("normalized")),
       filenames_(filenames),
+      device_id_(spec.GetArgument<int>("device_id")),
       codec_id_(0),
       stop_(false) {
     if (step_ < 0)
       step_ = count_ * stride_;
+
+    file_label_pair_ = filesystem::get_file_label_pair(file_root_, filenames_);
+
     DALI_ENFORCE(cuvidInitChecked(0),
      "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
      "If you are running in a Docker container, please refer "
@@ -123,8 +144,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     /* Required to use libavformat: Initialize libavformat and register all
      * the muxers, demuxers and protocols.
      */
-
-    CUDA_CALL(cudaGetDevice(&device_id_));
 
     av_register_all();
   }
@@ -152,17 +171,18 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);
   void receive_frames(SequenceWrapper& sequence);
-  std::pair<int, int> load_width_height(const std::string& filename);
+  std::pair<int, int> load_width_height();
 
  protected:
   Index SizeImpl() override;
 
   void PrepareMetadataImpl() override {
     int total_count = 1 + (count_ - 1) * stride_;
-    for (size_t i = 0; i < filenames_.size(); ++i) {
-      int frame_count = get_or_open_file(filenames_[i]).frame_count_;
+
+    for (size_t i = 0; i < file_label_pair_.size(); ++i) {
+      int frame_count = get_or_open_file(file_label_pair_[i].first).frame_count_;
       for (int s = 0; s < frame_count && s + total_count <= frame_count; s += step_) {
-        frame_starts_.emplace_back(i, s);
+        frame_starts_.emplace_back(sequence_meta{i, s, file_label_pair_[i].second});
       }
     }
 
@@ -188,6 +208,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     }
   }
   // Params
+  std::string file_root_;
   int count_;
   int step_;
   int stride_;
@@ -212,11 +233,11 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   std::thread thread_file_reader_;
 
-  // pair -> (filename index, frame index)
-  std::vector<std::pair<int, int>> frame_starts_;
+  std::vector<struct sequence_meta> frame_starts_;
   Index current_frame_idx_;
 
   volatile bool stop_;
+  std::vector<std::pair<std::string, int>> file_label_pair_;
 };
 
 }  // namespace dali

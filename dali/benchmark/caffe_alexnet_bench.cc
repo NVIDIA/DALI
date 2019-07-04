@@ -49,7 +49,7 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
       .AddOutput("labels", "cpu"));
 
   pipe.AddOperator(
-      OpSpec("HostDecoder")
+      OpSpec("ImageDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddInput("compressed_images", "cpu")
@@ -89,14 +89,11 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
       .AddOutput("resized", "cpu"));
 
   pipe.AddOperator(
-      OpSpec("NormalizePermute")
+      OpSpec("CropMirrorNormalize")
       .AddArg("device", "gpu")
       .AddArg("output_type", DALI_FLOAT16)
       .AddArg("mean", vector<float>{128, 128, 128})
       .AddArg("std", vector<float>{1, 1, 1})
-      .AddArg("height", 224)
-      .AddArg("width", 224)
-      .AddArg("channels", 3)
       .AddInput("resized", "gpu")
       .AddOutput("final_batch", "gpu"));
 
@@ -178,7 +175,7 @@ BENCHMARK_DEFINE_F(Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
 
   // Add a hybrid jpeg decoder
   pipe.AddOperator(
-      OpSpec("nvJPEGDecoder")
+      OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", img_type)
       .AddInput("compressed_images", "cpu")

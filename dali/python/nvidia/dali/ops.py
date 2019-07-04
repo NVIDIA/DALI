@@ -49,6 +49,14 @@ def _docstring_generator(cls):
         ret += "\nThis operator expects sequence inputs\n"
     elif schema.AllowsSequences():
         ret += "\nThis operator allows sequence inputs\n"
+
+    if schema.IsDeprecated():
+        use_instead = schema.DeprecatedInFavorOf()
+        ret += "\n.. warning::\n\n   This operator is now deprecated"
+        if use_instead:
+            ret +=". Use `" + use_instead + "` instead"
+        ret += "\n"
+
     ret += """
 Parameters
 ----------
@@ -149,6 +157,13 @@ class _OperatorInstance(object):
                             .format(type(kwargs[k]).__name__))
                 self._spec.AddArgumentInput(k, kwargs[k].name)
                 self._inputs = list(self._inputs) + [kwargs[k]]
+
+        if self._op.schema.IsDeprecated():
+            use_instead = self._op.schema.DeprecatedInFavorOf()
+            msg = "WARNING: `{}` is now deprecated".format(type(self._op).__name__)
+            if use_instead:
+                msg +=". Use `" + use_instead + "` instead"
+            print(msg)
 
     def check_args(self):
         self._op.schema.CheckArgs(self._spec)

@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <memory>
 #include "dali/test/dali_test_single_op.h"
 
 namespace dali {
@@ -19,7 +20,7 @@ enum t_resizeOptions : uint32_t {
 template <typename ImgType>
 class GenericResizeTest : public DALISingleOpTest<ImgType> {
  public:
-  vector<TensorList<CPUBackend>*>
+  vector<std::shared_ptr<TensorList<CPUBackend>>>
   Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
     const int c = this->GetNumColorComp();
     auto cv_type = (c == 3) ? CV_8UC3 : CV_8UC1;
@@ -89,7 +90,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
               rsz_h = static_cast<int>(std::round(H * static_cast<float>(rsz_w) / W));
               if (max_size_enforced) {
                 if (rsz_h > max_size[0]) {
-                  const float ratio = W / H;
+                  const float ratio = static_cast<float>(W) / static_cast<float>(H);
                   rsz_w = static_cast<int>(std::round(ratio * max_size[0]));
                   rsz_h = max_size[0];
                 }
@@ -104,7 +105,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
               rsz_w = static_cast<int>(std::round(W * static_cast<float>(rsz_h) / H));
                if (max_size_enforced) {
                 if (rsz_w > max_size[1]) {
-                  const float ratio = H / W;
+                  const float ratio = static_cast<float>(H) / static_cast<float>(W);
                   rsz_h = static_cast<int>(std::round(ratio * max_size[1]));
                   rsz_w = max_size[1];
                 }
@@ -180,8 +181,8 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
       std::memcpy(out_data, finalImg->ptr(), finalImg->rows * finalImg->cols * c);
     }
 
-    vector<TensorList<CPUBackend>*> outputs(1);
-    outputs[0] = new TensorList<CPUBackend>();
+    vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;
+    outputs.push_back(std::make_shared<TensorList<CPUBackend>>());
     outputs[0]->Copy(out, nullptr);
     return outputs;
   }

@@ -254,7 +254,7 @@ TYPED_TEST(PipelineTest, TestSerialization) {
   pipe.SetExternalInput("data", batch);
 
   pipe.AddOperator(
-      OpSpec("HostDecoder")
+      OpSpec("ImageDecoder")
       .AddArg("device", "cpu")
       .AddInput("data", "cpu")
       .AddOutput("decoded", "cpu"));
@@ -479,7 +479,7 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
   pipe.SetExternalInput("data", batch);
 
   pipe.AddOperator(
-      OpSpec("HostDecoder")
+      OpSpec("ImageDecoder")
       .AddArg("device", "cpu")
       .AddInput("data", "cpu")
       .AddOutput("decoded", "cpu"));
@@ -559,7 +559,7 @@ TEST_F(PrefetchedPipelineTest, SetQueueSizesSeparatedFail) {
 TEST_F(PrefetchedPipelineTest, SetExecutionTypesFailAfterBuild) {
   Pipeline pipe(this->batch_size_, 4, 0);
   pipe.AddExternalInput("data");
-  pipe.AddOperator(OpSpec("HostDecoder")
+  pipe.AddOperator(OpSpec("ImageDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu"));
@@ -577,7 +577,7 @@ TEST_F(PrefetchedPipelineTest, SetExecutionTypesFailAfterBuild) {
 TEST_F(PrefetchedPipelineTest, SetQueueSizesFailAfterBuild) {
   Pipeline pipe(this->batch_size_, 4, 0);
   pipe.AddExternalInput("data");
-  pipe.AddOperator(OpSpec("HostDecoder")
+  pipe.AddOperator(OpSpec("ImageDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu"));
@@ -607,7 +607,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   pipe.SetQueueSizes(CPU, GPU);
   pipe.AddExternalInput("data");
 
-  pipe.AddOperator(OpSpec("HostDecoder")
+  pipe.AddOperator(OpSpec("ImageDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu"));
@@ -625,13 +625,13 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
 
   // Split the batch into 5
   std::array<TensorList<CPUBackend>, N> splited_tl;
-  std::array<std::vector<Dims>, N> shapes;
+  std::array<std::vector<kernels::TensorShape<>>, N> shapes;
   for (int i = 0; i < N; i++) {
     shapes[i].resize(batch_size);
     for (int j = 0; j < batch_size; j++) {
       shapes[i][j] = tl.tensor_shape(i * batch_size + j);
     }
-    splited_tl[i].Resize(shapes[i]);
+    splited_tl[i].Resize({shapes[i]});
   }
 
   for (int i = 0; i < N; i++) {

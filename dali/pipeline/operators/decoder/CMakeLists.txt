@@ -13,55 +13,11 @@
 # limitations under the License.
 
 add_subdirectory(cache)
+add_subdirectory(host)
+if (BUILD_NVJPEG)
+  add_subdirectory(nvjpeg)
+endif()
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
-
-# Get all the source files and dump test files
-if (BUILD_NVJPEG)
-  if (NVJPEG_DECOUPLED_API)
-    list(APPEND DALI_SRCS
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_allocator.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_decoupled_api.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_crop.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_slice.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_random_crop.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_cpu.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_cpu_crop.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_cpu_slice.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_cpu_random_crop.cc"
-      "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_gpu.cc")
-  else()
-    list(APPEND DALI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder.cc")
-  endif()
-  if (BUILD_TEST)
-    if (NVJPEG_DECOUPLED_API)
-      list(APPEND DALI_TEST_SRCS
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_decoupled_api_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_crop_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_slice_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_random_crop_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_crop_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_slice_test.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg_decoder_split_random_crop_test.cc")
-    endif()
-  endif()
-endif()
-
-list(APPEND DALI_SRCS
-  "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_crop.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_slice.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_random_crop.cc"
-  )
-
-set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
-
-if (BUILD_TEST)
-  list(APPEND DALI_TEST_SRCS
-    "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_crop_test.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_slice_test.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/host_decoder_random_crop_test.cc"
-    )
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} PARENT_SCOPE)
-endif()
+collect_sources(DALI_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)

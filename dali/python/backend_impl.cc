@@ -46,6 +46,20 @@ static void* ctypes_void_ptr(const py::object& object) {
   return ptr;
 }
 
+template <int ndim>
+py::list as_py_list(const kernels::TensorShape<ndim> &shape) {
+  py::list ret(shape.size());
+  for (int i = 0; i < shape.size(); i++) {
+    ret[i] = shape[i];
+  }
+  return ret;
+}
+
+template <typename Backend>
+py::list py_shape(const Tensor<Backend> &t) {
+  return as_py_list(t.shape());
+}
+
 void ExposeTensor(py::module &m) { // NOLINT
   py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
@@ -68,7 +82,7 @@ void ExposeTensor(py::module &m) { // NOLINT
               FormatStrFromType(t.type()),
               t.ndim(), shape, stride);
         })
-    .def("__init__", [](Tensor<CPUBackend> &t, py::buffer b, DALITensorLayout layout = DALI_NHWC) {
+    .def(py::init([](py::buffer b, DALITensorLayout layout = DALI_NHWC) {
           // We need to verify that hte input data is c contiguous
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -92,17 +106,18 @@ void ExposeTensor(py::module &m) { // NOLINT
           }
 
           // Create the Tensor and wrap the data
-          new (&t) Tensor<CPUBackend>;
+          auto t = new Tensor<CPUBackend>;
           TypeInfo type = TypeFromFormatStr(info.format);
-          t.ShareData(info.ptr, bytes);
-          t.set_type(type);
-          t.SetLayout(layout);
-          t.Resize(i_shape);
-        },
+          t->ShareData(info.ptr, bytes);
+          t->set_type(type);
+          t->SetLayout(layout);
+          t->Resize(i_shape);
+          return t;
+        }),
       R"code(
       Tensor residing in the CPU memory.
       )code")
-    .def("shape", &Tensor<CPUBackend>::shape,
+    .def("shape", &py_shape<CPUBackend>,
          R"code(
          Shape of the tensor.
          )code")
@@ -132,7 +147,7 @@ void ExposeTensor(py::module &m) { // NOLINT
       )code");
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
-    .def("shape", &Tensor<GPUBackend>::shape,
+    .def("shape", &py_shape<GPUBackend>,
          R"code(
          Shape of the tensor.
          )code")
@@ -174,8 +189,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
   // the backend. We do not support converting from TensorLists
   // to numpy arrays currently.
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
-    .def("__init__", [](TensorList<CPUBackend> &t, py::buffer b,
-                        DALITensorLayout layout) {
+    .def(py::init([](py::buffer b, DALITensorLayout layout) {
           // We need to verify that the input data is C_CONTIGUOUS
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -188,7 +202,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           for (size_t i = 1; i < info.shape.size(); ++i) {
             tensor_shape[i-1] = info.shape[i];
           }
-          std::vector<Dims> i_shape(info.shape[0], tensor_shape);
+          auto i_shape = kernels::uniform_list_shape(info.shape[0], tensor_shape);
           size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
           // Validate the stride
@@ -200,13 +214,14 @@ void ExposeTensorList(py::module &m) { // NOLINT
           }
 
           // Create the Tensor and wrap the data
-          new (&t) TensorList<CPUBackend>;
+          auto t = new TensorList<CPUBackend>;
           TypeInfo type = TypeFromFormatStr(info.format);
-          t.ShareData(info.ptr, bytes);
-          t.set_type(type);
-          t.SetLayout(layout);
-          t.Resize(i_shape);
-        },
+          t->ShareData(info.ptr, bytes);
+          t->set_type(type);
+          t->SetLayout(layout);
+          t->Resize(i_shape);
+          return t;
+        }),
       R"code(
       List of tensors residing in the CPU memory.
 
@@ -341,10 +356,10 @@ void ExposeTensorList(py::module &m) { // NOLINT
       py::return_value_policy::reference_internal);
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
-    .def("__init__", [](TensorList<GPUBackend> &t) {
+    .def(py::init([]() {
           // Construct a default TensorList on GPU
-          new (&t) TensorList<GPUBackend>;
-        },
+          return new TensorList<GPUBackend>;
+        }),
       R"code(
       List of tensors residing in the GPU memory.
       )code")
@@ -786,7 +801,9 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
     .def("AllowsSequences", &OpSchema::AllowsSequences)
-    .def("IsInternal", &OpSchema::IsInternal);
+    .def("IsInternal", &OpSchema::IsInternal)
+    .def("IsDeprecated", &OpSchema::IsDeprecated)
+    .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf);
 
   ExposeTensor(m);
   ExposeTensorList(m);

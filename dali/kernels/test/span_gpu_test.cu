@@ -21,7 +21,7 @@ namespace dali {
 namespace kernels {
 namespace {
 
-template <typename T, ptrdiff_t extent>
+template <typename T, span_extent_t extent>
 __global__ void TestSpanKernel(span<T, extent> span) {
   int x = threadIdx.x + blockIdx.x*blockDim.x;
   if (x < span.size()) {
@@ -30,6 +30,22 @@ __global__ void TestSpanKernel(span<T, extent> span) {
 }
 
 }  // namespace
+
+inline void Validate(span<const int> s) {
+  int i = 1;
+  for (auto a : s)
+    EXPECT_EQ(a, i++);
+  EXPECT_EQ(i, static_cast<int>(s.size() + 1));
+}
+
+TEST(Span, Convert) {
+  int A[10];
+  auto s = make_span(A);
+  int i = 1;
+  for (auto &a : s)
+    a = i++;
+  Validate(s);
+}
 
 TEST(TestGPUSpan, Test1) {
   const int N = 1000;

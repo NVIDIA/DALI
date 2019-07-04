@@ -181,26 +181,26 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back(make_pair(inst_name, spec));
 
-  // If necessary, split nvJPEGDecoder operator in two separated stages (CPU and Mixed-GPU)
+  // Validate op device
+  string device = spec.GetArgument<string>("device");
+  DALI_ENFORCE(device == "cpu" || device == "gpu" || device == "mixed" || device == "support",
+    "Invalid device argument \"" +  device +
+    "\". Valid options are \"cpu\", \"gpu\", \"mixed\" or \"support\"");
+
+  // If necessary, split ImageDecoder operator in two separated stages (CPU and Mixed-GPU)
   auto operator_name = spec.name();
   bool split_stages = false;
-  if (has_prefix(operator_name, "nvJPEGDecoder") &&
+  bool is_hybrid_decoder = device == "mixed" &&
+    (has_prefix(operator_name, "nvJPEGDecoder") || has_prefix(operator_name, "ImageDecoder"));
+
+  if (is_hybrid_decoder &&
       operator_name.find("CPUStage") == std::string::npos &&
       operator_name.find("GPUStage") == std::string::npos &&
       spec.TryGetArgument<bool>(split_stages, "split_stages") &&
       split_stages) {
-    AddSplitNvJPEGDecoder(spec, inst_name);
+    AddSplitHybridDecoder(spec, inst_name);
     return;
   }
-
-  // Validate op device
-  string device = spec.GetArgument<string>("device");
-  DALI_ENFORCE(device == "cpu" ||
-               device == "gpu" ||
-               device == "mixed" ||
-               device == "support", "Invalid "
-      "device argument \"" + device + "\". Valid options are "
-      "\"cpu\", \"gpu\", \"mixed\" or \"support\"");
 
   DeviceGuard g(device_id_);
 
@@ -313,11 +313,19 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   this->op_specs_.push_back(make_pair(inst_name, spec));
 }
 
-inline void Pipeline::AddSplitNvJPEGDecoder(OpSpec &spec, const std::string& inst_name) {
+inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string& inst_name) {
   std::string operator_name = spec.name();
-  std::string prefix = "nvJPEGDecoder";
-  DALI_ENFORCE(has_prefix(operator_name, prefix));
-  auto suffix = operator_name.substr(prefix.size());
+
+  std::string suffix = "";
+  bool any_match = false;
+  for (const std::string& prefix : {"nvJPEGDecoder", "ImageDecoder"}) {
+    if (has_prefix(operator_name, prefix)) {
+      suffix = operator_name.substr(prefix.size());
+      any_match = true;
+      break;
+    }
+  }
+  DALI_ENFORCE(any_match);
 
   std::string cpu_stage_name = "nvJPEGDecoderCPUStage" + suffix;
   spec.set_name(cpu_stage_name);

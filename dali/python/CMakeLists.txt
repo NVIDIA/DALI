@@ -44,10 +44,3 @@ copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/tools/tfrecord2idx" "$
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" "${PROJECT_BINARY_DIR}/dali/python")
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_DIR}/dali/python")
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python")
-
-configure_file("${PROJECT_SOURCE_DIR}/dali/python/tf_plugin/setup.py.in" "${PROJECT_BINARY_DIR}/stage/tf_plugin/setup.py")
-copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/dali/python/tf_plugin/MANIFEST.in" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")
-copy_post_build(${dali_python_lib} "${PROJECT_BINARY_DIR}/stage/tf_plugin/setup.py" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")
-copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")
-copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")
-copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")

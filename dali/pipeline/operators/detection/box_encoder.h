@@ -20,6 +20,7 @@
 #include <vector>
 #include <utility>
 
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/util/bounding_box.h"
 

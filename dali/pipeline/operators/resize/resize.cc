@@ -106,7 +106,7 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     auto &attr_output = ws->Output<CPUBackend>(outputs_per_idx_ * idx + 1);
     auto &in_shape = input.shape();
 
-    attr_output.Resize(Dims{2});
+    attr_output.Resize({2});
     int *t = attr_output.mutable_data<int>();
     t[0] = in_shape[0];
     t[1] = in_shape[1];

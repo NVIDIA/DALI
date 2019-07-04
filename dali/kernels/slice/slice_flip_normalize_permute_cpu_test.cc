@@ -43,8 +43,7 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
     TestTensorList<OutputType, Dims> expected_output;
     this->PrepareExpectedOutput(test_data, args, expected_output);
 
-    TensorListShape<> output_shapes;
-    output_shapes.resize(NumSamples, Dims);
+    TensorListShape<> output_shapes(NumSamples, Dims);
     std::vector<KernelType> kernels(NumSamples);
     for (size_t i = 0; i < NumSamples; i++) {
       auto &kernel = kernels[i];

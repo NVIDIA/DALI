@@ -15,11 +15,7 @@
 from __future__ import print_function
 
 import os
-import random
-from math import ceil, sqrt
-
-import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
+from test_utils import get_gpu_num
 
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -34,11 +30,12 @@ ITER=6
 BATCH_SIZE=4
 COUNT=5
 
+
 class VideoPipe(Pipeline):
-    def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1):
-        super(VideoPipe, self).__init__(batch_size, num_threads=2, device_id=0, seed=12)
+    def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1, device_id=0, num_shards=1):
+        super(VideoPipe, self).__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
         self.input = ops.VideoReader(device="gpu", filenames=data, sequence_length=COUNT,
-                                     shard_id=0, num_shards=1, random_shuffle=shuffle,
+                                     shard_id=0, num_shards=num_shards, random_shuffle=shuffle,
                                      normalized=True, image_type=types.YCbCr, dtype=types.FLOAT,
                                      step=step, stride=stride)
 
@@ -70,3 +67,9 @@ def test_stride_video_pipeline():
         pipe_out = pipe.run()
     del pipe
 
+def test_multi_gpu_video_pipeline():
+    gpus = get_gpu_num()
+    pipes = [VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, device_id=d, num_shards=gpus) for d in range(gpus)]
+    for p in pipes:
+        p.build()
+        p.run()

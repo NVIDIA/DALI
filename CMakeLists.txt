@@ -13,6 +13,8 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.11)
+# allow usage of check_symbol_exists() macro
+include(CheckSymbolExists)
 
 if (POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
@@ -26,7 +28,6 @@ option(BUILD_BENCHMARK "Build benchmark suite" ON)
 option(BUILD_NVTX "Build with NVTX profiling enabled" OFF)
 option(BUILD_PYTHON "Build Python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
-option(BUILD_TENSORFLOW "Build TensorFlow plugin" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo" ON)
 option(BUILD_NVJPEG "Build with nvJPEG support" ON)
 option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
@@ -42,7 +43,6 @@ include(cmake/Utils.cmake)
 
 propagate_option(BUILD_PYTHON)
 propagate_option(BUILD_LMDB)
-propagate_option(BUILD_TENSORFLOW)
 propagate_option(BUILD_JPEG_TURBO)
 propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVOF)
@@ -101,6 +101,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-variable -Wno-unused-f
 
 if (WERROR)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+endif()
+
+if (BUILD_WITH_ASAN)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

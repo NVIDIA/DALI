@@ -30,20 +30,20 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
     this->MakeJPEGBatch(&data, batch_size);
     this->SetExternalInputs({{"jpegs", &data}});
 
-    shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
+    auto pipe = this->GetPipeline();
     // Decode the images
     pipe->AddOperator(
-      OpSpec("HostDecoder")
+      OpSpec("ImageDecoder")
         .AddArg("output_type", this->ImageType())
         .AddInput("jpegs", "cpu")
-        .AddOutput("input", "cpu"), "HostDecoder");
+        .AddOutput("input", "cpu"), "ImageDecoder");
 
     // Launching the same transformation on CPU (outputIdx 0) and GPU (outputIdx 1)
     this->AddOperatorWithOutput(descr);
     this->RunOperator(descr);
   }
 
-  vector<TensorList<CPUBackend>*>
+  vector<std::shared_ptr<TensorList<CPUBackend>>>
   Reference(const vector<TensorList<CPUBackend>*> &inputs, DeviceWorkspace *ws) override {
     if (GetOpType() == OpType::GPU)
       return this->CopyToHost(ws->Output<GPUBackend>(1));

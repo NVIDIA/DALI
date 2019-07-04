@@ -99,9 +99,11 @@ static int64_t* daliShapeAtHelper(dali::DeviceWorkspace* ws, int n, int k) {
   std::vector<dali::Index> shape;
   const auto &out_tensor_list = ws->Output<T>(n);
   if (k >= 0) {
-    shape = out_tensor_list.tensor_shape(k);
+    auto shape_span = out_tensor_list.tensor_shape_span(k);
+    shape = std::vector<dali::Index>(shape_span.begin(), shape_span.end());
   } else {
-    shape = out_tensor_list.tensor_shape(0);
+    auto shape_span = out_tensor_list.tensor_shape_span(0);
+    shape = std::vector<dali::Index>(shape_span.begin(), shape_span.end());
     shape.insert(shape.begin(), out_tensor_list.ntensor());
   }
 
@@ -174,16 +176,17 @@ template <typename T>
 static size_t daliMaxDimTensorsHelper(dali::DeviceWorkspace* ws, int n) {
   const auto &out_tensor_list = ws->Output<T>(n);
   size_t tensors_num = out_tensor_list.ntensor();
-  size_t max_num_dim = 0;
+  int max_num_dim = 0;
   for (size_t i = 0; i < tensors_num; ++i) {
-    size_t num_dim = out_tensor_list.tensor_shape(i).size();
+    auto shape = out_tensor_list.tensor_shape(i);
+    int num_dim = shape.size();
     // squeeze last dimension
-    if (out_tensor_list.tensor_shape(i).back() == 1) {
+    if (shape[num_dim - 1] == 1) {
       --num_dim;
     }
     max_num_dim = std::max(max_num_dim, num_dim);
   }
-  return max_num_dim;
+  return static_cast<size_t>(max_num_dim);
 }
 
 size_t daliMaxDimTensors(daliPipelineHandle* pipe_handle, int n) {

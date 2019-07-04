@@ -164,8 +164,13 @@ class SliceFlipNormalizePermuteGPU {
     const size_t num_samples = in.size();
     se.add<detail::SampleDesc<Dims>>(AllocType::Host, num_samples);
     se.add<detail::SampleDesc<Dims>>(AllocType::GPU, num_samples);
-    se.add<float>(AllocType::GPU, args[0].mean.size());
-    se.add<float>(AllocType::GPU, args[0].inv_stddev.size());
+
+    DALI_ENFORCE(args[0].mean.size() == args[0].inv_stddev.size());
+    size_t norm_args_size = args[0].mean.size();
+    if (norm_args_size > 0) {
+      se.add<float>(AllocType::Host, 2 * norm_args_size);
+      se.add<float>(AllocType::GPU,  2 * norm_args_size);
+    }
 
     block_count_ = 0;
     for (auto &elem : args) {
@@ -178,9 +183,8 @@ class SliceFlipNormalizePermuteGPU {
     se.add<detail::BlockDesc>(AllocType::GPU, block_count_);
     req.scratch_sizes = se.sizes;
 
-    TensorListShape<Dims> output_shapes;
     auto in_shapes = in.shape;
-    output_shapes.resize(in_shapes.size(), Dims);
+    TensorListShape<Dims> output_shapes(in_shapes.size(), Dims);
     for (int i = 0; i < in_shapes.size(); i++) {
       TensorShape<Dims> out_shape(args[i].padded_shape);
       CheckValidOutputShape<Dims>(in_shapes[i], out_shape, args[i]);

@@ -18,16 +18,17 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import os
 
+from test_utils import check_batch
+from test_utils import compare_pipelines
+from test_utils import RandomDataIterator
+
 class DecoderPipeline(Pipeline):
-    def __init__(self, data_path, batch_size, num_threads, device_id, decoder):
+    def __init__(self, data_path, batch_size, num_threads, device_id, device):
         super(DecoderPipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=1)
         self.input = ops.FileReader(file_root = data_path,
                                     shard_id = 0,
                                     num_shards = 1)
-        if decoder == 'nvJPEGDecoder':
-            self.decode = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
-        elif decoder == 'HostDecoder':
-            self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = device, output_type = types.RGB)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -40,24 +41,24 @@ missnamed_path = 'db/single/missnamed'
 test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp'}
 test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
-def run_decode(data_path, batch, decoder, threads):
-    pipe = DecoderPipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, decoder=decoder)
+def run_decode(data_path, batch, device, threads):
+    pipe = DecoderPipeline(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0, device=device)
     pipe.build()
     iters = pipe.epoch_size("Reader")
     for _ in range(iters):
         pipe.run()
 
-def test_host_decoder():
-    for decoder in {'nvJPEGDecoder', 'HostDecoder'}:
+def test_image_decoder():
+    for device in {'cpu', 'mixed'}:
         for threads in {1, 2, 3, 4}:
             for size in {1, 10}:
                 for img_type in test_good_path:
                     data_path = os.path.join(test_data_root, good_path, img_type)
-                    run_decode(data_path, size, decoder, threads)
-                    yield check, img_type, size, decoder, threads
+                    run_decode(data_path, size, device, threads)
+                    yield check, img_type, size, device, threads
 
 def test_missnamed_host_decoder():
-    for decoder in {'nvJPEGDecoder', 'HostDecoder'}:
+    for decoder in {'cpu', 'mixed'}:
         for threads in {1, 2, 3, 4}:
             for size in {1, 10}:
                 for img_type in test_missnamed_path:
@@ -65,6 +66,5 @@ def test_missnamed_host_decoder():
                     run_decode(data_path, size, decoder, threads)
                     yield check, img_type, size, decoder, threads
 
-def check(img_type, size, decoder, threads):
+def check(img_type, size, device, threads):
     pass
-

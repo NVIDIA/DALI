@@ -85,7 +85,7 @@ class TFRecordDetectionPipeline(Pipeline):
         super(TFRecordDetectionPipeline, self).__init__(
             args.batch_size, args.num_workers, 0, 0)
         self.input = ops.TFRecordReader(
-            path = os.path.join(test_data_path, 'small_coco.tfrecord'), 
+            path = os.path.join(test_data_path, 'small_coco.tfrecord'),
             index_path = os.path.join(test_data_path, 'small_coco_index.idx'),
             features = {
                 'image/encoded' : tfrec.FixedLenFeature((), tfrec.string, ""),
@@ -96,7 +96,7 @@ class TFRecordDetectionPipeline(Pipeline):
             num_shards=1,
             random_shuffle=False)
 
-        self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
         self.cast = ops.Cast(dtype = types.INT32)
         self.box_encoder = ops.BoxEncoder(
             device="cpu",
@@ -113,7 +113,7 @@ class TFRecordDetectionPipeline(Pipeline):
         encoded_boxes, encoded_labels = self.box_encoder(inputs['image/object/bbox'], labels)
 
         return (
-            image_gpu, 
+            image_gpu,
             inputs['image/object/bbox'],
             labels,
             encoded_boxes,
@@ -134,7 +134,7 @@ class COCODetectionPipeline(Pipeline):
             ltrb=True,
             random_shuffle=False)
 
-        self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
         self.box_encoder = ops.BoxEncoder(
             device="cpu",
             criteria=0.5,
@@ -147,8 +147,8 @@ class COCODetectionPipeline(Pipeline):
         encoded_boxes, encoded_labels = self.box_encoder(boxes, labels)
 
         return (
-            image_gpu, 
-            boxes, 
+            image_gpu,
+            boxes,
             labels,
             encoded_boxes,
             encoded_labels)

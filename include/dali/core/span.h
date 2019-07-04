@@ -24,19 +24,21 @@ namespace dali {
 
 // Based on "span: bounds-safe views for sequences of objects"
 // http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0122r7.pdf
+// and "Usability Enhancements for std::span"
+// http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1024r3.pdf
 // Adopted to c++20
 // Missing: containers constructors, static <-> dynamic, reverse iterators, subspans, comparisions
-// Removed some constexprs due to c++11 limitations
 
-constexpr ptrdiff_t dynamic_extent = -1;
+using span_extent_t = ptrdiff_t;
+constexpr span_extent_t dynamic_extent = span_extent_t(-1);
 
-template <class ElementType, ptrdiff_t Extent = dynamic_extent>
+template <class ElementType, span_extent_t Extent = dynamic_extent>
 class span {
  public:
   // constants and types
   using element_type = ElementType;
   using value_type = std::remove_cv_t<ElementType>;
-  using index_type = ptrdiff_t;
+  using index_type = span_extent_t;
   using difference_type = ptrdiff_t;
   using pointer = element_type *;
   using reference = element_type &;
@@ -50,6 +52,11 @@ class span {
   DALI_HOST_DEV constexpr span(pointer ptr, index_type count = Extent) : data_(ptr) {  // NOLINT
     /* assert(count == Extent); */
   }
+
+  template <class U, typename = std::enable_if_t<
+    std::is_convertible<U(*)[], ElementType(*)[]>::value
+  >>
+  DALI_HOST_DEV constexpr span(const span<U, Extent>& s) noexcept : data_(s.data()) {}
 
   DALI_HOST_DEV constexpr span(pointer firstElem, pointer lastElem) : data_(firstElem) {
     /* assert(lastElem - firstElem == Extent); */
@@ -69,7 +76,6 @@ class span {
 
   // [span.elem], span element access
   DALI_HOST_DEV constexpr reference operator[](index_type idx) const { return data_[idx]; }
-  DALI_HOST_DEV constexpr reference operator()(index_type idx) const { return data_[idx]; }
   DALI_HOST_DEV constexpr pointer data() const noexcept { return data_; }
 
   // [span.iterators], span iterator support
@@ -77,6 +83,9 @@ class span {
   DALI_HOST_DEV constexpr iterator end() const noexcept { return data_ + Extent; }
   DALI_HOST_DEV constexpr const_iterator cbegin() const noexcept { return data_; }
   DALI_HOST_DEV constexpr const_iterator cend() const noexcept { return data_ + Extent; }
+
+  DALI_HOST_DEV constexpr reference front() const noexcept { return data_[0]; }
+  DALI_HOST_DEV constexpr reference back() const noexcept { return data_[Extent - 1]; }
 
  private:
   pointer data_;
@@ -88,7 +97,7 @@ class span<ElementType, dynamic_extent> {
   // constants and types
   using element_type = ElementType;
   using value_type = std::remove_cv_t<ElementType>;
-  using index_type = ptrdiff_t;
+  using index_type = span_extent_t;
   using difference_type = ptrdiff_t;
   using pointer = element_type *;
   using reference = element_type &;
@@ -101,6 +110,11 @@ class span<ElementType, dynamic_extent> {
   DALI_HOST_DEV constexpr span(pointer ptr, index_type count) : data_(ptr), size_(count) {}
   DALI_HOST_DEV constexpr span(pointer firstElem, pointer lastElem)
       : data_(firstElem), size_(lastElem - firstElem) {}
+
+  template <class U, span_extent_t N, typename = std::enable_if_t<
+    std::is_convertible<U(*)[], ElementType(*)[]>::value
+  >>
+  DALI_HOST_DEV constexpr span(const span<U, N>& s) noexcept : span(s.data(), s.size()) {}
 
   constexpr span(const span &other) noexcept = default;
   ~span() noexcept = default;
@@ -117,7 +131,6 @@ class span<ElementType, dynamic_extent> {
 
   // [span.elem], span element access
   DALI_HOST_DEV constexpr reference operator[](index_type idx) const { return data_[idx]; }
-  DALI_HOST_DEV constexpr reference operator()(index_type idx) const { return data_[idx]; }
   DALI_HOST_DEV constexpr pointer data() const noexcept { return data_; }
 
   // [span.iterators], span iterator support
@@ -126,14 +139,17 @@ class span<ElementType, dynamic_extent> {
   DALI_HOST_DEV constexpr const_iterator cbegin() const noexcept { return data_; }
   DALI_HOST_DEV constexpr const_iterator cend() const noexcept { return data_ + size(); }
 
+  DALI_HOST_DEV constexpr reference front() const noexcept { return data_[0]; }
+  DALI_HOST_DEV constexpr reference back() const noexcept { return data_[size_ - 1]; }
+
  private:
   pointer data_;
   index_type size_;
 };
 
 // [span.comparison], span comparison operators
-template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
-DALI_HOST_DEV /* constexpr */ bool
+template <class ElementL, span_extent_t ExtentL, class ElementR, span_extent_t ExtentR>
+DALI_HOST_DEV constexpr bool
 operator==(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
   if (l.size() != r.size()) {
     return false;
@@ -146,29 +162,29 @@ operator==(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
   }
   return true;
 }
-template <class ElementL, ptrdiff_t ExtentL, class ElementR, ptrdiff_t ExtentR>
-DALI_HOST_DEV /* constexpr */ bool
+template <class ElementL, span_extent_t ExtentL, class ElementR, span_extent_t ExtentR>
+DALI_HOST_DEV constexpr bool
 operator!=(span<ElementL, ExtentL> l, span<ElementR, ExtentR> r) {
   return !(l == r);
 }
 
 // @brief Helper function for pre-C++17
-template <ptrdiff_t Extent, typename T>
+template <span_extent_t Extent, typename T>
 DALI_HOST_DEV constexpr span<T, Extent> make_span(T *data) { return { data }; }
 
 // @brief Helper function for pre-C++17
-template <ptrdiff_t Extent = dynamic_extent, typename T>
-DALI_HOST_DEV constexpr span<T, Extent> make_span(T *data, ptrdiff_t extent) {
+template <span_extent_t Extent = dynamic_extent, typename T>
+DALI_HOST_DEV constexpr span<T, Extent> make_span(T *data, span_extent_t extent) {
   return { data, extent };
 }
 
 template <typename Collection>
-DALI_HOST_DEV auto make_span(Collection &c)->decltype(make_span(c.data(), c.size())) {
+DALI_HOST_DEV constexpr auto make_span(Collection &c) {
   return make_span(c.data(), c.size());
 }
 
 template <typename Collection>
-DALI_HOST_DEV auto make_span(Collection &&c)->decltype(make_span(c.data(), c.size())) {
+DALI_HOST_DEV constexpr auto make_span(Collection &&c) {
   static_assert(!std::is_rvalue_reference<Collection&&>::value,
     "Cannot create a span from an r-value.");
   return make_span(c.data(), c.size());
@@ -192,7 +208,7 @@ DALI_HOST_DEV constexpr span<const T, N> make_span(std::array<T, N> &&a) {
 }
 
 template <typename T, size_t N>
-DALI_HOST_DEV constexpr span<const T, N> make_span(T (&a)[N]) {
+DALI_HOST_DEV constexpr span<T, N> make_span(T (&a)[N]) {
   return { a };
 }
 

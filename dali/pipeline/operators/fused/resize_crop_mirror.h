@@ -69,8 +69,10 @@ class ResizeCropMirrorAttr : protected CropAttr {
   };
 
  protected:
-  inline const TransformMeta GetTransformMeta(const OpSpec &spec, const vector<Index> &input_shape,
-                        const ArgumentWorkspace *ws, const Index index, const uint32_t flag = 0) {
+  inline const TransformMeta GetTransformMeta(const OpSpec &spec,
+                                              const kernels::TensorShape<> &input_shape,
+                                              const ArgumentWorkspace *ws, const Index index,
+                                              const uint32_t flag = 0) {
     TransformMeta meta;
     meta.H = input_shape[0];
     meta.W = input_shape[1];
@@ -86,7 +88,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
         meta.rsz_w = static_cast<int>(std::round(scale * meta.W));
         if (max_size_enforced_) {
           if (meta.rsz_w > max_size_[1]) {
-            const float ratio = meta.H / meta.W;
+            const float ratio = static_cast<float>(meta.H) / static_cast<float>(meta.W);
             meta.rsz_h = static_cast<int>(std::round(ratio * max_size_[1]));
             meta.rsz_w = max_size_[1];
           }
@@ -97,7 +99,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
         meta.rsz_w = shorter_side_size;
         if (max_size_enforced_) {
           if (meta.rsz_h > max_size_[0]) {
-            const float ratio = meta.W / meta.H;
+            const float ratio = static_cast<float>(meta.W) / static_cast<float>(meta.H);
             meta.rsz_h = max_size_[0];
             meta.rsz_w = static_cast<int>(std::round(ratio * max_size_[0]));
           }
@@ -169,7 +171,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
 
     DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
 
-    return input.shape();
+    return std::vector<Index>{input.shape().begin(), input.shape().end()};
   }
 
   inline const TransformMeta GetTransfomMeta(const SampleWorkspace *ws, const OpSpec &spec) {
@@ -230,7 +232,8 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
     const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
 
     // Resize the output & run
-    output.Resize({crop_height_[ws->data_idx()], crop_width_[ws->data_idx()], meta.C});
+    output.Resize(
+        std::vector<Index>{crop_height_[ws->data_idx()], crop_width_[ws->data_idx()], meta.C});
 
     tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
     DALI_CALL((*func)(
