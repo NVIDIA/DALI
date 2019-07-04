@@ -1,7 +1,14 @@
-ARG TF_CUSTOM_OP_BUILDER_IMAGE="tensorflow/tensorflow:custom-op-gpu"
-FROM ${TF_CUSTOM_OP_BUILDER_IMAGE}
+ARG TF_CUSTOM_OP_BUILDER_IMAGE
+FROM ${TF_CUSTOM_OP_BUILDER_IMAGE} as base
 
-WORKDIR /opt/dali_tf_build
+WORKDIR /opt/dali
+
+FROM base as base_with_wheel
+
+COPY dali_tf_plugin/whl whl
+RUN pip install whl/*.whl && rm -rf whl
+
+FROM base_with_wheel
 
 ARG NVIDIA_DALI_BUILD_FLAVOR
 ENV NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}
@@ -21,8 +28,6 @@ COPY VERSION .
 COPY cmake cmake
 COPY dali_tf_plugin dali_tf_plugin
 
-WORKDIR /opt/dali_tf_build/dali_tf_plugin
-
-RUN pip install whl/*.whl
+WORKDIR /opt/dali/dali_tf_plugin
 
 ENTRYPOINT /bin/bash build_in_custom_op_docker.sh
