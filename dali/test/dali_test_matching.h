@@ -33,10 +33,10 @@ class GenericMatchingTest : public DALISingleOpTest<ImgType, OutputImgType> {
     auto pipe = this->GetPipeline();
     // Decode the images
     pipe->AddOperator(
-      OpSpec("HostDecoder")
+      OpSpec("ImageDecoder")
         .AddArg("output_type", this->ImageType())
         .AddInput("jpegs", "cpu")
-        .AddOutput("input", "cpu"), "HostDecoder");
+        .AddOutput("input", "cpu"), "ImageDecoder");
 
     // Launching the same transformation on CPU (outputIdx 0) and GPU (outputIdx 1)
     this->AddOperatorWithOutput(descr);

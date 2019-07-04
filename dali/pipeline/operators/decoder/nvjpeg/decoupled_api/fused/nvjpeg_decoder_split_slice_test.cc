@@ -18,9 +18,9 @@
 namespace dali {
 
 template <typename ImgType>
-class nvJpegDecoderSplitSliceTest : public DecodeTestBase<ImgType> {
+class ImageDecoderSplitSliceTest_GPU : public DecodeTestBase<ImgType> {
  public:
-  nvJpegDecoderSplitSliceTest() {
+  ImageDecoderSplitSliceTest_GPU() {
   }
 
  protected:
@@ -50,7 +50,7 @@ class nvJpegDecoderSplitSliceTest : public DecodeTestBase<ImgType> {
   }
 
   OpSpec DecodingOp() const override {
-    return this->GetOpSpec("nvJPEGDecoderSlice", "mixed")
+    return this->GetOpSpec("ImageDecoderSlice", "mixed")
       .AddArg("split_stages", true)
       .AddInput("begin", "cpu")
       .AddInput("crop", "cpu");
@@ -72,17 +72,17 @@ class nvJpegDecoderSplitSliceTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_SUITE(nvJpegDecoderSplitSliceTest, Types);
+TYPED_TEST_SUITE(ImageDecoderSplitSliceTest_GPU, Types);
 
-TYPED_TEST(nvJpegDecoderSplitSliceTest, JpegDecode) {
+TYPED_TEST(ImageDecoderSplitSliceTest_GPU, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplitSliceTest, PngDecode) {
+TYPED_TEST(ImageDecoderSplitSliceTest_GPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplitSliceTest, TiffDecode) {
+TYPED_TEST(ImageDecoderSplitSliceTest_GPU, TiffDecode) {
   this->Run(t_tiffImgType);
 }
 

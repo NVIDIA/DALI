@@ -13,7 +13,7 @@ Thread affinity
 
 The purpose of this functionality is to allow pinning DALI threads to the given CPU. Thread affinity can save the overhead of worker threads jumping from core to core. Hence this functionality can increase the performance for CPU heavy workloads.
 It is possible to set the CPU thread affinity for DALI using the ```DALI_AFFINITY_MASK``` environment variable. ```DALI_AFFINITY_MASK`` should be a comma separated list of CPU ids numbers which will be assigned to corresponding DALI threads.
-The number of DALI threads are set during the pipeline construction by num_threads argument, and the set_affinity enables setting the thread affinity for the CPU worker threads. Note that for performance reasons the nvJPEG decoder operator houses threads on its own, and they are always affined.
+The number of DALI threads are set during the pipeline construction by num_threads argument, and the set_affinity enables setting the thread affinity for the CPU worker threads. Note that for performance reasons the hybrid ```ImageDecoder``` operator (nvJPEG based) houses threads on its own, and they are always affined.
 If the number of threads are more than the CPU id numbers in the environment variable ``DALI_AFFINITY_MASK``, then the following applies: First, the threads are assigned to CPU id numbers until all CPU id numbers from ``DALI_AFFINITY_MASK are assigned``. Then, for the remaining threads, the CPU id numbers from nvmlDeviceGetCpuAffinity will be used. See below example:
 
 .. code-block:: bash

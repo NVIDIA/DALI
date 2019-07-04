@@ -291,7 +291,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // Per sample worker called in a thread of the thread pool.
   // It decodes the encoded image `input_data` (host mem) into `output_data` (device mem) with
-  // nvJPEG. If nvJPEG can't handle the image, it falls back to DALI's HostDecoder implementation
+  // nvJPEG. If nvJPEG can't handle the image, it falls back to CPU decoder implementation
   // with libjpeg.
   void SampleWorker(int sample_idx, string file_name, int in_size, int thread_id,
                     const uint8_t* input_data, uint8_t* output_data, cudaStream_t stream) {
@@ -320,7 +320,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                               decode_params_[sample_idx],
                                               jpeg_streams_[jpeg_stream_idx]);
 
-    // If image is somehow not supported try hostdecoder
+    // If image is somehow not supported try host decoder
     if (ret != NVJPEG_STATUS_SUCCESS) {
       if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
         info.nvjpeg_support = false;

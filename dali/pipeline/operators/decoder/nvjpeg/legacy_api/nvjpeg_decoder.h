@@ -413,7 +413,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           GetFormat(output_type_),
           stream);
 
-    // If image is somehow not supported try hostdecoder
+    // If image is somehow not supported try host decoder
     if (ret != NVJPEG_STATUS_SUCCESS) {
       if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
         OCVFallback(data, in_size, output, stream, file_name);
