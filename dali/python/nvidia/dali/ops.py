@@ -222,7 +222,7 @@ class _DaliOperatorMeta(type):
 
 def python_op_factory(name, op_device = "cpu"):
     class Operator(with_metaclass(_DaliOperatorMeta, object)):
-        def __init__(self, preserve=False, **kwargs):
+        def __init__(self, **kwargs):
             self._spec = b.OpSpec(type(self).__name__)
             self._schema = b.GetSchema(type(self).__name__)
 
@@ -235,9 +235,12 @@ def python_op_factory(name, op_device = "cpu"):
                 self._device = op_device
             self._spec.AddArg("device", self._device)
 
-            self._preserve = preserve
+            if "preserve" in kwargs.keys():
+                self._preserve = kwargs["preserve"]
+            else:
+                self._preserve = kwargs["preserve"]
             self._spec.AddArg("preserve", self._preserve)
-            self._preserve = preserve or self._schema.IsNoPrune()
+            self._preserve = self._preserve or self._schema.IsNoPrune()
 
             # Store the specified arguments
             for key, value in kwargs.items():
