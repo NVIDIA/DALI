@@ -12,7 +12,7 @@ set(CMAKE_CXX_COMPILER "$ENV{QNX_HOST}/usr/bin/${CMAKE_SYSTEM_PROCESSOR}-unknown
 add_definitions(-D__AARCH64_QNX__)
 add_definitions(-D_POSIX_C_SOURCE=200112L -D_QNX_SOURCE -D_FILE_OFFSET_BITS=64)
 message("Compiler settings for qnx ${CMAKE_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fexceptions -fPIC -D_XOPEN_SOURCE=600 -std=gnu++0x")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -fPIC -D_XOPEN_SOURCE=600")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -D_XOPEN_SOURCE=600 -std=gnu99")
 
 set(CMAKE_CXX_COMPILER_TARGET_FORCED TRUE)
