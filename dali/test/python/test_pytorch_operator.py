@@ -46,15 +46,15 @@ class BasicPipeline(CommonPipeline):
         return images
 
 
-class PyTorchFunctionPipeline(CommonPipeline):
+class TorchPythonFunctionPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
-        super(PyTorchFunctionPipeline, self).__init__(batch_size, num_threads,
-                                                      device_id, seed, image_dir)
-        self.pytorch_function = dalitorch.PyTorchFunction(function=function, num_outputs=2)
+        super(TorchPythonFunctionPipeline, self).__init__(batch_size, num_threads,
+                                                          device_id, seed, image_dir)
+        self.torch_function = dalitorch.TorchPythonFunction(function=function, num_outputs=2)
 
     def define_graph(self):
         images, labels = self.load()
-        return self.pytorch_function(images)
+        return self.torch_function(images)
 
 
 def torch_operation(tensor):
@@ -64,8 +64,8 @@ def torch_operation(tensor):
 
 def test_torch_operator():
     pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
-    pt_pipe = PyTorchFunctionPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID,
-                                      SEED, images_dir, torch_operation)
+    pt_pipe = TorchPythonFunctionPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID,
+                                          SEED, images_dir, torch_operation)
     pipe.build()
     pt_pipe.build()
     for it in range(ITERS):

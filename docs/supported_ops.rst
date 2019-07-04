@@ -11,5 +11,5 @@ Supported operations
 .. automodule:: nvidia.dali.ops
    :members:
 
-.. autoclass:: nvidia.dali.plugin.pytorch.PyTorchFunction
+.. autoclass:: nvidia.dali.plugin.pytorch.TorchPythonFunction
    :members:

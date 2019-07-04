@@ -288,11 +288,11 @@ class DALIClassificationIterator(DALIGenericIterator):
                                                          dynamic_shape = dynamic_shape)
 
 
-class PyTorchFunction(ops.PythonFunction):
-    ops.register_cpu_op('PyTorchFunction')
+class TorchPythonFunction(ops.PythonFunction):
+    ops.register_cpu_op('TorchPythonFunction')
 
     @staticmethod
-    def function_wrapper(function, *args):
+    def torch_wrapper(function, *args):
         input_tensors = list(map(torch.from_numpy, args))
         output_tensors = function(*input_tensors)
         if isinstance(output_tensors, tuple) or isinstance(output_tensors, list):
@@ -302,6 +302,6 @@ class PyTorchFunction(ops.PythonFunction):
 
     def __init__(self, function, num_outputs=1, **kwargs):
         ops.PythonFunction.__init__(self,
-                                    functools.partial(PyTorchFunction.function_wrapper, function),
+                                    functools.partial(TorchPythonFunction.torch_wrapper, function),
                                     num_outputs, **kwargs)
 
