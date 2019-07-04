@@ -419,7 +419,7 @@ class DLL_PUBLIC OpSchema {
   bool is_deprecated_;
   string deprecated_in_favor_of_;
 
-  bool no_prune_;
+  bool no_prune_{};
 
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;

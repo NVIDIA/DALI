@@ -9,6 +9,7 @@ from PIL import Image, ImageEnhance
 import os
 import time
 import glob
+import tempfile
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -334,11 +335,11 @@ def test_wrong_outputs_number():
     raise Exception('Should not pass')
 
 
-SINK_PATH = '/tmp/sink_test' + str(SEED) + '/'
+SINK_PATH = tempfile.mkdtemp()
 
 
 def save(image):
-    Image.fromarray(image).save(SINK_PATH + 'sink_img' + str(time.clock()) + '.jpg', 'JPEG')
+    Image.fromarray(image).save(SINK_PATH + '/sink_img' + str(time.clock()) + '.jpg', 'JPEG')
 
 
 def test_sink():
@@ -346,9 +347,9 @@ def test_sink():
     pipe.build()
     if not os.path.exists(SINK_PATH):
         os.mkdir(SINK_PATH)
-    assert len(glob.glob(SINK_PATH + 'sink_img*')) == 0
+    assert len(glob.glob(SINK_PATH + '/sink_img*')) == 0
     pipe.run()
-    created_files = glob.glob(SINK_PATH + 'sink_img*')
+    created_files = glob.glob(SINK_PATH + '/sink_img*')
     assert len(created_files) == BATCH_SIZE
     for file in created_files:
         os.remove(file)

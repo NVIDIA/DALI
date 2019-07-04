@@ -59,7 +59,7 @@ def _docstring_generator(cls):
         ret += "\n"
 
     if schema.IsNoPrune():
-        ret += "\nThis operator will not be optimized out of the graph\n"
+        ret += "\nThis operator will **not** be optimized out of the graph.\n"
 
     ret += """
 Parameters
