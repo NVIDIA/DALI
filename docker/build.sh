@@ -173,37 +173,42 @@ mkdir -p dali_tf_plugin/whl
 cp ${tmp_wheelhouse}/*.whl dali_tf_plugin/whl/
 
 export DALI_TF_BUILDER_CONTAINER="${BUILDER_DALI_TF}_container"
-if [ "$BUILD_INHOST" = "YES" ]; then
-    docker build -t ${BUILDER_DALI_TF_BASE_WITH_WHEEL} \
-           --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE}" \
-           -f docker/Dockerfile_dali_tf \
-           --target base_with_wheel \
-           .
 
-    nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} \
-           --rm -u 1000:1000 -v $(pwd):/opt/dali -v ${tmp_wheelhouse}:/dali_tf_sdist \
-           ${BUILDER_DALI_TF_BASE_WITH_WHEEL} /bin/bash -c \
-           "cd /opt/dali/dali_tf_plugin &&                \
-            NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}            \
-            GIT_SHA=${GIT_SHA}                            \
-            DALI_TIMESTAMP=${DALI_TIMESTAMP}              \
-            NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR} \
-            /bin/bash build_in_custom_op_docker.sh"
-else
-    echo "Build image:" ${BUILDER_DALI_TF}
-    docker build -t ${BUILDER_DALI_TF} -f docker/Dockerfile_dali_tf \
-                 --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE}" \
-                 --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
-                 --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" \
-                 --build-arg "GIT_SHA=${GIT_SHA}" \
-                 --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
-                 .
-    nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} ${BUILDER_DALI_TF}
 
-    tmp_dali_tf_sdist=$(mktemp -d)
-    docker cp "${DALI_TF_BUILDER_CONTAINER}:/dali_tf_sdist/" "${tmp_dali_tf_sdist}"
-    mv ${tmp_dali_tf_sdist}/*.tar.gz ${tmp_wheelhouse}
-fi
+# TODO: Enable when we figure out how to do pip install without root in build_in_custom_op_docker.sh
+
+# if [ "$BUILD_INHOST" = "YES" ]; then
+#     docker build -t ${BUILDER_DALI_TF_BASE_WITH_WHEEL} \
+#            --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE}" \
+#            -f docker/Dockerfile_dali_tf \
+#            --target base_with_wheel \
+#            .
+#     nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} \
+#            --user root -v $(pwd):/opt/dali -v ${tmp_wheelhouse}:/dali_tf_sdist \
+#            ${BUILDER_DALI_TF_BASE_WITH_WHEEL} /bin/bash -c \
+#            "cd /opt/dali/dali_tf_plugin &&                \
+#             NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}            \
+#             GIT_SHA=${GIT_SHA}                            \
+#             DALI_TIMESTAMP=${DALI_TIMESTAMP}              \
+#             NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR} \
+#             /bin/bash build_in_custom_op_docker.sh"
+# else
+
+echo "Build image:" ${BUILDER_DALI_TF}
+docker build -t ${BUILDER_DALI_TF} -f docker/Dockerfile_dali_tf \
+       --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE}" \
+       --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
+       --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" \
+       --build-arg "GIT_SHA=${GIT_SHA}" \
+       --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
+       .
+nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} ${BUILDER_DALI_TF}
+
+tmp_dali_tf_sdist=$(mktemp -d)
+docker cp "${DALI_TF_BUILDER_CONTAINER}:/dali_tf_sdist/" "${tmp_dali_tf_sdist}"
+mv ${tmp_dali_tf_sdist}/*.tar.gz ${tmp_wheelhouse}
+
+# fi
 
 docker rm -f "${DALI_TF_BUILDER_CONTAINER}"
 rm -rf dali_tf_plugin/whl
