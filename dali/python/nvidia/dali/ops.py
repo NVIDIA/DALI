@@ -167,10 +167,6 @@ class _OperatorInstance(object):
 
     def generate_outputs(self):
         pipeline = Pipeline.current()
-        if pipeline is None:
-            raise RuntimeError("Unknown pipeline! "
-                               "Graph edges must be created from within `define_graph` "
-                               " or Pipeline.set_current() must be explicitly used.")
         # Add outputs
         if self._op.device == "gpu" or self._op.device == "mixed":
             output_device = "gpu"
@@ -412,10 +408,6 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
 
     def __call__(self, *inputs, **kwargs):
         pipeline = Pipeline.current()
-        if pipeline is None:
-            raise RuntimeError("Unknown pipeline! "
-                               "Graph edges must be created from within `define_graph` "
-                               "or Pipeline.set_current() must be explicitly used.")
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(

@@ -41,14 +41,7 @@ class DLL_PUBLIC OpSchema {
   OpSchema &operator=(const OpSchema &) = delete;
   OpSchema &operator=(OpSchema &&) = default;
 
-  DLL_PUBLIC explicit inline OpSchema(const std::string &name)
-    : name_(name)
-    , allow_multiple_input_sets_(false)
-    , enforce_layout_(false)
-    , allow_sequences_(false)
-    , is_sequence_operator_(false)
-    , is_internal_(false)
-    , is_deprecated_(false) {
+  DLL_PUBLIC explicit inline OpSchema(const std::string &name): name_(name) {
     // Fill internal arguments
     auto v = Value::construct(-1);
     internal_arguments_["num_threads"] =
@@ -405,21 +398,21 @@ class DLL_PUBLIC OpSchema {
   int min_num_input_ = 0, max_num_input_ = 0;
   int num_output_ = 0;
 
-  bool allow_multiple_input_sets_;
+  bool allow_multiple_input_sets_ = false;
   vector<string> parents_;
 
-  bool enforce_layout_;
+  bool enforce_layout_ = false;
   DALITensorLayout layout_;
 
-  bool allow_sequences_;
-  bool is_sequence_operator_;
+  bool allow_sequences_ = false;
+  bool is_sequence_operator_ = false;
 
-  bool is_internal_;
+  bool is_internal_ = false;
 
-  bool is_deprecated_;
+  bool no_prune_ = false;
+
+  bool is_deprecated_ = false;
   string deprecated_in_favor_of_;
-
-  bool no_prune_{};
 
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;

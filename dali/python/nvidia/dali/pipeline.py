@@ -152,12 +152,17 @@ class Pipeline(object):
         return self._pipe.epoch_size()
 
     @staticmethod
-    def current():
-        return getattr(pipeline_tls, 'current_pipeline', None)
+    def current(raise_error_if_none = True):
+        pipeline = getattr(pipeline_tls, 'current_pipeline', None)
+        if raise_error_if_none and (pipeline is None):
+            raise RuntimeError("Unknown pipeline! "
+                               "Graph edges must be created from within `define_graph` "
+                               "or Pipeline.set_current() must be explicitly used.")
+        return pipeline
 
     @staticmethod
     def set_current(pipeline):
-        prev = Pipeline.current()
+        prev = Pipeline.current(False)
         pipeline_tls.current_pipeline = pipeline
         return prev
 
