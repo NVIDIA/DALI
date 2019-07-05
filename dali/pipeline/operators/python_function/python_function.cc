@@ -96,6 +96,9 @@ void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx)
                  "Python function returned " + std::to_string(output.size()) + " outputs and "
                      + std::to_string(ws->NumOutput()) + " were expected.");
     CopyOutputs(ws, idx, output);
+  } else {
+    DALI_ENFORCE(ws->NumOutput() == 0, "Python function returned 0 outputs and "
+        + std::to_string(ws->NumOutput()) + " were expected.");
   }
 }
 
