@@ -538,7 +538,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
       // If this node has children, don't prune it
       if (!node.children.empty()) continue;
       // Do not prune the node if it has a preserve flag
-      if (node.spec.GetArgument<bool>("preserve")) continue;
+      if (!node.op->CanBePruned()) continue;
 
       // Note: this is technically a very inefficient
       // way to find the intersection of the node outputs

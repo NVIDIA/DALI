@@ -235,8 +235,8 @@ def python_op_factory(name, op_device = "cpu"):
                 self._preserve = kwargs["preserve"]
             else:
                 self._preserve = False
-            self._preserve = self._preserve or self._schema.IsNoPrune()
             self._spec.AddArg("preserve", self._preserve)
+            self._preserve = self._preserve or self._schema.IsNoPrune()
 
             # Store the specified arguments
             for key, value in kwargs.items():
@@ -404,7 +404,7 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
 
     @property
     def preserve(self):
-        return self.preserve
+        return self._preserve
 
     def __call__(self, *inputs, **kwargs):
         pipeline = Pipeline.current()
@@ -421,7 +421,6 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)
-        op_instance.spec.AddArg("preserve", self._preserve)
         if self.num_outputs == 0:
             t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id) + "_sink"
             t = EdgeReference(t_name, self._device, op_instance)
@@ -433,8 +432,7 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
             t = EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
-            if self._preserve:
-                pipeline.add_sink(t)
+            pipeline.add_sink(t)
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
 
