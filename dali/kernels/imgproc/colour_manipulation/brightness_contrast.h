@@ -19,36 +19,71 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/imgproc/imgproc_common.h"
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
 namespace kernels {
 
 template<typename ComputeBackend, typename InputType, typename OutputType>
-class DLL_PUBLIC BrightnessContrastCPU {
+class DLL_PUBLIC BrightnessContrast {
  private:
   using StorageBackend = compute_to_storage_t<ComputeBackend>;
  public:
 
   DLL_PUBLIC KernelRequirements
-  Setup(KernelContext &context, const InTensor<StorageBackend, InputType, 3> &image) {
+  Setup(KernelContext &context, const InTensor<StorageBackend, InputType, 3> &image,
+        Roi roi = {0, 0, 0, 0}) {
+    //TODO validate roi
+    handle_default_roi(roi, image.shape);
     KernelRequirements req;
-    req.output_shapes = {TensorListShape<DynamicDimensions>({image.shape})};
+    req.output_shapes = {TensorListShape<DynamicDimensions>({roi_to_shape<3>(roi)})};
     return req;
   }
 
 
+  //TODO CHW layout
   /**
+   * Assumes (for now) HWC memory layout
+   *
    * @param out Assumes, that memory is already allocated
    * @param brightness Additive brightness delta. 0 denotes no change
    * @param contrast Multiplicative contrast delta. 1 denotes no change
+   * @param roi When default roi is provided, kernel operates on entire image ("no-roi" case)
    */
   DLL_PUBLIC void Run(KernelContext &context, const InTensor<StorageBackend, InputType, 3> &in,
                       OutTensor<StorageBackend, OutputType, 3> &out, InputType brightness,
-                      InputType contrast) {
-    for (int i = 0; i < out.num_elements(); i++) {
-      out.data[i] = in.data[i] * contrast + brightness;
+                      InputType contrast, Roi roi = {0, 0, 0, 0}) {
+    handle_default_roi(roi, in.shape);
+    size_t num_channels = in.shape[2];
+    DALI_ENFORCE(roi.h > 0 && roi.w > 0, "Region of interest can't be empty");
+
+    for (size_t y = 0; y < roi.h; y++) {
+      for (size_t x = 0; x < roi.w; x++) {
+        for (size_t c = 0; c < num_channels; c++) {
+          out.data[roi.w * y * num_channels + x * num_channels + c] =
+                  in.data[roi.w * y * num_channels + x * num_channels + c] * contrast + brightness;
+        }
+      }
     }
+
+  }
+
+
+ private:
+  void handle_default_roi(Roi &roi, const TensorShape<DynamicDimensions> &shape) {
+    if (roi.h == 0 && roi.w == 0) {
+      roi.x = 0;
+      roi.y = 0;
+      roi.h = shape[0];
+      roi.w = shape[1];
+    }
+  }
+
+  template<int nchannels>
+  TensorShape<nchannels> roi_to_shape(const Roi &roi) {
+    TensorShape<nchannels> sh = {static_cast<int64_t>(roi.h), roi.w, nchannels};
+    return sh;
   }
 };
 
