@@ -239,8 +239,8 @@ def python_op_factory(name, op_device = "cpu"):
                 self._preserve = kwargs["preserve"]
             else:
                 self._preserve = False
-            self._spec.AddArg("preserve", self._preserve)
             self._preserve = self._preserve or self._schema.IsNoPrune()
+            self._spec.AddArg("preserve", self._preserve)
 
             # Store the specified arguments
             for key, value in kwargs.items():
