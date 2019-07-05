@@ -68,6 +68,22 @@ auto GetCollectionPtrs(void *base, const size_t *offsets,
     GetCollectionPtrs(static_cast<char *>(base) + offsets[1], offsets+1, tail...));
 }
 
+
+template <typename T>
+T variadic_max(T t) {
+  return t;
+}
+
+template <typename T0, typename T1>
+auto variadic_max(T0 t0, T1 t1) {
+  return t1 > t0 ? t1 : t0;
+}
+
+template <typename T0, typename... T>
+auto variadic_max(T0 t0, T... tail) {
+  return variadic_max(t0, variadic_max(tail...));
+}
+
 }  // namespace detail
 
 /// @brief Allocates host memory using provided allocator and copies the collections
@@ -86,7 +102,7 @@ auto ToContiguousHostMem(AlignedAllocator &alloc, const Collections &... c) {
 
   std::array<size_t, N + 1> offsets;
   detail::GetCollectionOffsets(0, &offsets[0], c...);
-  size_t alignment = std::max({alignof(element_t<Collections>)...});
+  size_t alignment = detail::variadic_max(alignof(element_t<Collections>)...);
   size_t total_size = std::get<N>(offsets);
 
   auto *tmp = reinterpret_cast<char*>(alloc(total_size, alignment));
@@ -112,7 +128,7 @@ auto ToContiguousGPUMem(AlignedAllocator &&alloc, cudaStream_t stream, const Col
 
   std::array<size_t, N + 1> offsets;
   detail::GetCollectionOffsets(0, &offsets[0], c...);
-  size_t alignment = std::max({alignof(element_t<Collections>)...});
+  size_t alignment = detail::variadic_max(alignof(element_t<Collections>)...);
   size_t total_size = std::get<N>(offsets);
 
   char *tmp;
