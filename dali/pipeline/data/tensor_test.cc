@@ -142,7 +142,6 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  // Give the Tensor a type
   t.template mutable_data<int16>();
 
   ASSERT_EQ(t.raw_data(), source_data.data());
@@ -152,15 +151,34 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  // Give the Tensor a size - should not trigger allocation
+  // Give the Tensor a size, type is smaller so it will throw
+  ASSERT_THROW(t.Resize(shape), std::runtime_error);
+
+  // Kind of exception safety test
+  ASSERT_EQ(t.raw_data(), source_data.data());
+  ASSERT_EQ(t.size(), 0);
+  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>{});
+  ASSERT_TRUE(IsType<int16>(t.type()));
+  ASSERT_TRUE(t.shares_data());
+
+  t.set_type(TypeInfo::Create<float>());
   t.Resize(shape);
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
-  ASSERT_EQ(t.nbytes(), size*sizeof(int16));
+  ASSERT_EQ(t.nbytes(), size*sizeof(float));
   ASSERT_EQ(t.shape(), shape);
-  ASSERT_TRUE(IsType<int16>(t.type()));
+  ASSERT_TRUE(IsType<float>(t.type()));
   ASSERT_TRUE(t.shares_data());
+
+  t.UnshareData();
+  ASSERT_EQ(t.raw_data(), nullptr);
+  ASSERT_EQ(t.size(), 0);
+  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>());
+  ASSERT_TRUE(IsType<NoType>(t.type()));
+  ASSERT_FALSE(t.shares_data());
 }
 
 TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
@@ -191,14 +209,32 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_TRUE(IsType<double>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  // Give the Tensor a size - should not trigger allocation
+  // Give the Tensor a size, type is bigger so it will throw
+  ASSERT_THROW(t.Resize(shape), std::runtime_error);
+
+  ASSERT_EQ(t.raw_data(), source_data.data());
+  ASSERT_EQ(t.size(), 0);
+  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>{});
+  ASSERT_TRUE(IsType<double>(t.type()));
+  ASSERT_TRUE(t.shares_data());
+
+  t.set_type(TypeInfo::Create<float>());
   t.Resize(shape);
 
-  ASSERT_NE(t.raw_data(), source_data.data());
+  ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
-  ASSERT_EQ(t.nbytes(), size*sizeof(double));
+  ASSERT_EQ(t.nbytes(), size*sizeof(float));
   ASSERT_EQ(t.shape(), shape);
-  ASSERT_TRUE(IsType<double>(t.type()));
+  ASSERT_TRUE(IsType<float>(t.type()));
+  ASSERT_TRUE(t.shares_data());
+
+  t.UnshareData();
+  ASSERT_EQ(t.raw_data(), nullptr);
+  ASSERT_EQ(t.size(), 0);
+  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>());
+  ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_FALSE(t.shares_data());
 }
 
@@ -229,14 +265,30 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   ASSERT_TRUE(t.shares_data());
 
   // Give the Tensor a type
-  t.template mutable_data<int16>();
+  ASSERT_THROW(t.set_type(TypeInfo::Create<int16>()), std::runtime_error);
+
+  ASSERT_EQ(t.size(), size);
+  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_EQ(t.shape(), shape);
+  ASSERT_TRUE(IsType<NoType>(t.type()));
+  ASSERT_TRUE(t.shares_data());
+
+  t.set_type(TypeInfo::Create<float>());
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
-  ASSERT_EQ(t.nbytes(), size*sizeof(int16));
+  ASSERT_EQ(t.nbytes(), size*sizeof(float));
   ASSERT_EQ(t.shape(), shape);
-  ASSERT_TRUE(IsType<int16>(t.type()));
+  ASSERT_TRUE(IsType<float>(t.type()));
   ASSERT_TRUE(t.shares_data());
+
+  t.UnshareData();
+  ASSERT_EQ(t.raw_data(), nullptr);
+  ASSERT_EQ(t.size(), 0);
+  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>());
+  ASSERT_TRUE(IsType<NoType>(t.type()));
+  ASSERT_FALSE(t.shares_data());
 }
 
 TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
@@ -266,13 +318,30 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   ASSERT_TRUE(t.shares_data());
 
   // Give the Tensor a type
-  t.template mutable_data<double>();
+  ASSERT_THROW(t.set_type(TypeInfo::Create<double>()), std::runtime_error);
 
-  ASSERT_NE(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
-  ASSERT_EQ(t.nbytes(), size*sizeof(double));
+  ASSERT_EQ(t.nbytes(), 0);
   ASSERT_EQ(t.shape(), shape);
-  ASSERT_TRUE(IsType<double>(t.type()));
+  ASSERT_TRUE(IsType<NoType>(t.type()));
+  ASSERT_TRUE(t.shares_data());
+
+
+  t.set_type(TypeInfo::Create<float>());
+
+  ASSERT_EQ(t.raw_data(), source_data.data());
+  ASSERT_EQ(t.size(), size);
+  ASSERT_EQ(t.nbytes(), size*sizeof(float));
+  ASSERT_EQ(t.shape(), shape);
+  ASSERT_TRUE(IsType<float>(t.type()));
+  ASSERT_TRUE(t.shares_data());
+
+  t.UnshareData();
+  ASSERT_EQ(t.raw_data(), nullptr);
+  ASSERT_EQ(t.size(), 0);
+  ASSERT_EQ(t.nbytes(), 0);
+  ASSERT_EQ(t.shape(), kernels::TensorShape<>());
+  ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_FALSE(t.shares_data());
 }
 
@@ -296,7 +365,7 @@ TYPED_TEST(TensorTest, TestShareData) {
     ASSERT_TRUE(tensor.shares_data());
     ASSERT_EQ(tensor.raw_data(), tl.raw_tensor(i));
     ASSERT_EQ(tensor.type(), tl.type());
-    ASSERT_EQ(tensor.shape(), kernels::TensorShape<>(tl.tensor_shape(i)));
+    ASSERT_EQ(tensor.shape(), tl.tensor_shape(i));
 
     Index size = volume(tl.tensor_shape(i));
     ASSERT_EQ(tensor.size(), size);
@@ -319,7 +388,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
   ASSERT_EQ(num_tensor, tensors.size());
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_EQ(tensors[i].type(), tl.type());
-    ASSERT_EQ(tensors[i].shape(), kernels::TensorShape<>(tl.tensor_shape(i)));
+    ASSERT_EQ(tensors[i].shape(), tl.tensor_shape(i));
     Index size = volume(tl.tensor_shape(i));
     ASSERT_EQ(tensors[i].size(), size);
     ASSERT_EQ(tensors[i].nbytes(), size*sizeof(float));

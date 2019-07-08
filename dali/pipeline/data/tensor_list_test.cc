@@ -61,6 +61,7 @@ class TensorListTest : public DALITest {
 
   /**
    * Initialize & check a TensorList based on an input shape
+   * Allocate it as float
    */
   void SetupTensorList(TensorList<Backend> *tensor_list,
                        const TensorListShape<>& shape,
@@ -202,21 +203,9 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   ASSERT_TRUE(tl.shares_data());
 
   // Give the buffer a type smaller than float.
-  // We should have enough shared bytes, so no
-  // re-allocation should happen
-  tl.template mutable_data<int16>();
-
-  // Verify the internals
-  ASSERT_TRUE(tl.shares_data());
-  ASSERT_EQ(tl.raw_data(), sharer.raw_data());
-  ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), sizeof(int16)*size);
-  ASSERT_TRUE(IsType<int16>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), num_tensor);
-
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
-  }
+  // Although we should have enough shared bytes,
+  // we don't allow for a partial access to data
+  ASSERT_THROW(tl.template mutable_data<int16>(), std::runtime_error);
 }
 
 TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
@@ -247,21 +236,9 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   ASSERT_TRUE(tl.shares_data());
 
   // Give the buffer a type bigger than float.
-  // We do not have enough bytes shared, so
-  // this should trigger a reallocation
-  tl.template mutable_data<double>();
-
-  // Verify the internals
-  ASSERT_FALSE(tl.shares_data());
-  ASSERT_NE(tl.raw_data(), sharer.raw_data());
-  ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), sizeof(double)*size);
-  ASSERT_TRUE(IsType<double>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), num_tensor);
-
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
-  }
+  // This normally would cause a reallocation,
+  // but we do not allow for that implicitly when sharing data
+  ASSERT_THROW(tl.template mutable_data<double>(), std::runtime_error);
 }
 
 TYPED_TEST(TensorListTest, TestZeroSizeResize) {
@@ -488,8 +465,10 @@ TYPED_TEST(TensorListTest, TestShareData) {
 
   // Share the data
   tensor_list2.ShareData(&tensor_list);
-  tensor_list2.Resize({{kernels::TensorShape<>{tensor_list.size()}}});
-  tensor_list2.template mutable_data<uint8>();
+  // We need to use the same size as the underlying buffer
+  // N.B. using other type is UB in most cases
+  tensor_list2.Resize({{{tensor_list.size()}}});
+  tensor_list2.template mutable_data<float>();
 
   // Make sure the pointers match
   ASSERT_EQ(tensor_list.raw_data(), tensor_list2.raw_data());
@@ -504,7 +483,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   // Check the internals
   ASSERT_TRUE(tensor_list2.shares_data());
   ASSERT_EQ(tensor_list2.raw_data(), tensor_list.raw_data());
-  ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes() / sizeof(float) * sizeof(uint8));
+  ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes());
   ASSERT_EQ(tensor_list2.ntensor(), tensor_list.ntensor());
   ASSERT_EQ(tensor_list2.size(), tensor_list.size());
   for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
@@ -512,18 +491,16 @@ TYPED_TEST(TensorListTest, TestShareData) {
     ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
 
-  // Trigger allocation through buffer API, verify we no longer share
-  tensor_list2.template mutable_data<double>();
+  // Trigger allocation through buffer API, verify we cannot do that
+  ASSERT_THROW(tensor_list2.template mutable_data<double>(), std::runtime_error);
+  tensor_list2.UnshareData();
   ASSERT_FALSE(tensor_list2.shares_data());
 
   // Check the internals
-  ASSERT_EQ(tensor_list2.size(), tensor_list.size());
-  ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes() / sizeof(float) * sizeof(double));
-  ASSERT_EQ(tensor_list2.ntensor(), tensor_list.ntensor());
-  for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
-    ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
-  }
+  ASSERT_EQ(tensor_list2.size(), 0);
+  ASSERT_EQ(tensor_list2.nbytes(), 0);
+  ASSERT_EQ(tensor_list2.ntensor(), 0);
+  ASSERT_EQ(tensor_list2.shape(), kernels::TensorListShape<>());
 }
 
 }  // namespace dali

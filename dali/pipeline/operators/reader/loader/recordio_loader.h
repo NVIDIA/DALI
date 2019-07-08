@@ -113,7 +113,11 @@ class RecordIOLoader : public IndexedFileLoader {
         p = current_file_->Get(size);
         // file is divided between two files, we need to fallback to read here
         if (p == nullptr) {
+          if (tensor.shares_data()) {
+            tensor.UnshareData();
+          }
           tensor.Resize({size});
+          tensor.set_type(TypeInfo::Create<uint8_t>());
           use_read = true;
         } else {
           n_read = size;

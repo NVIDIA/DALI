@@ -117,6 +117,9 @@ void FileLoader::ReadSample(ImageLabelWrapper &image_label) {
   Index image_size = current_image->Size();
 
   if (copy_read_data_) {
+    if (image_label.image.shares_data()) {
+      image_label.image.UnshareData();
+    }
     image_label.image.Resize({image_size});
     // copy the image
     current_image->Read(image_label.image.mutable_data<uint8_t>(), image_size);

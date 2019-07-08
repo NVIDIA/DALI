@@ -136,6 +136,9 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
   Index frame_size = frame->Size();
   // Release and unmap memory previously obtained by Get call
   if (copy_read_data_) {
+    if (target->shares_data()) {
+      target->UnshareData();
+    }
     target->Resize({frame_size});
     frame->Read(target->mutable_data<uint8_t>(), frame_size);
   } else {

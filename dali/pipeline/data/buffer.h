@@ -220,9 +220,15 @@ class Buffer {
   inline void set_type(const TypeInfo &new_type) {
     DALI_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
     if (new_type == type_) return;
-    type_ = new_type;
 
-    size_t new_num_bytes = size_ * type_.size();
+    size_t new_num_bytes = size_ * new_type.size();
+    if (shares_data_) {
+      DALI_ENFORCE(new_num_bytes == num_bytes_ || new_num_bytes == 0,
+                   "Buffer that shares data cannot have size "
+                   "different than total underlying allocation");
+    }
+
+    type_ = new_type;
     if (new_num_bytes > num_bytes_) {
       reserve(new_num_bytes);
     }
@@ -239,20 +245,26 @@ class Buffer {
       device_ = -1;
     }
 
+    DALI_ENFORCE(!shares_data_,
+                 "Cannot reallocate Buffer if it is sharing data. "
+                 "Clear the status by `UnshareData()` first.");
     data_.reset();
     data_.reset(
       Backend::New(new_num_bytes, pinned_),
       std::bind(FreeMemory, std::placeholders::_1, new_num_bytes, device_, pinned_));
 
     num_bytes_ = new_num_bytes;
-
-    // If we were sharing data, we aren't anymore
-    shares_data_ = false;
   }
 
-  inline void free() {
+  void UnshareData() {
+    DALI_ENFORCE(shares_data_, "Cannot unshare data if the Buffer is not sharing data");
+    backend_ = Backend();
+    type_ = TypeInfo::Create<NoType>();
     data_.reset();
+    size_ = 0;
+    shares_data_ = false;
     num_bytes_ = 0;
+    device_ = -1;
   }
 
   /**
@@ -273,6 +285,15 @@ class Buffer {
   inline void ResizeHelper(Index new_size) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
 
+    // If we use NoType the result will always be 0
+    size_t new_num_bytes = new_size * type_.size();
+
+    if (shares_data_) {
+      DALI_ENFORCE(new_num_bytes == num_bytes_ || new_num_bytes == 0,
+                   "Cannot change size of a Buffer if it is sharing data. "
+                   "Clear the status by `UnshareData()` first.");
+    }
+
     size_ = new_size;
 
     if (new_size == 0) {
@@ -286,7 +307,6 @@ class Buffer {
       return;
     }
 
-    size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
       size_t grow = num_bytes_*kAllocMult;
       grow = (grow + kPaddding) & ~(kPaddding - 1);

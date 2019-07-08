@@ -139,13 +139,17 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   /**
    * @brief Wraps the data owned by the input TensorList. The input
    * TensorList must have a valid type. If the input TensorList
-   * stores no data, this tensor is reset to a default state
+   * stores no data, this tensor is reset to a default state.
    *
    * When this function is called, the calling object shares the
    * underlying allocation of the input TensorList. Its size, type
    * and shape are set to match the calling TensorList. While this
    * list shares data with another list, 'shares_data()' will
    * return 'true'.
+   *
+   * The total size after using `set_type` and `Resize` must match
+   * underlying allocation size (`num_bytes_`) if the data is shared.
+   * It can be set to 0 as intemediate step.
    */
   DLL_PUBLIC inline void ShareData(TensorList<Backend> *other) {
     DALI_ENFORCE(other != nullptr, "Input TensorList is nullptr");
@@ -179,6 +183,10 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * of the Tensor type will evaluate whether or not the current
    * allocation is large enough to be used and proceed appropriately.
    *
+   * The total size after using `set_type` and `Resize` must match
+   * underlying allocation size (`bytes`) if the data is shared.
+   * It can be set to 0 as intemediate step.
+   *
    * The TensorList object assumes no ownership of the input allocation,
    * and will not de-allocate it when it is done using it. It is up to
    * the user to manage the lifetime of the allocation such that it
@@ -202,6 +210,14 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
     shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
+  DLL_PUBLIC void UnshareData() {
+    Buffer<Backend>::UnshareData();
+    shape_ = kernels::TensorListShape<>();
+    offsets_.clear();
+    meta_.clear();
+    tensor_views_.clear();
   }
 
   /**

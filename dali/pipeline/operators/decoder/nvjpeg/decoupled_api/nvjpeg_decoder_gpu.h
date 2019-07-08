@@ -70,8 +70,7 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
     for (int i = 0; i < batch_size_; i++) {
       const auto& info_tensor = ws->Input<CPUBackend>(0, i);
-      const ImageInfo* info =
-          reinterpret_cast<const ImageInfo*>(info_tensor.raw_data());
+      const ImageInfo* info = info_tensor.data<ImageInfo>();
       int c = NumberOfChannels(output_image_type_);
       output_shape[i] = {info->heights[0], info->widths[0], c};
       image_order[i] = std::make_pair(volume(output_shape[i]), i);
@@ -139,10 +138,8 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
 
   inline std::pair<const ImageInfo*, const StateNvJPEG*>
   GetInfoState(const Tensor<CPUBackend>& info_tensor, const Tensor<CPUBackend>& state_tensor) {
-    const ImageInfo* info =
-          reinterpret_cast<const ImageInfo*>(info_tensor.raw_data());
-    const StateNvJPEG* nvjpeg_state =
-          reinterpret_cast<const StateNvJPEG*>(state_tensor.raw_data());
+    const auto* info = info_tensor.data<ImageInfo>();
+    const auto* nvjpeg_state = state_tensor.data<StateNvJPEG>();
     return std::make_pair(info, nvjpeg_state);
   }
 
