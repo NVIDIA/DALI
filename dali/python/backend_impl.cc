@@ -802,6 +802,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
     .def("AllowsSequences", &OpSchema::AllowsSequences)
     .def("IsInternal", &OpSchema::IsInternal)
+    .def("IsNoPrune", &OpSchema::IsNoPrune)
     .def("IsDeprecated", &OpSchema::IsDeprecated)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf);
 

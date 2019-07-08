@@ -19,6 +19,7 @@ from itertools import count
 from nvidia.dali import backend as b
 from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
+from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 
 _cpu_ops = set({})
@@ -56,6 +57,9 @@ def _docstring_generator(cls):
         if use_instead:
             ret +=". Use `" + use_instead + "` instead"
         ret += "\n"
+
+    if schema.IsNoPrune():
+        ret += "\nThis operator will **not** be optimized out of the graph.\n"
 
     ret += """
 Parameters
@@ -169,6 +173,7 @@ class _OperatorInstance(object):
         self._op.schema.CheckArgs(self._spec)
 
     def generate_outputs(self):
+        pipeline = Pipeline.current()
         # Add outputs
         if self._op.device == "gpu" or self._op.device == "mixed":
             output_device = "gpu"
@@ -177,10 +182,17 @@ class _OperatorInstance(object):
 
         num_output = self._op.schema.CalculateOutputs(self._spec) + self._op.schema.CalculateAdditionalOutputs(self._spec)
 
+        if num_output == 0 and self._op.preserve:
+            t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
+            pipeline.add_sink(EdgeReference(t_name, output_device, self))
+            return
+
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
             t = EdgeReference(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
+            if self._op.preserve:
+                pipeline.add_sink(t)
             self.append_output(t)
 
     @property
@@ -226,6 +238,13 @@ def python_op_factory(name, op_device = "cpu"):
                 self._device = op_device
             self._spec.AddArg("device", self._device)
 
+            if "preserve" in kwargs.keys():
+                self._preserve = kwargs["preserve"]
+            else:
+                self._preserve = False
+            self._spec.AddArg("preserve", self._preserve)
+            self._preserve = self._preserve or self._schema.IsNoPrune()
+
             # Store the specified arguments
             for key, value in kwargs.items():
                 if isinstance(value, list):
@@ -246,6 +265,10 @@ def python_op_factory(name, op_device = "cpu"):
         @property
         def device(self):
             return self._device
+
+        @property
+        def preserve(self):
+            return self._preserve
 
         def __call__(self, *inputs, **kwargs):
             if (len(inputs) > self._schema.MaxNumInput() or
@@ -372,6 +395,7 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
 
         self.function = function
         self.num_outputs = num_outputs
+        self._preserve = True
 
     @property
     def spec(self):
@@ -385,7 +409,12 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
     def device(self):
         return self._device
 
+    @property
+    def preserve(self):
+        return self._preserve
+
     def __call__(self, *inputs, **kwargs):
+        pipeline = Pipeline.current()
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
@@ -399,12 +428,18 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)
+        if self.num_outputs == 0:
+            t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id) + "_sink"
+            t = EdgeReference(t_name, self._device, op_instance)
+            pipeline.add_sink(t)
+            return
         outputs = []
         for i in range(self.num_outputs):
             t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id) + "_output_" + str(i)
             t = EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
+            pipeline.add_sink(t)
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
 
