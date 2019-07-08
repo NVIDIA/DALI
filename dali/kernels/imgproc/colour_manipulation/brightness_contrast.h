@@ -32,8 +32,8 @@ class DLL_PUBLIC BrightnessContrast {
  public:
 
   DLL_PUBLIC KernelRequirements
-  Setup(KernelContext &context, const InTensor<StorageBackend, InputType, 3> &image,
-        Roi roi = {0, 0, 0, 0}) {
+  Setup(KernelContext &context, const InTensor<StorageBackend, InputType, 3> &image,InputType brightness,
+        InputType contrast, Roi roi = {0, 0, 0, 0}) {
     //TODO validate roi
     handle_default_roi(roi, image.shape);
     KernelRequirements req;
@@ -43,6 +43,7 @@ class DLL_PUBLIC BrightnessContrast {
 
 
   //TODO CHW layout
+  //TODO first brightness then contrast
   /**
    * Assumes (for now) HWC memory layout
    *
@@ -51,8 +52,8 @@ class DLL_PUBLIC BrightnessContrast {
    * @param contrast Multiplicative contrast delta. 1 denotes no change
    * @param roi When default roi is provided, kernel operates on entire image ("no-roi" case)
    */
-  DLL_PUBLIC void Run(KernelContext &context, const InTensor<StorageBackend, InputType, 3> &in,
-                      OutTensor<StorageBackend, OutputType, 3> &out, InputType brightness,
+  DLL_PUBLIC void Run(KernelContext &context, const OutTensor<StorageBackend, OutputType, 3> &out,const InTensor<StorageBackend, InputType, 3> &in,
+                       InputType brightness,
                       InputType contrast, Roi roi = {0, 0, 0, 0}) {
     handle_default_roi(roi, in.shape);
     size_t num_channels = in.shape[2];
