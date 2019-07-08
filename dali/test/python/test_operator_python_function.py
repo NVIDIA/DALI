@@ -7,6 +7,8 @@ import numpy
 import random
 from PIL import Image, ImageEnhance
 import os
+import glob
+import tempfile
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -105,6 +107,17 @@ class DoubleLoadPipeline(CommonPipeline):
         images1, labels1 = self.load()
         images2, labels2 = self.load()
         return images1, images2
+
+
+class SinkTestPipeline(CommonPipeline):
+    def __init__(self, batch_size, device_id, seed, image_dir, function):
+        super(SinkTestPipeline, self).__init__(batch_size, 1, device_id, seed, image_dir)
+        self.python_function = ops.PythonFunction(function=function, num_outputs=0)
+
+    def define_graph(self):
+        images, labels = self.load()
+        self.python_function(images)
+        return images
 
 
 def random_seed():
@@ -321,4 +334,22 @@ def test_wrong_outputs_number():
     raise Exception('Should not pass')
 
 
+SINK_PATH = tempfile.mkdtemp()
 
+
+def save(image):
+    Image.fromarray(image).save(SINK_PATH + '/sink_img' + str(time.clock()) + '.jpg', 'JPEG')
+
+
+def test_sink():
+    pipe = SinkTestPipeline(BATCH_SIZE, DEVICE_ID, SEED, images_dir, save)
+    pipe.build()
+    if not os.path.exists(SINK_PATH):
+        os.mkdir(SINK_PATH)
+    assert len(glob.glob(SINK_PATH + '/sink_img*')) == 0
+    pipe.run()
+    created_files = glob.glob(SINK_PATH + '/sink_img*')
+    assert len(created_files) == BATCH_SIZE
+    for file in created_files:
+        os.remove(file)
+    os.rmdir(SINK_PATH)

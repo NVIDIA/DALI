@@ -25,7 +25,8 @@ DALI_SCHEMA(PythonFunctionImpl)
         .AddArg("function_id", R"code(Id of the python function)code", DALI_INT64)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
         .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
-        .MakeInternal();
+        .MakeInternal()
+        .NoPrune();
 
 DALI_SCHEMA(PythonFunction)
         .DocStr("Executes a python function")
@@ -34,7 +35,8 @@ DALI_SCHEMA(PythonFunction)
         .AddArg("function",
                 R"code(Function object consuming and producing numpy arrays.)code",
                 DALI_PYTHON_OBJECT)
-        .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1);
+        .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
+        .NoPrune();
 
 DALI_SCHEMA(TorchPythonFunction)
         .DocStr("Executes a function operating on Torch tensors")
@@ -43,7 +45,8 @@ DALI_SCHEMA(TorchPythonFunction)
         .AddArg("function",
                 R"code(Function object consuming and producing Torch tensors.)code",
                 DALI_PYTHON_OBJECT)
-        .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1);
+        .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
+        .NoPrune();
 
 struct PyBindInitializer {
   PyBindInitializer() {
@@ -97,11 +100,16 @@ void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx)
   } catch(const py::error_already_set & e) {
     throw std::runtime_error(to_string("PythonFunction error: ") + to_string(e.what()));
   }
-  py::tuple output = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
-  DALI_ENFORCE(output.size() == static_cast<size_t>(ws->NumOutput()),
-               "Python function returned " + std::to_string(output.size()) + " outputs and "
-                   + std::to_string(ws->NumOutput()) + " were expected.");
-  CopyOutputs(ws, idx, output);
+  if (!output_o.is_none()) {
+    py::tuple output = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
+    DALI_ENFORCE(output.size() == static_cast<size_t>(ws->NumOutput()),
+                 "Python function returned " + std::to_string(output.size()) + " outputs and "
+                     + std::to_string(ws->NumOutput()) + " were expected.");
+    CopyOutputs(ws, idx, output);
+  } else {
+    DALI_ENFORCE(ws->NumOutput() == 0, "Python function returned 0 outputs and "
+        + std::to_string(ws->NumOutput()) + " were expected.");
+  }
 }
 
 DALI_REGISTER_OPERATOR(PythonFunctionImpl, PythonFunctionImpl<CPUBackend>, CPU);

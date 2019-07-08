@@ -5,7 +5,6 @@
 - Refactoring to improve *what*
 
 #### What happend in this PR?
-*Replace those hints*
  - Explain solution of the problem, new feature added.
  - What was changed, added, removed?
  - What is most important part that reviewers should focus on?

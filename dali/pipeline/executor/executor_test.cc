@@ -204,19 +204,27 @@ TYPED_TEST(ExecutorTest, TestPruneMultiple) {
           .AddInput("data1", "cpu")
           .AddOutput("data4", "cpu")), "");
 
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("DummyOp")
+          .AddArg("device", "cpu")
+          .AddArg("num_outputs", 0)
+          .AddArg("preserve", true)
+          .AddInput("data1", "cpu")), "");
+
   vector<string> outputs = {"data1_cont_cpu"};
   exe->Build(&graph, outputs);
 
   // Validate the graph - op 2&3 should
-  // have been pruned
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
+  // have been pruned.
+  // Op 4 should not be pruned
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
   ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
   ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the source op
   auto& node = graph.Node(0);
   ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 1);
+  ASSERT_EQ(node.children.size(), 2);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
