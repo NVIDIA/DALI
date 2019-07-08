@@ -34,15 +34,20 @@ number of frames).)code")
   .NumInput(0)
   .OutputFn([](const OpSpec &spec) {
       std::string file_root = spec.GetArgument<std::string>("file_root");
-      return file_root.empty() ? 1 : 2;
+      std::string file_list = spec.GetArgument<std::string>("file_list");
+      return (file_root.empty() && file_list.empty()) ? 1 : 2;
     })
   .AddOptionalArg("filenames",
       R"code(File names of the video files to load.
-This option is mutually exclusive with `file_root`.)code",
+This option is mutually exclusive with `file_root` and `file_list`.)code",
       std::vector<std::string>{})
   .AddOptionalArg("file_root",
       R"code(Path to a directory containing data files.
-This option is mutually exclusive with `filenames`.)code",
+This option is mutually exclusive with `filenames` and `file_list`.)code",
+      std::string())
+  .AddOptionalArg("file_list",
+      R"code(Path to the file with a list of pairs ``file label``.
+This option is mutually exclusive with `filenames` and `file_root`.)code",
       std::string())
   .AddArg("sequence_length",
       R"code(Frames to load per sequence.)code",
