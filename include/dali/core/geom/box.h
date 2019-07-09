@@ -64,7 +64,7 @@ struct Box {
   /**
    * @return true, if this box contains given box
    */
-  constexpr DALI_HOST_DEV bool contains(const Box<ndims, CoordinateType> &other) const {
+  constexpr DALI_HOST_DEV bool contains(const Box &other) const {
     for (size_t i = 0; i < ndims; i++) {
       if (!(other.lo[i] >= lo[i] && other.hi[i] <= hi[i]))
         return false;
