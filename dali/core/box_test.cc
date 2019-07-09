@@ -119,7 +119,7 @@ TEST(BoxSimpleTest, contains_corner_test) {
 
 
 TEST(BoxSimpleTest, overlaps_test) {
-  ASSERT_EQ(boxes.size(), contains_corner.size()) << "Bad testing data";
+  ASSERT_EQ(boxes.size(), overlaps.size()) << "Bad testing data";
   for (size_t i = 0; i < boxes.size(); i++) {
     EXPECT_EQ(reference_box.overlaps(boxes[i]), overlaps[i]) << "Failed at index: " << i;
   }

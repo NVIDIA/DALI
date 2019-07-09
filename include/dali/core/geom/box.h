@@ -129,8 +129,6 @@ constexpr DALI_HOST_DEV CoordinateType volume(const Box<ndims, CoordinateType> &
 template<size_t ndims, typename CoordinateType>
 constexpr DALI_HOST_DEV Box<ndims, CoordinateType>
 intersection(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
-//  Box<ndims, CoordinateType> tmp = { max(lhs.lo, rhs.lo), min(lhs.hi, rhs.hi) };
-//  return all_coords(tmp.hi >= tmp.lo) ? Box<ndims, CoordinateType>() : tmp;
   if (!lhs.overlaps(rhs)) return {};
   return Box<ndims, CoordinateType>(max(lhs.lo, rhs.lo), min(lhs.hi, rhs.hi));
 }
