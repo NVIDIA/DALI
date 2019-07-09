@@ -12,29 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_BRIGHTNESS_CONTRAST_CPU_H
-#define DALI_BRIGHTNESS_CONTRAST_CPU_H
+#ifndef DALI_KERNELS_IMGPROC_COLOUR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
+#define DALI_KERNELS_IMGPROC_COLOUR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
 
 #include "dali/util/ocv.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/imgproc/imgproc_common.h"
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
 namespace kernels {
 
+struct Roi {
+  int x, y, w, h;
+};
+
 template<typename ComputeBackend, typename InputType, typename OutputType>
 class DLL_PUBLIC BrightnessContrast {
  private:
   using StorageBackend = compute_to_storage_t<ComputeBackend>;
- public:
 
+ public:
   DLL_PUBLIC KernelRequirements
-  Setup(KernelContext &context, const InTensor<StorageBackend, InputType, 3> &image,InputType brightness,
+  Setup(KernelContext &context, const InTensor<StorageBackend, InputType, 3> &image,
+        InputType brightness,
         InputType contrast, Roi roi = {0, 0, 0, 0}) {
-    //TODO validate roi
     handle_default_roi(roi, image.shape);
     KernelRequirements req;
     req.output_shapes = {TensorListShape<DynamicDimensions>({roi_to_shape<3>(roi)})};
@@ -42,8 +45,8 @@ class DLL_PUBLIC BrightnessContrast {
   }
 
 
-  //TODO CHW layout
-  //TODO first brightness then contrast
+  // TODO(mszolucha): CHW layout
+  // TODO(mszolucha): first brightness then contrast
   /**
    * Assumes (for now) HWC memory layout
    *
@@ -52,30 +55,22 @@ class DLL_PUBLIC BrightnessContrast {
    * @param contrast Multiplicative contrast delta. 1 denotes no change
    * @param roi When default roi is provided, kernel operates on entire image ("no-roi" case)
    */
-  DLL_PUBLIC void Run(KernelContext &context, const OutTensor<StorageBackend, OutputType, 3> &out,const InTensor<StorageBackend, InputType, 3> &in,
-                       InputType brightness,
+  DLL_PUBLIC void Run(KernelContext &context, const OutTensor<StorageBackend, OutputType, 3> &out,
+                      const InTensor<StorageBackend, InputType, 3> &in,
+                      InputType brightness,
                       InputType contrast, Roi roi = {0, 0, 0, 0}) {
     handle_default_roi(roi, in.shape);
-    size_t num_channels = in.shape[2];
-    size_t W = in.shape[1];
+    auto num_channels = in.shape[2];
+    auto image_width = in.shape[1];
     auto ptr = out.data;
     DALI_ENFORCE(roi.h > 0 && roi.w > 0, "Region of interest can't be empty");
 
-//    for (size_t y = 0; y < roi.h; y++) {
-//      for (size_t x = 0; x < roi.w; x++) {
-//        for (size_t c = 0; c < num_channels; c++) {
-//          out.data[roi.w * y * num_channels + x * num_channels + c] =
-//                  in.data[roi.w * y * num_channels + x * num_channels + c] * contrast + brightness;
-//        }
-//      }
-//    }
-
-    for (int y=roi.y;y<roi.y+roi.h;y++) {
-      for (int xc=(roi.x+y*W)*3;xc<(roi.x+roi.w+y*W)*3;xc++) {
-        *ptr++=in.data[xc]*contrast+brightness;
+    for (int y = roi.y; y < roi.y + roi.h; y++) {
+      for (int xc = (roi.x + y * image_width) * num_channels;
+           xc < (roi.x + roi.w + y * image_width) * num_channels; xc++) {
+        *ptr++ = in.data[xc] * contrast + brightness;
       }
     }
-
   }
 
 
@@ -89,6 +84,7 @@ class DLL_PUBLIC BrightnessContrast {
     }
   }
 
+
   template<int nchannels>
   TensorShape<nchannels> roi_to_shape(const Roi &roi) {
     TensorShape<nchannels> sh = {static_cast<int64_t>(roi.h), roi.w, nchannels};
@@ -99,4 +95,4 @@ class DLL_PUBLIC BrightnessContrast {
 }  // namespace kernels
 }  // namespace dali
 
-#endif //DALI_BRIGHTNESS_CONTRAST_CPU_H
+#endif  // DALI_KERNELS_IMGPROC_COLOUR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
