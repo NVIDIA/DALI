@@ -178,6 +178,45 @@ DEVICE_TEST(Dev_Vec, Func, 1, 1) {
   DEV_EXPECT_EQ(c, vec3(0, 0.1f, 1.0f));
 }
 
+TEST(Vec, MinMax) {
+  vec3 a = { -0.5f, 1.0f, 2.0f };
+  vec3 b = { 0.0f, 0.5f, 3.0f };
+  EXPECT_EQ(min(a, b), vec3(-0.5f, 0.5f, 2.0f));
+  EXPECT_EQ(max(a, b), vec3(0.0f, 1.0f, 3.0f));
+}
+
+DEVICE_TEST(Dev_Vec, MinMax, 1, 1) {
+  vec3 a = { -0.5f, 1.0f, 2.0f };
+  vec3 b = { 0.0f, 0.5f, 3.0f };
+  DEV_EXPECT_EQ(min(a, b), vec3(-0.5f, 0.5f, 2.0f));
+  DEV_EXPECT_EQ(max(a, b), vec3(0.0f, 1.0f, 3.0f));
+}
+
+TEST(Vec, AllAny) {
+  bvec3 all(true, true, true);
+  bvec3 some(false, true, false);
+  bvec3 none(false, false, false);
+  EXPECT_TRUE(all_coords(all));
+  EXPECT_TRUE(any_coord(all));
+  EXPECT_FALSE(all_coords(some));
+  EXPECT_TRUE(any_coord(some));
+  EXPECT_FALSE(all_coords(none));
+  EXPECT_FALSE(any_coord(none));
+}
+
+DEVICE_TEST(Dev_Vec, AllAny, 1, 1) {
+  bvec3 all(true, true, true);
+  bvec3 some(false, true, false);
+  bvec3 none(false, false, false);
+  DEV_EXPECT_TRUE(all_coords(all));
+  DEV_EXPECT_TRUE(any_coord(all));
+  DEV_EXPECT_FALSE(all_coords(some));
+  DEV_EXPECT_TRUE(any_coord(some));
+  DEV_EXPECT_FALSE(all_coords(none));
+  DEV_EXPECT_FALSE(any_coord(none));
+}
+
+
 TEST(Vec, RoundInt) {
   vec<3> f = { -0.6f, 0.1f, 0.7f };
   auto i = round_int(f);

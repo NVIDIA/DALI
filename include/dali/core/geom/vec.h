@@ -403,7 +403,7 @@ struct is_true {
 };
 
 template <size_t N, typename T, typename Pred = is_true>
-DALI_HOST_DEV constexpr bool all(const vec<N, T> &a, Pred P = {}) {
+DALI_HOST_DEV constexpr bool all_coords(const vec<N, T> &a, Pred P = {}) {
   for (size_t i = 0; i < N; i++)
     if (!P(a[i]))
       return false;
@@ -411,7 +411,7 @@ DALI_HOST_DEV constexpr bool all(const vec<N, T> &a, Pred P = {}) {
 }
 
 template <size_t N, typename T, typename Pred = is_true>
-DALI_HOST_DEV constexpr bool any(const vec<N, T> &a, Pred P = {}) {
+DALI_HOST_DEV constexpr bool any_coord(const vec<N, T> &a, Pred P = {}) {
   for (size_t i = 0; i < N; i++)
     if (P(a[i]))
       return true;
@@ -457,16 +457,6 @@ clamp(const vec<N, T> &in, const vec<N, T> &lo, const vec<N, T> &hi) {
   IMPL_VEC_ELEMENTWISE(clamp(in[i], lo[i], hi[i]));
 }
 
-template <size_t N, typename T>
-DALI_HOST_DEV vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
-  IMPL_VEC_ELEMENTWISE(min(a[i], b[i]));
-}
-
-template <size_t N, typename T>
-DALI_HOST_DEV vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
-  IMPL_VEC_ELEMENTWISE(max(a[i], b[i]));
-}
-
 #ifdef __CUDA_ARCH__
 template <size_t N>
 __device__ vec<N> floor(const vec<N> &a) {
@@ -477,6 +467,17 @@ template <size_t N>
 __device__ vec<N> ceil(const vec<N> &a) {
   IMPL_VEC_ELEMENTWISE(ceilf(a[i]));
 }
+
+template <size_t N, typename T>
+__device__ vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
+  IMPL_VEC_ELEMENTWISE(::min(a[i], b[i]));
+}
+
+template <size_t N, typename T>
+__device__ vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
+  IMPL_VEC_ELEMENTWISE(::max(a[i], b[i]));
+}
+
 #else
 
 template <size_t N, typename T>
@@ -487,6 +488,16 @@ constexpr vec<N, T> floor(const vec<N, T> &a) {
 template <size_t N, typename T>
 constexpr vec<N, T> ceil(const vec<N, T> &a) {
   IMPL_VEC_ELEMENTWISE(std::ceil(a[i]));
+}
+
+template <size_t N, typename T>
+constexpr vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
+  IMPL_VEC_ELEMENTWISE(std::min(a[i], b[i]));
+}
+
+template <size_t N, typename T>
+constexpr vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
+  IMPL_VEC_ELEMENTWISE(std::max(a[i], b[i]));
 }
 
 #endif
