@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TYPES_H
-#define DALI_TYPES_H
+#ifndef DALI_BOX_H
+#define DALI_BOX_H
 
 #include "dali/core/geom/vec.h"
 
@@ -146,4 +146,4 @@ operator==(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateTyp
 
 }  // namespace dali
 
-#endif //DALI_TYPES_H
+#endif //DALI_BOX_H

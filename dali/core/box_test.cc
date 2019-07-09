@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/core/geom/types.h"
+#include "dali/core/geom/box.h"
 
 namespace dali {
 
