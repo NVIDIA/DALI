@@ -99,50 +99,50 @@ TEST_P(ResamplingTestCPU, KernelAPI) {
 
 static std::vector<ResamplingTestEntry> ResampleTests = {
   {
-    "imgproc_test/blobs.png", "imgproc_test/dots.png",
+    "imgproc/blobs.png", "imgproc/dots.png",
     { 4, 4 }, nearest(), 0
   },
   {
-    "imgproc_test/dots.png", "imgproc_test/blobs.png",
+    "imgproc/dots.png", "imgproc/blobs.png",
     { 300, 300 }, lin(), 0
   },
   {
-    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_tri_300x300.png",
+    "imgproc/alley.png", "imgproc/ref/resampling/alley_tri_300x300.png",
     { 300, 300 }, tri(), 1
   },
   {
-    "imgproc_test/score.png", "imgproc_test/ref_out/score_lanczos3.png",
+    "imgproc/score.png", "imgproc/ref/resampling/score_lanczos3.png",
     { 540, 250 }, lanczos(), 1
   },
   {
-    "imgproc_test/score.png", "imgproc_test/ref_out/score_cubic.png",
+    "imgproc/score.png", "imgproc/ref/resampling/score_cubic.png",
     { 200, 93 }, cubic(), 1
   },
   {
-    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_blurred.png",
+    "imgproc/alley.png", "imgproc/ref/resampling/alley_blurred.png",
     { 681, 960 }, gauss(12), 2
   }
 };
 
 static std::vector<ResamplingTestEntry> CropResampleTests = {
   {
-    "imgproc_test/dots.png", "imgproc_test/ref_out/dots_crop_2x2.png",
+    "imgproc/dots.png", "imgproc/ref/resampling/dots_crop_2x2.png",
     { 1.0f, 1.0f, 3.0f, 3.0f }, { 2, 2 }, nearest(), 0
   },
   {
-    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_cubic_crop.png",
+    "imgproc/alley.png", "imgproc/ref/resampling/alley_cubic_crop.png",
     { 100.0f, 300.0f, 200.0f, 400.0f }, { 200, 200 }, cubic(), 1
   },
   {
-    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_cubic_crop_flip.png",
+    "imgproc/alley.png", "imgproc/ref/resampling/alley_cubic_crop_flip.png",
     { 200.0f, 300.0f, 100.0f, 400.0f }, { 200, 200 }, cubic(), 1
   },
   {
-    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_linear_crop.png",
+    "imgproc/alley.png", "imgproc/ref/resampling/alley_linear_crop.png",
     { 150.0f, 400.0f, 200.0f, 450.0f }, { 150, 200 }, lin(), 1
   },
   {
-    "imgproc_test/alley.png", "imgproc_test/ref_out/alley_linear_crop_flip.png",
+    "imgproc/alley.png", "imgproc/ref/resampling/alley_linear_crop_flip.png",
     { 150.0f, 450.0f, 200.0f, 400.0f }, { 150, 200 }, lin(), 1
   },
 };

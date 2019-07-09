@@ -30,13 +30,11 @@
 #include "dali/core/error_handling.h"
 #include "dali/image/jpeg.h"
 #include "dali/pipeline/data/backend.h"
+#include "dali/test/dali_test_config.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 
 namespace dali {
-
-// Note: this is setup for the binary to be executed from "build"
-const string image_folder = "/data/dali/test/test_images";  // NOLINT
 
 struct DimPair {
   int h = 0, w = 0;
@@ -61,7 +59,7 @@ class DALITest : public ::testing::Test {
  public:
   DALITest() {
     rand_gen_.seed(time(nullptr));
-    jpeg_names_ = ImageList(image_folder, {".jpg"});
+    jpeg_names_ = ImageList(testing::dali_extra_path() + "/db/single/jpeg/0", {".jpg"});
     LoadImages(jpeg_names_, &jpegs_);
   }
 

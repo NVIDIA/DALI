@@ -21,12 +21,13 @@
 #include <utility>
 #include <vector>
 
-#include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operators/op_spec.h"
+#include "dali/pipeline/operators/reader/reader_op.h"
+#include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/test/dali_test.h"
-#include "dali/pipeline/operators/reader/reader_op.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 
@@ -207,7 +208,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
 
   pipe.AddOperator(
       OpSpec("SequenceReader")
-      .AddArg("file_root", image_folder + "/frames/")
+      .AddArg("file_root", testing::dali_extra_path() + "/db/sequence/frames")
       .AddArg("sequence_length", 3)
       .AddArg("image_type", DALI_RGB)
       .AddOutput("seq_out", "cpu"));

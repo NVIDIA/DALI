@@ -20,8 +20,9 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "dali/test/dali_test.h"
 #include "dali/pipeline/pipeline.h"
+#include "dali/test/dali_test.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 
@@ -36,23 +37,24 @@ namespace dali {
 namespace images {
 
 // TODO(janton): DALI-582 Using this order, breaks some tests
-// ImageList(image_folder, {".jpg"})
+// ImageList(testing::dali_extra_path() + "/db/single/jpeg/0/", {".jpg"})
 const vector<string> jpeg_test_images = {
-  image_folder + "/420.jpg",
-  image_folder + "/422.jpg",
-  image_folder + "/440.jpg",
-  image_folder + "/444.jpg",
-  image_folder + "/gray.jpg",
-  image_folder + "/411.jpg",
-  image_folder + "/411-non-multiple-4-width.jpg",
-  image_folder + "/420-odd-height.jpg",
-  image_folder + "/420-odd-width.jpg",
-  image_folder + "/420-odd-both.jpg",
-  image_folder + "/422-odd-width.jpg"
+  testing::dali_extra_path() + "/db/single/jpeg/0/420.jpg",
+  testing::dali_extra_path() + "/db/single/jpeg/0/422.jpg",
+  testing::dali_extra_path() + "/db/single/jpeg/0/440.jpg",
+  testing::dali_extra_path() + "/db/single/jpeg/0/444.jpg",
+  testing::dali_extra_path() + "/db/single/jpeg/0/411.jpg",
+  testing::dali_extra_path() + "/db/single/jpeg/0/411-non-multiple-4-width.jpg",
+  testing::dali_extra_path() + "/db/single/jpeg/0/420-odd-height.jpg",
+  testing::dali_extra_path() + "/db/single/jpeg/0/420-odd-width.jpg",
+  testing::dali_extra_path() + "/db/single/jpeg/0/420-odd-both.jpg",
+  testing::dali_extra_path() + "/db/single/jpeg/0/422-odd-width.jpg"
 };
 
-const vector<string> png_test_images = ImageList(image_folder + "/png", {".png"});
-const vector<string> tiff_test_images = ImageList(image_folder + "/tiff", {".tiff", ".tif"});
+const vector<string> png_test_images =
+    ImageList(testing::dali_extra_path() + "/db/single/png", {".png"});
+const vector<string> tiff_test_images =
+    ImageList(testing::dali_extra_path() + "/db/single/tiff", {".tiff", ".tif"});
 
 }  // namespace images
 
