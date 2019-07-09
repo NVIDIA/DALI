@@ -107,7 +107,8 @@ struct InputOutputTypes {
   using out = OutputType;
 };
 
-using ArgTypes = std::tuple<int>;
+//using ArgTypes = std::tuple<int>;
+using ArgTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, /*uint32_t,*/ float>;
 //using ArgTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, uint32_t, float>;
 using MyTypesTuple = detail::AllPairs<InputOutputTypes, ArgTypes, ArgTypes>;
 using GTestTypes = typename detail::TupleToGTest<MyTypesTuple>::type;
