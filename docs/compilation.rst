@@ -30,6 +30,7 @@ Change directory (``cd``) into Docker directory and run ``./build.sh``. If neede
 * CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). Default is ``10``.
 * NVIDIA_BUILD_ID - Custom ID of the build. Default is ``1234``.
 * CREATE_WHL - Create a standalone wheel. Default is ``YES``.
+* BUILD_TF_PLUGIN - Create a DALI TensorFlow plugin as well. Default is ``NO``.
 * CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside. It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker`` and DALI wheel in the ``wheelhouse`` directory under$
 * DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package description, i.e. `nightly` will result in the `nvidia-dali-nightly`
 * CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo. Default is ``Release``.
