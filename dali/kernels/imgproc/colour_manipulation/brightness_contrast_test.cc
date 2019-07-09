@@ -169,7 +169,6 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
   for (int i = 0; i < out.num_elements(); i++) {
     EXPECT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
   }
-
 }
 
 
