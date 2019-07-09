@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <vector>
+#include <tuple>
 #include "dali/kernels/imgproc/colour_manipulation/brightness_contrast.h"
 #include "dali/kernels/test/tensor_test_utils.h"
 
@@ -47,10 +49,9 @@ struct TupleToGTest<std::tuple<T...>> {
 }  // namespace detail
 
 
-// TODO First brightness, then contrast
+// TODO(mszolucha): First brightness, then contrast
 template<class InputOutputTypes>
 class BrightnessContrastTest : public ::testing::Test {
-
  protected:
   BrightnessContrastTest() {
     input_.resize(dali::volume(shape_));
@@ -66,7 +67,7 @@ class BrightnessContrastTest : public ::testing::Test {
 
   std::vector<typename InputOutputTypes::in> input_;
   std::vector<typename InputOutputTypes::out> ref_output_;
-  TensorShape<3> shape_ = {4, 5, 3}; // TODO parameterize
+  TensorShape<3> shape_ = {4, 5, 3};  // TODO(mszolucha): parameterize
   typename InputOutputTypes::in brightness_ = 4;
   typename InputOutputTypes::in contrast_ = 3;
 
