@@ -78,7 +78,7 @@ struct Box {
    */
   constexpr DALI_HOST_DEV bool overlaps(const Box &other) const {
     for (size_t i = 0; i < ndims; i++) {
-      if (this->lo[i] >= other.hi[i] || this->hi[i] <= other.lo[i])
+      if (!(this->lo[i] < other.hi[i] && this->hi[i] > other.lo[i]))
         return false;
     }
     return true;
