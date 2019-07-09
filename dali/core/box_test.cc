@@ -23,20 +23,23 @@ namespace {
 
 using BoxCoordinateType = int;
 using Box_t = Box<2, BoxCoordinateType>;
+static_assert(std::is_pod<Box_t>::value, "Box has to be POD.");
 
-Box_t reference_box = {3, 3, 20, 15};
-Box_t empty_box = {0, 0, 0, 0};
+Box_t reference_box = {{3,  3},
+                       {20, 15}};
+Box_t empty_box = {{0, 0},
+                   {0, 0}};
 
 std::vector<Box_t> boxes = {
-        {0,  0,  0,   0},
-        {0,  0,  100, 100},
-        {4,  21, 9,   25},
-        {3,  3,  20,  15},
-        {4,  5,  10,  9},
-        {20, 7,  24,  9},
-        {17, 10, 20,  15},
-        {15, 12, 22,  18},
-        {9,  15, 11,  19}
+        {{0,  0},  {0,   0}},
+        {{0,  0},  {100, 100}},
+        {{4,  21}, {9,   25}},
+        {{3,  3},  {20,  15}},
+        {{4,  5},  {10,  9}},
+        {{20, 7},  {24,  9}},
+        {{17, 10}, {20,  15}},
+        {{15, 12}, {22,  18}},
+        {{9,  15}, {11,  19}}
 };
 
 std::vector<Box_t::corner_t> extents = {
@@ -67,16 +70,16 @@ std::vector<BoxCoordinateType> volumes = {
         0, 10000, 20, 204, 24, 8, 15, 42, 8
 };
 
-std::vector<Box_t> intersects = {
-        {0,  0,  0,  0},
-        {3,  3,  20, 15},
-        {0,  0,  0,  0},
-        {3,  3,  20, 15},
-        {4,  5,  10, 9},
-        {0,  0,  0,  0},
-        {17, 10, 20, 15},
-        {15, 12, 20, 15},
-        {0,  0,  0,  0}
+std::vector<Box_t> intersections = {
+        {{0,  0},  {0,  0}},
+        {{3,  3},  {20, 15}},
+        {{0,  0},  {0,  0}},
+        {{3,  3},  {20, 15}},
+        {{4,  5},  {10, 9}},
+        {{0,  0},  {0,  0}},
+        {{17, 10}, {20, 15}},
+        {{15, 12}, {20, 15}},
+        {{0,  0},  {0,  0}}
 };
 
 }  // namespace
@@ -135,9 +138,9 @@ TEST(BoxSimpleTest, volume_test) {
 
 
 TEST(BoxSimpleTest, intersection_test) {
-  ASSERT_EQ(boxes.size(), intersects.size()) << "Bad testing data";
+  ASSERT_EQ(boxes.size(), intersections.size()) << "Bad testing data";
   for (size_t i = 0; i < boxes.size(); i++) {
-    EXPECT_EQ(intersection(reference_box, boxes[i]), intersects[i]) << "Failed at index: " << i;
+    EXPECT_EQ(intersection(reference_box, boxes[i]), intersections[i]) << "Failed at index: " << i;
   }
 }
 

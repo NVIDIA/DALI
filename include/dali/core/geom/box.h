@@ -21,8 +21,6 @@ namespace dali {
 
 template<size_t ndims, typename CoordinateType>
 struct Box {
-  static_assert(std::is_standard_layout<CoordinateType>::value,
-                "Cannot create a Box of a non-standard layout type");
   using corner_t = vec<ndims, CoordinateType>;
   static_assert(std::is_pod<corner_t>::value, "Corner has to be POD");
 
@@ -34,10 +32,7 @@ struct Box {
   corner_t lo, hi;
 
 
-  /**
-   * Creates an empty box
-   */
-  Box() = default;
+  constexpr Box() = default;
 
 
   /**
@@ -45,23 +40,8 @@ struct Box {
    * Assumes, that `lo <= hi`, i.e. every coordinate of `lo` will be lower or equal to
    * corresponding coordinate of `hi`.
    */
-  Box(const corner_t &lo, const corner_t &hi) {
-    this->lo = lo;
-    this->hi = hi;
-  }
-
-
-  /**
-   * Convenient overload, for 2-D case
-   * @param left x-coordinate of `lo`
-   * @param top y-coordinate of `lo`
-   * @param right x-coordinate of `hi`
-   * @param bottom y-coordinate of `hi`
-   */
-  Box(CoordinateType left, CoordinateType top, CoordinateType right, CoordinateType bottom) {
-    lo = {left, top};
-    hi = {right, bottom};
-  }
+  constexpr DALI_HOST_DEV Box(const corner_t &lo, const corner_t &hi) :
+          lo(lo), hi(hi) {}
 
 
   constexpr DALI_HOST_DEV corner_t extent() const {
@@ -74,7 +54,7 @@ struct Box {
    */
   constexpr DALI_HOST_DEV bool contains(const corner_t &point) const {
     for (size_t i = 0; i < ndims; i++) {
-      if (this->lo[i] > point[i] || this->hi[i] <= point[i])
+      if (!(point[i] >= lo[i] && point[i] < hi[i]))
         return false;
     }
     return true;
@@ -109,7 +89,7 @@ struct Box {
    * @return true, if this box is empty (its volume is 0)
    */
   constexpr DALI_HOST_DEV bool empty() const {
-    return lo == hi;
+    return any_coord(hi <= lo);
   }
 };
 
@@ -124,7 +104,7 @@ constexpr DALI_HOST_DEV CoordinateType volume(const Box<ndims, CoordinateType> &
 
 
 /**
- * @return Box, that is an intersection of two boxes
+ * @return Intersection of two boxes or a default one when the arguments are disjoint.
  */
 template<size_t ndims, typename CoordinateType>
 constexpr DALI_HOST_DEV Box<ndims, CoordinateType>
@@ -135,12 +115,22 @@ intersection(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateT
 
 
 /**
- * Two boxes are equal IFF its corners are identical
+ * Two boxes are equal when their corners are identical
  */
 template<size_t ndims, typename CoordinateType>
 constexpr DALI_HOST_DEV bool
 operator==(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
   return lhs.lo == rhs.lo && lhs.hi == rhs.hi;
+}
+
+
+/**
+ * Two boxes are equal when their corners are identical
+ */
+template<size_t ndims, typename CoordinateType>
+constexpr DALI_HOST_DEV bool
+operator!=(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
+  return lhs.lo != rhs.lo || lhs.hi != rhs.hi;
 }
 
 }  // namespace dali
