@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_BOX_H
-#define DALI_BOX_H
+#ifndef DALI_CORE_GEOM_BOX_H_
+#define DALI_CORE_GEOM_BOX_H_
 
 #include "dali/core/geom/vec.h"
 
@@ -32,6 +32,7 @@ struct Box {
    * corresponding coordinate of `hi`.
    */
   corner_t lo, hi;
+
 
   /**
    * Creates an empty box
@@ -146,4 +147,4 @@ operator==(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateTyp
 
 }  // namespace dali
 
-#endif //DALI_BOX_H
+#endif  // DALI_CORE_GEOM_BOX_H_
