@@ -15,9 +15,24 @@
 #ifndef DALI_PIPELINE_OPERATORS_READER_PARSER_PARSER_H_
 #define DALI_PIPELINE_OPERATORS_READER_PARSER_PARSER_H_
 
+#include <string>
+#include <vector>
+
 #include "dali/pipeline/workspace/sample_workspace.h"
 
 namespace dali {
+
+template<typename T>
+void load_vector_from_file(std::vector<T> &output, std::string path) {
+  std::ifstream file(path);
+  if (file) {
+    T val;
+    while (file >> val)
+      output.push_back(val);
+  } else {
+    DALI_FAIL("TFRecord meta file error: " + path);
+  }
+}
 
 /**
  * @brief Base class for parsing data returned from a Loader

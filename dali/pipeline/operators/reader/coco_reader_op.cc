@@ -57,4 +57,26 @@ object will be skipped during reading. It is represented as absolute value.)code
     return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
   })
   .AddParent("LoaderBase");
+
+
+DALI_REGISTER_OPERATOR(FastCocoReader, FastCocoReader, CPU);
+DALI_SCHEMA(FastCocoReader)
+  .NumInput(0)
+  .NumOutput(3)
+  .DocStr(R"code(Read data from a COCO dataset composed of directory with images
+and an annotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
+Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
+  .AddOptionalArg("meta_files_path", "Path to directory with boxes and labels meta files",
+    std::string())
+  .AddOptionalArg("shuffle_after_epoch",
+      R"code(If true, reader shuffles whole dataset after each epoch.)code",
+      false)
+  .AddArg("file_root",
+      R"code(Path to a directory containing data files.)code",
+      DALI_STRING)
+  .AddOptionalArg("file_list",
+      R"code(Path to the file with a list of pairs ``file label``
+(leave empty to traverse the `file_root` directory to obtain files and labels))code",
+      std::string())
+  .AddParent("LoaderBase");
 }  // namespace dali

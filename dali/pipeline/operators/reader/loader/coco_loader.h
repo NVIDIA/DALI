@@ -81,6 +81,42 @@ class CocoLoader : public FileLoader {
   bool skip_empty_;
 };
 
+class FastCocoLoader : public FileLoader {
+ public:
+  explicit inline FastCocoLoader(
+    const OpSpec& spec,
+    const string& meta_files_path,
+    bool shuffle_after_epoch = false) :
+      FileLoader(spec, std::vector<std::pair<string, int>>(), shuffle_after_epoch),
+      meta_files_path_(meta_files_path) {}
+
+ protected:
+  void PrepareMetadataImpl() override {
+    std::vector<std::string> filenames;
+    load_vector_from_file(
+      filenames,
+      meta_files_path_ + "filenames.txt");
+
+    int id = 0;
+    for (auto& filename : filenames) {
+      image_label_pairs_.push_back(std::make_pair(filename, id));
+      ++id;
+    }
+
+    DALI_ENFORCE(Size() > 0, "No files found.");
+    if (shuffle_) {
+      // seeded with hardcoded value to get
+      // the same sequence on every shard
+      std::mt19937 g(524287);
+      std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
+    }
+    Reset(true);
+  }
+
+ private:
+  const string meta_files_path_;
+};
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_READER_LOADER_COCO_LOADER_H_

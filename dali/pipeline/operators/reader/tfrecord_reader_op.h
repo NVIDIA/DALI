@@ -27,17 +27,6 @@
 #include "dali/pipeline/operators/reader/loader/indexed_file_loader.h"
 #include "dali/pipeline/operators/reader/parser/tfrecord_parser.h"
 
-template<typename T>
-void load_vector_from_file(std::vector<T> &output, std::string path) {
-  std::ifstream file(path);
-  if (file) {
-    T val;
-    while (file >> val)
-      output.push_back(val);
-  } else {
-    DALI_FAIL("TFRecord meta file error.");
-  }
-}
 
 namespace dali {
 class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
