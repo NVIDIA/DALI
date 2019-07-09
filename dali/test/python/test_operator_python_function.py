@@ -7,9 +7,9 @@ import numpy
 import random
 from PIL import Image, ImageEnhance
 import os
-import time
 import glob
 import tempfile
+import time
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')

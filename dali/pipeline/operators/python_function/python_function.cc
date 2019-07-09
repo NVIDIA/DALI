@@ -33,7 +33,17 @@ DALI_SCHEMA(PythonFunction)
         .NumInput(0, 256)
         .AllowMultipleInputSets()
         .AddArg("function",
-                R"code(Function object consuming and producing a single numpy array)code",
+                R"code(Function object consuming and producing numpy arrays.)code",
+                DALI_PYTHON_OBJECT)
+        .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
+        .NoPrune();
+
+DALI_SCHEMA(TorchPythonFunction)
+        .DocStr("Executes a function operating on Torch tensors")
+        .NumInput(0, 256)
+        .AllowMultipleInputSets()
+        .AddArg("function",
+                R"code(Function object consuming and producing Torch tensors.)code",
                 DALI_PYTHON_OBJECT)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
         .NoPrune();

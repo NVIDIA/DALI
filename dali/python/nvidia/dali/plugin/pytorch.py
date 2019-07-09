@@ -16,9 +16,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.ops as ops
 import torch
 import ctypes
 import logging
+import functools
 
 import numpy as np
 
@@ -284,3 +286,22 @@ class DALIClassificationIterator(DALIGenericIterator):
                                                          size, auto_reset = auto_reset,
                                                          stop_at_epoch = stop_at_epoch,
                                                          dynamic_shape = dynamic_shape)
+
+
+class TorchPythonFunction(ops.PythonFunction):
+    ops.register_cpu_op('TorchPythonFunction')
+
+    @staticmethod
+    def torch_wrapper(function, *args):
+        input_tensors = list(map(torch.from_numpy, args))
+        output_tensors = function(*input_tensors)
+        if isinstance(output_tensors, tuple) or isinstance(output_tensors, list):
+            return tuple(map(lambda t: t.numpy(), output_tensors))
+        else:
+            return output_tensors.numpy()
+
+    def __init__(self, function, num_outputs=1, **kwargs):
+        ops.PythonFunction.__init__(self,
+                                    functools.partial(TorchPythonFunction.torch_wrapper, function),
+                                    num_outputs, **kwargs)
+
