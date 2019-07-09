@@ -57,14 +57,22 @@ class DLL_PUBLIC BrightnessContrast {
                       InputType contrast, Roi roi = {0, 0, 0, 0}) {
     handle_default_roi(roi, in.shape);
     size_t num_channels = in.shape[2];
+    size_t W = in.shape[1];
+    auto ptr = out.data;
     DALI_ENFORCE(roi.h > 0 && roi.w > 0, "Region of interest can't be empty");
 
-    for (size_t y = 0; y < roi.h; y++) {
-      for (size_t x = 0; x < roi.w; x++) {
-        for (size_t c = 0; c < num_channels; c++) {
-          out.data[roi.w * y * num_channels + x * num_channels + c] =
-                  in.data[roi.w * y * num_channels + x * num_channels + c] * contrast + brightness;
-        }
+//    for (size_t y = 0; y < roi.h; y++) {
+//      for (size_t x = 0; x < roi.w; x++) {
+//        for (size_t c = 0; c < num_channels; c++) {
+//          out.data[roi.w * y * num_channels + x * num_channels + c] =
+//                  in.data[roi.w * y * num_channels + x * num_channels + c] * contrast + brightness;
+//        }
+//      }
+//    }
+
+    for (int y=roi.y;y<roi.y+roi.h;y++) {
+      for (int xc=(roi.x+y*W)*3;xc<(roi.x+roi.w+y*W)*3;xc++) {
+        *ptr++=in.data[xc]*contrast+brightness;
       }
     }
 
