@@ -101,16 +101,15 @@ __global__ void process_frame_kernel(
       return;
 
   auto src_x = 0.0f;
-  src_x = static_cast<float>(dst_x) * fx;
-  auto src_y = static_cast<float>(dst_y) * fy;
-
   // TODO(spanev) something less hacky here, why 4:2:0 fails on this edge?
   float shift = (dst_x == dst_width - 1) ? 0 : 0.5f;
+  src_x = static_cast<float>(dst_x) * fx + shift;
+  auto src_y = static_cast<float>(dst_y) * fy + shift;
 
   // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#tex2d-object
   YCbCr<float> ycbcr;
-  ycbcr.y = tex2D<float>(luma, src_x + shift, src_y + shift);
-  auto cbcr = tex2D<float2>(chroma, (src_x / 2) + shift, (src_y / 2) + shift);
+  ycbcr.y = tex2D<float>(luma, src_x, src_y);
+  auto cbcr = tex2D<float2>(chroma, src_x * 0.5f, src_y * 0.5f);
   ycbcr.cb = cbcr.x;
   ycbcr.cr = cbcr.y;
 

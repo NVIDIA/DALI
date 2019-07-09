@@ -422,7 +422,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                                       frame.get_pitch(),
                                       input_width,
                                       input_height,
-                                      ScaleMethod_Nearest);
+                                      ScaleMethod_Linear);
   if (dtype_ == DALI_UINT8) {
     process_frame<uint8>(textures.chroma, textures.luma,
                   sequence,
