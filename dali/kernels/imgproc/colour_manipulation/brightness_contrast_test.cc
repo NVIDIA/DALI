@@ -179,6 +179,34 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
   }
 }
 
+TEST(BrightnessContrastTest, roi_from_box) {
+  {
+    Box<3, int> box(0, 0);
+    Roi roi(box);
+    EXPECT_EQ(0, roi.x);
+    EXPECT_EQ(0, roi.y);
+    EXPECT_EQ(0, roi.w);
+    EXPECT_EQ(0, roi.h);
+  }
+  {
+    Box<3, int> box(0, 1);
+    Roi roi(box);
+    EXPECT_EQ(0, roi.x);
+    EXPECT_EQ(0, roi.y);
+    EXPECT_EQ(1, roi.w);
+    EXPECT_EQ(1, roi.h);
+  }
+  {
+    Box<3, int> box(1, 5);
+    Roi roi(box);
+    EXPECT_EQ(1, roi.x);
+    EXPECT_EQ(1, roi.y);
+    EXPECT_EQ(4, roi.w);
+    EXPECT_EQ(4, roi.h);
+  }
+}
+
+
 
 }  // namespace test
 }  // namespace kernels
