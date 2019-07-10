@@ -32,11 +32,15 @@ struct Roi {
   Roi() = default;
 
 
-  Roi(int x, int y, int w, int h) : x(x), y(y), w(w), h(h), use_roi(true) {}
+  Roi(int x, int y, int w, int h) : x(x), y(y), w(w), h(h) {
+    if (w > 0 && h > 0) {
+      valid_roi = true;
+    }
+  }
 
 
   int x, y, w, h;
-  bool use_roi = false;
+  bool valid_roi = false;
 };
 
 }  // namespace brightness_contrast
@@ -51,7 +55,7 @@ class DLL_PUBLIC BrightnessContrast {
   DLL_PUBLIC KernelRequirements
   Setup(KernelContext &context, const InTensor<StorageBackend, InputType, ndims> &image,
         InputType brightness, InputType contrast, brightness_contrast::Roi roi = {}) {
-    handle_default_roi(roi, image.shape);
+    handle_invalid_roi(roi, image.shape);
     KernelRequirements req;
     req.output_shapes = {TensorListShape<DynamicDimensions>({roi_to_shape<ndims>(roi)})};
     return req;
@@ -73,7 +77,7 @@ class DLL_PUBLIC BrightnessContrast {
   Run(KernelContext &context, const OutTensor<StorageBackend, OutputType, ndims> &out,
       const InTensor<StorageBackend, InputType, ndims> &in, InputType brightness,
       InputType contrast, brightness_contrast::Roi roi = {}) {
-    handle_default_roi(roi, in.shape);
+    handle_invalid_roi(roi, in.shape);
     auto num_channels = in.shape[2];
     auto image_width = in.shape[1];
     auto ptr = out.data;
@@ -89,13 +93,13 @@ class DLL_PUBLIC BrightnessContrast {
 
  private:
   void
-  handle_default_roi(brightness_contrast::Roi &roi, const TensorShape<DynamicDimensions> &shape) {
-    if (!roi.use_roi) {
+  handle_invalid_roi(brightness_contrast::Roi &roi, const TensorShape<DynamicDimensions> &shape) {
+    if (!roi.valid_roi) {
       roi.x = 0;
       roi.y = 0;
       roi.h = shape[0];
       roi.w = shape[1];
-      roi.use_roi = true;
+      roi.valid_roi = true;
     }
   }
 
