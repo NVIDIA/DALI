@@ -44,6 +44,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CachedDecoderImpl(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
+    use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")),
     output_info_(batch_size_),
     image_decoders_(batch_size_),
     image_states_(batch_size_),
@@ -299,7 +300,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     if (!info.nvjpeg_support) {
       HostFallback<kernels::StorageGPU>(input_data, in_size, output_image_type_, output_data,
-                                        stream, file_name, info.crop_window);
+                                        stream, file_name, info.crop_window, use_fast_idct_);
       return;
     }
 
@@ -355,7 +356,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     } else {
       HostFallback<kernels::StorageGPU>(input_data, in_size, output_image_type_, output_data,
-                                        stream, file_name, info.crop_window);
+                                        stream, file_name, info.crop_window, use_fast_idct_);
     }
   }
 
@@ -367,6 +368,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   DALIImageType output_image_type_;
 
   unsigned int hybrid_huffman_threshold_;
+  bool use_fast_idct_;
 
   // Common
   // Storage for per-image info

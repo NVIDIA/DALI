@@ -76,6 +76,9 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   }
 
   jpeg::UncompressFlags flags;
+  if (UseFastIdct()) {
+    flags.dct_method = JDCT_FASTEST;
+  }
   flags.components = c;
 
   flags.crop = false;

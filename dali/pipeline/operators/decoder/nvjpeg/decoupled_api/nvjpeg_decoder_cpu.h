@@ -45,6 +45,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     Operator<CPUBackend>(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
+    use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")),
     decode_params_(batch_size_),
     use_chunk_allocator_(spec.GetArgument<bool>("use_chunk_allocator")) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
@@ -139,7 +140,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         auto *output_data = out.mutable_data<uint8_t>();
 
         HostFallback<kernels::StorageCPU>(input_data, in_size, output_image_type_, output_data, 0,
-                                          file_name, info->crop_window);
+                                          file_name, info->crop_window, use_fast_idct_);
       } catch (const std::runtime_error& e) {
         DALI_FAIL(e.what() + "File: " + file_name);
       }
@@ -248,6 +249,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
   DALIImageType output_image_type_;
 
   unsigned int hybrid_huffman_threshold_;
+  // Used in host fallback
+  bool use_fast_idct_;
 
   // Common handles
   nvjpegHandle_t handle_;
