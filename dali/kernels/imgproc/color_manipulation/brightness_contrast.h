@@ -31,7 +31,7 @@ template<size_t ndims, class Roi>
 TensorShape<ndims> to_shape(Roi roi, size_t nchannels) {
   auto w = roi.extent()[0];
   auto h = roi.extent()[1];
-  TensorShape<ndims> sh = {static_cast<int64_t>(h), w, nchannels};
+  TensorShape<ndims> sh = {static_cast<int64_t>(h), w, static_cast<int64_t>(nchannels)};
   return sh;
 }
 
@@ -90,7 +90,7 @@ class BrightnessContrast {
  private:
   Roi AdjustRoi(const Roi *roi, const TensorShape<ndims> &shape) {
     ivec<spatial_dims> size;
-    for (int i = 0; i < spatial_dims; i++)
+    for (size_t i = 0; i < spatial_dims; i++)
       size[i] = shape[spatial_dims - 1 - i];
     Roi whole_image = {0, size};
     return roi ? intersection(*roi, whole_image) : whole_image;

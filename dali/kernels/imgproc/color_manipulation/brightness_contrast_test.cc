@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <tuple>
-#include "dali/kernels/imgproc/colour_manipulation/brightness_contrast.h"
+#include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
 #include "dali/kernels/test/tensor_test_utils.h"
 
 namespace dali {
