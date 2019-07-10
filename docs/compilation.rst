@@ -197,6 +197,24 @@ Building DALI with LMDB support:
     cmake -DBUILD_LMDB=ON ..
     make -j"$(nproc)"
 
+Testing DALI build
+^^^^^^^^^^^^^^^^^^
+
+Testing data can be found in the DALI_extra_ repository. This repo is maintained for testing DALI.
+To run these tests, first set the environment variable ``DALI_EXTRA_PATH`` to point to the root repo folder of DALI_extra_.
+The DALI testing module reads this environment variable during runtime. Currently not all the tests follow this open dataset, but we're working on it.
+
+.. code-block:: bash
+
+   export DALI_EXTRA_PATH=/opt/dali_extra
+   ./dali_test.bin
+
+.. note::
+
+   DALI_extra is not required for building Dali from source.
+
+.. _DALI_extra: https://github.com/NVIDIA/DALI_extra
+
 
 Building DALI using Clang (experimental):
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
