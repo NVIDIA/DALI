@@ -126,9 +126,15 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
 
   // if image is cached, skip loading
   if (ShouldSkipImage(frame_filename)) {
-    target->set_type(TypeInfo::Create<uint8_t>());
-    target->Resize({1});
     target->SetSkipSample(true);
+    if (target->shares_data()) {
+      auto meta = target->GetMeta();
+      target->UnshareData();
+      target->SetMeta(meta);
+      return;
+    }
+    target->set_type(TypeInfo::Create<uint8_t>());
+    target->Resize({0});
     return;
   }
 

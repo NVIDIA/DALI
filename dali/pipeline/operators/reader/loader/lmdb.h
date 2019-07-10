@@ -93,9 +93,15 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
     // if image is cached, skip loading
     if (ShouldSkipImage(image_key)) {
-      tensor.set_type(TypeInfo::Create<uint8_t>());
-      tensor.Resize({1});
       tensor.SetSkipSample(true);
+      if (tensor.shares_data()) {
+        auto meta = tensor.GetMeta();
+        tensor.UnshareData();
+        tensor.SetMeta(meta);
+        return;
+      }
+      tensor.set_type(TypeInfo::Create<uint8_t>());
+      tensor.Resize({0});
       return;
     }
 

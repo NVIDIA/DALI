@@ -446,6 +446,14 @@ class Tensor : public Buffer<Backend> {
     return *this;
   }
 
+  const DALIMeta &GetMeta() const {
+    return meta_;
+  }
+
+  void SetMeta(const DALIMeta &meta)  {
+    meta_ = meta;
+  }
+
   inline DALITensorLayout GetLayout() const {
     return meta_.GetLayout();
   }

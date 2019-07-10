@@ -107,9 +107,15 @@ void FileLoader::ReadSample(ImageLabelWrapper &image_label) {
 
   // if image is cached, skip loading
   if (ShouldSkipImage(image_pair.first)) {
-    image_label.image.set_type(TypeInfo::Create<uint8_t>());
-    image_label.image.Resize({1});
     image_label.image.SetSkipSample(true);
+    if (image_label.image.shares_data()) {
+      auto meta = image_label.image.GetMeta();
+      image_label.image.UnshareData();
+      image_label.image.SetMeta(meta);
+      return;
+    }
+    image_label.image.set_type(TypeInfo::Create<uint8_t>());
+    image_label.image.Resize({0});
     return;
   }
 
