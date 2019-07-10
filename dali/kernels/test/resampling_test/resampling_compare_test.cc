@@ -36,53 +36,53 @@ namespace {
 
 ResamplingTestBatch SingleImageBatch = {
   {
-    "imgproc_test/alley.png", "",
+    "imgproc/alley.png", "",
     { 300, 300 }, tri(), 1
   }
 };
 
 ResamplingTestBatch Batch1 = {
   {
-    "imgproc_test/alley.png", "",
+    "imgproc/alley.png", "",
     { 300, 300 }, tri(), 1
   },
   {
-    "imgproc_test/alley.png", "",
+    "imgproc/alley.png", "",
     { 1000, 1000 }, lin(), 1
   },
   {
-    "imgproc_test/score.png", "",
+    "imgproc/score.png", "",
     { 540, 250 }, lanczos(), 1
   },
   {
-    "imgproc_test/score.png", "",
+    "imgproc/score.png", "",
     { 200, 93 }, cubic(), 1
   },
   {
-    "imgproc_test/alley.png", "",
+    "imgproc/alley.png", "",
     { 681, 960 }, gauss(12), 1
   }
 };
 
 ResamplingTestBatch CropBatch = {
   {
-    "imgproc_test/dots.png", "",
+    "imgproc/dots.png", "",
     { 1.0f, 1.0f, 3.0f, 3.0f }, { 2, 2 }, nearest(), 0
   },
   {
-    "imgproc_test/alley.png", "",
+    "imgproc/alley.png", "",
     { 100.0f, 300.0f, 200.0f, 400.0f }, { 200, 200 }, cubic(), 1
   },
   {
-    "imgproc_test/alley.png", "",
+    "imgproc/alley.png", "",
     { 200.0f, 300.0f, 100.0f, 400.0f }, { 200, 200 }, cubic(), 1
   },
   {
-    "imgproc_test/alley.png", "",
+    "imgproc/alley.png", "",
     { 150.0f, 400.0f, 200.0f, 450.0f }, { 150, 200 }, lin(), 1
   },
   {
-    "imgproc_test/alley.png", "",
+    "imgproc/alley.png", "",
     { 150.0f, 450.0f, 200.0f, 400.0f }, { 150, 200 }, lin(), 1
   },
 };

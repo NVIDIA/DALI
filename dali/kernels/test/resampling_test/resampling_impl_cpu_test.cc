@@ -105,8 +105,8 @@ TEST(ResampleCPU, TriangularFilter) {
 }
 
 TEST(ResampleCPU, Horizontal) {
-  auto img = testing::data::image("imgproc_test/checkerboard.png");
-  auto ref = testing::data::image("imgproc_test/ref_out/resample_horz.png");
+  auto img = testing::data::image("imgproc/checkerboard.png");
+  auto ref = testing::data::image("imgproc/ref/resampling/resample_horz.png");
   auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
 
   int in_w = img.cols;
@@ -131,8 +131,8 @@ TEST(ResampleCPU, Horizontal) {
 }
 
 TEST(ResampleCPU, Vertical) {
-  auto img = testing::data::image("imgproc_test/checkerboard.png");
-  auto ref = testing::data::image("imgproc_test/ref_out/resample_vert.png");
+  auto img = testing::data::image("imgproc/checkerboard.png");
+  auto ref = testing::data::image("imgproc/ref/resampling/resample_vert.png");
   auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
 
   int in_h = img.rows;
@@ -157,8 +157,8 @@ TEST(ResampleCPU, Vertical) {
 }
 
 TEST(ResampleCPU, NN) {
-  auto img = testing::data::image("imgproc_test/blobs.png");
-  auto ref = testing::data::image("imgproc_test/dots.png");
+  auto img = testing::data::image("imgproc/blobs.png");
+  auto ref = testing::data::image("imgproc/dots.png");
   auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
 
   int in_h = img.rows;
@@ -181,7 +181,7 @@ TEST(ResampleCPU, NN) {
 
 
 TEST(ResampleCPU, NN_Identity) {
-  auto img = testing::data::image("imgproc_test/alley.png");
+  auto img = testing::data::image("imgproc/alley.png");
   auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
 
   int in_h = img.rows;
@@ -203,8 +203,8 @@ TEST(ResampleCPU, NN_Identity) {
 
 
 TEST(ResampleCPU, Linear) {
-  auto img = testing::data::image("imgproc_test/dots.png");
-  auto ref = testing::data::image("imgproc_test/blobs.png");
+  auto img = testing::data::image("imgproc/dots.png");
+  auto ref = testing::data::image("imgproc/blobs.png");
   auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
 
   int in_h = img.rows;
