@@ -27,46 +27,38 @@ namespace kernels {
 
 namespace brightness_contrast {
 
-struct Roi {
-  Roi() = default;
-
-
-  Roi(int x, int y, int w, int h) : x(x), y(y), w(w), h(h), default_roi(false) {
-    valid_roi = w >= 0 && h >= 0;
-  }
-
-
-  Roi(const Box<3, int> &box) : // NOLINT non-explicit ctor
-          Roi(box.lo[0], box.lo[1], box.extent()[0], box.extent()[1]) {
-  }
-
-
-  int x, y, w, h;
-  bool valid_roi = true;
-  bool default_roi = true;
-};
+template<size_t ndims, class Roi>
+TensorShape<ndims> to_shape(Roi roi, size_t nchannels) {
+  auto w = roi.extent()[0];
+  auto h = roi.extent()[1];
+  TensorShape<ndims> sh = {static_cast<int64_t>(h), w, nchannels};
+  return sh;
+}
 
 }  // namespace brightness_contrast
 
-template<typename ComputeBackend, typename InputType, typename OutputType>
-class DLL_PUBLIC BrightnessContrast {
+
+template<typename ComputeBackend, typename InputType, typename OutputType, size_t ndims = 3>
+class BrightnessContrast {
  private:
   using StorageBackend = compute_to_storage_t<ComputeBackend>;
-  static constexpr size_t ndims = 3;
+  static constexpr size_t spatial_dims = ndims - 1;
 
  public:
-  DLL_PUBLIC KernelRequirements
-  Setup(KernelContext &context, const InTensor<StorageBackend, InputType, ndims> &image,
-        InputType brightness, InputType contrast, brightness_contrast::Roi roi = {}) {
-    AdjustRoi(roi, image.shape);
+  using Roi = Box<spatial_dims, int>;
+
+  KernelRequirements
+  Setup(KernelContext &context, const InTensor<StorageBackend, InputType, ndims> &in,
+        InputType brightness, InputType contrast, const Roi *roi = nullptr) {
+    DALI_ENFORCE(!roi || all_coords(roi->hi >= roi->lo), "Region of interest is invalid");
+    auto adjusted_roi = AdjustRoi(roi, in.shape);
     KernelRequirements req;
-    req.output_shapes = {TensorListShape<DynamicDimensions>({roi_to_shape<ndims>(roi)})};
+    req.output_shapes = {TensorListShape<DynamicDimensions>(
+            {brightness_contrast::to_shape<ndims>(adjusted_roi, 3)})};
     return req;
   }
 
 
-  // TODO(mszolucha): CHW layout
-  // TODO(mszolucha): first brightness then contrast
   /**
    * Assumes HWC memory layout
    *
@@ -76,51 +68,43 @@ class DLL_PUBLIC BrightnessContrast {
    * @param roi When default or invalid roi is provided,
    *            kernel operates on entire image ("no-roi" case)
    */
-  DLL_PUBLIC void
-  Run(KernelContext &context, const OutTensor<StorageBackend, OutputType, ndims> &out,
-      const InTensor<StorageBackend, InputType, ndims> &in, InputType brightness,
-      InputType contrast, brightness_contrast::Roi roi = {}) {
-    AdjustRoi(roi, in.shape);
+  void Run(KernelContext &context, const OutTensor<StorageBackend, OutputType, ndims> &out,
+           const InTensor<StorageBackend, InputType, ndims> &in, InputType brightness,
+           InputType contrast, const Roi *roi = nullptr) {
+    auto adjusted_roi = AdjustRoi(roi, in.shape);
     auto num_channels = in.shape[2];
     auto image_width = in.shape[1];
     auto ptr = out.data;
 
-    for (int y = roi.y; y < roi.y + roi.h; y++) {
-      for (int xc = (roi.x + y * image_width) * num_channels;
-           xc < (roi.x + roi.w + y * image_width) * num_channels; xc++) {
+    for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
+      for (int xc = (adjusted_roi.lo.x + y * image_width) * num_channels;
+           xc < (adjusted_roi.hi.x + y * image_width) * num_channels; xc++) {
         *ptr++ = in.data[xc] * contrast + brightness;
       }
     }
+
+//    int wc = output_width * num_channels;
+//    ptrdiff_t row_stride = image_width * num_channels;
+//    auto *row = in.data + y0 * row_stride + x0 * num_channels;
+//    for (int y = y0; y < y1; y++) {
+//      for (int xc = 0; xc < wc; xc++)
+//        *out++ = f(row[xc]);
+//      row += row_stride;
+//    }
+
   }
 
 
  private:
-  void AdjustRoi(brightness_contrast::Roi &roi, const TensorShape<DynamicDimensions> &shape) {
-    auto image_width = shape[1];
-    auto image_height = shape[0];
-    if (roi.default_roi || !roi.valid_roi) {
-      roi.x = 0;
-      roi.y = 0;
-      roi.h = image_height;
-      roi.w = image_width;
-      roi.valid_roi = true;
-    }
-    if (roi.x < 0) {
-      roi.w += roi.x;
-      roi.x = 0;
-    }
-    if (roi.y < 0) {
-      roi.h += roi.y;
-      roi.y = 0;
-    }
+  Roi AdjustRoi(const Roi *roi, const TensorShape<ndims> &shape) {
+    ivec<spatial_dims> size;
+    for (int i = 0; i < spatial_dims; i++)
+      size[i] = shape[spatial_dims - 1 - i];
+    Roi whole_image = {0, size};
+    return roi ? intersection(*roi, whole_image) : whole_image;
   }
 
 
-  template<int nchannels>
-  TensorShape<nchannels> roi_to_shape(const brightness_contrast::Roi &roi) {
-    TensorShape<nchannels> sh = {static_cast<int64_t>(roi.h), roi.w, nchannels};
-    return sh;
-  }
 };
 
 }  // namespace kernels

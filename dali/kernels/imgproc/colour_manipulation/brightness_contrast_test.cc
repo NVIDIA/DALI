@@ -22,9 +22,7 @@ namespace dali {
 namespace kernels {
 namespace test {
 
-using brightness_contrast::Roi;
-
-namespace detail {
+namespace brightness_contrast {
 
 template<template<typename A, typename B> class Pair, typename T1, typename... T>
 using FixedFirstTypePairs = std::tuple<Pair<T1, T>...>;
@@ -58,10 +56,12 @@ struct TupleToGTest<std::tuple<T...>> {
  * @param rows height of the input image
  * @param cols width of the input image
  */
-template<int nchannels, class T>
+template<int nchannels, class T, class Roi>
 cv::Mat_<T> to_mat(T *ptr, Roi roi, int rows, int cols) {
+  auto roi_w = roi.extent().x;
+  auto roi_h = roi.extent().y;
   cv::Mat_<T> mat(rows, cols * nchannels, ptr);
-  cv::Rect rect(roi.x * nchannels, roi.y, roi.w * nchannels, roi.h);
+  cv::Rect rect(roi.lo.x * nchannels, roi.lo.y, roi_w * nchannels, roi_h);
   auto roimat = cv::Mat_<T>(mat, rect);
   roimat = roimat.clone();  // Make cv::Mat continuous
   return roimat;
@@ -82,11 +82,13 @@ class BrightnessContrastTest : public ::testing::Test {
     std::mt19937_64 rng;
     UniformRandomFill(input_, rng, 0., 10.);
     calc_output();
+    ref_out_tv_ = make_tensor_cpu(ref_output_.data(), shape_);
   }
 
 
   std::vector<typename InputOutputTypes::in> input_;
   std::vector<typename InputOutputTypes::out> ref_output_;
+  OutTensorCPU<typename InputOutputTypes::out, 3> ref_out_tv_;
   TensorShape<3> shape_ = {240, 320, 3};
   typename InputOutputTypes::in brightness_ = 4;
   typename InputOutputTypes::in contrast_ = 3;
@@ -110,8 +112,8 @@ struct InputOutputTypes {
 };
 
 using ArgTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
-using MyTypesTuple = detail::AllPairs<InputOutputTypes, ArgTypes, ArgTypes>;
-using GTestTypes = typename detail::TupleToGTest<MyTypesTuple>::type;
+using MyTypesTuple = brightness_contrast::AllPairs<InputOutputTypes, ArgTypes, ArgTypes>;
+using GTestTypes = typename brightness_contrast::TupleToGTest<MyTypesTuple>::type;
 
 }  // namespace test_types
 
@@ -137,7 +139,7 @@ TYPED_TEST(BrightnessContrastTest, SetupTestAndCheckKernel) {
 TYPED_TEST(BrightnessContrastTest, RunTest) {
   BrightnessContrast<kernels::ComputeCPU, typename TypeParam::in, typename TypeParam::out> kernel;
   KernelContext ctx;
-  InTensorCPU<typename TypeParam::in, 3> in(this->input_.data(), this->shape_);
+  InTensorCPU<typename TypeParam::in, this->ndims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
   auto out_shape = reqs.output_shapes[0][0];
   vector<typename TypeParam::out> output;
@@ -146,11 +148,7 @@ TYPED_TEST(BrightnessContrastTest, RunTest) {
           output.data(), out_shape.template to_static<this->ndims>());
 
   kernel.Run(ctx, out, in, this->brightness_, this->contrast_);
-
-  ASSERT_EQ(this->ref_output_.size(), out.num_elements()) << "Number of elements doesn't match";
-  for (int i = 0; i < out.num_elements(); i++) {
-    EXPECT_EQ(this->ref_output_[i], out.data[i]) << "Failed at idx: " << i;
-  }
+  Check(this->ref_out_tv_, out);
 }
 
 
@@ -159,53 +157,26 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
   KernelContext ctx;
   InTensorCPU<typename TypeParam::in, this->ndims> in(this->input_.data(), this->shape_);
 
-  Roi roi = {1, 1, 2, 2};
+  typename decltype(kernel)::Roi roi = {{1, 2},
+                                        {5, 7}};
 
-  auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_, roi);
+  auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_, &roi);
   auto out_shape = reqs.output_shapes[0][0];
   vector<typename TypeParam::out> output;
   output.resize(dali::volume(out_shape));
   OutTensorCPU<typename TypeParam::out, this->ndims> out(
           output.data(), out_shape.template to_static<this->ndims>());
 
-  kernel.Run(ctx, out, in, this->brightness_, this->contrast_, roi);
+  kernel.Run(ctx, out, in, this->brightness_, this->contrast_, &roi);
 
-  auto mat = detail::to_mat<this->ndims>(this->ref_output_.data(), roi, this->shape_[0],
-                                         this->shape_[1]);
+  auto mat = brightness_contrast::to_mat<this->ndims>(this->ref_output_.data(), roi,
+                                                      this->shape_[0], this->shape_[1]);
   ASSERT_EQ(mat.rows * mat.cols, out.num_elements()) << "Number of elements doesn't match";
   auto ptr = reinterpret_cast<typename TypeParam::out *>(mat.data);
   for (int i = 0; i < out.num_elements(); i++) {
     EXPECT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
   }
 }
-
-TEST(BrightnessContrastTest, roi_from_box) {
-  {
-    Box<3, int> box(0, 0);
-    Roi roi(box);
-    EXPECT_EQ(0, roi.x);
-    EXPECT_EQ(0, roi.y);
-    EXPECT_EQ(0, roi.w);
-    EXPECT_EQ(0, roi.h);
-  }
-  {
-    Box<3, int> box(0, 1);
-    Roi roi(box);
-    EXPECT_EQ(0, roi.x);
-    EXPECT_EQ(0, roi.y);
-    EXPECT_EQ(1, roi.w);
-    EXPECT_EQ(1, roi.h);
-  }
-  {
-    Box<3, int> box(1, 5);
-    Roi roi(box);
-    EXPECT_EQ(1, roi.x);
-    EXPECT_EQ(1, roi.y);
-    EXPECT_EQ(4, roi.w);
-    EXPECT_EQ(4, roi.h);
-  }
-}
-
 
 
 }  // namespace test
