@@ -47,6 +47,7 @@ class BrightnessContrast {
  public:
   using Roi = Box<spatial_dims, int>;
 
+
   KernelRequirements
   Setup(KernelContext &context, const InTensor<StorageBackend, InputType, ndims> &in,
         InputType brightness, InputType contrast, const Roi *roi = nullptr) {
@@ -76,22 +77,13 @@ class BrightnessContrast {
     auto image_width = in.shape[1];
     auto ptr = out.data;
 
+    ptrdiff_t row_stride = image_width * num_channels;
+    auto *row = in.data + adjusted_roi.lo.y * row_stride;
     for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
-      for (int xc = (adjusted_roi.lo.x + y * image_width) * num_channels;
-           xc < (adjusted_roi.hi.x + y * image_width) * num_channels; xc++) {
-        *ptr++ = in.data[xc] * contrast + brightness;
-      }
+      for (int xc = adjusted_roi.lo.x * num_channels; xc < adjusted_roi.hi.x * num_channels; xc++)
+        *ptr++ = row[xc] * contrast + brightness;
+      row += row_stride;
     }
-
-//    int wc = output_width * num_channels;
-//    ptrdiff_t row_stride = image_width * num_channels;
-//    auto *row = in.data + y0 * row_stride + x0 * num_channels;
-//    for (int y = y0; y < y1; y++) {
-//      for (int xc = 0; xc < wc; xc++)
-//        *out++ = f(row[xc]);
-//      row += row_stride;
-//    }
-
   }
 
 
@@ -103,8 +95,6 @@ class BrightnessContrast {
     Roi whole_image = {0, size};
     return roi ? intersection(*roi, whole_image) : whole_image;
   }
-
-
 };
 
 }  // namespace kernels
