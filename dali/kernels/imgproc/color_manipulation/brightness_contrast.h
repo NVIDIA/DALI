@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_COLOUR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
-#define DALI_KERNELS_IMGPROC_COLOUR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
+#ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
+#define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
 
 #include "dali/util/ocv.h"
 #include "dali/core/common.h"
@@ -101,4 +101,4 @@ class BrightnessContrast {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_COLOUR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
+#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
