@@ -90,8 +90,8 @@ class BrightnessContrastTest : public ::testing::Test {
   std::vector<typename InputOutputTypes::out> ref_output_;
   OutTensorCPU<typename InputOutputTypes::out, 3> ref_out_tv_;
   TensorShape<3> shape_ = {240, 320, 3};
-  typename InputOutputTypes::in brightness_ = 4;
-  typename InputOutputTypes::in contrast_ = 3;
+  float brightness_ = 4;
+  float contrast_ = 3;
   static constexpr size_t ndims = 3;
 
 

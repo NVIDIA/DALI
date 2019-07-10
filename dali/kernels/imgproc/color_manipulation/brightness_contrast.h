@@ -17,6 +17,7 @@
 
 #include "dali/util/ocv.h"
 #include "dali/core/common.h"
+#include "dali/core/convert.h"
 #include "dali/core/geom/box.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
@@ -50,7 +51,7 @@ class BrightnessContrast {
 
   KernelRequirements
   Setup(KernelContext &context, const InTensor<StorageBackend, InputType, ndims> &in,
-        InputType brightness, InputType contrast, const Roi *roi = nullptr) {
+        float brightness, float contrast, const Roi *roi = nullptr) {
     DALI_ENFORCE(!roi || all_coords(roi->hi >= roi->lo), "Region of interest is invalid");
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     KernelRequirements req;
@@ -70,8 +71,8 @@ class BrightnessContrast {
    *            kernel operates on entire image ("no-roi" case)
    */
   void Run(KernelContext &context, const OutTensor<StorageBackend, OutputType, ndims> &out,
-           const InTensor<StorageBackend, InputType, ndims> &in, InputType brightness,
-           InputType contrast, const Roi *roi = nullptr) {
+           const InTensor<StorageBackend, InputType, ndims> &in, float brightness,
+           float contrast, const Roi *roi = nullptr) {
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     auto num_channels = in.shape[2];
     auto image_width = in.shape[1];
@@ -81,7 +82,7 @@ class BrightnessContrast {
     auto *row = in.data + adjusted_roi.lo.y * row_stride;
     for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
       for (int xc = adjusted_roi.lo.x * num_channels; xc < adjusted_roi.hi.x * num_channels; xc++)
-        *ptr++ = row[xc] * contrast + brightness;
+        *ptr++ = ConvertSat<OutputType>(row[xc] * contrast + brightness);
       row += row_stride;
     }
   }
