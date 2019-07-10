@@ -13,7 +13,7 @@
 # limitations under the License.
 
 add_subdirectory(resample)
-add_subdirectory(colour_manipulation)
+add_subdirectory(color_manipulation)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
