@@ -32,6 +32,7 @@ parser = argparse.ArgumentParser(description='Env setup helper')
 parser.add_argument('--list', '-l', help='list configs', action='store_true', default=False)
 parser.add_argument('--num', '-n', help='return number of all configurations possible', action='store_true', default=False)
 parser.add_argument('--install', '-i', dest='install', type=int, help="get Nth configuration", default=-1)
+parser.add_argument('--all', '-a', dest='getall', action='store_true', help='return packages in all versions')
 parser.add_argument('--remove', '-r', dest='remove', help="list packages to remove", action='store_true', default=False)
 parser.add_argument('--cuda', dest='cuda', default="90", help="CUDA version to use")
 parser.add_argument('--use', '-u', dest='use', default=[], help="provide only packages from this list", nargs='*')
@@ -105,6 +106,22 @@ def cal_num_of_configs(use, cuda):
         ret *= len(get_package(packages, key, cuda))
     return ret
 
+def get_all_string(use, cuda):
+    ret = []
+    for key in packages.keys():
+        if key not in use:
+            continue
+        for val in get_package(packages, key, cuda):
+            if val is None:
+                ret.append(key)
+            elif 'http' in val:
+                ret.append(get_pyvers_name(val, cuda))
+            else:
+                ret.append(key + "==" + val)
+    # add all remaining used packages with default versions
+    additional = [v for v in use if v not in packages.keys()]
+    return " ".join(ret + additional)
+
 def main():
     global args
     if args.list:
@@ -113,6 +130,8 @@ def main():
         print (cal_num_of_configs(args.use, args.cuda) - 1)
     elif args.remove:
         print (get_remove_string(args.use, args.cuda))
+    elif args.getall:
+        print(get_all_string(args.use, args.cuda))
     elif args.install >= 0:
         if args.install > cal_num_of_configs(args.use, args.cuda):
             args.install = 1
