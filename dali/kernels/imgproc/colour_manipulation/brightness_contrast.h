@@ -32,15 +32,14 @@ struct Roi {
   Roi() = default;
 
 
-  Roi(int x, int y, int w, int h) : x(x), y(y), w(w), h(h) {
-    if (w > 0 && h > 0) {
-      valid_roi = true;
-    }
+  Roi(int x, int y, int w, int h) : x(x), y(y), w(w), h(h), default_roi(false) {
+    valid_roi = w >= 0 && h >= 0;
   }
 
 
   int x, y, w, h;
-  bool valid_roi = false;
+  bool valid_roi;
+  bool default_roi = true;
 };
 
 }  // namespace brightness_contrast
@@ -55,7 +54,7 @@ class DLL_PUBLIC BrightnessContrast {
   DLL_PUBLIC KernelRequirements
   Setup(KernelContext &context, const InTensor<StorageBackend, InputType, ndims> &image,
         InputType brightness, InputType contrast, brightness_contrast::Roi roi = {}) {
-    handle_invalid_roi(roi, image.shape);
+    adjust_roi(roi, image.shape);
     KernelRequirements req;
     req.output_shapes = {TensorListShape<DynamicDimensions>({roi_to_shape<ndims>(roi)})};
     return req;
@@ -77,7 +76,7 @@ class DLL_PUBLIC BrightnessContrast {
   Run(KernelContext &context, const OutTensor<StorageBackend, OutputType, ndims> &out,
       const InTensor<StorageBackend, InputType, ndims> &in, InputType brightness,
       InputType contrast, brightness_contrast::Roi roi = {}) {
-    handle_invalid_roi(roi, in.shape);
+    adjust_roi(roi, in.shape);
     auto num_channels = in.shape[2];
     auto image_width = in.shape[1];
     auto ptr = out.data;
@@ -92,14 +91,23 @@ class DLL_PUBLIC BrightnessContrast {
 
 
  private:
-  void
-  handle_invalid_roi(brightness_contrast::Roi &roi, const TensorShape<DynamicDimensions> &shape) {
-    if (!roi.valid_roi) {
+  void adjust_roi(brightness_contrast::Roi &roi, const TensorShape<DynamicDimensions> &shape) {
+    auto image_width = shape[1];
+    auto image_height = shape[0];
+    if (roi.default_roi || !roi.valid_roi) {
       roi.x = 0;
       roi.y = 0;
-      roi.h = shape[0];
-      roi.w = shape[1];
+      roi.h = image_height;
+      roi.w = image_width;
       roi.valid_roi = true;
+    }
+    if (roi.x < 0) {
+      roi.w += roi.x;
+      roi.x = 0;
+    }
+    if (roi.y < 0) {
+      roi.h += roi.y;
+      roi.y = 0;
     }
   }
 
