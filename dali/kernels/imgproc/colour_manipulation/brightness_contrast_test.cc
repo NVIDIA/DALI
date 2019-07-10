@@ -67,7 +67,7 @@ cv::Mat_<T> to_mat(T *ptr, Roi roi, int rows, int cols) {
   return roimat;
 }
 
-}  // namespace detail
+}  // namespace brightness_contrast
 
 
 template<class InputOutputTypes>
