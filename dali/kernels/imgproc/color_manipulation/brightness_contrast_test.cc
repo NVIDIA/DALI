@@ -121,13 +121,13 @@ using GTestTypes = typename brightness_contrast::TupleToGTest<MyTypesTuple>::typ
 TYPED_TEST_SUITE(BrightnessContrastTest, test_types::GTestTypes);
 
 TYPED_TEST(BrightnessContrastTest, check_kernel) {
-  BrightnessContrast<kernels::ComputeCPU, typename TypeParam::in, typename TypeParam::out> kernel;
+  BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
   check_kernel<decltype(kernel)>();
 }
 
 
 TYPED_TEST(BrightnessContrastTest, SetupTestAndCheckKernel) {
-  BrightnessContrast<kernels::ComputeCPU, typename TypeParam::in, typename TypeParam::out> kernel;
+  BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::in, this->ndims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
@@ -137,7 +137,7 @@ TYPED_TEST(BrightnessContrastTest, SetupTestAndCheckKernel) {
 
 
 TYPED_TEST(BrightnessContrastTest, RunTest) {
-  BrightnessContrast<kernels::ComputeCPU, typename TypeParam::in, typename TypeParam::out> kernel;
+  BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::in, this->ndims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
@@ -153,7 +153,7 @@ TYPED_TEST(BrightnessContrastTest, RunTest) {
 
 
 TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
-  BrightnessContrast<kernels::ComputeCPU, typename TypeParam::in, typename TypeParam::out> kernel;
+  BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::in, this->ndims> in(this->input_.data(), this->shape_);
 
@@ -175,6 +175,27 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
   auto ptr = reinterpret_cast<typename TypeParam::out *>(mat.data);
   for (int i = 0; i < out.num_elements(); i++) {
     EXPECT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
+  }
+}
+
+TYPED_TEST(BrightnessContrastTest, compose_shape) {
+  {
+    Box<2, int> box({0, 3});
+    auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 3);
+    TensorShape<3> ref_sh = {3, 3, 3};
+    ASSERT_EQ(ref_sh, sh);
+  }
+  {
+    Box<2, int> box({0,2},{5,6});
+    auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
+    TensorShape<3> ref_sh = {4, 5, 666};
+    ASSERT_EQ(ref_sh, sh);
+  }
+  {
+    Box<2, int> box({0,0},{0,0});
+    auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
+    TensorShape<3> ref_sh = {0,0, 666};
+    ASSERT_EQ(ref_sh, sh);
   }
 }
 

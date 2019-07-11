@@ -36,13 +36,30 @@ TensorShape<ndims> to_shape(Roi roi, size_t nchannels) {
   return sh;
 }
 
+
+/**
+ * Assumes HWC layout
+ */
+template<size_t ndims, class CoordinateType>
+TensorShape<ndims + 1> roi_shape(Box<ndims, CoordinateType> roi, size_t nchannels) {
+  assert(all_coords(roi.hi >= roi.lo) && "Cannot create a tensor shape from an invalid Box");
+  TensorShape<ndims + 1> ret;
+  auto e = roi.extent();
+  auto ridx = ndims;
+  ret[ridx--] = nchannels;
+  for (size_t idx = 0; idx < ndims; idx++) {
+    ret[ridx--] = e[idx];
+
+  }
+  return ret;
+}
+
 }  // namespace brightness_contrast
 
 
-template<typename ComputeBackend, typename InputType, typename OutputType, size_t ndims = 3>
-class BrightnessContrast {
+template<typename InputType, typename OutputType, size_t ndims = 3>
+class BrightnessContrastCPU {
  private:
-  using StorageBackend = compute_to_storage_t<ComputeBackend>;
   static constexpr size_t spatial_dims = ndims - 1;
 
  public:
@@ -50,13 +67,13 @@ class BrightnessContrast {
 
 
   KernelRequirements
-  Setup(KernelContext &context, const InTensor<StorageBackend, InputType, ndims> &in,
+  Setup(KernelContext &context, const InTensorCPU<InputType, ndims> &in,
         float brightness, float contrast, const Roi *roi = nullptr) {
     DALI_ENFORCE(!roi || all_coords(roi->hi >= roi->lo), "Region of interest is invalid");
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     KernelRequirements req;
     req.output_shapes = {TensorListShape<DynamicDimensions>(
-            {brightness_contrast::to_shape<ndims>(adjusted_roi, 3)})};
+            {brightness_contrast::roi_shape(adjusted_roi, 3)})};
     return req;
   }
 
@@ -70,8 +87,8 @@ class BrightnessContrast {
    * @param roi When default or invalid roi is provided,
    *            kernel operates on entire image ("no-roi" case)
    */
-  void Run(KernelContext &context, const OutTensor<StorageBackend, OutputType, ndims> &out,
-           const InTensor<StorageBackend, InputType, ndims> &in, float brightness,
+  void Run(KernelContext &context, const OutTensorCPU<OutputType, ndims> &out,
+           const InTensorCPU<InputType, ndims> &in, float brightness,
            float contrast, const Roi *roi = nullptr) {
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     auto num_channels = in.shape[2];
