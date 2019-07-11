@@ -7,9 +7,6 @@ pip_packages="nose matplotlib jupyter numpy torch tensorflow-gpu mxnet-cu${CUDA_
 echo ${CUDA_VERSION}
 mkdir /pip-packages
 to_download=$(/opt/dali/qa/setup_packages.py -a -u ${pip_packages} --cuda ${CUDA_VERSION})
-for p in $( to_download ); do
+for p in ${to_download}; do
     pip download ${p} -d /pip-packages
 done
-
-
-
