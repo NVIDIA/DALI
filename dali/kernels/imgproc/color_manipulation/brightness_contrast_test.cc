@@ -178,6 +178,7 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
   }
 }
 
+
 TYPED_TEST(BrightnessContrastTest, compose_shape) {
   {
     Box<2, int> box({0, 3});
@@ -186,15 +187,15 @@ TYPED_TEST(BrightnessContrastTest, compose_shape) {
     ASSERT_EQ(ref_sh, sh);
   }
   {
-    Box<2, int> box({0,2},{5,6});
+    Box<2, int> box({0, 2}, {5, 6});
     auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
     TensorShape<3> ref_sh = {4, 5, 666};
     ASSERT_EQ(ref_sh, sh);
   }
   {
-    Box<2, int> box({0,0},{0,0});
+    Box<2, int> box({0, 0}, {0, 0});
     auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
-    TensorShape<3> ref_sh = {0,0, 666};
+    TensorShape<3> ref_sh = {0, 0, 666};
     ASSERT_EQ(ref_sh, sh);
   }
 }

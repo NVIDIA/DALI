@@ -28,14 +28,6 @@ namespace kernels {
 
 namespace brightness_contrast {
 
-template<size_t ndims, class Roi>
-TensorShape<ndims> to_shape(Roi roi, size_t nchannels) {
-  auto w = roi.extent()[0];
-  auto h = roi.extent()[1];
-  TensorShape<ndims> sh = {static_cast<int64_t>(h), w, static_cast<int64_t>(nchannels)};
-  return sh;
-}
-
 
 /**
  * Assumes HWC layout
@@ -49,7 +41,6 @@ TensorShape<ndims + 1> roi_shape(Box<ndims, CoordinateType> roi, size_t nchannel
   ret[ridx--] = nchannels;
   for (size_t idx = 0; idx < ndims; idx++) {
     ret[ridx--] = e[idx];
-
   }
   return ret;
 }
