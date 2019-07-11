@@ -34,18 +34,16 @@ class DataLoadStoreTest : public DALITest {
 };
 
 typedef ::testing::Types<CPUBackend> TestTypes;
-string loader_test_image_folder = "/data/dali/benchmark";  // NOLINT
+string loader_test_image_folder = testing::dali_extra_path() + "/db/single/jpeg";  // NOLINT
 
 TYPED_TEST_SUITE(DataLoadStoreTest, TestTypes);
-
-const char* path = std::getenv("DALI_TEST_CAFFE_LMDB_PATH");
 
 TYPED_TEST(DataLoadStoreTest, LMDBTest) {
   shared_ptr<dali::LMDBLoader> reader(
       new LMDBLoader(
           OpSpec("CaffeReader")
           .AddArg("batch_size", 32)
-          .AddArg("path", string(path))
+          .AddArg("path", testing::dali_extra_path() + "/db/c2lmdb/")
           .AddArg("device_id", 0)));
 
   reader->PrepareMetadata();
@@ -79,19 +77,12 @@ TYPED_TEST(DataLoadStoreTest, LoaderTest) {
 }
 
 TYPED_TEST(DataLoadStoreTest, LoaderTestFail) {
-  try {
-    shared_ptr<dali::FileLoader> reader(
-        new FileLoader(
-            OpSpec("FileReader")
-            .AddArg("file_root", loader_test_image_folder + "/benchmark_images")
-            .AddArg("batch_size", 32)
-            .AddArg("device_id", 0)));
-        reader->PrepareMetadata();
-  }
-  catch (std::exception &e) {
-    return;
-  }
-  throw std::runtime_error("LoaderTestFail failed");
+  shared_ptr<dali::FileLoader> reader(
+      new FileLoader(OpSpec("FileReader")
+                         .AddArg("file_root", loader_test_image_folder + "/does_not_exist")
+                         .AddArg("batch_size", 32)
+                         .AddArg("device_id", 0)));
+  ASSERT_THROW(reader->PrepareMetadata(), std::runtime_error);
 }
 
 #if 0
