@@ -215,6 +215,7 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
     // 1/frame_rate is duration of each frame (or time base of frame_num)
     file.frame_base_ = AVRational{stream->avg_frame_rate.den,
                                   stream->avg_frame_rate.num};
+    DALI_ENFORCE(file.frame_base_.num == 1, "Variable frame rate videos are unsupported.");
     file.frame_count_ = av_rescale_q(stream->duration,
                                      stream->time_base,
                                      file.frame_base_);
