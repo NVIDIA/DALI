@@ -90,45 +90,36 @@ auto variadic_max(T0 t0, T... tail) {
 }  // namespace detail
 
 
-/// @brief Allocates host memory using provided allocator and copies the collections
-///        to this buffer.
-///
-/// @remarks The first pointer in the output tuple is the one returned by the allocator.
-///          Note that for memory returned by PreallocatedScratchpad, this pointer needs
-///          no deletion.
-template <typename AlignedAllocator, typename... Collections,
-          typename = decltype(std::declval<AlignedAllocator>()(0, 0))>
-auto ToContiguousHostMem(AlignedAllocator &alloc, const Collections &... c) {
+/// @brief Allocates from scratchpad and copies the collections to the allocated buffer.
+template <typename... Collections>
+std::tuple<std::remove_cv_t<element_t<Collections>>*...>
+ToContiguousHostMem(Scratchpad &scratchpad, const Collections &... c) {
   const size_t N = sizeof...(Collections);
   static_assert(
     all_of<std::is_pod<std::remove_cv_t<element_t<Collections>>>::value...>::value,
-    "ToGPU must be used with collections of POD types");
+    "ToContiguousHostMem must be used with collections of POD types");
 
   std::array<size_t, N + 1> offsets;
   detail::GetCollectionOffsets(0, &offsets[0], c...);
   size_t alignment = detail::variadic_max(alignof(element_t<Collections>)...);
   size_t total_size = std::get<N>(offsets);
 
-  auto *tmp = reinterpret_cast<char*>(alloc(total_size, alignment));
+  auto *tmp = reinterpret_cast<char*>(scratchpad.Alloc(AllocType::Host, total_size, alignment));
   detail::copy_to_buffer(tmp, &offsets[0], c...);
 
   return detail::GetCollectionPtrs(tmp, &offsets[0], c...);
 }
 
-/// @brief Allocates GPU memory using provided allocator, copies the collections to a
+/// @brief Allocates GPU from scratchpad, copies the collections to a
 ///        temporary host buffer and then transfers the contents to the GPU in just one
 ///        `cudaMemcpyAsync`.
-///
-/// @remarks The first pointer in the output tuple is the one returned by the allocator.
-///          Note that for memory returned by PreallocatedScratchpad, this pointer needs
-///          no deletion.
-template <typename AlignedAllocator, typename... Collections,
-          typename = decltype(std::declval<AlignedAllocator>()(0, 0))>
-auto ToContiguousGPUMem(AlignedAllocator &&alloc, cudaStream_t stream, const Collections &... c) {
+template <typename... Collections>
+std::tuple<std::remove_cv_t<element_t<Collections>>*...>
+ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collections &... c) {
   const size_t N = sizeof...(Collections);
   static_assert(
     all_of<std::is_pod<std::remove_cv_t<element_t<Collections>>>::value...>::value,
-    "ToGPU must be used with collections of POD types");
+    "ToContiguousGPUMem must be used with collections of POD types");
 
   std::array<size_t, N + 1> offsets;
   detail::GetCollectionOffsets(0, &offsets[0], c...);
@@ -145,28 +136,10 @@ auto ToContiguousGPUMem(AlignedAllocator &&alloc, cudaStream_t stream, const Col
   }
 
   detail::copy_to_buffer(tmp, &offsets[0], c...);
-  void *out_ptr = alloc(total_size, alignment);
+  void *out_ptr = scratchpad.Alloc(AllocType::GPU, total_size, alignment);
 
   cudaMemcpyAsync(out_ptr, tmp, total_size, cudaMemcpyHostToDevice, stream);
   return detail::GetCollectionPtrs(out_ptr, &offsets[0], c...);
-}
-
-template <typename... Collections>
-std::tuple<std::remove_cv_t<element_t<Collections>>*...>
-ToContiguousHostMem(Scratchpad &scratchpad, const Collections &... c) {
-  auto alloc = [&](size_t n, size_t align) {
-    return scratchpad.Alloc(AllocType::Host, n, align);
-  };
-  return ToContiguousHostMem(alloc, c...);
-}
-
-template <typename... Collections>
-std::tuple<std::remove_cv_t<element_t<Collections>>*...>
-ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collections &... c) {
-  auto alloc = [&](size_t n, size_t align) {
-    return scratchpad.Alloc(AllocType::GPU, n, align);
-  };
-  return ToContiguousGPUMem(alloc, stream, c...);
 }
 
 }  // namespace kernels
