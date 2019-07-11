@@ -15,8 +15,36 @@
 #include <gtest/gtest.h>
 #include "dali/core/convert.h"
 #include "dali/core/convert_test_static.h"
+#include "dali/core/math_util.h"
 
 namespace dali {
+
+
+TEST(ConvertSat, float2int) {
+  for (int exp = -10; exp < 100; exp++) {
+    for (float sig = -256; sig <= 256; sig++) {
+      float f = ldexpf(sig, exp);
+      float integral;
+      float fract = modff(f, &integral);
+      if (fract == 0.5f || fract == -0.5f)
+        continue;
+      double rounded = roundf(f);
+      int64_t clamped = clamp<double>(rounded, -128, 127);
+      ASSERT_EQ(ConvertSat<int8_t>(f), clamped) << " with f = " << f;
+      clamped = clamp<double>(rounded, 0, 255);
+      ASSERT_EQ(ConvertSat<uint8_t>(f), clamped) << " with f = " << f;
+      clamped = clamp<double>(rounded, -0x8000, 0x7fff);
+      ASSERT_EQ(ConvertSat<int16_t>(f), clamped) << " with f = " << f;
+      clamped = clamp<double>(rounded, 0, 0xffff);
+      ASSERT_EQ(ConvertSat<uint16_t>(f), clamped) << " with f = " << f;
+      clamped = clamp<double>(rounded, int32_t(~0x7fffffff), 0x7fffffff);
+      ASSERT_EQ(ConvertSat<int32_t>(f), clamped) << " with f = " << f;
+      clamped = clamp<double>(rounded, 0, 0xffffffffu);
+      ASSERT_EQ(ConvertSat<uint32_t>(f), clamped) << " with f = " << f;
+    }
+  }
+}
+
 
 TEST(ConvertNorm, float2int) {
   EXPECT_EQ(ConvertNorm<uint8_t>(0.0f), 0);

@@ -82,8 +82,8 @@ __host__ __device__ constexpr std::enable_if_t<
     needs_clamp<U, T>::value && std::is_signed<U>::value,
     T>
 clamp(U value, ret_type<T>) {
-  return value < min_value<T>() ? min_value<T>() :
-         value > max_value<T>() ? max_value<T>() :
+  return value <= min_value<T>() ? min_value<T>() :
+         value >= max_value<T>() ? max_value<T>() :
          static_cast<T>(value);
 }
 
@@ -92,7 +92,7 @@ __host__ __device__ constexpr std::enable_if_t<
     needs_clamp<U, T>::value && std::is_unsigned<U>::value,
     T>
 clamp(U value, ret_type<T>) {
-  return value > max_value<T>() ? max_value<T>() : static_cast<T>(value);
+  return value >= max_value<T>() ? max_value<T>() : static_cast<T>(value);
 }
 
 template <typename T, typename U>
@@ -197,8 +197,52 @@ __host__ __device__ constexpr Out Convert(In value) {
 }
 
 template <typename Out, typename In>
-__host__ __device__ constexpr Out ConvertSat(In value) {
+__host__ __device__ constexpr
+std::enable_if_t<!std::is_integral<Out>::value || std::is_integral<In>::value, Out>
+ConvertSat(In value) {
   return clamp<Out>(value);
+}
+
+#ifdef __CUDA_ARCH__
+namespace detail {
+
+__device__ int cuda_round_helper(float f, int) {  // NOLINT
+  return __float2int_rn(f);
+}
+__device__ unsigned cuda_round_helper(float f, unsigned) {  // NOLINT
+  return __float2uint_rn(f);
+}
+__device__ long long  cuda_round_helper(float f, long long) {  // NOLINT
+  return __float2ll_rn(f);
+}
+__device__ unsigned long long cuda_round_helper(float f, unsigned long long) {  // NOLINT
+  return __float2ull_rn(f);
+}
+__device__ int cuda_round_helper(double f, int) {  // NOLINT
+  return __double2int_rn(f);
+}
+__device__ unsigned cuda_round_helper(double f, unsigned) {  // NOLINT
+  return __double2uint_rn(f);
+}
+__device__ long long  cuda_round_helper(double f, long long) {  // NOLINT
+  return __double2ll_rn(f);
+}
+__device__ unsigned long long cuda_round_helper(double f, unsigned long long) {  // NOLINT
+  return __double2ull_rn(f);
+}
+
+}  // namespace detail
+#endif
+
+template <typename Out, typename In>
+__host__ __device__ constexpr
+std::enable_if_t<std::is_integral<Out>::value && std::is_floating_point<In>::value, Out>
+ConvertSat(In value) {
+#ifdef __CUDA_ARCH__
+  return clamp<Out>(detail::cuda_round_helper(value, Out()));
+#else
+  return clamp<Out>(std::round(value));
+#endif
 }
 
 template <typename Out, typename In>
@@ -219,9 +263,9 @@ template <typename Out>
 constexpr __device__ __host__ std::enable_if_t<std::is_unsigned<Out>::value, Out>
 ConvertSatNorm(float value) {
 #ifdef __CUDA_ARCH__
-  return max_value<Out>() * __saturatef(value);
+  return __float2int_rn(max_value<Out>() * __saturatef(value));
 #else
-  return max_value<Out>() * (value < 0.0f ? 0.0f : value > 1.0f ? 1.0f : value);
+  return std::round(max_value<Out>() * (value < 0.0f ? 0.0f : value > 1.0f ? 1.0f : value));
 #endif
 }
 
@@ -229,7 +273,7 @@ template <typename Out>
 constexpr __device__ __host__ std::enable_if_t<
   std::is_signed<Out>::value && std::is_integral<Out>::value, Out>
 ConvertSatNorm(float value) {
-  return clamp<Out>(value * static_cast<float>(max_value<Out>()));
+  return clamp<Out>(std::round(value * static_cast<float>(max_value<Out>())));
 }
 
 template <typename Out, typename In>
