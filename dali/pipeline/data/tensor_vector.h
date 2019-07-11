@@ -132,6 +132,9 @@ class TensorVector {
     if (state_ == State::contiguous) {
       return tl_->type();
     }
+    if (tensors_.size() > 0) {
+      return tensors_[0]->type();
+    }
     return type_;
   }
 
@@ -149,11 +152,10 @@ class TensorVector {
     if (state_ == State::contiguous) {
       return tl_->is_pinned();
     }
-    bool pinned = true;
-    for (auto &t : tensors_) {
-      pinned = pinned && t->is_pinned();
+    if (tensors_.size() > 0) {
+      return tensors_[0]->is_pinned();
     }
-    return pinned_ && pinned;
+    return pinned_;
   }
 
   /// @brief Reserve as contiguous tensor list internally
@@ -163,7 +165,7 @@ class TensorVector {
   }
 
   /// @brief Reserve as vector of `batch_size` tensors internally
-  inline void reserve(size_t new_num_bytes, int batch_size) {
+  inline void reserve(size_t bytes_per_sample, int batch_size) {
     DALI_ENFORCE(tensors_.empty() || static_cast<int>(tensors_.size()) == batch_size,
                  "Changing the batch size is prohibited. It should be set once.");
     state_ = State::noncontiguous;
@@ -173,7 +175,7 @@ class TensorVector {
       allocate_tensors(batch_size);
     }
     for (auto t : tensors_) {
-      t->reserve(new_num_bytes);
+      t->reserve(bytes_per_sample);
     }
   }
 
