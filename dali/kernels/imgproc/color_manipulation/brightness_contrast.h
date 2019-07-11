@@ -67,8 +67,8 @@ class BrightnessContrastCPU {
 
 
   KernelRequirements
-  Setup(KernelContext &context, const InTensorCPU<InputType, ndims> &in,
-        float brightness, float contrast, const Roi *roi = nullptr) {
+  Setup(KernelContext &context, const InTensorCPU<InputType, ndims> &in, float brightness,
+        float contrast, const Roi *roi = nullptr) {
     DALI_ENFORCE(!roi || all_coords(roi->hi >= roi->lo), "Region of interest is invalid");
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     KernelRequirements req;
@@ -88,8 +88,8 @@ class BrightnessContrastCPU {
    *            kernel operates on entire image ("no-roi" case)
    */
   void Run(KernelContext &context, const OutTensorCPU<OutputType, ndims> &out,
-           const InTensorCPU<InputType, ndims> &in, float brightness,
-           float contrast, const Roi *roi = nullptr) {
+           const InTensorCPU<InputType, ndims> &in, float brightness, float contrast,
+           const Roi *roi = nullptr) {
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     auto num_channels = in.shape[2];
     auto image_width = in.shape[1];
