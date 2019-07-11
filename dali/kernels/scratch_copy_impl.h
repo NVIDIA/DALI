@@ -42,9 +42,12 @@ void copy_to_buffer(char *buffer,
 
 inline void GetCollectionOffsets(size_t base, size_t *offsets) { *offsets = base; }
 
-/// @brief Allocate storage for contiguous elements from collections `{ c, tail... }`
-///        using allocator `a` and return tuple of pointers.
-/// @remarks The allocation happens in left-to-right order.
+/// @brief Assuming aligned storage in a single buffer,
+///        calculates start offsets of collections `{ c, tail... }`
+/// @param base     - offset of the first element of the first collection `c`
+/// @param offsets  - the array to store the offsets
+/// @param c        - collection to be stored at (aligned) `base`
+/// @param tail     - collections to be stored after `c`
 template <typename Collection, typename... Collections>
 void GetCollectionOffsets(size_t base, size_t *offsets,
                               const Collection &c,
@@ -85,6 +88,7 @@ auto variadic_max(T0 t0, T... tail) {
 }
 
 }  // namespace detail
+
 
 /// @brief Allocates host memory using provided allocator and copies the collections
 ///        to this buffer.
