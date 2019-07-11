@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_DATA_TENSOR_VECTOR_H_
 #define DALI_PIPELINE_DATA_TENSOR_VECTOR_H_
 
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -36,8 +37,10 @@ namespace dali {
 template <typename Backend>
 class TensorVector {
  public:
-  TensorVector() {}
-  explicit TensorVector(int batch_size) : tensors_(batch_size, nullptr) {
+  TensorVector() : views_count_(0), tl_(std::make_shared<TensorList<Backend>>()) {}
+
+  explicit TensorVector(int batch_size)
+      : views_count_(0), tensors_(batch_size, nullptr), tl_(std::make_shared<TensorList<Backend>>(batch_size)) {
     for (auto &t : tensors_) {
       t = std::make_shared<Tensor<Backend>>();
     }
@@ -83,6 +86,9 @@ class TensorVector {
   }
 
   kernels::TensorListShape<> shape() const {
+    if (state_ == State::contiguous) {
+      return tl_->shape();
+    }
     if (tensors_.empty()) {
       return {};
     }
@@ -103,6 +109,11 @@ class TensorVector {
     if (tensors_.empty()) {
       allocate_tensors(new_shape.size());
     }
+    if (state_ == State::contiguous) {
+      tl_->Resize(new_shape);
+      validate_views();
+      return;
+    }
     for (int i = 0; i < new_shape.size(); i++) {
       tensors_[i]->Resize(new_shape[i]);
     }
@@ -110,19 +121,24 @@ class TensorVector {
 
   inline void set_type(const TypeInfo &new_type) {
     type_ = new_type;
+    tl_->set_type(new_type);
     for (auto t : tensors_) {
       t->set_type(new_type);
     }
+    validate_views();
   }
 
   inline TypeInfo type() const {
-    // TODO(klecki): do we enforce the same type between elements, or prohibit mixing APIs?
+    if (state_ == State::contiguous) {
+      return tl_->type();
+    }
     return type_;
   }
 
   inline void set_pinned(const bool pinned) {
     // Store the value, in case we pin empty vector and later call Resize
     pinned_ = pinned;
+    tl_->set_pinned(pinned);
     for (auto &t : tensors_) {
       t->set_pinned(pinned);
     }
@@ -130,6 +146,9 @@ class TensorVector {
 
   inline bool is_pinned() const {
     // TODO(klecki): do we enforce the same pin status between elements, or prohibit mixing APIs?
+    if (state_ == State::contiguous) {
+      return tl_->is_pinned();
+    }
     bool pinned = true;
     for (auto &t : tensors_) {
       pinned = pinned && t->is_pinned();
@@ -137,18 +156,19 @@ class TensorVector {
     return pinned_ && pinned;
   }
 
-  /// @brief Reserved memory size is divided between all elements
-  inline void reserve(size_t new_num_bytes) {
-    reserved_batch_memory = new_num_bytes;
-    // Won't do the division by 0 if there are no elements
-    for (auto t : tensors_) {
-      t->reserve(new_num_bytes / tensors_.size());
-    }
+  /// @brief Reserve as contiguous tensor list internally
+  inline void reserve(size_t total_bytes) {
+    state_ = State::contiguous;
+    tl_->reserve(total_bytes);
   }
 
+  /// @brief Reserve as vector of `batch_size` tensors internally
   inline void reserve(size_t new_num_bytes, int batch_size) {
     DALI_ENFORCE(tensors_.empty() || static_cast<int>(tensors_.size()) == batch_size,
                  "Changing the batch size is prohibited. It should be set once.");
+    state_ = State::noncontiguous;
+    // If we didn't declare the batch size but tried to pin memory or set type
+    // we need to apply it to tensors
     if (tensors_.empty()) {
       allocate_tensors(batch_size);
     }
@@ -157,23 +177,54 @@ class TensorVector {
     }
   }
 
+  bool is_contiguous() {
+    // TODO(klecki): check the views_count as well?
+    return state_ == State::contiguous && views_count_ == size();
+  }
+
  private:
+  enum class State {
+    contiguous,
+    noncontiguous
+  };
   void allocate_tensors(int batch_size) {
     DALI_ENFORCE(tensors_.empty(), "Changing the batch size is prohibited. It should be set once.");
+    // If we didn't declare the batch size but tried to pin memory or set type
+    // we need to apply it to tensors
     tensors_.resize(batch_size, nullptr);
     for (auto &t : tensors_) {
       t = std::make_shared<Tensor<Backend>>();
       t->set_pinned(pinned_);
-      t->reserve(reserved_batch_memory / batch_size);
       if (IsValidType(type_)) {
         t->set_type(type_);
       }
     }
   }
+
+  void validate_views() {
+    // DALI_ENFORCE(state_ != State::noncontiguous);
+    // Return if we do not have a valid allocation
+    if (!IsValidType(tl_->type()))
+      return;
+    if (!tl_->raw_data())
+      return;
+
+    for (size_t i = 0; i < tensors_.size(); i++) {
+    views_count_ = tensors_.size();
+      // TODO(klecki): deleter that reduces views_count? or just noop sharing?
+      tensors_[i]->ShareData(
+          std::shared_ptr<void>(tl_->raw_mutable_tensor(i),
+                                [&views_count = views_count_](void *) { views_count--; }),
+          volume(tl_->tensor_shape(i)), tl_->tensor_shape(i));
+      // tensors_[i]->ShareData(tl_.get(), static_cast<int>(i));
+    }
+  }
+  std::atomic<int> views_count_;
   std::vector<std::shared_ptr<Tensor<Backend>>> tensors_;
+  std::shared_ptr<TensorList<Backend>> tl_;
+  State state_ = State::contiguous;
   // pinned status and type info should be uniform
   bool pinned_ = true;
-  size_t reserved_batch_memory = 0;
   TypeInfo type_ = TypeInfo();
 };
 
