@@ -38,6 +38,7 @@ add_subdirectory(util)
 add_subdirectory(plugin)
 add_subdirectory(c_api)
 
+
 # Collect source files for dali
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
@@ -125,6 +126,18 @@ if (BUILD_TEST)
 
   set_target_properties(${test_main_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
+
+  set(CHECK_GTEST_TARGET "check-gtest")
+  add_custom_target("${CHECK_GTEST_TARGET}")
+
+  add_custom_command(
+    TARGET ${CHECK_GTEST_TARGET}
+    WORKING_DIRECTORY ${TEST_BINARY_DIR}
+    COMMAND ${test_main_bin}
+    DEPENDS ${test_main_bin}
+  )
+
+  add_dependencies(${CHECK_TARGET} ${CHECK_GTEST_TARGET})
 endif()
 
 
@@ -155,6 +168,26 @@ if (BUILD_PYTHON)
   add_subdirectory(pipeline/operators/python_function)
   # Get all python srcs
   add_subdirectory(python)
+
+  # prepare check-python target
+  set(CHECK_PYTHON_TARGET "check-python")
+  add_custom_target("${CHECK_PYTHON_TARGET}")
+
+  set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
+  if($ENV{PYTHONPATH})
+    set(PYTHONPATH "${PYTHON_TARGET_PATH}:$ENV{PYTHONPATH}")
+  else()
+    set(PYTHONPATH "${PYTHON_TARGET_PATH}")
+  endif()
+
+  add_custom_command(
+    TARGET ${CHECK_PYTHON_TARGET}
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/qa/L0_python-self-test/
+    COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/qa/L0_python-self-test/test_no_setup.sh
+  )
+  add_dependencies(${CHECK_TARGET} ${CHECK_PYTHON_TARGET})
+  add_dependencies(${CHECK_PYTHON_TARGET} ${dali_python_lib})
+  add_dependencies(${CHECK_PYTHON_TARGET} ${dali_lib})
 endif()
 
 
