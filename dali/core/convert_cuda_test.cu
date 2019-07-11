@@ -63,6 +63,8 @@ DEVICE_TEST(ConvertSatNorm_Dev, float2int, 1, 1) {
   DEV_EXPECT_EQ(ConvertSatNorm<int8_t>(2.0f), 127);
   DEV_EXPECT_EQ(ConvertSatNorm<int8_t>(0.499f), 63);
   DEV_EXPECT_EQ(ConvertSatNorm<int8_t>(-2.0f), -128);
+  DEV_EXPECT_EQ(ConvertSatNorm<uint8_t>(0.4f/255), 0);
+  DEV_EXPECT_EQ(ConvertSatNorm<uint8_t>(0.6f/255), 1);
 
   DEV_EXPECT_EQ(ConvertSatNorm<int16_t>(2.0f), 0x7fff);
   DEV_EXPECT_EQ(ConvertSatNorm<int16_t>(-2.0f), -0x8000);

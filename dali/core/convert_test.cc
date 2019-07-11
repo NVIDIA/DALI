@@ -45,6 +45,10 @@ TEST(ConvertSat, float2int) {
   }
 }
 
+TEST(ConvertNorm, int2int) {
+  EXPECT_EQ((ConvertNorm<uint8_t, uint8_t>(0)), 0);
+  EXPECT_EQ((ConvertNorm<uint8_t, int8_t>(127)), 255);
+}
 
 TEST(ConvertNorm, float2int) {
   EXPECT_EQ(ConvertNorm<uint8_t>(0.0f), 0);
@@ -68,6 +72,8 @@ TEST(ConvertSatNorm, float2int) {
   EXPECT_EQ(ConvertSatNorm<int8_t>(2.0f), 127);
   EXPECT_EQ(ConvertSatNorm<int8_t>(0.499f), 63);
   EXPECT_EQ(ConvertSatNorm<int8_t>(-2.0f), -128);
+  EXPECT_EQ(ConvertSatNorm<uint8_t>(0.4f/255), 0);
+  EXPECT_EQ(ConvertSatNorm<uint8_t>(0.6f/255), 1);
 
   EXPECT_EQ(ConvertSatNorm<int16_t>(2.0f), 0x7fff);
   EXPECT_EQ(ConvertSatNorm<int16_t>(-2.0f), -0x8000);
