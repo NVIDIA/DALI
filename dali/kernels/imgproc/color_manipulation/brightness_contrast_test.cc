@@ -129,7 +129,7 @@ TYPED_TEST(BrightnessContrastTest, check_kernel) {
 TYPED_TEST(BrightnessContrastTest, SetupTestAndCheckKernel) {
   BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
   KernelContext ctx;
-  InTensorCPU<typename TypeParam::in, this->ndims> in(this->input_.data(), this->shape_);
+  InTensorCPU<typename TypeParam::in, ndims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
   auto sh = reqs.output_shapes[0][0];
   ASSERT_EQ(this->shape_, sh);
@@ -179,7 +179,7 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
 }
 
 
-TYPED_TEST(BrightnessContrastTest, compose_shape) {
+TYPED_TEST(BrightnessContrastTest, roi_shape) {
   {
     Box<2, int> box({0, 3});
     auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 3);

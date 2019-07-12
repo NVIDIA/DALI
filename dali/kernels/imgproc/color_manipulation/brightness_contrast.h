@@ -63,8 +63,8 @@ class BrightnessContrastCPU {
     DALI_ENFORCE(!roi || all_coords(roi->hi >= roi->lo), "Region of interest is invalid");
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     KernelRequirements req;
-    req.output_shapes = {TensorListShape<DynamicDimensions>(
-            {brightness_contrast::roi_shape(adjusted_roi, 3)})};
+    TensorListShape<ndims> out_shape = {roi_shape(adjusted_roi, in.shape[ndims - 1])};
+    req.output_shapes = {std::move(out_shape)};
     return req;
   }
 
