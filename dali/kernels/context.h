@@ -17,7 +17,10 @@
 
 #include <cuda_runtime_api.h>
 #include <utility>
+#include <tuple>
 #include <vector>
+#include <algorithm>
+#include <type_traits>
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/alloc_type.h"
 
@@ -31,6 +34,16 @@ template <>
 struct Context<ComputeGPU> {
   cudaStream_t stream = 0;
 };
+
+class Scratchpad;
+
+template <typename... Collections>
+std::tuple<std::remove_cv_t<element_t<Collections>>*...>
+ToContiguousHostMem(Scratchpad &scratchpad, const Collections &... c);
+
+template <typename... Collections>
+std::tuple<std::remove_cv_t<element_t<Collections>>*...>
+ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collections &... c);
 
 /// @brief Interface for kernels to obtain auxiliary working memory
 class Scratchpad {
@@ -72,6 +85,48 @@ class Scratchpad {
     return reinterpret_cast<T*>(Alloc(alloc_type, count*sizeof(T), alignment));
   }
 
+  template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
+  if_array_like<Collection, T*>
+  ToGPU(cudaStream_t stream, const Collection &c) {
+    T *ptr = Allocate<T>(AllocType::GPU, size(c));
+    cudaMemcpyAsync(ptr, &c[0], size(c) * sizeof(T), cudaMemcpyHostToDevice, stream);
+    return ptr;
+  }
+
+  template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
+  if_iterable<Collection, T*>
+  ToHost(const Collection &c) {
+    T *ptr = Allocate<T>(AllocType::Host, size(c));
+    std::copy(begin(c), end(c), ptr);
+    return ptr;
+  }
+
+  template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
+  if_iterable<Collection, T*>
+  ToPinned(const Collection &c) {
+    T *ptr = Allocate<T>(AllocType::Pinned, size(c));
+    std::copy(begin(c), end(c), ptr);
+    return ptr;
+  }
+
+  template <typename Collection, typename T = std::remove_const_t<element_t<Collection>>>
+  if_iterable<Collection, T*>
+  ToUnified(const Collection &c) {
+    T *ptr = Allocate<T>(AllocType::Unified, size(c));
+    std::copy(begin(c), end(c), ptr);
+    return ptr;
+  }
+
+  template <typename... Collections>
+  auto ToContiguousHost(const Collections &...collections) {
+    return ToContiguousHostMem(*this, collections...);
+  }
+
+  template <typename... Collections>
+  auto ToContiguousGPU(cudaStream_t stream, const Collections &...collections) {
+    return ToContiguousGPUMem(*this, stream, collections...);
+  }
+
  protected:
   ~Scratchpad() = default;
 };
@@ -89,5 +144,7 @@ struct KernelContext {
 
 }  // namespace kernels
 }  // namespace dali
+
+#include "dali/kernels/scratch_copy_impl.h"
 
 #endif  // DALI_KERNELS_CONTEXT_H_
