@@ -392,9 +392,9 @@ DALI_HOST_DEV constexpr Out Convert(In value) {
 /// @brief Converts value from `In` to `Out` keeping whole (positive) dynamic range
 ///
 ///   * When converting from signed to unsigned types, negative values produce undefined result
-///   * When converting from floating point types, the value of 0.0 translates to 0 and
-///     1.0 to `max_value<Out>`. Results for arguments outside  0..1 range for unsigned
-///     and -1..1 for signed output type are undefined
+///   * When converting from floating point to integral types, the value is multiplied by
+///     `max_value<Out>()`. Results are undefined for values where `value * max_value<Out>()`
+///     cannot be represented by `Out`.
 ///   * When converting from integral type to floating point, the input value is normalized by
 ///     multiplying by reciprocal of `Out` type's maximum positive value.
 ///
@@ -432,8 +432,8 @@ DALI_HOST_DEV constexpr Out ConvertSat(In value) {
 /// @brief Converts value from `In` to `Out` keeping whole (positive) dynamic range and clamping
 ///
 ///   * When converting from signed to unsigned types, negative values produce 0
-///   * When converting from floating point types, the value is multiplied by `max_value<Out>()`
-///     and then clamped to range representable in `Out`.
+///   * When converting from floating point to integral types, the value is multiplied
+///     by `max_value<Out>()` and then clamped to range representable in `Out`.
 ///   * When converting from integral type to floating point, the input value is divided
 ///     by `Out(max_value<In>())`
 ///
