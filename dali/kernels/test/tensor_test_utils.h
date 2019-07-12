@@ -78,12 +78,13 @@ inline int printable(char c) { return c; }
 inline int printable(signed char c) { return c; }
 inline int printable(unsigned char c) { return c; }
 
-template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc>
+template <typename StorageBackend, typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc>
 void Check(
-    const TensorView<StorageCPU, T1, dim1> &tv1,
-    const TensorView<StorageCPU, T2, dim2> &tv2,
+    const TensorView<StorageBackend, T1, dim1> &tv1,
+    const TensorView<StorageBackend, T2, dim2> &tv2,
     ElementsOkFunc eq,
     int &max_errors) {
+  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
   ASSERT_EQ(tv1.shape, tv2.shape)
       << "Tensors have different shapes "
       << tv1.shape << " vs " << tv2.shape << "\n";
@@ -184,13 +185,15 @@ if_iterable<Collection, void> Fill(Collection &&collection, Generator &generator
     x = generator();
 }
 
-template <typename DataType, int ndim, typename Generator>
-void Fill(const TensorView<StorageCPU, DataType, ndim> &tv, Generator &generator) {
+template <typename StorageBackend, typename DataType, int ndim, typename Generator>
+void Fill(const TensorView<StorageBackend, DataType, ndim> &tv, Generator &generator) {
+  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
   Fill(make_span(tv.data, tv.num_elements()), generator);
 }
 
-template <typename DataType, int ndim, typename Generator>
-void Fill(const TensorListView<StorageCPU, DataType, ndim> &tlv, Generator &generator) {
+template <typename StorageBackend, typename DataType, int ndim, typename Generator>
+void Fill(const TensorListView<StorageBackend, DataType, ndim> &tlv, Generator &generator) {
+  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
   for (int i = 0; i < tlv.num_samples(); i++) {
     Fill(tlv[i], generator);
   }
@@ -219,19 +222,21 @@ if_iterable<Collection, void> UniformRandomFill(
   Fill(std::forward<Collection>(c), generator);
 }
 
-template <typename DataType, int ndim, typename RandomGenerator>
+template <typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
 void UniformRandomFill(
-    const TensorView<StorageCPU, DataType, ndim> &tv,
+    const TensorView<StorageBackend, DataType, ndim> &tv,
     RandomGenerator &generator,
     same_as_t<DataType> lo, same_as_t<DataType> hi) {
+  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
   UniformRandomFill(make_span(tv.data, tv.num_elements()), generator, lo, hi);
 }
 
-template <typename DataType, int ndim, typename RandomGenerator>
+template <typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
 void UniformRandomFill(
-    const TensorListView<StorageCPU, DataType, ndim> &tlv,
+    const TensorListView<StorageBackend, DataType, ndim> &tlv,
     RandomGenerator &generator,
     same_as_t<DataType> lo, same_as_t<DataType> hi) {
+  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
   for (int i = 0; i < tlv.num_samples(); i++)
     UniformRandomFill(tlv[i], generator, lo, hi);
 }
@@ -243,17 +248,19 @@ if_iterable<C, void> ConstantFill(C &&c, const element_t<C> &value = {}) {
     x = value;
 }
 
-template <typename DataType, int dim>
+template <typename StorageBackend, typename DataType, int dim>
 void ConstantFill(
-    const TensorView<StorageCPU, DataType, dim> &tv,
+    const TensorView<StorageBackend, DataType, dim> &tv,
     same_as_t<DataType> value = {}) {
+  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
   ConstantFill(make_span(tv.data, tv.num_elements()), value);
 }
 
-template <typename DataType, int dim>
+template <typename StorageBackend, typename DataType, int dim>
 void ConstantFill(
-    const TensorListView<StorageCPU, DataType, dim> &tlv,
+    const TensorListView<StorageBackend, DataType, dim> &tlv,
     same_as_t<DataType> value = {}) {
+  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
   for (int i = 0; i < tlv.num_samples(); i++)
     ConstantFill(tlv[i], value);
 }
