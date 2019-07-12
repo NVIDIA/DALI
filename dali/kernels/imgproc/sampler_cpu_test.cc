@@ -114,7 +114,7 @@ TEST(SamplerCPU, Linear) {
       for (int c = 0; c < surf.channels; c++) {
         float s0 = src[0][c] * px + src[1][c] * qx;
         float s1 = src[2][c] * px + src[3][c] * qx;
-        ref[c] = s0 * py + s1 * qy;
+        ref[c] = std::round(s0 * py + s1 * qy);
       }
 
       Pixel pixel = { 0, 0, 0 };

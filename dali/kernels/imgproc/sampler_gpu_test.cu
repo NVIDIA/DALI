@@ -130,17 +130,23 @@ TEST(SamplerGPU, Linear) {
   cudaMemcpy(out_cpu.data, out_surf.data, w*h*c, cudaMemcpyDeviceToHost);
 
   for (int oy = 0; oy < h; oy++) {
+    int eps = 0;
     float y = oy * dy + y0;
+    if (y == std::floor(y))
+      eps |= 1;
     for (int ox = 0; ox < w; ox++) {
       float x = ox * dx + x0;
+      if (x == std::floor(x))
+        eps |= 1;
 
       Pixel ref;
       sampler_cpu(ref.data(), x, y, border.data());
 
       Pixel pixel;
-      for (int c = 0; c< surf_cpu.channels; c++)
+      for (int c = 0; c< surf_cpu.channels; c++) {
         pixel[c] = out_cpu(ox, oy, c);
-      EXPECT_EQ(pixel, ref) << " mismatch at (" << x << ",  " << y << ")";
+        EXPECT_NEAR(pixel[c], ref[c], eps) << " mismatch at (" << x << ",  " << y << ")";
+      }
     }
   }
 }
