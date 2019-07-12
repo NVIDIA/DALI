@@ -40,7 +40,9 @@ class TensorVector {
   TensorVector() : views_count_(0), tl_(std::make_shared<TensorList<Backend>>()) {}
 
   explicit TensorVector(int batch_size)
-      : views_count_(0), tensors_(batch_size, nullptr), tl_(std::make_shared<TensorList<Backend>>(batch_size)) {
+      : views_count_(0),
+        tensors_(batch_size, nullptr),
+        tl_(std::make_shared<TensorList<Backend>>(batch_size)) {
     for (auto &t : tensors_) {
       t = std::make_shared<Tensor<Backend>>();
     }
@@ -185,10 +187,7 @@ class TensorVector {
   }
 
  private:
-  enum class State {
-    contiguous,
-    noncontiguous
-  };
+  enum class State { contiguous, noncontiguous };
   void allocate_tensors(int batch_size) {
     DALI_ENFORCE(tensors_.empty(), "Changing the batch size is prohibited. It should be set once.");
     // If we didn't declare the batch size but tried to pin memory or set type
@@ -206,13 +205,11 @@ class TensorVector {
   void validate_views() {
     // DALI_ENFORCE(state_ != State::noncontiguous);
     // Return if we do not have a valid allocation
-    if (!IsValidType(tl_->type()))
-      return;
-    if (!tl_->raw_data())
-      return;
+    if (!IsValidType(tl_->type())) return;
+    if (!tl_->raw_data()) return;
 
     for (size_t i = 0; i < tensors_.size(); i++) {
-    views_count_ = tensors_.size();
+      views_count_ = tensors_.size();
       // TODO(klecki): deleter that reduces views_count? or just noop sharing?
       tensors_[i]->ShareData(
           std::shared_ptr<void>(tl_->raw_mutable_tensor(i),
