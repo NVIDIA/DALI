@@ -30,16 +30,16 @@ namespace dali {
 namespace kernels {
 
 namespace detail {
-  static constexpr int DefaultMaxErrors = 100;
+static constexpr int DefaultMaxErrors = 100;
 }  // namespace detail
 
 // COMPARISON
 
-template <int dim1, int dim2>
+template<int dim1, int dim2>
 void CheckEqual(
-    const TensorListShape<dim1> &s1,
-    const TensorListShape<dim2> &s2,
-    int &max_errors) {
+        const TensorListShape<dim1> &s1,
+        const TensorListShape<dim2> &s2,
+        int &max_errors) {
   ASSERT_EQ(s1.sample_dim(), s2.sample_dim()) << "Tensor lists must have equal sample dimension";
   ASSERT_EQ(s1.num_samples(), s2.num_samples()) << "Tensor lists must have same number of samples";
   int n = s1.num_samples();
@@ -48,8 +48,8 @@ void CheckEqual(
     if (s1.tensor_shape_span(i) != s2.tensor_shape_span(i)) {
       if (++errors < max_errors) {
         EXPECT_EQ(s1.tensor_shape_span(i), s2.tensor_shape_span(i))
-            << "Samples #" << i
-            << " have different shapes " << s1[i] << " vs " << s2[i];
+                      << "Samples #" << i
+                      << " have different shapes " << s1[i] << " vs " << s2[i];
       }
     }
   }
@@ -65,29 +65,38 @@ void CheckEqual(
   }
 }
 
-template <int dim1, int dim2>
+
+template<int dim1, int dim2>
 void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2) {
   int max_errors = detail::DefaultMaxErrors;
   CheckEqual(s1, s2, max_errors);
 }
 
-template <typename T>
+
+template<typename T>
 T printable(T t) { return t; }
 
+
 inline int printable(char c) { return c; }
+
+
 inline int printable(signed char c) { return c; }
+
+
 inline int printable(unsigned char c) { return c; }
 
-template <typename StorageBackend, typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc>
+
+template<typename StorageBackend, typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc>
 void Check(
-    const TensorView<StorageBackend, T1, dim1> &tv1,
-    const TensorView<StorageBackend, T2, dim2> &tv2,
-    ElementsOkFunc eq,
-    int &max_errors) {
-  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
+        const TensorView<StorageBackend, T1, dim1> &tv1,
+        const TensorView<StorageBackend, T2, dim2> &tv2,
+        ElementsOkFunc eq,
+        int &max_errors) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorView backend");
   ASSERT_EQ(tv1.shape, tv2.shape)
-      << "Tensors have different shapes "
-      << tv1.shape << " vs " << tv2.shape << "\n";
+                        << "Tensors have different shapes "
+                        << tv1.shape << " vs " << tv2.shape << "\n";
 
   ptrdiff_t n = tv1.num_elements();
   int dim = tv1.dim();
@@ -99,13 +108,13 @@ void Check(
     if (!eq(tv1.data[i], tv2.data[i])) {
       if (errors++ < max_errors) {
         EXPECT_TRUE(eq(tv1.data[i], tv2.data[i]))
-          << "Failed at offset " << i << ", pos = " << pos
-          << " tv1[" << i << "] = " << printable(tv1.data[i])
-          << " tv2[" << i << "] = " << printable(tv2.data[i]);
+                      << "Failed at offset " << i << ", pos = " << pos
+                      << " tv1[" << i << "] = " << printable(tv1.data[i])
+                      << " tv2[" << i << "] = " << printable(tv2.data[i]);
       }
     }
 
-    for (int j = dim-1; j >= 0; j--) {
+    for (int j = dim - 1; j >= 0; j--) {
       if (++pos[j] < tv1.shape[j])
         break;
       pos[j] = 0;
@@ -123,8 +132,9 @@ void Check(
   }
 }
 
+
 struct Equal {
-  template <typename T1, typename T2>
+  template<typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
     return a == b;
   }
@@ -132,30 +142,40 @@ struct Equal {
 
 struct EqualEps {
   EqualEps() = default;
+
+
   explicit EqualEps(double eps) : eps(eps) {}
 
-  template <typename T1, typename T2>
+
+  template<typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
-    return std::abs(b-a) <= eps;
+    return std::abs(b - a) <= eps;
   }
+
+
   double eps = 1e-6;
 };
 
-template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal>
+
+template<typename StorageBackend, typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal>
 void Check(
-    const TensorView<StorageCPU, T1, dim1> &tv1,
-    const TensorView<StorageCPU, T2, dim2> &tv2,
-    ElementsOkFunc eq = {}) {
+        const TensorView<StorageBackend, T1, dim1> &tv1,
+        const TensorView<StorageBackend, T2, dim2> &tv2,
+        ElementsOkFunc eq = {}) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorView backend");
   int max_errors = detail::DefaultMaxErrors;
   Check(tv1, tv2, std::move(eq), max_errors);
 }
 
 
-template <typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal>
+template<typename StorageBackend, typename T1, typename T2, int dim1, int dim2, typename ElementsOkFunc = Equal>
 void Check(
-    const TensorListView<StorageCPU, T1, dim1> &tv1,
-    const TensorListView<StorageCPU, T2, dim2> &tv2,
-    ElementsOkFunc eq = {}) {
+        const TensorListView<StorageBackend, T1, dim1> &tv1,
+        const TensorListView<StorageBackend, T2, dim2> &tv2,
+        ElementsOkFunc eq = {}) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorListView backend");
   int max_errors = detail::DefaultMaxErrors;
   CheckEqual(tv1.shape, tv2.shape, max_errors);
   int n = tv1.num_samples();
@@ -166,111 +186,127 @@ void Check(
 
 
 template<typename Backend1, typename Backend2, typename T1, typename T2, int dim1, int dim2>
-void Check(const TensorView <Backend1, T1, dim1> &t1, const TensorView <Backend2, T2, dim2> &t2) {
-    static_assert(is_cpu_accessible<Backend1>::value,
-            "This function is applicable only for CPU accessible backends");
-    static_assert(is_cpu_accessible<Backend2>::value,
-            "This function is applicable only for CPU accessible backends");
-    auto t1cpu = make_tensor_cpu(t1.data, t1.shape);
-    auto t2cpu = make_tensor_cpu(t2.data, t2.shape);
-    Check(t1cpu, t2cpu);
+void Check(const TensorView<Backend1, T1, dim1> &t1, const TensorView<Backend2, T2, dim2> &t2) {
+  static_assert(is_cpu_accessible<Backend1>::value,
+                "This function is applicable only for CPU accessible backends");
+  static_assert(is_cpu_accessible<Backend2>::value,
+                "This function is applicable only for CPU accessible backends");
+  auto t1cpu = make_tensor_cpu(t1.data, t1.shape);
+  auto t2cpu = make_tensor_cpu(t2.data, t2.shape);
+  Check(t1cpu, t2cpu);
 }
 
 
 // FILLING
 
-template <typename Collection, typename Generator>
+template<typename Collection, typename Generator>
 if_iterable<Collection, void> Fill(Collection &&collection, Generator &generator) {
   for (auto &x : collection)
     x = generator();
 }
 
-template <typename StorageBackend, typename DataType, int ndim, typename Generator>
+
+template<typename StorageBackend, typename DataType, int ndim, typename Generator>
 void Fill(const TensorView<StorageBackend, DataType, ndim> &tv, Generator &generator) {
-  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorView backend");
   Fill(make_span(tv.data, tv.num_elements()), generator);
 }
 
-template <typename StorageBackend, typename DataType, int ndim, typename Generator>
+
+template<typename StorageBackend, typename DataType, int ndim, typename Generator>
 void Fill(const TensorListView<StorageBackend, DataType, ndim> &tlv, Generator &generator) {
-  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorListView backend");
   for (int i = 0; i < tlv.num_samples(); i++) {
     Fill(tlv[i], generator);
   }
 }
 
-template <typename T>
+
+template<typename T>
 std::enable_if_t<std::is_floating_point<T>::value,
-                 std::uniform_real_distribution<T>>
+        std::uniform_real_distribution<T>>
 uniform_distribution(T lo, T hi) {
   return std::uniform_real_distribution<T>(lo, hi);
 }
-template <typename T>
+
+
+template<typename T>
 std::enable_if_t<std::is_integral<T>::value,
-                 std::uniform_int_distribution<T>>
+        std::uniform_int_distribution<T>>
 uniform_distribution(T lo, T hi) {
   return std::uniform_int_distribution<T>(lo, hi);
 }
 
 
-template <typename Collection, typename RandomGenerator>
+template<typename Collection, typename RandomGenerator>
 if_iterable<Collection, void> UniformRandomFill(
-    Collection &&c,
-    RandomGenerator &rng, element_t<Collection> lo, element_t<Collection> hi) {
+        Collection &&c,
+        RandomGenerator &rng, element_t<Collection> lo, element_t<Collection> hi) {
   auto dist = uniform_distribution(lo, hi);
   auto generator = [&]() { return dist(rng); };
   Fill(std::forward<Collection>(c), generator);
 }
 
-template <typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
+
+template<typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
 void UniformRandomFill(
-    const TensorView<StorageBackend, DataType, ndim> &tv,
-    RandomGenerator &generator,
-    same_as_t<DataType> lo, same_as_t<DataType> hi) {
-  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
+        const TensorView<StorageBackend, DataType, ndim> &tv,
+        RandomGenerator &generator,
+        same_as_t<DataType> lo, same_as_t<DataType> hi) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorView backend");
   UniformRandomFill(make_span(tv.data, tv.num_elements()), generator, lo, hi);
 }
 
-template <typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
+
+template<typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
 void UniformRandomFill(
-    const TensorListView<StorageBackend, DataType, ndim> &tlv,
-    RandomGenerator &generator,
-    same_as_t<DataType> lo, same_as_t<DataType> hi) {
-  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
+        const TensorListView<StorageBackend, DataType, ndim> &tlv,
+        RandomGenerator &generator,
+        same_as_t<DataType> lo, same_as_t<DataType> hi) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorListView backend");
   for (int i = 0; i < tlv.num_samples(); i++)
     UniformRandomFill(tlv[i], generator, lo, hi);
 }
 
 
-template <typename C>
+template<typename C>
 if_iterable<C, void> ConstantFill(C &&c, const element_t<C> &value = {}) {
   for (auto &x : c)
     x = value;
 }
 
-template <typename StorageBackend, typename DataType, int dim>
+
+template<typename StorageBackend, typename DataType, int dim>
 void ConstantFill(
-    const TensorView<StorageBackend, DataType, dim> &tv,
-    same_as_t<DataType> value = {}) {
-  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
+        const TensorView<StorageBackend, DataType, dim> &tv,
+        same_as_t<DataType> value = {}) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorView backend");
   ConstantFill(make_span(tv.data, tv.num_elements()), value);
 }
 
-template <typename StorageBackend, typename DataType, int dim>
+
+template<typename StorageBackend, typename DataType, int dim>
 void ConstantFill(
-    const TensorListView<StorageBackend, DataType, dim> &tlv,
-    same_as_t<DataType> value = {}) {
-  static_assert(is_cpu_accessible<StorageBackend>::value, "Function available only for CPU-accessible TensorView backend");
+        const TensorListView<StorageBackend, DataType, dim> &tlv,
+        same_as_t<DataType> value = {}) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorListView backend");
   for (int i = 0; i < tlv.num_samples(); i++)
     ConstantFill(tlv[i], value);
 }
 
-template <typename TensorListView>
-std::string BatchToStr(const TensorListView& batch, const std::string &sample_prefix = "Sample ") {
+
+template<typename TensorListView>
+std::string BatchToStr(const TensorListView &batch, const std::string &sample_prefix = "Sample ") {
   std::stringstream ss;
   for (int i = 0; i < batch.num_samples(); i++) {
     ss << sample_prefix << i << ":";
-    for (auto& x : make_span(batch[i].data, batch[i].num_elements()))
+    for (auto &x : make_span(batch[i].data, batch[i].num_elements()))
       ss << " " << x;
   }
   return ss.str();
