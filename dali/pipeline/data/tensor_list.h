@@ -147,9 +147,10 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * list shares data with another list, 'shares_data()' will
    * return 'true'.
    *
-   * The total size after using `set_type` and `Resize` must match
-   * underlying allocation size (`num_bytes_`) if the data is shared.
-   * It can be set to 0 as intemediate step.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or call will fail.
+   * It can be set to 0 as intermediate step.
    */
   DLL_PUBLIC inline void ShareData(TensorList<Backend> *other) {
     DALI_ENFORCE(other != nullptr, "Input TensorList is nullptr");
@@ -179,13 +180,11 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * a default state and is NOT marked as sharing data.
    *
    * After wrapping the allocation, the TensorLists size is set to 0,
-   * and its type is reset to NoType. Future calls to Resize or setting
-   * of the Tensor type will evaluate whether or not the current
-   * allocation is large enough to be used and proceed appropriately.
-   *
-   * The total size after using `set_type` and `Resize` must match
-   * underlying allocation size (`bytes`) if the data is shared.
-   * It can be set to 0 as intemediate step.
+   * and its type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or call will fail.
+   * It can be set to 0 as intermediate step.
    *
    * The TensorList object assumes no ownership of the input allocation,
    * and will not de-allocate it when it is done using it. It is up to

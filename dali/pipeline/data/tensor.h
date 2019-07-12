@@ -146,10 +146,10 @@ class Tensor : public Buffer<Backend> {
    * it is up to the user to manage the scope of the sharing objects
    * to ensure correctness.
    *
-   * The total size after using `set_type` and `Resize` must match
-   * underlying allocation size (`num_bytes_`) for that tensor in TL
-   * if the data is shared.
-   * It can be set to 0 as intemediate step.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or call will fail.
+   * It can be set to 0 as intermediate step.
    */
   inline void ShareData(TensorList<Backend> *tl, int idx) {
     DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
@@ -182,9 +182,10 @@ class Tensor : public Buffer<Backend> {
    * If the input does not store any data, shares_data_ is left
    * as false.
    *
-   * The total size after using `set_type` and `Resize` must match
-   * underlying allocation size (`num_bytes_`) if the data is shared.
-   * It can be set to 0 as intemediate step.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or call will fail.
+   * It can be set to 0 as intermediate step.
    */
   inline void ShareData(Tensor<Backend> *t) {
     DALI_ENFORCE(t != nullptr, "Input Tensor is nullptr");
@@ -211,12 +212,11 @@ class Tensor : public Buffer<Backend> {
    * state and is NOT marked as sharing data. Also sets shape of new Tensor.
    *
    * After wrapping the allocation, the Tensors size is set to dot product
-   * of shape vector, and its type is reset to NoType. Future calls to
-   * Resize or setting of the Tensor type will evaluate whether or not the
-   * current allocation is large enough to be used and proceed appropriately.
-   * The total size after using `set_type` and `Resize` must match
-   * underlying allocation size (`bytes`) if the data is shared.
-   * It can be set to 0 as intemediate step.
+   * of shape vector, and its type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or call will fail.
+   * It can be set to 0 as intermediate step.
    *
    * The Tensor object assumes no ownership of the input allocation, and will
    * not de-allocate it when it is done using it. It is up to the user to
@@ -246,12 +246,11 @@ class Tensor : public Buffer<Backend> {
    * state and is NOT marked as sharing data. Also sets shape of new Tensor.
    *
    * After wrapping the allocation, the Tensors size is set to dot product
-   * of shape vector, and its type is reset to NoType. Future calls to
-   * Resize or setting of the Tensor type will evaluate whether or not the
-   * current allocation is large enough to be used and proceed appropriately.
-   * The total size after using `set_type` and `Resize` must match
-   * underlying allocation size (`bytes`) if the data is shared.
-   * It can be set to 0 as intemediate step.
+   * of shape vector, and its type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or call will fail.
+   * It can be set to 0 as intermediate step.
    *
    * The Tensor object assumes no ownership of the input allocation, and will
    * not de-allocate it when it is done using it. It is up to the user to
@@ -268,12 +267,11 @@ class Tensor : public Buffer<Backend> {
    * state and is NOT marked as sharing data.
    *
    * After wrapping the allocation, the Tensors size is set to 0, and its
-   * type is reset to NoType. Future calls to Resize or setting of the
-   * Tensor type will evaluate whether or not the current allocation is
-   * large enough to be used and proceed appropriately.
-   * The total size after using `set_type` and `Resize` must match
-   * underlying allocation size (`bytes`) if the data is shared.
-   * It can be set to 0 as intemediate step.
+   * type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or call will fail.
+   * It can be set to 0 as intermediate step.
    *
    * The Tensor object assumes no ownership of the input allocation, and will
    * not de-allocate it when it is done using it. It is up to the user to
