@@ -20,6 +20,7 @@ namespace dali {
 namespace kernels {
 
 using Pixel = std::array<uint8_t, 3>;
+using PixelF = std::array<float, 3>;
 
 template <typename Out, DALIInterpType interp, int MaxChannels = 8, typename In>
 __global__ void RunSampler(
@@ -129,17 +130,13 @@ TEST(SamplerGPU, Linear) {
 
   cudaMemcpy(out_cpu.data, out_surf.data, w*h*c, cudaMemcpyDeviceToHost);
 
+  const float eps = 0.50000025f;  // 0.5 + 4 ULP
   for (int oy = 0; oy < h; oy++) {
-    int eps = 0;
     float y = oy * dy + y0;
-    if (y == std::floor(y))
-      eps |= 1;
     for (int ox = 0; ox < w; ox++) {
       float x = ox * dx + x0;
-      if (x == std::floor(x))
-        eps |= 1;
 
-      Pixel ref;
+      PixelF ref;
       sampler_cpu(ref.data(), x, y, border.data());
 
       Pixel pixel;
