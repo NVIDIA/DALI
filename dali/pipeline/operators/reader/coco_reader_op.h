@@ -46,10 +46,10 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
         std::vector<std::pair<string, int>>(),
         shuffle_after_epoch);
     else
-      loader_ = InitLoader<CocoLoader>(
-        spec,
-        annotations_multimap_,
-        shuffle_after_epoch);
+    loader_ = InitLoader<CocoLoader>(
+      spec,
+      annotations_multimap_,
+      shuffle_after_epoch);
     parser_.reset(new COCOParser(spec, annotations_multimap_));
   }
 
@@ -68,27 +68,15 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   explicit FastCocoReader(const OpSpec& spec)
 : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    auto meta_files_path = spec.GetArgument<string>("meta_files_path");
+
+    if (spec.HasArgument("meta_files_path")) {
+      ParseMetafiles(spec);
+    } else {
+      ParseJsonAnnotations(spec);
+    }
 
     loader_ = InitLoader<FastCocoLoader>(
-      spec, meta_files_path, shuffle_after_epoch);
-
-    std::cout << "Metafiles loading...\n";
-    load_vector_from_file(
-      offsets_,
-      meta_files_path + "offsets.txt");
-
-    load_vector_from_file(
-      boxes_,
-      meta_files_path + "boxes.txt");
-
-    load_vector_from_file(
-      labels_,
-      meta_files_path + "labels.txt");
-
-    load_vector_from_file(
-      counts_,
-      meta_files_path + "counts.txt");
+      spec, spec.GetArgument<string>("meta_files_path"), shuffle_after_epoch);
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
@@ -105,23 +93,21 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
                 image_size);
     image_output.SetSourceInfo(image_label.image.GetSourceInfo());
 
-    int idx = image_id;
-
     auto &boxes_output = ws->Output<CPUBackend>(1);
-    boxes_output.Resize({counts_[idx], 4});
+    boxes_output.Resize({counts_[image_id], 4});
     auto boxes_out_data = boxes_output.mutable_data<float>();
     memcpy(
       boxes_out_data,
-      boxes_.data() + 4 * offsets_[idx],
-      counts_[idx] * 4 * sizeof(float));
+      boxes_.data() + 4 * offsets_[image_id],
+      counts_[image_id] * 4 * sizeof(float));
 
     auto &labels_output = ws->Output<CPUBackend>(2);
-    labels_output.Resize({counts_[idx], 1});
+    labels_output.Resize({counts_[image_id], 1});
     auto labels_out_data = labels_output.mutable_data<int>();
     memcpy(
       labels_out_data,
-      labels_.data() + offsets_[idx],
-      counts_[idx] * sizeof(int));
+      labels_.data() + offsets_[image_id],
+      counts_[image_id] * sizeof(int));
   }
 
  protected:
@@ -132,6 +118,9 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   std::vector<float> boxes_;
   std::vector<int> labels_;
   std::vector<int> counts_;
+
+  void ParseMetafiles(const OpSpec& spec);
+  void ParseJsonAnnotations(const OpSpec& spec);
 };
 
 }  // namespace dali

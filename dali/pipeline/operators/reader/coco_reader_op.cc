@@ -15,7 +15,6 @@
 #include "dali/pipeline/operators/reader/coco_reader_op.h"
 
 namespace dali {
-
 DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
 DALI_SCHEMA(COCOReader)
   .NumInput(0)
@@ -68,6 +67,9 @@ and an annotation files. For each image, with `m` bboxes, returns its bboxes as 
 Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
   .AddOptionalArg("meta_files_path", "Path to directory with boxes and labels meta files",
     std::string())
+  .AddArg("annotations_file",
+      R"code(List of paths to the JSON annotations files.)code",
+      DALI_STRING_VEC)
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If true, reader shuffles whole dataset after each epoch.)code",
       false)
@@ -79,4 +81,30 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
 (leave empty to traverse the `file_root` directory to obtain files and labels))code",
       std::string())
   .AddParent("LoaderBase");
+
+
+void FastCocoReader::ParseMetafiles(const OpSpec &spec) {
+  const auto meta_files_path = spec.GetArgument<string>("meta_files_path");
+
+  load_vector_from_file(
+    offsets_,
+    meta_files_path + "offsets.txt");
+
+  load_vector_from_file(
+    boxes_,
+    meta_files_path + "boxes.txt");
+
+  load_vector_from_file(
+    labels_,
+    meta_files_path + "labels.txt");
+
+  load_vector_from_file(
+    counts_,
+    meta_files_path + "counts.txt");
+}
+
+void FastCocoReader::ParseJsonAnnotations(const OpSpec &spec) {
+}
+
+
 }  // namespace dali

@@ -554,12 +554,20 @@ class FastCocoDetectionPipeline(Pipeline):
             device_id=device_id,
             seed=args.seed)
 
+        # self.input = ops.FastCocoReader(
+        #     file_root='/data/coco_data/coco/val2017',
+        #     random_shuffle=True,
+        #     shard_id=0,
+        #     num_shards=1,
+        #     meta_files_path='/data/coco_data/coco_fast/')
         self.input = ops.FastCocoReader(
             file_root='/data/coco_data/coco/val2017',
             random_shuffle=True,
             shard_id=0,
             num_shards=1,
-            meta_files_path='/data/coco_data/coco_fast/')
+            # meta_files_path='/data/coco_data/coco_fast/',
+            annotations_file=coco_annotations
+        )
 
         self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
 
