@@ -227,7 +227,11 @@ template <typename Out, typename In,
 struct ConverterBase;
 
 template <typename Out, typename In>
-struct Converter : ConverterBase<Out, In> {};
+struct Converter : ConverterBase<Out, In> {
+  static_assert(std::is_arithmetic<Out>::value && std::is_arithmetic<In>::value,
+    "Default ConverterBase can only be used with arithmetic types. For custom types, "
+    "specialize or overload dali::Convert");
+};
 
 /// Converts between two FP types
 template <typename Out, typename In>
@@ -342,6 +346,9 @@ struct ConvertIntInt<Out, In, false, true> {
 /// Converts between integral types
 template <typename Out, typename In>
 struct ConverterBase<Out, In, false, false> : ConvertIntInt<Out, In> {
+  static_assert(std::is_arithmetic<Out>::value && std::is_arithmetic<In>::value,
+    "Default ConverterBase can only be used with arithmetic types. For custom types, "
+    "specialize or overload dali::Convert");
 };
 
 /// Pass-through conversion
@@ -367,21 +374,80 @@ using converter_t = Converter<
 
 }  // namespace detail
 
+/// @brief Converts value to a specified `Out` type, rounding if necessary
+///
+/// Usage:
+/// ```
+///   Convert<uint8_t>(100.2f);   // == 100
+///   Convert<uint8_t>(100.7f);   // == 101
+///   Convert<uint8_t>(-5);       // usage discouraged, typically 250
+///   Convert<uint8_t>(-5.0f);    // undefined
+///   Convert<uint8_t>(100.0.0f); // undefined
+/// ```
 template <typename Out, typename In>
 DALI_HOST_DEV constexpr Out Convert(In value) {
   return detail::converter_t<Out, In>::Convert(value);
 }
 
+/// @brief Converts value from `In` to `Out` keeping whole (positive) dynamic range
+///
+///   * When converting from signed to unsigned types, negative values produce undefined result
+///   * When converting from floating point types, the value of 0.0 translates to 0 and
+///     1.0 to `max_value<Out>`. Results for arguments outside  0..1 range for unsigned
+///     and -1..1 for signed output type are undefined
+///   * When converting from integral type to floating point, the input value is normalized by
+///     multiplying by reciprocal of `Out` type's maximum positive value.
+///
+/// Usage:
+/// ```
+///   ConvertNorm<uint8_t>(0.5f);               // == 127
+///   ConvertNorm<uint8_t>(0.502);              // == 128
+///   ConvertNorm<int8_t>(-1.0f);               // -127
+///   ConvertNorm<int8_t, int16_t>(256 * 1/3);  // == 0
+///   ConvertNorm<int8_t, int16_t>(256 * 2/3);  // == 1
+///   ConvertNorm<int8_t, int16_t>(0x7fff);     // == 255
+///   ConvertNorm<float, uint8_t>(255);         // == 1.0f
+///   ConvertNorm<uint8_t, int8_t>(-1);         // undefined
+///   ConvertNorm<uint8_t>(1000.0f);            // undefined
+/// ```
 template <typename Out, typename In>
 DALI_HOST_DEV constexpr Out ConvertNorm(In value) {
   return detail::converter_t<Out, In>::ConvertNorm(value);
 }
 
+/// @brief Converts value to a specified `Out` type, rounding and clamping if necessary
+///
+/// Usage:
+/// ```
+///   ConvertSat<uint8_t>(-1);          // == 0
+///   ConvertSat<uint8_t>(1000);        // == 255
+///   ConvertSat<int8_t>(-1000.0f);     // == -128
+///   ConvertSat<unsigned>(-1000.0f);   // == 0
+/// ```
 template <typename Out, typename In>
 DALI_HOST_DEV constexpr Out ConvertSat(In value) {
   return detail::converter_t<Out, In>::ConvertSat(value);
 }
 
+/// @brief Converts value from `In` to `Out` keeping whole (positive) dynamic range and clamping
+///
+///   * When converting from signed to unsigned types, negative values produce 0
+///   * When converting from floating point types, the value is multiplied by `max_value<Out>()`
+///     and then clamped to range representable in `Out`.
+///   * When converting from integral type to floating point, the input value is divided
+///     by `Out(max_value<In>())`
+///
+/// Usage:
+/// ```
+///   ConvertSatNorm<uint8_t>(0.5f);              // == 127
+///   ConvertSatNorm<uint8_t>(0.502);             // == 128
+///   ConvertSatNorm<int8_t>(-1.0f);              // == -127
+///   ConvertSatNorm<int8_t, int16_t>(256 * 1/3); // == 0
+///   ConvertSatNorm<int8_t, int16_t>(256 * 2/3); // == 1
+///   ConvertSatNorm<int8_t, int16_t>(0x7fff);    // == 255
+///   ConvertSatNorm<float, uint8_t>(255);        // == 1.0f
+///   ConvertSatNorm<uint8_t, int8_t>(-1);        // == 0
+/// ```
 template <typename Out, typename In>
 DALI_HOST_DEV constexpr Out ConvertSatNorm(In value) {
   return detail::converter_t<Out, In>::ConvertSatNorm(value);
