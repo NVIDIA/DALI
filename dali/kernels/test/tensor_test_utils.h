@@ -35,7 +35,7 @@ static constexpr int DefaultMaxErrors = 100;
 
 // COMPARISON
 
-template<int dim1, int dim2>
+template <int dim1, int dim2>
 void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2, int &max_errors) {
   ASSERT_EQ(s1.sample_dim(), s2.sample_dim()) << "Tensor lists must have equal sample dimension";
   ASSERT_EQ(s1.num_samples(), s2.num_samples()) << "Tensor lists must have same number of samples";
@@ -63,14 +63,14 @@ void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2
 }
 
 
-template<int dim1, int dim2>
+template <int dim1, int dim2>
 void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2) {
   int max_errors = detail::DefaultMaxErrors;
   CheckEqual(s1, s2, max_errors);
 }
 
 
-template<typename T>
+template <typename T>
 T printable(T t) { return t; }
 
 
@@ -83,7 +83,7 @@ inline int printable(signed char c) { return c; }
 inline int printable(unsigned char c) { return c; }
 
 
-template<typename StorageBackend, typename T1, typename T2,
+template <typename StorageBackend, typename T1, typename T2,
         int dim1, int dim2, typename ElementsOkFunc>
 void Check(const TensorView<StorageBackend, T1, dim1> &tv1,
            const TensorView<StorageBackend, T2, dim2> &tv2, ElementsOkFunc eq, int &max_errors) {
@@ -129,7 +129,7 @@ void Check(const TensorView<StorageBackend, T1, dim1> &tv1,
 
 
 struct Equal {
-  template<typename T1, typename T2>
+  template <typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
     return a == b;
   }
@@ -142,7 +142,7 @@ struct EqualEps {
   explicit EqualEps(double eps) : eps(eps) {}
 
 
-  template<typename T1, typename T2>
+  template <typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
     return std::abs(b - a) <= eps;
   }
@@ -152,7 +152,7 @@ struct EqualEps {
 };
 
 
-template<typename StorageBackend, typename T1, typename T2,
+template <typename StorageBackend, typename T1, typename T2,
         int dim1, int dim2, typename ElementsOkFunc = Equal>
 void Check(const TensorView<StorageBackend, T1, dim1> &tv1,
            const TensorView<StorageBackend, T2, dim2> &tv2, ElementsOkFunc eq = {}) {
@@ -163,7 +163,7 @@ void Check(const TensorView<StorageBackend, T1, dim1> &tv1,
 }
 
 
-template<typename StorageBackend, typename T1, typename T2,
+template <typename StorageBackend, typename T1, typename T2,
         int dim1, int dim2, typename ElementsOkFunc = Equal>
 void Check(const TensorListView<StorageBackend, T1, dim1> &tv1,
            const TensorListView<StorageBackend, T2, dim2> &tv2, ElementsOkFunc eq = {}) {
@@ -178,7 +178,7 @@ void Check(const TensorListView<StorageBackend, T1, dim1> &tv1,
 }
 
 
-template<typename Backend1, typename Backend2, typename T1, typename T2, int dim1, int dim2>
+template <typename Backend1, typename Backend2, typename T1, typename T2, int dim1, int dim2>
 void Check(const TensorView<Backend1, T1, dim1> &t1, const TensorView<Backend2, T2, dim2> &t2) {
   static_assert(is_cpu_accessible<Backend1>::value,
                 "This function is applicable only for CPU accessible backends");
@@ -192,14 +192,14 @@ void Check(const TensorView<Backend1, T1, dim1> &t1, const TensorView<Backend2, 
 
 // FILLING
 
-template<typename Collection, typename Generator>
+template <typename Collection, typename Generator>
 if_iterable<Collection, void> Fill(Collection &&collection, Generator &generator) {
   for (auto &x : collection)
     x = generator();
 }
 
 
-template<typename StorageBackend, typename DataType, int ndim, typename Generator>
+template <typename StorageBackend, typename DataType, int ndim, typename Generator>
 void Fill(const TensorView<StorageBackend, DataType, ndim> &tv, Generator &generator) {
   static_assert(is_cpu_accessible<StorageBackend>::value,
                 "Function available only for CPU-accessible TensorView backend");
@@ -207,7 +207,7 @@ void Fill(const TensorView<StorageBackend, DataType, ndim> &tv, Generator &gener
 }
 
 
-template<typename StorageBackend, typename DataType, int ndim, typename Generator>
+template <typename StorageBackend, typename DataType, int ndim, typename Generator>
 void Fill(const TensorListView<StorageBackend, DataType, ndim> &tlv, Generator &generator) {
   static_assert(is_cpu_accessible<StorageBackend>::value,
                 "Function available only for CPU-accessible TensorListView backend");
@@ -217,7 +217,7 @@ void Fill(const TensorListView<StorageBackend, DataType, ndim> &tlv, Generator &
 }
 
 
-template<typename T>
+template <typename T>
 std::enable_if_t<std::is_floating_point<T>::value,
         std::uniform_real_distribution<T>>
 uniform_distribution(T lo, T hi) {
@@ -225,7 +225,7 @@ uniform_distribution(T lo, T hi) {
 }
 
 
-template<typename T>
+template <typename T>
 std::enable_if_t<std::is_integral<T>::value,
         std::uniform_int_distribution<T>>
 uniform_distribution(T lo, T hi) {
@@ -233,7 +233,7 @@ uniform_distribution(T lo, T hi) {
 }
 
 
-template<typename Collection, typename RandomGenerator>
+template <typename Collection, typename RandomGenerator>
 if_iterable<Collection, void>
 UniformRandomFill(Collection &&c, RandomGenerator &rng, element_t<Collection> lo,
                   element_t<Collection> hi) {
@@ -243,7 +243,7 @@ UniformRandomFill(Collection &&c, RandomGenerator &rng, element_t<Collection> lo
 }
 
 
-template<typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
+template <typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
 void
 UniformRandomFill(const TensorView<StorageBackend, DataType, ndim> &tv, RandomGenerator &generator,
                   same_as_t<DataType> lo, same_as_t<DataType> hi) {
@@ -253,7 +253,7 @@ UniformRandomFill(const TensorView<StorageBackend, DataType, ndim> &tv, RandomGe
 }
 
 
-template<typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
+template <typename StorageBackend, typename DataType, int ndim, typename RandomGenerator>
 void UniformRandomFill(const TensorListView<StorageBackend, DataType, ndim> &tlv,
                        RandomGenerator &generator, same_as_t<DataType> lo, same_as_t<DataType> hi) {
   static_assert(is_cpu_accessible<StorageBackend>::value,
@@ -263,14 +263,14 @@ void UniformRandomFill(const TensorListView<StorageBackend, DataType, ndim> &tlv
 }
 
 
-template<typename C>
+template <typename C>
 if_iterable<C, void> ConstantFill(C &&c, const element_t<C> &value = {}) {
   for (auto &x : c)
     x = value;
 }
 
 
-template<typename StorageBackend, typename DataType, int dim>
+template <typename StorageBackend, typename DataType, int dim>
 void
 ConstantFill(const TensorView<StorageBackend, DataType, dim> &tv, same_as_t<DataType> value = {}) {
   static_assert(is_cpu_accessible<StorageBackend>::value,
@@ -279,7 +279,7 @@ ConstantFill(const TensorView<StorageBackend, DataType, dim> &tv, same_as_t<Data
 }
 
 
-template<typename StorageBackend, typename DataType, int dim>
+template <typename StorageBackend, typename DataType, int dim>
 void ConstantFill(const TensorListView<StorageBackend, DataType, dim> &tlv,
                   same_as_t<DataType> value = {}) {
   static_assert(is_cpu_accessible<StorageBackend>::value,
@@ -289,7 +289,7 @@ void ConstantFill(const TensorListView<StorageBackend, DataType, dim> &tlv,
 }
 
 
-template<typename TensorListView>
+template <typename TensorListView>
 std::string BatchToStr(const TensorListView &batch, const std::string &sample_prefix = "Sample ") {
   std::stringstream ss;
   for (int i = 0; i < batch.num_samples(); i++) {
