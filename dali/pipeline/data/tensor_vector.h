@@ -214,7 +214,8 @@ class TensorVector {
       tensors_[i]->ShareData(
           std::shared_ptr<void>(tl_->raw_mutable_tensor(i),
                                 [&views_count = views_count_](void *) { views_count--; }),
-          volume(tl_->tensor_shape(i)), tl_->tensor_shape(i));
+          volume(tl_->tensor_shape(i)) * tl_->type().size(), tl_->tensor_shape(i));
+      tensors_[i]->set_type(tl_->type());
       // tensors_[i]->ShareData(tl_.get(), static_cast<int>(i));
     }
   }
