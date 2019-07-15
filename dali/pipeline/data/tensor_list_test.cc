@@ -237,7 +237,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
 
   // Give the buffer a type bigger than float.
   // This normally would cause a reallocation,
-  // but we do not allow for that implicitly when sharing data
+  // but we that's forbidden when using shared data.
   ASSERT_THROW(tl.template mutable_data<double>(), std::runtime_error);
 }
 

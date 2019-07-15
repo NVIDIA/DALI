@@ -104,12 +104,14 @@ class Buffer {
    */
   template <typename T>
   inline const T* data() const {
+    // clang-format off
     DALI_ENFORCE(IsValidType(type_),
                  "Buffer has no type, 'mutable_data<T>()' must be called "
                  "on non-const buffer to set valid type for " + type_.name());
     DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
                  "Calling type does not match buffer data type: " +
                  TypeTable::GetTypeName<T>() + " v. " + type_.name());
+    // clang-format on
     return static_cast<T*>(data_.get());
   }
 

@@ -149,8 +149,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    *
    * After calling this function any following call to `set_type` and `Resize`
    * must match the total size of underlying allocation (`num_bytes_`) of
-   * shared data or call will fail.
-   * It can be set to 0 as intermediate step.
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
    */
   DLL_PUBLIC inline void ShareData(TensorList<Backend> *other) {
     DALI_ENFORCE(other != nullptr, "Input TensorList is nullptr");
@@ -183,8 +183,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * and its type is reset to NoType.
    * After calling this function any following call to `set_type` and `Resize`
    * must match the total size of underlying allocation (`num_bytes_`) of
-   * shared data or call will fail.
-   * It can be set to 0 as intermediate step.
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
    *
    * The TensorList object assumes no ownership of the input allocation,
    * and will not de-allocate it when it is done using it. It is up to
@@ -212,8 +212,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
   DLL_PUBLIC void Reset() {
-    Buffer<Backend>::reset();
-    shape_ = kernels::TensorListShape<>();
+    reset();  // free the underlying buffer
+    shape_ = {};
     offsets_.clear();
     meta_.clear();
     tensor_views_.clear();
