@@ -330,6 +330,7 @@ class Buffer {
 // classes that derive from Buffer
 #define USE_BUFFER_MEMBERS()           \
   using Buffer<Backend>::ResizeHelper; \
+  using Buffer<Backend>::reset;        \
   using Buffer<Backend>::backend_;     \
   using Buffer<Backend>::type_;        \
   using Buffer<Backend>::data_;        \
