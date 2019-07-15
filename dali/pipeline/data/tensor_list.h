@@ -139,13 +139,18 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   /**
    * @brief Wraps the data owned by the input TensorList. The input
    * TensorList must have a valid type. If the input TensorList
-   * stores no data, this tensor is reset to a default state
+   * stores no data, this tensor is reset to a default state.
    *
    * When this function is called, the calling object shares the
    * underlying allocation of the input TensorList. Its size, type
    * and shape are set to match the calling TensorList. While this
    * list shares data with another list, 'shares_data()' will
    * return 'true'.
+   *
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
    */
   DLL_PUBLIC inline void ShareData(TensorList<Backend> *other) {
     DALI_ENFORCE(other != nullptr, "Input TensorList is nullptr");
@@ -175,9 +180,11 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * a default state and is NOT marked as sharing data.
    *
    * After wrapping the allocation, the TensorLists size is set to 0,
-   * and its type is reset to NoType. Future calls to Resize or setting
-   * of the Tensor type will evaluate whether or not the current
-   * allocation is large enough to be used and proceed appropriately.
+   * and its type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
    *
    * The TensorList object assumes no ownership of the input allocation,
    * and will not de-allocate it when it is done using it. It is up to
@@ -202,6 +209,14 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
     shares_data_ = num_bytes_ > 0 ? true : false;
+  }
+
+  DLL_PUBLIC void Reset() {
+    reset();  // free the underlying buffer
+    shape_ = {};
+    offsets_.clear();
+    meta_.clear();
+    tensor_views_.clear();
   }
 
   /**

@@ -201,8 +201,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       type.SetType<uint8_t>();
 
       std::shared_ptr<ImageInfo> info_p(new ImageInfo());
-      info_tensor.ShareData(info_p, 1, {1});
-      info_tensor.set_type(type);
+      info_tensor.ShareData(info_p, sizeof(ImageInfo), {1});
+      info_tensor.set_type(TypeInfo::Create<ImageInfo>());
 
       std::shared_ptr<StateNvJPEG> state_p(new StateNvJPEG(),
         [](StateNvJPEG* s) {
@@ -224,12 +224,12 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                         &state_p->decoder_hybrid_state));
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &state_p->jpeg_stream));
 
-      state_tensor.ShareData(state_p, 1, {1});
-      state_tensor.set_type(type);
+      state_tensor.ShareData(state_p, sizeof(StateNvJPEG), {1});
+      state_tensor.set_type(TypeInfo::Create<StateNvJPEG>());
     }
 
-    ImageInfo* info = reinterpret_cast<ImageInfo*>(info_tensor.raw_mutable_data());
-    StateNvJPEG* nvjpeg_state = reinterpret_cast<StateNvJPEG*>(state_tensor.raw_mutable_data());
+    ImageInfo* info = info_tensor.mutable_data<ImageInfo>();
+    StateNvJPEG* nvjpeg_state = state_tensor.mutable_data<StateNvJPEG>();
     return std::make_pair(info, nvjpeg_state);
   }
 

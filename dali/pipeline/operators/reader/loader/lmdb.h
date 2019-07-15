@@ -89,18 +89,24 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
     std::string image_key =
       db_path_ + " at key " + to_string(reinterpret_cast<char*>(key_.mv_data));
-    tensor.SetSourceInfo(image_key);
+    DALIMeta meta;
+
+    meta.SetSourceInfo(image_key);
+    meta.SetSkipSample(false);
+
     tensor.set_type(TypeInfo::Create<uint8_t>());
-    tensor.SetSkipSample(false);
 
     // if image is cached, skip loading
     if (ShouldSkipImage(image_key)) {
+      meta.SetSkipSample(true);
+      tensor.Reset();
+      tensor.SetMeta(meta);
       tensor.set_type(TypeInfo::Create<uint8_t>());
-      tensor.Resize({1});
-      tensor.SetSkipSample(true);
+      tensor.Resize({0});
       return;
     }
 
+    tensor.SetMeta(meta);
     tensor.Resize({static_cast<Index>(value_.mv_size)});
     std::memcpy(tensor.raw_mutable_data(),
                 reinterpret_cast<uint8_t*>(value_.mv_data),
