@@ -565,8 +565,8 @@ class FastCocoDetectionPipeline(Pipeline):
             random_shuffle=True,
             shard_id=0,
             num_shards=1,
-            # meta_files_path='/data/coco_data/coco_fast/',
-            annotations_file=coco_annotations
+            meta_files_path='/data/coco_data/coco_fast/',
+            # annotations_file=coco_annotations
         )
 
         self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)

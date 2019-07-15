@@ -67,7 +67,7 @@ and an annotation files. For each image, with `m` bboxes, returns its bboxes as 
 Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
   .AddOptionalArg("meta_files_path", "Path to directory with boxes and labels meta files",
     std::string())
-  .AddArg("annotations_file",
+  .AddOptionalArg("annotations_file",
       R"code(List of paths to the JSON annotations files.)code",
       DALI_STRING_VEC)
   .AddOptionalArg("shuffle_after_epoch",
