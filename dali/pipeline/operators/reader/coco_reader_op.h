@@ -70,13 +70,16 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
 
     if (spec.HasArgument("meta_files_path")) {
-      ParseMetafiles(spec);
+      auto image_id_pairs = ParseMetafiles(spec);
+      loader_ = InitLoader<FastCocoLoader>(
+        spec, image_id_pairs, shuffle_after_epoch);
+    } else if (spec.HasArgument("annotations_file")) {
+       auto image_id_pairs = ParseJsonAnnotations(spec);
+       loader_ = InitLoader<FastCocoLoader>(
+         spec, image_id_pairs, shuffle_after_epoch);
     } else {
-      ParseJsonAnnotations(spec);
+      DALI_FAIL("Either meta_files_path or annotations_file must be provided");
     }
-
-    loader_ = InitLoader<FastCocoLoader>(
-      spec, spec.GetArgument<string>("meta_files_path"), shuffle_after_epoch);
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
@@ -119,8 +122,11 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   std::vector<int> labels_;
   std::vector<int> counts_;
 
-  void ParseMetafiles(const OpSpec& spec);
-  void ParseJsonAnnotations(const OpSpec& spec);
+  std::vector<std::pair<std::string, int>> ParseMetafiles(const OpSpec& spec);
+  std::vector<std::pair<std::string, int>> ParseJsonAnnotations(const OpSpec& spec);
+
+  bool save_img_ids_;
+  std::vector<int> original_ids_;
 };
 
 }  // namespace dali

@@ -545,6 +545,7 @@ class COCODetectionPipeline(Pipeline):
         image_gpu = self.decode_gpu(inputs)
 
         return (image_gpu, boxes, labels)
+        # return image_gpu, labels
 
 class FastCocoDetectionPipeline(Pipeline):
     def __init__(self, args, device_id):
@@ -577,6 +578,43 @@ class FastCocoDetectionPipeline(Pipeline):
         image_gpu = self.decode_gpu(inputs)
 
         return (image_gpu, boxes, labels)
+        # return image_gpu, labels
+
+class FastCocoDetectionPipeline2(Pipeline):
+    def __init__(self, args, device_id):
+        super(FastCocoDetectionPipeline2, self).__init__(
+            batch_size=args.batch_size,
+            num_threads=args.num_workers,
+            device_id=device_id,
+            seed=args.seed)
+
+        # self.input = ops.FastCocoReader(
+        #     file_root='/data/coco_data/coco/val2017',
+        #     random_shuffle=True,
+        #     shard_id=0,
+        #     num_shards=1,
+        #     meta_files_path='/data/coco_data/coco_fast/')
+        self.input = ops.FastCocoReader(
+            file_root='/data/coco_data/coco/val2017',
+            random_shuffle=True,
+            shard_id=0,
+            num_shards=1,
+            ratio=True,
+            # meta_files_path='/data/coco_data/coco_fast/',
+            ltrb=True,
+            skip_empty=True,
+            annotations_file=coco_annotations
+        )
+
+        self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+
+
+    def define_graph(self):
+        inputs, boxes, labels = self.input(name="Reader")
+        image_gpu = self.decode_gpu(inputs)
+
+        return (image_gpu, boxes, labels)
+        # return image_gpu, labels
 
 
 def print_args(args):
@@ -654,8 +692,13 @@ if __name__ == "__main__":
     # pipe_1 = COCODetectionPipeline(args, 0)
     # pipe_2 = TFRecordDetectionPipeline(args, 0)
 
-    pipe_1 = COCODetectionPipeline(args, 0)
-    pipe_2 = FastCocoDetectionPipeline(args, 0)
+    # pipe_1 = COCODetectionPipeline(args, 0)
+    # pipe_2 = FastCocoDetectionPipeline(args, 0)
 
-    compare_pipelines(pipe_1, pipe_2, args.batch_size, args.iters)
+    # compare_pipelines(pipe_1, pipe_2, args.batch_size, args.iters)
+
+    pipe_3 = COCODetectionPipeline(args, 0)
+    pipe_4 = FastCocoDetectionPipeline2(args, 0)
+
+    compare_pipelines(pipe_3, pipe_4, args.batch_size, args.iters)
 

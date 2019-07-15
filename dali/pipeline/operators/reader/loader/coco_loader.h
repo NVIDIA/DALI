@@ -85,24 +85,12 @@ class FastCocoLoader : public FileLoader {
  public:
   explicit inline FastCocoLoader(
     const OpSpec& spec,
-    const string& meta_files_path,
+    std::vector<std::pair<std::string, int>> image_label_pairs,
     bool shuffle_after_epoch = false) :
-      FileLoader(spec, std::vector<std::pair<string, int>>(), shuffle_after_epoch),
-      meta_files_path_(meta_files_path) {}
+      FileLoader(spec, image_label_pairs, shuffle_after_epoch) {}
 
  protected:
   void PrepareMetadataImpl() override {
-    std::vector<std::string> filenames;
-    load_vector_from_file(
-      filenames,
-      meta_files_path_ + "filenames.txt");
-
-    int id = 0;
-    for (auto& filename : filenames) {
-      image_label_pairs_.push_back(std::make_pair(filename, id));
-      ++id;
-    }
-
     DALI_ENFORCE(Size() > 0, "No files found.");
     if (shuffle_) {
       // seeded with hardcoded value to get
@@ -112,9 +100,6 @@ class FastCocoLoader : public FileLoader {
     }
     Reset(true);
   }
-
- private:
-  const string meta_files_path_;
 };
 
 }  // namespace dali
