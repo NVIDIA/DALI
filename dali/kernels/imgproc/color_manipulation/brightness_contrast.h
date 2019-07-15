@@ -65,8 +65,7 @@ class BrightnessContrastCPU {
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     KernelRequirements req;
     auto out_shape = TensorListShape<DynamicDimensions>(
-            {brightness_contrast::roi_shape(adjusted_roi, in.shape[ndims - 1])}
-    );
+            {brightness_contrast::roi_shape(adjusted_roi, in.shape[ndims - 1])});
     req.output_shapes = {std::move(out_shape)};
     return req;
   }
