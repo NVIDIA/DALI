@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
 #define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
 
+#include <utility>
 #include "dali/util/ocv.h"
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
