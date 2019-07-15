@@ -2,22 +2,13 @@
 # used pip packages
 pip_packages="nose numpy opencv-python pillow"
 
+# test_body definition is in separate file so it can be used without setup
+source test_body.sh
+
 pushd ../..
 
 source qa/setup_dali_extra.sh
 cd dali/test/python
-
-test_body() {
-    nosetests --verbose test_backend_impl.py
-    nosetests --verbose test_pipeline.py
-    for test_script in $(ls test_operator_*.py); do
-        nosetests --verbose ${test_script}
-    done
-
-    python test_detection_pipeline.py -i 300
-    python test_RN50_data_pipeline.py -i 10
-    python test_coco_tfrecord.py -i 64
-}
 
 source ../../../qa/test_template.sh
 

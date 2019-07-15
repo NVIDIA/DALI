@@ -20,4 +20,4 @@ if [[ -z "$FULLPATH" ]]; then
     exit 1
 fi
 
-DALI_TEST_CAFFE_LMDB_PATH="/data/imagenet/train-lmdb-256x256" "$FULLPATH"
+"$FULLPATH"

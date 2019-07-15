@@ -24,36 +24,38 @@
 
 namespace dali {
 
-#define CHECK_LMDB(status) \
+#define CHECK_LMDB(status, filename) \
   do { \
-    DALI_ENFORCE(status == MDB_SUCCESS, "LMDB Error: " + string(mdb_strerror(status))); \
+    DALI_ENFORCE(status == MDB_SUCCESS, "LMDB Error: " + string(mdb_strerror(status)) + \
+                                        ", with file: " + filename); \
   } while (0)
 
 namespace lmdb {
-  inline bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val* key, MDB_val *value) {
+  inline bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val* key, MDB_val *value,
+                       const string &filename) {
     int status = mdb_cursor_get(cursor, key, value, op);
 
     if (status == MDB_NOTFOUND) {
       // reached the end of the db
       return false;
     } else {
-      CHECK_LMDB(status);
+      CHECK_LMDB(status, filename);
       return true;
     }
   }
 
-  inline uint64_t LMDB_size(MDB_txn* txn, MDB_dbi dbi) {
+  inline uint64_t LMDB_size(MDB_txn* txn, MDB_dbi dbi, const string &filename) {
     MDB_stat stat;
 
-    CHECK_LMDB(mdb_stat(txn, dbi, &stat));
+    CHECK_LMDB(mdb_stat(txn, dbi, &stat), filename);
 
     return stat.ms_entries;
   }
 
-  inline void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi) {
+  inline void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi, const string &filename) {
     MDB_stat stat;
 
-    CHECK_LMDB(mdb_stat(txn, dbi, &stat));
+    CHECK_LMDB(mdb_stat(txn, dbi, &stat), filename);
 
     printf("DB has %d entries\n", static_cast<int>(stat.ms_entries));
   }
@@ -80,7 +82,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
   void ReadSample(Tensor<CPUBackend>& tensor) override {
     // assume cursor is valid, read next, loop to start if necessary
-    lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+    lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_, db_path_);
     ++current_index_;
 
     MoveToNextShard(current_index_);
@@ -112,18 +114,18 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
   void PrepareMetadataImpl() override {
     // Create the db environment, open the passed DB
-    CHECK_LMDB(mdb_env_create(&mdb_env_));
+    CHECK_LMDB(mdb_env_create(&mdb_env_), db_path_);
     auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
-    CHECK_LMDB(mdb_env_open(mdb_env_, db_path_.c_str(), mdb_flags, 0664));
+    CHECK_LMDB(mdb_env_open(mdb_env_, db_path_.c_str(), mdb_flags, 0664), db_path_);
 
     // Create transaction and cursor
-    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
-    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
-    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
-    lmdb_size_ = lmdb::LMDB_size(mdb_transaction_, mdb_dbi_);
+    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_), db_path_);
+    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_), db_path_);
+    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_), db_path_);
+    lmdb_size_ = lmdb::LMDB_size(mdb_transaction_, mdb_dbi_, db_path_);
 
     // Optional: debug printing
-    lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_);
+    lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_, db_path_);
 
     Reset(true);
   }
@@ -132,12 +134,12 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   void Reset(bool wrap_to_shard) override {
     // work out how many entries to move forward to handle sharding
     current_index_ = start_index(shard_id_, num_shards_, Size());
-    bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_);
+    bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_, db_path_);
     DALI_ENFORCE(ok, "lmdb::SeekLMDB to the beginning failed");
 
     if (wrap_to_shard) {
       for (size_t i = 0; i < current_index_; ++i) {
-        bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_);
+        bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_, db_path_);
         DALI_ENFORCE(ok, "lmdb::SeekLMDB to position " + to_string(current_index_) + " failed");
       }
     }
