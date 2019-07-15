@@ -172,7 +172,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<float>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.UnshareData();
+  t.Reset();
   ASSERT_EQ(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
@@ -229,7 +229,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_TRUE(IsType<float>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.UnshareData();
+  t.Reset();
   ASSERT_EQ(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
@@ -282,7 +282,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   ASSERT_TRUE(IsType<float>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.UnshareData();
+  t.Reset();
   ASSERT_EQ(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
@@ -336,7 +336,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   ASSERT_TRUE(IsType<float>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.UnshareData();
+  t.Reset();
   ASSERT_EQ(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);

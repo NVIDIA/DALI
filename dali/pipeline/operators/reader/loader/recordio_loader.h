@@ -85,19 +85,16 @@ class RecordIOLoader : public IndexedFileLoader {
     ++current_index_;
 
     std::string image_key = uris_[file_index] + " at index " + to_string(seek_pos);
-    tensor.SetSourceInfo(image_key);
-    tensor.SetSkipSample(false);
+    DALIMeta meta;
+    meta.SetSourceInfo(image_key);
+    meta.SetSkipSample(false);
 
     // if image is cached, skip loading
     if (ShouldSkipImage(image_key)) {
-      tensor.SetSkipSample(true);
+      meta.SetSkipSample(true);
       should_seek_ = true;
-      if (tensor.shares_data()) {
-        auto meta = tensor.GetMeta();
-        tensor.UnshareData();
-        tensor.SetMeta(meta);
-        return;
-      }
+      tensor.Reset();
+      tensor.SetMeta(meta);
       tensor.set_type(TypeInfo::Create<uint8_t>());
       tensor.Resize({0});
       return;
@@ -120,7 +117,7 @@ class RecordIOLoader : public IndexedFileLoader {
         // file is divided between two files, we need to fallback to read here
         if (p == nullptr) {
           if (tensor.shares_data()) {
-            tensor.UnshareData();
+            tensor.Reset();
           }
           tensor.Resize({size});
           tensor.set_type(TypeInfo::Create<uint8_t>());
@@ -144,6 +141,7 @@ class RecordIOLoader : public IndexedFileLoader {
         continue;
       }
     }
+    tensor.SetMeta(meta);
   }
 
  private:

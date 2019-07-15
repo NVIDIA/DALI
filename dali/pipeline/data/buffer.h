@@ -71,14 +71,7 @@ class Buffer {
   /**
    * @brief Initializes a buffer of size 0.
    */
-  inline Buffer() : data_(nullptr),
-                    size_(0),
-                    shares_data_(false),
-                    num_bytes_(0),
-                    pinned_(true),
-                    device_(-1)
-    {}
-
+  inline Buffer() {}
   virtual ~Buffer() = default;
 
   /**
@@ -247,7 +240,7 @@ class Buffer {
 
     DALI_ENFORCE(!shares_data_,
                  "Cannot reallocate Buffer if it is sharing data. "
-                 "Clear the status by `UnshareData()` first.");
+                 "Clear the status by `Reset()` first.");
     data_.reset();
     data_.reset(
       Backend::New(new_num_bytes, pinned_),
@@ -256,8 +249,7 @@ class Buffer {
     num_bytes_ = new_num_bytes;
   }
 
-  void UnshareData() {
-    DALI_ENFORCE(shares_data_, "Cannot unshare data if the Buffer is not sharing data");
+  void reset() {
     backend_ = Backend();
     type_ = TypeInfo::Create<NoType>();
     data_.reset();
@@ -291,7 +283,7 @@ class Buffer {
     if (shares_data_) {
       DALI_ENFORCE(new_num_bytes == num_bytes_ || new_num_bytes == 0,
                    "Cannot change size of a Buffer if it is sharing data. "
-                   "Clear the status by `UnshareData()` first.");
+                   "Clear the status by `Reset()` first.");
     }
 
     size_ = new_size;
@@ -322,19 +314,19 @@ class Buffer {
 
   Backend backend_;
 
-  TypeInfo type_;  // Data type of underlying storage
-  shared_ptr<void> data_;  // Pointer to underlying storage
-  Index size_;  // The number of elements in the buffer
-  bool shares_data_;
+  TypeInfo type_ = {};  // Data type of underlying storage
+  shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage
+  Index size_ = 0;  // The number of elements in the buffer
+  bool shares_data_ = false;
 
   // To keep track of the true size
   // of the underlying allocation
-  size_t num_bytes_;
+  size_t num_bytes_ = 0;
 
-  bool pinned_;  // Whether the allocation uses pinned memory
+  bool pinned_ = true;  // Whether the allocation uses pinned memory
 
   // device the buffer was allocated on
-  int device_;
+  int device_ = -1;
 };
 
 // Macro so we don't have to list these in all

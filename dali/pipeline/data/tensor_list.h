@@ -211,8 +211,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     shares_data_ = num_bytes_ > 0 ? true : false;
   }
 
-  DLL_PUBLIC void UnshareData() {
-    Buffer<Backend>::UnshareData();
+  DLL_PUBLIC void Reset() {
+    Buffer<Backend>::reset();
     shape_ = kernels::TensorListShape<>();
     offsets_.clear();
     meta_.clear();

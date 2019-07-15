@@ -337,8 +337,8 @@ class Tensor : public Buffer<Backend> {
     shares_data_ = true;
   }
 
-  inline void UnshareData() {
-    Buffer<Backend>::UnshareData();
+  inline void Reset() {
+    Buffer<Backend>::reset();
     shape_ = kernels::TensorShape<>();
     meta_ = {};
   }

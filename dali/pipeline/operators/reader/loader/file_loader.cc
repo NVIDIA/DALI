@@ -102,18 +102,15 @@ void FileLoader::ReadSample(ImageLabelWrapper &image_label) {
 
   // copy the label
   image_label.label = image_pair.second;
-  image_label.image.SetSourceInfo(image_pair.first);
-  image_label.image.SetSkipSample(false);
+  DALIMeta meta;
+  meta.SetSourceInfo(image_pair.first);
+  meta.SetSkipSample(false);
 
   // if image is cached, skip loading
   if (ShouldSkipImage(image_pair.first)) {
-    image_label.image.SetSkipSample(true);
-    if (image_label.image.shares_data()) {
-      auto meta = image_label.image.GetMeta();
-      image_label.image.UnshareData();
-      image_label.image.SetMeta(meta);
-      return;
-    }
+    meta.SetSkipSample(true);
+    image_label.image.Reset();
+    image_label.image.SetMeta(meta);
     image_label.image.set_type(TypeInfo::Create<uint8_t>());
     image_label.image.Resize({0});
     return;
@@ -124,7 +121,7 @@ void FileLoader::ReadSample(ImageLabelWrapper &image_label) {
 
   if (copy_read_data_) {
     if (image_label.image.shares_data()) {
-      image_label.image.UnshareData();
+      image_label.image.Reset();
     }
     image_label.image.Resize({image_size});
     // copy the image
@@ -136,12 +133,12 @@ void FileLoader::ReadSample(ImageLabelWrapper &image_label) {
     image_label.image.set_type(TypeInfo::Create<uint8_t>());
   }
 
-  image_label.image.SetSourceInfo(image_pair.first);
   // close the file handle
   current_image->Close();
 
   // copy the label
   image_label.label = image_pair.second;
+  image_label.image.SetMeta(meta);
 }
 
 Index FileLoader::SizeImpl() {

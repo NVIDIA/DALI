@@ -493,7 +493,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
 
   // Trigger allocation through buffer API, verify we cannot do that
   ASSERT_THROW(tensor_list2.template mutable_data<double>(), std::runtime_error);
-  tensor_list2.UnshareData();
+  tensor_list2.Reset();
   ASSERT_FALSE(tensor_list2.shares_data());
 
   // Check the internals
