@@ -216,7 +216,7 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
     file.frame_base_ = AVRational{stream->avg_frame_rate.den,
                                   stream->avg_frame_rate.num};
 
-    // This check is based on heuristic FFMPEG API 
+    // This check is based on heuristic FFMPEG API
     DALI_ENFORCE(
       file.frame_base_.num == 1,
       "Variable frame rate videos are unsupported. Check failed for file: " + filename);
