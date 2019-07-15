@@ -44,7 +44,7 @@ class WarpGPU : public warp::WarpSetup<ndim> {
                            const InTensorGPU<Mapping, 1> &mapping,
                            span<const TensorShape<ndim>> output_sizes,
                            BorderValue border = {}) {
-    assert(in.size() == static_cast<size_t>(output_sizes.size));
+    assert(in.size() == static_cast<size_t>(output_sizes.size()));
     auto out_shapes = this->GetOutputShape(in.shape, output_sizes);
     return Base::Setup(out_shapes);
   }
