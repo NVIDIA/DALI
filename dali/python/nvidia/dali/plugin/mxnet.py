@@ -16,6 +16,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import types
 import mxnet as mx
 import ctypes
 import logging
@@ -109,7 +110,8 @@ class DALIGenericIterator(object):
         self._dynamic_shape = dynamic_shape
         # Build all pipelines
         for p in self._pipes:
-            p.build()
+            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+                p.build()
         # Use double-buffering of data batches
         self._data_batches = [[None] for i in range(self._num_gpus)]
         self._counter = 0
@@ -126,7 +128,8 @@ class DALIGenericIterator(object):
         # We need data about the batches (like shape information),
         # so we need to run a single batch as part of setup to get that info
         for p in self._pipes:
-            p.schedule_run()
+            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+                p.schedule_run()
         self._first_batch = None
         self._first_batch = self.next()
         # Set data descriptors for MXNet
@@ -158,7 +161,8 @@ class DALIGenericIterator(object):
         # Gather outputs
         outputs = []
         for p in self._pipes:
-            outputs.append(p.share_outputs())
+            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+                outputs.append(p.share_outputs())
         for i in range(self._num_gpus):
             # MXNet wants batches with clear distinction between
             # data and label entries, so segregate outputs into
@@ -221,8 +225,9 @@ class DALIGenericIterator(object):
                 feed_ndarray(category_tensors[DALIGenericIterator.LABEL_TAG][j], l_arr)
 
         for p in self._pipes:
-            p.release_outputs()
-            p.schedule_run()
+            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+                p.release_outputs()
+                p.schedule_run()
 
         copy_db_index = self._current_data_batch
         # Change index for double buffering

@@ -51,9 +51,9 @@ Running DALI pipeline
 
 DALI provides a couple of ways to run a pipeline:
 
-- simple `run` method, which runs the computations and returns the results
-- `schedule_run`, `share_outputs` and `release_outputs` with fine grain control of the output buffers' lifetime
-- built-in iterators for MXNet, PyTorch, and TensorFlow
+- simple `run` method, which runs the computations and returns the results (corresponds to :meth:`nvidia.dali.types.PieplineAPIType.BASIC` API type)
+- `schedule_run`, `share_outputs` and `release_outputs` with fine grain control of the output buffers' lifetime (corresponds to :meth:`nvidia.dali.types.PieplineAPIType.SCHEDULED` API type)
+- built-in iterators for MXNet, PyTorch, and TensorFlow (corresponds to :meth:`nvidia.dali.types.PieplineAPIType.ITERATOR` API type)
 
 The first API - `run` method launches the DALI pipeline, executing prefetch iterations if necessary, waits until the first batch is ready and returns the resulting buffers. Buffers are marked as in-use till the call to `run`. In many cases, it is wasteful as data is usually copied out to the native framework tensors after which they can be returned to DALI for reuse
 

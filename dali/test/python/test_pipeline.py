@@ -1468,3 +1468,67 @@ def test_python_formats():
         out_dtype = out.at(0).dtype
         assert(test_array.dtype.itemsize == out_dtype.itemsize)
         assert(test_array.dtype.str == out_dtype.str)
+
+def test_api_check1():
+    batch_size = 1
+    class TestPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
+            super(TestPipeline, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            return (inputs)
+
+    pipe = TestPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+    pipe.build()
+    pipe.run()
+    for method in [pipe.schedule_run, pipe.share_outputs, pipe.release_outputs, pipe.outputs]:
+        try:
+            method()
+            assert(False)
+        except RuntimeError:
+            assert(True)
+    # disable check
+    pipe.enable_api_check(False)
+    for method in [pipe.schedule_run, pipe.share_outputs, pipe.release_outputs, pipe.outputs]:
+        try:
+            method()
+            assert(True)
+        except RuntimeError:
+            assert(False)
+
+def test_api_check2():
+    batch_size = 1
+    class TestPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
+            super(TestPipeline, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            return (inputs)
+
+    pipe = TestPipeline(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+    pipe.build()
+    pipe.schedule_run()
+    pipe.share_outputs()
+    pipe.release_outputs()
+    pipe.schedule_run()
+    pipe.outputs()
+    try:
+        pipe.run()
+        assert(False)
+    except RuntimeError:
+        assert(True)
+    # disable check
+    pipe.enable_api_check(False)
+    try:
+        pipe.run()
+        assert(True)
+    except RuntimeError:
+        assert(False)
