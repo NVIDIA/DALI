@@ -88,25 +88,18 @@ TEST(AnyKernelInstance, Get) {
 }
 
 TEST(KernelManager, GetScratchadAllocator) {
-  {
-    KernelManager mgr;
-    mgr.Initialize(2, false);
-    ScratchpadAllocator &a0 = mgr.GetScratchadAllocator(0);
-    ScratchpadAllocator &a1 = mgr.GetScratchadAllocator(1);
-    EXPECT_NE(&a0, &a1);
-  }
-  {
-    KernelManager mgr;
-    mgr.Initialize(2, true);
-    ScratchpadAllocator &a0 = mgr.GetScratchadAllocator(0);
-    ScratchpadAllocator &a1 = mgr.GetScratchadAllocator(1);
-    EXPECT_EQ(&a0, &a1);
-  }
+  KernelManager mgr;
+  mgr.Initialize(2, 2);
+  ScratchpadAllocator &a0 = mgr.GetScratchadAllocator(0);
+  ScratchpadAllocator &a1 = mgr.GetScratchadAllocator(1);
+  ScratchpadAllocator &a2 = mgr.GetScratchadAllocator(0);
+  EXPECT_NE(&a0, &a1);
+  EXPECT_EQ(&a0, &a2);
 }
 
 TEST(KernelManager, GetInstance) {
   KernelManager mgr;
-  mgr.Initialize(2, false);
+  mgr.Initialize(1, 1);
   mgr.GetInstance<TestKernel>(0);
   OutListGPU<float, 3> in, out;
   in.resize(2);
@@ -114,7 +107,7 @@ TEST(KernelManager, GetInstance) {
   out.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
   KernelContext ctx;
   mgr.Setup<TestKernel>(0, ctx, in, 100, 1.25f);
-  mgr.Run<TestKernel>(0, ctx, out, in, 100, 1.25f);
+  mgr.Run<TestKernel>(0, 0, ctx, out, in, 100, 1.25f);
 }
 
 

@@ -61,9 +61,9 @@ struct AnyKernelInstance {
 
 class KernelManager {
  public:
-  void Initialize(int num_instances, bool shared_scratchpad) {
+  void Initialize(int num_instances, int num_threads) {
     instances.resize(num_instances);
-    scratchpads.resize(shared_scratchpad ? 1 : num_instances);
+    scratchpads.resize(num_threads);
   }
 
   template <typename Kernel, typename... ConstructorArgs>
@@ -74,16 +74,13 @@ class KernelManager {
   AnyKernelInstance &operator[](int index) {
     return instances[index];
   }
+
   const AnyKernelInstance &operator[](int index) const {
     return instances[index];
   }
 
-  bool IsScratchpadShared() const {
-    return scratchpads.size() == 1;
-  }
-
-  ScratchpadAllocator &GetScratchadAllocator(int instance_idx) {
-    return IsScratchpadShared() ? scratchpads.front() : scratchpads[instance_idx];
+  ScratchpadAllocator &GetScratchadAllocator(int thread_idx) {
+    return scratchpads[thread_idx];
   }
 
   template <typename Kernel, typename... InArgs>
@@ -94,9 +91,9 @@ class KernelManager {
   }
 
   template <typename Kernel, typename... OutInArgs>
-  void Run(int instance_idx, KernelContext &context, OutInArgs &&...out_in_args) {
+  void Run(int thread_idx, int instance_idx, KernelContext &context, OutInArgs &&...out_in_args) {
     auto &inst = instances[instance_idx];
-    auto &alloc = GetScratchadAllocator(instance_idx);
+    auto &alloc = GetScratchadAllocator(thread_idx);
     alloc.Reserve(inst.requirements.scratch_sizes);
     auto scratchpad = alloc.GetScratchpad();
     auto *old_scratchpad = context.scratchpad;
