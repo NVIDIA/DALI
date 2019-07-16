@@ -46,9 +46,10 @@ void KernelManager::ReserveScratchpad(
         return false;
     return true;
   };
+  // if the scratchpad happens to be big enough, then just return
   if (is_big_enough())
     return;
-  // get maximum scratch size and reserve that
+  // get maximum scratch size for any instance and reserve that
   for (auto &instance : instances) {
     for (size_t i = 0; i < N; i++) {
       size_t s = instance.requirements.scratch_sizes[i];

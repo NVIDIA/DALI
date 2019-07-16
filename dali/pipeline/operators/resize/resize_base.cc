@@ -123,7 +123,7 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   for (size_t b = 0; b < minibatches_.size(); b++) {
     MiniBatch &mb = minibatches_[b];
 
-    kmgr_.Run<Kernel>(b, 0, context,
+    kmgr_.Run<Kernel>(0, b, context,
         mb.output, mb.input, make_span(resample_params_.data() + mb.start, mb.count));
   }
 }
@@ -156,6 +156,8 @@ void ResizeBase::InitializeGPU(int batch_size, int mini_batch_size) {
     minibatches_[i].start = start;
     minibatches_[i].count = end-start;
   }
+
+  kmgr_.ReserveScratchMem(kernels::AllocType::GPU, temp_buffer_hint_);
 }
 
 void ResizeBase::RunCPU(Tensor<CPUBackend> &output,

@@ -59,21 +59,35 @@ struct AnyKernelInstance {
   explicit operator bool() const noexcept { return static_cast<bool>(instance); }
 };
 
+/// @brief Manages multiple instances of run-time typed kernels
+///
+/// KernelManager provides type erasure for kernels whose type is selected at
+/// run-time. Kernel manager also carries out mundane tasks of keeping
+/// ScratchpadAllocators and reserving memory according to requirements returned
+/// by kernel's Setup method.
+///
+/// A scratchpad allocator is created per-thread with thread indexing supported
+/// explicitly by the caller.
 class DLL_PUBLIC KernelManager {
  public:
+  /// @brief Creates `num_instances` slots for kernels and `num_threads` scratcapads
   void Initialize(size_t num_instances, size_t num_threads);
 
+  /// @brief Clears kernel instances and scratchpads
   void Reset();
 
+  /// @brief Gets or creates a Kernel instance
   template <typename Kernel, typename... ConstructorArgs>
   Kernel &GetInstance(int instance_idx, ConstructorArgs &&...args) {
     return instances[instance_idx].create_or_get<Kernel>(std::forward<ConstructorArgs>(args)...);
   }
 
+  /// @brief Gets a reference to an internally maintained copy of KernelRequirements
   KernelRequirements &GetRequirements(int index) {
     return instances[index].requirements;
   }
 
+  /// @brief Gets a const-reference to an internally maintained copy of KernelRequirements
   const KernelRequirements &GetRequirements(int index) const {
     return instances[index].requirements;
   }
@@ -81,16 +95,19 @@ class DLL_PUBLIC KernelManager {
   size_t NumInstances() const { return instances.size(); }
   size_t NumThreads() const { return scratchpads.size(); }
 
+  /// @brief Gets a scratchpad allocator assigned to a given thread.
   ScratchpadAllocator &GetScratchadAllocator(int thread_idx) {
     return scratchpads[thread_idx];
   }
 
+  /// @brief Calls setup on specified kernel instance.
   template <typename Kernel, typename... InArgs>
   KernelRequirements &Setup(int instance_idx, KernelContext &context, InArgs &&...in_args) {
     auto &inst = instances[instance_idx];
     return inst.requirements = inst.get<Kernel>().Setup(context, std::forward<InArgs>(in_args)...);
   }
 
+  /// @brief Calls Run on specified kernel instance using Scratchpad for given thread.
   template <typename Kernel, typename... OutInArgs>
   void Run(int thread_idx, int instance_idx, KernelContext &context, OutInArgs &&...out_in_args) {
     assert(static_cast<size_t>(thread_idx) < scratchpads.size());
@@ -104,6 +121,7 @@ class DLL_PUBLIC KernelManager {
     context.scratchpad = old_scratchpad;
   }
 
+  /// @brief Reserves `bytes` of memory in all scratchpads for given allocation type.
   void ReserveScratchMem(AllocType type, size_t bytes) {
     for (auto &sa : scratchpads)
       sa.Reserve(type, bytes);
