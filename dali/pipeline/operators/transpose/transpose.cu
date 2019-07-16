@@ -111,7 +111,7 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
 }
 }  // namespace kernel
 
-template<>
+template <>
 Transpose<GPUBackend>::~Transpose() noexcept {
   if (cutt_handle_ > 0) {
     auto err = cuttDestroy(cutt_handle_);
