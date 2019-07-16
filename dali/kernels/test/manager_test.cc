@@ -32,7 +32,8 @@ struct TestStruct2 {
 
 
 struct TestKernel {
-  KernelRequirements Setup(KernelContext &ctx, const InListGPU<float, 3> &in, int arg1, float arg2) {
+  KernelRequirements Setup(KernelContext &ctx,
+                           const InListGPU<float, 3> &in, int arg1, float arg2) {
     ScratchpadEstimator se;
     se.add<int>(AllocType::GPU, arg1 + 100);
     KernelRequirements req = {};
@@ -40,7 +41,10 @@ struct TestKernel {
     req.scratch_sizes = se.sizes;
     return req;
   }
-  void Run(KernelContext &ctx, const OutListGPU<float, 3> &out, const InListGPU<float, 3> &in, int arg1, float arg2) {
+
+  void Run(KernelContext &ctx,
+           const OutListGPU<float, 3> &out,
+           const InListGPU<float, 3> &in, int arg1, float arg2) {
     EXPECT_NE(ctx.scratchpad->Allocate<int>(AllocType::GPU, arg1+100), nullptr);
     EXPECT_EQ(out.shape, in.shape);
   }

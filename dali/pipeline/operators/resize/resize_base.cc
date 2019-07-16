@@ -90,81 +90,65 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   output.SetLayout(DALI_NHWC);
 
   using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
-  auto &alloc = GetGPUScratchAlloc();
 
   auto in_view = view<const uint8_t, 3>(input);
   SubdivideInput(in_view);
 
-  decltype(kernels::KernelRequirements::scratch_sizes) scratch_sizes;
-  for (auto &size : scratch_sizes)
-    size = 0;
-
-  // TODO(klecki): Resize it once
   out_shape_ = kernels::TensorListShape<>();
+  out_shape_.resize(in_view.num_samples(), in_view.sample_dim());
+  int sample_idx = 0;
+
+  kernels::KernelContext context;
+  context.gpu.stream = stream;
   for (size_t b = 0; b < minibatches_.size(); b++) {
-    auto &kdata = kernel_data_[b];
-    auto &kernel = kdata.KernelInstance<Kernel>();
     MiniBatch &mb = minibatches_[b];
 
-    kdata.context.gpu.stream = stream;
-    kdata.requirements = kernel.Setup(
-        kdata.context,
-        mb.input,
-        make_span(resample_params_.data() + mb.start, mb.count));
+    kmgr_.GetInstance<Kernel>(b);
+    auto &req = kmgr_.Setup<Kernel>(b, context,
+        mb.input, make_span(resample_params_.data() + mb.start, mb.count));
 
-    for (size_t type = 0; type < scratch_sizes.size(); type++) {
-      auto s = kdata.requirements.scratch_sizes[type];
-      if (s > scratch_sizes[type])
-        scratch_sizes[type] = s;
-    }
-
-    mb.out_shape = kdata.requirements.output_shapes[0];
+    mb.out_shape = req.output_shapes[0];
     // minbatches have uniform dim
-    int current_output_size = out_shape_.size();
-    out_shape_.resize(current_output_size + mb.out_shape.size(), mb.out_shape.sample_dim());
     for (int i = 0; i < mb.out_shape.size(); i++) {
-      out_shape_.set_tensor_shape(i + current_output_size, mb.out_shape[i]);
+      out_shape_.set_tensor_shape(i + sample_idx, mb.out_shape[i]);
     }
+    sample_idx += mb.out_shape.size();
   }
 
-  alloc.Reserve(scratch_sizes);
   output.Resize(out_shape_);
 
   auto out_view = view<uint8_t, 3>(output);
   SubdivideOutput(out_view);
 
   for (size_t b = 0; b < minibatches_.size(); b++) {
-    auto &kdata = kernel_data_[b];
-    auto &kernel = kdata.KernelInstance<Kernel>();
     MiniBatch &mb = minibatches_[b];
 
-    auto scratchpad = alloc.GetScratchpad();
-    kdata.context.scratchpad = &scratchpad;
-    kernel.Run(kdata.context, mb.output, mb.input, make_span(resample_params_));
+    kmgr_.Run<Kernel>(b, 0, context,
+        mb.output, mb.input, make_span(resample_params_.data() + mb.start, mb.count));
   }
 }
 
 void ResizeBase::Initialize(int num_threads) {
-  kernel_data_.resize(num_threads);
+  kmgr_.Initialize(num_threads, num_threads);
   out_shape_.resize(num_threads, 3);
   resample_params_.resize(num_threads);
+
+  using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
+  for (size_t i = 0; i < kmgr_.NumInstances(); i++) {
+    kmgr_.GetInstance<Kernel>(i);
+  }
 }
 
 void ResizeBase::InitializeGPU(int batch_size, int mini_batch_size) {
   DALI_ENFORCE(batch_size > 0, "Batch size must be positive");
   DALI_ENFORCE(mini_batch_size > 0, "Mini-batch size must be positive");
   const int num_minibatches = div_ceil(batch_size, mini_batch_size);
-  kernel_data_.resize(num_minibatches);
-  auto &kdata = kernel_data_[0];
-  auto &gpu_scratch = kdata.requirements.scratch_sizes[static_cast<int>(kernels::AllocType::GPU)];
-  if (gpu_scratch < temp_buffer_hint_)
-    gpu_scratch = temp_buffer_hint_;
-  kdata.scratch_alloc.Reserve(kdata.requirements.scratch_sizes);
+  kmgr_.Initialize(num_minibatches, 1);
   minibatches_.resize(num_minibatches);
 
   for (int i = 0; i < num_minibatches; i++) {
     using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
-    auto &kernel = GetKernelInstance<Kernel>(i);  // create the kernel instances
+    auto &kernel = kmgr_.GetInstance<Kernel>(i);  // create the kernel instances
     (void)kernel;
     int start = batch_size * i / num_minibatches;
     int end = (batch_size * (i + 1)) / num_minibatches;
@@ -179,26 +163,23 @@ void ResizeBase::RunCPU(Tensor<CPUBackend> &output,
                         int thread_idx) {
   using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
   auto in_view = view<const uint8_t, 3>(input);
-  auto &kdata = GetKernelData(thread_idx);
-  auto &kernel = GetKernelInstance<Kernel>(thread_idx);
-  kdata.requirements = kernel.Setup(
-      kdata.context,
-      in_view,
-      resample_params_[thread_idx]);
-  kdata.scratch_alloc.Reserve(kdata.requirements.scratch_sizes);
-  auto scratchpad = kdata.scratch_alloc.GetScratchpad();
-  kdata.context.scratchpad = &scratchpad;
+  kernels::KernelContext context;
+  auto &req = kmgr_.Setup<Kernel>(
+      thread_idx, context,
+      in_view, resample_params_[thread_idx]);
 
   const auto &input_shape = input.shape();
 
-  auto out_shape = kdata.requirements.output_shapes[0][0];
+  auto out_shape = req.output_shapes[0][0];
   out_shape_.set_tensor_shape(thread_idx, out_shape.shape);
 
   // Resize the output & run
   output.Resize(out_shape_[thread_idx]);
   output.SetLayout(DALI_NHWC);
   auto out_view = view<uint8_t, 3>(output);
-  kernel.Run(kdata.context, out_view, in_view, resample_params_[thread_idx]);
+  kmgr_.Run<Kernel>(
+      thread_idx, thread_idx, context,
+      out_view, in_view, resample_params_[thread_idx]);
 }
 
 }  // namespace dali

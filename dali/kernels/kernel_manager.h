@@ -56,28 +56,30 @@ struct AnyKernelInstance {
     delete static_cast<Kernel*>(ptr);
   }
 
-  explicit operator bool() const noexcept { return (bool)instance; }
+  explicit operator bool() const noexcept { return static_cast<bool>(instance); }
 };
 
-class KernelManager {
+class DLL_PUBLIC KernelManager {
  public:
-  void Initialize(int num_instances, int num_threads) {
-    instances.resize(num_instances);
-    scratchpads.resize(num_threads);
-  }
+  void Initialize(size_t num_instances, size_t num_threads);
+
+  void Reset();
 
   template <typename Kernel, typename... ConstructorArgs>
   Kernel &GetInstance(int instance_idx, ConstructorArgs &&...args) {
     return instances[instance_idx].create_or_get<Kernel>(std::forward<ConstructorArgs>(args)...);
   }
 
-  AnyKernelInstance &operator[](int index) {
-    return instances[index];
+  KernelRequirements &GetRequirements(int index) {
+    return instances[index].requirements;
   }
 
-  const AnyKernelInstance &operator[](int index) const {
-    return instances[index];
+  const KernelRequirements &GetRequirements(int index) const {
+    return instances[index].requirements;
   }
+
+  size_t NumInstances() const { return instances.size(); }
+  size_t NumThreads() const { return scratchpads.size(); }
 
   ScratchpadAllocator &GetScratchadAllocator(int thread_idx) {
     return scratchpads[thread_idx];
@@ -86,15 +88,15 @@ class KernelManager {
   template <typename Kernel, typename... InArgs>
   KernelRequirements &Setup(int instance_idx, KernelContext &context, InArgs &&...in_args) {
     auto &inst = instances[instance_idx];
-    scratchpad_dirty = true;
     return inst.requirements = inst.get<Kernel>().Setup(context, std::forward<InArgs>(in_args)...);
   }
 
   template <typename Kernel, typename... OutInArgs>
   void Run(int thread_idx, int instance_idx, KernelContext &context, OutInArgs &&...out_in_args) {
+    assert(static_cast<size_t>(thread_idx) < scratchpads.size());
     auto &inst = instances[instance_idx];
     auto &alloc = GetScratchadAllocator(thread_idx);
-    alloc.Reserve(inst.requirements.scratch_sizes);
+    ReserveScratchpad(alloc, inst.requirements.scratch_sizes);
     auto scratchpad = alloc.GetScratchpad();
     auto *old_scratchpad = context.scratchpad;
     context.scratchpad = &scratchpad;
@@ -102,10 +104,18 @@ class KernelManager {
     context.scratchpad = old_scratchpad;
   }
 
+  void ReserveScratchMem(AllocType type, size_t bytes) {
+    for (auto &sa : scratchpads)
+      sa.Reserve(type, bytes);
+  }
+
  private:
+  void ReserveScratchpad(
+      ScratchpadAllocator &sa,
+      std::array<size_t, ScratchpadAllocator::NumAllocTypes> sizes);
+
   SmallVector<AnyKernelInstance, 1> instances;
   SmallVector<ScratchpadAllocator, 1> scratchpads;
-  bool scratchpad_dirty = false;
 };
 
 }  // namespace kernels

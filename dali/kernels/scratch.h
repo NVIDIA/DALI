@@ -158,6 +158,17 @@ class ScratchpadAllocator {
     }
   }
 
+  std::array<size_t, NumAllocTypes> Capacities() const {
+    std::array<size_t, NumAllocTypes> capacities;
+    for (size_t i = 0; i < buffers_.size(); i++)
+      capacities[i] = buffers_[i].capacity;
+    return capacities;
+  }
+
+  size_t Capacity(AllocType type) const {
+    return buffers_[static_cast<size_t>(type)].capacity;
+  }
+
   /// @brief Returns a scratchpad.
   /// @remarks The returned scratchpad is invalidated by desctruction of this
   ///          object or by subsequent calls to `Reserve` or `Free`.
