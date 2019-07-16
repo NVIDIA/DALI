@@ -73,12 +73,9 @@ void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2
 template <typename T>
 T printable(T t) { return t; }
 
-
 inline int printable(char c) { return c; }
 
-
 inline int printable(signed char c) { return c; }
-
 
 inline int printable(unsigned char c) { return c; }
 
