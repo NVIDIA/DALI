@@ -9,6 +9,7 @@ CUDA_VERSION=[default 10, accepts also 9]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
 CREATE_RUNNER=[default NO]
+BUILD_TF_PLUGIN=[default NO]
 DALI_BUILD_FLAVOR=[default is empty]
 CMAKE_BUILD_TYPE=[default is Release]
 BUILD_INHOST=[create build dir with object outside docker, just mount it as a volume]
@@ -44,6 +45,7 @@ export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 export BUILD_INHOST=${BUILD_INHOST:-YES}
 export REBUILD_BUILDERS=${REBUILD_BUILDERS:-NO}
 export REBUILD_MANYLINUX=${REBUILD_MANYLINUX:-NO}
+export BUILD_TF_PLUGIN=${BUILD_TF_PLUGIN:-NO}
 export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}}
 #################################
 export DEPS_IMAGE=dali_cu${CUDA_VERSION}.deps
@@ -83,7 +85,7 @@ if [[ "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" || "$REBUILD_BUILDE
 fi
 
 # build builder image if needed
-if [[ "$(docker images -q ${BUILDER} 2> /dev/null)" == "" || "$(docker images -q ${BUILDER_DALI_TF_BASE} 2> /dev/null)" || "$REBUILD_BUILDERS" != "NO" ]]; then
+if [[ "$(docker images -q ${BUILDER} 2> /dev/null)" == "" || "$(docker images -q ${BUILDER_DALI_TF_BASE} 2> /dev/null)" == "" || "$REBUILD_BUILDERS" != "NO" ]]; then
     echo "Build light image:" ${BUILDER}
     docker build -t ${BUILDER} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
                                --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
@@ -156,24 +158,26 @@ if [ "$CREATE_RUNNER" = "YES" ]; then
     fi
 fi
 
-tmp_wheelhouse=$(mktemp -d -u)
+mkdir -p ./wheelhouse/
+
 if [ "$CREATE_WHL" = "YES" ]; then
     if [ "$BUILD_INHOST" = "YES" ]; then
-        mkdir -p ${tmp_wheelhouse}
-        cp $(pwd)/${DALI_BUILD_DIR}/nvidia* ${tmp_wheelhouse}
+        cp $(pwd)/${DALI_BUILD_DIR}/nvidia* ./wheelhouse/
     else
         export CONTAINER="extract-tmp"
         docker create --name "${CONTAINER}" ${BUILDER_WHL}
-        docker cp "${CONTAINER}:/wheelhouse/" "${tmp_wheelhouse}"
+        docker cp "${CONTAINER}:/wheelhouse/." "./wheelhouse/"
         docker rm -f "${CONTAINER}"
     fi
 fi
 
-mkdir -p dali_tf_plugin/whl
-cp ${tmp_wheelhouse}/*.whl dali_tf_plugin/whl/
 
-export DALI_TF_BUILDER_CONTAINER="${BUILDER_DALI_TF}_container"
+if [ "$BUILD_TF_PLUGIN" = "YES" ]; then
 
+    mkdir -p dali_tf_plugin/whl
+    cp ./wheelhouse/*.whl dali_tf_plugin/whl/
+
+    export DALI_TF_BUILDER_CONTAINER="${BUILDER_DALI_TF}_container"
 
 # TODO: Enable when we figure out how to do pip install without root in build_in_custom_op_docker.sh
 
@@ -193,27 +197,21 @@ export DALI_TF_BUILDER_CONTAINER="${BUILDER_DALI_TF}_container"
 #             NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR} \
 #             /bin/bash build_in_custom_op_docker.sh"
 # else
+    echo "Build image:" ${BUILDER_DALI_TF}
+    docker build -t ${BUILDER_DALI_TF} -f docker/Dockerfile_dali_tf \
+        --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE}" \
+        --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
+        --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" \
+        --build-arg "GIT_SHA=${GIT_SHA}" \
+        --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
+        .
+    nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} ${BUILDER_DALI_TF}
 
-echo "Build image:" ${BUILDER_DALI_TF}
-docker build -t ${BUILDER_DALI_TF} -f docker/Dockerfile_dali_tf \
-       --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE}" \
-       --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
-       --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" \
-       --build-arg "GIT_SHA=${GIT_SHA}" \
-       --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
-       .
-nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} ${BUILDER_DALI_TF}
+    docker cp "${DALI_TF_BUILDER_CONTAINER}:/dali_tf_sdist/." "./wheelhouse"
 
-tmp_dali_tf_sdist=$(mktemp -d)
-docker cp "${DALI_TF_BUILDER_CONTAINER}:/dali_tf_sdist/" "${tmp_dali_tf_sdist}"
-mv ${tmp_dali_tf_sdist}/*.tar.gz ${tmp_wheelhouse}
-
+    docker rm -f "${DALI_TF_BUILDER_CONTAINER}"
+    rm -rf dali_tf_plugin/whl
 # fi
-
-docker rm -f "${DALI_TF_BUILDER_CONTAINER}"
-rm -rf dali_tf_plugin/whl
-
-mkdir -p ./wheelhouse/
-mv ${tmp_wheelhouse}/* ./wheelhouse
+fi
 
 popd
