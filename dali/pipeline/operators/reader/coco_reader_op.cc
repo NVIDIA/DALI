@@ -19,6 +19,7 @@
 
 #include <map>
 #include <unordered_map>
+#include <iomanip>
 
 RAPIDJSON_DIAG_PUSH
 #ifdef __GNUC__
@@ -108,10 +109,43 @@ object will be skipped during reading. It is represented as absolute value.)code
   .AddOptionalArg("save_img_ids",
       R"code(If true, image IDs will also be returned.)code",
       false)
+  .AddOptionalArg("dump_meta_files",
+      R"code(==============.)code",
+      false)
+  .AddOptionalArg("dump_meta_files_path", "Path to directory with boxes and labels meta files",
+    std::string())
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
   })
   .AddParent("LoaderBase");
+
+
+template<typename T>
+void save_vector_to_file(std::vector<T> &input, std::string path) {
+  std::ofstream file(path);
+  if (file) {
+    for (const auto &val : input) {
+      file << std::setprecision(9) << val << std::endl;
+    }
+  } else {
+    DALI_FAIL("TFRecord meta file error: " + path);
+  }
+}
+
+void FastCocoReader::DumpMetaFiles(std::string path) {
+  save_vector_to_file(
+    offsets_,
+    path + "offsets.txt");
+  save_vector_to_file(
+    boxes_,
+    path + "boxes.txt");
+  save_vector_to_file(
+    labels_,
+    path + "labels.txt");
+  save_vector_to_file(
+    counts_,
+    path + "counts.txt");
+}
 
 
 std::vector<std::pair<std::string, int>> FastCocoReader::ParseMetafiles(const OpSpec &spec) {
@@ -561,6 +595,9 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
 
   // ==============================================
   int total_count = 0;
+  std::vector<std::pair<std::string, int>> image_id_pairs_2;
+  int non_empty_id = 0;
+
   for (int i = 0; i < image_id_pairs.size(); ++i) {
     int id = image_id_pairs[i].second;
 
@@ -591,20 +628,37 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
       }
     }
 
+    if (!skip_empty) {
+      offsets_.push_back(total_count);
+      counts_.push_back(labels_map[id].size());
+      total_count += labels_map[id].size();
+    } else {
+      if (labels_map[id].size() != 0) {
+        offsets_.push_back(total_count);
+        counts_.push_back(labels_map[id].size());
+        total_count += labels_map[id].size();
+        image_id_pairs_2.push_back(std::make_pair(image_id_pairs[i].first, non_empty_id));
+        non_empty_id++;
+      }
 
-    offsets_.push_back(total_count);
-    counts_.push_back(labels_map[id].size());
-    total_count += labels_map[id].size();
+    }
   }
 
   if (skip_empty) {
-    std::vector<std::pair<std::string, int>> image_id_pairs_2;
-    for (int i = 0; i < counts_.size(); ++i) {
-      if (counts_[i] != 0) {
-        image_id_pairs_2.push_back(image_id_pairs[i]);
+    image_id_pairs = image_id_pairs_2;
+  }
+
+  if (spec.HasArgument("dump_meta_files")) {
+      std::ofstream file(spec.GetArgument<string>("dump_meta_files_path") + "filenames.txt");
+      if (file) {
+        for (const auto &p : image_id_pairs) {
+          file << p.first << std::endl;
+        }
+      } else {
+        DALI_FAIL("TFRecord meta file errames.txt");
       }
-    }
-    return image_id_pairs_2;
+
+      file.close();
   }
 
 

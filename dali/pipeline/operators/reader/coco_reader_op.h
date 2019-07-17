@@ -79,7 +79,11 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
        loader_ = InitLoader<FastCocoLoader>(
          spec, image_id_pairs, shuffle_after_epoch);
     } else {
-      DALI_FAIL("Either meta_files_path or annotations_file must be provided");
+      DALI_FAIL("Either meta_files_path or annotations_file must be provided.");
+    }
+
+    if (spec.GetArgument<bool>("dump_meta_files")) {
+      DumpMetaFiles(spec.GetArgument<std::string>("dump_meta_files_path"));
     }
   }
 
@@ -138,6 +142,8 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
   bool save_img_ids_;
   std::vector<int> original_ids_;
+
+  void DumpMetaFiles(std::string path);
 };
 
 }  // namespace dali
