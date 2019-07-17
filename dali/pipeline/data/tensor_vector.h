@@ -121,7 +121,7 @@ class TensorVector {
     }
     if (state_ == State::contiguous) {
       tl_->Resize(new_shape);
-      validate_views();
+      update_views();
       return;
     }
     for (int i = 0; i < new_shape.size(); i++) {
@@ -135,7 +135,7 @@ class TensorVector {
     for (auto t : tensors_) {
       t->set_type(new_type);
     }
-    validate_views();
+    update_views();
   }
 
   inline TypeInfo type() const {
@@ -148,7 +148,7 @@ class TensorVector {
     return type_;
   }
 
-  inline void set_pinned(const bool pinned) {
+  inline void set_pinned(bool pinned) {
     // Store the value, in case we pin empty vector and later call Resize
     pinned_ = pinned;
     tl_->set_pinned(pinned);
@@ -210,7 +210,7 @@ class TensorVector {
     }
   }
 
-  void validate_views() {
+  void update_views() {
     // Return if we do not have a valid allocation
     if (!IsValidType(tl_->type())) return;
     if (!tl_->raw_data()) return;

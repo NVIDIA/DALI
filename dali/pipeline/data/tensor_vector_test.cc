@@ -54,14 +54,14 @@ TYPED_TEST_SUITE(TensorVectorSuite, Backends);
 TYPED_TEST(TensorVectorSuite, PinnedAfterReserveThrows) {
   TensorVector<TypeParam> tv_0, tv_1;
   tv_0.reserve(100);
-  ASSERT_THROW(tv_0.set_pinned(false), std::runtime_error);
+  EXPECT_THROW(tv_0.set_pinned(false), std::runtime_error);
   tv_1.reserve(100, 2);
-  ASSERT_THROW(tv_1.set_pinned(false), std::runtime_error);
+  EXPECT_THROW(tv_1.set_pinned(false), std::runtime_error);
   TensorVector<TypeParam> tv_2(2), tv_3(2);
   tv_2.reserve(100);
-  ASSERT_THROW(tv_2.set_pinned(false), std::runtime_error);
+  EXPECT_THROW(tv_2.set_pinned(false), std::runtime_error);
   tv_3.reserve(100, 2);
-  ASSERT_THROW(tv_3.set_pinned(false), std::runtime_error);
+  EXPECT_THROW(tv_3.set_pinned(false), std::runtime_error);
 }
 
 TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
@@ -124,7 +124,7 @@ TYPED_TEST(TensorVectorSuite, BatchResize) {
   tv.Resize(kernels::uniform_list_shape(5, {10, 20}));
   tv.set_type(TypeInfo::Create<int32_t>());
   for (auto &t : tv) {
-    ASSERT_TRUE(t->shares_data());
+    EXPECT_TRUE(t->shares_data());
   }
 }
 

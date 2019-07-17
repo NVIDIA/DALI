@@ -186,7 +186,7 @@ class Buffer {
    * @brief Sets the type of allocation (pinned/non-pinned) for
    * CPU buffers
    */
-  inline void set_pinned(const bool pinned) {
+  inline void set_pinned(bool pinned) {
     DALI_ENFORCE(!data_, "Can only set allocation mode before first allocation");
     pinned_ = pinned;
   }
