@@ -71,6 +71,10 @@ class CocoLoader : public FileLoader {
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
     Reset(true);
+
+    // for (const auto &p : image_label_pairs_) {
+    //   std::cout << p.first << " " << p.second << std::endl;
+    // }
   }
 
   AnnotationMap &annotations_multimap_;

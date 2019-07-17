@@ -39,6 +39,7 @@ class CocoReaderTest : public ::testing::Test {
 
   int SmallCocoSize() { return 64; }
   int EmptyImages() { return 2; }
+  int NonEmptyImages() { return SmallCocoSize() - EmptyImages(); }
   int ImagesWithBigObjects() { return 2; }
   int ObjectCount() { return 194; }
 
@@ -55,17 +56,46 @@ class CocoReaderTest : public ::testing::Test {
     return ids;
   }
 
-  void CheckInstances(DeviceWorkspace & ws) {
+  void RunTest(bool ltrb, bool ratio, bool skip_empty) {
+    const auto expected_size = skip_empty ? NonEmptyImages() : SmallCocoSize(); 
+    Pipeline pipe(expected_size, 1, 0);
+
+    pipe.AddOperator(
+      CocoReaderOpSpec()
+      .AddArg("skip_empty", skip_empty)
+      .AddArg("ltrb", ltrb)
+      .AddArg("ratio", ratio),
+      "coco_reader");
+
+    pipe.Build(Outputs());
+
+    ASSERT_EQ(pipe.EpochSize()["coco_reader"], expected_size);
+
+    DeviceWorkspace ws;
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+
+    auto ids = CopyIds(ws);
+
+    for (int id = 0; id < expected_size; ++id) {
+      ASSERT_EQ(ids[id], id);
+    }
+
+    CheckInstances(ws, ltrb, ratio, skip_empty, expected_size);
+  }
+
+  void CheckInstances(DeviceWorkspace & ws, bool ltrb, bool ratio, bool skip_empty, int expected_size) {
     const auto &boxes_output = ws.Output<dali::CPUBackend>(1);
     const auto &labels_output = ws.Output<dali::CPUBackend>(2);
 
     const auto &boxes_shape = boxes_output.shape();
     const auto &labels_shape = labels_output.shape();
 
-    ASSERT_EQ(labels_shape.size(), SmallCocoSize());
-    ASSERT_EQ(boxes_shape.size(), SmallCocoSize());
+    ASSERT_EQ(labels_shape.size(), expected_size);
+    ASSERT_EQ(boxes_shape.size(), expected_size);
 
-    for (int idx = 0; idx < SmallCocoSize(); ++idx) {
+    for (int idx = 0; idx < expected_size; ++idx) {
       ASSERT_EQ(boxes_shape[idx][0], objects_in_image_[idx]);
       ASSERT_EQ(labels_shape[idx][0], objects_in_image_[idx]);
       ASSERT_EQ(boxes_shape[idx][1], bbox_size);
@@ -80,8 +110,29 @@ class CocoReaderTest : public ::testing::Test {
       boxes_output.data<float>(),
       ObjectCount() * bbox_size * sizeof(float));
 
-    for (int box_coord = 0; box_coord < ObjectCount() * bbox_size; ++box_coord) {
-      ASSERT_EQ(boxes[box_coord], boxes_coords_[box_coord]);
+    for (int box_coord = 0, idx = 0; box_coord < ObjectCount() * bbox_size; box_coord += 4, idx++) {
+      float v1 = boxes[box_coord];
+      float v2 = boxes[box_coord + 1];
+      float v3 = boxes[box_coord + 2];
+      float v4 = boxes[box_coord + 3];
+
+      if (ratio) {
+        v1 *= widths_[idx];
+        v2 *= heights_[idx];
+        v3 *= widths_[idx];
+        v4 *= heights_[idx];
+      }
+
+      ASSERT_FLOAT_EQ(v1, boxes_coords_[box_coord]);
+      ASSERT_FLOAT_EQ(v2, boxes_coords_[box_coord + 1]);
+
+      if (!ltrb) {
+        ASSERT_FLOAT_EQ(v3, boxes_coords_[box_coord + 2]);
+        ASSERT_FLOAT_EQ(v4, boxes_coords_[box_coord + 3]);
+      } else {
+        ASSERT_FLOAT_EQ(v3, boxes_coords_[box_coord] + boxes_coords_[box_coord + 2]);
+        ASSERT_FLOAT_EQ(v4, boxes_coords_[box_coord + 1] + boxes_coords_[box_coord + 3]);
+      }
     }
 
     MemCopy(
@@ -93,6 +144,8 @@ class CocoReaderTest : public ::testing::Test {
       ASSERT_EQ(labels[obj], categories_[obj]);
     }
   }
+
+  std::string file_list_ = dali::testing::dali_extra_path() + "/db/coco/file_list.txt";
 
  private:
   std::string file_root_ = dali::testing::dali_extra_path() + "/db/coco/images";
@@ -178,6 +231,46 @@ class CocoReaderTest : public ::testing::Test {
     24, 23, 20, 51, 46, 11, 71, 46, 49, 16, 12, 24, 54, 33, 46, 16,
     4, 64, 76, 2, 77, 17, 56, 5, 48, 1, 30, 19, 14, 5, 62, 31,
   };
+
+  std::vector<int> widths_ {
+    619, 480, 691, 633, 633, 633, 633, 677, 690, 690, 690, 616,
+    616, 616, 639, 639, 639, 639, 619, 619, 619, 619, 619, 668,
+    668, 651, 651, 651, 696, 696, 630, 630, 630, 630, 630, 665,
+    621, 621, 621, 621, 621, 642, 642, 642, 652, 652, 652, 652,
+    658, 658, 658, 658, 658, 693, 693, 610, 610, 610, 610, 683,
+    683, 683, 683, 683, 616, 616, 532, 532, 532, 611, 696, 696,
+    696, 630, 630, 630, 618, 700, 700, 700, 700, 585, 669, 669,
+    669, 669, 669, 669, 669, 661, 661, 661, 661, 661, 606, 606,
+    606, 606, 606, 655, 655, 666, 666, 666, 626, 692, 692, 692,
+    473, 473, 473, 616, 616, 616, 616, 616, 609, 609, 593, 593,
+    593, 593, 593, 614, 614, 614, 614, 614, 592, 592, 656, 656,
+    656, 656, 656, 595, 595, 595, 595, 630, 630, 630, 630, 630,
+    402, 402, 402, 402, 650, 454, 608, 608, 586, 586, 586, 586,
+    586, 582, 702, 702, 702, 702, 702, 651, 651, 598, 598, 598,
+    658, 658, 658, 658, 658, 666, 666, 666, 666, 611, 611, 596,
+    596, 596, 596, 690, 690, 690, 602, 602, 602, 602, 586, 586,
+    586, 586
+  };
+
+  std::vector<int> heights_ {
+    324, 632, 376, 605, 605, 605, 605, 447, 335, 335, 335, 614,
+    614, 614, 387, 387, 387, 387, 419, 419, 419, 419, 419, 556,
+    556, 384, 384, 384, 464, 464, 423, 423, 423, 423, 423, 467,
+    352, 352, 352, 352, 352, 396, 396, 396, 371, 371, 371, 371,
+    567, 567, 567, 567, 567, 392, 392, 391, 391, 391, 391, 393,
+    393, 393, 393, 393, 366, 366, 642, 642, 642, 430, 478, 478,
+    478, 429, 429, 429, 407, 391, 391, 391, 391, 447, 400, 400,
+    400, 400, 400, 448, 448, 393, 393, 393, 393, 393, 403, 403,
+    403, 403, 403, 389, 389, 419, 419, 419, 415, 401, 401, 401,
+    618, 618, 618, 455, 455, 455, 455, 455, 413, 413, 436, 436,
+    436, 436, 436, 306, 306, 306, 306, 306, 469, 469, 351, 351,
+    351, 351, 351, 350, 350, 350, 350, 398, 398, 398, 398, 398,
+    604, 604, 604, 604, 453, 600, 421, 421, 432, 432, 432, 432,
+    432, 451, 347, 347, 347, 347, 347, 443, 443, 465, 465, 465,
+    434, 434, 434, 434, 434, 391, 391, 391, 391, 399, 399, 526,
+    526, 526, 526, 481, 481, 481, 381, 381, 381, 381, 417, 417,
+    417, 417
+  };
 };
 
 TEST_F(CocoReaderTest, MutuallyExclusiveOptions) {
@@ -203,54 +296,54 @@ TEST_F(CocoReaderTest, MutuallyExclusiveOptions2) {
 }
 
 TEST_F(CocoReaderTest, SkipEmpty) {
-  Pipeline pipe(this->SmallCocoSize() - this->EmptyImages(), 1, 0);
-
-  pipe.AddOperator(
-    this->CocoReaderOpSpec().AddArg("skip_empty", true),
-    "coco_reader");
-
-  pipe.Build(this->Outputs());
-
-  ASSERT_EQ(
-    pipe.EpochSize()["coco_reader"],
-    this->SmallCocoSize() - this->EmptyImages());
-
-  DeviceWorkspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
-  pipe.Outputs(&ws);
-
-  auto ids = this->CopyIds(ws);
-
-  for (int id = 0; id < this->SmallCocoSize() - this->EmptyImages(); ++id) {
-    ASSERT_EQ(ids[id], id);
-  }
+  this->RunTest(false, false, true);
 }
 
 TEST_F(CocoReaderTest, IncludeEmpty) {
-  Pipeline pipe(this->SmallCocoSize(), 1, 0);
-
-  pipe.AddOperator(
-    this->CocoReaderOpSpec(),
-    "coco_reader");
-
-  pipe.Build(this->Outputs());
-
-  ASSERT_EQ(pipe.EpochSize()["coco_reader"], this->SmallCocoSize());
-
-  DeviceWorkspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
-  pipe.Outputs(&ws);
-
-  auto ids = this->CopyIds(ws);
-
-  for (int id = 0; id < this->SmallCocoSize(); ++id) {
-    ASSERT_EQ(ids[id], id);
-  }
-
-  this->CheckInstances(ws);
+  this->RunTest(false, false, false);
 }
+
+TEST_F(CocoReaderTest, Ltrb) {
+  this->RunTest(true, false, false);
+}
+
+TEST_F(CocoReaderTest, Ratio) {
+  this->RunTest(false, true, false);
+}
+
+TEST_F(CocoReaderTest, LtrbRatio) {
+  this->RunTest(true, true, false);
+}
+
+TEST_F(CocoReaderTest, LtrbRatioSkipEmpty) {
+  this->RunTest(true, true, true);
+}
+
+// TEST_F(CocoReaderTest, FileList) {
+//   Pipeline pipe(NonEmptyImages(), 1, 0);
+
+//   pipe.AddOperator(
+//     CocoReaderOpSpec()
+//     .AddArg("file_list", file_list_),
+//     "coco_reader");
+
+//   pipe.Build(Outputs());
+
+//   ASSERT_EQ(pipe.EpochSize()["coco_reader"], NonEmptyImages());
+
+//   DeviceWorkspace ws;
+//   pipe.RunCPU();
+//   pipe.RunGPU();
+//   pipe.Outputs(&ws);
+
+//   auto ids = CopyIds(ws);
+
+//   for (int id = 0; id < NonEmptyImages(); ++id) {
+//     ASSERT_EQ(ids[id], id);
+//   }
+
+//   CheckInstances(ws, false, false, true, NonEmptyImages());
+// }
 
 TEST_F(CocoReaderTest, BigSizeThreshold) {
   Pipeline pipe(this->ImagesWithBigObjects(), 1, 0);
