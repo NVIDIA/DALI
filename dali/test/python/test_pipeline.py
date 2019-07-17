@@ -1468,3 +1468,17 @@ def test_python_formats():
         out_dtype = out.at(0).dtype
         assert(test_array.dtype.itemsize == out_dtype.itemsize)
         assert(test_array.dtype.str == out_dtype.str)
+
+def test_CaffeReader_shape():
+    class TestPipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id):
+            super(TestPipeline, self).__init__(batch_size, num_threads, device_id, seed = 12)
+            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
+        def define_graph(self):
+            self.jpegs, self.labels = self.input()
+            return self.jpegs
+
+    pipe = TestPipeline(batch_size=128, num_threads=2, device_id = 0)
+    pipe.build()
+    pipe_out = pipe.run()
+    assert(len(pipe_out[0].at(0).shape) == 3)
