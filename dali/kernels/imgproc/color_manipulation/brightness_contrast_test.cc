@@ -24,24 +24,24 @@ namespace test {
 
 namespace brightness_contrast {
 
-template<template<typename A, typename B> class Pair, typename T1, typename... T>
+template <template <typename A, typename B> class Pair, typename T1, typename... T>
 using FixedFirstTypePairs = std::tuple<Pair<T1, T>...>;
 
-template<template<typename A, typename B> class Pair, typename A, typename B>
+template <template <typename A, typename B> class Pair, typename A, typename B>
 struct AllPairsHelper;
 
-template<template<typename A, typename B> class Pair, typename... A, typename... B>
+template <template <typename A, typename B> class Pair, typename... A, typename... B>
 struct AllPairsHelper<Pair, std::tuple<A...>, std::tuple<B...>> {
   using type = dali::detail::tuple_cat_t<FixedFirstTypePairs<Pair, A, B...>...>;
 };
 
-template<template<typename A, typename B> class Pair, typename TupleA, typename TupleB>
+template <template <typename A, typename B> class Pair, typename TupleA, typename TupleB>
 using AllPairs = typename AllPairsHelper<Pair, TupleA, TupleB>::type;
 
-template<typename Tuple>
+template <typename Tuple>
 struct TupleToGTest;
 
-template<typename... T>
+template <typename... T>
 struct TupleToGTest<std::tuple<T...>> {
   using type = testing::Types<T...>;
 };
@@ -56,7 +56,7 @@ struct TupleToGTest<std::tuple<T...>> {
  * @param rows height of the input image
  * @param cols width of the input image
  */
-template<int nchannels, class T, class Roi>
+template <int nchannels, class T, class Roi>
 cv::Mat_<T> to_mat(T *ptr, Roi roi, int rows, int cols) {
   auto roi_w = roi.extent().x;
   auto roi_h = roi.extent().y;
@@ -70,7 +70,7 @@ cv::Mat_<T> to_mat(T *ptr, Roi roi, int rows, int cols) {
 }  // namespace brightness_contrast
 
 
-template<class InputOutputTypes>
+template <class InputOutputTypes>
 class BrightnessContrastTest : public ::testing::Test {
  protected:
   BrightnessContrastTest() {
@@ -105,7 +105,7 @@ class BrightnessContrastTest : public ::testing::Test {
 
 namespace test_types {
 
-template<class InputType, class OutputType>
+template <class InputType, class OutputType>
 struct InputOutputTypes {
   using in = InputType;
   using out = OutputType;
@@ -128,8 +128,9 @@ TYPED_TEST(BrightnessContrastTest, check_kernel) {
 
 TYPED_TEST(BrightnessContrastTest, SetupTestAndCheckKernel) {
   BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
+  constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
-  InTensorCPU<typename TypeParam::in, this->ndims> in(this->input_.data(), this->shape_);
+  InTensorCPU<typename TypeParam::in, ndims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
   auto sh = reqs.output_shapes[0][0];
   ASSERT_EQ(this->shape_, sh);
@@ -138,14 +139,15 @@ TYPED_TEST(BrightnessContrastTest, SetupTestAndCheckKernel) {
 
 TYPED_TEST(BrightnessContrastTest, RunTest) {
   BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
+  constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
-  InTensorCPU<typename TypeParam::in, this->ndims> in(this->input_.data(), this->shape_);
+  InTensorCPU<typename TypeParam::in, ndims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
   auto out_shape = reqs.output_shapes[0][0];
   vector<typename TypeParam::out> output;
   output.resize(dali::volume(out_shape));
-  OutTensorCPU<typename TypeParam::out, this->ndims> out(
-          output.data(), out_shape.template to_static<this->ndims>());
+  OutTensorCPU<typename TypeParam::out, ndims> out(output.data(),
+                                                   out_shape.template to_static<ndims>());
 
   kernel.Run(ctx, out, in, this->brightness_, this->contrast_);
   Check(this->ref_out_tv_, out);
@@ -154,8 +156,9 @@ TYPED_TEST(BrightnessContrastTest, RunTest) {
 
 TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
   BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
+  constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
-  InTensorCPU<typename TypeParam::in, this->ndims> in(this->input_.data(), this->shape_);
+  InTensorCPU<typename TypeParam::in, ndims> in(this->input_.data(), this->shape_);
 
   typename decltype(kernel)::Roi roi = {{1, 2},
                                         {5, 7}};
@@ -164,13 +167,13 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
   auto out_shape = reqs.output_shapes[0][0];
   vector<typename TypeParam::out> output;
   output.resize(dali::volume(out_shape));
-  OutTensorCPU<typename TypeParam::out, this->ndims> out(
-          output.data(), out_shape.template to_static<this->ndims>());
+  OutTensorCPU<typename TypeParam::out, ndims> out(output.data(),
+                                                   out_shape.template to_static<ndims>());
 
   kernel.Run(ctx, out, in, this->brightness_, this->contrast_, &roi);
 
-  auto mat = brightness_contrast::to_mat<this->ndims>(this->ref_output_.data(), roi,
-                                                      this->shape_[0], this->shape_[1]);
+  auto mat = brightness_contrast::to_mat<ndims>(this->ref_output_.data(), roi,
+                                                this->shape_[0], this->shape_[1]);
   ASSERT_EQ(mat.rows * mat.cols, out.num_elements()) << "Number of elements doesn't match";
   auto ptr = reinterpret_cast<typename TypeParam::out *>(mat.data);
   for (int i = 0; i < out.num_elements(); i++) {
