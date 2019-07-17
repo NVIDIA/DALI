@@ -52,7 +52,7 @@ Starting DALI 0.8.0 for CUDA 10.0 based build use:
 
 .. note::
 
-  The ``nvidia-dali`` package contains prebuilt versions of the DALI TensorFlow plugin for several versions of TensorFlow. Starting DALI 0.6.1 you can also install DALI TensorFlow plugin for the currently installed version of TensorFlow, thus allowing forward compatibility:
+  Starting 0.6.1 the ``nvidia-dali`` package no longer contains prebuilt versions of the DALI TensorFlow plugin, so you need to install DALI TensorFlow plugin for the currently installed version of TensorFlow:
 
 .. code-block:: bash
 
