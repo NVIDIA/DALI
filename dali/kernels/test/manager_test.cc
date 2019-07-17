@@ -91,20 +91,20 @@ TEST(AnyKernelInstance, Get) {
   EXPECT_THROW(aki.get<TestStruct2>(), std::logic_error);
 }
 
-TEST(KernelManager, GetScratchadAllocator) {
+TEST(KernelManager, GetScratchpadAllocator) {
   KernelManager mgr;
   mgr.Initialize(2, 2);
-  ScratchpadAllocator &a0 = mgr.GetScratchadAllocator(0);
-  ScratchpadAllocator &a1 = mgr.GetScratchadAllocator(1);
-  ScratchpadAllocator &a2 = mgr.GetScratchadAllocator(0);
+  ScratchpadAllocator &a0 = mgr.GetScratchpadAllocator(0);
+  ScratchpadAllocator &a1 = mgr.GetScratchpadAllocator(1);
+  ScratchpadAllocator &a2 = mgr.GetScratchpadAllocator(0);
   EXPECT_NE(&a0, &a1);
   EXPECT_EQ(&a0, &a2);
 }
 
-TEST(KernelManager, GetInstance) {
+TEST(KernelManager, CreateOrGet) {
   KernelManager mgr;
   mgr.Initialize(1, 1);
-  mgr.GetInstance<TestKernel>(0);
+  mgr.CreateOrGet<TestKernel>(0);
   OutListGPU<float, 3> in, out;
   in.resize(2);
   in.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
@@ -114,6 +114,17 @@ TEST(KernelManager, GetInstance) {
   mgr.Run<TestKernel>(0, 0, ctx, out, in, 100, 1.25f);
 }
 
+TEST(KernelManager, TemplateInitialize) {
+  KernelManager mgr;
+  mgr.Initialize<TestKernel>(1, 1);
+  OutListGPU<float, 3> in, out;
+  in.resize(2);
+  in.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
+  out.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
+  KernelContext ctx;
+  mgr.Setup<TestKernel>(0, ctx, in, 100, 1.25f);
+  mgr.Run<TestKernel>(0, 0, ctx, out, in, 100, 1.25f);
+}
 
 }  // namespace kernels
 }  // namespace dali

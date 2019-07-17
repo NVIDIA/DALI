@@ -70,15 +70,38 @@ struct AnyKernelInstance {
 /// explicitly by the caller.
 class DLL_PUBLIC KernelManager {
  public:
-  /// @brief Creates `num_instances` slots for kernels and `num_threads` scratcapads
-  void Initialize(size_t num_instances, size_t num_threads);
+  /// @brief Creates `num_threads` scratcapads and `num_instances` slots for kernels
+  ///
+  /// @param num_threads -    number of threads that can concurrently use the kernels in the
+  ///                         manager, assuming that each threads uses its unique
+  ///                         zero-based inde
+  /// @param num_instances -  number of Kernel instances to be created; typically corresponds
+  ///                         to number of samples (for per-sample kernels) or minibatches
+  void Initialize(size_t num_threads, size_t num_instances);
+
+  /// @brief Creates `num_threads` scratcapads and `num_instances` kernels of type Kernel
+  ///        constructed with `args...`.
+  ///
+  /// @param num_threads   -  number of threads that can concurrently use the kernels in the
+  ///                         manager, assuming that each threads uses its unique
+  ///                         zero-based inde
+  /// @param num_instances -  number of Kernel instances to be created; typically corresponds
+  ///                         to number of samples (for per-sample kernels) or minibatches
+  /// @param args           - arguments passed to Kernel's constructor upon creation.
+  /// @tparam Kernel        - type of the kernel to be created
+  template <typename Kernel, typename... Args>
+  void Initialize(size_t num_threads, size_t num_instances, const Args&... args) {
+    Initialize(num_threads, num_instances);
+    for (size_t i = 0; i < num_instances; i++)
+      instances[i].create_or_get<Kernel>(args...);
+  }
 
   /// @brief Clears kernel instances and scratchpads
   void Reset();
 
   /// @brief Gets or creates a Kernel instance
   template <typename Kernel, typename... ConstructorArgs>
-  Kernel &GetInstance(int instance_idx, ConstructorArgs &&...args) {
+  Kernel &CreateOrGet(int instance_idx, ConstructorArgs &&...args) {
     return instances[instance_idx].create_or_get<Kernel>(std::forward<ConstructorArgs>(args)...);
   }
 
@@ -96,23 +119,44 @@ class DLL_PUBLIC KernelManager {
   size_t NumThreads() const { return scratchpads.size(); }
 
   /// @brief Gets a scratchpad allocator assigned to a given thread.
-  ScratchpadAllocator &GetScratchadAllocator(int thread_idx) {
+  ScratchpadAllocator &GetScratchpadAllocator(int thread_idx) {
     return scratchpads[thread_idx];
   }
 
   /// @brief Calls setup on specified kernel instance.
+  ///
+  /// @param instance_idx   - kernel instance index; typically corresponds
+  ///                         to sample index (for per-sample kernels) or minibatch index
+  /// @param context        - context for the kernel
+  ///                         * should contain valid CUDA stream for GPU kernels;
+  /// @param in_args        - pack of arguments (inputs, arguments) used in Kernel::Setup
+  /// @return Reference to internally maintained copy of the kernel requirements.
+  /// @remarks The copies of KernelRequirements for each instance index are used for allocating
+  ///          scratch memory. While the function returns non-const reference, please note
+  ///          that decreasing scratch sizes calculated by Setup will result in undefined
+  ///          behavior, including memory corruption or illegal access.
   template <typename Kernel, typename... InArgs>
   KernelRequirements &Setup(int instance_idx, KernelContext &context, InArgs &&...in_args) {
     auto &inst = instances[instance_idx];
-    return inst.requirements = inst.get<Kernel>().Setup(context, std::forward<InArgs>(in_args)...);
+    inst.requirements = inst.get<Kernel>().Setup(context, std::forward<InArgs>(in_args)...);
+    return inst.requirements;
   }
 
   /// @brief Calls Run on specified kernel instance using Scratchpad for given thread.
+  ///
+  /// @param thread_idx     - zero-based thread index
+  /// @param instance_idx   - kernel instance index; typically corresponds
+  ///                         to sample index (for per-sample kernels) or minibatch index
+  /// @param context        - context for the kernel
+  ///                         * should contain valid CUDA stream for GPU kernels;
+  ///                         * scratchpad pointer is overriden with a scratchpad
+  ///                           created for given thread_idx
+  /// @param out_in_args    - pack of arguments (outputs, inputs, arguments) used in Kernel::Run
   template <typename Kernel, typename... OutInArgs>
   void Run(int thread_idx, int instance_idx, KernelContext &context, OutInArgs &&...out_in_args) {
     assert(static_cast<size_t>(thread_idx) < scratchpads.size());
     auto &inst = instances[instance_idx];
-    auto &alloc = GetScratchadAllocator(thread_idx);
+    auto &alloc = GetScratchpadAllocator(thread_idx);
     ReserveScratchpad(alloc, inst.requirements.scratch_sizes);
     auto scratchpad = alloc.GetScratchpad();
     auto *old_scratchpad = context.scratchpad;
@@ -127,13 +171,23 @@ class DLL_PUBLIC KernelManager {
       sa.Reserve(type, bytes);
   }
 
+  /// @brief Sets a memory size hint for allocating scratchpad memory
+  ///
+  /// All calls to ScratchpadAllocator::Reserve followint this call will request at least
+  /// bytes memory for given allocation type.
+  void SetMemoryHint(AllocType type, size_t bytes) {
+    int alloc_idx = static_cast<int>(type);
+    if (bytes > max_scratch_sizes[alloc_idx])
+      max_scratch_sizes[alloc_idx] = bytes;
+  }
+
  private:
-  void ReserveScratchpad(
-      ScratchpadAllocator &sa,
-      std::array<size_t, ScratchpadAllocator::NumAllocTypes> sizes);
+  using ScratchSizes = std::array<size_t, ScratchpadAllocator::NumAllocTypes>;
+  void ReserveScratchpad(ScratchpadAllocator &sa, const ScratchSizes &sizes);
 
   SmallVector<AnyKernelInstance, 1> instances;
   SmallVector<ScratchpadAllocator, 1> scratchpads;
+  ScratchSizes max_scratch_sizes{};
 };
 
 }  // namespace kernels

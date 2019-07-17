@@ -103,7 +103,6 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   for (size_t b = 0; b < minibatches_.size(); b++) {
     MiniBatch &mb = minibatches_[b];
 
-    kmgr_.GetInstance<Kernel>(b);
     auto &req = kmgr_.Setup<Kernel>(b, context,
         mb.input, make_span(resample_params_.data() + mb.start, mb.count));
 
@@ -129,27 +128,21 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
 }
 
 void ResizeBase::Initialize(int num_threads) {
-  kmgr_.Initialize(num_threads, num_threads);
+  using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
+  kmgr_.Initialize<Kernel>(num_threads, num_threads);
   out_shape_.resize(num_threads, 3);
   resample_params_.resize(num_threads);
-
-  using Kernel = kernels::ResampleCPU<uint8_t, uint8_t>;
-  for (size_t i = 0; i < kmgr_.NumInstances(); i++) {
-    kmgr_.GetInstance<Kernel>(i);
-  }
 }
 
 void ResizeBase::InitializeGPU(int batch_size, int mini_batch_size) {
   DALI_ENFORCE(batch_size > 0, "Batch size must be positive");
   DALI_ENFORCE(mini_batch_size > 0, "Mini-batch size must be positive");
   const int num_minibatches = div_ceil(batch_size, mini_batch_size);
-  kmgr_.Initialize(num_minibatches, 1);
+  using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
+  kmgr_.Initialize<Kernel>(1, num_minibatches);
   minibatches_.resize(num_minibatches);
 
   for (int i = 0; i < num_minibatches; i++) {
-    using Kernel = kernels::ResampleGPU<uint8_t, uint8_t>;
-    auto &kernel = kmgr_.GetInstance<Kernel>(i);  // create the kernel instances
-    (void)kernel;
     int start = batch_size * i / num_minibatches;
     int end = (batch_size * (i + 1)) / num_minibatches;
 
@@ -157,7 +150,7 @@ void ResizeBase::InitializeGPU(int batch_size, int mini_batch_size) {
     minibatches_[i].count = end-start;
   }
 
-  kmgr_.ReserveScratchMem(kernels::AllocType::GPU, temp_buffer_hint_);
+  kmgr_.SetMemoryHint(kernels::AllocType::GPU, temp_buffer_hint_);
 }
 
 void ResizeBase::RunCPU(Tensor<CPUBackend> &output,

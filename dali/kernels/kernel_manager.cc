@@ -25,17 +25,12 @@ void KernelManager::Initialize(size_t num_instances, size_t num_threads) {
 void KernelManager::Reset() {
   instances.clear();
   scratchpads.clear();
+  max_scratch_sizes = {};
 }
 
 void KernelManager::ReserveScratchpad(
     ScratchpadAllocator &sa,
-    std::array<size_t, ScratchpadAllocator::NumAllocTypes> sizes) {
-  // per-sample - just reserve
-  if (scratchpads.size() == instances.size()) {
-    sa.Reserve(sizes);
-    return;
-  }
-
+    const ScratchSizes &sizes) {
   size_t N = ScratchpadAllocator::NumAllocTypes;
 
   // is scratchpad big enough?
@@ -49,15 +44,13 @@ void KernelManager::ReserveScratchpad(
   // if the scratchpad happens to be big enough, then just return
   if (is_big_enough())
     return;
-  // get maximum scratch size for any instance and reserve that
-  for (auto &instance : instances) {
-    for (size_t i = 0; i < N; i++) {
-      size_t s = instance.requirements.scratch_sizes[i];
-      if (s > sizes[i])
-        sizes[i] = s;
-    }
+
+  for (size_t i = 0; i < sizes.size(); i++) {
+    if (sizes[i] > max_scratch_sizes[i])
+      max_scratch_sizes[i] = sizes[i];
   }
-  sa.Reserve(sizes);
+
+  sa.Reserve(max_scratch_sizes);
 }
 
 
