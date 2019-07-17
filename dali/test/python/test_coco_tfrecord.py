@@ -231,6 +231,7 @@ from test_utils import compare_pipelines
 
 coco_root_dir = '/data/coco_data/coco/val2017'
 coco_annotations = '/data/coco_data/coco/annotations/instances_val2017.json'
+file_list = "/data/coco_data/file_list.txt"
 
 tfrecord_dali = [
     "/data/coco_data/dali_1/00000-of-00001.tfrecord"
@@ -546,8 +547,9 @@ class COCODetectionPipeline(Pipeline):
         inputs, boxes, labels, ids = self.input(name="Reader")
         image_gpu = self.decode_gpu(inputs)
 
+        # return (image_gpu, boxes, labels)
         return (image_gpu, boxes, labels, ids)
-        # return image_gpu, labels
+        # return image_gpu, labels, boxes
 
 class FastCocoDetectionPipeline(Pipeline):
     def __init__(self, args, device_id):
@@ -576,7 +578,7 @@ class FastCocoDetectionPipeline(Pipeline):
 
 
     def define_graph(self):
-        inputs, boxes, labels, ids = self.input(name="Reader")
+        inputs, boxes, labels = self.input(name="Reader")
         image_gpu = self.decode_gpu(inputs)
 
         return (image_gpu, boxes, labels)
@@ -604,6 +606,7 @@ class FastCocoDetectionPipeline2(Pipeline):
             ratio=True,
             save_img_ids=True,
             # meta_files_path='/data/coco_data/coco_fast/',
+            file_list=file_list,
             ltrb=True,
             skip_empty=True,
             annotations_file=coco_annotations
@@ -617,7 +620,7 @@ class FastCocoDetectionPipeline2(Pipeline):
         image_gpu = self.decode_gpu(inputs)
 
         return (image_gpu, boxes, labels, ids)
-        # return image_gpu, labels
+        # return image_gpu, labels, boxes
 
 
 def print_args(args):

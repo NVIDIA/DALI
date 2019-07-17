@@ -417,6 +417,8 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   bool skip_empty = spec.GetArgument<bool>("skip_empty");
   float size_threshold = spec.GetArgument<float>("size_threshold");
   bool ratio = spec.GetArgument<bool>("ratio");
+  string file_list = spec.GetArgument<string>("file_list");
+  bool parse_file_list = file_list != "";
   std::ifstream f(annotations_file_path);
   DALI_ENFORCE(f, "Could not open JSON annotations file");
   f.seekg(0, std::ios::end);
@@ -438,6 +440,21 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   // mapping each category_id to its actual category
   std::map<int, int> category_ids;
   int current_id = 1;
+
+
+  if (parse_file_list) {
+    std::cout << "Parsing file list...\n";
+    std::ifstream file(file_list);
+    if (file) {
+      std::string filename;
+      int id;
+      while (file >> filename >> id) {
+        image_id_pairs.push_back(std::make_pair(filename, id));
+      }
+    } else {
+      DALI_FAIL("TFRecord meta file erro");
+    }
+  }
 
   RAPIDJSON_ASSERT(r.PeekType() == kObjectType);
   r.EnterObject();
@@ -467,7 +484,9 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
               r.SkipValue();
             }
           }
-          image_id_pairs.push_back(std::make_pair(image_file_name, id));
+          if (!parse_file_list) {
+            image_id_pairs.push_back(std::make_pair(image_file_name, id));
+          }
           image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
         }
       } else if (0 == strcmp(key, "categories")) { 

@@ -46,10 +46,10 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
         std::vector<std::pair<string, int>>(),
         shuffle_after_epoch);
     else
-    loader_ = InitLoader<CocoLoader>(
-      spec,
-      annotations_multimap_,
-      shuffle_after_epoch);
+      loader_ = InitLoader<CocoLoader>(
+        spec,
+        annotations_multimap_,
+        shuffle_after_epoch);
     parser_.reset(new COCOParser(spec, annotations_multimap_));
   }
 
