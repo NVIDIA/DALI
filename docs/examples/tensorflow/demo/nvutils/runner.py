@@ -44,7 +44,7 @@ class _LogSessionRunHook(tf.train.SessionRunHook):
     def before_run(self, run_context):
         self.t0 = time.time()
         return tf.train.SessionRunArgs(
-            fetches=['step_update:0', 'loss:0', 'total_loss:0',
+            fetches=['global_step:0', 'loss:0', 'total_loss:0',
                      'learning_rate:0'])
     def after_run(self, run_context, run_values):
         self.elapsed_secs += time.time() - self.t0
