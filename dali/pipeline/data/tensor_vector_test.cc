@@ -71,12 +71,12 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   tv.set_type(TypeInfo::Create<int32_t>());
   ASSERT_EQ(tv.size(), 2);
   EXPECT_EQ(tv.shape(), kernels::TensorListShape<>({{2, 4}, {4, 2}}));
-  EXPECT_EQ(tv[0]->shape(), kernels::TensorShape<>(2, 4));
-  EXPECT_EQ(tv[1]->shape(), kernels::TensorShape<>(4, 2));
-  EXPECT_EQ(tv[0]->nbytes(), 4 * 2 * sizeof(int32_t));
-  EXPECT_EQ(tv[1]->nbytes(), 4 * 2 * sizeof(int32_t));
-  EXPECT_EQ(tv[0]->capacity(), 4 * 2 * sizeof(int32_t));
-  EXPECT_EQ(tv[1]->capacity(), 4 * 2 * sizeof(int32_t));
+  EXPECT_EQ(tv[0].shape(), kernels::TensorShape<>(2, 4));
+  EXPECT_EQ(tv[1].shape(), kernels::TensorShape<>(4, 2));
+  EXPECT_EQ(tv[0].nbytes(), 4 * 2 * sizeof(int32_t));
+  EXPECT_EQ(tv[1].nbytes(), 4 * 2 * sizeof(int32_t));
+  EXPECT_EQ(tv[0].capacity(), 4 * 2 * sizeof(int32_t));
+  EXPECT_EQ(tv[1].capacity(), 4 * 2 * sizeof(int32_t));
   ASSERT_THROW(tv.set_pinned(false), std::runtime_error);
 }
 
@@ -88,8 +88,8 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   tv.set_type(TypeInfo::Create<int32_t>());
   ASSERT_EQ(tv.size(), 2);
   EXPECT_EQ(tv.shape(), kernels::TensorListShape<>({{2, 4}, {4, 2}}));
-  EXPECT_EQ(tv[0]->shape(), kernels::TensorShape<>(2, 4));
-  EXPECT_EQ(tv[1]->shape(), kernels::TensorShape<>(4, 2));
+  EXPECT_EQ(tv[0].shape(), kernels::TensorShape<>(2, 4));
+  EXPECT_EQ(tv[1].shape(), kernels::TensorShape<>(4, 2));
   for (auto &t : tv) {
     EXPECT_EQ(t->nbytes(), 4 * 2 * sizeof(int32_t));
     EXPECT_EQ(t->capacity(), 4 * 2 * sizeof(int32_t));
@@ -105,8 +105,8 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
   tv.set_type(TypeInfo::Create<int32_t>());
   ASSERT_EQ(tv.size(), 2);
   EXPECT_EQ(tv.shape(), kernels::TensorListShape<>({{2, 4}, {4, 2}}));
-  EXPECT_EQ(tv[0]->shape(), kernels::TensorShape<>(2, 4));
-  EXPECT_EQ(tv[1]->shape(), kernels::TensorShape<>(4, 2));
+  EXPECT_EQ(tv[0].shape(), kernels::TensorShape<>(2, 4));
+  EXPECT_EQ(tv[1].shape(), kernels::TensorShape<>(4, 2));
   for (auto &t : tv) {
     EXPECT_EQ(t->nbytes(), 4 * 2 * sizeof(int32_t));
     EXPECT_EQ(t->capacity(), 50);

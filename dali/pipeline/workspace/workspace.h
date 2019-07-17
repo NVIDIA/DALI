@@ -99,12 +99,22 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   template <typename Backend>
-  const InputType<Backend>& InputHandle(int idx) const {
+  typename InputType<Backend>::element_type& InputRef(int idx) const {
+    return *InputHandle(idx, Backend{});
+  }
+
+  template <typename Backend>
+  typename OutputType<Backend>::element_type& OutputRef(int idx) const {
+    return *OutputHandle(idx, Backend{});
+  }
+
+  template <typename Backend>
+  const InputType<Backend>& InputPtr(int idx) const {
     return InputHandle(idx, Backend{});
   }
 
   template <typename Backend>
-  const OutputType<Backend>& OutputHandle(int idx) const {
+  const OutputType<Backend>& OutputPtr(int idx) const {
     return OutputHandle(idx, Backend{});
   }
 

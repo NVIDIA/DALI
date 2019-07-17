@@ -29,22 +29,22 @@ int MixedWorkspace::NumInputAtIdx(int idx) const {
 
 template <>
 const Tensor<CPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
-  return *(*InputHandle<CPUBackend>(idx))[data_idx];
+  return InputRef<CPUBackend>(idx)[data_idx];
 }
 
 template <>
 const Tensor<GPUBackend>& MixedWorkspace::Input(int idx, int data_idx) const {
-  return *(*InputHandle<GPUBackend>(idx))[data_idx];
+  return InputRef<GPUBackend>(idx)[data_idx];
 }
 
 template <>
 TensorList<CPUBackend>& MixedWorkspace::Output(int idx) {
-  return *OutputHandle<CPUBackend>(idx);
+  return OutputRef<CPUBackend>(idx);
 }
 
 template <>
 TensorList<GPUBackend>& MixedWorkspace::Output(int idx) {
-  return  *OutputHandle<GPUBackend>(idx);
+  return  OutputRef<GPUBackend>(idx);
 }
 
 }  // namespace dali

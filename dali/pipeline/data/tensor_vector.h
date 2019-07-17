@@ -51,11 +51,19 @@ class TensorVector {
   TensorVector(const TensorVector &) = delete;
   TensorVector &operator=(const TensorVector &) = delete;
 
-  auto operator[](size_t pos) {
+  Tensor<Backend>& operator[](size_t pos) {
+    return *(tensors_[pos]);
+  }
+
+  const Tensor<Backend>& operator[](size_t pos) const {
+    return *(tensors_[pos]);
+  }
+
+  auto tensor_handle(size_t pos) {
     return tensors_[pos];
   }
 
-  auto operator[](size_t pos) const {
+  auto tensor_handle(size_t pos) const {
     return tensors_[pos];
   }
 
@@ -203,20 +211,19 @@ class TensorVector {
   }
 
   void validate_views() {
-    // DALI_ENFORCE(state_ != State::noncontiguous);
     // Return if we do not have a valid allocation
     if (!IsValidType(tl_->type())) return;
     if (!tl_->raw_data()) return;
 
     for (size_t i = 0; i < tensors_.size(); i++) {
       views_count_ = tensors_.size();
-      // TODO(klecki): deleter that reduces views_count? or just noop sharing?
+      // TODO(klecki): deleter that reduces views_count or just noop sharing?
+      // tensors_[i]->ShareData(tl_.get(), static_cast<int>(i));
       tensors_[i]->ShareData(
           std::shared_ptr<void>(tl_->raw_mutable_tensor(i),
                                 [&views_count = views_count_](void *) { views_count--; }),
           volume(tl_->tensor_shape(i)) * tl_->type().size(), tl_->tensor_shape(i));
       tensors_[i]->set_type(tl_->type());
-      // tensors_[i]->ShareData(tl_.get(), static_cast<int>(i));
     }
   }
   std::atomic<int> views_count_;

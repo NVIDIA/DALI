@@ -89,7 +89,7 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
   // tensor out is resized by operator itself in DisplacementFilter::DataDependentSetup()
 
   // TODO(klecki) Accomodate to use different inputs from test data
-  auto *ptr = (*tensor_in)[0]->template mutable_data<T>();
+  auto *ptr = (*tensor_in)[0].template mutable_data<T>();
   for (int i = 0; i < N; i++) {
     ptr[i] = i;
   }

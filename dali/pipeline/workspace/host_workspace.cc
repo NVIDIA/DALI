@@ -25,16 +25,16 @@ void HostWorkspace::GetSample(SampleWorkspace* ws, int data_idx, int thread_idx)
   ws->set_thread_idx(thread_idx);
   for (const auto& input_meta : input_index_map_) {
     if (input_meta.storage_device == StorageDevice::CPU) {
-      ws->AddInput((*cpu_inputs_[input_meta.index])[data_idx]);
+      ws->AddInput(cpu_inputs_[input_meta.index]->tensor_handle(data_idx));
     } else {
-      ws->AddInput((*gpu_inputs_[input_meta.index])[data_idx]);
+      ws->AddInput(gpu_inputs_[input_meta.index]->tensor_handle(data_idx));
     }
   }
   for (const auto& output_meta : output_index_map_) {
     if (output_meta.storage_device == StorageDevice::CPU) {
-      ws->AddOutput((*cpu_outputs_[output_meta.index])[data_idx]);
+      ws->AddOutput(cpu_outputs_[output_meta.index]->tensor_handle(data_idx));
     } else {
-      ws->AddOutput((*gpu_outputs_[output_meta.index])[data_idx]);
+      ws->AddOutput(gpu_outputs_[output_meta.index]->tensor_handle(data_idx));
     }
   }
   for (auto& arg_pair : argument_inputs_) {
@@ -62,22 +62,22 @@ int HostWorkspace::NumOutputAtIdx(int idx) const {
 
 template <>
 const Tensor<CPUBackend>& HostWorkspace::Input(int idx, int data_idx) const {
-  return *(*InputHandle<CPUBackend>(idx))[data_idx];
+  return InputRef<CPUBackend>(idx)[data_idx];
 }
 
 template <>
 const Tensor<GPUBackend>& HostWorkspace::Input(int idx, int data_idx) const {
-  return *(*InputHandle<GPUBackend>(idx))[data_idx];
+  return InputRef<GPUBackend>(idx)[data_idx];
 }
 
 template <>
 Tensor<CPUBackend>& HostWorkspace::Output(int idx, int data_idx) {
-  return *(*OutputHandle<CPUBackend>(idx))[data_idx];
+  return OutputRef<CPUBackend>(idx)[data_idx];
 }
 
 template <>
 Tensor<GPUBackend>& HostWorkspace::Output(int idx, int data_idx) {
-  return *(*OutputHandle<GPUBackend>(idx))[data_idx];
+  return OutputRef<GPUBackend>(idx)[data_idx];
 }
 
 }  // namespace dali
