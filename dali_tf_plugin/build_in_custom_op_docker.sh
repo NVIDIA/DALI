@@ -19,7 +19,7 @@ test ${CUDA_VERSION} = "10" && export SUPPORTED_TF_VERSIONS="1.13.1 1.14.0"
 
 for TF_VERSION in ${SUPPORTED_TF_VERSIONS}; do
     echo "Building DALI TF plugin for TF version ${TF_VERSION}"
-    pip install tensorflow-gpu=="${TF_VERSION}"
+    pip install tensorflow-gpu=="${TF_VERSION}" -f /pip-packages
 
     SUFFIX=$(echo $TF_VERSION | sed 's/\([0-9]\+\)\.\([0-9]\+\).*/\1_\2/')
     LIB_NAME=libdali_tf_${SUFFIX}.so
