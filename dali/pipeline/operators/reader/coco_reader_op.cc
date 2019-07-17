@@ -544,6 +544,11 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   int total_count = 0;
   for (int i = 0; i < image_id_pairs.size(); ++i) {
     int id = image_id_pairs[i].second;
+
+    if (save_img_ids_) {
+      original_ids_.push_back(id);
+    }
+
     image_id_pairs[i].second = i;
     
     for (int c : labels_map[id]) {

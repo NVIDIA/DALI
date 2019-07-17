@@ -68,6 +68,7 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   explicit FastCocoReader(const OpSpec& spec)
 : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
+    save_img_ids_ = spec.GetArgument<bool>("save_img_ids");
 
     if (spec.HasArgument("meta_files_path")) {
       auto image_id_pairs = ParseMetafiles(spec);
@@ -111,6 +112,16 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
       labels_out_data,
       labels_.data() + offsets_[image_id],
       counts_[image_id] * sizeof(int));
+
+    if (save_img_ids_) {
+      auto &id_output = ws->Output<CPUBackend>(3);
+      id_output.Resize({1});
+      auto id_out_data = id_output.mutable_data<int>();
+      memcpy(
+        id_out_data,
+        original_ids_.data() + image_id,
+        sizeof(int));
+    }
   }
 
  protected:

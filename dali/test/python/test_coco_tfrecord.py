@@ -535,16 +535,18 @@ class COCODetectionPipeline(Pipeline):
             shard_id=0,
             num_shards=1,
             skip_empty=True,
-            random_shuffle=True)
+            save_img_ids=True,
+            # random_shuffle=True
+            )
 
         self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
 
 
     def define_graph(self):
-        inputs, boxes, labels = self.input(name="Reader")
+        inputs, boxes, labels, ids = self.input(name="Reader")
         image_gpu = self.decode_gpu(inputs)
 
-        return (image_gpu, boxes, labels)
+        return (image_gpu, boxes, labels, ids)
         # return image_gpu, labels
 
 class FastCocoDetectionPipeline(Pipeline):
@@ -574,7 +576,7 @@ class FastCocoDetectionPipeline(Pipeline):
 
 
     def define_graph(self):
-        inputs, boxes, labels = self.input(name="Reader")
+        inputs, boxes, labels, ids = self.input(name="Reader")
         image_gpu = self.decode_gpu(inputs)
 
         return (image_gpu, boxes, labels)
@@ -596,10 +598,11 @@ class FastCocoDetectionPipeline2(Pipeline):
         #     meta_files_path='/data/coco_data/coco_fast/')
         self.input = ops.FastCocoReader(
             file_root='/data/coco_data/coco/val2017',
-            random_shuffle=True,
+            # random_shuffle=True,
             shard_id=0,
             num_shards=1,
             ratio=True,
+            save_img_ids=True,
             # meta_files_path='/data/coco_data/coco_fast/',
             ltrb=True,
             skip_empty=True,
@@ -610,10 +613,10 @@ class FastCocoDetectionPipeline2(Pipeline):
 
 
     def define_graph(self):
-        inputs, boxes, labels = self.input(name="Reader")
+        inputs, boxes, labels, ids = self.input(name="Reader")
         image_gpu = self.decode_gpu(inputs)
 
-        return (image_gpu, boxes, labels)
+        return (image_gpu, boxes, labels, ids)
         # return image_gpu, labels
 
 
