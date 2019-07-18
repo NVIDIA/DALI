@@ -63,12 +63,17 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
 };
 
+using ImageIdPairs = std::vector<std::pair<std::string, int>>;
+
 class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
-  explicit FastCocoReader(const OpSpec& spec): DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+  explicit FastCocoReader(const OpSpec& spec): 
+    DataReader<CPUBackend, ImageLabelWrapper>(spec),
+    save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    save_img_ids_ = spec.GetArgument<bool>("save_img_ids");
 
+    ValidateOptions(spec);
+    
     if (spec.HasArgument("meta_files_path")) {
       auto image_id_pairs = ParseMetafiles(spec);
       loader_ = InitLoader<FastCocoLoader>(
@@ -79,10 +84,6 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
          spec, image_id_pairs, shuffle_after_epoch);
     } else {
       DALI_FAIL("Either meta_files_path or annotations_file must be provided.");
-    }
-
-    if (spec.GetArgument<bool>("dump_meta_files")) {
-      DumpMetaFiles(spec.GetArgument<std::string>("dump_meta_files_path"));
     }
   }
 
@@ -95,9 +96,10 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
     image_output.Resize({image_size});
     image_output.mutable_data<uint8_t>();
-    std::memcpy(image_output.raw_mutable_data(),
-                image_label.image.raw_data(),
-                image_size);
+    std::memcpy(
+      image_output.raw_mutable_data(),
+      image_label.image.raw_data(),
+      image_size);
     image_output.SetSourceInfo(image_label.image.GetSourceInfo());
 
     auto &boxes_output = ws->Output<CPUBackend>(1);
@@ -136,13 +138,15 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   std::vector<int> labels_;
   std::vector<int> counts_;
 
-  std::vector<std::pair<std::string, int>> ParseMetafiles(const OpSpec& spec);
-  std::vector<std::pair<std::string, int>> ParseJsonAnnotations(const OpSpec& spec);
+  ImageIdPairs ParseMetafiles(const OpSpec& spec);
+  ImageIdPairs ParseJsonAnnotations(const OpSpec& spec);
 
   bool save_img_ids_;
   std::vector<int> original_ids_;
 
-  void DumpMetaFiles(std::string path);
+  void DumpMetaFiles(std::string path, const ImageIdPairs &image_id_pairs);
+
+  void ValidateOptions(const OpSpec &spec);
 };
 
 }  // namespace dali

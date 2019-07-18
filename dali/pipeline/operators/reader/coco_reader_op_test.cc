@@ -21,20 +21,33 @@ namespace dali {
 
 class CocoReaderTest : public ::testing::Test {
  protected:
+  void TearDown() override {
+    std::remove("/tmp/boxes.txt");
+    std::remove("/tmp/counts.txt");
+    std::remove("/tmp/filenames.txt");
+    std::remove("/tmp/labels.txt");
+    std::remove("/tmp/offsets.txt");
+    std::remove("/tmp/original_ids.txt");
+  }
+
   std::vector<std::pair<std::string, std::string>> Outputs() {
     return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"}, {"image_ids", "cpu"}};
   }
 
-  OpSpec CocoReaderOpSpec() {
+  OpSpec BasicCocoReaderOpSpec() {
     return OpSpec("FastCocoReader")
-          .AddArg("device", "cpu")
-          .AddArg("file_root", file_root_)
-          .AddArg("annotations_file", annotations_filename_)
-          .AddArg("save_img_ids", true)
-          .AddOutput("images", "cpu")
-          .AddOutput("boxes", "cpu")
-          .AddOutput("labels", "cpu")
-          .AddOutput("image_ids", "cpu");
+      .AddArg("device", "cpu")
+      .AddArg("file_root", file_root_)
+      .AddArg("save_img_ids", true)
+      .AddOutput("images", "cpu")
+      .AddOutput("boxes", "cpu")
+      .AddOutput("labels", "cpu")
+      .AddOutput("image_ids", "cpu");
+  }
+
+  OpSpec CocoReaderOpSpec() {
+    return BasicCocoReaderOpSpec()
+      .AddArg("annotations_file", annotations_filename_);
   }
 
   int SmallCocoSize() { return 64; }
@@ -56,17 +69,8 @@ class CocoReaderTest : public ::testing::Test {
     return ids;
   }
 
-  void RunTest(bool ltrb, bool ratio, bool skip_empty) {
-    const auto expected_size = skip_empty ? NonEmptyImages() : SmallCocoSize(); 
-    Pipeline pipe(expected_size, 1, 0);
-
-    pipe.AddOperator(
-      CocoReaderOpSpec()
-      .AddArg("skip_empty", skip_empty)
-      .AddArg("ltrb", ltrb)
-      .AddArg("ratio", ratio),
-      "coco_reader");
-
+  void RunTestForPipeline(
+    Pipeline &pipe, bool ltrb, bool ratio, bool skip_empty, int expected_size) {
     pipe.Build(Outputs());
 
     ASSERT_EQ(pipe.EpochSize()["coco_reader"], expected_size);
@@ -83,6 +87,31 @@ class CocoReaderTest : public ::testing::Test {
     }
 
     CheckInstances(ws, ltrb, ratio, skip_empty, expected_size);
+  }
+
+  void RunTest(bool ltrb, bool ratio, bool skip_empty) {
+    const auto expected_size = skip_empty ? NonEmptyImages() : SmallCocoSize(); 
+    Pipeline pipe(expected_size, 1, 0);
+
+    pipe.AddOperator(
+      CocoReaderOpSpec()
+      .AddArg("skip_empty", skip_empty)
+      .AddArg("ltrb", ltrb)
+      .AddArg("ratio", ratio)
+      .AddArg("dump_meta_files", true)
+      .AddArg("dump_meta_files_path", "/tmp/"),
+      "coco_reader");
+
+    RunTestForPipeline(pipe, ltrb, ratio, skip_empty, expected_size);
+
+    Pipeline meta_pipe(expected_size, 1, 0);
+
+    meta_pipe.AddOperator(
+      BasicCocoReaderOpSpec()
+      .AddArg("meta_files_path", "/tmp/"),
+      "coco_reader");
+
+    RunTestForPipeline(meta_pipe, ltrb, ratio, skip_empty, expected_size);
   }
 
   void CheckInstances(DeviceWorkspace & ws, bool ltrb, bool ratio, bool skip_empty, int expected_size) {
@@ -146,8 +175,6 @@ class CocoReaderTest : public ::testing::Test {
   }
 
   std::string file_list_ = dali::testing::dali_extra_path() + "/db/coco/file_list.txt";
-
- private:
   std::string file_root_ = dali::testing::dali_extra_path() + "/db/coco/images";
   std::string annotations_filename_ = dali::testing::dali_extra_path() + "/db/coco/instances.json";
 
@@ -272,6 +299,37 @@ class CocoReaderTest : public ::testing::Test {
   };
 };
 
+TEST_F(CocoReaderTest, NoDataSource) {
+  Pipeline pipe(1, 1, 0);
+
+  pipe.AddOperator(
+    this->BasicCocoReaderOpSpec());
+
+  EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
+}
+
+TEST_F(CocoReaderTest, TwoDataSources) {
+  Pipeline pipe(1, 1, 0);
+
+  pipe.AddOperator(
+    this->BasicCocoReaderOpSpec()
+    .AddArg("annotations_file", this->annotations_filename_)
+    .AddArg("meta_files_path", "/tmp/"));
+
+  EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
+}
+
+TEST_F(CocoReaderTest, MissingDumpPath) {
+  Pipeline pipe(1, 1, 0);
+
+  pipe.AddOperator(
+    this->BasicCocoReaderOpSpec()
+    .AddArg("annotations_file", this->annotations_filename_)
+    .AddArg("dump_meta_files", true));
+
+  EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
+}
+
 TEST_F(CocoReaderTest, MutuallyExclusiveOptions) {
   Pipeline pipe(1, 1, 0);
 
@@ -290,6 +348,17 @@ TEST_F(CocoReaderTest, MutuallyExclusiveOptions2) {
     this->CocoReaderOpSpec()
     .AddArg("random_shuffle", true)
     .AddArg("shuffle_after_epoch", true));
+
+  EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
+}
+
+TEST_F(CocoReaderTest, MutuallyExclusiveOptions3) {
+  Pipeline pipe(1, 1, 0);
+
+  pipe.AddOperator(
+    this->BasicCocoReaderOpSpec()
+    .AddArg("meta_files_path", "/tmp/")
+    .AddArg("skip_empty", false));
 
   EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
 }
@@ -318,31 +387,31 @@ TEST_F(CocoReaderTest, LtrbRatioSkipEmpty) {
   this->RunTest(true, true, true);
 }
 
-// TEST_F(CocoReaderTest, FileList) {
-//   Pipeline pipe(NonEmptyImages(), 1, 0);
+TEST_F(CocoReaderTest, FileList) {
+  Pipeline pipe(NonEmptyImages(), 1, 0);
 
-//   pipe.AddOperator(
-//     CocoReaderOpSpec()
-//     .AddArg("file_list", file_list_),
-//     "coco_reader");
+  pipe.AddOperator(
+    CocoReaderOpSpec()
+    .AddArg("file_list", file_list_),
+    "coco_reader");
 
-//   pipe.Build(Outputs());
+  pipe.Build(Outputs());
 
-//   ASSERT_EQ(pipe.EpochSize()["coco_reader"], NonEmptyImages());
+  ASSERT_EQ(pipe.EpochSize()["coco_reader"], NonEmptyImages());
 
-//   DeviceWorkspace ws;
-//   pipe.RunCPU();
-//   pipe.RunGPU();
-//   pipe.Outputs(&ws);
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
 
-//   auto ids = CopyIds(ws);
+  auto ids = CopyIds(ws);
 
-//   for (int id = 0; id < NonEmptyImages(); ++id) {
-//     ASSERT_EQ(ids[id], id);
-//   }
+  for (int id = 0; id < NonEmptyImages(); ++id) {
+    ASSERT_EQ(ids[id], id);
+  }
 
-//   CheckInstances(ws, false, false, true, NonEmptyImages());
-// }
+  CheckInstances(ws, false, false, true, NonEmptyImages());
+}
 
 TEST_F(CocoReaderTest, BigSizeThreshold) {
   Pipeline pipe(this->ImagesWithBigObjects(), 1, 0);

@@ -13,18 +13,13 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/reader/coco_reader_op.h"
+#include "dali/pipeline/util/lookahead_parser.h"
 
-#include <rapidjson/reader.h>
-#include <rapidjson/document.h>
 
 #include <map>
 #include <unordered_map>
 #include <iomanip>
 
-RAPIDJSON_DIAG_PUSH
-#ifdef __GNUC__
-RAPIDJSON_DIAG_OFF(effc++)
-#endif
 
 namespace dali {
 DALI_REGISTER_OPERATOR(COCOReader, COCOReader, CPU);
@@ -77,7 +72,7 @@ DALI_SCHEMA(FastCocoReader)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
 and an annotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
 Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
-  .AddOptionalArg("meta_files_path", "Path to directory with boxes and labels meta files",
+  .AddOptionalArg("meta_files_path", "Path to directory with meta files containing preprocessed COCO annotations for faster loading.",
     std::string())
   .AddOptionalArg("annotations_file",
       R"code(List of paths to the JSON annotations files.)code",
@@ -110,75 +105,55 @@ object will be skipped during reading. It is represented as absolute value.)code
       R"code(If true, image IDs will also be returned.)code",
       false)
   .AddOptionalArg("dump_meta_files",
-      R"code(==============.)code",
+      R"code(If true, operator will dump meta files in folder provided with `dump_meta_files_path`.)code",
       false)
-  .AddOptionalArg("dump_meta_files_path", "Path to directory with boxes and labels meta files",
+  .AddOptionalArg("dump_meta_files_path", "Path to directory for saving meta files containing preprocessed COCO annotations for faster loading.",
     std::string())
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
   })
   .AddParent("LoaderBase");
 
-
+namespace detail {
 template<typename T>
-void save_vector_to_file(std::vector<T> &input, std::string path) {
+void dump_meta_file(const std::vector<T> &input, const std::string path) {
   std::ofstream file(path);
   if (file) {
     for (const auto &val : input) {
       file << std::setprecision(9) << val << std::endl;
     }
   } else {
-    DALI_FAIL("TFRecord meta file error: " + path);
+    DALI_FAIL("CocoReader meta file error while saving: " + path);
   }
 }
 
-void FastCocoReader::DumpMetaFiles(std::string path) {
-  save_vector_to_file(
-    offsets_,
-    path + "offsets.txt");
-  save_vector_to_file(
-    boxes_,
-    path + "boxes.txt");
-  save_vector_to_file(
-    labels_,
-    path + "labels.txt");
-  save_vector_to_file(
-    counts_,
-    path + "counts.txt");
-
-  if (save_img_ids_) {
-    save_vector_to_file(
-      original_ids_,
-      path + "original_ids.txt");
+void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) {
+  std::ofstream file(path);
+  if (file) {
+    for (const auto &p : image_id_pairs) {
+      file << p.first << std::endl;
+    }
+  } else {
+    DALI_FAIL("CocoReader meta file error while saving: " + path);
   }
 }
 
-
-std::vector<std::pair<std::string, int>> FastCocoReader::ParseMetafiles(const OpSpec &spec) {
-  const auto meta_files_path = spec.GetArgument<string>("meta_files_path");
-  load_vector_from_file(
-    offsets_,
-    meta_files_path + "offsets.txt");
-  load_vector_from_file(
-    boxes_,
-    meta_files_path + "boxes.txt");
-  load_vector_from_file(
-    labels_,
-    meta_files_path + "labels.txt");
-  load_vector_from_file(
-    counts_,
-    meta_files_path + "counts.txt");
-  
-  if (save_img_ids_) {
-    load_vector_from_file(
-      original_ids_,
-      meta_files_path + "original_ids.txt");
-
+template<typename T>
+void load_meta_file(std::vector<T> &output, const std::string path) {
+  std::ifstream file(path);
+  if (file) {
+    T val;
+    while (file >> val)
+      output.push_back(val);
+  } else {
+    DALI_FAIL("CocoReader meta file error while loading for path: " + path);
   }
+}
 
-  std::vector<std::pair<std::string, int>> image_id_pairs;
+ImageIdPairs load_filenames(const std::string path) {
+  ImageIdPairs image_id_pairs;
   int id = 0;
-  std::ifstream file(meta_files_path + "filenames.txt");
+  std::ifstream file(path);
   if (file) {
     std::string filename;
     while (file >> filename) {
@@ -186,276 +161,101 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseMetafiles(const Op
       ++id;
     }
   } else {
-    DALI_FAIL("TFRecord meta file error: " + meta_files_path + "filenames.txt");
+     DALI_FAIL("CocoReader meta file error while loading for path: " + path);
   }
 
   return image_id_pairs;
 }
+} // namespace detail
 
 
-using rapidjson::SizeType;
-using rapidjson::Value;
-using rapidjson::Reader;
-using rapidjson::InsituStringStream;
-using rapidjson::kParseDefaultFlags;
-using rapidjson::kParseInsituFlag;
-using rapidjson::kArrayType;
+void FastCocoReader::DumpMetaFiles(const std::string path, const ImageIdPairs &image_id_pairs) {
+  detail::dump_meta_file(
+    offsets_,
+    path + "offsets.txt");
+  detail::dump_meta_file(
+    boxes_,
+    path + "boxes.txt");
+  detail::dump_meta_file(
+    labels_,
+    path + "labels.txt");
+  detail::dump_meta_file(
+    counts_,
+    path + "counts.txt");
+  detail::dump_filenames(
+    image_id_pairs,
+    path + "filenames.txt");
+
+  if (save_img_ids_) {
+    detail::dump_meta_file(
+      original_ids_,
+      path + "original_ids.txt");
+  }
+}
+
+ImageIdPairs FastCocoReader::ParseMetafiles(const OpSpec &spec) {
+  const auto meta_files_path = spec.GetArgument<string>("meta_files_path");
+  detail::load_meta_file(
+    offsets_,
+    meta_files_path + "offsets.txt");
+  detail::load_meta_file(
+    boxes_,
+    meta_files_path + "boxes.txt");
+  detail::load_meta_file(
+    labels_,
+    meta_files_path + "labels.txt");
+  detail::load_meta_file(
+    counts_,
+    meta_files_path + "counts.txt");
+  
+  if (save_img_ids_) {
+    detail::load_meta_file(
+      original_ids_,
+      meta_files_path + "original_ids.txt");
+  }
+  return detail::load_filenames(meta_files_path + "filenames.txt");
+}
+
+void FastCocoReader::ValidateOptions(const OpSpec &spec) {
+  DALI_ENFORCE(
+    spec.HasArgument("meta_files_path") || spec.HasArgument("annotations_file"),
+    "`meta_files_path` or `annotations_file` must be provided");
+
+  if (spec.HasArgument("meta_files_path")) {
+    DALI_ENFORCE(
+      !spec.HasArgument("skip_empty"),
+      "When reading data from meta files `skip_empty` is not working.");
+    DALI_ENFORCE(
+      !spec.HasArgument("ratio"),
+      "When reading data from meta files `ratio` is not working.");
+    DALI_ENFORCE(
+      !spec.HasArgument("ltrb"),
+      "When reading data from meta files `ltrb` is not working.");
+    DALI_ENFORCE(
+      !spec.HasArgument("size_threshold"),
+      "When reading data from meta files `size_threshold` is not working.");
+    DALI_ENFORCE(
+      !spec.HasArgument("dump_meta_files"),
+      "When reading data from meta files `dump_meta_files` is not working.");
+    DALI_ENFORCE(
+      !spec.HasArgument("dump_meta_files_path"),
+      "When reading data from meta files `dump_meta_files_path` is not working.");
+    DALI_ENFORCE(
+      !spec.HasArgument("file_list"),
+      "When reading data from meta files `file_list` is not working.");
+  }
+
+  if (spec.HasArgument("dump_meta_files")) {
+    DALI_ENFORCE(
+      spec.HasArgument("dump_meta_files_path"),
+      "When dumping meta files `dump_meta_files_path` must be provided.");
+  }
+
+  DALI_ENFORCE(!skip_cached_images_,
+    "COCOReader doesn't support `skip_cached_images` option");
+}
+
 using rapidjson::kObjectType;
-
-namespace {
-
-// taken from https://github.com/Tencent/rapidjson/blob/master/example/lookaheadparser/lookaheadparser.cpp
-
-class LookaheadParserHandler {
- public:
-  bool Null() { st_ = kHasNull; v_.SetNull(); return true; }
-  bool Bool(bool b) { st_ = kHasBool; v_.SetBool(b); return true; }
-  bool Int(int i) { st_ = kHasNumber; v_.SetInt(i); return true; }
-  bool Uint(unsigned u) { st_ = kHasNumber; v_.SetUint(u); return true; }
-  bool Int64(int64_t i) { st_ = kHasNumber; v_.SetInt64(i); return true; }
-  bool Uint64(uint64_t u) { st_ = kHasNumber; v_.SetUint64(u); return true; }
-  bool Double(double d) { st_ = kHasNumber; v_.SetDouble(d); return true; }
-  bool RawNumber(const char*, SizeType, bool) { return false; }
-  bool String(const char* str, SizeType length, bool) {
-    st_ = kHasString;
-    v_.SetString(str, length);
-    return true;
-  }
-  bool StartObject() { st_ = kEnteringObject; return true; }
-  bool Key(const char* str, SizeType length, bool) {
-    st_ = kHasKey;
-    v_.SetString(str, length);
-    return true;
-  }
-  bool EndObject(SizeType) { st_ = kExitingObject; return true; }
-  bool StartArray() { st_ = kEnteringArray; return true; }
-  bool EndArray(SizeType) { st_ = kExitingArray; return true; }
-
- protected:
-  explicit LookaheadParserHandler(char* str);
-  void ParseNext();
-
- protected:
-  enum LookaheadParsingState {
-    kInit,
-    kError,
-    kHasNull,
-    kHasBool,
-    kHasNumber,
-    kHasString,
-    kHasKey,
-    kEnteringObject,
-    kExitingObject,
-    kEnteringArray,
-    kExitingArray
-  };
-
-  Value v_;
-  LookaheadParsingState st_;
-  Reader r_;
-  InsituStringStream ss_;
-
-  static const int parseFlags = kParseDefaultFlags | kParseInsituFlag;
-};
-
-LookaheadParserHandler::LookaheadParserHandler(char* str) :
-    v_(), st_(kInit), r_(), ss_(str) {
-  r_.IterativeParseInit();
-  ParseNext();
-}
-
-void LookaheadParserHandler::ParseNext() {
-  if (r_.HasParseError()) {
-    st_ = kError;
-    return;
-  }
-
-  r_.IterativeParseNext<parseFlags>(ss_, *this);
-}
-
-class LookaheadParser : protected LookaheadParserHandler {
- public:
-  explicit LookaheadParser(char* str) : LookaheadParserHandler(str) {}
-
-  bool EnterObject();
-  bool EnterArray();
-  const char* NextObjectKey();
-  bool NextArrayValue();
-  int GetInt();
-  double GetDouble();
-  const char* GetString();
-  bool GetBool();
-  void GetNull();
-
-  void SkipObject();
-  void SkipArray();
-  void SkipValue();
-  Value* PeekValue();
-  // returns a rapidjson::Type, or -1 for no value (at end of object/array)
-  int PeekType();
-
-  bool IsValid() { return st_ != kError; }
-
- protected:
-  void SkipOut(int depth);
-};
-
-bool LookaheadParser::EnterObject() {
-  if (st_ != kEnteringObject) {
-    st_  = kError;
-    return false;
-  }
-
-  ParseNext();
-  return true;
-}
-
-bool LookaheadParser::EnterArray() {
-  if (st_ != kEnteringArray) {
-    st_  = kError;
-    return false;
-  }
-
-  ParseNext();
-  return true;
-}
-
-const char* LookaheadParser::NextObjectKey() {
-  if (st_ == kHasKey) {
-    const char* result = v_.GetString();
-    ParseNext();
-    return result;
-  }
-
-  if (st_ != kExitingObject) {
-    st_ = kError;
-    return 0;
-  }
-
-  ParseNext();
-  return 0;
-}
-
-bool LookaheadParser::NextArrayValue() {
-  if (st_ == kExitingArray) {
-    ParseNext();
-    return false;
-  }
-
-  if (st_ == kError || st_ == kExitingObject || st_ == kHasKey) {
-    st_ = kError;
-    return false;
-  }
-
-  return true;
-}
-
-int LookaheadParser::GetInt() {
-  if (st_ != kHasNumber || !v_.IsInt()) {
-    st_ = kError;
-    return 0;
-  }
-
-  int result = v_.GetInt();
-  ParseNext();
-  return result;
-}
-
-double LookaheadParser::GetDouble() {
-  if (st_ != kHasNumber) {
-    st_  = kError;
-    return 0.;
-  }
-
-  double result = v_.GetDouble();
-  ParseNext();
-  return result;
-}
-
-bool LookaheadParser::GetBool() {
-  if (st_ != kHasBool) {
-    st_  = kError;
-    return false;
-  }
-
-  bool result = v_.GetBool();
-  ParseNext();
-  return result;
-}
-
-void LookaheadParser::GetNull() {
-  if (st_ != kHasNull) {
-    st_  = kError;
-    return;
-  }
-
-  ParseNext();
-}
-
-const char* LookaheadParser::GetString() {
-  if (st_ != kHasString) {
-    st_  = kError;
-    return 0;
-  }
-
-  const char* result = v_.GetString();
-  ParseNext();
-  return result;
-}
-
-void LookaheadParser::SkipOut(int depth) {
-  do {
-    if (st_ == kEnteringArray || st_ == kEnteringObject) {
-      ++depth;
-    } else if (st_ == kExitingArray || st_ == kExitingObject) {
-      --depth;
-    } else if (st_ == kError) {
-      return;
-    }
-
-    ParseNext();
-  } while (depth > 0);
-}
-
-void LookaheadParser::SkipValue() {
-  SkipOut(0);
-}
-
-void LookaheadParser::SkipArray() {
-  SkipOut(1);
-}
-
-void LookaheadParser::SkipObject() {
-  SkipOut(1);
-}
-
-Value* LookaheadParser::PeekValue() {
-  if (st_ >= kHasNull && st_ <= kHasKey) {
-    return &v_;
-  }
-
-  return 0;
-}
-
-int LookaheadParser::PeekType() {
-  if (st_ >= kHasNull && st_ <= kHasKey) {
-    return v_.GetType();
-  }
-
-  if (st_ == kEnteringArray) {
-    return kArrayType;
-  }
-
-  if (st_ == kEnteringObject) {
-    return kObjectType;
-  }
-
-  return -1;
-}
-
-}  // namespace
-
-
 
 std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(const OpSpec &spec) {
   std::vector<std::pair<std::string, int>> image_id_pairs;
@@ -475,7 +275,7 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   f.seekg(0, std::ios::beg);
   f.read(buff.get(), file_size);
 
-  LookaheadParser r(buff.get());
+  detail::LookaheadParser r(buff.get());
 
   // mapping each image_id to its WH dimension
   std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
@@ -490,7 +290,6 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
 
 
   if (parse_file_list) {
-    std::cout << "Parsing file list...\n";
     std::ifstream file(file_list);
     if (file) {
       std::string filename;
@@ -665,19 +464,11 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
     original_ids_ = original_ids_2;
   }
 
-  if (spec.HasArgument("dump_meta_files")) {
-      std::ofstream file(spec.GetArgument<string>("dump_meta_files_path") + "filenames.txt");
-      if (file) {
-        for (const auto &p : image_id_pairs) {
-          file << p.first << std::endl;
-        }
-      } else {
-        DALI_FAIL("TFRecord meta file errames.txt");
-      }
-
-      file.close();
+  if (spec.GetArgument<bool>("dump_meta_files")) {
+    DumpMetaFiles(
+      spec.GetArgument<std::string>("dump_meta_files_path"),
+      image_id_pairs);
   }
-
 
   return image_id_pairs;
 }
