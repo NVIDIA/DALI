@@ -37,7 +37,7 @@ class Slice : public SliceBase<Backend> {
   using SliceBase<Backend>::slice_anchors_;
   using SliceBase<Backend>::slice_shapes_;
 
-  void RunImpl(Workspace<Backend> *ws, int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override {
     DALI_ENFORCE(ws->NumInput() == 3,
@@ -45,7 +45,7 @@ class Slice : public SliceBase<Backend> {
     SliceBase<Backend>::SetupSharedSampleParams(ws);
   }
 
-  void DataDependentSetup(Workspace<Backend> *ws, int idx) override;
+  void DataDependentSetup(Workspace<Backend> *ws) override;
 
   void SetupSample(int data_idx,
                    DALITensorLayout layout,
@@ -112,6 +112,10 @@ class Slice : public SliceBase<Backend> {
       }
     }
   }
+ private:
+  static const int kImagesInId = 0;
+  static const int kAnchorsInId = 1;
+  static const int kSliceShapesInId = 2;
 };
 
 }  // namespace dali

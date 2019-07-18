@@ -30,7 +30,7 @@ class DummyOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 
  protected:
-  void RunImpl(Workspace<Backend> *, const int) override {
+  void RunImpl(Workspace<Backend> *) override {
     DALI_FAIL("I'm a dummy op don't run me");
   }
 };

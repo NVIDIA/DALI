@@ -110,7 +110,7 @@ void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
 }
 
 template <>
-void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
+void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
   const auto &boxes_tensor = ws->Input<CPUBackend>(0);
 
   BoundingBoxes bounding_boxes;

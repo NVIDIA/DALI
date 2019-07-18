@@ -36,7 +36,7 @@ class DumpImage : public Operator<Backend> {
   inline ~DumpImage() override = default;
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   const string suffix_;
 };

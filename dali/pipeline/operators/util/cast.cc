@@ -18,9 +18,9 @@
 namespace dali {
 
 template<>
-void Cast<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
-  auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
+void Cast<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+  auto &input = ws->Input<CPUBackend>(0);
+  auto &output = ws->Output<CPUBackend>(0);
 
   DALIDataType itype = input.type().id();
 

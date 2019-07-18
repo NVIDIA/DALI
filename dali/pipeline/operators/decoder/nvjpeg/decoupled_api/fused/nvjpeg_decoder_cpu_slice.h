@@ -32,9 +32,9 @@ class nvJPEGDecoderCPUStageSlice : public nvJPEGDecoderCPUStage, public SliceAtt
 
  protected:
   using Operator<CPUBackend>::RunImpl;
-  void RunImpl(SampleWorkspace *ws, int idx) override {
+  void RunImpl(SampleWorkspace *ws) override {
     SliceAttr::ProcessArguments(ws);
-    nvJPEGDecoderCPUStage::RunImpl(ws, idx);
+    nvJPEGDecoderCPUStage::RunImpl(ws);
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {

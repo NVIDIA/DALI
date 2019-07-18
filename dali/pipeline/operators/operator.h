@@ -151,7 +151,6 @@ class DLL_PUBLIC OperatorBase {
   int num_threads_;
   int batch_size_;
   int default_cuda_stream_priority_;
-  static const int input_sets_ = 1;
 };
 
 #define USE_OPERATOR_MEMBERS()                       \
@@ -184,16 +183,14 @@ class Operator<SupportBackend> : public OperatorBase {
   void Run(SupportWorkspace *ws) override {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
-    for (int i = 0; i < input_sets_; ++i) {
-      RunImpl(ws, i);
-    }
+    RunImpl(ws);
   }
 
   /**
    * @brief Implementation of the operator - to be
    * implemented by derived ops.
    */
-  virtual void RunImpl(SupportWorkspace *ws, int idx = 0) = 0;
+  virtual void RunImpl(SupportWorkspace *ws) = 0;
 
   /**
    * @brief Shared param setup
@@ -213,10 +210,7 @@ class Operator<CPUBackend> : public OperatorBase {
   void Run(HostWorkspace *ws) override {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
-    for (int i = 0; i < input_sets_; ++i) {
-      RunImpl(ws, i);
-    }
-
+    RunImpl(ws);
     ws->GetThreadPool().WaitForWork();
   }
 
@@ -226,22 +220,22 @@ class Operator<CPUBackend> : public OperatorBase {
    * Usage of this API is deprecated. For CPU Ops `void RunImpl(HostWorkspace *ws, int idx)`
    * should be overrided instead.
    */
-  virtual void RunImpl(SampleWorkspace *ws, int idx = 0) {}
+  virtual void RunImpl(SampleWorkspace *ws) {}
 
   /**
    * @brief Implementation of the operator - to be implemented by derived ops.
    */
-  virtual void RunImpl(HostWorkspace *ws, int idx = 0) {
+  virtual void RunImpl(HostWorkspace *ws) {
     // This is implemented, as a default, using the RunImpl that accepts SampleWorkspace,
     // allowing for fallback to old per-sample implementations.
 
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
       auto &thread_pool = ws->GetThreadPool();
-      thread_pool.DoWorkWithID([this, ws, data_idx, idx](int tid) {
+      thread_pool.DoWorkWithID([this, ws, data_idx](int tid) {
         SampleWorkspace sample;
         ws->GetSample(&sample, data_idx, tid);
         this->SetupSharedSampleParams(&sample);
-        this->RunImpl(&sample, idx);
+        this->RunImpl(&sample);
       });
     }
   }
@@ -271,23 +265,14 @@ class Operator<GPUBackend> : public OperatorBase {
   void Run(DeviceWorkspace *ws) override {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
-    for (int i = 0; i < input_sets_; ++i) {
-      // Before we start working on the next input set, we need
-      // to wait until the last one is finished. Otherwise for some ops
-      // we risk overwriting data used by the kernel called for previous
-      // image. Doing it for all ops is a compromise between performance
-      // (which should not be greatly affected) and robustness (guarding
-      // against this potential problem for newly added ops)
-      SyncHelper(i, ws);
-      RunImpl(ws, i);
-    }
+    RunImpl(ws);
   }
 
   /**
    * @brief Implementation of the operator - to be
    * implemented by derived ops.
    */
-  virtual void RunImpl(DeviceWorkspace *ws, int idx = 0) = 0;
+  virtual void RunImpl(DeviceWorkspace *ws) = 0;
 
   /**
    * @brief Shared param setup
@@ -328,20 +313,6 @@ DALI_DECLARE_OPTYPE_REGISTRY(SupportOperator, OperatorBase);
     DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();               \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,                 \
       device##Operator, ::dali::OperatorBase, #device)
-
-class ResizeParamDescr;
-
-void DataDependentSetupCPU(const Tensor<CPUBackend> &input, Tensor<CPUBackend> &output,
-                           const char *pOpName = NULL,
-                           const uint8 **pInRaster = NULL, uint8 **ppOutRaster = NULL,
-                           vector<DALISize> *pSizes = NULL, const DALISize *out_size = NULL);
-bool DataDependentSetupGPU(const TensorList<GPUBackend> &input, TensorList<GPUBackend> &output,
-                           size_t batch_size, bool reshapeBatch = false,
-                           vector<const uint8 *> *iPtrs = NULL, vector<uint8 *> *oPtrs = NULL,
-                           vector<DALISize> *pSizes = NULL, ResizeParamDescr *pResizeParam = NULL);
-void CollectPointersForExecution(size_t batch_size,
-                                 const TensorList<GPUBackend> &input, vector<const uint8 *> *inPtrs,
-                                 TensorList<GPUBackend> &output, vector<uint8 *> *outPtrs);
 
 DLL_PUBLIC std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec);
 

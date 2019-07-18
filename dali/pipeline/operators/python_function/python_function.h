@@ -30,7 +30,7 @@ class PythonFunctionImpl : public Operator<Backend> {
         reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {}
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;

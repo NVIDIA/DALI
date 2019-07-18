@@ -46,7 +46,7 @@ class Transpose : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Transpose);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
  private:
   std::vector<int> perm_;

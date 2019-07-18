@@ -18,7 +18,7 @@
 
 namespace dali {
 
-void SequenceReader::RunImpl(SampleWorkspace* ws, const int i) {
+void SequenceReader::RunImpl(SampleWorkspace* ws) {
   parser_->Parse(GetSample(ws->data_idx()), ws);
 }
 

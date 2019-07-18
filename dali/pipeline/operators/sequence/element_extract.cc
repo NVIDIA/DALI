@@ -34,8 +34,8 @@ DALI_SCHEMA(ElementExtract)
         });
 
 template <>
-void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-    const auto &input = ws->Input<CPUBackend>(idx);
+void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+    const auto &input = ws->Input<CPUBackend>(0);
     auto element_layout = GetElementLayout(input.GetLayout());
 
     auto shape = input.shape();
@@ -44,7 +44,7 @@ void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
     auto element_size = volume(output_shape);
 
     auto elements_per_sample = element_map_.size();
-    auto output_offset = idx * elements_per_sample;
+    auto output_offset = 0;
 
     TypeInfo type = input.type();
     for (std::size_t k = 0; k < elements_per_sample; k++) {

@@ -53,11 +53,11 @@ class Paste : public Operator<Backend> {
   virtual inline ~Paste() = default;
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
-  void SetupSampleParams(Workspace<Backend> *ws, const int idx);
+  void SetupSampleParams(Workspace<Backend> *ws);
 
   void RunHelper(Workspace<Backend> *ws);
 

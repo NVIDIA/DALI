@@ -38,10 +38,10 @@ DALI_SCHEMA(Slice)
     .AddParent("SliceBase");
 
 template <>
-void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, int idx) {
-  const auto &images = ws->Input<CPUBackend>(3 * idx);
-  const auto &anchor_tensor = ws->Input<CPUBackend>(3 * idx + 1);
-  const auto &slice_shape_tensor = ws->Input<CPUBackend>(3 * idx + 2);
+void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
+  const auto &images = ws->Input<CPUBackend>(kImagesInId);
+  const auto &anchor_tensor = ws->Input<CPUBackend>(kAnchorsInId);
+  const auto &slice_shape_tensor = ws->Input<CPUBackend>(kSliceShapesInId);
   const auto img_shape = images.shape();
   const auto args_ndim = anchor_tensor.shape()[0];
   const float* anchor_norm = anchor_tensor.template data<float>();
@@ -51,8 +51,8 @@ void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, int idx) {
 }
 
 template <>
-void Slice<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
-  SliceBase<CPUBackend>::RunImpl(ws, idx);
+void Slice<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+  SliceBase<CPUBackend>::RunImpl(ws);
 }
 
 DALI_REGISTER_OPERATOR(Slice, Slice<CPUBackend>, CPU);

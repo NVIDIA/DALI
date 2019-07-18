@@ -56,7 +56,7 @@ constexpr int kNInputDims = 4;
 
 
 template<>
-void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
+void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
   if (enable_external_hints_) {
     // Fetch data
     // Input is a TensorList, where every Tensor is a sequence

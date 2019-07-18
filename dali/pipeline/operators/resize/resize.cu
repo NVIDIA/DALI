@@ -56,9 +56,9 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
 }
 
 template<>
-void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<GPUBackend>(idx);
-  auto &output = ws->Output<GPUBackend>(outputs_per_idx_ * idx);
+void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+  const auto &input = ws->Input<GPUBackend>(0);
+  auto &output = ws->Output<GPUBackend>(0);
 
   RunGPU(output, input, ws->stream());
 
@@ -80,7 +80,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
       t[0] = sample_shape[0];
       t[1] = sample_shape[1];
     }
-    ws->Output<GPUBackend>(outputs_per_idx_ * idx + 1).Copy(attr_output_cpu, ws->stream());
+    ws->Output<GPUBackend>(1).Copy(attr_output_cpu, ws->stream());
   }
 }
 

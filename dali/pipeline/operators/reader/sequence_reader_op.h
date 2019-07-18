@@ -28,7 +28,7 @@ class SequenceReader : public DataReader<CPUBackend, TensorSequence> {
     parser_.reset(new SequenceParser(spec));
   }
 
-  void RunImpl(SampleWorkspace* ws, const int i) override;
+  void RunImpl(SampleWorkspace* ws) override;
 
  protected:
   USE_READER_OPERATOR_MEMBERS(CPUBackend, TensorSequence);

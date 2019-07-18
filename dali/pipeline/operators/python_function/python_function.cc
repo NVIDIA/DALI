@@ -68,10 +68,10 @@ void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, py::array &array) {
       buffer_info.strides, shape, buffer_info.itemsize);
 }
 
-py::list PrepareInputList(SampleWorkspace *ws, int idx) {
+py::list PrepareInputList(SampleWorkspace *ws) {
   py::list args_list;
   for (int i = 0; i < ws->NumInput(); ++i) {
-    auto &input = ws->Input<CPUBackend>(ws->NumInput() * idx + i);
+    auto &input = ws->Input<CPUBackend>(i);
     py::dtype dtype(FormatStrFromType(input.type()));
     auto input_array = py::array(dtype, input.shape(), input.raw_data(), py::array());
     args_list.append(input_array);
@@ -79,9 +79,9 @@ py::list PrepareInputList(SampleWorkspace *ws, int idx) {
   return args_list;
 }
 
-void CopyOutputs(SampleWorkspace *ws, int idx, const py::tuple &output) {
+void CopyOutputs(SampleWorkspace *ws, const py::tuple &output) {
   for (int i = 0; i < ws->NumOutput(); ++i) {
-    auto &output_tensor = ws->Output<CPUBackend>(ws->NumInput() * idx + i);
+    auto &output_tensor = ws->Output<CPUBackend>(i);
     auto output_array = py::cast<py::array>(output[i]);
     CopyNumpyArrayToTensor(output_tensor, output_array);
   }
@@ -105,7 +105,7 @@ void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx)
     DALI_ENFORCE(output.size() == static_cast<size_t>(ws->NumOutput()),
                  "Python function returned " + std::to_string(output.size()) + " outputs and "
                      + std::to_string(ws->NumOutput()) + " were expected.");
-    CopyOutputs(ws, idx, output);
+    CopyOutputs(ws, output);
   } else {
     DALI_ENFORCE(ws->NumOutput() == 0, "Python function returned 0 outputs and "
         + std::to_string(ws->NumOutput()) + " were expected.");

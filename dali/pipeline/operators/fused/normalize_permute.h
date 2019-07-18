@@ -59,13 +59,13 @@ class NormalizePermute : public Operator<Backend> {
   inline ~NormalizePermute() override = default;
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   template <typename OUT>
   void CPURunHelper(const Tensor<CPUBackend> &input, Tensor<CPUBackend> &output);
 
   template <typename OUT>
-  void GPURunHelper(DeviceWorkspace *ws, const int idx);
+  void GPURunHelper(DeviceWorkspace *ws);
 
   Tensor<Backend> mean_, inv_std_;
   DALIDataType output_type_;

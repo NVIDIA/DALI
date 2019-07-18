@@ -119,20 +119,20 @@ void RunHelper(Tensor<CPUBackend> &output,
 }  // namespace detail
 
 template <>
-void CropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<CPUBackend>(idx);
+void CropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
+  const auto &input = ws->Input<CPUBackend>(0);
   SetupSample(ws->data_idx(), input_layout_, input.shape());
   mirror_[ws->data_idx()] = spec_.GetArgument<int>("mirror", ws, ws->data_idx());
 
-  auto &output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(0);
   output.SetLayout(output_layout_);
 }
 
 template <>
-void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  this->DataDependentSetup(ws, idx);
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
+void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+  this->DataDependentSetup(ws);
+  const auto &input = ws->Input<CPUBackend>(0);
+  auto &output = ws->Output<CPUBackend>(0);
   auto data_idx = ws->data_idx();
 
   DALI_TYPE_SWITCH_WITH_FP16_CPU(input_type_, InputType,

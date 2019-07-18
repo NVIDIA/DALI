@@ -72,10 +72,10 @@ void RunHelper(TensorList<GPUBackend>& output,
 
 
 template <>
-void SliceBase<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  this->DataDependentSetup(ws, idx);
-  const auto &input = ws->Input<GPUBackend>(idx);
-  auto &output = ws->Output<GPUBackend>(idx);
+void SliceBase<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+  this->DataDependentSetup(ws);
+  const auto &input = ws->Input<GPUBackend>(0);
+  auto &output = ws->Output<GPUBackend>(0);
 
   DALI_TYPE_SWITCH_WITH_FP16_GPU(input_type_, InputType,
     DALI_TYPE_SWITCH_WITH_FP16_GPU(output_type_, OutputType,

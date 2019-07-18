@@ -86,10 +86,10 @@ void Resize<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
 }
 
 template <>
-void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws) {
   const int thread_idx = ws->thread_idx();
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(outputs_per_idx_ * idx);
+  const auto &input = ws->Input<CPUBackend>(0);
+  auto &output = ws->Output<CPUBackend>(0);
 
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
   DALI_ENFORCE(input.ndim() == 3, "Resize expects 3-dimensional tensor input.");
@@ -101,7 +101,7 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   RunCPU(output, input, thread_idx);
 
   if (save_attrs_) {
-    auto &attr_output = ws->Output<CPUBackend>(outputs_per_idx_ * idx + 1);
+    auto &attr_output = ws->Output<CPUBackend>(1);
     auto &in_shape = input.shape();
 
     attr_output.Resize({2});
