@@ -515,6 +515,7 @@ struct TensorListShapeBase {
   void set_tensor_shape(int64_t sample, const SampleShape &sample_shape) {
     detail::check_compatible_ndim<sample_ndim, compile_time_size<SampleShape>::value>();
     assert(static_cast<int>(dali::size(sample_shape)) == static_cast<int>(sample_dim()));
+    assert(sample >= 0 && sample < nsamples && "Sample index out of range");
     int64_t base = sample_dim() * sample;
     for (int i = 0; i < sample_dim(); i++) {
       shapes[base + i] = sample_shape[i];

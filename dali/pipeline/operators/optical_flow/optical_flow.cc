@@ -73,7 +73,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     kernels::TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
     for (int i = 0; i < nsequences_; i++) {
       auto shape = kernels::shape_cat(sequence_sizes_[i] - 1, out_shape);
-      new_sizes.set_tensor_shape(1, shape);
+      new_sizes.set_tensor_shape(i, shape);
     }
     output.Resize(new_sizes);
 
@@ -114,7 +114,7 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int) {
     kernels::TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
     for (int i = 0; i < nsequences_; i++) {
       auto shape = kernels::shape_cat(sequence_sizes_[i] - 1, out_shape);
-      new_sizes.set_tensor_shape(1, shape);
+      new_sizes.set_tensor_shape(i, shape);
     }
     output.Resize(new_sizes);
 
