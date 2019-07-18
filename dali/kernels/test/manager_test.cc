@@ -101,10 +101,13 @@ TEST(KernelManager, GetScratchpadAllocator) {
   EXPECT_EQ(&a0, &a2);
 }
 
-TEST(KernelManager, CreateOrGet) {
+TEST(KernelManager, CreateOrGet_Get) {
   KernelManager mgr;
   mgr.Initialize(1, 1);
-  mgr.CreateOrGet<TestKernel>(0);
+  auto &k1 = mgr.CreateOrGet<TestKernel>(0);
+  auto &k2 = mgr.Get<TestKernel>(0);
+  EXPECT_EQ(&k1, &k2);
+  EXPECT_THROW(mgr.Get<int>(0), std::logic_error);
   OutListGPU<float, 3> in, out;
   in.resize(2);
   in.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};

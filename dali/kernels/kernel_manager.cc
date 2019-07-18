@@ -31,26 +31,14 @@ void KernelManager::Reset() {
 void KernelManager::ReserveScratchpad(
     ScratchpadAllocator &sa,
     const ScratchSizes &sizes) {
-  size_t N = ScratchpadAllocator::NumAllocTypes;
-
-  // is scratchpad big enough?
-  auto is_big_enough = [&]() {
-    auto caps = sa.Capacities();
-    for (size_t i = 0; i < caps.size(); i++)
-      if (caps[i] < sizes[i])
-        return false;
-    return true;
-  };
-  // if the scratchpad happens to be big enough, then just return
-  if (is_big_enough())
-    return;
+  auto caps = sa.Capacities();
 
   for (size_t i = 0; i < sizes.size(); i++) {
     if (sizes[i] > max_scratch_sizes[i])
       max_scratch_sizes[i] = sizes[i];
+    if (sizes[i] > caps[i])
+      sa.Reserve(static_cast<AllocType>(i), max_scratch_sizes[i]);
   }
-
-  sa.Reserve(max_scratch_sizes);
 }
 
 

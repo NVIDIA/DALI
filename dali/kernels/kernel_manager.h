@@ -70,6 +70,8 @@ struct AnyKernelInstance {
 /// explicitly by the caller.
 class DLL_PUBLIC KernelManager {
  public:
+  using ScratchSizes = std::array<size_t, ScratchpadAllocator::NumAllocTypes>;
+
   /// @brief Creates `num_threads` scratcapads and `num_instances` slots for kernels
   ///
   /// @param num_threads -    number of threads that can concurrently use the kernels in the
@@ -93,7 +95,7 @@ class DLL_PUBLIC KernelManager {
   void Initialize(size_t num_threads, size_t num_instances, const Args&... args) {
     Initialize(num_threads, num_instances);
     for (size_t i = 0; i < num_instances; i++)
-      instances[i].create_or_get<Kernel>(args...);
+      CreateOrGet<Kernel>(i, args...);
   }
 
   /// @brief Clears kernel instances and scratchpads
@@ -105,18 +107,29 @@ class DLL_PUBLIC KernelManager {
     return instances[instance_idx].create_or_get<Kernel>(std::forward<ConstructorArgs>(args)...);
   }
 
+
+  /// @brief Gets or a Kernel instance
+  ///
+  /// If there's no instance for a given index of the type is different,
+  /// `std::logic_error` is thrown.
+  /// @return A reference to a kernel instance at given index
+  template <typename Kernel>
+  Kernel &Get(int instance_idx) {
+    return instances[instance_idx].get<Kernel>();
+  }
+
   /// @brief Gets a reference to an internally maintained copy of KernelRequirements
-  KernelRequirements &GetRequirements(int index) {
+  KernelRequirements &GetRequirements(int index) noexcept {
     return instances[index].requirements;
   }
 
   /// @brief Gets a const-reference to an internally maintained copy of KernelRequirements
-  const KernelRequirements &GetRequirements(int index) const {
+  const KernelRequirements &GetRequirements(int index) const noexcept {
     return instances[index].requirements;
   }
 
-  size_t NumInstances() const { return instances.size(); }
-  size_t NumThreads() const { return scratchpads.size(); }
+  size_t NumInstances() const noexcept { return instances.size(); }
+  size_t NumThreads() const noexcept { return scratchpads.size(); }
 
   /// @brief Gets a scratchpad allocator assigned to a given thread.
   ScratchpadAllocator &GetScratchpadAllocator(int thread_idx) {
@@ -155,20 +168,51 @@ class DLL_PUBLIC KernelManager {
   template <typename Kernel, typename... OutInArgs>
   void Run(int thread_idx, int instance_idx, KernelContext &context, OutInArgs &&...out_in_args) {
     assert(static_cast<size_t>(thread_idx) < scratchpads.size());
+    auto &sa = GetScratchpadAllocator(thread_idx);
+    Run<Kernel>(sa, instance_idx, context, std::forward<OutInArgs>(out_in_args)...);
+  }
+
+  /// @brief Calls Run on specified kernel instance using Scratchpad for given thread.
+  ///
+  /// @param sa             - scratchpad allocator; memory will be reserved in it to satisfy
+  ///                         instance's requirements
+  /// @param instance_idx   - kernel instance index; typically corresponds
+  ///                         to sample index (for per-sample kernels) or minibatch index
+  /// @param context        - context for the kernel
+  ///                         * should contain valid CUDA stream for GPU kernels;
+  ///                         * scratchpad pointer is overriden with a scratchpad
+  ///                           created from `sa`
+  /// @param out_in_args    - pack of arguments (outputs, inputs, arguments) used in Kernel::Run
+  template <typename Kernel, typename... OutInArgs>
+  void Run(ScratchpadAllocator &sa,
+           int instance_idx,
+           KernelContext &context,
+           OutInArgs &&...out_in_args) {
+    assert(instance_idx >= 0 &&
+           static_cast<size_t>(instance_idx) < NumInstances() &&
+           "Kernel instance index (instance_idx) out of range");
     auto &inst = instances[instance_idx];
-    auto &alloc = GetScratchpadAllocator(thread_idx);
-    ReserveScratchpad(alloc, inst.requirements.scratch_sizes);
-    auto scratchpad = alloc.GetScratchpad();
+    ReserveScratchpad(sa, inst.requirements.scratch_sizes);
+    auto scratchpad = sa.GetScratchpad();
     auto *old_scratchpad = context.scratchpad;
     context.scratchpad = &scratchpad;
     inst.get<Kernel>().Run(context, std::forward<OutInArgs>(out_in_args)...);
     context.scratchpad = old_scratchpad;
   }
 
-  /// @brief Reserves `bytes` of memory in all scratchpads for given allocation type.
-  void ReserveScratchMem(AllocType type, size_t bytes) {
-    for (auto &sa : scratchpads)
-      sa.Reserve(type, bytes);
+  /// @brief Makes sure ScratchpadAllocator can accommodate `sizes`
+  ///
+  /// @param sa     - scratchpad allocator to reserve
+  /// @param sizes  - requested minimum size
+  ///
+  /// The manager maintains a lifetime maximum of sizes requested.
+  /// If reallocation is necessary, it allocates `sizes` or that maximum
+  /// whichever is larger.
+  void ReserveScratchpad(ScratchpadAllocator &sa, const ScratchSizes &sizes);
+
+  /// @brief Calls ReserveScratchpad on ScratchpadAllocator associated with given thread_idx
+  inline void ReserveScratchpad(int thread_idx, const ScratchSizes &sizes) {
+    ReserveScratchpad(GetScratchpadAllocator(thread_idx), sizes);
   }
 
   /// @brief Sets a memory size hint for allocating scratchpad memory
@@ -182,9 +226,6 @@ class DLL_PUBLIC KernelManager {
   }
 
  private:
-  using ScratchSizes = std::array<size_t, ScratchpadAllocator::NumAllocTypes>;
-  void ReserveScratchpad(ScratchpadAllocator &sa, const ScratchSizes &sizes);
-
   SmallVector<AnyKernelInstance, 1> instances;
   SmallVector<ScratchpadAllocator, 1> scratchpads;
   ScratchSizes max_scratch_sizes{};
