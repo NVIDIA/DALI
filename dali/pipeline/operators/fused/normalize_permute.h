@@ -32,6 +32,11 @@ class NormalizePermute : public Operator<Backend> {
     H_(spec.GetArgument<int>("height")),
     W_(spec.GetArgument<int>("width")),
     C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
+    DALI_WARN("Warning: NormalizePermute is deprecated. Use CropMirrorNormalize (without crop and "
+              "mirror arguments) instead, which implements a faster algorithm and does not "
+              " require height and width arguments.\n"
+              "NormalizePermute will be removed in DALI v0.13.");
+
     DALI_ENFORCE(H_ > 0);
     DALI_ENFORCE(W_ > 0);
     DALI_ENFORCE(C_ == 3 || C_ == 1);
