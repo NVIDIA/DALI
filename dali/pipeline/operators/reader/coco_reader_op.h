@@ -65,8 +65,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
 class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
-  explicit FastCocoReader(const OpSpec& spec)
-: DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+  explicit FastCocoReader(const OpSpec& spec): DataReader<CPUBackend, ImageLabelWrapper>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     save_img_ids_ = spec.GetArgument<bool>("save_img_ids");
 

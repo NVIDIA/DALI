@@ -145,6 +145,12 @@ void FastCocoReader::DumpMetaFiles(std::string path) {
   save_vector_to_file(
     counts_,
     path + "counts.txt");
+
+  if (save_img_ids_) {
+    save_vector_to_file(
+      original_ids_,
+      path + "original_ids.txt");
+  }
 }
 
 
@@ -162,6 +168,13 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseMetafiles(const Op
   load_vector_from_file(
     counts_,
     meta_files_path + "counts.txt");
+  
+  if (save_img_ids_) {
+    load_vector_from_file(
+      original_ids_,
+      meta_files_path + "original_ids.txt");
+
+  }
 
   std::vector<std::pair<std::string, int>> image_id_pairs;
   int id = 0;
@@ -596,6 +609,7 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   // ==============================================
   int total_count = 0;
   std::vector<std::pair<std::string, int>> image_id_pairs_2;
+  std::vector<int> original_ids_2;
   int non_empty_id = 0;
 
   for (int i = 0; i < image_id_pairs.size(); ++i) {
@@ -637,6 +651,8 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
         offsets_.push_back(total_count);
         counts_.push_back(labels_map[id].size());
         total_count += labels_map[id].size();
+        if (save_img_ids_)
+          original_ids_2.push_back(id);
         image_id_pairs_2.push_back(std::make_pair(image_id_pairs[i].first, non_empty_id));
         non_empty_id++;
       }
@@ -646,6 +662,7 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
 
   if (skip_empty) {
     image_id_pairs = image_id_pairs_2;
+    original_ids_ = original_ids_2;
   }
 
   if (spec.HasArgument("dump_meta_files")) {

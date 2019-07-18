@@ -26,7 +26,7 @@ class CocoReaderTest : public ::testing::Test {
   }
 
   OpSpec CocoReaderOpSpec() {
-    return OpSpec("COCOReader")
+    return OpSpec("FastCocoReader")
           .AddArg("device", "cpu")
           .AddArg("file_root", file_root_)
           .AddArg("annotations_file", annotations_filename_)
@@ -149,8 +149,7 @@ class CocoReaderTest : public ::testing::Test {
 
  private:
   std::string file_root_ = dali::testing::dali_extra_path() + "/db/coco/images";
-  std::vector<std::string> annotations_filename_ =
-    { dali::testing::dali_extra_path() + "/db/coco/instances.json" };
+  std::string annotations_filename_ = dali::testing::dali_extra_path() + "/db/coco/instances.json";
 
   const int bbox_size = 4;
 
