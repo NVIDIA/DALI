@@ -21,7 +21,6 @@ namespace dali {
 DALI_SCHEMA(PythonFunctionImpl)
         .DocStr(R"code(This is an auxiliary operator. Use PythonFunction instead.)code")
         .NumInput(0, 256)
-        .AllowMultipleInputSets()
         .AddArg("function_id", R"code(Id of the python function)code", DALI_INT64)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
         .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
@@ -31,7 +30,6 @@ DALI_SCHEMA(PythonFunctionImpl)
 DALI_SCHEMA(PythonFunction)
         .DocStr("Executes a python function")
         .NumInput(0, 256)
-        .AllowMultipleInputSets()
         .AddArg("function",
                 R"code(Function object consuming and producing numpy arrays.)code",
                 DALI_PYTHON_OBJECT)
@@ -41,7 +39,6 @@ DALI_SCHEMA(PythonFunction)
 DALI_SCHEMA(TorchPythonFunction)
         .DocStr("Executes a function operating on Torch tensors")
         .NumInput(0, 256)
-        .AllowMultipleInputSets()
         .AddArg("function",
                 R"code(Function object consuming and producing Torch tensors.)code",
                 DALI_PYTHON_OBJECT)

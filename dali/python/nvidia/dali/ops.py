@@ -126,29 +126,11 @@ class _OperatorInstance(object):
                     self._spec.AddInput(inp.name, inp.device)
             elif isinstance(inputs[0], list):
                 length = len(inputs[0])
-                for i in range(length):
-                    for inp in inputs:
-                        if not isinstance(inp, list):
-                            raise TypeError(
-                                ("Expected inputs of type list of " +
-                                "EdgeReference. Received " +
-                                "input type {}.")
-                                .format(type(inp).__name__))
-                        if len(inp) != length:
-                            raise RuntimeError(
-                                    ("Expected input lists " +
-                                    "to have the same length " +
-                                    "({}). Received list of " +
-                                    "length {}.")
-                                    .format(length, len(inp)))
-                        if not isinstance(inp[i], EdgeReference):
-                            raise TypeError(
-                                ("Expected inputs of type " +
-                                "EdgeReference. Received " +
-                                "input type {}.")
-                                .format(type(inp[i]).__name__))
-                        self._spec.AddInput(inp[i].name, inp[i].device)
-                self._spec.AddArg("num_input_sets", length)
+                raise TypeError("Expected inputs of type EdgeReference but received a list. " +
+                                 "Multiple Input sets are not supported. " +
+                                 "If you want to use the same Operator on different inputs " +
+                                 "you need to create several instances of that Operator " +
+                                 "using the same arguments.")
             else:
                 raise TypeError(
                     ("Expected inputs of type EdgeReference or list of " +

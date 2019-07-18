@@ -76,7 +76,6 @@ instead, which implements a faster algorithm and does not require height and wid
 )code")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .Deprecate("CropMirrorNormalize")
   .AddOptionalArg("output_dtype",
       R"code(Output data type.)code", DALI_FLOAT)

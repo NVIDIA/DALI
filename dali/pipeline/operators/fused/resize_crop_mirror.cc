@@ -32,7 +32,6 @@ DALI_SCHEMA(ResizeCropMirror)
           " and random resizing and cropping.")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AddOptionalArg("interp_type",  // TODO(michalz): Replace with ResamplingFilterAttr when ready
       R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR)  .AddParent("Crop")
@@ -48,7 +47,6 @@ DALI_SCHEMA(FastResizeCropMirror)
       "through the resize operation to reduce the amount of work performed.")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AddParent("ResizeCropMirror")
   .EnforceInputLayout(DALI_NHWC);
 

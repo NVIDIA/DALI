@@ -26,7 +26,6 @@ DALI_SCHEMA(Crop)
     .DocStr(R"code(Crops image with a given window dimensions and window position (upper left corner).)code")
     .NumInput(1)
     .NumOutput(1)
-    .AllowMultipleInputSets()
     .AllowSequences()
     .AddOptionalArg(
         "image_type",

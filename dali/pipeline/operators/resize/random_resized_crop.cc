@@ -28,7 +28,6 @@ DALI_SCHEMA(RandomResizedCrop)
 " in HWC layout (height, width, channels)")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AddArg("size",
       R"code(Size of resized image.)code",
       DALI_INT_VEC)

@@ -21,7 +21,6 @@ DALI_SCHEMA(Paste)
 The canvas size is equal to `input size * ratio`.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AddArg("ratio",
       R"code(Ratio of canvas size to input size, must be > 1.)code",
       DALI_FLOAT, true)

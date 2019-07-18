@@ -32,7 +32,6 @@ normalization only.
 )code")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AllowSequences()
   .AddOptionalArg("output_dtype",
     R"code(Output data type.)code", DALI_FLOAT)

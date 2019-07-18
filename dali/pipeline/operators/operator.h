@@ -87,7 +87,6 @@ class DLL_PUBLIC OperatorBase {
       : spec_(spec),
         num_threads_(spec.GetArgument<int>("num_threads")),
         batch_size_(spec.GetArgument<int>("batch_size")),
-        input_sets_(spec.GetArgument<int>("num_input_sets")),
         default_cuda_stream_priority_(spec.GetArgument<int>("default_cuda_stream_priority")) {
     DALI_ENFORCE(num_threads_ > 0, "Invalid value for argument num_threads.");
     DALI_ENFORCE(batch_size_ > 0, "Invalid value for argument batch_size.");
@@ -140,10 +139,6 @@ class DLL_PUBLIC OperatorBase {
     return -1;
   }
 
-  DLL_PUBLIC int GetNumInputSets() const {
-    return input_sets_;
-  }
-
   DLL_PUBLIC bool CanBePruned() const {
     const auto &schema = SchemaRegistry::GetSchema(spec_.name());
     return !spec_.GetArgument<bool>("preserve") && !schema.IsNoPrune();
@@ -155,8 +150,8 @@ class DLL_PUBLIC OperatorBase {
   const OpSpec spec_;
   int num_threads_;
   int batch_size_;
-  int input_sets_;
   int default_cuda_stream_priority_;
+  static const int input_sets_ = 1;
 };
 
 #define USE_OPERATOR_MEMBERS()                       \

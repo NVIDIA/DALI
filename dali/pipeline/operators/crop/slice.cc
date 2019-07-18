@@ -31,7 +31,6 @@ DALI_SCHEMA(Slice)
     .NumInput(3)
     .NumOutput(1)
     .AllowSequences()
-    .AllowMultipleInputSets()
     .AddOptionalArg(
       "image_type",
       R"code(The color space of input and output image)code",

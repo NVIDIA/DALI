@@ -26,7 +26,6 @@ DALI_SCHEMA(Flip)
     .DocStr(R"code(Flip the image over the horizontal and/or vertical axes.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AllowMultipleInputSets()
     .AddOptionalArg("horizontal", R"code(Perform a horizontal flip.)code", 1, true)
     .AddOptionalArg("vertical", R"code(Perform a vertical flip.)code", 0, true);
 

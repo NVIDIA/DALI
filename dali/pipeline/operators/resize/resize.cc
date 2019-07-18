@@ -56,11 +56,9 @@ DALI_SCHEMA(Resize)
   .DocStr(R"code(Resize images.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_attrs"));
   })
-  .AllowMultipleInputSets()
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
   .AddParent("ResizeAttr")
