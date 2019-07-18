@@ -40,8 +40,8 @@ namespace dali {
 template <typename Backend>
 class Tensor : public Buffer<Backend> {
  public:
-  inline Tensor() : meta_(DALI_NHWC) {}
-  explicit inline Tensor(int batch_size) : meta_(DALI_NHWC) {
+  inline Tensor() {}
+  explicit inline Tensor(int batch_size) {
     // We only set the size, but not the type. Pinned status can still be set
     Resize({batch_size});
   }
@@ -135,6 +135,18 @@ class Tensor : public Buffer<Backend> {
     ResizeHelper(new_size);
     shape_ = shape;
   }
+
+  /**
+   * @brief Tensor is always backed by contiguous buffer
+   */
+  bool IsContiguous() {
+    return true;
+  }
+
+  /**
+   * @brief Tensor is always backed by contiguous buffer - No Op
+   */
+  void SetContiguous(bool) {}
 
   using Buffer<Backend>::reserve;
   // For having complete API, Tensor is not a batch
@@ -489,7 +501,7 @@ class Tensor : public Buffer<Backend> {
 
  protected:
   kernels::TensorShape<> shape_;
-  DALIMeta meta_;
+  DALIMeta meta_{DALI_NHWC};
   USE_BUFFER_MEMBERS();
 };
 

@@ -189,9 +189,20 @@ class TensorVector {
     }
   }
 
-  bool is_contiguous() {
+  /// @brief If the TensorVector is backed by TensorList (contiguous memory)
+  bool IsContiguous() {
     // TODO(klecki): check the views_count as well?
     return state_ == State::contiguous && views_count_ == size();
+  }
+
+  /// @brief Set the current state if further calls like Resize() or set_type
+  ///        should use TensorList or std::vector<Tensor> as backing memory
+  void SetContiguous(bool contiguous) {
+    if (contiguous) {
+      state_ = State::contiguous;
+    } else {
+      state_ = State::noncontiguous;
+    }
   }
 
  private:
@@ -229,7 +240,7 @@ class TensorVector {
   std::atomic<int> views_count_;
   std::vector<std::shared_ptr<Tensor<Backend>>> tensors_;
   std::shared_ptr<TensorList<Backend>> tl_;
-  State state_ = State::contiguous;
+  State state_ = State::noncontiguous;
   // pinned status and type info should be uniform
   bool pinned_ = true;
   TypeInfo type_ = TypeInfo();
