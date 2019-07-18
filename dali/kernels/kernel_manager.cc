@@ -17,7 +17,7 @@
 namespace dali {
 namespace kernels {
 
-void KernelManager::Initialize(size_t num_instances, size_t num_threads) {
+void KernelManager::Initialize(size_t num_threads, size_t num_instances) {
   instances.resize(num_instances);
   scratchpads.resize(num_threads);
 }
