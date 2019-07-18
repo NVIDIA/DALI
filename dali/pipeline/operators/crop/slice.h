@@ -112,6 +112,7 @@ class Slice : public SliceBase<Backend> {
       }
     }
   }
+
  private:
   static const int kImagesInId = 0;
   static const int kAnchorsInId = 1;
