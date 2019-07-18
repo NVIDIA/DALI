@@ -30,6 +30,8 @@ from PIL import Image
 from test_utils import check_batch
 from test_utils import compare_pipelines
 
+from nose.tools import assert_raises
+
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 c2lmdb_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb')
@@ -208,6 +210,53 @@ def test_pipeline_simple_sync_no_prefetch():
     for _ in range(n_iters):
         out = pipe.run()
 
+
+def test_multiple_input_sets_error():
+    batch_size = 128
+    class Pipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
+            super(Pipe, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+            self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            assert_raises(TypeError, self.decode, [inputs, inputs])
+            return (inputs)
+
+    pipe = Pipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+    pipe.build()
+    out = pipe.run()
+
+def test_use_twice():
+    batch_size = 128
+    class Pipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
+            super(Pipe, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+            self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            images = self.decode(inputs)
+            images0 = self.res(images)
+            images1 = self.res(images)
+            return (images0, images1)
+
+    pipe = Pipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+    pipe.build()
+    out = pipe.run()
+    assert(out[0].is_dense_tensor())
+    assert(out[1].is_dense_tensor())
+    assert(out[0].as_tensor().shape() == out[1].as_tensor().shape())
+    for i in range(batch_size):
+        assert(np.array_equal(out[0].at(i), out[0].at(i)))
+        # t_cpu = a_cpu.at(i)
+        # t_gpu = a_gpu.at(i)
+        # assert(np.sum(np.abs(t_cpu - t_gpu)) == 0)
+
 def test_cropmirrornormalize_layout():
     batch_size = 128
     class HybridPipe(Pipeline):
@@ -313,48 +362,6 @@ def test_cropmirrornormalize_pad():
                 assert(t_pad.shape == (224,224,4))
                 assert(np.sum(np.abs(t - t_pad[:,:,:3])) == 0)
                 assert(np.sum(np.abs(t_pad[:,:,3])) == 0)
-
-def test_cropmirrornormalize_multiple_inputs():
-    batch_size = 13
-    class HybridPipe(Pipeline):
-        def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1, device="cpu"):
-            super(HybridPipe, self).__init__(batch_size,
-                                             num_threads,
-                                             device_id)
-            self.device = device
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-            self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
-            self.decode2 = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
-            self.cmnp = ops.CropMirrorNormalize(device = device,
-                                                output_dtype = types.FLOAT,
-                                                output_layout = types.NHWC,
-                                                crop = (224, 224),
-                                                image_type = types.RGB,
-                                                mean = [128., 128., 128.],
-                                                std = [1., 1., 1.])
-
-        def define_graph(self):
-            inputs, labels = self.input(name="Reader")
-            images = self.decode(inputs)
-            images2 = self.decode2(inputs)
-
-            images_device  = images if self.device == "cpu" else images.gpu()
-            images2_device = images2 if self.device == "cpu" else images2.gpu()
-
-            output1, output2 = self.cmnp([images_device, images2_device])
-            output3 = self.cmnp([images_device])
-            output4 = self.cmnp([images2_device])
-            return (output1, output2, output3, output4)
-
-    for device in ["cpu", "gpu"]:
-        pipe = HybridPipe(batch_size=batch_size, device=device)
-        pipe.build()
-        for _ in range(5):
-            out1, out2, out3, out4 = pipe.run()
-            outs = [out.as_cpu() if device == 'gpu' else out for out in [out1, out2, out3, out4] ]
-            check_batch(outs[0], outs[1], batch_size)
-            check_batch(outs[0], outs[2], batch_size)
-            check_batch(outs[1], outs[3], batch_size)
 
 def test_cropmirrornormalize_cpu_vs_gpu():
     batch_size = 13
@@ -595,11 +602,16 @@ def test_rotate():
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             images = self.decode(self.jpegs)
-            outputs = self.cmnp([images, images],
-                                crop_pos_x = self.uniform(),
-                                crop_pos_y = self.uniform())
-            outputs[1] = self.rotate(outputs[1])
-            return [self.labels] + outputs
+            crop_x = self.uniform()
+            crop_y = self.uniform()
+            outputs0 = self.cmnp(images,
+                                crop_pos_x = crop_x,
+                                crop_pos_y = crop_y)
+            outputs1 = self.cmnp(images,
+                                crop_pos_x = crop_x,
+                                crop_pos_y = crop_y)
+            outputs1 = self.rotate(outputs1)
+            return [self.labels] + [outputs0, outputs1]
 
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
     pipe.build()
@@ -639,9 +651,10 @@ def test_warpaffine():
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             images = self.decode(self.jpegs)
-            outputs = self.cmnp([images, images])
-            outputs[1] = self.affine(outputs[1])
-            return [self.labels] + outputs
+            outputs0 = self.cmnp(images)
+            outputs1 = self.cmnp(images)
+            outputs1 = self.affine(outputs1)
+            return [self.labels] + [outputs0, outputs1]
 
     pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
     pipe.build()

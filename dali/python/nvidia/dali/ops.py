@@ -129,8 +129,7 @@ class _OperatorInstance(object):
                 raise TypeError("Expected inputs of type EdgeReference but received a list. " +
                                  "Multiple Input sets are not supported. " +
                                  "If you want to use the same Operator on different inputs " +
-                                 "you need to create several instances of that Operator " +
-                                 "using the same arguments.")
+                                 "you need to use it several times in `define_graph` step.")
             else:
                 raise TypeError(
                     ("Expected inputs of type EdgeReference or list of " +
