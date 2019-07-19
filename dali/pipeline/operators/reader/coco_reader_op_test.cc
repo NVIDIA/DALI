@@ -90,7 +90,7 @@ class CocoReaderTest : public ::testing::Test {
   }
 
   void RunTest(bool ltrb, bool ratio, bool skip_empty) {
-    const auto expected_size = skip_empty ? NonEmptyImages() : SmallCocoSize(); 
+    const auto expected_size = skip_empty ? NonEmptyImages() : SmallCocoSize();
     Pipeline pipe(expected_size, 1, 0);
 
     pipe.AddOperator(
@@ -114,7 +114,8 @@ class CocoReaderTest : public ::testing::Test {
     RunTestForPipeline(meta_pipe, ltrb, ratio, skip_empty, expected_size);
   }
 
-  void CheckInstances(DeviceWorkspace & ws, bool ltrb, bool ratio, bool skip_empty, int expected_size) {
+  void CheckInstances(
+    DeviceWorkspace & ws, bool ltrb, bool ratio, bool skip_empty, int expected_size) {
     const auto &boxes_output = ws.Output<dali::CPUBackend>(1);
     const auto &labels_output = ws.Output<dali::CPUBackend>(2);
 

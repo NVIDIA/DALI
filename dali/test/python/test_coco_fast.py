@@ -60,7 +60,7 @@ class TestPipeline(Pipeline):
             annotations_file=coco_annotations,
             save_img_ids=save_img_ids)
 
-        self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
 
 
     def define_graph(self):
@@ -93,7 +93,7 @@ class MetaPipeline(Pipeline):
             meta_files_path='/data/coco_data/',
             save_img_ids=save_img_ids)
 
-        self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
 
 
     def define_graph(self):

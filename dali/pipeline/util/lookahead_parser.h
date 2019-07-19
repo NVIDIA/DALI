@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_PIPELINE_UTIL_LOOKAHEAD_PARSER_H_
+#define DALI_PIPELINE_UTIL_LOOKAHEAD_PARSER_H_
+
 #include <rapidjson/reader.h>
 #include <rapidjson/document.h>
 
@@ -286,3 +289,5 @@ int LookaheadParser::PeekType() {
 RAPIDJSON_DIAG_POP
 
 }  // namespace dali
+
+#endif  // DALI_PIPELINE_UTIL_LOOKAHEAD_PARSER_H_

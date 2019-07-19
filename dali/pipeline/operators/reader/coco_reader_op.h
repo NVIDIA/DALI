@@ -67,13 +67,12 @@ using ImageIdPairs = std::vector<std::pair<std::string, int>>;
 
 class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
-  explicit FastCocoReader(const OpSpec& spec): 
+  explicit FastCocoReader(const OpSpec& spec):
     DataReader<CPUBackend, ImageLabelWrapper>(spec),
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
 
     ValidateOptions(spec);
-    
     if (spec.HasArgument("meta_files_path")) {
       auto image_id_pairs = ParseMetafiles(spec);
       loader_ = InitLoader<FastCocoLoader>(

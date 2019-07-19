@@ -13,12 +13,12 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/reader/coco_reader_op.h"
-#include "dali/pipeline/util/lookahead_parser.h"
-
 
 #include <map>
 #include <unordered_map>
 #include <iomanip>
+
+#include "dali/pipeline/util/lookahead_parser.h"
 
 
 namespace dali {
@@ -72,7 +72,9 @@ DALI_SCHEMA(FastCocoReader)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
 and an annotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
 Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
-  .AddOptionalArg("meta_files_path", "Path to directory with meta files containing preprocessed COCO annotations for faster loading.",
+  .AddOptionalArg(
+    "meta_files_path",
+    "Path to directory with meta files containing preprocessed COCO annotations.",
     std::string())
   .AddOptionalArg("annotations_file",
       R"code(List of paths to the JSON annotations files.)code",
@@ -107,7 +109,9 @@ object will be skipped during reading. It is represented as absolute value.)code
   .AddOptionalArg("dump_meta_files",
       R"code(If true, operator will dump meta files in folder provided with `dump_meta_files_path`.)code",
       false)
-  .AddOptionalArg("dump_meta_files_path", "Path to directory for saving meta files containing preprocessed COCO annotations for faster loading.",
+  .AddOptionalArg(
+    "dump_meta_files_path",
+    "Path to directory for saving meta files containing preprocessed COCO annotations.",
     std::string())
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
@@ -150,6 +154,19 @@ void load_meta_file(std::vector<T> &output, const std::string path) {
   }
 }
 
+void load_file_list(ImageIdPairs &image_id_pairs, const std::string &path) {
+  std::ifstream file(path);
+  if (file) {
+    std::string filename;
+    int id;
+    while (file >> filename >> id) {
+      image_id_pairs.push_back(std::make_pair(filename, id));
+    }
+  } else {
+    DALI_FAIL("CocoReader file list error: " + path);
+  }
+}
+
 ImageIdPairs load_filenames(const std::string path) {
   ImageIdPairs image_id_pairs;
   int id = 0;
@@ -166,7 +183,34 @@ ImageIdPairs load_filenames(const std::string path) {
 
   return image_id_pairs;
 }
-} // namespace detail
+
+void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids) {
+  RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
+  parser.EnterArray();
+
+  int id = -1;
+  int new_id = 1;
+
+  while (parser.NextArrayValue()) {
+    if (parser.PeekType() != kObjectType) {
+      continue;
+    }
+    id = -1;
+    parser.EnterObject();
+    while (const char* internal_key = parser.NextObjectKey()) {
+      if (0 == strcmp(internal_key, "id")) {
+        id = parser.GetInt();
+      } else {
+        parser.SkipValue();
+      }
+    }
+    DALI_ENFORCE(id != -1, "Missing category ID in the JSON annotations file");
+    category_ids.insert(std::make_pair(id, new_id));
+    new_id++;
+  }
+}
+
+}  // namespace detail
 
 
 void FastCocoReader::DumpMetaFiles(const std::string path, const ImageIdPairs &image_id_pairs) {
@@ -266,11 +310,14 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   bool ratio = spec.GetArgument<bool>("ratio");
   string file_list = spec.GetArgument<string>("file_list");
   bool parse_file_list = file_list != "";
+
+
   std::ifstream f(annotations_file_path);
   DALI_ENFORCE(f, "Could not open JSON annotations file");
   f.seekg(0, std::ios::end);
   size_t file_size = f.tellg();
-  std::unique_ptr<char, std::function<void(char*)>> buff(new char[file_size],
+  std::unique_ptr<char, std::function<void(char*)>> buff(
+    new char[file_size],
                         [](char* data) {delete [] data;});
   f.seekg(0, std::ios::beg);
   f.read(buff.get(), file_size);
@@ -286,20 +333,10 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
 
   // mapping each category_id to its actual category
   std::map<int, int> category_ids;
-  int current_id = 1;
 
 
   if (parse_file_list) {
-    std::ifstream file(file_list);
-    if (file) {
-      std::string filename;
-      int id;
-      while (file >> filename >> id) {
-        image_id_pairs.push_back(std::make_pair(filename, id));
-      }
-    } else {
-      DALI_FAIL("TFRecord meta file erro");
-    }
+    detail::load_file_list(image_id_pairs, file_list);
   }
 
   RAPIDJSON_ASSERT(r.PeekType() == kObjectType);
@@ -336,26 +373,7 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
           image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
         }
       } else if (0 == strcmp(key, "categories")) { 
-        RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
-        r.EnterArray();
-        int id;
-        while (r.NextArrayValue()) {
-          if (r.PeekType() != kObjectType) {
-            continue;
-          }
-          id = -1;
-          r.EnterObject();
-          while (const char* internal_key = r.NextObjectKey()) {
-            if (0 == strcmp(internal_key, "id")) {
-              id = r.GetInt();
-            } else {
-              r.SkipValue();
-            }
-          }
-          DALI_ENFORCE(id != -1, "Missing category ID in the JSON annotations file");
-          category_ids.insert(std::make_pair(id, current_id));
-          current_id++;
-        }
+        detail::parse_categories(r, category_ids);
       } else if (0 == strcmp(key, "annotations")) {
         RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
         r.EnterArray();
