@@ -33,7 +33,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->MakeBBoxesAndLabelsBatch(&boxes, &labels, batch_size, ltrb);
     this->SetExternalInputs({{"boxes", &boxes}, {"labels", &labels}});
 
-    shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
+    auto pipe = this->GetPipeline();
 
     OpSpec spec(descr.opName);
     if (descr.opAddImgType) spec = spec.AddArg("image_type", this->ImageType());
@@ -55,7 +55,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->Outputs(&ws);
   }
 
-  std::vector<TensorList<CPUBackend> *> RunSliceGPU(
+  std::vector<std::shared_ptr<TensorList<CPUBackend>>> RunSliceGPU(
       const vector<std::pair<string, TensorList<CPUBackend> *>> &inputs) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
@@ -63,7 +63,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     this->SetExternalInputs(inputs);
 
-    shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
+    auto pipe = this->GetPipeline();
 
     // Prospective crop
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
@@ -103,7 +103,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     return {images_cpu, boxes_cpu};
   }
 
-  std::vector<TensorList<CPUBackend> *> RunSliceCPU(
+  std::vector<std::shared_ptr<TensorList<CPUBackend>>> RunSliceCPU(
       const vector<std::pair<string, TensorList<CPUBackend> *>> &inputs) {
     const int batch_size = this->jpegs_.nImages();
     this->SetBatchSize(batch_size);
@@ -111,7 +111,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
     this->SetExternalInputs(inputs);
 
-    shared_ptr<dali::Pipeline> pipe = this->GetPipeline();
+    auto pipe = this->GetPipeline();
 
     // Prospective crop
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
@@ -141,10 +141,15 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     DeviceWorkspace ws;
     pipe->Outputs(&ws);
 
-    return {&(ws.Output<CPUBackend>(0)), &(ws.Output<CPUBackend>(1))};
+    std::vector<std::shared_ptr<TensorList<CPUBackend>>> ret;
+    ret.push_back(std::make_shared<TensorList<CPUBackend>>());
+    ret.push_back(std::make_shared<TensorList<CPUBackend>>());
+    ret[0]->Copy(ws.Output<CPUBackend>(0), 0);
+    ret[1]->Copy(ws.Output<CPUBackend>(1), 0);
+    return ret;
   }
 
-  vector<TensorList<CPUBackend> *> Reference(
+  vector<std::shared_ptr<TensorList<CPUBackend>>> Reference(
       const vector<TensorList<CPUBackend> *> &inputs,
       DeviceWorkspace *ws) override {
     auto &from = ws->Output<GPUBackend>(1);

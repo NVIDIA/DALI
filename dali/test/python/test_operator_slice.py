@@ -43,10 +43,10 @@ class SlicePipeline(Pipeline):
         self.input_crop_size = ops.ExternalSource()
 
         if self.is_fused_decoder:
-            self.decode = ops.HostDecoderSlice(device = 'cpu',
+            self.decode = ops.ImageDecoderSlice(device = 'cpu',
                                                output_type = types.RGB)
         else:
-            self.decode = ops.HostDecoder(device = "cpu",
+            self.decode = ops.ImageDecoder(device = "cpu",
                                           output_type = types.RGB)
             self.slice = ops.Slice(device = device,
                                    image_type = types.RGB)
@@ -163,7 +163,7 @@ class PythonOperatorPipeline(Pipeline):
                                                      exec_pipelined=False,
                                                      seed=1234)
         self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle=False)
-        self.decode = ops.HostDecoder(device = 'cpu', output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = 'cpu', output_type = types.RGB)
         self.python_function = ops.PythonFunction(function=function)
 
     def define_graph(self):

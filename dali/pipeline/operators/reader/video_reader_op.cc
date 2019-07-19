@@ -30,12 +30,25 @@ DALI_SCHEMA(VideoReader)
 Load and decode H264 video codec with FFmpeg and NVDECODE, NVIDIA GPU's hardware-accelerated video decoding.
 The video codecs can be contained in most of container file formats. FFmpeg is used to parse video containers.
 Returns a batch of sequences of `sequence_length` frames of shape [N, F, H, W, C] (N being the batch size and F the
-number of frames).)code")
+number of frames). Supports only constant frame rate videos.)code")
   .NumInput(0)
-  .NumOutput(1)
-  .AddArg("filenames",
-      R"code(File names of the video files to load.)code",
-      DALI_STRING_VEC)
+  .OutputFn([](const OpSpec &spec) {
+      std::string file_root = spec.GetArgument<std::string>("file_root");
+      std::string file_list = spec.GetArgument<std::string>("file_list");
+      return (file_root.empty() && file_list.empty()) ? 1 : 2;
+    })
+  .AddOptionalArg("filenames",
+      R"code(File names of the video files to load.
+This option is mutually exclusive with `file_root` and `file_list`.)code",
+      std::vector<std::string>{})
+  .AddOptionalArg("file_root",
+      R"code(Path to a directory containing data files.
+This option is mutually exclusive with `filenames` and `file_list`.)code",
+      std::string())
+  .AddOptionalArg("file_list",
+      R"code(Path to the file with a list of pairs ``file label``.
+This option is mutually exclusive with `filenames` and `file_root`.)code",
+      std::string())
   .AddArg("sequence_length",
       R"code(Frames to load per sequence.)code",
       DALI_INT32)

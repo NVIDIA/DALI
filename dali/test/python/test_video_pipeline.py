@@ -25,6 +25,7 @@ from nvidia.dali.pipeline import Pipeline
 VIDEO_DIRECTORY="video_files"
 VIDEO_FILES=os.listdir(VIDEO_DIRECTORY)
 VIDEO_FILES = [VIDEO_DIRECTORY + '/' + f for f in VIDEO_FILES]
+FILE_LIST="file_list.txt"
 
 ITER=6
 BATCH_SIZE=4
@@ -43,8 +44,25 @@ class VideoPipe(Pipeline):
         output = self.input(name="Reader")
         return output
 
+class VideoPipeList(Pipeline):
+    def __init__(self, batch_size, data, device_id=0):
+        super(VideoPipeList, self).__init__(batch_size, num_threads=2, device_id=device_id)
+        self.input = ops.VideoReader(device="gpu", file_list=data, sequence_length=COUNT)
+
+    def define_graph(self):
+        output = self.input(name="Reader")
+        return output
+
 def test_simple_videopipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES)
+    pipe.build()
+    for i in range(ITER):
+        print("Iter " + str(i))
+        pipe_out = pipe.run()
+    del pipe
+
+def test_file_list_videopipeline():
+    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=FILE_LIST)
     pipe.build()
     for i in range(ITER):
         print("Iter " + str(i))

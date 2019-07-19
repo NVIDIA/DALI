@@ -20,9 +20,9 @@ namespace dali {
 static constexpr int64_t kSeed = 1212334;
 
 template <typename ImgType>
-class nvJpegDecoderSplitRandomCropTest : public DecodeTestBase<ImgType> {
+class ImageDecoderSplitRandomCropTest_GPU : public DecodeTestBase<ImgType> {
  public:
-  nvJpegDecoderSplitRandomCropTest()
+  ImageDecoderSplitRandomCropTest_GPU()
     : random_crop_attr(
       OpSpec("RandomCropAttr")
         .AddArg("batch_size", this->batch_size_)
@@ -30,7 +30,7 @@ class nvJpegDecoderSplitRandomCropTest : public DecodeTestBase<ImgType> {
 
  protected:
   OpSpec DecodingOp() const override {
-    return this->GetOpSpec("nvJPEGDecoderRandomCrop", "mixed")
+    return this->GetOpSpec("ImageDecoderRandomCrop", "mixed")
       .AddArg("seed", kSeed)
       .AddArg("split_stages", true);
   }
@@ -43,17 +43,17 @@ class nvJpegDecoderSplitRandomCropTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_SUITE(nvJpegDecoderSplitRandomCropTest, Types);
+TYPED_TEST_SUITE(ImageDecoderSplitRandomCropTest_GPU, Types);
 
-TYPED_TEST(nvJpegDecoderSplitRandomCropTest, JpegDecode) {
+TYPED_TEST(ImageDecoderSplitRandomCropTest_GPU, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplitRandomCropTest, PngDecode) {
+TYPED_TEST(ImageDecoderSplitRandomCropTest_GPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplitRandomCropTest, TiffDecode) {
+TYPED_TEST(ImageDecoderSplitRandomCropTest_GPU, TiffDecode) {
   this->Run(t_tiffImgType);
 }
 

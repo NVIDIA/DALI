@@ -23,8 +23,9 @@
 #include <memory>
 #include <numeric>
 #include <atomic>
+
 #include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/pipeline/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
@@ -43,13 +44,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CachedDecoderImpl(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
+    use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")),
     output_info_(batch_size_),
     image_decoders_(batch_size_),
     image_states_(batch_size_),
     decode_params_(batch_size_),
     decoder_host_state_(batch_size_),
     decoder_huff_hybrid_state_(batch_size_),
-    output_shape_(batch_size_),
+    output_shape_(batch_size_, kOutputDim),
     pinned_buffers_(num_threads_*2),
     jpeg_streams_(num_threads_*2),
     device_buffers_(num_threads_),
@@ -185,7 +187,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       auto cached_shape = CacheImageShape(file_name);
       if (volume(cached_shape) > 0) {
-        output_shape_[i] = Dims({cached_shape[0], cached_shape[1], cached_shape[2]});
+        output_shape_.set_tensor_shape(i, {cached_shape[0], cached_shape[1], cached_shape[2]});
         continue;
       }
 
@@ -215,14 +217,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           DALI_FAIL(e.what() + "File: " + file_name);
         }
       } else {
-        if (ShouldUseHybridHuffman(info, input_data, in_size, hybrid_huffman_threshold_)) {
-          image_decoders_[i] = decoder_huff_hybrid_;
-          image_states_[i] = decoder_huff_hybrid_state_[i];
-        } else {
-          image_decoders_[i] = decoder_huff_host_;
-          image_states_[i] = decoder_host_state_[i];
-        }
-
         if (crop_generator) {
           info.crop_window = crop_generator(info.heights[0], info.widths[0]);
           auto &crop_window = info.crop_window;
@@ -232,8 +226,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           info.widths[0] = crop_window.w;
           info.heights[0] = crop_window.h;
         }
+
+        if (ShouldUseHybridHuffman(info, input_data, in_size, hybrid_huffman_threshold_)) {
+          image_decoders_[i] = decoder_huff_hybrid_;
+          image_states_[i] = decoder_huff_hybrid_state_[i];
+        } else {
+          image_decoders_[i] = decoder_huff_host_;
+          image_states_[i] = decoder_host_state_[i];
+        }
       }
-      output_shape_[i] = Dims({info.heights[0], info.widths[0], c});
+      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], c});
       output_info_[i] = info;
     }
   }
@@ -290,7 +292,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // Per sample worker called in a thread of the thread pool.
   // It decodes the encoded image `input_data` (host mem) into `output_data` (device mem) with
-  // nvJPEG. If nvJPEG can't handle the image, it falls back to DALI's HostDecoder implementation
+  // nvJPEG. If nvJPEG can't handle the image, it falls back to CPU decoder implementation
   // with libjpeg.
   void SampleWorker(int sample_idx, string file_name, int in_size, int thread_id,
                     const uint8_t* input_data, uint8_t* output_data, cudaStream_t stream) {
@@ -298,7 +300,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     if (!info.nvjpeg_support) {
       HostFallback<kernels::StorageGPU>(input_data, in_size, output_image_type_, output_data,
-                                        stream, file_name, info.crop_window);
+                                        stream, file_name, info.crop_window, use_fast_idct_);
       return;
     }
 
@@ -319,7 +321,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                               decode_params_[sample_idx],
                                               jpeg_streams_[jpeg_stream_idx]);
 
-    // If image is somehow not supported try hostdecoder
+    // If image is somehow not supported try host decoder
     if (ret != NVJPEG_STATUS_SUCCESS) {
       if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
         info.nvjpeg_support = false;
@@ -354,7 +356,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     } else {
       HostFallback<kernels::StorageGPU>(input_data, in_size, output_image_type_, output_data,
-                                        stream, file_name, info.crop_window);
+                                        stream, file_name, info.crop_window, use_fast_idct_);
     }
   }
 
@@ -366,6 +368,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   DALIImageType output_image_type_;
 
   unsigned int hybrid_huffman_threshold_;
+  bool use_fast_idct_;
 
   // Common
   // Storage for per-image info
@@ -380,7 +383,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<nvjpegDecodeParams_t> decode_params_;
   std::vector<nvjpegJpegState_t> decoder_host_state_;
   std::vector<nvjpegJpegState_t> decoder_huff_hybrid_state_;
-  std::vector<Dims> output_shape_;
+  kernels::TensorListShape<> output_shape_;
 
   // Per thread - double buffered
   std::vector<nvjpegBufferPinned_t> pinned_buffers_;
@@ -396,6 +399,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   int device_id_;
 
   ThreadPool thread_pool_;
+  static constexpr int kOutputDim = 3;
 };
 
 }  // namespace dali

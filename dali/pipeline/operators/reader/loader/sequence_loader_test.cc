@@ -16,6 +16,7 @@
 
 #include "dali/pipeline/operators/reader/loader/sequence_loader.h"
 #include "dali/test/dali_test.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 
@@ -30,7 +31,7 @@ std::string print_frame_num(int i) {
 }  // namespace
 
 TEST(GatherExtractedStreamsTest, LoadTestDir) {
-  const auto frames_dir = image_folder + "/frames";
+  const auto frames_dir = testing::dali_extra_path() + "/db/sequence/frames";
   auto result = filesystem::GatherExtractedStreams(frames_dir);
   ASSERT_EQ(result.size(), 2);
   const auto first_stream = frames_dir + "/0/";

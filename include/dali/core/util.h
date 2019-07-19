@@ -31,13 +31,13 @@ template <typename T, size_t N>
 DALI_HOST_DEV constexpr T *end(T (&array)[N]) noexcept { return array + N; }
 
 DALI_NO_EXEC_CHECK
-template <typename T>
+template <typename T, typename = std::enable_if_t<!std::is_const<T>::value>>
 DALI_HOST_DEV constexpr auto begin(T &collection)->decltype(collection.begin()) {
   return collection.begin();
 }
 
 DALI_NO_EXEC_CHECK
-template <typename T>
+template <typename T, typename = std::enable_if_t<!std::is_const<T>::value>>
 DALI_HOST_DEV constexpr auto end(T &collection)->decltype(collection.end()) {
   return collection.end();
 }

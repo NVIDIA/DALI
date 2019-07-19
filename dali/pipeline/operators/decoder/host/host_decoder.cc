@@ -35,6 +35,7 @@ void HostDecoder::RunImpl(SampleWorkspace *ws, const int idx) {
   try {
     img = ImageFactory::CreateImage(input.data<uint8>(), input.size(), output_type_);
     img->SetCropWindowGenerator(GetCropWindowGenerator(ws->data_idx()));
+    img->SetUseFastIdct(use_fast_idct_);
     img->Decode();
   } catch (std::exception &e) {
     DALI_FAIL(e.what() + "File: " + file_name);
@@ -50,16 +51,14 @@ void HostDecoder::RunImpl(SampleWorkspace *ws, const int idx) {
   std::memcpy(out_data, decoded.get(), h * w * c);
 }
 
-DALI_REGISTER_OPERATOR(HostDecoder, HostDecoder, CPU);
-
 DALI_SCHEMA(HostDecoder)
-  .DocStr(R"code(Decode images on the host using OpenCV.
-When applicable, it will pass execution to faster, format-specific decoders (like libjpeg-turbo).
-Output of the decoder is in `HWC` ordering.)code")
+  .DocStr(R"code(Specific implementation of `ImageDecoder` for `cpu` backend)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("output_type",
-      R"code(The color space of output image.)code",
-      DALI_RGB);
+  .AddParent("ImageDecoder")
+  .Deprecate("ImageDecoder");
+
+DALI_REGISTER_OPERATOR(HostDecoder, HostDecoder, CPU);
+DALI_REGISTER_OPERATOR(ImageDecoder, HostDecoder, CPU);
 
 }  // namespace dali

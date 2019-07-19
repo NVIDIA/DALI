@@ -100,7 +100,7 @@ const TestSample &FindSample(const TestSample (&dataset)[N], const Roi &roi) {
 template<size_t Idx, typename Backend, size_t N>
 std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N]) {
   std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-  tl->Resize({N, {kBbStructSize}});
+  tl->Resize(kernels::uniform_list_shape(N, {kBbStructSize}));
   auto ptr = tl->template mutable_data<float>();
   for (size_t n = 0; n < N; n++) {
     for (size_t i = 0; i < kBbStructSize; i++) {

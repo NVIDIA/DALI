@@ -21,6 +21,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/scratch.h"
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/crop/crop_attr.h"
 #include "dali/pipeline/operators/crop/slice_base.h"
@@ -57,7 +58,7 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
   using Operator<Backend>::RunImpl;
   std::size_t C_;
 
-  void SetupSample(int data_idx, DALITensorLayout layout, const vector<Index> &shape) {
+  void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
     Index F = 1, H, W, C;
     DALI_ENFORCE(shape.size() == 3 || shape.size() == 4,
       "Unexpected number of dimensions: " + std::to_string(shape.size()));

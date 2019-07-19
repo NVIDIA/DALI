@@ -18,10 +18,10 @@
 namespace dali {
 
 template <typename ImgType>
-class nvJpegDecoderSplitCropTest : public DecodeTestBase<ImgType> {
+class ImageDecoderSplitCropTest_GPU : public DecodeTestBase<ImgType> {
  protected:
   OpSpec DecodingOp() const override {
-    return this->GetOpSpec("nvJPEGDecoderCrop", "mixed")
+    return this->GetOpSpec("ImageDecoderCrop", "mixed")
       .AddArg("crop", std::vector<float>{1.0f*crop_H, 1.0f*crop_W})
       .AddArg("split_stages", true);
   }
@@ -41,17 +41,17 @@ class nvJpegDecoderSplitCropTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_SUITE(nvJpegDecoderSplitCropTest, Types);
+TYPED_TEST_SUITE(ImageDecoderSplitCropTest_GPU, Types);
 
-TYPED_TEST(nvJpegDecoderSplitCropTest, JpegDecode) {
+TYPED_TEST(ImageDecoderSplitCropTest_GPU, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplitCropTest, PngDecode) {
+TYPED_TEST(ImageDecoderSplitCropTest_GPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(nvJpegDecoderSplitCropTest, TiffDecode) {
+TYPED_TEST(ImageDecoderSplitCropTest_GPU, TiffDecode) {
   this->crop_H = 100;
   this->crop_W = 90;
   this->Run(t_tiffImgType);

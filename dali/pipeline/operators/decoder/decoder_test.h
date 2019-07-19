@@ -17,6 +17,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 #include "dali/test/dali_test_decoder.h"
 
 namespace dali {
@@ -57,7 +58,7 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
     this->RunTestDecode(image_type_, eps);
   }
 
-  vector<TensorList<CPUBackend> *> Reference(
+  vector<std::shared_ptr<TensorList<CPUBackend>>> Reference(
     const vector<TensorList<CPUBackend> *> &inputs,
     DeviceWorkspace *ws) override {
     // single input - encoded images
@@ -74,8 +75,8 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
         &out[i], GetCropWindowGenerator(i));
     }
 
-    vector<TensorList<CPUBackend> *> outputs(1);
-    outputs[0] = new TensorList<CPUBackend>();
+    vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;
+    outputs.push_back(std::make_shared<TensorList<CPUBackend>>());
     outputs[0]->Copy(out, 0);
     return outputs;
   }

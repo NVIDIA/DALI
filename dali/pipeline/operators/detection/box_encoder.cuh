@@ -15,9 +15,11 @@
 #ifndef DALI_PIPELINE_OPERATORS_DETECTION_BOX_ENCODER_CUH_
 #define DALI_PIPELINE_OPERATORS_DETECTION_BOX_ENCODER_CUH_
 
-#include "dali/pipeline/operators/detection/box_encoder.h"
 #include <utility>
 #include <vector>
+
+#include "dali/kernels/tensor_shape.h"
+#include "dali/pipeline/operators/detection/box_encoder.h"
 
 namespace dali {
 template <>
@@ -68,6 +70,8 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   void RunImpl(Workspace<GPUBackend> *ws, const int idx) override;
 
  private:
+  static constexpr int kBoxesOutputDim = 2;
+  static constexpr int kLabelsOutputDim = 1;
   const float criteria_;
   int64_t anchors_count_;
   Tensor<GPUBackend> anchors_;
@@ -91,7 +95,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   void ClearOutput(
     float4 *out_boxes, int *out_labels, const cudaStream_t &stream);
 
-  std::pair<vector<Dims>, vector<Dims>> CalculateDims(
+  std::pair<kernels::TensorListShape<>, kernels::TensorListShape<>> CalculateDims(
     const TensorList<GPUBackend> &boxes_input);
 
   int *CalculateBoxesOffsets(

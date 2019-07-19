@@ -66,8 +66,8 @@ __global__ void ResampleVertTestKernel(
 }
 
 TEST(Resample, HorizontalGaussian) {
-  auto cv_img = testing::data::image("imgproc_test/checkerboard.png");
-  auto cv_ref = testing::data::image("imgproc_test/ref_out/resample_horz.png");
+  auto cv_img = testing::data::image("imgproc/checkerboard.png");
+  auto cv_ref = testing::data::image("imgproc/ref/resampling/resample_horz.png");
   ASSERT_FALSE(cv_img.empty()) << "Couldn't load the image";
   TensorView<StorageCPU, const uint8_t, 3> img;
   ASSERT_NO_FATAL_FAILURE((img = view_as_tensor<uint8_t>(cv_img)));
@@ -115,8 +115,8 @@ TEST(Resample, HorizontalGaussian) {
 }
 
 TEST(Resample, VerticalGaussian) {
-  auto cv_img = testing::data::image("imgproc_test/checkerboard.png");
-  auto cv_ref = testing::data::image("imgproc_test/ref_out/resample_vert.png");
+  auto cv_img = testing::data::image("imgproc/checkerboard.png");
+  auto cv_ref = testing::data::image("imgproc/ref/resampling/resample_vert.png");
   ASSERT_FALSE(cv_img.empty()) << "Couldn't load the image";
   TensorView<StorageCPU, const uint8_t, 3> img;
   ASSERT_NO_FATAL_FAILURE((img = view_as_tensor<uint8_t>(cv_img)));
@@ -410,7 +410,7 @@ class ResamplingTest : public ::testing::Test {
 };
 
 TEST_F(ResamplingTest, ResampleGauss) {
-  SetSource("imgproc_test/moire2.png", "imgproc_test/ref_out/resample_out.png");
+  SetSource("imgproc/moire2.png", "imgproc/ref/resampling/resample_out.png");
   SetOutputSize(InputWidth()-1, InputHeight()-3);
   auto filters = GetResamplingFilters();
   float sigmaX = (1/ScaleX() - 0.3f) / sqrt(2);
@@ -425,7 +425,7 @@ TEST_F(ResamplingTest, ResampleGauss) {
 }
 
 TEST_F(ResamplingTest, ResampleVHGauss) {
-  SetSource("imgproc_test/moire2.png", "imgproc_test/ref_out/resample_out.png");
+  SetSource("imgproc/moire2.png", "imgproc/ref/resampling/resample_out.png");
   SetOutputSize(InputWidth()-1, InputHeight()-3);
   auto filters = GetResamplingFilters();
   float sigmaX = (1/ScaleX() - 0.3f) / sqrt(2);
@@ -441,7 +441,7 @@ TEST_F(ResamplingTest, ResampleVHGauss) {
 }
 
 TEST_F(ResamplingTest, SeparableTriangular) {
-  SetSource("imgproc_test/alley.png", "imgproc_test/ref_out/alley_tri_PIL.png");
+  SetSource("imgproc/alley.png", "imgproc/ref/resampling/alley_tri_PIL.png");
   SetOutputSize(300, 300);
 
   auto filters = GetResamplingFilters();
@@ -456,7 +456,7 @@ TEST_F(ResamplingTest, SeparableTriangular) {
 }
 
 TEST_F(ResamplingTest, GaussianBlur) {
-  SetSource("imgproc_test/alley.png", "imgproc_test/ref_out/alley_blurred.png");
+  SetSource("imgproc/alley.png", "imgproc/ref/resampling/alley_blurred.png");
   auto filters = GetResamplingFilters();
   float sigmaX = 6.0f / sqrt(2);
   float sigmaY = 6.0f / sqrt(2);
@@ -469,7 +469,7 @@ TEST_F(ResamplingTest, GaussianBlur) {
 
 // DISABLED: this 'test' is only for producing images for manual assessment
 TEST_F(ResamplingTest, DISABLED_ProgressiveOutputs) {
-  SetSource("imgproc_test/alley.png", nullptr);
+  SetSource("imgproc/alley.png", nullptr);
 
   auto filters = GetResamplingFilters();
   for (int i = 0; i < 10; i++) {
@@ -488,7 +488,7 @@ TEST_F(ResamplingTest, DISABLED_ProgressiveOutputs) {
 }
 
 TEST_F(ResamplingTest, Lanczos3) {
-  SetSource("imgproc_test/score.png", "imgproc_test/ref_out/score_lanczos3.png");
+  SetSource("imgproc/score.png", "imgproc/ref/resampling/score_lanczos3.png");
   SetScale(5, 5);
   auto filters = GetResamplingFilters();
   ResamplingFilter f = filters->Lanczos3();
@@ -499,7 +499,7 @@ TEST_F(ResamplingTest, Lanczos3) {
 }
 
 TEST_F(ResamplingTest, Cubic) {
-  SetSource("imgproc_test/score.png", "imgproc_test/ref_out/score_cubic.png");
+  SetSource("imgproc/score.png", "imgproc/ref/resampling/score_cubic.png");
   SetOutputSize(200, 93);
   auto filters = GetResamplingFilters();
   ResamplingFilter f = filters->Cubic();

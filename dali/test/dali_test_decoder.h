@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <memory>
 #include "dali/image/image_factory.h"
 #include "dali/test/dali_test_single_op.h"
 
@@ -14,7 +15,7 @@ namespace dali {
 template <typename ImgType>
 class GenericDecoderTest : public DALISingleOpTest<ImgType> {
  public:
-  vector<TensorList<CPUBackend> *> Reference(
+  vector<std::shared_ptr<TensorList<CPUBackend>>> Reference(
       const vector<TensorList<CPUBackend> *> &inputs, DeviceWorkspace *ws) override {
     // single input - encoded images
     // single output - decoded images
@@ -31,8 +32,8 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
       this->DecodeImage(data, data_size, c, this->ImageType(), &out[i]);
     }
 
-    vector<TensorList<CPUBackend> *> outputs(1);
-    outputs[0] = new TensorList<CPUBackend>();
+    vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;
+    outputs.push_back(std::make_shared<TensorList<CPUBackend>>());
     outputs[0]->Copy(out, 0);
     return outputs;
   }

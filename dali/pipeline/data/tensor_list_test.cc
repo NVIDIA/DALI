@@ -16,55 +16,63 @@
 
 #include <gtest/gtest.h>
 
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/test/dali_test.h"
 
 namespace dali {
 
+using kernels::TensorShape;
+using kernels::TensorListShape;
+
 template <typename Backend>
 class TensorListTest : public DALITest {
  public:
-  vector<Dims> GetRandShape() {
+  TensorListShape<> GetRandShape() {
     int num_tensor = this->RandInt(1, 64);
-    vector<Dims> shape(num_tensor);
     int dims = this->RandInt(2, 3);
+    TensorListShape<> shape(num_tensor, dims);
     for (int i = 0; i < num_tensor; ++i) {
-      vector<Index> tensor_shape(dims, 0);
+      TensorShape<> tensor_shape;
+      tensor_shape.resize(dims);
       for (int j = 0; j < dims; ++j) {
         tensor_shape[j] = this->RandInt(1, 200);
       }
-      shape[i] = tensor_shape;
+      shape.set_tensor_shape(i, tensor_shape);
     }
     return shape;
   }
 
-  vector<Dims> GetSmallRandShape() {
+  TensorListShape<> GetSmallRandShape() {
     int num_tensor = this->RandInt(1, 32);
-    vector<Dims> shape(num_tensor);
     int dims = this->RandInt(2, 3);
+    TensorListShape<> shape(num_tensor, dims);
     for (int i = 0; i < num_tensor; ++i) {
-      vector<Index> tensor_shape(dims, 0);
+      TensorShape<> tensor_shape;
+      tensor_shape.resize(dims);
       for (int j = 0; j < dims; ++j) {
         tensor_shape[j] = this->RandInt(1, 64);
       }
-      shape[i] = tensor_shape;
+      shape.set_tensor_shape(i, tensor_shape);
     }
     return shape;
   }
 
   /**
    * Initialize & check a TensorList based on an input shape
+   * Allocate it as float
    */
   void SetupTensorList(TensorList<Backend> *tensor_list,
-                       const vector<Dims>& shape,
+                       const TensorListShape<>& shape,
                        vector<Index> *offsets) {
     const int num_tensor = shape.size();
 
     Index offset = 0;
-    for (auto &tmp : shape) {
+
+    for (int i = 0; i < shape.size(); i++) {
       offsets->push_back(offset);
-      offset += volume(tmp);
+      offset += volume(shape[i]);
     }
 
     // Resize the buffer
@@ -113,9 +121,9 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   int num_tensor = shape.size();
   vector<Index> offsets;
   Index size = 0;
-  for (auto &tmp : shape) {
+  for (int i = 0; i < shape.size(); i++) {
     offsets.push_back(size);
-    size += volume(tmp);
+    size += volume(shape[i]);
   }
 
   // Validate the internals
@@ -140,9 +148,9 @@ TYPED_TEST(TensorListTest, TestGetSizeTypeBytes) {
   int num_tensor = shape.size();
   vector<Index> offsets;
   Index size = 0;
-  for (auto& tmp : shape) {
+  for (int i = 0; i < shape.size(); i++) {
     offsets.push_back(size);
-    size += volume(tmp);
+    size += volume(shape[i]);
   }
 
   // Verify the internals
@@ -181,9 +189,9 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   int num_tensor = shape.size();
   vector<Index> offsets;
   Index size = 0;
-  for (auto &tmp : shape) {
+  for (int i = 0; i < shape.size(); i++) {
     offsets.push_back(size);
-    size += volume(tmp);
+    size += volume(shape[i]);
   }
 
   // Verify the internals
@@ -195,21 +203,9 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   ASSERT_TRUE(tl.shares_data());
 
   // Give the buffer a type smaller than float.
-  // We should have enough shared bytes, so no
-  // re-allocation should happen
-  tl.template mutable_data<int16>();
-
-  // Verify the internals
-  ASSERT_TRUE(tl.shares_data());
-  ASSERT_EQ(tl.raw_data(), sharer.raw_data());
-  ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), sizeof(int16)*size);
-  ASSERT_TRUE(IsType<int16>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), num_tensor);
-
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
-  }
+  // Although we should have enough shared bytes,
+  // we don't allow for a partial access to data
+  ASSERT_THROW(tl.template mutable_data<int16>(), std::runtime_error);
 }
 
 TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
@@ -226,9 +222,9 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   int num_tensor = shape.size();
   vector<Index> offsets;
   Index size = 0;
-  for (auto &tmp : shape) {
+  for (int i = 0; i < shape.size(); i++) {
     offsets.push_back(size);
-    size += volume(tmp);
+    size += volume(shape[i]);
   }
 
   // Verify the internals
@@ -240,27 +236,15 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   ASSERT_TRUE(tl.shares_data());
 
   // Give the buffer a type bigger than float.
-  // We do not have enough bytes shared, so
-  // this should trigger a reallocation
-  tl.template mutable_data<double>();
-
-  // Verify the internals
-  ASSERT_FALSE(tl.shares_data());
-  ASSERT_NE(tl.raw_data(), sharer.raw_data());
-  ASSERT_EQ(tl.size(), size);
-  ASSERT_EQ(tl.nbytes(), sizeof(double)*size);
-  ASSERT_TRUE(IsType<double>(tl.type()));
-  ASSERT_EQ(tl.ntensor(), num_tensor);
-
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
-  }
+  // This normally would cause a reallocation,
+  // but we that's forbidden when using shared data.
+  ASSERT_THROW(tl.template mutable_data<double>(), std::runtime_error);
 }
 
 TYPED_TEST(TensorListTest, TestZeroSizeResize) {
   TensorList<TypeParam> tensor_list;
 
-  vector<Dims> shape;
+  TensorListShape<> shape;
   tensor_list.Resize(shape);
 
   ASSERT_EQ(tensor_list.template mutable_data<float>(), nullptr);
@@ -273,17 +257,18 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
   TensorList<TypeParam> tensor_list;
 
   int num_tensor = this->RandInt(0, 128);
-  vector<Dims> shape(num_tensor);
+  auto shape = kernels::uniform_list_shape(num_tensor, TensorShape<>{});
   tensor_list.Resize(shape);
 
   ASSERT_EQ(tensor_list.template mutable_data<float>(), nullptr);
   ASSERT_EQ(tensor_list.nbytes(), 0);
+  ASSERT_EQ(tensor_list.ntensor(), num_tensor);
   ASSERT_EQ(tensor_list.size(), 0);
   ASSERT_FALSE(tensor_list.shares_data());
 
   ASSERT_EQ(tensor_list.ntensor(), num_tensor);
   for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_EQ(tensor_list.tensor_shape(i), vector<Index>{});
+    ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{});
     ASSERT_EQ(tensor_list.tensor_offset(i), 0);
   }
 }
@@ -292,7 +277,7 @@ TYPED_TEST(TensorListTest, TestScalarResize) {
   TensorList<TypeParam> tensor_list;
 
   int num_scalar = this->RandInt(1, 128);
-  vector<Dims> shape(num_scalar, {(Index)1});
+  auto shape = kernels::uniform_list_shape(num_scalar, {1});
   tensor_list.Resize(shape);
 
   ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
@@ -301,7 +286,7 @@ TYPED_TEST(TensorListTest, TestScalarResize) {
   ASSERT_FALSE(tensor_list.shares_data());
 
   for (int i = 0; i < num_scalar; ++i) {
-    ASSERT_EQ(tensor_list.tensor_shape(i), vector<Index>{1});
+    ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{1});
     ASSERT_EQ(tensor_list.tensor_offset(i), i);
   }
 }
@@ -310,7 +295,7 @@ TYPED_TEST(TensorListTest, TestResize) {
   TensorList<TypeParam> tensor_list;
 
   // Setup shape and offsets
-  vector<Dims> shape = this->GetRandShape();
+  auto shape = this->GetRandShape();
   vector<Index> offsets;
 
   // resize + check called in SetupTensorList
@@ -321,7 +306,7 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
   TensorList<TypeParam> tensor_list;
 
   int rand = this->RandInt(1, 20);
-  vector<Dims> shape;
+  TensorListShape<> shape;
   vector<Index> offsets;
   int num_tensor = 0;
   for (int i = 0; i < rand; ++i) {
@@ -330,9 +315,9 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
     shape = this->GetRandShape();
     num_tensor = shape.size();
     Index offset = 0;
-    for (auto &tmp : shape) {
+    for (int i = 0; i < shape.size(); i++) {
       offsets.push_back(offset);
-      offset += volume(tmp);
+      offset += volume(shape[i]);
     }
   }
 
@@ -363,7 +348,7 @@ TYPED_TEST(TensorListTest, TestCopy) {
   ASSERT_EQ(tl.type(), tl2.type());
   ASSERT_EQ(tl.size(), tl2.size());
 
-  for (size_t i = 0; i < shape.size(); ++i) {
+  for (int i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tl.tensor_shape(i), tl.tensor_shape(i));
     ASSERT_EQ(volume(tl.tensor_shape(i)), volume(tl2.tensor_shape(i)));
   }
@@ -385,7 +370,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSameSize) {
   TensorList<TypeParam> tensor_list;
 
   // Setup shape and offsets
-  vector<Dims> shape = this->GetRandShape();
+  auto shape = this->GetRandShape();
   vector<Index> offsets;
 
   this->SetupTensorList(&tensor_list, shape, &offsets);
@@ -413,7 +398,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
   TensorList<TypeParam> tensor_list;
 
   // Setup shape and offsets
-  vector<Dims> shape = this->GetRandShape();
+  auto shape = this->GetRandShape();
   vector<Index> offsets;
 
   this->SetupTensorList(&tensor_list, shape, &offsets);
@@ -443,7 +428,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
   TensorList<TypeParam> tensor_list;
 
   // Setup shape and offsets
-  vector<Dims> shape = this->GetRandShape();
+  auto shape = this->GetRandShape();
   vector<Index> offsets;
 
   this->SetupTensorList(&tensor_list, shape, &offsets);
@@ -470,7 +455,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   TensorList<TypeParam> tensor_list;
 
   // Setup shape and offsets
-  vector<Dims> shape = this->GetRandShape();
+  auto shape = this->GetRandShape();
   vector<Index> offsets;
 
   this->SetupTensorList(&tensor_list, shape, &offsets);
@@ -480,8 +465,10 @@ TYPED_TEST(TensorListTest, TestShareData) {
 
   // Share the data
   tensor_list2.ShareData(&tensor_list);
-  tensor_list2.Resize(vector<Dims>{{tensor_list.size()}});
-  tensor_list2.template mutable_data<uint8>();
+  // We need to use the same size as the underlying buffer
+  // N.B. using other type is UB in most cases
+  tensor_list2.Resize({{{tensor_list.size()}}});
+  tensor_list2.template mutable_data<float>();
 
   // Make sure the pointers match
   ASSERT_EQ(tensor_list.raw_data(), tensor_list2.raw_data());
@@ -496,7 +483,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   // Check the internals
   ASSERT_TRUE(tensor_list2.shares_data());
   ASSERT_EQ(tensor_list2.raw_data(), tensor_list.raw_data());
-  ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes() / sizeof(float) * sizeof(uint8));
+  ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes());
   ASSERT_EQ(tensor_list2.ntensor(), tensor_list.ntensor());
   ASSERT_EQ(tensor_list2.size(), tensor_list.size());
   for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
@@ -504,18 +491,16 @@ TYPED_TEST(TensorListTest, TestShareData) {
     ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
 
-  // Trigger allocation through buffer API, verify we no longer share
-  tensor_list2.template mutable_data<double>();
+  // Trigger allocation through buffer API, verify we cannot do that
+  ASSERT_THROW(tensor_list2.template mutable_data<double>(), std::runtime_error);
+  tensor_list2.Reset();
   ASSERT_FALSE(tensor_list2.shares_data());
 
   // Check the internals
-  ASSERT_EQ(tensor_list2.size(), tensor_list.size());
-  ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes() / sizeof(float) * sizeof(double));
-  ASSERT_EQ(tensor_list2.ntensor(), tensor_list.ntensor());
-  for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
-    ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
-  }
+  ASSERT_EQ(tensor_list2.size(), 0);
+  ASSERT_EQ(tensor_list2.nbytes(), 0);
+  ASSERT_EQ(tensor_list2.ntensor(), 0);
+  ASSERT_EQ(tensor_list2.shape(), kernels::TensorListShape<>());
 }
 
 }  // namespace dali

@@ -24,7 +24,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "dali/pipeline/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/pipeline/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
 #include "dali/pipeline/operators/decoder/nvjpeg/decoupled_api/nvjpeg_allocator.h"
 
 #include "dali/image/image_factory.h"
@@ -45,6 +45,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     Operator<CPUBackend>(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
+    use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")),
     decode_params_(batch_size_),
     use_chunk_allocator_(spec.GetArgument<bool>("use_chunk_allocator")) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
@@ -77,6 +78,9 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     try {
       NVJPEG_CALL(nvjpegDecoderDestroy(decoder_host_));
       NVJPEG_CALL(nvjpegDecoderDestroy(decoder_hybrid_));
+      for (int i = 0; i < batch_size_; i++) {
+        NVJPEG_CALL(nvjpegDecodeParamsDestroy(decode_params_[i]));
+      }
       NVJPEG_CALL(nvjpegDestroy(handle_));
       PinnedAllocator::FreeBuffers();
     } catch (const std::exception &e) {
@@ -136,7 +140,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         auto *output_data = out.mutable_data<uint8_t>();
 
         HostFallback<kernels::StorageCPU>(input_data, in_size, output_image_type_, output_data, 0,
-                                          file_name, info->crop_window);
+                                          file_name, info->crop_window, use_fast_idct_);
       } catch (const std::runtime_error& e) {
         DALI_FAIL(e.what() + "File: " + file_name);
       }
@@ -146,9 +150,6 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                      info->heights));
       NVJPEG_CALL(nvjpegJpegStreamGetComponentsNum(state_nvjpeg->jpeg_stream,
                                                    &info->c));
-      state_nvjpeg->nvjpeg_backend =
-                    ShouldUseHybridHuffman(*info, input_data, in_size, hybrid_huffman_threshold_)
-                    ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
       if (crop_generator) {
         info->crop_window = crop_generator(info->heights[0], info->widths[0]);
@@ -159,6 +160,10 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         info->widths[0] = crop_window.w;
         info->heights[0] = crop_window.h;
       }
+
+      state_nvjpeg->nvjpeg_backend =
+                    ShouldUseHybridHuffman(*info, input_data, in_size, hybrid_huffman_threshold_)
+                    ? NVJPEG_BACKEND_GPU_HYBRID : NVJPEG_BACKEND_HYBRID;
 
       nvjpegJpegState_t state = GetNvjpegState(*state_nvjpeg);
       NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(state,
@@ -196,8 +201,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       type.SetType<uint8_t>();
 
       std::shared_ptr<ImageInfo> info_p(new ImageInfo());
-      info_tensor.ShareData(info_p, 1, {1});
-      info_tensor.set_type(type);
+      info_tensor.ShareData(info_p, sizeof(ImageInfo), {1});
+      info_tensor.set_type(TypeInfo::Create<ImageInfo>());
 
       std::shared_ptr<StateNvJPEG> state_p(new StateNvJPEG(),
         [](StateNvJPEG* s) {
@@ -205,6 +210,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
           NVJPEG_CALL(nvjpegBufferPinnedDestroy(s->pinned_buffer));
           NVJPEG_CALL(nvjpegJpegStateDestroy(s->decoder_host_state));
           NVJPEG_CALL(nvjpegJpegStateDestroy(s->decoder_hybrid_state));
+          delete s;
       });
 
       // We want to use nvJPEG default pinned allocator
@@ -218,12 +224,12 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                         &state_p->decoder_hybrid_state));
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &state_p->jpeg_stream));
 
-      state_tensor.ShareData(state_p, 1, {1});
-      state_tensor.set_type(type);
+      state_tensor.ShareData(state_p, sizeof(StateNvJPEG), {1});
+      state_tensor.set_type(TypeInfo::Create<StateNvJPEG>());
     }
 
-    ImageInfo* info = reinterpret_cast<ImageInfo*>(info_tensor.raw_mutable_data());
-    StateNvJPEG* nvjpeg_state = reinterpret_cast<StateNvJPEG*>(state_tensor.raw_mutable_data());
+    ImageInfo* info = info_tensor.mutable_data<ImageInfo>();
+    StateNvJPEG* nvjpeg_state = state_tensor.mutable_data<StateNvJPEG>();
     return std::make_pair(info, nvjpeg_state);
   }
 
@@ -243,6 +249,8 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
   DALIImageType output_image_type_;
 
   unsigned int hybrid_huffman_threshold_;
+  // Used in host fallback
+  bool use_fast_idct_;
 
   // Common handles
   nvjpegHandle_t handle_;

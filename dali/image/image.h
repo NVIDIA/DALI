@@ -92,6 +92,15 @@ class Image {
     };
   }
 
+  inline void SetUseFastIdct(bool use_fast_idct) {
+    use_fast_idct_ = use_fast_idct;
+  }
+
+  inline bool UseFastIdct() const {
+    return use_fast_idct_;
+  }
+
+
   virtual ~Image() = default;
   DISABLE_COPY_MOVE_ASSIGN(Image);
 
@@ -136,6 +145,7 @@ class Image {
   const size_t length_;
   const DALIImageType image_type_;
   bool decoded_ = false;
+  bool use_fast_idct_ = false;
   ImageDims dims_;
   CropWindowGenerator crop_window_generator_;
   std::shared_ptr<uint8_t> decoded_image_ = nullptr;

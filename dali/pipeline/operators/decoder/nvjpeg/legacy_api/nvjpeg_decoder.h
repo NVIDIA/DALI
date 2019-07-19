@@ -26,15 +26,39 @@
 #include <functional>
 #include <string>
 #include <memory>
-#include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
-#include "dali/pipeline/operators/decoder/nvjpeg_helper.h"
-#include "dali/pipeline/util/thread_pool.h"
+
+#include "dali/core/common.h"
 #include "dali/core/device_guard.h"
+#include "dali/image/image_factory.h"
+#include "dali/kernels/tensor_shape.h"
+#include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
+#include "dali/pipeline/util/thread_pool.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
-#include "dali/image/image_factory.h"
-#include "dali/core/common.h"
+
+#define NVJPEG_CALL(code)                                    \
+  do {                                                       \
+    nvjpegStatus_t status = code;                            \
+    if (status != NVJPEG_STATUS_SUCCESS) {                   \
+      dali::string error = dali::string("NVJPEG error \"") + \
+        std::to_string(static_cast<int>(status)) + "\""  +   \
+        " : " + nvjpeg_parse_error_code(status);             \
+      DALI_FAIL(error);                                      \
+    }                                                        \
+  } while (0)
+
+#define NVJPEG_CALL_EX(code, extra)                          \
+  do {                                                       \
+    nvjpegStatus_t status = code;                            \
+    string extra_info = extra;                               \
+    if (status != NVJPEG_STATUS_SUCCESS) {                   \
+      dali::string error = dali::string("NVJPEG error \"") + \
+        std::to_string(static_cast<int>(status)) + "\""      \
+        + " : " + nvjpeg_parse_error_code(status) + " "      \
+        + extra_info;                                        \
+      DALI_FAIL(error);                                      \
+    }                                                        \
+  } while (0)
 
 namespace dali {
 
@@ -94,6 +118,29 @@ inline bool SupportedSubsampling(const nvjpegChromaSubsampling_t &subsampling) {
   }
 }
 
+const char* nvjpeg_parse_error_code(nvjpegStatus_t code) {
+  switch (code) {
+    case NVJPEG_STATUS_NOT_INITIALIZED:
+      return "NVJPEG_STATUS_NOT_INITIALIZED";
+    case NVJPEG_STATUS_INVALID_PARAMETER:
+      return "NVJPEG_STATUS_INVALID_PARAMETER";
+    case NVJPEG_STATUS_BAD_JPEG:
+      return "NVJPEG_STATUS_BAD_JPEG";
+    case NVJPEG_STATUS_JPEG_NOT_SUPPORTED:
+      return "NVJPEG_STATUS_JPEG_NOT_SUPPORTED";
+    case NVJPEG_STATUS_ALLOCATOR_FAILURE:
+      return "NVJPEG_STATUS_ALLOCATOR_FAILURE";
+    case NVJPEG_STATUS_EXECUTION_FAILED:
+      return "NVJPEG_STATUS_EXECUTION_FAILED";
+    case NVJPEG_STATUS_ARCH_MISMATCH:
+      return "NVJPEG_STATUS_ARCH_MISMATCH";
+    case NVJPEG_STATUS_INTERNAL_ERROR:
+      return "NVJPEG_STATUS_INTERNAL_ERROR";
+    default:
+      return "";
+  }
+}
+
 class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
@@ -101,7 +148,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CachedDecoderImpl(spec),
     max_streams_(spec.GetArgument<int>("num_threads")),
     output_type_(spec.GetArgument<DALIImageType>("output_type")),
-    output_shape_(batch_size_),
+    output_shape_(batch_size_, kOutputDim),
     output_info_(batch_size_),
     use_batched_decode_(spec.GetArgument<bool>("use_batched_decode")),
     batched_image_idx_(batch_size_),
@@ -204,7 +251,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
       // Store pertinent info for later
       const int image_depth = (output_type_ == DALI_GRAY) ? 1 : 3;
-      output_shape_[i] = Dims({info.heights[0], info.widths[0], image_depth});
+      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], image_depth});
       output_info_[i] = info;
       image_order[i] = std::make_pair(volume(output_shape_[i]), i);
     }
@@ -289,7 +336,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
           continue;
 
-        const auto &dims = output_shape_[j];
+        const auto dims = output_shape_[j];
         const ImageCache::ImageShape output_shape{dims[0], dims[1], dims[2]};
         auto info = output_info_[j];
 
@@ -366,7 +413,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           GetFormat(output_type_),
           stream);
 
-    // If image is somehow not supported try hostdecoder
+    // If image is somehow not supported try host decoder
     if (ret != NVJPEG_STATUS_SUCCESS) {
       if (ret == NVJPEG_STATUS_JPEG_NOT_SUPPORTED || ret == NVJPEG_STATUS_BAD_JPEG) {
         OCVFallback(data, in_size, output, stream, file_name);
@@ -449,15 +496,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   vector<cudaStream_t> streams_;
   vector<cudaEvent_t> events_;
 
+  // maximum number of streams to use to decode + convert
+  const int max_streams_;
   // output colour format
   DALIImageType output_type_;
 
-  // maximum number of streams to use to decode + convert
-  const int max_streams_;
-
  protected:
   // Storage for per-image info
-  vector<Dims> output_shape_;
+  kernels::TensorListShape<> output_shape_;
   vector<EncodedImageInfo> output_info_;
 
   bool use_batched_decode_;
@@ -473,6 +519,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // Thread pool
   ThreadPool thread_pool_;
+  static constexpr int kOutputDim = 3;
 };
 
 }  // namespace dali

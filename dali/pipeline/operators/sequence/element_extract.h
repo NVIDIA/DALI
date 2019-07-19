@@ -18,12 +18,13 @@
 
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
 namespace detail {
-  static void CheckInputShape(const Dims& tensor_shape,
+  static void CheckInputShape(const kernels::TensorShape<>& tensor_shape,
                               const std::vector<int>& element_map) {
     DALI_ENFORCE(tensor_shape.size() > 0);
     auto N_input = tensor_shape[0];

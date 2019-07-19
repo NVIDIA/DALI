@@ -297,11 +297,11 @@ struct TensorListViewBase {
     return shape.template tensor_shape<output_dim>(sample);
   }
 
-  span<int64_t, sample_ndim> tensor_shape_span(int sample) {
+  auto tensor_shape_span(int sample) {
     return shape.tensor_shape_span(sample);
   }
 
-  span<const int64_t, sample_ndim> tensor_shape_span(int sample) const {
+  auto tensor_shape_span(int sample) const {
     return shape.tensor_shape_span(sample);
   }
 

@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/pipeline/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
 #include "dali/util/ocv.h"
 #include "dali/core/device_guard.h"
 
@@ -64,16 +64,15 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
 
   using dali::OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
-    std::vector<Dims> output_shape(batch_size_);
+    std::vector<std::vector<Index>> output_shape(batch_size_);
     // Creating output shape and setting the order of images so the largest are processed first
     // (for load balancing)
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
     for (int i = 0; i < batch_size_; i++) {
       const auto& info_tensor = ws->Input<CPUBackend>(0, i);
-      const ImageInfo* info =
-          reinterpret_cast<const ImageInfo*>(info_tensor.raw_data());
+      const ImageInfo* info = info_tensor.data<ImageInfo>();
       int c = NumberOfChannels(output_image_type_);
-      output_shape[i] = Dims({info->heights[0], info->widths[0], c});
+      output_shape[i] = {info->heights[0], info->widths[0], c};
       image_order[i] = std::make_pair(volume(output_shape[i]), i);
     }
     std::sort(image_order.begin(), image_order.end(),
@@ -139,10 +138,8 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
 
   inline std::pair<const ImageInfo*, const StateNvJPEG*>
   GetInfoState(const Tensor<CPUBackend>& info_tensor, const Tensor<CPUBackend>& state_tensor) {
-    const ImageInfo* info =
-          reinterpret_cast<const ImageInfo*>(info_tensor.raw_data());
-    const StateNvJPEG* nvjpeg_state =
-          reinterpret_cast<const StateNvJPEG*>(state_tensor.raw_data());
+    const auto* info = info_tensor.data<ImageInfo>();
+    const auto* nvjpeg_state = state_tensor.data<StateNvJPEG>();
     return std::make_pair(info, nvjpeg_state);
   }
 

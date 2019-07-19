@@ -24,11 +24,12 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/util.h"
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
-#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/meta.h"
-#include "dali/core/util.h"
+#include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
 
@@ -59,7 +60,7 @@ class Tensor : public Buffer<Backend> {
                  "To obtain subspace tensor, source tensor should have at least 2 dimensions");
     DALI_ENFORCE(0 <= x && x < dim(0), "'x' should be valid index to first dimension: [0, dim(0))");
     Tensor<Backend> view;
-    view.shape_ = std::vector<Index>(shape_.begin() + 1, shape_.end());
+    view.shape_ = shape_.last(shape_.size() - 1);
     view.backend_ = backend_;
     view.type_ = type_;
     view.size_ = size_ / shape_[0];
@@ -124,7 +125,7 @@ class Tensor : public Buffer<Backend> {
    * the current buffer is not large enough for the requested
    * number of elements.
    */
-  inline void Resize(const vector<Index> &shape) {
+  inline void Resize(const kernels::TensorShape<> &shape) {
     Index new_size = volume(shape);
     ResizeHelper(new_size);
     shape_ = shape;
@@ -144,6 +145,11 @@ class Tensor : public Buffer<Backend> {
    * until both the owner and the sharer are finished with it. Thus,
    * it is up to the user to manage the scope of the sharing objects
    * to ensure correctness.
+   *
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
    */
   inline void ShareData(TensorList<Backend> *tl, int idx) {
     DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
@@ -175,6 +181,11 @@ class Tensor : public Buffer<Backend> {
    *
    * If the input does not store any data, shares_data_ is left
    * as false.
+   *
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
    */
   inline void ShareData(Tensor<Backend> *t) {
     DALI_ENFORCE(t != nullptr, "Input Tensor is nullptr");
@@ -201,16 +212,19 @@ class Tensor : public Buffer<Backend> {
    * state and is NOT marked as sharing data. Also sets shape of new Tensor.
    *
    * After wrapping the allocation, the Tensors size is set to dot product
-   * of shape vector, and its type is reset to NoType. Future calls to
-   * Resize or setting of the Tensor type will evaluate whether or not the
-   * current allocation is large enough to be used and proceed appropriately.
+   * of shape vector, and its type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
    *
    * The Tensor object assumes no ownership of the input allocation, and will
    * not de-allocate it when it is done using it. It is up to the user to
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, const vector<Index> &shape) {
+  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
+                        const kernels::TensorShape<> &shape) {
     DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
@@ -232,16 +246,18 @@ class Tensor : public Buffer<Backend> {
    * state and is NOT marked as sharing data. Also sets shape of new Tensor.
    *
    * After wrapping the allocation, the Tensors size is set to dot product
-   * of shape vector, and its type is reset to NoType. Future calls to
-   * Resize or setting of the Tensor type will evaluate whether or not the
-   * current allocation is large enough to be used and proceed appropriately.
+   * of shape vector, and its type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
    *
    * The Tensor object assumes no ownership of the input allocation, and will
    * not de-allocate it when it is done using it. It is up to the user to
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes, const vector<Index> &shape) {
+  inline void ShareData(void *ptr, size_t bytes, const kernels::TensorShape<> &shape) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape);
   }
 
@@ -251,9 +267,11 @@ class Tensor : public Buffer<Backend> {
    * state and is NOT marked as sharing data.
    *
    * After wrapping the allocation, the Tensors size is set to 0, and its
-   * type is reset to NoType. Future calls to Resize or setting of the
-   * Tensor type will evaluate whether or not the current allocation is
-   * large enough to be used and proceed appropriately.
+   * type is reset to NoType.
+   * After calling this function any following call to `set_type` and `Resize`
+   * must match the total size of underlying allocation (`num_bytes_`) of
+   * shared data or the call will fail.
+   * Size can be set to 0 and type to NoType as intermediate step.
    *
    * The Tensor object assumes no ownership of the input allocation, and will
    * not de-allocate it when it is done using it. It is up to the user to
@@ -261,7 +279,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes) {
-    ShareData(ptr, bytes, vector<Index>());
+    ShareData(ptr, bytes, {});
   }
 
   /**
@@ -272,17 +290,14 @@ class Tensor : public Buffer<Backend> {
    * all tensors need to be stored without
    * any padding between them)
    */
-  inline void ShareDataReshape(TensorList<Backend> *tl, const vector<Index> &new_shape) {
+  inline void ShareDataReshape(TensorList<Backend> *tl, const kernels::TensorShape<> &new_shape) {
     DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
     DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
         "the input TensorList must have a valid data type.");
     DALI_ENFORCE(tl->IsContinuousTensor(),
       "All tensors in the input TensorList must be continuous in memory.");
-    Index product = 0;
-    for (auto &shape : tl->shape()) {
-       product += volume(shape);
-    }
+    Index product = tl->shape().num_elements();
     DALI_ENFORCE(product == volume(new_shape),
       "Requested shape need to have the same volume as the tensor list.");
     data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
@@ -314,8 +329,7 @@ class Tensor : public Buffer<Backend> {
     data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
 
     // Get the meta-data for the target tensor
-    shape_ = tl->tensor_shape(0);
-    shape_.insert(shape_.begin(), tl->ntensor());
+    shape_ = kernels::shape_cat(tl->ntensor(), tl->tensor_shape(0));
     size_ = volume(shape_);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
@@ -323,10 +337,16 @@ class Tensor : public Buffer<Backend> {
     shares_data_ = true;
   }
 
+  inline void Reset() {
+    reset();  // free the underlying buffer
+    shape_ = {};
+    meta_ = {};
+  }
+
   /**
    * @brief Returns the shape of the Tensor
    */
-  inline const vector<Index> &shape() const {
+  inline const kernels::TensorShape<> &shape() const {
     return shape_;
   }
 
@@ -342,7 +362,7 @@ class Tensor : public Buffer<Backend> {
    */
   inline virtual Index dim(int idx) const {
 #ifndef NDEBUG
-    DALI_ENFORCE((size_t)idx < shape_.size(), "index exceeds ndim");
+    DALI_ENFORCE(idx < shape_.size(), "index exceeds ndim");
     DALI_ENFORCE(idx >= 0, "negative index not supported");
 #endif
     return shape_[idx];
@@ -353,10 +373,12 @@ class Tensor : public Buffer<Backend> {
    * of a Tensor
    */
   inline void Squeeze() {
-    shape_.erase(std::remove(shape_.begin(), shape_.end(), 1), shape_.end());
-    if (shape_.empty()) {
-      shape_.push_back(1);
+    std::vector<Index> shape(shape_.begin(), shape_.end());
+    shape.erase(std::remove(shape.begin(), shape.end(), 1), shape.end());
+    if (shape.empty()) {
+      shape.push_back(1);
     }
+    shape_ = shape;
   }
 
   /**
@@ -388,7 +410,7 @@ class Tensor : public Buffer<Backend> {
     device_ = t.device_;
     meta_ = std::move(t.meta_);
 
-    t.shape_.clear();
+    t.shape_ = kernels::TensorShape<>();
     t.backend_ = Backend();
     t.type_ = TypeInfo::Create<NoType>();
     t.data_.reset();
@@ -410,7 +432,7 @@ class Tensor : public Buffer<Backend> {
       device_ = t.device_;
       meta_ = std::move(t.meta_);
 
-      t.shape_.clear();
+      t.shape_ = kernels::TensorShape<>();
       t.backend_ = Backend();
       t.type_ = TypeInfo::Create<NoType>();
       t.data_.reset();
@@ -420,6 +442,14 @@ class Tensor : public Buffer<Backend> {
       t.meta_ = {};
     }
     return *this;
+  }
+
+  const DALIMeta &GetMeta() const {
+    return meta_;
+  }
+
+  void SetMeta(const DALIMeta &meta)  {
+    meta_ = meta;
   }
 
   inline DALITensorLayout GetLayout() const {
@@ -447,7 +477,7 @@ class Tensor : public Buffer<Backend> {
   }
 
  protected:
-  vector<Index> shape_;
+  kernels::TensorShape<> shape_;
   DALIMeta meta_;
   USE_BUFFER_MEMBERS();
 };

@@ -46,5 +46,5 @@ list(REMOVE_ITEM LINT_SRC
 set(LINT_TARGET lint)
 
 add_custom_target(${LINT_TARGET})
-add_sources_to_lint(${LINT_TARGET} "--linelength=100;--root=${PROJECT_SOURCE_DIR}" "${LINT_SRC}")
-add_sources_to_lint(${LINT_TARGET} "--linelength=100;--root=${PROJECT_SOURCE_DIR}/include" "${LINT_INC}")
+add_sources_to_lint(${LINT_TARGET} "--quiet;--linelength=100;--root=${PROJECT_SOURCE_DIR}" "${LINT_SRC}")
+add_sources_to_lint(${LINT_TARGET} "--quiet;--linelength=100;--root=${PROJECT_SOURCE_DIR}/include" "${LINT_INC}")

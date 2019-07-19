@@ -101,13 +101,13 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
 
   int input_C = NumberOfChannels(input_type_);
   int output_C = NumberOfChannels(output_type_);
-  const vector<Dims> input_shape = input.shape();
-  vector<Dims> output_shape = input_shape;
+  const auto& input_shape = input.shape();
+  auto output_shape = input_shape;
   if ( input_C != output_C ) {
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
-      DALI_ENFORCE(input_shape[i][2] == input_C,
+      DALI_ENFORCE(input_shape.tensor_shape_span(i)[2] == input_C,
         "Wrong number of channels for input");
-      output_shape[i][2] = output_C;
+      output_shape.tensor_shape_span(i)[2] = output_C;
     }
   }
   output.Resize(output_shape);
@@ -122,11 +122,10 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int id
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
       // image dimensions
       NppiSize size;
-      size.height = input.tensor_shape(i)[0];
-      size.width = input.tensor_shape(i)[1];
+      size.height = input_shape.tensor_shape_span(i)[0];
+      size.width = input_shape.tensor_shape_span(i)[1];
 
       // For CUDA kernel
-      const auto shape = input.tensor_shape(i);
       const unsigned int total_size = size.height * size.width;
       const unsigned int block = total_size < 1024 ? total_size : 1024;
       const unsigned int grid = (total_size + block - 1) / block;

@@ -9,6 +9,7 @@ CUDA_VERSION=[default 10, accepts also 9]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
 CREATE_RUNNER=[default NO]
+BUILD_TF_PLUGIN=[default NO]
 DALI_BUILD_FLAVOR=[default is empty]
 CMAKE_BUILD_TYPE=[default is Release]
 BUILD_INHOST=[create build dir with object outside docker, just mount it as a volume]
@@ -44,11 +45,15 @@ export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 export BUILD_INHOST=${BUILD_INHOST:-YES}
 export REBUILD_BUILDERS=${REBUILD_BUILDERS:-NO}
 export REBUILD_MANYLINUX=${REBUILD_MANYLINUX:-NO}
+export BUILD_TF_PLUGIN=${BUILD_TF_PLUGIN:-NO}
 export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}}
 #################################
 export DEPS_IMAGE=dali_cu${CUDA_VERSION}.deps
 export BUILDER=dali_${PYV}_cu${CUDA_VERSION}.build
 export BUILDER_WHL=dali_${PYV}_cu${CUDA_VERSION}.build_w_whl
+export BUILDER_DALI_TF_BASE=dali_${PYV}_cu${CUDA_VERSION}.build_dali_tf_base
+export BUILDER_DALI_TF_BASE_WITH_WHEEL=dali_${PYV}_cu${CUDA_VERSION}.build_dali_tf_base_with_wheel
+export BUILDER_DALI_TF=dali_${PYV}_cu${CUDA_VERSION}.build_dali_tf
 export RUN_IMG=dali_${PYV}_cu${CUDA_VERSION}.run
 export GIT_SHA=$(git rev-parse HEAD)
 export DALI_TIMESTAMP=$(date +%Y%m%d)
@@ -80,11 +85,13 @@ if [[ "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" || "$REBUILD_BUILDE
 fi
 
 # build builder image if needed
-if [[ "$(docker images -q ${BUILDER} 2> /dev/null)" == "" || "$REBUILD_BUILDERS" != "NO" ]]; then
+if [[ "$(docker images -q ${BUILDER} 2> /dev/null)" == "" || "$(docker images -q ${BUILDER_DALI_TF_BASE} 2> /dev/null)" == "" || "$REBUILD_BUILDERS" != "NO" ]]; then
     echo "Build light image:" ${BUILDER}
     docker build -t ${BUILDER} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
-                           --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
-                           --build-arg "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" --target builder .
+                               --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
+                               --build-arg "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" --target builder .
+
+    docker build -t ${BUILDER_DALI_TF_BASE} --build-arg "CUDA_IMAGE=${DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" -f docker/Dockerfile.customopbuilder.clean .
 fi
 
 if [ "$BUILD_INHOST" = "YES" ]; then
@@ -95,16 +102,16 @@ if [ "$BUILD_INHOST" = "YES" ]; then
                                         CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}      \
                                         BUILD_TEST=${BUILD_TEST}                  \
                                         BUILD_BENCHMARK=${BUILD_BENCHMARK}        \
-                                        BUILD_NVTX=${BUILD_NVTXBUILD_NVTX}        \
+                                        BUILD_NVTX=${BUILD_NVTX}        \
                                         BUILD_PYTHON=${BUILD_PYTHON}              \
                                         BUILD_LMDB=${BUILD_LMDB}                  \
-                                        BUILD_TENSORFLOW=${BUILD_TENSORFLOW}      \
                                         BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}      \
                                         BUILD_NVJPEG=${BUILD_NVJPEG}              \
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
                                         BUILD_NVML=${BUILD_NVML}                  \
                                         WERROR=${WERROR}                          \
+                                        BUILD_WITH_ASAN=${BUILD_WITH_ASAN}        \
                                         NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}        \
                                         GIT_SHA=${GIT_SHA}                        \
                                         DALI_TIMESTAMP=${DALI_TIMESTAMP}          \
@@ -112,15 +119,11 @@ if [ "$BUILD_INHOST" = "YES" ]; then
                                         /opt/dali/docker/build_helper.sh &&       \
                                         rm -rf /opt/dali/${DALI_BUILD_DIR}/nvidia* && \
                                         cp /wheelhouse/* ./"
-    if [ "$CREATE_WHL" = "YES" ]; then
-        mkdir -p ./wheelhouse
-        cp $(pwd)/${DALI_BUILD_DIR}/nvidia* ./wheelhouse/
-    fi
 else
     echo "Build image:" ${BUILDER_WHL}
     docker build -t ${BUILDER_WHL} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
-                            --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
-                            --build-arg "CMAKE_BUILD_TYPE=${BUILD_TYPE}" --cache-from "${BUILDER}" .
+                                   --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
+                                   --build-arg "CMAKE_BUILD_TYPE=${BUILD_TYPE}" --cache-from "${BUILDER}" .
 fi
 
 
@@ -155,16 +158,60 @@ if [ "$CREATE_RUNNER" = "YES" ]; then
     fi
 fi
 
+mkdir -p ./wheelhouse/
+
 if [ "$CREATE_WHL" = "YES" ]; then
     if [ "$BUILD_INHOST" = "YES" ]; then
-        mkdir -p ./wheelhouse
         cp $(pwd)/${DALI_BUILD_DIR}/nvidia* ./wheelhouse/
     else
         export CONTAINER="extract-tmp"
         docker create --name "${CONTAINER}" ${BUILDER_WHL}
-        rm -rf ./wheelhouse
-        docker cp "${CONTAINER}:/wheelhouse/" "./"
+        docker cp "${CONTAINER}:/wheelhouse/." "./wheelhouse/"
         docker rm -f "${CONTAINER}"
     fi
 fi
+
+
+if [ "$BUILD_TF_PLUGIN" = "YES" ]; then
+
+    mkdir -p dali_tf_plugin/whl
+    cp ./wheelhouse/*.whl dali_tf_plugin/whl/
+
+    export DALI_TF_BUILDER_CONTAINER="${BUILDER_DALI_TF}_container"
+
+# TODO: Enable when we figure out how to do pip install without root in build_in_custom_op_docker.sh
+
+# if [ "$BUILD_INHOST" = "YES" ]; then
+#     docker build -t ${BUILDER_DALI_TF_BASE_WITH_WHEEL} \
+#            --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE}" \
+#            -f docker/Dockerfile_dali_tf \
+#            --target base_with_wheel \
+#            .
+#     nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} \
+#            --user root -v $(pwd):/opt/dali -v ${tmp_wheelhouse}:/dali_tf_sdist \
+#            ${BUILDER_DALI_TF_BASE_WITH_WHEEL} /bin/bash -c \
+#            "cd /opt/dali/dali_tf_plugin &&                \
+#             NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}            \
+#             GIT_SHA=${GIT_SHA}                            \
+#             DALI_TIMESTAMP=${DALI_TIMESTAMP}              \
+#             NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR} \
+#             /bin/bash build_in_custom_op_docker.sh"
+# else
+    echo "Build image:" ${BUILDER_DALI_TF}
+    docker build -t ${BUILDER_DALI_TF} -f docker/Dockerfile_dali_tf \
+        --build-arg "TF_CUSTOM_OP_BUILDER_IMAGE=${BUILDER_DALI_TF_BASE}" \
+        --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
+        --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" \
+        --build-arg "GIT_SHA=${GIT_SHA}" \
+        --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
+        .
+    nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} ${BUILDER_DALI_TF}
+
+    docker cp "${DALI_TF_BUILDER_CONTAINER}:/dali_tf_sdist/." "./wheelhouse"
+
+    docker rm -f "${DALI_TF_BUILDER_CONTAINER}"
+    rm -rf dali_tf_plugin/whl
+# fi
+fi
+
 popd

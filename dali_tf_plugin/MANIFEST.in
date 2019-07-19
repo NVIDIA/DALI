@@ -1,0 +1,4 @@
+include Acknowledgements.txt LICENSE COPYRIGHT
+include *.cc
+include *.h
+include *.so

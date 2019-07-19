@@ -14,11 +14,13 @@
 
 #include <gtest/gtest.h>
 #include "dali/kernels/imgproc/sampler_test.h"
+#include "dali/core/geom/vec.h"
 
 namespace dali {
 namespace kernels {
 
 using Pixel = std::array<uint8_t, 3>;
+using PixelF = std::array<float, 3>;
 
 TEST(SamplerCPU, NN) {
   SamplerTestData sd;
@@ -90,6 +92,8 @@ TEST(SamplerCPU, Linear) {
     }
   }
 
+  const float epsF = 255.00006 - 255;  // 4 ULP in IEEE 32-bit float for 0-255 range
+  const float eps = 0.50000025f;  // 0.5 + 4 ULP
   for (float y = -1; y <= surf.height+2; y += 0.125f) {
     float fy = y - 0.5f;
     int iy0 = floorf(fy);
@@ -107,7 +111,7 @@ TEST(SamplerCPU, Linear) {
       src[1] = fetch(ix1, iy0);
       src[2] = fetch(ix0, iy1);
       src[3] = fetch(ix1, iy1);
-      Pixel ref;
+      PixelF ref;
 
       float qx = fx - ix0;
       float px = 1 - qx;
@@ -118,11 +122,27 @@ TEST(SamplerCPU, Linear) {
       }
 
       Pixel pixel = { 0, 0, 0 };
+      PixelF pixelF = { 0, 0, 0 };
       sampler(pixel.data(), x, y, border.data());
-      EXPECT_EQ(pixel, ref) << " mismatch at (" << x << ",  " << y << ")";
       for (int c = 0; c < surf.channels; c++) {
-        EXPECT_EQ(sampler.at<uint8_t>(x, y, c, border.data()), ref[c])
-         << " mismatch at (" << x << ",  " << y << ")[" << c << "]";
+        EXPECT_NEAR(pixel[c], ref[c], eps)
+          << " mismatch at (x" << x << ", " << y << ")[" << c << "] when sampling all channels";
+      }
+
+      for (int c = 0; c < surf.channels; c++) {
+        EXPECT_NEAR(sampler.at<uint8_t>(x, y, c, border.data()), ref[c], eps)
+         << " mismatch at (" << x << ",  " << y << ")[" << c << "] when sampling single channel";
+      }
+
+      sampler(pixelF.data(), x, y, border.data());
+      for (int c = 0; c < surf.channels; c++) {
+        EXPECT_NEAR(pixelF[c], ref[c], epsF)
+          << " mismatch at (x" << x << ", " << y << ")[" << c << "] when sampling all channels";
+      }
+
+      for (int c = 0; c < surf.channels; c++) {
+        EXPECT_NEAR(sampler.at<float>(x, y, c, border.data()), ref[c], epsF)
+         << " mismatch at (" << x << ",  " << y << ")[" << c << "] when sampling single channel";
       }
     }
   }

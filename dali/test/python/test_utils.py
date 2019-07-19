@@ -75,9 +75,11 @@ def check_batch(batch1, batch2, batch_size, eps = 1e-07):
         assert(batch1.at(i).size == batch2.at(i).size), \
             "Size mismatch {} != {}".format(batch1.at(i).size, batch2.at(i).size)
         if batch1.at(i).size != 0:
-            err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
             try:
-                err = np.mean( np.abs(batch1.at(i) - batch2.at(i)) )
+                # abs doesn't handle overflow for uint8, so get minimal value of a-b and b-a
+                diff1 = np.abs(batch1.at(i) - batch2.at(i))
+                diff2 = np.abs(batch2.at(i) - batch1.at(i))
+                err = np.mean( np.minimum(diff2, diff1) )
             except:
                 is_failed = True
             if is_failed or err > eps:

@@ -24,10 +24,10 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/core/error_handling.h"
-#include "dali/pipeline/data/types.h"
-#include "dali/core/util.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/util.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
@@ -36,7 +36,9 @@ class GPUBackend;
 // Helper function to get a string of the data shape
 inline string ShapeString(vector<Index> shape) {
   string tmp;
-  for (auto &val : shape) tmp += std::to_string(val) + " ";
+  for (auto& val : shape) {
+    tmp += std::to_string(val) + " ";
+  }
   return tmp;
 }
 
@@ -71,14 +73,7 @@ class Buffer {
   /**
    * @brief Initializes a buffer of size 0.
    */
-  inline Buffer() : data_(nullptr),
-                    size_(0),
-                    shares_data_(false),
-                    num_bytes_(0),
-                    pinned_(true),
-                    device_(-1)
-    {}
-
+  inline Buffer() = default;
   virtual ~Buffer() = default;
 
   /**
@@ -109,12 +104,14 @@ class Buffer {
    */
   template <typename T>
   inline const T* data() const {
+    // clang-format off
     DALI_ENFORCE(IsValidType(type_),
-        "Buffer has no type, 'mutable_data<T>()' must be called "
-        "on non-const buffer to set valid type for " + type_.name());
+                 "Buffer has no type, 'mutable_data<T>()' must be called "
+                 "on non-const buffer to set valid type for " + type_.name());
     DALI_ENFORCE(type_.id() == TypeTable::GetTypeID<T>(),
-        "Calling type does not match buffer data type: " +
-        TypeTable::GetTypeName<T>() + " v. " + type_.name());
+                 "Calling type does not match buffer data type: " +
+                 TypeTable::GetTypeName<T>() + " v. " + type_.name());
+    // clang-format on
     return static_cast<T*>(data_.get());
   }
 
@@ -125,11 +122,10 @@ class Buffer {
    */
   inline void* raw_mutable_data() {
     // Empty tensor
-    if (data_ == nullptr)
-      return nullptr;
+    if (data_ == nullptr) return nullptr;
     DALI_ENFORCE(IsValidType(type_),
-        "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
-        "be called on non-const buffer to set valid type");
+                 "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
+                 "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
   }
 
@@ -140,18 +136,19 @@ class Buffer {
    */
   inline const void* raw_data() const {
     // Empty tensor
-    if (data_ == nullptr)
-      return nullptr;
+    if (data_ == nullptr) return nullptr;
     DALI_ENFORCE(IsValidType(type_),
-        "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
-        "be called on non-const buffer to set valid type");
+                 "Buffer has no type, 'mutable_data<T>()' or 'set_type' must "
+                 "be called on non-const buffer to set valid type");
     return static_cast<void*>(data_.get());
   }
 
   /**
    * @brief Returns the size in elements of the underlying data
    */
-  inline Index size() const { return size_; }
+  inline Index size() const {
+    return size_;
+  }
 
   /**
    * @brief Returns the size in bytes of the underlying data
@@ -160,7 +157,7 @@ class Buffer {
     // Note: This returns the number of bytes occupied by the current
     // number of elements stored in the buffer. This is not neccessarily
     // the number of bytes of the underlying allocation (num_bytes_)
-    return size_*type_.size();
+    return size_ * type_.size();
   }
 
   /**
@@ -217,20 +214,25 @@ class Buffer {
    * enough memory to store the current number of elements with the
    * new data type.
    */
-  inline void set_type(const TypeInfo &new_type) {
+  inline void set_type(const TypeInfo& new_type) {
     DALI_ENFORCE(IsValidType(new_type), "new_type must be valid type.");
     if (new_type == type_) return;
-    type_ = new_type;
 
-    size_t new_num_bytes = size_ * type_.size();
+    size_t new_num_bytes = size_ * new_type.size();
+    if (shares_data_) {
+      DALI_ENFORCE(new_num_bytes == num_bytes_ || new_num_bytes == 0,
+                   "Buffer that shares data cannot have size "
+                   "different than total underlying allocation");
+    }
+
+    type_ = new_type;
     if (new_num_bytes > num_bytes_) {
       reserve(new_num_bytes);
     }
   }
 
   inline void reserve(size_t new_num_bytes) {
-    if (new_num_bytes <= num_bytes_)
-      return;
+    if (new_num_bytes <= num_bytes_) return;
 
     // re-allocating: get the device
     if (std::is_same<Backend, GPUBackend>::value) {
@@ -239,31 +241,37 @@ class Buffer {
       device_ = -1;
     }
 
+    DALI_ENFORCE(!shares_data_,
+                 "Cannot reallocate Buffer if it is sharing data. "
+                 "Clear the status by `Reset()` first.");
     data_.reset();
-    data_.reset(
-      Backend::New(new_num_bytes, pinned_),
-      std::bind(FreeMemory, std::placeholders::_1, new_num_bytes, device_, pinned_));
+    data_.reset(Backend::New(new_num_bytes, pinned_),
+                std::bind(FreeMemory, std::placeholders::_1, new_num_bytes, device_, pinned_));
 
     num_bytes_ = new_num_bytes;
-
-    // If we were sharing data, we aren't anymore
-    shares_data_ = false;
   }
 
-  inline void free() {
+  void reset() {
+    backend_ = Backend();
+    type_ = TypeInfo::Create<NoType>();
     data_.reset();
+    size_ = 0;
+    shares_data_ = false;
     num_bytes_ = 0;
+    device_ = -1;
   }
 
   /**
    * @brief Returns a bool indicating if the list shares its underlying storage.
    */
-  inline bool shares_data() const { return shares_data_; }
+  inline bool shares_data() const {
+    return shares_data_;
+  }
 
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
  protected:
-  static void FreeMemory(void *ptr, size_t bytes, int device, bool pinned) {
+  static void FreeMemory(void* ptr, size_t bytes, int device, bool pinned) {
     // for device == -1 it is noop
     DeviceGuard g(device);
     Backend::Delete(ptr, bytes, pinned);
@@ -272,6 +280,15 @@ class Buffer {
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
+
+    // If we use NoType the result will always be 0
+    size_t new_num_bytes = new_size * type_.size();
+
+    if (shares_data_) {
+      DALI_ENFORCE(new_num_bytes == num_bytes_ || new_num_bytes == 0,
+                   "Cannot change size of a Buffer if it is sharing data. "
+                   "Clear the status by `Reset()` first.");
+    }
 
     size_ = new_size;
 
@@ -286,12 +303,10 @@ class Buffer {
       return;
     }
 
-    size_t new_num_bytes = new_size * type_.size();
     if (new_num_bytes > num_bytes_) {
-      size_t grow = num_bytes_*kAllocMult;
+      size_t grow = num_bytes_ * kAllocMult;
       grow = (grow + kPaddding) & ~(kPaddding - 1);
-      if (grow > new_num_bytes)
-        new_num_bytes = grow;
+      if (grow > new_num_bytes) new_num_bytes = grow;
       reserve(new_num_bytes);
     }
   }
@@ -302,31 +317,26 @@ class Buffer {
 
   Backend backend_;
 
-  TypeInfo type_;  // Data type of underlying storage
-  shared_ptr<void> data_;  // Pointer to underlying storage
-  Index size_;  // The number of elements in the buffer
-  bool shares_data_;
-
-  // To keep track of the true size
-  // of the underlying allocation
-  size_t num_bytes_;
-
-  bool pinned_;  // Whether the allocation uses pinned memory
-
-  // device the buffer was allocated on
-  int device_;
+  TypeInfo type_ = {};               // Data type of underlying storage
+  shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage
+  Index size_ = 0;                   // The number of elements in the buffer
+  size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
+  int device_ = -1;                  // device the buffer was allocated on
+  bool shares_data_ = false;         // Whether we aren't using our own allocation
+  bool pinned_ = true;               // Whether the allocation uses pinned memory
 };
 
 // Macro so we don't have to list these in all
 // classes that derive from Buffer
-#define USE_BUFFER_MEMBERS()                    \
-  using Buffer<Backend>::ResizeHelper;          \
-  using Buffer<Backend>::backend_;              \
-  using Buffer<Backend>::type_;                 \
-  using Buffer<Backend>::data_;                 \
-  using Buffer<Backend>::size_;                 \
-  using Buffer<Backend>::shares_data_;          \
-  using Buffer<Backend>::num_bytes_;            \
+#define USE_BUFFER_MEMBERS()           \
+  using Buffer<Backend>::ResizeHelper; \
+  using Buffer<Backend>::reset;        \
+  using Buffer<Backend>::backend_;     \
+  using Buffer<Backend>::type_;        \
+  using Buffer<Backend>::data_;        \
+  using Buffer<Backend>::size_;        \
+  using Buffer<Backend>::shares_data_; \
+  using Buffer<Backend>::num_bytes_;   \
   using Buffer<Backend>::device_
 
 }  // namespace dali

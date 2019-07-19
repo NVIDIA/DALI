@@ -165,7 +165,7 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   // Create output
   auto &bboxes_output = ws->Output<CPUBackend>(0);
   bboxes_output.set_type(bboxes_input.type());
-  bboxes_output.Resize({static_cast<int>(anchors_.size()), BoundingBox::kSize});
+  bboxes_output.Resize({static_cast<int>(anchors_.size()), static_cast<int>(BoundingBox::kSize)});
   auto out_boxes = bboxes_output.mutable_data<float>();
 
   auto &labels_output = ws->Output<CPUBackend>(1);
@@ -204,7 +204,7 @@ encoded box.")code")
         0.5f, false)
     .AddOptionalArg(
         "offset",
-        R"code(Returns normalized offsets `(encoded_bboxes*scale - anchors*scale) - mean) / stds`
+        R"code(Returns normalized offsets `((encoded_bboxes*scale - anchors*scale) - mean) / stds`
                in `EncodedBBoxes` using `std`, `mean` and `scale` arguments (default values are transparent).)code",
         false)
     .AddOptionalArg("scale",

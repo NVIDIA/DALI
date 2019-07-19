@@ -204,19 +204,27 @@ TYPED_TEST(ExecutorTest, TestPruneMultiple) {
           .AddInput("data1", "cpu")
           .AddOutput("data4", "cpu")), "");
 
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("DummyOp")
+          .AddArg("device", "cpu")
+          .AddArg("num_outputs", 0)
+          .AddArg("preserve", true)
+          .AddInput("data1", "cpu")), "");
+
   vector<string> outputs = {"data1_cont_cpu"};
   exe->Build(&graph, outputs);
 
   // Validate the graph - op 2&3 should
-  // have been pruned
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
+  // have been pruned.
+  // Op 4 should not be pruned
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
   ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
   ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the source op
   auto& node = graph.Node(0);
   ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 1);
+  ASSERT_EQ(node.children.size(), 2);
   ASSERT_EQ(node.parents.size(), 0);
   ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
   ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
@@ -399,7 +407,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("HostDecoder")
+          OpSpec("ImageDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
@@ -444,7 +452,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("HostDecoder")
+          OpSpec("ImageDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
@@ -505,7 +513,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
-          OpSpec("HostDecoder")
+          OpSpec("ImageDecoder")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("images", "cpu")), "");
@@ -548,10 +556,11 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   // Split the batch into two
   TensorList<CPUBackend> tl2;
   TensorList<CPUBackend> tl1;
-  vector<Dims> shape1(batch_size), shape2(batch_size);
+  kernels::TensorListShape<> shape1(batch_size, tl.shape().sample_dim()),
+      shape2(batch_size, tl.shape().sample_dim());
   for (int i = 0; i < batch_size; ++i) {
-    shape1[i] = tl.tensor_shape(i);
-    shape2[i] = tl.tensor_shape(i+batch_size);
+    shape1.set_tensor_shape(i, tl.tensor_shape(i));
+    shape2.set_tensor_shape(i, tl.tensor_shape(i+batch_size));
   }
   tl1.Resize(shape1);
   tl2.Resize(shape2);

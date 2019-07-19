@@ -144,6 +144,11 @@ class DLL_PUBLIC OperatorBase {
     return input_sets_;
   }
 
+  DLL_PUBLIC bool CanBePruned() const {
+    const auto &schema = SchemaRegistry::GetSchema(spec_.name());
+    return !spec_.GetArgument<bool>("preserve") && !schema.IsNoPrune();
+  }
+
   DISABLE_COPY_MOVE_ASSIGN(OperatorBase);
 
  protected:

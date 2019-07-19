@@ -298,13 +298,14 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
   for (auto& file_name : annotations_filename) {
     // Loading raw json into the RAM
     std::ifstream f(file_name);
-    DALI_ENFORCE(f, "Could not open JSON annotations file");
+    DALI_ENFORCE(f, "Could not open JSON annotations file: " + file_name);
     f.seekg(0, std::ios::end);
     size_t file_size = f.tellg();
-    std::unique_ptr<char, std::function<void(char*)>> buff(new char[file_size],
-                          [](char* data) {delete [] data;});
+    std::unique_ptr<char, std::function<void(char*)>> buff(new char[file_size + 1],
+                                                           [](char* data) {delete [] data;});
     f.seekg(0, std::ios::beg);
     f.read(buff.get(), file_size);
+    buff.get()[file_size] = '\0';
 
     LookaheadParser r(buff.get());
 

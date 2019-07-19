@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/operators/decoder/decoder_test.h"
 
 namespace dali {
 
 template <typename ImgType>
-class HostDecoderSliceTest : public DecodeTestBase<ImgType> {
+class ImageDecoderSliceTest_CPU : public DecodeTestBase<ImgType> {
  protected:
   TensorList<CPUBackend> begin_data;
   TensorList<CPUBackend> crop_data;
 
   void AddAdditionalInputs(
     vector<std::pair<string, TensorList<CPUBackend>*>>& inputs) override {
-      vector<Dims> shape(this->batch_size_, {2});
+      auto shape = kernels::uniform_list_shape(this->batch_size_, {2});
 
       begin_data.set_type(TypeInfo::Create<float>());
       begin_data.Resize(shape);
@@ -45,7 +46,7 @@ class HostDecoderSliceTest : public DecodeTestBase<ImgType> {
   }
 
   OpSpec DecodingOp() const override {
-    return this->GetOpSpec("HostDecoderSlice")
+    return this->GetOpSpec("ImageDecoderSlice")
       .AddInput("begin", "cpu")
       .AddInput("crop", "cpu");
   }
@@ -66,17 +67,17 @@ class HostDecoderSliceTest : public DecodeTestBase<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_SUITE(HostDecoderSliceTest, Types);
+TYPED_TEST_SUITE(ImageDecoderSliceTest_CPU, Types);
 
-TYPED_TEST(HostDecoderSliceTest, JpegDecode) {
+TYPED_TEST(ImageDecoderSliceTest_CPU, JpegDecode) {
   this->Run(t_jpegImgType);
 }
 
-TYPED_TEST(HostDecoderSliceTest, PngDecode) {
+TYPED_TEST(ImageDecoderSliceTest_CPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
-TYPED_TEST(HostDecoderSliceTest, TiffDecode) {
+TYPED_TEST(ImageDecoderSliceTest_CPU, TiffDecode) {
   this->Run(t_tiffImgType);
 }
 

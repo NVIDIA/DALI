@@ -121,14 +121,17 @@ Index SequenceLoader::SizeImpl() {
 void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_idx,
                                Tensor<CPUBackend> *target) {
   const auto frame_filename = s[frame_idx];
-  target->SetSourceInfo(frame_filename);
-  target->SetSkipSample(false);
+  DALIMeta meta;
+  meta.SetSourceInfo(frame_filename);
+  meta.SetSkipSample(false);
 
   // if image is cached, skip loading
   if (ShouldSkipImage(frame_filename)) {
+    meta.SetSkipSample(true);
+    target->Reset();
+    target->SetMeta(meta);
     target->set_type(TypeInfo::Create<uint8_t>());
-    target->Resize({1});
-    target->SetSkipSample(true);
+    target->Resize({0});
     return;
   }
 
@@ -136,6 +139,9 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
   Index frame_size = frame->Size();
   // Release and unmap memory previously obtained by Get call
   if (copy_read_data_) {
+    if (target->shares_data()) {
+      target->Reset();
+    }
     target->Resize({frame_size});
     frame->Read(target->mutable_data<uint8_t>(), frame_size);
   } else {
@@ -144,6 +150,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     target->ShareData(p, frame_size, {frame_size});
     target->set_type(TypeInfo::Create<uint8_t>());
   }
+  target->SetMeta(meta);
   frame->Close();
 }
 

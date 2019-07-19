@@ -119,13 +119,11 @@ class DetectionPipeline(Pipeline):
             ltrb=True,
             random_shuffle=True)
 
-        self.decode_cpu = ops.HostDecoder(device="cpu", output_type=types.RGB)
-        self.decode_crop = ops.HostDecoderSlice(
-            device="cpu", output_type=types.RGB)
+        self.decode_cpu = ops.ImageDecoder(device="cpu", output_type=types.RGB)
+        self.decode_crop = ops.ImageDecoderSlice(device="cpu", output_type=types.RGB)
 
-        self.decode_gpu = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
-        self.decode_gpu_crop = ops.nvJPEGDecoderSlice(
-            device="mixed", output_type=types.RGB)
+        self.decode_gpu = ops.ImageDecoder(device="mixed", output_type=types.RGB)
+        self.decode_gpu_crop = ops.ImageDecoderSlice(device="mixed", output_type=types.RGB)
 
         self.ssd_crop = ops.SSDRandomCrop(
             device="cpu", num_attempts=1, seed=args.seed)
@@ -379,7 +377,7 @@ def run_for_dataset(args, dataset):
                 [to_array(out) for out in pipe.run()]
             # Check reader
             labels = ((labels > 0) & (labels <= 80)).all()
-            
+
             # Check cropping ops
             decode_crop = compare(image_ssd_crop, image_decode_crop)
             slice_cpu = compare(image_ssd_crop, image_slice_cpu)

@@ -17,10 +17,10 @@
 namespace dali {
 
 template <typename ImgType>
-class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
+class ImageDecoderSplitTest_GPU : public GenericDecoderTest<ImgType> {
  protected:
   OpSpec DecodingOp() const override {
-    return OpSpec("nvJPEGDecoder")
+    return OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", this->img_type_)
       .AddArg("hybrid_huffman_threshold", hybrid_huffman_threshold_)
@@ -56,26 +56,26 @@ class nvjpegDecodeSplitTest : public GenericDecoderTest<ImgType> {
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_SUITE(nvjpegDecodeSplitTest, Types);
+TYPED_TEST_SUITE(ImageDecoderSplitTest_GPU, Types);
 
 
 /***********************************************
 **** Default JPEG decode (mix host/hybrid) *****
 ***********************************************/
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode) {
   this->JpegTestDecode(1, 512u*512u);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode2T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode2T) {
   this->JpegTestDecode(2, 512u*512u);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode3T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode3T) {
   this->JpegTestDecode(3, 512u*512u);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode4T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode4T) {
   this->JpegTestDecode(4, 512u*512u);
 }
 
@@ -83,22 +83,22 @@ TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode4T) {
 ******* JPEG Decode with chunk allocator *******
 ***********************************************/
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecodeChunkAlloc) {
   this->SetCustomAllocator();
   this->JpegTestDecode(1, 512u*512u);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc2T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecodeChunkAlloc2T) {
   this->SetCustomAllocator();
   this->JpegTestDecode(2, 512u*512u);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc3T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecodeChunkAlloc3T) {
   this->SetCustomAllocator();
   this->JpegTestDecode(3, 512u*512u);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc4T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecodeChunkAlloc4T) {
   this->SetCustomAllocator();
   this->JpegTestDecode(4, 512u*512u);
 }
@@ -107,19 +107,19 @@ TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeChunkAlloc4T) {
 ******** Host huffman only JPEG decode *********
 ***********************************************/
 // H*W never > threshold so host huffman decoder is always chosen
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeHostHuffman) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecodeHostHuffman) {
   this->JpegTestDecode(1, std::numeric_limits<unsigned int>::max());
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode2THostHuffman) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode2THostHuffman) {
   this->JpegTestDecode(2, std::numeric_limits<unsigned int>::max());
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode3THostHuffman) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode3THostHuffman) {
   this->JpegTestDecode(3, std::numeric_limits<unsigned int>::max());
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode4THostHuffman) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode4THostHuffman) {
   this->JpegTestDecode(4, std::numeric_limits<unsigned int>::max());
 }
 
@@ -127,57 +127,57 @@ TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode4THostHuffman) {
 ******* Hybrid huffman only JPEG decode ********
 ***********************************************/
 // H*W always > threshold so hybrid huffman decoder is always chosen
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecodeHybridHuffman) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecodeHybridHuffman) {
   this->JpegTestDecode(1, 0);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode2THybridHuffman) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode2THybridHuffman) {
   this->JpegTestDecode(2, 0);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode3THybridHuffman) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode3THybridHuffman) {
   this->JpegTestDecode(3, 0);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleJPEGDecode4THybridHuffman) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode4THybridHuffman) {
   this->JpegTestDecode(4, 0);
 }
 
 /***********************************************
 ************* PNG fallback decode **************
 ***********************************************/
-TYPED_TEST(nvjpegDecodeSplitTest, TestSinglePNGDecode) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSinglePNGDecode) {
   this->PngTestDecode(1);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSinglePNGDecode2T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSinglePNGDecode2T) {
   this->PngTestDecode(2);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSinglePNGDecode3T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSinglePNGDecode3T) {
   this->PngTestDecode(3);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSinglePNGDecode4T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSinglePNGDecode4T) {
   this->PngTestDecode(4);
 }
 
 /***********************************************
 ************ TIFF fallback decode **************
 ***********************************************/
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleTiffDecode) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleTiffDecode) {
   this->TiffTestDecode(1);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleTiffDecode2T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleTiffDecode2T) {
   this->TiffTestDecode(2);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleTiffDecode3T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleTiffDecode3T) {
   this->TiffTestDecode(3);
 }
 
-TYPED_TEST(nvjpegDecodeSplitTest, TestSingleTiffDecode4T) {
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleTiffDecode4T) {
   this->TiffTestDecode(4);
 }
 }  // namespace dali

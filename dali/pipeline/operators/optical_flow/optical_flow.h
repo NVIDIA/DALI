@@ -116,6 +116,7 @@ class OpticalFlow : public Operator<Backend> {
   void ExtractParams(const TensorList<Backend> &tl) {
     auto shape = tl.shape();
     nsequences_ = shape.size();
+    DALI_ENFORCE(shape.sample_dim() == 4, "Input for Optical Flow must be a sequence of frames.");
     frames_height_ = shape[0][1];
     frames_width_ = shape[0][2];
     depth_ = shape[0][3];
@@ -124,17 +125,16 @@ class OpticalFlow : public Operator<Backend> {
       sequence_sizes_[i] = shape[i][0];
     }
 
-    for (const auto &seq : shape) {
-      DALI_ENFORCE(seq[1] != frames_height_ || seq[2] != frames_width_ || seq[3] != depth_,
-        "Width, height and depth for Optical Flow calculation must be equal for all sequences.");
+    for (auto sz : sequence_sizes_) {
+      DALI_ENFORCE(sz >= 2, (sz == 1
+                             ? "One-frame sequence encountered. Make sure that all input sequences "
+                               "for Optical Flow have at least 2 frames."
+                             : "Empty sequence encountered. Make sure that all input sequences"
+                               " for Optical Flow have at least 2 frames."));
     }
 
-    for (auto sz : sequence_sizes_) {
-      DALI_ENFORCE(sz >= 2, (sz == 1 ? "One-frame sequence encountered. "
-        "Make sure that all input sequences for Optical Flow have at least 2 frames." :
-        "Empty sequence encountered. "
-        "Make sure that all input sequences for Optical Flow have at least 2 frames."));
-    }
+    DALI_ENFORCE(kernels::is_uniform(shape),
+        "Width, height and depth for Optical Flow calculation must be equal for all sequences.");
   }
 
 
@@ -145,7 +145,8 @@ class OpticalFlow : public Operator<Backend> {
     ExtractParams(input);
 
     auto hints_shape = hints.shape();
-    DALI_ENFORCE(hints_shape.size() == static_cast<size_t>(nsequences_),
+    DALI_ENFORCE(hints_shape.sample_dim() == 3, "Hint should have a sample dim equal 3.");
+    DALI_ENFORCE(hints_shape.size() == nsequences_,
                  "Number of input sequences and hints must match");
     hints_height_ = hints_shape[0][1];
     hints_width_ = hints_shape[0][2];
@@ -154,13 +155,8 @@ class OpticalFlow : public Operator<Backend> {
     DALI_ENFORCE(
             hints_height_ == (frames_height_ + 3) / 4 && hints_width_ == (frames_width_ + 3) / 4,
             "Hints resolution has to be 4 times smaller in each dimension (4x4 grid)");
-    DALI_ENFORCE([&]() -> bool {
-        for (const auto &seq : hints_shape) {
-          if (seq[1] != hints_height_ || seq[2] != hints_width_ || seq[3] != hints_depth_)
-            return false;
-        }
-        return true;
-    }(), "Width, height and depth must be equal for all hints");
+    DALI_ENFORCE(kernels::is_uniform(hints_shape),
+                 "Width, height and depth must be equal for all hints");
   }
 
 

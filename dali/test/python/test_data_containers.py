@@ -24,8 +24,8 @@ class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id)
 
-        self.decode_gpu = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
-        self.decode_host = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+        self.decode_gpu = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
+        self.decode_host = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
 
     def base_define_graph(self, inputs, labels):
         images_gpu = self.decode_gpu(inputs)
@@ -112,7 +112,7 @@ test_data = {
                                 ["/data/coco/coco-2017/coco2017/val2017", "/data/coco/coco-2017/coco2017/annotations/instances_val2017.json"]]
             }
 
-parser = argparse.ArgumentParser(description='nvJPEG and HostDecoder RN50 dataset test')
+parser = argparse.ArgumentParser(description='ImageDecoder RN50 dataset test')
 parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
                     help='number of GPUs (default: 1)')
 parser.add_argument('-b', '--batch', default=2048, type=int, metavar='N',
@@ -149,7 +149,7 @@ for pipe_name in test_data.keys():
         print (data_set)
         for j in range(iters):
             for pipe in pipes:
-                pipe._run()
+                pipe.schedule_run()
             for pipe in pipes:
                 pipe.outputs()
             if j % LOG_INTERVAL == 0:

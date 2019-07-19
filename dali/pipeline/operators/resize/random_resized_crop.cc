@@ -62,7 +62,7 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx)
 template<>
 void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
   auto &input = ws->Input<CPUBackend>(0);
-  vector<Index> input_shape = input.shape();
+  auto& input_shape = input.shape();
   DALI_ENFORCE(input_shape.size() == 3,
       "Expects 3-dimensional image input.");
 

@@ -46,6 +46,20 @@ static void* ctypes_void_ptr(const py::object& object) {
   return ptr;
 }
 
+template <int ndim>
+py::list as_py_list(const kernels::TensorShape<ndim> &shape) {
+  py::list ret(shape.size());
+  for (int i = 0; i < shape.size(); i++) {
+    ret[i] = shape[i];
+  }
+  return ret;
+}
+
+template <typename Backend>
+py::list py_shape(const Tensor<Backend> &t) {
+  return as_py_list(t.shape());
+}
+
 void ExposeTensor(py::module &m) { // NOLINT
   py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
@@ -103,7 +117,7 @@ void ExposeTensor(py::module &m) { // NOLINT
       R"code(
       Tensor residing in the CPU memory.
       )code")
-    .def("shape", &Tensor<CPUBackend>::shape,
+    .def("shape", &py_shape<CPUBackend>,
          R"code(
          Shape of the tensor.
          )code")
@@ -133,7 +147,7 @@ void ExposeTensor(py::module &m) { // NOLINT
       )code");
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
-    .def("shape", &Tensor<GPUBackend>::shape,
+    .def("shape", &py_shape<GPUBackend>,
          R"code(
          Shape of the tensor.
          )code")
@@ -188,7 +202,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
           for (size_t i = 1; i < info.shape.size(); ++i) {
             tensor_shape[i-1] = info.shape[i];
           }
-          std::vector<Dims> i_shape(info.shape[0], tensor_shape);
+          auto i_shape = kernels::uniform_list_shape(info.shape[0], tensor_shape);
           size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
           // Validate the stride
@@ -787,7 +801,10 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
     .def("AllowsSequences", &OpSchema::AllowsSequences)
-    .def("IsInternal", &OpSchema::IsInternal);
+    .def("IsInternal", &OpSchema::IsInternal)
+    .def("IsNoPrune", &OpSchema::IsNoPrune)
+    .def("IsDeprecated", &OpSchema::IsDeprecated)
+    .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf);
 
   ExposeTensor(m);
   ExposeTensorList(m);

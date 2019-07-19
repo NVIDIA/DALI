@@ -17,6 +17,7 @@
 
 #include <vector>
 
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
 
@@ -47,8 +48,7 @@ class NormalizePermute : public Operator<Backend> {
     mean_.Copy(mean, 0);
     inv_std_.Copy(std, 0);
 
-    output_shape_.resize(batch_size_);
-    for (auto &shape : output_shape_) shape = {C_, H_, W_};
+    output_shape_ = kernels::uniform_list_shape(batch_size_, {C_, H_, W_});
   }
 
   inline ~NormalizePermute() override = default;
@@ -65,7 +65,7 @@ class NormalizePermute : public Operator<Backend> {
   Tensor<Backend> mean_, inv_std_;
   DALIDataType output_type_;
   int H_, W_, C_;
-  vector<Dims> output_shape_;
+  kernels::TensorListShape<> output_shape_;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;

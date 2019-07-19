@@ -118,7 +118,7 @@ struct TestStatus {
 #define DECLARE_TEST_KERNEL(suite_name, test_name)\
 template <typename... Args>\
 __global__ void suite_name##_##test_name##_kernel( \
-    dali::testing::TestStatus *test_status, Args... args);
+    dali::testing::TestStatus *test_status, Args... args)
 
 #define DEFINE_TEST_KERNEL(suite_name, test_name, ...) \
 __device__ void suite_name##_##test_name##_body( \
@@ -169,7 +169,7 @@ __device__ void suite_name##_##test_name##_body( \
 /// @param grid CUDA grid size
 /// @param block CUDA block size
 #define DEVICE_TEST(suite_name, test_name, grid, block) \
-DECLARE_TEST_KERNEL(suite_name, test_name) \
+DECLARE_TEST_KERNEL(suite_name, test_name); \
 TEST(suite_name, test_name) \
 { DEVICE_TEST_CASE_BODY(suite_name, test_name, grid, block); } \
 DEFINE_TEST_KERNEL(suite_name, test_name)

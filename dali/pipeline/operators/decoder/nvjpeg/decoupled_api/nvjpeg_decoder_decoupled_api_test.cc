@@ -20,7 +20,7 @@ template <typename ImgType>
 class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
  protected:
   OpSpec DecodingOp() const override {
-    return OpSpec("nvJPEGDecoder")
+    return OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddArg("output_type", this->img_type_)
       .AddArg("hybrid_huffman_threshold", hybrid_huffman_threshold_)
@@ -35,11 +35,13 @@ class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
   }
 
   void PngTestDecode(int num_threads) {
+    hybrid_huffman_threshold_ = 0;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_pngImgType);
   }
 
   void TiffTestDecode(int num_threads) {
+    hybrid_huffman_threshold_ = 0;
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_tiffImgType);
   }

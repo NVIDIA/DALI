@@ -49,7 +49,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, Caffe2Pipe)(benchmark::State& st) { // NOLINT
       .AddOutput("labels", "cpu"));
 
   pipe.AddOperator(
-      OpSpec("HostDecoder")
+      OpSpec("ImageDecoder")
       .AddArg("device", "cpu")
       .AddArg("output_type", img_type)
       .AddInput("compressed_images", "cpu")
@@ -174,7 +174,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
 
   // Add a hybrid jpeg decoder
   pipe.AddOperator(
-      OpSpec("nvJPEGDecoder")
+      OpSpec("ImageDecoder")
       .AddArg("device", "mixed")
       .AddInput("compressed_images", "cpu")
       .AddArg("output_type", img_type)

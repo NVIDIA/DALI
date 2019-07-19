@@ -24,18 +24,17 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <numeric>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/image/jpeg.h"
 #include "dali/pipeline/data/backend.h"
+#include "dali/test/dali_test_config.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 
 namespace dali {
-
-// Note: this is setup for the binary to be executed from "build"
-const string image_folder = "/data/dali/test/test_images";  // NOLINT
 
 struct DimPair {
   int h = 0, w = 0;
@@ -58,14 +57,10 @@ struct YCbCr {
 // Main testing fixture to provide common functionality across tests
 class DALITest : public ::testing::Test {
  public:
-  inline void SetUp() override {
+  DALITest() {
     rand_gen_.seed(time(nullptr));
-    jpeg_names_ = ImageList(image_folder, {".jpg"});
+    jpeg_names_ = ImageList(testing::dali_extra_path() + "/db/single/jpeg/0", {".jpg"});
     LoadImages(jpeg_names_, &jpegs_);
-  }
-
-  inline void TearDown() override {
-    for (auto &ptr : images_) delete[] ptr;
   }
 
   inline int RandInt(int a, int b) {
@@ -112,7 +107,7 @@ class DALITest : public ::testing::Test {
   }
 
   inline void DecodeImages(DALIImageType type, const ImgSetDescr &imgs,
-                           vector<uint8 *> *images,
+                           vector<vector<uint8>> *images,
                            vector<DimPair> *image_dims) {
     c_ = IsColor(type) ? 3 : 1;
     const int flag =
@@ -141,8 +136,8 @@ class DALITest : public ::testing::Test {
 
       // Copy the decoded image out & save the dims
       ASSERT_TRUE(out_img.isContinuous());
-      (*images)[i] = new uint8[h * w * c_];
-      std::memcpy((*images)[i], out_img.ptr(), h * w * c_);
+      (*images)[i].resize(h * w * c_);
+      std::memcpy((*images)[i].data(), out_img.ptr(), h * w * c_);
     }
   }
 
@@ -151,19 +146,19 @@ class DALITest : public ::testing::Test {
   }
 
   inline void MakeDecodedBatch(int n, TensorList<CPUBackend> *tl,
-                               const vector<uint8 *> &images,
+                               const vector<vector<uint8>> &images,
                                const vector<DimPair> &image_dims, const int c) {
     DALI_ENFORCE(!images.empty(), "Images must be populated to create batches");
-    vector<Dims> shape(n);
+    kernels::TensorListShape<> shape(n, kImageDim);
     for (int i = 0; i < n; ++i) {
-      shape[i] = {image_dims[i % images.size()].h,
-                  image_dims[i % images.size()].w, c};
+      shape.set_tensor_shape(i,
+          {image_dims[i % images.size()].h, image_dims[i % images.size()].w, c});
     }
     tl->template mutable_data<uint8>();
     tl->Resize(shape);
     for (int i = 0; i < n; ++i) {
       std::memcpy(tl->template mutable_tensor<uint8>(i),
-                  images[i % images.size()], volume(tl->tensor_shape(i)));
+                  images[i % images.size()].data(), volume(tl->tensor_shape(i)));
     }
   }
 
@@ -181,9 +176,9 @@ class DALITest : public ::testing::Test {
     const auto &data_sizes = imgs.sizes_;
     const auto nImgs = imgs.nImages();
     DALI_ENFORCE(nImgs > 0, "data must be populated to create batches");
-    vector<Dims> shape(n);
+    kernels::TensorListShape<> shape(n, 1);
     for (int i = 0; i < n; ++i) {
-      shape[i] = {data_sizes[i % nImgs]};
+      shape.set_tensor_shape(i, {data_sizes[i % nImgs]});
     }
 
     tl->template mutable_data<uint8>();
@@ -255,9 +250,9 @@ class DALITest : public ::testing::Test {
                               bool ltrb = true) {
     static std::uniform_int_distribution<> rint(0, 10);
 
-    vector<Dims> shape(n);
+    kernels::TensorListShape<> shape(n, kBBoxDim);
     for (int i = 0; i < n; ++i) {
-      shape[i] = {rint(rd_), 4};
+      shape.set_tensor_shape(i, {rint(rd_), 4});
     }
 
     tl->Resize(shape);
@@ -272,12 +267,11 @@ class DALITest : public ::testing::Test {
                                        unsigned int n, bool ltrb = true) {
     static std::uniform_int_distribution<> rint(0, 10);
 
-    vector<Dims> boxes_shape(n);
-    vector<Dims> labels_shape(n);
+    kernels::TensorListShape<> boxes_shape(n, kBBoxDim), labels_shape(n, kLabelDim);
     for (size_t i = 0; i < n; ++i) {
       auto box_count = rint(rd_);
-      boxes_shape[i] = {box_count, 4};
-      labels_shape[i] = {box_count};
+      boxes_shape.set_tensor_shape(i, {box_count, 4});
+      labels_shape.set_tensor_shape(i, {box_count});
     }
 
     boxes->Resize(boxes_shape);
@@ -298,9 +292,7 @@ class DALITest : public ::testing::Test {
     ASSERT_NE(N, 0);
 
     double sum = 0, var_sum = 0;
-    for (auto &val : diff) {
-      sum += val;
-    }
+    sum = std::accumulate(diff.begin(), diff.end(), 0);
     *mean = sum / N;
     for (auto &val : diff) {
       var_sum += (val - *mean) * (val - *mean);
@@ -380,12 +372,16 @@ class DALITest : public ::testing::Test {
   ImgSetDescr jpegs_, png_, tiff_;
 
   // Decoded images
-  vector<uint8 *> images_;
+  vector<vector<uint8>> images_;
   vector<DimPair> image_dims_;
   int c_;
 
  private:
   std::random_device rd_;
+
+  static constexpr int kImageDim = 3;
+  static constexpr int kBBoxDim = 2;
+  static constexpr int kLabelDim = 1;
 };
 }  // namespace dali
 

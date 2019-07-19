@@ -83,7 +83,7 @@ void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
     SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) const {
   auto &bbox_out = ws->Output<CPUBackend>(2);
   bbox_out.Resize(
-      {static_cast<Index>(bounding_boxes.size()), BoundingBox::kSize});
+      {static_cast<int64_t>(bounding_boxes.size()), static_cast<int64_t>(BoundingBox::kSize)});
 
   auto *bbox_out_data = bbox_out.mutable_data<float>();
   for (size_t i = 0; i < bounding_boxes.size(); ++i) {

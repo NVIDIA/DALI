@@ -41,13 +41,7 @@ class DLL_PUBLIC OpSchema {
   OpSchema &operator=(const OpSchema &) = delete;
   OpSchema &operator=(OpSchema &&) = default;
 
-  DLL_PUBLIC explicit inline OpSchema(const std::string &name)
-    : name_(name)
-    , allow_multiple_input_sets_(false)
-    , enforce_layout_(false)
-    , allow_sequences_(false)
-    , is_sequence_operator_(false)
-    , is_internal_(false) {
+  DLL_PUBLIC explicit inline OpSchema(const std::string &name): name_(name) {
     // Fill internal arguments
     auto v = Value::construct(-1);
     internal_arguments_["num_threads"] =
@@ -76,6 +70,9 @@ class DLL_PUBLIC OpSchema {
 
     AddOptionalArg("bytes_per_sample_hint", "Output size hint (bytes), "
       "per sample. The memory will be preallocated if it uses GPU or page-locked memory", 0);
+
+    AddOptionalArg("preserve", "Do not remove the Op from the "
+                               "graph even if its outputs are unused.", false);
   }
 
   DLL_PUBLIC inline ~OpSchema() = default;
@@ -188,6 +185,15 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
+   * @brief Notes that this operator is deprecated and optionally specifies the operator to be used instead
+   */
+  DLL_PUBLIC inline OpSchema& Deprecate(const std::string &in_favor_of) {
+    is_deprecated_ = true;
+    deprecated_in_favor_of_ = in_favor_of;
+    return *this;
+  }
+
+  /**
    * @brief Adds a required argument to op with its type
    */
   DLL_PUBLIC inline OpSchema& AddArg(const std::string &s,
@@ -267,6 +273,15 @@ class DLL_PUBLIC OpSchema {
     return *this;
   }
 
+  /**
+   * @brief Notes that this operator should not be pruned from
+   * a graph even if its outputs are unused.
+   */
+  DLL_PUBLIC inline OpSchema& NoPrune() {
+    no_prune_ = true;
+    return *this;
+  }
+
   DLL_PUBLIC inline const vector<std::string>& GetParents() const {
     return parents_;
   }
@@ -309,8 +324,20 @@ class DLL_PUBLIC OpSchema {
     return is_internal_;
   }
 
+  DLL_PUBLIC inline bool IsDeprecated() const {
+    return is_deprecated_;
+  }
+
+  DLL_PUBLIC inline const std::string& DeprecatedInFavorOf() const {
+    return deprecated_in_favor_of_;
+  }
+
   DLL_PUBLIC inline bool HasOutputFn() const {
     return static_cast<bool>(output_fn_);
+  }
+
+  DLL_PUBLIC inline bool IsNoPrune() const {
+    return no_prune_;
   }
 
   DLL_PUBLIC int CalculateOutputs(const OpSpec &spec) const;
@@ -371,16 +398,21 @@ class DLL_PUBLIC OpSchema {
   int min_num_input_ = 0, max_num_input_ = 0;
   int num_output_ = 0;
 
-  bool allow_multiple_input_sets_;
+  bool allow_multiple_input_sets_ = false;
   vector<string> parents_;
 
-  bool enforce_layout_;
+  bool enforce_layout_ = false;
   DALITensorLayout layout_;
 
-  bool allow_sequences_;
-  bool is_sequence_operator_;
+  bool allow_sequences_ = false;
+  bool is_sequence_operator_ = false;
 
-  bool is_internal_;
+  bool is_internal_ = false;
+
+  bool no_prune_ = false;
+
+  bool is_deprecated_ = false;
+  string deprecated_in_favor_of_;
 
   std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
   std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;

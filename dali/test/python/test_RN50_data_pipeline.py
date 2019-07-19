@@ -27,11 +27,11 @@ class CommonPipeline(Pipeline):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=prefetch)
         if decoder_type == 'roi':
             print('Using nvJPEG with ROI decoding')
-            self.decode_gpu = ops.nvJPEGDecoderRandomCrop(device = "mixed", output_type = types.RGB)
+            self.decode_gpu = ops.ImageDecoderRandomCrop(device = "mixed", output_type = types.RGB)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
         elif decoder_type == 'roi_split':
             print('Using nvJPEG with ROI decoding and split CPU/GPU stages')
-            self.decode_gpu = ops.nvJPEGDecoderRandomCrop(device = "mixed", output_type = types.RGB, split_stages=True)
+            self.decode_gpu = ops.ImageDecoderRandomCrop(device = "mixed", output_type = types.RGB, split_stages=True)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
         elif decoder_type == 'cached':
             assert decoder_cache_params['cache_enabled'] == True
@@ -39,17 +39,17 @@ class CommonPipeline(Pipeline):
             cache_threshold = decoder_cache_params['cache_threshold']
             cache_type = decoder_cache_params['cache_type']
             print('Using nvJPEG with cache (size : {} threshold: {}, type: {})'.format(cache_size, cache_threshold, cache_type))
-            self.decode_gpu = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB,
+            self.decode_gpu = ops.ImageDecoder(device = "mixed", output_type = types.RGB,
                                                 cache_size=cache_size, cache_threshold=cache_threshold,
                                                 cache_type=cache_type, cache_debug=False)
             self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
         elif decoder_type == 'split':
             print('Using nvJPEG with split CPU/GPU stages')
-            self.decode_gpu = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB, split_stages=True)
+            self.decode_gpu = ops.ImageDecoder(device = "mixed", output_type = types.RGB, split_stages=True)
             self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
         else:
             print('Using nvJPEG')
-            self.decode_gpu = ops.nvJPEGDecoder(device = "mixed", output_type = types.RGB)
+            self.decode_gpu = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
             self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
 
         layout = types.NHWC if nhwc else types.NCHW

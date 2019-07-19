@@ -13,4 +13,4 @@ Tutorials
    video/superres_pytorch/README.rst
    optical_flow/optical_flow_example.ipynb
    extend/create_a_custom_operator.ipynb
-   python_operator.ipynb
+   python_operator/python_operator.ipynb

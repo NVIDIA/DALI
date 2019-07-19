@@ -18,6 +18,8 @@
 #include <unordered_map>
 #include <vector>
 #include "dali/kernels/test/test_data.h"
+#include "dali/test/dali_test_config.h"
+
 
 namespace dali {
 namespace testing {
@@ -25,7 +27,7 @@ namespace testing {
 namespace {
 
 const std::string &base_folder() {
-  static const std::string path = "/data/dali/test/test_images/";
+  static const std::string path = testing::dali_extra_path() + "/db/";
   return path;
 }
 
@@ -51,7 +53,7 @@ struct TestDataImpl {
       file.resize(length);
       f.read(file.data(), length);
     }
-    return { reinterpret_cast<uint8_t*>(file.data()), (ptrdiff_t)file.size() };
+    return { reinterpret_cast<uint8_t*>(file.data()), (span_extent_t)file.size() };
   }
 
   const cv::Mat &image(const char *name, bool color) {

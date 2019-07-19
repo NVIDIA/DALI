@@ -53,7 +53,7 @@ class Transpose : public Operator<Backend> {
 
   cuttHandle cutt_handle_ = 0;
   // used by dense TL cuttHandle
-  Dims previous_iter_shape_;
+  kernels::TensorShape<> previous_iter_shape_;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;

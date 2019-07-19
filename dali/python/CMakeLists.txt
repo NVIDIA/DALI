@@ -16,6 +16,7 @@
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_PYTHON_BACKEND_SRCS)
 set(dali_python_lib "backend_impl")
+set(dali_python_lib ${dali_python_lib} PARENT_SCOPE)
 pybind11_add_module(${dali_python_lib} MODULE ${DALI_PYTHON_BACKEND_SRCS})
 message(STATUS "Adding dependencies to ${dali_python_lib}: '${dali_lib}'")
 add_dependencies(${dali_python_lib} ${dali_lib})
@@ -44,10 +45,3 @@ copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/tools/tfrecord2idx" "$
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" "${PROJECT_BINARY_DIR}/dali/python")
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_DIR}/dali/python")
 copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python")
-
-configure_file("${PROJECT_SOURCE_DIR}/dali/python/tf_plugin/setup.py.in" "${PROJECT_BINARY_DIR}/stage/tf_plugin/setup.py")
-copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/dali/python/tf_plugin/MANIFEST.in" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")
-copy_post_build(${dali_python_lib} "${PROJECT_BINARY_DIR}/stage/tf_plugin/setup.py" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")
-copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")
-copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")
-copy_post_build(${dali_python_lib} "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python/tf_plugin")

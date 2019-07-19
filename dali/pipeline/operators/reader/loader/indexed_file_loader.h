@@ -45,8 +45,9 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     ++current_index_;
 
     std::string image_key = uris_[file_index] + " at index " + to_string(seek_pos);
-    tensor.SetSourceInfo(image_key);
-    tensor.SetSkipSample(false);
+    DALIMeta meta;
+    meta.SetSourceInfo(image_key);
+    meta.SetSkipSample(false);
 
     if (file_index != current_file_index_) {
       current_file_->Close();
@@ -56,10 +57,12 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
     // if image is cached, skip loading
     if (ShouldSkipImage(image_key)) {
-      tensor.set_type(TypeInfo::Create<uint8_t>());
-      tensor.Resize({1});
-      tensor.SetSkipSample(true);
+      meta.SetSkipSample(true);
       should_seek_ = true;
+      tensor.Reset();
+      tensor.SetMeta(meta);
+      tensor.set_type(TypeInfo::Create<uint8_t>());
+      tensor.Resize({0});
       return;
     }
 
@@ -75,6 +78,9 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       tensor.ShareData(p, size, {size});
       tensor.set_type(TypeInfo::Create<uint8_t>());
     } else {
+      if (tensor.shares_data()) {
+        tensor.Reset();
+      }
       tensor.set_type(TypeInfo::Create<uint8_t>());
       tensor.Resize({size});
 
@@ -83,6 +89,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       DALI_ENFORCE(n_read == size, "Error reading from a file " + uris_[current_file_index_]);
     }
 
+    tensor.SetMeta(meta);
     return;
   }
 

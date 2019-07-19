@@ -49,14 +49,14 @@ class Slice : public SliceBase<Backend> {
 
   void SetupSample(int data_idx,
                    DALITensorLayout layout,
-                   const Dims &img_shape,
+                   const kernels::TensorShape<> &img_shape,
                    const int64_t args_ndims,
                    const float *anchor_norm,
                    const float *slice_dims_norm) {
     auto &anchor = slice_anchors_[data_idx];
     anchor = std::vector<int64_t>(img_shape.size(), 0);
     auto &slice_shape = slice_shapes_[data_idx];
-    slice_shape = img_shape;
+    slice_shape = std::vector<int64_t>(img_shape.begin(), img_shape.end());
 
     // If only two dimensions are provided (old API style)
     // we calculate the position of the dimensions based on
@@ -83,7 +83,7 @@ class Slice : public SliceBase<Backend> {
         default:
           DALI_FAIL("Unexpected layout: " + std::to_string(layout));
       }
-      for (std::size_t d = 0; d < img_shape.size(); d++) {
+      for (int d = 0; d < img_shape.size(); d++) {
         anchor[d] = 0;
         slice_shape[d] = img_shape[d];
       }
@@ -104,7 +104,7 @@ class Slice : public SliceBase<Backend> {
 
       // To decrease floating point error, first calculate the end of the
       // bounding box and then calculate the shape
-      for (std::size_t d = 0; d < img_shape.size(); d++) {
+      for (int d = 0; d < img_shape.size(); d++) {
         anchor[d] = anchor_norm[d] * img_shape[d];
         float slice_end_norm = anchor_norm[d] + slice_dims_norm[d];
         int64_t slice_end = slice_end_norm * img_shape[d];

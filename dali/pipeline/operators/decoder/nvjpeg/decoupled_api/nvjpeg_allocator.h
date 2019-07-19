@@ -48,7 +48,7 @@ class ChunkPinnedAllocator {
       element_size_hint_ = element_size_hint;
     } else {
       DALI_ENFORCE(element_size_hint_ == element_size_hint,
-        "All instances of nvJPEGDecoder should have the same host_memory_padding.");
+        "All instances of ImageDecoder should have the same host_memory_padding.");
     }
 
     Chunk chunk;
