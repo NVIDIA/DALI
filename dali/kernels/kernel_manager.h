@@ -40,7 +40,7 @@ struct AnyKernelInstance {
     return *static_cast<Kernel*>(instance.get());
   }
 
-  template <typename Kernel, typename... Args>
+  template <typename Kernel>
   Kernel &get() {
     void (*deleter)(void *) = delete_kernel<Kernel>;
     if (!instance)
@@ -108,7 +108,7 @@ class DLL_PUBLIC KernelManager {
   }
 
 
-  /// @brief Gets or a Kernel instance
+  /// @brief Gets a Kernel instance
   ///
   /// If there's no instance for a given index of the type is different,
   /// `std::logic_error` is thrown.
@@ -119,13 +119,13 @@ class DLL_PUBLIC KernelManager {
   }
 
   /// @brief Gets a reference to an internally maintained copy of KernelRequirements
-  KernelRequirements &GetRequirements(int index) noexcept {
-    return instances[index].requirements;
+  KernelRequirements &GetRequirements(int instance_idx) noexcept {
+    return instances[instance_idx].requirements;
   }
 
   /// @brief Gets a const-reference to an internally maintained copy of KernelRequirements
-  const KernelRequirements &GetRequirements(int index) const noexcept {
-    return instances[index].requirements;
+  const KernelRequirements &GetRequirements(int instance_idx) const noexcept {
+    return instances[instance_idx].requirements;
   }
 
   size_t NumInstances() const noexcept { return instances.size(); }
