@@ -239,9 +239,12 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
   /**
-   * @brief TensorList is always backed by contiguous buffer - No Op
+   * @brief TensorList is always backed by contiguous buffer
+   *        Cannot be set to noncontiguous
    */
-  void SetContiguous(bool) {}
+  void SetContiguous(bool contiguous) {
+    DALI_ENFORCE(contiguous, "TensorList cannot be made noncontiguous");
+  }
 
   /**
    * @brief Returns a typed pointer to the tensor with the given index.
