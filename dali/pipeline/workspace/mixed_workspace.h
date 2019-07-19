@@ -24,12 +24,13 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/tensor_vector.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 
 template <typename Backend>
-using MixedInputType = vector<shared_ptr<Tensor<Backend>>>;
+using MixedInputType = shared_ptr<TensorVector<Backend>>;
 template <typename Backend>
 using MixedOutputType = shared_ptr<TensorList<Backend>>;
 

@@ -24,14 +24,15 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/util/thread_pool.h"
+#include "dali/pipeline/data/tensor_vector.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 
 template <typename Backend>
-using HostInputType = vector<shared_ptr<Tensor<Backend>>>;
+using HostInputType = shared_ptr<TensorVector<Backend>>;
 template <typename Backend>
-using HostOutputType = vector<shared_ptr<Tensor<Backend>>>;
+using HostOutputType = shared_ptr<TensorVector<Backend>>;
 
 class SampleWorkspace;
 
