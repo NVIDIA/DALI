@@ -174,9 +174,30 @@ static bool has_prefix(const std::string &operator_name, const std::string& pref
                     prefix.begin());
 }
 
-void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
+int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
+  return AddOperator(spec, inst_name, GetNextLogicalId());
+}
+
+int Pipeline::AddOperator(OpSpec spec, int logical_id) {
+  return AddOperator(spec, "<no name>", logical_id);
+}
+
+int Pipeline::AddOperator(OpSpec spec) {
+  return AddOperator(spec, "<no name>", GetNextLogicalId());
+}
+
+
+int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical_id) {
   DALI_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
+
+  DALI_ENFORCE(0 <= logical_id && logical_id <= GetLogicalIdCount(),
+               "Logical id of the node must in [0, GetLogicalIdCout()] interval, with "
+               "[0, GetLogicalIdCount()) indicating already used logical ids, and "
+               "logical_id=GetLogicalIdCount() indicating reserving a new one.");
+  if (logical_id == GetLogicalIdCount()) {
+    logical_id_count_++;
+  }
 
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back(make_pair(inst_name, spec));
@@ -198,8 +219,8 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
       operator_name.find("GPUStage") == std::string::npos &&
       spec.TryGetArgument<bool>(split_stages, "split_stages") &&
       split_stages) {
-    AddSplitHybridDecoder(spec, inst_name);
-    return;
+    AddSplitHybridDecoder(spec, inst_name, logical_id);
+    return logical_id;
   }
 
   DeviceGuard g(device_id_);
@@ -251,9 +272,9 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. " + error_str);
-      SetupCPUInput(it, i, &spec);
+      SetupCPUInput(it, i, &spec, GetNextLogicalId());
     } else {
-      SetupGPUInput(it);
+      SetupGPUInput(it, GetNextLogicalId());
     }
   }
 
@@ -310,10 +331,12 @@ void Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
   }
 
   // store updated spec
-  this->op_specs_.push_back(make_pair(inst_name, spec));
+  this->op_specs_.push_back({inst_name, spec, logical_id});
+  return logical_id;
 }
 
-inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string& inst_name) {
+inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name,
+                                            int logical_id) {
   std::string operator_name = spec.name();
 
   std::string suffix = "";
@@ -349,8 +372,8 @@ inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string& ins
   gpu_spec.SetArg("device", "mixed");
 
   // TODO(spanev): handle serialization for nvJPEGDecoderNew
-  this->AddOperator(spec, inst_name);
-  this->AddOperator(gpu_spec, inst_name + "_gpu");
+  this->AddOperator(spec, inst_name, logical_id);
+  this->AddOperator(gpu_spec, inst_name + "_gpu", logical_id);
 }
 
 inline int GetMemoryHint(OpSpec &spec, int index) {
@@ -404,8 +427,8 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
 
   // Creating the graph
   for (auto& name_op_spec : op_specs_) {
-    string& inst_name = name_op_spec.first;
-    OpSpec op_spec = name_op_spec.second;
+    string& inst_name = name_op_spec.instance_name;
+    OpSpec op_spec = name_op_spec.spec;
     PrepareOpSpec(&op_spec);
     try {
       graph_.AddOp(op_spec, inst_name);
@@ -544,7 +567,7 @@ void Pipeline::ReleaseOutputs() {
 }
 
 void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
-    int input_idx, OpSpec *spec) {
+    int input_idx, OpSpec *spec, int logical_id) {
   if (!it->second.has_contiguous) {
     OpSpec make_contiguous_spec =
       OpSpec("MakeContiguous")
@@ -552,7 +575,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddInput(it->first, "cpu")
       .AddOutput("contiguous_" + it->first, "cpu");
     // don't put it into op_specs_for_serialization_, only op_specs_
-    this->op_specs_.push_back(make_pair("__MakeContiguous_" + it->first, make_contiguous_spec));
+    this->op_specs_.push_back({"__MakeContiguous_" + it->first, make_contiguous_spec, logical_id});
     it->second.has_contiguous = true;
   }
 
@@ -564,7 +587,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
   input_strs.first = "contiguous_" + input_strs.first;
 }
 
-void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
+void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it, int logical_id) {
   if (it->second.has_gpu) return;
   OpSpec copy_to_dev_spec =
     OpSpec("MakeContiguous")
@@ -572,7 +595,7 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");
   // don't put it into op_specs_for_serialization_, only op_specs_
-  this->op_specs_.push_back(make_pair("__Copy_" + it->first, copy_to_dev_spec));
+  this->op_specs_.push_back({"__Copy_" + it->first, copy_to_dev_spec, logical_id});
   it->second.has_gpu = true;
 }
 
@@ -700,6 +723,16 @@ std::map<std::string, Index> Pipeline::EpochSize() {
 
 void Pipeline::SaveGraphToDotFile(const std::string &filename) {
   graph_.SaveToDotFile(filename);
+}
+
+int Pipeline::GetLogicalIdCount() {
+  return logical_id_count_;
+}
+
+int Pipeline::GetNextLogicalId() {
+  int ret = logical_id_count_;
+  logical_id_count_++;
+  return ret;
 }
 
 }  // namespace dali

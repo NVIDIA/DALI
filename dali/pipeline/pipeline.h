@@ -169,11 +169,34 @@ class DLL_PUBLIC Pipeline {
   }
 
   /**
-   * @brief Adds an Operator with the input specification to the pipeline. The
+   * @brief  Adds an Operator with the input specification to the pipeline. The
    * 'device' argument in the OpSpec determines whether the CPU or GPU version
    * of the named operator will be added to the pipeline
+   *
+   * @param spec
+   * @param inst_name
+   * @param logical_id Allows to group operator that are supposed to have synchronized state
+   *                   wrt randomness
+   * @return logical_id of added operator, so it can be used for further calls
    */
-  DLL_PUBLIC void AddOperator(OpSpec spec, const std::string& inst_name = "<no name>");
+  DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name, int logical_id);
+
+  /**
+   * @brief Adds an Operator with the input specification to the pipeline. It will be assigned
+   * a separate logical_id based on internal state of the pipeline
+   */
+  DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name);
+
+  /**
+   * @brief Adds an unnamed Operator with the input specification to the pipeline.
+   */
+  DLL_PUBLIC int AddOperator(OpSpec spec, int logical_id);
+
+  /**
+   * @brief Adds an unnamed Operator with the input specification to the pipeline.  It will be
+   * assigned a separate logical_id based on internal state of the pipeline
+   */
+  DLL_PUBLIC int AddOperator(OpSpec spec);
 
   /**
    * @brief Returns the graph node with Operator
@@ -338,10 +361,10 @@ class DLL_PUBLIC Pipeline {
     return base_ptr_offset;
   }
 
-  void SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
-      int input_idx, OpSpec *spec);
+  void SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec,
+                     int logical_id);
 
-  void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);
+  void SetupGPUInput(std::map<string, EdgeMeta>::iterator it, int logical_id);
 
   inline EdgeMeta NewEdge(const std::string &device) {
     EdgeMeta edge;
@@ -373,7 +396,10 @@ class DLL_PUBLIC Pipeline {
   void PropagateMemoryHint(OpNode &node);
 
   // Helper for hybrid decoder split_stages special handling
-  inline void AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name);
+  inline void AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name, int logical_id);
+
+  int GetLogicalIdCount();
+  int GetNextLogicalId();
 
   const int MAX_SEEDS = 1024;
 
@@ -386,6 +412,7 @@ class DLL_PUBLIC Pipeline {
   int set_affinity_;
   int max_num_stream_;
   int default_cuda_stream_priority_;
+  int logical_id_count_ = 0;
   QueueSizes prefetch_queue_depth_;
 
   std::vector<int64_t> seed_;
@@ -400,9 +427,17 @@ class DLL_PUBLIC Pipeline {
   // added, in order to recreate the pipeline in a
   // serialized form
   vector<string> external_inputs_;
-  vector<std::pair<string, OpSpec>> op_specs_;
+
+  struct OpDefinition {
+    std::string instance_name;
+    OpSpec spec;
+    int logical_id;
+  };
+
+  vector<OpDefinition> op_specs_;
   vector<std::pair<string, OpSpec>> op_specs_for_serialization_;
   vector<std::pair<string, string>> output_names_;
+  std::vector<int> op_logical_id_;
 };
 
 }  // namespace dali
