@@ -435,6 +435,10 @@ void ParseAnnotationFilesHelper(std::vector<std::string> &annotations_filename,
     }
     f.close();
   }
+
+  std::sort(image_id_pairs.begin(), image_id_pairs.end(), [](auto &left, auto &right) {
+    return left.second < right.second;
+  });
 }
 
 }  // namespace detail

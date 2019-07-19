@@ -318,7 +318,7 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   size_t file_size = f.tellg();
   std::unique_ptr<char, std::function<void(char*)>> buff(
     new char[file_size],
-                        [](char* data) {delete [] data;});
+    [](char* data) {delete [] data;});
   f.seekg(0, std::ios::beg);
   f.read(buff.get(), file_size);
 
@@ -330,6 +330,8 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
 
   std::unordered_map<int, std::vector<int>> labels_map;
   std::unordered_map<int, std::vector<std::array<float, 4>>> boxes_map;
+
+  std::vector<std::pair<int, std::pair<std::array<float, 4>, int>>> boxes_vector;
 
   // mapping each category_id to its actual category
   std::map<int, int> category_ids;
@@ -415,6 +417,8 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
           labels_map[image_id].push_back(category_id);
           boxes_map[image_id].push_back(bbox);
 
+          boxes_vector.emplace_back(std::make_pair(image_id, std::make_pair(bbox, category_id)));
+
         }
       } else {
         r.SkipValue();
@@ -428,6 +432,13 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   std::vector<std::pair<std::string, int>> image_id_pairs_2;
   std::vector<int> original_ids_2;
   int non_empty_id = 0;
+
+  std::sort(image_id_pairs.begin(), image_id_pairs.end(), [](auto &left, auto &right) {
+    return left.second < right.second;
+  });
+  std::sort(boxes_vector.begin(), boxes_vector.end(), [](auto &left, auto &right) {
+    return left.first < right.first;
+  });
 
   for (int i = 0; i < image_id_pairs.size(); ++i) {
     int id = image_id_pairs[i].second;
