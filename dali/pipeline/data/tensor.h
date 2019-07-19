@@ -152,6 +152,7 @@ class Tensor : public Buffer<Backend> {
   }
 
   using Buffer<Backend>::reserve;
+
   // For having complete API, Tensor is not a batch
   void reserve(size_t bytes_per_tensor, int) {
     reserve(bytes_per_tensor);
