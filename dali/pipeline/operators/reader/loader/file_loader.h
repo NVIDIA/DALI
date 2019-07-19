@@ -105,7 +105,7 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
         DALI_ENFORCE(s.eof(), "Wrong format of file_list.");
       }
     }
-    DALI_ENFORCE(Size() > 0, "No files found.");
+        DALI_ENFORCE(Size() > 0, "No files found.");
 
     if (shuffle_) {
       // seeded with hardcoded value to get
