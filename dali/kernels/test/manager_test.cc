@@ -93,7 +93,7 @@ TEST(AnyKernelInstance, Get) {
 
 TEST(KernelManager, GetScratchpadAllocator) {
   KernelManager mgr;
-  mgr.Initialize(2, 2);
+  mgr.Resize(2, 2);
   ScratchpadAllocator &a0 = mgr.GetScratchpadAllocator(0);
   ScratchpadAllocator &a1 = mgr.GetScratchpadAllocator(1);
   ScratchpadAllocator &a2 = mgr.GetScratchpadAllocator(0);
@@ -103,7 +103,7 @@ TEST(KernelManager, GetScratchpadAllocator) {
 
 TEST(KernelManager, CreateOrGet_Get) {
   KernelManager mgr;
-  mgr.Initialize(1, 1);
+  mgr.Resize(1, 1);
   auto &k1 = mgr.CreateOrGet<TestKernel>(0);
   auto &k2 = mgr.Get<TestKernel>(0);
   EXPECT_EQ(&k1, &k2);
@@ -117,9 +117,9 @@ TEST(KernelManager, CreateOrGet_Get) {
   mgr.Run<TestKernel>(0, 0, ctx, out, in, 100, 1.25f);
 }
 
-TEST(KernelManager, TemplateInitialize) {
+TEST(KernelManager, TemplateResize) {
   KernelManager mgr;
-  mgr.Initialize<TestKernel>(1, 1);
+  mgr.Resize<TestKernel>(1, 1);
   OutListGPU<float, 3> in, out;
   in.resize(2);
   in.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};

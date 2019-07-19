@@ -17,7 +17,7 @@
 namespace dali {
 namespace kernels {
 
-void KernelManager::Initialize(size_t num_threads, size_t num_instances) {
+void KernelManager::Resize(size_t num_threads, size_t num_instances) {
   instances.resize(num_instances);
   scratchpads.resize(num_threads);
 }
@@ -25,22 +25,22 @@ void KernelManager::Initialize(size_t num_threads, size_t num_instances) {
 void KernelManager::Reset() {
   instances.clear();
   scratchpads.clear();
-  max_scratch_sizes = {};
+  for (auto &maxs : max_scratch_sizes)
+    maxs = 0;
 }
 
-void KernelManager::ReserveScratchpad(
+auto KernelManager::ReserveScratchpad(
     ScratchpadAllocator &sa,
-    const ScratchSizes &sizes) {
+    const ScratchSizes &sizes)->decltype(sa.GetScratchpad()) {
   auto caps = sa.Capacities();
 
   for (size_t i = 0; i < sizes.size(); i++) {
-    if (sizes[i] > max_scratch_sizes[i])
-      max_scratch_sizes[i] = sizes[i];
+    atomic_max(max_scratch_sizes[i], sizes[i]);
     if (sizes[i] > caps[i])
       sa.Reserve(static_cast<AllocType>(i), max_scratch_sizes[i]);
   }
+  return sa.GetScratchpad();
 }
-
 
 }  // namespace kernels
 }  // namespace dali

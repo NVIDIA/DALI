@@ -17,7 +17,7 @@
 
 #include <memory>
 #include <utility>
-#include <functional>
+#include <atomic>
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/context.h"
 #include "dali/kernels/kernel_req.h"
@@ -25,6 +25,18 @@
 
 namespace dali {
 namespace kernels {
+
+template <typename T>
+T atomic_max(std::atomic<T> &value, const T &store_if_greater) {
+  T old = value.load();
+  for (;;) {
+    if (!(store_if_greater > old))
+      return old;
+
+    if (value.compare_exchange_strong(old, store_if_greater))
+      return store_if_greater;
+  }
+}
 
 struct AnyKernelInstance {
   KernelRequirements requirements;
@@ -70,7 +82,8 @@ struct AnyKernelInstance {
 /// explicitly by the caller.
 class DLL_PUBLIC KernelManager {
  public:
-  using ScratchSizes = std::array<size_t, ScratchpadAllocator::NumAllocTypes>;
+  static constexpr size_t NumAllocTypes = ScratchpadAllocator::NumAllocTypes;
+  using ScratchSizes = std::array<size_t, NumAllocTypes>;
 
   /// @brief Creates `num_threads` scratcapads and `num_instances` slots for kernels
   ///
@@ -79,7 +92,7 @@ class DLL_PUBLIC KernelManager {
   ///                         zero-based inde
   /// @param num_instances -  number of Kernel instances to be created; typically corresponds
   ///                         to number of samples (for per-sample kernels) or minibatches
-  void Initialize(size_t num_threads, size_t num_instances);
+  void Resize(size_t num_threads, size_t num_instances);
 
   /// @brief Creates `num_threads` scratcapads and `num_instances` kernels of type Kernel
   ///        constructed with `args...`.
@@ -92,9 +105,18 @@ class DLL_PUBLIC KernelManager {
   /// @param args           - arguments passed to Kernel's constructor upon creation.
   /// @tparam Kernel        - type of the kernel to be created
   template <typename Kernel, typename... Args>
-  void Initialize(size_t num_threads, size_t num_instances, const Args&... args) {
-    Initialize(num_threads, num_instances);
-    for (size_t i = 0; i < num_instances; i++)
+  void Resize(size_t num_threads, size_t num_instances, const Args&... args) {
+    Resize(num_threads, num_instances);
+    Initialize<Kernel>(args...);
+  }
+
+  /// @brief Populates the instance slots with instances of a given Kernel
+  ///
+  /// @param args           - arguments passed to Kernel's constructor upon creation.
+  /// @tparam Kernel        - type of the kernel to be created
+  template <typename Kernel, typename... Args>
+  void Initialize(const Args&... args) {
+    for (size_t i = 0; i < NumInstances(); i++)
       CreateOrGet<Kernel>(i, args...);
   }
 
@@ -152,6 +174,9 @@ class DLL_PUBLIC KernelManager {
   KernelRequirements &Setup(int instance_idx, KernelContext &context, InArgs &&...in_args) {
     auto &inst = instances[instance_idx];
     inst.requirements = inst.get<Kernel>().Setup(context, std::forward<InArgs>(in_args)...);
+    for (size_t i = 0; i < max_scratch_sizes.size(); i++) {
+      atomic_max(max_scratch_sizes[i], inst.requirements.scratch_sizes[i]);
+    }
     return inst.requirements;
   }
 
@@ -192,8 +217,7 @@ class DLL_PUBLIC KernelManager {
            static_cast<size_t>(instance_idx) < NumInstances() &&
            "Kernel instance index (instance_idx) out of range");
     auto &inst = instances[instance_idx];
-    ReserveScratchpad(sa, inst.requirements.scratch_sizes);
-    auto scratchpad = sa.GetScratchpad();
+    auto scratchpad = ReserveScratchpad(sa, inst.requirements.scratch_sizes);
     auto *old_scratchpad = context.scratchpad;
     context.scratchpad = &scratchpad;
     inst.get<Kernel>().Run(context, std::forward<OutInArgs>(out_in_args)...);
@@ -208,11 +232,26 @@ class DLL_PUBLIC KernelManager {
   /// The manager maintains a lifetime maximum of sizes requested.
   /// If reallocation is necessary, it allocates `sizes` or that maximum
   /// whichever is larger.
-  void ReserveScratchpad(ScratchpadAllocator &sa, const ScratchSizes &sizes);
+  auto ReserveScratchpad(ScratchpadAllocator &sa, const ScratchSizes &sizes)->
+  decltype(sa.GetScratchpad());
 
   /// @brief Calls ReserveScratchpad on ScratchpadAllocator associated with given thread_idx
-  inline void ReserveScratchpad(int thread_idx, const ScratchSizes &sizes) {
-    ReserveScratchpad(GetScratchpadAllocator(thread_idx), sizes);
+  inline auto ReserveScratchpad(int thread_idx, const ScratchSizes &sizes) {
+    return ReserveScratchpad(GetScratchpadAllocator(thread_idx), sizes);
+  }
+
+  /// @brief Returns maximum scratchpad size seen so far
+  inline ScratchSizes MaxScratchSizes() const {
+    ScratchSizes sizes;
+    for (size_t i = 0; i < sizes.size(); i++) {
+      sizes[i] = max_scratch_sizes[i];
+    }
+    return sizes;
+  }
+
+  /// @brief Reserves scratchpad big enough to accommodate largest scratch area ever seen
+  inline auto ReserveMaxScratchpad(int thread_idx) {
+    return ReserveScratchpad(thread_idx, MaxScratchSizes());
   }
 
   /// @brief Sets a memory size hint for allocating scratchpad memory
@@ -221,14 +260,13 @@ class DLL_PUBLIC KernelManager {
   /// bytes memory for given allocation type.
   void SetMemoryHint(AllocType type, size_t bytes) {
     int alloc_idx = static_cast<int>(type);
-    if (bytes > max_scratch_sizes[alloc_idx])
-      max_scratch_sizes[alloc_idx] = bytes;
+    atomic_max(max_scratch_sizes[alloc_idx], bytes);
   }
 
  private:
   SmallVector<AnyKernelInstance, 1> instances;
   SmallVector<ScratchpadAllocator, 1> scratchpads;
-  ScratchSizes max_scratch_sizes{};
+  std::array<std::atomic_size_t, NumAllocTypes> max_scratch_sizes{};
 };
 
 }  // namespace kernels
