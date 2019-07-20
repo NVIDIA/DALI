@@ -327,10 +327,6 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   // mapping each image_id to its WH dimension
   std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
 
-
-  std::unordered_map<int, std::vector<int>> labels_map;
-  std::unordered_map<int, std::vector<std::array<float, 4>>> boxes_map;
-
   std::vector<std::pair<int, std::pair<std::array<float, 4>, int>>> boxes_vector;
 
   // mapping each category_id to its actual category
@@ -414,9 +410,6 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
             bbox[3] += bbox[1];
           }
 
-          labels_map[image_id].push_back(category_id);
-          boxes_map[image_id].push_back(bbox);
-
           boxes_vector.emplace_back(std::make_pair(image_id, std::make_pair(bbox, category_id)));
 
         }
@@ -428,78 +421,67 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   f.close();
 
   // ==============================================
-  int total_count = 0;
-  std::vector<std::pair<std::string, int>> image_id_pairs_2;
-  std::vector<int> original_ids_2;
-  int non_empty_id = 0;
-
   std::sort(image_id_pairs.begin(), image_id_pairs.end(), [](auto &left, auto &right) {
     return left.second < right.second;
   });
-  std::sort(boxes_vector.begin(), boxes_vector.end(), [](auto &left, auto &right) {
+  std::stable_sort(boxes_vector.begin(), boxes_vector.end(), [](auto &left, auto &right) {
     return left.first < right.first;
   });
 
-  for (int i = 0; i < image_id_pairs.size(); ++i) {
-    int id = image_id_pairs[i].second;
+  // Add sentinel at the end for easier code later
+  boxes_vector.emplace_back(std::make_pair(-1, std::make_pair(std::array<float, 4>(), 0)));
 
-    if (save_img_ids_) {
-      original_ids_.push_back(id);
-    }
+  int new_image_id = 0;
+  int annotation_id = 0;
+  int total_count = 0;
 
-    image_id_pairs[i].second = i;
-    
-    for (int c : labels_map[id]) {
-      labels_.push_back(category_ids[c]);
-    }
+  ImageIdPairs image_id_pairs_4;
 
-    for (std::array<float, 4> &b : boxes_map[id]) {
-
+  for (auto &image_id_pair : image_id_pairs) {
+    int objects_in_sample = 0;
+    while (boxes_vector[annotation_id].first == image_id_pair.second) {
+      const auto &annotation = boxes_vector[annotation_id];
+      labels_.push_back(category_ids[annotation.second.second]);
       if (ratio) {
-        const auto& wh = image_id_to_wh[id];
-        boxes_.push_back(b[0] /= static_cast<float>(wh.first));
-        boxes_.push_back(b[1] /= static_cast<float>(wh.second));
-        boxes_.push_back(b[2] /= static_cast<float>(wh.first));
-        boxes_.push_back(b[3] /= static_cast<float>(wh.second));
+        const auto& wh = image_id_to_wh[image_id_pair.second];
+        boxes_.push_back(annotation.second.first[0] / static_cast<float>(wh.first));
+        boxes_.push_back(annotation.second.first[1] / static_cast<float>(wh.second));
+        boxes_.push_back(annotation.second.first[2] / static_cast<float>(wh.first));
+        boxes_.push_back(annotation.second.first[3] / static_cast<float>(wh.second));
 
       } else {
-        boxes_.push_back(b[0]);
-        boxes_.push_back(b[1]);
-        boxes_.push_back(b[2]);
-        boxes_.push_back(b[3]);
+        boxes_.push_back(annotation.second.first[0]);
+        boxes_.push_back(annotation.second.first[1]);
+        boxes_.push_back(annotation.second.first[2]);
+        boxes_.push_back(annotation.second.first[3]);
       }
+
+      ++annotation_id;
+      ++objects_in_sample;
     }
 
-    if (!skip_empty) {
+    if (!skip_empty || objects_in_sample != 0) {
       offsets_.push_back(total_count);
-      counts_.push_back(labels_map[id].size());
-      total_count += labels_map[id].size();
-    } else {
-      if (labels_map[id].size() != 0) {
-        offsets_.push_back(total_count);
-        counts_.push_back(labels_map[id].size());
-        total_count += labels_map[id].size();
-        if (save_img_ids_)
-          original_ids_2.push_back(id);
-        image_id_pairs_2.push_back(std::make_pair(image_id_pairs[i].first, non_empty_id));
-        non_empty_id++;
+      counts_.push_back(objects_in_sample);
+      total_count += objects_in_sample;
+      if (save_img_ids_) {
+        original_ids_.push_back(image_id_pair.second);
       }
 
-    }
-  }
+      image_id_pair.second = new_image_id;
+      new_image_id++;
 
-  if (skip_empty) {
-    image_id_pairs = image_id_pairs_2;
-    original_ids_ = original_ids_2;
+      image_id_pairs_4.push_back(image_id_pair);
+    }
   }
 
   if (spec.GetArgument<bool>("dump_meta_files")) {
     DumpMetaFiles(
       spec.GetArgument<std::string>("dump_meta_files_path"),
-      image_id_pairs);
+      image_id_pairs_4);
   }
 
-  return image_id_pairs;
+  return image_id_pairs_4;
 }
 
 
