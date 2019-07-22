@@ -4,9 +4,11 @@
 - It adds new feature needed because *why we need this feature*
 - Refactoring to improve *what*
 
-#### What happend in this PR?
+#### What happened in this PR?
  - Explain solution of the problem, new feature added.
  - What was changed, added, removed?
  - What is most important part that reviewers should focus on?
  - Was this PR tested? How?
  - Were docs and examples updated, if necessary?
+
+**JIRA TASK**: [DALI-XXXX]
