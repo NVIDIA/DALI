@@ -122,7 +122,7 @@ class DLL_PUBLIC Pipeline {
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
       .AddOutput(name, "cpu");
-    PrepareOpSpec(&spec);
+    PrepareOpSpec(&spec, GetNextLogicalId());
     graph_.AddOp(spec, "__ExternalInput_" + name);
     external_inputs_.push_back(name);
   }
@@ -393,7 +393,7 @@ class DLL_PUBLIC Pipeline {
   }
 
   // Helper to add pipeline meta-data
-  void PrepareOpSpec(OpSpec *spec);
+  void PrepareOpSpec(OpSpec *spec, int logical_id);
 
   void PropagateMemoryHint(OpNode &node);
 
@@ -439,7 +439,13 @@ class DLL_PUBLIC Pipeline {
   vector<OpDefinition> op_specs_;
   vector<std::pair<string, OpSpec>> op_specs_for_serialization_;
   vector<std::pair<string, string>> output_names_;
-  std::vector<int> op_logical_id_;
+
+  struct seed_entry {
+    int64_t seed;
+    bool was_set;
+  };
+
+  std::vector<seed_entry> seed_for_logical_id_;
 };
 
 }  // namespace dali

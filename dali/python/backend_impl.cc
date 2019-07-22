@@ -626,6 +626,8 @@ PYBIND11_MODULE(backend_impl, m) {
         )
     .def("AddOperator",
          static_cast<int (Pipeline::*)(OpSpec, const std::string &)>(&Pipeline::AddOperator))
+    .def("AddOperator",
+         static_cast<int (Pipeline::*)(OpSpec, const std::string &, int)>(&Pipeline::AddOperator))
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",
         [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {

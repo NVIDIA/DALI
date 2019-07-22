@@ -429,7 +429,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   for (auto& name_op_spec : op_specs_) {
     string& inst_name = name_op_spec.instance_name;
     OpSpec op_spec = name_op_spec.spec;
-    PrepareOpSpec(&op_spec);
+    PrepareOpSpec(&op_spec, name_op_spec.logical_id);
     try {
       graph_.AddOp(op_spec, inst_name);
     } catch (std::exception &e) {
@@ -461,7 +461,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
           .AddArg("device", "mixed")
           .AddInput(name, "cpu")
           .AddOutput("contiguous_" + name, "cpu");
-        PrepareOpSpec(&spec);
+        PrepareOpSpec(&spec, GetNextLogicalId());
 
         graph_.AddOp(spec, "__MakeContiguous_" + name);
 
@@ -479,7 +479,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
           .AddArg("device", "mixed")
           .AddInput(name, "cpu")
           .AddOutput(name, "gpu");
-        PrepareOpSpec(&spec);
+        PrepareOpSpec(&spec, GetNextLogicalId());
         graph_.AddOp(spec, "__MakeContiguous_" + name);
       }
       outputs.push_back(name + "_" + device);
@@ -599,11 +599,16 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it, int logica
   it->second.has_gpu = true;
 }
 
-void Pipeline::PrepareOpSpec(OpSpec *spec) {
+void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
+  seed_for_logical_id_.resize(GetLogicalIdCount(), {0, false});
+  auto seed_proposal = seed_for_logical_id_[logical_id].was_set
+                           ? seed_for_logical_id_[logical_id].seed
+                           : seed_[current_seed_];
+  seed_for_logical_id_[logical_id] = { seed_proposal, true };
   spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads_)
     .AddArg("device_id", device_id_)
-    .AddArgIfNotExisting("seed", seed_[current_seed_]);
+    .AddArgIfNotExisting("seed", seed_proposal);
   string dev = spec->GetArgument<string>("device");
   if (dev == "cpu" || dev == "mixed")
     spec->AddArg("cpu_prefetch_queue_depth", prefetch_queue_depth_.cpu_size);

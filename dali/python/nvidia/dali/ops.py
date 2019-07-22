@@ -16,6 +16,7 @@
 import sys
 import copy
 from itertools import count
+import threading
 from nvidia.dali import backend as b
 from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
@@ -90,9 +91,11 @@ Parameters
 
 class _OpCounter(object):
     #pylint: disable=too-few-public-methods
+    _lock = threading.Lock()
     _op_count = count(0)
     def __init__(self):
-        self._id = next(self._op_count)
+        with self._lock:
+            self._id = next(self._op_count)
 
     @property
     def id(self):
@@ -105,6 +108,7 @@ class _OperatorInstance(object):
         self._outputs = []
         self._op = op
         self._spec = op.spec.copy()
+        self._relation_id = self._counter.id
         if "name" in kwargs.keys():
             self._name = kwargs["name"]
         else:
@@ -222,6 +226,14 @@ class _OperatorInstance(object):
     def name(self):
         return self._name
 
+    @property
+    def relation_id(self):
+        return self._relation_id
+
+    @relation_id.setter
+    def relation_id(self, value):
+        self._relation_id = value
+
     def append_output(self, output):
         self._outputs.append(output)
 
@@ -292,24 +304,27 @@ def python_op_factory(name, op_device = "cpu"):
             if self._detect_multiple_input_sets(inputs):
                 arg_list_len = self._check_common_length(inputs)
                 packed_inputs = self._unify_lists(inputs, arg_list_len)
-                # Zip the list from [[arg0, arg0', arg0''], [arg1', arg1'', arg1''], ...]
-                # to [(arg0, arg1, ...), (arg0', arg1', ...), (arg0'', arg1'', ...)]
-                for i in range(arg_list_len):
-                    input_sets.append(tuple(input_arg[i] for input_arg in packed_inputs))
+                input_sets = self._repack_input_sets(packed_inputs)
             else:
                 input_sets = [inputs]
+
             # Create OperatorInstance for every input set
             op_instances = []
             for input_set in input_sets:
                 op_instances.append(_OperatorInstance(input_set, self, **kwargs))
                 op_instances[-1].generate_outputs()
+
+            # Tie the instances together
+            relation_id = op_instances[0].id
+            for op in op_instances:
+                op.relation_id = relation_id
+
             # If we don't have multiple input sets, flatten the result
             if len(op_instances) == 1:
                 return op_instances[0].unwrapped_outputs
-            # In case of actual Multiple Input Sets, the re
             outputs = []
-            for ops in op_instances:
-                outputs.append(ops.unwrapped_outputs)
+            for op in op_instances:
+                outputs.append(op.unwrapped_outputs)
             return outputs
 
         # Check if any of inputs is a list
@@ -337,6 +352,16 @@ def python_op_factory(name, op_device = "cpu"):
                 else:
                     result = result + ([input] * arg_list_len,)
             return result
+
+        # Zip the list from [[arg0, arg0', arg0''], [arg1', arg1'', arg1''], ...]
+        # to [(arg0, arg1, ...), (arg0', arg1', ...), (arg0'', arg1'', ...)]
+        def _repack_input_sets(self, inputs):
+            input_sets = []
+            arg_list_len = len(inputs[0])
+            for i in range(arg_list_len):
+                input_sets.append(tuple(input_arg[i] for input_arg in inputs))
+            return input_sets
+
 
 
 
