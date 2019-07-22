@@ -72,6 +72,7 @@ class BumpAllocator {
   size_t used_ = 0;
 };
 
+/// @brief Scratchpad with pre-existing buffers
 struct PreallocatedScratchpad : Scratchpad {
   PreallocatedScratchpad() = default;
 
@@ -103,15 +104,30 @@ class ScratchpadAllocator {
  public:
   static constexpr size_t NumAllocTypes = static_cast<size_t>(AllocType::Count);
 
+  /// @brief Describes scratch memory allocation policy
+  ///
+  /// When reserving `size` memory and the existing capacity is `capacity`
+  /// then the new allocation will be of size:
+  /// ```
+  /// new_capacity = max(size * (1 + Margin), capacity * GrowthRatio)
+  /// ```
   struct AllocPolicy {
+    /// When reserving more memory than available, current capacity will
+    /// be multiplied by this value.
     float GrowthRatio = 2;
+
+    /// When reserving memory, make sure that at least `(1 + Margin) * size` is
+    /// actually allocated.
     float Margin = 0.1;
   };
 
+  /// @brief Returns reference to the current
+  ///        allocation policy for given allocation type.
   AllocPolicy &Policy(AllocType type) {
     return buffers_[static_cast<int>(type)].policy;
   }
 
+  /// @brief Returns allocation policy for given allocation type
   const AllocPolicy &Policy(AllocType type) const {
     return buffers_[static_cast<int>(type)].policy;
   }
@@ -126,6 +142,9 @@ class ScratchpadAllocator {
     }
   }
 
+  /// @brief Reserves memory for all allocation types.
+  ///
+  /// See `Reserve(AllocType, size_t)` for details.
   void Reserve(std::array<size_t, NumAllocTypes> sizes) {
     for (size_t idx = 0; idx < NumAllocTypes; idx++) {
       Reserve(AllocType(idx), sizes[idx]);
@@ -156,6 +175,19 @@ class ScratchpadAllocator {
       buf.capacity = new_capacity + alignment - padding;
       buf.padding = padding;
     }
+  }
+
+  /// @brief Returns allocator's capacities for all allocation types
+  std::array<size_t, NumAllocTypes> Capacities() const noexcept {
+    std::array<size_t, NumAllocTypes> capacities;
+    for (size_t i = 0; i < buffers_.size(); i++)
+      capacities[i] = buffers_[i].capacity;
+    return capacities;
+  }
+
+  /// @brief Returns allocator's capacity for given allocation type
+  size_t Capacity(AllocType type) const noexcept {
+    return buffers_[static_cast<size_t>(type)].capacity;
   }
 
   /// @brief Returns a scratchpad.
