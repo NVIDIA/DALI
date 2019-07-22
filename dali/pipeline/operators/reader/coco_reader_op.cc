@@ -196,7 +196,7 @@ ImageIdPairs load_filenames(const std::string path) {
   if (file) {
     std::string filename;
     while (file >> filename) {
-      image_id_pairs.push_back(std::make_pair(filename, id));
+      image_id_pairs.emplace_back(std::move(filename), id);
       ++id;
     }
   } else {
@@ -318,11 +318,14 @@ void parse_json_file(
   while (const char* key = parser.NextObjectKey()) {
     if (0 == strcmp(key, "images")) {
       detail::parse_image_infos(parser, image_infos);
-    } else if (0 == strcmp(key, "categories")) { 
+    } else if (0 == strcmp(key, "categories")) {
       detail::parse_categories(parser, category_ids);
     } else if (0 == strcmp(key, "annotations")) {
       parse_annotations(
-        parser, annotations, spec.GetArgument<float>("size_threshold"), spec.GetArgument<bool>("ltrb"));
+        parser,
+        annotations,
+        spec.GetArgument<float>("size_threshold"),
+        spec.GetArgument<bool>("ltrb"));
     } else {
       parser.SkipValue();
     }
@@ -371,7 +374,7 @@ ImageIdPairs FastCocoReader::ParseMetafiles(const OpSpec &spec) {
   detail::load_meta_file(
     counts_,
     meta_files_path + "counts.txt");
-  
+
   if (save_img_ids_) {
     detail::load_meta_file(
       original_ids_,
@@ -386,7 +389,8 @@ void FastCocoReader::ValidateOptions(const OpSpec &spec) {
     "`meta_files_path` or `annotations_file` must be provided");
   DALI_ENFORCE(
     !spec.HasArgument("file_list"),
-    "Argument `file_list` is no longer supported for `COCOReader`. The same functionality can be implemented with meta files option.");
+    "Argument `file_list` is no longer supported for `COCOReader`."
+    "The same functionality can be implemented with meta files option.");
   DALI_ENFORCE(!skip_cached_images_,
     "COCOReader doesn't support `skip_cached_images` option");
 
@@ -475,7 +479,7 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
         original_ids_.emplace_back(image_info.original_id_);
       }
 
-      image_id_pairs.emplace_back(std::make_pair(std::move(image_info.filename_), new_image_id));
+      image_id_pairs.emplace_back(std::move(image_info.filename_), new_image_id);
       new_image_id++;
     }
   }

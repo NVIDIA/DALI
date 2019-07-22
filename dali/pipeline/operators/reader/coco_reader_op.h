@@ -72,8 +72,10 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     ValidateOptions(spec);
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    auto image_id_pairs = spec.HasArgument("meta_files_path") ? ParseMetafiles(spec) : ParseJsonAnnotations(spec);
-    loader_ = InitLoader<FileLoader>(spec, image_id_pairs, shuffle_after_epoch);
+    loader_ = InitLoader<FileLoader>(
+      spec,
+      spec.HasArgument("meta_files_path") ? ParseMetafiles(spec) : ParseJsonAnnotations(spec),
+      shuffle_after_epoch);
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {
@@ -131,7 +133,7 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   std::vector<int> original_ids_;
 
   ImageIdPairs ParseMetafiles(const OpSpec& spec);
-  
+
   ImageIdPairs ParseJsonAnnotations(const OpSpec& spec);
 
   void DumpMetaFiles(std::string path, const ImageIdPairs &image_id_pairs);
