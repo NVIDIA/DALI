@@ -176,7 +176,9 @@ class DLL_PUBLIC Pipeline {
    * @param spec
    * @param inst_name
    * @param logical_id Allows to group operator that are supposed to have synchronized state
-   *                   wrt randomness
+   * wrt randomness. Must in [0, GetLogicalIdCout()] interval, where [0, GetLogicalIdCount())
+   * indicates already used logical id and ties the initial seed between operators sharing
+   * that logical id, and logical_id=GetLogicalIdCount() indicates reserving a new one.
    * @return logical_id of added operator, so it can be used for further calls
    */
   DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name, int logical_id);

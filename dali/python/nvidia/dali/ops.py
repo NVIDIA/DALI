@@ -208,6 +208,13 @@ class _OperatorInstance(object):
         return self._outputs
 
     @property
+    def unwrapped_outputs(self):
+        if len(self._outputs) == 1:
+            return self._outputs[0]
+        else:
+            return self._outputs
+
+    @property
     def spec(self):
         return self._spec
 
@@ -280,13 +287,58 @@ def python_op_factory(name, op_device = "cpu"):
                             self._schema.MinNumInput(),
                             self._schema.MaxNumInput(),
                             len(inputs)))
+            # Build input sets, most of the time we only have one
+            input_sets = []
+            if self._detect_multiple_input_sets(inputs):
+                arg_list_len = self._check_common_length(inputs)
+                packed_inputs = self._unify_lists(inputs, arg_list_len)
+                # Zip the list from [[arg0, arg0', arg0''], [arg1', arg1'', arg1''], ...]
+                # to [(arg0, arg1, ...), (arg0', arg1', ...), (arg0'', arg1'', ...)]
+                for i in range(arg_list_len):
+                    input_sets.append(tuple(input_arg[i] for input_arg in packed_inputs))
+            else:
+                input_sets = [inputs]
+            # Create OperatorInstance for every input set
+            op_instances = []
+            for input_set in input_sets:
+                op_instances.append(_OperatorInstance(input_set, self, **kwargs))
+                op_instances[-1].generate_outputs()
+            # If we don't have multiple input sets, flatten the result
+            if len(op_instances) == 1:
+                return op_instances[0].unwrapped_outputs
+            # In case of actual Multiple Input Sets, the re
+            outputs = []
+            for ops in op_instances:
+                outputs.append(ops.unwrapped_outputs)
+            return outputs
 
-            op_instance = _OperatorInstance(inputs, self, **kwargs)
-            op_instance.generate_outputs()
+        # Check if any of inputs is a list
+        def _detect_multiple_input_sets(self, inputs):
+            return any(isinstance(input, list) for input in inputs)
 
-            if len(op_instance.outputs) == 1:
-                return op_instance.outputs[0]
-            return op_instance.outputs
+        # Check if all list representing multiple input sets have the same length and return it
+        def _check_common_length(self, inputs):
+            arg_list_len = max(len(input) for input in inputs)
+            for input in inputs:
+                if isinstance(input, list):
+                    if len(input) != arg_list_len:
+                        raise ValueError(("All argument lists for Multpile Input Sets used " +
+                                          "with operator {} must have the same length")
+                                          .format(type(self).__name__))
+            return arg_list_len
+
+        # Pack single EdgeReferences into lists, so they are treated as Multiple Input Sets
+        # consistently with the ones already present
+        def _unify_lists(self, inputs, arg_list_len):
+            result = ()
+            for input in inputs:
+                if isinstance(input, list):
+                    result = result + (input,)
+                else:
+                    result = result + ([input] * arg_list_len,)
+            return result
+
+
 
     Operator.__name__ = str(name)
     return Operator
