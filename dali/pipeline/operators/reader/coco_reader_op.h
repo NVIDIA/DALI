@@ -70,20 +70,10 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   explicit FastCocoReader(const OpSpec& spec):
     DataReader<CPUBackend, ImageLabelWrapper>(spec),
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
-    bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-
     ValidateOptions(spec);
-    if (spec.HasArgument("meta_files_path")) {
-      auto image_id_pairs = ParseMetafiles(spec);
-      loader_ = InitLoader<FastCocoLoader>(
-        spec, image_id_pairs, shuffle_after_epoch);
-    } else if (spec.HasArgument("annotations_file")) {
-       auto image_id_pairs = ParseJsonAnnotations(spec);
-       loader_ = InitLoader<FastCocoLoader>(
-         spec, image_id_pairs, shuffle_after_epoch);
-    } else {
-      DALI_FAIL("Either meta_files_path or annotations_file must be provided.");
-    }
+    bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
+    auto image_id_pairs = spec.HasArgument("meta_files_path") ? ParseMetafiles(spec) : ParseJsonAnnotations(spec);
+    loader_ = InitLoader<FileLoader>(spec, image_id_pairs, shuffle_after_epoch);
   }
 
   void RunImpl(SampleWorkspace* ws, const int i) override {

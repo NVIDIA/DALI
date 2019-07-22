@@ -264,6 +264,9 @@ void FastCocoReader::ValidateOptions(const OpSpec &spec) {
   DALI_ENFORCE(
     spec.HasArgument("meta_files_path") || spec.HasArgument("annotations_file"),
     "`meta_files_path` or `annotations_file` must be provided");
+  DALI_ENFORCE(
+    !spec.HasArgument("file_list"),
+    "Argument `file_list` is no longer supported for `COCOReader`. The same functionality can be implemented with meta files option.");
 
   if (spec.HasArgument("meta_files_path")) {
     DALI_ENFORCE(
@@ -284,9 +287,6 @@ void FastCocoReader::ValidateOptions(const OpSpec &spec) {
     DALI_ENFORCE(
       !spec.HasArgument("dump_meta_files_path"),
       "When reading data from meta files `dump_meta_files_path` is not working.");
-    DALI_ENFORCE(
-      !spec.HasArgument("file_list"),
-      "When reading data from meta files `file_list` is not working.");
   }
 
   if (spec.HasArgument("dump_meta_files")) {
@@ -302,14 +302,12 @@ void FastCocoReader::ValidateOptions(const OpSpec &spec) {
 using rapidjson::kObjectType;
 
 std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(const OpSpec &spec) {
-  std::vector<std::pair<std::string, int>> image_id_pairs;
+  ImageIdPairs image_id_pairs;
   const auto annotations_file_path = spec.GetArgument<string>("annotations_file");
   bool ltrb = spec.GetArgument<bool>("ltrb");
   bool skip_empty = spec.GetArgument<bool>("skip_empty");
   float size_threshold = spec.GetArgument<float>("size_threshold");
   bool ratio = spec.GetArgument<bool>("ratio");
-  string file_list = spec.GetArgument<string>("file_list");
-  bool parse_file_list = file_list != "";
 
 
   std::ifstream f(annotations_file_path);
@@ -332,10 +330,6 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
   // mapping each category_id to its actual category
   std::map<int, int> category_ids;
 
-
-  if (parse_file_list) {
-    detail::load_file_list(image_id_pairs, file_list);
-  }
 
   RAPIDJSON_ASSERT(r.PeekType() == kObjectType);
   r.EnterObject();
@@ -365,9 +359,7 @@ std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(co
               r.SkipValue();
             }
           }
-          if (!parse_file_list) {
-            image_id_pairs.push_back(std::make_pair(image_file_name, id));
-          }
+          image_id_pairs.push_back(std::make_pair(image_file_name, id));
           image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
         }
       } else if (0 == strcmp(key, "categories")) { 

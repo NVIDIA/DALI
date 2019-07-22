@@ -364,6 +364,17 @@ TEST_F(CocoReaderTest, MutuallyExclusiveOptions3) {
   EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
 }
 
+TEST_F(CocoReaderTest, FileList) {
+  Pipeline pipe(1, 1, 0);
+
+  pipe.AddOperator(
+    CocoReaderOpSpec()
+    .AddArg("file_list", file_list_),
+    "coco_reader");
+
+  EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
+}
+
 TEST_F(CocoReaderTest, SkipEmpty) {
   this->RunTest(false, false, true);
 }
@@ -386,32 +397,6 @@ TEST_F(CocoReaderTest, LtrbRatio) {
 
 TEST_F(CocoReaderTest, LtrbRatioSkipEmpty) {
   this->RunTest(true, true, true);
-}
-
-TEST_F(CocoReaderTest, FileList) {
-  Pipeline pipe(NonEmptyImages(), 1, 0);
-
-  pipe.AddOperator(
-    CocoReaderOpSpec()
-    .AddArg("file_list", file_list_),
-    "coco_reader");
-
-  pipe.Build(Outputs());
-
-  ASSERT_EQ(pipe.EpochSize()["coco_reader"], NonEmptyImages());
-
-  DeviceWorkspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
-  pipe.Outputs(&ws);
-
-  auto ids = CopyIds(ws);
-
-  for (int id = 0; id < NonEmptyImages(); ++id) {
-    ASSERT_EQ(ids[id], id);
-  }
-
-  CheckInstances(ws, false, false, true, NonEmptyImages());
 }
 
 TEST_F(CocoReaderTest, BigSizeThreshold) {
