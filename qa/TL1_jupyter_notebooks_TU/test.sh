@@ -8,6 +8,8 @@ pip_packages="jupyter matplotlib numpy"
 pushd ../../docs/examples
 
 test_body() {
+    # workaround for the CI
+    put_optflow_libs
     test_files=("optical_flow/optical_flow_example.ipynb")
 
     # test code
