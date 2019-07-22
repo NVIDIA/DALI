@@ -216,7 +216,10 @@ void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids)
 }
 
 void parse_annotations(
-  LookaheadParser &parser, std::vector<Annotation> &annotations, float min_size_threshold, bool ltrb) {
+  LookaheadParser &parser,
+  std::vector<Annotation> &annotations,
+  float min_size_threshold,
+  bool ltrb) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -258,7 +261,7 @@ void parse_json_file(
   std::vector<detail::Annotation> &annotations,
   std::map<int, int> &category_ids) {
   const auto annotations_file = spec.GetArgument<string>("annotations_file");
-  
+
   std::ifstream f(annotations_file);
   DALI_ENFORCE(f, "Could not open JSON annotations file");
   f.seekg(0, std::ios::end);
