@@ -127,11 +127,12 @@ class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   std::vector<int> labels_;
   std::vector<int> counts_;
 
-  ImageIdPairs ParseMetafiles(const OpSpec& spec);
-  ImageIdPairs ParseJsonAnnotations(const OpSpec& spec);
-
   bool save_img_ids_;
   std::vector<int> original_ids_;
+
+  ImageIdPairs ParseMetafiles(const OpSpec& spec);
+  
+  ImageIdPairs ParseJsonAnnotations(const OpSpec& spec);
 
   void DumpMetaFiles(std::string path, const ImageIdPairs &image_id_pairs);
 

@@ -119,6 +119,28 @@ object will be skipped during reading. It is represented as absolute value.)code
   .AddParent("LoaderBase");
 
 namespace detail {
+struct ImageInfo {
+  std::string filename_;
+  int original_id_;
+  int width_;
+  int height_;
+};
+
+struct Annotation {
+  int image_id_;
+  int category_id_;
+  std::array<float, 4> box_;
+
+  void ToLtrb() {
+    box_[2] += box_[0];
+    box_[3] += box_[1];
+  }
+
+  bool FitsUnder(float size_threshold) {
+    return box_[2] >= size_threshold && box_[3] >= size_threshold;
+  }
+};
+
 template<typename T>
 void dump_meta_file(const std::vector<T> &input, const std::string path) {
   std::ofstream file(path);
@@ -184,6 +206,32 @@ ImageIdPairs load_filenames(const std::string path) {
   return image_id_pairs;
 }
 
+void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_infos) {
+  RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
+  parser.EnterArray();
+  while (parser.NextArrayValue()) {
+    if (parser.PeekType() != kObjectType) {
+      continue;
+    }
+    parser.EnterObject();
+    ImageInfo image_info;
+    while (const char* internal_key = parser.NextObjectKey()) {
+      if (0 == strcmp(internal_key, "id")) {
+          image_info.original_id_ = parser.GetInt();
+      } else if (0 == strcmp(internal_key, "width")) {
+          image_info.width_ = parser.GetInt();
+      } else if (0 == strcmp(internal_key, "height")) {
+          image_info.height_ = parser.GetInt();
+      } else if (0 == strcmp(internal_key, "file_name")) {
+          image_info.filename_ = parser.GetString();
+      } else {
+        parser.SkipValue();
+      }
+    }
+    image_infos.emplace_back(std::move(image_info));
+  }
+}
+
 void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids) {
   RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
   parser.EnterArray();
@@ -208,6 +256,78 @@ void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids)
     category_ids.insert(std::make_pair(id, new_id));
     new_id++;
   }
+}
+
+void parse_annotations(
+  LookaheadParser &parser, std::vector<Annotation> &annotations, float size_threshold, bool ltrb) {
+  RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
+  parser.EnterArray();
+  while (parser.NextArrayValue()) {
+    detail::Annotation annotation;
+    if (parser.PeekType() != kObjectType) {
+      continue;
+    }
+    parser.EnterObject();
+    while (const char* internal_key = parser.NextObjectKey()) {
+      if (0 == strcmp(internal_key, "image_id")) {
+        annotation.image_id_ = parser.GetInt();
+      } else if (0 == strcmp(internal_key, "category_id")) {
+        annotation.category_id_ = parser.GetInt();
+      } else if (0 == strcmp(internal_key, "bbox")) {
+        RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
+        parser.EnterArray();
+        int i = 0;
+        while (parser.NextArrayValue()) {
+          annotation.box_[i] = parser.GetDouble();
+          ++i;
+        }
+      } else {
+        parser.SkipValue();
+      }
+    }
+    if (!annotation.FitsUnder(size_threshold)) {
+      continue;
+    }
+    if (ltrb) {
+      annotation.ToLtrb();
+    }
+    annotations.emplace_back(std::move(annotation));
+  }
+}
+
+void parse_json_file(
+  const OpSpec &spec,
+  std::vector<detail::ImageInfo> &image_infos,
+  std::vector<detail::Annotation> &annotations,
+  std::map<int, int> &category_ids) {
+  const auto annotations_file = spec.GetArgument<string>("annotations_file");
+  std::ifstream f(annotations_file);
+  DALI_ENFORCE(f, "Could not open JSON annotations file");
+  f.seekg(0, std::ios::end);
+  size_t file_size = f.tellg();
+  std::unique_ptr<char, std::function<void(char*)>> buff(
+    new char[file_size],
+    [](char* data) {delete [] data;});
+  f.seekg(0, std::ios::beg);
+  f.read(buff.get(), file_size);
+
+  detail::LookaheadParser parser(buff.get());
+
+  RAPIDJSON_ASSERT(parser.PeekType() == kObjectType);
+  parser.EnterObject();
+  while (const char* key = parser.NextObjectKey()) {
+    if (0 == strcmp(key, "images")) {
+      detail::parse_image_infos(parser, image_infos);
+    } else if (0 == strcmp(key, "categories")) { 
+      detail::parse_categories(parser, category_ids);
+    } else if (0 == strcmp(key, "annotations")) {
+      parse_annotations(
+        parser, annotations, spec.GetArgument<float>("size_threshold"), spec.GetArgument<bool>("ltrb"));
+    } else {
+      parser.SkipValue();
+    }
+  }
+  f.close();
 }
 
 }  // namespace detail
@@ -267,6 +387,8 @@ void FastCocoReader::ValidateOptions(const OpSpec &spec) {
   DALI_ENFORCE(
     !spec.HasArgument("file_list"),
     "Argument `file_list` is no longer supported for `COCOReader`. The same functionality can be implemented with meta files option.");
+  DALI_ENFORCE(!skip_cached_images_,
+    "COCOReader doesn't support `skip_cached_images` option");
 
   if (spec.HasArgument("meta_files_path")) {
     DALI_ENFORCE(
@@ -294,186 +416,77 @@ void FastCocoReader::ValidateOptions(const OpSpec &spec) {
       spec.HasArgument("dump_meta_files_path"),
       "When dumping meta files `dump_meta_files_path` must be provided.");
   }
-
-  DALI_ENFORCE(!skip_cached_images_,
-    "COCOReader doesn't support `skip_cached_images` option");
 }
 
-using rapidjson::kObjectType;
-
 std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(const OpSpec &spec) {
-  ImageIdPairs image_id_pairs;
-  const auto annotations_file_path = spec.GetArgument<string>("annotations_file");
-  bool ltrb = spec.GetArgument<bool>("ltrb");
-  bool skip_empty = spec.GetArgument<bool>("skip_empty");
-  float size_threshold = spec.GetArgument<float>("size_threshold");
-  bool ratio = spec.GetArgument<bool>("ratio");
-
-
-  std::ifstream f(annotations_file_path);
-  DALI_ENFORCE(f, "Could not open JSON annotations file");
-  f.seekg(0, std::ios::end);
-  size_t file_size = f.tellg();
-  std::unique_ptr<char, std::function<void(char*)>> buff(
-    new char[file_size],
-    [](char* data) {delete [] data;});
-  f.seekg(0, std::ios::beg);
-  f.read(buff.get(), file_size);
-
-  detail::LookaheadParser r(buff.get());
-
-  // mapping each image_id to its WH dimension
-  std::unordered_map<int, std::pair<int, int> > image_id_to_wh;
-
-  std::vector<std::pair<int, std::pair<std::array<float, 4>, int>>> boxes_vector;
-
-  // mapping each category_id to its actual category
+  std::vector<detail::ImageInfo> image_infos;
+  std::vector<detail::Annotation> annotations;
   std::map<int, int> category_ids;
 
+  detail::parse_json_file(
+    spec,
+    image_infos,
+    annotations,
+    category_ids);
 
-  RAPIDJSON_ASSERT(r.PeekType() == kObjectType);
-  r.EnterObject();
-  while (const char* key = r.NextObjectKey()) {
-    if (0 == strcmp(key, "images")) {
-        RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
-        r.EnterArray();
-        string image_file_name;
-        int width;
-        int height;
-        int id = 0;
-        while (r.NextArrayValue()) {
-          if (r.PeekType() != kObjectType) {
-            continue;
-          }
-          r.EnterObject();
-          while (const char* internal_key = r.NextObjectKey()) {
-            if (0 == strcmp(internal_key, "id")) {
-                id = r.GetInt();
-            } else if (0 == strcmp(internal_key, "width")) {
-                width = r.GetInt();
-            } else if (0 == strcmp(internal_key, "height")) {
-                height = r.GetInt();
-            } else if (0 == strcmp(internal_key, "file_name")) {
-                image_file_name = r.GetString();
-            } else {
-              r.SkipValue();
-            }
-          }
-          image_id_pairs.push_back(std::make_pair(image_file_name, id));
-          image_id_to_wh.insert(std::make_pair(id, std::make_pair(width, height)));
-        }
-      } else if (0 == strcmp(key, "categories")) { 
-        detail::parse_categories(r, category_ids);
-      } else if (0 == strcmp(key, "annotations")) {
-        RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
-        r.EnterArray();
-        int image_id;
-        int category_id;
-        std::array<float, 4> bbox = {0, };
-        while (r.NextArrayValue()) {
-          if (r.PeekType() != kObjectType) {
-            continue;
-          }
-          r.EnterObject();
-          while (const char* internal_key = r.NextObjectKey()) {
-            if (0 == strcmp(internal_key, "image_id")) {
-              image_id = r.GetInt();
-            } else if (0 == strcmp(internal_key, "category_id")) {
-              category_id = r.GetInt();
-            } else if (0 == strcmp(internal_key, "bbox")) {
-              RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
-              r.EnterArray();
-              int i = 0;
-              while (r.NextArrayValue()) {
-                bbox[i] = r.GetDouble();
-                ++i;
-              }
-            } else {
-              r.SkipValue();
-            }
-          }
+  bool skip_empty = spec.GetArgument<bool>("skip_empty");
+  bool ratio = spec.GetArgument<bool>("ratio");
 
-          if (bbox[2] < size_threshold || bbox[3] < size_threshold) {
-            continue;
-          }
+  std::sort(image_infos.begin(), image_infos.end(), [](auto &left, auto &right) {
+    return left.original_id_ < right.original_id_;});
+  std::stable_sort(annotations.begin(), annotations.end(), [](auto &left, auto &right) {
+    return left.image_id_ < right.image_id_;});
 
-          if (ltrb) {
-            bbox[2] += bbox[0];
-            bbox[3] += bbox[1];
-          }
-
-          boxes_vector.emplace_back(std::make_pair(image_id, std::make_pair(bbox, category_id)));
-
-        }
-      } else {
-        r.SkipValue();
-      }
-  }
-
-  f.close();
-
-  // ==============================================
-  std::sort(image_id_pairs.begin(), image_id_pairs.end(), [](auto &left, auto &right) {
-    return left.second < right.second;
-  });
-  std::stable_sort(boxes_vector.begin(), boxes_vector.end(), [](auto &left, auto &right) {
-    return left.first < right.first;
-  });
-
-  // Add sentinel at the end for easier code later
-  boxes_vector.emplace_back(std::make_pair(-1, std::make_pair(std::array<float, 4>(), 0)));
+  detail::Annotation sentinel;
+  sentinel.image_id_ = -1;
+  annotations.emplace_back(std::move(sentinel));
 
   int new_image_id = 0;
   int annotation_id = 0;
   int total_count = 0;
 
-  ImageIdPairs image_id_pairs_4;
+  ImageIdPairs image_id_pairs;
 
-  for (auto &image_id_pair : image_id_pairs) {
+  for (auto &image_info : image_infos) {
     int objects_in_sample = 0;
-    while (boxes_vector[annotation_id].first == image_id_pair.second) {
-      const auto &annotation = boxes_vector[annotation_id];
-      labels_.push_back(category_ids[annotation.second.second]);
+    while (annotations[annotation_id].image_id_ == image_info.original_id_) {
+      const auto &annotation = annotations[annotation_id];
+      labels_.emplace_back(category_ids[annotation.category_id_]);
       if (ratio) {
-        const auto& wh = image_id_to_wh[image_id_pair.second];
-        boxes_.push_back(annotation.second.first[0] / static_cast<float>(wh.first));
-        boxes_.push_back(annotation.second.first[1] / static_cast<float>(wh.second));
-        boxes_.push_back(annotation.second.first[2] / static_cast<float>(wh.first));
-        boxes_.push_back(annotation.second.first[3] / static_cast<float>(wh.second));
-
+        boxes_.emplace_back(annotation.box_[0] / static_cast<float>(image_info.width_));
+        boxes_.emplace_back(annotation.box_[1] / static_cast<float>(image_info.height_));
+        boxes_.emplace_back(annotation.box_[2] / static_cast<float>(image_info.width_));
+        boxes_.emplace_back(annotation.box_[3] / static_cast<float>(image_info.height_));
       } else {
-        boxes_.push_back(annotation.second.first[0]);
-        boxes_.push_back(annotation.second.first[1]);
-        boxes_.push_back(annotation.second.first[2]);
-        boxes_.push_back(annotation.second.first[3]);
+        boxes_.emplace_back(annotation.box_[0]);
+        boxes_.emplace_back(annotation.box_[1]);
+        boxes_.emplace_back(annotation.box_[2]);
+        boxes_.emplace_back(annotation.box_[3]);
       }
-
       ++annotation_id;
       ++objects_in_sample;
     }
 
     if (!skip_empty || objects_in_sample != 0) {
-      offsets_.push_back(total_count);
-      counts_.push_back(objects_in_sample);
+      offsets_.emplace_back(total_count);
+      counts_.emplace_back(objects_in_sample);
       total_count += objects_in_sample;
       if (save_img_ids_) {
-        original_ids_.push_back(image_id_pair.second);
+        original_ids_.emplace_back(image_info.original_id_);
       }
 
-      image_id_pair.second = new_image_id;
+      image_id_pairs.emplace_back(std::make_pair(std::move(image_info.filename_), new_image_id));
       new_image_id++;
-
-      image_id_pairs_4.push_back(image_id_pair);
     }
   }
 
   if (spec.GetArgument<bool>("dump_meta_files")) {
     DumpMetaFiles(
       spec.GetArgument<std::string>("dump_meta_files_path"),
-      image_id_pairs_4);
+      image_id_pairs);
   }
 
-  return image_id_pairs_4;
+  return image_id_pairs;
 }
 
 
