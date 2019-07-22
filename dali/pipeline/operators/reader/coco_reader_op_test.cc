@@ -35,7 +35,7 @@ class CocoReaderTest : public ::testing::Test {
   }
 
   OpSpec BasicCocoReaderOpSpec() {
-    return OpSpec("FastCocoReader")
+    return OpSpec("COCOReader")
       .AddArg("device", "cpu")
       .AddArg("file_root", file_root_)
       .AddArg("save_img_ids", true)

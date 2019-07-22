@@ -26,48 +26,13 @@
 
 #include "dali/pipeline/operators/reader/reader_op.h"
 #include "dali/pipeline/operators/reader/loader/file_loader.h"
-#include "dali/pipeline/operators/reader/loader/coco_loader.h"
-#include "dali/pipeline/operators/reader/parser/coco_parser.h"
 
 namespace dali {
+using ImageIdPairs = std::vector<std::pair<std::string, int>>;
 
 class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
-  explicit COCOReader(const OpSpec& spec)
-  : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
-    bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-
-    DALI_ENFORCE(!skip_cached_images_,
-      "COCOReader doesn't support `skip_cached_images` option");
-
-    if (spec.HasArgument("file_list"))
-      loader_ = InitLoader<FileLoader>(
-        spec,
-        std::vector<std::pair<string, int>>(),
-        shuffle_after_epoch);
-    else
-      loader_ = InitLoader<CocoLoader>(
-        spec,
-        annotations_multimap_,
-        shuffle_after_epoch);
-    parser_.reset(new COCOParser(spec, annotations_multimap_));
-  }
-
-  void RunImpl(SampleWorkspace* ws, const int i) override {
-    parser_->Parse(GetSample(ws->data_idx()), ws);
-  }
-
- protected:
-  AnnotationMap annotations_multimap_;
-
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
-};
-
-using ImageIdPairs = std::vector<std::pair<std::string, int>>;
-
-class FastCocoReader : public DataReader<CPUBackend, ImageLabelWrapper> {
- public:
-  explicit FastCocoReader(const OpSpec& spec):
+  explicit COCOReader(const OpSpec& spec):
     DataReader<CPUBackend, ImageLabelWrapper>(spec),
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     ValidateOptions(spec);

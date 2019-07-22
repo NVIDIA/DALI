@@ -29,49 +29,6 @@ DALI_SCHEMA(COCOReader)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
 and an annotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
 Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
-  .AddArg("file_root",
-      R"code(Path to a directory containing data files.)code",
-      DALI_STRING)
-  .AddArg("annotations_file",
-      R"code(List of paths to the JSON annotations files.)code",
-      DALI_STRING_VEC)
-  .AddOptionalArg("file_list",
-      R"code(Path to the file with a list of pairs ``file label``
-(leave empty to traverse the `file_root` directory to obtain files and labels))code",
-      std::string())
-  .AddOptionalArg("ltrb",
-      R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
-      false)
-  .AddOptionalArg("ratio",
-      R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height.)code",
-      false)
-  .AddOptionalArg("size_threshold",
-      R"code(If width or height of a bounding box representing an instance of an object is under this value,
-object will be skipped during reading. It is represented as absolute value.)code",
-      0.1f,
-      false)
-  .AddOptionalArg("skip_empty",
-      R"code(If true, reader will skip samples with no object instances in them)code",
-      false)
-  .AddOptionalArg("save_img_ids",
-      R"code(If true, image IDs will also be returned.)code",
-      false)
-  .AddOptionalArg("shuffle_after_epoch",
-      R"code(If true, reader shuffles whole dataset after each epoch.)code",
-      false)
-  .AdditionalOutputsFn([](const OpSpec& spec) {
-    return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
-  })
-  .AddParent("LoaderBase");
-
-
-DALI_REGISTER_OPERATOR(FastCocoReader, FastCocoReader, CPU);
-DALI_SCHEMA(FastCocoReader)
-  .NumInput(0)
-  .NumOutput(3)
-  .DocStr(R"code(Read data from a COCO dataset composed of directory with images
-and an annotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
-Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
   .AddOptionalArg(
     "meta_files_path",
     "Path to directory with meta files containing preprocessed COCO annotations.",
@@ -336,7 +293,7 @@ void parse_json_file(
 }  // namespace detail
 
 
-void FastCocoReader::DumpMetaFiles(const std::string path, const ImageIdPairs &image_id_pairs) {
+void COCOReader::DumpMetaFiles(const std::string path, const ImageIdPairs &image_id_pairs) {
   detail::dump_meta_file(
     offsets_,
     path + "offsets.txt");
@@ -360,7 +317,7 @@ void FastCocoReader::DumpMetaFiles(const std::string path, const ImageIdPairs &i
   }
 }
 
-ImageIdPairs FastCocoReader::ParseMetafiles(const OpSpec &spec) {
+ImageIdPairs COCOReader::ParseMetafiles(const OpSpec &spec) {
   const auto meta_files_path = spec.GetArgument<string>("meta_files_path");
   detail::load_meta_file(
     offsets_,
@@ -383,7 +340,7 @@ ImageIdPairs FastCocoReader::ParseMetafiles(const OpSpec &spec) {
   return detail::load_filenames(meta_files_path + "filenames.txt");
 }
 
-void FastCocoReader::ValidateOptions(const OpSpec &spec) {
+void COCOReader::ValidateOptions(const OpSpec &spec) {
   DALI_ENFORCE(
     spec.HasArgument("meta_files_path") || spec.HasArgument("annotations_file"),
     "`meta_files_path` or `annotations_file` must be provided");
@@ -422,7 +379,7 @@ void FastCocoReader::ValidateOptions(const OpSpec &spec) {
   }
 }
 
-std::vector<std::pair<std::string, int>> FastCocoReader::ParseJsonAnnotations(const OpSpec &spec) {
+std::vector<std::pair<std::string, int>> COCOReader::ParseJsonAnnotations(const OpSpec &spec) {
   std::vector<detail::ImageInfo> image_infos;
   std::vector<detail::Annotation> annotations;
   std::map<int, int> category_ids;
