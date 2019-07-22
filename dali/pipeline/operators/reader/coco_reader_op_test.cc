@@ -108,7 +108,7 @@ class CocoReaderTest : public ::testing::Test {
 
     meta_pipe.AddOperator(
       BasicCocoReaderOpSpec()
-      .AddArg("meta_files_path", "/tmp/"),
+      .AddArg("meta_files_path", "/tmp"),
       "coco_reader");
 
     RunTestForPipeline(meta_pipe, ltrb, ratio, skip_empty, expected_size);

@@ -93,8 +93,8 @@ struct Annotation {
     box_[3] += box_[1];
   }
 
-  bool FitsUnder(float size_threshold) {
-    return box_[2] >= size_threshold && box_[3] >= size_threshold;
+  bool IsOver(float min_size_threshold) {
+    return box_[2] >= min_size_threshold && box_[3] >= min_size_threshold;
   }
 };
 
@@ -216,7 +216,7 @@ void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids)
 }
 
 void parse_annotations(
-  LookaheadParser &parser, std::vector<Annotation> &annotations, float size_threshold, bool ltrb) {
+  LookaheadParser &parser, std::vector<Annotation> &annotations, float min_size_threshold, bool ltrb) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -242,7 +242,7 @@ void parse_annotations(
         parser.SkipValue();
       }
     }
-    if (!annotation.FitsUnder(size_threshold)) {
+    if (!annotation.IsOver(min_size_threshold)) {
       continue;
     }
     if (ltrb) {
@@ -258,15 +258,18 @@ void parse_json_file(
   std::vector<detail::Annotation> &annotations,
   std::map<int, int> &category_ids) {
   const auto annotations_file = spec.GetArgument<string>("annotations_file");
+  
   std::ifstream f(annotations_file);
   DALI_ENFORCE(f, "Could not open JSON annotations file");
   f.seekg(0, std::ios::end);
   size_t file_size = f.tellg();
   std::unique_ptr<char, std::function<void(char*)>> buff(
-    new char[file_size],
+    new char[file_size + 1],
     [](char* data) {delete [] data;});
   f.seekg(0, std::ios::beg);
+  buff.get()[file_size] = '\0';
   f.read(buff.get(), file_size);
+  f.close();
 
   detail::LookaheadParser parser(buff.get());
 
@@ -287,7 +290,6 @@ void parse_json_file(
       parser.SkipValue();
     }
   }
-  f.close();
 }
 
 }  // namespace detail
@@ -296,24 +298,24 @@ void parse_json_file(
 void COCOReader::DumpMetaFiles(const std::string path, const ImageIdPairs &image_id_pairs) {
   detail::dump_meta_file(
     offsets_,
-    path + "offsets.txt");
+    path + "/offsets.txt");
   detail::dump_meta_file(
     boxes_,
-    path + "boxes.txt");
+    path + "/boxes.txt");
   detail::dump_meta_file(
     labels_,
-    path + "labels.txt");
+    path + "/labels.txt");
   detail::dump_meta_file(
     counts_,
-    path + "counts.txt");
+    path + "/counts.txt");
   detail::dump_filenames(
     image_id_pairs,
-    path + "filenames.txt");
+    path + "/filenames.txt");
 
   if (save_img_ids_) {
     detail::dump_meta_file(
       original_ids_,
-      path + "original_ids.txt");
+      path + "/original_ids.txt");
   }
 }
 
@@ -321,23 +323,23 @@ ImageIdPairs COCOReader::ParseMetafiles(const OpSpec &spec) {
   const auto meta_files_path = spec.GetArgument<string>("meta_files_path");
   detail::load_meta_file(
     offsets_,
-    meta_files_path + "offsets.txt");
+    meta_files_path + "/offsets.txt");
   detail::load_meta_file(
     boxes_,
-    meta_files_path + "boxes.txt");
+    meta_files_path + "/boxes.txt");
   detail::load_meta_file(
     labels_,
-    meta_files_path + "labels.txt");
+    meta_files_path + "/labels.txt");
   detail::load_meta_file(
     counts_,
-    meta_files_path + "counts.txt");
+    meta_files_path + "/counts.txt");
 
   if (save_img_ids_) {
     detail::load_meta_file(
       original_ids_,
-      meta_files_path + "original_ids.txt");
+      meta_files_path + "/original_ids.txt");
   }
-  return detail::load_filenames(meta_files_path + "filenames.txt");
+  return detail::load_filenames(meta_files_path + "/filenames.txt");
 }
 
 void COCOReader::ValidateOptions(const OpSpec &spec) {
