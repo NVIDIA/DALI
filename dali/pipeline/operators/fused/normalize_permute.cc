@@ -70,6 +70,9 @@ Normalization takes input image and produces output using formula
 ..
 
 output = (input - mean) / std
+
+*Deprecated*: Use :meth:`nvidia.dali.ops.CropMirrorNormalize` (without crop and mirror arguments)
+instead, which implements a faster algorithm and does not require height and width arguments.
 )code")
   .NumInput(1)
   .NumOutput(1)

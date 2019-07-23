@@ -44,8 +44,11 @@ class Tensor;
 template <typename Backend>
 class DLL_PUBLIC TensorList : public Buffer<Backend> {
  public:
-  DLL_PUBLIC TensorList()
-    : layout_(DALI_NHWC) {}
+  DLL_PUBLIC TensorList() {}
+
+  DLL_PUBLIC TensorList(int batch_size) {
+    Resize(kernels::TensorListShape<>(batch_size));
+  }
 
   DLL_PUBLIC ~TensorList() = default;
 
@@ -104,6 +107,15 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
       this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }
+  }
+
+  using Buffer<Backend>::reserve;
+
+  inline void reserve(size_t bytes_per_tensor, int batch_size) {
+    if (shape_.empty()) {
+      Resize(kernels::TensorListShape<>(batch_size));
+    }
+    reserve(bytes_per_tensor * batch_size);
   }
 
   /**
@@ -217,6 +229,21 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     offsets_.clear();
     meta_.clear();
     tensor_views_.clear();
+  }
+
+  /**
+   * @brief TensorList is always backed by contiguous buffer
+   */
+  bool IsContiguous() {
+    return true;
+  }
+
+  /**
+   * @brief TensorList is always backed by contiguous buffer
+   *        Cannot be set to noncontiguous
+   */
+  void SetContiguous(bool contiguous) {
+    DALI_ENFORCE(contiguous, "TensorList cannot be made noncontiguous");
   }
 
   /**
@@ -447,7 +474,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   kernels::TensorListShape<> shape_;
   vector<Index> offsets_;
   vector<DALIMeta> meta_;
-  DALITensorLayout layout_;
+  DALITensorLayout layout_{DALI_NHWC};
 
   // In order to not leak memory (and make it slightly faster)
   // when sharing data with a Tensor, we will store a pointer to

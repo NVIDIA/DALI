@@ -23,6 +23,7 @@
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/imgproc/resample/params.h"
+#include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/operators/op_spec.h"
 
 namespace dali {
@@ -58,26 +59,8 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
   kernels::TensorListShape<> out_shape_;
 
  private:
-  struct KernelData {
-    kernels::KernelContext context;
-    kernels::KernelRequirements requirements;
-    kernels::ScratchpadAllocator scratch_alloc;
-    std::unique_ptr<void, void(*)(void*)> instance = { nullptr, free };
+  kernels::KernelManager kmgr_;
 
-    template <typename Kernel, typename... Args>
-    Kernel &KernelInstance(Args&&... args) {
-      auto deleter_lambda = [](void *ptr) {
-        delete static_cast<Kernel*>(ptr);
-      };
-      void (*deleter)(void *) = deleter_lambda;
-      if (!instance || instance.get_deleter() != deleter) {
-        instance = { new Kernel(std::forward<Args>(args)...), deleter };
-      }
-      return *static_cast<Kernel*>(instance.get());
-    }
-  };
-
-  std::vector<KernelData> kernel_data_;
   struct MiniBatch {
     int start, count;
     kernels::TensorListShape<> out_shape;
@@ -88,24 +71,6 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
 
   void SubdivideInput(const kernels::InListGPU<uint8_t, 3> &in);
   void SubdivideOutput(const kernels::OutListGPU<uint8_t, 3> &out);
-
-  inline KernelData &GetKernelData(int thread_idx) {
-    DALI_ENFORCE(thread_idx >= 0 && static_cast<size_t>(thread_idx) < kernel_data_.size(),
-                 "Thread index out of range");
-    return kernel_data_[thread_idx];
-  }
-
-  template <typename Kernel, typename... Args>
-  Kernel &GetKernelInstance(int instance_index, Args&&... args) {
-    DALI_ENFORCE(instance_index >= 0 && static_cast<size_t>(instance_index) < kernel_data_.size(),
-      "Kernel instance index out of range");
-    return kernel_data_[instance_index].KernelInstance<Kernel>(std::forward<Args>(args)...);
-  }
-
-  inline kernels::ScratchpadAllocator &GetGPUScratchAlloc() {
-    DALI_ENFORCE(!kernel_data_.empty(), "Resize kernel data not initialized");
-    return kernel_data_[0].scratch_alloc;
-  }
 };
 
 }  // namespace dali

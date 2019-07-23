@@ -628,7 +628,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
         auto &parent_tensor_queue =
             get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
         for (auto &tensor : parent_tensor_queue) {
-          SetPinned(tensor, true);
+          tensor->set_pinned(true);
         }
       }
     }
@@ -658,8 +658,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
           auto& queue = get_queue<op_type_static, StorageDevice::CPU>(
               tensor_to_store_queue[tensor.id]);
           for (auto storage : queue) {
-            if (hint && IsPinned(storage)) {
-              Reserve(storage, hint, batch_size_);
+            if (hint && storage->is_pinned()) {
+              storage->reserve(hint, batch_size_);
             }
           }
         } else {
@@ -667,7 +667,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
               tensor_to_store_queue[tensor.id]);
           for (auto storage : queue) {
             if (hint) {
-              Reserve(storage, hint, batch_size_);
+              storage->reserve(hint, batch_size_);
             }
           }
         }
