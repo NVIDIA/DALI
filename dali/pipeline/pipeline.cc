@@ -330,19 +330,13 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
 
   // store updated spec
   this->op_specs_.push_back({inst_name, spec, logical_id});
-  logical_id_to_op_[logical_id] = op_specs_.size() - 1;
+  logical_ids_.insert(logical_id);
   return logical_id;
 }
 
 bool Pipeline::IsLogicalIdUsed(int logical_id) const {
-  return logical_id_to_op_.find(logical_id) != logical_id_to_op_.end();
+  return logical_ids_.find(logical_id) != logical_ids_.end();
 }
-
-OpSpec Pipeline::GetOpSpec(int logical_id) const {
-  DALI_ENFORCE(IsLogicalIdUsed(logical_id), "Given logical_id is not used in this pipeline");
-  return op_specs_[logical_id_to_op_.at(logical_id)].spec;
-}
-
 
 inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name,
                                             int logical_id) {
@@ -585,7 +579,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddOutput("contiguous_" + it->first, "cpu");
     // don't put it into op_specs_for_serialization_, only op_specs_
     this->op_specs_.push_back({"__MakeContiguous_" + it->first, make_contiguous_spec, logical_id});
-    logical_id_to_op_[logical_id] = op_specs_.size() - 1;
+    logical_ids_.insert(logical_id);
     it->second.has_contiguous = true;
   }
 
@@ -606,7 +600,7 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it, int logica
     .AddOutput(it->first, "gpu");
   // don't put it into op_specs_for_serialization_, only op_specs_
   this->op_specs_.push_back({"__Copy_" + it->first, copy_to_dev_spec, logical_id});
-  logical_id_to_op_[logical_id] = op_specs_.size() - 1;
+  logical_ids_.insert(logical_id);
   it->second.has_gpu = true;
 }
 

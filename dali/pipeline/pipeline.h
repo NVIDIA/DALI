@@ -20,6 +20,7 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -102,7 +103,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Creates a placeholder for an external input with the given name
    */
-  DLL_PUBLIC inline void AddExternalInput(const string &name) {
+  DLL_PUBLIC inline int AddExternalInput(const string &name) {
     DALI_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
     // Verify that this name is unique and record it
@@ -122,9 +123,12 @@ class DLL_PUBLIC Pipeline {
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
       .AddOutput(name, "cpu");
-    PrepareOpSpec(&spec, GetNextLogicalId());
+    auto logical_id = GetNextLogicalId();
+    logical_ids_.insert(logical_id);
+    PrepareOpSpec(&spec, logical_id);
     graph_.AddOp(spec, "__ExternalInput_" + name);
     external_inputs_.push_back(name);
+    return logical_id;
   }
 
   /**
@@ -203,11 +207,6 @@ class DLL_PUBLIC Pipeline {
    * @brief Returns true if there exists operator with given logical_id
    */
   DLL_PUBLIC bool IsLogicalIdUsed(int logical_id) const;
-
-  /**
-   * @brief Get the OpSpec of Operator for given logical_id
-   */
-  DLL_PUBLIC OpSpec GetOpSpec(int logical_id) const;
 
   /**
    * @brief Returns the graph node with Operator
@@ -449,7 +448,7 @@ class DLL_PUBLIC Pipeline {
   vector<std::pair<string, string>> output_names_;
 
   // Mapping between logical id and index in op_spces_;
-  std::map<int, size_t> logical_id_to_op_;
+  std::set<int> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 };
 

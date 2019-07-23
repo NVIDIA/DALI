@@ -709,31 +709,40 @@ TEST(PipelineTest, AddOperator) {
   // Cannot test async while setting external input - need to make sure that
   pipe.SetExecutionTypes(true, true, true);
   // Test coprime queue sizes
-  pipe.AddExternalInput("data_in0");
-  pipe.AddExternalInput("data_in1");
+  int input_0 = pipe.AddExternalInput("data_in0");
+  int input_1 = pipe.AddExternalInput("data_in1");
 
   int first_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
           .AddArg("device", "cpu")
           .AddInput("data_in0", "cpu")
-          .AddOutput("data_out0", "cpu"));
+          .AddOutput("data_out0", "cpu"), "first_op");
 
   int second_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
           .AddArg("device", "cpu")
           .AddInput("data_in1", "cpu")
-          .AddOutput("data_out1", "cpu"), first_op);
-  ASSERT_EQ(first_op, second_op);
+          .AddOutput("data_out1", "cpu"), "second_op", first_op);
+  EXPECT_EQ(first_op, second_op);
 
   int third_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
           .AddArg("device", "cpu")
+          .AddArg("seed", 0xDEADBEEF)
           .AddInput("data_in1", "cpu")
-          .AddOutput("data_out2", "cpu"));
+          .AddOutput("data_out2", "cpu"), "third_op");
 
-  ASSERT_EQ(third_op, second_op + 1);
+  EXPECT_EQ(third_op, second_op + 1);
 
-  vector<std::pair<string, string>> outputs = {{"data_out0", "cpu"}, {"data_out1", "cpu"}};
+  vector<std::pair<string, string>> outputs = {
+      {"data_out0", "cpu"}, {"data_out1", "cpu"}, {"data_out2", "cpu"}};
   pipe.Build(outputs);
-
+  ASSERT_TRUE(pipe.IsLogicalIdUsed(0));
+  ASSERT_TRUE(pipe.IsLogicalIdUsed(input_0));
+  ASSERT_TRUE(pipe.IsLogicalIdUsed(input_1));
+  ASSERT_TRUE(pipe.IsLogicalIdUsed(first_op));
+  ASSERT_TRUE(pipe.IsLogicalIdUsed(second_op));
+  ASSERT_TRUE(pipe.IsLogicalIdUsed(third_op));
+  ASSERT_EQ(pipe.GetOperatorNode("first_op")->spec.GetArgument<int64_t>("seed"),
+            pipe.GetOperatorNode("second_op")->spec.GetArgument<int64_t>("seed"));
+  ASSERT_EQ(pipe.GetOperatorNode("third_op")->spec.GetArgument<int64_t>("seed"), 0xDEADBEEF);
 }
-
 
 }  // namespace dali
