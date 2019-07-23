@@ -383,10 +383,9 @@ def test_func_with_side_effects():
 
         print('Iter ' + str(it) + ' Len one ' + str(len(out_one)) + ' len two ' + str(len(out_two)))
         assert counter == len(out_one) + len(out_two)
-
-        for s in range(BATCH_SIZE):
-            elem_one = out_one.at(s)[0][0][0]
-            elem_two = out_two.at(s)[0][0][0]
-
-            assert 0 < elem_one <= len(out_one)
-            assert BATCH_SIZE < elem_two <= len(out_one) + len(out_two)
+        elems_one = [out_one.at(s)[0][0][0] for s in range(BATCH_SIZE)]
+        elems_one.sort()
+        assert elems_one == range(1, BATCH_SIZE + 1)
+        elems_two = [out_two.at(s)[0][0][0] for s in range(BATCH_SIZE)]
+        elems_two.sort()
+        assert elems_two == range(BATCH_SIZE + 1, 2 * BATCH_SIZE + 1)
