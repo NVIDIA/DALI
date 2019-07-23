@@ -114,7 +114,8 @@ namespace dali {
       OpSpec spec;
       dali::DeserializeOpSpec(op_def, &spec);
 
-      this->AddOperator(spec, op_def.inst_name());
+      this->AddOperator(spec, op_def.inst_name(),
+                        op_def.logical_id() == -1 ? GetNextLogicalId() : op_def.logical_id());
     }
     // output names
     for (auto& output : def.pipe_outputs()) {
@@ -190,17 +191,14 @@ int Pipeline::AddOperator(OpSpec spec) {
 int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical_id) {
   DALI_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
+  DALI_ENFORCE(0 <= logical_id, "Logical id of the node must be positive");
 
-  DALI_ENFORCE(0 <= logical_id && logical_id <= GetLogicalIdCount(),
-               "Logical id of the node must in [0, GetLogicalIdCout()] interval, with "
-               "[0, GetLogicalIdCount()) indicating already used logical ids, and "
-               "logical_id=GetLogicalIdCount() indicating reserving a new one.");
-  if (logical_id == GetLogicalIdCount()) {
-    logical_id_count_++;
+  if (logical_id > next_logical_id_) {
+    next_logical_id_ = logical_id + 1;
   }
 
   // Take a copy of the passed OpSpec for serialization purposes before any modification
-  this->op_specs_for_serialization_.push_back(make_pair(inst_name, spec));
+  this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
 
   // Validate op device
   string device = spec.GetArgument<string>("device");
@@ -332,8 +330,19 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
 
   // store updated spec
   this->op_specs_.push_back({inst_name, spec, logical_id});
+  logical_id_to_op_[logical_id] = op_specs_.size() - 1;
   return logical_id;
 }
+
+bool Pipeline::IsLogicalIdUsed(int logical_id) const {
+  return logical_id_to_op_.find(logical_id) != logical_id_to_op_.end();
+}
+
+OpSpec Pipeline::GetOpSpec(int logical_id) const {
+  DALI_ENFORCE(IsLogicalIdUsed(logical_id), "Given logical_id is not used in this pipeline");
+  return op_specs_[logical_id_to_op_.at(logical_id)].spec;
+}
+
 
 inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name,
                                             int logical_id) {
@@ -576,6 +585,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddOutput("contiguous_" + it->first, "cpu");
     // don't put it into op_specs_for_serialization_, only op_specs_
     this->op_specs_.push_back({"__MakeContiguous_" + it->first, make_contiguous_spec, logical_id});
+    logical_id_to_op_[logical_id] = op_specs_.size() - 1;
     it->second.has_contiguous = true;
   }
 
@@ -596,19 +606,18 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it, int logica
     .AddOutput(it->first, "gpu");
   // don't put it into op_specs_for_serialization_, only op_specs_
   this->op_specs_.push_back({"__Copy_" + it->first, copy_to_dev_spec, logical_id});
+  logical_id_to_op_[logical_id] = op_specs_.size() - 1;
   it->second.has_gpu = true;
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
-  seed_for_logical_id_.resize(GetLogicalIdCount(), {0, false});
-  auto seed_proposal = seed_for_logical_id_[logical_id].was_set
-                           ? seed_for_logical_id_[logical_id].seed
-                           : seed_[current_seed_];
-  seed_for_logical_id_[logical_id] = { seed_proposal, true };
+  if (logical_id_to_seed_.find(logical_id) == logical_id_to_seed_.end()) {
+    logical_id_to_seed_[logical_id] = seed_[current_seed_];
+  }
   spec->AddArg("batch_size", batch_size_)
     .AddArg("num_threads", num_threads_)
     .AddArg("device_id", device_id_)
-    .AddArgIfNotExisting("seed", seed_proposal);
+    .AddArgIfNotExisting("seed", logical_id_to_seed_[logical_id]);
   string dev = spec->GetArgument<string>("device");
   if (dev == "cpu" || dev == "mixed")
     spec->AddArg("cpu_prefetch_queue_depth", prefetch_queue_depth_.cpu_size);
@@ -621,10 +630,11 @@ void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
  * @brief Helper method that serialized OpSpec
  * decouples spec class from dali_proto
  */
-void SerializeToProtobuf(dali_proto::OpDef *op, const string& inst_name,
-                            const OpSpec& spec) {
+void SerializeToProtobuf(dali_proto::OpDef *op, const string &inst_name, const OpSpec &spec,
+                         int logical_id) {
   op->set_name(spec.name());
   op->set_inst_name(inst_name);
+  op->set_logical_id(logical_id);
 
   for (int i = 0; i < spec.NumInput(); ++i) {
     dali_proto::InputOutput *in = op->add_input();
@@ -676,11 +686,11 @@ string Pipeline::SerializeToProtobuf() const {
     dali_proto::OpDef *op_def = pipe.add_op();
 
     const auto& p = this->op_specs_for_serialization_[i];
-    const OpSpec& spec = p.second;
+    const OpSpec& spec = p.spec;
 
     // As long as spec isn't an ExternalSource node, serialize
     if (spec.name() != "ExternalSource") {
-      dali::SerializeToProtobuf(op_def, p.first, spec);
+      dali::SerializeToProtobuf(op_def, p.instance_name, spec, p.logical_id);
     }
   }
 
@@ -730,13 +740,9 @@ void Pipeline::SaveGraphToDotFile(const std::string &filename) {
   graph_.SaveToDotFile(filename);
 }
 
-int Pipeline::GetLogicalIdCount() {
-  return logical_id_count_;
-}
-
 int Pipeline::GetNextLogicalId() {
-  int ret = logical_id_count_;
-  logical_id_count_++;
+  int ret = next_logical_id_;
+  next_logical_id_++;
   return ret;
 }
 

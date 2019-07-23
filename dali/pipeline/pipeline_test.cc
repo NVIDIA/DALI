@@ -676,5 +676,64 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   }
 }
 
+class DummyOpToAdd : public Operator<CPUBackend> {
+ public:
+  explicit DummyOpToAdd(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
+
+  void RunImpl(HostWorkspace *ws, int idx) override {
+    auto &input = ws->InputRef<CPUBackend>(0);
+    auto &output = ws->OutputRef<CPUBackend>(0);
+    // auto tmp_size = output.capacity();
+    // output.mutable_data<size_t>();
+    // output.Resize({2});
+    // auto out = output.mutable_data<size_t>();
+    // out[0] = tmp_size;
+    // out[1] = input.capacity();
+  }
+};
+
+DALI_REGISTER_OPERATOR(DummyOpToAdd, DummyOpToAdd, CPU);
+
+DALI_SCHEMA(DummyOpToAdd)
+  .DocStr("DummyOpToAdd")
+  .NumInput(1)
+  .NumOutput(1);
+
+TEST(PipelineTest, AddOperator) {
+  // Test coprime queue sizes
+  // constexpr int CPU = 5, GPU = 3;
+  // constexpr int N = CPU + GPU + 5;
+  // this->set_batch_size(this->batch_size_);
+
+  Pipeline pipe(10, 4, 0);
+  // Cannot test async while setting external input - need to make sure that
+  pipe.SetExecutionTypes(true, true, true);
+  // Test coprime queue sizes
+  pipe.AddExternalInput("data_in0");
+  pipe.AddExternalInput("data_in1");
+
+  int first_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
+          .AddArg("device", "cpu")
+          .AddInput("data_in0", "cpu")
+          .AddOutput("data_out0", "cpu"));
+
+  int second_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
+          .AddArg("device", "cpu")
+          .AddInput("data_in1", "cpu")
+          .AddOutput("data_out1", "cpu"), first_op);
+  ASSERT_EQ(first_op, second_op);
+
+  int third_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
+          .AddArg("device", "cpu")
+          .AddInput("data_in1", "cpu")
+          .AddOutput("data_out2", "cpu"));
+
+  ASSERT_EQ(third_op, second_op + 1);
+
+  vector<std::pair<string, string>> outputs = {{"data_out0", "cpu"}, {"data_out1", "cpu"}};
+  pipe.Build(outputs);
+
+}
+
 
 }  // namespace dali

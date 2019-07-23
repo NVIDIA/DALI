@@ -176,16 +176,15 @@ class DLL_PUBLIC Pipeline {
    * @param spec
    * @param inst_name
    * @param logical_id Allows to group operator that are supposed to have synchronized state
-   * wrt randomness. Must in [0, GetLogicalIdCout()] interval, where [0, GetLogicalIdCount())
-   * indicates already used logical id and ties the initial seed between operators sharing
-   * that logical id, and logical_id=GetLogicalIdCount() indicates reserving a new one.
+   * wrt randomness. Operators sharing the logical_id will have the same seed assigned.
+   *
    * @return logical_id of added operator, so it can be used for further calls
    */
   DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name, int logical_id);
 
   /**
    * @brief Adds an Operator with the input specification to the pipeline. It will be assigned
-   * a separate logical_id based on internal state of the pipeline
+   * a separate logical_id based on internal state of the pipeline.
    */
   DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name);
 
@@ -196,9 +195,19 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * @brief Adds an unnamed Operator with the input specification to the pipeline.  It will be
-   * assigned a separate logical_id based on internal state of the pipeline
+   * assigned a separate logical_id based on internal state of the pipeline.
    */
   DLL_PUBLIC int AddOperator(OpSpec spec);
+
+  /**
+   * @brief Returns true if there exists operator with given logical_id
+   */
+  DLL_PUBLIC bool IsLogicalIdUsed(int logical_id) const;
+
+  /**
+   * @brief Get the OpSpec of Operator for given logical_id
+   */
+  DLL_PUBLIC OpSpec GetOpSpec(int logical_id) const;
 
   /**
    * @brief Returns the graph node with Operator
@@ -400,7 +409,6 @@ class DLL_PUBLIC Pipeline {
   // Helper for hybrid decoder split_stages special handling
   inline void AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name, int logical_id);
 
-  int GetLogicalIdCount();
   int GetNextLogicalId();
 
   const int MAX_SEEDS = 1024;
@@ -414,7 +422,7 @@ class DLL_PUBLIC Pipeline {
   int set_affinity_;
   int max_num_stream_;
   int default_cuda_stream_priority_;
-  int logical_id_count_ = 0;
+  int next_logical_id_ = 0;
   QueueSizes prefetch_queue_depth_;
 
   std::vector<int64_t> seed_;
@@ -437,15 +445,12 @@ class DLL_PUBLIC Pipeline {
   };
 
   vector<OpDefinition> op_specs_;
-  vector<std::pair<string, OpSpec>> op_specs_for_serialization_;
+  vector<OpDefinition> op_specs_for_serialization_;
   vector<std::pair<string, string>> output_names_;
 
-  struct seed_entry {
-    int64_t seed;
-    bool was_set;
-  };
-
-  std::vector<seed_entry> seed_for_logical_id_;
+  // Mapping between logical id and index in op_spces_;
+  std::map<int, size_t> logical_id_to_op_;
+  std::map<int, int64_t> logical_id_to_seed_;
 };
 
 }  // namespace dali
