@@ -90,9 +90,12 @@ void CopyOutputs(SampleWorkspace *ws, int idx, const py::tuple &output) {
   }
 }
 
+static std::mutex operator_lock{};
+
 template<>
 void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  py::gil_scoped_acquire guard{};
+  std::lock_guard<std::mutex> operator_guard(operator_lock);
+  py::gil_scoped_acquire interpreter_guard{};
   py::list args_list = PrepareInputList(ws, idx);
   py::object output_o;
   try {
