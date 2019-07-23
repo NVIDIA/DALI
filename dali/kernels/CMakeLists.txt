@@ -25,6 +25,8 @@ collect_sources(DALI_KERNEL_SRCS)
 collect_test_sources(DALI_KERNEL_TEST_SRCS)
 
 cuda_add_library(${dali_kernel_lib} STATIC "${DALI_KERNEL_SRCS}")
-cuda_add_library(${dali_kernel_test_lib} STATIC "${DALI_KERNEL_TEST_SRCS}")
 
+if (BUILD_TEST)
+cuda_add_library(${dali_kernel_test_lib} STATIC "${DALI_KERNEL_TEST_SRCS}")
 target_link_libraries(${dali_kernel_test_lib} ${dali_kernel_lib})
+endif()
