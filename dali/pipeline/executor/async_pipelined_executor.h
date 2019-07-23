@@ -49,6 +49,15 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
     cpu_thread_.ForceStop();
     mixed_thread_.ForceStop();
     gpu_thread_.ForceStop();
+
+    /*
+     * We need to notify all work that may is scheduled that it should stop now. It may
+     * happen that mixed and GPU stages are scheduled, but only GPU one is picked up while
+     * mixed is discarded as the worker thread is already shutting down. In the end, GPU
+     * state will wait infinitely for mixed one. This code defends against it.
+     */
+    mixed_work_cv_.notify_all();
+    gpu_work_cv_.notify_all();
     /*
      * We need to call shutdown here and not rely on cpu_thread_ destructor
      * as when WorkerThread destructor is called conditional variables and mutexes
