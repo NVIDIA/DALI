@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
-#include <map>
+#include <string>
 #include <vector>
 #include "dali/kernels/imgproc/warp_gpu.h"
 #include "dali/kernels/imgproc/warp/affine.h"
@@ -123,7 +123,6 @@ TEST(WarpGPU, Affine_Transpose_Single) {
 
   auto cpu_out = out.cpu(0)[0];
   cudaDeviceSynchronize();
-  usleep(100000);
   ASSERT_EQ(cpu_out.shape[0], img_tensor.shape[1]);
   ASSERT_EQ(cpu_out.shape[1], img_tensor.shape[0]);
   ASSERT_EQ(cpu_out.shape[2], 3);
@@ -160,6 +159,16 @@ inline cv::Matx<float, 2, 3> AffineToCV(const AffineMapping2D &mapping) {
     for (int j = 0; j < 3; j++)
       cv_transform(i, j) = tmp(i, j);
   return cv_transform;
+}
+
+inline void DumpImages(const std::string &base_name,
+                       const cv::Mat &actual,
+                       const cv::Mat &reference) {
+  cv::imwrite(base_name+"_out.png", actual);
+  cv::imwrite(base_name+"+ref.png", reference);
+  cv::Mat diff;
+  cv::absdiff(actual, reference, diff);
+  cv::imwrite(base_name+"_diff.png", diff);
 }
 
 TEST(WarpGPU, Affine_RotateScale_Single) {
@@ -217,13 +226,8 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
                  cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255, 255));
   auto ref_img = view_as_tensor<uint8_t>(cv_ref);
   Check(cpu_out, ref_img, EqualEps(8));
-  if (HasFailure()) {
-    cv::imwrite("Warp_Affine_RotateScale_out.png", cv_out);
-    cv::imwrite("Warp_Affine_RotateScale_ref.png", cv_ref);
-    cv::Mat diff;
-    cv::absdiff(cv_out, cv_ref, diff);
-    cv::imwrite("Warp_Affine_RotateScale_diff.png", diff);
-  }
+  if (HasFailure)
+    DumpImages("WarpAffine_RotateScale", cv_out, cv_ref);
 }
 
 
@@ -290,18 +294,9 @@ TEST(WarpGPU, Affine_RotateScale_Uniform) {
                   cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255, 255));
     auto ref_img = view_as_tensor<uint8_t>(cv_ref);
     Check(cpu_out, ref_img, EqualEps(8));
-    char out_name[64];
-    char ref_name[64];
-    char diff_name[64];
-    snprintf(out_name, sizeof(out_name), "Warp_Affine_RotateScale_%i_out.png", i);
-    snprintf(ref_name, sizeof(ref_name), "Warp_Affine_RotateScale_%i_ref.png", i);
-    snprintf(diff_name, sizeof(diff_name), "Warp_Affine_RotateScale_%i_diff.png", i);
     if (HasFailure()) {
-      cv::imwrite(out_name, cv_out);
-      cv::imwrite(ref_name, cv_ref);
-      cv::Mat diff;
-      cv::absdiff(cv_out, cv_ref, diff);
-      cv::imwrite(diff_name, diff);
+      auto name = "Warp_Affine_RotateScale_" + std::to_string(i);
+      DumpImages(name, cv_out, cv_ref);
     }
   }
 }
