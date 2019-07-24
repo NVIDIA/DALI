@@ -74,15 +74,15 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
       labels_.data() + offsets_[image_id],
       counts_[image_id] * sizeof(int));
 
-    if (save_img_ids_) {
-      auto &id_output = ws->Output<CPUBackend>(3);
-      id_output.Resize({1});
-      auto id_out_data = id_output.mutable_data<int>();
-      memcpy(
-        id_out_data,
-        original_ids_.data() + image_id,
-        sizeof(int));
-    }
+    // if (save_img_ids_) {
+    //   auto &id_output = ws->Output<CPUBackend>(3);
+    //   id_output.Resize({1});
+    //   auto id_out_data = id_output.mutable_data<int>();
+    //   memcpy(
+    //     id_out_data,
+    //     original_ids_.data() + image_id,
+    //     sizeof(int));
+    // }
   }
 
  protected:
