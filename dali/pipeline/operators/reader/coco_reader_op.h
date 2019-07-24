@@ -25,11 +25,9 @@
 #include <memory>
 
 #include "dali/pipeline/operators/reader/reader_op.h"
-#include "dali/pipeline/operators/reader/loader/file_loader.h"
+#include "dali/pipeline/operators/reader/loader/coco_loader.h"
 
 namespace dali {
-using ImageIdPairs = std::vector<std::pair<std::string, int>>;
-
 class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit COCOReader(const OpSpec& spec):
@@ -37,9 +35,14 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     ValidateOptions(spec);
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    loader_ = InitLoader<FileLoader>(
+    loader_ = InitLoader<CocoLoader>(
       spec,
-      spec.HasArgument("meta_files_path") ? ParseMetafiles(spec) : ParseJsonAnnotations(spec),
+      offsets_,
+      boxes_,
+      labels_,
+      counts_,
+      save_img_ids_,
+      original_ids_,
       shuffle_after_epoch);
   }
 
@@ -74,15 +77,15 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
       labels_.data() + offsets_[image_id],
       counts_[image_id] * sizeof(int));
 
-    // if (save_img_ids_) {
-    //   auto &id_output = ws->Output<CPUBackend>(3);
-    //   id_output.Resize({1});
-    //   auto id_out_data = id_output.mutable_data<int>();
-    //   memcpy(
-    //     id_out_data,
-    //     original_ids_.data() + image_id,
-    //     sizeof(int));
-    // }
+    if (save_img_ids_) {
+      auto &id_output = ws->Output<CPUBackend>(3);
+      id_output.Resize({1});
+      auto id_out_data = id_output.mutable_data<int>();
+      memcpy(
+        id_out_data,
+        original_ids_.data() + image_id,
+        sizeof(int));
+    }
   }
 
  protected:
@@ -96,12 +99,6 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
 
   bool save_img_ids_;
   std::vector<int> original_ids_;
-
-  ImageIdPairs ParseMetafiles(const OpSpec& spec);
-
-  ImageIdPairs ParseJsonAnnotations(const OpSpec& spec);
-
-  void DumpMetaFiles(std::string path, const ImageIdPairs &image_id_pairs);
 
   void ValidateOptions(const OpSpec &spec);
 };
