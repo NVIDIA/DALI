@@ -91,7 +91,9 @@ include(cmake/Dependencies.common.cmake)
 # protobuf
 ##################################################################
 # link statically
+if(NOT DEFINED Protobuf_USE_STATIC_LIBS)
 set(Protobuf_USE_STATIC_LIBS YES)
+endif(NOT DEFINED Protobuf_USE_STATIC_LIBS)
 find_package(Protobuf 2.0 REQUIRED)
 if(${Protobuf_VERSION} VERSION_LESS "3.0")
   message(STATUS "TensorFlow TFRecord file format support is not available with Protobuf 2")
