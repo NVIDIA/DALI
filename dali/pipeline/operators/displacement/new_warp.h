@@ -12,7 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARPAFFINE_H_
-#define DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARPAFFINE_H_
+#ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_H_
+#define DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_H_
 
-#endif  //  DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARPAFFINE_H_
+#include "dali/pipeline/operators/operator.h"
+
+namespace dali {
+
+template <typename Backend, typename Mapping>
+class NewWarp;
+
+}  // namespace dali
+
+#endif  //  DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_H_
