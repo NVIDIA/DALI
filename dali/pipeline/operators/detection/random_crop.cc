@@ -182,6 +182,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
   // [N] : [ltrb, ... ], dtype=float
   const auto& bboxes = ws->Input<CPUBackend>(1);
   const auto& labels = ws->Input<CPUBackend>(2);
+  int sample = ws->data_idx();
 
   auto N = bboxes.dim(0);
   const float* bbox_data = bboxes.data<float>();
@@ -196,7 +197,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
   // iterate until a suitable crop has been found
   while (true) {
-    auto opt_idx = int_dis_(gen_);
+    auto opt_idx = int_dis_(rngs_[sample]);
     auto option = sample_options_[opt_idx];
 
     if (option.no_crop()) {
@@ -215,8 +216,8 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
     // make num_attempts_ tries to get a valid crop
     for (int i = 0; i < num_attempts_; ++i) {
-      auto w = float_dis_(gen_);
-      auto h = float_dis_(gen_);
+      auto w = float_dis_(rngs_[sample]);
+      auto h = float_dis_(rngs_[sample]);
       // aspect ratio check
       if ((w / h < 0.5) || (w / h > 2.)) {
         continue;
@@ -224,8 +225,8 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
 
       // need RNG generators for left, top
       std::uniform_real_distribution<float> l_dis(0., 1. - w), t_dis(0., 1. - h);
-      auto left = l_dis(gen_);
-      auto top = t_dis(gen_);
+      auto left = l_dis(rngs_[sample]);
+      auto top = t_dis(rngs_[sample]);
 
       auto right = left + w;
       auto bottom = top + h;
