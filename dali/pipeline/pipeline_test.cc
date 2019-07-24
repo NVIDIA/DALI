@@ -707,7 +707,6 @@ DALI_SCHEMA(DummyOpNoSync)
   .NumOutput(1);
 
 TEST(PipelineTest, AddOperator) {
-
   Pipeline pipe(10, 4, 0);
   int input_0 = pipe.AddExternalInput("data_in0");
   int input_1 = pipe.AddExternalInput("data_in1");
