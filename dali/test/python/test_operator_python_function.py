@@ -385,7 +385,7 @@ def test_func_with_side_effects():
         assert counter == len(out_one) + len(out_two)
         elems_one = [out_one.at(s)[0][0][0] for s in range(BATCH_SIZE)]
         elems_one.sort()
-        assert elems_one == range(1, BATCH_SIZE + 1)
+        assert elems_one == [i for i in range(1, BATCH_SIZE + 1)]
         elems_two = [out_two.at(s)[0][0][0] for s in range(BATCH_SIZE)]
         elems_two.sort()
-        assert elems_two == range(BATCH_SIZE + 1, 2 * BATCH_SIZE + 1)
+        assert elems_two == [i for i in range(BATCH_SIZE + 1, 2 * BATCH_SIZE + 1)]
