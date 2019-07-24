@@ -51,11 +51,11 @@ class CocoLoader : public FileLoader {
  protected:
   void PrepareMetadataImpl() override {
     if (parse_meta_files_) {
-      image_label_pairs_ = ParseMetafiles(spec_);
+      ParseMetafiles();
     } else {
-       image_label_pairs_ = ParseJsonAnnotations(spec_);
+       ParseJsonAnnotations();
     }
-    
+
     DALI_ENFORCE(Size() > 0, "No files found.");
     if (shuffle_) {
       // seeded with hardcoded value to get
@@ -66,9 +66,9 @@ class CocoLoader : public FileLoader {
     Reset(true);
   }
 
-  ImageIdPairs ParseMetafiles(const OpSpec& spec);
+  void ParseMetafiles();
 
-  ImageIdPairs ParseJsonAnnotations(const OpSpec& spec);
+  void ParseJsonAnnotations();
 
   void DumpMetaFiles(std::string path, const ImageIdPairs &image_id_pairs);
 

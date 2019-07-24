@@ -91,8 +91,7 @@ void load_file_list(ImageIdPairs &image_id_pairs, const std::string &path) {
   }
 }
 
-ImageIdPairs load_filenames(const std::string path) {
-  ImageIdPairs image_id_pairs;
+void load_filenames(ImageIdPairs &image_id_pairs, const std::string path) {
   int id = 0;
   std::ifstream file(path);
   if (file) {
@@ -104,8 +103,6 @@ ImageIdPairs load_filenames(const std::string path) {
   } else {
      DALI_FAIL("CocoReader meta file error while loading for path: " + path);
   }
-
-  return image_id_pairs;
 }
 
 void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_infos) {
@@ -266,8 +263,8 @@ void CocoLoader::DumpMetaFiles(const std::string path, const ImageIdPairs &image
   }
 }
 
-ImageIdPairs CocoLoader::ParseMetafiles(const OpSpec &spec) {
-  const auto meta_files_path = spec.GetArgument<string>("meta_files_path");
+void CocoLoader::ParseMetafiles() {
+  const auto meta_files_path = spec_.GetArgument<string>("meta_files_path");
   detail::load_meta_file(
     offsets_,
     meta_files_path + "/offsets.txt");
@@ -286,22 +283,24 @@ ImageIdPairs CocoLoader::ParseMetafiles(const OpSpec &spec) {
       original_ids_,
       meta_files_path + "/original_ids.txt");
   }
-  return detail::load_filenames(meta_files_path + "/filenames.txt");
+  detail::load_filenames(
+    image_label_pairs_,
+    meta_files_path + "/filenames.txt");
 }
 
-std::vector<std::pair<std::string, int>> CocoLoader::ParseJsonAnnotations(const OpSpec &spec) {
+void CocoLoader::ParseJsonAnnotations() {
   std::vector<detail::ImageInfo> image_infos;
   std::vector<detail::Annotation> annotations;
   std::map<int, int> category_ids;
 
   detail::parse_json_file(
-    spec,
+    spec_,
     image_infos,
     annotations,
     category_ids);
 
-  bool skip_empty = spec.GetArgument<bool>("skip_empty");
-  bool ratio = spec.GetArgument<bool>("ratio");
+  bool skip_empty = spec_.GetArgument<bool>("skip_empty");
+  bool ratio = spec_.GetArgument<bool>("ratio");
 
   std::sort(image_infos.begin(), image_infos.end(), [](auto &left, auto &right) {
     return left.original_id_ < right.original_id_;});
@@ -315,8 +314,6 @@ std::vector<std::pair<std::string, int>> CocoLoader::ParseJsonAnnotations(const 
   int new_image_id = 0;
   int annotation_id = 0;
   int total_count = 0;
-
-  ImageIdPairs image_id_pairs;
 
   for (auto &image_info : image_infos) {
     int objects_in_sample = 0;
@@ -346,18 +343,16 @@ std::vector<std::pair<std::string, int>> CocoLoader::ParseJsonAnnotations(const 
         original_ids_.emplace_back(image_info.original_id_);
       }
 
-      image_id_pairs.emplace_back(std::move(image_info.filename_), new_image_id);
+      image_label_pairs_.emplace_back(std::move(image_info.filename_), new_image_id);
       new_image_id++;
     }
   }
 
-  if (spec.GetArgument<bool>("dump_meta_files")) {
+  if (spec_.GetArgument<bool>("dump_meta_files")) {
     DumpMetaFiles(
-      spec.GetArgument<std::string>("dump_meta_files_path"),
-      image_id_pairs);
+      spec_.GetArgument<std::string>("dump_meta_files_path"),
+      image_label_pairs_);
   }
-
-  return image_id_pairs;
 }
 
 }  // namespace dali
