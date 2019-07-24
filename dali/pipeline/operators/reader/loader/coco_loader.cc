@@ -321,26 +321,26 @@ void CocoLoader::ParseJsonAnnotations() {
       const auto &annotation = annotations[annotation_id];
       labels_.emplace_back(category_ids[annotation.category_id_]);
       if (ratio) {
-        boxes_.emplace_back(annotation.box_[0] / static_cast<float>(image_info.width_));
-        boxes_.emplace_back(annotation.box_[1] / static_cast<float>(image_info.height_));
-        boxes_.emplace_back(annotation.box_[2] / static_cast<float>(image_info.width_));
-        boxes_.emplace_back(annotation.box_[3] / static_cast<float>(image_info.height_));
+        boxes_.push_back(annotation.box_[0] / image_info.width_);
+        boxes_.push_back(annotation.box_[1] / image_info.height_);
+        boxes_.push_back(annotation.box_[2] / image_info.width_);
+        boxes_.push_back(annotation.box_[3] / image_info.height_);
       } else {
-        boxes_.emplace_back(annotation.box_[0]);
-        boxes_.emplace_back(annotation.box_[1]);
-        boxes_.emplace_back(annotation.box_[2]);
-        boxes_.emplace_back(annotation.box_[3]);
+        boxes_.push_back(annotation.box_[0]);
+        boxes_.push_back(annotation.box_[1]);
+        boxes_.push_back(annotation.box_[2]);
+        boxes_.push_back(annotation.box_[3]);
       }
       ++annotation_id;
       ++objects_in_sample;
     }
 
     if (!skip_empty || objects_in_sample != 0) {
-      offsets_.emplace_back(total_count);
-      counts_.emplace_back(objects_in_sample);
+      offsets_.push_back(total_count);
+      counts_.push_back(objects_in_sample);
       total_count += objects_in_sample;
       if (save_img_ids_) {
-        original_ids_.emplace_back(image_info.original_id_);
+        original_ids_.push_back(image_info.original_id_);
       }
 
       image_label_pairs_.emplace_back(std::move(image_info.filename_), new_image_id);
