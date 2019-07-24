@@ -122,24 +122,24 @@ def test_multiple_input_sets():
             # Pack into Multiple Input Sets and gather multiple output lists
             boxes = [boxes_ssd0, boxes_ssd1]
             labels = [labels_ssd0, labels_ssd1]
-            enc_boxes, enc_labels = self.box_encoder_cpu(boxes, labels)
+            enc_boxes0, enc_labels0 = self.box_encoder_cpu(boxes, labels)
+            # Test one list with one EdgeReference
+            enc_boxes1, enc_labels1 = self.box_encoder_cpu(boxes, labels_ssd0)
 
             # Return everything (only EdgeReferences allowed)
             return (encoded_boxes0, encoded_labels0, encoded_boxes1, encoded_labels1,
-                    enc_boxes[0], enc_labels[0], enc_boxes[1], enc_labels[1])
+                    enc_boxes0[0], enc_labels0[0], enc_boxes0[1], enc_labels0[1],
+                    enc_boxes1[0], enc_labels1[0], enc_boxes1[1], enc_labels1[1])
 
     pipe = MISPipe(batch_size = batch_size, num_threads = 1, device_id = 0, num_gpus = 1)
     pipe.build()
     out = pipe.run()
     for i in range(batch_size):
-        # All boxes should be the same
-        assert(np.array_equal(out[0].at(i), out[2].at(i)))
-        assert(np.array_equal(out[2].at(i), out[4].at(i)))
-        assert(np.array_equal(out[4].at(i), out[6].at(i)))
-        # All labels should be the same
-        assert(np.array_equal(out[1].at(i), out[3].at(i)))
-        assert(np.array_equal(out[3].at(i), out[5].at(i)))
-        assert(np.array_equal(out[5].at(i), out[7].at(i)))
+        for j in range(0, len(out) - 2, 2):
+            # All boxes should be the same
+            assert(np.array_equal(out[j].at(i), out[j + 2].at(i)))
+            # All labels should be the same
+            assert(np.array_equal(out[j + 1].at(i), out[j + 3].at(i)))
 
 
 def test_pipeline_separated_exec_setup():

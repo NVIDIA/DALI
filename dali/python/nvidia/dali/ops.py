@@ -333,7 +333,7 @@ def python_op_factory(name, op_device = "cpu"):
 
         # Check if all list representing multiple input sets have the same length and return it
         def _check_common_length(self, inputs):
-            arg_list_len = max(len(input) for input in inputs)
+            arg_list_len = max(self._safe_len(input) for input in inputs)
             for input in inputs:
                 if isinstance(input, list):
                     if len(input) != arg_list_len:
@@ -341,6 +341,12 @@ def python_op_factory(name, op_device = "cpu"):
                                           "with operator {} must have the same length")
                                           .format(type(self).__name__))
             return arg_list_len
+
+        def _safe_len(self, input):
+            if isinstance(input, EdgeReference):
+                return 1
+            else:
+                return len(input)
 
         # Pack single EdgeReferences into lists, so they are treated as Multiple Input Sets
         # consistently with the ones already present
