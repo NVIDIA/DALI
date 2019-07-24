@@ -680,16 +680,7 @@ class DummyOpToAdd : public Operator<CPUBackend> {
  public:
   explicit DummyOpToAdd(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  void RunImpl(HostWorkspace *ws, int idx) override {
-    auto &input = ws->InputRef<CPUBackend>(0);
-    auto &output = ws->OutputRef<CPUBackend>(0);
-    // auto tmp_size = output.capacity();
-    // output.mutable_data<size_t>();
-    // output.Resize({2});
-    // auto out = output.mutable_data<size_t>();
-    // out[0] = tmp_size;
-    // out[1] = input.capacity();
-  }
+  void RunImpl(HostWorkspace *ws, int idx) override {}
 };
 
 DALI_REGISTER_OPERATOR(DummyOpToAdd, DummyOpToAdd, CPU);
@@ -699,16 +690,25 @@ DALI_SCHEMA(DummyOpToAdd)
   .NumInput(1)
   .NumOutput(1);
 
+
+class DummyOpNoSync : public Operator<CPUBackend> {
+ public:
+  explicit DummyOpNoSync(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
+
+  void RunImpl(HostWorkspace *ws, int idx) override {}
+};
+
+DALI_REGISTER_OPERATOR(DummyOpNoSync, DummyOpNoSync, CPU);
+
+DALI_SCHEMA(DummyOpNoSync)
+  .DocStr("DummyOpNoSync")
+  .DisallowSyncSeeds()
+  .NumInput(1)
+  .NumOutput(1);
+
 TEST(PipelineTest, AddOperator) {
-  // Test coprime queue sizes
-  // constexpr int CPU = 5, GPU = 3;
-  // constexpr int N = CPU + GPU + 5;
-  // this->set_batch_size(this->batch_size_);
 
   Pipeline pipe(10, 4, 0);
-  // Cannot test async while setting external input - need to make sure that
-  pipe.SetExecutionTypes(true, true, true);
-  // Test coprime queue sizes
   int input_0 = pipe.AddExternalInput("data_in0");
   int input_1 = pipe.AddExternalInput("data_in1");
 
@@ -723,6 +723,8 @@ TEST(PipelineTest, AddOperator) {
           .AddOutput("data_out1", "cpu"), "second_op", first_op);
   EXPECT_EQ(first_op, second_op);
 
+  ASSERT_THROW(pipe.AddOperator(OpSpec("Copy"), "another_op", first_op), std::runtime_error);
+
   int third_op = pipe.AddOperator(OpSpec("DummyOpToAdd")
           .AddArg("device", "cpu")
           .AddArg("seed", 0xDEADBEEF)
@@ -730,6 +732,16 @@ TEST(PipelineTest, AddOperator) {
           .AddOutput("data_out2", "cpu"), "third_op");
 
   EXPECT_EQ(third_op, second_op + 1);
+
+  int disallow_sync_op = pipe.AddOperator(OpSpec("DummyOpNoSync")
+          .AddArg("device", "cpu")
+          .AddInput("data_in0", "cpu")
+          .AddOutput("data_out3", "cpu"), "DummyOpNoSync");
+
+  ASSERT_THROW(pipe.AddOperator(OpSpec("DummyOpNoSync")
+          .AddArg("device", "cpu")
+          .AddInput("data_in0", "cpu")
+          .AddOutput("data_out4", "cpu"), "DummyOpNoSync2", disallow_sync_op), std::runtime_error);
 
   vector<std::pair<string, string>> outputs = {
       {"data_out0", "cpu"}, {"data_out1", "cpu"}, {"data_out2", "cpu"}};

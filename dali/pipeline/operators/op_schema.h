@@ -153,6 +153,15 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
+   * @brief Notifies that grouping this op with Logical Id to initialize the group with common
+   * seed and support Multiple Input Sets is not supported
+   */
+  DLL_PUBLIC inline OpSchema& DisallowSyncSeeds() {
+    allow_sync_seeds_ = false;
+    return *this;
+  }
+
+  /**
    * @brief Notes that multiple input sets can be used with this op
    */
   DLL_PUBLIC inline OpSchema& AllowMultipleInputSets() {
@@ -300,6 +309,10 @@ class DLL_PUBLIC OpSchema {
     return num_output_;
   }
 
+  DLL_PUBLIC inline bool AllowsSyncSeeds() const {
+    return allow_sync_seeds_;
+  }
+
   DLL_PUBLIC inline bool AllowsMultipleInputSets() const {
     return allow_multiple_input_sets_;
   }
@@ -399,6 +412,7 @@ class DLL_PUBLIC OpSchema {
   int num_output_ = 0;
 
   bool allow_multiple_input_sets_ = false;
+  bool allow_sync_seeds_ = true;
   vector<string> parents_;
 
   bool enforce_layout_ = false;

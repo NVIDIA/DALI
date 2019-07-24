@@ -329,8 +329,7 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
   }
 
   // store updated spec
-  this->op_specs_.push_back({inst_name, spec, logical_id});
-  logical_ids_.insert(logical_id);
+  AddToOpSpecs(inst_name, spec, logical_id);
   return logical_id;
 }
 
@@ -376,7 +375,21 @@ inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string &ins
 
   // TODO(spanev): handle serialization for nvJPEGDecoderNew
   this->AddOperator(spec, inst_name, logical_id);
-  this->AddOperator(gpu_spec, inst_name + "_gpu", logical_id);
+  this->AddOperator(gpu_spec, inst_name + "_gpu", GetNextLogicalId());
+}
+
+void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id) {
+  auto& logical_group = logical_ids_[logical_id];
+  if (logical_group.size() > 0) {
+    DALI_ENFORCE(op_specs_[logical_group.front()].spec.name() == spec.name(),
+                  "Different Operator types cannot be groupped with the same logical id.");
+    const OpSchema &schema = SchemaRegistry::GetSchema(spec.name());
+    DALI_ENFORCE(schema.AllowsSyncSeeds(),
+                 "Operator does not support synced random execution required for multiple"
+                 " input sets processing.");
+  }
+  op_specs_.push_back({inst_name, spec, logical_id});
+  logical_ids_[logical_id].push_back(op_specs_.size() - 1);
 }
 
 inline int GetMemoryHint(OpSpec &spec, int index) {
@@ -578,8 +591,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddInput(it->first, "cpu")
       .AddOutput("contiguous_" + it->first, "cpu");
     // don't put it into op_specs_for_serialization_, only op_specs_
-    this->op_specs_.push_back({"__MakeContiguous_" + it->first, make_contiguous_spec, logical_id});
-    logical_ids_.insert(logical_id);
+    AddToOpSpecs("__MakeContiguous_" + it->first, make_contiguous_spec, logical_id);
     it->second.has_contiguous = true;
   }
 
@@ -599,8 +611,7 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it, int logica
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");
   // don't put it into op_specs_for_serialization_, only op_specs_
-  this->op_specs_.push_back({"__Copy_" + it->first, copy_to_dev_spec, logical_id});
-  logical_ids_.insert(logical_id);
+  AddToOpSpecs("__Copy_" + it->first, copy_to_dev_spec, logical_id);
   it->second.has_gpu = true;
 }
 

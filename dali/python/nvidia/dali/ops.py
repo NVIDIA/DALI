@@ -324,8 +324,8 @@ def python_op_factory(name, op_device = "cpu"):
                 return op_instances[0].unwrapped_outputs
             outputs = []
             for op in op_instances:
-                outputs.append(op.unwrapped_outputs)
-            return outputs
+                outputs.append(op.outputs)
+            return self._repack_output_sets(outputs)
 
         # Check if any of inputs is a list
         def _detect_multiple_input_sets(self, inputs):
@@ -356,13 +356,31 @@ def python_op_factory(name, op_device = "cpu"):
         # Zip the list from [[arg0, arg0', arg0''], [arg1', arg1'', arg1''], ...]
         # to [(arg0, arg1, ...), (arg0', arg1', ...), (arg0'', arg1'', ...)]
         def _repack_input_sets(self, inputs):
-            input_sets = []
-            arg_list_len = len(inputs[0])
+            return self._repack_list(inputs, tuple)
+
+        # Unzip the list from [[out0, out1, out2], [out0', out1', out2'], ...]
+        # to [[out0, out0', ...], [out1, out1', ...], [out2, out2', ...]]
+        # Assume that all elements of input have the same length
+        # If the inputs were 1-elem lists, return just a list, that is:
+        # [[out0], [out0'], [out0''], ...] -> [out0, out0', out0'', ...]
+        def _repack_output_sets(self, outputs):
+            if len(outputs) > 1 and len(outputs[0]) == 1:
+                output = []
+                for elem in outputs:
+                    output.append(elem[0])
+                return output
+            return self._repack_list(outputs, list)
+
+        # Repack list from [[a, b, c], [a', b', c'], ....]
+        # to [fn(a, a', ...), fn(b, b', ...), fn(c, c', ...)]
+        # where fn can be `tuple` or `list`
+        # Assume that all elements of input have the same length
+        def _repack_list(self, sets, fn):
+            output_list = []
+            arg_list_len = len(sets[0])
             for i in range(arg_list_len):
-                input_sets.append(tuple(input_arg[i] for input_arg in inputs))
-            return input_sets
-
-
+                output_list.append(fn(input_set[i] for input_set in sets))
+            return output_list
 
 
     Operator.__name__ = str(name)
@@ -431,6 +449,7 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         return self._device
 
     def __call__(self, *inputs, **kwargs):
+        # We do not handle multiple input sets for Reader as they do not have inputs
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(

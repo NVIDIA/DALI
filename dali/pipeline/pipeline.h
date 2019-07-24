@@ -124,7 +124,7 @@ class DLL_PUBLIC Pipeline {
       .AddArg("device", "cpu")
       .AddOutput(name, "cpu");
     auto logical_id = GetNextLogicalId();
-    logical_ids_.insert(logical_id);
+    logical_ids_[logical_id];
     PrepareOpSpec(&spec, logical_id);
     graph_.AddOp(spec, "__ExternalInput_" + name);
     external_inputs_.push_back(name);
@@ -408,6 +408,8 @@ class DLL_PUBLIC Pipeline {
   // Helper for hybrid decoder split_stages special handling
   inline void AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name, int logical_id);
 
+  inline void AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id);
+
   int GetNextLogicalId();
 
   const int MAX_SEEDS = 1024;
@@ -448,7 +450,7 @@ class DLL_PUBLIC Pipeline {
   vector<std::pair<string, string>> output_names_;
 
   // Mapping between logical id and index in op_spces_;
-  std::set<int> logical_ids_;
+  std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 };
 
