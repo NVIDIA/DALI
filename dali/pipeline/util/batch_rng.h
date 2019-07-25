@@ -18,17 +18,20 @@
 #include <random>
 #include <vector>
 
+#include "dali/core/span.h"
+
 namespace dali {
 
 template <typename RNG = std::mt19937>
 class BatchRNG {
  public:
-  BatchRNG(int64_t seed, int batch_size) : seed_(seed) {
+  BatchRNG(int64_t seed, int batch_size, int state_size = 4) : seed_(seed) {
     std::seed_seq seq{seed_};
-    std::vector<uint32_t> seeds(batch_size);
+    std::vector<uint32_t> seeds(batch_size * state_size);
     seq.generate(seeds.begin(), seeds.end());
     rngs_.reserve(batch_size);
-    for (auto s : seeds) {
+    for (int i = 0; i < batch_size * state_size; i += state_size) {
+      std::seed_seq s(seeds.begin() + i, seeds.begin() + i + state_size);
       rngs_.emplace_back(s);
     }
   }
