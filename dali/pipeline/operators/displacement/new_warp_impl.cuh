@@ -23,15 +23,26 @@ namespace dali {
 template <typename Mapping>
 class NewWarp<GPUBackend> : public Operator<GPUBackend> {
  public:
+  NewWarp(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
+
   using Backend = GPUBackend;
 
   void RunImpl(DeviceWorkspace* ws, const int idx) override;
 
   virtual void SetupMapping(DeviceWorkspace* ws) = 0;
 
+  bool InferOutputs(
+    std::vector<kernels::TensorListShape<>> &shapes,
+    std::vector<TypeInfo> &types, DeviceWorkspace &ws) {
+    shapes.resize(1);
+    types.resize(1);
+
+  }
+
   void RunImpl(DeviceWorkspace* ws, const int idx) {
     SetupMapping(ws);
-    //TYPE_SWITCH(ws->
+
+    auto input = ws->Input<GPUBackend>(0);
 
   }
 
