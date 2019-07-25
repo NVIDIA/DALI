@@ -283,7 +283,7 @@ class DaliOp : public tf::OpKernel {
       }
       switch (types_[j]) {
         case tf::DT_HALF:
-              dst = reinterpret_cast<void*>(out_tensor->flat<uint16_t>().data());
+              dst = reinterpret_cast<void*>(out_tensor->flat<Eigen::half>().data());
           break;
         case tf::DT_FLOAT:
               dst = reinterpret_cast<void*>(out_tensor->flat<float>().data());
