@@ -25,6 +25,15 @@ namespace dali {
 template <typename RNG = std::mt19937>
 class BatchRNG {
  public:
+  /**
+   * @brief Used to keep batch of RNGs, so Operators can be immune to order of sample processing
+   * while using randomness
+   *
+   * @param seed Used to generate seed_seq to initialize batch of RNGs
+   * @param batch_size How many RNGs to store
+   * @param state_size How many seed are used to initialize one RNG. Used to lower probablity of
+   * collisions between seeds used to initialize RNGs in different operators.
+   */
   BatchRNG(int64_t seed, int batch_size, int state_size = 4) : seed_(seed) {
     std::seed_seq seq{seed_};
     std::vector<uint32_t> seeds(batch_size * state_size);
@@ -36,7 +45,7 @@ class BatchRNG {
     }
   }
 
-  RNG &operator[](int sample) {
+  RNG &operator[](int sample) noexcept {
     return rngs_[sample];
   }
 
