@@ -32,7 +32,7 @@ As an input, it accepts image, bounding boxes and labels. At the output
 cropped image, cropped and valid bounding boxes and valid labels are returned.)code")
   .NumInput(3)   // [img, bbox, label]
   .NumOutput(3)  // [img, bbox, label]
-  .DisallowSyncSeeds()
+  .DisallowInstanceGrouping()
   .AddOptionalArg("num_attempts", R"code(Number of attempts.)code", 1);
 
 /*

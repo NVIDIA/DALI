@@ -702,7 +702,7 @@ DALI_REGISTER_OPERATOR(DummyOpNoSync, DummyOpNoSync, CPU);
 
 DALI_SCHEMA(DummyOpNoSync)
   .DocStr("DummyOpNoSync")
-  .DisallowSyncSeeds()
+  .DisallowInstanceGrouping()
   .NumInput(1)
   .NumOutput(1);
 

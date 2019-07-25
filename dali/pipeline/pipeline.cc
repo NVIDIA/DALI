@@ -384,7 +384,7 @@ void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, in
     DALI_ENFORCE(op_specs_[logical_group.front()].spec.name() == spec.name(),
                   "Different Operator types cannot be groupped with the same logical id.");
     const OpSchema &schema = SchemaRegistry::GetSchema(spec.name());
-    DALI_ENFORCE(schema.AllowsSyncSeeds(),
+    DALI_ENFORCE(schema.AllowsInstanceGrouping(),
                  "Operator does not support synced random execution required for multiple"
                  " input sets processing.");
   }
