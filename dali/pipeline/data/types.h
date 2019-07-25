@@ -26,6 +26,7 @@
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
+#include <type_traits>
 
 #include "dali/core/common.h"
 #include "dali/core/cuda_utils.h"
@@ -118,6 +119,23 @@ enum DALIDataType {
   DALI_PYTHON_OBJECT = 20,
   DALI_DATATYPE_END = 1000
 };
+
+template <DALIDataType id>
+struct id2type_helper;
+
+/// @brief Compile-time mapping from a type to DALIDataType
+template <typename data_type>
+struct type2id;
+
+/// @brief Compile-time mapping from DALIDataType to a type
+template <DALIDataType id>
+using id2type = typename id2type_helper<id>::type;
+
+#define DALI_STATIC_TYPE_MAPPING(data_type, id)\
+template <>\
+struct type2id<data_type> : std::integral_constant<DALIDataType, id> {};\
+template <>\
+struct id2type_helper<id> { using type = data_type; };
 
 // Dummy type to represent the invalid default state of dali types.
 struct NoType {};
@@ -302,11 +320,12 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
 // the type as a string. This does not work for non-fundamental types,
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
-#define DALI_REGISTER_TYPE(Type, dtype)                           \
-  template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()               \
-    DALI_TYPENAME_REGISTERER(Type);                               \
-  template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()           \
-    DALI_TYPEID_REGISTERER(Type, dtype);
+#define DALI_REGISTER_TYPE(Type, dtype)                             \
+  template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()      \
+    DALI_TYPENAME_REGISTERER(Type);                                 \
+  template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()  \
+    DALI_TYPEID_REGISTERER(Type, dtype);                            \
+  DALI_STATIC_TYPE_MAPPING(Type, dtype);
 
 // Instantiate some basic types
 DALI_REGISTER_TYPE(NoType, DALI_NO_TYPE);

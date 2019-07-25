@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <typeinfo>
 #include "dali/kernels/kernel.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/type_tag.h"
@@ -68,4 +69,52 @@ TEST(StaticSwitch, Nested) {
   }
   // check that the test functor was actually called
   EXPECT_EQ(calls, 4) << "Test functor was expected to be called 4 times";
+}
+
+// make sure previous tests don't have access to stuff defined here
+#include "dali/pipeline/data/types.h"  // NOLINT
+
+TEST(StaticSwitch, DALIDataType) {
+  using namespace dali;  // NOLINT
+
+  std::array<DALIDataType, 7> type_ids = {
+    DALI_UINT8,
+    DALI_INT16,
+    DALI_INT32,
+    DALI_INT64,
+    DALI_FLOAT,
+    DALI_FLOAT64,
+    DALI_BOOL
+  };
+
+  std::array<const std::type_info *, 7> type_infos  = {
+    &typeid(uint8_t),
+    &typeid(int16_t),
+    &typeid(int32_t),
+    &typeid(int64_t),
+    &typeid(float),
+    &typeid(double),
+    &typeid(bool)     // NOLINT
+  };
+
+  for (size_t i = 0; i < type_ids.size(); i++) {
+    TYPE_SWITCH(type_ids[i], type2id, type,
+    (uint8_t, int16_t, int32_t, int64_t, float, double, bool),
+    (
+      EXPECT_EQ(typeid(type), *type_infos[i]);
+      EXPECT_EQ(type2id<type>::value, type_ids[i]);
+    ), ( // NOLINT
+      FAIL() << "All cases should be handled";
+    )); // NOLINT
+
+    VALUE_SWITCH(type_ids[i], static_id,
+    (DALI_UINT8, DALI_INT16, DALI_INT32, DALI_INT64, DALI_FLOAT, DALI_FLOAT64, DALI_BOOL),
+    (
+      static_assert(type2id<id2type<static_id>>::value == static_id,
+        "id->type->id does not map back to self");
+      EXPECT_EQ(typeid(id2type<static_id>), *type_infos[i]);
+    ), ( // NOLINT
+      FAIL() << "All cases should be handled";
+    )); // NOLINT
+  }
 }
