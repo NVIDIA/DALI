@@ -127,7 +127,6 @@ class Loader {
         PrepareEmpty(*tensor_ptr);
         ReadSample(*tensor_ptr);
         IncreaseReadSampleCounter();
-       
         sample_buffer_.push_back(std::move(tensor_ptr));
         ++shards_.back().end;
       }
