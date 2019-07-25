@@ -69,3 +69,12 @@ def _type_convert_value(dtype, val):
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")
     return _known_types[dtype][1](val)
 
+class PieplineAPIType(object):
+    """Pipeline API type
+    """
+    @staticmethod
+    def _is_member(self):
+        return PieplineAPIType.__dict__.keys()
+    BASIC = 0
+    ITERATOR = 1
+    SCHEDULED = 2

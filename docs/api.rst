@@ -45,3 +45,7 @@ Enums
 .. autoclass:: nvidia.dali.types.DALITensorLayout
    :members:
    :undoc-members:
+
+.. autoclass:: nvidia.dali.types.PieplineAPIType
+   :members:
+   :undoc-members:
