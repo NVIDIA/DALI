@@ -298,11 +298,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
             }
           }
 
-          return py::array(py::buffer_info(
-              raw_mutable_data,
-              type_size,
-              format,
-              shape.size(), shape, strides));
+          return py::array(py::dtype(format), shape, strides, raw_mutable_data);
         },
       R"code(
       Returns TensorList as a numpy array. TensorList must be dense.

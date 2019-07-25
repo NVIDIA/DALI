@@ -70,7 +70,7 @@ def get_train_dali_loader(args, default_boxes, local_seed):
         train_pipe, 
         ["images", "boxes", "labels"], 
         118287 / args.N_gpu, 
-        stop_at_epoch=False)
+        fill_last_batch=True)
 
     return train_loader
 

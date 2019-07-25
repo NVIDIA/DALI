@@ -50,8 +50,9 @@ TYPED_TEST(DataLoadStoreTest, LMDBTest) {
 
   for (int i = 0; i < 10500; ++i) {
     // grab an entry from the reader
-    // return the tensor to the reader for refilling
-    reader->RecycleTensor(reader->ReadOne());
+    // tensor should be returned automatically when
+    // shared_ptr to sample is destroyed
+    auto sample = reader->ReadOne(false);
   }
 
   return;
@@ -69,8 +70,9 @@ TYPED_TEST(DataLoadStoreTest, LoaderTest) {
 
   for (int i = 0; i < 11; ++i) {
     // grab an entry from the reader
-    // return the tensor to the reader for refilling
-    reader->RecycleTensor(reader->ReadOne());
+    // tensor should be returned automatically when
+    // shared_ptr to sample is destroyed
+    auto sample = reader->ReadOne(false);
   }
 
   return;
@@ -96,9 +98,7 @@ TYPED_TEST(DataLoadStoreTest, CachedLMDBTest) {
 
   for (int i = 0; i < 10500; ++i) {
     // grab an entry from the reader
-    auto* sample = reader->ReadOne();
-    // return the tensor to the reader for refilling
-    reader->RecycleTensor(sample);
+    auto sample = reader->ReadOne(false);
   }
 
   return;
