@@ -28,8 +28,8 @@ class BatchRNG {
     std::vector<uint32_t> seeds(batch_size);
     seq.generate(seeds.begin(), seeds.end());
     rngs_.reserve(batch_size);
-    for (auto seed : seeds) {
-      rngs_.emplace_back(seed);
+    for (auto s : seeds) {
+      rngs_.emplace_back(s);
     }
   }
 
