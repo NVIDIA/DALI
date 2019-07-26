@@ -83,23 +83,26 @@ void COCOReader::ValidateOptions(const OpSpec &spec) {
 
   if (spec.HasArgument("meta_files_path")) {
     DALI_ENFORCE(
+      !spec.HasArgument("annotations_file"),
+      "`meta_files_path` and `annotations_file` cannot be both provided.");
+    DALI_ENFORCE(
       !spec.HasArgument("skip_empty"),
-      "When reading data from meta files `skip_empty` is not working.");
+      "When reading data from meta files `skip_empty` option is not supported.");
     DALI_ENFORCE(
       !spec.HasArgument("ratio"),
-      "When reading data from meta files `ratio` is not working.");
+      "When reading data from meta files `ratio` option is not supported.");
     DALI_ENFORCE(
       !spec.HasArgument("ltrb"),
-      "When reading data from meta files `ltrb` is not working.");
+      "When reading data from meta files `ltrb` option is not supported.");
     DALI_ENFORCE(
       !spec.HasArgument("size_threshold"),
-      "When reading data from meta files `size_threshold` is not working.");
+      "When reading data from meta files `size_threshold` option is not supported.");
     DALI_ENFORCE(
       !spec.HasArgument("dump_meta_files"),
-      "When reading data from meta files `dump_meta_files` is not working.");
+      "When reading data from meta files `dump_meta_files` option is not supported.");
     DALI_ENFORCE(
       !spec.HasArgument("dump_meta_files_path"),
-      "When reading data from meta files `dump_meta_files_path` is not working.");
+      "When reading data from meta files `dump_meta_files_path` option is not supported.");
   }
 
   if (spec.HasArgument("dump_meta_files")) {

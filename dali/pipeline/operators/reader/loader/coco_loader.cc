@@ -15,6 +15,8 @@
 #include <map>
 #include <unordered_map>
 #include <iomanip>
+#include <iostream>
+#include <fstream>
 
 #include "dali/pipeline/operators/reader/loader/coco_loader.h"
 #include "dali/pipeline/util/lookahead_parser.h"
@@ -44,64 +46,44 @@ struct Annotation {
 };
 
 template<typename T>
-void dump_meta_file(const std::vector<T> &input, const std::string path) {
-  std::ofstream file(path);
-  if (file) {
-    for (const auto &val : input) {
-      file << std::setprecision(9) << val << std::endl;
-    }
-  } else {
-    DALI_FAIL("CocoReader meta file error while saving: " + path);
-  }
+void dump_meta_file(std::vector<T> &input, const std::string path) {
+  std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
+  DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
+
+  unsigned size = input.size();
+  file.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
+  file.write(reinterpret_cast<char*>(input.data()), size * sizeof(T));
 }
 
 void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) {
   std::ofstream file(path);
-  if (file) {
-    for (const auto &p : image_id_pairs) {
-      file << p.first << std::endl;
-    }
-  } else {
-    DALI_FAIL("CocoReader meta file error while saving: " + path);
+  DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
+  for (const auto &p : image_id_pairs) {
+    file << p.first << std::endl;
   }
 }
 
 template<typename T>
 void load_meta_file(std::vector<T> &output, const std::string path) {
   std::ifstream file(path);
-  if (file) {
-    T val;
-    while (file >> val)
-      output.push_back(val);
-  } else {
-    DALI_FAIL("CocoReader meta file error while loading for path: " + path);
-  }
+  DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
+
+  unsigned size;
+  file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+  output.resize(size);
+  file.read(reinterpret_cast<char*>(output.data()), size * sizeof(T));
 }
 
-void load_file_list(ImageIdPairs &image_id_pairs, const std::string &path) {
-  std::ifstream file(path);
-  if (file) {
-    std::string filename;
-    int id;
-    while (file >> filename >> id) {
-      image_id_pairs.push_back(std::make_pair(filename, id));
-    }
-  } else {
-    DALI_FAIL("CocoReader file list error: " + path);
-  }
-}
 
 void load_filenames(ImageIdPairs &image_id_pairs, const std::string path) {
-  int id = 0;
   std::ifstream file(path);
-  if (file) {
-    std::string filename;
-    while (file >> filename) {
-      image_id_pairs.emplace_back(std::move(filename), id);
-      ++id;
-    }
-  } else {
-     DALI_FAIL("CocoReader meta file error while loading for path: " + path);
+  DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
+
+  int id = 0;
+  std::string filename;
+  while (file >> filename) {
+    image_id_pairs.emplace_back(std::move(filename), id);
+    ++id;
   }
 }
 
@@ -115,13 +97,13 @@ void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_in
     parser.EnterObject();
     ImageInfo image_info;
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (0 == strcmp(internal_key, "id")) {
+      if (0 == strncmp(internal_key, "id", 2)) {
           image_info.original_id_ = parser.GetInt();
-      } else if (0 == strcmp(internal_key, "width")) {
+      } else if (0 == strncmp(internal_key, "width", 5)) {
           image_info.width_ = parser.GetInt();
-      } else if (0 == strcmp(internal_key, "height")) {
+      } else if (0 == strncmp(internal_key, "height", 6)) {
           image_info.height_ = parser.GetInt();
-      } else if (0 == strcmp(internal_key, "file_name")) {
+      } else if (0 == strncmp(internal_key, "file_name", 9)) {
           image_info.filename_ = parser.GetString();
       } else {
         parser.SkipValue();
@@ -145,7 +127,7 @@ void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids)
     id = -1;
     parser.EnterObject();
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (0 == strcmp(internal_key, "id")) {
+      if (0 == strncmp(internal_key, "id", 2)) {
         id = parser.GetInt();
       } else {
         parser.SkipValue();
@@ -171,11 +153,11 @@ void parse_annotations(
     }
     parser.EnterObject();
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (0 == strcmp(internal_key, "image_id")) {
+      if (0 == strncmp(internal_key, "image_id", 8)) {
         annotation.image_id_ = parser.GetInt();
-      } else if (0 == strcmp(internal_key, "category_id")) {
+      } else if (0 == strncmp(internal_key, "category_id", 11)) {
         annotation.category_id_ = parser.GetInt();
-      } else if (0 == strcmp(internal_key, "bbox")) {
+      } else if (0 == strncmp(internal_key, "bbox", 4)) {
         RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
         parser.EnterArray();
         int i = 0;
@@ -221,11 +203,11 @@ void parse_json_file(
   RAPIDJSON_ASSERT(parser.PeekType() == kObjectType);
   parser.EnterObject();
   while (const char* key = parser.NextObjectKey()) {
-    if (0 == strcmp(key, "images")) {
+    if (0 == strncmp(key, "images", 6)) {
       detail::parse_image_infos(parser, image_infos);
-    } else if (0 == strcmp(key, "categories")) {
+    } else if (0 == strncmp(key, "categories", 10)) {
       detail::parse_categories(parser, category_ids);
-    } else if (0 == strcmp(key, "annotations")) {
+    } else if (0 == strncmp(key, "annotations", 11)) {
       parse_annotations(
         parser,
         annotations,
@@ -242,24 +224,24 @@ void parse_json_file(
 void CocoLoader::DumpMetaFiles(const std::string path, const ImageIdPairs &image_id_pairs) {
   detail::dump_meta_file(
     offsets_,
-    path + "/offsets.txt");
+    path + "/offsets.dat");
   detail::dump_meta_file(
     boxes_,
-    path + "/boxes.txt");
+    path + "/boxes.dat");
   detail::dump_meta_file(
     labels_,
-    path + "/labels.txt");
+    path + "/labels.dat");
   detail::dump_meta_file(
     counts_,
-    path + "/counts.txt");
+    path + "/counts.dat");
   detail::dump_filenames(
     image_id_pairs,
-    path + "/filenames.txt");
+    path + "/filenames.dat");
 
   if (save_img_ids_) {
     detail::dump_meta_file(
       original_ids_,
-      path + "/original_ids.txt");
+      path + "/original_ids.dat");
   }
 }
 
@@ -267,25 +249,25 @@ void CocoLoader::ParseMetafiles() {
   const auto meta_files_path = spec_.GetArgument<string>("meta_files_path");
   detail::load_meta_file(
     offsets_,
-    meta_files_path + "/offsets.txt");
+    meta_files_path + "/offsets.dat");
   detail::load_meta_file(
     boxes_,
-    meta_files_path + "/boxes.txt");
+    meta_files_path + "/boxes.dat");
   detail::load_meta_file(
     labels_,
-    meta_files_path + "/labels.txt");
+    meta_files_path + "/labels.dat");
   detail::load_meta_file(
     counts_,
-    meta_files_path + "/counts.txt");
+    meta_files_path + "/counts.dat");
 
   if (save_img_ids_) {
     detail::load_meta_file(
       original_ids_,
-      meta_files_path + "/original_ids.txt");
+      meta_files_path + "/original_ids.dat");
   }
   detail::load_filenames(
     image_label_pairs_,
-    meta_files_path + "/filenames.txt");
+    meta_files_path + "/filenames.dat");
 }
 
 void CocoLoader::ParseJsonAnnotations() {
