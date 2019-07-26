@@ -204,7 +204,45 @@ TEST(BlockSetup, SetupBlocks_Variable) {
 }
 
 
-TEST(BlockSetup, SetupBlocks_Uniform) {
+TEST(BlockSetup, SetupBlocks_Variable_DHWC) {
+  TensorListShape<4> TLS({
+    { 64, 480, 640, 3 },
+    { 32, 768, 1024, 1 },
+    { 25, 600, 800, 4 },
+    { 1, 720, 1280, 3 },
+    { 20, 480, 864, 2 },
+    { 10, 576, 720, 1 }
+  });
+
+  BlockSetup<3, 3> setup;
+  static_assert(setup.tensor_ndim == 4, "Incorrectly inferred tensor_ndim");
+  setup.SetupBlocks(TLS);
+  ASSERT_FALSE(setup.IsUniformSize());
+  int prev = -1;
+  BlockMap<3> map;
+  for (auto &blk : setup.Blocks()) {
+    if (blk.sample_idx != prev) {
+      if (prev != -1) {
+        ValidateBlockMap(map, TLS[prev].first<3>());
+      }
+      prev = blk.sample_idx;
+      map = {};
+    }
+    auto &bz = map.inner[blk.start.z];
+    bz.end = blk.end.z;
+    bz.inner[blk.start.y].end = blk.end.y;
+    auto &by = bz.inner[blk.start.y];
+    by.end = blk.end.y;
+    by.inner[blk.start.x].end = blk.end.x;
+  }
+  if (prev != -1)
+    ValidateBlockMap(map, TLS[prev].first<3>());
+
+  EXPECT_EQ(setup.GridDimVec(), ivec3(setup.Blocks().size(), 1, 1));
+}
+
+
+TEST(BlockSetup, SetupBlocks_Uniform_HWC) {
   const int W = 1920;
   const int H = 1080;
   TensorListShape<3> TLS({
@@ -235,6 +273,45 @@ TEST(BlockSetup, SetupBlocks_Uniform) {
   ivec2 expected_block = {
     div_ceil(div_ceil(W, expected_grid.x), block_dim.x) * block_dim.x,
     div_ceil(div_ceil(H, expected_grid.y), block_dim.y) * block_dim.y
+  };
+  EXPECT_EQ(setup.UniformBlockSize(), expected_block);
+  ivec3 grid = setup.GridDimVec();
+  EXPECT_EQ(grid, expected_grid);
+}
+
+TEST(BlockSetup, SetupBlocks_Uniform_CDHW) {
+  const int D = 64;
+  const int W = 320;
+  const int H = 240;
+  TensorListShape<4> TLS({
+    { 3, D, H, W },
+    { 3, D, H, W },
+    { 3, D, H, W },
+    { 3, D, H, W },
+    { 3, D, H, W },
+    { 3, D, H, W },
+    { 3, D, H, W },
+    { 3, D, H, W },
+    { 3, D, H, W },
+    { 3, D, H, W }
+  });
+
+  BlockSetup<3, 0> setup;
+  ivec3 def_block_size = { 256, 256, 1 };
+  setup.SetDefaultBlockSize(def_block_size);
+  static_assert(setup.tensor_ndim == 4, "Incorrectly inferred tensor_ndim");
+  setup.SetupBlocks(TLS);
+  ASSERT_TRUE(setup.IsUniformSize());
+  ivec3 expected_grid = {
+    div_ceil(W, def_block_size.x),
+    div_ceil(H, def_block_size.y),
+    TLS.num_samples()
+  };
+  ivec3 block_dim = setup.BlockDimVec();
+  ivec3 expected_block = {
+    div_ceil(div_ceil(W, expected_grid.x), block_dim.x) * block_dim.x,
+    div_ceil(div_ceil(H, expected_grid.y), block_dim.y) * block_dim.y,
+    D
   };
   EXPECT_EQ(setup.UniformBlockSize(), expected_block);
   ivec3 grid = setup.GridDimVec();
