@@ -54,7 +54,6 @@ Default values disallow changes in aspect ratio.)code",
         "allow_no_crop",
         R"code(If true, includes no cropping as one of the random options.)code",
         true)
-    .DisallowInstanceGrouping()
     .EnforceInputLayout(DALI_NHWC);
 
 template <>
