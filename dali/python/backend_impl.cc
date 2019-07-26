@@ -624,7 +624,10 @@ PYBIND11_MODULE(backend_impl, m) {
         "max_num_stream"_a = -1,
         "default_cuda_stream_priority"_a = 0
         )
-    .def("AddOperator", &Pipeline::AddOperator)
+    .def("AddOperator",
+         static_cast<int (Pipeline::*)(OpSpec, const std::string &)>(&Pipeline::AddOperator))
+    .def("AddOperator",
+         static_cast<int (Pipeline::*)(OpSpec, const std::string &, int)>(&Pipeline::AddOperator))
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",
         [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {

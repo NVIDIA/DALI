@@ -16,6 +16,7 @@
 import sys
 import copy
 from itertools import count
+import threading
 from nvidia.dali import backend as b
 from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
@@ -90,9 +91,11 @@ Parameters
 
 class _OpCounter(object):
     #pylint: disable=too-few-public-methods
+    _lock = threading.Lock()
     _op_count = count(0)
     def __init__(self):
-        self._id = next(self._op_count)
+        with self._lock:
+            self._id = next(self._op_count)
 
     @property
     def id(self):
@@ -105,6 +108,7 @@ class _OperatorInstance(object):
         self._outputs = []
         self._op = op
         self._spec = op.spec.copy()
+        self._relation_id = self._counter.id
         if "name" in kwargs.keys():
             self._name = kwargs["name"]
         else:
@@ -208,12 +212,27 @@ class _OperatorInstance(object):
         return self._outputs
 
     @property
+    def unwrapped_outputs(self):
+        if len(self._outputs) == 1:
+            return self._outputs[0]
+        else:
+            return self._outputs
+
+    @property
     def spec(self):
         return self._spec
 
     @property
     def name(self):
         return self._name
+
+    @property
+    def relation_id(self):
+        return self._relation_id
+
+    @relation_id.setter
+    def relation_id(self, value):
+        self._relation_id = value
 
     def append_output(self, output):
         self._outputs.append(output)
@@ -280,13 +299,95 @@ def python_op_factory(name, op_device = "cpu"):
                             self._schema.MinNumInput(),
                             self._schema.MaxNumInput(),
                             len(inputs)))
+            # Build input sets, most of the time we only have one
+            input_sets = []
+            if self._detect_multiple_input_sets(inputs):
+                arg_list_len = self._check_common_length(inputs)
+                packed_inputs = self._unify_lists(inputs, arg_list_len)
+                input_sets = self._repack_input_sets(packed_inputs)
+            else:
+                input_sets = [inputs]
 
-            op_instance = _OperatorInstance(inputs, self, **kwargs)
-            op_instance.generate_outputs()
+            # Create OperatorInstance for every input set
+            op_instances = []
+            for input_set in input_sets:
+                op_instances.append(_OperatorInstance(input_set, self, **kwargs))
+                op_instances[-1].generate_outputs()
 
-            if len(op_instance.outputs) == 1:
-                return op_instance.outputs[0]
-            return op_instance.outputs
+            # Tie the instances together
+            relation_id = op_instances[0].id
+            for op in op_instances:
+                op.relation_id = relation_id
+
+            # If we don't have multiple input sets, flatten the result
+            if len(op_instances) == 1:
+                return op_instances[0].unwrapped_outputs
+            outputs = []
+            for op in op_instances:
+                outputs.append(op.outputs)
+            return self._repack_output_sets(outputs)
+
+        # Check if any of inputs is a list
+        def _detect_multiple_input_sets(self, inputs):
+            return any(isinstance(input, list) for input in inputs)
+
+        # Check if all list representing multiple input sets have the same length and return it
+        def _check_common_length(self, inputs):
+            arg_list_len = max(self._safe_len(input) for input in inputs)
+            for input in inputs:
+                if isinstance(input, list):
+                    if len(input) != arg_list_len:
+                        raise ValueError(("All argument lists for Multpile Input Sets used " +
+                                          "with operator {} must have the same length")
+                                          .format(type(self).__name__))
+            return arg_list_len
+
+        def _safe_len(self, input):
+            if isinstance(input, EdgeReference):
+                return 1
+            else:
+                return len(input)
+
+        # Pack single EdgeReferences into lists, so they are treated as Multiple Input Sets
+        # consistently with the ones already present
+        def _unify_lists(self, inputs, arg_list_len):
+            result = ()
+            for input in inputs:
+                if isinstance(input, list):
+                    result = result + (input,)
+                else:
+                    result = result + ([input] * arg_list_len,)
+            return result
+
+        # Zip the list from [[arg0, arg0', arg0''], [arg1', arg1'', arg1''], ...]
+        # to [(arg0, arg1, ...), (arg0', arg1', ...), (arg0'', arg1'', ...)]
+        def _repack_input_sets(self, inputs):
+            return self._repack_list(inputs, tuple)
+
+        # Unzip the list from [[out0, out1, out2], [out0', out1', out2'], ...]
+        # to [[out0, out0', ...], [out1, out1', ...], [out2, out2', ...]]
+        # Assume that all elements of input have the same length
+        # If the inputs were 1-elem lists, return just a list, that is:
+        # [[out0], [out0'], [out0''], ...] -> [out0, out0', out0'', ...]
+        def _repack_output_sets(self, outputs):
+            if len(outputs) > 1 and len(outputs[0]) == 1:
+                output = []
+                for elem in outputs:
+                    output.append(elem[0])
+                return output
+            return self._repack_list(outputs, list)
+
+        # Repack list from [[a, b, c], [a', b', c'], ....]
+        # to [fn(a, a', ...), fn(b, b', ...), fn(c, c', ...)]
+        # where fn can be `tuple` or `list`
+        # Assume that all elements of input have the same length
+        def _repack_list(self, sets, fn):
+            output_list = []
+            arg_list_len = len(sets[0])
+            for i in range(arg_list_len):
+                output_list.append(fn(input_set[i] for input_set in sets))
+            return output_list
+
 
     Operator.__name__ = str(name)
     return Operator
@@ -354,6 +455,7 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         return self._device
 
     def __call__(self, *inputs, **kwargs):
+        # We do not handle multiple input sets for Reader as they do not have inputs
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(

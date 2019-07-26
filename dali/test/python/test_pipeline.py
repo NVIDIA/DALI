@@ -80,6 +80,68 @@ def test_tensor_multiple_uses():
         t_gpu = a_gpu.at(i)
         assert(np.sum(np.abs(t_cpu - t_gpu)) == 0)
 
+def test_multiple_input_sets():
+    batch_size = 32
+    file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
+    annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
+
+    class MISPipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
+            super(MISPipe, self).__init__(batch_size, num_threads, device_id, num_gpus)
+
+            # Reading COCO dataset
+            self.input = ops.COCOReader(
+                file_root=file_root,
+                annotations_file=annotations_file,
+                shard_id=device_id,
+                num_shards=num_gpus,
+                ratio=True,
+                ltrb=True,
+                random_shuffle=False)
+
+            self.decode_cpu = ops.ImageDecoder(device="cpu", output_type=types.RGB)
+            self.decode_crop = ops.ImageDecoderSlice(device="cpu", output_type=types.RGB)
+
+            self.ssd_crop = ops.SSDRandomCrop(device="cpu", num_attempts=1, seed=0)
+            default_boxes = [0.0, 0.0, 1.0, 1.0]
+            self.box_encoder_cpu = ops.BoxEncoder(device="cpu", criteria=0.5, anchors=default_boxes)
+
+        def define_graph(self):
+            # Do separate augmentations
+            inputs0, boxes0, labels0 = self.input(name="Reader0")
+            image0 = self.decode_cpu(inputs0)
+            image_ssd0, boxes_ssd0, labels_ssd0 = self.ssd_crop(image0, boxes0, labels0)
+
+            inputs1, boxes1, labels1 = self.input(name="Reader1")
+            image1 = self.decode_cpu(inputs1)
+            image_ssd1, boxes_ssd1, labels_ssd1 = self.ssd_crop(image1, boxes1, labels1)
+
+            encoded_boxes0, encoded_labels0 = self.box_encoder_cpu(boxes_ssd0, labels_ssd0)
+            encoded_boxes1, encoded_labels1 = self.box_encoder_cpu(boxes_ssd1, labels_ssd1)
+
+            # Pack into Multiple Input Sets and gather multiple output lists
+            boxes = [boxes_ssd0, boxes_ssd1]
+            labels = [labels_ssd0, labels_ssd1]
+            enc_boxes0, enc_labels0 = self.box_encoder_cpu(boxes, labels)
+            # Test one list with one EdgeReference
+            enc_boxes1, enc_labels1 = self.box_encoder_cpu(boxes, labels_ssd0)
+
+            # Return everything (only EdgeReferences allowed)
+            return (encoded_boxes0, encoded_labels0, encoded_boxes1, encoded_labels1,
+                    enc_boxes0[0], enc_labels0[0], enc_boxes0[1], enc_labels0[1],
+                    enc_boxes1[0], enc_labels1[0], enc_boxes1[1], enc_labels1[1])
+
+    pipe = MISPipe(batch_size = batch_size, num_threads = 1, device_id = 0, num_gpus = 1)
+    pipe.build()
+    out = pipe.run()
+    for i in range(batch_size):
+        for j in range(0, len(out) - 2, 2):
+            # All boxes should be the same
+            assert(np.array_equal(out[j].at(i), out[j + 2].at(i)))
+            # All labels should be the same
+            assert(np.array_equal(out[j + 1].at(i), out[j + 3].at(i)))
+
+
 def test_pipeline_separated_exec_setup():
     batch_size = 128
     class HybridPipe(Pipeline):

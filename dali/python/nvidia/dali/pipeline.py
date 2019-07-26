@@ -278,9 +278,13 @@ class Pipeline(object):
                     edges.append(edge)
 
         # Add the ops to the graph and build the backend
+        related_logical_id = {}
         while ops:
             op = ops.pop()
-            self._pipe.AddOperator(op.spec, op.name)
+            if op.relation_id not in related_logical_id:
+                related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
+            else:
+                self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
         self._prepared = True
         self._names_and_devices = [(e.name, e.device) for e in outputs]
 
