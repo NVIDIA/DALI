@@ -13,15 +13,15 @@ DALI_TOPDIR="${PYTHON_DIST_PACKAGES}/nvidia/dali"
 DALI_CFLAGS=( $(python ./dali_compile_flags.py --cflags) )
 DALI_LFLAGS=( $(python ./dali_compile_flags.py --lflags) )
 
-CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1/')
-test ${CUDA_VERSION} = "9"  && export SUPPORTED_TF_VERSIONS="1.7.0 1.11.0 1.12.0"
-test ${CUDA_VERSION} = "10" && export SUPPORTED_TF_VERSIONS="1.13.1 1.14.0"
+CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
+LAST_CONFIG_INDEX=$(python ../qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION})
+for i in `seq 0 $LAST_CONFIG_INDEX`;
+do
+    INST=$(python ../qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${CUDA_VERSION})
+    echo "Building DALI TF plugin for TF version ${INST}"
+    pip install ${INST} -f /pip-packages
 
-for TF_VERSION in ${SUPPORTED_TF_VERSIONS}; do
-    echo "Building DALI TF plugin for TF version ${TF_VERSION}"
-    pip install tensorflow-gpu=="${TF_VERSION}" -f /pip-packages
-
-    SUFFIX=$(echo $TF_VERSION | sed 's/\([0-9]\+\)\.\([0-9]\+\).*/\1_\2/')
+    SUFFIX=$(echo $INST | sed 's/.*=\([0-9]\+\)\.\([0-9]\+\).*/\1_\2/')
     LIB_NAME=libdali_tf_${SUFFIX}.so
     TF_CFLAGS=( $(python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
     TF_LFLAGS=( $(python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))') )

@@ -1,49 +1,46 @@
 #!/bin/bash -e
 
 pip_packages="numpy torch torchvision scikit-image tensorboardX"
+target_dir=./docs/examples/video
 
-apt-get update
-apt-get install -y wget ffmpeg git
+do_once() {
+    apt-get update
+    apt-get install -y wget ffmpeg git
 
-pushd ../..
+    mkdir -p video_files
 
-source qa/setup_dali_extra.sh
+    container_path=${DALI_EXTRA_PATH}/db/optical_flow/sintel_trailer/sintel_trailer.mp4
 
-cd docs/examples/video
+    IFS='/' read -a container_name <<< "$container_path"
+    IFS='.' read -a split <<< "${container_name[-1]}"
 
-mkdir -p video_files
+    for i in {0..4};
+    do
+        ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_path -vcodec copy -acodec copy -y video_files/${split[0]}_$i.${split[1]}
+    done
 
-container_path=${DALI_EXTRA_PATH}/db/optical_flow/sintel_trailer/sintel_trailer.mp4
+    cd superres_pytorch
 
-IFS='/' read -a container_name <<< "$container_path"
-IFS='.' read -a split <<< "${container_name[-1]}"
-
-for i in {0..4};
-do
-    ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_path -vcodec copy -acodec copy -y video_files/${split[0]}_$i.${split[1]}
-done
-
-cd superres_pytorch
-
-DATA_DIR=data_dir/720p/scenes
-# Creating simple working env for PyTorch SuperRes example
-mkdir -p $DATA_DIR/train/
-mkdir -p $DATA_DIR/val/
+    DATA_DIR=data_dir/720p/scenes
+    # Creating simple working env for PyTorch SuperRes example
+    mkdir -p $DATA_DIR/train/
+    mkdir -p $DATA_DIR/val/
 
 
-cp ../video_files/* $DATA_DIR/train/
-cp ../video_files/* $DATA_DIR/val/
+    cp ../video_files/* $DATA_DIR/train/
+    cp ../video_files/* $DATA_DIR/val/
 
-# Pre-trained FlowNet2.0 weights
-# publicly available on https://drive.google.com/file/d/1QW03eyYG_vD-dT-Mx4wopYvtPu_msTKn/view
-FLOWNET_PATH=/data/dali/pretrained_models/FlowNet2-SD_checkpoint.pth.tar
+    # Pre-trained FlowNet2.0 weights
+    # publicly available on https://drive.google.com/file/d/1QW03eyYG_vD-dT-Mx4wopYvtPu_msTKn/view
+    FLOWNET_PATH=/data/dali/pretrained_models/FlowNet2-SD_checkpoint.pth.tar
 
-git clone https://github.com/NVIDIA/flownet2-pytorch.git
-cd flownet2-pytorch
-git checkout 6a0d9e70a5dcc37ef5577366a5163584fd7b4375
-cd ..
+    git clone https://github.com/NVIDIA/flownet2-pytorch.git
+    cd flownet2-pytorch
+    git checkout 6a0d9e70a5dcc37ef5577366a5163584fd7b4375
+    cd ..
 
-cd ..
+    cd ..
+}
 
 test_body() {
     cd superres_pytorch
@@ -53,6 +50,6 @@ test_body() {
     cd ..
 }
 
-source ../../../qa/test_template.sh
-
+pushd ../..
+source ./qa/test_template.sh
 popd

@@ -1,15 +1,12 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages="jupyter numpy matplotlib pillow"
+target_dir=./docs/examples
 
-source ../setup_dali_extra.sh
-
-pushd ../..
-
-# attempt to run jupyter on all example notebooks
-mkdir -p idx_files
-
-cd docs/examples
+do_once() {
+    # attempt to run jupyter on all example notebooks
+    mkdir -p idx_files
+}
 
 test_body() {
     # test code
@@ -22,6 +19,6 @@ test_body() {
                     --ExecutePreprocessor.timeout=300 {}
 }
 
-source ../../qa/test_template.sh
-
+pushd ../..
+source ./qa/test_template.sh
 popd

@@ -12,10 +12,26 @@ source $topdir/qa/setup_test_common.sh
 pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
+if [ -n "$gather_pip_packages" ]
+then
+    # early exit
+    return 0
+fi
+
+source $topdir/qa//setup_dali_extra.sh
+
+target_dir=${target_dir-./}
+cd ${target_dir}
+
 # Limit to only one configuration (First version of each package)
 if [[ $one_config_only = true ]]; then
     echo "Limiting test run to one configuration of packages (first version of each)"
     last_config_index=0
+fi
+
+# some global test setup
+if [ "$(type -t do_once)" = 'function' ]; then
+    do_once
 fi
 
 for i in `seq 0 $last_config_index`;

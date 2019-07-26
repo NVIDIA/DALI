@@ -66,7 +66,7 @@ def print_configs(cuda):
         for val in get_package(packages, key, cuda):
             if val == None:
                 val = "Default"
-            elif 'http' in val:
+            elif val.startswith('http'):
                 val = get_pyvers_name(val, cuda)
             print ('\t' + val)
 
@@ -79,7 +79,7 @@ def get_install_string(variant, use, cuda):
         val = get_package(packages, key, cuda)[tmp]
         if val == None:
             ret.append(key)
-        elif 'http' in val:
+        elif val.startswith('http'):
             ret.append(get_pyvers_name(val, cuda))
         else:
             ret.append(key + "==" + val)
@@ -106,7 +106,7 @@ def cal_num_of_configs(use, cuda):
         ret *= len(get_package(packages, key, cuda))
     return ret
 
-def get_all_string(use, cuda):
+def get_all_strings(use, cuda):
     ret = []
     for key in packages.keys():
         if key not in use:
@@ -114,7 +114,7 @@ def get_all_string(use, cuda):
         for val in get_package(packages, key, cuda):
             if val is None:
                 ret.append(key)
-            elif 'http' in val:
+            elif val.startswith('http'):
                 ret.append(get_pyvers_name(val, cuda))
             else:
                 ret.append(key + "==" + val)
@@ -131,7 +131,7 @@ def main():
     elif args.remove:
         print (get_remove_string(args.use, args.cuda))
     elif args.getall:
-        print(get_all_string(args.use, args.cuda))
+        print(get_all_strings(args.use, args.cuda))
     elif args.install >= 0:
         if args.install > cal_num_of_configs(args.use, args.cuda):
             args.install = 1

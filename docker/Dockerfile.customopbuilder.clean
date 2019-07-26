@@ -58,9 +58,13 @@ RUN rm -f /usr/bin/python && \
 COPY --from=cuda /usr/local/cuda /usr/local/cuda
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs/:${LD_LIBRARY_PATH}
 
-RUN export USE_CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1/') &&\
-    if [ "${USE_CUDA_VERSION}" = "9" ]; then export SUPPORTED_TF_VERSIONS="1.7.0 1.11.0 1.12.0"; fi && \
-    if [ "${USE_CUDA_VERSION}" = "10" ]; then export SUPPORTED_TF_VERSIONS="1.13.1 1.14.0"; fi && \
-    for TF_VERSION in ${SUPPORTED_TF_VERSIONS}; do \
-        pip download tensorflow-gpu==${TF_VERSION} -d /pip-packages; \
+WORKDIR /opt/dali
+COPY qa/setup_packages.py qa/setup_packages.py
+
+# get current CUDA version, ask setup_packages.py which TensorFlow we need to support and loop over all version downloading
+# them to /pip-packages dir one by one. In effect all TF versions are stored in only one place setup_packages.py
+RUN export USE_CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/') && \
+    export last_config_index=$(python qa/setup_packages.py -n -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}) && \
+    for i in `seq 0 $last_config_index`; do \
+        pip download $(python qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}) -d /pip-packages; \
     done
