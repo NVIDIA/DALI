@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include "dali/kernels/common/block_setup.h"
+#include "dali/kernels/tensor_shape_print.h"
 
 namespace dali {
 namespace kernels {
@@ -34,6 +35,85 @@ TEST(BlockSetup, shape2vec) {
   TensorShape<3> in3 = { 2, 3, 4 };
   EXPECT_EQ(shape2vec(in3), ivec3(4, 3, 2));
 }
+
+template <int ndim, int channel_dim>
+void PerturbAndValidate(
+    BlockSetup<ndim, channel_dim> &setup,
+    TensorListShape<ndim + (channel_dim >= 0)> shape,
+    const TensorListShape<ndim + (channel_dim >= 0)> in_shape,
+    span<TensorShape<ndim>> sizes) {
+  constexpr int tensor_ndim = BlockSetup<ndim, channel_dim>::tensor_ndim;
+  EXPECT_NO_THROW(setup.ValidateOutputShape(shape, in_shape, sizes));
+  for (int i = 0; i < shape.num_samples(); i++) {
+    for (int d = 0; d < tensor_ndim; d++) {
+      shape.tensor_shape_span(i)[d]++;
+      EXPECT_THROW(setup.ValidateOutputShape(shape, in_shape, sizes), std::exception);
+      shape.tensor_shape_span(i)[d]--;
+      EXPECT_NO_THROW(setup.ValidateOutputShape(shape, in_shape, sizes));
+    }
+  }
+}
+
+TEST(BlockSetup, GetOutputShape_DHWC) {
+  BlockSetup<3, 3> setup;  // DHWC
+  TensorListShape<4> in_shape = {{
+    { 100, 200, 300, 3 },
+    { 12, 23, 34, 5 }
+  }};
+  std::vector<TensorShape<3>> out_sizes = {
+    { 20, 30, 40 },
+    { 10, 15, 25 }
+  };
+  TensorListShape<4> out_shape = setup.GetOutputShape(in_shape, make_span(out_sizes));
+  TensorListShape<4> ref_shape = {{
+    { 20, 30, 40, 3},
+    { 10, 15, 25, 5}
+  }};
+  EXPECT_EQ(out_shape, ref_shape);
+  PerturbAndValidate(setup, out_shape, in_shape, make_span(out_sizes));
+}
+
+TEST(BlockSetup, GetOutputShape_DHW) {
+  BlockSetup<3, -1> setup;
+  TensorListShape<3> in_shape = {{
+    { 100, 200, 300 },
+    { 12, 23, 34 }
+  }};
+  std::vector<TensorShape<3>> out_sizes = {
+    { 20, 30, 40 },
+    { 10, 15, 25 }
+  };
+  TensorListShape<3> out_shape = setup.GetOutputShape(in_shape, make_span(out_sizes));
+  TensorListShape<3> ref_shape = {{
+    { 20, 30, 40 },
+    { 10, 15, 25 }
+  }};
+  EXPECT_EQ(out_shape, ref_shape);
+  PerturbAndValidate(setup, out_shape, in_shape, make_span(out_sizes));
+}
+
+TEST(BlockSetup, GetOutputShape_CHW) {
+  BlockSetup<2, 0> setup;
+  TensorListShape<3> in_shape = {{
+    { 5, 768, 1024 },
+    { 3, 576, 720 },
+    { 4, 224, 224 }
+}};
+  std::vector<TensorShape<2>> out_sizes = {
+    { 300, 400 },
+    { 240, 320 },
+    { 256, 256 }
+  };
+  TensorListShape<3> out_shape = setup.GetOutputShape(in_shape, make_span(out_sizes));
+  TensorListShape<3> ref_shape = {{
+    { 5, 300, 400 },
+    { 3, 240, 320 },
+    { 4, 256, 256 }
+  }};
+  EXPECT_EQ(out_shape, ref_shape);
+  PerturbAndValidate(setup, out_shape, in_shape, make_span(out_sizes));
+}
+
 
 namespace {
 

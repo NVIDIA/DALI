@@ -74,6 +74,7 @@ class BlockSetup {
   BlockSetup() {
     for (int i = 0; i < ndim; i++)
       default_block_size_[i] = (i < 2) ? 256 : 1;
+    max_block_elements_ = volume(default_block_size_);
   }
 
   void SetupBlocks(const TensorListShape<tensor_ndim> &output_shape,
@@ -90,6 +91,7 @@ class BlockSetup {
   TensorListShape<tensor_ndim> GetOutputShape(
       const TensorListShape<tensor_ndim> &in_shape,
       span<const TensorShape<ndim>> output_sizes) {
+    assert(in_shape.num_samples() == static_cast<int>(output_sizes.size()));
     TensorListShape<tensor_ndim> shape;
     shape.resize(in_shape.num_samples(), tensor_ndim);
     for (int i = 0; i < in_shape.num_samples(); i++) {
@@ -180,7 +182,7 @@ class BlockSetup {
   ivec3 grid_dim_{1, 1, 1};
   ivec<ndim> uniform_block_size_, uniform_output_size_;
   ivec<ndim> default_block_size_;
-  int max_block_elements_ = 1<<16;
+  int max_block_elements_;
   bool is_uniform_ = false;
 
   template <int d>
@@ -205,7 +207,7 @@ class BlockSetup {
     grid_dim_ = ivec3(blocks_.size(), 1, 1);
   }
 
-  ivec<ndim> BlockSize(const ivec<ndim> &shape) const {
+  ivec<ndim> VariableBlockSize(const ivec<ndim> &shape) const {
     ivec<ndim> ret;
     for (int i = 0; i < ndim; i++) {
       switch (i) {
@@ -220,13 +222,29 @@ class BlockSetup {
         ret[i] = 1;
       }
     }
-    return ret;
+    return min(shape, ret);
+  }
+
+  ivec<ndim> UniformBlockSize(const ivec<ndim> &shape) const {
+    ivec<ndim> ret;
+    for (int i = 0; i < ndim; i++) {
+      switch (i) {
+      case 0:
+      case 1:
+        ret[i] = default_block_size_[i];
+        break;
+      default:  // iterate dims other than XY
+        ret[i] = shape[i];
+        break;
+      }
+    }
+    return min(shape, ret);
   }
 
   void VariableSizeSetup(const TensorListShape<tensor_ndim> &output_shape) {
     for (int i = 0; i < output_shape.num_samples(); i++) {
       ivec<ndim> size = shape2size(output_shape[i]);
-      ivec<ndim> block_size = BlockSize(size);
+      ivec<ndim> block_size = VariableBlockSize(size);
       MakeBlocks(i, size, block_size);
     }
   }
@@ -236,7 +254,7 @@ class BlockSetup {
       return;
     uniform_output_size_ = shape2size(output_shape[0]);
     // Get the rough estimate of block size
-    uniform_block_size_ = BlockSize(uniform_output_size_);
+    uniform_block_size_ = UniformBlockSize(uniform_output_size_);
 
     // Make the blocks as evenly distributed as possible over the target area,
     // but maintain alignment to CUDA block dim.
