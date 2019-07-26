@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -136,9 +136,10 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int) {
   }
 
   ProspectiveCrop prospective_crop;
+  int sample = ws->data_idx();
   while (!prospective_crop.success)
     prospective_crop  = FindProspectiveCrop(
-        bounding_boxes, labels, SelectMinimumOverlap());
+        bounding_boxes, labels, SelectMinimumOverlap(sample), sample);
 
   const auto &selected_boxes = prospective_crop.boxes;
   const auto &selected_labels = prospective_crop.labels;
