@@ -51,7 +51,8 @@ TEST(WarpGPU, Affine_Transpose_ForceVariable) {
   in_list.shape.set_tensor_shape(0, img_tensor.shape);
   in_list.data[0] = img_tensor.data;
 
-  WarpGPU<AffineMapping2D, 2, uint8_t, uint8_t, BorderClamp, DALI_INTERP_NN> warp;
+  using Kernel = WarpGPU<AffineMapping2D, 2, uint8_t, uint8_t, BorderClamp, DALI_INTERP_NN>;
+  Kernel warp;
 
   ScratchpadAllocator scratch_alloc;
 
@@ -64,6 +65,7 @@ TEST(WarpGPU, Affine_Transpose_ForceVariable) {
 
   auto out_shapes = warp.GetOutputShape(in_list.shape, out_shapes_hw);
   KernelRequirements req = warp.WarpSetup::Setup(out_shapes, true);
+  req.scratch_sizes[static_cast<int>(AllocType::GPU)] += sizeof(warp::SampleDesc<2, int, int>);
   scratch_alloc.Reserve(req.scratch_sizes);
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());

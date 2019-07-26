@@ -25,16 +25,16 @@ namespace dali {
 namespace kernels {
 namespace warp {
 
-template <int ndim>
+template <int ndim, typename OutputType, typename InputType>
 struct SampleDesc {
-  const void *__restrict__ input;
-  void *__restrict__ output;
+  OutputType *__restrict__ output;
+  const InputType *__restrict__ input;
   ivec<ndim> out_size, out_strides, in_size, in_strides;
   int channels;
 };
 
 
-template <int ndim>
+template <int ndim, typename OutputType, typename InputType>
 class WarpSetup : public BlockSetup<ndim, ndim> {
   static_assert(ndim == 2 || ndim == 3,
     "Warping is defined only for 2D and 3D data with interleaved channels");
@@ -46,7 +46,7 @@ class WarpSetup : public BlockSetup<ndim, ndim> {
   using Base::IsUniformSize;
   using Base::SetupBlocks;
   using Base::shape2size;
-  using SampleDesc = warp::SampleDesc<ndim>;
+  using SampleDesc = warp::SampleDesc<ndim, OutputType, InputType>;
   using BlockDesc = kernels::BlockDesc<ndim>;
 
   KernelRequirements Setup(const TensorListShape<tensor_ndim> &output_shape,
@@ -62,7 +62,7 @@ class WarpSetup : public BlockSetup<ndim, ndim> {
     return req;
   }
 
-  template <typename Backend, typename OutputType, typename InputType>
+  template <typename Backend>
   void PrepareSamples(const OutList<Backend, OutputType, tensor_ndim> &out,
                       const InList<Backend, InputType, tensor_ndim> &in) {
     assert(out.num_samples() == in.num_samples());

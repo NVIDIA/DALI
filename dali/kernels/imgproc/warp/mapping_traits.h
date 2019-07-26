@@ -34,6 +34,14 @@ std::false_type is_fp_mapping_helper(const std::function<ivec4(ivec4)> &f);
 template <typename Mapping>
 struct is_fp_mapping : decltype(is_fp_mapping_helper(Mapping())) {};
 
+template <typename Mapping>
+struct mapping_params {
+  using type = Mapping;
+};
+
+template <typename Mapping>
+using mapping_params_t = typename mapping_params<Mapping>::type;
+
 }  // namespace warp
 }  // namespace kernels
 }  // namespace dali

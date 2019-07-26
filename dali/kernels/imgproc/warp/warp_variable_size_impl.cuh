@@ -17,24 +17,26 @@
 
 #include "dali/kernels/imgproc/warp/warp_setup.cuh"
 #include "dali/kernels/imgproc/warp/block_warp.cuh"
+#include "dali/kernels/imgproc/warp/mapping_traits.h"
 
 namespace dali {
 namespace kernels {
 namespace warp {
 
 
-template <DALIInterpType interp_type, typename OutputType, typename InputType,
-         int ndim, typename Mapping, typename BorderValue>
+template <DALIInterpType interp_type, typename Mapping,
+         int ndim, typename OutputType, typename InputType,
+         typename BorderValue>
 __global__ void BatchWarpVariableSize(
-    const SampleDesc<ndim> *samples,
+    const SampleDesc<ndim, OutputType, InputType> *samples,
     const BlockDesc<ndim> *blocks,
-    const Mapping *mapping,
+    const mapping_params_t<Mapping> *mapping,
     BorderValue border) {
 
   auto block = blocks[blockIdx.x];
   auto sample = samples[block.sample_idx];
-  BlockWarp<interp_type, OutputType, InputType, ndim, Mapping, BorderValue>(
-    sample, block, mapping[block.sample_idx], border);
+  BlockWarp<interp_type, Mapping, ndim, OutputType, InputType, BorderValue>(
+    sample, block, Mapping(mapping[block.sample_idx]), border);
 }
 
 }  // namespace warp

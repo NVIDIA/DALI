@@ -36,14 +36,15 @@ enable_if_t<!is_fp_mapping<Mapping>::value, ivec<dim>> map_coords(const Mapping 
   return m(pos);
 }
 
-template <DALIInterpType interp_type, typename OutputType, typename InputType,
-          int ndim, typename Mapping, typename BorderValue>
+template <DALIInterpType interp_type, typename Mapping,
+          int ndim, typename OutputType, typename InputType,
+          typename BorderValue>
 __device__ void BlockWarp(
-    SampleDesc<2> sample, BlockDesc<2> block,
+    SampleDesc<2, OutputType, InputType> sample, BlockDesc<2> block,
     Mapping mapping, BorderValue border) {
   // Get the data pointers - un-erase type
-  OutputType *__restrict__ output_data = static_cast<OutputType*>(sample.output);
-  const InputType *__restrict__ input_data = static_cast<const InputType*>(sample.input);
+  OutputType *__restrict__ output_data = sample.output;
+  const InputType *__restrict__ input_data = sample.input;
   // Create input and output surfaces
   const Surface2D<OutputType> out = {
       output_data, sample.out_size.x, sample.out_size.y, sample.channels,
