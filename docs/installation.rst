@@ -78,6 +78,26 @@ Installing this package will install ``nvidia-dali`` and its dependencies, if th
     OLDER_VERSION=0.6.1
     pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-tf-plugin==$OLDER_VERSION
 
+Pre-built packages in Watson Machine Learing Community Edition
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+.. |wmlce link| replace:: **WML CE installation**
+.. _wmlce link: https://www.ibm.com/support/knowledgecenter/SS5SF7_1.6.1/navigation/wmlce_install.html
+
+IBM publishes pre-built DALI packages as part of Watson Machine Learning Community Edition (WML CE). WML CE includes conda packages for both IBM Power and x86 systems. The initial release includes DALI 0.9 built against CUDA 10.1 and with TensorFlow support. Other versions may be added in the future. The WML CE conda channel also includes the CUDA pre-requisites for DALI.
+
+After installing conda and configuring the WML CE conda channel (see |wmlce link|_) you can install DALI:
+
+.. code-block:: bash
+
+    $ conda create -y -n my-dali-env python=3.6 dali
+
+    $ conda activate my-dali-env
+
+    (my-dali-env) $ conda list dali
+    ...
+    dali                      0.9             py36_666ce55_1094.g70c071f
+
 Nightly and weekly release channels
 """""""""""""""""""""""""""""""""""
 
