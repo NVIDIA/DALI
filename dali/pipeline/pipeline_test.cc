@@ -680,7 +680,7 @@ class DummyOpToAdd : public Operator<CPUBackend> {
  public:
   explicit DummyOpToAdd(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  void RunImpl(HostWorkspace *ws, int idx) override {}
+  void RunImpl(HostWorkspace *ws) override {}
 };
 
 DALI_REGISTER_OPERATOR(DummyOpToAdd, DummyOpToAdd, CPU);
@@ -695,7 +695,7 @@ class DummyOpNoSync : public Operator<CPUBackend> {
  public:
   explicit DummyOpNoSync(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  void RunImpl(HostWorkspace *ws, int idx) override {}
+  void RunImpl(HostWorkspace *ws) override {}
 };
 
 DALI_REGISTER_OPERATOR(DummyOpNoSync, DummyOpNoSync, CPU);

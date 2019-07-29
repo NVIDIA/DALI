@@ -10,6 +10,7 @@ import os
 import glob
 import tempfile
 import time
+from nose.tools import assert_raises
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -57,6 +58,16 @@ class PythonOperatorPipeline(CommonPipeline):
         assert isinstance(processed, EdgeReference)
         return processed
 
+class PythonOperatorInvalidPipeline(PythonOperatorPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
+        super(PythonOperatorInvalidPipeline, self).__init__(batch_size, num_threads, device_id,
+                                                            seed, image_dir, function)
+        self.python_function = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        images, labels = self.load()
+        processed = self.python_function([images, images])
+        return processed
 
 class FlippingPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
@@ -247,7 +258,7 @@ def invalid_function(image):
 
 def test_python_operator_invalid_function():
     invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
-                                          invalid_function)
+                                          Rotate)
     invalid_pipe.build()
     try:
         invalid_pipe.run()
@@ -255,6 +266,12 @@ def test_python_operator_invalid_function():
         print(e)
         return
     raise Exception('Should not pass')
+
+def test_python_operator_invalid_pipeline():
+    invalid_pipe = PythonOperatorInvalidPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                 images_dir, invalid_function)
+    assert_raises(TypeError, invalid_pipe.build)
+
 
 
 def split_red_blue(image):
