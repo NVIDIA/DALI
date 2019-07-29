@@ -191,7 +191,8 @@ int Pipeline::AddOperator(OpSpec spec) {
 int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical_id) {
   DALI_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
-  DALI_ENFORCE(0 <= logical_id, "Logical id of the node must be positive");
+  DALI_ENFORCE(0 <= logical_id,
+               "Logical id of the node must be positive, got " + std::to_string(logical_id) + ".");
 
   if (logical_id > next_logical_id_) {
     next_logical_id_ = logical_id + 1;
@@ -381,12 +382,16 @@ inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string &ins
 void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id) {
   auto& logical_group = logical_ids_[logical_id];
   if (logical_group.size() > 0) {
-    DALI_ENFORCE(op_specs_[logical_group.front()].spec.name() == spec.name(),
-                  "Different Operator types cannot be groupped with the same logical id.");
+    const auto &group_name = op_specs_[logical_group.front()].spec.name();
+    DALI_ENFORCE(
+        group_name == spec.name(),
+        "Different Operator types cannot be groupped with the same logical id. Tried to group " +
+            spec.name() + " using logical_id " + std::to_string(logical_id) +
+            " which is already assigned to " + group_name);
     const OpSchema &schema = SchemaRegistry::GetSchema(spec.name());
     DALI_ENFORCE(schema.AllowsInstanceGrouping(),
-                 "Operator does not support synced random execution required for multiple"
-                 " input sets processing.");
+                 "Operator " + spec.name() + " does not support synced random execution required "
+                      "for multiple input sets processing.");
   }
   op_specs_.push_back({inst_name, spec, logical_id});
   logical_ids_[logical_id].push_back(op_specs_.size() - 1);
