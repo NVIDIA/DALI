@@ -370,10 +370,9 @@ class DLL_PUBLIC Pipeline {
     return base_ptr_offset;
   }
 
-  void SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec,
-                     int logical_id);
+  void SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec);
 
-  void SetupGPUInput(std::map<string, EdgeMeta>::iterator it, int logical_id);
+  void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);
 
   inline EdgeMeta NewEdge(const std::string &device) {
     EdgeMeta edge;
@@ -410,6 +409,7 @@ class DLL_PUBLIC Pipeline {
   inline void AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id);
 
   int GetNextLogicalId();
+  int GetNextInternalLogicalId();
 
   const int MAX_SEEDS = 1024;
 
@@ -423,6 +423,7 @@ class DLL_PUBLIC Pipeline {
   int max_num_stream_;
   int default_cuda_stream_priority_;
   int next_logical_id_ = 0;
+  int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
 
   std::vector<int64_t> seed_;

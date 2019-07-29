@@ -271,9 +271,9 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. " + error_str);
-      SetupCPUInput(it, i, &spec, GetNextLogicalId());
+      SetupCPUInput(it, i, &spec);
     } else {
-      SetupGPUInput(it, GetNextLogicalId());
+      SetupGPUInput(it);
     }
   }
 
@@ -375,6 +375,7 @@ inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string &ins
   gpu_spec.SetArg("device", "mixed");
 
   // TODO(spanev): handle serialization for nvJPEGDecoderNew
+  // Considering Logical Ids, they would not cause collisions as they are explicitly serialized
   this->AddOperator(spec, inst_name, logical_id);
   this->AddOperator(gpu_spec, inst_name + "_gpu", GetNextLogicalId());
 }
@@ -386,8 +387,8 @@ void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, in
     DALI_ENFORCE(
         group_name == spec.name(),
         "Different Operator types cannot be groupped with the same logical id. Tried to group " +
-            spec.name() + " using logical_id " + std::to_string(logical_id) +
-            " which is already assigned to " + group_name);
+            spec.name() + " using logical_id=" + std::to_string(logical_id) +
+            " which is already assigned to " + group_name + ".");
     const OpSchema &schema = SchemaRegistry::GetSchema(spec.name());
     DALI_ENFORCE(schema.AllowsInstanceGrouping(),
                  "Operator " + spec.name() + " does not support synced random execution required "
@@ -482,7 +483,7 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
           .AddArg("device", "mixed")
           .AddInput(name, "cpu")
           .AddOutput("contiguous_" + name, "cpu");
-        PrepareOpSpec(&spec, GetNextLogicalId());
+        PrepareOpSpec(&spec, GetNextInternalLogicalId());
 
         graph_.AddOp(spec, "__MakeContiguous_" + name);
 
@@ -587,8 +588,7 @@ void Pipeline::ReleaseOutputs() {
     }
 }
 
-void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
-    int input_idx, OpSpec *spec, int logical_id) {
+void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec) {
   if (!it->second.has_contiguous) {
     OpSpec make_contiguous_spec =
       OpSpec("MakeContiguous")
@@ -596,7 +596,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
       .AddInput(it->first, "cpu")
       .AddOutput("contiguous_" + it->first, "cpu");
     // don't put it into op_specs_for_serialization_, only op_specs_
-    AddToOpSpecs("__MakeContiguous_" + it->first, make_contiguous_spec, logical_id);
+    AddToOpSpecs("__MakeContiguous_" + it->first, make_contiguous_spec, GetNextInternalLogicalId());
     it->second.has_contiguous = true;
   }
 
@@ -608,7 +608,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
   input_strs.first = "contiguous_" + input_strs.first;
 }
 
-void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it, int logical_id) {
+void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   if (it->second.has_gpu) return;
   OpSpec copy_to_dev_spec =
     OpSpec("MakeContiguous")
@@ -616,7 +616,7 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it, int logica
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");
   // don't put it into op_specs_for_serialization_, only op_specs_
-  AddToOpSpecs("__Copy_" + it->first, copy_to_dev_spec, logical_id);
+  AddToOpSpecs("__Copy_" + it->first, copy_to_dev_spec, GetNextInternalLogicalId());
   it->second.has_gpu = true;
 }
 
@@ -753,6 +753,12 @@ void Pipeline::SaveGraphToDotFile(const std::string &filename) {
 int Pipeline::GetNextLogicalId() {
   int ret = next_logical_id_;
   next_logical_id_++;
+  return ret;
+}
+
+int Pipeline::GetNextInternalLogicalId() {
+  int ret = next_internal_logical_id_;
+  next_internal_logical_id_--;
   return ret;
 }
 
