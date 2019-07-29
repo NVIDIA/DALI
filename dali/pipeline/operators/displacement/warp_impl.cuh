@@ -17,38 +17,54 @@
 
 #include "dali/pipeline/operators/displacement/new_warp.h"
 #include "dali/kernels/imgproc/warp_gpu.h"
+#include "dali/kernels/alloc.h"
 
 namespace dali {
 
-template <typename Mapping>
-class NewWarp<GPUBackend> : public Operator<GPUBackend> {
+template <typename Derived>
+class NewWarp<GPUBackend> : public Operator<GPUBackend>
  public:
-  NewWarp(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
+  using MyType = Derived;
+  constexpr MyType &This() { return static_cast<MyType&>(*this); }
+  constexpr const MyType &This() const { return static_cast<MyType&>(*this); }
 
   using Backend = GPUBackend;
+  using Workspace = DeviceWorkspace;
 
-  void RunImpl(DeviceWorkspace* ws, const int idx) override;
-
-  virtual void SetupMapping(DeviceWorkspace* ws) = 0;
+  void RunImpl(Workspace* ws, const int idx) override;
 
   bool InferOutputs(
-    std::vector<kernels::TensorListShape<>> &shapes,
-    std::vector<TypeInfo> &types, DeviceWorkspace &ws) {
+      std::vector<kernels::TensorListShape<>> &shapes,
+      std::vector<TypeInfo> &types, DeviceWorkspace &ws) {
     shapes.resize(1);
     types.resize(1);
 
+    SetupMappingParams(ws);
+    Setup(shapes[0], types[0], ws);
+    return true;
   }
+
+
+  virtual void Setup(kernels::TensorListShape<> &shape,
+                     DALIDataType &type,
+                     DeviceWorkspace &ws) = 0;
+
+  DALIDataType input_type;
+  DALIDataType output_type;
 
   void RunImpl(DeviceWorkspace* ws, const int idx) {
-    SetupMapping(ws);
+    InferOutputs(shapes);
 
     auto input = ws->Input<GPUBackend>(0);
-
   }
 
- protected:
-  kernels::KernelManager kmgr;
+  template <typename OutputType, typename InputType>
+  void Run(TensorListView<OutputType> &output);
 
+ protected:
+  kernels::KernelManager kmgr_;
+  Tensor<GPUBackend> params_gpu_;
+  bool has_scalar_params_;
 };
 
 

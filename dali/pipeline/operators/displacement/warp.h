@@ -19,7 +19,7 @@
 
 namespace dali {
 
-template <typename Backend, typename Mapping>
+template <typename Actual>
 class NewWarp;
 
 }  // namespace dali
