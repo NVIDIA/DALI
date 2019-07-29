@@ -6,7 +6,7 @@
 
 export DATA_DIR=data_dir
 export RESOLUTION=720p  # options: 540p, 720p, 1080p, 4K
-export LOADER="DALI"  # options: "DALI" or "pytorch"
+export LOADER="DALI"  # options: "DALI" or "PyTorch"
 export DATA_TYPE=scenes # options: "scenes" or "frames"
 #export CODEC="h264"  #
 #export CRF="18"      # set these three only if used during preprocessing

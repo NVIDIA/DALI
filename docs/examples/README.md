@@ -14,4 +14,4 @@ Examples specific to frameworks integration:
 
 - [MXNet](mxnet)
 - [TensorFlow](tensorflow)
-- [pyTorch](pytorch)
+- [PyTorch](pytorch)

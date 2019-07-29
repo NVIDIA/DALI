@@ -1,4 +1,4 @@
-pyTorch Plugin API reference
+PyTorch Plugin API reference
 ============================
 
 .. automodule:: nvidia.dali.plugin.pytorch

@@ -1,4 +1,4 @@
-pyTorch
+PyTorch
 =======
 
 .. toctree::

@@ -40,11 +40,11 @@ parser.add_argument('--crop_size', type=int, nargs='+', default=[256, 256],
 parser.add_argument('--batchsize', type=int, default=1,
                     help='per rank batch size')
 parser.add_argument('--loader', type=str, default='DALI',
-                    help='dataloader: pytorch or DALI')
+                    help='dataloader: PyTorch or DALI')
 parser.add_argument('--rank', type=int, default=0,
-                    help='pytorch distributed rank')
+                    help='PyTorch distributed rank')
 parser.add_argument('--world_size', default=1, type=int, metavar='N',
-                    help='num processes for pytorch distributed')
+                    help='num processes for PyTorch distributed')
 parser.add_argument('--ip', default='localhost', type=str,
                     help='IP address for distributed init.')
 parser.add_argument('--max_iter', type=int, default=1000,
@@ -122,7 +122,7 @@ def main(args):
         epoch = floor(total_iter / train_batches)
 
         # only if we are using DistributedSampler
-        if args.world_size > 1 and args.loader == 'pytorch':
+        if args.world_size > 1 and args.loader == 'PyTorch':
             sampler.set_epoch(epoch)
 
         model.train()
