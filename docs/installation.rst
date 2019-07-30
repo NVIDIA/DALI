@@ -84,7 +84,7 @@ Pre-built packages in Watson Machine Learing Community Edition
 .. |wmlce link| replace:: **WML CE installation**
 .. _wmlce link: https://www.ibm.com/support/knowledgecenter/SS5SF7_1.6.1/navigation/wmlce_install.html
 
-IBM publishes pre-built DALI packages as part of Watson Machine Learning Community Edition (WML CE). WML CE includes conda packages for both IBM Power and x86 systems. The initial release includes DALI 0.9 built against CUDA 10.1 and with TensorFlow support. Other versions may be added in the future. The WML CE conda channel also includes the CUDA pre-requisites for DALI.
+IBM publishes pre-built DALI packages as part of Watson Machine Learning Community Edition (WML CE). WML CE includes conda packages for both IBM Power and x86 systems. The initial release includes DALI 0.9 built against CUDA 10.1 and with TensorFlow support. Other versions may be added in the future. The WML CE conda channel also includes the CUDA prerequisites for DALI.
 
 After installing conda and configuring the WML CE conda channel (see |wmlce link|_) you can install DALI:
 
