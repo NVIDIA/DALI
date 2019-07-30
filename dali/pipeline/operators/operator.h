@@ -270,7 +270,7 @@ class Operator<CPUBackend> : public OperatorBase {
    * @brief Legacy implementation of CPU operator using per-sample approach
    *
    * Usage of this API is deprecated. For CPU Ops `void RunImpl(HostWorkspace &ws)`
-   * should be overrided instead.
+   * should be overridden instead.
    */
   virtual void RunImpl(SampleWorkspace &ws) {}
 

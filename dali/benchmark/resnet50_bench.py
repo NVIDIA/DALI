@@ -53,7 +53,6 @@ class C2Pipe(Pipeline):
         self.uniform = ops.Uniform(range = (0., 1.))
         self.resize_uniform = ops.Uniform(range = (256., 480.))
         self.mirror = ops.CoinFlip(probability = 0.5)
-        self.iter = 0
 
     def define_graph(self):
         self.jpegs = self.input()
@@ -66,10 +65,8 @@ class C2Pipe(Pipeline):
         return output
 
     def iter_setup(self):
-        if self.iter == 0:
-            raw_data = make_batch(self.batch_size)
-            self.feed_input(self.jpegs, raw_data)
-            self.iter += 1
+        raw_data = make_batch(self.batch_size)
+        self.feed_input(self.jpegs, raw_data)
 
 class HybridPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, pipelined = True, exec_async = True):
@@ -92,7 +89,6 @@ class HybridPipe(Pipeline):
         self.uniform = ops.Uniform(range = (0., 1.))
         self.resize_uniform = ops.Uniform(range = (256., 480.))
         self.mirror = ops.CoinFlip(probability = 0.5)
-        self.iter = 0
 
     def define_graph(self):
         self.jpegs = self.input()
@@ -104,10 +100,8 @@ class HybridPipe(Pipeline):
         return output
 
     def iter_setup(self):
-        if self.iter == 0:
-            raw_data = make_batch(self.batch_size)
-            self.feed_input(self.jpegs, raw_data)
-            self.iter += 1
+        raw_data = make_batch(self.batch_size)
+        self.feed_input(self.jpegs, raw_data)
 
 def run_benchmarks(PipeType, args):
     print("Running Benchmarks For {}".format(PipeType.__name__))

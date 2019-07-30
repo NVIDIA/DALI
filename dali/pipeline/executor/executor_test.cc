@@ -348,6 +348,7 @@ TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
+          .AddArg("device_id", 0)
           .AddOutput("data1", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
@@ -404,6 +405,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
+          .AddArg("device_id", 0)
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
@@ -449,6 +451,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
+          .AddArg("device_id", 0)
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
@@ -510,6 +513,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   graph.AddOp(this->PrepareSpec(
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
+          .AddArg("device_id", 0)
           .AddOutput("data", "cpu")), "");
 
   graph.AddOp(this->PrepareSpec(
