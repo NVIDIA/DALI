@@ -258,7 +258,7 @@ def invalid_function(image):
 
 def test_python_operator_invalid_function():
     invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
-                                          Rotate)
+                                          invalid_function)
     invalid_pipe.build()
     try:
         invalid_pipe.run()
@@ -269,7 +269,7 @@ def test_python_operator_invalid_function():
 
 def test_python_operator_invalid_pipeline():
     invalid_pipe = PythonOperatorInvalidPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
-                                                 images_dir, invalid_function)
+                                                 images_dir, Rotate)
     assert_raises(TypeError, invalid_pipe.build)
 
 

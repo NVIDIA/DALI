@@ -30,8 +30,6 @@ from PIL import Image
 from test_utils import check_batch
 from test_utils import compare_pipelines
 
-from nose.tools import assert_raises
-
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 c2lmdb_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb')
@@ -622,8 +620,6 @@ def test_rotate():
         def define_graph(self):
             self.jpegs, self.labels = self.input()
             images = self.decode(self.jpegs)
-            crop_x = self.uniform()
-            crop_y = self.uniform()
             outputs = self.cmnp([images, images],
                                 crop_pos_x = self.uniform(),
                                 crop_pos_y = self.uniform())
