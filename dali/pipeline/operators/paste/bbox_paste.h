@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_
 #define DALI_PIPELINE_OPERATORS_PASTE_BBOX_PASTE_H_
 
+#include <vector>
+
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/common.h"
@@ -32,6 +34,11 @@ class BBoxPaste : public Operator<Backend> {
 
  protected:
   bool use_ltrb_ = false;
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<Backend> *ws) override;
 
   USE_OPERATOR_MEMBERS();

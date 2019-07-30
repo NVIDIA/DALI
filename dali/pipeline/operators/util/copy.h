@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_UTIL_COPY_H_
 
 #include <cstring>
+#include <vector>
 
 #include "dali/pipeline/operators/operator.h"
 
@@ -32,6 +33,10 @@ class Copy : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Copy);
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<Backend> *ws) override;
 };
 

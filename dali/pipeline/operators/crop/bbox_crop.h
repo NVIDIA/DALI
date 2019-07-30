@@ -98,6 +98,10 @@ class RandomBBoxCrop : public Operator<Backend> {
   ~RandomBBoxCrop() override = default;
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<Backend> *ws) override;
 
   void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop) const;

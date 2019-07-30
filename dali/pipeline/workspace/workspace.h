@@ -28,6 +28,15 @@
 namespace dali {
 
 /**
+ * @brief Used to specify the shape and type of Output
+ * that a Workspace can hold.
+ */
+struct OutputDesc {
+  kernels::TensorListShape<> shape;
+  TypeInfo type;
+};
+
+/**
  * @brief ArgumentWorskpace is a base class of
  * objects storing tensor arguments
  * of operators

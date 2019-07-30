@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_GPU_CUH_
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_GPU_CUH_
 
+#include <vector>
+
 #include "dali/core/common.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
@@ -222,6 +224,10 @@ class DisplacementFilter<GPUBackend, Displacement,
 
   virtual ~DisplacementFilter() {
      displace_.Cleanup();
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    return false;
   }
 
   void RunImpl(DeviceWorkspace* ws) override {

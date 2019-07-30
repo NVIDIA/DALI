@@ -16,25 +16,26 @@
 #define DALI_PIPELINE_OPERATORS_OPERATOR_H_
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-#include <memory>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/workspace/device_workspace.h"
+#include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/operators/operator_factory.h"
 #include "dali/pipeline/operators/op_schema.h"
 #include "dali/pipeline/operators/op_spec.h"
-#include "dali/pipeline/workspace/sample_workspace.h"
+#include "dali/pipeline/operators/operator_factory.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
+#include "dali/pipeline/workspace/device_workspace.h"
+#include "dali/pipeline/workspace/sample_workspace.h"
 
 namespace dali {
 
 template <typename InputType>
-inline void CheckInputLayout(const InputType& input, const OpSpec& spec) {
+inline void CheckInputLayout(const InputType &input, const OpSpec &spec) {
   auto &schema = SchemaRegistry::GetSchema(spec.name());
   if (schema.EnforceInputLayout()) {
     DALI_ENFORCE(input.GetLayout() == schema.InputLayout());
@@ -44,31 +45,29 @@ inline void CheckInputLayout(const InputType& input, const OpSpec& spec) {
 template <typename Workspace>
 inline void CheckInputLayouts(const Workspace *ws, const OpSpec &spec) {
   for (int i = 0; i < spec.NumRegularInput(); ++i) {
-    auto& input = ws->template Input<CPUBackend>(i);
+    auto &input = ws->template Input<CPUBackend>(i);
     CheckInputLayout(input, spec);
   }
 }
-
 
 template <>
 inline void CheckInputLayouts(const HostWorkspace *ws, const OpSpec &spec) {
   for (int i = 0; i < spec.NumRegularInput(); ++i) {
     for (int sample_id = 0; sample_id < spec.GetArgument<int>("batch_size"); ++sample_id) {
-      auto& input = ws->template Input<CPUBackend>(i, sample_id);
+      auto &input = ws->template Input<CPUBackend>(i, sample_id);
       CheckInputLayout(input, spec);
     }
   }
 }
 
-
 template <>
 inline void CheckInputLayouts(const DeviceWorkspace *ws, const OpSpec &spec) {
   for (int i = 0; i < spec.NumRegularInput(); ++i) {
     if (ws->InputIsType<CPUBackend>(i)) {
-      auto& input = ws->Input<CPUBackend>(i);
+      auto &input = ws->Input<CPUBackend>(i);
       CheckInputLayout(input, spec);
     } else if (ws->InputIsType<GPUBackend>(i)) {
-      auto& input = ws->Input<GPUBackend>(i);
+      auto &input = ws->Input<GPUBackend>(i);
       CheckInputLayout(input, spec);
     } else {
       DALI_FAIL("Input has an unkown backend");
@@ -93,6 +92,30 @@ class DLL_PUBLIC OperatorBase {
   }
 
   DLL_PUBLIC virtual inline ~OperatorBase() {}
+
+  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
+    DALI_FAIL("CPU execution is not implemented for this operator!");
+  }
+
+  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
+    DALI_FAIL("GPU execution is not implemented for this operator!");
+  }
+
+  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) {
+    DALI_FAIL("Mixed execution is not implemented for this operator!");
+  }
+
+  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) {
+    DALI_FAIL(name() + " is not a support operator!");
+  }
+
+  /**
+   * @brief If Operator can infer the output shapes it means that its output would use a single
+   * underlying allocation, especailly for CPU TensorVector will use contiguous mode.
+   */
+  DLL_PUBLIC virtual bool CanInferOutputs() {
+    return false;
+  }
 
   /**
    * @brief Executes the operator on a batch of samples on the CPU.
@@ -179,12 +202,27 @@ class Operator<SupportBackend> : public OperatorBase {
 
   inline ~Operator() override {}
 
+  using OperatorBase::Setup;
   using OperatorBase::Run;
+
+  bool Setup(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
+    return SetupImpl(output_desc, ws);
+  }
+
   void Run(SupportWorkspace *ws) override {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     RunImpl(ws);
   }
+
+  /**
+   * @brief Setup of the operator - to be implemented by derived op.
+   *
+   * @param output_desc describe the shape and type of the outputs (for the whole batch)
+   * @param ws
+   * @return true iff the operator specified the output shape and type
+   */
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) = 0;
 
   /**
    * @brief Implementation of the operator - to be
@@ -205,7 +243,12 @@ class Operator<CPUBackend> : public OperatorBase {
 
   inline ~Operator() override {}
 
+  using OperatorBase::Setup;
   using OperatorBase::Run;
+
+  bool Setup(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return SetupImpl(output_desc, ws);
+  }
 
   void Run(HostWorkspace *ws) override {
     CheckInputLayouts(ws, spec_);
@@ -213,6 +256,15 @@ class Operator<CPUBackend> : public OperatorBase {
     RunImpl(ws);
     ws->GetThreadPool().WaitForWork();
   }
+
+  /**
+   * @brief Setup of the operator - to be implemented by derived op.
+   *
+   * @param output_desc describe the shape and type of the outputs (for the whole batch)
+   * @param ws
+   * @return true iff the operator specified the output shape and type
+   */
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) = 0;
 
   /**
    * @brief Legacy implementation of CPU operator using per-sample approach
@@ -261,12 +313,27 @@ class Operator<GPUBackend> : public OperatorBase {
 
   inline ~Operator() override {}
 
+  using OperatorBase::Setup;
   using OperatorBase::Run;
+
+  bool Setup(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    return SetupImpl(output_desc, ws);
+  }
+
   void Run(DeviceWorkspace *ws) override {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     RunImpl(ws);
   }
+
+  /**
+   * @brief Setup of the operator - to be implemented by derived op.
+   *
+   * @param output_desc describe the shape and type of the outputs (for the whole batch)
+   * @param ws
+   * @return true iff the operator specified the output shape and type
+   */
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) = 0;
 
   /**
    * @brief Implementation of the operator - to be
@@ -280,14 +347,29 @@ class Operator<GPUBackend> : public OperatorBase {
   virtual void SetupSharedSampleParams(DeviceWorkspace *ws) {}
 };
 
-template<>
+template <>
 class Operator<MixedBackend> : public OperatorBase {
  public:
   inline explicit Operator(const OpSpec &spec) : OperatorBase(spec) {}
 
   inline ~Operator() override {}
 
+  using OperatorBase::Setup;
   using OperatorBase::Run;
+
+  bool Setup(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    return SetupImpl(output_desc, ws);
+  }
+
+  /**
+   * @brief Setup of the operator - to be implemented by derived op.
+   *
+   * @param output_desc describe the shape and type of the outputs (for the whole batch)
+   * @param ws
+   * @return true iff the operator specified the output shape and type
+   */
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) = 0;
+
   void Run(MixedWorkspace *ws) override = 0;
 
   virtual void SetupSharedSampleParams(MixedWorkspace *ws) {}
@@ -300,12 +382,11 @@ DALI_DECLARE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
 DALI_DECLARE_OPTYPE_REGISTRY(SupportOperator, OperatorBase);
 
 // Must be called from .cc or .cu file
-#define DALI_REGISTER_OPERATOR(OpName, OpType, device)          \
-  int DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();             \
-  static int ANONYMIZE_VARIABLE(OpName) =                       \
-    DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();               \
-  DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,                 \
-      device##Operator, ::dali::OperatorBase, #device)
+#define DALI_REGISTER_OPERATOR(OpName, OpType, device)                                  \
+  int DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();                                     \
+  static int ANONYMIZE_VARIABLE(OpName) = DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName(); \
+  DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType, device##Operator, ::dali::OperatorBase, #device)
+
 
 DLL_PUBLIC std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec);
 

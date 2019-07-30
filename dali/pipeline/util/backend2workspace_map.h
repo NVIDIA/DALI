@@ -62,6 +62,60 @@ class Backend2WorkspaceMap<MixedBackend> {
 template<typename Backend>
 using Workspace = typename Backend2WorkspaceMap<Backend>::Type;
 
+// Actual trait-conventions used, maps as above with exception of CPUBackend -> HostWorkspace
+template <typename Backend>
+struct backend_to_ws {};
+
+template <>
+struct backend_to_ws<SupportBackend> { using type = SampleWorkspace; };
+
+template <>
+struct backend_to_ws<CPUBackend> { using type = HostWorkspace; };
+
+template <>
+struct backend_to_ws<MixedBackend> { using type = MixedWorkspace; };
+
+template <>
+struct backend_to_ws<GPUBackend> { using type = DeviceWorkspace; };
+
+template <typename Backend>
+using workspace_t = typename backend_to_ws<Backend>::type;
+
+template <OpType>
+struct op_to_workspace;
+
+template <>
+struct op_to_workspace<OpType::SUPPORT> { using type = SupportWorkspace; };
+
+template <>
+struct op_to_workspace<OpType::CPU> { using type = HostWorkspace; };
+
+template <>
+struct op_to_workspace<OpType::MIXED> { using type = MixedWorkspace; };
+
+template <>
+struct op_to_workspace<OpType::GPU> { using type = DeviceWorkspace; };
+
+template <OpType op_type>
+using op_to_workspace_t = typename op_to_workspace<op_type>::type;
+
+
+template <typename T>
+struct workspace_to_op;
+
+template <>
+struct workspace_to_op<SupportWorkspace> { static constexpr OpType value = OpType::SUPPORT; };
+
+template <>
+struct workspace_to_op<HostWorkspace> { static constexpr OpType value = OpType::CPU; };
+
+template <>
+struct workspace_to_op<MixedWorkspace> { static constexpr OpType value = OpType::MIXED; };
+
+template <>
+struct workspace_to_op<DeviceWorkspace> { static constexpr OpType value = OpType::GPU; };
+
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_UTIL_BACKEND2WORKSPACE_MAP_H_

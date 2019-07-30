@@ -293,6 +293,10 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
       : Operator<CPUBackend>(spec) {
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<CPUBackend>* ws) override {
     auto &input = ws->Input<CPUBackend>(0);
     auto &output = ws->Output<CPUBackend>(0);
@@ -309,6 +313,10 @@ class DummyPresizeOpGPU : public Operator<GPUBackend> {
  public:
   explicit DummyPresizeOpGPU(const OpSpec &spec)
       : Operator<GPUBackend>(spec) {
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    return false;
   }
 
   void RunImpl(Workspace<GPUBackend>* ws) override {
@@ -328,6 +336,10 @@ class DummyPresizeOpMixed : public Operator<MixedBackend> {
  public:
   explicit DummyPresizeOpMixed(const OpSpec &spec)
       : Operator<MixedBackend>(spec) {
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    return false;
   }
 
   using Operator<MixedBackend>::Run;
@@ -680,6 +692,10 @@ class DummyOpToAdd : public Operator<CPUBackend> {
  public:
   explicit DummyOpToAdd(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
   void RunImpl(HostWorkspace *ws) override {}
 };
 
@@ -694,6 +710,10 @@ DALI_SCHEMA(DummyOpToAdd)
 class DummyOpNoSync : public Operator<CPUBackend> {
  public:
   explicit DummyOpNoSync(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
 
   void RunImpl(HostWorkspace *ws) override {}
 };

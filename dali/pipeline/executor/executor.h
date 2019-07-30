@@ -140,6 +140,51 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   void SetupOutputQueuesForGraph();
 
+  template <typename Workspace>
+  void RunHelper(OperatorBase &op, Workspace &ws) {
+    constexpr size_t stage_id = static_cast<size_t>(workspace_to_op<Workspace>::value);
+    output_desc_[stage_id].clear();
+    if (op.Setup(output_desc_[stage_id], ws)) {
+      DALI_ENFORCE(
+          static_cast<size_t>(ws.NumOutput()) == output_desc_[stage_id].size(),
+          "Operator::Setup returned shape and type information for mismatched number of outputs");
+      for (int i = 0; i < ws.NumOutput(); i++) {
+        auto &desc = output_desc_[stage_id][i];
+        if (ws.template OutputIsType<CPUBackend>(i)) {
+          ws.template OutputRef<CPUBackend>(i).Resize(desc.shape);
+          ws.template OutputRef<CPUBackend>(i).set_type(desc.type);
+        } else {
+          ws.template OutputRef<GPUBackend>(i).Resize(desc.shape);
+          ws.template OutputRef<GPUBackend>(i).set_type(desc.type);
+        }
+      }
+    }
+    op.Run(&ws);
+  }
+
+  void RunHelper(OperatorBase &op, SupportWorkspace &ws) {
+    size_t stage_id = static_cast<size_t>(OpType::SUPPORT);
+    output_desc_[stage_id].clear();
+    if (op.Setup(output_desc_[stage_id], ws)) {
+      DALI_ENFORCE(
+          static_cast<size_t>(ws.NumOutput()) == output_desc_[stage_id].size(),
+          "Operator::Setup returned shape and type information for mismatched number of outputs.");
+      for (int i = 0; i < ws.NumOutput(); i++) {
+        auto &desc = output_desc_[stage_id][i];
+        DALI_ENFORCE(desc.shape.size() == 1,
+                     "Support op should provide shape information for only one tensor.");
+        if (ws.template OutputIsType<CPUBackend>(i)) {
+          ws.template OutputRef<CPUBackend>(i).Resize(desc.shape[0]);
+          ws.template OutputRef<CPUBackend>(i).set_type(desc.type);
+        } else {
+          ws.template OutputRef<GPUBackend>(i).Resize(desc.shape[0]);
+          ws.template OutputRef<GPUBackend>(i).set_type(desc.type);
+        }
+      }
+    }
+    op.Run(&ws);
+  }
+
   class EventList {
    public:
     inline EventList() {}
@@ -208,6 +253,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // To introduce dependency from MIXED stage to GPU stage for callback only
   // in some edge cases where there are no operators
   std::vector<cudaEvent_t> mixed_callback_events_;
+  // Used by RunHelper, one set for every stage
+  std::vector<OutputDesc> output_desc_[static_cast<size_t>(OpType::COUNT)];
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -299,7 +346,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
           WorkspacePolicy::template GetWorkspace<OpType::SUPPORT>(support_idxs, *graph_, i);
       TimeRange tr("[Executor] Run Support op " + op_node.instance_name,
           TimeRange::kCyan);
-      op.Run(&ws);
+      RunHelper(op, ws);
     }
   } catch (std::exception &e) {
     HandleError(e.what());
@@ -325,7 +372,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
     OperatorBase &op = *op_node->op;
 
     try {
-      op.Run(&ws);
+      RunHelper(op, ws);
     } catch (std::exception &e) {
       HandleError(e.what());
     } catch (...) {
@@ -356,7 +403,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
           WorkspacePolicy::template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
       TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
           TimeRange::kOrange);
-      op.Run(&ws);
+      RunHelper(op, ws);
       if (ws.has_stream() && ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
@@ -411,7 +458,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
 
       TimeRange tr("[Executor] Run GPU op " + op_node.instance_name,
           TimeRange::knvGreen);
-      op.Run(&ws);
+      RunHelper(op, ws);
       if (ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
@@ -659,7 +706,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
               tensor_to_store_queue[tensor.id]);
           for (auto storage : queue) {
             if (hint && storage->is_pinned()) {
-              storage->reserve(hint, batch_size_);
+              if (node.op->CanInferOutputs()) {
+                storage->reserve(hint * batch_size_);
+              } else {
+                storage->reserve(hint, batch_size_);
+              }
+            }
+            if (node.op->CanInferOutputs()) {
+              storage->SetContiguous(true);
             }
           }
         } else {
@@ -667,7 +721,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
               tensor_to_store_queue[tensor.id]);
           for (auto storage : queue) {
             if (hint) {
-              storage->reserve(hint, batch_size_);
+              if (node.op->CanInferOutputs()) {
+                storage->reserve(hint * batch_size_);
+              } else {
+                storage->reserve(hint, batch_size_);
+              }
+            }
+            if (node.op->CanInferOutputs()) {
+              storage->SetContiguous(true);
             }
           }
         }

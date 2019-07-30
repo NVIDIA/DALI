@@ -62,6 +62,10 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
     }
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    return false;
+  }
+
   using dali::OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
     std::vector<std::vector<Index>> output_shape(batch_size_);
