@@ -80,7 +80,7 @@ class CUVideoParser {
       parser_extinfo_.format.seqhdr_data_length = hdr_size;
       memcpy(parser_extinfo_.raw_seqhdr_data, extradata, hdr_size);
     }
-    CUDA_CALL(cuvidCreateVideoParser(&parser_, &parser_info_));
+    NVCUVID_CALL(cuvidCreateVideoParser(&parser_, &parser_info_));
     initialized_ = true;
   }
 
@@ -91,7 +91,7 @@ class CUVideoParser {
 
   ~CUVideoParser() {
     if (initialized_) {
-      CUDA_CALL(cuvidDestroyVideoParser(parser_));
+      NVCUVID_CALL(cuvidDestroyVideoParser(parser_));
     }
   }
 
@@ -104,7 +104,7 @@ class CUVideoParser {
 
   CUVideoParser& operator=(CUVideoParser&& other) {
     if (initialized_) {
-      CUDA_CALL(cuvidDestroyVideoParser(parser_));
+      NVCUVID_CALL(cuvidDestroyVideoParser(parser_));
     }
     parser_ = other.parser_;
     parser_info_ = other.parser_info_;

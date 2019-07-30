@@ -119,7 +119,7 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt) {
   }
 
   // parser_ will call handle_* callbacks after parsing
-  CUDA_CALL(cuvidParseVideoData(parser_, &cupkt));
+  NVCUVID_CALL(cuvidParseVideoData(parser_, &cupkt));
   return 0;
 }
 
@@ -186,7 +186,7 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
            << std::endl;
 
   // decoder_ operator () returns a CUvideodecoder
-  CUDA_CALL(cuvidDecodePicture(decoder_, pic_params));
+  NVCUVID_CALL(cuvidDecodePicture(decoder_, pic_params));
   return kNvcuvid_success;
 }
 
@@ -208,7 +208,7 @@ NvDecoder::MappedFrame::MappedFrame(CUVIDPARSERDISPINFO* disp_info,
   params_.second_field = 0;
   params_.output_stream = stream;
 
-  CUDA_CALL(cuvidMapVideoFrame(decoder_, disp_info->picture_index,
+  NVCUVID_CALL(cuvidMapVideoFrame(decoder_, disp_info->picture_index,
                                 &ptr_, &pitch_, &params_));
   valid_ = true;
 }
@@ -222,7 +222,7 @@ NvDecoder::MappedFrame::MappedFrame(MappedFrame&& other)
 
 NvDecoder::MappedFrame::~MappedFrame() {
   if (valid_) {
-    CUDA_CALL(cuvidUnmapVideoFrame(decoder_, ptr_));
+    NVCUVID_CALL(cuvidUnmapVideoFrame(decoder_, ptr_));
   }
 }
 
