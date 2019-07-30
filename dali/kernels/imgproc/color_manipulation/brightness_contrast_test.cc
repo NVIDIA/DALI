@@ -67,6 +67,7 @@ cv::Mat_<T> to_mat(T *ptr, Roi roi, int rows, int cols) {
   return roimat;
 }
 
+
 }  // namespace brightness_contrast
 
 
@@ -81,7 +82,7 @@ class BrightnessContrastTest : public ::testing::Test {
   void SetUp() final {
     std::mt19937_64 rng;
     UniformRandomFill(input_, rng, 0., 10.);
-    calc_output();
+    calc_output<typename InputOutputTypes::out>();
     ref_out_tv_ = make_tensor_cpu(ref_output_.data(), shape_);
   }
 
@@ -95,7 +96,16 @@ class BrightnessContrastTest : public ::testing::Test {
   static constexpr size_t ndims = 3;
 
 
-  void calc_output() {
+  template <typename OutputType>
+  std::enable_if_t<std::is_integral<OutputType>::value> calc_output() {
+    for (auto in : input_) {
+      ref_output_.push_back(std::round(in * contrast_ + brightness_));
+    }
+  }
+
+
+  template <typename OutputType>
+  std::enable_if_t<!std::is_integral<OutputType>::value> calc_output() {
     for (auto in : input_) {
       ref_output_.push_back(in * contrast_ + brightness_);
     }
@@ -150,7 +160,9 @@ TYPED_TEST(BrightnessContrastTest, RunTest) {
                                                    out_shape.template to_static<ndims>());
 
   kernel.Run(ctx, out, in, this->brightness_, this->contrast_);
-  Check(this->ref_out_tv_, out);
+  for (int i = 0; i < out.num_elements(); i++) {
+    EXPECT_FLOAT_EQ(this->ref_out_tv_.data[i], out.data[i]) << "Failed at idx: " << i;
+  }
 }
 
 
@@ -177,7 +189,7 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
   ASSERT_EQ(mat.rows * mat.cols, out.num_elements()) << "Number of elements doesn't match";
   auto ptr = reinterpret_cast<typename TypeParam::out *>(mat.data);
   for (int i = 0; i < out.num_elements(); i++) {
-    EXPECT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
+    EXPECT_FLOAT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
   }
 }
 
