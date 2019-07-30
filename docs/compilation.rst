@@ -24,7 +24,7 @@ Prerequisites
 Building Python wheel and (optionally) Docker image
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Change directory (``cd``) into Docker directory and run ``./build.sh``. If needed, set the following environment variables:
+Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed, set the following environment variables:
 
 * PYVER - Python version. Default is ``2.7``.
 * CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). Default is ``10``.
