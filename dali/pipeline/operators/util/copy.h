@@ -32,7 +32,7 @@ class Copy : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Copy);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 };
 
 }  // namespace dali

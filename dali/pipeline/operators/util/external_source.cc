@@ -17,9 +17,9 @@
 namespace dali {
 
 template<>
-void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace *ws) {
   // Wrap the output tensor around our data
-  auto &output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(0);
   cudaStream_t stream = ws->has_stream() ? ws->stream() : 0;
   if (data_in_tl_) {
     DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(tl_data_.ntensor()),

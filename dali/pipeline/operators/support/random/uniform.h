@@ -41,7 +41,7 @@ class Uniform : public Operator<SupportBackend> {
   using Operator<SupportBackend>::RunImpl;
 
  protected:
-  void RunImpl(Workspace<SupportBackend> * ws, const int idx) override;
+  void RunImpl(Workspace<SupportBackend> * ws) override;
 
  private:
   std::uniform_real_distribution<float> dis_;

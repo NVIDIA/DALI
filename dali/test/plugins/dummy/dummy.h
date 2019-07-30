@@ -31,7 +31,7 @@ class Dummy : public ::dali::Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Dummy);
 
  protected:
-  void RunImpl(::dali::Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(::dali::Workspace<Backend> *ws) override;
 };
 
 }  // namespace other_ns

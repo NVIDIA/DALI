@@ -208,6 +208,31 @@ def test_pipeline_simple_sync_no_prefetch():
     for _ in range(n_iters):
         out = pipe.run()
 
+def test_use_twice():
+    batch_size = 128
+    class Pipe(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus):
+            super(Pipe, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+            self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+            self.res = ops.Resize(device="cpu", resize_x=224, resize_y=224)
+
+        def define_graph(self):
+            inputs, labels = self.input(name="Reader")
+            images = self.decode(inputs)
+            images0 = self.res(images)
+            images1 = self.res(images)
+            return (images0, images1)
+
+    pipe = Pipe(batch_size=batch_size, num_threads=1, device_id = 0, num_gpus = 1)
+    pipe.build()
+    out = pipe.run()
+    assert(out[0].is_dense_tensor())
+    assert(out[1].is_dense_tensor())
+    assert(out[0].as_tensor().shape() == out[1].as_tensor().shape())
+    for i in range(batch_size):
+        assert(np.array_equal(out[0].at(i), out[0].at(i)))
+
 def test_cropmirrornormalize_layout():
     batch_size = 128
     class HybridPipe(Pipeline):

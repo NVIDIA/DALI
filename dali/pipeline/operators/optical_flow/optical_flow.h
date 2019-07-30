@@ -86,7 +86,7 @@ class OpticalFlow : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(OpticalFlow);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
 
  private:

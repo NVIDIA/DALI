@@ -22,11 +22,11 @@ typedef NppStatus (*colorTwistFunc)(const Npp8u *pSrc, int nSrcStep, Npp8u *pDst
                                     NppiSize oSizeROI, const Npp32f aTwist[3][4]);
 
 template <>
-void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<GPUBackend>(idx);
+void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+  const auto &input = ws->Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8_t>(input.type()),
       "Color augmentations accept only uint8 tensors");
-  auto &output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(0);
   output.ResizeLike(input);
 
   cudaStream_t old_stream = nppGetStream();

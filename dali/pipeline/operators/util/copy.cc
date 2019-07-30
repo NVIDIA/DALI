@@ -17,9 +17,9 @@
 namespace dali {
 
 template<>
-void Copy<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
+void Copy<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+  auto &input = ws->Input<CPUBackend>(0);
+  auto &output = ws->Output<CPUBackend>(0);
   output.set_type(input.type());
   output.SetLayout(input.GetLayout());
   output.ResizeLike(input);

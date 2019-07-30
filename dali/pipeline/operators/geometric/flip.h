@@ -32,7 +32,7 @@ class Flip: public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Flip);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   int GetHorizontal(const ArgumentWorkspace *ws, int idx) {
     return this->spec_.template GetArgument<int>("horizontal", ws, idx);

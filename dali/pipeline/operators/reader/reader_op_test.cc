@@ -86,7 +86,7 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   }
   */
 
-  void RunImpl(SampleWorkspace* ws, int idx) override {
+  void RunImpl(SampleWorkspace* ws) override {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
     ws->Output<CPUBackend>(0).Copy(GetSample(ws->data_idx()), 0);

@@ -90,7 +90,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     }
   }
 
-  void RunImpl(SampleWorkspace *ws, const int idx) {
+  void RunImpl(SampleWorkspace *ws) {
     const int data_idx = ws->data_idx();
     const auto& in = ws->Input<CPUBackend>(0);
     const auto *input_data = in.data<uint8_t>();

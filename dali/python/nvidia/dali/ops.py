@@ -115,53 +115,20 @@ class _OperatorInstance(object):
             self._name = '__' + type(op).__name__ + "_" + str(self._counter.id)
         # Add inputs
         if inputs:
-            if isinstance(inputs[0], EdgeReference):
-                for inp in inputs:
-                    if not isinstance(inp, EdgeReference):
-                        raise TypeError(
-                            ("Expected inputs of type " +
-                            "EdgeReference. Received " +
-                            "input type {}.")
-                            .format(type(inp).__name__))
-                    self._spec.AddInput(inp.name, inp.device)
-            elif isinstance(inputs[0], list):
-                length = len(inputs[0])
-                for i in range(length):
-                    for inp in inputs:
-                        if not isinstance(inp, list):
-                            raise TypeError(
-                                ("Expected inputs of type list of " +
-                                "EdgeReference. Received " +
-                                "input type {}.")
-                                .format(type(inp).__name__))
-                        if len(inp) != length:
-                            raise RuntimeError(
-                                    ("Expected input lists " +
-                                    "to have the same length " +
-                                    "({}). Received list of " +
-                                    "length {}.")
-                                    .format(length, len(inp)))
-                        if not isinstance(inp[i], EdgeReference):
-                            raise TypeError(
-                                ("Expected inputs of type " +
-                                "EdgeReference. Received " +
-                                "input type {}.")
-                                .format(type(inp[i]).__name__))
-                        self._spec.AddInput(inp[i].name, inp[i].device)
-                self._spec.AddArg("num_input_sets", length)
-            else:
-                raise TypeError(
-                    ("Expected inputs of type EdgeReference or list of " +
-                    "EdgeReference. Received input type {}")
-                    .format(type(inputs[0]).__name__))
+            for inp in inputs:
+                if not isinstance(inp, EdgeReference):
+                    raise TypeError(
+                        "Expected inputs of type 'EdgeReference'. Received input of type '{}'."
+                        .format(type(inp).__name__))
+                self._spec.AddInput(inp.name, inp.device)
         # Argument inputs
         for k in sorted(kwargs.keys()):
             if k not in ["name"]:
                 if not isinstance(kwargs[k], EdgeReference):
                     raise TypeError(
                             ("Expected inputs of type " +
-                            "EdgeReference. Received " +
-                            "input type {}")
+                            "'EdgeReference'. Received " +
+                            "input of type '{}'.")
                             .format(type(kwargs[k]).__name__))
                 self._spec.AddArgumentInput(k, kwargs[k].name)
                 self._inputs = list(self._inputs) + [kwargs[k]]
@@ -526,7 +493,12 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
                         self._schema.MinNumInput(),
                         self._schema.MaxNumInput(),
                         len(inputs)))
-
+        for inp in inputs:
+            if not isinstance(inp, EdgeReference):
+                  raise TypeError(
+                      ("Expected inputs of type 'EdgeReference'. Received input of type '{}'. "+
+                      "Python Operator does not support Multiple Input Sets.")
+                      .format(type(inp).__name__))
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)

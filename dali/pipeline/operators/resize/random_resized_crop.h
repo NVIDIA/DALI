@@ -52,7 +52,7 @@ class RandomResizedCrop : public Operator<Backend>
   using Operator<Backend>::RunImpl;
 
  protected:
-  void RunImpl(Workspace<Backend> * ws, const int idx) override;
+  void RunImpl(Workspace<Backend> * ws) override;
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:

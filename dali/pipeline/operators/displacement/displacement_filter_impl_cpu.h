@@ -106,27 +106,27 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     Warp<interp, per_channel_transform>(out, in, displace, fill);
   }
 
-  void RunImpl(SampleWorkspace *ws, const int idx) override {
-    DataDependentSetup(ws, idx);
+  void RunImpl(SampleWorkspace *ws) override {
+    DataDependentSetup(ws);
 
-    auto &input = ws->Input<CPUBackend>(idx);
+    auto &input = ws->Input<CPUBackend>(0);
 
     if (!has_mask_ || mask_->template data<bool>()[ws->data_idx()]) {
       switch (interp_type_) {
         case DALI_INTERP_NN:
           if (IsType<float>(input.type())) {
-            RunWarp<float, float, DALI_INTERP_NN>(ws, idx);
+            RunWarp<float, float, DALI_INTERP_NN>(ws, 0);
           } else if (IsType<uint8_t>(input.type())) {
-            RunWarp<uint8_t, uint8_t, DALI_INTERP_NN>(ws, idx);
+            RunWarp<uint8_t, uint8_t, DALI_INTERP_NN>(ws, 0);
           } else {
             DALI_FAIL("Unexpected input type " + input.type().name());
           }
           break;
         case DALI_INTERP_LINEAR:
           if (IsType<float>(input.type())) {
-            RunWarp<float, float, DALI_INTERP_LINEAR>(ws, idx);
+            RunWarp<float, float, DALI_INTERP_LINEAR>(ws, 0);
           } else if (IsType<uint8_t>(input.type())) {
-            RunWarp<uint8_t, uint8_t, DALI_INTERP_LINEAR>(ws, idx);
+            RunWarp<uint8_t, uint8_t, DALI_INTERP_LINEAR>(ws, 0);
           } else {
             DALI_FAIL("Unexpected input type " + input.type().name());
           }
@@ -137,7 +137,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
               " only NN and LINEAR are supported for this operation");
       }
     } else {
-      auto &output = ws->Output<CPUBackend>(idx);
+      auto &output = ws->Output<CPUBackend>(0);
       output.Copy(input, ws->stream());
     }
   }
@@ -157,9 +157,9 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
    * @brief Do basic input checking and output setup
    * assuming output_shape = input_shape
    */
-  virtual void DataDependentSetup(SampleWorkspace *ws, const int idx) {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto &output = ws->Output<CPUBackend>(idx);
+  virtual void DataDependentSetup(SampleWorkspace *ws) {
+    auto &input = ws->Input<CPUBackend>(0);
+    auto &output = ws->Output<CPUBackend>(0);
     output.ResizeLike(input);
   }
 

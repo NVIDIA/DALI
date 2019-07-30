@@ -18,9 +18,9 @@
 namespace dali {
 
 template<>
-void Cast<CPUBackend>::RunImpl(SampleWorkspace *ws, int idx) {
-  auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
+void Cast<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+  auto &input = ws->Input<CPUBackend>(0);
+  auto &output = ws->Output<CPUBackend>(0);
 
   DALIDataType itype = input.type().id();
 
@@ -40,7 +40,6 @@ DALI_SCHEMA(Cast)
   .DocStr("Cast tensor to a different type")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AddArg("dtype",
       R"code(Output data type.)code",
       DALI_DATA_TYPE);

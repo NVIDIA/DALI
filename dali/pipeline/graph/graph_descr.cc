@@ -47,31 +47,22 @@ bool AllOutputsGPU(const OpSpec &spec) {
 void CheckOpConstraints(const OpSpec &spec) {
   const OpSchema &schema = SchemaRegistry::GetSchema(spec.name());
 
-  bool allows_multiple_inputs_sets = schema.AllowsMultipleInputSets();
   const int additional_outputs = schema.CalculateAdditionalOutputs(spec);
-
-  int num_input_sets = 1;
-  if (allows_multiple_inputs_sets) {
-    num_input_sets = spec.GetArgument<int>("num_input_sets");
-  } else {
-    DALI_ENFORCE(spec.GetArgument<int>("num_input_sets") == 1,
-        "Op '" + spec.name() + "' does not support multiple input sets.");
-  }
 
   DALI_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
       "Op '" + spec.name() + "' does not support in-place execution.");
-  DALI_ENFORCE(spec.NumRegularInput() <= num_input_sets * schema.MaxNumInput(),
+  DALI_ENFORCE(spec.NumRegularInput() <= schema.MaxNumInput(),
       "Operator '" + spec.name() +
       "' supports a maximum of " + std::to_string(schema.MaxNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
-  DALI_ENFORCE(spec.NumRegularInput() >= num_input_sets * schema.MinNumInput(),
+  DALI_ENFORCE(spec.NumRegularInput() >= schema.MinNumInput(),
       "Operator '" + spec.name() +
       "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
   DALI_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec) + additional_outputs,
       "Operator '" + spec.name() + "' supports "
-      + std::to_string((schema.CalculateOutputs(spec) + additional_outputs)/num_input_sets)
-      + " outputs, but was passed " + std::to_string(spec.NumOutput()/num_input_sets) + ".");
+      + std::to_string(schema.CalculateOutputs(spec) + additional_outputs)
+      + " outputs, but was passed " + std::to_string(spec.NumOutput()) + ".");
 }
 
 OpType ParseOpType(const std::string &device) {

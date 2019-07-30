@@ -18,10 +18,10 @@
 namespace dali {
 
 template <>
-void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, int idx) {
-  const auto &images = ws->Input<GPUBackend>(3 * idx);
-  const auto &anchor_tensor = ws->Input<CPUBackend>(3 * idx + 1);
-  const auto &slice_shape_tensor = ws->Input<CPUBackend>(3 * idx + 2);
+void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws) {
+  const auto &images = ws->Input<GPUBackend>(kImagesInId);
+  const auto &anchor_tensor = ws->Input<CPUBackend>(kAnchorsInId);
+  const auto &slice_shape_tensor = ws->Input<CPUBackend>(kSliceShapesInId);
   for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
     const auto img_shape = images.tensor_shape(sample_idx);
     const auto args_ndims = anchor_tensor.tensor_shape(sample_idx)[0];
@@ -33,8 +33,8 @@ void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, int idx) {
 }
 
 template <>
-void Slice<GPUBackend>::RunImpl(DeviceWorkspace *ws, int idx) {
-  SliceBase<GPUBackend>::RunImpl(ws, idx);
+void Slice<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+  SliceBase<GPUBackend>::RunImpl(ws);
 }
 
 DALI_REGISTER_OPERATOR(Slice, Slice<GPUBackend>, GPU);

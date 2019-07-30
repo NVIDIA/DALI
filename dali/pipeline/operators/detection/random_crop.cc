@@ -176,7 +176,7 @@ void crop(const Tensor<CPUBackend>& img, vector<int> bounds, Tensor<CPUBackend>&
 }  // namespace detail
 
 template <>
-void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
   // [H, W, C], dtype=uint8_t
   const auto& img = ws->Input<CPUBackend>(0);
   // [N] : [ltrb, ... ], dtype=float

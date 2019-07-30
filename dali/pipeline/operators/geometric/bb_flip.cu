@@ -66,9 +66,9 @@ __global__ void BbFlipKernel(float *output, const float *input, size_t num_boxes
 }
 
 
-void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, int idx) {
-  auto &input = ws->Input<GPUBackend>(idx);
-  auto&output = ws->Output<GPUBackend>(idx);
+void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
+  auto &input = ws->Input<GPUBackend>(0);
+  auto&output = ws->Output<GPUBackend>(0);
 
   DALI_ENFORCE(IsType<float>(input.type()), "Expected input data as float;"
                " got " + input.type().name());

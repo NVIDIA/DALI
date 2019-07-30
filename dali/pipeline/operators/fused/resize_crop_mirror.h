@@ -220,13 +220,13 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
     per_thread_meta_[ws->thread_idx()] = GetTransfomMeta(ws, spec_);
   }
 
-  inline void RunImpl(SampleWorkspace *ws, const int idx) override {
-    RunResizeImpl(ws, idx, ResizeCropMirrorHost);
+  inline void RunImpl(SampleWorkspace *ws) override {
+    RunResizeImpl(ws, ResizeCropMirrorHost);
   }
 
-  inline void RunResizeImpl(SampleWorkspace *ws, const int idx, resizeCropMirroHost func) {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto &output = ws->Output<CPUBackend>(idx);
+  inline void RunResizeImpl(SampleWorkspace *ws, resizeCropMirroHost func) {
+    auto &input = ws->Input<CPUBackend>(0);
+    auto &output = ws->Output<CPUBackend>(0);
     CheckParam(input, "ResizeCropMirror");
 
     const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
@@ -241,7 +241,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
         meta.H, meta.W, meta.C,
         meta.rsz_h, meta.rsz_w,
         meta.crop,
-        crop_height_[idx], crop_width_[idx],
+        crop_height_[0], crop_width_[0],
         meta.mirror,
         output.template mutable_data<uint8>(),
         interp_type_,
@@ -267,8 +267,8 @@ class FastResizeCropMirror : public ResizeCropMirror<CPUBackend> {
   inline ~FastResizeCropMirror() override = default;
 
  protected:
-  inline void RunImpl(SampleWorkspace *ws, const int idx) override {
-    RunResizeImpl(ws, idx, FastResizeCropMirrorHost);
+  inline void RunImpl(SampleWorkspace *ws) override {
+    RunResizeImpl(ws, FastResizeCropMirrorHost);
   }
 };
 

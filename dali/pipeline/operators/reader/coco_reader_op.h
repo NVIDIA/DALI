@@ -53,7 +53,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     parser_.reset(new COCOParser(spec, annotations_multimap_));
   }
 
-  void RunImpl(SampleWorkspace* ws, const int i) override {
+  void RunImpl(SampleWorkspace* ws) override {
     parser_->Parse(GetSample(ws->data_idx()), ws);
   }
 

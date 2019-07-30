@@ -67,7 +67,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 
  protected:
-  void RunImpl(Workspace<GPUBackend> *ws, const int idx) override;
+  void RunImpl(Workspace<GPUBackend> *ws) override;
 
  private:
   static constexpr int kBoxesOutputDim = 2;
@@ -100,6 +100,11 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
 
   int *CalculateBoxesOffsets(
     const TensorList<GPUBackend> &boxes_input, const cudaStream_t &stream);
+
+  static const int kBoxesInId = 0;
+  static const int kLabelsInId = 1;
+  static const int kBoxesOutId = 0;
+  static const int kLabelsOutId = 1;
 };
 }  // namespace dali
 

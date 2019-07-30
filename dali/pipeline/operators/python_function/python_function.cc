@@ -21,7 +21,6 @@ namespace dali {
 DALI_SCHEMA(PythonFunctionImpl)
         .DocStr(R"code(This is an auxiliary operator. Use PythonFunction instead.)code")
         .NumInput(0, 256)
-        .AllowMultipleInputSets()
         .AddArg("function_id", R"code(Id of the python function)code", DALI_INT64)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
         .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
@@ -31,7 +30,6 @@ DALI_SCHEMA(PythonFunctionImpl)
 DALI_SCHEMA(PythonFunction)
         .DocStr("Executes a python function")
         .NumInput(0, 256)
-        .AllowMultipleInputSets()
         .AddArg("function",
                 R"code(Function object consuming and producing numpy arrays.)code",
                 DALI_PYTHON_OBJECT)
@@ -41,7 +39,6 @@ DALI_SCHEMA(PythonFunction)
 DALI_SCHEMA(TorchPythonFunction)
         .DocStr("Executes a function operating on Torch tensors")
         .NumInput(0, 256)
-        .AllowMultipleInputSets()
         .AddArg("function",
                 R"code(Function object consuming and producing Torch tensors.)code",
                 DALI_PYTHON_OBJECT)
@@ -71,10 +68,10 @@ void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, py::array &array) {
       buffer_info.strides, shape, buffer_info.itemsize);
 }
 
-py::list PrepareInputList(SampleWorkspace *ws, int idx) {
+py::list PrepareInputList(SampleWorkspace *ws) {
   py::list args_list;
   for (int i = 0; i < ws->NumInput(); ++i) {
-    auto &input = ws->Input<CPUBackend>(ws->NumInput() * idx + i);
+    auto &input = ws->Input<CPUBackend>(i);
     py::dtype dtype(FormatStrFromType(input.type()));
     auto input_array = py::array(dtype, input.shape(), input.raw_data(), py::array());
     args_list.append(input_array);
@@ -82,9 +79,9 @@ py::list PrepareInputList(SampleWorkspace *ws, int idx) {
   return args_list;
 }
 
-void CopyOutputs(SampleWorkspace *ws, int idx, const py::tuple &output) {
+void CopyOutputs(SampleWorkspace *ws, const py::tuple &output) {
   for (int i = 0; i < ws->NumOutput(); ++i) {
-    auto &output_tensor = ws->Output<CPUBackend>(ws->NumInput() * idx + i);
+    auto &output_tensor = ws->Output<CPUBackend>(i);
     auto output_array = py::cast<py::array>(output[i]);
     CopyNumpyArrayToTensor(output_tensor, output_array);
   }
@@ -93,10 +90,10 @@ void CopyOutputs(SampleWorkspace *ws, int idx, const py::tuple &output) {
 static std::mutex operator_lock{};
 
 template<>
-void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
+void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws) {
   std::lock_guard<std::mutex> operator_guard(operator_lock);
   py::gil_scoped_acquire interpreter_guard{};
-  py::list args_list = PrepareInputList(ws, idx);
+  py::list args_list = PrepareInputList(ws);
   py::object output_o;
   try {
     output_o = python_function(*py::tuple(args_list));
@@ -108,7 +105,7 @@ void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx)
     DALI_ENFORCE(output.size() == static_cast<size_t>(ws->NumOutput()),
                  "Python function returned " + std::to_string(output.size()) + " outputs and "
                      + std::to_string(ws->NumOutput()) + " were expected.");
-    CopyOutputs(ws, idx, output);
+    CopyOutputs(ws, output);
   } else {
     DALI_ENFORCE(ws->NumOutput() == 0, "Python function returned 0 outputs and "
         + std::to_string(ws->NumOutput()) + " were expected.");

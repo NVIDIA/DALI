@@ -24,7 +24,6 @@ DALI_SCHEMA(Sphere)
     .DocStr("Perform a sphere augmentation.")
     .NumInput(1)
     .NumOutput(1)
-    .AllowMultipleInputSets()
     .AddParent("DisplacementFilter");
 
 }  // namespace dali

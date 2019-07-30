@@ -104,9 +104,9 @@ Values >= 0 are accepted. For example:
     .AddParent("ColorTransformBase");
 
 template <>
-void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
+void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+  const auto &input = ws->Input<CPUBackend>(0);
+  auto &output = ws->Output<CPUBackend>(0);
   const auto &input_shape = input.shape();
 
   CheckParam(input, "Color augmentation");

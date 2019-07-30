@@ -32,7 +32,7 @@ class BBoxPaste : public Operator<Backend> {
 
  protected:
   bool use_ltrb_ = false;
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;

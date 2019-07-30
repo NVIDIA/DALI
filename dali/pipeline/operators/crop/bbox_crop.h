@@ -98,7 +98,7 @@ class RandomBBoxCrop : public Operator<Backend> {
   ~RandomBBoxCrop() override = default;
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop) const;
 

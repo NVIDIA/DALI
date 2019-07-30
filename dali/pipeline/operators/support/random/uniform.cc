@@ -19,9 +19,8 @@
 
 namespace dali {
 
-void Uniform::RunImpl(SupportWorkspace * ws, const int idx) {
-  DALI_ENFORCE(idx == 0, "Uniform does not support multiple input sets.");
-  auto &output = ws->Output<CPUBackend>(idx);
+void Uniform::RunImpl(SupportWorkspace * ws) {
+  auto &output = ws->Output<CPUBackend>(0);
   output.Resize({batch_size_});
 
   float * out_data = output.template mutable_data<float>();

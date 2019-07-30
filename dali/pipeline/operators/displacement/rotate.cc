@@ -24,7 +24,6 @@ DALI_SCHEMA(Rotate)
     .DocStr("Rotate the image.")
     .NumInput(1)
     .NumOutput(1)
-    .AllowMultipleInputSets()
     .AddArg("angle",
         R"code(Counterclockwise rotation angle, in degrees.)code", DALI_FLOAT, true)
     .AddParent("DisplacementFilter");

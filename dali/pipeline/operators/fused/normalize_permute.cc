@@ -17,9 +17,9 @@
 namespace dali {
 
   template<>
-  void NormalizePermute<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-    const auto &input = ws->Input<CPUBackend>(idx);
-    auto &output = ws->Output<CPUBackend>(idx);
+  void NormalizePermute<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+    const auto &input = ws->Input<CPUBackend>(0);
+    auto &output = ws->Output<CPUBackend>(0);
 
     DALI_ENFORCE(IsType<uint8>(input.type()));
     DALI_ENFORCE(input.ndim() == 3,
@@ -76,7 +76,6 @@ instead, which implements a faster algorithm and does not require height and wid
 )code")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .Deprecate("CropMirrorNormalize")
   .AddOptionalArg("output_dtype",
       R"code(Output data type.)code", DALI_FLOAT)

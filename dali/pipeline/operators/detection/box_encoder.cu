@@ -270,9 +270,9 @@ int *BoxEncoder<GPUBackend>::CalculateBoxesOffsets(
   return offsets_data;
 }
 
-void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
-  const auto &boxes_input = ws->Input<GPUBackend>(0);
-  const auto &labels_input = ws->Input<GPUBackend>(1);
+void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
+  const auto &boxes_input = ws->Input<GPUBackend>(kBoxesInId);
+  const auto &labels_input = ws->Input<GPUBackend>(kLabelsInId);
 
   const auto anchors_data = reinterpret_cast<const float4 *>(anchors_.data<float>());
   const auto anchors_as_cwh_data =
@@ -285,12 +285,12 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws, const int idx) {
   auto boxes_offsets_data = CalculateBoxesOffsets(boxes_input, ws->stream());
   auto dims = CalculateDims(boxes_input);
 
-  auto &boxes_output = ws->Output<GPUBackend>(0);
+  auto &boxes_output = ws->Output<GPUBackend>(kBoxesOutId);
   boxes_output.set_type(boxes_input.type());
   boxes_output.Resize(dims.first);
   auto boxes_out_data = reinterpret_cast<float4 *>(boxes_output.mutable_data<float>());
 
-  auto &labels_output = ws->Output<GPUBackend>(1);
+  auto &labels_output = ws->Output<GPUBackend>(kLabelsOutId);
   labels_output.set_type(labels_input.type());
   labels_output.Resize(dims.second);
   auto labels_out_data = labels_output.mutable_data<int>();

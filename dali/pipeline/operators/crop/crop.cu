@@ -22,8 +22,8 @@
 namespace dali {
 
 template <>
-void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<GPUBackend>(idx);
+void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws) {
+  const auto &input = ws->Input<GPUBackend>(0);
 
   const DALITensorLayout in_layout = input.GetLayout();
   DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW
@@ -34,7 +34,7 @@ void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws, const int idx) {
   for (int i = 0; i < batch_size_; ++i) {
     SetupSample(i, in_layout, input.tensor_shape(i));
   }
-  auto &output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(0);
   output.SetLayout(out_layout);
 }
 

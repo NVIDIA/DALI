@@ -293,9 +293,9 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
       : Operator<CPUBackend>(spec) {
   }
 
-  void RunImpl(Workspace<CPUBackend>* ws, int idx) override {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto &output = ws->Output<CPUBackend>(idx);
+  void RunImpl(Workspace<CPUBackend>* ws) override {
+    auto &input = ws->Input<CPUBackend>(0);
+    auto &output = ws->Output<CPUBackend>(0);
     auto tmp_size = output.capacity();
     output.mutable_data<size_t>();
     output.Resize({2});
@@ -311,7 +311,7 @@ class DummyPresizeOpGPU : public Operator<GPUBackend> {
       : Operator<GPUBackend>(spec) {
   }
 
-  void RunImpl(Workspace<GPUBackend>* ws, int idx) override {
+  void RunImpl(Workspace<GPUBackend>* ws) override {
     auto &input = ws->Input<GPUBackend>(0);
     auto &output = ws->Output<GPUBackend>(0);
     output.mutable_data<size_t>();
@@ -680,7 +680,7 @@ class DummyOpToAdd : public Operator<CPUBackend> {
  public:
   explicit DummyOpToAdd(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  void RunImpl(HostWorkspace *ws, int idx) override {}
+  void RunImpl(HostWorkspace *ws) override {}
 };
 
 DALI_REGISTER_OPERATOR(DummyOpToAdd, DummyOpToAdd, CPU);
@@ -695,7 +695,7 @@ class DummyOpNoSync : public Operator<CPUBackend> {
  public:
   explicit DummyOpNoSync(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  void RunImpl(HostWorkspace *ws, int idx) override {}
+  void RunImpl(HostWorkspace *ws) override {}
 };
 
 DALI_REGISTER_OPERATOR(DummyOpNoSync, DummyOpNoSync, CPU);
