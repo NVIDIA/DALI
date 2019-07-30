@@ -278,13 +278,6 @@ class Operator<GPUBackend> : public OperatorBase {
    * @brief Shared param setup
    */
   virtual void SetupSharedSampleParams(DeviceWorkspace *ws) {}
-
- private:
-  void SyncHelper(int i, DeviceWorkspace *ws) {
-    if (i != 0) {
-        CUDA_CALL(cudaStreamSynchronize(ws->stream()));
-    }
-  }
 };
 
 template<>
