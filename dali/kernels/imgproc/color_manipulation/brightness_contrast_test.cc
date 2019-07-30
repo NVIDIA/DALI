@@ -70,6 +70,12 @@ cv::Mat_<cv::Vec<T, nchannels>> to_mat(const T *ptr, Roi roi, int rows, int cols
 }
 
 
+void fill_roi(Box<2, int> &roi) {
+  roi = {{1, 2},
+         {5, 7}};
+}
+
+
 }  // namespace brightness_contrast
 
 
@@ -174,8 +180,8 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
   KernelContext ctx;
   InTensorCPU<typename TypeParam::in, ndims> in(this->input_.data(), this->shape_);
 
-  typename decltype(kernel)::Roi roi = {{1, 2},
-                                        {5, 7}};
+  typename decltype(kernel)::Roi roi;
+  brightness_contrast::fill_roi(roi);
 
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_, &roi);
   auto out_shape = reqs.output_shapes[0][0];
