@@ -82,7 +82,7 @@ void load_filenames(ImageIdPairs &image_id_pairs, const std::string path) {
   int id = 0;
   std::string filename;
   while (file >> filename) {
-    image_id_pairs.emplace_back(std::move(filename), id);
+    image_id_pairs.emplace_back(std::move(filename), int{id});
     ++id;
   }
 }
