@@ -102,7 +102,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Creates a placeholder for an external input with the given name
    */
-  DLL_PUBLIC inline void AddExternalInput(const string &name) {
+  DLL_PUBLIC inline int AddExternalInput(const string &name) {
     DALI_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed");
     // Verify that this name is unique and record it
@@ -122,9 +122,12 @@ class DLL_PUBLIC Pipeline {
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
       .AddOutput(name, "cpu");
-    PrepareOpSpec(&spec);
+    auto logical_id = GetNextLogicalId();
+    logical_ids_[logical_id];
+    PrepareOpSpec(&spec, logical_id);
     graph_.AddOp(spec, "__ExternalInput_" + name);
     external_inputs_.push_back(name);
+    return logical_id;
   }
 
   /**
@@ -169,11 +172,40 @@ class DLL_PUBLIC Pipeline {
   }
 
   /**
-   * @brief Adds an Operator with the input specification to the pipeline. The
+   * @brief  Adds an Operator with the input specification to the pipeline. The
    * 'device' argument in the OpSpec determines whether the CPU or GPU version
    * of the named operator will be added to the pipeline
+   *
+   * @param spec
+   * @param inst_name
+   * @param logical_id Allows to group operator that are supposed to have synchronized state
+   * wrt randomness. Operators sharing the logical_id will have the same seed assigned.
+   *
+   * @return logical_id of added operator, so it can be used for further calls
    */
-  DLL_PUBLIC void AddOperator(OpSpec spec, const std::string& inst_name = "<no name>");
+  DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name, int logical_id);
+
+  /**
+   * @brief Adds an Operator with the input specification to the pipeline. It will be assigned
+   * a separate logical_id based on internal state of the pipeline.
+   */
+  DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name);
+
+  /**
+   * @brief Adds an unnamed Operator with the input specification to the pipeline.
+   */
+  DLL_PUBLIC int AddOperator(OpSpec spec, int logical_id);
+
+  /**
+   * @brief Adds an unnamed Operator with the input specification to the pipeline.  It will be
+   * assigned a separate logical_id based on internal state of the pipeline.
+   */
+  DLL_PUBLIC int AddOperator(OpSpec spec);
+
+  /**
+   * @brief Returns true if there exists operator with given logical_id
+   */
+  DLL_PUBLIC bool IsLogicalIdUsed(int logical_id) const;
 
   /**
    * @brief Returns the graph node with Operator
@@ -338,8 +370,7 @@ class DLL_PUBLIC Pipeline {
     return base_ptr_offset;
   }
 
-  void SetupCPUInput(std::map<string, EdgeMeta>::iterator it,
-      int input_idx, OpSpec *spec);
+  void SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec);
 
   void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);
 
@@ -368,12 +399,17 @@ class DLL_PUBLIC Pipeline {
   }
 
   // Helper to add pipeline meta-data
-  void PrepareOpSpec(OpSpec *spec);
+  void PrepareOpSpec(OpSpec *spec, int logical_id);
 
   void PropagateMemoryHint(OpNode &node);
 
   // Helper for hybrid decoder split_stages special handling
-  inline void AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name);
+  inline void AddSplitHybridDecoder(OpSpec &spec, const std::string &inst_name, int logical_id);
+
+  inline void AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id);
+
+  int GetNextLogicalId();
+  int GetNextInternalLogicalId();
 
   const int MAX_SEEDS = 1024;
 
@@ -386,6 +422,8 @@ class DLL_PUBLIC Pipeline {
   int set_affinity_;
   int max_num_stream_;
   int default_cuda_stream_priority_;
+  int next_logical_id_ = 0;
+  int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
 
   std::vector<int64_t> seed_;
@@ -400,9 +438,20 @@ class DLL_PUBLIC Pipeline {
   // added, in order to recreate the pipeline in a
   // serialized form
   vector<string> external_inputs_;
-  vector<std::pair<string, OpSpec>> op_specs_;
-  vector<std::pair<string, OpSpec>> op_specs_for_serialization_;
+
+  struct OpDefinition {
+    std::string instance_name;
+    OpSpec spec;
+    int logical_id;
+  };
+
+  vector<OpDefinition> op_specs_;
+  vector<OpDefinition> op_specs_for_serialization_;
   vector<std::pair<string, string>> output_names_;
+
+  // Mapping between logical id and index in op_spces_;
+  std::map<int, std::vector<size_t>> logical_ids_;
+  std::map<int, int64_t> logical_id_to_seed_;
 };
 
 }  // namespace dali

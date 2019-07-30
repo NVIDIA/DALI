@@ -88,7 +88,7 @@ class ExternalSource : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   string output_name_;
   TensorList<Backend> tl_data_;

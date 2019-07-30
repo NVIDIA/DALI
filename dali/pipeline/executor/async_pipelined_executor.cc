@@ -31,7 +31,7 @@ void AsyncPipelinedExecutor::RunCPU() {
         --cpu_work_counter_;
         lock.unlock();
 
-        if (exec_error_) {
+        if (exec_error_ || IsStopSignaled()) {
           mixed_work_cv_.notify_all();
           return;
         }
@@ -50,12 +50,12 @@ void AsyncPipelinedExecutor::RunMixed() {
   mixed_thread_.DoWork([this]() {
         // Block until there is mixed work to do
         std::unique_lock<std::mutex> lock(mixed_mutex_);
-        while (mixed_work_counter_ == 0 && !exec_error_) {
+        while (mixed_work_counter_ == 0 && !exec_error_ && !IsStopSignaled()) {
           mixed_work_cv_.wait(lock);
         }
         --mixed_work_counter_;
         lock.unlock();
-        if (exec_error_) {
+        if (exec_error_ || IsStopSignaled()) {
           gpu_work_cv_.notify_all();
           return;
         }
@@ -76,18 +76,18 @@ void AsyncPipelinedExecutor::RunGPU() {
   gpu_thread_.DoWork([this]() {
         // Block until there is gpu work to do
         std::unique_lock<std::mutex> lock(gpu_mutex_);
-        while (gpu_work_counter_ == 0 && !exec_error_) {
+        while (gpu_work_counter_ == 0 && !exec_error_ && !IsStopSignaled()) {
           gpu_work_cv_.wait(lock);
         }
         --gpu_work_counter_;
         lock.unlock();
-        if (exec_error_)
+        if (exec_error_ || IsStopSignaled())
           return;
 
         PipelinedExecutor::RunGPU();
 
         // All the work for this batch has now been issued,
-        // but has not necessarilly finished. The base-class
+        // but has not necessarily finished. The base-class
         // handles any synchronization for output completion
       });
 }

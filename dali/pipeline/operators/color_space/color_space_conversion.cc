@@ -22,7 +22,6 @@ DALI_SCHEMA(ColorSpaceConversion)
     .DocStr(R"code(Converts between various image color models)code")
     .NumInput(1)
     .NumOutput(1)
-    .AllowMultipleInputSets()
     .EnforceInputLayout(DALI_NHWC)
     .AddArg("image_type",
         R"code(The color space of the input image)code",
@@ -32,9 +31,9 @@ DALI_SCHEMA(ColorSpaceConversion)
         DALI_IMAGE_TYPE);
 
 template <>
-void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
+void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+  const auto &input = ws->Input<CPUBackend>(0);
+  auto &output = ws->Output<CPUBackend>(0);
   const auto &input_shape = input.shape();
   auto output_shape = input_shape;
 

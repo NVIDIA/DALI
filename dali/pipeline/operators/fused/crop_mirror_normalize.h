@@ -57,7 +57,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
   inline ~CropMirrorNormalize() override = default;
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
   void SetupSharedSampleParams(Workspace<Backend> *ws) override {
     const auto &input = ws->template Input<Backend>(0);
@@ -75,7 +75,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     CropAttr::ProcessArguments(ws);
   }
 
-  void DataDependentSetup(Workspace<Backend> *ws, const int idx);
+  void DataDependentSetup(Workspace<Backend> *ws);
 
   void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
     Index F = 1, H, W, C;

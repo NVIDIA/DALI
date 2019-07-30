@@ -33,7 +33,7 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BbFlip);
 
  protected:
-  void RunImpl(SampleWorkspace *ws, const int idx) override;
+  void RunImpl(SampleWorkspace *ws) override;
   using Operator<CPUBackend>::RunImpl;
 
  private:

@@ -421,7 +421,7 @@ class SSDTransformer(object):
         self.img_trans = transforms.Compose(train_trans) 
         self.hflip = RandomHorizontalFlip()
 
-        # All Pytorch Tensor will be normalized
+        # All PyTorch Tensor will be normalized
         # https://discuss.pytorch.org/t/how-to-preprocess-input-for-pre-trained-networks/683
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                                std=[0.229, 0.224, 0.225])

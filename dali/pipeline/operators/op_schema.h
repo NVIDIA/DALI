@@ -51,8 +51,6 @@ class DLL_PUBLIC OpSchema {
     internal_arguments_["batch_size"] = std::make_pair("Batch size", v.get());
     internal_arguments_unq_.push_back(std::move(v));
     v = Value::construct(1);
-    internal_arguments_["num_input_sets"] =
-        std::make_pair("Number of input sets given to an Op", v.get());
     internal_arguments_unq_.push_back(std::move(v));
     v = Value::construct(std::string("cpu"));
     internal_arguments_["device"] = std::make_pair("Device on which the Op is run", v.get());
@@ -153,10 +151,11 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
-   * @brief Notes that multiple input sets can be used with this op
+   * @brief Indicates that multiple instances of this operator cannot share a logical ID to achieve
+   * uniform processing of multiple input sets
    */
-  DLL_PUBLIC inline OpSchema& AllowMultipleInputSets() {
-    allow_multiple_input_sets_ = true;
+  DLL_PUBLIC inline OpSchema& DisallowInstanceGrouping() {
+    allow_instance_grouping_ = false;
     return *this;
   }
 
@@ -300,8 +299,8 @@ class DLL_PUBLIC OpSchema {
     return num_output_;
   }
 
-  DLL_PUBLIC inline bool AllowsMultipleInputSets() const {
-    return allow_multiple_input_sets_;
+  DLL_PUBLIC inline bool AllowsInstanceGrouping() const {
+    return allow_instance_grouping_;
   }
 
   DLL_PUBLIC inline bool EnforceInputLayout() const {
@@ -398,7 +397,7 @@ class DLL_PUBLIC OpSchema {
   int min_num_input_ = 0, max_num_input_ = 0;
   int num_output_ = 0;
 
-  bool allow_multiple_input_sets_ = false;
+  bool allow_instance_grouping_ = true;
   vector<string> parents_;
 
   bool enforce_layout_ = false;

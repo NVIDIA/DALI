@@ -24,7 +24,7 @@ class BbFlip<GPUBackend> : public Operator<GPUBackend> {
  public:
   explicit BbFlip(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
 
-  void RunImpl(Workspace<GPUBackend> *ws, int idx = 0) override;
+  void RunImpl(Workspace<GPUBackend> *ws) override;
  private:
 };
 

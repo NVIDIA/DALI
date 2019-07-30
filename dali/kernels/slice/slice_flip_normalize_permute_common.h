@@ -19,7 +19,7 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/slice/slice_kernel_test.h"
+#include "dali/kernels/slice/slice_kernel_utils.h"
 
 namespace dali {
 namespace kernels {

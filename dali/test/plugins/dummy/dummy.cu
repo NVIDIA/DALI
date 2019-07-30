@@ -18,9 +18,9 @@
 namespace other_ns {
 
 template<>
-void Dummy<::dali::GPUBackend>::RunImpl(::dali::DeviceWorkspace *ws, const int idx) {
-  auto &input = ws->Input<::dali::GPUBackend>(idx);
-  auto &output = ws->Output<::dali::GPUBackend>(idx);
+void Dummy<::dali::GPUBackend>::RunImpl(::dali::DeviceWorkspace *ws) {
+  auto &input = ws->Input<::dali::GPUBackend>(0);
+  auto &output = ws->Output<::dali::GPUBackend>(0);
   output.set_type(input.type());
   output.ResizeLike(input);
   CUDA_CALL(cudaMemcpyAsync(

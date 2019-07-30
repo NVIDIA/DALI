@@ -46,7 +46,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
       shuffle_after_epoch);
   }
 
-  void RunImpl(SampleWorkspace* ws, const int i) override {
+  void RunImpl(SampleWorkspace* ws) override {
     const ImageLabelWrapper& image_label = GetSample(ws->data_idx());
 
     Index image_size = image_label.image.size();

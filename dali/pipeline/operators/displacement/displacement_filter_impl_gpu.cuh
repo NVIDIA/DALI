@@ -224,23 +224,23 @@ class DisplacementFilter<GPUBackend, Displacement,
      displace_.Cleanup();
   }
 
-  void RunImpl(DeviceWorkspace* ws, const int idx) override {
-    DataDependentSetup(ws, idx);
+  void RunImpl(DeviceWorkspace* ws) override {
+    DataDependentSetup(ws);
 
-    auto &input = ws->Input<GPUBackend>(idx);
+    auto &input = ws->Input<GPUBackend>(0);
     if (IsType<float>(input.type())) {
-      BatchedGPUKernel<float>(ws, idx);
+      BatchedGPUKernel<float>(ws, 0);
     } else if (IsType<uint8_t>(input.type())) {
-      BatchedGPUKernel<uint8_t>(ws, idx);
+      BatchedGPUKernel<uint8_t>(ws, 0);
     } else {
       DALI_FAIL("Unexpected input type " + input.type().name());
     }
   }
 
-  virtual void DataDependentSetup(DeviceWorkspace *ws, const int idx) {
+  virtual void DataDependentSetup(DeviceWorkspace *ws) {
     // check input is valid, resize output
-    auto &input = ws->Input<GPUBackend>(idx);
-    auto &output = ws->Output<GPUBackend>(idx);
+    auto &input = ws->Input<GPUBackend>(0);
+    auto &output = ws->Output<GPUBackend>(0);
     output.ResizeLike(input);
   }
 

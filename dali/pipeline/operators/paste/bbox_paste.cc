@@ -51,15 +51,15 @@ False for for width-height representation.)code",
       0.5f, true);
 
 template<>
-void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws, const int idx) {
-  const auto &input = ws->Input<CPUBackend>(idx);
+void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws) {
+  const auto &input = ws->Input<CPUBackend>(0);
   const auto input_data = input.data<float>();
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
   DALI_ENFORCE(input.size() % 4 == 0, "Bounding box tensor size must be a multiple of 4."
                                       "Got: " + std::to_string(input.size()));
 
-  auto &output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(0);
   output.set_type(TypeInfo::Create<float>());
   output.ResizeLike(input);
   auto *output_data = output.mutable_data<float>();

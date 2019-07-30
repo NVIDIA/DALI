@@ -1360,6 +1360,13 @@ typedef struct CUDA_ARRAY3D_DESCRIPTOR_st
 
 /** @} */ /* END CUDA_TYPES */
 
+#ifdef _WIN32
+#define CUDAAPI __stdcall
+#else
+#define CUDAAPI
+#endif
+
+
 /**
  * \defgroup CUDA_INITIALIZE Initialization
  *

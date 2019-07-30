@@ -67,7 +67,7 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 
  protected:
-  void RunImpl(Workspace<CPUBackend> *ws, const int idx) override;
+  void RunImpl(Workspace<CPUBackend> *ws) override;
   using Operator<CPUBackend>::RunImpl;
 
  private:
@@ -98,6 +98,11 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
 
   unsigned FindBestBoxForAnchor(
     unsigned anchor_idx, const vector<float> &ious, unsigned num_boxes) const;
+
+  static const int kBoxesInId = 0;
+  static const int kLabelsInId = 1;
+  static const int kBoxesOutId = 0;
+  static const int kLabelsOutId = 1;
 };
 
 }  // namespace dali

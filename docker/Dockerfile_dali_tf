@@ -6,7 +6,7 @@ WORKDIR /opt/dali
 FROM base as base_with_wheel
 
 COPY dali_tf_plugin/whl whl
-RUN pip install whl/*.whl && rm -rf whl
+RUN pip install whl/*cp${PYV}*.whl && rm -rf whl
 
 FROM base_with_wheel
 

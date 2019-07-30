@@ -19,7 +19,7 @@ class Dummy : public ::dali::Operator<Backend> {
   Dummy& operator=(Dummy&&) = delete;
 
  protected:
-  void RunImpl(::dali::Workspace<Backend> *ws, const int idx) override;
+  void RunImpl(::dali::Workspace<Backend> *ws) override;
 };
 
 }  // namespace other_ns

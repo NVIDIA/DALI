@@ -75,8 +75,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   void SetupSharedSampleParams(DeviceWorkspace *ws) override {
   }
 
-  void RunImpl(DeviceWorkspace *ws, const int idx) override {
-    auto& tl_sequence_output = ws->Output<GPUBackend>(idx);
+  void RunImpl(DeviceWorkspace *ws) override {
+    auto& tl_sequence_output = ws->Output<GPUBackend>(0);
     TensorList<GPUBackend> *label_output = NULL;
 
     if (dtype_ == DALI_FLOAT) {
@@ -89,7 +89,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     tl_sequence_output.SetLayout(DALI_NFHWC);
 
     if (enable_label_output_) {
-      label_output = &ws->Output<GPUBackend>(idx + 1);
+      label_output = &ws->Output<GPUBackend>(1);
       label_output->set_type(TypeInfo::Create<int>());
       label_output->Resize(label_shape_);
     }

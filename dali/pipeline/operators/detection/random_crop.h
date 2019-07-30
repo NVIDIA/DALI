@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/util/batch_rng.h"
 
 namespace dali {
 
@@ -33,7 +34,7 @@ class SSDRandomCrop : public Operator<Backend> {
   explicit inline SSDRandomCrop(const OpSpec &spec) :
     Operator<Backend>(spec),
     num_attempts_(spec.GetArgument<int>("num_attempts")),
-    gen_(spec.GetArgument<int64_t>("seed")),
+    rngs_(spec.GetArgument<int64_t>("seed"), batch_size_),
     int_dis_(0, 6),        // sample option
     float_dis_(0.3, 1.) {  // w, h generation
     // setup all possible sample types
@@ -54,7 +55,7 @@ class SSDRandomCrop : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
  protected:
-  void RunImpl(Workspace<Backend> * ws, const int idx) override;
+  void RunImpl(Workspace<Backend> * ws) override;
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 
  private:
@@ -83,7 +84,7 @@ class SSDRandomCrop : public Operator<Backend> {
   int num_attempts_;
 
   // RNG stuff
-  std::mt19937 gen_;
+  BatchRNG<std::mt19937> rngs_;
   std::uniform_int_distribution<> int_dis_;
   std::uniform_real_distribution<float> float_dis_;
 };

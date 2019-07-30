@@ -197,7 +197,7 @@ class FP16_Optimizer(object):
         """
         Returns a dict containing the current state of this FP16_Optimizer instance.
         This dict contains attributes of FP16_Optimizer, as well as the state_dict
-        of the contained Pytorch optimizer.
+        of the contained PyTorch optimizer.
 
         Untested.
         """

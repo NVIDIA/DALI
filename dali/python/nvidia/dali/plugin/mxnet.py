@@ -16,6 +16,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import types
 import mxnet as mx
 import ctypes
 import logging
@@ -73,8 +74,11 @@ class DALIGenericIterator(object):
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     fill_last_batch : bool, optional, default = True
-                      Whether to fill the last batch with the data from the
-                      next epoch.
+                 Whether to return a fraction of a full batch of data
+                 such that the total entries returned by the
+                 iterator == 'size'. Setting this flag to False will
+                 cause the iterator to return the first integer multiple
+                 of self._num_gpus * self.batch_size which exceeds 'size'.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -86,6 +90,14 @@ class DALIGenericIterator(object):
                  change during execution. If True, the mxnet.ndarray will be resized accordingly
                  if the shape of DALI returned tensors changes during execution.
                  If False, the iterator will fail in case of change.
+    last_batch_padded : bool, optional, default = False
+                 Whether the last batch provided by DALI is padded with the last sample
+                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 if the iterator returning last batch with data only partially filled with
+                 data from the current epoch is dropping padding samples or samples from
+                 the next epoch. If set to True next epoch will end sooner as data from
+                 it was consumed but dropped. If set to false next epoch would be the
+                 same length as the first one.
     """
     def __init__(self,
                  pipelines,
@@ -95,7 +107,8 @@ class DALIGenericIterator(object):
                  fill_last_batch=True,
                  auto_reset=False,
                  squeeze_labels=True,
-                 dynamic_shape=False):
+                 dynamic_shape=False,
+                 last_batch_padded=False):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
@@ -104,12 +117,14 @@ class DALIGenericIterator(object):
         self._size = int(size)
         self._pipes = pipelines
         self._fill_last_batch = fill_last_batch
+        self._last_batch_padded = last_batch_padded
         self._auto_reset = auto_reset
         self._squeeze_labels = squeeze_labels
         self._dynamic_shape = dynamic_shape
         # Build all pipelines
         for p in self._pipes:
-            p.build()
+            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+                p.build()
         # Use double-buffering of data batches
         self._data_batches = [[None] for i in range(self._num_gpus)]
         self._counter = 0
@@ -126,7 +141,8 @@ class DALIGenericIterator(object):
         # We need data about the batches (like shape information),
         # so we need to run a single batch as part of setup to get that info
         for p in self._pipes:
-            p.schedule_run()
+            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+                p.schedule_run()
         self._first_batch = None
         self._first_batch = self.next()
         # Set data descriptors for MXNet
@@ -158,7 +174,8 @@ class DALIGenericIterator(object):
         # Gather outputs
         outputs = []
         for p in self._pipes:
-            outputs.append(p.share_outputs())
+            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+                outputs.append(p.share_outputs())
         for i in range(self._num_gpus):
             # MXNet wants batches with clear distinction between
             # data and label entries, so segregate outputs into
@@ -221,8 +238,9 @@ class DALIGenericIterator(object):
                 feed_ndarray(category_tensors[DALIGenericIterator.LABEL_TAG][j], l_arr)
 
         for p in self._pipes:
-            p.release_outputs()
-            p.schedule_run()
+            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+                p.release_outputs()
+                p.schedule_run()
 
         copy_db_index = self._current_data_batch
         # Change index for double buffering
@@ -262,7 +280,7 @@ class DALIGenericIterator(object):
         and will ignore such request.
         """
         if self._counter >= self._size:
-            if self._fill_last_batch:
+            if self._fill_last_batch and not self._last_batch_padded:
                 self._counter = self._counter % self._size
             else:
                 self._counter = 0
@@ -309,8 +327,11 @@ class DALIClassificationIterator(DALIGenericIterator):
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     fill_last_batch : bool, optional, default = True
-                      Whether to fill the last batch with the data from the
-                      next epoch.
+                 Whether to return a fraction of a full batch of data
+                 such that the total entries returned by the
+                 iterator == 'size'. Setting this flag to False will
+                 cause the iterator to return the first integer multiple
+                 of self._num_gpus * self.batch_size which exceeds 'size'.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -322,6 +343,14 @@ class DALIClassificationIterator(DALIGenericIterator):
                  change during execution. If True, the mxnet.ndarray will be resized accordingly
                  if the shape of DALI returned tensors changes during execution.
                  If False, the iterator will fail in case of change.
+    last_batch_padded : bool, optional, default = False
+                 Whether the last batch provided by DALI is padded with the last sample
+                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 if the iterator returning last batch with data only partially filled with
+                 data from the current epoch is dropping padding samples or samples from
+                 the next epoch. If set to True next epoch will end sooner as data from
+                 it was consumed but dropped. If set to false next epoch would be the
+                 same length as the first one.
     """
     def __init__(self,
                  pipelines,
@@ -332,7 +361,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                  fill_last_batch=True,
                  auto_reset=False,
                  squeeze_labels=True,
-                 dynamic_shape=False):
+                 dynamic_shape=False,
+                 last_batch_padded=False):
         super(DALIClassificationIterator, self).__init__(pipelines,
                                                          [(data_name, DALIClassificationIterator.DATA_TAG),
                                                           (label_name, DALIClassificationIterator.LABEL_TAG)],
@@ -341,4 +371,5 @@ class DALIClassificationIterator(DALIGenericIterator):
                                                          fill_last_batch = fill_last_batch,
                                                          auto_reset = auto_reset,
                                                          squeeze_labels=squeeze_labels,
-                                                         dynamic_shape=dynamic_shape)
+                                                         dynamic_shape=dynamic_shape,
+                                                         last_batch_padded = last_batch_padded)

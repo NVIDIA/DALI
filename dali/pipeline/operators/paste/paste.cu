@@ -122,9 +122,9 @@ void Paste<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
 }
 
 template<>
-void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
-  auto &input = ws->Input<GPUBackend>(idx);
-  auto &output = ws->Output<GPUBackend>(idx);
+void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws) {
+  auto &input = ws->Input<GPUBackend>(0);
+  auto &output = ws->Output<GPUBackend>(0);
 
   std::vector<kernels::TensorShape<>> output_shape(batch_size_);
 
@@ -189,10 +189,8 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws, const int idx) {
 }
 
 template<>
-void Paste<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  if (idx != 0)
-    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
-  SetupSampleParams(ws, idx);
+void Paste<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+  SetupSampleParams(ws);
   RunHelper(ws);
 }
 

@@ -28,7 +28,6 @@ DALI_SCHEMA(RandomResizedCrop)
 " in HWC layout (height, width, channels)")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AddArg("size",
       R"code(Size of resized image.)code",
       DALI_INT_VEC)
@@ -43,8 +42,8 @@ void RandomResizedCrop<CPUBackend>::BackendInit() {
 }
 
 template<>
-void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx) {
-  auto &input = ws->Input<CPUBackend>(idx);
+void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws) {
+  auto &input = ws->Input<CPUBackend>(0);
   DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
@@ -54,7 +53,7 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws, const int idx)
   const int newH = size_[0];
   const int newW = size_[1];
 
-  auto &output = ws->Output<CPUBackend>(idx);
+  auto &output = ws->Output<CPUBackend>(0);
 
   RunCPU(output, input, ws->thread_idx());
 }

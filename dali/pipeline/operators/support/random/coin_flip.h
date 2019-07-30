@@ -36,7 +36,7 @@ class CoinFlip : public Operator<SupportBackend> {
   using Operator<SupportBackend>::RunImpl;
 
  protected:
-  void RunImpl(Workspace<SupportBackend> * ws, const int idx) override;
+  void RunImpl(Workspace<SupportBackend> * ws) override;
 
  private:
   std::bernoulli_distribution dis_;

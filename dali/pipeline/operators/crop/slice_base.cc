@@ -66,10 +66,10 @@ DALI_SCHEMA(SliceBase)
       DALI_NO_TYPE);
 
 template <>
-void SliceBase<CPUBackend>::RunImpl(SampleWorkspace *ws, const int idx) {
-  this->DataDependentSetup(ws, idx);
-  const auto &input = ws->Input<CPUBackend>(idx);
-  auto &output = ws->Output<CPUBackend>(idx);
+void SliceBase<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+  this->DataDependentSetup(ws);
+  const auto &input = ws->Input<CPUBackend>(0);
+  auto &output = ws->Output<CPUBackend>(0);
   auto data_idx = ws->data_idx();
 
   DALI_TYPE_SWITCH_WITH_FP16_CPU(input_type_, InputType,

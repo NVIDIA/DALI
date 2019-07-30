@@ -298,11 +298,7 @@ void ExposeTensorList(py::module &m) { // NOLINT
             }
           }
 
-          return py::array(py::buffer_info(
-              raw_mutable_data,
-              type_size,
-              format,
-              shape.size(), shape, strides));
+          return py::array(py::dtype(format), shape, strides, raw_mutable_data);
         },
       R"code(
       Returns TensorList as a numpy array. TensorList must be dense.
@@ -628,7 +624,10 @@ PYBIND11_MODULE(backend_impl, m) {
         "max_num_stream"_a = -1,
         "default_cuda_stream_priority"_a = 0
         )
-    .def("AddOperator", &Pipeline::AddOperator)
+    .def("AddOperator",
+         static_cast<int (Pipeline::*)(OpSpec, const std::string &)>(&Pipeline::AddOperator))
+    .def("AddOperator",
+         static_cast<int (Pipeline::*)(OpSpec, const std::string &, int)>(&Pipeline::AddOperator))
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",
         [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {

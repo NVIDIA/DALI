@@ -112,9 +112,13 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
 }  // namespace kernel
 
 template <>
-Transpose<GPUBackend>::~Transpose() {
+Transpose<GPUBackend>::~Transpose() noexcept {
   if (cutt_handle_ > 0) {
-    cuttCheck(cuttDestroy(cutt_handle_));
+    auto err = cuttDestroy(cutt_handle_);
+    if (err != CUTT_SUCCESS) {
+      // Something terrible happened. Just quit now, before you'll loose your life or worse...
+      std::terminate();
+    }
   }
 }
 
@@ -130,9 +134,9 @@ inline kernels::TensorShape<> GetPermutedDims(const kernels::TensorShape<>& dims
 }
 
 template<>
-void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws, int idx) {
-  const auto& input = ws->Input<GPUBackend>(idx);
-  auto& output = ws->Output<GPUBackend>(idx);
+void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws) {
+  const auto& input = ws->Input<GPUBackend>(0);
+  auto& output = ws->Output<GPUBackend>(0);
 
   TypeInfo itype = input.type();
   DALI_ENFORCE((itype.size() == 1 || itype.size() == 2 || itype.size() == 4 || itype.size() == 8),

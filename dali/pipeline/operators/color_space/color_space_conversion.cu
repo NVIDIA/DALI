@@ -91,11 +91,11 @@ auto ConvertYCbCrToGray8uKernel = ConvertYCbCrToGrayKernel<uint8_t>;
 }  // namespace detail
 
 template<>
-void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
-  const auto &input = ws->Input<GPUBackend>(idx);
+void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+  const auto &input = ws->Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8_t>(input.type()),
       "Color space conversion accept only uint8 tensors");
-  auto &output = ws->Output<GPUBackend>(idx);
+  auto &output = ws->Output<GPUBackend>(0);
 
   TensorList<CPUBackend> attr_output_cpu;
 

@@ -47,6 +47,8 @@ message OpDef {
   repeated Argument args = 4;
   // instance name
   optional string inst_name = 5;
+  // logical id
+  optional int32 logical_id = 6 [default = -1];
 }
 
 // Stores pipeline options and a list of operators

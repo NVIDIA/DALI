@@ -17,9 +17,9 @@
 namespace other_ns {
 
 template<>
-void Dummy<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace *ws, const int idx) {
-  auto &input = ws->Input<::dali::CPUBackend>(idx);
-  auto &output = ws->Output<::dali::CPUBackend>(idx);
+void Dummy<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace *ws) {
+  auto &input = ws->Input<::dali::CPUBackend>(0);
+  auto &output = ws->Output<::dali::CPUBackend>(0);
   output.set_type(input.type());
   output.ResizeLike(input);
 

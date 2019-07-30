@@ -33,7 +33,7 @@ class Cast : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Cast);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws, int idx) override;
+  void RunImpl(Workspace<Backend> *ws) override;
 
  private:
   template <typename IType, typename OType>

@@ -79,14 +79,14 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   bool Prefetch() override {
     for (int i = 0; i < Operator::batch_size_; ++i) {
       printf("new tensor %d\n", i);
-      auto *t = loader_->ReadOne();
+      auto *t = loader_->ReadOne(false);
       prefetched_batch_.push_back(t);
     }
     return true;
   }
   */
 
-  void RunImpl(SampleWorkspace* ws, int idx) override {
+  void RunImpl(SampleWorkspace* ws) override {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
     ws->Output<CPUBackend>(0).Copy(GetSample(ws->data_idx()), 0);

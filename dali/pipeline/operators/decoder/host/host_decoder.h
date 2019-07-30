@@ -35,7 +35,7 @@ class HostDecoder : public Operator<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(HostDecoder);
 
  protected:
-  void RunImpl(SampleWorkspace *ws, const int idx) override;
+  void RunImpl(SampleWorkspace *ws) override;
 
   virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {
     return {};

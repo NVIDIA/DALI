@@ -28,7 +28,7 @@ class MXNetReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
     parser_.reset(new RecordIOParser(spec));
   }
 
-  void RunImpl(SampleWorkspace* ws, const int i) override {
+  void RunImpl(SampleWorkspace* ws) override {
     const auto& tensor = GetSample(ws->data_idx());
     ParseIfNeeded(tensor, ws);
   }

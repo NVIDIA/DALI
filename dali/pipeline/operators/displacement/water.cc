@@ -25,7 +25,6 @@ DALI_SCHEMA(Water)
     .DocStr("Perform a water augmentation (make image appear to be underwater).")
     .NumInput(1)
     .NumOutput(1)
-    .AllowMultipleInputSets()
     .AddOptionalArg("ampl_x",
         R"code(Amplitude of the wave in x direction.)code", 10.f)
     .AddOptionalArg("ampl_y",

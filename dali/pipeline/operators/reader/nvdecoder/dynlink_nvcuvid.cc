@@ -14,50 +14,43 @@
 
 #include "dali/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 
-tcuvidCreateVideoSource               *cuvidCreateVideoSource;
-tcuvidCreateVideoSourceW              *cuvidCreateVideoSourceW;
-tcuvidDestroyVideoSource              *cuvidDestroyVideoSource;
-tcuvidSetVideoSourceState             *cuvidSetVideoSourceState;
-tcuvidGetVideoSourceState             *cuvidGetVideoSourceState;
-tcuvidGetSourceVideoFormat            *cuvidGetSourceVideoFormat;
-tcuvidGetSourceAudioFormat            *cuvidGetSourceAudioFormat;
+tcuvidCreateVideoSource               ptr_cuvidCreateVideoSource;
+tcuvidCreateVideoSourceW              ptr_cuvidCreateVideoSourceW;
+tcuvidDestroyVideoSource              ptr_cuvidDestroyVideoSource;
+tcuvidSetVideoSourceState             ptr_cuvidSetVideoSourceState;
+tcuvidGetVideoSourceState             ptr_cuvidGetVideoSourceState;
+tcuvidGetSourceVideoFormat            ptr_cuvidGetSourceVideoFormat;
+tcuvidGetSourceAudioFormat            ptr_cuvidGetSourceAudioFormat;
 
-tcuvidCreateVideoParser               *cuvidCreateVideoParser;
-tcuvidParseVideoData                  *cuvidParseVideoData;
-tcuvidDestroyVideoParser              *cuvidDestroyVideoParser;
+tcuvidCreateVideoParser               ptr_cuvidCreateVideoParser;
+tcuvidParseVideoData                  ptr_cuvidParseVideoData;
+tcuvidDestroyVideoParser              ptr_cuvidDestroyVideoParser;
 
-tcuvidGetDecoderCaps                  *cuvidGetDecoderCaps;
-tcuvidCreateDecoder                   *cuvidCreateDecoder;
-tcuvidDestroyDecoder                  *cuvidDestroyDecoder;
-tcuvidDecodePicture                   *cuvidDecodePicture;
 
-tcuvidMapVideoFrame                   *cuvidMapVideoFrame;
-tcuvidUnmapVideoFrame                 *cuvidUnmapVideoFrame;
+tcuvidGetDecoderCaps                  ptr_cuvidGetDecoderCaps;
+tcuvidCreateDecoder                   ptr_cuvidCreateDecoder;
+tcuvidDestroyDecoder                  ptr_cuvidDestroyDecoder;
+tcuvidDecodePicture                   ptr_cuvidDecodePicture;
+tcuvidGetDecodeStatus                 ptr_cuvidGetDecodeStatus;
+tcuvidReconfigureDecoder              ptr_cuvidReconfigureDecoder;
 
-#if defined(WIN64) || defined(_WIN64) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
-tcuvidMapVideoFrame64                 *cuvidMapVideoFrame64;
-tcuvidUnmapVideoFrame64               *cuvidUnmapVideoFrame64;
+#if !defined(__CUVID_DEVPTR64) || defined(__CUVID_INTERNAL)
+tcuvidMapVideoFrame                   ptr_cuvidMapVideoFrame;
+tcuvidUnmapVideoFrame                 ptr_cuvidUnmapVideoFrame;
 #endif
 
-//tcuvidGetVideoFrameSurface            *cuvidGetVideoFrameSurface;
-tcuvidCtxLockCreate                   *cuvidCtxLockCreate;
-tcuvidCtxLockDestroy                  *cuvidCtxLockDestroy;
-tcuvidCtxLock                         *cuvidCtxLock;
-tcuvidCtxUnlock                       *cuvidCtxUnlock;
-
-
-// Auto-lock helper for C++ applications
-CCtxAutoLock::CCtxAutoLock(CUvideoctxlock ctx) 
-    : m_ctx(ctx) 
-{
-    cuvidCtxLock(m_ctx, 0); 
-}
-CCtxAutoLock::~CCtxAutoLock()
-{ 
-    cuvidCtxUnlock(m_ctx, 0); 
-}
-
-
+#if defined(_WIN64) || defined(__LP64__) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
+tcuvidMapVideoFrame64                 ptr_cuvidMapVideoFrame64;
+tcuvidUnmapVideoFrame64               ptr_cuvidUnmapVideoFrame64;
+#if defined(__CUVID_DEVPTR64) && !defined(__CUVID_INTERNAL)
+#define ptr_cuvidMapVideoFrame        ptr_cuvidMapVideoFrame64
+#define ptr_cuvidUnmapVideoFrame      ptr_cuvidUnmapVideoFrame64
+#endif
+#endif
+tcuvidCtxLockCreate                   ptr_cuvidCtxLockCreate;
+tcuvidCtxLockDestroy                  ptr_cuvidCtxLockDestroy;
+tcuvidCtxLock                         ptr_cuvidCtxLock;
+tcuvidCtxUnlock                       ptr_cuvidCtxUnlock;
 
 #define STRINGIFY(X) #X
 
@@ -87,18 +80,18 @@ static CUresult LOAD_LIBRARY(DLLDRIVER *pInstance)
 }
 
 #define GET_PROC_EX(name, alias, required)                              \
-    alias = (t##name *)dlsym(DriverLib, #name);                        \
+    ptr_##alias = (t##name )dlsym(DriverLib, #name);                    \
     if (alias == NULL && required) {                                    \
         printf("Failed to find required function \"%s\" in %s\n",       \
-               #name, __DriverLibName);                                  \
+               #name, __DriverLibName);                                 \
         return CUDA_ERROR_UNKNOWN;                                      \
     }
 
 #define GET_PROC_EX_V2(name, alias, required)                           \
-    alias = (t##name *)dlsym(DriverLib, STRINGIFY(name##_v2));         \
+    alias = (t##name *)dlsym(DriverLib, STRINGIFY(name##_v2));          \
     if (alias == NULL && required) {                                    \
         printf("Failed to find required function \"%s\" in %s\n",       \
-               STRINGIFY(name##_v2), __DriverLibName);                    \
+               STRINGIFY(name##_v2), __DriverLibName);                  \
         return CUDA_ERROR_UNKNOWN;                                      \
     }
 
@@ -134,22 +127,23 @@ CUresult cuvidInit(unsigned int Flags)
     GET_PROC(cuvidParseVideoData);
     GET_PROC(cuvidDestroyVideoParser);
 
+
     GET_PROC(cuvidGetDecoderCaps);
     GET_PROC(cuvidCreateDecoder);
     GET_PROC(cuvidDestroyDecoder);
     GET_PROC(cuvidDecodePicture);
+    GET_PROC(cuvidGetDecodeStatus);
+    GET_PROC(cuvidReconfigureDecoder);
 
-#if defined(WIN64) || defined(_WIN64) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
-    GET_PROC(cuvidMapVideoFrame64);
-    GET_PROC(cuvidUnmapVideoFrame64);
-    cuvidMapVideoFrame   = cuvidMapVideoFrame64;
-    cuvidUnmapVideoFrame = cuvidUnmapVideoFrame64;
-#else
+#if !defined(__CUVID_DEVPTR64) || defined(__CUVID_INTERNAL)
     GET_PROC(cuvidMapVideoFrame);
     GET_PROC(cuvidUnmapVideoFrame);
 #endif
 
-//    GET_PROC(cuvidGetVideoFrameSurface);
+#if defined(_WIN64) || defined(__LP64__) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
+    GET_PROC(cuvidMapVideoFrame64);
+    GET_PROC(cuvidUnmapVideoFrame64);
+#endif
     GET_PROC(cuvidCtxLockCreate);
     GET_PROC(cuvidCtxLockDestroy);
     GET_PROC(cuvidCtxLock);
@@ -166,7 +160,6 @@ bool cuvidInitChecked(unsigned int Flags) {
         return true;
 
     std::lock_guard<std::mutex> lock(m);
-
     static CUresult res = cuvidInit(Flags);
     initialized = (res == CUDA_SUCCESS);
     return initialized;

@@ -25,15 +25,10 @@ std::map<string, OpSchema>& SchemaRegistry::registry() {
 }
 
 int OpSchema::CalculateOutputs(const OpSpec &spec) const {
-  int num_input_sets = 1;
-  if (allow_multiple_input_sets_) {
-    num_input_sets = spec.GetArgument<int>("num_input_sets");
-  }
-
   if (!output_fn_) {
-    return num_input_sets * num_output_;
+    return num_output_;
   } else {
-    return num_input_sets * output_fn_(spec);
+    return output_fn_(spec);
   }
 }
 

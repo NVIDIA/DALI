@@ -10,6 +10,7 @@ import os
 import glob
 import tempfile
 import time
+from nose.tools import assert_raises
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -57,6 +58,16 @@ class PythonOperatorPipeline(CommonPipeline):
         assert isinstance(processed, EdgeReference)
         return processed
 
+class PythonOperatorInvalidPipeline(PythonOperatorPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
+        super(PythonOperatorInvalidPipeline, self).__init__(batch_size, num_threads, device_id,
+                                                            seed, image_dir, function)
+        self.python_function = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        images, labels = self.load()
+        processed = self.python_function([images, images])
+        return processed
 
 class FlippingPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
@@ -256,6 +267,12 @@ def test_python_operator_invalid_function():
         return
     raise Exception('Should not pass')
 
+def test_python_operator_invalid_pipeline():
+    invalid_pipe = PythonOperatorInvalidPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                 images_dir, Rotate)
+    assert_raises(TypeError, invalid_pipe.build)
+
+
 
 def split_red_blue(image):
     return image[:, :, 0], image[:, :, 2]
@@ -354,3 +371,38 @@ def test_sink():
     for file in created_files:
         os.remove(file)
     os.rmdir(SINK_PATH)
+
+
+counter = 0
+def func_with_side_effects(images):
+    global counter
+    counter = counter + 1
+
+    print('Call ' + str(counter))
+
+    return numpy.full_like(images, counter)
+
+def test_func_with_side_effects():
+    pipe_one = PythonOperatorPipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func_with_side_effects)
+    pipe_two = PythonOperatorPipeline(
+        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func_with_side_effects)
+
+    pipe_one.build()
+    pipe_two.build()
+
+    global counter
+
+    for it in range(ITERS):
+        counter = 0
+        out_one, = pipe_one.run()
+        out_two, = pipe_two.run()
+
+        print('Iter ' + str(it) + ' Len one ' + str(len(out_one)) + ' len two ' + str(len(out_two)))
+        assert counter == len(out_one) + len(out_two)
+        elems_one = [out_one.at(s)[0][0][0] for s in range(BATCH_SIZE)]
+        elems_one.sort()
+        assert elems_one == [i for i in range(1, BATCH_SIZE + 1)]
+        elems_two = [out_two.at(s)[0][0][0] for s in range(BATCH_SIZE)]
+        elems_two.sort()
+        assert elems_two == [i for i in range(BATCH_SIZE + 1, 2 * BATCH_SIZE + 1)]

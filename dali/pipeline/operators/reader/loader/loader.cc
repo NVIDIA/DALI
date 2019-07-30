@@ -46,7 +46,10 @@ processing is CPU stage-bound, trading memory consumption for better interleavin
 In such case the output of the loader will be empty)code", false)
   .AddOptionalArg("lazy_init",
       R"code(If set to true, Loader will parse and prepare the dataset metadata only during the first `Run`
-instead of in the constructor.)code", false);
+instead of in the constructor.)code", false)
+  .AddOptionalArg("pad_last_batch",
+      R"code(If set to true, the Loader will pad the last batch with the last image when the batch size is not aligned
+with the shard size.)code", false);
 
 size_t start_index(const size_t shard_id,
                    const size_t shard_num,

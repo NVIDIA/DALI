@@ -24,7 +24,6 @@ DALI_SCHEMA(WarpAffine)
     .DocStr(R"code(Apply an affine transformation to the image.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AllowMultipleInputSets()
     .AddArg("matrix",
         R"code(Matrix of the transform (dst -> src).
 Given list of values `(M11, M12, M13, M21, M22, M23)`

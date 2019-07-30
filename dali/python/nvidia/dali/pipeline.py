@@ -18,7 +18,6 @@ from nvidia.dali import backend as b
 from nvidia.dali import edge as Edge
 from nvidia.dali import types
 from threading import local as tls
-
 pipeline_tls = tls()
 
 
@@ -103,6 +102,8 @@ class Pipeline(object):
         self._set_affinity = set_affinity
         self._max_streams = max_streams
         self._default_cuda_stream_priority = default_cuda_stream_priority
+        self._api_type = None
+        self._skip_api_check = False
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -169,6 +170,46 @@ class Pipeline(object):
     # Graph edges that are not connected to the output must be manually added to a pipeline
     def add_sink(self, edge):
         self._sinks.append(edge)
+
+    def _set_api_type(self, type):
+        if not types.PieplineAPIType._is_member(type):
+            raise RuntimeError("Wrong pipeline API set!"
+                               "check available values in :meth:`nvidia.dali.types.PieplineAPIType`")
+        self._api_type = type
+
+    def _check_api_type(self, type):
+        if self._api_type == None:
+            self._set_api_type(type)
+        if type != self._api_type:
+            raise RuntimeError("Mixing pipeline API type. Currently used: " + str(self._api_type) +
+                          ", but trying to use: " + str(type))
+
+    def enable_api_check(self, enable):
+        """Allows to enable or disable API check in the runtime
+        """
+        self._skip_api_check = not enable
+
+    def _check_api_type_scope(self, type):
+        """Checks the API currently used by pipeline and throws an error if it differs
+
+        It helps preventing of mixing simple, iterator and scheduled based API for
+        pipeline run. Disables further checks in its scope
+        """
+        if not self._skip_api_check:
+            self._check_api_type(type)
+
+        class api_checker():
+            def __init__(self, pipe):
+                self._pipe = pipe
+
+            def __enter__(self):
+                self._old_skip_api_check = self._pipe._skip_api_check
+                self._pipe._skip_api_check = True
+
+            def __exit__(self, type, value, traceback):
+                self._pipe._skip_api_check = self._old_skip_api_check
+
+        return api_checker(self)
 
     # Graph is constructed by backtracking from the output edges and the edges marked as sinks
     def _prepare_graph(self):
@@ -237,9 +278,13 @@ class Pipeline(object):
                     edges.append(edge)
 
         # Add the ops to the graph and build the backend
+        related_logical_id = {}
         while ops:
             op = ops.pop()
-            self._pipe.AddOperator(op.spec, op.name)
+            if op.relation_id not in related_logical_id:
+                related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
+            else:
+                self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
         self._prepared = True
         self._names_and_devices = [(e.name, e.device) for e in outputs]
 
@@ -305,11 +350,12 @@ class Pipeline(object):
         If the pipeline is executed asynchronously, this function blocks
         until the results become available. It rises StopIteration if data set
         reached its end - usually when iter_setup cannot produce any more data"""
-        if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
-            raise StopIteration
-        self._batches_to_consume -= 1
-        self._gpu_batches_to_consume -= 1
-        return self._outputs()
+        with self._check_api_type_scope(types.PieplineAPIType.SCHEDULED) as check:
+            if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+                raise StopIteration
+            self._batches_to_consume -= 1
+            self._gpu_batches_to_consume -= 1
+            return self._outputs()
 
     def schedule_run(self):
         """Run the pipeline without returning the resulting buffers.
@@ -322,10 +368,11 @@ class Pipeline(object):
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
         and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`.
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
-        if self._first_iter and self._exec_pipelined:
-            self._prefetch()
-        else:
-            self._run_once()
+        with self._check_api_type_scope(types.PieplineAPIType.SCHEDULED) as check:
+            if self._first_iter and self._exec_pipelined:
+                self._prefetch()
+            else:
+                self._run_once()
 
     # for the backward compatibility
     def _run(self):
@@ -345,7 +392,12 @@ class Pipeline(object):
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
         and :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
-        return self._pipe.ShareOutputs()
+        with self._check_api_type_scope(types.PieplineAPIType.SCHEDULED) as check:
+            if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+                raise StopIteration
+            self._batches_to_consume -= 1
+            self._gpu_batches_to_consume -= 1
+            return self._pipe.ShareOutputs()
 
     # for the backward compatibility
     def _share_outputs(self):
@@ -363,9 +415,10 @@ class Pipeline(object):
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
         and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-        return self._pipe.ReleaseOutputs()
+        with self._check_api_type_scope(types.PieplineAPIType.SCHEDULED) as check:
+            if not self._built:
+                raise RuntimeError("Pipeline must be built first.")
+            return self._pipe.ReleaseOutputs()
 
     # for the backward compatibility
     def _release_outputs(self):
@@ -390,8 +443,9 @@ class Pipeline(object):
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run` in the same pipeline,
         :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` and
         :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`"""
-        self.schedule_run()
-        return self.outputs()
+        with self._check_api_type_scope(types.PieplineAPIType.BASIC) as check:
+            self.schedule_run()
+            return self.outputs()
 
     def _prefetch(self):
         """Executes pipeline to fill executor's pipeline."""

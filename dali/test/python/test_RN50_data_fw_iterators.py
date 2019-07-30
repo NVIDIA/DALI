@@ -141,9 +141,13 @@ for iterator_name, IteratorClass in Iterators:
         daliop = IteratorClass()
         for dev in range(args.gpus):
             with tf.device('/gpu:%i' % dev):
+                if args.fp16:
+                    out_type = tf.float16
+                else:
+                    out_type = tf.float32
                 image, label = daliop(pipeline = pipes[dev],
                     shapes = [(args.batch_size, 3, 224, 224), ()],
-                    dtypes = [tf.int32, tf.float32])
+                    dtypes = [out_type, tf.int32])
                 images.append(image)
                 labels.append(label)
         gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)

@@ -69,9 +69,9 @@ DALIError_t BatchedNormalizePermute(const uint8 *in_batch,
 
 template<>
 template <typename OUT>
-void NormalizePermute<GPUBackend>::GPURunHelper(DeviceWorkspace *ws, const int idx) {
-  auto &input = ws->Input<GPUBackend>(idx);
-  auto &output = ws->Output<GPUBackend>(idx);
+void NormalizePermute<GPUBackend>::GPURunHelper(DeviceWorkspace *ws) {
+  auto &input = ws->Input<GPUBackend>(0);
+  auto &output = ws->Output<GPUBackend>(0);
 
   // Validate input shape and type
   DALI_ENFORCE(IsType<uint8>(input.type()));
@@ -104,11 +104,11 @@ void NormalizePermute<GPUBackend>::GPURunHelper(DeviceWorkspace *ws, const int i
 }
 
 template<>
-void NormalizePermute<GPUBackend>::RunImpl(DeviceWorkspace *ws, const int idx) {
+void NormalizePermute<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
   if (output_type_ == DALI_FLOAT) {
-    GPURunHelper<float>(ws, idx);
+    GPURunHelper<float>(ws);
   } else if (output_type_ == DALI_FLOAT16) {
-    GPURunHelper<float16>(ws, idx);
+    GPURunHelper<float16>(ws);
   } else {
     DALI_FAIL("Unsupported output type.");
   }
