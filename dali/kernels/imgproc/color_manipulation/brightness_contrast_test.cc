@@ -57,14 +57,16 @@ struct TupleToGTest<std::tuple<T...>> {
  * @param cols width of the input image
  */
 template <int nchannels, class T, class Roi>
-cv::Mat_<T> to_mat(T *ptr, Roi roi, int rows, int cols) {
+cv::Mat_<cv::Vec<T, nchannels>> to_mat(const T *ptr, Roi roi, int rows, int cols) {
   auto roi_w = roi.extent().x;
   auto roi_h = roi.extent().y;
-  cv::Mat_<T> mat(rows, cols * nchannels, ptr);
-  cv::Rect rect(roi.lo.x * nchannels, roi.lo.y, roi_w * nchannels, roi_h);
-  auto roimat = cv::Mat_<T>(mat, rect);
-  roimat = roimat.clone();  // Make cv::Mat continuous
-  return roimat;
+  cv::Mat mat(rows, cols, CV_MAKETYPE(cv::DataDepth<std::remove_const_t<T>>::value, nchannels),
+              const_cast<T *>(ptr));
+  cv::Rect rect(roi.lo.x, roi.lo.y, roi_w, roi_h);
+  cv::Mat_<cv::Vec<T, nchannels>> out_copy;
+  mat(rect).copyTo(out_copy);
+  assert(out_copy.isContinuous());
+  return out_copy;
 }
 
 
@@ -186,7 +188,8 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
 
   auto mat = brightness_contrast::to_mat<ndims>(this->ref_output_.data(), roi,
                                                 this->shape_[0], this->shape_[1]);
-  ASSERT_EQ(mat.rows * mat.cols, out.num_elements()) << "Number of elements doesn't match";
+  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
+                        << "Number of elements doesn't match";
   auto ptr = reinterpret_cast<typename TypeParam::out *>(mat.data);
   for (int i = 0; i < out.num_elements(); i++) {
     EXPECT_FLOAT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
