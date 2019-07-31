@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <map>
-#include <unordered_map>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -97,13 +96,13 @@ void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_in
     parser.EnterObject();
     ImageInfo image_info;
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (0 == strncmp(internal_key, "id", 2)) {
+      if (0 == detail::safe_strcmp(internal_key, "id")) {
           image_info.original_id_ = parser.GetInt();
-      } else if (0 == strncmp(internal_key, "width", 5)) {
+      } else if (0 == detail::safe_strcmp(internal_key, "width")) {
           image_info.width_ = parser.GetInt();
-      } else if (0 == strncmp(internal_key, "height", 6)) {
+      } else if (0 == detail::safe_strcmp(internal_key, "height")) {
           image_info.height_ = parser.GetInt();
-      } else if (0 == strncmp(internal_key, "file_name", 9)) {
+      } else if (0 == detail::safe_strcmp(internal_key, "file_name")) {
           image_info.filename_ = parser.GetString();
       } else {
         parser.SkipValue();
@@ -127,7 +126,7 @@ void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids)
     id = -1;
     parser.EnterObject();
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (0 == strncmp(internal_key, "id", 2)) {
+      if (0 == detail::safe_strcmp(internal_key, "id")) {
         id = parser.GetInt();
       } else {
         parser.SkipValue();
@@ -153,11 +152,11 @@ void parse_annotations(
     }
     parser.EnterObject();
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (0 == strncmp(internal_key, "image_id", 8)) {
+      if (0 == detail::safe_strcmp(internal_key, "image_id")) {
         annotation.image_id_ = parser.GetInt();
-      } else if (0 == strncmp(internal_key, "category_id", 11)) {
+      } else if (0 == detail::safe_strcmp(internal_key, "category_id")) {
         annotation.category_id_ = parser.GetInt();
-      } else if (0 == strncmp(internal_key, "bbox", 4)) {
+      } else if (0 == detail::safe_strcmp(internal_key, "bbox")) {
         RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
         parser.EnterArray();
         int i = 0;
@@ -203,11 +202,11 @@ void parse_json_file(
   RAPIDJSON_ASSERT(parser.PeekType() == kObjectType);
   parser.EnterObject();
   while (const char* key = parser.NextObjectKey()) {
-    if (0 == strncmp(key, "images", 6)) {
+    if (0 == detail::safe_strcmp(key, "images")) {
       detail::parse_image_infos(parser, image_infos);
-    } else if (0 == strncmp(key, "categories", 10)) {
+    } else if (0 == detail::safe_strcmp(key, "categories")) {
       detail::parse_categories(parser, category_ids);
-    } else if (0 == strncmp(key, "annotations", 11)) {
+    } else if (0 == detail::safe_strcmp(key, "annotations")) {
       parse_annotations(
         parser,
         annotations,

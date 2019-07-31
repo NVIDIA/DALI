@@ -26,6 +26,14 @@
 #include "dali/core/error_handling.h"
 
 namespace dali {
+namespace detail {
+template<size_t N>
+inline int safe_strcmp(const char *str1, const char (&str2)[N]) {
+    return strncmp(str1, str2, N-1);
+}
+
+}  // namespace detail
+
 using ImageIdPairs = std::vector<std::pair<std::string, int>>;
 class CocoLoader : public FileLoader {
  public:
