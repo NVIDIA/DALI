@@ -8,22 +8,30 @@ set -x
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 source $topdir/qa/setup_test_common.sh
 
-# Install dependencies: opencv-python from 3.3.0.10 onwards uses QT which requires
-# X11 and other libraries that are not present in clean docker images or bundled there
-apt-get update
-apt-get install -y --no-install-recommends libsm6 libice6 libxrender1 libxext6 libx11-6 glib-2.0
-# Note: glib-2.0 depends on python2, so reinstall the desired python afterward
-# to make sure defaults are right
-apt-get install -y --no-install-recommends --reinstall python$PYVER python$PYVER-dev
-
 # Set proper CUDA version for packages, like MXNet, requiring it
 pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
+
+if [ -n "$gather_pip_packages" ]
+then
+    # early exit
+    return 0
+fi
+
+source $topdir/qa//setup_dali_extra.sh
+
+target_dir=${target_dir-./}
+cd ${target_dir}
 
 # Limit to only one configuration (First version of each package)
 if [[ $one_config_only = true ]]; then
     echo "Limiting test run to one configuration of packages (first version of each)"
     last_config_index=0
+fi
+
+# some global test setup
+if [ "$(type -t do_once)" = 'function' ]; then
+    do_once
 fi
 
 for i in `seq 0 $last_config_index`;
@@ -33,7 +41,7 @@ do
     inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
     if [ -n "$inst" ]
     then
-      pip install $inst
+      pip install $inst -f /pip-packages
 
       # If we just installed tensorflow, we need to reinstall DALI TF plugin
       if [[ "$inst" == *tensorflow-gpu* ]]; then

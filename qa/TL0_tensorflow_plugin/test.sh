@@ -1,11 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages="nose tensorflow-gpu"
-
-pushd ../..
-
-source qa/setup_dali_extra.sh
-cd dali/test/python
+target_dir=./dali/test/python
 
 test_body() {
     # Manually removing the supported plugin so that it fails
@@ -23,6 +19,6 @@ test_body() {
     nosetests --verbose test_dali_tf_plugin_run.py
 }
 
-source ../../../qa/test_template.sh
-
+pushd ../..
+source ./qa/test_template.sh
 popd

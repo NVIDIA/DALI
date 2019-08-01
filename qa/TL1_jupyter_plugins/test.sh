@@ -1,22 +1,18 @@
 #!/bin/bash -e
 
-source ../setup_dali_extra.sh
-
 # used pip packages
 pip_packages="jupyter matplotlib mxnet-cu##CUDA_VERSION## tensorflow-gpu torchvision torch"
+target_dir=./docs/examples
 
-# We need cmake to run the custom plugin notebook + ffmpeg and wget for video example
-apt-get update
-apt-get install -y --no-install-recommends wget ffmpeg cmake
-
-pushd ../..
-
-# attempt to run jupyter on all example notebooks
-mkdir -p idx_files
-
-cd docs/examples
+do_once() {
+  # We need cmake to run the custom plugin notebook + ffmpeg and wget for video example
+  apt-get update
+  apt-get install -y --no-install-recommends wget ffmpeg cmake
+  mkdir -p idx_files
+}
 
 test_body() {
+  # attempt to run jupyter on all example notebooks
     black_list_files="optical_flow_example.ipynb\|#" # optical flow requires TU102 architecture
                                                      # whilst currently L1_jupyter_plugins test
                                                      # can be run only on V100
@@ -29,6 +25,6 @@ test_body() {
     python${PYVER:0:1} pytorch/resnet50/main.py -t
 }
 
-source ../../qa/test_template.sh
-
+pushd ../..
+source ./qa/test_template.sh
 popd

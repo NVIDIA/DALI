@@ -2,6 +2,12 @@
 
 CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
 CUDA_VERSION=${CUDA_VERSION:-90}
+
+if [ -n "$gather_pip_packages" ]
+then
+    # early exit
+    return 0
+fi
 PYTHON_VERSION=$(python -c "from __future__ import print_function; import sys; print(\"{}.{}\".format(sys.version_info[0],sys.version_info[1]))")
 
 NVIDIA_SMI_DRIVER_VERSION=$(nvidia-smi | grep -Po '(?<=Driver Version: )\d+.\d+')

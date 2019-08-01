@@ -1,15 +1,13 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages="nose"
+target_dir=./dali/test/python
 
-pushd ../..
-
-source qa/setup_dali_extra.sh
-cd dali/test/python
-
-USE_CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1/')
-test "$USE_CUDA_VERSION" = "10" && export TENSORFLOW_VERSIONS="1.13.1 1.14"
-test "$USE_CUDA_VERSION" = "9" && export TENSORFLOW_VERSIONS="1.7 1.8 1.9 1.10 1.11 1.12"
+do_once() {
+    USE_CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1/')
+    test "$USE_CUDA_VERSION" = "10" && export TENSORFLOW_VERSIONS="1.13.1 1.14"
+    test "$USE_CUDA_VERSION" = "9" && export TENSORFLOW_VERSIONS="1.7 1.8 1.9 1.10 1.11 1.12"
+}
 
 test_body() {
     # Manually removing the supported plugin so that it fails
@@ -35,6 +33,6 @@ test_body() {
     done
 }
 
-source ../../../qa/test_template.sh
-
+pushd ../..
+source ./qa/test_template.sh
 popd

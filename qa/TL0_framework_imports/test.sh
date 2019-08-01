@@ -19,4 +19,6 @@ test_body() {
     ( set -x && python -c "import nvidia.dali.plugin.pytorch; import torch" )
 }
 
-source ../test_template.sh
+pushd ../../
+source ./qa/test_template.sh
+popd
