@@ -39,7 +39,7 @@ class WaterPipeline(Pipeline):
 def check_water_cpu_vs_gpu(batch_size):
     compare_pipelines(WaterPipeline('cpu', batch_size),
                       WaterPipeline('gpu', batch_size),
-                      batch_size=batch_size, N_iterations=10)
+                      batch_size=batch_size, N_iterations=10, eps=1)
 
 
 def python_water(img):
@@ -61,7 +61,7 @@ def python_water(img):
         
     for y in range(nh):
         img_y[y,:] = x_wave + y - 0.5
-        return cv2.remap(img,img_x,img_y,cv2.INTER_LINEAR)
+    return cv2.remap(img,img_x,img_y,cv2.INTER_LINEAR)
 
 
 class WaterPythonPipeline(Pipeline):
