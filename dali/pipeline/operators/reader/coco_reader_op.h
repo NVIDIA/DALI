@@ -25,42 +25,82 @@
 #include <memory>
 
 #include "dali/pipeline/operators/reader/reader_op.h"
-#include "dali/pipeline/operators/reader/loader/file_loader.h"
 #include "dali/pipeline/operators/reader/loader/coco_loader.h"
-#include "dali/pipeline/operators/reader/parser/coco_parser.h"
 
 namespace dali {
-
 class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
-  explicit COCOReader(const OpSpec& spec)
-  : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+  explicit COCOReader(const OpSpec& spec):
+    DataReader<CPUBackend, ImageLabelWrapper>(spec),
+    save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
+    ValidateOptions(spec);
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-
-    DALI_ENFORCE(!skip_cached_images_,
-      "COCOReader doesn't support `skip_cached_images` option");
-
-    if (spec.HasArgument("file_list"))
-      loader_ = InitLoader<FileLoader>(
-        spec,
-        std::vector<std::pair<string, int>>(),
-        shuffle_after_epoch);
-    else
-      loader_ = InitLoader<CocoLoader>(
-        spec,
-        annotations_multimap_,
-        shuffle_after_epoch);
-    parser_.reset(new COCOParser(spec, annotations_multimap_));
+    loader_ = InitLoader<CocoLoader>(
+      spec,
+      offsets_,
+      boxes_,
+      labels_,
+      counts_,
+      save_img_ids_,
+      original_ids_,
+      shuffle_after_epoch);
   }
 
   void RunImpl(SampleWorkspace* ws) override {
-    parser_->Parse(GetSample(ws->data_idx()), ws);
+    const ImageLabelWrapper& image_label = GetSample(ws->data_idx());
+
+    Index image_size = image_label.image.size();
+    auto &image_output = ws->Output<CPUBackend>(0);
+    int image_id = image_label.label;
+
+    image_output.Resize({image_size});
+    image_output.mutable_data<uint8_t>();
+    std::memcpy(
+      image_output.raw_mutable_data(),
+      image_label.image.raw_data(),
+      image_size);
+    image_output.SetSourceInfo(image_label.image.GetSourceInfo());
+
+    auto &boxes_output = ws->Output<CPUBackend>(1);
+    boxes_output.Resize({counts_[image_id], 4});
+    auto boxes_out_data = boxes_output.mutable_data<float>();
+    memcpy(
+      boxes_out_data,
+      boxes_.data() + 4 * offsets_[image_id],
+      counts_[image_id] * 4 * sizeof(float));
+
+    auto &labels_output = ws->Output<CPUBackend>(2);
+    labels_output.Resize({counts_[image_id], 1});
+    auto labels_out_data = labels_output.mutable_data<int>();
+    memcpy(
+      labels_out_data,
+      labels_.data() + offsets_[image_id],
+      counts_[image_id] * sizeof(int));
+
+    if (save_img_ids_) {
+      auto &id_output = ws->Output<CPUBackend>(3);
+      id_output.Resize({1});
+      auto id_out_data = id_output.mutable_data<int>();
+      memcpy(
+        id_out_data,
+        original_ids_.data() + image_id,
+        sizeof(int));
+    }
   }
 
  protected:
-  AnnotationMap annotations_multimap_;
-
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
+
+ private:
+  std::vector<int> offsets_;
+  std::vector<float> boxes_;
+  std::vector<int> labels_;
+  std::vector<int> counts_;
+
+  bool save_img_ids_;
+  std::vector<int> original_ids_;
+
+  void ValidateOptions(const OpSpec &spec);
 };
 
 }  // namespace dali

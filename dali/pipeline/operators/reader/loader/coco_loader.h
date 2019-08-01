@@ -22,46 +22,47 @@
 #include <utility>
 
 #include "dali/pipeline/operators/reader/loader/file_loader.h"
-#include "dali/pipeline/operators/reader/parser/coco_parser.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 
 namespace dali {
-
 namespace detail {
-
-void ParseAnnotationFilesHelper(
-  std::vector<std::string> &annotations_filename,
-  AnnotationMap &annotations_multimap,
-  std::vector<std::pair<std::string, int>> &image_id_pairs,
-  bool ltrb, bool ratio, float size_threshold, bool skip_empty);
-
+template<size_t N>
+inline int safe_strcmp(const char *str1, const char (&str2)[N]) {
+    return strncmp(str1, str2, N-1);
 }
 
+}  // namespace detail
+
+using ImageIdPairs = std::vector<std::pair<std::string, int>>;
 class CocoLoader : public FileLoader {
  public:
   explicit inline CocoLoader(
     const OpSpec& spec,
-    AnnotationMap &annotations_multimap,
+    std::vector<int> &offsets,
+    std::vector<float> &boxes,
+    std::vector<int> &labels,
+    std::vector<int> &counts,
+    bool save_img_ids,
+    std::vector<int> &original_ids,
     bool shuffle_after_epoch = false) :
       FileLoader(spec, std::vector<std::pair<string, int>>(), shuffle_after_epoch),
-      annotations_multimap_(annotations_multimap),
-      annotations_filename_(spec.GetRepeatedArgument<std::string>("annotations_file")),
-      ltrb_(spec.GetArgument<bool>("ltrb")),
-      ratio_(spec.GetArgument<bool>("ratio")),
-      size_threshold_(spec.GetArgument<float>("size_threshold")),
-      skip_empty_(spec.GetArgument<bool>("skip_empty")) {}
+      spec_(spec),
+      parse_meta_files_(spec.HasArgument("meta_files_path")),
+      offsets_(offsets),
+      boxes_(boxes),
+      labels_(labels),
+      counts_(counts),
+      save_img_ids_(save_img_ids),
+      original_ids_(original_ids) {}
 
  protected:
   void PrepareMetadataImpl() override {
-    detail::ParseAnnotationFilesHelper(
-      annotations_filename_,
-      annotations_multimap_,
-      image_label_pairs_,
-      ltrb_,
-      ratio_,
-      size_threshold_,
-      skip_empty_);
+    if (parse_meta_files_) {
+      ParseMetafiles();
+    } else {
+       ParseJsonAnnotations();
+    }
 
     DALI_ENFORCE(Size() > 0, "No files found.");
     if (shuffle_) {
@@ -73,12 +74,23 @@ class CocoLoader : public FileLoader {
     Reset(true);
   }
 
-  AnnotationMap &annotations_multimap_;
-  std::vector<std::string> annotations_filename_;
-  bool ltrb_;
-  bool ratio_;
-  float size_threshold_;
-  bool skip_empty_;
+  void ParseMetafiles();
+
+  void ParseJsonAnnotations();
+
+  void DumpMetaFiles(std::string path, const ImageIdPairs &image_id_pairs);
+
+ private:
+  const OpSpec &spec_;
+  bool parse_meta_files_;
+
+  std::vector<int> &offsets_;
+  std::vector<float> &boxes_;
+  std::vector<int> &labels_;
+  std::vector<int> &counts_;
+
+  bool save_img_ids_;
+  std::vector<int> &original_ids_;
 };
 
 }  // namespace dali
