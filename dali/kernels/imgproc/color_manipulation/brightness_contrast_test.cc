@@ -17,35 +17,13 @@
 #include <tuple>
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
 #include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/kernels/test/kernel_test_utils.h"
 
 namespace dali {
 namespace kernels {
 namespace test {
 
 namespace brightness_contrast {
-
-template <template <typename A, typename B> class Pair, typename T1, typename... T>
-using FixedFirstTypePairs = std::tuple<Pair<T1, T>...>;
-
-template <template <typename A, typename B> class Pair, typename A, typename B>
-struct AllPairsHelper;
-
-template <template <typename A, typename B> class Pair, typename... A, typename... B>
-struct AllPairsHelper<Pair, std::tuple<A...>, std::tuple<B...>> {
-  using type = dali::detail::tuple_cat_t<FixedFirstTypePairs<Pair, A, B...>...>;
-};
-
-template <template <typename A, typename B> class Pair, typename TupleA, typename TupleB>
-using AllPairs = typename AllPairsHelper<Pair, TupleA, TupleB>::type;
-
-template <typename Tuple>
-struct TupleToGTest;
-
-template <typename... T>
-struct TupleToGTest<std::tuple<T...>> {
-  using type = testing::Types<T...>;
-};
-
 
 /**
  * Creates cv::Mat based on provided arguments.
@@ -121,22 +99,8 @@ class BrightnessContrastTest : public ::testing::Test {
 };
 
 
-namespace test_types {
-
-template <class InputType, class OutputType>
-struct InputOutputTypes {
-  using in = InputType;
-  using out = OutputType;
-};
-
-using ArgTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
-using MyTypesTuple = brightness_contrast::AllPairs<InputOutputTypes, ArgTypes, ArgTypes>;
-using GTestTypes = typename brightness_contrast::TupleToGTest<MyTypesTuple>::type;
-
-}  // namespace test_types
-
-
-TYPED_TEST_SUITE(BrightnessContrastTest, test_types::GTestTypes);
+using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
+INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastTest, TestTypes);
 
 TYPED_TEST(BrightnessContrastTest, check_kernel) {
   BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
