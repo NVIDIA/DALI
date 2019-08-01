@@ -32,11 +32,10 @@ __global__ void BatchWarpVariableSize(
     const SampleDesc<ndim, OutputType, InputType> *samples,
     const BlockDesc<ndim> *blocks,
     const mapping_params_t<Mapping> *mapping,
-    DALIInterpType interp_type,
     BorderValue border) {
   auto block = blocks[blockIdx.x];
   auto sample = samples[block.sample_idx];
-  VALUE_SWITCH(interp_type, interp_const, (DALI_INTERP_NN, DALI_INTERP_LINEAR), (
+  VALUE_SWITCH(sample.interp, interp_const, (DALI_INTERP_NN, DALI_INTERP_LINEAR), (
     BlockWarp<interp_const, Mapping, ndim, OutputType, InputType, BorderValue>(
       sample, block, Mapping(mapping[block.sample_idx]), border)),
     (assert(!"Interpolation type not supported")));

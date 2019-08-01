@@ -71,7 +71,9 @@ TEST(WarpGPU, Affine_Transpose_ForceVariable) {
   out.reshape(req.output_shapes[0].to_static<3>());
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
-  warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, DALI_INTERP_NN);
+
+  auto interp = DALI_INTERP_NN;
+  warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1});
 
   auto cpu_out = out.cpu(0)[0];
   cudaDeviceSynchronize();
@@ -115,13 +117,14 @@ TEST(WarpGPU, Affine_Transpose_Single) {
   auto mappings = make_tensor_gpu<1>(mapping_gpu.get(), { 1 });
   copy(mappings, make_tensor_cpu<1>(&mapping_cpu, { 1 }));
 
-  KernelRequirements req = warp.Setup(ctx, in_list, mappings, out_shapes_hw, DALI_INTERP_NN);
+  auto interp = DALI_INTERP_NN;
+  KernelRequirements req = warp.Setup(ctx, in_list, mappings, out_shapes_hw, {&interp, 1});
   scratch_alloc.Reserve(req.scratch_sizes);
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
-  warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, DALI_INTERP_NN);
+  warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1});
 
   auto cpu_out = out.cpu(0)[0];
   cudaDeviceSynchronize();
@@ -202,6 +205,7 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
   auto mappings = make_tensor_gpu<1>(mapping_gpu.get(), { 1 });
   copy(mappings, make_tensor_cpu<1>(&mapping_cpu, { 1 }));
 
+  auto interp = DALI_INTERP_LINEAR;
   auto out_shapes = warp.GetOutputShape(in_list.shape, out_shapes_hw);
   KernelRequirements req = warp.WarpSetup::Setup(out_shapes, true);
   scratch_alloc.Reserve(req.scratch_sizes);
@@ -209,7 +213,7 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
   out.reshape(req.output_shapes[0].to_static<3>());
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
-  warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, DALI_INTERP_LINEAR, 255);
+  warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1}, 255);
 
   auto cpu_out = out.cpu(0)[0];
   cudaDeviceSynchronize();
@@ -269,15 +273,16 @@ TEST(WarpGPU, Affine_RotateScale_Uniform) {
   auto mappings = make_tensor_gpu<1>(mapping_gpu.get(), { samples });
   copy(mappings, make_tensor_cpu<1>(mapping_cpu.data(), { samples }));
 
+  auto interp = DALI_INTERP_LINEAR;
   KernelRequirements req = warp.Setup(
-    ctx, in_list, mappings, make_span(out_shapes_hw), DALI_INTERP_LINEAR, 255);
+    ctx, in_list, mappings, make_span(out_shapes_hw), {&interp, 1}, 255);
 
   scratch_alloc.Reserve(req.scratch_sizes);
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
-  warp.Run(ctx, out.gpu(0), in_list, mappings, make_span(out_shapes_hw), DALI_INTERP_LINEAR, 255);
+  warp.Run(ctx, out.gpu(0), in_list, mappings, make_span(out_shapes_hw), {&interp, 1}, 255);
   cudaDeviceSynchronize();
 
   for (int i = 0; i < samples; i++) {

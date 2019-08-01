@@ -31,6 +31,7 @@ struct SampleDesc {
   const InputType *__restrict__ input;
   ivec<ndim> out_size, out_strides, in_size, in_strides;
   int channels;
+  DALIInterpType interp;
 };
 
 
@@ -64,8 +65,10 @@ class WarpSetup : public BlockSetup<ndim, ndim> {
 
   template <typename Backend>
   void PrepareSamples(const OutList<Backend, OutputType, tensor_ndim> &out,
-                      const InList<Backend, InputType, tensor_ndim> &in) {
+                      const InList<Backend, InputType, tensor_ndim> &in,
+                      span<const DALIInterpType> interp) {
     assert(out.num_samples() == in.num_samples());
+    assert(interp.size() == in.num_samples() || interp.size() == 1);
     samples_.resize(in.num_samples());
     for (int i = 0; i < in.num_samples(); i++) {
       SampleDesc &sample = samples_[i];
@@ -83,6 +86,8 @@ class WarpSetup : public BlockSetup<ndim, ndim> {
 
       sample.in_strides.x = channels;
       sample.in_strides.y = sample.in_size.x * sample.in_strides.x;
+
+      sample.interp = interp[interp.size() == 1 ? 0 : i];
     }
   }
 

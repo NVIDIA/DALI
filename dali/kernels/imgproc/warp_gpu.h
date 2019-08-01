@@ -51,7 +51,7 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
                            const InListGPU<InputType, tensor_ndim> &in,
                            const InTensorGPU<MappingParams, 1> &mapping,
                            span<const TensorShape<spatial_ndim>> output_sizes,
-                           DALIInterpType interp,
+                           span<const DALIInterpType> interp,
                            BorderValue border = {}) {
     assert(in.size() == static_cast<size_t>(output_sizes.size()));
     auto out_shapes = this->GetOutputShape(in.shape, output_sizes);
@@ -63,10 +63,10 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
            const InListGPU<InputType, tensor_ndim> &in,
            const InTensorGPU<MappingParams, 1> &mapping,
            span<const TensorShape<spatial_ndim>> output_sizes,
-           DALIInterpType interp,
+           span<const DALIInterpType> interp,
            BorderValue border = {}) {
     this->ValidateOutputShape(out.shape, in.shape, output_sizes);
-    this->PrepareSamples(out, in);
+    this->PrepareSamples(out, in, interp);
     SampleDesc *gpu_samples;
     BlockDesc *gpu_blocks;
 
@@ -81,7 +81,6 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
         this->UniformOutputSize(),
         this->UniformBlockSize(),
         mapping.data,
-        interp,
         border);
       CUDA_CALL(cudaGetLastError());
     } else {
@@ -95,7 +94,6 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
         gpu_samples,
         gpu_blocks,
         mapping.data,
-        interp,
         border);
       CUDA_CALL(cudaGetLastError());
     }
