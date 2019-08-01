@@ -42,8 +42,6 @@ def check_water_cpu_vs_gpu(batch_size):
                       batch_size=batch_size, N_iterations=10)
 
 
-
-
 def python_water(img):
     nh,nw=img.shape[:2]
     phase_y=0.5
@@ -54,11 +52,16 @@ def python_water(img):
     ampl_y=3.0
     img_x=np.zeros((nh,nw),np.float32)
     img_y=np.zeros((nh,nw),np.float32)
+    x_idx = np.arange(0, nw, 1, np.float32)
+    y_idx = np.arange(0, nh, 1, np.float32)
+    x_wave = ampl_y * np.cos(freq_y * x_idx + phase_y)
+    y_wave = ampl_x * np.sin(freq_x * y_idx + phase_x)
+    for x in range(nw):
+        img_x[:,x] = y_wave + x - 0.5
+        
     for y in range(nh):
-        for x in range(nw):
-            img_x[y,x] =  x + ampl_x* np.sin(freq_x*y + phase_x)
-            img_y[y,x] = y + ampl_y* np.cos(freq_y*x + phase_y)
-    return cv2.remap(img,img_x,img_y,cv2.INTER_LINEAR)
+        img_y[y,:] = x_wave + y - 0.5
+        return cv2.remap(img,img_x,img_y,cv2.INTER_LINEAR)
 
 
 class WaterPythonPipeline(Pipeline):
