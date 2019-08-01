@@ -24,7 +24,7 @@ class WaterPipeline(Pipeline):
         self.device = device
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
-        self.water = ops.Water(device = self.device, ampl_x=2., ampl_y=3., phase_x=0.2, phase_y=0.5, freq_x=0.06,freq_y=0.08)
+        self.water = ops.Water(device = self.device, ampl_x=2., ampl_y=3., phase_x=0.2, phase_y=0.5, freq_x=0.06,freq_y=0.08, interp_type = dali.types.INTERP_LINEAR)
         
     
     def define_graph(self):
@@ -90,7 +90,7 @@ def check_water_vs_cv(device, batch_size):
     python_func = python_water
     compare_pipelines(WaterPipeline(device, batch_size),
                       WaterPythonPipeline( batch_size, python_func),
-                      batch_size=batch_size, N_iterations=10)
+                      batch_size=batch_size, N_iterations=10,eps=8)
 
 def test_water_vs_cv():
     for device in ['cpu', 'gpu']:
