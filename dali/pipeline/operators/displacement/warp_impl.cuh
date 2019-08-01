@@ -99,14 +99,16 @@ class WarpOpImplGPUBase : public OpImplInterface<GPUBackend> {
     SetBorder(ws);
     SetOutputSizes(ws);
 
-    auto &req = kmgr_.Setup<Kernel>(0, GetContext(ws), input_, params_gpu_, make_span(output_sizes_), border_);
+    auto context = GetContext(ws);
+    auto &req = kmgr_.Setup<Kernel>(0, context, input_, params_gpu_, make_span(output_sizes_), border_);
     shape = req.output_shapes[0];
   }
 
   void Run(DeviceWorkspace &ws) override {
     auto output = view<OutputType, tensor_ndim>(ws.Output<GPUBackend>(0));
     input_ = view<const InputType,  tensor_ndim>(ws.Input<GPUBackend>(0));
-    kmgr_.Run<Kernel>(0, 0, GetContext(ws), output, input_, params_, make_span(output_sizes_), border_);
+    auto context = GetContext(ws);
+    kmgr_.Run<Kernel>(0, 0, context, output, input_, params_gpu_, make_span(output_sizes_), border_);
   }
 
   ActualOp &Op() const { return *operator_; }
@@ -166,11 +168,13 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
 
   template <typename F>
   void ToStaticType(F &&functor) {
-    ToStaticTypeEx(MyType::SupportedTypes(), std::forward<F>(functor));
+    using supported_types = typename MyType::SupportedTypes;
+    ToStaticTypeEx(supported_types(), std::forward<F>(functor));
   }
 
+  // TODO(michalz): Change value switch over SpatialDim to (2, 3) when kernel is implemented
   #define WARP_STATIC_TYPES(...) {                                                \
-    VALUE_SWITCH(This().SpatialDim(ws), spatial_ndim, (2, 3), (                     \
+    VALUE_SWITCH(This().SpatialDim(ws), spatial_ndim, (2), (                      \
       VALUE_SWITCH(interp_type_, interp, (DALI_INTERP_NN, DALI_INTERP_LINEAR), (  \
           ToStaticType(                                                           \
             [&](auto &&args) {                                                    \
