@@ -205,19 +205,21 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
 
 TYPED_TEST(BrightnessContrastTest, roi_shape) {
   {
-    Box<2, int> box({0, 3});
+    Box<2, int> box{0, 3};
     auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 3);
     TensorShape<3> ref_sh = {3, 3, 3};
     ASSERT_EQ(ref_sh, sh);
   }
   {
-    Box<2, int> box({0, 2}, {5, 6});
+    Box<2, int> box{{0, 2},
+                    {5, 6}};
     auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
     TensorShape<3> ref_sh = {4, 5, 666};
     ASSERT_EQ(ref_sh, sh);
   }
   {
-    Box<2, int> box({0, 0}, {0, 0});
+    Box<2, int> box{{0, 0},
+                    {0, 0}};
     auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
     TensorShape<3> ref_sh = {0, 0, 666};
     ASSERT_EQ(ref_sh, sh);
