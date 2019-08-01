@@ -33,6 +33,8 @@ class NewWarpAffine<GPUBackend> : public Warp<GPUBackend, NewWarpAffine<GPUBacke
   template <int ndim, typename OutputType, typename InputType>
   using KernelType = kernels::WarpGPU<
     kernels::AffineMapping<ndim>, ndim, OutputType, InputType, InputType>;
+
+
 };
 
 }  // namespace dali

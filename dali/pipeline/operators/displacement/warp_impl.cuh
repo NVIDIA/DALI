@@ -55,7 +55,27 @@ class WarpOpImplGPUBase : public OpImplInterface<GPUBackend> {
   }
 
   void SetInterp(DeviceWorkspace &ws) {
-      interp_type_ = Spec().template GetArgument<DALIInterpType>("interp_type");
+    interp_types_.clear();
+    if (Spec().HasTensorArgument("interp_type")) {
+      int num_samples = ws.Input<GPUBackend>(0).shape().num_samples();
+      auto &tensor = ws.ArgumentInput("interp_type");
+      int n = tensor.shape()[0];
+      DALI_ENFORCE(n == 1 || n == num_samples,
+        "interp_type must be a single value or contain one value per sample");
+      auto *data = tensor.template data<DALIInterpType>();
+      interp_types_.resize(n);
+
+      for (int i = 0; i < n; i++)
+        interp_types_[i] = data[i];
+    } else {
+      interp_types_.resize(1, Spec().template GetArgument<DALIInterpType>("interp_type"));
+    }
+
+    for (size_t i = 0; i < interp_types_.size(); i++) {
+      DALI_ENFORCE(interp_types_[i] == DALI_INTERP_NN || interp_types_[i] == DALI_INTERP_LINEAR,
+        "Only nearest and linear interpolation is supported");
+
+    }
   }
 
   virtual void SetParams(DeviceWorkspace &ws) {
@@ -110,7 +130,7 @@ class WarpOpImplGPUBase : public OpImplInterface<GPUBackend> {
         input_,
         params_gpu_,
         make_span(output_sizes_),
-        interp_type_,
+        make_span(interp_types_),
         border_);
 
     shape = req.output_shapes[0];
@@ -126,7 +146,7 @@ class WarpOpImplGPUBase : public OpImplInterface<GPUBackend> {
         input_,
         params_gpu_,
         make_span(output_sizes_),
-        interp_type_,
+        make_span(interp_types_),
         border_);
   }
 
@@ -144,7 +164,7 @@ class WarpOpImplGPUBase : public OpImplInterface<GPUBackend> {
   kernels::TensorListShape<tensor_ndim> input_shape_;
   std::vector<kernels::TensorShape<spatial_ndim>> output_sizes_;
   BorderValue border_ = {};
-  DALIInterpType interp_type_ = DALI_INTERP_LINEAR;
+  std::vector<DALIInterpType> interp_types_;
 
   kernels::KernelManager kmgr_;
   ActualOp *operator_;
