@@ -14,13 +14,9 @@
 
 #include <gtest/gtest.h>
 #include "dali/kernels/imgproc/warp/affine.h"
-#include "dali/kernels/imgproc/warp/jitter.h"
 #include "dali/kernels/imgproc/warp/sphere.h"
 #include "dali/kernels/imgproc/warp/water.h"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
 
 static_assert(dali::kernels::warp::is_fp_mapping<dali::kernels::AffineMapping<3>>::value,
               "AffineMapping should be considered fp");
-
-static_assert(!dali::kernels::warp::is_fp_mapping<dali::kernels::JitterMappingCPU<2>>::value,
-              "JitterMapping should be considered integral");
