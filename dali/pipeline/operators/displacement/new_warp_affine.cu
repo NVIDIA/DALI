@@ -22,7 +22,6 @@ DALI_SCHEMA(NewWarpAffine)
   .DocStr(R"code(Apply an affine transformation to the image.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AllowMultipleInputSets()
   .AddArg("matrix",
       R"code(Matrix of the transform (dst -> src).
 Given list of values `(M11, M12, M13, M21, M22, M23)`
@@ -46,7 +45,7 @@ Channel dimension should be excluded (e.g. for RGB images specify 480,640, not 4
       DALI_FLOAT_VEC)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
-      DALI_INTERP_NN)
+      DALI_INTERP_LINEAR)
   .AddOptionalArg("fill_value",
       R"code(Color value used for padding pixels.)code",
       0.f);
