@@ -18,25 +18,28 @@
 #include "dali/kernels/imgproc/warp/warp_setup.cuh"
 #include "dali/kernels/imgproc/warp/block_warp.cuh"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {
 namespace warp {
 
 
-template <DALIInterpType interp_type, typename Mapping,
+template <typename Mapping,
          int ndim, typename OutputType, typename InputType,
          typename BorderValue>
 __global__ void BatchWarpVariableSize(
     const SampleDesc<ndim, OutputType, InputType> *samples,
     const BlockDesc<ndim> *blocks,
     const mapping_params_t<Mapping> *mapping,
+    DALIInterpType interp_type,
     BorderValue border) {
-
   auto block = blocks[blockIdx.x];
   auto sample = samples[block.sample_idx];
-  BlockWarp<interp_type, Mapping, ndim, OutputType, InputType, BorderValue>(
-    sample, block, Mapping(mapping[block.sample_idx]), border);
+  VALUE_SWITCH(interp_type, interp_const, (DALI_INTERP_NN, DALI_INTERP_LINEAR), (
+    BlockWarp<interp_const, Mapping, ndim, OutputType, InputType, BorderValue>(
+      sample, block, Mapping(mapping[block.sample_idx]), border)),
+    (assert(!"Interpolation type not supported")));
 }
 
 }  // namespace warp

@@ -27,24 +27,31 @@ namespace dali {
 namespace kernels {
 
 /// @remarks Assume HWC layout
-template <typename Mapping, int ndim, typename OutputType, typename InputType,
-          typename BorderValue, DALIInterpType interp>
-class WarpGPU : public warp::WarpSetup<ndim, OutputType, InputType> {
+template <typename _Mapping, int ndim, typename _OutputType, typename _InputType,
+          typename _BorderValue>
+class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
+ public:
+  static constexpr int spatial_ndim = ndim;
+  static constexpr int tensor_ndim = ndim + 1;
+
+  using Mapping = _Mapping;
+  using OutputType = _OutputType;
+  using InputType = _InputType;
+  using BorderValue = _BorderValue;
   using MappingParams = warp::mapping_params_t<Mapping>;
-  static_assert(std::is_pod<MappingParams>::value, "Mapping must be POD.");
+  static_assert(std::is_pod<MappingParams>::value, "Mapping parameters must be POD.");
   static_assert(std::is_pod<BorderValue>::value, "BorderValue must be POD.");
 
-  using Base =  warp::WarpSetup<ndim, OutputType, InputType>;
+  using Base =  warp::WarpSetup<spatial_ndim, OutputType, InputType>;
   using SampleDesc = typename Base::SampleDesc;
   using BlockDesc = typename Base::BlockDesc;
-  static_assert(ndim == 2, "Not implemented for ndim != 2");
+  static_assert(spatial_ndim == 2, "Not implemented for spatial_ndim != 2");
 
- public:
-  static constexpr int tensor_dim = ndim + 1;
   KernelRequirements Setup(KernelContext &context,
-                           const InListGPU<InputType, tensor_dim> &in,
+                           const InListGPU<InputType, tensor_ndim> &in,
                            const InTensorGPU<MappingParams, 1> &mapping,
-                           span<const TensorShape<ndim>> output_sizes,
+                           span<const TensorShape<spatial_ndim>> output_sizes,
+                           DALIInterpType interp,
                            BorderValue border = {}) {
     assert(in.size() == static_cast<size_t>(output_sizes.size()));
     auto out_shapes = this->GetOutputShape(in.shape, output_sizes);
@@ -52,10 +59,11 @@ class WarpGPU : public warp::WarpSetup<ndim, OutputType, InputType> {
   }
 
   void Run(KernelContext &context,
-           const OutListGPU<OutputType, tensor_dim> &out,
-           const InListGPU<InputType, tensor_dim> &in,
+           const OutListGPU<OutputType, tensor_ndim> &out,
+           const InListGPU<InputType, tensor_ndim> &in,
            const InTensorGPU<MappingParams, 1> &mapping,
-           span<const TensorShape<ndim>> output_sizes,
+           span<const TensorShape<spatial_ndim>> output_sizes,
+           DALIInterpType interp,
            BorderValue border = {}) {
     this->ValidateOutputShape(out.shape, in.shape, output_sizes);
     this->PrepareSamples(out, in);
@@ -66,23 +74,28 @@ class WarpGPU : public warp::WarpSetup<ndim, OutputType, InputType> {
       gpu_samples = context.scratchpad->ToGPU(context.gpu.stream, this->Samples());
       CUDA_CALL(cudaGetLastError());
 
-      warp::BatchWarpUniformSize<interp, Mapping, ndim, OutputType, InputType, BorderValue>
+      warp::BatchWarpUniformSize
+      <Mapping, spatial_ndim, OutputType, InputType, BorderValue>
       <<<this->GridDim(), this->BlockDim(), 0, context.gpu.stream>>>(
         gpu_samples,
         this->UniformOutputSize(),
         this->UniformBlockSize(),
         mapping.data,
+        interp,
         border);
       CUDA_CALL(cudaGetLastError());
     } else {
       std::tie(gpu_samples, gpu_blocks) = context.scratchpad->ToContiguousGPU(
         context.gpu.stream, this->Samples(), this->Blocks());
       CUDA_CALL(cudaGetLastError());
-      warp::BatchWarpVariableSize<interp, Mapping, ndim, OutputType, InputType, BorderValue>
+
+      warp::BatchWarpVariableSize
+      <Mapping, spatial_ndim, OutputType, InputType, BorderValue>
       <<<this->GridDim(), this->BlockDim(), 0, context.gpu.stream>>>(
         gpu_samples,
         gpu_blocks,
         mapping.data,
+        interp,
         border);
       CUDA_CALL(cudaGetLastError());
     }
