@@ -33,6 +33,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     count_(spec.GetArgument<int>("sequence_length")),
     channels_(spec.GetArgument<int>("channels")),
     output_scale_(spec.GetArgument<float>("scale")),
+    tl_shape_(batch_size_, sequence_dim),
     dtype_(spec.GetArgument<DALIDataType>("dtype")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
 
@@ -53,14 +54,9 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
       try {
         loader_ = InitLoader<VideoLoader>(spec, filenames_);
-        auto w_h = dynamic_cast<VideoLoader*>(loader_.get())->load_width_height();
-        width_ = static_cast<int>(w_h.first * output_scale_);
-        height_ = static_cast<int>(w_h.second * output_scale_);
       } catch (std::exception &e) {
         DALI_FAIL(std::string(e.what()));
       }
-
-      tl_shape_ = kernels::uniform_list_shape(batch_size_, {count_, height_, width_, channels_});
 
       enable_label_output_ = !file_root_.empty() || !file_list_.empty();
 
@@ -83,6 +79,11 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
       tl_sequence_output.set_type(TypeInfo::Create<float>());
     } else {  // dtype_ == DALI_UINT8
       tl_sequence_output.set_type(TypeInfo::Create<uint8>());
+    }
+
+    for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+      auto sequence_shape = GetSample(data_idx).sequence.shape();
+      tl_shape_.set_tensor_shape(data_idx, sequence_shape);
     }
 
     tl_sequence_output.Resize(tl_shape_);
@@ -113,12 +114,11 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
 
  private:
+  static constexpr int sequence_dim = 4;
   std::vector<std::string> filenames_;
   std::string file_root_;
   std::string file_list_;
   int count_;
-  int height_;
-  int width_;
   int channels_;
 
   float output_scale_;

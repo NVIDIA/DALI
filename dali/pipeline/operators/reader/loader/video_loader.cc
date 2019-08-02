@@ -110,7 +110,7 @@ vector<std::pair<string, int>> filesystem::get_file_label_pair(
   } else if (!file_list.empty()) {
     // load (path, label) pairs from list
     std::ifstream s(file_list);
-    DALI_ENFORCE(s.is_open());
+    DALI_ENFORCE(s.is_open(), file_list + " could not be opened.");
 
     string video_file;
     int label;
@@ -175,40 +175,34 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
 
 
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
+    int width = codecpar(stream)->width;
+    int height = codecpar(stream)->height;
     auto codec_id = codecpar(stream)->codec_id;
-    if (width_ == 0) {  // first file to open
-      width_ = codecpar(stream)->width;
-      height_ = codecpar(stream)->height;
+    if (max_width_ == 0) {  // first file to open
+      max_width_ = width;
+      max_height_ = height;
       codec_id_ = codec_id;
 
-      if (vid_decoder_) {
-        DALI_FAIL("Width and height not set, but we have a decoder?");
-      }
-      LOG_LINE << "Opened the first file, creating a video decoder" << std::endl;
-
-      vid_decoder_ = std::unique_ptr<NvDecoder>{
-          new NvDecoder(device_id_,
-                        codecpar(stream),
-                        stream->time_base,
-                        image_type_,
-                        dtype_,
-                        normalized_)};
     } else {  // already opened a file
-      if (!vid_decoder_) {
-          DALI_FAIL("width is already set but we don't have a vid_decoder_");
-      }
+      DALI_ENFORCE(codec_id_ == codec_id, "File " + filename +
+                   " is not the same codec as previous files");
 
-      if (width_ != codecpar(stream)->width ||
-          height_ != codecpar(stream)->height ||
-          codec_id_ != codec_id) {
-          std::stringstream err;
-          err << "File " << filename << " is not the same size and codec as previous files."
-              << " This is not yet supported. ("
-              << codecpar(stream)->width << "x" << codecpar(stream)->height
-              << " instead of "
-              << width_ << "x" << height_ << " or codec "
-              << codec_id << " != " << codec_id_ << ")";
-          DALI_FAIL(err.str());
+      if (NVCUVID_API_EXISTS(cuvidReconfigureDecoder)) {
+        if (max_width_ < width) max_width_ = width;
+        if (max_height_ < height) max_height_ = height;
+
+      } else {
+        if (max_width_ != width ||
+            max_height_ != height) {
+            std::stringstream err;
+            err << "File " << filename << " does not have the same resolution as previous files. ("
+                << width << "x" << height
+                << " instead of "
+                << max_width_ << "x" << max_height_ << "). "
+                << "Install Nvidia driver version >=396 (x86) or >=415 (Power PC) to decode"
+                   " multiple resolutions";
+            DALI_FAIL(err.str());
+        }
       }
     }
     file.stream_base_ = stream->time_base;
@@ -496,54 +490,15 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
   sequence.wait();
 }
 
-std::pair<int, int> VideoLoader::load_width_height() {
-  av_register_all();
-
-  AVFormatContext* raw_fmt_ctx = nullptr;
-
-  DALI_ENFORCE(!file_label_pair_.empty(), "Could not read any files.");
-  std::string filename =  file_label_pair_[0].first;
-
-  auto ret = avformat_open_input(&raw_fmt_ctx, filename.c_str(), NULL, NULL);
-  if (ret < 0) {
-    std::stringstream ss;
-    ss << "Could not open file " << filename
-        << ": " << av_err2str(ret);
-    DALI_FAIL(ss.str());
-  }
-
-  auto fmt_ctx = make_unique_av<AVFormatContext>(raw_fmt_ctx, avformat_close_input);
-
-  if (avformat_find_stream_info(fmt_ctx.get(), nullptr) < 0) {
-    std::stringstream ss;
-    ss << "Could not find stream information in " << filename;
-    DALI_FAIL(ss.str());
-  }
-
-  auto vid_stream_idx_ = av_find_best_stream(fmt_ctx.get(), AVMEDIA_TYPE_VIDEO,
-                                              -1, -1, nullptr, 0);
-  if (vid_stream_idx_ < 0) {
-    std::stringstream ss;
-    ss << "Could not find video stream in " << filename;
-    DALI_FAIL(ss.str());
-  }
-
-  auto stream = fmt_ctx->streams[vid_stream_idx_];
-
-  output_width_ = codecpar(stream)->width;
-  output_height_ = codecpar(stream)->height;
-
-  return std::make_pair(codecpar(stream)->width,
-                        codecpar(stream)->height);
-}
-
 void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {
-  tensor.initialize(count_, height_, width_, 3);
+  tensor.sequence.Resize({tensor_init_bytes_});
 }
 
 void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
     auto& seq_meta = frame_starts_[current_frame_idx_];
+    tensor.initialize(count_, seq_meta.height, seq_meta.width, channels_);
+
     push_sequence_to_read(file_label_pair_[seq_meta.filename_idx].first,
                           seq_meta.frame_idx, count_);
     receive_frames(tensor);

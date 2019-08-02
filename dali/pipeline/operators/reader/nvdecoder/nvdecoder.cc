@@ -43,10 +43,12 @@ NvDecoder::NvDecoder(int device_id,
                      AVRational time_base,
                      DALIImageType image_type,
                      DALIDataType dtype,
-                     bool normalized)
+                     bool normalized,
+                     int max_height,
+                     int max_width)
     : device_id_(device_id), stream_(device_id, false, 0), codecpar_(codecpar),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
-      device_(), parser_(), decoder_(),
+      device_(), parser_(), decoder_(max_height, max_width),
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
@@ -148,6 +150,7 @@ int NvDecoder::handle_sequence_(CUVIDEOFORMAT* format) {
   try {
     ret = decoder_.initialize(format);
   } catch (...) {
+    ERROR_LOG << "Unable to decode file " << recv_queue_.peek().filename << '\n';
     stop_ = true;
     captured_exception_ = std::current_exception();
     // Main thread is waiting on frame_queue_
@@ -362,7 +365,7 @@ const NvDecoder::TextureObjects&
 NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
                         uint16_t input_width, uint16_t input_height,
                         ScaleMethod scale_method) {
-  auto tex_id = std::make_tuple(input, scale_method);
+  auto tex_id = std::make_tuple(input, scale_method, input_height, input_width, input_pitch);
   auto tex = textures_.find(tex_id);
   if (tex != textures_.end()) {
     return tex->second;
@@ -413,7 +416,7 @@ NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
 
 void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                               int index) {
-  auto input_width = decoder_.width();
+  auto input_width = ALIGN16(decoder_.width());
   auto input_height = decoder_.height();
 
   auto output_idx = index;

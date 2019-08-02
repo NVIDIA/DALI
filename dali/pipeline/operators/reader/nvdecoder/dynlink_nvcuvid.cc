@@ -132,6 +132,8 @@ CUresult cuvidInit(unsigned int Flags)
     GET_PROC(cuvidCreateDecoder);
     GET_PROC(cuvidDestroyDecoder);
     GET_PROC(cuvidDecodePicture);
+    GET_PROC_OPTIONAL(cuvidGetDecodeStatus);
+    GET_PROC_OPTIONAL(cuvidReconfigureDecoder);
 
 #if !defined(__CUVID_DEVPTR64) || defined(__CUVID_INTERNAL)
     GET_PROC(cuvidMapVideoFrame);
