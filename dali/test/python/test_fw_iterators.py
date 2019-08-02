@@ -221,3 +221,71 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     assert len(next_img_ids_list) == data_size
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) != 1
+
+
+class TestIterator():
+    def __init__(self, n, batch_size):
+        self.n = n
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        self.i = 0
+        return self
+
+    def __next__(self):
+        batch = []
+        if self.i < self.n:
+            batch = [np.arange(0, 10 , dtype=np.uint8) for _ in range(self.batch_size)]
+            self.i += 1
+            return batch
+        else:
+            self.i = 0
+            raise StopIteration
+    next = __next__
+
+    @property
+    def size(self,):
+        return self.n * self.batch_size
+
+class TestIterPipeline(Pipeline):
+    def __init__(self, batch_size, device_id, data_source, num_threads=4):
+        super(TestIterPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.data_source = data_source
+        self.dataset = iter(self.data_source)
+        self.test_feeder = ops.ExternalSource()
+
+    def define_graph(self,):
+        self.test_data = self.test_feeder()
+        return self.test_data
+
+    def iter_setup(self,):
+        try:
+            data = self.dataset.next()
+            self.feed_input(self.test_data, data)
+        except StopIteration:
+            self.dataset = iter(self.data_source)
+            raise StopIteration
+
+    @property
+    def size(self):
+        return self.data_source.size
+
+def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num, auto_reset):
+    pipe = TestIterPipeline(batch_size, 0, TestIterator(iter_num, batch_size))
+    loader = fw_iter(pipe, pipe.size, auto_reset)
+    count = 0
+    for e in range(epochs):
+        for i, outputs in enumerate(loader):
+            count += 1
+        if not auto_reset:
+            loader.reset()
+    assert(count == iter_num * epochs)
+
+def test_stop_iteration():
+    for fw_iter, iter_name in [(lambda pipe, size, auto_reset : PyTorchIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset), "PyTorchIterator"),
+                  (lambda pipe, size, auto_reset : MXNetIterator(pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset), "MXNetIterator")]:
+        for epochs in [1, 3 ,6]:
+            for iter_num in [2, 5, 9]:
+                for batch_size in [1, 10 ,100]:
+                    for auto_reset in [True, False]:
+                        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset
