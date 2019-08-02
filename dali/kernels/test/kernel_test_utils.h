@@ -87,12 +87,14 @@ struct is_tuple<std::tuple<Ts...>> : std::true_type {
 }  // namespace detail
 
 /**
- * Registers GTest TYPED_TESTs, filling them up with a struct, that contains 2 types.
+ * Registers GTest TYPED_TESTs, filling them up with a struct, that contains 2 types,
+ * that are a carthesian product: `TupleWithTypes x TupleWithTypes`.
+ *
  * This method is made to create tests for kernels,
  * that can accept different types for input and output.
  *
  * To use it, define a tuple with types (maximum number of types in the tuple is 7,
- * due to GTest limitations) and pass it as a argument to this macro:
+ * due to GTest limitations) and pass it as an argument to this macro:
  *
  * ```
  * template<class T>
@@ -114,12 +116,17 @@ struct is_tuple<std::tuple<Ts...>> : std::true_type {
  *   std::vector<typename TypeParam::out> out_vec;
  * }
  * ```
+ *
+ * @param CaseName Test case name (like in GTest)
+ * @param TupleWithTypes std::tuple containing required types, e.g. std::tuple<int, char>
  */
 #define INPUT_OUTPUT_TYPED_TEST_SUITE(CaseName, TupleWithTypes)                                    \
   static_assert(::dali::testing::detail::is_tuple<TupleWithTypes>::value,                          \
                 "TupleWithTypes has to be a tuple");                                               \
   static_assert(std::tuple_size<TupleWithTypes>::value <= 7,                                       \
                 "Maximum size of a tuple is 7 (enforced by GTest)");                               \
+  static_assert(std::tuple_size<TupleWithTypes>::value >= 1,                                       \
+                "TupleWithTypes contains 0 types. No types to register. Don't mess around...");    \
   using MyTypesTuple = ::dali::testing::detail::AllPairs<                                          \
                        ::dali::testing::detail::InputOutputTypes, TupleWithTypes, TupleWithTypes>; \
   using GTestTypes = ::dali::testing::detail::TupleToGTest<MyTypesTuple>::type;                    \
