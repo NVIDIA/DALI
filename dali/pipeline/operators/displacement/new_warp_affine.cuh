@@ -34,6 +34,8 @@ class NewWarpAffine<GPUBackend> : public Warp<GPUBackend, NewWarpAffine<GPUBacke
   using KernelType = kernels::WarpGPU<
     kernels::AffineMapping<ndim>, ndim, OutputType, InputType, InputType>;
 
+  template <int spatial_ndim>
+  std::unique_ptr<WarpParamProvied<GPUBackend, spatial_ndim,
 
 };
 

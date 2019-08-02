@@ -20,7 +20,7 @@ DALI_REGISTER_OPERATOR(NewWarpAffine, NewWarpAffine<GPUBackend>, GPU);
 
 DALI_SCHEMA(NewWarpAffine)
   .DocStr(R"code(Apply an affine transformation to the image.)code")
-  .NumInput(1)
+  .NumInput(1, 2)
   .NumOutput(1)
   .AddArg("matrix",
       R"code(Matrix of the transform (dst -> src).
@@ -34,10 +34,6 @@ dst(x,y) = src(M11 * x + M12 * y + M13, M21 * x + M22 * y + M23)
 It is equivalent to OpenCV's `warpAffine` operation
 with a flag `WARP_INVERSE_MAP` set.)code",
       DALI_FLOAT_VEC)
-  .AddOptionalArg("use_image_center",
-      R"code(Whether to use image center as the center of transformation.
-When this is `True` coordinates are calculated from the center of the image.)code",
-      false)
   .AddOptionalArg("output_size",
       R"code(Output size, in pixels/points.
 Non-integer sizes are rounded to nearest integer.

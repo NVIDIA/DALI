@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_IMPL_CUH_
 
 #include "dali/pipeline/operators/displacement/warp.h"
+#include "dali/pipeline/operators/displacement/warp_param_provider.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/kernels/imgproc/warp_gpu.h"
 #include "dali/kernels/kernel_manager.h"
@@ -31,11 +32,11 @@ class OpImplInterface {
   virtual void Run(Workspace<Backend> &ws) = 0;
 };
 
-template <typename ActualOp, typename Kernel>
+template <typename Kernel>
 class WarpOpImplGPU;
 
-template <typename ActualOp, typename Kernel>
-class WarpOpImplGPUBase : public OpImplInterface<GPUBackend> {
+template <typename Kernel>
+class WarpOpImplGPU : public OpImplInterface<GPUBackend> {
  public:
   using OutputType = typename Kernel::OutputType;
   using InputType = typename Kernel::InputType;
@@ -44,8 +45,9 @@ class WarpOpImplGPUBase : public OpImplInterface<GPUBackend> {
   using BorderValue = typename Kernel::BorderValue;
   static constexpr int spatial_ndim = Kernel::spatial_ndim;
   static constexpr int tensor_ndim = Kernel::tensor_ndim;
+  using ParamProvider = WarpParamProvider<GPUBackend, spatial_ndim, MappingParams>;
 
-  WarpOpImplGPUBase(ActualOp *op) : operator_(op) {
+  WarpOpImplGPUBase(ParamProvider *pp) : param_provider_(pp) {
   }
 
   kernels::KernelContext GetContext(DeviceWorkspace &ws) {
@@ -54,67 +56,9 @@ class WarpOpImplGPUBase : public OpImplInterface<GPUBackend> {
     return context;
   }
 
-  void SetInterp(DeviceWorkspace &ws) {
-    interp_types_.clear();
-    if (Spec().HasTensorArgument("interp_type")) {
-      int num_samples = ws.Input<GPUBackend>(0).shape().num_samples();
-      auto &tensor = ws.ArgumentInput("interp_type");
-      int n = tensor.shape()[0];
-      DALI_ENFORCE(n == 1 || n == num_samples,
-        "interp_type must be a single value or contain one value per sample");
-      auto *data = tensor.template data<DALIInterpType>();
-      interp_types_.resize(n);
-
-      for (int i = 0; i < n; i++)
-        interp_types_[i] = data[i];
-    } else {
-      interp_types_.resize(1, Spec().template GetArgument<DALIInterpType>("interp_type"));
-    }
-
-    for (size_t i = 0; i < interp_types_.size(); i++) {
-      DALI_ENFORCE(interp_types_[i] == DALI_INTERP_NN || interp_types_[i] == DALI_INTERP_LINEAR,
-        "Only nearest and linear interpolation is supported");
-
-    }
-  }
-
-  virtual void SetParams(DeviceWorkspace &ws) {
-
-  }
-
-  virtual void SetBorder(DeviceWorkspace &ws) {
-    border_ = {};
-  }
-
-  virtual kernels::TensorShape<spatial_ndim> GetScalarOutputSize() {
-    std::vector<float> out_size_f;
-    if (Spec().TryGetArgument(out_size_f, "output_size")) {
-      DALI_ENFORCE(static_cast<int>(out_size_f.size()) == spatial_ndim,
-        "output_size must specify same number of dimensions as the input (excluding channels)");
-      kernels::TensorShape<spatial_ndim> out_size;
-      for (int d = 0; d < spatial_ndim; d++) {
-        float s = out_size_f[d];
-        DALI_ENFORCE(s > 0, "Output size must be positive");
-        out_size[d] = std::max<int>(std::roundf(s), 1);
-      }
-      return out_size;
-    }
-    else
-      return {};
-  }
-
-  virtual void SetOutputSizes(DeviceWorkspace &ws) {
-    const int N = input_.num_samples();
-    output_sizes_.resize(N);
-    auto size = GetScalarOutputSize();
-    if (size == kernels::TensorShape<spatial_ndim>()) {
-      for (int i = 0; i < N; i++) {
-        output_sizes_[i] = input_.shape[i].template first<spatial_ndim>();
-      }
-    }
-  }
-
   void Setup(kernels::TensorListShape<> &shape, DeviceWorkspace &ws) override {
+    param_provider_->Setup(Spec(), ws);
+
     input_ = view<const InputType,  tensor_ndim>(ws.Input<GPUBackend>(0));
     kmgr_.Resize<Kernel>(1, 1);
 
@@ -150,31 +94,18 @@ class WarpOpImplGPUBase : public OpImplInterface<GPUBackend> {
         border_);
   }
 
-  ActualOp &Op() const { return *operator_; }
-  const OpSpec &Spec() const { return Op().Spec(); }
+  const OpSpec &Spec() const { return spec(); }
 
  protected:
   kernels::TensorListView<kernels::StorageGPU, const InputType, tensor_ndim> input_;
   kernels::TensorListView<kernels::StorageGPU, OutputType, tensor_ndim> output_;
 
   kernels::TensorView<kernels::StorageGPU, MappingParams, 1> params_gpu_;
-  kernels::TensorView<kernels::StorageCPU, MappingParams, 1> params_cpu_;
-
-
-  kernels::TensorListShape<tensor_ndim> input_shape_;
-  std::vector<kernels::TensorShape<spatial_ndim>> output_sizes_;
-  BorderValue border_ = {};
-  std::vector<DALIInterpType> interp_types_;
 
   kernels::KernelManager kmgr_;
-  ActualOp *operator_;
+  ParamProvider *param_provider_;
 };
 
-template <typename ActualOp, typename Kernel>
-class WarpOpImplGPU : public WarpOpImplGPUBase<ActualOp, Kernel> {
- public:
-  WarpOpImplGPU(ActualOp *op) : WarpOpImplGPUBase<ActualOp, Kernel>(op) {}
-};
 
 template <typename Derived>
 class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
@@ -284,7 +215,7 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
 
       using ImplType = WarpOpImplGPU<Derived, Kernel>;
       if (!dynamic_cast<ImplType*>(impl_.get()))
-        impl_.reset(new ImplType(&This()));
+        impl_.reset(new ImplType(This()));
     );
 
     impl_->Setup(out_shape, ws);
