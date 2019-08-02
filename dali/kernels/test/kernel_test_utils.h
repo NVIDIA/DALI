@@ -29,17 +29,18 @@ struct SimpleKernelTestBase {
 
   template <int i>
   using Input =  std::remove_reference_t<
-          std::tuple_element_t<i, kernels::kernel_inputs < Kernel>>>;
+          std::tuple_element_t<i, kernels::kernel_inputs<Kernel>>>;
 
   template <int i>
-  using Output = std::remove_reference_t<
-          std::tuple_element_t<i, kernels::kernel_outputs < Kernel>>>;
+  using Output = std::remove_reference_t<std::tuple_element_t<i,
+          kernels::kernel_outputs<Kernel>>>;
 
   template <int i>
-  using Arg = std::tuple_element_t<i, kernels::kernel_args < Kernel>>;
+  using Arg = std::tuple_element_t<i, kernels::kernel_args<Kernel>>;
 
   template <int i>
-  using InputElement = std::remove_const_t<element_t < Input<i>>>;
+  using InputElement = std::remove_const_t<element_t<Input<i>>>;
+
   template <int i>
   using OutputElement = element_t<Output<i>>;
 };
@@ -112,7 +113,6 @@ struct is_tuple<std::tuple<Ts...>> : std::true_type {
  *   TypeParam::in in_value;
  *   std::vector<typename TypeParam::out> out_vec;
  * }
- *
  * ```
  */
 #define INPUT_OUTPUT_TYPED_TEST_SUITE(CaseName, TupleWithTypes)                                    \
