@@ -24,20 +24,6 @@
 namespace dali {
 namespace optical_flow {
 
-namespace detail {
-
-template<typename ComputeBackend>
-struct compute_to_storage {
-  using type = kernels::StorageCPU;
-};
-
-template<>
-struct compute_to_storage<kernels::ComputeGPU> {
-  using type = kernels::StorageGPU;
-};
-
-}  // namespace detail
-
 enum struct VectorGridSize {
   UNDEF,
   SIZE_4 = 4,  /// 4x4 grid
@@ -66,7 +52,7 @@ struct unsupported_exception : std::runtime_error {
 template<typename ComputeBackend>
 class DLL_PUBLIC OpticalFlowAdapter {
  protected:
-  using StorageBackend = typename detail::compute_to_storage<ComputeBackend>::type;
+  using StorageBackend = typename kernels::compute_to_storage<ComputeBackend>::type;
 
  public:
   explicit OpticalFlowAdapter(OpticalFlowParams params) : of_params_(params) {}
