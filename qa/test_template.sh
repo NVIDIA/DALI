@@ -34,28 +34,36 @@ if [ "$(type -t do_once)" = 'function' ]; then
     do_once
 fi
 
+prolog=${prolog-:}
+epilog=${epilog-:}
+
 for i in `seq 0 $last_config_index`;
 do
     echo "Test run $i"
-    # install packages
-    inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
-    if [ -n "$inst" ]
-    then
-      pip install $inst -f /pip-packages
+    for variant in $(seq 0 ${#prolog[@]}); do
+        ${prolog[variant]}
+        echo "Test variant run: $variant"
+        # install packages
+        inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
+        if [ -n "$inst" ]
+        then
+        pip install $inst -f /pip-packages
 
-      # If we just installed tensorflow, we need to reinstall DALI TF plugin
-      if [[ "$inst" == *tensorflow-gpu* ]]; then
-        pip uninstall -y nvidia-dali-tf-plugin || true
-        pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
-      fi
-    fi
-    # test code
-    test_body
+        # If we just installed tensorflow, we need to reinstall DALI TF plugin
+        if [[ "$inst" == *tensorflow-gpu* ]]; then
+            pip uninstall -y nvidia-dali-tf-plugin || true
+            pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
+        fi
+        fi
+        # test code
+        test_body
 
-    # remove packages
-    remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
-    if [ -n "$remove" ]
-    then
-      pip uninstall -y $remove
-    fi
+        # remove packages
+        remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
+        if [ -n "$remove" ]
+        then
+        pip uninstall -y $remove
+        fi
+        ${epilog[variant]}
+    done
 done

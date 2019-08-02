@@ -9,6 +9,7 @@ then
     return 0
 fi
 PYTHON_VERSION=$(python -c "from __future__ import print_function; import sys; print(\"{}.{}\".format(sys.version_info[0],sys.version_info[1]))")
+PYTHON_VERSION_SHORT=${PYTHON_VERSION/\./}
 
 NVIDIA_SMI_DRIVER_VERSION=$(nvidia-smi | grep -Po '(?<=Driver Version: )\d+.\d+')
 
@@ -40,4 +41,26 @@ put_optflow_libs() {
       export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${LIB_OF_DIR_PATH}
       rm -rf NVIDIA-Linux-*
   fi
+}
+
+enable_conda() {
+    echo "Activate conda"
+    # functions are not exported by default to be made available in subshells
+    eval "$(conda shell.bash hook)"
+    conda activate conda_py${PYTHON_VERSION_SHORT}_env
+}
+
+disable_conda() {
+    echo "Deactivate conda"
+    conda deactivate
+}
+
+enable_virtualenv() {
+    echo "Activate virtual env"
+    source /virtualenv_${PYTHON_VERSION_SHORT}/bin/activate
+}
+
+disable_virtualenv() {
+    echo "Deactivate virtual env"
+    deactivate
 }
