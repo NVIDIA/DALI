@@ -113,7 +113,7 @@ void parse_image_infos(LookaheadParser &parser, std::vector<ImageInfo> &image_in
 }
 
 void parse_categories(LookaheadParser &parser, std::map<int, int> &category_ids) {
-  RAPIDJSON_ASSERT(r.PeekType() == kArrayType);
+  RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
 
   int id = -1;
