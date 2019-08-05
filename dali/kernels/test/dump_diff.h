@@ -26,7 +26,7 @@ inline void DumpDiff(const std::string &base_name,
                      const cv::Mat &reference,
                      bool abs_diff = false) {
   cv::imwrite(base_name+"_out.png", actual);
-  cv::imwrite(base_name+"+ref.png", reference);
+  cv::imwrite(base_name+"_ref.png", reference);
   cv::Mat diff;
   if (abs_diff) {
     cv::absdiff(actual, reference, diff);

@@ -38,10 +38,10 @@ enable_if_t<!is_fp_mapping<Mapping>::value, ivec<dim>> map_coords(const Mapping 
 
 template <DALIInterpType interp_type, typename Mapping,
           int ndim, typename OutputType, typename InputType,
-          typename BorderValue>
+          typename BorderType>
 __device__ void BlockWarp(
     SampleDesc<2, OutputType, InputType> sample, BlockDesc<2> block,
-    Mapping mapping, BorderValue border) {
+    Mapping mapping, BorderType border) {
   // Get the data pointers - un-erase type
   OutputType *__restrict__ output_data = sample.output;
   const InputType *__restrict__ input_data = sample.input;

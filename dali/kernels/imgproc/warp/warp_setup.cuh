@@ -58,7 +58,7 @@ class WarpSetup : public BlockSetup<ndim, ndim> {
     ScratchpadEstimator se;
     se.add<SampleDesc>(AllocType::GPU, output_shape.num_samples());
     se.add<BlockDesc>(AllocType::GPU, Blocks().size());
-    req.output_shapes = { std::move(output_shape) };
+    req.output_shapes = { output_shape };
     req.scratch_sizes = se.sizes;
     return req;
   }

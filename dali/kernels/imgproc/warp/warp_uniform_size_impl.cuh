@@ -26,13 +26,13 @@ namespace warp {
 
 template <typename Mapping,
          int ndim, typename OutputType, typename InputType,
-         typename BorderValue>
+         typename BorderType>
 __global__ void BatchWarpUniformSize(
     const SampleDesc<ndim, OutputType, InputType> *samples,
     ivec<ndim> output_size,
     ivec<ndim> block_size,
     const mapping_params_t<Mapping> *mapping,
-    BorderValue border) {
+    BorderType border) {
   BlockDesc<ndim> block;
   block.sample_idx = blockIdx.z;
   block.start = 0;
@@ -41,7 +41,7 @@ __global__ void BatchWarpUniformSize(
   block.end = min(block.start + block_size, output_size);
   auto sample = samples[block.sample_idx];
   VALUE_SWITCH(sample.interp, interp_const, (DALI_INTERP_NN, DALI_INTERP_LINEAR), (
-    BlockWarp<interp_const, Mapping, ndim, OutputType, InputType, BorderValue>(
+    BlockWarp<interp_const, Mapping, ndim, OutputType, InputType, BorderType>(
       sample, block, Mapping(mapping[block.sample_idx]), border)),
     (assert(!"Interpolation type not supported")));
 }

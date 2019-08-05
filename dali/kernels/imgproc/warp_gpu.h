@@ -28,7 +28,7 @@ namespace kernels {
 
 /// @remarks Assume HWC layout
 template <typename _Mapping, int ndim, typename _OutputType, typename _InputType,
-          typename _BorderValue>
+          typename _BorderType>
 class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
  public:
   static constexpr int spatial_ndim = ndim;
@@ -37,10 +37,10 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
   using Mapping = _Mapping;
   using OutputType = _OutputType;
   using InputType = _InputType;
-  using BorderValue = _BorderValue;
+  using BorderType = _BorderType;
   using MappingParams = warp::mapping_params_t<Mapping>;
   static_assert(std::is_pod<MappingParams>::value, "Mapping parameters must be POD.");
-  static_assert(std::is_pod<BorderValue>::value, "BorderValue must be POD.");
+  static_assert(std::is_pod<BorderType>::value, "BorderType must be POD.");
 
   using Base =  warp::WarpSetup<spatial_ndim, OutputType, InputType>;
   using SampleDesc = typename Base::SampleDesc;
@@ -52,7 +52,7 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
                            const InTensorGPU<MappingParams, 1> &mapping,
                            span<const TensorShape<spatial_ndim>> output_sizes,
                            span<const DALIInterpType> interp,
-                           BorderValue border = {}) {
+                           BorderType border = {}) {
     assert(in.size() == static_cast<size_t>(output_sizes.size()));
     auto out_shapes = this->GetOutputShape(in.shape, output_sizes);
     return Base::Setup(out_shapes);
@@ -64,7 +64,7 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
            const InTensorGPU<MappingParams, 1> &mapping,
            span<const TensorShape<spatial_ndim>> output_sizes,
            span<const DALIInterpType> interp,
-           BorderValue border = {}) {
+           BorderType border = {}) {
     this->ValidateOutputShape(out.shape, in.shape, output_sizes);
     this->PrepareSamples(out, in, interp);
     SampleDesc *gpu_samples;
@@ -75,7 +75,7 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
       CUDA_CALL(cudaGetLastError());
 
       warp::BatchWarpUniformSize
-      <Mapping, spatial_ndim, OutputType, InputType, BorderValue>
+      <Mapping, spatial_ndim, OutputType, InputType, BorderType>
       <<<this->GridDim(), this->BlockDim(), 0, context.gpu.stream>>>(
         gpu_samples,
         this->UniformOutputSize(),
@@ -89,7 +89,7 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
       CUDA_CALL(cudaGetLastError());
 
       warp::BatchWarpVariableSize
-      <Mapping, spatial_ndim, OutputType, InputType, BorderValue>
+      <Mapping, spatial_ndim, OutputType, InputType, BorderType>
       <<<this->GridDim(), this->BlockDim(), 0, context.gpu.stream>>>(
         gpu_samples,
         gpu_blocks,
