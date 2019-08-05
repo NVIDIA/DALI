@@ -70,8 +70,8 @@ class WarpParamProvider {
     return make_span(output_sizes_);
   }
 
-  Tensor<Storage, MappingParams, 1> GetParams() {
-    return params_;
+  kernels::TensorView<kernels::StorageGPU, MappingParams, 1> GetParams() {
+    return params_gpu_;
   }
 
   void SetInterp(Workspace &ws) {
@@ -119,7 +119,7 @@ class WarpParamProvider {
   OpSpec *spec_ = nullptr;
   std::vector<kernels::TensorShape<spatial_ndim>> output_sizes_;
   std::vector<DALIInterpType> interp_types_;
-  Tensor<Storage, MappingParams, 1> params_;
+  kernels::TensorView<Storage, MappingParams, 1> params_;
 
 };
 }  // namespace dali
