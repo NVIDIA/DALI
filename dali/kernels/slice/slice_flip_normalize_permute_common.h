@@ -26,6 +26,8 @@ namespace kernels {
 
 template <size_t Dims>
 struct SliceFlipNormalizePermutePadArgs {
+  SliceFlipNormalizePermutePadArgs() = default;
+
   template <typename Shape>
   explicit SliceFlipNormalizePermutePadArgs(const Shape &_shape) {
     for (size_t d = 0; d < Dims; d++) {
