@@ -15,39 +15,39 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <tuple>
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.cuh"
 #include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/kernels/test/kernel_test_utils.h"
+#include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.cuh"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast_test_utils.h"
 
 namespace dali {
 namespace kernels {
+namespace brightness_contrast {
 namespace test {
-
-using Type = float;
 
 namespace {
 
-
-
-
-template <typename OutType>
-std::enable_if_t<std::is_integral<OutType>::value, OutType> custom_round(float val) {
-  auto integral = static_cast<OutType>(val);
-  return integral % 2 == 0 ? integral : integral + 1;
+template <class In, class Out>
+std::enable_if_t<std::is_integral<Out>::value, Out> custom_round(float val) {
+  return std::round(val);//TODO round to nearest even
 }
 
-template <typename OutType>
-std::enable_if_t<!std::is_integral<OutType>::value, OutType> custom_round(float val) {
+
+template <class In, class Out>
+std::enable_if_t<!std::is_integral<Out>::value, Out> custom_round(float val) {
   return val;
 }
 
 
 }  // namespace
 
+template <class InputOutputTypes>
+class BrightnessContrastCudaKernelTest : public ::testing::Test {
+  using In = typename InputOutputTypes::In;
+  using Out = typename InputOutputTypes::Out;
 
-class BrightnessContrastGpuKernelTest : public ::testing::Test {
  protected:
-  BrightnessContrastGpuKernelTest() {
+  BrightnessContrastCudaKernelTest() {
     input_host_.resize(dataset_size());
   }
 
@@ -56,20 +56,20 @@ class BrightnessContrastGpuKernelTest : public ::testing::Test {
     std::mt19937_64 rng;
     UniformRandomFill(input_host_, rng, 0., 10.);
     calc_output();
-    CUDA_CALL(cudaMalloc(&input_device_, sizeof(Type) * dataset_size()));
-    CUDA_CALL(cudaMemcpy(input_device_, input_host_.data(), input_host_.size() * sizeof(Type),
+    CUDA_CALL(cudaMalloc(&input_device_, sizeof(In) * dataset_size()));
+    CUDA_CALL(cudaMemcpy(input_device_, input_host_.data(), input_host_.size() * sizeof(In),
                          cudaMemcpyDefault));
-    CUDA_CALL(cudaMallocManaged(&output_, dataset_size() * sizeof(Type)));
+    CUDA_CALL(cudaMallocManaged(&output_, dataset_size() * sizeof(Out)));
     cudaDeviceSynchronize();
   }
 
 
-  Type *input_device_;
-  Type* output_;
-  std::vector<Type> input_host_;
-  std::vector<Type> ref_output_;
-  TensorShape<3> shape_ = {2, 4,3};
-//  TensorShape<3> shape_ = {243,456,13};
+  In *input_device_;
+  Out *output_;
+  std::vector<In> input_host_;
+  std::vector<Out> ref_output_;
+//  TensorShape<3> shape_ = {2, 4, 3};
+  TensorShape<3> shape_ = {243, 456, 3};
   float brightness_ = 4;
   float contrast_ = 3;
   static constexpr size_t ndims = 3;
@@ -77,7 +77,7 @@ class BrightnessContrastGpuKernelTest : public ::testing::Test {
 
   void calc_output() {
     for (auto in : input_host_) {
-      ref_output_.push_back(custom_round<Type>(in * contrast_ + brightness_));
+      ref_output_.push_back(custom_round<In, Out>(in * contrast_ + brightness_));
     }
   }
 
@@ -87,46 +87,63 @@ class BrightnessContrastGpuKernelTest : public ::testing::Test {
   }
 };
 
-TEST_F(BrightnessContrastGpuKernelTest, cuda_kernel_test) {
-  int width = shape_[1];
-  int height = shape_[0];
-  int channels = shape_[2];
+//using TestTypes = std::tuple<uint8_t>;
+using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
+INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastCudaKernelTest, TestTypes);
 
-::dali::kernels::brightness_contrast::BrightnessContrastKernel(input_device_, output_, width,height,3, brightness_,contrast_);
+TYPED_TEST(BrightnessContrastCudaKernelTest, cuda_kernel_test) {
+  int width = this->shape_[1];
+  int height = this->shape_[0];
+  int channels = this->shape_[2];
+
+  BrightnessContrastKernel(this->input_device_, this->output_, width, height, channels,
+                           this->brightness_, this->contrast_);
   cudaDeviceSynchronize();
 
-  ASSERT_EQ(ref_output_.size(), dataset_size()) << "Number of elements doesn't match";
-  for (int i = 0; i < ref_output_.size(); i++) {
-    EXPECT_FLOAT_EQ(ref_output_[i], output_[i]) << "Failed at idx: " << i;
+  ASSERT_EQ(this->ref_output_.size(), this->dataset_size()) << "Number of elements doesn't match";
+  for (size_t i = 0; i < this->ref_output_.size(); i++) {
+    EXPECT_FLOAT_EQ(this->ref_output_[i], this->output_[i]) << "Failed at idx: " << i;
   }
 }
 
-TEST_F(BrightnessContrastGpuKernelTest, cuda_kernel_test_with_roi){
-//  auto width=shape_[1];
-//  auto height=shape_[0];
-//  auto channels=shape_[2];
-//
-//  Box<2,int> roi{{0,0},{width, height}};
-//
-//  auto mat = brightness_contrast::to_mat<3>(this->ref_output_.data(), roi,
-//                                            this->shape_[0], this->shape_[1]);
-//
-//  cout<<mat<<endl;
 
+TYPED_TEST(BrightnessContrastCudaKernelTest, cuda_kernel_test_with_roi) {
+  auto width = this->shape_[1];
+  auto height = this->shape_[0];
+  auto channels = this->shape_[2];
 
-//  ::dali::kernels::brightness_contrast::BrightnessContrastKernel(input_device_, output_, 0,0,3,brightness_,contrast_,width,height);
-//  cudaDeviceSynchronize();
+  Box<2, int> roi{{0,0},
+                  {width-1, height-1}};
 
-//  auto ptr = reinterpret_cast<Type *>(mat.data);
-//  for (int i = 0; i < mat.rows*mat.cols*mat.channels(); i++) {
-//    EXPECT_FLOAT_EQ(ptr[i], output_[i]) << "Failed at idx: " << i;
-//  }
+  auto mat = to_mat<3>(this->ref_output_.data(), roi,
+                       this->shape_[0], this->shape_[1]);
+
+  BrightnessContrastKernel(this->input_device_, this->output_, width, height, channels, roi.lo.x,
+                           roi.lo.y, roi.extent().x, roi.extent().y, this->brightness_,
+                           this->contrast_);
+  cudaDeviceSynchronize();
+
+  auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
+  for (int i = 0; i < mat.rows * mat.cols * mat.channels(); i++) {
+    EXPECT_FLOAT_EQ(ptr[i], this->output_[i]) << "Failed at idx: " << i;
+  }
 }
 
 
-
+TEST(BrightnessContrastGpuTest, test) {
+  EXPECT_EQ(detail::divide_ceil(1, 4), 1ul);
+  EXPECT_EQ(detail::divide_ceil(2, 4), 1ul);
+  EXPECT_EQ(detail::divide_ceil(3, 4), 1ul);
+  EXPECT_EQ(detail::divide_ceil(4, 4), 1ul);
+  EXPECT_EQ(detail::divide_ceil(5, 4), 2ul);
+  EXPECT_EQ(detail::divide_ceil(6, 4), 2ul);
+  EXPECT_EQ(detail::divide_ceil(7, 4), 2ul);
+  EXPECT_EQ(detail::divide_ceil(8, 4), 2ul);
+  EXPECT_EQ(detail::divide_ceil(9, 4), 3ul);
+}
 
 
 }  // namespace test
+}  // namespace brightness_contrast
 }  // namespace kernels
 }  // namespace dali
