@@ -1,0 +1,54 @@
+# (C) Copyright IBM Corp. 2019. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{% set build_version = "master" %}
+
+  package:
+    name: dali
+    version: {{ build_version }}
+
+  source:
+    git_url: https://github.com/NVIDIA/DALI/
+    git_rev: master
+    patches:
+        - 0001-c++14.patch                     # [ppc64le]
+        - 0002-remove-futures.patch            # [ppc64le]
+
+  build:
+    number: 0
+    string: py{{ python | replace(".","") }}
+
+  requirements:
+    build:
+      - {{ compiler('c') }}
+      - {{ compiler('cxx')}}
+      - pkg-config 0.29.2
+      - cmake 3.12.2
+      - make 4.2.1
+      - cudatoolkit 10.1
+      - protobuf 3.7.1
+      - jpeg-turbo 1.5.0
+      - ffmpeg
+      - python
+    host:
+      - future 0.17.1
+      - opencv 3.4.2
+      - boost 1.67
+      - python
+    run:
+      - python
+      - cudatoolkit 10.1
+      - future 0.17.1
+      - opencv 3.4.2
+      - jpeg-turbo 1.5.0
