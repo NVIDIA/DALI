@@ -71,8 +71,8 @@ struct TupleToGTest<std::tuple<T...>> {
 
 template <class InputType, class OutputType>
 struct InputOutputTypes {
-  using in = InputType;
-  using out = OutputType;
+  using In = InputType;
+  using Out = OutputType;
 };
 
 template <typename T>
@@ -126,7 +126,7 @@ struct is_tuple<std::tuple<Ts...>> : std::true_type {
   static_assert(std::tuple_size<TupleWithTypes>::value <= 7,                                       \
                 "Maximum size of a tuple is 7 (enforced by GTest)");                               \
   static_assert(std::tuple_size<TupleWithTypes>::value >= 1,                                       \
-                "TupleWithTypes contains 0 types. No types to register. Don't mess around...");    \
+                "TupleWithTypes has to contain at least 1 type");                                  \
   using MyTypesTuple = ::dali::testing::detail::AllPairs<                                          \
                        ::dali::testing::detail::InputOutputTypes, TupleWithTypes, TupleWithTypes>; \
   using GTestTypes = ::dali::testing::detail::TupleToGTest<MyTypesTuple>::type;                    \

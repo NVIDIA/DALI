@@ -68,14 +68,14 @@ class BrightnessContrastTest : public ::testing::Test {
   void SetUp() final {
     std::mt19937_64 rng;
     UniformRandomFill(input_, rng, 0., 10.);
-    calc_output<typename InputOutputTypes::out>();
+    calc_output<typename InputOutputTypes::Out>();
     ref_out_tv_ = make_tensor_cpu(ref_output_.data(), shape_);
   }
 
 
-  std::vector<typename InputOutputTypes::in> input_;
-  std::vector<typename InputOutputTypes::out> ref_output_;
-  OutTensorCPU<typename InputOutputTypes::out, 3> ref_out_tv_;
+  std::vector<typename InputOutputTypes::In> input_;
+  std::vector<typename InputOutputTypes::Out> ref_output_;
+  OutTensorCPU<typename InputOutputTypes::Out, 3> ref_out_tv_;
   TensorShape<3> shape_ = {240, 320, 3};
   float brightness_ = 4;
   float contrast_ = 3;
@@ -103,16 +103,16 @@ using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>
 INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastTest, TestTypes);
 
 TYPED_TEST(BrightnessContrastTest, check_kernel) {
-  BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
+  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
   check_kernel<decltype(kernel)>();
 }
 
 
 TYPED_TEST(BrightnessContrastTest, SetupTestAndCheckKernel) {
-  BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
+  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
   constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
-  InTensorCPU<typename TypeParam::in, ndims> in(this->input_.data(), this->shape_);
+  InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
   auto sh = reqs.output_shapes[0][0];
   ASSERT_EQ(this->shape_, sh);
@@ -120,15 +120,15 @@ TYPED_TEST(BrightnessContrastTest, SetupTestAndCheckKernel) {
 
 
 TYPED_TEST(BrightnessContrastTest, RunTest) {
-  BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
+  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
   constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
-  InTensorCPU<typename TypeParam::in, ndims> in(this->input_.data(), this->shape_);
+  InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
   auto out_shape = reqs.output_shapes[0][0];
-  vector<typename TypeParam::out> output;
+  vector<typename TypeParam::Out> output;
   output.resize(dali::volume(out_shape));
-  OutTensorCPU<typename TypeParam::out, ndims> out(output.data(),
+  OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
                                                    out_shape.template to_static<ndims>());
 
   kernel.Run(ctx, out, in, this->brightness_, this->contrast_);
@@ -139,19 +139,19 @@ TYPED_TEST(BrightnessContrastTest, RunTest) {
 
 
 TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
-  BrightnessContrastCPU<typename TypeParam::in, typename TypeParam::out> kernel;
+  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
   constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
-  InTensorCPU<typename TypeParam::in, ndims> in(this->input_.data(), this->shape_);
+  InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
 
   typename decltype(kernel)::Roi roi;
   brightness_contrast::fill_roi(roi);
 
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_, &roi);
   auto out_shape = reqs.output_shapes[0][0];
-  vector<typename TypeParam::out> output;
+  vector<typename TypeParam::Out> output;
   output.resize(dali::volume(out_shape));
-  OutTensorCPU<typename TypeParam::out, ndims> out(output.data(),
+  OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
                                                    out_shape.template to_static<ndims>());
 
   kernel.Run(ctx, out, in, this->brightness_, this->contrast_, &roi);
@@ -160,7 +160,7 @@ TYPED_TEST(BrightnessContrastTest, RunTestWithRoi) {
                                                 this->shape_[0], this->shape_[1]);
   ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
                         << "Number of elements doesn't match";
-  auto ptr = reinterpret_cast<typename TypeParam::out *>(mat.data);
+  auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
   for (int i = 0; i < out.num_elements(); i++) {
     EXPECT_FLOAT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
   }
