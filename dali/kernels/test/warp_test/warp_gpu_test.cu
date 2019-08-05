@@ -19,8 +19,8 @@
 #include <vector>
 #include "dali/kernels/imgproc/warp_gpu.h"
 #include "dali/kernels/imgproc/warp/affine.h"
-#include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/kernels/test/dump_diff.h"
 #include "dali/kernels/test/mat2tensor.h"
 #include "dali/kernels/test/test_tensors.h"
 #include "dali/kernels/scratch.h"
@@ -166,16 +166,6 @@ inline cv::Matx<float, 2, 3> AffineToCV(const AffineMapping2D &mapping) {
   return cv_transform;
 }
 
-inline void DumpImages(const std::string &base_name,
-                       const cv::Mat &actual,
-                       const cv::Mat &reference) {
-  cv::imwrite(base_name+"_out.png", actual);
-  cv::imwrite(base_name+"+ref.png", reference);
-  cv::Mat diff;
-  cv::absdiff(actual, reference, diff);
-  cv::imwrite(base_name+"_diff.png", diff);
-}
-
 TEST(WarpGPU, Affine_RotateScale_Single) {
   cv::Mat cv_img = cv::imread(testing::dali_extra_path() + "/db/imgproc/dots.png");
   auto cpu_img = view_as_tensor<uint8_t>(cv_img);
@@ -233,7 +223,7 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
   auto ref_img = view_as_tensor<uint8_t>(cv_ref);
   Check(cpu_out, ref_img, EqualEps(8));
   if (HasFailure)
-    DumpImages("WarpAffine_RotateScale", cv_out, cv_ref);
+    testing::DumpDiff("WarpAffine_RotateScale", cv_out, cv_ref);
 }
 
 
@@ -304,7 +294,7 @@ TEST(WarpGPU, Affine_RotateScale_Uniform) {
     Check(cpu_out, ref_img, EqualEps(8));
     if (HasFailure()) {
       auto name = "Warp_Affine_RotateScale_" + std::to_string(i);
-      DumpImages(name, cv_out, cv_ref);
+      testing::DumpDiff(name, cv_out, cv_ref);
     }
   }
 }
