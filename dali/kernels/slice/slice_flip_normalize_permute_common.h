@@ -24,10 +24,10 @@
 namespace dali {
 namespace kernels {
 
-template <size_t Dims>
-struct SliceFlipNormalizePermuteArgs {
+template <size_t Dims, typename OutputType>
+struct SliceFlipNormalizePermutePadArgs {
   template <typename Shape>
-  explicit SliceFlipNormalizePermuteArgs(const Shape &_shape) {
+  explicit SliceFlipNormalizePermutePadArgs(const Shape &_shape) {
     for (size_t d = 0; d < Dims; d++) {
       anchor[d] = 0;
       shape[d] = _shape[d];
@@ -46,14 +46,14 @@ struct SliceFlipNormalizePermuteArgs {
   size_t normalization_index = 0;
   std::vector<float> mean;
   std::vector<float> inv_stddev;
+  OutputType padding_val = 0;
 };
 
 namespace detail {
 
-template <size_t Dims>
-struct SliceFlipNormalizePermuteProcessedArgs {
+template <size_t Dims, typename OutputType>
+struct SliceFlipNormalizePermutePadProcessedArgs {
   size_t input_offset;
-  std::array<int64_t, Dims> in_shape;
   std::array<int64_t, Dims> in_strides;
   std::array<int64_t, Dims> out_shape;
   std::array<int64_t, Dims> padded_out_shape;
@@ -61,6 +61,7 @@ struct SliceFlipNormalizePermuteProcessedArgs {
   std::vector<float> mean;
   std::vector<float> inv_stddev;
   size_t normalization_dim;
+  OutputType padding_val = 0;
 };
 
 template <size_t Dims, typename Container>
@@ -82,11 +83,11 @@ std::array<int64_t, Dims> inverse_permutation(const std::array<int64_t, Dims> &p
   return inv_perm;
 }
 
-template <size_t Dims, typename Shape>
-SliceFlipNormalizePermuteProcessedArgs<Dims> ProcessArgs(
-    const SliceFlipNormalizePermuteArgs<Dims> &args,
+template <size_t Dims, typename Shape, typename OutputType>
+SliceFlipNormalizePermutePadProcessedArgs<Dims, OutputType> ProcessArgs(
+    const SliceFlipNormalizePermutePadArgs<Dims, OutputType> &args,
     const Shape &in_shape) {
-  SliceFlipNormalizePermuteProcessedArgs<Dims> processed_args;
+  SliceFlipNormalizePermutePadProcessedArgs<Dims, OutputType> processed_args;
 
   processed_args.input_offset = 0;
   processed_args.in_strides = GetStrides<Dims>(in_shape);
@@ -95,6 +96,7 @@ SliceFlipNormalizePermuteProcessedArgs<Dims> ProcessArgs(
   processed_args.out_shape = detail::permute<Dims>(slice_shape, args.permuted_dims);
   processed_args.padded_out_shape =
     detail::permute<Dims>(args.padded_shape, args.permuted_dims);
+  processed_args.padding_val = args.padding_val;
   processed_args.out_strides = GetStrides<Dims>(processed_args.padded_out_shape);
 
   // Flip operation is implemented by manipulating the anchor and the sign of the input strides
