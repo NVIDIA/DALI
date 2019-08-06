@@ -141,15 +141,16 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   void SetupOutputQueuesForGraph();
 
   template <typename Workspace>
-  void RunHelper(OperatorBase &op, Workspace &ws) {
-    constexpr size_t stage_id = static_cast<size_t>(workspace_to_op<Workspace>::value);
-    output_desc_[stage_id].clear();
-    if (op.Setup(output_desc_[stage_id], ws)) {
+  void RunHelper(OpNode &op_node, Workspace &ws) {
+    auto &output_desc = op_node.output_desc;
+    auto &op = *op_node.op;
+    output_desc.clear();
+    if (op.Setup(output_desc, ws)) {
       DALI_ENFORCE(
-          static_cast<size_t>(ws.NumOutput()) == output_desc_[stage_id].size(),
+          static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
           "Operator::Setup returned shape and type information for mismatched number of outputs");
       for (int i = 0; i < ws.NumOutput(); i++) {
-        auto &desc = output_desc_[stage_id][i];
+        auto &desc = output_desc[i];
         if (ws.template OutputIsType<CPUBackend>(i)) {
           ws.template OutputRef<CPUBackend>(i).Resize(desc.shape);
           ws.template OutputRef<CPUBackend>(i).set_type(desc.type);
@@ -162,15 +163,16 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     op.Run(&ws);
   }
 
-  void RunHelper(OperatorBase &op, SupportWorkspace &ws) {
-    size_t stage_id = static_cast<size_t>(OpType::SUPPORT);
-    output_desc_[stage_id].clear();
-    if (op.Setup(output_desc_[stage_id], ws)) {
+  void RunHelper(OpNode &op_node, SupportWorkspace &ws) {
+    auto &output_desc = op_node.output_desc;
+    auto &op = *op_node.op;
+    output_desc.clear();
+    if (op.Setup(output_desc, ws)) {
       DALI_ENFORCE(
-          static_cast<size_t>(ws.NumOutput()) == output_desc_[stage_id].size(),
+          static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
           "Operator::Setup returned shape and type information for mismatched number of outputs.");
       for (int i = 0; i < ws.NumOutput(); i++) {
-        auto &desc = output_desc_[stage_id][i];
+        auto &desc = output_desc[i];
         DALI_ENFORCE(desc.shape.size() == 1,
                      "Support op should provide shape information for only one tensor.");
         if (ws.template OutputIsType<CPUBackend>(i)) {
@@ -253,8 +255,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // To introduce dependency from MIXED stage to GPU stage for callback only
   // in some edge cases where there are no operators
   std::vector<cudaEvent_t> mixed_callback_events_;
-  // Used by RunHelper, one set for every stage
-  std::vector<OutputDesc> output_desc_[static_cast<size_t>(OpType::COUNT)];
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -346,7 +346,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
           WorkspacePolicy::template GetWorkspace<OpType::SUPPORT>(support_idxs, *graph_, i);
       TimeRange tr("[Executor] Run Support op " + op_node.instance_name,
           TimeRange::kCyan);
-      RunHelper(op, ws);
+      RunHelper(op_node, ws);
     }
   } catch (std::exception &e) {
     HandleError(e.what());
@@ -365,14 +365,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   // Run the cpu-ops in the thread
   // Process each CPU Op in batch
   for (int cpu_op_id = 0; cpu_op_id < graph_->NumOp(OpType::CPU); ++cpu_op_id) {
-    OpNode *op_node = &graph_->Node(OpType::CPU, cpu_op_id);
+    OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
     typename WorkspacePolicy::template ws_t<OpType::CPU> ws =
         WorkspacePolicy::template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
-    TimeRange tr("[Executor] Run CPU op " + op_node->instance_name, TimeRange::kBlue1);
-    OperatorBase &op = *op_node->op;
+    TimeRange tr("[Executor] Run CPU op " + op_node.instance_name, TimeRange::kBlue1);
 
     try {
-      RunHelper(op, ws);
+      RunHelper(op_node, ws);
     } catch (std::exception &e) {
       HandleError(e.what());
     } catch (...) {
@@ -398,12 +397,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   try {
     for (int i = 0; i < graph_->NumOp(OpType::MIXED); ++i) {
       OpNode &op_node = graph_->Node(OpType::MIXED, i);
-      OperatorBase &op = *op_node.op;
       typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
           WorkspacePolicy::template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
       TimeRange tr("[Executor] Run Mixed op " + op_node.instance_name,
           TimeRange::kOrange);
-      RunHelper(op, ws);
+      RunHelper(op_node, ws);
       if (ws.has_stream() && ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
@@ -447,7 +445,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   try {
     for (int i = 0; i < graph_->NumOp(OpType::GPU); ++i) {
       OpNode &op_node = graph_->Node(OpType::GPU, i);
-      OperatorBase &op = *op_node.op;
       typename WorkspacePolicy::template ws_t<OpType::GPU> ws =
           WorkspacePolicy::template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
       auto parent_events = ws.ParentEvents();
@@ -458,7 +455,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
 
       TimeRange tr("[Executor] Run GPU op " + op_node.instance_name,
           TimeRange::knvGreen);
-      RunHelper(op, ws);
+      RunHelper(op_node, ws);
       if (ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
@@ -689,6 +686,22 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
   DeviceGuard g(device_id_);
   TimeRange tr("[Executor] PresizeData");
 
+  auto should_reserve = [](auto &storage, Index hint, StorageDevice dev) -> bool {
+    if (dev == StorageDevice::CPU) {
+      return hint && storage->is_pinned();
+    }
+    return hint;
+  };
+
+  auto reserve_batch = [](auto &storage, const OperatorBase &op, Index hint, int batch_size_) {
+    // If the Op Can Infer Outputs we want to do one contiguous pre-allocation
+    if (op.CanInferOutputs()) {
+      storage->reserve(hint * batch_size_);
+    } else {
+      storage->reserve(hint, batch_size_);
+    }
+  };
+
   // To avoid handling the arguments several times for each operator that
   // has more than one output, we go over the operators instead of tensors
   for (int i = 0; i < graph.NumOp(); i++) {
@@ -701,37 +714,19 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
       for (size_t j = 0; j < node.children_tensors.size(); j++) {
         auto &tensor = graph.Tensor(node.children_tensors[j]);
         Index hint = hints[j];
-        if (tensor.producer.storage_device == StorageDevice::CPU) {
-          auto& queue = get_queue<op_type_static, StorageDevice::CPU>(
-              tensor_to_store_queue[tensor.id]);
+        VALUE_SWITCH(tensor.producer.storage_device, dev_static,
+            (StorageDevice::CPU, StorageDevice::GPU),
+        (
+          auto& queue = get_queue<op_type_static, dev_static>(tensor_to_store_queue[tensor.id]);
           for (auto storage : queue) {
-            if (hint && storage->is_pinned()) {
-              if (node.op->CanInferOutputs()) {
-                storage->reserve(hint * batch_size_);
-              } else {
-                storage->reserve(hint, batch_size_);
-              }
+            if (should_reserve(storage, hint, dev_static)) {
+              reserve_batch(storage, *node.op, hint, batch_size_);
             }
             if (node.op->CanInferOutputs()) {
               storage->SetContiguous(true);
             }
           }
-        } else {
-          auto& queue = get_queue<op_type_static, StorageDevice::GPU>(
-              tensor_to_store_queue[tensor.id]);
-          for (auto storage : queue) {
-            if (hint) {
-              if (node.op->CanInferOutputs()) {
-                storage->reserve(hint * batch_size_);
-              } else {
-                storage->reserve(hint, batch_size_);
-              }
-            }
-            if (node.op->CanInferOutputs()) {
-              storage->SetContiguous(true);
-            }
-          }
-        }
+        ), DALI_FAIL("Invalid StorageDevice"));  // NOLINT(whitespace/parens)
       }
     ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
   }

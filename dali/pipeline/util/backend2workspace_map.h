@@ -28,39 +28,27 @@ namespace dali {
  * proper Backend
  */
 template <typename Backend>
-class Backend2WorkspaceMap {};
+struct Backend2WorkspaceMap {};
 
-template<>
-class Backend2WorkspaceMap<CPUBackend> {
- public:
-  typedef SampleWorkspace Type;
-};
+template <>
+struct Backend2WorkspaceMap<CPUBackend> { using type = SampleWorkspace; };
 
-template<>
-class Backend2WorkspaceMap<GPUBackend> {
- public:
-  typedef DeviceWorkspace Type;
-};
+template <>
+struct Backend2WorkspaceMap<GPUBackend> { using type = DeviceWorkspace; };
 
-template<>
-class Backend2WorkspaceMap<SupportBackend> {
- public:
-  typedef SupportWorkspace Type;
-};
+template <>
+struct Backend2WorkspaceMap<SupportBackend> { using type = SupportWorkspace; };
 
-template<>
-class Backend2WorkspaceMap<MixedBackend> {
- public:
-  typedef MixedWorkspace Type;
-};
+template <>
+struct Backend2WorkspaceMap<MixedBackend> { using type = MixedWorkspace; };
 
 
 // Workspace<CPUBackend> maps to SampleWorkspace
 // Workspace<GPUBackend> maps to DeviceWorkspace
 // Workspace<MixedBackend> maps to MixedWorkspace
 // Workspace<SupportBackend> maps to SupportWorkspace
-template<typename Backend>
-using Workspace = typename Backend2WorkspaceMap<Backend>::Type;
+template <typename Backend>
+using Workspace = typename Backend2WorkspaceMap<Backend>::type;
 
 // Actual trait-conventions used, maps as above with exception of CPUBackend -> HostWorkspace
 template <typename Backend>
