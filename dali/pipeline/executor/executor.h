@@ -149,6 +149,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       DALI_ENFORCE(
           static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
           "Operator::Setup returned shape and type information for mismatched number of outputs");
+      DALI_ENFORCE(op.CanInferOutputs(),
+                   "Operator::Setup returned true indicating that it successfully calculated shape "
+                   "and type information for Operator outputs. In that case CanInferOutputs should "
+                   "always return true.");
       for (int i = 0; i < ws.NumOutput(); i++) {
         auto &desc = output_desc[i];
         if (ws.template OutputIsType<CPUBackend>(i)) {
@@ -159,6 +163,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
           ws.template OutputRef<GPUBackend>(i).set_type(desc.type);
         }
       }
+    } else {
+      DALI_ENFORCE(!op.CanInferOutputs(),
+                   "Operator::Setup returned false indicating that it cannot calculate shape and "
+                   "type information for Operator outputs. In that case CanInferOutputs should "
+                   "always return false.");
     }
     op.Run(&ws);
   }
@@ -171,6 +180,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
       DALI_ENFORCE(
           static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
           "Operator::Setup returned shape and type information for mismatched number of outputs.");
+      DALI_ENFORCE(op.CanInferOutputs(),
+                   "Operator::Setup returned true indicating that it successfully calculated shape "
+                   "and type information for Operator outputs. In that case CanInferOutputs should "
+                   "always return true.");
       for (int i = 0; i < ws.NumOutput(); i++) {
         auto &desc = output_desc[i];
         DALI_ENFORCE(desc.shape.size() == 1,
@@ -183,6 +196,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
           ws.template OutputRef<GPUBackend>(i).set_type(desc.type);
         }
       }
+    } else {
+      DALI_ENFORCE(!op.CanInferOutputs(),
+                   "Operator::Setup returned false indicating that it cannot calculate shape and "
+                   "type information for Operator outputs. In that case CanInferOutputs should "
+                   "always return false.");
     }
     op.Run(&ws);
   }
