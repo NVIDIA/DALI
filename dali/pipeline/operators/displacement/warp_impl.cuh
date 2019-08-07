@@ -23,6 +23,8 @@
 #include "dali/kernels/alloc.h"
 #include "dali/core/static_switch.h"
 
+#include "dali/kernels/tensor_shape_print.h"
+
 namespace dali {
 
 template <typename Backend>
@@ -42,12 +44,13 @@ class WarpOpImplGPU : public OpImplInterface<GPUBackend> {
   using InputType = typename Kernel::InputType;
   using Mapping = typename Kernel::Mapping;
   using MappingParams = typename Kernel::MappingParams;
-  using BorderValue = typename Kernel::BorderValue;
+  using BorderType = typename Kernel::BorderType;
   static constexpr int spatial_ndim = Kernel::spatial_ndim;
   static constexpr int tensor_ndim = Kernel::tensor_ndim;
-  using ParamProvider = WarpParamProvider<GPUBackend, spatial_ndim, MappingParams>;
+  using ParamProvider = WarpParamProvider<GPUBackend, spatial_ndim, MappingParams, BorderType>;
 
-  WarpOpImplGPUBase(ParamProvider *pp) : param_provider_(pp) {
+  WarpOpImplGPU(const OpSpec &spec, std::unique_ptr<ParamProvider> &&pp)
+  : spec_(spec), param_provider_(std::move(pp)) {
   }
 
   kernels::KernelContext GetContext(DeviceWorkspace &ws) {
@@ -57,53 +60,55 @@ class WarpOpImplGPU : public OpImplInterface<GPUBackend> {
   }
 
   void Setup(kernels::TensorListShape<> &shape, DeviceWorkspace &ws) override {
-    param_provider_->Setup(Spec(), ws);
+    param_provider_->SetContext(Spec(), ws);
 
     input_ = view<const InputType,  tensor_ndim>(ws.Input<GPUBackend>(0));
     kmgr_.Resize<Kernel>(1, 1);
 
-    SetParams(ws);
-    SetInterp(ws);
-    SetBorder(ws);
-    SetOutputSizes(ws);
+    param_provider_->Setup();
 
     auto context = GetContext(ws);
 
     auto &req = kmgr_.Setup<Kernel>(
         0, context,
         input_,
-        params_gpu_,
-        make_span(output_sizes_),
-        make_span(interp_types_),
-        border_);
+        param_provider_->ParamsGPU(),
+        param_provider_->OutputSizes(),
+        param_provider_->InterpTypes(),
+        param_provider_->Border());
 
     shape = req.output_shapes[0];
   }
 
   void Run(DeviceWorkspace &ws) override {
+    param_provider_->SetContext(Spec(), ws);
+
     auto output = view<OutputType, tensor_ndim>(ws.Output<GPUBackend>(0));
     input_ = view<const InputType,  tensor_ndim>(ws.Input<GPUBackend>(0));
     auto context = GetContext(ws);
+    auto params = param_provider_->ParamsGPU();
+    std::cerr << "Params: " << (void*)params.data << " " << params.shape << "\n";
     kmgr_.Run<Kernel>(
         0, 0, context,
         output,
         input_,
-        params_gpu_,
-        make_span(output_sizes_),
-        make_span(interp_types_),
-        border_);
+        param_provider_->ParamsGPU(),
+        param_provider_->OutputSizes(),
+        param_provider_->InterpTypes(),
+        param_provider_->Border());
   }
 
-  const OpSpec &Spec() const { return spec(); }
+  const OpSpec &Spec() const { return spec_; }
 
  protected:
+
+  const OpSpec &spec_;
+  kernels::KernelManager kmgr_;
+
   kernels::TensorListView<kernels::StorageGPU, const InputType, tensor_ndim> input_;
   kernels::TensorListView<kernels::StorageGPU, OutputType, tensor_ndim> output_;
 
-  kernels::TensorView<kernels::StorageGPU, MappingParams, 1> params_gpu_;
-
-  kernels::KernelManager kmgr_;
-  ParamProvider *param_provider_;
+  std::unique_ptr<ParamProvider> param_provider_;
 };
 
 
@@ -145,15 +150,19 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
   }
 
   // TODO(michalz): Change value switch over SpatialDim to (2, 3) when kernel is implemented
-  #define WARP_STATIC_TYPES(...) {                              \
-    VALUE_SWITCH(This().SpatialDim(ws), spatial_ndim, (2), (    \
-          ToStaticType(                                         \
-            [&](auto &&args) {                                  \
-            using OutputType = decltype(args.first);            \
-            using InputType = decltype(args.second);            \
-            __VA_ARGS__                                         \
-          }); ), (                                              \
-          DALI_FAIL("Only 2D and 3D warping is supported")));   \
+  #define WARP_STATIC_TYPES(...) {                                          \
+    VALUE_SWITCH(This().SpatialDim(ws), spatial_ndim, (2), (                \
+      VALUE_SWITCH(This().BorderClamp() ? 1 : 0, UseBorderClamp, (0, 1), (  \
+          ToStaticType(                                                     \
+            [&](auto &&args) {                                              \
+            using OutputType = decltype(args.first);                        \
+            using InputType = decltype(args.second);                        \
+            using BorderType = std::conditional_t<                          \
+              UseBorderClamp, kernels::BorderClamp, OutputType>;            \
+            __VA_ARGS__                                                     \
+          }); ),                                                            \
+          (assert(!"impossible")))),                                        \
+        (DALI_FAIL("Only 2D and 3D warping is supported")));                \
   }
 
   /// @}
@@ -162,6 +171,10 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
 
   int SpatialDim(Workspace &ws) const {
     return input_shape_.sample_dim()-1;
+  }
+
+  bool BorderClamp() const {
+    return !spec_.HasArgument("border");
   }
 
   bool InferOutputs(
@@ -203,22 +216,33 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
     DALIDataType new_input_type = input.type().id();
     DALIDataType new_output_type;
     if (!this->spec_.TryGetArgument<DALIDataType>(new_output_type, "output_type"))
-      output_type_ = input_type_;
-    out_type = new_output_type;
+      new_output_type = new_input_type;
 
     output_type_ = new_output_type;
     input_type_ = new_input_type;
 
-    WARP_STATIC_TYPES(
-     using Kernel =
-        typename MyType::template KernelType<spatial_ndim, OutputType, InputType>;
+    std::cerr << "input_type_  = " << (int)input_type_ << std::endl;
+    std::cerr << "output_type_ = " << (int)output_type_ << std::endl;
 
-      using ImplType = WarpOpImplGPU<Derived, Kernel>;
-      if (!dynamic_cast<ImplType*>(impl_.get()))
-        impl_.reset(new ImplType(This()));
+    WARP_STATIC_TYPES(
+      std::cerr << "Static switch case entered." << std::endl;
+      using Kernel =
+        typename MyType::template KernelType<spatial_ndim, OutputType, InputType, BorderType>;
+
+      using ImplType = WarpOpImplGPU<Kernel>;
+      if (!dynamic_cast<ImplType*>(impl_.get())) {
+        std::cerr << "Create param provider." << std::endl;
+        auto param_provider = This().template CreateParamProvider<spatial_ndim, BorderType>();
+        std::cerr << "Create Impl." << std::endl;
+        impl_.reset(new ImplType(spec_, std::move(param_provider)));
+        std::cerr << "Impl set." << std::endl;
+      }
     );
 
+    std::cerr << "Call impl setup." << std::endl;
     impl_->Setup(out_shape, ws);
+    out_type = output_type_;
+    std::cerr << "Setup done." << std::endl;
   }
 
   void RunImpl(DeviceWorkspace* ws) {
@@ -226,11 +250,14 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
     std::vector<TypeInfo> types;
     InferOutputs(shapes, types, *ws);
     auto &output = ws->Output<GPUBackend>(0);
+    std::cerr << "output.Resize()" << std::endl;
     output.Resize(shapes[0]);
+    std::cerr << "output.set_type(" << types[0].id() << " : " << types[0].name() << ")" << std::endl;
     output.set_type(types[0]);
 
     assert(impl_);
 
+    std::cerr << "impl_->Run()" << std::endl;
     impl_->Run(*ws);
   }
 

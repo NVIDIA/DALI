@@ -39,6 +39,8 @@ with a flag `WARP_INVERSE_MAP` set.)code",
 Non-integer sizes are rounded to nearest integer.
 Channel dimension should be excluded (e.g. for RGB images specify 480,640, not 480,640,3).)code",
       DALI_FLOAT_VEC)
+  .AddOptionalArg("border", "Value used to fill areas that are outside source image",
+      0.0f)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR)
