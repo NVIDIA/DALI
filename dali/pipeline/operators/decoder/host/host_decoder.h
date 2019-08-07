@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATORS_DECODER_HOST_HOST_DECODER_H_
 #define DALI_PIPELINE_OPERATORS_DECODER_HOST_HOST_DECODER_H_
 
+#include <vector>
+
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
@@ -35,6 +37,10 @@ class HostDecoder : public Operator<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(HostDecoder);
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
   void RunImpl(SampleWorkspace *ws) override;
 
   virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {

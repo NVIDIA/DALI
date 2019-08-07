@@ -67,6 +67,10 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<CPUBackend> *ws) override;
   using Operator<CPUBackend>::RunImpl;
 

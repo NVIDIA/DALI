@@ -40,6 +40,10 @@ class MakeContiguous : public Operator<MixedBackend> {
 
   virtual inline ~MakeContiguous() = default;
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    return false;
+  }
+
   using Operator<MixedBackend>::Run;
   void Run(MixedWorkspace *ws) override {
     const auto& input = ws->Input<CPUBackend>(0, 0);

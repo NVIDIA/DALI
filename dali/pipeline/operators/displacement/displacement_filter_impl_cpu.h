@@ -106,6 +106,10 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     Warp<interp, per_channel_transform>(out, in, displace, fill);
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
   void RunImpl(SampleWorkspace *ws) override {
     DataDependentSetup(ws);
 

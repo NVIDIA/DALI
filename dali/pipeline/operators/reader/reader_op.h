@@ -124,6 +124,10 @@ class DataReader : public Operator<Backend> {
     }
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   // CPUBackend operators
   void Run(HostWorkspace* ws) override {
     // If necessary start prefetching thread and wait for a consumable batch

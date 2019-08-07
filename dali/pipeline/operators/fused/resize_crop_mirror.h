@@ -216,6 +216,10 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
   ~ResizeCropMirror() override = default;
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
   inline void SetupSharedSampleParams(SampleWorkspace *ws) override {
     per_thread_meta_[ws->thread_idx()] = GetTransfomMeta(ws, spec_);
   }

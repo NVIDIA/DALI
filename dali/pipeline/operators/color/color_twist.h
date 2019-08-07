@@ -181,6 +181,10 @@ class ColorTwistBase : public Operator<Backend> {
   }
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<Backend> *ws) override;
 
   std::vector<ColorAugment*> augments_;
