@@ -223,6 +223,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // To introduce dependency from MIXED stage to GPU stage for callback only
   // in some edge cases where there are no operators
   std::vector<cudaEvent_t> mixed_callback_events_;
+
  private:
   template <typename Workspace>
   void RunHelper(OpNode &op_node, Workspace &ws) {
