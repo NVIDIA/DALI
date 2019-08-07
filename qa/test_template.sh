@@ -36,11 +36,14 @@ fi
 
 prolog=${prolog-:}
 epilog=${epilog-:}
+# get the number of elements in `prolog` array
+numer_of_prolog_elms=${#prolog[@]}
 
 for i in `seq 0 $last_config_index`;
 do
     echo "Test run $i"
-    for variant in $(seq 0 ${#prolog[@]}); do
+    # seq from 0 to number of elements in `prolog` array - 1
+    for variant in $(seq 0 $((${numer_of_prolog_elms}-1))); do
         ${prolog[variant]}
         echo "Test variant run: $variant"
         # install packages
