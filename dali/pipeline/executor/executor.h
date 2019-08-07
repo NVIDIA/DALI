@@ -48,6 +48,21 @@ namespace detail {
 // pipeline run is finished
 static void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData);
 
+template <typename Workspace>
+std::enable_if_t<!std::is_same<Workspace, SupportWorkspace>::value,
+                 const kernels::TensorListShape<> &>
+ShapeSelectHelper(const kernels::TensorListShape<> &shape) {
+  return shape;
+}
+
+template <typename Workspace>
+std::enable_if_t<std::is_same<Workspace, SupportWorkspace>::value, const kernels::TensorShape<>>
+ShapeSelectHelper(const kernels::TensorListShape<> &shape) {
+  DALI_ENFORCE(shape.size() == 1,
+               "Support op should provide shape information for only one tensor.");
+  return shape[0];
+}
+
 }  // namespace detail
 
 class DLL_PUBLIC ExecutorBase {
@@ -140,71 +155,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   void SetupOutputQueuesForGraph();
 
-  template <typename Workspace>
-  void RunHelper(OpNode &op_node, Workspace &ws) {
-    auto &output_desc = op_node.output_desc;
-    auto &op = *op_node.op;
-    output_desc.clear();
-    if (op.Setup(output_desc, ws)) {
-      DALI_ENFORCE(
-          static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
-          "Operator::Setup returned shape and type information for mismatched number of outputs");
-      DALI_ENFORCE(op.CanInferOutputs(),
-                   "Operator::Setup returned true indicating that it successfully calculated shape "
-                   "and type information for Operator outputs. In that case CanInferOutputs should "
-                   "always return true.");
-      for (int i = 0; i < ws.NumOutput(); i++) {
-        auto &desc = output_desc[i];
-        if (ws.template OutputIsType<CPUBackend>(i)) {
-          ws.template OutputRef<CPUBackend>(i).Resize(desc.shape);
-          ws.template OutputRef<CPUBackend>(i).set_type(desc.type);
-        } else {
-          ws.template OutputRef<GPUBackend>(i).Resize(desc.shape);
-          ws.template OutputRef<GPUBackend>(i).set_type(desc.type);
-        }
-      }
-    } else {
-      DALI_ENFORCE(!op.CanInferOutputs(),
-                   "Operator::Setup returned false indicating that it cannot calculate shape and "
-                   "type information for Operator outputs. In that case CanInferOutputs should "
-                   "always return false.");
-    }
-    op.Run(&ws);
-  }
-
-  void RunHelper(OpNode &op_node, SupportWorkspace &ws) {
-    auto &output_desc = op_node.output_desc;
-    auto &op = *op_node.op;
-    output_desc.clear();
-    if (op.Setup(output_desc, ws)) {
-      DALI_ENFORCE(
-          static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
-          "Operator::Setup returned shape and type information for mismatched number of outputs.");
-      DALI_ENFORCE(op.CanInferOutputs(),
-                   "Operator::Setup returned true indicating that it successfully calculated shape "
-                   "and type information for Operator outputs. In that case CanInferOutputs should "
-                   "always return true.");
-      for (int i = 0; i < ws.NumOutput(); i++) {
-        auto &desc = output_desc[i];
-        DALI_ENFORCE(desc.shape.size() == 1,
-                     "Support op should provide shape information for only one tensor.");
-        if (ws.template OutputIsType<CPUBackend>(i)) {
-          ws.template OutputRef<CPUBackend>(i).Resize(desc.shape[0]);
-          ws.template OutputRef<CPUBackend>(i).set_type(desc.type);
-        } else {
-          ws.template OutputRef<GPUBackend>(i).Resize(desc.shape[0]);
-          ws.template OutputRef<GPUBackend>(i).set_type(desc.type);
-        }
-      }
-    } else {
-      DALI_ENFORCE(!op.CanInferOutputs(),
-                   "Operator::Setup returned false indicating that it cannot calculate shape and "
-                   "type information for Operator outputs. In that case CanInferOutputs should "
-                   "always return false.");
-    }
-    op.Run(&ws);
-  }
-
   class EventList {
    public:
     inline EventList() {}
@@ -273,6 +223,39 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // To introduce dependency from MIXED stage to GPU stage for callback only
   // in some edge cases where there are no operators
   std::vector<cudaEvent_t> mixed_callback_events_;
+ private:
+  template <typename Workspace>
+  void RunHelper(OpNode &op_node, Workspace &ws) {
+    auto &output_desc = op_node.output_desc;
+    auto &op = *op_node.op;
+    output_desc.clear();
+    if (op.Setup(output_desc, ws)) {
+      DALI_ENFORCE(
+          static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
+          "Operator::Setup returned shape and type information for mismatched number of outputs");
+      DALI_ENFORCE(op.CanInferOutputs(),
+                   "Operator::Setup returned true indicating that it successfully calculated shape "
+                   "and type information for Operator outputs. In that case CanInferOutputs should "
+                   "always return true.");
+      for (int i = 0; i < ws.NumOutput(); i++) {
+        auto &desc = output_desc[i];
+        const auto &shape = detail::ShapeSelectHelper<Workspace>(desc.shape);
+        if (ws.template OutputIsType<CPUBackend>(i)) {
+          ws.template OutputRef<CPUBackend>(i).Resize(shape);
+          ws.template OutputRef<CPUBackend>(i).set_type(desc.type);
+        } else {
+          ws.template OutputRef<GPUBackend>(i).Resize(shape);
+          ws.template OutputRef<GPUBackend>(i).set_type(desc.type);
+        }
+      }
+    } else {
+      DALI_ENFORCE(!op.CanInferOutputs(),
+                   "Operator::Setup returned false indicating that it cannot calculate shape and "
+                   "type information for Operator outputs. In that case CanInferOutputs should "
+                   "always return false.");
+    }
+    op.Run(&ws);
+  }
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
