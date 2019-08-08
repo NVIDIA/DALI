@@ -29,8 +29,9 @@ namespace kernels {
 /// @remarks Assume HWC layout
 template <typename _Mapping, int ndim, typename _OutputType, typename _InputType,
           typename _BorderType>
-class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
+class WarpGPU {
  public:
+  using WarpSetup = warp::WarpSetup<ndim, _OutputType, _InputType>;
   static constexpr int spatial_ndim = ndim;
   static constexpr int tensor_ndim = ndim + 1;
 
@@ -42,9 +43,8 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
   static_assert(std::is_pod<MappingParams>::value, "Mapping parameters must be POD.");
   static_assert(std::is_pod<BorderType>::value, "BorderType must be POD.");
 
-  using Base =  warp::WarpSetup<spatial_ndim, OutputType, InputType>;
-  using SampleDesc = typename Base::SampleDesc;
-  using BlockDesc = typename Base::BlockDesc;
+  using SampleDesc = typename WarpSetup::SampleDesc;
+  using BlockDesc = typename WarpSetup::BlockDesc;
   static_assert(spatial_ndim == 2, "Not implemented for spatial_ndim != 2");
 
   KernelRequirements Setup(KernelContext &context,
@@ -54,8 +54,8 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
                            span<const DALIInterpType> interp,
                            BorderType border = {}) {
     assert(in.size() == static_cast<size_t>(output_sizes.size()));
-    auto out_shapes = this->GetOutputShape(in.shape, output_sizes);
-    return Base::Setup(out_shapes);
+    auto out_shapes = setup.GetOutputShape(in.shape, output_sizes);
+    return setup.Setup(out_shapes);
   }
 
   void Run(KernelContext &context,
@@ -65,39 +65,46 @@ class WarpGPU : public warp::WarpSetup<ndim, _OutputType, _InputType> {
            span<const TensorShape<spatial_ndim>> output_sizes,
            span<const DALIInterpType> interp,
            BorderType border = {}) {
-    this->ValidateOutputShape(out.shape, in.shape, output_sizes);
-    this->PrepareSamples(out, in, interp);
+    setup.ValidateOutputShape(out.shape, in.shape, output_sizes);
+    setup.PrepareSamples(out, in, interp);
     SampleDesc *gpu_samples;
     BlockDesc *gpu_blocks;
 
-    if (this->IsUniformSize()) {
-      gpu_samples = context.scratchpad->ToGPU(context.gpu.stream, this->Samples());
+    dim3 grid_dim  = setup.GridDim();
+    dim3 block_dim = setup.BlockDim();
+
+    if (setup.IsUniformSize()) {
+      gpu_samples = context.scratchpad->ToGPU(context.gpu.stream, setup.Samples());
       CUDA_CALL(cudaGetLastError());
 
       warp::BatchWarpUniformSize
-      <Mapping, spatial_ndim, OutputType, InputType, BorderType>
-      <<<this->GridDim(), this->BlockDim(), 0, context.gpu.stream>>>(
-        gpu_samples,
-        this->UniformOutputSize(),
-        this->UniformBlockSize(),
-        mapping.data,
-        border);
+        <Mapping, spatial_ndim, OutputType, InputType, BorderType>
+        <<<grid_dim, block_dim, 0, context.gpu.stream>>>(
+          gpu_samples,
+          setup.UniformOutputSize(),
+          setup.UniformBlockSize(),
+          mapping.data,
+          border);
       CUDA_CALL(cudaGetLastError());
     } else {
       std::tie(gpu_samples, gpu_blocks) = context.scratchpad->ToContiguousGPU(
-        context.gpu.stream, this->Samples(), this->Blocks());
+        context.gpu.stream, setup.Samples(), setup.Blocks());
       CUDA_CALL(cudaGetLastError());
 
       warp::BatchWarpVariableSize
-      <Mapping, spatial_ndim, OutputType, InputType, BorderType>
-      <<<this->GridDim(), this->BlockDim(), 0, context.gpu.stream>>>(
-        gpu_samples,
-        gpu_blocks,
-        mapping.data,
-        border);
+        <Mapping, spatial_ndim, OutputType, InputType, BorderType>
+        <<<grid_dim, block_dim, 0, context.gpu.stream>>>(
+          gpu_samples,
+          gpu_blocks,
+          mapping.data,
+          border);
       CUDA_CALL(cudaGetLastError());
     }
   }
+
+ private:
+  WarpSetup setup;
+  friend class WarpPrivateTest;
 };
 
 }  // namespace kernels

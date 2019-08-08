@@ -31,66 +31,21 @@
 namespace dali {
 namespace kernels {
 
+
+class WarpPrivateTest {
+ public:
+  template <typename Mapping, int ndim, typename Out, typename In, typename Border>
+  static kernels::warp::WarpSetup<ndim, Out, In> &
+  GetSetup(kernels::WarpGPU<Mapping, ndim, Out, In, Border> &kernel) {
+    return kernel.setup;
+  }
+};
+
 void IsWarpKernelValid() {
   check_kernel<WarpGPU<AffineMapping2D, 2, float, uint8_t, float>>();
 }
 
-TEST(WarpGPU, Affine_Transpose_ForceVariable) {
-  AffineMapping2D mapping_cpu = mat2x3{{
-    { 0, 1, 0 },
-    { 1, 0, 0 }
-  }};
-
-  cv::Mat cv_img = cv::imread(testing::dali_extra_path() + "/db/imgproc/alley.png");
-  auto cpu_img = view_as_tensor<uint8_t>(cv_img);
-  auto gpu_img = copy<AllocType::GPU>(cpu_img);
-  auto img_tensor = gpu_img.first;
-
-  TensorListView<StorageGPU, uint8_t, 3> in_list;
-  in_list.resize(1, 3);
-  in_list.shape.set_tensor_shape(0, img_tensor.shape);
-  in_list.data[0] = img_tensor.data;
-
-  using Kernel = WarpGPU<AffineMapping2D, 2, uint8_t, uint8_t, BorderClamp>;
-  Kernel warp;
-
-  ScratchpadAllocator scratch_alloc;
-
-  auto mapping_gpu = memory::alloc_unique<AffineMapping2D>(AllocType::GPU, 1);
-  TensorShape<2> out_shape = { img_tensor.shape[1], img_tensor.shape[0] };
-  KernelContext ctx = {};
-  auto out_shapes_hw = make_span<1>(&out_shape);
-  auto mappings = make_tensor_gpu<1>(mapping_gpu.get(), { 1 });
-  copy(mappings, make_tensor_cpu<1>(&mapping_cpu, { 1 }));
-
-  auto out_shapes = warp.GetOutputShape(in_list.shape, out_shapes_hw);
-  KernelRequirements req = warp.WarpSetup::Setup(out_shapes, true);
-  req.scratch_sizes[static_cast<int>(AllocType::GPU)] += sizeof(warp::SampleDesc<2, int, int>);
-  scratch_alloc.Reserve(req.scratch_sizes);
-  TestTensorList<uint8_t, 3> out;
-  out.reshape(req.output_shapes[0].to_static<3>());
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
-
-  auto interp = DALI_INTERP_NN;
-  warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1});
-
-  auto cpu_out = out.cpu(0)[0];
-  cudaDeviceSynchronize();
-  ASSERT_EQ(cpu_out.shape[0], img_tensor.shape[1]);
-  ASSERT_EQ(cpu_out.shape[1], img_tensor.shape[0]);
-  ASSERT_EQ(cpu_out.shape[2], 3);
-
-  for (int y = 0; y < cpu_out.shape[0]; y++) {
-    for (int x = 0; x < cpu_out.shape[1]; x++) {
-      for (int c = 0; c < 3; c++) {
-        EXPECT_EQ(*cpu_out(y, x, c), *cpu_img(x, y, c));
-      }
-    }
-  }
-}
-
-TEST(WarpGPU, Affine_Transpose_Single) {
+void WarpGPU_Affine_Transpose(bool force_variable) {
   AffineMapping2D mapping_cpu = mat2x3{{
     { 0, 1, 0 },
     { 1, 0, 0 }
@@ -118,7 +73,17 @@ TEST(WarpGPU, Affine_Transpose_Single) {
   copy(mappings, make_tensor_cpu<1>(&mapping_cpu, { 1 }));
 
   auto interp = DALI_INTERP_NN;
-  KernelRequirements req = warp.Setup(ctx, in_list, mappings, out_shapes_hw, {&interp, 1});
+  KernelRequirements req;
+
+  if (force_variable) {
+    auto &setup = WarpPrivateTest::GetSetup(warp);
+    auto out_shapes = setup.GetOutputShape(in_list.shape, out_shapes_hw);
+    req = setup.Setup(out_shapes, true);
+    req.scratch_sizes[static_cast<int>(AllocType::GPU)] += sizeof(warp::SampleDesc<2, int, int>);
+  } else {
+    req = warp.Setup(ctx, in_list, mappings, out_shapes_hw, {&interp, 1});
+  }
+
   scratch_alloc.Reserve(req.scratch_sizes);
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
@@ -150,6 +115,14 @@ TEST(WarpGPU, Affine_Transpose_Single) {
   if (printed != errors) {
     FAIL() << (errors - printed) << " more erors.";
   }
+}
+
+TEST(WarpGPU, Affine_Transpose_ForceVariable) {
+  WarpGPU_Affine_Transpose(true);
+}
+
+TEST(WarpGPU, Affine_Transpose_Single) {
+  WarpGPU_Affine_Transpose(false);
 }
 
 /// @brief Apply correction of pixel centers and convert the mapping to
@@ -196,8 +169,10 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
   copy(mappings, make_tensor_cpu<1>(&mapping_cpu, { 1 }));
 
   auto interp = DALI_INTERP_LINEAR;
-  auto out_shapes = warp.GetOutputShape(in_list.shape, out_shapes_hw);
-  KernelRequirements req = warp.WarpSetup::Setup(out_shapes, true);
+  auto &setup = WarpPrivateTest::GetSetup(warp);
+  auto out_shapes = setup.GetOutputShape(in_list.shape, out_shapes_hw);
+  setup.SetBlockDim(dim3(32, 24, 1));  // force non-square block
+  KernelRequirements req = setup.Setup(out_shapes, true);
   scratch_alloc.Reserve(req.scratch_sizes);
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
