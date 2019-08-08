@@ -16,6 +16,7 @@
 #define DALI_CORE_GEOM_VEC_H_
 
 #include <cmath>
+#include <iosfwd>
 #include "dali/core/host_dev.h"
 #include "dali/core/util.h"
 #include "dali/core/math_util.h"
@@ -569,6 +570,14 @@ static_assert(std::is_pod<vec<2>>::value, "vec<2, T> must be a POD type");
 static_assert(std::is_pod<vec<3>>::value, "vec<3, T> must be a POD type");
 static_assert(std::is_pod<vec<4>>::value, "vec<4, T> must be a POD type");
 static_assert(std::is_pod<vec<5>>::value, "vec<N, T> must be a POD type");
+
+template <size_t N, typename T>
+std::ostream &operator<<(std::ostream& os, const dali::vec<N, T> &v) {
+  for (size_t i = 0; i < N; i++)
+    os << (i ? ", " : "{") << v[i];
+  os << "}";
+  return os;
+}
 
 }  // namespace dali
 
