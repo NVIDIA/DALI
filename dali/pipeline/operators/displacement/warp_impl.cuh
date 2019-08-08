@@ -151,7 +151,7 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
 
   // TODO(michalz): Change value switch over SpatialDim to (2, 3) when kernel is implemented
   #define WARP_STATIC_TYPES(...) {                                          \
-    VALUE_SWITCH(This().SpatialDim(ws), spatial_ndim, (2), (                \
+    VALUE_SWITCH(This().SpatialDim(), spatial_ndim, (2), (                  \
       VALUE_SWITCH(This().BorderClamp() ? 1 : 0, UseBorderClamp, (0, 1), (  \
           ToStaticType(                                                     \
             [&](auto &&args) {                                              \
@@ -169,7 +169,7 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
  public:
   using Operator<GPUBackend>::Operator;
 
-  int SpatialDim(Workspace &ws) const {
+  int SpatialDim() const {
     return input_shape_.sample_dim()-1;
   }
 
@@ -177,15 +177,16 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
     return !spec_.HasArgument("border");
   }
 
-  bool InferOutputs(
-      std::vector<kernels::TensorListShape<>> &shapes,
-      std::vector<TypeInfo> &types, DeviceWorkspace &ws) {
-    shapes.resize(1);
-    types.resize(1);
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &outputs, const DeviceWorkspace &ws) override {
+    outputs.resize(1);
 
     DALIDataType out_type;
-    Setup(shapes[0], out_type, ws);
-    types[0] = TypeTable::GetTypeInfo(out_type);
+    Setup(outputs[0].shapes, out_type, ws);
+    outputs[0].type = TypeTable::GetTypeInfo(out_type);
     return true;
   }
 
