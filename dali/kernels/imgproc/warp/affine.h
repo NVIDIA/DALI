@@ -16,7 +16,6 @@
 #define DALI_KERNELS_IMGPROC_WARP_AFFINE_H_
 
 #include "dali/core/geom/mat.h"
-#include "dali/kernels/imgproc/warp/mapping_traits.h"
 
 namespace dali {
 namespace kernels {

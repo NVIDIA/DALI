@@ -16,20 +16,11 @@
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_CUH_
 
 #include "dali/pipeline/operators/displacement/new_warp_affine.h"
-#include "dali/pipeline/operators/displacement/warp_impl.cuh"
+#include "dali/pipeline/operators/displacement/warp_impl.h"
 #include "dali/kernels/imgproc/warp/affine.h"
 
 namespace dali {
 
-template <size_t r, size_t c>
-__global__ void BatchTranspose(mat<c, r> *out, const mat<r, c> *in, int n) {
-  int i = threadIdx.x + blockIdx.x*blockDim.x;
-  auto m = in[i];
-  out[i] = m.T();
-}
-
-template <typename Backend>
-class NewWarpAffine;
 
 template <>
 class NewWarpAffine<GPUBackend> : public Warp<GPUBackend, NewWarpAffine<GPUBackend>> {

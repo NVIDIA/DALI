@@ -39,7 +39,7 @@ struct UnzipPairsHelper<T1, T2, Tail...> {
   using type = detail::tuple_cat_t<std::tuple<std::pair<T1, T2>>, UnzipPairs<Tail...>>;
 };
 
-template <typename Backend, typename Deriver>
+template <typename Backend, typename Derived>
 class Warp;
 
 }  // namespace dali

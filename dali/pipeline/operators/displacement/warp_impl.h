@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_IMPL_CUH_
-#define DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_IMPL_CUH_
+#ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_IMPL_H_
+#define DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_IMPL_H_
 
 #include "dali/pipeline/operators/displacement/warp.h"
 #include "dali/pipeline/operators/displacement/warp_param_provider.h"
@@ -30,16 +30,18 @@ namespace dali {
 template <typename Backend>
 class OpImplInterface {
  public:
-  virtual void Setup(kernels::TensorListShape<> &shape, Workspace<Backend> &ws) = 0;
-  virtual void Run(Workspace<Backend> &ws) = 0;
+  virtual void Setup(kernels::TensorListShape<> &shape, const workspace_t<Backend> &ws) = 0;
+  virtual void Run(workspace_t<Backend> &ws) = 0;
 };
 
 template <typename Kernel>
-class WarpOpImplGPU;
+class WarpOpImp;
 
-template <typename Kernel>
-class WarpOpImplGPU : public OpImplInterface<GPUBackend> {
+template <typename Backend, typename Kernel>
+class WarpOpImpl : public OpImplInterface<Backend> {
  public:
+  using Storage = detail::storage_tag_map_t<Backend>;
+
   using OutputType = typename Kernel::OutputType;
   using InputType = typename Kernel::InputType;
   using Mapping = typename Kernel::Mapping;
@@ -47,28 +49,23 @@ class WarpOpImplGPU : public OpImplInterface<GPUBackend> {
   using BorderType = typename Kernel::BorderType;
   static constexpr int spatial_ndim = Kernel::spatial_ndim;
   static constexpr int tensor_ndim = Kernel::tensor_ndim;
-  using ParamProvider = WarpParamProvider<GPUBackend, spatial_ndim, MappingParams, BorderType>;
+  using ParamProvider = WarpParamProvider<Backend, spatial_ndim, MappingParams, BorderType>;
+  using Workspace = workspace_t<Backend>;
 
-  WarpOpImplGPU(const OpSpec &spec, std::unique_ptr<ParamProvider> &&pp)
+  WarpOpImpl(const OpSpec &spec, std::unique_ptr<ParamProvider> &&pp)
   : spec_(spec), param_provider_(std::move(pp)) {
   }
 
-  kernels::KernelContext GetContext(DeviceWorkspace &ws) {
+  kernels::KernelContext GetContext(const Workspace &ws) {
     kernels::KernelContext context;
-    context.gpu.stream = ws.stream();
+    context.gpu.stream = ws.has_stream() ? ws.stream() : 0;
     return context;
   }
 
-  void Setup(kernels::TensorListShape<> &shape, DeviceWorkspace &ws) override {
-    param_provider_->SetContext(Spec(), ws);
-
-    input_ = view<const InputType,  tensor_ndim>(ws.Input<GPUBackend>(0));
-    kmgr_.Resize<Kernel>(1, 1);
-
-    param_provider_->Setup();
-
+  template <typename WorkspaceType>
+  enable_if_t<std::is_same<DeviceWorkspace, WorkspaceType>::value, void>
+  SetupBackend(kernels::TensorListShape<> &shape, const WorkspaceType &ws) {
     auto context = GetContext(ws);
-
     auto &req = kmgr_.Setup<Kernel>(
         0, context,
         input_,
@@ -76,18 +73,43 @@ class WarpOpImplGPU : public OpImplInterface<GPUBackend> {
         param_provider_->OutputSizes(),
         param_provider_->InterpTypes(),
         param_provider_->Border());
-
     shape = req.output_shapes[0];
   }
 
-  void Run(DeviceWorkspace &ws) override {
+  template <typename WorkspaceType>
+  enable_if_t<std::is_same<HostWorkspace, WorkspaceType>::value, void>
+  CallBackend(kernels::TensorListShape<> &shape, const WorkspaceType &ws) {
+    auto context = GetContext(ws);
+    auto &req = kmgr_.Setup<Kernel>(
+        0, context,
+        input_,
+        param_provider_->ParamsCPU(),
+        param_provider_->OutputSizes(),
+        param_provider_->InterpTypes(),
+        param_provider_->Border());
+    shape = req.output_shapes[0];
+  }
+
+  void Setup(kernels::TensorListShape<> &shape, const Workspace &ws) override {
     param_provider_->SetContext(Spec(), ws);
 
-    auto output = view<OutputType, tensor_ndim>(ws.Output<GPUBackend>(0));
-    input_ = view<const InputType,  tensor_ndim>(ws.Input<GPUBackend>(0));
+    input_ = view<const InputType, tensor_ndim>(ws.template Input<Backend>(0));
+    kmgr_.Resize<Kernel>(1, 1);
+
+    param_provider_->Setup();
+
+    SetupBackend(shape, ws);
+  }
+
+  template <typename WorkspaceType>
+  std::enable_if_t<std::is_same<WorkspaceType, HostWorkspace>::value, void>
+  RunBackend(WorkspaceType &_ws) override {
+    DeviceWorkspace &ws = _ws;
+    param_provider_->SetContext(Spec(), ws);
+
+    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
+    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
     auto context = GetContext(ws);
-    auto params = param_provider_->ParamsGPU();
-    std::cerr << "Params: " << (void*)params.data << " " << params.shape << "\n";
     kmgr_.Run<Kernel>(
         0, 0, context,
         output,
@@ -98,6 +120,30 @@ class WarpOpImplGPU : public OpImplInterface<GPUBackend> {
         param_provider_->Border());
   }
 
+
+  template <typename WorkspaceType>
+  std::enable_if_t<std::is_same<WorkspaceType, DeviceWorkspace>::value, void>
+  RunBackend(WorkspaceType &_ws) override {
+    DeviceWorkspace &ws = _ws;
+    param_provider_->SetContext(Spec(), ws);
+
+    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
+    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
+    auto context = GetContext(ws);
+    kmgr_.Run<Kernel>(
+        0, 0, context,
+        output,
+        input_,
+        param_provider_->ParamsGPU(),
+        param_provider_->OutputSizes(),
+        param_provider_->InterpTypes(),
+        param_provider_->Border());
+  }
+
+  void Run(Workspace &ws) override {
+    RunBackend(ws);
+  }
+
   const OpSpec &Spec() const { return spec_; }
 
  protected:
@@ -105,23 +151,22 @@ class WarpOpImplGPU : public OpImplInterface<GPUBackend> {
   const OpSpec &spec_;
   kernels::KernelManager kmgr_;
 
-  kernels::TensorListView<kernels::StorageGPU, const InputType, tensor_ndim> input_;
-  kernels::TensorListView<kernels::StorageGPU, OutputType, tensor_ndim> output_;
+  kernels::TensorListView<Storage, const InputType, tensor_ndim> input_;
+  kernels::TensorListView<Storage, OutputType, tensor_ndim> output_;
 
   std::unique_ptr<ParamProvider> param_provider_;
 };
 
 
-template <typename Derived>
-class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
+template <typename Backend, typename Derived>
+class Warp : public Operator<Backend> {
  public:
   using MyType = Derived;
   MyType &This() { return static_cast<MyType&>(*this); }
   const MyType &This() const { return static_cast<const MyType&>(*this); }
-  using Backend = GPUBackend;
-  using Workspace = DeviceWorkspace;
+  using Workspace = workspace_t<Backend>;
 
-  const OpSpec &Spec() const { return spec_; }
+  const OpSpec &Spec() const { return this->spec_; }
 
  private:
   /// @defgroup WarpStaticType Dynamic to static type routing
@@ -167,14 +212,14 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
 
   /// @}
  public:
-  using Operator<GPUBackend>::Operator;
+  using Operator<Backend>::Operator;
 
   int SpatialDim() const {
     return input_shape_.sample_dim()-1;
   }
 
   bool BorderClamp() const {
-    return !spec_.HasArgument("border");
+    return !Spec().HasArgument("border");
   }
 
   bool CanInferOutputs() const override {
@@ -185,7 +230,7 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
     outputs.resize(1);
 
     DALIDataType out_type;
-    Setup(outputs[0].shapes, out_type, ws);
+    SetupWarp(outputs[0].shape, out_type, ws);
     outputs[0].type = TypeTable::GetTypeInfo(out_type);
     return true;
   }
@@ -209,14 +254,14 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
   /// @brief May be shadowed by Derived, if necessary
   using SupportedTypes = DefaultSupportedTypes;
 
-  void Setup(kernels::TensorListShape<> &out_shape,
-             DALIDataType &out_type,
-             DeviceWorkspace &ws) {
-    auto &input = ws.Input<GPUBackend>(0);
+  void SetupWarp(kernels::TensorListShape<> &out_shape,
+                 DALIDataType &out_type,
+                 const DeviceWorkspace &ws) {
+    auto &input = ws.template Input<Backend>(0);
     input_shape_ = input.shape();
     DALIDataType new_input_type = input.type().id();
     DALIDataType new_output_type;
-    if (!this->spec_.TryGetArgument<DALIDataType>(new_output_type, "output_type"))
+    if (!Spec().TryGetArgument(new_output_type, "output_type"))
       new_output_type = new_input_type;
 
     output_type_ = new_output_type;
@@ -230,12 +275,12 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
       using Kernel =
         typename MyType::template KernelType<spatial_ndim, OutputType, InputType, BorderType>;
 
-      using ImplType = WarpOpImplGPU<Kernel>;
+      using ImplType = WarpOpImpl<Backend, Kernel>;
       if (!dynamic_cast<ImplType*>(impl_.get())) {
         std::cerr << "Create param provider." << std::endl;
         auto param_provider = This().template CreateParamProvider<spatial_ndim, BorderType>();
         std::cerr << "Create Impl." << std::endl;
-        impl_.reset(new ImplType(spec_, std::move(param_provider)));
+        impl_.reset(new ImplType(Spec(), std::move(param_provider)));
         std::cerr << "Impl set." << std::endl;
       }
     );
@@ -247,15 +292,6 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
   }
 
   void RunImpl(DeviceWorkspace* ws) {
-    std::vector<kernels::TensorListShape<>> shapes;
-    std::vector<TypeInfo> types;
-    InferOutputs(shapes, types, *ws);
-    auto &output = ws->Output<GPUBackend>(0);
-    std::cerr << "output.Resize()" << std::endl;
-    output.Resize(shapes[0]);
-    std::cerr << "output.set_type(" << types[0].id() << " : " << types[0].name() << ")" << std::endl;
-    output.set_type(types[0]);
-
     assert(impl_);
 
     std::cerr << "impl_->Run()" << std::endl;
@@ -266,10 +302,10 @@ class Warp<GPUBackend, Derived> : public Operator<GPUBackend> {
   DALIDataType input_type_ = DALI_NO_TYPE;
   DALIDataType output_type_ = DALI_NO_TYPE;
   kernels::TensorListShape<> input_shape_;
-  std::unique_ptr<OpImplInterface<GPUBackend>> impl_;
+  std::unique_ptr<OpImplInterface<Backend>> impl_;
 };
 
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_IMPL_CUH_
+#endif  // DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_IMPL_H_

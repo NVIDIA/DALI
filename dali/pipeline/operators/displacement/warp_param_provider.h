@@ -31,7 +31,7 @@ class InterpTypeProvider {
     return make_span(interp_types_);
   }
  protected:
-  void SetInterp(const OpSpec &spec, ArgumentWorkspace &ws, int num_samples) {
+  void SetInterp(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples) {
     interp_types_.clear();
     if (spec.HasTensorArgument("interp_type")) {
       auto &tensor = ws.ArgumentInput("interp_type");
@@ -94,11 +94,11 @@ template <typename Backend, int spatial_ndim, typename MappingParams, typename B
 class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<BorderType> {
  public:
   using SpatialShape = kernels::TensorShape<spatial_ndim>;
-  using Workspace = dali::Workspace<Backend>;
+  using Workspace = workspace_t<Backend>;
 
   virtual ~WarpParamProvider() = default;
 
-  void SetContext(const OpSpec &spec, Workspace &ws) {
+  void SetContext(const OpSpec &spec, const Workspace &ws) {
     spec_ = &spec;
     ws_ = &ws;
     num_samples_ = NumSamples(ws);
@@ -136,6 +136,10 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     return make_span(out_sizes_);
   }
 
+  /// @brief Gets the mapping parameters in GPU memory
+  ///
+  /// If GPU tensor is empty, but CPU is not, an asyncrhonous copy is scheduled
+  /// on the stream associated with current workspace.
   kernels::TensorView<kernels::StorageGPU, const MappingParams, 1> ParamsGPU() {
     if (!params_gpu_.data && params_cpu_.data) {
       auto *p = AllocParams(kernels::AllocType::GPU, params_cpu_.num_elements());
@@ -145,22 +149,28 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     return params_gpu_;
   }
 
+  /// @brief Gets the mapping parameters in GPU memory
+  ///
+  /// If CPU tensor is empty, but GPU is not, a copy is scheduled
+  /// on the stream associated with current workspace and the calling thread
+  /// is synchronized with the stream.
   kernels::TensorView<kernels::StorageCPU, const MappingParams, 1> ParamsCPU() {
     if (!params_cpu_.data && params_gpu_.data) {
       auto *p = AllocParams(kernels::AllocType::Host, params_gpu_.num_elements());
       auto tmp = make_tensor_cpu(p, params_cpu_.shape);
-      kernels::copy(tmp, params_gpu_, GetStream());
+      cudaStream_t stream = GetStream();
+      kernels::copy(tmp, params_gpu_, stream);
+      CUDA_CALL(cudaStreamSynchronize(stream));
     }
     return params_cpu_;
   }
-
 
  protected:
   inline cudaStream_t GetStream() const {
     return ws_ && ws_->has_stream() ? ws_->stream() : 0;
   }
 
-  static inline int NumSamples(Workspace &ws) {
+  static inline int NumSamples(const Workspace &ws) {
     return ws.template Input<Backend>(0).shape().num_samples();
   }
 
@@ -237,7 +247,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   }
 
   virtual void InferSize() {
-    assert(!"Implementation must be provided by the derived class.");
+    DALI_FAIL("This operator does not support size inference.");
   }
 
   MappingParams *AllocParams(kernels::AllocType alloc) {
@@ -268,7 +278,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   // can be overwritten by a derived class
   std::string size_arg_name_ = "size";
   const OpSpec *spec_ = nullptr;
-  Workspace *ws_ = nullptr;
+  const Workspace *ws_ = nullptr;
   int num_samples_ = 0;
 
   std::vector<SpatialShape> out_sizes_;
