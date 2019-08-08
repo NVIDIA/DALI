@@ -64,9 +64,9 @@ std::vector<DLMTensorPtr> GetDLTensors(TensorList<Backend> &tensor_list) {
   dl_tensors.reserve(tensor_list.ntensor());
   for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
     dl_tensors.push_back(detail::MakeDLTensor<Backend>(tensor_list.raw_mutable_tensor(i),
-                                                  tensor_list.type(),
-                                                  tensor_list.tensor_shape(i),
-                                                  tensor_list.device_id()));
+                                                       tensor_list.type(),
+                                                       tensor_list.tensor_shape(i),
+                                                       tensor_list.device_id()));
   }
   return dl_tensors;
 }
