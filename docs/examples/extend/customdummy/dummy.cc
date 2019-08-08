@@ -6,8 +6,6 @@ template<>
 void Dummy<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace *ws) {
   const auto &input = ws->Input<::dali::CPUBackend>(0);
   auto &output = ws->Output<::dali::CPUBackend>(0);
-  output.set_type(input.type());
-  output.ResizeLike(input);
 
   ::dali::TypeInfo type = input.type();
   type.Copy<::dali::CPUBackend, ::dali::CPUBackend>(
