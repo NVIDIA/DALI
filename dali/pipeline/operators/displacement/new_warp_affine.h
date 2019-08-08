@@ -51,7 +51,7 @@ class WarpAffineParamsProvider
         UseInput(ws_->template Input<CPUBackend>(1));
       }
     } else {
-      std::vector<float> matrix = spec_->template GetArgument<vector<float>>("matrix");
+      std::vector<float> matrix = spec_->template GetArgument<std::vector<float>>("matrix");
 
       DALI_ENFORCE(matrix.size() == spatial_ndim*(spatial_ndim+1));
 

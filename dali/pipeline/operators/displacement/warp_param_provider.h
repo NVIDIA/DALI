@@ -186,7 +186,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   virtual void GetUniformOutputSize(SpatialShape &out_size) const {
     assert(HasExplicitSize() && !HasExplicitPerSampleSize());
-    std::vector<float> out_size_f;
+    std::vector<float> out_size_f = spec_->template GetArgument<std::vector<float>>("size");
     DALI_ENFORCE(static_cast<int>(out_size_f.size()) == spatial_ndim,
       "output_size must specify same number of dimensions as the input (excluding channels)");
     for (int d = 0; d < spatial_ndim; d++) {

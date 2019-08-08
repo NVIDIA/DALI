@@ -34,11 +34,11 @@ dst(x,y) = src(M11 * x + M12 * y + M13, M21 * x + M22 * y + M23)
 It is equivalent to OpenCV's `warpAffine` operation
 with a flag `WARP_INVERSE_MAP` set.)code",
       DALI_FLOAT_VEC)
-  .AddOptionalArg("output_size",
+  .AddOptionalArg<float>("size",
       R"code(Output size, in pixels/points.
 Non-integer sizes are rounded to nearest integer.
 Channel dimension should be excluded (e.g. for RGB images specify 480,640, not 480,640,3).)code",
-      DALI_FLOAT_VEC)
+      vector<float>(), true)
   .AddOptionalArg("border", "Value used to fill areas that are outside source image",
       0.0f)
   .AddOptionalArg("interp_type",
