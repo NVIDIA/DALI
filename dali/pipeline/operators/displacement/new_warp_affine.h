@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_H_
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_H_
 
+#include <vector>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/kernels/imgproc/warp/affine.h"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
@@ -107,11 +108,8 @@ class WarpAffineParamsProvider
     params_gpu_.data = static_cast<const MappingParams *>(input.raw_data());
     params_gpu_.shape = { num_samples_ };
   }
-
 };
 
-
-
-}
+}  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_H_

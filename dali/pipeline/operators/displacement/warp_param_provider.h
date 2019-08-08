@@ -15,6 +15,10 @@
 #ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_PARAM_PROVIDER_H_
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_PARAM_PROVIDER_H_
 
+#include <cassert>
+#include <vector>
+#include <string>
+
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/alloc.h"
 #include "dali/pipeline/operators/operator.h"
@@ -30,6 +34,7 @@ class InterpTypeProvider {
   span<const DALIInterpType> InterpTypes() const {
     return make_span(interp_types_);
   }
+
  protected:
   void SetInterp(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples) {
     interp_types_.clear();
@@ -53,7 +58,7 @@ class InterpTypeProvider {
     }
   }
 
-  InterpTypeProvider()=default;
+  InterpTypeProvider() = default;
   std::vector<DALIInterpType> interp_types_;
 };
 
@@ -286,7 +291,6 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   kernels::TensorView<kernels::StorageGPU, const MappingParams, 1> params_gpu_;
   kernels::TensorView<kernels::StorageCPU, const MappingParams, 1> params_cpu_;
   kernels::ScratchpadAllocator param_mem_;
-
 };
 
 }  // namespace dali

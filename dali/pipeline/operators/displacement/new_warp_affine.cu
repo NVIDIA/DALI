@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
 #include "dali/pipeline/operators/displacement/new_warp_affine.cuh"
 
 namespace dali {

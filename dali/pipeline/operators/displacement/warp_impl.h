@@ -15,6 +15,13 @@
 #ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_IMPL_H_
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_WARP_IMPL_H_
 
+#include <cassert>
+#include <vector>
+#include <memory>
+#include <string>
+#include <tuple>
+#include <utility>
+
 #include "dali/pipeline/operators/displacement/warp.h"
 #include "dali/pipeline/operators/displacement/warp_param_provider.h"
 #include "dali/pipeline/data/views.h"
@@ -22,8 +29,6 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/alloc.h"
 #include "dali/core/static_switch.h"
-
-#include "dali/kernels/tensor_shape_print.h"
 
 namespace dali {
 
@@ -147,7 +152,6 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   const OpSpec &Spec() const { return spec_; }
 
  protected:
-
   const OpSpec &spec_;
   kernels::KernelManager kmgr_;
 
@@ -205,7 +209,7 @@ class Warp : public Operator<Backend> {
             using BorderType = std::conditional_t<                          \
               UseBorderClamp, kernels::BorderClamp, OutputType>;            \
             __VA_ARGS__                                                     \
-          }); ),                                                            \
+          });),                                                             \
           (assert(!"impossible")))),                                        \
         (DALI_FAIL("Only 2D and 3D warping is supported")));                \
   }
@@ -267,34 +271,23 @@ class Warp : public Operator<Backend> {
     output_type_ = new_output_type;
     input_type_ = new_input_type;
 
-    std::cerr << "input_type_  = " << (int)input_type_ << std::endl;
-    std::cerr << "output_type_ = " << (int)output_type_ << std::endl;
-
     WARP_STATIC_TYPES(
-      std::cerr << "Static switch case entered." << std::endl;
       using Kernel =
         typename MyType::template KernelType<spatial_ndim, OutputType, InputType, BorderType>;
 
       using ImplType = WarpOpImpl<Backend, Kernel>;
       if (!dynamic_cast<ImplType*>(impl_.get())) {
-        std::cerr << "Create param provider." << std::endl;
         auto param_provider = This().template CreateParamProvider<spatial_ndim, BorderType>();
-        std::cerr << "Create Impl." << std::endl;
         impl_.reset(new ImplType(Spec(), std::move(param_provider)));
-        std::cerr << "Impl set." << std::endl;
       }
-    );
+    ); // NOLINT
 
-    std::cerr << "Call impl setup." << std::endl;
     impl_->Setup(out_shape, ws);
     out_type = output_type_;
-    std::cerr << "Setup done." << std::endl;
   }
 
   void RunImpl(DeviceWorkspace* ws) {
     assert(impl_);
-
-    std::cerr << "impl_->Run()" << std::endl;
     impl_->Run(*ws);
   }
 

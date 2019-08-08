@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_CUH_
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_CUH_
 
+#include <memory>
 #include "dali/pipeline/operators/displacement/new_warp_affine.h"
 #include "dali/pipeline/operators/displacement/warp_impl.h"
 #include "dali/kernels/imgproc/warp/affine.h"
@@ -42,7 +43,6 @@ class NewWarpAffine<GPUBackend> : public Warp<GPUBackend, NewWarpAffine<GPUBacke
   auto CreateParamProvider() {
     return std::make_unique<ParamProvider<spatial_ndim, BorderType>>();
   }
-
 };
 
 }  // namespace dali
