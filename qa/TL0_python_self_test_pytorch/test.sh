@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy torch"
+pip_packages="nose numpy torch cupy"
 
 pushd ../..
 
@@ -9,6 +9,7 @@ cd dali/test/python
 
 test_body() {
     nosetests --verbose test_pytorch_operator
+    nosetests --verbose test_as_dlpack
 }
 
 source ../../../qa/test_template.sh
