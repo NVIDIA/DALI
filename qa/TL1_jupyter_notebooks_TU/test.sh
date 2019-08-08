@@ -1,11 +1,8 @@
 #!/bin/bash -e
 
-source ../setup_dali_extra.sh
-
 # used pip packages
 pip_packages="jupyter matplotlib numpy"
-
-pushd ../../docs/examples
+target_dir=./docs/examples
 
 test_body() {
     # workaround for the CI
@@ -19,6 +16,6 @@ test_body() {
                    --ExecutePreprocessor.timeout=600 {}
 }
 
-source ../../qa/test_template.sh
-
+pushd ../..
+source ./qa/test_template.sh
 popd

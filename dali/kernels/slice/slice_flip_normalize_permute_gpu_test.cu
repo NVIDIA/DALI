@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_kernel_test.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_gpu.cuh"
+#include "dali/kernels/slice/slice_flip_normalize_permute_gpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_kernel_test.h"
 
 namespace dali {
@@ -30,7 +30,7 @@ class SliceFlipNormalizePermuteGPUTest : public SliceFlipNormalizePermuteTest<Te
   static constexpr size_t NumSamples = TestArgs::NumSamples;
   static constexpr size_t DimSize = TestArgs::DimSize;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
-  using KernelType = SliceFlipNormalizePermuteGPU<OutputType, InputType, Dims>;
+  using KernelType = SliceFlipNormalizePermutePadGPU<OutputType, InputType, Dims>;
 
   void Run() override {
     KernelContext ctx;

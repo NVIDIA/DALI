@@ -81,7 +81,7 @@ static CUresult LOAD_LIBRARY(DLLDRIVER *pInstance)
 
 #define GET_PROC_EX(name, alias, required)                              \
     ptr_##alias = (t##name )dlsym(DriverLib, #name);                    \
-    if (alias == NULL && required) {                                    \
+    if (ptr_##alias == NULL && required) {                              \
         printf("Failed to find required function \"%s\" in %s\n",       \
                #name, __DriverLibName);                                 \
         return CUDA_ERROR_UNKNOWN;                                      \
@@ -132,8 +132,6 @@ CUresult cuvidInit(unsigned int Flags)
     GET_PROC(cuvidCreateDecoder);
     GET_PROC(cuvidDestroyDecoder);
     GET_PROC(cuvidDecodePicture);
-    GET_PROC(cuvidGetDecodeStatus);
-    GET_PROC(cuvidReconfigureDecoder);
 
 #if !defined(__CUVID_DEVPTR64) || defined(__CUVID_INTERNAL)
     GET_PROC(cuvidMapVideoFrame);

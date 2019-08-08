@@ -38,6 +38,11 @@ namespace examples {
 /// A kernel must provide two non-overloaded functions:
 /// Run and Setup.
 ///
+/// Run and Setup functions are expected to accept arguments in strictly specified order:
+/// Setup(KernelContext, [inputs], [arguments])
+/// Run(KernelContext, [outputs], [inputs], [arguments])
+/// Additionally, both of these functions accept the same sets of inputs and arguments.
+///
 /// The kernel can be run directly or its inputs, outputs and arguments can be tied
 /// into tuples and then the kernel be configured and launched using:
 ///
@@ -52,7 +57,7 @@ template <typename Input1, typename Input2, typename OutputType>
 struct Kernel {
   /// @brief Returns kernel output(s) shape(s) and additional memory requirements
   ///
-  /// Setup receives full input and output tensor lists and any extra arguments that
+  /// Setup receives full input tensor lists and any extra arguments that
   /// are going to be passed to a subsequent call to Run.
   ///
   /// @remarks The inputs are provided mainly to inspect their shapes; actually looking at the

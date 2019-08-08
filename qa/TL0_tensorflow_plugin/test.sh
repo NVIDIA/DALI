@@ -1,11 +1,12 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages="nose tensorflow-gpu"
+target_dir=./dali/test/python
 
-pushd ../..
-
-source qa/setup_dali_extra.sh
-cd dali/test/python
+# populate epilog and prolog with variants to enable/disable conda and virtual env
+# every test will be executed for bellow configs
+prolog=(: enable_conda enable_virtualenv)
+epilog=(: disable_conda disable_virtualenv)
 
 test_body() {
     # Manually removing the supported plugin so that it fails
@@ -23,6 +24,6 @@ test_body() {
     nosetests --verbose test_dali_tf_plugin_run.py
 }
 
-source ../../../qa/test_template.sh
-
+pushd ../..
+source ./qa/test_template.sh
 popd

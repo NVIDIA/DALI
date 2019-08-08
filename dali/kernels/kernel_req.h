@@ -29,7 +29,7 @@ namespace kernels {
 struct KernelRequirements {
   std::vector<TensorListShape<DynamicDimensions>> output_shapes;
 
-  std::array<size_t, (size_t)AllocType::Count> scratch_sizes;
+  std::array<size_t, (size_t)AllocType::Count> scratch_sizes = {};
 
   /// @param reuse_scratch  - if true, scratch size is taken to be maximum from that for
   ///                         all input sets, otherwise it's the sum
@@ -53,8 +53,6 @@ struct KernelRequirements {
 /// @brief A utility class for adding scratchpad requirements with proper alignment,
 ///        assuming bump allocation.
 struct ScratchpadEstimator {
-  ScratchpadEstimator() : sizes{} {}  // zero-fill
-
   /// @brief Adds a new memory requirement for count instances of T
   ///
   /// The method includes padding, assuming the add function is called in order of allocations.
@@ -74,7 +72,7 @@ struct ScratchpadEstimator {
     return sizes[(size_t)alloc_type];
   }
 
-  std::array<size_t, (size_t)AllocType::Count> sizes;
+  std::array<size_t, (size_t)AllocType::Count> sizes = {};
 };
 
 }  // namespace kernels

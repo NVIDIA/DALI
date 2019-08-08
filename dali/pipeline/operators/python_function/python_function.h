@@ -16,6 +16,9 @@
 #define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
 
 #include <pybind11/embed.h>
+
+#include <vector>
+
 #include "dali/util/pybind.h"
 #include "dali/pipeline/operators/operator.h"
 
@@ -30,6 +33,10 @@ class PythonFunctionImpl : public Operator<Backend> {
         reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {}
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<Backend> *ws) override;
 
   USE_OPERATOR_MEMBERS();

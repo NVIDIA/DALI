@@ -41,6 +41,10 @@ class Uniform : public Operator<SupportBackend> {
   using Operator<SupportBackend>::RunImpl;
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<SupportBackend> * ws) override;
 
  private:

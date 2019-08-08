@@ -16,6 +16,8 @@
 #ifndef DALI_PIPELINE_OPERATORS_COLOR_SPACE_COLOR_SPACE_CONVERSION_H_
 #define DALI_PIPELINE_OPERATORS_COLOR_SPACE_COLOR_SPACE_CONVERSION_H_
 
+#include <vector>
+
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
@@ -30,6 +32,10 @@ class ColorSpaceConversion : public Operator<Backend> {
   }
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<Backend> *ws) override;
 
   USE_OPERATOR_MEMBERS();

@@ -55,6 +55,10 @@ class SSDRandomCrop : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<Backend> * ws) override;
   void SetupSharedSampleParams(Workspace<Backend> *ws) override;
 

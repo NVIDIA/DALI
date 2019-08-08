@@ -198,6 +198,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    return false;
+  }
+
   using dali::OperatorBase::Run;
   void Run(MixedWorkspace *ws) override {
     // TODO(slayton): Is this necessary?

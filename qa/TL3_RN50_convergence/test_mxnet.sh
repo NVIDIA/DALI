@@ -1,5 +1,4 @@
 #!/bin/bash -e
-#!/bin/bash
 
 threshold=0.75
 min_perf=10000

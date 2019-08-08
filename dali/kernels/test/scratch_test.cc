@@ -45,6 +45,24 @@ void test_add(ScratchpadEstimator &E, AllocType type, size_t count, size_t align
   EXPECT_EQ(E.sizes[static_cast<int>(type)], base + count*sizeof(T));
 }
 
+TEST(Scratch, Estimator_Init) {
+  char data[sizeof(ScratchpadEstimator)];
+  memset(data, 0xCC, sizeof(data));
+  auto &se = *new (data) ScratchpadEstimator;
+  for (auto &s : se.sizes)
+    EXPECT_EQ(s, 0) << "Initial scratchpad estimation should be 0";
+  se.~ScratchpadEstimator();
+}
+
+TEST(Scratch, Req_Init) {
+  char data[sizeof(KernelRequirements)];
+  memset(data, 0xCC, sizeof(data));
+  auto &req = *new (data) KernelRequirements;
+  for (auto &s : req.scratch_sizes)
+    EXPECT_EQ(s, 0) << "Initial scratchpad sizes in KernelRequirements be 0";
+  req.~KernelRequirements();
+}
+
 TEST(Scratch, Estimator) {
   ScratchpadEstimator E;
   test_add<float>(E, AllocType::Host, 9);

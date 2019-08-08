@@ -16,6 +16,8 @@
 #define DALI_TEST_PLUGINS_DUMMY_DUMMY_H_
 
 #include <cstring>
+#include <vector>
+
 #include "dali/pipeline/operators/operator.h"
 
 namespace other_ns {
@@ -31,6 +33,11 @@ class Dummy : public ::dali::Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Dummy);
 
  protected:
+  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
+                 const ::dali::workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   void RunImpl(::dali::Workspace<Backend> *ws) override;
 };
 

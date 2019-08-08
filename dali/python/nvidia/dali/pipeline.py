@@ -49,6 +49,19 @@ class Pipeline(object):
         Whether to execute the pipeline in a way that enables
         overlapping CPU and GPU computation, typically resulting
         in faster execution speed, but larger memory consumption.
+    `prefetch_queue_depth` : int or {"cpu_size": int, "gpu_size": int}, optional, default = 2
+        Depth of the executor pipeline. Deeper pipeline makes DALI
+        more resistant to uneven execution time of each batch, but it
+        also consumes more memory for internal buffers.
+        Specifying a dict:
+        ``{ "cpu_size": x, "gpu_size": y }``
+        instead of an integer will cause the pipeline to use separated
+        queues executor, with buffer queue size `x` for cpu stage
+        and `y` for mixed and gpu stages. It is not supported when both `exec_async`
+        and `exec_pipelined` are set to `False`.
+        Executor will buffer cpu and gpu stages separatelly,
+        and will fill the buffer queues when the first :meth:`nvidia.dali.pipeline.Pipeline.run`
+        is issued.
     `exec_async` : bool, optional, default = True
         Whether to execute the pipeline asynchronously.
         This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
@@ -65,19 +78,8 @@ class Pipeline(object):
         Value of -1 does not impose a limit.
         This parameter is currently unused (and behavior of
         unrestricted number of streams is assumed).
-    `prefetch_queue_depth` : int or {"cpu_size": int, "gpu_size": int}, optional, default = 2
-        Depth of the executor pipeline. Deeper pipeline makes DALI
-        more resistant to uneven execution time of each batch, but it
-        also consumes more memory for internal buffers.
-        Specifying a dict:
-        ``{ "cpu_size": x, "gpu_size": y }``
-        instead of integer will cause the pipeline to use separated
-        queues executor, with buffer queue size `x` for cpu stage
-        and `y` for mixed and gpu stages. It is not supported when both `exec_async`
-        and `exec_pipelined` are set to `False`.
-        Executor will buffer cpu and gpu stages separatelly,
-        and will fill the buffer queues when the first :meth:`nvidia.dali.pipeline.Pipeline.run`
-        is issued.
+    `default_cuda_stream_priority` : int, optional, default = 0
+        CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
     """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,

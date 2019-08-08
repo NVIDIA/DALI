@@ -68,9 +68,12 @@ class DLL_PUBLIC Pipeline {
    * @param batch_size the size of the batch that should be produced.
    * @param num_threads the number of threads to use in the prefetch stage.
    * @param device_id id of the GPU to operate on.
-   * @param whether to allocate the necessary buffers to pipeline execution
+   * @param seed used for random number generation. Leaving the default value
+   * for this parameter results in random seed
+   * @param pipelined_execution whether to allocate the necessary buffers for pipeline execution
    * between the cpu and gpu portions of the graph. See PipelinedExecutor.
-   * @param whether to use extra host-threads to enable asynchronous issue
+   * @param prefetch_queue_depth sets the length of the executor internal pipeline
+   * @param async_execution whether to use extra host-threads to enable asynchronous execution
    * of cpu and gpu work. See AsyncExecutor/AsyncPipelinedExecutor.
    * @param bytes_per_sample_hint Estimated size of each sample to be processed.
    * Defaults to 0.
@@ -78,7 +81,8 @@ class DLL_PUBLIC Pipeline {
    * configured in the thread pool. Defaults to 'false'.
    * @param max_num_stream set an upper limit on the number of cudaStreams
    * that can be allocated by the pipeline.
-   * @param prefetch_queue_depth sets the length of the executor internal pipeline
+   * @param default_cuda_stream_priority  CUDA stream priority used by DALI.
+   * See `cudaStreamCreateWithPriority` in CUDA documentation
    */
   DLL_PUBLIC inline Pipeline(int batch_size, int num_threads, int device_id, int64_t seed = -1,
                              bool pipelined_execution = true, int prefetch_queue_depth = 2,

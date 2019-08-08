@@ -42,6 +42,19 @@ struct is_cpu_accessible<StorageCPU> : std::true_type {};
 template <>
 struct is_cpu_accessible<StorageUnified> : std::true_type {};
 
+template<typename ComputeBackend>
+struct compute_to_storage {
+  using type = kernels::StorageCPU;
+};
+
+template<>
+struct compute_to_storage<kernels::ComputeGPU> {
+  using type = kernels::StorageGPU;
+};
+
+template<class ComputeBackend>
+using compute_to_storage_t = typename compute_to_storage<ComputeBackend>::type;
+
 }  // namespace kernels
 }  // namespace dali
 

@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 #include "dali/pipeline/operators/fused/crop_mirror_normalize.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_gpu.cuh"
+#include "dali/kernels/slice/slice_flip_normalize_permute_gpu.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
 
@@ -38,12 +38,12 @@ void RunHelper(TensorList<GPUBackend> &output,
                kernels::ScratchpadAllocator &scratch_alloc) {
   std::size_t number_of_dims = input.tensor_shape(0).size();
   VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
-    kernels::SliceFlipNormalizePermuteGPU<OutputType, InputType, NumDims> kernel;
+    kernels::SliceFlipNormalizePermutePadGPU<OutputType, InputType, NumDims> kernel;
     kernels::KernelContext ctx;
     ctx.gpu.stream = stream;
     auto in_view = view<const InputType, NumDims>(input);
 
-    std::vector<kernels::SliceFlipNormalizePermuteArgs<NumDims>> per_sample_args;
+    std::vector<kernels::SliceFlipNormalizePermutePadArgs<NumDims, OutputType>> per_sample_args;
     per_sample_args.reserve(slice_anchors.size());
     for (std::size_t i = 0; i < slice_anchors.size(); i++) {
       per_sample_args.emplace_back(slice_shapes[i]);

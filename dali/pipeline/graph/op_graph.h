@@ -74,6 +74,8 @@ struct OpNode {
 
   // parent and children tensors indexed by our inputs and outputs
   std::vector<TensorNodeId> parent_tensors, children_tensors;
+  // To reduce number of allocation of shapes in Setup
+  std::vector<OutputDesc> output_desc;
 
   std::string instance_name;
   OpType op_type;

@@ -35,7 +35,7 @@ class SliceFlipNormalizePermuteTest : public ::testing::Test {
   static constexpr size_t DimSize0 = TestArgs::DimSize0;
   static constexpr size_t DimSize1 = TestArgs::DimSize1;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
-  using KernelArgs = SliceFlipNormalizePermuteArgs<Dims>;
+  using KernelArgs = SliceFlipNormalizePermutePadArgs<Dims, OutputType>;
 
   void PrepareData(TestTensorList<InputType, Dims>& test_data) {
     std::vector<int> sample_dims(Dims, DimSize);
@@ -145,30 +145,30 @@ class SliceFlipNormalizePermuteTest : public ::testing::Test {
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_CopyOnly {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     return args;
   }
 };
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_SliceOnly {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
     auto shape = input_shape;
     shape[0] /= 2;
     shape[1] /= 2;
-    SliceFlipNormalizePermuteArgs<Dims> args(shape);
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(shape);
     return args;
   }
 };
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_SliceOnly_WithAnchor {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
     auto shape = input_shape;
     shape[0] = input_shape[0]/2;
     shape[1] = input_shape[0]/2;
-    SliceFlipNormalizePermuteArgs<Dims> args(shape);
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(shape);
     args.anchor[0] = input_shape[0]/2;
     args.anchor[1] = input_shape[1]/2;
     return args;
@@ -177,8 +177,8 @@ struct SliceFlipNormPermArgsGen_SliceOnly_WithAnchor {
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_FlipHW {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     // assuming last dims are HWC, flip H and W
     args.flip[Dims-2] = true;
     args.flip[Dims-3] = true;
@@ -188,8 +188,8 @@ struct SliceFlipNormPermArgsGen_FlipHW {
 
 template <typename OutputType, size_t Dims, size_t FlipDim>
 struct SliceFlipNormPermArgsGen_FlipDim {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     args.flip[FlipDim] = true;
     return args;
   }
@@ -197,8 +197,8 @@ struct SliceFlipNormPermArgsGen_FlipDim {
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_NormalizeOnly {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     args.mean.resize(args.shape[Dims-1]);
     args.inv_stddev.resize(args.shape[Dims-1]);
     for (int i = 0; i < args.shape[Dims-1]; i++) {
@@ -211,8 +211,8 @@ struct SliceFlipNormPermArgsGen_NormalizeOnly {
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_NormalizeOnly_Scalar {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     args.mean = { 3.5f };
     args.inv_stddev = { 1.f / 8.0f };
     return args;
@@ -221,8 +221,8 @@ struct SliceFlipNormPermArgsGen_NormalizeOnly_Scalar {
 
 template <typename OutputType, size_t Dims, size_t FlipDim>
 struct SliceFlipNormPermArgsGen_NormalizeAndFlipDim {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     args.flip[FlipDim] = true;
     args.mean.resize(args.shape[Dims-1], 3.5f);
     args.inv_stddev.resize(args.shape[Dims-1], 1.0/3.5f);
@@ -233,8 +233,8 @@ struct SliceFlipNormPermArgsGen_NormalizeAndFlipDim {
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_PermuteOnly_ReversedDims {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     for (size_t d = 0; d < Dims; d++) {
       args.permuted_dims[d] = Dims-1-d;
     }
@@ -244,8 +244,8 @@ struct SliceFlipNormPermArgsGen_PermuteOnly_ReversedDims {
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_PermuteAndSliceHalf_ReversedDims {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     for (size_t d = 0; d < Dims; d++) {
       args.anchor[d] = input_shape[d]/4;
       args.shape[d] = args.padded_shape[d] = input_shape[d]/2;
@@ -257,8 +257,8 @@ struct SliceFlipNormPermArgsGen_PermuteAndSliceHalf_ReversedDims {
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_PermuteAndSliceHalf_PermuteHW {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     for (size_t d = 0; d < Dims; d++) {
       args.anchor[d] = input_shape[d]/4;
       args.shape[d] = args.padded_shape[d] = input_shape[d]/2;
@@ -280,8 +280,8 @@ struct SliceFlipNormPermArgsGen_PermuteAndSliceHalf_PermuteHW {
 
 template <typename OutputType, size_t Dims>
 struct SliceFlipNormPermArgsGen_SliceFlipNormalizePermute_PermuteHWC2CHW {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     for (size_t d = 0; d < Dims; d++) {
       args.anchor[d] = d == 0 || d == 1 ?
         input_shape[d]/2 : 0;
@@ -311,8 +311,8 @@ struct SliceFlipNormPermArgsGen_SliceFlipNormalizePermute_PermuteHWC2CHW {
 
 template <typename OutputType, size_t Dims, size_t PaddedDim, size_t PadSize>
 struct SliceFlipNormPermArgsGen_OnlyPad_GivenDim {
-  SliceFlipNormalizePermuteArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceFlipNormalizePermuteArgs<Dims> args(input_shape);
+  SliceFlipNormalizePermutePadArgs<Dims, OutputType> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(input_shape);
     args.padded_shape[PaddedDim] += PadSize;
     return args;
   }

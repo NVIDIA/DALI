@@ -32,6 +32,10 @@ class Flip: public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Flip);
 
  protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
   void RunImpl(Workspace<Backend> *ws) override;
 
   int GetHorizontal(const ArgumentWorkspace *ws, int idx) {

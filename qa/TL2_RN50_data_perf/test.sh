@@ -1,12 +1,11 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages=""
+target_dir=./dali/test/python
 
-pushd ../..
-
-cd dali/test/python
-
-NUM_GPUS=$(nvidia-smi -L | wc -l)
+do_once() {
+    NUM_GPUS=$(nvidia-smi -L | wc -l)
+}
 
 test_body() {
     # test code
@@ -17,6 +16,6 @@ test_body() {
     python test_RN50_data_pipeline.py --gpus ${NUM_GPUS} -b 16 --workers 3 --prefetch 11 --fp16 --nhwc
 }
 
-source ../../../qa/test_template.sh
-
+pushd ../..
+source ./qa/test_template.sh
 popd
