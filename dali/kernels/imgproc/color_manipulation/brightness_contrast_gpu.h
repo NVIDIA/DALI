@@ -31,20 +31,51 @@ namespace kernels {
 namespace brightness_contrast {
 
 
-constexpr size_t kBlockDim = 32;
-
 template <size_t ndims>
 using Roi_ = Box<ndims, int>;
 using Roi = Roi_<2>;
 
+template <class InputType, class OutputType, size_t ndims>
 struct SampleDescriptor {
-
+  const InputType *in;
+  OutputType *out;
+  ivec<ndims> in_pitch, out_pitch;
+  float brightness, contrast;
 };
+
+
+//template <int ndims>
+//TensorShape<ndims - 1> flatten(TensorShape<ndims> ts) {
+//  std::array<int64_t, ndims - 1> arr;
+//  for (int i = 0; i < ts.size() - 1; i++) {
+//    arr[i] = ts[i];
+//  }
+//  arr[ndims - 2] *= ts[ts.size() - 1];
+//  return arr;
+//}
+
+
+//template <int ndims>
+//TensorListShape<ndims - 1> flatten(TensorListShape<ndims> tls) {
+//  std::vector<TensorShape<ndims - 1>> ret;
+//  for (int i = 0; i < tls.size(); i++) {
+//    ret.emplace_back(flatten(tls[i]));
+//  }
+//  return ret;
+//}
+
+
+//template <int ndims>
+//TensorListShape<ndims - 1> flatten(std::vector<TensorShape<ndims>> vts) {
+//  return flatten(TensorListShape<ndims>(vts));
+//}
+
 
 
 template <size_t ndims>
 TensorListShape<ndims> calc_shape(const std::vector<Roi_<ndims>> &rois, int nchannels) {
   std::vector<TensorShape<ndims>> ret;
+
   for (auto roi : rois) {
     assert(all_coords(roi.hi >= roi.lo) && "Cannot create a tensor shape from an invalid Box");
     TensorShape<ndims> ts;
@@ -56,6 +87,7 @@ TensorListShape<ndims> calc_shape(const std::vector<Roi_<ndims>> &rois, int ncha
     }
     ret.emplace_back(ts);
   }
+
   return TensorListShape<ndims>{ret};
 }
 
@@ -63,7 +95,7 @@ TensorListShape<ndims> calc_shape(const std::vector<Roi_<ndims>> &rois, int ncha
 template <size_t ndims>
 std::vector<Roi_<ndims>>
 AdjustRois(const std::vector<Roi_<ndims>> rois, const TensorListShape<ndims + 1> &shapes) {
-  assert(rois.size() == 0 || rois.size() == shapes.num_samples());
+  assert(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()));
   std::vector<Roi_<ndims>> ret(shapes.num_samples());
 
   auto whole_image = [](auto shape) -> Roi_<ndims> {
@@ -79,20 +111,71 @@ AdjustRois(const std::vector<Roi_<ndims>> rois, const TensorListShape<ndims + 1>
       ret[i] = whole_image(shapes[i]);
     }
   } else {
-    for (int i = 0; i < rois.size(); i++) {
+    for (size_t i = 0; i < rois.size(); i++) {
       ret[i] = intersection(rois[i], whole_image(shapes[i]));
     }
   }
+
   return ret;
 }
 
 
-template <typename InputType, typename OutputType, size_t ndims = 3>
+template <class OutputType, class InputType, int ndims>
+std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>>
+CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
+                        const OutListGPU<OutputType, ndims> &out,
+                        const std::vector<float> &brightness, const std::vector<float> &contrast) {
+  std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>> ret(in.num_samples());
+
+  for (int i = 0; i < in.num_samples(); i++) {
+    auto &sample = ret[i];
+    sample.in = in[i].data;
+    sample.out = out[i].data;
+    sample.in_pitch = {};
+    sample.out_pitch = {};
+
+    auto fill_pitch_with_flattening = [](const auto &tv, auto &pitch) {
+        auto tl_end = end(tv.shape);
+        auto pitch_end = pitch.end();
+        std::copy(begin(tv.shape), end(tv.shape), pitch.begin());
+        *--pitch_end *= *--tl_end;
+    };
+
+
+
+    fill_pitch_with_flattening(in[i], sample.in_pitch);
+    fill_pitch_with_flattening(out[i], sample.out_pitch);
+
+    sample.brightness = brightness[i];
+    sample.contrast = contrast[i];
+  }
+
+  return ret;
+}
+
+
+template <class InputType, class OutputType, size_t ndims>
+void CudaKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,
+                           const BlockDesc<ndims> *blocks) {
+//  auto block = blocks[blockIdx.x];
+//  auto sample = samples[block.sample_idx];
+
+cout<<"ASDASDASD\n";
+
+
+cout<<"QWEQWEQWE\n";
+
+}
+
+
+template <typename InputType, typename OutputType, size_t ndims>
 class BrightnessContrastGpu {
  private:
   static constexpr size_t spatial_dims = ndims - 1;
 //  using Roi = Roi_<spatial_dims>;
   using BlockDesc = kernels::BlockDesc<spatial_dims>;
+
+  std::vector<SampleDescriptor<InputType, OutputType, ndims>> sample_descriptors_;
 
  public:
   BlockSetup<spatial_dims, -1> block_setup_;
@@ -103,20 +186,21 @@ class BrightnessContrastGpu {
         const std::vector<float> &brightness,
         const std::vector<float> &contrast, const std::vector<Roi> &rois = {}) {
     DALI_ENFORCE([=]() -> bool {
-        for (const auto &roi:rois) {
+        for (const auto &roi : rois) {
           if (!all_coords(roi.hi >= roi.lo))
             return false;
         }
         return true;
     }(), "One or more regions of interests are invalid");
-    DALI_ENFORCE(rois.size() == 0 || rois.size() == in.num_samples(),
+    DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
                  "Provide ROIs either for all or none input tensors");
+
     auto adjusted_rois = AdjustRois(rois, in.shape);
     KernelRequirements req;
     ScratchpadEstimator se;
     TensorListShape<spatial_dims> output_shape({calc_shape(rois, 3)});
     block_setup_.SetupBlocks(output_shape);
-    se.add<SampleDescriptor>(AllocType::GPU, output_shape.num_samples());
+    se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
     req.output_shapes = {output_shape};
     req.scratch_sizes = se.sizes;
@@ -128,6 +212,17 @@ class BrightnessContrastGpu {
            const InListGPU<InputType, ndims> &in, const std::vector<float> &brightness,
            const std::vector<float> &contrast,
            const std::vector<Roi> &rois = {}) {
+
+    auto sample_descs = CreateSampleDescriptors(in, out, brightness, contrast);
+
+    typename decltype(sample_descs)::value_type *samples_gpu;
+    BlockDesc *blocks_gpu;
+
+    std::tie(samples_gpu, blocks_gpu) = context.scratchpad->ToContiguousGPU(
+            context.gpu.stream, sample_descs, block_setup_.Blocks());
+
+    CudaKernel(samples_gpu, blocks_gpu);
+
 
 //    auto num_channels = in.shape[2];
 //    auto image_width = in.shape[1];
@@ -141,9 +236,6 @@ class BrightnessContrastGpu {
 //      row += row_stride;
 //    }
   }
-
-
- private:
 
 
 };

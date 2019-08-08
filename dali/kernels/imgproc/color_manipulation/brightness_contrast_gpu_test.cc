@@ -16,6 +16,7 @@
 #include <vector>
 #include <tuple>
 #include <dali/kernels/scratch.h>
+#include <dali/kernels/common/copy.h>
 #include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.h"
@@ -27,7 +28,7 @@ namespace kernels {
 namespace brightness_contrast {
 namespace test {
 
-//namespace {
+namespace {
 
 template <class In, class Out>
 std::enable_if_t<std::is_integral<Out>::value, Out> custom_round(float val) {
@@ -41,7 +42,9 @@ std::enable_if_t<!std::is_integral<Out>::value, Out> custom_round(float val) {
 }
 
 
-//}  // namespace
+
+
+}  // namespace
 
 class BrightnessContrastGpuTest : public ::testing::Test {
 //  using In = typename InputOutputTypes::In;
@@ -77,6 +80,7 @@ class BrightnessContrastGpuTest : public ::testing::Test {
   std::vector<float> brightness_ = {4};
   std::vector<float> contrast_ = {3};
   static constexpr size_t ndims = 3;
+  static constexpr size_t spatial_dims = ndims-1;
 
 
   void verify_test() {
@@ -101,6 +105,8 @@ class BrightnessContrastGpuTest : public ::testing::Test {
     }
     return ret;
   }
+
+
 };
 
 //using TestTypes = std::tuple<uint8_t>;
@@ -145,19 +151,44 @@ class BrightnessContrastGpuTest : public ::testing::Test {
 //  }
 //}
 
+namespace {
+using TheKernel = BrightnessContrastGpu<float, float, 3>;
+}  // namespace
+
 TEST_F(BrightnessContrastGpuTest, check_kernel) {
-  BrightnessContrastGpu<float, float, 3> kernel;
-  check_kernel<decltype(kernel)>();
+  check_kernel<TheKernel>();
 }
 
 
 TEST_F(BrightnessContrastGpuTest, setup_test) {
-  BrightnessContrastGpu<float, float, 3> kernel;
+  TheKernel kernel;
   KernelContext ctx;
   InListGPU<float, ndims> in(this->input_device_, this->shapes_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
 //  auto sh = reqs.output_shapes[0][0];
 //  ASSERT_EQ(this->shape_, sh);
+}
+
+TEST_F(BrightnessContrastGpuTest, run_test) {
+  TheKernel kernel;
+  KernelContext c;
+  InListGPU<float, ndims> in(this->input_device_, this->shapes_);
+  OutListGPU<float, ndims> out(output_, TensorListShape<3>(this->shapes_));
+
+  auto reqs = kernel.Setup(c, in, this->brightness_, this->contrast_);
+
+  ScratchpadAllocator sa;
+  sa.Reserve(reqs.scratch_sizes);
+  auto scratchpad = sa.GetScratchpad();
+  c.scratchpad = &scratchpad;
+  kernel.Run(c, out, in, this->brightness_, this->contrast_);
+
+  auto res = copy<AllocType::Host>(out[0]);
+  ASSERT_EQ(ref_output_.size(), res.first.num_elements());
+  for (size_t i=0;i<ref_output_.size();i++){
+    EXPECT_EQ(ref_output_[i], res.second.get()[i]);
+  }
+
 }
 
 
@@ -191,7 +222,7 @@ TEST_F(BrightnessContrastGpuTest, adjust_empty_rois) {
   };
   auto res = AdjustRois(rois, tls);
   ASSERT_EQ(ref.size(), res.size());
-  for (int i = 0; i < ref.size(); i++) {
+  for (size_t i = 0; i < ref.size(); i++) {
     EXPECT_EQ(ref[i], res[i]);
   }
 
@@ -214,9 +245,29 @@ TEST_F(BrightnessContrastGpuTest, adjust_rois) {
   };
   auto res = AdjustRois(rois, tls);
   ASSERT_EQ(ref.size(), res.size());
-  for (int i = 0; i < ref.size(); i++) {
+  for (size_t i = 0; i < ref.size(); i++) {
     EXPECT_EQ(ref[i], res[i]);
   }
+}
+
+//TEST_F(BrightnessContrastGpuTest, flatten_test) {
+//  TensorShape<5> ts={5,2,4,6,2};
+//  TensorShape<4> ts_ref = {5,2,4,12};
+//  ASSERT_EQ(ts_ref, flatten(ts));
+//}
+
+TEST_F(BrightnessContrastGpuTest, sample_descriptors) {
+  InListGPU<float, ndims> in(this->input_device_, this->shapes_);
+  OutListGPU<float, ndims> out(output_, TensorListShape<3>(this->shapes_));
+  auto res = CreateSampleDescriptors(in, out, this->brightness_, this->contrast_);
+  EXPECT_EQ(this->input_device_, res[0].in);
+  EXPECT_EQ(this->output_, res[0].out);
+  ivec<ndims-1> ref_pitch={2,12};
+  EXPECT_EQ(ref_pitch, res[0].in_pitch);
+  EXPECT_EQ(ref_pitch, res[0].out_pitch);
+  EXPECT_EQ(brightness_[0], res[0].brightness);
+  EXPECT_EQ(contrast_[0], res[0].contrast);
+
 }
 
 
