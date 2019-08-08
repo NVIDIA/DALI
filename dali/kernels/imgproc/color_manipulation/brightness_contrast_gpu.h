@@ -35,7 +35,7 @@ template <size_t ndims>
 using Roi_ = Box<ndims, int>;
 using Roi = Roi_<2>;
 
-template <class InputType, class OutputType, size_t ndims>
+template <class InputType, class OutputType, int ndims>
 struct SampleDescriptor {
   const InputType *in;
   OutputType *out;
@@ -154,8 +154,8 @@ CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
 }
 
 
-template <class InputType, class OutputType, size_t ndims>
-void CudaKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,
+template <class InputType, class OutputType, int ndims>
+__global__ void CudaKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,
                            const BlockDesc<ndims> *blocks) {
 //  auto block = blocks[blockIdx.x];
 //  auto sample = samples[block.sample_idx];
@@ -168,7 +168,7 @@ cout<<"QWEQWEQWE\n";
 }
 
 
-template <typename InputType, typename OutputType, size_t ndims>
+template <typename InputType, typename OutputType, int ndims>
 class BrightnessContrastGpu {
  private:
   static constexpr size_t spatial_dims = ndims - 1;
@@ -221,7 +221,10 @@ class BrightnessContrastGpu {
     std::tie(samples_gpu, blocks_gpu) = context.scratchpad->ToContiguousGPU(
             context.gpu.stream, sample_descs, block_setup_.Blocks());
 
-    CudaKernel(samples_gpu, blocks_gpu);
+    dim3 grid_dim  = block_setup_.GridDim();
+    dim3 block_dim = block_setup_.BlockDim();
+
+//    CudaKernel<<<grid_dim, block_dim, 0, context.gpu.stream>>>(samples_gpu, blocks_gpu);
 
 
 //    auto num_channels = in.shape[2];

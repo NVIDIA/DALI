@@ -1,10 +1,13 @@
 #ifndef DALI_BRIGHTNESS_CONTRAST_TEST_UTILS_H
 #define DALI_BRIGHTNESS_CONTRAST_TEST_UTILS_H
 
+#include <opencv2/opencv.hpp>
+
 namespace dali {
 namespace kernels {
 namespace brightness_contrast {
 namespace test {
+
 
 /**
  * Creates cv::Mat based on provided arguments.
@@ -31,6 +34,7 @@ cv::Mat_<cv::Vec<T, nchannels>> to_mat(T *ptr, Roi roi, int rows, int cols) {
   assert(out_copy.isContinuous());
   return out_copy;
 }
+
 
 }  // namespace test
 }  // namespace brightness_contrast
