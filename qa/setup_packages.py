@@ -24,8 +24,10 @@ packages = {
             "mxnet-cu90" : ["1.4.0"],
             "mxnet-cu100" : ["1.4.0"],
             "tensorflow-gpu" : {"90": ["1.12.0", "1.11", "1.7"], "100": ["1.13.1", "1.14.0"]},
-            "torch" : ["http://download.pytorch.org/whl/{cuda_v}/torch-1.1.0-{0}.whl"],
-            "torchvision" : ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.3.0-{0}.whl"]
+            "torch" : {"90": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.1.0-{0}.whl"],
+                       "100": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.2.0-{0}.whl"]},
+            "torchvision" : {"90": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.3.0-{0}.whl"],
+                             "100": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.4.0-{0}.whl"]},
             }
 
 parser = argparse.ArgumentParser(description='Env setup helper')
