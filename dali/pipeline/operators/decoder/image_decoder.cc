@@ -26,6 +26,11 @@ with OpenCV. The Output of the decoder is in `HWC` ordering.)code")
   .AddOptionalArg("output_type",
       R"code(The color space of output image.)code",
       DALI_RGB)
+// TODO(janton): Remove this when we remove the old nvJPEGDecoder implementation (DALI-971)
+#if !defined(NVJPEG_DECOUPLED_API)
+  .AddOptionalArg("use_batched_decode",
+      R"code(**`mixed` backend only** Use nvJPEG's batched decoding API.)code", false)
+#endif
   .AddOptionalArg("hybrid_huffman_threshold",
       R"code(**`mixed` backend only** Images with number of pixels (height * width) above this threshold will use the nvJPEG hybrid Huffman decoder.
 Images below will use the nvJPEG full host huffman decoder.
