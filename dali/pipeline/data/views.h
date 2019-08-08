@@ -21,6 +21,7 @@
 #include "dali/kernels/backend_tags.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_vector.h"
 
 namespace dali {
 namespace detail {
@@ -147,6 +148,43 @@ view_as_tensor(const TensorList<Backend> &data) {
     return {};
   using U = std::remove_const_t<T>;
   return { data.template data<U>(), get_tensor_shape<ndim>(data) };
+}
+
+
+template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
+kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
+view(TensorVector<Backend> &data) {
+  if (data.size() == 0)
+    return {};
+  using U = std::remove_const_t<T>;
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
+  ret.shape = kernels::convert_dim<ndim>(data.shape());
+  ret.data.resize(ret.shape.num_samples());
+  for (int i = 0; i < ret.shape.num_samples(); i++) {
+    ret.data[i] = data[i].template mutable_data<U>();
+  }
+  return ret;
+}
+
+
+template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
+kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
+view(const TensorVector<Backend> &data) {
+  static_assert(std::is_const<T>::value,
+                "Cannot create a non-const view of a `const TensorVector<>`. "
+                "Missing `const` in T?");
+  if (data.size() == 0)
+    return {};
+  using U = std::remove_const_t<T>;
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
+  ret.shape = kernels::convert_dim<ndim>(data.shape());
+  ret.data.resize(ret.shape.num_samples());
+  for (int i = 0; i < ret.shape.num_samples(); i++) {
+    ret.data[i] = data[i].template data<U>();
+  }
+  return ret;
 }
 
 }  // namespace dali

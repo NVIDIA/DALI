@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <random>
 #include "dali/pipeline/data/views.h"
+#include "dali/kernels/test/tensor_test_utils.h"
 
 #define EXPECT_ENFORCE_FAIL(statement) EXPECT_THROW(statement, DALIException)
 
@@ -104,6 +106,31 @@ TEST(Tensor, ViewAsTensor) {
   EXPECT_ENFORCE_FAIL((view<float, 4>(t)));
   EXPECT_EQ(tv.shape, shape);
   EXPECT_EQ(tv.shape, tv3.shape);
+}
+
+TEST(TensorVector, View) {
+  TensorVector<CPUBackend> tvec(10);
+  TypeInfo type = TypeInfo::Create<int>();
+  tvec.set_type(type);
+  std::mt19937_64 rng;
+  for (int i = 0; i < 10; i++) {
+    tvec[i].Resize(kernels::TensorShape<3>(100+i, 40+i, 3+i));
+    tvec[i].set_type(type);
+    UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000);
+  }
+
+  auto tlv = view<int, 3>(tvec);
+  const TensorVector<CPUBackend> &ctvec = tvec;
+  auto tlv2 = view<const int, 3>(ctvec);
+
+  auto tv_shape = tvec.shape();
+  EXPECT_EQ(tv_shape, tlv.shape);
+  EXPECT_EQ(tlv2.shape, tlv.shape);
+  for (int i = 0; i < 10; i++) {
+    EXPECT_EQ(tlv[i].data, tvec[i].data<int>());
+    EXPECT_EQ(tlv2[i].data, tvec[i].data<int>());
+    Check(tlv[i], view<int>(tvec[i]));
+  }
 }
 
 }  // namespace dali
