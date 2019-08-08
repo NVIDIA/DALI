@@ -157,14 +157,14 @@ CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
 template <class InputType, class OutputType, int ndims>
 __global__ void CudaKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,
                            const BlockDesc<ndims> *blocks) {
-//  auto block = blocks[blockIdx.x];
-//  auto sample = samples[block.sample_idx];
+  auto block = blocks[blockIdx.x];
+  auto sample = samples[block.sample_idx];
 
-cout<<"ASDASDASD\n";
-
-
-cout<<"QWEQWEQWE\n";
-
+//  printf("ASDADDASD\n");
+//  auto x = threadIdx.x + block.start.x;
+//  for (int i=0;i<block.end-block.start; i+=blockDim.x) {
+//    sample.
+//  }
 }
 
 
@@ -224,7 +224,7 @@ class BrightnessContrastGpu {
     dim3 grid_dim  = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
 
-//    CudaKernel<<<grid_dim, block_dim, 0, context.gpu.stream>>>(samples_gpu, blocks_gpu);
+    CudaKernel<<<grid_dim, block_dim, 0, context.gpu.stream>>>(samples_gpu, blocks_gpu);
 
 
 //    auto num_channels = in.shape[2];
