@@ -41,7 +41,7 @@ class WarpPrivateTest {
   }
 };
 
-void IsWarpKernelValid() {
+inline void IsWarpKernelValid() {
   check_kernel<WarpGPU<AffineMapping2D, 2, float, uint8_t, float>>();
 }
 
