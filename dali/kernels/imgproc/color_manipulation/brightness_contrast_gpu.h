@@ -16,6 +16,7 @@
 #define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_GPU_H_
 
 #include <vector>
+#include "dali/core/convert.h"
 #include "dali/core/geom/box.h"
 #include "dali/kernels/common/block_setup.h"
 
@@ -25,8 +26,7 @@ namespace brightness_contrast {
 
 
 template <size_t ndims>
-using Roi_ = Box<ndims, int>;
-using Roi = Roi_<2>;
+using Roi = Box<ndims, int>;
 
 
 template <class InputType, class OutputType, int ndims>
@@ -39,7 +39,7 @@ struct SampleDescriptor {
 
 
 template <size_t ndims>
-TensorListShape<ndims> RoiToShape(const std::vector<Roi_<ndims>> &rois, int nchannels) {
+TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchannels) {
   std::vector<TensorShape<ndims>> ret;
 
   for (auto roi : rois) {
@@ -59,12 +59,12 @@ TensorListShape<ndims> RoiToShape(const std::vector<Roi_<ndims>> &rois, int ncha
 
 
 template <size_t ndims>
-std::vector<Roi_<ndims>>
-AdjustRois(const std::vector<Roi_<ndims>> rois, const TensorListShape<ndims + 1> &shapes) {
+std::vector<Roi<ndims>>
+AdjustRois(const std::vector<Roi<ndims>> rois, const TensorListShape<ndims + 1> &shapes) {
   assert(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()));
-  std::vector<Roi_<ndims>> ret(shapes.num_samples());
+  std::vector<Roi<ndims>> ret(shapes.num_samples());
 
-  auto whole_image = [](auto shape) -> Roi_<ndims> {
+  auto whole_image = [](auto shape) -> Roi<ndims> {
       constexpr int spatial_dims = ndims;
       ivec<spatial_dims> size;
       for (size_t i = 0; i < spatial_dims; i++)
@@ -107,7 +107,6 @@ CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
         *--pitch_end *= *--tl_end;
     };
 
-
     fill_pitch_with_flattening(in[i], sample.in_pitch);
     fill_pitch_with_flattening(out[i], sample.out_pitch);
 
@@ -131,8 +130,8 @@ BrightnessContrastKernel(const SampleDescriptor<InputType, OutputType, ndims> *s
 
   for (int y = threadIdx.y + block.start.y; y < threadIdx.y + block.end.y; y += blockDim.y) {
     for (int x = threadIdx.x + block.start.x; x < threadIdx.x + block.end.x; x += blockDim.x) {
-      out[y * sample.out_pitch.x + x] =
-              in[y * sample.in_pitch.x + x] * sample.contrast + sample.brightness;
+      out[y * sample.out_pitch.x + x] = ConvertSat<OutputType>(
+              in[y * sample.in_pitch.x + x] * sample.contrast + sample.brightness);
     }
   }
 }
@@ -152,7 +151,7 @@ class BrightnessContrastGpu {
 
   KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, ndims> &in,
                            const std::vector<float> &brightness, const std::vector<float> &contrast,
-                           const std::vector<Roi> &rois = {}) {
+                           const std::vector<Roi<spatial_dims>> &rois = {}) {
     DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
                  "Provide ROIs either for all or none input tensors");
     DALI_ENFORCE([=]() -> bool {
@@ -166,7 +165,7 @@ class BrightnessContrastGpu {
     auto adjusted_rois = AdjustRois(rois, in.shape);
     KernelRequirements req;
     ScratchpadEstimator se;
-    TensorListShape<spatial_dims> output_shape({RoiToShape(adjusted_rois, 3)});
+    TensorListShape<spatial_dims> output_shape({RoiToShape(adjusted_rois, 3)});//TODO
     block_setup_.SetupBlocks(output_shape, true);
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
@@ -178,7 +177,7 @@ class BrightnessContrastGpu {
 
   void Run(KernelContext &context, const OutListGPU<OutputType, ndims> &out,
            const InListGPU<InputType, ndims> &in, const std::vector<float> &brightness,
-           const std::vector<float> &contrast, const std::vector<Roi> &rois = {}) {
+           const std::vector<float> &contrast, const std::vector<Roi<spatial_dims>> &rois = {}) {
     auto sample_descs = CreateSampleDescriptors(in, out, brightness, contrast);
 
     typename decltype(sample_descs)::value_type *samples_gpu;

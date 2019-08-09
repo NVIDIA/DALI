@@ -19,6 +19,7 @@
 #include "dali/kernels/tensor_shape.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.h"
 
 namespace dali {
@@ -28,12 +29,14 @@ namespace test {
 
 namespace {
 
-static constexpr size_t kNdims = 3;
+constexpr size_t kNdims = 3;
 
-
+/**
+ * Rounding to nearest even (like GPU does it)
+ */
 template <class In, class Out>
 std::enable_if_t<std::is_integral<Out>::value, Out> custom_round(float val) {
-  return std::round(val);//TODO round to nearest even
+  return static_cast<Out>(std::nearbyint(val));
 }
 
 
@@ -45,11 +48,10 @@ std::enable_if_t<!std::is_integral<Out>::value, Out> custom_round(float val) {
 
 }  // namespace
 
+template <class InputOutputTypes>
 class BrightnessContrastGpuTest : public ::testing::Test {
-//  using In = typename InputOutputTypes::In;
-//  using Out = typename InputOutputTypes::Out;
-  using In=float;
-  using Out=float;
+  using In = typename InputOutputTypes::In;
+  using Out = typename InputOutputTypes::Out;
 
  public:
   BrightnessContrastGpuTest() {
@@ -104,32 +106,40 @@ class BrightnessContrastGpuTest : public ::testing::Test {
   }
 };
 
-//using TestTypes = std::tuple<uint8_t>;
-//using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
-//INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastCudaKernelTest, TestTypes);
+using TestTypes = std::tuple<int8_t, float>; /* Cause the line below takes RIDICULOUSLY long time to compile */ // NOLINT
+// using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
+INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastGpuTest, TestTypes);
 
 namespace {
-using TheKernel = BrightnessContrastGpu<float, float, kNdims>;
+
+template <class GtestTypeParam>
+using TheKernel = BrightnessContrastGpu
+        <typename GtestTypeParam::In, typename GtestTypeParam::Out, kNdims>;
+
 }  // namespace
 
-TEST_F(BrightnessContrastGpuTest, check_kernel) {
-  check_kernel<TheKernel>();
+
+TYPED_TEST(BrightnessContrastGpuTest, check_kernel) {
+  check_kernel<TheKernel<TypeParam>>();
+  SUCCEED();
 }
 
 
-TEST_F(BrightnessContrastGpuTest, setup_test) {
-  TheKernel kernel;
+TYPED_TEST(BrightnessContrastGpuTest, setup_test) {
+  TheKernel<TypeParam> kernel;
   KernelContext ctx;
-  InListGPU<float, kNdims> in(this->input_device_, this->shapes_);
+  InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
+  SUCCEED();
 }
 
 
-TEST_F(BrightnessContrastGpuTest, run_test) {
-  TheKernel kernel;
+TYPED_TEST(BrightnessContrastGpuTest, run_test) {
+  TheKernel<TypeParam> kernel;
   KernelContext c;
-  InListGPU<float, kNdims> in(this->input_device_, this->shapes_);
-  OutListGPU<float, kNdims> out(output_, TensorListShape<kNdims>(this->shapes_));
+  InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
+  OutListGPU<typename TypeParam::Out, kNdims> out(this->output_,
+                                                  TensorListShape<kNdims>(this->shapes_));
 
   auto reqs = kernel.Setup(c, in, this->brightness_, this->contrast_);
 
@@ -141,15 +151,14 @@ TEST_F(BrightnessContrastGpuTest, run_test) {
   cudaDeviceSynchronize();
 
   auto res = copy<AllocType::Host>(out[0]);
-  ASSERT_EQ(static_cast<int>(ref_output_.size()), res.first.num_elements());
-  for (size_t i = 0; i < ref_output_.size(); i++) {
-    EXPECT_EQ(ref_output_[i], res.second.get()[i]);
+  ASSERT_EQ(static_cast<int>(this->ref_output_.size()), res.first.num_elements());
+  for (size_t i = 0; i < this->ref_output_.size(); i++) {
+    EXPECT_EQ(this->ref_output_[i], res.second.get()[i]) << "Failed for index " << i;
   }
-
 }
 
 
-TEST_F(BrightnessContrastGpuTest, roi_to_TensorListShape) {
+TYPED_TEST(BrightnessContrastGpuTest, roi_to_TensorListShape) {
   using Rois = std::vector<Box<2, int>>;
   constexpr int nchannels = 3;
   Box<2, int> box1{0, 3};
@@ -167,13 +176,13 @@ TEST_F(BrightnessContrastGpuTest, roi_to_TensorListShape) {
 }
 
 
-TEST_F(BrightnessContrastGpuTest, adjust_empty_rois) {
+TYPED_TEST(BrightnessContrastGpuTest, adjust_empty_rois) {
   constexpr size_t ndims = 3;
-  std::vector<Roi> rois;
+  std::vector<Roi<ndims-1>> rois;
   std::vector<TensorShape<ndims>> ts = {{2, 3, 4},
                                         {5, 6, 7}};
   TensorListShape<ndims> tls = ts;
-  std::vector<Roi> ref = {
+  std::vector<Roi<ndims-1>> ref = {
           {{0, 0}, {3, 2}},
           {{0, 0}, {6, 5}},
   };
@@ -182,21 +191,20 @@ TEST_F(BrightnessContrastGpuTest, adjust_empty_rois) {
   for (size_t i = 0; i < ref.size(); i++) {
     EXPECT_EQ(ref[i], res[i]);
   }
-
 }
 
 
-TEST_F(BrightnessContrastGpuTest, adjust_rois) {
+TYPED_TEST(BrightnessContrastGpuTest, adjust_rois) {
   constexpr size_t ndims = 3;
 
-  std::vector<Roi> rois = {
+  std::vector<Roi<ndims-1>> rois = {
           {{1, 2}, {3, 4}},
           {{5, 6}, {7, 8}},
   };
   std::vector<TensorShape<ndims>> ts = {{9,  10, 11},
                                         {12, 13, 14}};
   TensorListShape<ndims> tls = ts;
-  std::vector<Roi> ref = {
+  std::vector<Roi<ndims-1>> ref = {
           {{1, 2}, {3, 4}},
           {{5, 6}, {7, 8}},
   };
@@ -208,31 +216,31 @@ TEST_F(BrightnessContrastGpuTest, adjust_rois) {
 }
 
 
-TEST_F(BrightnessContrastGpuTest, sample_descriptors) {
+TYPED_TEST(BrightnessContrastGpuTest, sample_descriptors) {
   {
-    InListGPU<float, kNdims> in(this->input_device_, this->shapes_);
-    OutListGPU<float, kNdims> out(output_, TensorListShape<3>(this->shapes_));
+    InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
+    OutListGPU<typename TypeParam::Out, kNdims> out(this->output_,
+                                                    TensorListShape<3>(this->shapes_));
     auto res = CreateSampleDescriptors(in, out, this->brightness_, this->contrast_);
     EXPECT_EQ(this->input_device_, res[0].in);
     EXPECT_EQ(this->output_, res[0].out);
     ivec<kNdims - 1> ref_pitch = {2, 12};
     EXPECT_EQ(ref_pitch, res[0].in_pitch);
     EXPECT_EQ(ref_pitch, res[0].out_pitch);
-    EXPECT_EQ(brightness_[0], res[0].brightness);
-    EXPECT_EQ(contrast_[0], res[0].contrast);
+    EXPECT_EQ(this->brightness_[0], res[0].brightness);
+    EXPECT_EQ(this->contrast_[0], res[0].contrast);
   }
 
   {
     constexpr int ndims = 7;
     std::vector<TensorShape<ndims>> vts = {{7, 2, 4, 6, 1, 8, 4}};
     TensorListShape<ndims> tls(vts);
-    InListGPU<float, ndims> in(this->input_device_, tls);
-    OutListGPU<float, ndims> out(output_, tls);
+    InListGPU<typename TypeParam::In, ndims> in(this->input_device_, tls);
+    OutListGPU<typename TypeParam::Out, ndims> out(this->output_, tls);
     auto res = CreateSampleDescriptors(in, out, this->brightness_, this->contrast_);
     ivec<ndims - 1> ref = {7, 2, 4, 6, 1, 32};
     EXPECT_EQ(ref, res[0].in_pitch);
   }
-
 }
 
 
