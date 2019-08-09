@@ -33,9 +33,5 @@ setup(name='nvidia-dali@DALI_FLAVOR_MINUS@',
           'console_scripts': [
               'rec2idx = rec2idx:main',
               ],
-          },
-      install_requires = [
-          'future',
-          ],
+          }
      )
-
