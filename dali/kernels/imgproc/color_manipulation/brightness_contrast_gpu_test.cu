@@ -182,9 +182,10 @@ TEST_F(BrightnessContrastGpuTest, run_test) {
   auto scratchpad = sa.GetScratchpad();
   c.scratchpad = &scratchpad;
   kernel.Run(c, out, in, this->brightness_, this->contrast_);
+  cudaDeviceSynchronize();
 
   auto res = copy<AllocType::Host>(out[0]);
-  ASSERT_EQ(ref_output_.size(), res.first.num_elements());
+  ASSERT_EQ(static_cast<int>(ref_output_.size()), res.first.num_elements());
   for (size_t i=0;i<ref_output_.size();i++){
     EXPECT_EQ(ref_output_[i], res.second.get()[i]);
   }
@@ -257,16 +258,29 @@ TEST_F(BrightnessContrastGpuTest, adjust_rois) {
 //}
 
 TEST_F(BrightnessContrastGpuTest, sample_descriptors) {
-  InListGPU<float, ndims> in(this->input_device_, this->shapes_);
-  OutListGPU<float, ndims> out(output_, TensorListShape<3>(this->shapes_));
-  auto res = CreateSampleDescriptors(in, out, this->brightness_, this->contrast_);
-  EXPECT_EQ(this->input_device_, res[0].in);
-  EXPECT_EQ(this->output_, res[0].out);
-  ivec<ndims-1> ref_pitch={2,12};
-  EXPECT_EQ(ref_pitch, res[0].in_pitch);
-  EXPECT_EQ(ref_pitch, res[0].out_pitch);
-  EXPECT_EQ(brightness_[0], res[0].brightness);
-  EXPECT_EQ(contrast_[0], res[0].contrast);
+  {
+    InListGPU<float, ndims> in(this->input_device_, this->shapes_);
+    OutListGPU<float, ndims> out(output_, TensorListShape<3>(this->shapes_));
+    auto res = CreateSampleDescriptors(in, out, this->brightness_, this->contrast_);
+    EXPECT_EQ(this->input_device_, res[0].in);
+    EXPECT_EQ(this->output_, res[0].out);
+    ivec<ndims - 1> ref_pitch = {2, 12};
+    EXPECT_EQ(ref_pitch, res[0].in_pitch);
+    EXPECT_EQ(ref_pitch, res[0].out_pitch);
+    EXPECT_EQ(brightness_[0], res[0].brightness);
+    EXPECT_EQ(contrast_[0], res[0].contrast);
+  }
+
+  {
+    constexpr int ndims = 7;
+    std::vector<TensorShape<ndims>> vts = {{7,2,4,6,1,8,4}};
+    TensorListShape<ndims> tls(vts);
+    InListGPU<float, ndims> in(this->input_device_, tls);
+    OutListGPU<float, ndims> out(output_, tls);
+    auto res = CreateSampleDescriptors(in, out,this->brightness_,this->contrast_);
+    ivec<ndims-1> ref = {7,2,4,6,1,32};
+    EXPECT_EQ(ref, res[0].in_pitch);
+  }
 
 }
 
