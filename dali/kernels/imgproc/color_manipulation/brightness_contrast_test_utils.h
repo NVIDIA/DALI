@@ -1,5 +1,19 @@
-#ifndef DALI_BRIGHTNESS_CONTRAST_TEST_UTILS_H
-#define DALI_BRIGHTNESS_CONTRAST_TEST_UTILS_H
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_TEST_UTILS_H_
+#define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_TEST_UTILS_H_
 
 #include <opencv2/opencv.hpp>
 
@@ -24,8 +38,7 @@ cv::Mat_<cv::Vec<T, nchannels>> to_mat(T *ptr, Roi roi, int rows, int cols) {
   static_assert(std::is_same<Roi, Box<2, int>>::value, "Roi is supposed to be `Box<2, int>`");
   auto roi_w = roi.extent().x;
   auto roi_h = roi.extent().y;
-  //TODO
-//  assert(roi.hi.x < cols && roi.hi.y < rows);  // Roi overflows the image
+  assert(roi.hi.x < cols && roi.hi.y < rows);  // Roi overflows the image
   cv::Mat mat(rows, cols, CV_MAKETYPE(cv::DataDepth<std::remove_const_t<T>>::value, nchannels),
               const_cast<T *>(ptr));
   cv::Rect rect(roi.lo.x, roi.lo.y, roi_w, roi_h);
@@ -41,4 +54,4 @@ cv::Mat_<cv::Vec<T, nchannels>> to_mat(T *ptr, Roi roi, int rows, int cols) {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_BRIGHTNESS_CONTRAST_TEST_UTILS_H
+#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_TEST_UTILS_H_

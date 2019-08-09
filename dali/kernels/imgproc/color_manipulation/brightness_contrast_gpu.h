@@ -15,16 +15,9 @@
 #ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_GPU_H_
 #define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_GPU_H_
 
-#include <cuda_runtime.h>
-#include "dali/util/ocv.h"
-#include "dali/core/common.h"
-#include "dali/core/convert.h"
+#include <vector>
 #include "dali/core/geom/box.h"
-#include "dali/core/error_handling.h"
-#include "dali/kernels/kernel.h"
-#include "dali/pipeline/data/types.h"
 #include "dali/kernels/common/block_setup.h"
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
 
 namespace dali {
 namespace kernels {
@@ -34,6 +27,7 @@ namespace brightness_contrast {
 template <size_t ndims>
 using Roi_ = Box<ndims, int>;
 using Roi = Roi_<2>;
+
 
 template <class InputType, class OutputType, int ndims>
 struct SampleDescriptor {
@@ -45,7 +39,7 @@ struct SampleDescriptor {
 
 
 template <size_t ndims>
-TensorListShape<ndims> calc_shape(const std::vector<Roi_<ndims>> &rois, int nchannels) {
+TensorListShape<ndims> RoiToShape(const std::vector<Roi_<ndims>> &rois, int nchannels) {
   std::vector<TensorShape<ndims>> ret;
 
   for (auto roi : rois) {
@@ -65,7 +59,8 @@ TensorListShape<ndims> calc_shape(const std::vector<Roi_<ndims>> &rois, int ncha
 
 
 template <size_t ndims>
-std::vector<Roi_<ndims>> AdjustRois(const std::vector<Roi_<ndims>> rois, const TensorListShape<ndims + 1> &shapes) {
+std::vector<Roi_<ndims>>
+AdjustRois(const std::vector<Roi_<ndims>> rois, const TensorListShape<ndims + 1> &shapes) {
   assert(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()));
   std::vector<Roi_<ndims>> ret(shapes.num_samples());
 
@@ -92,7 +87,10 @@ std::vector<Roi_<ndims>> AdjustRois(const std::vector<Roi_<ndims>> rois, const T
 
 
 template <class OutputType, class InputType, int ndims>
-std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>>CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,                        const OutListGPU<OutputType, ndims> &out,                        const std::vector<float> &brightness, const std::vector<float> &contrast) {
+std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>>
+CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
+                        const OutListGPU<OutputType, ndims> &out,
+                        const std::vector<float> &brightness, const std::vector<float> &contrast) {
   std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>> ret(in.num_samples());
 
   for (int i = 0; i < in.num_samples(); i++) {
@@ -121,16 +119,15 @@ std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>>CreateSampleDescr
 }
 
 
-
 template <class InputType, class OutputType, int ndims>
-__global__ void CudaKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,                           const BlockDesc<ndims> *blocks) {
+__global__ void
+BrightnessContrastKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,
+                         const BlockDesc<ndims> *blocks) {
   auto block = blocks[blockIdx.x];
   auto sample = samples[block.sample_idx];
 
   auto *__restrict__ in = sample.in;
   auto *__restrict__ out = sample.out;
-  printf("%d %d %d %d \n", threadIdx.x + block.start.x, threadIdx.x + block.end.x,
-         threadIdx.y + block.start.y, threadIdx.y + block.end.y);
 
   for (int y = threadIdx.y + block.start.y; y < threadIdx.y + block.end.y; y += blockDim.y) {
     for (int x = threadIdx.x + block.start.x; x < threadIdx.x + block.end.x; x += blockDim.x) {
@@ -150,10 +147,12 @@ class BrightnessContrastGpu {
   std::vector<SampleDescriptor<InputType, OutputType, ndims>> sample_descriptors_;
 
  public:
-  BlockSetup<spatial_dims, -1> block_setup_;
+  BlockSetup<spatial_dims, -1 /* No channel dimension, only spatial */> block_setup_;
 
 
-  KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, ndims> &in,                           const std::vector<float> &brightness, const std::vector<float> &contrast,                           const std::vector<Roi> &rois = {}) {
+  KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, ndims> &in,
+                           const std::vector<float> &brightness, const std::vector<float> &contrast,
+                           const std::vector<Roi> &rois = {}) {
     DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
                  "Provide ROIs either for all or none input tensors");
     DALI_ENFORCE([=]() -> bool {
@@ -167,7 +166,7 @@ class BrightnessContrastGpu {
     auto adjusted_rois = AdjustRois(rois, in.shape);
     KernelRequirements req;
     ScratchpadEstimator se;
-    TensorListShape<spatial_dims> output_shape({calc_shape(adjusted_rois, 3)});
+    TensorListShape<spatial_dims> output_shape({RoiToShape(adjusted_rois, 3)});
     block_setup_.SetupBlocks(output_shape, true);
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
@@ -177,7 +176,9 @@ class BrightnessContrastGpu {
   }
 
 
-  void Run(KernelContext &context, const OutListGPU<OutputType, ndims> &out,           const InListGPU<InputType, ndims> &in, const std::vector<float> &brightness,           const std::vector<float> &contrast, const std::vector<Roi> &rois = {}) {
+  void Run(KernelContext &context, const OutListGPU<OutputType, ndims> &out,
+           const InListGPU<InputType, ndims> &in, const std::vector<float> &brightness,
+           const std::vector<float> &contrast, const std::vector<Roi> &rois = {}) {
     auto sample_descs = CreateSampleDescriptors(in, out, brightness, contrast);
 
     typename decltype(sample_descs)::value_type *samples_gpu;
@@ -188,17 +189,14 @@ class BrightnessContrastGpu {
 
     dim3 grid_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
+    auto stream = context.gpu.stream;
 
-    CudaKernel<<<grid_dim, block_dim, 0, context.gpu.stream>>>(samples_gpu, blocks_gpu);
-
-
+    BrightnessContrastKernel<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
   }
-
-
 };
 
 }  // namespace brightness_contrast
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_H_
+#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_GPU_H_
