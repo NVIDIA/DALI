@@ -16,10 +16,12 @@
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_H_
 
 #include <vector>
+#include <sstream>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/kernels/imgproc/warp/affine.h"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
 #include "dali/pipeline/operators/displacement/warp_param_provider.h"
+#include "dali/kernels/tensor_shape_print.h"
 
 namespace dali {
 
@@ -47,14 +49,20 @@ class WarpAffineParamsProvider
   void SetParams() override {
     if (spec_->NumRegularInput() >= 2) {
       if (ws_->template InputIsType<GPUBackend>(1)) {
-        UseInput(ws_->template Input<GPUBackend>(1));
+        UseInputAsParams(ws_->template Input<GPUBackend>(1));
       } else {
-        UseInput(ws_->template Input<CPUBackend>(1));
+        UseInputAsParams(ws_->template Input<CPUBackend>(1));
       }
     } else {
       std::vector<float> matrix = spec_->template GetArgument<std::vector<float>>("matrix");
+      if (matrix.empty()) {
+        DALI_FAIL("`matrix` argument must be provided when transforms are not passed"
+                  " as a regular input.");
+      }
 
-      DALI_ENFORCE(matrix.size() == spatial_ndim*(spatial_ndim+1));
+      DALI_ENFORCE(matrix.size() == spatial_ndim*(spatial_ndim+1),
+        "`matrix` parameter must have " + std::to_string(spatial_ndim*(spatial_ndim+1)) +
+        " elements");
 
       MappingParams M;
       int k = 0;
@@ -69,26 +77,48 @@ class WarpAffineParamsProvider
   }
 
   template <typename InputType>
-  void CheckInput(const InputType &input) {
+  void CheckParamInput(const InputType &input) {
     DALI_ENFORCE(input.type().id() == DALI_FLOAT);
-    DALI_ENFORCE(input.shape().num_samples() == num_samples_,
-      "Internal error: mismatched number of samples");
 
-    kernels::TensorShape<2> shape = { spatial_ndim, spatial_ndim+1 };
-    for (int i = 0; i < num_samples_; i++) {
-      DALI_ENFORCE(input.shape()[i] == shape);
+    auto &shape = input.shape();
+
+    const kernels::TensorShape<2> mat_shape = { spatial_ndim, spatial_ndim+1 };
+    int N = shape.num_samples();
+    auto error_message = [&]() {
+      std::stringstream ss;
+      ss << "\nAffine mapping parameters must be either\n"
+            "  - a list of " << N << " " << mat_shape << " tensors, or\n"
+         << "  - a list containing a single " << shape_cat(N, mat_shape) << " tensor.\n";
+      if (!kernels::is_uniform(shape)) {
+        ss << "\nThe actual input is a list with " << shape.num_samples() << " "
+          << shape.sample_dim() << "-D elements with varying size.";
+      } else {
+        ss << "\nThe actual input is a list with " << shape.num_samples() << " "
+          << shape.sample_dim() << "-D elements with shape " << shape[0];
+      }
+      ss << "\n";
+      return ss.str();
+    };
+
+    if (shape.num_samples() == 1) {
+      DALI_ENFORCE(shape[0] == shape_cat(N, mat_shape), error_message());
+    } else {
+      DALI_ENFORCE(shape.num_samples() == num_samples_ &&
+                   kernels::is_uniform(shape) &&
+                   shape[0] == mat_shape,
+                   error_message());
     }
   }
 
-  void UseInput(const TensorList<CPUBackend> &input) {
-    CheckInput(input);
+  void UseInputAsParams(const TensorList<CPUBackend> &input) {
+    CheckParamInput(input);
 
     params_cpu_.data = static_cast<const MappingParams *>(input.raw_data());
     params_cpu_.shape = { num_samples_ };
   }
 
-  void UseInput(const TensorVector<CPUBackend> &input) {
-    CheckInput(input);
+  void UseInputAsParams(const TensorVector<CPUBackend> &input) {
+    CheckParamInput(input);
 
     if (!input.IsContiguous()) {
       auto *params = this->AllocParams(kernels::AllocType::Host);
@@ -102,8 +132,8 @@ class WarpAffineParamsProvider
     }
   }
 
-  void UseInput(const TensorList<GPUBackend> &input) {
-    CheckInput(input);
+  void UseInputAsParams(const TensorList<GPUBackend> &input) {
+    CheckParamInput(input);
 
     params_gpu_.data = static_cast<const MappingParams *>(input.raw_data());
     params_gpu_.shape = { num_samples_ };
