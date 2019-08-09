@@ -160,7 +160,7 @@ TEST_F(BrightnessContrastGpuTest, check_kernel) {
 }
 
 
-TEST_F(BrightnessContrastGpuTest, setup_test) {
+TEST_F(BrightnessContrastGpuTest, DISABLED_setup_test) {
   TheKernel kernel;
   KernelContext ctx;
   InListGPU<float, ndims> in(this->input_device_, this->shapes_);

@@ -44,35 +44,6 @@ struct SampleDescriptor {
 };
 
 
-
-//template <int ndims>
-//TensorShape<ndims - 1> flatten(TensorShape<ndims> ts) {
-//  std::array<int64_t, ndims - 1> arr;
-//  for (int i = 0; i < ts.size() - 1; i++) {
-//    arr[i] = ts[i];
-//  }
-//  arr[ndims - 2] *= ts[ts.size() - 1];
-//  return arr;
-//}
-
-
-//template <int ndims>
-//TensorListShape<ndims - 1> flatten(TensorListShape<ndims> tls) {
-//  std::vector<TensorShape<ndims - 1>> ret;
-//  for (int i = 0; i < tls.size(); i++) {
-//    ret.emplace_back(flatten(tls[i]));
-//  }
-//  return ret;
-//}
-
-
-//template <int ndims>
-//TensorListShape<ndims - 1> flatten(std::vector<TensorShape<ndims>> vts) {
-//  return flatten(TensorListShape<ndims>(vts));
-//}
-
-
-
 template <size_t ndims>
 TensorListShape<ndims> calc_shape(const std::vector<Roi_<ndims>> &rois, int nchannels) {
   std::vector<TensorShape<ndims>> ret;
@@ -94,8 +65,7 @@ TensorListShape<ndims> calc_shape(const std::vector<Roi_<ndims>> &rois, int ncha
 
 
 template <size_t ndims>
-std::vector<Roi_<ndims>>
-AdjustRois(const std::vector<Roi_<ndims>> rois, const TensorListShape<ndims + 1> &shapes) {
+std::vector<Roi_<ndims>> AdjustRois(const std::vector<Roi_<ndims>> rois, const TensorListShape<ndims + 1> &shapes) {
   assert(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()));
   std::vector<Roi_<ndims>> ret(shapes.num_samples());
 
@@ -122,10 +92,7 @@ AdjustRois(const std::vector<Roi_<ndims>> rois, const TensorListShape<ndims + 1>
 
 
 template <class OutputType, class InputType, int ndims>
-std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>>
-CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
-                        const OutListGPU<OutputType, ndims> &out,
-                        const std::vector<float> &brightness, const std::vector<float> &contrast) {
+std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>>CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,                        const OutListGPU<OutputType, ndims> &out,                        const std::vector<float> &brightness, const std::vector<float> &contrast) {
   std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>> ret(in.num_samples());
 
   for (int i = 0; i < in.num_samples(); i++) {
@@ -153,15 +120,10 @@ CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
   return ret;
 }
 
-//template<class In, class Out>
-//float __host__ __device__ brightness_contrast(const &In in, float brightness, float contrast) {
-//  return ConvertSat<Out>(in*contrast+brightness);
-//}
 
 
 template <class InputType, class OutputType, int ndims>
-__global__ void CudaKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,
-                           const BlockDesc<ndims> *blocks) {
+__global__ void CudaKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,                           const BlockDesc<ndims> *blocks) {
   auto block = blocks[blockIdx.x];
   auto sample = samples[block.sample_idx];
 
@@ -174,19 +136,8 @@ __global__ void CudaKernel(const SampleDescriptor<InputType, OutputType, ndims> 
     for (int x = threadIdx.x + block.start.x; x < threadIdx.x + block.end.x; x += blockDim.x) {
       out[y * sample.out_pitch.x + x] =
               in[y * sample.in_pitch.x + x] * sample.contrast + sample.brightness;
-//      printf("TUTEJ %f %f %f %f\n", in[y * sample.in_pitch.x + x], sample.contrast,
-//             sample.brightness, out[y * sample.out_pitch.x + x]);
-//      out[y * sample.out_pitch.x + x] = brightness_contrast(in[y * sample.in_pitch.x + x], sample.brightness, sample.contrast);
     }
   }
-
-
-
-//  printf("ASDADDASD\n");
-//  auto x = threadIdx.x + block.start.x;
-//  for (int i=0;i<block.end-block.start; i+=blockDim.x) {
-//    sample.
-//  }
 }
 
 
@@ -202,9 +153,9 @@ class BrightnessContrastGpu {
   BlockSetup<spatial_dims, -1> block_setup_;
 
 
-  KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, ndims> &in,
-                           const std::vector<float> &brightness, const std::vector<float> &contrast,
-                           const std::vector<Roi> &rois = {}) {
+  KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, ndims> &in,                           const std::vector<float> &brightness, const std::vector<float> &contrast,                           const std::vector<Roi> &rois = {}) {
+    DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
+                 "Provide ROIs either for all or none input tensors");
     DALI_ENFORCE([=]() -> bool {
         for (const auto &roi : rois) {
           if (!all_coords(roi.hi >= roi.lo))
@@ -212,14 +163,12 @@ class BrightnessContrastGpu {
         }
         return true;
     }(), "One or more regions of interests are invalid");
-    DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
-                 "Provide ROIs either for all or none input tensors");
 
     auto adjusted_rois = AdjustRois(rois, in.shape);
     KernelRequirements req;
     ScratchpadEstimator se;
-    TensorListShape<spatial_dims> output_shape({calc_shape(rois, 3)});
-    block_setup_.SetupBlocks(output_shape);
+    TensorListShape<spatial_dims> output_shape({calc_shape(adjusted_rois, 3)});
+    block_setup_.SetupBlocks(output_shape, true);
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
     req.output_shapes = {output_shape};
@@ -228,9 +177,7 @@ class BrightnessContrastGpu {
   }
 
 
-  void Run(KernelContext &context, const OutListGPU<OutputType, ndims> &out,
-           const InListGPU<InputType, ndims> &in, const std::vector<float> &brightness,
-           const std::vector<float> &contrast, const std::vector<Roi> &rois = {}) {
+  void Run(KernelContext &context, const OutListGPU<OutputType, ndims> &out,           const InListGPU<InputType, ndims> &in, const std::vector<float> &brightness,           const std::vector<float> &contrast, const std::vector<Roi> &rois = {}) {
     auto sample_descs = CreateSampleDescriptors(in, out, brightness, contrast);
 
     typename decltype(sample_descs)::value_type *samples_gpu;
@@ -242,20 +189,9 @@ class BrightnessContrastGpu {
     dim3 grid_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
 
-    CudaKernel << < grid_dim, block_dim, 0, context.gpu.stream >> > (samples_gpu, blocks_gpu);
+    CudaKernel<<<grid_dim, block_dim, 0, context.gpu.stream>>>(samples_gpu, blocks_gpu);
 
 
-//    auto num_channels = in.shape[2];
-//    auto image_width = in.shape[1];
-//    auto ptr = out.data;
-//
-//    ptrdiff_t row_stride = image_width * num_channels;
-//    auto *row = in.data + adjusted_roi.lo.y * row_stride;
-//    for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
-//      for (int xc = adjusted_roi.lo.x * num_channels; xc < adjusted_roi.hi.x * num_channels; xc++)
-//        *ptr++ = ConvertSat<OutputType>(row[xc] * contrast + brightness);
-//      row += row_stride;
-//    }
   }
 
 
