@@ -73,7 +73,7 @@ void RunHelper(Tensor<CPUBackend> &output,
   VALUE_SWITCH(number_of_dims, Dims, (3, 4), (
     auto in_view = view<const InputType, Dims>(input);
 
-    kernels::SliceFlipNormalizePermutePadArgs<Dims, OutputType> args(slice_shape);
+    kernels::SliceFlipNormalizePermutePadArgs<Dims> args(slice_shape);
     for (std::size_t d = 0; d < Dims; d++) {
       args.anchor[d] = slice_anchor[d];
     }

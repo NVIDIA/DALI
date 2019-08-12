@@ -43,7 +43,7 @@ void RunHelper(TensorList<GPUBackend> &output,
     ctx.gpu.stream = stream;
     auto in_view = view<const InputType, NumDims>(input);
 
-    std::vector<kernels::SliceFlipNormalizePermutePadArgs<NumDims, OutputType>> per_sample_args;
+    std::vector<kernels::SliceFlipNormalizePermutePadArgs<NumDims>> per_sample_args;
     per_sample_args.reserve(slice_anchors.size());
     for (std::size_t i = 0; i < slice_anchors.size(); i++) {
       per_sample_args.emplace_back(slice_shapes[i]);

@@ -33,7 +33,7 @@ namespace kernels {
 
 namespace detail {
 
-template <size_t Dims, typename OutputType>
+template <size_t Dims>
 struct SampleDesc {
   void *__restrict__ out;
   const void *__restrict__ in;
@@ -41,7 +41,7 @@ struct SampleDesc {
   DeviceArray<int64_t, Dims> out_strides;
   DeviceArray<int64_t, Dims> out_shape;
   DeviceArray<int64_t, Dims> padded_out_shape;
-  OutputType padding_val;
+  float padding_val;
 };
 
 struct BlockDesc {
@@ -123,7 +123,7 @@ __device__ inline void SliceFlipNormalizePermutePadFunc(OutputType *__restrict__
 }
 
 template <typename OutputType, typename InputType, size_t Dims, bool should_normalize>
-__global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims, OutputType> *samples,
+__global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *samples,
                                                    const BlockDesc *blocks,
                                                    const float *norm_add,
                                                    const float *norm_mul,
@@ -146,7 +146,7 @@ __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims, Output
     out, in, sample.out_strides.data(), sample.in_strides.data(),
     sample.out_shape.data(), sample.padded_out_shape.data(),
     should_pad, normalization_dim, norm_add, norm_mul,
-    sample.padding_val, offset, block_end);
+    static_cast<OutputType>(sample.padding_val), offset, block_end);
 }
 
 }  // namespace detail
