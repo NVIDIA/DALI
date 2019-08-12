@@ -38,15 +38,15 @@ class SliceFlipNormalizePermutePadGPU {
   size_t block_count_ = 0;
 
  public:
-  using Args = SliceFlipNormalizePermutePadArgs<Dims, OutputType>;
+  using Args = SliceFlipNormalizePermutePadArgs<Dims>;
   KernelRequirements Setup(KernelContext &context,
                            const InListGPU<InputType, Dims> &in,
                            const std::vector<Args> &args) {
     KernelRequirements req;
     ScratchpadEstimator se;
     const size_t num_samples = in.size();
-    se.add<detail::SampleDesc<Dims, OutputType>>(AllocType::Host, num_samples);
-    se.add<detail::SampleDesc<Dims, OutputType>>(AllocType::GPU, num_samples);
+    se.add<detail::SampleDesc<Dims>>(AllocType::Host, num_samples);
+    se.add<detail::SampleDesc<Dims>>(AllocType::GPU, num_samples);
 
     DALI_ENFORCE(args[0].mean.size() == args[0].inv_stddev.size());
     size_t norm_args_size = args[0].mean.size();
@@ -88,9 +88,9 @@ class SliceFlipNormalizePermutePadGPU {
     auto inv_stddev_data = args[0].inv_stddev;
     DALI_ENFORCE(mean_data.size() == inv_stddev_data.size());
 
-    detail::SampleDesc<Dims, OutputType>* sample_descs_cpu =
-      context.scratchpad->Allocate<detail::SampleDesc<Dims, OutputType>>(AllocType::Host,
-                                                                         num_samples);
+    detail::SampleDesc<Dims>* sample_descs_cpu =
+      context.scratchpad->Allocate<detail::SampleDesc<Dims>>(AllocType::Host,
+                                                             num_samples);
     float *norm_add_cpu = mean_data.empty() ? nullptr :
       context.scratchpad->Allocate<float>(AllocType::Host, mean_data.size());
     float *norm_mul_cpu = inv_stddev_data.empty() ? nullptr :
@@ -135,8 +135,8 @@ class SliceFlipNormalizePermutePadGPU {
       }
     }
 
-    detail::SampleDesc<Dims, OutputType> *sample_descs =
-      context.scratchpad->Allocate<detail::SampleDesc<Dims, OutputType>>(
+    detail::SampleDesc<Dims> *sample_descs =
+      context.scratchpad->Allocate<detail::SampleDesc<Dims>>(
         AllocType::GPU, num_samples);
 
     float *norm_add = mean_data.empty() ? nullptr :
@@ -152,7 +152,7 @@ class SliceFlipNormalizePermutePadGPU {
         AllocType::GPU, block_count_);
 
     // Memory is allocated contiguously, so we launch only one cudaMemcpyAsync
-    size_t total_bytes = num_samples * sizeof(detail::SampleDesc<Dims, OutputType>)
+    size_t total_bytes = num_samples * sizeof(detail::SampleDesc<Dims>)
       + mean_data.size() * sizeof(float)
       + inv_stddev_data.size() * sizeof(float)
       + block_count_ * sizeof(detail::BlockDesc);
