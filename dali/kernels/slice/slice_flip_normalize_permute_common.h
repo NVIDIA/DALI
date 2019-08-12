@@ -24,7 +24,7 @@
 namespace dali {
 namespace kernels {
 
-template <size_t Dims, typename OutputType>
+template <size_t Dims>
 struct SliceFlipNormalizePermutePadArgs {
   template <typename Shape>
   explicit SliceFlipNormalizePermutePadArgs(const Shape &_shape) {
@@ -46,12 +46,12 @@ struct SliceFlipNormalizePermutePadArgs {
   size_t normalization_index = 0;
   std::vector<float> mean;
   std::vector<float> inv_stddev;
-  OutputType padding_val = 0;
+  float padding_val = 0.0f;
 };
 
 namespace detail {
 
-template <size_t Dims, typename OutputType>
+template <size_t Dims>
 struct SliceFlipNormalizePermutePadProcessedArgs {
   size_t input_offset;
   std::array<int64_t, Dims> in_strides;
@@ -61,7 +61,7 @@ struct SliceFlipNormalizePermutePadProcessedArgs {
   std::vector<float> mean;
   std::vector<float> inv_stddev;
   size_t normalization_dim;
-  OutputType padding_val = 0;
+  float padding_val = 0.0f;
 };
 
 template <size_t Dims, typename Container>
@@ -83,11 +83,11 @@ std::array<int64_t, Dims> inverse_permutation(const std::array<int64_t, Dims> &p
   return inv_perm;
 }
 
-template <size_t Dims, typename Shape, typename OutputType>
-SliceFlipNormalizePermutePadProcessedArgs<Dims, OutputType> ProcessArgs(
-    const SliceFlipNormalizePermutePadArgs<Dims, OutputType> &args,
+template <size_t Dims, typename Shape>
+SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
+    const SliceFlipNormalizePermutePadArgs<Dims> &args,
     const Shape &in_shape) {
-  SliceFlipNormalizePermutePadProcessedArgs<Dims, OutputType> processed_args;
+  SliceFlipNormalizePermutePadProcessedArgs<Dims> processed_args;
 
   processed_args.input_offset = 0;
   processed_args.in_strides = GetStrides<Dims>(in_shape);

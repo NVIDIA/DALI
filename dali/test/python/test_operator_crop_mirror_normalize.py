@@ -71,7 +71,7 @@ def check_cmn_cpu_vs_gpu(batch_size, output_dtype, output_layout, mirror_probabi
 
 def test_cmn_cpu_vs_gpu():
     for batch_size in [1, 8]:
-        for output_dtype in [types.FLOAT, types.INT32]:
+        for output_dtype in [types.FLOAT, types.INT32, types.FLOAT16]:
             for output_layout in [types.NHWC, types.NCHW]:
                 for mirror_probability in [0.0, 0.5, 1.0]:
                     norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
