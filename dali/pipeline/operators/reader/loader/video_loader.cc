@@ -201,7 +201,8 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
                 << max_width_ << "x" << max_height_ << "). "
                 << "Install Nvidia driver version >=396 (x86) or >=415 (Power PC) to decode"
                    " multiple resolutions";
-            DALI_FAIL(err.str());
+            DALI_WARN(err.str());
+            throw unsupported_exception("Decoder reconfigure feature not supported");
         }
       }
     }

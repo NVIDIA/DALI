@@ -55,7 +55,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
       try {
         loader_ = InitLoader<VideoLoader>(spec, filenames_);
       } catch (std::exception &e) {
-        DALI_FAIL(std::string(e.what()));
+        DALI_WARN(std::string(e.what()));
+        throw;
       }
 
       enable_label_output_ = !file_root_.empty() || !file_list_.empty();
