@@ -161,11 +161,21 @@ class BrightnessContrastGpu {
         }
         return true;
     }(), "One or more regions of interests are invalid");
+    DALI_ENFORCE([=]()->bool {
+      auto ref_shape = in.shape[0][ndims-1];
+      for (int i=0;i<in.num_samples();i++){
+        if (in.shape[i][ndims-1] != ref_shape) {
+          return false;
+        }
+      }
+      return true;
+    }(), "Number of channels for every image in batch must be equal");
 
     auto adjusted_rois = AdjustRois(rois, in.shape);
+    auto shape = in.shape[0][ndims-1];
     KernelRequirements req;
     ScratchpadEstimator se;
-    TensorListShape<spatial_dims> output_shape({RoiToShape(adjusted_rois, 3)});//TODO
+    TensorListShape<spatial_dims> output_shape({RoiToShape(adjusted_rois, shape)});
     block_setup_.SetupBlocks(output_shape, true);
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
