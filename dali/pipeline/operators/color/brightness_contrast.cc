@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,23 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include  "dali/pipeline/operators/color/brightness_contrast.h"
+#include <dali/pipeline/data/views.h>
+#include <dali/kernels/imgproc/color_manipulation/brightness_contrast.h>
+#include "brightness_contrast.h"
 
 namespace dali {
 
-DALI_SCHEMA(BrightnessContrast)
-.DocStr("Base schema for displacement operators.")
-.AddOptionalArg("mask",
-R"code(Whether to apply this augmentation to the input image.
+namespace brightness_contrast {
 
-* 0 - do not apply this transformation
-* 1 - apply this transformation
-)code", 1, true)
-.AddOptionalArg("interp_type",
-R"code(Type of interpolation used.)code",
-DALI_INTERP_NN)
-.AddOptionalArg("fill_value",
-R"code(Color value used for padding pixels.)code",
-0.f);
+DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrast<CPUBackend>, CPU)
+
+DALI_SCHEMA(BrightnessContrast)
+                .DocStr(R"code( * HWC
+)code")
+                .NumInput(1)
+                .NumOutput(1)
+                .AddOptionalArg(detail::kBrightness,
+                                R"code(Set additive brightness delta. 0 denotes no-op)code", .0f,
+                                true)
+                .AddOptionalArg(detail::kContrast,
+                                R"code(Set multiplicative contrast delta. 1 denotes no-op)code",
+                                1.f, true);
+
+
+template <class Backend>
+BrightnessContrast<Backend>::BrightnessContrast(const OpSpec &spec) :
+        OperatorBase(spec),
+        brightness_(spec.GetArgument<decltype(this->brightness_)>(detail::kBrightness)),
+        contrast_(spec.GetArgument<decltype(this->contrast_)>(detail::kContrast)) {
+
+}
+
+
+template <class Backend>
+struct _InputDataContainer {
+  using type = Tensor<Backend>;
+};
+
+template <>
+struct _InputDataContainer<GPUBackend> {
+  using type = TensorList<GPUBackend>;
+};
+
+template <class Backend>
+using InputDataContainer = typename _InputDataContainer<Backend>::type;
+}
+
+
+
 
 }
