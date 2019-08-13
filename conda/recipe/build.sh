@@ -34,23 +34,23 @@ fi
 # Create 'gcc' symlink so nvcc can find it
 ln -s $CONDA_PREFIX/bin/${ARCH_LONGNAME}-linux-gnu-gcc $CONDA_PREFIX/bin/gcc
 
-# Add libjpeg-turbo location to front of CXXFLAGS so it is used instead of jpeg
-export CXXFLAGS="-I$CONDA_PREFIX/libjpeg-turbo/include ${CXXFLAGS}"
+# 1. Conda environment is using -std=c++17 which seems to override our settings in CMakeLists.txt
+#    Because of that, we are replacing c++17 with c++14 here
+export CXXFLAGS="${CXXFLAGS/-std=c++17/-std=c++14}"
 
 # Build
 # BUILD_TENSORFLOW No longer exists. Previous flag to build tf plugin (used in release_v0.9)
 cmake -DBUILD_TENSORFLOW=ON \
       -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
-      -DCUDA_rt_LIBRARY=$CONDA_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \
-      -DNVJPEG_ROOT_DIR=$CONDA_PREFIX/lib64/ \
+      -DCUDA_rt_LIBRARY=$CONDA_PREFIX/${ARCH}-linux-gnu/sysroot/usr/lib/librt.so \
+      -DNVJPEG_ROOT_DIR=$CONDA_PREFIX/lib64 \
       -DFFMPEG_ROOT_DIR=$CONDA_PREFIX/lib \
-      -DJPEG_INCLUDE_DIR=$CONDA_PREFIX/libjpeg-turbo/lib \
-      -DJPEG_LIBRARY=$CONDA_PREFIX/libjpeg-turbo/lib/libjpeg.so \
+      -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
       -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
-      -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH}-linux/lib/stubs/libcuda.so \
+      -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH_SHORTNAME}-linux/lib/stubs/libcuda.so \
       ..
 
-make -j"$(nproc --all)" install
+make VERBOSE=1 -j"$(nproc --all)" install
 
 export PYTHONUSERBASE=$PREFIX
 
