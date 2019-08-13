@@ -54,7 +54,7 @@ make VERBOSE=1 -j"$(nproc --all)" install
 
 export PYTHONUSERBASE=$PREFIX
 
-pip install --user dali/python
+$CONDA_PREFIX/bin/pip install --user dali/python
 
 # Move required .so files to $PREFIX/lib
 cp $SRC_DIR/build/dali/python/nvidia/dali/*.so $PREFIX/lib
