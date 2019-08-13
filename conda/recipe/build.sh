@@ -60,7 +60,9 @@ pip install --user dali/python
 cp $SRC_DIR/build/dali/python/nvidia/dali/*.so $PREFIX/lib
 
 # Build DALI TF plugin
-source $SRC_DIR/dali_tf_plugin/build_dali_tf.sh $PREFIX/lib/libdali_tf_current.so
+pushd $SRC_DIR/dali_tf_plugin/
+source ./build_dali_tf.sh $PREFIX/lib/libdali_tf_current.so
+popd
 
 # Move tfrecord2idx to host env so it can be found at runtime
 cp $SRC_DIR/tools/tfrecord2idx $PREFIX/bin
