@@ -22,7 +22,7 @@
     git_url: https://github.com/NVIDIA/DALI/
     git_rev: master
     patches:
-        - 0001-c++14.patch                     # [ppc64le]
+        - 0001-c++14.patch
         - 0002-remove-futures.patch            # [ppc64le]
 
   build:

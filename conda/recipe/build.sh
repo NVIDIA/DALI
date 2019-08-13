@@ -20,15 +20,19 @@ mkdir $SRC_DIR/build
 cd $SRC_DIR/build
 
 #Determine Architecture
-ARCH="powerpc64le-conda_cos7"
-ARCH_SHORTNAME="ppc64le"
-if [ `arch` = "x86_64" ]; then
-    ARCH="x86_64-conda_cos6"
-    ARCH_SHORTNAME="x86_64"
+
+ARCH="$(arch)"
+if [ ${ARCH} = "x86_64" ]; then
+    ARCH_LONGNAME="x86_64-conda_cos6"
+elif [ ${ARCH} = "ppc64le" ]; then
+    ARCH_LONGNAME="powerpc64le-conda_cos7"
+else
+    echo "Error: Unsupported Architecture. Expected: [x86_64|ppc64le] Actual: ${ARCH}"
+    exit 1
 fi
 
 # Create 'gcc' symlink so nvcc can find it
-ln -s $CONDA_PREFIX/bin/${ARCH}-linux-gnu-gcc $CONDA_PREFIX/bin/gcc
+ln -s $CONDA_PREFIX/bin/${ARCH_LONGNAME}-linux-gnu-gcc $CONDA_PREFIX/bin/gcc
 
 # Add libjpeg-turbo location to front of CXXFLAGS so it is used instead of jpeg
 export CXXFLAGS="-I$CONDA_PREFIX/libjpeg-turbo/include ${CXXFLAGS}"
@@ -37,13 +41,13 @@ export CXXFLAGS="-I$CONDA_PREFIX/libjpeg-turbo/include ${CXXFLAGS}"
 # BUILD_TENSORFLOW No longer exists. Previous flag to build tf plugin (used in release_v0.9)
 cmake -DBUILD_TENSORFLOW=ON \
       -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
-      -DCUDA_rt_LIBRARY=$CONDA_PREFIX/${ARCH}-linux-gnu/sysroot/usr/lib/librt.so \
+      -DCUDA_rt_LIBRARY=$CONDA_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \
       -DNVJPEG_ROOT_DIR=$CONDA_PREFIX/lib64/ \
       -DFFMPEG_ROOT_DIR=$CONDA_PREFIX/lib \
       -DJPEG_INCLUDE_DIR=$CONDA_PREFIX/libjpeg-turbo/lib \
       -DJPEG_LIBRARY=$CONDA_PREFIX/libjpeg-turbo/lib/libjpeg.so \
       -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
-      -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH_SHORTNAME}-linux/lib/stubs/libcuda.so \
+      -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH}-linux/lib/stubs/libcuda.so \
       ..
 
 make -j"$(nproc --all)" install

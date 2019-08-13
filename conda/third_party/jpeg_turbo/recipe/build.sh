@@ -36,7 +36,7 @@ sh $SRC_DIR/configure --prefix $PREFIX/libjpeg-turbo \
                       --mandir $PREFIX/libjpeg-turbo/man
 
 # Build
-make
+make -j"$(nproc --all)"
 make install
 
 
