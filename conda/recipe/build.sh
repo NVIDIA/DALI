@@ -45,7 +45,7 @@ cmake -DBUILD_TENSORFLOW=ON \
       -DCUDA_rt_LIBRARY=$CONDA_PREFIX/${ARCH}-linux-gnu/sysroot/usr/lib/librt.so \
       -DNVJPEG_ROOT_DIR=$CONDA_PREFIX/lib64 \
       -DFFMPEG_ROOT_DIR=$CONDA_PREFIX/lib \
-      -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
+      -DCMAKE_PREFIX_PATH="$CONDA_PREFIX/libjpeg-turbo;$CONDA_PREFIX" \
       -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
       -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH_SHORTNAME}-linux/lib/stubs/libcuda.so \
       ..
