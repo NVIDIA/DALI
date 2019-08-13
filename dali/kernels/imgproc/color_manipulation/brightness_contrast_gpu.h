@@ -38,11 +38,23 @@ struct SampleDescriptor {
 };
 
 
+
+/**
+ * Coverts Roi to flattened TensorListShape
+ *
+ * Flattened TensorListShape, is a TensorListShape, which doesn't have `channels`
+ * as separate dimension. Instead, Width dimension is larger by `nchannels` number of times.
+ * This is because, the analysis is channel-agnostic.
+ *
+ * Function assumes, that memory layout is *HWC, and the Roi
+ * is represented as [[x_lo, y_lo], [x_hi, y_hi]].
+ * Therefore, while copying, order of values needs to be reversed.
+ */
 template <size_t ndims>
 TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchannels) {
   std::vector<TensorShape<ndims>> ret;
 
-  for (auto roi : rois) {
+  for (const auto &roi : rois) {
     assert(all_coords(roi.hi >= roi.lo) && "Cannot create a tensor shape from an invalid Box");
     TensorShape<ndims> ts;
     auto e = roi.extent();
@@ -58,14 +70,19 @@ TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchan
 }
 
 
-template <size_t ndims>
-std::vector<Roi<ndims>>
-AdjustRois(const std::vector<Roi<ndims>> rois, const TensorListShape<ndims + 1> &shapes) {
+/**
+ * 1. If `rois` is empty, that means whole image is analysed: Roi will the the size of an image
+ * 2. If `rois` is not empty, it is assumed, that Roi is provided for every image in batch.
+ *    In this case, final Roi is an intersection of provided Roi and the image.
+ *    (This is a sanity-check for Rois, that can be larger than image)
+ */
+template <size_t spatial_dims>
+std::vector<Roi<spatial_dims>> AdjustRois(const std::vector<Roi<spatial_dims>> rois,
+                                          const TensorListShape<spatial_dims + 1> &shapes) {
   assert(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()));
-  std::vector<Roi<ndims>> ret(shapes.num_samples());
+  std::vector<Roi<spatial_dims>> ret(shapes.num_samples());
 
-  auto whole_image = [](auto shape) -> Roi<ndims> {
-      constexpr int spatial_dims = ndims;
+  auto whole_image = [](auto shape) -> Roi<spatial_dims> {
       ivec<spatial_dims> size;
       for (size_t i = 0; i < spatial_dims; i++)
         size[i] = shape[spatial_dims - 1 - i];
@@ -86,6 +103,12 @@ AdjustRois(const std::vector<Roi<ndims>> rois, const TensorListShape<ndims + 1> 
 }
 
 
+/**
+ * Note: Since the brightness-contrast calculation is channel-agnostic (it is performed in the same
+ * way for every channel), SampleDescriptor assumes, that sample is channel-agnostic. Therefore it
+ * needs to be flattened
+ * @see RoiToShape
+ */
 template <class OutputType, class InputType, int ndims>
 std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>>
 CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
@@ -101,10 +124,10 @@ CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
     sample.out_pitch = {};
 
     auto fill_pitch_with_flattening = [](const auto &tv, auto &pitch) {
-        auto tl_end = end(tv.shape);
-        auto pitch_end = pitch.end();
-        std::copy(begin(tv.shape), end(tv.shape), pitch.begin());
-        *--pitch_end *= *--tl_end;
+        for (size_t i = 0; i < pitch.size(); i++) {
+          pitch[i] = tv.shape[i];
+        }
+        pitch[pitch.size() - 1] *= tv.shape[pitch.size()];
     };
 
     fill_pitch_with_flattening(in[i], sample.in_pitch);
@@ -122,10 +145,10 @@ template <class InputType, class OutputType, int ndims>
 __global__ void
 BrightnessContrastKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,
                          const BlockDesc<ndims> *blocks) {
-  auto block = blocks[blockIdx.x];
-  auto sample = samples[block.sample_idx];
+  const auto &block = blocks[blockIdx.x];
+  const auto &sample = samples[block.sample_idx];
 
-  auto *__restrict__ in = sample.in;
+  const auto *__restrict__ in = sample.in;
   auto *__restrict__ out = sample.out;
 
   for (int y = threadIdx.y + block.start.y; y < threadIdx.y + block.end.y; y += blockDim.y) {
@@ -161,18 +184,18 @@ class BrightnessContrastGpu {
         }
         return true;
     }(), "One or more regions of interests are invalid");
-    DALI_ENFORCE([=]()->bool {
-      auto ref_shape = in.shape[0][ndims-1];
-      for (int i=0;i<in.num_samples();i++){
-        if (in.shape[i][ndims-1] != ref_shape) {
-          return false;
+    DALI_ENFORCE([=]() -> bool {
+        auto ref_shape = in.shape[0][ndims - 1];
+        for (int i = 0; i < in.num_samples(); i++) {
+          if (in.shape[i][ndims - 1] != ref_shape) {
+            return false;
+          }
         }
-      }
-      return true;
+        return true;
     }(), "Number of channels for every image in batch must be equal");
 
     auto adjusted_rois = AdjustRois(rois, in.shape);
-    auto shape = in.shape[0][ndims-1];
+    auto shape = in.shape[0][ndims - 1];
     KernelRequirements req;
     ScratchpadEstimator se;
     TensorListShape<spatial_dims> output_shape({RoiToShape(adjusted_rois, shape)});
