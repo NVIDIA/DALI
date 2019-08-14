@@ -18,10 +18,13 @@
 #include <dali/pipeline/data/views.h>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
+#include "dali/kernels/type_tag.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace brightness_contrast {
 
+#define BRIGHTNESS_CONTRAST_INPUT_OUTPUT_TYPES (int, float)
 
 namespace detail {
 
@@ -76,9 +79,26 @@ class BrightnessContrast : public Operator<Backend> {
     const auto &input = ws.template InputRef<Backend>(0);
     const auto &output = ws.template OutputRef<Backend>(0);
     output_desc.resize(1);
-    TypeInfo t;
-    t.SetType<float>(output_type_);
-    output_desc[0] = {input.shape(), t};
+
+//    auto type_switch = [&]() {
+//        TypeInfo t;
+//        t.SetType<IType>(output_type_);
+//        output_desc[0] = {input.shape(), t};
+//    };
+DALI_TYPE_SWITCH(output.type().id(), OutputType,
+
+                         TypeInfo t;
+                         t.SetType<OutputType>(output_type_);
+                         output_desc[0] = {input.shape(), t};
+                         );
+
+//    TYPE_SWITCH(output.type().id(), dali::TypeTag, OutputType, (int, float),
+//                (
+//                        TypeInfo t;
+//                        t.SetType<OutputType>(output_type_);
+//                        output_desc[0] = {input.shape(), t};
+//                ), DALI_FAIL("This type is not supported"));
+
 //    output_desc[0] = {input.shape(), output.type()};
     return true;
   }
@@ -116,5 +136,5 @@ class BrightnessContrast : public Operator<Backend> {
 
 }
 }
-
+#undef BRIGHTNESS_CONTRAST_INPUT_OUTPUT_TYPES
 #endif
