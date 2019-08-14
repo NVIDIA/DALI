@@ -46,6 +46,6 @@ Enums
    :members:
    :undoc-members:
 
-.. autoclass:: nvidia.dali.types.PieplineAPIType
+.. autoclass:: nvidia.dali.types.PipelineAPIType
    :members:
    :undoc-members:
