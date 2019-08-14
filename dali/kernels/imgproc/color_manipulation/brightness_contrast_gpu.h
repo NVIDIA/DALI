@@ -51,8 +51,9 @@ struct SampleDescriptor {
  */
 template <size_t ndims>
 TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchannels) {
-  std::vector<TensorShape<ndims>> ret;
+  TensorListShape<ndims> ret(rois.size());
 
+  size_t i = 0;
   for (const auto &roi : rois) {
     assert(all_coords(roi.hi >= roi.lo) && "Cannot create a tensor shape from an invalid Box");
     TensorShape<ndims> ts;
@@ -62,10 +63,10 @@ TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchan
     for (size_t idx = 1; idx < ndims; idx++) {
       ts[--ridx] = e[idx];
     }
-    ret.emplace_back(ts);
+    ret.set_tensor_shape(i++, ts);
   }
 
-  return TensorListShape<ndims>{ret};
+  return ret;
 }
 
 
