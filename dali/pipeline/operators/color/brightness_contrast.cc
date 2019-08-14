@@ -37,9 +37,9 @@ DALI_SCHEMA(BrightnessContrast)
 
 template <class Backend>
 BrightnessContrast<Backend>::BrightnessContrast(const OpSpec &spec) :
-        OperatorBase(spec),
-        brightness_(spec.GetArgument<decltype(this->brightness_)>(detail::kBrightness)),
-        contrast_(spec.GetArgument<decltype(this->contrast_)>(detail::kContrast)) {
+        Operator<Backend>(spec),
+        brightness_(spec.GetArgument<float>(detail::kBrightness)),
+        contrast_(spec.GetArgument<float>(detail::kContrast)) {
 
 }
 
