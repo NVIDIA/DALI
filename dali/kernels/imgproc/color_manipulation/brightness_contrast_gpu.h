@@ -226,7 +226,7 @@ class BrightnessContrastGpu {
     dim3 block_dim = block_setup_.BlockDim();
     auto stream = context.gpu.stream;
 
-    BrightnessContrastKernel << < grid_dim, block_dim, 0, stream >> > (samples_gpu, blocks_gpu);
+    BrightnessContrastKernel<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
   }
 };
 
