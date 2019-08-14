@@ -114,7 +114,6 @@ template <class OutputType, class InputType, int ndims>
 std::vector<SampleDescriptor<OutputType, InputType, ndims - 1>>
 CreateSampleDescriptors(const OutListGPU<OutputType, ndims> &out,
                         const InListGPU<InputType, ndims> &in,
-
                         const std::vector<float> &brightness, const std::vector<float> &contrast) {
   std::vector<SampleDescriptor<OutputType, InputType, ndims - 1>> ret(in.num_samples());
 
@@ -122,8 +121,6 @@ CreateSampleDescriptors(const OutListGPU<OutputType, ndims> &out,
     auto &sample = ret[i];
     sample.in = in[i].data;
     sample.out = out[i].data;
-    sample.in_pitch = {};
-    sample.out_pitch = {};
 
     auto fill_pitch_with_flattening = [](const auto &tv, auto &pitch) {
         for (size_t i = 0; i < pitch.size(); i++) {

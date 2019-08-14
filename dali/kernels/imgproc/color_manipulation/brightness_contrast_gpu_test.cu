@@ -67,7 +67,7 @@ class BrightnessContrastGpuTest : public ::testing::Test {
     CUDA_CALL(cudaMalloc(&input_device_, sizeof(In) * dataset_size()));
     CUDA_CALL(cudaMemcpy(input_device_, input_host_.data(), input_host_.size() * sizeof(In),
                          cudaMemcpyDefault));
-    CUDA_CALL(cudaMallocManaged(&output_, dataset_size() * sizeof(Out)));
+    CUDA_CALL(cudaMalloc(&output_, dataset_size() * sizeof(Out)));
     cudaDeviceSynchronize();
 
     verify_test();
@@ -107,8 +107,10 @@ class BrightnessContrastGpuTest : public ::testing::Test {
   }
 };
 
-using TestTypes = std::tuple<int8_t, float>; /* Cause the line below takes RIDICULOUSLY long time to compile */ // NOLINT
+using TestTypes = std::tuple<int8_t, float>;
+/* Cause the line below takes RIDICULOUSLY long time to compile */
 // using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
+
 INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastGpuTest, TestTypes);
 
 namespace {
@@ -184,9 +186,9 @@ TYPED_TEST(BrightnessContrastGpuTest, roi_to_TensorListShape) {
 TYPED_TEST(BrightnessContrastGpuTest, adjust_empty_rois) {
   constexpr size_t ndims = 3;
   std::vector<Roi<ndims - 1>> rois;
-  std::vector<TensorShape<ndims>> ts = {{2, 3, 4},
-                                        {5, 6, 7}};
-  TensorListShape<ndims> tls = ts;
+
+  TensorListShape<ndims> tls({{2, 3, 4},
+                              {5, 6, 7}});
   std::vector<Roi<ndims - 1>> ref = {
           {{0, 0}, {3, 2}},
           {{0, 0}, {6, 5}},
@@ -205,13 +207,16 @@ TYPED_TEST(BrightnessContrastGpuTest, adjust_rois) {
   std::vector<Roi<ndims - 1>> rois = {
           {{1, 2}, {3, 4}},
           {{5, 6}, {7, 8}},
+          {0,      20}
   };
   std::vector<TensorShape<ndims>> ts = {{9,  10, 11},
-                                        {12, 13, 14}};
+                                        {12, 13, 14},
+                                        {1,  1,  1}};
   TensorListShape<ndims> tls = ts;
   std::vector<Roi<ndims - 1>> ref = {
           {{1, 2}, {3, 4}},
           {{5, 6}, {7, 8}},
+          {0,      1}
   };
   auto res = AdjustRois(rois, tls);
   ASSERT_EQ(ref.size(), res.size());
