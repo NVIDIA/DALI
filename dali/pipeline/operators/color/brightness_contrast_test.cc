@@ -32,13 +32,13 @@ using TestSample = float[2][2][2][3][3];
 constexpr size_t kNumberOfThingies = 2*2*2*3*3;
 
 TestSample data_nhwc = {{{{{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}},
-                                    {{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}}},
-                                   {{{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}},
-                                    {{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}}}},
-                                  {{{{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}},
-                                    {{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}}},
-                                   {{{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}},
-                                    {{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}}}}};
+                          {{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}}},
+                         {{{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}},
+                          {{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}}}},
+                        {{{{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}},
+                          {{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}}},
+                         {{{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}},
+                          {{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}}}}};
 
 template<class Backend,  size_t ndims>
 std::unique_ptr<TensorList<Backend>> ToTensorList(const float *sample,const Shape<ndims>& shape) {
@@ -117,15 +117,12 @@ void BrightnessContrastVerify(TensorListWrapper input, TensorListWrapper output,
   }
 }
 
+Arguments arg = {{"output_type", DALI_FLOAT},{"brightness_delta", 0.f},{"contrast_delta",1.f}};
 
 TEST_F(BrightnessContrastTest, BasicTest) {
-//  std::vector<kernels::TensorShape<3>> sh(2, {2,3,3});
-//  auto tlin = ToTensorList<CPUBackend>(data_nhwc,kernels::TensorListShape<3>(sh));
   auto tl = ToTensorList<CPUBackend>(this->input_);
   TensorListWrapper tlout;
-  this->RunTest(tl.get(), tlout, {}, BrightnessContrastVerify);
-
-
+  this->RunTest(tl.get(), tlout, arg, BrightnessContrastVerify);
 }
 }
 
