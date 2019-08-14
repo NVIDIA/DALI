@@ -43,18 +43,29 @@ class BrightnessContrast : public Operator<Backend> {
 
  protected:
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace<Backend> &ws) override{
+  bool CanInferOutputs() const override {
+    return true;
+  }
 
+  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
+                 const ::dali::workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &output=ws.template OutputRef<Backend>(0);
+    output_desc.resize(1);
+    TypeInfo t;
+    t.SetType<int16_t>(DALIDataType::DALI_INT16);
+    output_desc[0] = {input.shape(), t};
+//    output_desc[0] = {input.shape(), output.type()};
+    return true;
   }
 
 
   void RunImpl(Workspace<Backend> *ws) {
-    const auto &input = ws->template Input<Backend>(0);
-    auto &output = ws->template Output<Backend>(0);
-    auto tvin = view<const uint8_t, 3>(input);
-    auto tvout = view<const uint8_t, 3>(output);
+//    const auto &input = ws->template Input<Backend>(0);
+//    auto &output = ws->template Output<Backend>(0);
+//    auto tvin = view<const uint8_t, 3>(input);
+//    auto tvout = view<const uint8_t, 3>(output);
 
-    auto shape = input.tensor_shape();
     cout<<"ASDASDASDASDASDASDASDASDASDASDASDASD\n";
   }
 
