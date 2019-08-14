@@ -92,7 +92,7 @@ class ExternalSource : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
   string output_name_;
   TensorList<Backend> tl_data_;

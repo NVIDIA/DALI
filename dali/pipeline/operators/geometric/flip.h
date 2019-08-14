@@ -36,22 +36,22 @@ class Flip: public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
-  int GetHorizontal(const ArgumentWorkspace *ws, int idx) {
-    return this->spec_.template GetArgument<int>("horizontal", ws, idx);
+  int GetHorizontal(const ArgumentWorkspace &ws, int idx) {
+    return this->spec_.template GetArgument<int>("horizontal", &ws, idx);
   }
 
-  int GetVertical(const ArgumentWorkspace *ws, int idx) {
-    return this->spec_.template GetArgument<int>("vertical", ws, idx);
+  int GetVertical(const ArgumentWorkspace &ws, int idx) {
+    return this->spec_.template GetArgument<int>("vertical", &ws, idx);
   }
 
-  std::vector<int> GetHorizontal(const ArgumentWorkspace *ws) {
-    return GetTensorArgument(ws, "horizontal");
+  std::vector<int> GetHorizontal(const ArgumentWorkspace &ws) {
+    return GetTensorArgument(&ws, "horizontal");
   }
 
-  std::vector<int> GetVertical(const ArgumentWorkspace *ws) {
-    return GetTensorArgument(ws, "vertical");
+  std::vector<int> GetVertical(const ArgumentWorkspace &ws) {
+    return GetTensorArgument(&ws, "vertical");
   }
 
  private:

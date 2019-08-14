@@ -39,7 +39,7 @@ class Cast : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
  private:
   template <typename IType, typename OType>

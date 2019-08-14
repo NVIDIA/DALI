@@ -63,7 +63,7 @@ class NormalizePermute : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
   template <typename OUT>
   void CPURunHelper(const Tensor<CPUBackend> &input, Tensor<CPUBackend> &output);

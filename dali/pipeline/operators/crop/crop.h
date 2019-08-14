@@ -39,16 +39,16 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
   }
 
  protected:
-  void RunImpl(Workspace<Backend> *ws) override {
+  void RunImpl(Workspace<Backend> &ws) override {
     SliceBase<Backend>::RunImpl(ws);
   }
 
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override {
+  void SetupSharedSampleParams(Workspace<Backend> &ws) override {
     CropAttr::ProcessArguments(ws);
     SliceBase<Backend>::SetupSharedSampleParams(ws);
   }
 
-  void DataDependentSetup(Workspace<Backend> *ws) override;
+  void DataDependentSetup(Workspace<Backend> &ws) override;
 
   using SliceBase<Backend>::slice_anchors_;
   using SliceBase<Backend>::slice_shapes_;

@@ -94,9 +94,9 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
     return false;
   }
 
-  void RunImpl(SampleWorkspace *ws) override {
-    const int data_idx = ws->data_idx();
-    const auto& in = ws->Input<CPUBackend>(0);
+  void RunImpl(SampleWorkspace &ws) override {
+    const int data_idx = ws.data_idx();
+    const auto& in = ws.Input<CPUBackend>(0);
     const auto *input_data = in.data<uint8_t>();
     const auto in_size = in.size();
     const auto file_name = in.GetSourceInfo();
@@ -111,10 +111,10 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
     ImageInfo* info;
     StateNvJPEG* state_nvjpeg;
-    std::tie(info, state_nvjpeg) = InitAndGet(ws->Output<CPUBackend>(0),
-                                              ws->Output<CPUBackend>(1));
+    std::tie(info, state_nvjpeg) = InitAndGet(ws.Output<CPUBackend>(0),
+                                              ws.Output<CPUBackend>(1));
 
-    ws->Output<CPUBackend>(0).SetSourceInfo(file_name);
+    ws.Output<CPUBackend>(0).SetSourceInfo(file_name);
 
     nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
                                                 static_cast<const unsigned char*>(input_data),
@@ -137,7 +137,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
           info->widths[0] = info->crop_window.w;
           info->heights[0] = info->crop_window.h;
         }
-        auto& out = ws->Output<CPUBackend>(2);
+        auto& out = ws.Output<CPUBackend>(2);
         out.set_type(TypeInfo::Create<uint8_t>());
         const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
         out.Resize({info->heights[0], info->widths[0], c});

@@ -104,11 +104,11 @@ void NormalizePermute<GPUBackend>::GPURunHelper(DeviceWorkspace *ws) {
 }
 
 template<>
-void NormalizePermute<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+void NormalizePermute<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   if (output_type_ == DALI_FLOAT) {
-    GPURunHelper<float>(ws);
+    GPURunHelper<float>(&ws);
   } else if (output_type_ == DALI_FLOAT16) {
-    GPURunHelper<float16>(ws);
+    GPURunHelper<float16>(&ws);
   } else {
     DALI_FAIL("Unsupported output type.");
   }

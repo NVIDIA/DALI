@@ -55,7 +55,7 @@ class ElementExtract : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;

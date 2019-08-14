@@ -38,20 +38,20 @@ DALI_SCHEMA(Slice)
     .AddParent("SliceBase");
 
 template <>
-void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
-  const auto &images = ws->Input<CPUBackend>(kImagesInId);
-  const auto &anchor_tensor = ws->Input<CPUBackend>(kAnchorsInId);
-  const auto &slice_shape_tensor = ws->Input<CPUBackend>(kSliceShapesInId);
+void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace &ws) {
+  const auto &images = ws.Input<CPUBackend>(kImagesInId);
+  const auto &anchor_tensor = ws.Input<CPUBackend>(kAnchorsInId);
+  const auto &slice_shape_tensor = ws.Input<CPUBackend>(kSliceShapesInId);
   const auto img_shape = images.shape();
   const auto args_ndim = anchor_tensor.shape()[0];
   const float* anchor_norm = anchor_tensor.template data<float>();
   const float* slice_shape_norm = slice_shape_tensor.template data<float>();
-  SetupSample(ws->data_idx(), images.GetLayout(), img_shape, args_ndim,
+  SetupSample(ws.data_idx(), images.GetLayout(), img_shape, args_ndim,
               anchor_norm, slice_shape_norm);
 }
 
 template <>
-void Slice<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+void Slice<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   SliceBase<CPUBackend>::RunImpl(ws);
 }
 

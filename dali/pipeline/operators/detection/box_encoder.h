@@ -71,7 +71,7 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
     return false;
   }
 
-  void RunImpl(Workspace<CPUBackend> *ws) override;
+  void RunImpl(Workspace<CPUBackend> &ws) override;
   using Operator<CPUBackend>::RunImpl;
 
  private:

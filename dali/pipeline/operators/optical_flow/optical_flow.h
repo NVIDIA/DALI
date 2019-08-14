@@ -90,7 +90,7 @@ class OpticalFlow : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
 
  private:

@@ -102,14 +102,14 @@ class RandomBBoxCrop : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
-  void WriteCropToOutput(SampleWorkspace *ws, const Crop &crop) const;
+  void WriteCropToOutput(SampleWorkspace &ws, const Crop &crop) const;
 
   void WriteBoxesToOutput(
-    SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) const;
+    SampleWorkspace &ws, const BoundingBoxes &bounding_boxes) const;
 
-  void WriteLabelsToOutput(SampleWorkspace *ws, const std::vector<int> &labels) const;
+  void WriteLabelsToOutput(SampleWorkspace &ws, const std::vector<int> &labels) const;
 
   const std::pair<float, bool> SelectMinimumOverlap(int sample) {
     std::uniform_int_distribution<> sampler(

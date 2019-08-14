@@ -41,7 +41,7 @@ class HostDecoder : public Operator<CPUBackend> {
     return false;
   }
 
-  void RunImpl(SampleWorkspace *ws) override;
+  void RunImpl(SampleWorkspace &ws) override;
 
   virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {
     return {};

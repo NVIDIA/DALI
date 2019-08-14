@@ -129,7 +129,7 @@ class DataReader : public Operator<Backend> {
   }
 
   // CPUBackend operators
-  void Run(HostWorkspace* ws) override {
+  void Run(HostWorkspace &ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     StartPrefetchThread();
     ConsumerWait();
@@ -145,14 +145,14 @@ class DataReader : public Operator<Backend> {
   }
 
   // GPUBackend operators
-  void Run(DeviceWorkspace* ws) override {
+  void Run(DeviceWorkspace &ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     StartPrefetchThread();
     ConsumerWait();
 
     // Consume batch
     Operator<Backend>::Run(ws);
-    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+    CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     for (int sample_idx = 0; sample_idx < Operator<Backend>::batch_size_; sample_idx++) {
       auto sample = MoveSample(sample_idx);
     }

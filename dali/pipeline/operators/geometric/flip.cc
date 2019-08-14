@@ -52,15 +52,15 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
 }
 
 template <>
-void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
-  auto &output = ws->Output<CPUBackend>(0);
+void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   DALI_ENFORCE(input.ndim() == 3);
   output.SetLayout(input.GetLayout());
   output.set_type(input.type());
   output.ResizeLike(input);
-  auto _horizontal = GetHorizontal(ws, ws->data_idx());
-  auto _vertical = GetVertical(ws, ws->data_idx());
+  auto _horizontal = GetHorizontal(ws, ws.data_idx());
+  auto _vertical = GetVertical(ws, ws.data_idx());
   if (!_horizontal && !_vertical) {
     output.Copy(input, nullptr);
   } else {

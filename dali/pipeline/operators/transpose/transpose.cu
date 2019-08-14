@@ -134,9 +134,9 @@ inline kernels::TensorShape<> GetPermutedDims(const kernels::TensorShape<>& dims
 }
 
 template<>
-void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws) {
-  const auto& input = ws->Input<GPUBackend>(0);
-  auto& output = ws->Output<GPUBackend>(0);
+void Transpose<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+  const auto& input = ws.Input<GPUBackend>(0);
+  auto& output = ws.Output<GPUBackend>(0);
 
   TypeInfo itype = input.type();
   DALI_ENFORCE((itype.size() == 1 || itype.size() == 2 || itype.size() == 4 || itype.size() == 8),
@@ -162,13 +162,13 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws) {
     auto permuted_dims = GetPermutedDims(input_shape, perm_);
     output.Resize(kernels::uniform_list_shape(batch_size_, permuted_dims));
     if (itype.size() == 1) {
-      kernel::cuTTKernelBatched<uint8_t>(input, output, perm_, &cutt_handle_, ws->stream());
+      kernel::cuTTKernelBatched<uint8_t>(input, output, perm_, &cutt_handle_, ws.stream());
     } else if (itype.size() == 2) {
-      kernel::cuTTKernelBatched<uint16_t>(input, output, perm_, &cutt_handle_, ws->stream());
+      kernel::cuTTKernelBatched<uint16_t>(input, output, perm_, &cutt_handle_, ws.stream());
     } else if (itype.size() == 4) {
-      kernel::cuTTKernelBatched<int32_t>(input, output, perm_, &cutt_handle_, ws->stream());
+      kernel::cuTTKernelBatched<int32_t>(input, output, perm_, &cutt_handle_, ws.stream());
     } else {  // itype.size() == 8
-      kernel::cuTTKernelBatched<int64_t>(input, output, perm_, &cutt_handle_, ws->stream());
+      kernel::cuTTKernelBatched<int64_t>(input, output, perm_, &cutt_handle_, ws.stream());
     }
   } else {
     std::vector<kernels::TensorShape<>> tl_shape;
@@ -178,13 +178,13 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws) {
     }
     output.Resize(tl_shape);
     if (itype.size() == 1) {
-      kernel::cuTTKernel<uint8_t>(input, output, perm_, ws->stream());
+      kernel::cuTTKernel<uint8_t>(input, output, perm_, ws.stream());
     } else if (itype.size() == 2) {
-      kernel::cuTTKernel<uint16_t>(input, output, perm_, ws->stream());
+      kernel::cuTTKernel<uint16_t>(input, output, perm_, ws.stream());
     } else if (itype.size() == 4) {
-      kernel::cuTTKernel<int32_t>(input, output, perm_, ws->stream());
+      kernel::cuTTKernel<int32_t>(input, output, perm_, ws.stream());
     } else {  // itype.size() == 8
-      kernel::cuTTKernel<int64_t>(input, output, perm_, ws->stream());
+      kernel::cuTTKernel<int64_t>(input, output, perm_, ws.stream());
     }
   }
 }

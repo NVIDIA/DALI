@@ -20,9 +20,9 @@
 
 namespace dali {
 
-void HostDecoder::RunImpl(SampleWorkspace *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
-  auto &output = ws->Output<CPUBackend>(0);
+void HostDecoder::RunImpl(SampleWorkspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto file_name = input.GetSourceInfo();
 
   // Verify input
@@ -34,7 +34,7 @@ void HostDecoder::RunImpl(SampleWorkspace *ws) {
   std::unique_ptr<Image> img;
   try {
     img = ImageFactory::CreateImage(input.data<uint8>(), input.size(), output_type_);
-    img->SetCropWindowGenerator(GetCropWindowGenerator(ws->data_idx()));
+    img->SetCropWindowGenerator(GetCropWindowGenerator(ws.data_idx()));
     img->SetUseFastIdct(use_fast_idct_);
     img->Decode();
   } catch (std::exception &e) {

@@ -39,7 +39,7 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
     return false;
   }
 
-  void RunImpl(SampleWorkspace *ws) override;
+  void RunImpl(SampleWorkspace &ws) override;
   using Operator<CPUBackend>::RunImpl;
 
  private:

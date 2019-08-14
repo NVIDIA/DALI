@@ -153,9 +153,9 @@ void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
   }
 }
 
-void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws) {
-  const auto &bboxes_input = ws->Input<CPUBackend>(kBoxesInId);
-  const auto &labels_input = ws->Input<CPUBackend>(kLabelsInId);
+void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+  const auto &bboxes_input = ws.Input<CPUBackend>(kBoxesInId);
+  const auto &labels_input = ws.Input<CPUBackend>(kLabelsInId);
 
   const auto num_boxes = bboxes_input.dim(0);
 
@@ -163,12 +163,12 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace *ws) {
   const auto boxes = ReadBoxesFromInput(bboxes_input.data<float>(), num_boxes);
 
   // Create output
-  auto &bboxes_output = ws->Output<CPUBackend>(kBoxesOutId);
+  auto &bboxes_output = ws.Output<CPUBackend>(kBoxesOutId);
   bboxes_output.set_type(bboxes_input.type());
   bboxes_output.Resize({static_cast<int>(anchors_.size()), static_cast<int>(BoundingBox::kSize)});
   auto out_boxes = bboxes_output.mutable_data<float>();
 
-  auto &labels_output = ws->Output<CPUBackend>(kLabelsOutId);
+  auto &labels_output = ws.Output<CPUBackend>(kLabelsOutId);
   labels_output.set_type(labels_input.type());
   labels_output.Resize({static_cast<int>(anchors_.size())});
   auto out_labels = labels_output.mutable_data<int>();

@@ -36,7 +36,7 @@ class DummyOp : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *) override {
+  void RunImpl(Workspace<Backend> &) override {
     DALI_FAIL("I'm a dummy op don't run me");
   }
 };

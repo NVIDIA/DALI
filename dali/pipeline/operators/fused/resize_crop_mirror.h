@@ -220,26 +220,26 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
     return false;
   }
 
-  inline void SetupSharedSampleParams(SampleWorkspace *ws) override {
-    per_thread_meta_[ws->thread_idx()] = GetTransfomMeta(ws, spec_);
+  inline void SetupSharedSampleParams(SampleWorkspace &ws) override {
+    per_thread_meta_[ws.thread_idx()] = GetTransfomMeta(&ws, spec_);
   }
 
-  inline void RunImpl(SampleWorkspace *ws) override {
+  inline void RunImpl(SampleWorkspace &ws) override {
     RunResizeImpl(ws, ResizeCropMirrorHost);
   }
 
-  inline void RunResizeImpl(SampleWorkspace *ws, resizeCropMirroHost func) {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto &output = ws->Output<CPUBackend>(0);
+  inline void RunResizeImpl(SampleWorkspace &ws, resizeCropMirroHost func) {
+    auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
     CheckParam(input, "ResizeCropMirror");
 
-    const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
+    const TransformMeta &meta = per_thread_meta_[ws.thread_idx()];
 
     // Resize the output & run
     output.Resize(
-        std::vector<Index>{crop_height_[ws->data_idx()], crop_width_[ws->data_idx()], meta.C});
+        std::vector<Index>{crop_height_[ws.data_idx()], crop_width_[ws.data_idx()], meta.C});
 
-    tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
+    tl_workspace_[ws.thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
     DALI_CALL((*func)(
         input.template data<uint8>(),
         meta.H, meta.W, meta.C,
@@ -249,7 +249,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
         meta.mirror,
         output.template mutable_data<uint8>(),
         interp_type_,
-        tl_workspace_[ws->thread_idx()].data()));
+        tl_workspace_[ws.thread_idx()].data()));
   }
 
   vector<vector<uint8>> tl_workspace_;
@@ -271,7 +271,7 @@ class FastResizeCropMirror : public ResizeCropMirror<CPUBackend> {
   inline ~FastResizeCropMirror() override = default;
 
  protected:
-  inline void RunImpl(SampleWorkspace *ws) override {
+  inline void RunImpl(SampleWorkspace &ws) override {
     RunResizeImpl(ws, FastResizeCropMirrorHost);
   }
 };

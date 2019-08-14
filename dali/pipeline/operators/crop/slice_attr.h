@@ -41,14 +41,14 @@ class SliceAttr {
         crop_window_generators_.resize(batch_size__, {});
     }
 
-    void ProcessArguments(const SampleWorkspace *ws) {
-        DALI_ENFORCE(ws->NumInput() == 3,
-            "Expected 3 inputs. Received: " + std::to_string(ws->NumInput()));
+    void ProcessArguments(const SampleWorkspace &ws) {
+        DALI_ENFORCE(ws.NumInput() == 3,
+            "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
 
-        const auto &images = ws->Input<CPUBackend>(0);
-        const auto &crop_begin = ws->Input<CPUBackend>(1);
-        const auto &crop_size = ws->Input<CPUBackend>(2);
-        int data_idx = ws->data_idx();
+        const auto &images = ws.Input<CPUBackend>(0);
+        const auto &crop_begin = ws.Input<CPUBackend>(1);
+        const auto &crop_size = ws.Input<CPUBackend>(2);
+        int data_idx = ws.data_idx();
         // Assumes xywh
         ProcessArgumentsHelper(
             data_idx,
@@ -58,13 +58,13 @@ class SliceAttr {
             crop_begin.data<float>()[1]);
     }
 
-    void ProcessArguments(MixedWorkspace *ws) {
-        DALI_ENFORCE(ws->NumInput() == 3,
-            "Expected 3 inputs. Received: " + std::to_string(ws->NumInput()));
+    void ProcessArguments(MixedWorkspace &ws) {
+        DALI_ENFORCE(ws.NumInput() == 3,
+            "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
         for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-            const auto &images = ws->Input<CPUBackend>(0, data_idx);
-            const auto &crop_begin = ws->Input<CPUBackend>(1, data_idx);
-            const auto &crop_size = ws->Input<CPUBackend>(2, data_idx);
+            const auto &images = ws.Input<CPUBackend>(0, data_idx);
+            const auto &crop_begin = ws.Input<CPUBackend>(1, data_idx);
+            const auto &crop_size = ws.Input<CPUBackend>(2, data_idx);
             // Assumes xywh
             ProcessArgumentsHelper(
                 data_idx,

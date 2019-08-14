@@ -17,11 +17,11 @@
 namespace dali {
 
 template<>
-void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   DALI_ENFORCE(data_in_tl_, "Cannot feed non-contiguous data to GPU op.");
 
-  auto &output = ws->Output<GPUBackend>(0);
-  output.Copy(tl_data_, (ws->has_stream() ? ws->stream() : 0));
+  auto &output = ws.Output<GPUBackend>(0);
+  output.Copy(tl_data_, (ws.has_stream() ? ws.stream() : 0));
   {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     busy_ = false;

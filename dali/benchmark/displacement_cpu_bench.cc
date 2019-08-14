@@ -105,10 +105,10 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
   ws.SetThreadPool(&tp);
 
   // Run once so output is allocated
-  df.Run(&ws);
+  df.Run(ws);
 
   for (auto _ : st) {
-    df.Run(&ws);
+    df.Run(ws);
   }
 }
 

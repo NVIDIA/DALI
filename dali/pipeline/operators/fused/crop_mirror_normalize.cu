@@ -96,21 +96,21 @@ void RunHelper(TensorList<GPUBackend> &output,
 }  // namespace detail
 
 template <>
-void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws) {
-  const auto &input = ws->Input<GPUBackend>(0);
+void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
     SetupSample(sample_idx, input_layout_, input.tensor_shape(sample_idx));
-    mirror_[sample_idx] = spec_.GetArgument<int>("mirror", ws, sample_idx);
+    mirror_[sample_idx] = spec_.GetArgument<int>("mirror", &ws, sample_idx);
   }
-  auto &output = ws->Output<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(output_layout_);
 }
 
 template<>
-void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   this->DataDependentSetup(ws);
-  const auto &input = ws->Input<GPUBackend>(0);
-  auto &output = ws->Output<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
   DALI_TYPE_SWITCH_WITH_FP16_GPU(input_type_, InputType,
     DALI_TYPE_SWITCH_WITH_FP16_GPU(output_type_, OutputType,
@@ -118,7 +118,7 @@ void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
         output, input, slice_anchors_, slice_shapes_,
         mirror_, pad_output_, mean_vec_, inv_std_vec_,
         input_layout_, output_layout_,
-        ws->stream(), scratch_alloc_);
+        ws.stream(), scratch_alloc_);
     )
   )
 }
