@@ -27,6 +27,7 @@ DALI_SCHEMA(BrightnessContrast)
 )code")
                 .NumInput(1)
                 .NumOutput(1)
+                .AddOptionalArg(detail::kOutputType, R"code(...)code",DALI_INT16)
                 .AddOptionalArg(detail::kBrightness,
                                 R"code(Set additive brightness delta. 0 denotes no-op)code", .0f,
                                 true)
@@ -39,7 +40,9 @@ template <class Backend>
 BrightnessContrast<Backend>::BrightnessContrast(const OpSpec &spec) :
         Operator<Backend>(spec),
         brightness_(spec.GetArgument<float>(detail::kBrightness)),
-        contrast_(spec.GetArgument<float>(detail::kContrast)) {
+        contrast_(spec.GetArgument<float>(detail::kContrast)),
+        output_type_(spec.GetArgument<DALIDataType>(detail::kOutputType))                      {
+
 
 }
 
