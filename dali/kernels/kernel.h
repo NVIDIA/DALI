@@ -53,7 +53,7 @@ namespace examples {
 /// Programmer can check whether their type satisfies conditions for being a kernel
 /// through instantiating check_kernel<KernelType>. If the type does not meet requirements,
 /// static_asserts should produce meaningful diagnostics that will help to rectify the problem.
-template <typename Input1, typename Input2, typename OutputType>
+template <typename OutputType, typename Input1, typename Input2>
 struct Kernel {
   /// @brief Returns kernel output(s) shape(s) and additional memory requirements
   ///

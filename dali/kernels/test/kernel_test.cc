@@ -22,8 +22,8 @@
 namespace dali {
 namespace kernels {
 
-template <typename Input1, typename Input2, typename OutputType>
-using ExampleKernel = examples::Kernel<Input1, Input2, OutputType>;
+template <typename OutputType, typename Input1, typename Input2>
+using ExampleKernel = examples::Kernel<OutputType, Input1, Input2>;
 
 // Neither function present
 struct Empty {
@@ -66,18 +66,18 @@ TEST(KernelAPI, InferIOArgs) {
   >::value, "Wrong set of inputs detected");
 
   static_assert(std::is_same<
-    kernel_outputs<ExampleKernel<float, int, int>>,
+    kernel_outputs<ExampleKernel<int, float, int>>,
     std::tuple<const OutListGPU<int, 3>&>
   >::value, "Wrong set of outputs detected");
 
   static_assert(std::is_same<
-    kernel_args<ExampleKernel<float, int, float>>,
+    kernel_args<ExampleKernel<float, float, int>>,
     std::tuple<const std::vector<float>&>
   >::value, "Wrong set of arguments detected");
 }
 
 TEST(KernelAPI, EnforceConcept) {
-  static_assert(detail::has_unique_member_function_Run<ExampleKernel<float, int, float>>::value,
+  static_assert(detail::has_unique_member_function_Run<ExampleKernel<float, float, int>>::value,
                 "ExampleKernel has Run function");
 
   static_assert(!detail::has_unique_member_function_Run<Empty>::value,
@@ -85,7 +85,7 @@ TEST(KernelAPI, EnforceConcept) {
   static_assert(!detail::has_unique_member_function_Run<TwoRuns>::value,
                 "TwoRuns has two Run functions");
 
-  check_kernel<ExampleKernel<int, float, int>>();
+  check_kernel<ExampleKernel<int, int, float>>();
 
   static_assert(!is_kernel<Empty>::value, "Empty has no Run function and cannot be a kernel");
   static_assert(!is_kernel<NoGetReq>::value,
@@ -94,8 +94,8 @@ TEST(KernelAPI, EnforceConcept) {
   static_assert(!is_kernel<RunBadParamsType>::value, "Run has bad parameters");
 }
 
-template <typename I1, typename I2, typename O>
-KernelRequirements dali::kernels::examples::Kernel<I1, I2, O>::Setup(
+template <typename O, typename I1, typename I2>
+KernelRequirements dali::kernels::examples::Kernel<O, I1, I2>::Setup(
   KernelContext &context,
   const InListGPU<I1, 3> &in1,
   const InTensorGPU<I2, 4> &in2,
@@ -103,8 +103,8 @@ KernelRequirements dali::kernels::examples::Kernel<I1, I2, O>::Setup(
   return {};
 }
 
-template <typename I1, typename I2, typename O>
-void dali::kernels::examples::Kernel<I1, I2, O>::Run(KernelContext &context,
+template <typename O, typename I1, typename I2>
+void dali::kernels::examples::Kernel<O, I1, I2>::Run(KernelContext &context,
   const OutListGPU<O, 3> &out,
   const InListGPU<I1, 3> &in1,
   const InTensorGPU<I2, 4> &in2,
@@ -117,7 +117,7 @@ TEST(KernelAPI, CallWithTuples) {
   OutListGPU<float, 3> out;
   std::vector<float> aux;
 
-  examples::Kernel<float, int, float> K;
+  examples::Kernel<float, float, int> K;
   KernelContext context;
   kernel::Run(K, context, std::tie(out), std::tie(in1, in2), std::tie(aux));
 }

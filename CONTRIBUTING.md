@@ -1,6 +1,6 @@
 # Contribution rules
 
-- While we have not yet documented a strict code style convention, please follow the existing conventions in the relevant file, submodule, module, and project when you add new code or when you extend/fix existing functionality. To ensure some degree of style consistency, use `make lint`. It applies [Google Style](https://google.github.io/styleguide/cppguide.html) rules to the following:
+- DALI Coding Style Guide can be found [here](STYLE_GUIDE.md). We follow [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) with few exceptions and additional guidelines regarding DALI-specific cases. See the DALI Coding Style Guide for details. When no rules can be found, follow the already occuring conventions. Ensure that your contribution passes the `make lint` check. It applies  rules to the following:
   - class, function/method, and variable/field naming
   - comment style
   - indentation
