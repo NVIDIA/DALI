@@ -31,6 +31,7 @@ namespace {
 
 constexpr size_t kNdims = 3;
 
+
 /**
  * Rounding to nearest even (like GPU does it)
  */
@@ -114,14 +115,13 @@ namespace {
 
 template <class GtestTypeParam>
 using TheKernel = BrightnessContrastGpu
-        <typename GtestTypeParam::In, typename GtestTypeParam::Out, kNdims>;
+        <typename GtestTypeParam::Out, typename GtestTypeParam::In, kNdims>;
 
 }  // namespace
 
 
 TYPED_TEST(BrightnessContrastGpuTest, check_kernel) {
   check_kernel<TheKernel<TypeParam>>();
-  SUCCEED();
 }
 
 
@@ -178,11 +178,11 @@ TYPED_TEST(BrightnessContrastGpuTest, roi_to_TensorListShape) {
 
 TYPED_TEST(BrightnessContrastGpuTest, adjust_empty_rois) {
   constexpr size_t ndims = 3;
-  std::vector<Roi<ndims-1>> rois;
+  std::vector<Roi<ndims - 1>> rois;
   std::vector<TensorShape<ndims>> ts = {{2, 3, 4},
                                         {5, 6, 7}};
   TensorListShape<ndims> tls = ts;
-  std::vector<Roi<ndims-1>> ref = {
+  std::vector<Roi<ndims - 1>> ref = {
           {{0, 0}, {3, 2}},
           {{0, 0}, {6, 5}},
   };
@@ -197,14 +197,14 @@ TYPED_TEST(BrightnessContrastGpuTest, adjust_empty_rois) {
 TYPED_TEST(BrightnessContrastGpuTest, adjust_rois) {
   constexpr size_t ndims = 3;
 
-  std::vector<Roi<ndims-1>> rois = {
+  std::vector<Roi<ndims - 1>> rois = {
           {{1, 2}, {3, 4}},
           {{5, 6}, {7, 8}},
   };
   std::vector<TensorShape<ndims>> ts = {{9,  10, 11},
                                         {12, 13, 14}};
   TensorListShape<ndims> tls = ts;
-  std::vector<Roi<ndims-1>> ref = {
+  std::vector<Roi<ndims - 1>> ref = {
           {{1, 2}, {3, 4}},
           {{5, 6}, {7, 8}},
   };
@@ -221,7 +221,7 @@ TYPED_TEST(BrightnessContrastGpuTest, sample_descriptors) {
     InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
     OutListGPU<typename TypeParam::Out, kNdims> out(this->output_,
                                                     TensorListShape<3>(this->shapes_));
-    auto res = CreateSampleDescriptors(in, out, this->brightness_, this->contrast_);
+    auto res = CreateSampleDescriptors(out, in, this->brightness_, this->contrast_);
     EXPECT_EQ(this->input_device_, res[0].in);
     EXPECT_EQ(this->output_, res[0].out);
     ivec<kNdims - 1> ref_pitch = {2, 12};
@@ -237,7 +237,7 @@ TYPED_TEST(BrightnessContrastGpuTest, sample_descriptors) {
     TensorListShape<ndims> tls(vts);
     InListGPU<typename TypeParam::In, ndims> in(this->input_device_, tls);
     OutListGPU<typename TypeParam::Out, ndims> out(this->output_, tls);
-    auto res = CreateSampleDescriptors(in, out, this->brightness_, this->contrast_);
+    auto res = CreateSampleDescriptors(out, in, this->brightness_, this->contrast_);
     ivec<ndims - 1> ref = {7, 2, 4, 6, 1, 32};
     EXPECT_EQ(ref, res[0].in_pitch);
   }

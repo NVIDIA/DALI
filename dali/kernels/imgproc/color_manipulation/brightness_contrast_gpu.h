@@ -29,14 +29,13 @@ template <size_t ndims>
 using Roi = Box<ndims, int>;
 
 
-template <class InputType, class OutputType, int ndims>
+template <class OutputType, class InputType, int ndims>
 struct SampleDescriptor {
   const InputType *in;
   OutputType *out;
   ivec<ndims> in_pitch, out_pitch;
   float brightness, contrast;
 };
-
 
 
 /**
@@ -110,11 +109,12 @@ std::vector<Roi<spatial_dims>> AdjustRois(const std::vector<Roi<spatial_dims>> r
  * @see RoiToShape
  */
 template <class OutputType, class InputType, int ndims>
-std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>>
-CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
-                        const OutListGPU<OutputType, ndims> &out,
+std::vector<SampleDescriptor<OutputType, InputType, ndims - 1>>
+CreateSampleDescriptors(const OutListGPU<OutputType, ndims> &out,
+                        const InListGPU<InputType, ndims> &in,
+
                         const std::vector<float> &brightness, const std::vector<float> &contrast) {
-  std::vector<SampleDescriptor<InputType, OutputType, ndims - 1>> ret(in.num_samples());
+  std::vector<SampleDescriptor<OutputType, InputType, ndims - 1>> ret(in.num_samples());
 
   for (int i = 0; i < in.num_samples(); i++) {
     auto &sample = ret[i];
@@ -141,9 +141,9 @@ CreateSampleDescriptors(const InListGPU<InputType, ndims> &in,
 }
 
 
-template <class InputType, class OutputType, int ndims>
+template <class OutputType, class InputType, int ndims>
 __global__ void
-BrightnessContrastKernel(const SampleDescriptor<InputType, OutputType, ndims> *samples,
+BrightnessContrastKernel(const SampleDescriptor<OutputType, InputType, ndims> *samples,
                          const BlockDesc<ndims> *blocks) {
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
@@ -160,13 +160,13 @@ BrightnessContrastKernel(const SampleDescriptor<InputType, OutputType, ndims> *s
 }
 
 
-template <typename InputType, typename OutputType, int ndims>
+template <typename OutputType, typename InputType, int ndims>
 class BrightnessContrastGpu {
  private:
   static constexpr size_t spatial_dims = ndims - 1;
   using BlockDesc = kernels::BlockDesc<spatial_dims>;
 
-  std::vector<SampleDescriptor<InputType, OutputType, ndims>> sample_descriptors_;
+  std::vector<SampleDescriptor<OutputType, InputType, ndims>> sample_descriptors_;
 
  public:
   BlockSetup<spatial_dims, -1 /* No channel dimension, only spatial */> block_setup_;
@@ -211,7 +211,7 @@ class BrightnessContrastGpu {
   void Run(KernelContext &context, const OutListGPU<OutputType, ndims> &out,
            const InListGPU<InputType, ndims> &in, const std::vector<float> &brightness,
            const std::vector<float> &contrast, const std::vector<Roi<spatial_dims>> &rois = {}) {
-    auto sample_descs = CreateSampleDescriptors(in, out, brightness, contrast);
+    auto sample_descs = CreateSampleDescriptors(out, in, brightness, contrast);
 
     typename decltype(sample_descs)::value_type *samples_gpu;
     BlockDesc *blocks_gpu;
