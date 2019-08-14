@@ -16,3 +16,6 @@
 [submodule "third_party/rapidjson"]
 	path = third_party/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
+[submodule "third_party/dlpack"]
+	path = third_party/dlpack
+	url = https://github.com/dmlc/dlpack.git

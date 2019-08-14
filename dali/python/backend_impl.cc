@@ -27,7 +27,6 @@
 #include "dali/plugin/plugin_manager.h"
 #include "dali/util/half.hpp"
 #include "dali/core/device_guard.h"
-#include "dali/pipeline/data/dltensor.h"
 
 namespace dali {
 namespace python {
@@ -139,11 +138,6 @@ void ExposeTensor(py::module &m) { // NOLINT
       ptr : ctypes.c_void_p
             Destination of the copy.
       )code")
-    .def("as_dlpack", &TensorToDLPack<CPUBackend>,
-      R"code(
-      Zero copy conversion to DLPack Tensor.
-      Returns a python capsule with DLTensor.
-      )code")
     .def("dtype",
         [](Tensor<CPUBackend> &t) {
           return FormatStrFromType(t.type());
@@ -180,11 +174,6 @@ void ExposeTensor(py::module &m) { // NOLINT
             Destination of the copy.
       cuda_stream : ctypes.c_void_p
             CUDA stream to schedule the copy on (default stream if not provided).
-      )code")
-    .def("as_dlpack", &TensorToDLPack<GPUBackend>,
-      R"code(
-      Zero copy conversion to DLPack Tensor.
-      Returns a python capsule with DLTensor.
       )code")
     .def("dtype",
         [](Tensor<GPUBackend> &t) {
@@ -317,11 +306,6 @@ void ExposeTensorList(py::module &m) { // NOLINT
       Parameters
       ----------
       )code")
-    .def("as_dlpack", TensorListToDLPack<CPUBackend>,
-      R"code(
-      Zero copy conversion to DLPack Tensors.
-      Returns a list of python capsules with DLTensor.
-      )code")
     .def("__len__", [](TensorList<CPUBackend> &t) {
           return t.ntensor();
         })
@@ -389,11 +373,6 @@ void ExposeTensorList(py::module &m) { // NOLINT
       Returns a `TensorListCPU` object being a copy of this `TensorListGPU`.
       )code",
       py::return_value_policy::take_ownership)
-    .def("as_dlpack", &TensorListToDLPack<GPUBackend>,
-      R"code(
-      Zero copy conversion to DLPack Tensors.
-      Returns a list of python capsules with DLTensor.
-      )code")
     .def("__len__", [](TensorList<GPUBackend> &t) {
           return t.ntensor();
         })

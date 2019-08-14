@@ -22,20 +22,23 @@ DLDataType GetDLType(const TypeInfo &type) {
       dl_type.bits = sizeof(T) * 8;
       dl_type.lanes = 1;
       if (std::is_floating_point<T>::value) {
-        dl_type.code = 2U;
+        dl_type.code = kDLFloat;
       } else if (std::is_unsigned<T>::value) {
-        dl_type.code = 1U;
+        dl_type.code = kDLUInt;
       } else if (std::is_integral<T>::value) {
-        dl_type.code = 0U;
+        dl_type.code = kDLInt;
       } else {
         DALI_FAIL("This data type (" + type.name() + ") cannot be handled by DLTensor.");
       })
   return dl_type;
 }
 
-void NonOwningDlTensorDestructor(DLManagedTensor *self) {
-  delete self->dl_tensor.shape;
-  delete self->dl_tensor.strides;
+struct DLTensorResource {
+  kernels::TensorShape<> shape_;
+};
+
+void DLManagedTensorDeleter(DLManagedTensor *self) {
+  delete static_cast<DLTensorResource*>(self->manager_ctx);
 }
 
 void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr) {
@@ -43,6 +46,25 @@ void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr) {
     dlm_tensor_ptr->deleter(dlm_tensor_ptr);
     delete dlm_tensor_ptr;
   }
+}
+
+DLMTensorPtr MakeDLTensor(void* data, const TypeInfo& type,
+                          const kernels::TensorShape<>& shape,
+                          bool device, int device_id) {
+  DLTensor dl_tensor{};
+  auto resource = new DLTensorResource;
+  resource->shape_ = shape;
+  dl_tensor.data = data;
+  dl_tensor.ndim = shape.size();
+  dl_tensor.shape = resource->shape_.begin();
+  if (device) {
+    dl_tensor.ctx = {kDLGPU, device_id};
+  } else {
+    dl_tensor.ctx = {kDLCPU, 0};
+  }
+  dl_tensor.dtype = GetDLType(type);
+  return {new DLManagedTensor{dl_tensor, resource, &DLManagedTensorDeleter},
+          &DLMTensorPtrDeleter};
 }
 
 }  // namespace dali

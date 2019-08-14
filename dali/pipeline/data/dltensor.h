@@ -17,12 +17,12 @@
 
 #include <memory>
 #include <vector>
-#include "third_party/dlpack/dlpack.h"
+#include "third_party/dlpack/include/dlpack/dlpack.h"
 #include "dali/pipeline/data/tensor.h"
 
 namespace dali {
 
-DLL_PUBLIC void NonOwningDlTensorDestructor(DLManagedTensor *self);
+DLL_PUBLIC void DLManagedTensorDeleter(DLManagedTensor *self);
 
 DLL_PUBLIC void DLMTensorPtrDeleter(DLManagedTensor *ptr);
 
@@ -30,32 +30,17 @@ using DLMTensorPtr = std::unique_ptr<DLManagedTensor, void(*)(DLManagedTensor*)>
 
 DLL_PUBLIC DLDataType GetDLType(const TypeInfo &type);
 
-namespace detail {
-
-template <typename Backend>
-DLMTensorPtr MakeDLTensor(void *data, const TypeInfo &type,
-                          const kernels::TensorShape<> &shape, int device_id) {
-  DLTensor dl_tensor{};
-  dl_tensor.data = data;
-  dl_tensor.ndim = shape.size();
-  dl_tensor.shape = new int64_t[shape.size()];
-  std::copy(shape.begin(), shape.end(), dl_tensor.shape);
-  if (std::is_same<Backend, GPUBackend>::value) {
-    dl_tensor.ctx = {kDLGPU, device_id};
-  } else {
-    dl_tensor.ctx = {kDLCPU, 0};
-  }
-  dl_tensor.dtype = GetDLType(type);
-  return {new DLManagedTensor{dl_tensor, nullptr, &NonOwningDlTensorDestructor},
-          &DLMTensorPtrDeleter};
-}
-
-}  // namespace detail
+DLL_PUBLIC DLMTensorPtr MakeDLTensor(void *data, const TypeInfo &type,
+                          const kernels::TensorShape<> &shape,
+                          bool device, int device_id);
 
 template <typename Backend>
 DLMTensorPtr GetDLTensor(Tensor<Backend> &tensor) {
-  return detail::MakeDLTensor<Backend>(tensor.raw_mutable_data(), tensor.type(),
-                                       tensor.shape(), tensor.device_id());
+  return MakeDLTensor(tensor.raw_mutable_data(),
+                      tensor.type(),
+                      tensor.shape(),
+                      std::is_same<Backend, GPUBackend>::value,
+                      tensor.device_id());
 }
 
 template <typename Backend>
@@ -63,10 +48,11 @@ std::vector<DLMTensorPtr> GetDLTensors(TensorList<Backend> &tensor_list) {
   std::vector<DLMTensorPtr> dl_tensors{};
   dl_tensors.reserve(tensor_list.ntensor());
   for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
-    dl_tensors.push_back(detail::MakeDLTensor<Backend>(tensor_list.raw_mutable_tensor(i),
-                                                       tensor_list.type(),
-                                                       tensor_list.tensor_shape(i),
-                                                       tensor_list.device_id()));
+    dl_tensors.push_back(MakeDLTensor(tensor_list.raw_mutable_tensor(i),
+                                      tensor_list.type(),
+                                      tensor_list.tensor_shape(i),
+                                      std::is_same<Backend, GPUBackend>::value,
+                                      tensor_list.device_id()));
   }
   return dl_tensors;
 }
