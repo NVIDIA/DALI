@@ -51,7 +51,7 @@ struct SampleDescriptor {
  */
 template <size_t ndims>
 TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchannels) {
-  TensorListShape<ndims> ret(rois.size());
+  std::vector<TensorShape<ndims>> ret;
 
   for (const auto &roi : rois) {
     assert(all_coords(roi.hi >= roi.lo) && "Cannot create a tensor shape from an invalid Box");
@@ -70,7 +70,8 @@ TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchan
 
 
 /**
- * 1. If `rois` is empty, that means whole image is analysed: Roi will the the size of an image
+ * 1. If `rois` is empty, that means whole image is analysed: return a batch of Rois, where
+ *    every Roi has the same size as the input image
  * 2. If `rois` is not empty, it is assumed, that Roi is provided for every image in batch.
  *    In this case, final Roi is an intersection of provided Roi and the image.
  *    (This is a sanity-check for Rois, that can be larger than image)
@@ -145,6 +146,7 @@ template <class OutputType, class InputType, int ndims>
 __global__ void
 BrightnessContrastKernel(const SampleDescriptor<OutputType, InputType, ndims> *samples,
                          const BlockDesc<ndims> *blocks) {
+  static_assert(ndims == 2, "Function requires 2 dimensions in the input");
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
 
@@ -185,9 +187,9 @@ class BrightnessContrastGpu {
         return true;
     }(), "One or more regions of interests are invalid");
     DALI_ENFORCE([=]() -> bool {
-        auto ref_shape = in.shape[0][ndims - 1];
+        auto ref_nchannels = in.shape[0][ndims - 1];
         for (int i = 0; i < in.num_samples(); i++) {
-          if (in.shape[i][ndims - 1] != ref_shape) {
+          if (in.shape[i][ndims - 1] != ref_nchannels) {
             return false;
           }
         }
@@ -195,14 +197,14 @@ class BrightnessContrastGpu {
     }(), "Number of channels for every image in batch must be equal");
 
     auto adjusted_rois = AdjustRois(rois, in.shape);
-    auto shape = in.shape[0][ndims - 1];
+    auto nchannels = in.shape[0][ndims - 1];
     KernelRequirements req;
     ScratchpadEstimator se;
-    TensorListShape<spatial_dims> output_shape({RoiToShape(adjusted_rois, shape)});
-    block_setup_.SetupBlocks(output_shape, true);
+    TensorListShape<spatial_dims> flattened_shape(RoiToShape(adjusted_rois, nchannels));
+    block_setup_.SetupBlocks(flattened_shape, true);
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
-    req.output_shapes = {output_shape};
+    req.output_shapes = {in.shape};
     req.scratch_sizes = se.sizes;
     return req;
   }
@@ -223,7 +225,7 @@ class BrightnessContrastGpu {
     dim3 block_dim = block_setup_.BlockDim();
     auto stream = context.gpu.stream;
 
-    BrightnessContrastKernel<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
+    BrightnessContrastKernel << < grid_dim, block_dim, 0, stream >> > (samples_gpu, blocks_gpu);
   }
 };
 

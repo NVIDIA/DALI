@@ -130,7 +130,12 @@ TYPED_TEST(BrightnessContrastGpuTest, setup_test) {
   KernelContext ctx;
   InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
   auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
-  SUCCEED();
+  ASSERT_EQ(this->shapes_.size(), static_cast<size_t>(reqs.output_shapes[0].num_samples()))
+                        << "Kernel::Setup provides incorrect shape";
+  for (size_t i = 0; i < this->shapes_.size(); i++) {
+    EXPECT_EQ(this->shapes_[i], reqs.output_shapes[0][i])
+                  << "Kernel::Setup provides incorrect shape";
+  }
 }
 
 
