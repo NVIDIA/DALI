@@ -1,6 +1,6 @@
 # Contribution rules
 
-- DALI Coding Style Guide can be found [here](STYLE_GUIDE.md). We follow [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) with few exceptions and additional guidelines regarding DALI-specific cases. See the DALI Coding Style Guide for details. When no rules can be found, follow the already occuring conventions. Ensure that your contribution passes the `make lint` check. It applies  rules to the following:
+- DALI Coding Style Guide can be found [here](STYLE_GUIDE.md). We follow [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) with few exceptions and additional guidelines regarding DALI-specific cases. See the DALI Coding Style Guide for details. When no rules can be found, follow the already occuring conventions. If there is no precedence in our codebase we are open to discussion. Ensure that your contribution passes the `make lint` check. It applies rules to the following:
   - class, function/method, and variable/field naming
   - comment style
   - indentation

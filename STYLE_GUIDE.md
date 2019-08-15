@@ -35,6 +35,8 @@ expected to be views to Tensors (TensorLists) and Arguments are other inputs.
 The same order should be maintained for Kernel template arguments.
 See [the example](dali/kernels/kernel.h) kernel implementation for details.
 
+The order of the arguments is following memcpy semantics.
+
 ### Documentation
 
 DALI uses Doxygen for C++ code documentation with Javadoc-styled comments:
@@ -49,3 +51,5 @@ DALI uses Doxygen for C++ code documentation with Javadoc-styled comments:
 ## Unspecified cases
 
 When the style is left unspecified please follow the one used most in the current codebase.
+If there is no precedence in the codebase, we are open to discussion, but we hold the final
+word to avoid endless discussion in that matter.
