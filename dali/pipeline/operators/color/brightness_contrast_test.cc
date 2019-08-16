@@ -25,21 +25,29 @@ namespace dali {
 namespace testing {
 namespace brightness_contrast {
 
-template <size_t ndims>
-using Shape = ::dali::kernels::TensorListShape<ndims>;
+//template <size_t ndims>
+//using Shape = ::dali::kernels::TensorListShape<ndims>;
 
-using TestSample = float[2][2][2][3][3];
-constexpr size_t kNumberOfThingies = 2 * 2 * 2 * 3 * 3;
+//using TestSample = uint8_t[2][2][2][3][3];
+//constexpr size_t kNumberOfThingies = 2 * 2 * 2 * 3 * 3;
 
 // @autoformat:off
-TestSample data_nhwc = {{{{{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}},
-                          {{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}}},
-                         {{{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}},
-                          {{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}}}},
-                        {{{{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}},
-                          {{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}}},
-                         {{{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}},
-                          {{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}}}}};
+//TestSample data_nhwc = {{{{{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}},
+//                          {{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}}},
+//                         {{{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}},
+//                          {{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}}}},
+//                        {{{{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}},
+//                          {{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}}},
+//                         {{{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}},
+//                          {{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}}}}};
+//TestSample data_nhwc = {{{{{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}},
+//                                 {{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}}},
+//                                {{{4.1, 4.2, 4.3}, {5.1, 5.2, 5.3}, {6.1, 6.2, 6.3}},
+//                                        {{1.1, 1.2, 1.3}, {2.1, 2.2, 2.3}, {3.1, 3.2, 3.3}}}},
+//                        {{{{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}},
+//                                 {{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}}},
+//                                {{{6.1, 6.2, 6.3}, {5.1, 5.2, 5.3}, {4.1, 4.2, 4.3}},
+//                                        {{3.1, 3.2, 3.3}, {2.1, 2.2, 2.3}, {1.1, 1.2, 1.3}}}}};
 // @autoformat:on
 
 using Type = float;
@@ -69,7 +77,7 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
   std::unique_ptr<TensorList<Backend>> ToTensorList(std::vector<Type> data) {
     std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
     tl->Resize(kernels::TensorListShape<3>({shape_}));
-    auto ptr = tl->template mutable_data<float>();
+    auto ptr = tl->template mutable_data<Type>();
     assert(data.size() == volume(shape_));
     std::memcpy(ptr, data.data(), data.size() * sizeof(Type));
     return tl;
@@ -78,36 +86,65 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
 
   std::vector<Type> input_;
   kernels::TensorShape<3> shape_ = {2, 4, 3};
-
 };
 
 
+template <class OutputType>
 void BrightnessContrastVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
+  static_assert(std::is_fundamental<OutputType>::value, "");
   auto brightness = args["brightness_delta"].GetValue<float>();
   auto contrast = args["contrast_delta"].GetValue<float>();
   assert(input.has_cpu() && output.has_cpu());
   ASSERT_EQ(input.cpu().ntensor(), output.cpu().ntensor());
   for (int t = 0; t < input.cpu().ntensor(); t++) {
+    auto out_shape = output.cpu().tensor_shape(t);
+    auto out_tensor = output.cpu().tensor<OutputType>(t);
     auto in_shape = input.cpu().tensor_shape(t);
     auto in_tensor = input.cpu().tensor<Type>(t);
-    for (int i = 0; i < volume(in_shape); i++) {
-      EXPECT_EQ(in_tensor[i], ConvertSat<float>(in_tensor[i]*contrast+brightness));
+    ASSERT_EQ(in_shape, out_shape);
+    for (int i = 0; i < volume(out_shape); i++) {
+      EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(in_tensor[i] * contrast + brightness));
     }
-
   }
 }
 
 
-Arguments arg = {{"output_type",      DALI_FLOAT},
-                 {"brightness_delta", 0.f},
-                 {"contrast_delta",   1.f}};
+Arguments args_float = {
+        {"output_type",      DALI_FLOAT},
+        {"brightness_delta", 0.f},
+        {"contrast_delta",   1.f}
+};
+Arguments args_int16 = {
+        {"brightness_delta", 1.f},
+        {"contrast_delta",   0.f}
+};
+Arguments args_uint8 = {
+        {"output_type",      DALI_UINT8},
+        {"brightness_delta", 13.f},
+        {"contrast_delta",   0.5f}
+};
 
-TEST_F(BrightnessContrastTest, BasicTest) {
+
+TEST_F(BrightnessContrastTest, basic_test_float) {
   auto tl = ToTensorList<CPUBackend>(this->input_);
   TensorListWrapper tlout;
-  this->RunTest(tl.get(), tlout, arg, BrightnessContrastVerify);
-}
+  this->RunTest(tl.get(), tlout, args_float, BrightnessContrastVerify<float>);
 }
 
+
+TEST_F(BrightnessContrastTest, basic_test_int16) {
+  auto tl = ToTensorList<CPUBackend>(this->input_);
+  TensorListWrapper tlout;
+  this->RunTest(tl.get(), tlout, args_int16, BrightnessContrastVerify<int16_t>);
 }
+
+
+TEST_F(BrightnessContrastTest, basic_test_uint8) {
+  auto tl = ToTensorList<CPUBackend>(this->input_);
+  TensorListWrapper tlout;
+  this->RunTest(tl.get(), tlout, args_uint8, BrightnessContrastVerify<uint8_t>);
 }
+
+}  // namespace brightness_contrast
+}  // namespace testing
+}  // namespace dali
