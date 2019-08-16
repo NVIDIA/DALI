@@ -1,0 +1,16 @@
+video,codec,gop,in_pixfmt,out_pixfmt,sequence_len,shuffle
+/opt/dali_extra/db/video_resolution/2/334_240.mp4,h264,5,yuv420p,yuv,5,0
+/opt/dali_extra/db/video_resolution/1/1920_1080.mp4,h264,5,yuv420p,yuv,5,0
+/opt/dali_extra/db/video_resolution/0/3840_2160.mp4,h264,5,yuv420p,yuv,5,0
+/opt/dali_extra/db/video_resolution/2/334_240.mp4,h265,5,yuv420p,yuv,5,0
+/opt/dali_extra/db/video_resolution/1/1920_1080.mp4,h265,5,yuv420p,yuv,5,0
+/opt/dali_extra/db/video_resolution/0/3840_2160.mp4,h265,5,yuv420p,yuv,5,0
+/opt/dali_extra/db/video_resolution/2/334_240.mp4,h264,10,yuv420p,yuv,10,0
+/opt/dali_extra/db/video_resolution/2/334_240.mp4,h264,10,yuv420p,rgb,10,0
+/opt/dali_extra/db/video_resolution/1/1920_1080.mp4,h264,10,yuv420p,yuv,10,0
+/opt/dali_extra/db/video_resolution/1/1920_1080.mp4,h264,10,yuv420p,yuv,3,0
+/opt/dali_extra/db/video_resolution/0/3840_2160.mp4,h264,10,yuv420p,yuv,10,0
+/opt/dali_extra/db/video_resolution/2/334_240.mp4,h265,10,yuv420p,yuv,10,0
+/opt/dali_extra/db/video_resolution/1/1920_1080.mp4,h265,10,yuv420p,yuv,10,1
+/opt/dali_extra/db/video_resolution/1/1920_1080.mp4,h265,10,yuv420p,yuv,10,0
+/opt/dali_extra/db/video_resolution/0/3840_2160.mp4,h265,10,yuv420p,yuv,10,0
