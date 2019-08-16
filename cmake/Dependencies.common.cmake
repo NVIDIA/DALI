@@ -95,7 +95,7 @@ if(BUILD_FFMPEG)
   include(CheckStructHasMember)
   include(CheckTypeSize)
 
-  set(FFMPEG_ROOT_DIR "" CACHE PATH "Folder contains FFmeg")
+  set(FFMPEG_ROOT_DIR "" CACHE PATH "Folder contains ffmpeg")
   set(PKG_CONFIG_USE_CMAKE_PREFIX_PATH YES)
 
   find_package(PkgConfig REQUIRED)

@@ -37,5 +37,6 @@ sh $SRC_DIR/configure --prefix $PREFIX/libjpeg-turbo \
 make -j"$(nproc --all)"
 make install
 
+
 # Move .so to $PREFIX/lib
 cp $PREFIX/libjpeg-turbo/lib/libjpeg.so.* $PREFIX/lib
