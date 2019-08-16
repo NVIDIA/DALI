@@ -85,12 +85,13 @@ class BrightnessContrast : public Operator<Backend> {
 //        t.SetType<IType>(output_type_);
 //        output_desc[0] = {input.shape(), t};
 //    };
-DALI_TYPE_SWITCH(output.type().id(), OutputType,
-
-                         TypeInfo t;
-                         t.SetType<OutputType>(output_type_);
-                         output_desc[0] = {input.shape(), t};
-                         );
+    DALI_TYPE_SWITCH(DALI_FLOAT, OutputType,
+                     {
+                       TypeInfo type;
+                       type.SetType<OutputType>(output_type_);
+                       output_desc[0] = {input.shape(), type};
+                     }
+    )
 
 //    TYPE_SWITCH(output.type().id(), dali::TypeTag, OutputType, (int, float),
 //                (
@@ -108,21 +109,32 @@ DALI_TYPE_SWITCH(output.type().id(), OutputType,
     const auto &input = ws->template Input<Backend>(0);
     auto &output = ws->template Output<Backend>(0);
 
-    auto tvin = view<const float, 3>(input);
-    auto tvout = view<float, 3>(output);
+// Convenient alias for DALI_TYPE_SWITCH
+#define TS(...) DALI_TYPE_SWITCH (__VA_ARGS__)
+    TS(DALI_FLOAT, InputType,
+       TS(DALI_FLOAT, OutputType,
+          {
+                  auto tvin = view<const InputType, 3>(input);
+                  auto tvout = view<OutputType, 3>(output);
+                  detail::BrightnessContrastKernel<Backend, InputType, OutputType, 3> kernel;
+                  kernels::KernelContext ctx;
+                  auto reqs = kernel.Setup(ctx, tvin, brightness_, contrast_);
+                  kernel.Run(ctx, tvout, tvin, brightness_, contrast_);
+          }
+       )
+    )
+#undef TS
 
-    detail::BrightnessContrastKernel<Backend, float, float, 3> kernel;
-    kernels::KernelContext ctx;
-    auto reqs = kernel.Setup(ctx, tvin, brightness_, contrast_);
-    kernel.Run(ctx, tvout, tvin, brightness_, contrast_);
+
+//    auto tvin = view<const float, 3>(input);
+//    auto tvout = view<float, 3>(output);
+//
+//    detail::BrightnessContrastKernel<Backend, float, float, 3> kernel;
+//    kernels::KernelContext ctx;
+//    auto reqs = kernel.Setup(ctx, tvin, brightness_, contrast_);
+//    kernel.Run(ctx, tvout, tvin, brightness_, contrast_);
 
 
-//    auto out = output.template mutable_data<float>();
-//    for (int i=0;i<volume(output.shape());i++){
-//      out[i]=1.f;
-//    }
-
-    cout << "ASDASDASDASDASDASDASDASDASDASDASDASD\n";
   }
 
 
