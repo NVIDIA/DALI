@@ -35,7 +35,7 @@ const std::string kOutputType = "output_type";      // NOLINT
 
 template <class Backend, class Out, class In, size_t ndims>
 struct Kernel {
-  using type = kernels::BrightnessContrastCPU<Out, In, ndims>;
+  using type = kernels::BrightnessContrastCpu<Out, In, ndims>;
 };
 
 
@@ -116,7 +116,7 @@ class BrightnessContrast : public Operator<Backend> {
           {
                   auto tvin = view<const InputType, 3>(input);
                   auto tvout = view<OutputType, 3>(output);
-                  detail::BrightnessContrastKernel<Backend, InputType, OutputType, 3> kernel;
+                  detail::BrightnessContrastKernel<Backend, OutputType, InputType, 3> kernel;
                   kernels::KernelContext ctx;
                   auto reqs = kernel.Setup(ctx, tvin, brightness_, contrast_);
                   kernel.Run(ctx, tvout, tvin, brightness_, contrast_);

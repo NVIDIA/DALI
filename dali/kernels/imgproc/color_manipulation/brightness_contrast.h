@@ -49,8 +49,8 @@ TensorShape<ndims + 1> roi_shape(Box<ndims, CoordinateType> roi, size_t nchannel
 }  // namespace brightness_contrast
 
 
-template<typename InputType, typename OutputType, size_t ndims = 3>
-class BrightnessContrastCPU {
+template<typename OutputType, typename InputType, size_t ndims = 3>
+class BrightnessContrastCpu {
  private:
   static constexpr size_t spatial_dims = ndims - 1;
 
