@@ -24,7 +24,6 @@
 namespace dali {
 namespace brightness_contrast {
 
-#define BRIGHTNESS_CONTRAST_INPUT_OUTPUT_TYPES (int, float)
 
 namespace detail {
 
@@ -80,27 +79,14 @@ class BrightnessContrast : public Operator<Backend> {
     const auto &output = ws.template OutputRef<Backend>(0);
     output_desc.resize(1);
 
-//    auto type_switch = [&]() {
-//        TypeInfo t;
-//        t.SetType<IType>(output_type_);
-//        output_desc[0] = {input.shape(), t};
-//    };
-    DALI_TYPE_SWITCH(DALI_FLOAT, OutputType,
+//    using OutputType=uint8_t;
+    DALI_TYPE_SWITCH(output_type_, OutputType,
                      {
                        TypeInfo type;
                        type.SetType<OutputType>(output_type_);
                        output_desc[0] = {input.shape(), type};
                      }
     )
-
-//    TYPE_SWITCH(output.type().id(), dali::TypeTag, OutputType, (int, float),
-//                (
-//                        TypeInfo t;
-//                        t.SetType<OutputType>(output_type_);
-//                        output_desc[0] = {input.shape(), t};
-//                ), DALI_FAIL("This type is not supported"));
-
-//    output_desc[0] = {input.shape(), output.type()};
     return true;
   }
 
@@ -111,30 +97,20 @@ class BrightnessContrast : public Operator<Backend> {
 
 // Convenient alias for DALI_TYPE_SWITCH
 #define TS(...) DALI_TYPE_SWITCH (__VA_ARGS__)
-    TS(DALI_FLOAT, InputType,
-       TS(DALI_FLOAT, OutputType,
+    TS(input.type().id(), InputType,
+       TS(output_type_, OutputType,
           {
                   auto tvin = view<const InputType, 3>(input);
                   auto tvout = view<OutputType, 3>(output);
                   detail::BrightnessContrastKernel<Backend, OutputType, InputType, 3> kernel;
                   kernels::KernelContext ctx;
+//                       ctx.gpu.stream = ws->stream();
                   auto reqs = kernel.Setup(ctx, tvin, brightness_, contrast_);
                   kernel.Run(ctx, tvout, tvin, brightness_, contrast_);
           }
        )
     )
 #undef TS
-
-
-//    auto tvin = view<const float, 3>(input);
-//    auto tvout = view<float, 3>(output);
-//
-//    detail::BrightnessContrastKernel<Backend, float, float, 3> kernel;
-//    kernels::KernelContext ctx;
-//    auto reqs = kernel.Setup(ctx, tvin, brightness_, contrast_);
-//    kernel.Run(ctx, tvout, tvin, brightness_, contrast_);
-
-
   }
 
 
@@ -148,5 +124,4 @@ class BrightnessContrast : public Operator<Backend> {
 
 }
 }
-#undef BRIGHTNESS_CONTRAST_INPUT_OUTPUT_TYPES
 #endif
