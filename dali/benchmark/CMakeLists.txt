@@ -25,6 +25,7 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/displacement_cpu_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/crop_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/crop_mirror_normalize_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_bench.cc"
   )
 
   if (BUILD_LMDB)
