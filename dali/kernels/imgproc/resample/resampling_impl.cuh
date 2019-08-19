@@ -31,25 +31,27 @@ namespace resample_shared {
   extern __shared__ float coeffs[];
 };
 
-/// @brief Implements horizontal resampling for a custom ROI
-/// @param x0 - start column, in output coordinates
-/// @param x1 - end column (exclusive), in output coordinates
-/// @param y0 - start row
-/// @param y1 - end row (exclusive)
-/// @tparam static_channels - number of channels, if known at compile time
-///
-/// The function fills the output in block-sized vertical spans.
-/// Block horizontal size is warp-aligned.
-/// Filter coefficients are pre-calculated for each vertical span to avoid
-/// recalculating them for each row, and stored in a shared memory block.
-///
-/// The function follows different code paths for static and dynamic number of channels.
-/// For the dynamic, the innermost loop goes over filter taps, which eliminates the need
-/// for thread-local memory to store intermediate sums. This allows processing arbitrary
-/// number of channels.
-/// For static number of channels, the run-time parameter `channels` is ignored and
-/// there's also a local temporary storage for a tap sum for each channel. This is faster,
-/// but requires extra registers for the intermediate sums.
+/**
+ * @brief Implements horizontal resampling for a custom ROI
+ * @param x0 - start column, in output coordinates
+ * @param x1 - end column (exclusive), in output coordinates
+ * @param y0 - start row
+ * @param y1 - end row (exclusive)
+ * @tparam static_channels - number of channels, if known at compile time
+ *
+ * The function fills the output in block-sized vertical spans.
+ * Block horizontal size is warp-aligned.
+ * Filter coefficients are pre-calculated for each vertical span to avoid
+ * recalculating them for each row, and stored in a shared memory block.
+ *
+ * The function follows different code paths for static and dynamic number of channels.
+ * For the dynamic, the innermost loop goes over filter taps, which eliminates the need
+ * for thread-local memory to store intermediate sums. This allows processing arbitrary
+ * number of channels.
+ * For static number of channels, the run-time parameter `channels` is ignored and
+ * there's also a local temporary storage for a tap sum for each channel. This is faster,
+ * but requires extra registers for the intermediate sums.
+ */
 template <int static_channels = -1, typename Dst, typename Src>
 __device__ void ResampleHorz_Channels(
     int x0, int x1, int y0, int y1,
@@ -140,16 +142,18 @@ __device__ void ResampleHorz_Channels(
   }
 }
 
-/// @brief Implements vertical resampling for a custom ROI
-/// @param x0 - start column, in output coordinates
-/// @param x1 - end column (exclusive), in output coordinates
-/// @param y0 - start row
-/// @param y1 - end row (exclusive)
-/// @tparam static_channels - number of channels, if known at compile time
-///
-/// The function fills the output in block-sized horizontal spans.
-/// Filter coefficients are pre-calculated for each horizontal span to avoid
-/// recalculating them for each column, and stored in a shared memory block.
+/**
+ * @brief Implements vertical resampling for a custom ROI
+ * @param x0 - start column, in output coordinates
+ * @param x1 - end column (exclusive), in output coordinates
+ * @param y0 - start row
+ * @param y1 - end row (exclusive)
+ * @tparam static_channels - number of channels, if known at compile time
+ *
+ * The function fills the output in block-sized horizontal spans.
+ * Filter coefficients are pre-calculated for each horizontal span to avoid
+ * recalculating them for each column, and stored in a shared memory block.
+ */
 template <int static_channels = -1, typename Dst, typename Src>
 __device__ void ResampleVert_Channels(
     int x0, int x1, int y0, int y1,

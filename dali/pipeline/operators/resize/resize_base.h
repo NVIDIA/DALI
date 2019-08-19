@@ -32,11 +32,17 @@ class DLL_PUBLIC ResamplingFilterAttr {
  public:
   DLL_PUBLIC ResamplingFilterAttr(const OpSpec &spec);
 
-  /// Filter used when downscaling
+  /**
+   * Filter used when downscaling
+   */
   kernels::FilterDesc min_filter_{ kernels::ResamplingFilterType::Triangular, 0 };
-  /// Filter used when upscaling
+  /**
+   * Filter used when upscaling
+   */
   kernels::FilterDesc mag_filter_{ kernels::ResamplingFilterType::Linear, 0 };
-  /// Initial size, in bytes, of a temporary buffer for resampling.
+  /**
+   * Initial size, in bytes, of a temporary buffer for resampling.
+   */
   size_t temp_buffer_hint_ = 0;
 };
 

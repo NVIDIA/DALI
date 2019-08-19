@@ -25,14 +25,18 @@
 namespace dali {
 namespace kernels {
 
-/// @brief Maps a block (by blockIdx) to a sample.
+/**
+ * @brief Maps a block (by blockIdx) to a sample.
+ */
 struct SampleBlockInfo {
   int sample, block_in_sample;
 };
 
 ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params);
 
-/// @brief Builds and maintains resampling setup
+/**
+ * @brief Builds and maintains resampling setup
+ */
 class SeparableResamplingSetup {
  public:
   enum ProcessingOrder : int {
@@ -40,8 +44,10 @@ class SeparableResamplingSetup {
     VertHorz
   };
 
-  /// Number of blocks per pass may differ depending on
-  /// the image aspect ratio and block aspect ratio.
+  /**
+   * Number of blocks per pass may differ depending on
+   * the image aspect ratio and block aspect ratio.
+   */
   struct BlockCount {
     int pass[2];
   };

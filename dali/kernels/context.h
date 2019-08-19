@@ -45,21 +45,29 @@ template <typename... Collections>
 std::tuple<std::remove_cv_t<element_t<Collections>>*...>
 ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collections &... c);
 
-/// @brief Interface for kernels to obtain auxiliary working memory
+/**
+ * @brief Interface for kernels to obtain auxiliary working memory
+ */
 class Scratchpad {
  public:
-  /// @brief Allocates `bytes` bytes of memory in `alloc_type`, with specified `alignment`
+  /**
+   * @brief Allocates `bytes` bytes of memory in `alloc_type`, with specified `alignment`
+   */
   virtual void *Alloc(AllocType alloc_type, size_t bytes, size_t alignment) = 0;
 
-  /// @brief Allocates storage for a Tensor of elements `T` and given `shape`
-  ///        in the memory of type `alloc_type`.
+  /**
+   * @brief Allocates storage for a Tensor of elements `T` and given `shape`
+   *        in the memory of type `alloc_type`.
+   */
   template <AllocType alloc_type, typename T, size_t dim>
   TensorView<AllocBackend<alloc_type>, T, dim> AllocTensor(TensorShape<dim> shape) {
     return { Allocate<T>(alloc_type, volume(shape)), std::move(shape) };
   }
 
-  /// @brief Allocates storage for a TensorList of elements `T` and given `shape`
-  ///        in the memory of type `alloc_type`.
+  /**
+   * @brief Allocates storage for a TensorList of elements `T` and given `shape`
+   *        in the memory of type `alloc_type`.
+   */
   template <AllocType alloc_type, typename T, size_t dim>
   TensorListView<AllocBackend<alloc_type>, T, dim>
   AllocTensorList(const std::vector<TensorShape<dim>> &shape) {
@@ -68,8 +76,10 @@ class Scratchpad {
     return tlv;
   }
 
-  /// @brief Allocates storage for a TensorList of elements `T` and given `shape`
-  ///        in the memory of type `alloc_type`.
+  /**
+   * @brief Allocates storage for a TensorList of elements `T` and given `shape`
+   *        in the memory of type `alloc_type`.
+   */
   template <AllocType alloc_type, typename T, size_t dim>
   TensorListView<AllocBackend<alloc_type>, T, dim>
   AllocTensorList(TensorListShape<dim> shape) {
@@ -78,8 +88,10 @@ class Scratchpad {
     return tlv;
   }
 
-  /// @brief Allocates memory suitable for storing `count` items of type `T` in the
-  ///        memory of type `alloc_type`.
+  /**
+   * @brief Allocates memory suitable for storing `count` items of type `T` in the
+   *        memory of type `alloc_type`.
+   */
   template <typename T>
   T *Allocate(AllocType alloc_type, size_t count, size_t alignment = alignof(T)) {
     return reinterpret_cast<T*>(Alloc(alloc_type, count*sizeof(T), alignment));
@@ -138,7 +150,9 @@ struct KernelContext {
   CPUContext cpu;
   GPUContext gpu;
 
-  /// @brief Caller-provided allocator for temporary data.
+  /**
+   * @brief Caller-provided allocator for temporary data.
+   */
   Scratchpad *scratchpad;
 };
 

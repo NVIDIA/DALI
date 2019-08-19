@@ -157,25 +157,31 @@ struct KernelArgs<Kernel, false> {
 
 }  // namespace detail
 
-/// @brief Tells what inputs a kernel takes
-///
-/// If there's a type `Kernel::Inputs`, then this type is returned.
-/// Otherwise, it's a tuple of all `InList` parameters from `Kernel::Run` signature.
+/**
+ * @brief Tells what inputs a kernel takes
+ *
+ * If there's a type `Kernel::Inputs`, then this type is returned.
+ * Otherwise, it's a tuple of all `InList` parameters from `Kernel::Run` signature.
+ */
 template <typename Kernel>
 using kernel_inputs = typename detail::KernelInputs<Kernel>::type;
 
-/// @brief Tells what outputs a kernel produces
-///
-/// If there's a type `Kernel::Outputs`, then this type is returned.
-/// Otherwise, it's a tuple of all `OutList` parameters from `Kernel::Run` signature.
+/**
+ * @brief Tells what outputs a kernel produces
+ *
+ * If there's a type `Kernel::Outputs`, then this type is returned.
+ * Otherwise, it's a tuple of all `OutList` parameters from `Kernel::Run` signature.
+ */
 template <typename Kernel>
 using kernel_outputs = typename detail::KernelOutputs<Kernel>::type;
 
-/// @brief Tells what extra arguments a kernel takes
-///
-/// If there's a type `Kernel::Args`, then this type is returned.
-/// Otherwise returns all parameters to `Kernel::Run` that are neither
-/// `InList`, `OutList` or KernelContext.
+/**
+ * @brief Tells what extra arguments a kernel takes
+ *
+ * If there's a type `Kernel::Args`, then this type is returned.
+ * Otherwise returns all parameters to `Kernel::Run` that are neither
+ * `InList`, `OutList` or KernelContext.
+ */
 template <typename Kernel>
 using kernel_args = typename detail::KernelArgs<Kernel>::type;
 

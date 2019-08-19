@@ -23,7 +23,9 @@
 namespace dali {
 namespace kernels {
 
-/// @brief Defines an interface of a separable resampling filter
+/**
+ * @brief Defines an interface of a separable resampling filter
+ */
 template <typename OutputElement, typename InputElement>
 struct SeparableResamplingFilter {
   using Input = InListGPU<InputElement, 3>;

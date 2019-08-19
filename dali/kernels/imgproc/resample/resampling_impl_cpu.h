@@ -173,15 +173,17 @@ inline void ResampleAxis(Surface2D<Out> out, Surface2D<In> in,
     assert(!"Invalid axis index");
 }
 
-/// @brief Resamples `in` using Nearest Neighbor interpolation and stores result in `out`
-/// @param out - output surface
-/// @param in - input surface
-/// @param src_x0 - starting X coordinate of input
-/// @param src_y0 - starting Y coordinate of input
-/// @param scale_x - step of X input coordinate taken for each output pixel
-/// @param scale_y - step of Y input coordinate taken for each output row
-/// @remarks The function clamps input coordinates to fit in range defined by `in` dimensions.
-///          Scales can be negative to achieve flipping.
+/**
+ * @brief Resamples `in` using Nearest Neighbor interpolation and stores result in `out`
+ * @param out - output surface
+ * @param in - input surface
+ * @param src_x0 - starting X coordinate of input
+ * @param src_y0 - starting Y coordinate of input
+ * @param scale_x - step of X input coordinate taken for each output pixel
+ * @param scale_y - step of Y input coordinate taken for each output row
+ * @remarks The function clamps input coordinates to fit in range defined by `in` dimensions.
+ *          Scales can be negative to achieve flipping.
+ */
 template <typename Out, typename In>
 void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
                 float src_x0, float src_y0, float scale_x, float scale_y) {

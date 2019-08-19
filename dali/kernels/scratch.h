@@ -61,7 +61,9 @@ class BumpAllocator {
     assert(used_ + required <= total_);
   }
 
-  /// @brief Resets the usage counter so the buffer can be reused.
+  /**
+   * @brief Resets the usage counter so the buffer can be reused.
+   */
   inline void Clear() {
     used_ = 0;
   }
@@ -72,7 +74,9 @@ class BumpAllocator {
   size_t used_ = 0;
 };
 
-/// @brief Scratchpad with pre-existing buffers
+/**
+ * @brief Scratchpad with pre-existing buffers
+ */
 struct PreallocatedScratchpad : Scratchpad {
   PreallocatedScratchpad() = default;
 
@@ -99,41 +103,55 @@ struct PreallocatedScratchpad : Scratchpad {
   std::array<BumpAllocator, size_t(AllocType::Count)> allocs;
 };
 
-/// @brief Implements an ever-growing scratchpad
+/**
+ * @brief Implements an ever-growing scratchpad
+ */
 class ScratchpadAllocator {
  public:
   static constexpr size_t NumAllocTypes = static_cast<size_t>(AllocType::Count);
 
-  /// @brief Describes scratch memory allocation policy
-  ///
-  /// When reserving `size` memory and the existing capacity is `capacity`
-  /// then the new allocation will be of size:
-  /// ```
-  /// new_capacity = max(size * (1 + Margin), capacity * GrowthRatio)
-  /// ```
+  /**
+   * @brief Describes scratch memory allocation policy
+   *
+   * When reserving `size` memory and the existing capacity is `capacity`
+   * then the new allocation will be of size:
+   * ```
+   * new_capacity = max(size * (1 + Margin), capacity * GrowthRatio)
+   * ```
+   */
   struct AllocPolicy {
-    /// When reserving more memory than available, current capacity will
-    /// be multiplied by this value.
+    /**
+     * When reserving more memory than available, current capacity will
+     * be multiplied by this value.
+     */
     float GrowthRatio = 2;
 
-    /// When reserving memory, make sure that at least `(1 + Margin) * size` is
-    /// actually allocated.
+    /**
+     * When reserving memory, make sure that at least `(1 + Margin) * size` is
+     * actually allocated.
+     */
     float Margin = 0.1;
   };
 
-  /// @brief Returns reference to the current
-  ///        allocation policy for given allocation type.
+  /**
+   * @brief Returns reference to the current
+   *        allocation policy for given allocation type.
+   */
   AllocPolicy &Policy(AllocType type) {
     return buffers_[static_cast<int>(type)].policy;
   }
 
-  /// @brief Returns allocation policy for given allocation type
+  /**
+   * @brief Returns allocation policy for given allocation type
+   */
   const AllocPolicy &Policy(AllocType type) const {
     return buffers_[static_cast<int>(type)].policy;
   }
 
-  /// @brief Releases any storage allocated by calls to `Reserve`.
-  /// @remarks Scratchpad returned by `GetScratchpad` is invalid after this call.
+  /**
+   * @brief Releases any storage allocated by calls to `Reserve`.
+   * @remarks Scratchpad returned by `GetScratchpad` is invalid after this call.
+   */
   void Free() {
     for (auto &buffer : buffers_) {
       buffer.mem.reset();
@@ -142,18 +160,22 @@ class ScratchpadAllocator {
     }
   }
 
-  /// @brief Reserves memory for all allocation types.
-  ///
-  /// See `Reserve(AllocType, size_t)` for details.
+  /**
+   * @brief Reserves memory for all allocation types.
+   *
+   * See `Reserve(AllocType, size_t)` for details.
+   */
   void Reserve(std::array<size_t, NumAllocTypes> sizes) {
     for (size_t idx = 0; idx < NumAllocTypes; idx++) {
       Reserve(AllocType(idx), sizes[idx]);
     }
   }
 
-  /// @brief Ensures that at least `sizes` bytes of memory are available in storage `type`
-  /// @remarks If reallocation happens, any `Scratchpad` returned by `GetScratchpad`
-  ///          is invalidated.
+  /**
+   * @brief Ensures that at least `sizes` bytes of memory are available in storage `type`
+   * @remarks If reallocation happens, any `Scratchpad` returned by `GetScratchpad`
+   *          is invalidated.
+   */
   void Reserve(AllocType type, size_t size) {
     size_t index = static_cast<size_t>(type);
     auto &buf = buffers_[index];
@@ -177,7 +199,9 @@ class ScratchpadAllocator {
     }
   }
 
-  /// @brief Returns allocator's capacities for all allocation types
+  /**
+   * @brief Returns allocator's capacities for all allocation types
+   */
   std::array<size_t, NumAllocTypes> Capacities() const noexcept {
     std::array<size_t, NumAllocTypes> capacities;
     for (size_t i = 0; i < buffers_.size(); i++)
@@ -185,14 +209,18 @@ class ScratchpadAllocator {
     return capacities;
   }
 
-  /// @brief Returns allocator's capacity for given allocation type
+  /**
+   * @brief Returns allocator's capacity for given allocation type
+   */
   size_t Capacity(AllocType type) const noexcept {
     return buffers_[static_cast<size_t>(type)].capacity;
   }
 
-  /// @brief Returns a scratchpad.
-  /// @remarks The returned scratchpad is invalidated by desctruction of this
-  ///          object or by subsequent calls to `Reserve` or `Free`.
+  /**
+   * @brief Returns a scratchpad.
+   * @remarks The returned scratchpad is invalidated by desctruction of this
+   *          object or by subsequent calls to `Reserve` or `Free`.
+   */
   PreallocatedScratchpad GetScratchpad() {
     PreallocatedScratchpad scratchpad;
     for (size_t idx = 0; idx < NumAllocTypes; idx++) {

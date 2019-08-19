@@ -137,10 +137,12 @@ bool operator==(const BlockMap<dim> &a, const BlockMap<dim> &b) {
 
 inline void ValidateBlockMap(const BlockMap<0> &map, const TensorShape<0> &shape) {}
 
-/// @brief Check that the output shape is covered with rectangular grid.
-///
-/// The grid cells must be aligned between rows/slices, but don't have to be uniform
-/// - typically the last cell will be smaller and that's expected.
+/**
+ * @brief Check that the output shape is covered with rectangular grid.
+ *
+ * The grid cells must be aligned between rows/slices, but don't have to be uniform
+ * - typically the last cell will be smaller and that's expected.
+ */
 template <int dim>
 void ValidateBlockMap(const BlockMap<dim> &map, const TensorShape<dim> &shape) {
   ASSERT_FALSE(map.inner.empty());

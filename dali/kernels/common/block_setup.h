@@ -52,15 +52,17 @@ std::enable_if_t<(skip >= 0), TensorShape<n-1>> skip_dim(const TensorShape<n> &s
   return shape_cat(shape.template first<skip>(), shape.template last<n-skip-1>());
 }
 
-/// @brief A utility for calculating block layout for GPU kernels
-/// @tparam _ndim         number dimensions to take into account while calculating the layout
-/// @tparam _channel_dim  dimension in which channels are stored; channel dimension does not
-///                       participate in layout calculation \n
-///                       In cases where channel dimension can or should participate in layout
-///                       calaculation, do not specify channel dimenion and treat it as an
-///                       additional spatial dimension (e.g. for linear operations in CHW layout)\n
-///                       -1 indicates there are only spatial dimensions, all of which
-///                       participate in layout calculation.
+/**
+ * @brief A utility for calculating block layout for GPU kernels
+ * @tparam _ndim         number dimensions to take into account while calculating the layout
+ * @tparam _channel_dim  dimension in which channels are stored; channel dimension does not
+ *                       participate in layout calculation \n
+ *                       In cases where channel dimension can or should participate in layout
+ *                       calaculation, do not specify channel dimenion and treat it as an
+ *                       additional spatial dimension (e.g. for linear operations in CHW layout)\n
+ *                       -1 indicates there are only spatial dimensions, all of which
+ *                       participate in layout calculation.
+ */
 template <int _ndim, int _channel_dim>
 class BlockSetup {
  public:

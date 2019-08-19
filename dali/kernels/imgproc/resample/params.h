@@ -60,12 +60,16 @@ struct FilterDesc {
   float radius = 0;
 };
 
-/// @brief Resampling parameters for 1 dimension
+/**
+ * @brief Resampling parameters for 1 dimension
+ */
 struct ResamplingParams {
   FilterDesc min_filter, mag_filter;
   int output_size = KeepOriginalSize;
 
-  /// @brief 1D region of interest
+  /**
+   * @brief 1D region of interest
+   */
   struct ROI {
     ROI() = default;
     ROI(float start, float end) : use_roi(true), start(start), end(end) {}

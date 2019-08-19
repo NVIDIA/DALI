@@ -168,13 +168,17 @@ class TensorVector {
     return pinned_;
   }
 
-  /// @brief Reserve as contiguous tensor list internally
+  /**
+   * @brief Reserve as contiguous tensor list internally
+   */
   inline void reserve(size_t total_bytes) {
     state_ = State::contiguous;
     tl_->reserve(total_bytes);
   }
 
-  /// @brief Reserve as vector of `batch_size` tensors internally
+  /**
+   * @brief Reserve as vector of `batch_size` tensors internally
+   */
   inline void reserve(size_t bytes_per_sample, int batch_size) {
     DALI_ENFORCE(tensors_.empty() || static_cast<int>(tensors_.size()) == batch_size,
                  "Changing the batch size is prohibited. It should be set once.");
@@ -189,14 +193,18 @@ class TensorVector {
     }
   }
 
-  /// @brief If the TensorVector is backed by TensorList (contiguous memory)
+  /**
+   * @brief If the TensorVector is backed by TensorList (contiguous memory)
+   */
   bool IsContiguous() {
     // TODO(klecki): check the views_count as well?
     return state_ == State::contiguous && views_count_ == size();
   }
 
-  /// @brief Set the current state if further calls like Resize() or set_type
-  ///        should use TensorList or std::vector<Tensor> as backing memory
+  /**
+   * @brief Set the current state if further calls like Resize() or set_type
+   *        should use TensorList or std::vector<Tensor> as backing memory
+   */
   void SetContiguous(bool contiguous) {
     if (contiguous) {
       state_ = State::contiguous;
