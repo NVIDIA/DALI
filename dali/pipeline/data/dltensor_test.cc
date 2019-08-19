@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <utility>
 #include "dali/pipeline/data/dltensor.h"
 
 namespace dali {

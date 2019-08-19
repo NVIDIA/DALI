@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <vector>
+#include <utility>
 #include "third_party/dlpack/include/dlpack/dlpack.h"
 #include "dali/pipeline/data/tensor.h"
 
