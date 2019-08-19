@@ -17,7 +17,7 @@ DALI uses C++14 standard as this is the most recent version supported with CUDA.
 
 ### Line length
 
-We use line length limit eqaul 100.
+We use a line length limit equal to 100.
 
 ### Reference arguments
 
