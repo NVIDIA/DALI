@@ -215,12 +215,12 @@ class WorkspaceBase : public ArgumentWorkspace {
    */
   cudaStream_t stream() const {
     DALI_ENFORCE(has_stream(),
-                 "Provided workspace doesn't allow for CUDA calculations. "
+                 "No valid CUDA stream in the Workspace. "
+                 "Either the Workspace doesn't support CUDA streams or "
+                 "the stream hasn't been successfully set. "
                  "Use `has_stream()`, to runtime-check, "
                  "if CUDA stream is available for this workspace");
     auto stream = stream_impl();
-    DALI_ENFORCE(stream != nullptr, "Something bad happened. "
-                                    "Make sure, the stream is properly created");
     return stream;
   }
 
