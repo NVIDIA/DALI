@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/pipeline/data/views.h>
-#include <dali/kernels/imgproc/color_manipulation/brightness_contrast.h>
 #include "brightness_contrast.h"
 
 namespace dali {
@@ -22,12 +20,13 @@ namespace brightness_contrast {
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrast<CPUBackend>, CPU)
 
+
 DALI_SCHEMA(BrightnessContrast)
                 .DocStr(R"code( * HWC
 )code")
                 .NumInput(1)
                 .NumOutput(1)
-                .AddOptionalArg(detail::kOutputType, R"code(...)code",DALI_INT16)
+                .AddOptionalArg(detail::kOutputType, R"code(...)code", DALI_INT16)
                 .AddOptionalArg(detail::kBrightness,
                                 R"code(Set additive brightness delta. 0 denotes no-op)code", .0f,
                                 true)
@@ -36,32 +35,28 @@ DALI_SCHEMA(BrightnessContrast)
                                 1.f, true);
 
 
-template <class Backend>
-BrightnessContrast<Backend>::BrightnessContrast(const OpSpec &spec) :
-        Operator<Backend>(spec),
-        brightness_(spec.GetArgument<float>(detail::kBrightness)),
-        contrast_(spec.GetArgument<float>(detail::kContrast)),
-        output_type_(spec.GetArgument<DALIDataType>(detail::kOutputType))                      {
+//template <class Backend>
+//BrightnessContrast<Backend>::BrightnessContrast(const OpSpec &spec) :
+//        Operator<Backend>(spec),
+//        brightness_(spec.GetArgument<float>(detail::kBrightness)),
+//        contrast_(spec.GetArgument<float>(detail::kContrast)),
+//        output_type_(spec.GetArgument<DALIDataType>(detail::kOutputType))                      {
+//}
 
 
-}
+//template <class Backend>
+//struct _InputDataContainer {
+//  using type = Tensor<Backend>;
+//};
+//
+//template <>
+//struct _InputDataContainer<GPUBackend> {
+//  using type = TensorList<GPUBackend>;
+//};
+//
+//template <class Backend>
+//using InputDataContainer = typename _InputDataContainer<Backend>::type;
+//}
 
 
-template <class Backend>
-struct _InputDataContainer {
-  using type = Tensor<Backend>;
-};
-
-template <>
-struct _InputDataContainer<GPUBackend> {
-  using type = TensorList<GPUBackend>;
-};
-
-template <class Backend>
-using InputDataContainer = typename _InputDataContainer<Backend>::type;
-}
-
-
-
-
-}
+}}
