@@ -54,6 +54,15 @@ class DLL_PUBLIC SupportWorkspace : public WorkspaceBase<SupportInputType, Suppo
    */
   template <typename Backend>
   DLL_PUBLIC Tensor<Backend>& Output(int idx);
+
+  bool has_stream() const override {
+    return false;
+  }
+
+ private:
+  cudaStream_t stream_impl() const override {
+    return nullptr;
+  }
 };
 
 }  // namespace dali
