@@ -50,7 +50,7 @@ struct SampleDescriptor {
  * Therefore, while copying, order of values needs to be reversed.
  */
 template <size_t ndims>
-TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchannels) {
+inline TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchannels) {
   TensorListShape<ndims> ret(rois.size());
 
   size_t i = 0;
@@ -78,8 +78,8 @@ TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchan
  *    (This is a sanity-check for Rois, that can be larger than image)
  */
 template <size_t spatial_dims>
-std::vector<Roi<spatial_dims>> AdjustRois(const std::vector<Roi<spatial_dims>> rois,
-                                          const TensorListShape<spatial_dims + 1> &shapes) {
+inline std::vector<Roi<spatial_dims>> AdjustRois(const std::vector<Roi<spatial_dims>> rois,
+                                                 const TensorListShape<spatial_dims + 1> &shapes) {
   assert(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()));
   std::vector<Roi<spatial_dims>> ret(shapes.num_samples());
 
@@ -111,7 +111,7 @@ std::vector<Roi<spatial_dims>> AdjustRois(const std::vector<Roi<spatial_dims>> r
  * @see RoiToShape
  */
 template <class OutputType, class InputType, int ndims>
-std::vector<SampleDescriptor<OutputType, InputType, ndims - 1>>
+inline std::vector<SampleDescriptor<OutputType, InputType, ndims - 1>>
 CreateSampleDescriptors(const OutListGPU<OutputType, ndims> &out,
                         const InListGPU<InputType, ndims> &in,
                         const std::vector<float> &brightness, const std::vector<float> &contrast) {
@@ -211,6 +211,7 @@ class BrightnessContrastGpu {
   void Run(KernelContext &context, const OutListGPU<OutputType, ndims> &out,
            const InListGPU<InputType, ndims> &in, const std::vector<float> &brightness,
            const std::vector<float> &contrast, const std::vector<Roi<spatial_dims>> &rois = {}) {
+    cout<<"DUPADUPADUPADUPA GPUGPUGPUGPUGPUGPUGPUG\n";
     auto sample_descs = CreateSampleDescriptors(out, in, brightness, contrast);
 
     typename decltype(sample_descs)::value_type *samples_gpu;

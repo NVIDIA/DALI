@@ -18,6 +18,7 @@
 #include <dali/pipeline/data/views.h>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
+#include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.h"
 #include "dali/kernels/type_tag.h"
 #include "dali/core/static_switch.h"
 
@@ -44,7 +45,8 @@ struct BrightnessContrastGpuKernelStub;
 
 template <class Out, class In, size_t ndims>
 struct Kernel<GPUBackend, Out, In, ndims> {
-  using type = BrightnessContrastGpuKernelStub<Out, In, ndims>;
+  using type = kernels::brightness_contrast::BrightnessContrastGpu<Out, In, ndims>;
+//  using type = BrightnessContrastGpuKernelStub<Out, In, ndims>;
 };
 
 
@@ -54,6 +56,8 @@ struct Kernel<GPUBackend, Out, In, ndims> {
 template <class Backend, class OutputType, class InputType, size_t ndims>
 using BrightnessContrastKernel = typename Kernel<Backend, OutputType, InputType, ndims>::type;
 
+using KernelRun
+
 }  // namespace detail
 
 
@@ -61,7 +65,11 @@ template <class Backend>
 class BrightnessContrast : public Operator<Backend> {
 
  public:
-  explicit BrightnessContrast(const OpSpec &spec);
+  explicit BrightnessContrast(const OpSpec &spec) :
+          Operator<Backend>(spec),
+          brightness_(spec.GetArgument<float>(detail::kBrightness)),
+          contrast_(spec.GetArgument<float>(detail::kContrast)),
+          output_type_(spec.GetArgument<DALIDataType>(detail::kOutputType)) {}
 
   ~BrightnessContrast() = default;
   DISABLE_COPY_MOVE_ASSIGN(BrightnessContrast);
@@ -104,7 +112,9 @@ class BrightnessContrast : public Operator<Backend> {
                   auto tvout = view<OutputType, 3>(output);
                   detail::BrightnessContrastKernel<Backend, OutputType, InputType, 3> kernel;
                   kernels::KernelContext ctx;
-//                       ctx.gpu.stream = ws->stream();
+                  if (ws->has_stream()) {
+            ctx.gpu.stream = ws->stream();
+          }
                   auto reqs = kernel.Setup(ctx, tvin, brightness_, contrast_);
                   kernel.Run(ctx, tvout, tvin, brightness_, contrast_);
           }
