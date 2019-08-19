@@ -34,7 +34,7 @@ namespace test {
  * @param cols width of the input image
  */
 template <int nchannels, class T, class Roi>
-cv::Mat_<cv::Vec<T, nchannels>> to_mat(T *ptr, Roi roi, int rows, int cols) {
+inline cv::Mat_<cv::Vec<T, nchannels>> to_mat(T *ptr, Roi roi, int rows, int cols) {
   static_assert(std::is_same<Roi, Box<2, int>>::value, "Roi is supposed to be `Box<2, int>`");
   auto roi_w = roi.extent().x;
   auto roi_h = roi.extent().y;

@@ -19,6 +19,7 @@ namespace dali {
 namespace brightness_contrast {
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrast<CPUBackend>, CPU)
+DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrast<GPUBackend>, GPU)
 
 
 DALI_SCHEMA(BrightnessContrast)
