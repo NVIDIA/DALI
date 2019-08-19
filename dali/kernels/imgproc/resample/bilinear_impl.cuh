@@ -27,11 +27,13 @@ namespace kernels {
 
 namespace {
 
-/// @brief Implements horizontal resampling for a custom ROI
-/// @param x0 - start column, in output coordinates
-/// @param x1 - end column (exclusive), in output coordinates
-/// @param y0 - start row
-/// @param y1 - end row (exclusive)
+/**
+ * @brief Implements horizontal resampling for a custom ROI
+ * @param x0 - start column, in output coordinates
+ * @param x1 - end column (exclusive), in output coordinates
+ * @param y0 - start row
+ * @param y1 - end row (exclusive)
+ */
 template <int static_channels = -1, typename Dst, typename Src>
 __device__ void LinearHorz_Channels(
     int x0, int x1, int y0, int y1,
@@ -94,11 +96,13 @@ __device__ void LinearHorz(
   ));  // NOLINT
 }
 
-/// @brief Implements vertical resampling for a custom ROI
-/// @param x0 - start column, in output coordinates
-/// @param x1 - end column (exclusive), in output coordinates
-/// @param y0 - start row
-/// @param y1 - end row (exclusive)
+/**
+ * @brief Implements vertical resampling for a custom ROI
+ * @param x0 - start column, in output coordinates
+ * @param x1 - end column (exclusive), in output coordinates
+ * @param y0 - start row
+ * @param y1 - end row (exclusive)
+ */
 template <typename Dst, typename Src>
 __device__ void LinearVert(
     int x0, int x1, int y0, int y1,

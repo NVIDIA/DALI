@@ -39,11 +39,13 @@ struct mapping_params {
   using type = Mapping;
 };
 
-/// @brief This type is passed to the Warp kernel to construct the mapping object
-///
-/// The Mapping object can be transient and/or contain additional state.
-/// mapping_params_t type is used to distinguish between mapping object and
-/// the parameters needed to construct one - by default they are the same type.
+/**
+ * @brief This type is passed to the Warp kernel to construct the mapping object
+ *
+ * The Mapping object can be transient and/or contain additional state.
+ * mapping_params_t type is used to distinguish between mapping object and
+ * the parameters needed to construct one - by default they are the same type.
+ */
 template <typename Mapping>
 using mapping_params_t = typename mapping_params<Mapping>::type;
 

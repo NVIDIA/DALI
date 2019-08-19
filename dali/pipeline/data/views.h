@@ -26,7 +26,9 @@
 namespace dali {
 namespace detail {
 
-/// @brief Maps DALI Backend to dali::kernels storage backend.
+/**
+ * @brief Maps DALI Backend to dali::kernels storage backend.
+ */
 template <typename Backend>
 struct storage_tag_map;
 
@@ -54,9 +56,11 @@ void enforce_dim_in_view(const ShapeType &shape) {
 
 }  // namespace detail
 
-/// @brief Returns an equivalent tensor shape for a dense, uniform tensor list.
-/// @return Tensor shape with outermost dimension corresponding to samples.
-/// @remarks If the argument is not a dense tensor, an error is raised.
+/**
+ * @brief Returns an equivalent tensor shape for a dense, uniform tensor list.
+ * @return Tensor shape with outermost dimension corresponding to samples.
+ * @remarks If the argument is not a dense tensor, an error is raised.
+ */
 template <int ndim, typename Backend>
 kernels::TensorShape<ndim> get_tensor_shape(const TensorList<Backend> &tl) {
   DALI_ENFORCE(tl.IsDenseTensor(), "Uniform, dense tensor expected");

@@ -125,8 +125,10 @@ TEST(WarpGPU, Affine_Transpose_Single) {
   WarpGPU_Affine_Transpose(false);
 }
 
-/// @brief Apply correction of pixel centers and convert the mapping to
-///        OpenCV matrix type.
+/**
+ * @brief Apply correction of pixel centers and convert the mapping to
+ *        OpenCV matrix type.
+ */
 inline cv::Matx<float, 2, 3> AffineToCV(const AffineMapping2D &mapping) {
   vec2 translation = mapping({0.5f, 0.5f}) - vec2(0.5f, 0.5f);
   mat2x3 tmp = mapping.transform;

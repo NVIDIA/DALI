@@ -26,7 +26,9 @@
 namespace dali {
 namespace kernels {
 
-/// @remarks Assume HWC layout
+/**
+ * @remarks Assume HWC layout
+ */
 template <typename _Mapping, int ndim, typename _OutputType, typename _InputType,
           typename _BorderType>
 class WarpGPU {

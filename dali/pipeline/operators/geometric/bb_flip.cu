@@ -18,19 +18,25 @@
 
 namespace dali {
 
-/// @param output                - output bounding boxes
-/// @param input                 - input bounding boxes
-/// @param num_boxes             - number of bounding boxes in the input
-/// @param sample_indices        - when using per-sample flip, contains sample indices for each
-///                                bounding box in the input tensor list
-/// @param per_sample_horizontal - per-sample flag indicating whether bounding boxes from
-//                                 a given sample should be flipped horizontally; may by NULL
-/// @param per_sample_vertical   - per-sample flag indicating whether bounding boxes from
-//                                 a given sample should be flipped vertically; may be NULL
-/// @param global_horizontal     - whether to flip horizontally; overriden by
-///                                per_sample_horizontal, if specified
-/// @param global_vertical       - whether to flip vertically; overriden by
-///                                per_sample_vertical, if specified
+/**
+ * @param output                - output bounding boxes
+ * @param input                 - input bounding boxes
+ * @param num_boxes             - number of bounding boxes in the input
+ * @param sample_indices        - when using per-sample flip, contains sample indices for each
+ *                                bounding box in the input tensor list
+ * @param per_sample_horizontal - per-sample flag indicating whether bounding boxes from
+ *
+ *                                 a given sample should be flipped horizontally; may by NULL
+ *
+ * @param per_sample_vertical   - per-sample flag indicating whether bounding boxes from
+ *
+ *                                 a given sample should be flipped vertically; may be NULL
+ *
+ * @param global_horizontal     - whether to flip horizontally; overriden by
+ *                                per_sample_horizontal, if specified
+ * @param global_vertical       - whether to flip vertically; overriden by
+ *                                per_sample_vertical, if specified
+ */
 template <bool ltrb>
 __global__ void BbFlipKernel(float *output, const float *input, size_t num_boxes,
                              bool global_horizontal, const int *per_sample_horizontal,

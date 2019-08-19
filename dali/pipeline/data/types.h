@@ -123,11 +123,15 @@ enum DALIDataType {
 template <DALIDataType id>
 struct id2type_helper;
 
-/// @brief Compile-time mapping from a type to DALIDataType
+/**
+ * @brief Compile-time mapping from a type to DALIDataType
+ */
 template <typename data_type>
 struct type2id;
 
-/// @brief Compile-time mapping from DALIDataType to a type
+/**
+ * @brief Compile-time mapping from DALIDataType to a type
+ */
 template <DALIDataType id>
 using id2type = typename id2type_helper<id>::type;
 
