@@ -256,21 +256,23 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
 
     if (device == "cpu" || device == "mixed") {
       DALI_ENFORCE(input_device == "cpu", "cpu/mixed ops can only take cpu "
-          "inputs. " + error_str);
+          "inputs. CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
-          "only on gpu. " + error_str);
+          "only on gpu. CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(!it->second.is_support,
-          "Argument input can only be used as regular input by support ops. " + error_str);
+          "Argument input can only be used as regular input by support ops. "
+          "CPU op cannot follow GPU op. " + error_str);
     } else if (device == "support") {
-      DALI_ENFORCE(input_device == "cpu", "Support ops can only take cpu inputs. " + error_str);
+      DALI_ENFORCE(input_device == "cpu", "Support ops can only take cpu inputs. "
+          "CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
-          "only on gpu. " + error_str);
+          "only on gpu. CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(it->second.is_support,
           "Support ops can only take inputs produced by other support ops." + error_str);
     } else if (input_device == "cpu") {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
-          "only on gpu. " + error_str);
+          "only on gpu. CPU op cannot follow GPU op. " + error_str);
       SetupCPUInput(it, i, &spec);
     } else {
       SetupGPUInput(it);
