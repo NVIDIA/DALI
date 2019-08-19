@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,10 +33,6 @@ DLDataType GetDLType(const TypeInfo &type) {
   return dl_type;
 }
 
-struct DLTensorResource {
-  kernels::TensorShape<> shape_;
-};
-
 void DLManagedTensorDeleter(DLManagedTensor *self) {
   delete static_cast<DLTensorResource*>(self->manager_ctx);
 }
@@ -49,21 +45,19 @@ void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr) {
 }
 
 DLMTensorPtr MakeDLTensor(void* data, const TypeInfo& type,
-                          const kernels::TensorShape<>& shape,
-                          bool device, int device_id) {
+                          bool device, int device_id,
+                          std::unique_ptr<DLTensorResource> resource) {
   DLTensor dl_tensor{};
-  auto resource = new DLTensorResource;
-  resource->shape_ = shape;
   dl_tensor.data = data;
-  dl_tensor.ndim = shape.size();
-  dl_tensor.shape = resource->shape_.begin();
+  dl_tensor.ndim = resource->shape.size();
+  dl_tensor.shape = resource->shape.begin();
   if (device) {
     dl_tensor.ctx = {kDLGPU, device_id};
   } else {
     dl_tensor.ctx = {kDLCPU, 0};
   }
   dl_tensor.dtype = GetDLType(type);
-  return {new DLManagedTensor{dl_tensor, resource, &DLManagedTensorDeleter},
+  return {new DLManagedTensor{dl_tensor, resource.release(), &DLManagedTensorDeleter},
           &DLMTensorPtrDeleter};
 }
 

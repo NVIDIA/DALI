@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,29 +30,38 @@ using DLMTensorPtr = std::unique_ptr<DLManagedTensor, void(*)(DLManagedTensor*)>
 
 DLL_PUBLIC DLDataType GetDLType(const TypeInfo &type);
 
+struct DLTensorResource {
+  explicit DLTensorResource(kernels::TensorShape<> shape): shape(std::move(shape)) {}
+
+  kernels::TensorShape<> shape;
+
+  virtual ~DLTensorResource() = default;
+};
+
 DLL_PUBLIC DLMTensorPtr MakeDLTensor(void *data, const TypeInfo &type,
-                          const kernels::TensorShape<> &shape,
-                          bool device, int device_id);
+                                     bool device, int device_id,
+                                     std::unique_ptr<DLTensorResource> resource);
 
 template <typename Backend>
-DLMTensorPtr GetDLTensor(Tensor<Backend> &tensor) {
+DLMTensorPtr GetDLTensorView(Tensor<Backend> &tensor) {
   return MakeDLTensor(tensor.raw_mutable_data(),
                       tensor.type(),
-                      tensor.shape(),
                       std::is_same<Backend, GPUBackend>::value,
-                      tensor.device_id());
+                      tensor.device_id(),
+                      std::make_unique<DLTensorResource>(tensor.shape()));
 }
 
 template <typename Backend>
-std::vector<DLMTensorPtr> GetDLTensors(TensorList<Backend> &tensor_list) {
+std::vector<DLMTensorPtr> GetDLTensorListView(TensorList<Backend> &tensor_list) {
   std::vector<DLMTensorPtr> dl_tensors{};
   dl_tensors.reserve(tensor_list.ntensor());
   for (size_t i = 0; i < tensor_list.ntensor(); ++i) {
+    const auto &shape = tensor_list.tensor_shape(i);
     dl_tensors.push_back(MakeDLTensor(tensor_list.raw_mutable_tensor(i),
                                       tensor_list.type(),
-                                      tensor_list.tensor_shape(i),
                                       std::is_same<Backend, GPUBackend>::value,
-                                      tensor_list.device_id()));
+                                      tensor_list.device_id(),
+                                      std::make_unique<DLTensorResource>(shape)));
   }
   return dl_tensors;
 }

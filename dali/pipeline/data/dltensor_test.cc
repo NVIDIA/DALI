@@ -21,7 +21,7 @@ TEST(DLMTensorPtr, CPU) {
   Tensor<CPUBackend> tensor;
   tensor.set_type(TypeInfo::Create<float>());
   tensor.Resize({100, 50, 3});
-  DLMTensorPtr dlm_tensor = GetDLTensor(tensor);
+  DLMTensorPtr dlm_tensor = GetDLTensorView(tensor);
   ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
@@ -37,7 +37,7 @@ TEST(DLMTensorPtr, GPU) {
   Tensor<GPUBackend> tensor;
   tensor.set_type(TypeInfo::Create<int>());
   tensor.Resize({100, 50, 1});
-  DLMTensorPtr dlm_tensor = GetDLTensor(tensor);
+  DLMTensorPtr dlm_tensor = GetDLTensorView(tensor);
   ASSERT_EQ(dlm_tensor->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
@@ -54,7 +54,7 @@ TEST(DLMTensorPtr, CPUList) {
   TensorList<CPUBackend> tlist;
   tlist.set_type(TypeInfo::Create<double>());
   tlist.Resize({{100, 50, 1}, {50, 30, 3}});
-  std::vector<DLMTensorPtr> dlm_tensors = GetDLTensors(tlist);
+  std::vector<DLMTensorPtr> dlm_tensors = GetDLTensorListView(tlist);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[0], 100);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[1], 50);
@@ -81,7 +81,7 @@ TEST(DLMTensorPtr, GPUList) {
   TensorList<GPUBackend> tlist;
   tlist.set_type(TypeInfo::Create<uint8>());
   tlist.Resize({{100, 50, 1}, {50, 30, 3}});
-  std::vector<DLMTensorPtr> dlm_tensors = GetDLTensors(tlist);
+  std::vector<DLMTensorPtr> dlm_tensors = GetDLTensorListView(tlist);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.ndim, 3);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[0], 100);
   ASSERT_EQ(dlm_tensors[0]->dl_tensor.shape[1], 50);
@@ -103,6 +103,35 @@ TEST(DLMTensorPtr, GPUList) {
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.ctx.device_type, kDLGPU);
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.byte_offset, 0);
   ASSERT_EQ(dlm_tensors[1]->dl_tensor.ctx.device_id, tlist.device_id());
+}
+
+struct TestDLTensorResource: public DLTensorResource {
+  TestDLTensorResource(kernels::TensorShape<> shape, bool &called)
+  : DLTensorResource(std::move(shape))
+  , called(called) {
+    called = false;
+  }
+
+  bool &called;
+
+  ~TestDLTensorResource() override {
+    called = true;
+  }
+};
+
+TEST(DLMTensorPtr, Cleanup) {
+  Tensor<CPUBackend> tensor;
+  tensor.set_type(TypeInfo::Create<float>());
+  tensor.Resize({100, 50, 3});
+  bool deleter_called = false;
+  {
+    auto dlm_tensor = MakeDLTensor(tensor.raw_mutable_data(),
+                                   tensor.type(),
+                                   false, -1,
+                                   std::make_unique<TestDLTensorResource>(tensor.shape(),
+                                                                          deleter_called));
+  }
+  ASSERT_TRUE(deleter_called);
 }
 
 }  // namespace dali
