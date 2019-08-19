@@ -34,7 +34,7 @@ namespace brightness_contrast {
  * Assumes HWC layout
  */
 template<size_t ndims, class CoordinateType>
-TensorShape<ndims + 1> roi_shape(Box<ndims, CoordinateType> roi, size_t nchannels) {
+inline TensorShape<ndims + 1> roi_shape(Box<ndims, CoordinateType> roi, size_t nchannels) {
   assert(all_coords(roi.hi >= roi.lo) && "Cannot create a tensor shape from an invalid Box");
   TensorShape<ndims + 1> ret;
   auto e = roi.extent();
@@ -45,6 +45,21 @@ TensorShape<ndims + 1> roi_shape(Box<ndims, CoordinateType> roi, size_t nchannel
   }
   return ret;
 }
+
+
+template <class Ret, class Val>
+std::enable_if_t<std::is_integral<Ret>::value && std::is_floating_point<Val>::value, Ret>
+custom_convert(const Val &val) {
+  return std::round(val);
+}
+
+
+template <class Ret, class Val>
+std::enable_if_t<!std::is_integral<Ret>::value || !std::is_floating_point<Val>::value, Ret>
+custom_convert(const Val &val) {
+  return val;
+}
+
 
 }  // namespace brightness_contrast
 
@@ -84,6 +99,8 @@ class BrightnessContrastCpu {
   void Run(KernelContext &context, const OutTensorCPU<OutputType, ndims> &out,
            const InTensorCPU<InputType, ndims> &in, float brightness, float contrast,
            const Roi *roi = nullptr) {
+    cout<<"DUPADUPADUPADUPA CPUCPUCPUCPUCPUCPUC\n";
+
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     auto num_channels = in.shape[2];
     auto image_width = in.shape[1];
@@ -93,7 +110,8 @@ class BrightnessContrastCpu {
     auto *row = in.data + adjusted_roi.lo.y * row_stride;
     for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
       for (int xc = adjusted_roi.lo.x * num_channels; xc < adjusted_roi.hi.x * num_channels; xc++)
-        *ptr++ = ConvertSat<OutputType>(row[xc] * contrast + brightness);
+        *ptr++ = brightness_contrast::custom_convert<OutputType>(row[xc] * contrast + brightness);
+//        *ptr++ = ConvertSat<OutputType>(row[xc] * contrast + brightness);
       row += row_stride;
     }
   }
