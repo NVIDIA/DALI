@@ -203,7 +203,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   using dali::OperatorBase::Run;
-  void Run(MixedWorkspace *ws) override {
+  void Run(MixedWorkspace &ws) override {
     // TODO(slayton): Is this necessary?
     // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
     CUDA_CALL(cudaEventRecord(master_event_, ws->stream()));

@@ -56,18 +56,18 @@ constexpr int kNInputDims = 4;
 
 
 template<>
-void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
+void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   if (enable_external_hints_) {
     // Fetch data
     // Input is a TensorList, where every Tensor is a sequence
-    const auto &input = ws->Input<GPUBackend>(0);
-    const auto &hints = ws->Input<GPUBackend>(1);
-    auto &output = ws->Output<GPUBackend>(0);
+    const auto &input = ws.Input<GPUBackend>(0);
+    const auto &hints = ws.Input<GPUBackend>(1);
+    auto &output = ws.Output<GPUBackend>(0);
 
     // Extract calculation params
     ExtractParams(input, hints);
 
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws->stream());
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws.stream());
 
     auto out_shape = optical_flow_->GetOutputShape();
     kernels::TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
@@ -101,14 +101,14 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
   } else {
     // Fetch data
     // Input is a TensorList, where every Tensor is a sequence
-    const auto &input = ws->Input<GPUBackend>(0);
-    auto &output = ws->Output<GPUBackend>(0);
+    const auto &input = ws.Input<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
 
 
     // Extract calculation params
     ExtractParams(input);
 
-    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws->stream());
+    of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws.stream());
 
     auto out_shape = optical_flow_->GetOutputShape();
     kernels::TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());

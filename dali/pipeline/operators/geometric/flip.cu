@@ -42,16 +42,16 @@ void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &inp
 }
 
 template <>
-void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
-  const auto &input = ws->Input<GPUBackend>(0);
-  auto &output = ws->Output<GPUBackend>(0);
+void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   DALI_ENFORCE(input.GetLayout() == DALI_NHWC || input.GetLayout() == DALI_NCHW);
   output.SetLayout(input.GetLayout());
   output.set_type(input.type());
   output.ResizeLike(input);
   auto horizontal = GetHorizontal(ws);
   auto vertical = GetVertical(ws);
-  RunKernel(output, input, horizontal, vertical, ws->stream());
+  RunKernel(output, input, horizontal, vertical, ws.stream());
 }
 
 DALI_REGISTER_OPERATOR(Flip, Flip<GPUBackend>, GPU);

@@ -33,9 +33,9 @@ class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
       "TFRecordReader doesn't support `skip_cached_images` option");
   }
 
-  void RunImpl(SampleWorkspace* ws) override {
-    const auto& tensor = GetSample(ws->data_idx());
-    parser_->Parse(tensor, ws);
+  void RunImpl(SampleWorkspace &ws) override {
+    const auto& tensor = GetSample(ws.data_idx());
+    parser_->Parse(tensor, &ws);
   }
 
  protected:

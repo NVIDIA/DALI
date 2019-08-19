@@ -67,13 +67,13 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
   }
 
   using dali::OperatorBase::Run;
-  void Run(MixedWorkspace *ws) override {
+  void Run(MixedWorkspace &ws) override {
     std::vector<std::vector<Index>> output_shape(batch_size_);
     // Creating output shape and setting the order of images so the largest are processed first
     // (for load balancing)
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
     for (int i = 0; i < batch_size_; i++) {
-      const auto& info_tensor = ws->Input<CPUBackend>(0, i);
+      const auto& info_tensor = ws.Input<CPUBackend>(0, i);
       const ImageInfo* info = info_tensor.data<ImageInfo>();
       int c = NumberOfChannels(output_image_type_);
       output_shape[i] = {info->heights[0], info->widths[0], c};
@@ -82,7 +82,7 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
     std::sort(image_order.begin(), image_order.end(),
               std::greater<std::pair<size_t, size_t>>());
 
-    auto& output = ws->Output<GPUBackend>(0);
+    auto& output = ws.Output<GPUBackend>(0);
     output.Resize(output_shape);
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
@@ -90,8 +90,8 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
     for (auto& size_idx : image_order) {
       const int sample_idx = size_idx.second;
 
-      const auto& info_tensor = ws->Input<CPUBackend>(0, sample_idx);
-      const auto& state_tensor = ws->Input<CPUBackend>(1, sample_idx);
+      const auto& info_tensor = ws.Input<CPUBackend>(0, sample_idx);
+      const auto& state_tensor = ws.Input<CPUBackend>(1, sample_idx);
       const ImageInfo* info;
       const StateNvJPEG* nvjpeg_state;
       std::tie(info, nvjpeg_state) = GetInfoState(info_tensor, state_tensor);
@@ -115,24 +115,24 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
             decoder,
             state,
             nvjpeg_state->jpeg_stream,
-            ws->stream()), file_name);
+            ws.stream()), file_name);
 
         NVJPEG_CALL_EX(nvjpegDecodeJpegDevice(
             handle_,
             decoder,
             state,
             &nvjpeg_image,
-            ws->stream()), file_name);
+            ws.stream()), file_name);
       } else {
         // Fallback was handled by CPU op and wrote OpenCV ouput in Input #2
         // we just need to copy to device
-        auto& in = ws->Input<CPUBackend>(2, sample_idx);
+        auto& in = ws.Input<CPUBackend>(2, sample_idx);
         const auto *input_data = in.data<uint8_t>();
         auto *output_data = output.mutable_tensor<uint8_t>(sample_idx);
         CUDA_CALL(cudaMemcpyAsync(output_data,
                     input_data,
                     info->heights[0] * info->widths[0] * NumberOfChannels(output_image_type_),
-                    cudaMemcpyHostToDevice, ws->stream()));
+                    cudaMemcpyHostToDevice, ws.stream()));
       }
     }
   }

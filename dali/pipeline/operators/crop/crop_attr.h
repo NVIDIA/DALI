@@ -99,14 +99,14 @@ class CropAttr {
       };
   }
 
-  void ProcessArguments(const ArgumentWorkspace *ws) {
+  void ProcessArguments(const ArgumentWorkspace &ws) {
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-      ProcessArguments(ws, data_idx);
+      ProcessArguments(&ws, data_idx);
     }
   }
 
-  void ProcessArguments(const SampleWorkspace *ws) {
-    ProcessArguments(ws, ws->data_idx());
+  void ProcessArguments(const SampleWorkspace &ws) {
+    ProcessArguments(&ws, ws.data_idx());
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {

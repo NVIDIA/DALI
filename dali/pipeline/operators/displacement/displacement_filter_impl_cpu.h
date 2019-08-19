@@ -90,11 +90,11 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   template <typename Out, typename In, DALIInterpType interp>
-  void RunWarp(SampleWorkspace *ws, int idx) {
-    auto &input = ws->Input<CPUBackend>(idx);
-    auto &output = ws->Output<CPUBackend>(idx);
+  void RunWarp(SampleWorkspace &ws, int idx) {
+    auto &input = ws.Input<CPUBackend>(idx);
+    auto &output = ws.Output<CPUBackend>(idx);
 
-    auto &displace = displace_[ws->thread_idx()];
+    auto &displace = displace_[ws.thread_idx()];
     In fill[1024];
     auto in = view_as_tensor<const Out, 3>(input);
     auto out = view_as_tensor<In, 3>(output);
@@ -110,12 +110,12 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     return false;
   }
 
-  void RunImpl(SampleWorkspace *ws) override {
+  void RunImpl(SampleWorkspace &ws) override {
     DataDependentSetup(ws);
 
-    auto &input = ws->Input<CPUBackend>(0);
+    auto &input = ws.Input<CPUBackend>(0);
 
-    if (!has_mask_ || mask_->template data<bool>()[ws->data_idx()]) {
+    if (!has_mask_ || mask_->template data<bool>()[ws.data_idx()]) {
       switch (interp_type_) {
         case DALI_INTERP_NN:
           if (IsType<float>(input.type())) {
@@ -141,8 +141,8 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
               " only NN and LINEAR are supported for this operation");
       }
     } else {
-      auto &output = ws->Output<CPUBackend>(0);
-      output.Copy(input, ws->stream());
+      auto &output = ws.Output<CPUBackend>(0);
+      output.Copy(input, ws.stream());
     }
   }
 
@@ -161,17 +161,17 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
    * @brief Do basic input checking and output setup
    * assuming output_shape = input_shape
    */
-  virtual void DataDependentSetup(SampleWorkspace *ws) {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto &output = ws->Output<CPUBackend>(0);
+  virtual void DataDependentSetup(SampleWorkspace &ws) {
+    auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
     output.ResizeLike(input);
   }
 
-  void SetupSharedSampleParams(SampleWorkspace *ws) override {
+  void SetupSharedSampleParams(SampleWorkspace &ws) override {
     if (has_mask_) {
-      mask_ = &(ws->ArgumentInput("mask"));
+      mask_ = &(ws.ArgumentInput("mask"));
     }
-    PrepareDisplacement(ws);
+    PrepareDisplacement(&ws);
   }
 
   USE_OPERATOR_MEMBERS();

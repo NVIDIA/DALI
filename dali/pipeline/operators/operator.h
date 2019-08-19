@@ -43,31 +43,31 @@ inline void CheckInputLayout(const InputType &input, const OpSpec &spec) {
 }
 
 template <typename Workspace>
-inline void CheckInputLayouts(const Workspace *ws, const OpSpec &spec) {
+inline void CheckInputLayouts(const Workspace &ws, const OpSpec &spec) {
   for (int i = 0; i < spec.NumRegularInput(); ++i) {
-    auto &input = ws->template Input<CPUBackend>(i);
+    auto &input = ws.template Input<CPUBackend>(i);
     CheckInputLayout(input, spec);
   }
 }
 
 template <>
-inline void CheckInputLayouts(const HostWorkspace *ws, const OpSpec &spec) {
+inline void CheckInputLayouts(const HostWorkspace &ws, const OpSpec &spec) {
   for (int i = 0; i < spec.NumRegularInput(); ++i) {
     for (int sample_id = 0; sample_id < spec.GetArgument<int>("batch_size"); ++sample_id) {
-      auto &input = ws->template Input<CPUBackend>(i, sample_id);
+      auto &input = ws.template Input<CPUBackend>(i, sample_id);
       CheckInputLayout(input, spec);
     }
   }
 }
 
 template <>
-inline void CheckInputLayouts(const DeviceWorkspace *ws, const OpSpec &spec) {
+inline void CheckInputLayouts(const DeviceWorkspace &ws, const OpSpec &spec) {
   for (int i = 0; i < spec.NumRegularInput(); ++i) {
-    if (ws->InputIsType<CPUBackend>(i)) {
-      auto &input = ws->Input<CPUBackend>(i);
+    if (ws.InputIsType<CPUBackend>(i)) {
+      auto &input = ws.Input<CPUBackend>(i);
       CheckInputLayout(input, spec);
-    } else if (ws->InputIsType<GPUBackend>(i)) {
-      auto &input = ws->Input<GPUBackend>(i);
+    } else if (ws.InputIsType<GPUBackend>(i)) {
+      auto &input = ws.Input<GPUBackend>(i);
       CheckInputLayout(input, spec);
     } else {
       DALI_FAIL("Input has an unkown backend");
@@ -120,28 +120,28 @@ class DLL_PUBLIC OperatorBase {
   /**
    * @brief Executes the operator on a batch of samples on the CPU.
    */
-  DLL_PUBLIC virtual void Run(HostWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(HostWorkspace &ws) {
     DALI_FAIL("CPU execution is not implemented for this operator!");
   }
 
   /**
    * @brief Executes the operator on a batch of samples on the GPU.
    */
-  DLL_PUBLIC virtual void Run(DeviceWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(DeviceWorkspace &ws) {
     DALI_FAIL("GPU execution is not implemented for this operator!");
   }
 
   /**
    * @brief Used by operators interfacing with both CPU and GPU.
    */
-  DLL_PUBLIC virtual void Run(MixedWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(MixedWorkspace &ws) {
     DALI_FAIL("Mixed execution is not implemented for this operator!");
   }
 
   /**
    * @brief Used by support operators (RNG etc.).
    */
-  DLL_PUBLIC virtual void Run(SupportWorkspace *ws) {
+  DLL_PUBLIC virtual void Run(SupportWorkspace &ws) {
     DALI_FAIL(name() + " is not a support operator!");
   }
 
@@ -209,7 +209,7 @@ class Operator<SupportBackend> : public OperatorBase {
     return SetupImpl(output_desc, ws);
   }
 
-  void Run(SupportWorkspace *ws) override {
+  void Run(SupportWorkspace &ws) override {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     RunImpl(ws);
@@ -228,12 +228,12 @@ class Operator<SupportBackend> : public OperatorBase {
    * @brief Implementation of the operator - to be
    * implemented by derived ops.
    */
-  virtual void RunImpl(SupportWorkspace *ws) = 0;
+  virtual void RunImpl(SupportWorkspace &ws) = 0;
 
   /**
    * @brief Shared param setup
    */
-  virtual void SetupSharedSampleParams(SupportWorkspace *ws) {}
+  virtual void SetupSharedSampleParams(SupportWorkspace &ws) {}
 };
 
 template <>
@@ -250,11 +250,11 @@ class Operator<CPUBackend> : public OperatorBase {
     return SetupImpl(output_desc, ws);
   }
 
-  void Run(HostWorkspace *ws) override {
+  void Run(HostWorkspace &ws) override {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     RunImpl(ws);
-    ws->GetThreadPool().WaitForWork();
+    ws.GetThreadPool().WaitForWork();
   }
 
   /**
@@ -269,25 +269,25 @@ class Operator<CPUBackend> : public OperatorBase {
   /**
    * @brief Legacy implementation of CPU operator using per-sample approach
    *
-   * Usage of this API is deprecated. For CPU Ops `void RunImpl(HostWorkspace *ws, int idx)`
+   * Usage of this API is deprecated. For CPU Ops `void RunImpl(HostWorkspace &ws)`
    * should be overrided instead.
    */
-  virtual void RunImpl(SampleWorkspace *ws) {}
+  virtual void RunImpl(SampleWorkspace &ws) {}
 
   /**
    * @brief Implementation of the operator - to be implemented by derived ops.
    */
-  virtual void RunImpl(HostWorkspace *ws) {
+  virtual void RunImpl(HostWorkspace &ws) {
     // This is implemented, as a default, using the RunImpl that accepts SampleWorkspace,
     // allowing for fallback to old per-sample implementations.
 
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
-      auto &thread_pool = ws->GetThreadPool();
-      thread_pool.DoWorkWithID([this, ws, data_idx](int tid) {
+      auto &thread_pool = ws.GetThreadPool();
+      thread_pool.DoWorkWithID([this, &ws, data_idx](int tid) {
         SampleWorkspace sample;
-        ws->GetSample(&sample, data_idx, tid);
-        this->SetupSharedSampleParams(&sample);
-        this->RunImpl(&sample);
+        ws.GetSample(&sample, data_idx, tid);
+        this->SetupSharedSampleParams(sample);
+        this->RunImpl(sample);
       });
     }
   }
@@ -295,15 +295,15 @@ class Operator<CPUBackend> : public OperatorBase {
   /**
    * @brief Shared param setup. Legacy implementation for per-sample approach
    *
-   * Usage of this API is deprecated. For CPU Ops `void SetupSharedSampleParams(HostWorkspace *ws)`
+   * Usage of this API is deprecated. For CPU Ops `void SetupSharedSampleParams(HostWorkspace &ws)`
    * should be used instead.
    */
-  virtual void SetupSharedSampleParams(SampleWorkspace *ws) {}
+  virtual void SetupSharedSampleParams(SampleWorkspace &ws) {}
 
   /**
    * @brief Shared param setup
    */
-  virtual void SetupSharedSampleParams(HostWorkspace *ws) {}
+  virtual void SetupSharedSampleParams(HostWorkspace &ws) {}
 };
 
 template <>
@@ -320,7 +320,7 @@ class Operator<GPUBackend> : public OperatorBase {
     return SetupImpl(output_desc, ws);
   }
 
-  void Run(DeviceWorkspace *ws) override {
+  void Run(DeviceWorkspace &ws) override {
     CheckInputLayouts(ws, spec_);
     SetupSharedSampleParams(ws);
     RunImpl(ws);
@@ -339,12 +339,12 @@ class Operator<GPUBackend> : public OperatorBase {
    * @brief Implementation of the operator - to be
    * implemented by derived ops.
    */
-  virtual void RunImpl(DeviceWorkspace *ws) = 0;
+  virtual void RunImpl(DeviceWorkspace &ws) = 0;
 
   /**
    * @brief Shared param setup
    */
-  virtual void SetupSharedSampleParams(DeviceWorkspace *ws) {}
+  virtual void SetupSharedSampleParams(DeviceWorkspace &ws) {}
 };
 
 template <>
@@ -370,9 +370,9 @@ class Operator<MixedBackend> : public OperatorBase {
    */
   virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) = 0;
 
-  void Run(MixedWorkspace *ws) override = 0;
+  void Run(MixedWorkspace &ws) override = 0;
 
-  virtual void SetupSharedSampleParams(MixedWorkspace *ws) {}
+  virtual void SetupSharedSampleParams(MixedWorkspace &ws) {}
 };
 
 // Create registries for CPU & GPU Operators

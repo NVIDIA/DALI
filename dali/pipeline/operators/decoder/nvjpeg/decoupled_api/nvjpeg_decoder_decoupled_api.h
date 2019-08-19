@@ -169,7 +169,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   using dali::OperatorBase::Run;
-  void Run(MixedWorkspace *ws) override {
+  void Run(MixedWorkspace &ws) override {
     SetupSharedSampleParams(ws);
     ParseImagesInfo(ws);
     ProcessImages(ws);
@@ -180,11 +180,11 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     return {};
   }
 
-  void ParseImagesInfo(MixedWorkspace *ws) {
+  void ParseImagesInfo(MixedWorkspace &ws) {
     const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
     // Parsing and preparing metadata
     for (int i = 0; i < batch_size_; i++) {
-      const auto &in = ws->Input<CPUBackend>(0, i);
+      const auto &in = ws.Input<CPUBackend>(0, i);
       const auto *input_data = in.data<uint8_t>();
       const auto in_size = in.size();
       const auto file_name = in.GetSourceInfo();
@@ -244,7 +244,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
-  void ProcessImages(MixedWorkspace* ws) {
+  void ProcessImages(MixedWorkspace &ws) {
     // Creating output shape and setting the order of images so the largest are processed first
     // (for load balancing)
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
@@ -254,7 +254,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     std::sort(image_order.begin(), image_order.end(),
               std::greater<std::pair<size_t, size_t>>());
 
-    auto& output = ws->Output<GPUBackend>(0);
+    auto& output = ws.Output<GPUBackend>(0);
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
     output.Resize(output_shape_);
@@ -263,7 +263,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     for (int idx = 0; idx < batch_size_; ++idx) {
       const int i = image_order[idx].second;
 
-      const auto &in = ws->Input<CPUBackend>(0, i);
+      const auto &in = ws.Input<CPUBackend>(0, i);
       const auto file_name = in.GetSourceInfo();
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       if (DeferCacheLoad(file_name, output_data))
@@ -278,13 +278,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           CacheStore(file_name, output_data, shape, streams_[tid]);
         });
     }
-    LoadDeferred(ws->stream());
+    LoadDeferred(ws.stream());
 
     thread_pool_.WaitForWork();
     // wait for all work in workspace master stream
     for (int i = 0; i < num_threads_; ++i) {
       CUDA_CALL(cudaEventRecord(decode_events_[i], streams_[i]));
-      CUDA_CALL(cudaStreamWaitEvent(ws->stream(), decode_events_[i], 0));
+      CUDA_CALL(cudaStreamWaitEvent(ws.stream(), decode_events_[i], 0));
     }
   }
 

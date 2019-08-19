@@ -18,9 +18,9 @@
 namespace dali {
 
 template<>
-void Copy<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
-  auto &input = ws->Input<GPUBackend>(0);
-  auto &output = ws->Output<GPUBackend>(0);
+void Copy<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+  auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.set_type(input.type());
   output.SetLayout(input.GetLayout());
   output.ResizeLike(input);
@@ -29,7 +29,7 @@ void Copy<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
           input.raw_data(),
           input.nbytes(),
           cudaMemcpyDeviceToDevice,
-          ws->stream()));
+          ws.stream()));
 }
 
 DALI_REGISTER_OPERATOR(Copy, Copy<GPUBackend>, GPU);

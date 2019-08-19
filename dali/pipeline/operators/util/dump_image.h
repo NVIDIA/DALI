@@ -41,7 +41,7 @@ class DumpImage : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
   const string suffix_;
 };

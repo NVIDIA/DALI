@@ -3,9 +3,9 @@
 namespace other_ns {
 
 template<>
-void Dummy<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace *ws) {
-  const auto &input = ws->Input<::dali::CPUBackend>(0);
-  auto &output = ws->Output<::dali::CPUBackend>(0);
+void Dummy<::dali::CPUBackend>::RunImpl(::dali::SampleWorkspace &ws) {
+  const auto &input = ws.Input<::dali::CPUBackend>(0);
+  auto &output = ws.Output<::dali::CPUBackend>(0);
 
   ::dali::TypeInfo type = input.type();
   type.Copy<::dali::CPUBackend, ::dali::CPUBackend>(

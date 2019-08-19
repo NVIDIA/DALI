@@ -18,9 +18,9 @@
 namespace dali {
 
 template<>
-void DumpImage<CPUBackend>::RunImpl(SampleWorkspace *ws) {
-  auto &input = ws->Input<CPUBackend>(0);
-  auto &output = ws->Output<CPUBackend>(0);
+void DumpImage<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+  auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
 
   DALI_ENFORCE(input.ndim() == 3,
       "Input images must have three dimensions.");
@@ -30,7 +30,7 @@ void DumpImage<CPUBackend>::RunImpl(SampleWorkspace *ws) {
   int c = input.dim(2);
 
   WriteHWCImage(input.template data<uint8>(),
-      h, w, c, std::to_string(ws->data_idx()) + "-" + suffix_ + "-" + std::to_string(0));
+      h, w, c, std::to_string(ws.data_idx()) + "-" + suffix_ + "-" + std::to_string(0));
 
   // Forward the input
   output.Copy(input, 0);

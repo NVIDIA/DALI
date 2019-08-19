@@ -32,14 +32,14 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
                                      shuffle_after_epoch);
   }
 
-  void RunImpl(SampleWorkspace *ws) override {
-    const int idx = ws->data_idx();
+  void RunImpl(SampleWorkspace &ws) override {
+    const int idx = ws.data_idx();
 
     const auto& image_label = GetSample(idx);
 
     // copy from raw_data -> outputs directly
-    auto &image_output = ws->Output<CPUBackend>(0);
-    auto &label_output = ws->Output<CPUBackend>(1);
+    auto &image_output = ws.Output<CPUBackend>(0);
+    auto &label_output = ws.Output<CPUBackend>(1);
 
     Index image_size = image_label.image.size();
 

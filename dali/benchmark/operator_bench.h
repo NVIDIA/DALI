@@ -67,9 +67,9 @@ class OperatorBench : public DALIBenchmark {
     ThreadPool tp(num_threads, 0, false);
     ws.SetThreadPool(&tp);
 
-    op_ptr->Run(&ws);
+    op_ptr->Run(ws);
     for (auto _ : st) {
-      op_ptr->Run(&ws);
+      op_ptr->Run(ws);
       st.counters["FPS"] = benchmark::Counter(st.iterations() + 1,
         benchmark::Counter::kIsRate);
     }
@@ -108,10 +108,10 @@ class OperatorBench : public DALIBenchmark {
     ws.AddOutput(data_out_gpu);
     ws.set_stream(0);
 
-    op_ptr->Run(&ws);
+    op_ptr->Run(ws);
     CUDA_CALL(cudaStreamSynchronize(0));
     for (auto _ : st) {
-      op_ptr->Run(&ws);
+      op_ptr->Run(ws);
       CUDA_CALL(cudaStreamSynchronize(0));
 
       int num_batches = st.iterations() + 1;

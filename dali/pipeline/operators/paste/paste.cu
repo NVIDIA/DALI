@@ -106,8 +106,8 @@ void BatchedPaste(
 
 
 template<>
-void Paste<GPUBackend>::RunHelper(DeviceWorkspace *ws) {
-  BatchedPaste<<<batch_size_, PASTE_BLOCKSIZE, 0, ws->stream()>>>(
+void Paste<GPUBackend>::RunHelper(DeviceWorkspace &ws) {
+  BatchedPaste<<<batch_size_, PASTE_BLOCKSIZE, 0, ws.stream()>>>(
       batch_size_,
       C_,
       fill_value_.template data<uint8>(),
@@ -117,14 +117,14 @@ void Paste<GPUBackend>::RunHelper(DeviceWorkspace *ws) {
 }
 
 template<>
-void Paste<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace *ws) {
+void Paste<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
   // No setup shared between input sets
 }
 
 template<>
-void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws) {
-  auto &input = ws->Input<GPUBackend>(0);
-  auto &output = ws->Output<GPUBackend>(0);
+void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace &ws) {
+  auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
   std::vector<kernels::TensorShape<>> output_shape(batch_size_);
 
@@ -137,14 +137,14 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws) {
     int W = input_shape[1];
     C_ = input_shape[2];
 
-    float ratio = spec_.GetArgument<float>("ratio", ws, i);
+    float ratio = spec_.GetArgument<float>("ratio", &ws, i);
     DALI_ENFORCE(ratio >= 1.,
       "ratio of less than 1 is not supported");
 
     int new_H = static_cast<int>(ratio * H);
     int new_W = static_cast<int>(ratio * W);
 
-    int min_canvas_size_ = spec_.GetArgument<float>("min_canvas_size", ws, i);
+    int min_canvas_size_ = spec_.GetArgument<float>("min_canvas_size", &ws, i);
     DALI_ENFORCE(min_canvas_size_ >= 0.,
       "min_canvas_size_ of less than 0 is not supported");
 
@@ -153,8 +153,8 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws) {
 
     output_shape[i] = {new_H, new_W, C_};
 
-    float paste_x_ = spec_.GetArgument<float>("paste_x", ws, i);
-    float paste_y_ = spec_.GetArgument<float>("paste_y", ws, i);
+    float paste_x_ = spec_.GetArgument<float>("paste_x", &ws, i);
+    float paste_y_ = spec_.GetArgument<float>("paste_y", &ws, i);
     DALI_ENFORCE(paste_x_ >= 0,
       "paste_x of less than 0 is not supported");
     DALI_ENFORCE(paste_x_ <= 1,
@@ -183,13 +183,13 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace *ws) {
   }
 
   // Copy pointers on the GPU for fast access
-  input_ptrs_gpu_.Copy(input_ptrs_, ws->stream());
-  output_ptrs_gpu_.Copy(output_ptrs_, ws->stream());
-  in_out_dims_paste_yx_gpu_.Copy(in_out_dims_paste_yx_, ws->stream());
+  input_ptrs_gpu_.Copy(input_ptrs_, ws.stream());
+  output_ptrs_gpu_.Copy(output_ptrs_, ws.stream());
+  in_out_dims_paste_yx_gpu_.Copy(in_out_dims_paste_yx_, ws.stream());
 }
 
 template<>
-void Paste<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+void Paste<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   SetupSampleParams(ws);
   RunHelper(ws);
 }

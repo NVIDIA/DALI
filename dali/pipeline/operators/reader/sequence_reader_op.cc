@@ -18,8 +18,8 @@
 
 namespace dali {
 
-void SequenceReader::RunImpl(SampleWorkspace* ws) {
-  parser_->Parse(GetSample(ws->data_idx()), ws);
+void SequenceReader::RunImpl(SampleWorkspace &ws) {
+  parser_->Parse(GetSample(ws.data_idx()), &ws);
 }
 
 DALI_REGISTER_OPERATOR(SequenceReader, SequenceReader, CPU);

@@ -37,8 +37,8 @@ Resize<GPUBackend>::Resize(const OpSpec &spec)
 }
 
 template<>
-void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
-  auto &input = ws->Input<GPUBackend>(0);
+void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
+  auto &input = ws.Input<GPUBackend>(0);
 
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
   if (input.GetLayout() != DALI_UNKNOWN) {
@@ -50,17 +50,17 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace* ws) {
     auto input_shape = input.tensor_shape(i);
     DALI_ENFORCE(input_shape.size() == 3, "Expects 3-dimensional image input.");
 
-    per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, ws, i, ResizeInfoNeeded());
+    per_sample_meta_[i] = GetTransformMeta(spec_, input_shape, &ws, i, ResizeInfoNeeded());
     resample_params_[i] = GetResamplingParams(per_sample_meta_[i]);
   }
 }
 
 template<>
-void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
-  const auto &input = ws->Input<GPUBackend>(0);
-  auto &output = ws->Output<GPUBackend>(0);
+void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
-  RunGPU(output, input, ws->stream());
+  RunGPU(output, input, ws.stream());
 
   // Setup and output the resize attributes if necessary
   if (save_attrs_) {
@@ -80,7 +80,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
       t[0] = sample_shape[0];
       t[1] = sample_shape[1];
     }
-    ws->Output<GPUBackend>(1).Copy(attr_output_cpu, ws->stream());
+    ws.Output<GPUBackend>(1).Copy(attr_output_cpu, ws.stream());
   }
 }
 

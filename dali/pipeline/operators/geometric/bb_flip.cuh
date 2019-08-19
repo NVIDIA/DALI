@@ -30,7 +30,7 @@ class BbFlip<GPUBackend> : public Operator<GPUBackend> {
     return false;
   }
 
-  void RunImpl(Workspace<GPUBackend> *ws) override;
+  void RunImpl(Workspace<GPUBackend> &ws) override;
  private:
 };
 

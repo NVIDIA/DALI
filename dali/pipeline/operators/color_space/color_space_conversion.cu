@@ -91,11 +91,11 @@ auto ConvertYCbCrToGray8uKernel = ConvertYCbCrToGrayKernel<uint8_t>;
 }  // namespace detail
 
 template<>
-void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
-  const auto &input = ws->Input<GPUBackend>(0);
+void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8_t>(input.type()),
       "Color space conversion accept only uint8 tensors");
-  auto &output = ws->Output<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
   TensorList<CPUBackend> attr_output_cpu;
 
@@ -114,7 +114,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
   output.set_type(input.type());
 
   cudaStream_t old_stream = nppGetStream();
-  auto stream = ws->stream();
+  auto stream = ws.stream();
   nppSetStream(stream);
 
   if (input.GetLayout() == DALI_NHWC) {

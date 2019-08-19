@@ -45,7 +45,7 @@ TEST(InstantiateOperator, RunMethodIsAccessible) {
   // We just want to test that Run method is visible (exported to the so file)
   // It is expected that the call throws as the worspace is empty
   ASSERT_THROW(
-    op->Run(&ws),
+    op->Run(ws),
     std::runtime_error);
 }
 

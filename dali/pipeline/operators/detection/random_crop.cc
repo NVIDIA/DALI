@@ -176,13 +176,13 @@ void crop(const Tensor<CPUBackend>& img, vector<int> bounds, Tensor<CPUBackend>&
 }  // namespace detail
 
 template <>
-void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   // [H, W, C], dtype=uint8_t
-  const auto& img = ws->Input<CPUBackend>(0);
+  const auto& img = ws.Input<CPUBackend>(0);
   // [N] : [ltrb, ... ], dtype=float
-  const auto& bboxes = ws->Input<CPUBackend>(1);
-  const auto& labels = ws->Input<CPUBackend>(2);
-  int sample = ws->data_idx();
+  const auto& bboxes = ws.Input<CPUBackend>(1);
+  const auto& labels = ws.Input<CPUBackend>(2);
+  int sample = ws.data_idx();
 
   auto N = bboxes.dim(0);
   const float* bbox_data = bboxes.data<float>();
@@ -202,9 +202,9 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
 
     if (option.no_crop()) {
       // copy directly to output without modification
-      ws->Output<CPUBackend>(0).Copy(img, 0);
-      ws->Output<CPUBackend>(1).Copy(bboxes, 0);
-      ws->Output<CPUBackend>(2).Copy(labels, 0);
+      ws.Output<CPUBackend>(0).Copy(img, 0);
+      ws.Output<CPUBackend>(1).Copy(bboxes, 0);
+      ws.Output<CPUBackend>(2).Copy(labels, 0);
       return;
     }
 
@@ -273,9 +273,9 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
 
       // now we know how many output bboxes there will be, we can allocate
       // the output.
-      auto &img_out = ws->Output<CPUBackend>(0);
-      auto &bbox_out = ws->Output<CPUBackend>(1);
-      auto &label_out = ws->Output<CPUBackend>(2);
+      auto &img_out = ws.Output<CPUBackend>(0);
+      auto &bbox_out = ws.Output<CPUBackend>(1);
+      auto &label_out = ws.Output<CPUBackend>(2);
 
       bbox_out.Resize({valid_bboxes, 4});
       auto *bbox_out_data = bbox_out.mutable_data<float>();
@@ -313,7 +313,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
 
       // perform the crop
       detail::crop(img, {left_idx, top_idx, right_idx, bottom_idx},
-                   ws->Output<CPUBackend>(0));
+                   ws.Output<CPUBackend>(0));
 
       return;
     }  // end num_attempts loop
@@ -321,7 +321,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
 }
 
 template <>
-void SSDRandomCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
+void SSDRandomCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws) {
   return;
 }
 

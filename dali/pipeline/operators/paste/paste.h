@@ -57,13 +57,13 @@ class Paste : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+  void SetupSharedSampleParams(Workspace<Backend> &ws) override;
 
-  void SetupSampleParams(Workspace<Backend> *ws);
+  void SetupSampleParams(Workspace<Backend> &ws);
 
-  void RunHelper(Workspace<Backend> *ws);
+  void RunHelper(Workspace<Backend> &ws);
 
   // Op parameters
   int C_;

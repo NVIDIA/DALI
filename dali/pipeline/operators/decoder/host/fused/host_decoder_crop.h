@@ -29,7 +29,7 @@ class HostDecoderCrop : public HostDecoder, protected CropAttr {
   inline ~HostDecoderCrop() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderCrop);
 
-  void inline SetupSharedSampleParams(SampleWorkspace *ws) override {
+  void inline SetupSharedSampleParams(SampleWorkspace &ws) override {
     CropAttr::ProcessArguments(ws);
   }
 

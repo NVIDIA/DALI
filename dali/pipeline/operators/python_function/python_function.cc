@@ -68,10 +68,10 @@ void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, py::array &array) {
       buffer_info.strides, shape, buffer_info.itemsize);
 }
 
-py::list PrepareInputList(SampleWorkspace *ws) {
+py::list PrepareInputList(SampleWorkspace &ws) {
   py::list args_list;
-  for (int i = 0; i < ws->NumInput(); ++i) {
-    auto &input = ws->Input<CPUBackend>(i);
+  for (int i = 0; i < ws.NumInput(); ++i) {
+    auto &input = ws.Input<CPUBackend>(i);
     py::dtype dtype(FormatStrFromType(input.type()));
     auto input_array = py::array(dtype, input.shape(), input.raw_data(), py::array());
     args_list.append(input_array);
@@ -79,9 +79,9 @@ py::list PrepareInputList(SampleWorkspace *ws) {
   return args_list;
 }
 
-void CopyOutputs(SampleWorkspace *ws, const py::tuple &output) {
-  for (int i = 0; i < ws->NumOutput(); ++i) {
-    auto &output_tensor = ws->Output<CPUBackend>(i);
+void CopyOutputs(SampleWorkspace &ws, const py::tuple &output) {
+  for (int i = 0; i < ws.NumOutput(); ++i) {
+    auto &output_tensor = ws.Output<CPUBackend>(i);
     auto output_array = py::cast<py::array>(output[i]);
     CopyNumpyArrayToTensor(output_tensor, output_array);
   }
@@ -90,25 +90,25 @@ void CopyOutputs(SampleWorkspace *ws, const py::tuple &output) {
 static std::mutex operator_lock{};
 
 template<>
-void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace *ws) {
+void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   std::lock_guard<std::mutex> operator_guard(operator_lock);
   py::gil_scoped_acquire interpreter_guard{};
   py::list args_list = PrepareInputList(ws);
   py::object output_o;
   try {
     output_o = python_function(*py::tuple(args_list));
-  } catch(const py::error_already_set & e) {
+  } catch(const py::error_already_set &e) {
     throw std::runtime_error(to_string("PythonFunction error: ") + to_string(e.what()));
   }
   if (!output_o.is_none()) {
     py::tuple output = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
-    DALI_ENFORCE(output.size() == static_cast<size_t>(ws->NumOutput()),
+    DALI_ENFORCE(output.size() == static_cast<size_t>(ws.NumOutput()),
                  "Python function returned " + std::to_string(output.size()) + " outputs and "
-                     + std::to_string(ws->NumOutput()) + " were expected.");
+                     + std::to_string(ws.NumOutput()) + " were expected.");
     CopyOutputs(ws, output);
   } else {
-    DALI_ENFORCE(ws->NumOutput() == 0, "Python function returned 0 outputs and "
-        + std::to_string(ws->NumOutput()) + " were expected.");
+    DALI_ENFORCE(ws.NumOutput() == 0, "Python function returned 0 outputs and "
+        + std::to_string(ws.NumOutput()) + " were expected.");
   }
 }
 

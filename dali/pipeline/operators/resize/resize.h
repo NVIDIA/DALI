@@ -58,8 +58,8 @@ class Resize : public Operator<Backend>
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
+  void SetupSharedSampleParams(Workspace<Backend> &ws) override;
 
   kernels::ResamplingParams2D GetResamplingParams(const TransformMeta &meta) const {
     kernels::ResamplingParams2D params;

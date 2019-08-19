@@ -61,10 +61,10 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override {
-    const auto &input = ws->template Input<Backend>(0);
+  void SetupSharedSampleParams(Workspace<Backend> &ws) override {
+    const auto &input = ws.template Input<Backend>(0);
     input_type_ = input.type().id();
     if (output_type_ == DALI_NO_TYPE)
       output_type_ = input_type_;
@@ -79,7 +79,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     CropAttr::ProcessArguments(ws);
   }
 
-  void DataDependentSetup(Workspace<Backend> *ws);
+  void DataDependentSetup(Workspace<Backend> &ws);
 
   void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
     Index F = 1, H, W, C;

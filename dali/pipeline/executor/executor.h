@@ -255,7 +255,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
                    "type information for Operator outputs. In that case CanInferOutputs should "
                    "always return false.");
     }
-    op.Run(&ws);
+    op.Run(ws);
   }
 };
 

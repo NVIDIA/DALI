@@ -35,7 +35,7 @@ class nvJPEGDecoderCPUStageCrop : public nvJPEGDecoderCPUStage, protected CropAt
     return CropAttr::GetCropWindowGenerator(data_idx);
   }
 
-  void SetupSharedSampleParams(SampleWorkspace *ws) override {
+  void SetupSharedSampleParams(SampleWorkspace &ws) override {
     CropAttr::ProcessArguments(ws);
   }
 };

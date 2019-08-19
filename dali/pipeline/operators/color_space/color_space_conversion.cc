@@ -31,9 +31,9 @@ DALI_SCHEMA(ColorSpaceConversion)
         DALI_IMAGE_TYPE);
 
 template <>
-void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
-  auto &output = ws->Output<CPUBackend>(0);
+void ColorSpaceConversion<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   const auto &input_shape = input.shape();
   auto output_shape = input_shape;
 
