@@ -10,6 +10,7 @@ Tutorials
    augmentation_gallery.ipynb
    color_space_conversion.ipynb
    decoder_examples.ipynb
+   multigpu.ipynb
    video/superres_pytorch/README.rst
    optical_flow/optical_flow_example.ipynb
    extend/create_a_custom_operator.ipynb
