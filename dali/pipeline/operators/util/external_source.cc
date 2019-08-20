@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,29 +17,53 @@
 namespace dali {
 
 template<>
-void ExternalSource<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  // Wrap the output tensor around our data
-  auto &output = ws.Output<CPUBackend>(0);
-  cudaStream_t stream = ws.has_stream() ? ws.stream() : 0;
-  if (data_in_tl_) {
-    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(tl_data_.ntensor()),
-      "Data list provided to ExternalSource needs to have batch_size length.");
-    output.Copy(tl_data_, ws.data_idx(), stream);
-  } else {
-    DALI_ENFORCE(OperatorBase::batch_size_ == static_cast<int>(t_data_.size()),
-      "Data list provided to ExternalSource needs to have batch_size length.");
-    auto &data = t_data_[ws.data_idx()];
-    output.Copy(data, stream);
-  }
-
-  std::lock_guard<std::mutex> l(samples_processed_m_);
-  if (++samples_processed_ >= batch_size_) {
-    samples_processed_ = 0;
-    {
-      std::lock_guard<std::mutex> busy_lock(busy_m_);
-      busy_ = false;
+void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
+  bool is_tl_data;
+  std::list<uptr_tl_type> tensor_list_elm;
+  std::list<uptr_vt_type> vector_tensor_elm;
+  {
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    cv_.wait(busy_lock, [&data = data_in_tl_]{return !data.empty();});
+    is_tl_data = data_in_tl_.front();
+    data_in_tl_.pop_front();
+    if (is_tl_data) {
+        DALI_ENFORCE(!tl_data_.IsEmpty(), "ExternalSource is empty. Need to feed data first.");
+        tensor_list_elm = tl_data_.PopFront();
+        DALI_ENFORCE(OperatorBase::batch_size_ ==
+                     static_cast<int>(tensor_list_elm.front()->ntensor()),
+          "Data list provided to ExternalSource needs to have batch_size = " +
+          std::to_string(batch_size_) + " length, found " +
+          std::to_string(static_cast<int>(tensor_list_elm.front()->ntensor())) + " samples.");
+    } else {
+        DALI_ENFORCE(!t_data_.IsEmpty(), "ExternalSource is empty. Need to feed data first.");
+        vector_tensor_elm = t_data_.PopFront();
+        DALI_ENFORCE(OperatorBase::batch_size_ ==
+                     static_cast<int>(vector_tensor_elm.front()->size()),
+          "Data list provided to ExternalSource needs to have batch_size length = " +
+          std::to_string(batch_size_) + " length, found " +
+          std::to_string(static_cast<int>(vector_tensor_elm.front()->size())) + " samples.");
     }
-    cv_.notify_one();
+  }
+  auto &thread_pool = ws.GetThreadPool();
+  for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
+    thread_pool.DoWorkWithID([&ws, data_idx, is_tl_data, &tensor_list_elm, &vector_tensor_elm]
+                             (int tid) {
+      Tensor<CPUBackend> &output = ws.Output<CPUBackend>(0, data_idx);
+      // HostWorkspace doesn't have any stream
+      cudaStream_t stream = 0;
+      if (is_tl_data) {
+        output.Copy(*(tensor_list_elm.front()), data_idx, stream);
+      } else {
+        auto &data = (*(vector_tensor_elm.front()))[data_idx];
+        output.Copy(data, stream);
+      }
+    });
+  }
+  thread_pool.WaitForWork();
+  if (is_tl_data) {
+    RecycleBuffer(tensor_list_elm);
+  } else {
+    RecycleBuffer(vector_tensor_elm);
   }
 }
 

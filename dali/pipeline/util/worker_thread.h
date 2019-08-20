@@ -21,6 +21,7 @@
 #include <queue>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -103,7 +104,7 @@ class WorkerThread {
 
   inline void DoWork(Work work) {
     std::unique_lock<std::mutex> lock(mutex_);
-    work_queue_.push(work);
+    work_queue_.push(std::move(work));
     work_complete_ = false;
     cv_.notify_one();
   }
@@ -177,7 +178,7 @@ class WorkerThread {
         break;
       }
 
-      Work work = work_queue_.front();
+      Work work = std::move(work_queue_.front());
       work_queue_.pop();
       lock.unlock();
 

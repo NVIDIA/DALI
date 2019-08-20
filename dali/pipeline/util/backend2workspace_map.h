@@ -24,7 +24,7 @@
 namespace dali {
 
 /**
- * @brief Utility clas, which maps the type of workspace with
+ * @brief Utility class, which maps the type of workspace with
  * proper Backend
  */
 template <typename Backend>
