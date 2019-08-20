@@ -61,7 +61,7 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
 
 
   std::vector<Type> input_;
-  kernels::TensorShape<3> shape_ = {640, 480, 3};
+  kernels::TensorShape<3> shape_ = {2,4, 3};
 };
 
 namespace {
@@ -71,15 +71,16 @@ namespace {
 template <class OutputType>
 void BrightnessContrastVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
   static_assert(std::is_fundamental<OutputType>::value, "");
+  auto input_tl = input.CopyTo<CPUBackend>();
+  auto output_tl = output.CopyTo<CPUBackend>();
   auto brightness = args["brightness_delta"].GetValue<float>();
   auto contrast = args["contrast_delta"].GetValue<float>();
-  assert(input.has_cpu() && output.has_cpu());
-  ASSERT_EQ(input.cpu().ntensor(), output.cpu().ntensor());
+  ASSERT_EQ(input_tl->ntensor(), output_tl->ntensor());
   for (size_t t = 0; t < input.cpu().ntensor(); t++) {
-    auto out_shape = output.cpu().tensor_shape(t);
-    auto out_tensor = output.cpu().tensor<OutputType>(t);
-    auto in_shape = input.cpu().tensor_shape(t);
-    auto in_tensor = input.cpu().tensor<Type>(t);
+    auto out_shape = output_tl->tensor_shape(t);
+    auto out_tensor = output_tl->tensor<OutputType>(t);
+    auto in_shape = input_tl->tensor_shape(t);
+    auto in_tensor = input_tl->tensor<Type>(t);
     ASSERT_EQ(in_shape, out_shape);
     for (int i = 0; i < volume(out_shape); i++) {
       EXPECT_EQ(out_tensor[i], static_cast<OutputType>(std::round(in_tensor[i] * contrast + brightness)));
@@ -112,7 +113,7 @@ std::vector<Arguments> args_for_types = {args_float, args_int16, args_uint8};
 
 INSTANTIATE_TEST_SUITE_P(BrightnessContrastTest, BrightnessContrastTest,
                          ::testing::ValuesIn(
-                                 testing::cartesian(testing::utils::kDevices, args_for_types)));
+                                 testing::cartesian(args_for_types)));
 
 
 TEST_P(BrightnessContrastTest, basic_test_float) {
