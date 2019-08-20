@@ -19,13 +19,14 @@
 #include <memory>
 #include <type_traits>
 #include "dali/kernels/alloc_type.h"
+#include "dali/core/api_helper.h"
 
 namespace dali {
 namespace kernels {
 namespace memory {
 
-void *Allocate(AllocType type, size_t size) noexcept;
-void Deallocate(AllocType type, void *mem, int device) noexcept;
+DLL_PUBLIC void *Allocate(AllocType type, size_t size) noexcept;
+DLL_PUBLIC void Deallocate(AllocType type, void *mem, int device) noexcept;
 
 struct Deleter {
   int device;
