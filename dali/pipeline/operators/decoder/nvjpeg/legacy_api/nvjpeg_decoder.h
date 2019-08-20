@@ -205,8 +205,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   using dali::OperatorBase::Run;
   void Run(MixedWorkspace &ws) override {
     // TODO(slayton): Is this necessary?
-    // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
-    CUDA_CALL(cudaEventRecord(master_event_, ws->stream()));
+    // CUDA_CALL(cudaStreamSynchronize(ws.stream()));
+    CUDA_CALL(cudaEventRecord(master_event_, ws.stream()));
     for (int i = 0; i < max_streams_; ++i) {
       CUDA_CALL(cudaStreamWaitEvent(streams_[i], master_event_, 0));
     }
@@ -215,7 +215,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     int idx_in_batch = 0;
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
     for (int i = 0; i < batch_size_; ++i) {
-      auto& in = ws->Input<CPUBackend>(0, i);
+      auto& in = ws.Input<CPUBackend>(0, i);
       auto in_size = in.size();
       const auto *data = in.data<uint8_t>();
 
@@ -261,7 +261,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
 
     // Resize the output (contiguous)
-    auto &output = ws->Output<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     output.Resize(output_shape_);
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
@@ -279,7 +279,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                                 GetFormat(output_type_)), "");
 
       for (int i = 0; i < batch_size_; ++i) {
-        auto& in = ws->Input<CPUBackend>(0, i);
+        auto& in = ws.Input<CPUBackend>(0, i);
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
@@ -332,7 +332,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       for (int i = 0; i < batch_size_; ++i) {
         size_t j = image_order[i].second;
 
-        auto &in = ws->Input<CPUBackend>(0, j);
+        auto &in = ws.Input<CPUBackend>(0, j);
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
@@ -363,7 +363,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
             CacheStore(file_name, output_data, output_shape, streams_[stream_idx]);
           });
       }
-      LoadDeferred(ws->stream());
+      LoadDeferred(ws.stream());
       // Make sure work is finished being submitted
       thread_pool_.WaitForWork();
     }
@@ -371,7 +371,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // ensure we're consistent with the main op stream
     for (int i = 0; i < max_streams_; ++i) {
       CUDA_CALL(cudaEventRecord(events_[i], streams_[i]));
-      CUDA_CALL(cudaStreamWaitEvent(ws->stream(), events_[i], 0));
+      CUDA_CALL(cudaStreamWaitEvent(ws.stream(), events_[i], 0));
     }
   }
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoder);
