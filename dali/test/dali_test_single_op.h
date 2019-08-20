@@ -38,19 +38,8 @@ namespace images {
 
 // TODO(janton): DALI-582 Using this order, breaks some tests
 // ImageList(testing::dali_extra_path() + "/db/single/jpeg/0/", {".jpg"})
-const vector<string> jpeg_test_images = {
-  testing::dali_extra_path() + "/db/single/jpeg/0/420.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/422.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/440.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/444.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/411.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/411-non-multiple-4-width.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/420-odd-height.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/420-odd-width.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/420-odd-both.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/422-odd-width.jpg"
-};
-
+const vector<string> jpeg_test_images =
+    ImageList(testing::dali_extra_path() + "/db/single/jpeg", {".jpg", ".jpeg"}, 10);
 const vector<string> png_test_images =
     ImageList(testing::dali_extra_path() + "/db/single/png", {".png"});
 const vector<string> tiff_test_images =

@@ -17,6 +17,7 @@
 #include <dali/test/dali_test_config.h>
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/test/mat2tensor.h"
+#include "dali/util/image.h"
 
 namespace dali {
 namespace testing {
@@ -70,7 +71,7 @@ void CopyAsTensorGpuTest(const cv::Mat &mat) {
 }  // namespace
 
 TEST(Mat2Tensor, CopyAsTensorGpuTest) {
-  cv::Mat img = cv::imread(dali_extra_path() + "/db/single/jpeg/1/abbey-2504693_640.jpg");
+  cv::Mat img = cv::imread(ImageList(testing::dali_extra_path() + "/db/single/jpeg", {".jpg", ".jpeg"}, 1)[0]);
   CopyAsTensorGpuTest(img);
 }
 
