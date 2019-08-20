@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_TEST_UTILS_H_
-#define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_TEST_UTILS_H_
+#ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_COLOR_MANIPULATION_TEST_UTILS_H_
+#define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_COLOR_MANIPULATION_TEST_UTILS_H_
 
 #include <opencv2/opencv.hpp>
 
 namespace dali {
 namespace kernels {
-namespace brightness_contrast {
+namespace color_manipulation {
 namespace test {
 
 
@@ -33,9 +33,8 @@ namespace test {
  * @param rows height of the input image
  * @param cols width of the input image
  */
-template <int nchannels, class T, class Roi>
-cv::Mat_<cv::Vec<T, nchannels>> to_mat(T *ptr, Roi roi, int rows, int cols) {
-  static_assert(std::is_same<Roi, Box<2, int>>::value, "Roi is supposed to be `Box<2, int>`");
+template <int nchannels, class T>
+cv::Mat_<cv::Vec<T, nchannels>> to_mat(T *ptr, Box<2, int> roi, int rows, int cols) {
   auto roi_w = roi.extent().x;
   auto roi_h = roi.extent().y;
   assert(roi.hi.x < cols && roi.hi.y < rows);  // Roi overflows the image
@@ -50,8 +49,8 @@ cv::Mat_<cv::Vec<T, nchannels>> to_mat(T *ptr, Roi roi, int rows, int cols) {
 
 
 }  // namespace test
-}  // namespace brightness_contrast
+}  // namespace color_manipulation
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_BRIGHTNESS_CONTRAST_TEST_UTILS_H_
+#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_COLOR_MANIPULATION_TEST_UTILS_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPRASDFASFD_BRIGHTNESS_CONTRAST_H_
-#define DALI_KERNELS_IMGPRASDFASFD_BRIGHTNESS_CONTRAST_H_
+#ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_HSV_CPU_H_
+#define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_HSV_CPU_H_
 
 #include <utility>
 #include "dali/util/ocv.h"
@@ -29,13 +29,21 @@ namespace kernels {
 
 namespace hsv {
 
-
 constexpr size_t ndims = 3;
 constexpr size_t nchannels = 3;
 
-
 /**
- * - x poziomo y pionowo
+ * Defines region of interest.
+ * 0 dimension is interpreted along x axis (horizontal)
+ * 1 dimension is interpreted along y axis (vertical)
+ *
+ *            image.x ->
+ *          +--------------------------------+
+ *          |        roi.x                   |
+ *  image.y |      +-----+                   |
+ *       |  | roi.y|     |                   |
+ *       v  |      +-----+                   |
+ *          +--------------------------------+
  */
 template<size_t ndims>
 using Roi = Box<ndims, int>;
@@ -68,16 +76,13 @@ TensorShape<ndims_roi + 1> roi_shape(Roi<ndims_roi> roi, size_t nchannels) {
 
 template<class OutputType, class InputType>
 class HsvCpu {
-private:
-    static constexpr size_t spatial_dims = hsv::ndims - 1;
-
-public:
-    using Roi = Box<spatial_dims, int>;
+ public:
+    using Roi = hsv::Roi<hsv::ndims - 1>;
 
 
     KernelRequirements
-    Setup(KernelContext &context, const InTensorCPU<InputType, hsv::ndims> &in, const float hue,
-          const float saturation, const float value, const Roi *roi = nullptr) {
+    Setup(KernelContext &context, const InTensorCPU<InputType, hsv::ndims> &in, float hue,
+          float saturation, float value, const Roi *roi = nullptr) {
         DALI_ENFORCE(!roi || all_coords(roi->hi >= roi->lo), "Region of interest is invalid");
         auto adjusted_roi = AdjustRoi(roi, in.shape);
         KernelRequirements req;
@@ -108,8 +113,18 @@ public:
     }
 
 
-private:
+ private:
+    /**
+     * Adjusted Roi is a Roi, which doesn't overflow the image,
+     * that given by TensorShape.
+     *
+     * In case, when no Roi is provided (roi == nullptr),
+     * size of whole image is returned as Roi.
+     *
+     * Assumes HWC layout
+     */
     Roi AdjustRoi(const Roi *roi, const TensorShape<hsv::ndims> &shape) {
+        constexpr size_t spatial_dims = hsv::ndims - 1;
         ivec<spatial_dims> size;
         for (size_t i = 0; i < spatial_dims; i++)
             size[i] = shape[spatial_dims - 1 - i];
@@ -121,4 +136,4 @@ private:
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROadsON_BRIGHTNESS_CONTRAST_H_
+#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_HSV_CPU_H_

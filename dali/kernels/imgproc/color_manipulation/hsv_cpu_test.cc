@@ -17,8 +17,8 @@
 #include <tuple>
 #include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
-#include "dali/kernels/imgproc/color_manipulation/hsv.h"
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast_test_utils.h"
+#include "dali/kernels/imgproc/color_manipulation/hsv_cpu.h"
+#include "dali/kernels/imgproc/color_manipulation/color_manipulation_test_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -41,7 +41,7 @@ using TheKernel = HsvCpu<typename GtestTypeParam::Out, typename GtestTypeParam::
 
 template<class InputOutputTypes>
 class HsvCpuTest : public ::testing::Test {
-protected:
+ protected:
     HsvCpuTest() {
         input_.resize(dali::volume(shape_));
         ref_output_.resize(dali::volume(shape_));
@@ -56,11 +56,11 @@ protected:
     }
 
 
-    static constexpr size_t ndims = 3;
+    static constexpr int ndims = 3;
     std::vector<typename InputOutputTypes::In> input_;
     std::vector<typename InputOutputTypes::Out> ref_output_;
     OutTensorCPU<typename InputOutputTypes::Out, ndims> ref_out_tv_;
-    TensorShape<3> shape_ = {23,45, ndims};
+    TensorShape<3> shape_ = {23, 45, ndims};
     float hue_ = 2.8f;
     float saturation_ = 1.9f;
     float value_ = 0.3f;
@@ -68,7 +68,7 @@ protected:
 
     template<typename OutputType>
     std::enable_if_t<std::is_integral<OutputType>::value> calc_output() {
-        for (int i = 0; i < input_.size(); i += ndims) {
+        for (size_t i = 0; i < input_.size(); i += ndims) {
             ref_output_[i] = std::round(input_[i] + hue_);
             ref_output_[i + 1] = std::round(input_[i + 1] * saturation_);
             ref_output_[i + 2] = std::round(input_[i + 2] * value_);
@@ -78,7 +78,7 @@ protected:
 
     template<typename OutputType>
     std::enable_if_t<!std::is_integral<OutputType>::value> calc_output() {
-        for (int i = 0; i < input_.size(); i += ndims) {
+        for (size_t i = 0; i < input_.size(); i += ndims) {
             ref_output_[i] = input_[i + 0] + hue_;
             ref_output_[i + 1] = input_[i + 1] * saturation_;
             ref_output_[i + 2] = input_[i + 2] * value_;
@@ -87,7 +87,6 @@ protected:
 };
 
 
-//using TestTypes = std::tuple<float>;
 using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
 INPUT_OUTPUT_TYPED_TEST_SUITE(HsvCpuTest, TestTypes);
 
@@ -144,7 +143,8 @@ TYPED_TEST(HsvCpuTest, RunTestWithRoi) {
 
     kernel.Run(ctx, out, in, this->hue_, this->saturation_, this->value_, &roi);
 
-    auto mat = brightness_contrast::test::to_mat<ndims>(this->ref_output_.data(), roi, this->shape_[0], this->shape_[1]);
+    auto mat = color_manipulation::test::to_mat<ndims>(this->ref_output_.data(), roi,
+                                                       this->shape_[0], this->shape_[1]);
     ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
                                 << "Number of elements doesn't match";
     auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
@@ -179,6 +179,6 @@ TYPED_TEST(HsvCpuTest, roi_shape) {
 
 
 }  // namespace test
-}  // namespace brightness_contrast
+}  // namespace hsv
 }  // namespace kernels
 }  // namespace dali
