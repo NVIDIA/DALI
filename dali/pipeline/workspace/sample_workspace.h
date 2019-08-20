@@ -102,14 +102,8 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
   /**
    * @brief Returns true if the workspace contains a valid stream.
    */
-  DLL_PUBLIC inline bool has_stream() const { return has_stream_; }
-
-  /**
-   * @brief Returns the cuda stream that this work is to be done in.
-   */
-  DLL_PUBLIC inline cudaStream_t stream() const {
-    DALI_ENFORCE(has_stream_, "Workspace does not have a valid stream.");
-    return stream_;
+  DLL_PUBLIC inline bool has_stream() const override {
+    return has_stream_;
   }
 
   /**
@@ -121,6 +115,10 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
   }
 
  private:
+  cudaStream_t stream_impl() const override {
+    return stream_;
+  }
+
   int data_idx_, thread_idx_;
   cudaStream_t stream_;
   bool has_stream_;

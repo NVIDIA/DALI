@@ -203,6 +203,28 @@ class WorkspaceBase : public ArgumentWorkspace {
                                      StorageDevice::GPU);
   }
 
+
+  /**
+   * @brief Returns true if this workspace has CUDA stream available
+   */
+  virtual bool has_stream() const = 0;
+
+
+  /**
+   * @brief Returns the CUDA stream that this work is to be done in.
+   */
+  cudaStream_t stream() const {
+    DALI_ENFORCE(has_stream(),
+                 "No valid CUDA stream in the Workspace. "
+                 "Either the Workspace doesn't support CUDA streams or "
+                 "the stream hasn't been successfully set. "
+                 "Use `has_stream()`, to runtime-check, "
+                 "if CUDA stream is available for this workspace");
+    auto stream = stream_impl();
+    return stream;
+  }
+
+
   /**
    * @brief Adds new CPU output
    */
@@ -415,6 +437,12 @@ class WorkspaceBase : public ArgumentWorkspace {
       + ")");
     return index_map[idx];
   }
+
+
+  /**
+   * @brief Returns CUDA stream or nullptr, if the stream is unavailable
+   */
+  virtual cudaStream_t stream_impl() const = 0;
 };
 
 }  // namespace dali
