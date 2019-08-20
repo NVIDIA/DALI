@@ -94,7 +94,7 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
       } else {
         // load (path, label) pairs from list
         std::ifstream s(file_list_);
-        DALI_ENFORCE(s.is_open());
+        DALI_ENFORCE(s.is_open(), "Cannot open: " + file_list_);
 
         string image_file;
         int label;
@@ -102,10 +102,10 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
           auto p = std::make_pair(image_file, label);
           image_label_pairs_.push_back(p);
         }
-        DALI_ENFORCE(s.eof(), "Wrong format of file_list.");
+        DALI_ENFORCE(s.eof(), "Wrong format of file_list: " + file_list_);
       }
     }
-        DALI_ENFORCE(Size() > 0, "No files found.");
+    DALI_ENFORCE(Size() > 0, "No files found.");
 
     if (shuffle_) {
       // seeded with hardcoded value to get
