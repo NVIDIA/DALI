@@ -3,4 +3,4 @@ c_compiler_version:    # [linux]
 cxx_compiler_version:  # [linux]
   - 5.4                # [linux]
 cudatoolkit:
-  - 10.1
+  - 9.0
