@@ -27,6 +27,8 @@ namespace test {
 
 namespace {
 
+static constexpr int ndims = 3;
+
 void fill_roi(Box<2, int> &roi) {
     roi = {{1, 2},
            {5, 7}};
@@ -56,7 +58,6 @@ class HsvCpuTest : public ::testing::Test {
     }
 
 
-    static constexpr int ndims = 3;
     std::vector<typename InputOutputTypes::In> input_;
     std::vector<typename InputOutputTypes::Out> ref_output_;
     OutTensorCPU<typename InputOutputTypes::Out, ndims> ref_out_tv_;
@@ -100,7 +101,7 @@ TYPED_TEST(HsvCpuTest, check_kernel) {
 TYPED_TEST(HsvCpuTest, SetupTestAndCheckKernel) {
     TheKernel<TypeParam> kernel;
     KernelContext ctx;
-    InTensorCPU<typename TypeParam::In, this->ndims> in(this->input_.data(), this->shape_);
+    InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
     auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_);
     auto sh = reqs.output_shapes[0][0];
     ASSERT_EQ(this->shape_, sh);
@@ -109,9 +110,8 @@ TYPED_TEST(HsvCpuTest, SetupTestAndCheckKernel) {
 
 TYPED_TEST(HsvCpuTest, RunTest) {
     TheKernel<TypeParam> kernel;
-    constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
     KernelContext ctx;
-    InTensorCPU<typename TypeParam::In, this->ndims> in(this->input_.data(), this->shape_);
+    InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
     auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_);
     auto out_shape = reqs.output_shapes[0][0];
     vector<typename TypeParam::Out> output;
