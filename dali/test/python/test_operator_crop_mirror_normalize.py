@@ -154,9 +154,9 @@ def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, mirror_probabilit
         F, H, W, C = image.shape[0], image.shape[1], image.shape[2], image.shape[3]
     assert H >= crop_h and W >= crop_w
 
-    start_y = int(np.float32(crop_y) * np.float32(H - crop_h) + 0.5)
+    start_y = int(np.float32(crop_y) * np.float32(H - crop_h) + np.float32(0.5))
     end_y = start_y + crop_h
-    start_x = int(np.float32(crop_x) * np.float32(W - crop_w) + 0.5)
+    start_x = int(np.float32(crop_x) * np.float32(W - crop_w) + np.float32(0.5))
     end_x = start_x + crop_w
 
     # Crop
