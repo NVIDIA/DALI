@@ -22,22 +22,9 @@ namespace dali {
 namespace detail {
 
 template <class T>
-std::string make_string(std::stringstream &ss, const T &val) {
+std::string make_string_delim(const std::string &delimiter, std::stringstream &ss, const T &val) {
   ss << val;
   return ss.str();
-}
-
-
-template <class T, class... Args>
-std::string make_string(std::stringstream &ss, const T &val, const Args &... args) {
-  ss << val;
-  return make_string(ss, args...);
-}
-
-
-template <class T>
-std::string make_string_delim(const std::string &delimiter, std::stringstream &ss, const T &val) {
-  return make_string(ss, val);
 }
 
 
@@ -50,27 +37,31 @@ std::string make_string_delim(const std::string &delimiter, std::stringstream &s
 
 }  // namespace detail
 
+
 /**
  * Creates std::string from arguments, as long as every element has `operator<<`
  * defined for stream operation.
  *
  * If there's no `operator<<`, compiler will fire an error, saying:
  * " no match for ‘operator<<’ (operand types are ‘std::stringstream’ and ‘<your-type-here>’) "
- */
-template <class... Args>
-std::string make_string(const Args &... args) {
-  std::stringstream ss;
-  return detail::make_string(ss, args...);
-}
-
-/**
- * Another version of @see make_string function. This time, you can provide custom
- * delimiter for you data, so it'd convenient to use in some cases
- */
+ *
+ * @param delimiter String, which will separate arguments in the final string
+ * @return Concatenated std::string
+*/
 template <class... Args>
 std::string make_string_delim(const std::string &delimiter, const Args &... args) {
   std::stringstream ss;
   return detail::make_string_delim(delimiter, ss, args...);
+}
+
+
+/**
+ * Convenient version of @see make_string_delim, which takes a whitespace (' ')
+ * as a delimiter.
+ */
+template <class... Args>
+std::string make_string(const Args &... args) {
+  return detail::make_string_delim(" ", args...);
 }
 
 }  // namespace dali

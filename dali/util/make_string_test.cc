@@ -18,12 +18,12 @@
 
 namespace dali {
 
-TEST(MakeStringTest, test_one) {
+TEST(MakeStringTest, default_delimiter) {
   auto str = make_string("jeden", 2, 3);
-  ASSERT_EQ(str, "jeden23");
+  ASSERT_EQ(str, "jeden 23");
 }
 
-TEST(MakeStringDelimTest, test_one) {
+TEST(MakeStringTest, custom_delimiter) {
   auto str = make_string_delim("]:->", "jeden", 2, 3);
   ASSERT_EQ(str, "jeden]:->2]:->3");
 }
