@@ -23,17 +23,17 @@ DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrast<GPUBackend>, GPU)
 
 
 DALI_SCHEMA(BrightnessContrast)
-                .DocStr(R"code( * HWC
-)code")
+                .DocStr(R"code(Change the brightness and contrast of the image.
+                               Additionally, this operator can change the type of data.)code")
                 .NumInput(1)
                 .NumOutput(1)
-                .AddOptionalArg(detail::kOutputType, R"code(...)code", DALI_INT16)
                 .AddOptionalArg(detail::kBrightness,
                                 R"code(Set additive brightness delta. 0 denotes no-op)code", .0f,
                                 true)
                 .AddOptionalArg(detail::kContrast,
                                 R"code(Set multiplicative contrast delta. 1 denotes no-op)code",
-                                1.f, true);
+                                1.f, true)
+                .AddOptionalArg(detail::kOutputType, R"code(Set output data type)code", DALI_INT16);
 
 
 }  // namespace brightness_contrast
