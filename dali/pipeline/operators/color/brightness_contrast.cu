@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "brightness_contrast.h"
+#include "dali/pipeline/operators/color/brightness_contrast.h"
 
 namespace dali {
 namespace brightness_contrast {

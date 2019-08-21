@@ -153,13 +153,11 @@ BrightnessContrastKernel(const SampleDescriptor<OutputType, InputType, ndims> *s
 
   for (int y = threadIdx.y + block.start.y; y < threadIdx.y + block.end.y; y += blockDim.y) {
     for (int x = threadIdx.x + block.start.x; x < threadIdx.x + block.end.x; x += blockDim.x) {
-
       // TODO(mszolucha): Change to the statement below, when ConvertSat() is fixed
       out[y * sample.out_pitch.x + x] = static_cast<OutputType>(std::round(
               in[y * sample.in_pitch.x + x] * sample.contrast + sample.brightness));
       // out[y * sample.out_pitch.x + x] = ConvertSat<OutputType>(
       // in[y * sample.in_pitch.x + x] * sample.contrast + sample.brightness);
-
     }
   }
 }

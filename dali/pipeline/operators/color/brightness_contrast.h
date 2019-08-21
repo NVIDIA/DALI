@@ -12,30 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPESADFASDFASDFFADFF_
-#define DALI_PIPESADFASDFASDFFADFF_
+#ifndef DALI_PIPELINE_OPERATORS_COLOR_BRIGHTNESS_CONTRAST_H_
+#define DALI_PIPELINE_OPERATORS_COLOR_BRIGHTNESS_CONTRAST_H_
 
 #include <vector>
 #include <memory>
+#include <string>
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.h"
-#include "dali/kernels/type_tag.h"
-#include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 
 namespace dali {
 namespace brightness_contrast {
-
 
 namespace detail {
 
 const std::string kBrightness = "brightness_delta";  // NOLINT
 const std::string kContrast = "contrast_delta";      // NOLINT
 const std::string kOutputType = "output_type";      // NOLINT
-
 
 
 template <class Backend, class Out, class In, size_t ndims>
@@ -49,6 +46,7 @@ struct Kernel<GPUBackend, Out, In, ndims> {
   using type = kernels::brightness_contrast::BrightnessContrastGpu<Out, In, ndims>;
 };
 
+
 template <class Backend>
 struct ArgumentType {
   static_assert(
@@ -57,10 +55,12 @@ struct ArgumentType {
   using type = float;
 };
 
+
 template <>
 struct ArgumentType<GPUBackend> {
   using type = std::vector<float>;
 };
+
 
 /**
  * Select proper type for argument (for either sample processing or batch processing cases)
@@ -70,7 +70,7 @@ using argument_t = typename ArgumentType<Backend>::type;
 
 
 /**
- * Chooses proper kernel for given template parameters
+ * Chooses proper kernel (CPU or GPU) for given template parameters
  */
 template <class Backend, class OutputType, class InputType, size_t ndims>
 using BrightnessContrastKernel = typename Kernel<Backend, OutputType, InputType, ndims>::type;
@@ -101,13 +101,11 @@ void assign_argument_value<GPUBackend>(const OpSpec &spec, const std::string &ar
   GetSingleOrRepeatedArg(spec, arg, arg_name);
 }
 
-
 }  // namespace detail
 
 
 template <class Backend>
 class BrightnessContrast : public Operator<Backend> {
-
  public:
   explicit BrightnessContrast(const OpSpec &spec) :
           Operator<Backend>(spec),
@@ -124,9 +122,9 @@ class BrightnessContrast : public Operator<Backend> {
 
   ~BrightnessContrast() = default;
 
+
   DISABLE_COPY_MOVE_ASSIGN(BrightnessContrast);
 
-  USE_OPERATOR_MEMBERS();
 
  protected:
   bool CanInferOutputs() const override {
@@ -140,7 +138,7 @@ class BrightnessContrast : public Operator<Backend> {
     const auto &output = ws.template OutputRef<Backend>(0);
     output_desc.resize(1);
 
-// @autoformat:off
+    // @autoformat:off
     DALI_TYPE_SWITCH(output_type_, OutputType,
         {
           TypeInfo type;
@@ -148,7 +146,7 @@ class BrightnessContrast : public Operator<Backend> {
           output_desc[0] = {input.shape(), type};
         }
     )
-// @autoformat:on
+    // @autoformat:on
     return true;
   }
 
@@ -157,7 +155,7 @@ class BrightnessContrast : public Operator<Backend> {
     const auto &input = ws.template Input<Backend>(0);
     auto &output = ws.template Output<Backend>(0);
 
-// @autoformat:off
+    // @autoformat:off
       DALI_TYPE_SWITCH(input.type().id(), InputType,
           DALI_TYPE_SWITCH(output_type_, OutputType,
               {
@@ -174,16 +172,18 @@ class BrightnessContrast : public Operator<Backend> {
               }
            )
         )
-// @autoformat:on
+    // @autoformat:on
   }
 
 
  private:
+  USE_OPERATOR_MEMBERS();
   detail::argument_t<Backend> brightness_, contrast_;
   DALIDataType output_type_;
   kernels::KernelManager kernel_manager_;
 };
 
-}
-}
-#endif
+}  // namespace brightness_contrast
+}  // namespace dali
+
+#endif  // DALI_PIPELINE_OPERATORS_COLOR_BRIGHTNESS_CONTRAST_H_
