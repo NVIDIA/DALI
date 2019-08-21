@@ -18,6 +18,7 @@
 #include <vector>
 #include "dali/core/convert.h"
 #include "dali/core/geom/box.h"
+#include "dali/kernels/imgproc/roi.h"
 #include "dali/kernels/common/block_setup.h"
 
 namespace dali {
@@ -39,67 +40,28 @@ struct SampleDescriptor {
 
 
 /**
- * Coverts Roi to flattened TensorListShape
- *
- * Flattened TensorListShape, is a TensorListShape, which doesn't have `channels`
- * as separate dimension. Instead, Width dimension is larger by `nchannels` number of times.
- * This is because, the analysis is channel-agnostic.
- *
- * Function assumes, that memory layout is *HWC, and the Roi
- * is represented as [[x_lo, y_lo], [x_hi, y_hi]].
- * Therefore, while copying, order of values needs to be reversed.
+ * TODO
+ * @tparam ndims
+ * @param shape
+ * @return
  */
 template <size_t ndims>
-TensorListShape<ndims> RoiToShape(const std::vector<Roi<ndims>> &rois, int nchannels) {
-  TensorListShape<ndims> ret(rois.size());
-
-  size_t i = 0;
-  for (const auto &roi : rois) {
-    assert(all_coords(roi.hi >= roi.lo) && "Cannot create a tensor shape from an invalid Box");
-    TensorShape<ndims> ts;
-    auto e = roi.extent();
-    auto ridx = ndims;
-    ts[--ridx] = e[0] * nchannels;
-    for (size_t idx = 1; idx < ndims; idx++) {
-      ts[--ridx] = e[idx];
-    }
-    ret.set_tensor_shape(i++, ts);
+TensorShape<ndims - 1> Flatten(const TensorShape<ndims> &shape) {
+  TensorShape<ndims - 1> ret;
+  for (int i = 0; i < shape.size() - 1; i++) {
+    ret[i] = shape[i];
   }
-
+  ret[shape.size() - 2] *= shape[shape.size() - 1];
   return ret;
 }
 
 
-/**
- * 1. If `rois` is empty, that means whole image is analysed: return a batch of Rois, where
- *    every Roi has the same size as the input image
- * 2. If `rois` is not empty, it is assumed, that Roi is provided for every image in batch.
- *    In this case, final Roi is an intersection of provided Roi and the image.
- *    (This is a sanity-check for Rois, that can be larger than image)
- */
-template <size_t spatial_dims>
-std::vector<Roi<spatial_dims>> AdjustRois(const std::vector<Roi<spatial_dims>> rois,
-                                          const TensorListShape<spatial_dims + 1> &shapes) {
-  assert(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()));
-  std::vector<Roi<spatial_dims>> ret(shapes.num_samples());
-
-  auto whole_image = [](const auto &shape) -> Roi<spatial_dims> {
-      ivec<spatial_dims> size;
-      for (size_t i = 0; i < spatial_dims; i++)
-        size[i] = shape[spatial_dims - 1 - i];
-      return {0, size};
-  };
-
-  if (rois.empty()) {
-    for (int i = 0; i < shapes.num_samples(); i++) {
-      ret[i] = whole_image(shapes[i]);
-    }
-  } else {
-    for (size_t i = 0; i < rois.size(); i++) {
-      ret[i] = intersection(rois[i], whole_image(shapes[i]));
-    }
+template <size_t ndims>
+TensorListShape<ndims - 1> Flatten(const TensorListShape<ndims> &shape) {
+  TensorListShape<ndims - 1> ret(shape.size());
+  for (int i = 0; i < shape.size(); i++) {
+    ret.set_tensor_shape(i, Flatten<ndims>(shape[i]));
   }
-
   return ret;
 }
 
@@ -194,11 +156,12 @@ class BrightnessContrastGpu {
         return true;
     }(), "Number of channels for every image in batch must be equal");
 
-    auto adjusted_rois = AdjustRois(rois, in.shape);
+    auto adjusted_rois = AdjustRoi(rois, in.shape);
     auto nchannels = in.shape[0][ndims - 1];
     KernelRequirements req;
     ScratchpadEstimator se;
-    TensorListShape<spatial_dims> flattened_shape(RoiToShape(adjusted_rois, nchannels));
+    auto sh = ShapeFromRoi(adjusted_rois, nchannels);
+    TensorListShape<spatial_dims> flattened_shape(Flatten<ndims>(sh));
     block_setup_.SetupBlocks(flattened_shape, true);
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
