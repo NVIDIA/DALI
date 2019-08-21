@@ -84,7 +84,7 @@ void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
 
 std::vector<std::string> ImageList(const std::string& image_folder,
                                    const std::vector<std::string> &supported_extensions,
-                                   const int max_images) {
+                                   const std::size_t max_images) {
   std::vector<std::string> image_names;
   const string image_list = image_folder + "/image_list.txt";
   std::ifstream file(image_list);
