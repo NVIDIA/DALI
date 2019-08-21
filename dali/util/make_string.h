@@ -34,6 +34,20 @@ std::string make_string(std::stringstream &ss, const T &val, const Args &... arg
   return make_string(ss, args...);
 }
 
+
+template <class T>
+std::string make_string_delim(const std::string &delimiter, std::stringstream &ss, const T &val) {
+  return make_string(ss, val);
+}
+
+
+template <class T, class... Args>
+std::string make_string_delim(const std::string &delimiter, std::stringstream &ss, const T &val,
+                              const Args &... args) {
+  ss << val << delimiter;
+  return make_string_delim(delimiter, ss, args...);
+}
+
 }  // namespace detail
 
 /**
@@ -47,6 +61,16 @@ template <class... Args>
 std::string make_string(const Args &... args) {
   std::stringstream ss;
   return detail::make_string(ss, args...);
+}
+
+/**
+ * Another version of @see make_string function. This time, you can provide custom
+ * delimiter for you data, so it'd convenient to use in some cases
+ */
+template <class... Args>
+std::string make_string_delim(const std::string &delimiter, const Args &... args) {
+  std::stringstream ss;
+  return detail::make_string_delim(delimiter, ss, args...);
 }
 
 }  // namespace dali

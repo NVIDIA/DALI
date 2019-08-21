@@ -23,5 +23,10 @@ TEST(MakeStringTest, test_one) {
   ASSERT_EQ(str, "jeden23");
 }
 
+TEST(MakeStringDelimTest, test_one) {
+  auto str = make_string_delim("]:->", "jeden", 2, 3);
+  ASSERT_EQ(str, "jeden]:->2]:->3");
+}
+
 
 }  // namespace dali
