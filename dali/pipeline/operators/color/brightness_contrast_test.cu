@@ -82,7 +82,7 @@ void BrightnessContrastVerify(TensorListWrapper input, TensorListWrapper output,
     for (int i = 0; i < volume(out_shape); i++) {
       // TODO(mszolucha): Change to the statement below, when ConvertSat() is fixed
       EXPECT_EQ(out_tensor[i],
-              static_cast<OutputType>(std::round(in_tensor[i] * contrast + brightness)));
+                static_cast<OutputType>(std::round(in_tensor[i] * contrast + brightness)));
       // EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(in_tensor[i] * contrast + brightness));
     }
   }
@@ -110,8 +110,7 @@ std::vector<Arguments> args_for_types = {args1, args2, args3};
 }  // namespace
 
 INSTANTIATE_TEST_SUITE_P(BrightnessContrastTest, BrightnessContrastTest,
-                         ::testing::ValuesIn(
-                                 testing::cartesian(utils::kDevices, args_for_types)));
+                         ::testing::ValuesIn(testing::cartesian(utils::kDevices, args_for_types)));
 
 
 TEST_P(BrightnessContrastTest, basic_test_float) {

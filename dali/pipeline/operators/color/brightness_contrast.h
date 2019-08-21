@@ -32,7 +32,7 @@ namespace detail {
 
 const std::string kBrightness = "brightness_delta";  // NOLINT
 const std::string kContrast = "contrast_delta";      // NOLINT
-const std::string kOutputType = "output_type";      // NOLINT
+const std::string kOutputType = "output_type";       // NOLINT
 
 
 template <class Backend, class Out, class In, size_t ndims>
@@ -150,28 +150,35 @@ class BrightnessContrast : public Operator<Backend> {
     return true;
   }
 
+  /**
+   * So that compiler wouldn't complain, that
+   * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
+   * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
+   */
+  using Operator<Backend>::RunImpl;
 
-  void RunImpl(Workspace<Backend> &ws) override {
+
+  void RunImpl(Workspace<Backend> &ws) {
     const auto &input = ws.template Input<Backend>(0);
     auto &output = ws.template Output<Backend>(0);
 
     // @autoformat:off
-      DALI_TYPE_SWITCH(input.type().id(), InputType,
-          DALI_TYPE_SWITCH(output_type_, OutputType,
-              {
-                  using TheKernel =
-                          detail::BrightnessContrastKernel<Backend, OutputType, InputType, 3>;
-                  auto tvin = view<const InputType, 3>(input);
-                  auto tvout = view<OutputType, 3>(output);
-                  kernel_manager_.Initialize<TheKernel>();
-                  kernels::KernelContext ctx;
-                  kernel_manager_.Setup<TheKernel>(ws.data_idx(),
-                          ctx, tvin, brightness_, contrast_);
-                  kernel_manager_.Run<TheKernel>(ws.thread_idx(), ws.data_idx(),
-                          ctx, tvout, tvin, brightness_, contrast_);
-              }
-           )
+    DALI_TYPE_SWITCH(input.type().id(), InputType,
+        DALI_TYPE_SWITCH(output_type_, OutputType,
+            {
+                using TheKernel =
+                        detail::BrightnessContrastKernel<Backend, OutputType, InputType, 3>;
+                auto tvin = view<const InputType, 3>(input);
+                auto tvout = view<OutputType, 3>(output);
+                kernel_manager_.Initialize<TheKernel>();
+                kernels::KernelContext ctx;
+                kernel_manager_.Setup<TheKernel>(ws.data_idx(),
+                        ctx, tvin, brightness_, contrast_);
+                kernel_manager_.Run<TheKernel>(ws.thread_idx(), ws.data_idx(),
+                        ctx, tvout, tvin, brightness_, contrast_);
+            }
         )
+    )
     // @autoformat:on
   }
 
