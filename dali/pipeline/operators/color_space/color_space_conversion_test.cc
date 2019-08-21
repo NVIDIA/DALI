@@ -46,8 +46,7 @@ typedef ::testing::Types<RGB, BGR, YCbCr> ConvertibleToGray;
 TYPED_TEST_SUITE(ColorSpaceConversionToGrayTest, ConvertibleToGray);
 
 TYPED_TEST(ColorSpaceConversionToGrayTest, test) {
-  // NPP and OpenCV produce different to gray conversion
-  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 0.2);
+  this->RunTest("ColorSpaceConversion");
 }
 
 typedef ::testing::Types<RGB, BGR, Gray> ConvertibleToYCbCr;
