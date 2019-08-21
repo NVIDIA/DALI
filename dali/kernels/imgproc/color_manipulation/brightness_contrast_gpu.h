@@ -153,10 +153,13 @@ BrightnessContrastKernel(const SampleDescriptor<OutputType, InputType, ndims> *s
 
   for (int y = threadIdx.y + block.start.y; y < threadIdx.y + block.end.y; y += blockDim.y) {
     for (int x = threadIdx.x + block.start.x; x < threadIdx.x + block.end.x; x += blockDim.x) {
-      out[y * sample.out_pitch.x + x] = // TODO Error with ConvertSat?
-//              ConvertSat<OutputType>(
-                      static_cast<OutputType>(std::round(
+
+      // TODO(mszolucha): Change to the statement below, when ConvertSat() is fixed
+      out[y * sample.out_pitch.x + x] = static_cast<OutputType>(std::round(
               in[y * sample.in_pitch.x + x] * sample.contrast + sample.brightness));
+      // out[y * sample.out_pitch.x + x] = ConvertSat<OutputType>(
+      // in[y * sample.in_pitch.x + x] * sample.contrast + sample.brightness);
+
     }
   }
 }
@@ -213,7 +216,6 @@ class BrightnessContrastGpu {
   void Run(KernelContext &context, const OutListGPU<OutputType, ndims> &out,
            const InListGPU<InputType, ndims> &in, const std::vector<float> &brightness,
            const std::vector<float> &contrast, const std::vector<Roi<spatial_dims>> &rois = {}) {
-    cout<<"DUPADUPADUPADUPA GPUGPUGPUGPUGPUGPUGPUG\n";
     auto sample_descs = CreateSampleDescriptors(out, in, brightness, contrast);
 
     typename decltype(sample_descs)::value_type *samples_gpu;

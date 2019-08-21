@@ -12,21 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/tensor.h"
+#include <vector>
+#include <memory>
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/dali_operator_test_utils.h"
-#include "dali/pipeline/operators/color/brightness_contrast.h"
-#include "dali/kernels/tensor_shape.h"
 #include "dali/kernels/test/tensor_test_utils.h"
 
 namespace dali {
-
 
 namespace testing {
 namespace brightness_contrast {
 
 
-using Type = float;
+using InputDataType = float;
 
 
 class BrightnessContrastTest : public testing::DaliOperatorTest {
@@ -42,7 +40,7 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
   }
 
 
-  void Init(std::vector<Type> &input, size_t n) {
+  void Init(std::vector<InputDataType> &input, size_t n) {
     std::mt19937_64 rng;
     input.resize(n);
     kernels::UniformRandomFill(input, rng, 0.f, 10.f);
@@ -50,22 +48,21 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
 
 
   template <typename Backend>
-  std::unique_ptr<TensorList<Backend>> ToTensorList(std::vector<Type> data) {
+  std::unique_ptr<TensorList<Backend>> ToTensorList(std::vector<InputDataType> data) {
     std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
     tl->Resize(kernels::TensorListShape<3>({shape_}));
-    auto ptr = tl->template mutable_data<Type>();
+    auto ptr = tl->template mutable_data<InputDataType>();
     assert(data.size() == static_cast<size_t>(volume(shape_)));
-    std::memcpy(ptr, data.data(), data.size() * sizeof(Type));
+    std::memcpy(ptr, data.data(), data.size() * sizeof(InputDataType));
     return tl;
   }
 
 
-  std::vector<Type> input_;
-  kernels::TensorShape<3> shape_ = {2,4, 3};
+  std::vector<InputDataType> input_;
+  kernels::TensorShape<3> shape_ = {2, 4, 3};
 };
 
 namespace {
-
 
 
 template <class OutputType>
@@ -80,40 +77,41 @@ void BrightnessContrastVerify(TensorListWrapper input, TensorListWrapper output,
     auto out_shape = output_tl->tensor_shape(t);
     auto out_tensor = output_tl->tensor<OutputType>(t);
     auto in_shape = input_tl->tensor_shape(t);
-    auto in_tensor = input_tl->tensor<Type>(t);
+    auto in_tensor = input_tl->tensor<InputDataType>(t);
     ASSERT_EQ(in_shape, out_shape);
     for (int i = 0; i < volume(out_shape); i++) {
-      EXPECT_EQ(out_tensor[i], static_cast<OutputType>(std::round(in_tensor[i] * contrast + brightness)));
-//      EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(in_tensor[i] * contrast + brightness));
+      // TODO(mszolucha): Change to the statement below, when ConvertSat() is fixed
+      EXPECT_EQ(out_tensor[i],
+              static_cast<OutputType>(std::round(in_tensor[i] * contrast + brightness)));
+      // EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(in_tensor[i] * contrast + brightness));
     }
   }
 }
 
 
-Arguments args_float = {
+Arguments args1 = {
         {"output_type",      DALI_UINT8},
-//        {"output_type",      DALI_FLOAT},
         {"brightness_delta", 0.f},
         {"contrast_delta",   1.f}
 };
-Arguments args_int16 = {
+Arguments args2 = {
         {"output_type",      DALI_UINT8},
         {"brightness_delta", 1.f},
         {"contrast_delta",   0.f}
 };
-Arguments args_uint8 = {
+Arguments args3 = {
         {"output_type",      DALI_UINT8},
         {"brightness_delta", 13.f},
         {"contrast_delta",   0.5f}
 };
 
-std::vector<Arguments> args_for_types = {args_float, args_int16, args_uint8};
+std::vector<Arguments> args_for_types = {args1, args2, args3};
 
 }  // namespace
 
 INSTANTIATE_TEST_SUITE_P(BrightnessContrastTest, BrightnessContrastTest,
                          ::testing::ValuesIn(
-                                 testing::cartesian(args_for_types)));
+                                 testing::cartesian(utils::kDevices, args_for_types)));
 
 
 TEST_P(BrightnessContrastTest, basic_test_float) {
@@ -121,7 +119,6 @@ TEST_P(BrightnessContrastTest, basic_test_float) {
   auto args = GetParam();
   TensorListWrapper tlout;
   this->RunTest(tl.get(), tlout, args, BrightnessContrastVerify<uint8_t>);
-//  this->RunTest(tl.get(), tlout, args, BrightnessContrastVerify<float>);
 }
 
 
@@ -130,7 +127,6 @@ TEST_P(BrightnessContrastTest, basic_test_int16) {
   auto args = GetParam();
   TensorListWrapper tlout;
   this->RunTest(tl.get(), tlout, args, BrightnessContrastVerify<uint8_t>);
-//  this->RunTest(tl.get(), tlout, args, BrightnessContrastVerify<int16_t>);
 }
 
 

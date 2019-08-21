@@ -299,6 +299,21 @@ class WorkspaceBase : public ArgumentWorkspace {
     return gpu_outputs_[tensor_meta.index];
   }
 
+  /**
+ * @brief Returns the index of the sample that this workspace stores
+ * in the input/output batch.
+ */
+  DLL_PUBLIC virtual inline int data_idx() const {
+    return 0;
+  }
+
+  /**
+ * @brief Returns the index of the thread that will process this data.
+ */
+  DLL_PUBLIC virtual inline int thread_idx() const {
+    return 0;
+  }
+
  protected:
   struct InOutMeta {
     // Storage device of given Input/Output

@@ -99,8 +99,6 @@ class BrightnessContrastCpu {
   void Run(KernelContext &context, const OutTensorCPU<OutputType, ndims> &out,
            const InTensorCPU<InputType, ndims> &in, float brightness, float contrast,
            const Roi *roi = nullptr) {
-    cout<<"DUPADUPADUPADUPA CPUCPUCPUCPUCPUCPUC\n";
-
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     auto num_channels = in.shape[2];
     auto image_width = in.shape[1];
@@ -110,8 +108,11 @@ class BrightnessContrastCpu {
     auto *row = in.data + adjusted_roi.lo.y * row_stride;
     for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
       for (int xc = adjusted_roi.lo.x * num_channels; xc < adjusted_roi.hi.x * num_channels; xc++)
+
+        // TODO(mszolucha): Change to the line below, when ConvertSat() is fixed
         *ptr++ = brightness_contrast::custom_convert<OutputType>(row[xc] * contrast + brightness);
-//        *ptr++ = ConvertSat<OutputType>(row[xc] * contrast + brightness);
+         // *ptr++ = ConvertSat<OutputType>(row[xc] * contrast + brightness);
+
       row += row_stride;
     }
   }
