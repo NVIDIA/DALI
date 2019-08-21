@@ -53,7 +53,7 @@ typedef ::testing::Types<RGB, BGR, Gray> ConvertibleToYCbCr;
 TYPED_TEST_SUITE(ColorSpaceConversionToYCbCrTest, ConvertibleToYCbCr);
 
 TYPED_TEST(ColorSpaceConversionToYCbCrTest, test) {
-  this->RunTest("ColorSpaceConversion", nullptr, 0, false, 0.002);
+  this->RunTest("ColorSpaceConversion");
 }
 
 }  // namespace dali

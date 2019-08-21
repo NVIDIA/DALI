@@ -60,7 +60,7 @@ class CropMirrorNormalizePipeline(Pipeline):
 
 def check_cmn_cpu_vs_gpu(batch_size, output_dtype, output_layout, mirror_probability, mean, std, pad_output):
     iterations = 8 if batch_size == 1 else 1
-    eps = 1e-07 if output_dtype != types.INT32 else 0.02
+    eps = 1e-07 if output_dtype != types.INT32 else 0.01
     compare_pipelines(CropMirrorNormalizePipeline('cpu', batch_size, output_dtype=output_dtype,
                                                   output_layout=output_layout, mirror_probability=mirror_probability,
                                                   mean=mean, std=std, pad_output=pad_output),
@@ -154,9 +154,9 @@ def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, mirror_probabilit
         F, H, W, C = image.shape[0], image.shape[1], image.shape[2], image.shape[3]
     assert H >= crop_h and W >= crop_w
 
-    start_y = int(np.float32(crop_y) * np.float32(H - crop_h) + 0.5)
+    start_y = int(np.round(np.float32(crop_y) * np.float32(H - crop_h)))
     end_y = start_y + crop_h
-    start_x = int(np.float32(crop_x) * np.float32(W - crop_w) + 0.5)
+    start_x = int(np.round(np.float32(crop_x) * np.float32(W - crop_w)))
     end_x = start_x + crop_w
 
     # Crop

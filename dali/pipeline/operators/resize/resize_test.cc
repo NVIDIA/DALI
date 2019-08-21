@@ -39,14 +39,14 @@ static double testEps[] = {     //     TEST:
                     1.1, 2.2,   // ResizeLonger_A_NN
                     1.1, 2.2,   // ResizeXY_NN
                     1.1, 2.2,   // ResizeXY_A_NN
-                    0.3, 0.8,   // ResizeShorter_CUBIC
-                    0.3, 0.8,   // ResizeShorter_A_CUBIC
-                    0.3, 0.8,   // ResizeShorterMax_CUBIC
-                    0.3, 0.8,   // ResizeShorterMax_A_CUBIC
-                    0.3, 0.9,   // ResizeLonger_CUBIC
-                    0.3, 0.9,   // ResizeLonger_A_CUBIC
-                    0.3, 0.8,   // ResizeXY_CUBIC
-                    0.3, 0.9,   // ResizeXY_A_CUBIC
+                    0.3, 0.6,   // ResizeShorter_CUBIC
+                    0.3, 0.6,   // ResizeShorter_A_CUBIC
+                    0.3, 0.6,   // ResizeShorterMax_CUBIC
+                    0.3, 0.6,   // ResizeShorterMax_A_CUBIC
+                    0.3, 0.6,   // ResizeLonger_CUBIC
+                    0.3, 0.6,   // ResizeLonger_A_CUBIC
+                    0.3, 0.6,   // ResizeXY_CUBIC
+                    0.3, 0.6,   // ResizeXY_A_CUBIC
 };
 
 template <typename ImgType>
