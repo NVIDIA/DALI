@@ -71,8 +71,7 @@ void CopyAsTensorGpuTest(const cv::Mat &mat) {
 }  // namespace
 
 TEST(Mat2Tensor, CopyAsTensorGpuTest) {
-  cv::Mat img = cv::imread(
-    ImageList(testing::dali_extra_path() + "/db/single/jpeg", {".jpg", ".jpeg"}, 1)[0]);
+  cv::Mat img = cv::imread(ImageList(testing::dali_extra_path() + "/db/single/jpeg", {".jpg", ".jpeg"}, 1)[0]);
   CopyAsTensorGpuTest(img);
 }
 
