@@ -20,6 +20,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <limits>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
