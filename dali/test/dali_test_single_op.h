@@ -36,6 +36,8 @@ namespace dali {
 
 namespace images {
 
+// TODO(janton): DALI-582 Using this order, breaks some tests
+// ImageList(testing::dali_extra_path() + "/db/single/jpeg/0/", {".jpg"})
 const vector<string> jpeg_test_images =
     ImageList(testing::dali_extra_path() + "/db/single/jpeg", {".jpg", ".jpeg"}, 10);
 const vector<string> png_test_images =
