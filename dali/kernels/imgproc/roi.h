@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_ROI_H
-#define DALI_ROI_H
+#ifndef DALI_KERNELS_IMGPROC_ROI_H_
+#define DALI_KERNELS_IMGPROC_ROI_H_
 
-
+#include <vector>
 #include <dali/core/geom/box.h>
 #include <dali/kernels/tensor_shape.h>
 
@@ -147,7 +147,7 @@ std::vector<Roi<spatial_dims>> AdjustRoi(const std::vector<Roi<spatial_dims>> ro
   return ret;
 }
 
-}
-}
+}  // namespace kernels
+}  // namespace dali
 
-#endif //DALI_ROI_H
+#endif  // DALI_KERNELS_IMGPROC_ROI_H_

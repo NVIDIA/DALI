@@ -13,7 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "roi.h"
+#include <vector>
+#include "dali/kernels/imgproc/roi.h"
 
 namespace dali {
 namespace kernels {
@@ -45,28 +46,6 @@ TEST(RoiTest, roi_to_TensorShape) {
   }
 }
 
-//TEST(RoiTest, roi_to_TensorListShape) {
-//  {
-//    Roi roi{0, 3};
-//    auto sh = ::dali::kernels::ShapeFromRoi(roi, 3);
-//    TensorShape<3> ref_sh = {3, 3, 3};
-//    ASSERT_EQ(ref_sh, sh);
-//  }
-//  {
-//    Roi roi{{0, 2},
-//            {5, 6}};
-//    auto sh = ::dali::kernels::ShapeFromRoi(roi, 666);
-//    TensorShape<3> ref_sh = {4, 5, 666};
-//    ASSERT_EQ(ref_sh, sh);
-//  }
-//  {
-//    Roi roi{{0, 0},
-//            {0, 0}};
-//    auto sh = ::dali::kernels::ShapeFromRoi(roi, 666);
-//    TensorShape<3> ref_sh = {0, 0, 666};
-//    ASSERT_EQ(ref_sh, sh);
-//  }
-//}
 
 TEST(RoiTest, roi_to_TensorListShape) {
   using Rois = std::vector<Roi>;
@@ -171,6 +150,6 @@ TEST(RoiTest, adjust_rois) {
   }
 }
 
-}
-}
-}
+}  // namespace test
+}  // namespace kernels
+}  // namespace dali
