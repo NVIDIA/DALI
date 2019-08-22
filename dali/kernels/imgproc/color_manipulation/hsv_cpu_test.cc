@@ -29,62 +29,66 @@ namespace {
 
 static constexpr int ndims = 3;
 
+
 void fill_roi(Box<2, int> &roi) {
-    roi = {{1, 2},
-           {5, 7}};
+  roi = {{1, 2},
+         {5, 7}};
 }
 
 
-template<class GtestTypeParam>
-using TheKernel = HsvCpu<typename GtestTypeParam::Out, typename GtestTypeParam::In>;
+template <class GtestTypeParam>
+using HsvKernel = HsvCpu<typename GtestTypeParam::Out, typename GtestTypeParam::In>;
 
 }  // namespace
 
 
-template<class InputOutputTypes>
+template <class InputOutputTypes>
 class HsvCpuTest : public ::testing::Test {
+  using In = typename InputOutputTypes::In;
+  using Out = typename InputOutputTypes::Out;
+
  protected:
-    HsvCpuTest() {
-        input_.resize(dali::volume(shape_));
-        ref_output_.resize(dali::volume(shape_));
+  HsvCpuTest() {
+    input_.resize(dali::volume(shape_));
+    ref_output_.resize(dali::volume(shape_));
+  }
+
+
+  void SetUp() final {
+    std::mt19937_64 rng;
+    UniformRandomFill(input_, rng, 0., 10.);
+    calc_output<Out>();
+    ref_out_tv_ = make_tensor_cpu(ref_output_.data(), shape_);
+  }
+
+
+  std::vector<In> input_;
+  std::vector<Out> ref_output_;
+  OutTensorCPU<Out, ndims> ref_out_tv_;
+  TensorShape<3> shape_ = {23, 45, ndims};
+  float hue_ = 2.8f;
+  float saturation_ = 1.9f;
+  float value_ = 0.3f;
+
+
+  template <typename OutputType>
+  std::enable_if_t<std::is_integral<OutputType>::value> calc_output() {
+    for (size_t i = 0; i < input_.size(); i += ndims) {
+      ref_output_[i + 0] = std::round(input_[i + 0] + hue_);
+      ref_output_[i + 1] = std::round(input_[i + 1] * saturation_);
+      ref_output_[i + 2] = std::round(input_[i + 2] * value_);
     }
+  }
 
 
-    void SetUp() final {
-        std::mt19937_64 rng;
-        UniformRandomFill(input_, rng, 0., 10.);
-        calc_output<typename InputOutputTypes::Out>();
-        ref_out_tv_ = make_tensor_cpu(ref_output_.data(), shape_);
+  template <typename OutputType>
+  std::enable_if_t<!std::is_integral<OutputType>::value> calc_output() {
+    for (size_t i = 0; i < input_.size(); i += ndims) {
+      ref_output_[i + 0] = input_[i + 0] + hue_;
+      ref_output_[i + 1] = input_[i + 1] * saturation_;
+      ref_output_[i + 2] = input_[i + 2] * value_;
     }
-
-
-    std::vector<typename InputOutputTypes::In> input_;
-    std::vector<typename InputOutputTypes::Out> ref_output_;
-    OutTensorCPU<typename InputOutputTypes::Out, ndims> ref_out_tv_;
-    TensorShape<3> shape_ = {23, 45, ndims};
-    float hue_ = 2.8f;
-    float saturation_ = 1.9f;
-    float value_ = 0.3f;
-
-
-    template<typename OutputType>
-    std::enable_if_t<std::is_integral<OutputType>::value> calc_output() {
-        for (size_t i = 0; i < input_.size(); i += ndims) {
-            ref_output_[i] = std::round(input_[i] + hue_);
-            ref_output_[i + 1] = std::round(input_[i + 1] * saturation_);
-            ref_output_[i + 2] = std::round(input_[i + 2] * value_);
-        }
-    }
-
-
-    template<typename OutputType>
-    std::enable_if_t<!std::is_integral<OutputType>::value> calc_output() {
-        for (size_t i = 0; i < input_.size(); i += ndims) {
-            ref_output_[i] = input_[i + 0] + hue_;
-            ref_output_[i + 1] = input_[i + 1] * saturation_;
-            ref_output_[i + 2] = input_[i + 2] * value_;
-        }
-    }
+  }
 };
 
 
@@ -93,88 +97,88 @@ INPUT_OUTPUT_TYPED_TEST_SUITE(HsvCpuTest, TestTypes);
 
 
 TYPED_TEST(HsvCpuTest, check_kernel) {
-    TheKernel<TypeParam> kernel;
-    check_kernel<decltype(kernel)>();
+  HsvKernel<TypeParam> kernel;
+  check_kernel<decltype(kernel)>();
 }
 
 
 TYPED_TEST(HsvCpuTest, SetupTestAndCheckKernel) {
-    TheKernel<TypeParam> kernel;
-    KernelContext ctx;
-    InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
-    auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_);
-    auto sh = reqs.output_shapes[0][0];
-    ASSERT_EQ(this->shape_, sh);
+  HsvKernel<TypeParam> kernel;
+  KernelContext ctx;
+  InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
+  auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_);
+  auto sh = reqs.output_shapes[0][0];
+  ASSERT_EQ(this->shape_, sh);
 }
 
 
 TYPED_TEST(HsvCpuTest, RunTest) {
-    TheKernel<TypeParam> kernel;
-    KernelContext ctx;
-    InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
-    auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_);
-    auto out_shape = reqs.output_shapes[0][0];
-    vector<typename TypeParam::Out> output;
-    output.resize(dali::volume(out_shape));
-    OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
-                                                     out_shape.template to_static<ndims>());
+  HsvKernel<TypeParam> kernel;
+  KernelContext ctx;
+  InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
+  auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_);
+  auto out_shape = reqs.output_shapes[0][0];
+  vector<typename TypeParam::Out> output;
+  output.resize(dali::volume(out_shape));
+  OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
+                                                   out_shape.template to_static<ndims>());
 
-    kernel.Run(ctx, out, in, this->hue_, this->saturation_, this->value_);
-    for (int i = 0; i < out.num_elements(); i++) {
-        EXPECT_FLOAT_EQ(this->ref_out_tv_.data[i], out.data[i]) << "Failed at idx: " << i;
-    }
+  kernel.Run(ctx, out, in, this->hue_, this->saturation_, this->value_);
+  for (int i = 0; i < out.num_elements(); i++) {
+    EXPECT_FLOAT_EQ(this->ref_out_tv_.data[i], out.data[i]) << "Failed at idx: " << i;
+  }
 }
 
 
 TYPED_TEST(HsvCpuTest, RunTestWithRoi) {
-    TheKernel<TypeParam> kernel;
-    KernelContext ctx;
-    InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
+  HsvKernel<TypeParam> kernel;
+  KernelContext ctx;
+  InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
 
-    typename decltype(kernel)::Roi roi;
-    fill_roi(roi);
+  typename decltype(kernel)::Roi roi;
+  fill_roi(roi);
 
-    auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_, &roi);
-    auto out_shape = reqs.output_shapes[0][0];
-    vector<typename TypeParam::Out> output;
-    output.resize(dali::volume(out_shape));
-    OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
-                                                     out_shape.template to_static<ndims>());
+  auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_, &roi);
+  auto out_shape = reqs.output_shapes[0][0];
+  vector<typename TypeParam::Out> output;
+  output.resize(dali::volume(out_shape));
+  OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
+                                                   out_shape.template to_static<ndims>());
 
-    kernel.Run(ctx, out, in, this->hue_, this->saturation_, this->value_, &roi);
+  kernel.Run(ctx, out, in, this->hue_, this->saturation_, this->value_, &roi);
 
-    auto mat = color_manipulation::test::to_mat<ndims>(this->ref_output_.data(), roi,
-                                                       this->shape_[0], this->shape_[1]);
-    ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
-                                << "Number of elements doesn't match";
-    auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
-    for (int i = 0; i < out.num_elements(); i++) {
-        EXPECT_FLOAT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
-    }
+  auto mat = color_manipulation::test::to_mat<ndims>(this->ref_output_.data(), roi,
+                                                     this->shape_[0], this->shape_[1]);
+  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
+                        << "Number of elements doesn't match";
+  auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
+  for (int i = 0; i < out.num_elements(); i++) {
+    EXPECT_FLOAT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
+  }
 }
 
 
 TYPED_TEST(HsvCpuTest, roi_shape) {
-    {
-        Box<2, int> box{0, 3};
-        auto sh = ::dali::kernels::hsv::roi_shape(box, 3);
-        TensorShape<3> ref_sh = {3, 3, 3};
-        ASSERT_EQ(ref_sh, sh);
-    }
-    {
-        Box<2, int> box{{0, 2},
-                        {5, 6}};
-        auto sh = ::dali::kernels::hsv::roi_shape(box, 666);
-        TensorShape<3> ref_sh = {4, 5, 666};
-        ASSERT_EQ(ref_sh, sh);
-    }
-    {
-        Box<2, int> box{{0, 0},
-                        {0, 0}};
-        auto sh = ::dali::kernels::hsv::roi_shape(box, 666);
-        TensorShape<3> ref_sh = {0, 0, 666};
-        ASSERT_EQ(ref_sh, sh);
-    }
+  {
+    Box<2, int> box{0, 3};
+    auto sh = ::dali::kernels::hsv::roi_shape(box, 3);
+    TensorShape<3> ref_sh = {3, 3, 3};
+    ASSERT_EQ(ref_sh, sh);
+  }
+  {
+    Box<2, int> box{{0, 2},
+                    {5, 6}};
+    auto sh = ::dali::kernels::hsv::roi_shape(box, 666);
+    TensorShape<3> ref_sh = {4, 5, 666};
+    ASSERT_EQ(ref_sh, sh);
+  }
+  {
+    Box<2, int> box{{0, 0},
+                    {0, 0}};
+    auto sh = ::dali::kernels::hsv::roi_shape(box, 666);
+    TensorShape<3> ref_sh = {0, 0, 666};
+    ASSERT_EQ(ref_sh, sh);
+  }
 }
 
 
