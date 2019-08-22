@@ -16,8 +16,8 @@
 #define DALI_KERNELS_IMGPROC_ROI_H_
 
 #include <vector>
-#include <dali/core/geom/box.h>
-#include <dali/kernels/tensor_shape.h>
+#include "dali/core/geom/box.h"
+#include "dali/kernels/tensor_shape.h"
 
 namespace dali {
 namespace kernels {
