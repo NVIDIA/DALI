@@ -50,6 +50,9 @@ object will be skipped during reading. It is represented as absolute value.)code
   .AddOptionalArg("ratio",
       R"code(If true, bboxes returned values as expressed as ratio w.r.t. to the image width and height.)code",
       false)
+  .AddOptionalArg("clip",
+      R"code(If true, bboxes will be clipped to the image boundaries.)code",
+      false)
   .AddOptionalArg("file_list",
       R"code(Path to the file with a list of pairs ``file id``
 (leave empty to traverse the `file_root` directory to obtain files and labels))code",
