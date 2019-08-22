@@ -30,7 +30,17 @@ put_optflow_libs() {
   # workaround for the CI
   if [[ ! -f /usr/lib/x86_64-linux-gnu/libnvidia-opticalflow.so ]]; then
       NVIDIA_SMI_DRIVER_VERSION_LONG=$(nvidia-smi | grep -Po '(?<=Driver Version: )\d+.\d+.\d+')
-      curl http://us.download.nvidia.com/tesla/${NVIDIA_SMI_DRIVER_VERSION_LONG}/NVIDIA-Linux-x86_64-${NVIDIA_SMI_DRIVER_VERSION_LONG}.run --output NVIDIA-Linux-x86_64-${NVIDIA_SMI_DRIVER_VERSION_LONG}.run
+
+      # Hack alert: This url doesn't work with 430.XX family
+      # TODO: figure out a better way to find the download path for the driver
+      # Attempt to download several version namings of the file. If one download fails, it moves to the next
+      declare -a versions_str_suffixes=("${NVIDIA_SMI_DRIVER_VERSION_LONG}" "${NVIDIA_SMI_DRIVER_VERSION_LONG}.00")
+      for version_str_suffix in "${versions_str_suffixes[@]}"; do
+          curl --fail http://us.download.nvidia.com/tesla/${NVIDIA_SMI_DRIVER_VERSION_LONG}/NVIDIA-Linux-x86_64-${version_str_suffix}.run \
+               --output NVIDIA-Linux-x86_64-${NVIDIA_SMI_DRIVER_VERSION_LONG}.run \
+              && break
+      done
+
       chmod a+x *.run && ./*.run -x
       # put it to some TMP dir just in case we encounter read only /usr/lib/x86_64-linux-gnu in docker
       LIB_OF_DIR_PATH=$(mktemp -d)
