@@ -20,7 +20,7 @@ namespace dali {
 
 TEST(MakeStringTest, default_delimiter) {
   auto str = make_string("jeden", 2, 3);
-  ASSERT_EQ(str, "jeden 23");
+  ASSERT_EQ(str, "jeden 2 3");
 }
 
 TEST(MakeStringTest, custom_delimiter) {
