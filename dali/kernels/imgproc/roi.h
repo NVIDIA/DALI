@@ -29,11 +29,16 @@ namespace kernels {
  *
  *            image.x ->
  *          +--------------------------------+
- *          |        roi.x                   |
- *  image.y |      +-----+                   |
- *       |  | roi.y|     |                   |
- *       v  |      +-----+                   |
+ *          |                                |
+ *          |   roi.lo    roi.x              |
+ *  image.y |         +-----+                |
+ *       |  |    roi.y|     |                |
+ *       v  |         +-----+ roi.hi         |
+ *          |                                |
  *          +--------------------------------+
+ *
+ * Additionally, by definition, ROI is top-left inclusive and bottom-right exclusive.
+ * That means, that `Roi.lo` point is included in actual ROI and `Roi.hi` point isn't.
  */
 template <size_t ndims>
 using Roi = Box<ndims, int>;
