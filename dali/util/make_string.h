@@ -61,7 +61,7 @@ std::string make_string_delim(const std::string &delimiter, const Args &... args
  */
 template <class... Args>
 std::string make_string(const Args &... args) {
-  return detail::make_string_delim(" ", args...);
+  return make_string_delim(" ", args...);
 }
 
 }  // namespace dali
