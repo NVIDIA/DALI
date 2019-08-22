@@ -30,7 +30,7 @@ put_optflow_libs() {
   # workaround for the CI
   if [[ ! -f /usr/lib/x86_64-linux-gnu/libnvidia-opticalflow.so ]]; then
       NVIDIA_SMI_DRIVER_VERSION_LONG=$(nvidia-smi | grep -Po '(?<=Driver Version: )\d+.\d+.\d+')
-      curl http://us.download.nvidia.com/tesla/${NVIDIA_SMI_DRIVER_VERSION_LONG}/NVIDIA-Linux-x86_64-${NVIDIA_SMI_DRIVER_VERSION_LONG}.run --output NVIDIA-Linux-x86_64-${NVIDIA_SMI_DRIVER_VERSION_LONG}.run
+      curl http://us.download.nvidia.com/tesla/${NVIDIA_SMI_DRIVER_VERSION_LONG}/NVIDIA-Linux-x86_64-${NVIDIA_SMI_DRIVER_VERSION_LONG}.00.run --output NVIDIA-Linux-x86_64-${NVIDIA_SMI_DRIVER_VERSION_LONG}.run
       chmod a+x *.run && ./*.run -x
       # put it to some TMP dir just in case we encounter read only /usr/lib/x86_64-linux-gnu in docker
       LIB_OF_DIR_PATH=$(mktemp -d)
