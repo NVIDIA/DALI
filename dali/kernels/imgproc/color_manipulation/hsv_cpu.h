@@ -76,6 +76,9 @@ TensorShape<ndims_roi + 1> roi_shape(Roi<ndims_roi> roi, size_t nchannels) {
 
 template <class OutputType, class InputType>
 class HsvCpu {
+  // TODO(mszolucha): implement float16
+  static_assert(!std::is_same<OutputType, float16_cpu>::value &&
+                !std::is_same<InputType, float16_cpu>::value, "float16 not implemented yet");
  public:
   using Roi = hsv::Roi<hsv::kNdims - 1>;
 
