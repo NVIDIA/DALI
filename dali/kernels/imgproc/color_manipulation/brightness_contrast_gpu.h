@@ -40,10 +40,17 @@ struct SampleDescriptor {
 
 
 /**
- * TODO
- * @tparam ndims
- * @param shape
- * @return
+ * Flattens the TensorShape
+ *
+ * Flattened TensorShape in case of BrightnessContrast kernel is a TensorShape,
+ * in which channel-dimension is removed. Instead, the one-before dimension is
+ * multiplied by channel-dimension size.
+ *
+ * E.g. [640, 480, 3] -> [640, 1440]
+ *
+ * The reason is that BrightnessContrast calculations are channel-agnostic
+ * (the same operation is applied for every channel), therefore BlockSetup
+ * and SampleDescriptor don't need to know about channels.
  */
 template <size_t ndims>
 TensorShape<ndims - 1> Flatten(const TensorShape<ndims> &shape) {
@@ -56,6 +63,9 @@ TensorShape<ndims - 1> Flatten(const TensorShape<ndims> &shape) {
 }
 
 
+/**
+ * Convenient overload for TensorListShape case
+ */
 template <size_t ndims>
 TensorListShape<ndims - 1> Flatten(const TensorListShape<ndims> &shape) {
   TensorListShape<ndims - 1> ret(shape.size());
@@ -70,7 +80,7 @@ TensorListShape<ndims - 1> Flatten(const TensorListShape<ndims> &shape) {
  * Note: Since the brightness-contrast calculation is channel-agnostic (it is performed in the same
  * way for every channel), SampleDescriptor assumes, that sample is channel-agnostic. Therefore it
  * needs to be flattened
- * @see RoiToShape
+ * @see Flatten
  */
 template <class OutputType, class InputType, int ndims>
 std::vector<SampleDescriptor<OutputType, InputType, ndims - 1>>
