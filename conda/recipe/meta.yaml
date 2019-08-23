@@ -33,7 +33,6 @@
       - pkg-config 0.29.2
       - cmake 3.12.2
       - make 4.2.1
-      - cudatoolkit {{ cudatoolkit }}*
     host:
       - python
       - future 0.17.1
