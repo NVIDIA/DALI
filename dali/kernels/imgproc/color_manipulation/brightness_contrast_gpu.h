@@ -54,6 +54,7 @@ struct SampleDescriptor {
  */
 template <size_t ndims>
 TensorShape<ndims - 1> Flatten(const TensorShape<ndims> &shape) {
+  static_assert(ndims >= 2, "If there are less than 2 dims, there's nothing to flatten...");
   TensorShape<ndims - 1> ret;
   for (int i = 0; i < shape.size() - 1; i++) {
     ret[i] = shape[i];
@@ -68,6 +69,7 @@ TensorShape<ndims - 1> Flatten(const TensorShape<ndims> &shape) {
  */
 template <size_t ndims>
 TensorListShape<ndims - 1> Flatten(const TensorListShape<ndims> &shape) {
+  static_assert(ndims >= 2, "If there are less than 2 dims, there's nothing to flatten...");
   TensorListShape<ndims - 1> ret(shape.size());
   for (int i = 0; i < shape.size(); i++) {
     ret.set_tensor_shape(i, Flatten<ndims>(shape[i]));

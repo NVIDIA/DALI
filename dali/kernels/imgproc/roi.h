@@ -48,8 +48,8 @@ namespace detail {
 /**
  * Create Roi for whole image defined by TensorShape
  */
-template <size_t spatial_dims>
-Roi<spatial_dims> whole_image(const TensorShape<spatial_dims + 1> &shape) {
+template <int ndims, size_t spatial_dims = ndims - 1>
+Roi<spatial_dims> WholeImage(const TensorShape <ndims> &shape) {
   ivec<spatial_dims> size;
   for (size_t i = 0; i < spatial_dims; i++)
     size[i] = shape[spatial_dims - 1 - i];
@@ -71,14 +71,14 @@ Roi<spatial_dims> whole_image(const TensorShape<spatial_dims + 1> &shape) {
  * @param nchannels Number of channels in data
  * @return Corresponding TensorShape
  */
-template <size_t ndims>
-TensorShape<ndims + 1> ShapeFromRoi(const Roi<ndims> &roi, int nchannels) {
+template <size_t spatial_dims, int ndims = spatial_dims + 1>
+TensorShape<ndims> ShapeFromRoi(const Roi<spatial_dims> &roi, int nchannels) {
   DALI_ENFORCE(all_coords(roi.hi >= roi.lo), "Cannot create a TensorShape from an invalid Roi");
-  TensorShape<ndims + 1> ret;
+  TensorShape<ndims> ret;
   auto e = roi.extent();
-  auto ridx = ndims;
+  auto ridx = spatial_dims;
   ret[ridx--] = nchannels;
-  for (size_t idx = 0; idx < ndims; idx++) {
+  for (size_t idx = 0; idx < spatial_dims; idx++) {
     ret[ridx--] = e[idx];
   }
   return ret;
@@ -88,10 +88,10 @@ TensorShape<ndims + 1> ShapeFromRoi(const Roi<ndims> &roi, int nchannels) {
 /**
  * Convenient overload for batch processing (creating TensorListShape)
  */
-template <size_t ndims>
-TensorListShape<ndims + 1> ShapeFromRoi(const std::vector<Roi<ndims>> &rois, int nchannels) {
+template <size_t spatial_dims, int ndims = spatial_dims + 1>
+TensorListShape<ndims> ShapeFromRoi(const std::vector<Roi<spatial_dims>> &rois, int nchannels) {
   DALI_ENFORCE(!rois.empty(), "Provided argument doesn't contain any Roi");
-  TensorListShape<ndims + 1> ret(rois.size());
+  TensorListShape<ndims> ret(rois.size());
   size_t i = 0;
   for (const auto &roi : rois) {
     ret.set_tensor_shape(i++, ShapeFromRoi(roi, nchannels));
@@ -110,13 +110,9 @@ TensorListShape<ndims + 1> ShapeFromRoi(const std::vector<Roi<ndims>> &rois, int
  *
  * Assumes HWC memory layout
  */
-template <size_t spatial_dims>
-Roi<spatial_dims>
-AdjustRoi(const Roi<spatial_dims> *roi, const TensorShape<spatial_dims + 1> &shape) {
-  ivec<spatial_dims> size;
-  for (size_t i = 0; i < spatial_dims; i++)
-    size[i] = shape[spatial_dims - 1 - i];
-  Roi<spatial_dims> whole_image = {0, size};
+template <int ndims, size_t spatial_dims = ndims - 1>
+Roi<spatial_dims> AdjustRoi(const Roi<spatial_dims> *roi, const TensorShape <ndims> &shape) {
+  auto whole_image = detail::WholeImage(shape);
   return roi ? intersection(*roi, whole_image) : whole_image;
 }
 
@@ -132,20 +128,20 @@ AdjustRoi(const Roi<spatial_dims> *roi, const TensorShape<spatial_dims + 1> &sha
  *
  * Assumes HWC memory layout
  */
-template <size_t spatial_dims>
-std::vector<Roi<spatial_dims>> AdjustRoi(const std::vector<Roi<spatial_dims>> rois,
-                                         const TensorListShape<spatial_dims + 1> &shapes) {
+template <int ndims, size_t spatial_dims = ndims - 1>
+std::vector<Roi<spatial_dims>>
+AdjustRoi(const std::vector<Roi<spatial_dims>> rois, const TensorListShape <ndims> &shapes) {
   DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()),
                "Either provide `rois` for every corresponding `shape`, or none.");
   std::vector<Roi<spatial_dims>> ret(shapes.num_samples());
 
   if (rois.empty()) {
     for (int i = 0; i < shapes.num_samples(); i++) {
-      ret[i] = detail::whole_image<spatial_dims>(shapes[i]);
+      ret[i] = detail::WholeImage(shapes[i]);
     }
   } else {
     for (size_t i = 0; i < rois.size(); i++) {
-      ret[i] = intersection(rois[i], detail::whole_image<spatial_dims>(shapes[i]));
+      ret[i] = intersection(rois[i], detail::WholeImage(shapes[i]));
     }
   }
 

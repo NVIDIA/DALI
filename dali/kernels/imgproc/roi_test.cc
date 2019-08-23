@@ -61,7 +61,7 @@ TEST(RoiTest, roi_to_TensorListShape) {
                                       {4, 5, nchannels},
                                       {0, 0, nchannels}};
   auto shs = ShapeFromRoi(rois, nchannels);
-  EXPECT_TRUE(shs == TensorListShape<-1>(ref));
+  EXPECT_EQ(shs, TensorListShape<-1>(ref));
 }
 
 
@@ -75,14 +75,14 @@ TEST(RoiTest, whole_image) {
               {5, 4}};
   Roi ref3 = {0, 0};
 
-  EXPECT_EQ(detail::whole_image<2>(sh1), ref1);
-  EXPECT_EQ(detail::whole_image<2>(sh2), ref2);
-  EXPECT_EQ(detail::whole_image<2>(sh3), ref3);
+  EXPECT_EQ(detail::WholeImage(sh1), ref1);
+  EXPECT_EQ(detail::WholeImage(sh2), ref2);
+  EXPECT_EQ(detail::WholeImage(sh3), ref3);
 }
 
 
 TEST(RoiTest, adjust_empty_roi) {
-  constexpr size_t ndims = 3;
+  constexpr int ndims = 3;
   std::vector<Roi> rois;
 
   TensorShape<ndims> ts{5, 6, 7};
@@ -95,10 +95,9 @@ TEST(RoiTest, adjust_empty_roi) {
 
 
 TEST(RoiTest, adjust_roi) {
-  constexpr size_t ndims = 3;
+  constexpr int ndims = 3;
 
-  Roi roi =
-          {{5, 6},
+  Roi roi = {{5, 6},
            {7, 8}};
   TensorShape<ndims> ts = {12, 13, 14};
   Roi ref = {{5, 6},
@@ -109,7 +108,7 @@ TEST(RoiTest, adjust_roi) {
 
 
 TEST(RoiTest, adjust_empty_rois) {
-  constexpr size_t ndims = 3;
+  constexpr int ndims = 3;
   std::vector<Roi> rois;
 
   TensorListShape<ndims> tls({{2, 3, 4},
@@ -127,21 +126,24 @@ TEST(RoiTest, adjust_empty_rois) {
 
 
 TEST(RoiTest, adjust_rois) {
-  constexpr size_t ndims = 3;
+  constexpr int ndims = 3;
 
   std::vector<Roi> rois = {
           {{1, 2}, {3, 4}},
           {{5, 6}, {7, 8}},
-          {0,      20}
+          {0,      20},
+          {{0, 0}, {640, 480}}
   };
-  std::vector<TensorShape<ndims>> ts = {{9,  10, 11},
-                                        {12, 13, 14},
-                                        {1,  1,  1}};
+  std::vector<TensorShape<ndims>> ts = {{9,   10,  11},
+                                        {12,  13,  14},
+                                        {1,   1,   1},
+                                        {480, 640, 3}};
   TensorListShape<ndims> tls = ts;
   std::vector<Roi> ref = {
           {{1, 2}, {3, 4}},
           {{5, 6}, {7, 8}},
-          {0,      1}
+          {0,      1},
+          {0,      {640, 480}},
   };
   auto res = AdjustRoi(rois, tls);
   ASSERT_EQ(ref.size(), res.size());
