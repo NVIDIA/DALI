@@ -148,6 +148,26 @@ class TensorVector {
     return type_;
   }
 
+  inline void SetLayout(DALITensorLayout layout) {
+    if (state_ == State::noncontiguous) {
+      DALI_ENFORCE(!tensors_.empty(), "Layout cannot be set uniformly for empty batch");
+    }
+    tl_->SetLayout(layout);
+    for (auto t : tensors_) {
+      t->SetLayout(layout);
+    }
+  }
+
+  inline DALITensorLayout GetLayout() const {
+    if (state_ == State::contiguous) {
+      return tl_->GetLayout();
+    }
+    if (tensors_.size() > 0) {
+      return tensors_[0]->GetLayout();
+    }
+    return DALITensorLayout::DALI_UNKNOWN;
+  }
+
   inline void set_pinned(bool pinned) {
     // Store the value, in case we pin empty vector and later call Resize
     pinned_ = pinned;
