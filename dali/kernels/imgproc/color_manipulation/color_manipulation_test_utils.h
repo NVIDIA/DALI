@@ -37,7 +37,7 @@ template <int nchannels, class T>
 cv::Mat_<cv::Vec<T, nchannels>> to_mat(T *ptr, Box<2, int> roi, int rows, int cols) {
   auto roi_w = roi.extent().x;
   auto roi_h = roi.extent().y;
-  assert(roi.hi.x < cols && roi.hi.y < rows);  // Roi overflows the image
+  assert(roi.hi.x <= cols && roi.hi.y <= rows);  // Roi overflows the image
   cv::Mat mat(rows, cols, CV_MAKETYPE(cv::DataDepth<std::remove_const_t<T>>::value, nchannels),
               const_cast<T *>(ptr));
   cv::Rect rect(roi.lo.x, roi.lo.y, roi_w, roi_h);
