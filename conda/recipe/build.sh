@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
+# (C) Copyright NVIDIA CORPORATION. 2019. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,37 +33,46 @@ else
 fi
 
 # Create 'gcc' symlink so nvcc can find it
-ln -s $CONDA_PREFIX/bin/${ARCH_LONGNAME}-linux-gnu-gcc $CONDA_PREFIX/bin/gcc
+ln -s $CC $BUILD_PREFIX/bin/gcc
 
-# Add libjpeg-turbo location to front of CXXFLAGS so it is used instead of jpeg
-export CXXFLAGS="-I$CONDA_PREFIX/libjpeg-turbo/include ${CXXFLAGS}"
+# Force -std=c++14 in CXXFLAGS
+export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++14}
+
+# For some reason `aligned_alloc` is present when we use compiler version 5.4.x
+# Adding NO_ALIGNED_ALLOC definition for cutt
+export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
 
 # Build
-# BUILD_TENSORFLOW No longer exists. Previous flag to build tf plugin (used in release_v0.9)
-cmake -DBUILD_TENSORFLOW=ON \
-      -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
-      -DCUDA_rt_LIBRARY=$CONDA_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \
-      -DNVJPEG_ROOT_DIR=$CONDA_PREFIX/lib64/ \
-      -DFFMPEG_ROOT_DIR=$CONDA_PREFIX/lib \
-      -DJPEG_INCLUDE_DIR=$CONDA_PREFIX/libjpeg-turbo/lib \
-      -DJPEG_LIBRARY=$CONDA_PREFIX/libjpeg-turbo/lib/libjpeg.so \
-      -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
+cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
+      -DCUDA_rt_LIBRARY=$BUILD_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \
       -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH}-linux/lib/stubs/libcuda.so \
+      -DNVJPEG_ROOT_DIR=/usr/local/cuda \
+      -DFFMPEG_ROOT_DIR=$PREFIX/lib \
+      -DCMAKE_PREFIX_PATH="$PREFIX/libjpeg-turbo;$PREFIX" \
+      -DCMAKE_INSTALL_PREFIX=$PREFIX \
       ..
+make -j"$(nproc --all)"
+make install
 
-make -j"$(nproc --all)" install
+# set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
+PKGNAME_PATH=$PWD/dali/python/nvidia/dali
+find $PKGNAME_PATH -type f -name "*.so*" -o -name "*.bin" | while read FILE; do
+    UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
+    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs'"
+    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs" $FILE
+    patchelf --print-rpath $FILE
+done
 
-export PYTHONUSERBASE=$PREFIX
+# pip install
+$PYTHON -m pip install --no-deps --ignore-installed -v dali/python
 
-pip install --user dali/python
-
-# Move required .so files to $PREFIX/lib
-cp $SRC_DIR/build/dali/python/nvidia/dali/*.so $PREFIX/lib
-
-#Removed due to altered plugin support in v0.12
-#cp $SRC_DIR/build/dali/python/nvidia/dali/plugin/*.so $PREFIX/lib
-
-
+# Build tensorflow plugin
+export LD_LIBRARY_PATH="$PREFIX/libjpeg-turbo/lib:$PREFIX/lib:$LD_LIBRARY_PATH"
+DALI_PATH=$($PYTHON -c 'import nvidia.dali as dali; import os; print(os.path.dirname(dali.__file__))')
+echo "DALI_PATH is ${DALI_PATH}"
+pushd $SRC_DIR/dali_tf_plugin/
+source ./build_dali_tf.sh $DALI_PATH/plugin/libdali_tf_current.so
+popd
 
 # Move tfrecord2idx to host env so it can be found at runtime
 cp $SRC_DIR/tools/tfrecord2idx $PREFIX/bin
