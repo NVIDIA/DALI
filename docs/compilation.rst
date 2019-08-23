@@ -155,8 +155,8 @@ Prerequisites
      --enable-avcodec \
      --enable-avfilter \
      --enable-protocol=file \
-     --enable-demuxer=mov,matroska \
-     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
+     --enable-demuxer=mov,matroska,avi \
+     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes  && \
      make
 
 
