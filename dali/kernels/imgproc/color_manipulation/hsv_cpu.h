@@ -16,13 +16,8 @@
 #define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_HSV_CPU_H_
 
 #include <utility>
-#include "dali/util/ocv.h"
-#include "dali/core/common.h"
 #include "dali/core/convert.h"
-#include "dali/core/geom/box.h"
-#include "dali/core/error_handling.h"
-#include "dali/kernels/kernel.h"
-#include "dali/pipeline/data/types.h"
+#include "dali/kernels/imgproc/roi.h"
 
 namespace dali {
 namespace kernels {
@@ -31,45 +26,6 @@ namespace hsv {
 
 constexpr size_t kNdims = 3;
 constexpr size_t kNchannels = 3;
-
-/**
- * Defines region of interest.
- * 0 dimension is interpreted along x axis (horizontal)
- * 1 dimension is interpreted along y axis (vertical)
- *
- *            image.x ->
- *          +--------------------------------+
- *          |        roi.x                   |
- *  image.y |      +-----+                   |
- *       |  | roi.y|     |                   |
- *       v  |      +-----+                   |
- *          +--------------------------------+
- */
-template <size_t ndims>
-using Roi = Box<ndims, int>;
-
-
-/**
- * Defines TensorShape corresponding to provided Roi.
- * Assumes HWC memory layout
- *
- * @tparam ndims_roi Number of dims in Roi
- * @param roi Region of interest
- * @param nchannels Number of channels in data
- * @return Corresponding TensorShape
- */
-template <size_t ndims_roi>
-TensorShape<ndims_roi + 1> roi_shape(Roi<ndims_roi> roi, size_t nchannels) {
-  assert(all_coords(roi.hi >= roi.lo) && "Cannot create a tensor shape from an invalid Box");
-  TensorShape<ndims_roi + 1> ret;
-  auto e = roi.extent();
-  auto ridx = ndims_roi;
-  ret[ridx--] = nchannels;
-  for (size_t idx = 0; idx < ndims_roi; idx++) {
-    ret[ridx--] = e[idx];
-  }
-  return ret;
-}
 
 }  // namespace hsv
 
@@ -81,8 +37,7 @@ class HsvCpu {
                 !std::is_same<InputType, float16_cpu>::value, "float16 not implemented yet");
 
  public:
-  using Roi = hsv::Roi<hsv::kNdims - 1>;
-
+  using Roi = ::dali::kernels::Roi<hsv::kNdims - 1>;
 
   KernelRequirements
   Setup(KernelContext &context, const InTensorCPU<InputType, hsv::kNdims> &in, float hue,
@@ -90,7 +45,7 @@ class HsvCpu {
     DALI_ENFORCE(!roi || all_coords(roi->hi >= roi->lo), "Region of interest is invalid");
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     KernelRequirements req;
-    TensorListShape<> out_shape({hsv::roi_shape(adjusted_roi, hsv::kNchannels)});
+    TensorListShape<> out_shape({ShapeFromRoi(adjusted_roi, hsv::kNchannels)});
     req.output_shapes = {std::move(out_shape)};
     return req;
   }
@@ -115,26 +70,6 @@ class HsvCpu {
       }
       row += row_stride;
     }
-  }
-
-
- private:
-  /**
-   * Adjusted Roi is a Roi, which doesn't overflow the image,
-   * that given by TensorShape.
-   *
-   * In case, when no Roi is provided (roi == nullptr),
-   * size of whole image is returned as Roi.
-   *
-   * Assumes HWC layout
-   */
-  Roi AdjustRoi(const Roi *roi, const TensorShape<hsv::kNdims> &shape) {
-    constexpr size_t spatial_dims = hsv::kNdims - 1;
-    ivec<spatial_dims> size;
-    for (size_t i = 0; i < spatial_dims; i++)
-      size[i] = shape[spatial_dims - 1 - i];
-    Roi whole_image = {0, size};
-    return roi ? intersection(*roi, whole_image) : whole_image;
   }
 };
 
