@@ -181,10 +181,6 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     return true;
   }
 
-    // We are fortunate enough that we need to use different type switch on different device
-  void PrepareArgs(const workspace_t<Backend> &ws, std::size_t number_of_dims, int data_idx);
-
-
   // Propagate input -> output type and layout
   // Gather the CropAttr (obtain arguments from Spec/ArgumentWorkspace)
   void SetupAndInitialize(const workspace_t<Backend> &ws) {
@@ -205,12 +201,29 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     const auto &in_shape = input.shape();  // This can be a copy
     std::size_t number_of_dims = in_shape.sample_dim();
 
-    // Set internal info for each sample based on CropAttr
-    for (int data_idx = 0; data_idx < batch_size_; data_idx++) {
-      mirror_[data_idx] = spec_.template GetArgument<int>("mirror", &ws, data_idx);
-      SetupSample(data_idx, input_layout_, in_shape.tensor_shape(data_idx));
-      PrepareArgs(ws, number_of_dims, data_idx);
-    }
+    VALUE_SWITCH(number_of_dims, Dims, (3, 4),
+    (
+      using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
+      // We won't change the underlying type after the first allocation
+      if (!kernel_sample_args_.has_value()) {
+        kernel_sample_args_ = std::vector<Args>(batch_size_);
+      }
+      auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+
+      // Set internal info for each sample based on CropAttr
+      for (int data_idx = 0; data_idx < batch_size_; data_idx++) {
+        mirror_[data_idx] = spec_.template GetArgument<int>("mirror", &ws, data_idx);
+        SetupSample(data_idx, input_layout_, in_shape.tensor_shape(data_idx));
+        // convert the Operator representation to Kernel parameter representation
+        kernel_sample_args[data_idx] = detail::GetKernelArgs<Dims>(
+          input_layout_, output_layout_, slice_anchors_[data_idx], slice_shapes_[data_idx],
+          mirror_[data_idx], pad_output_, mean_vec_, inv_std_vec_);
+      }
+
+      // NOLINTNEXTLINE(whitespace/parens)
+    ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
+
+
 
     auto &output = ws.template OutputRef<Backend>(0);
     output.SetLayout(output_layout_);
