@@ -11,7 +11,7 @@ do_once() {
 test_body() {
     # test code
     # dummy patern
-    black_list_files="#"
+    black_list_files="multigpu"
 
     ls *.ipynb | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
