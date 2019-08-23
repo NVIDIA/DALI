@@ -141,8 +141,7 @@ CreateSampleDescriptors(const OutListGPU<OutputType, ndims> &out,
 
 
 template <class OutputType, class InputType, int ndims>
-__global__ void HsvKernel(const SampleDescriptor<OutputType, InputType, ndims> *samples,
-                          const BlockDesc<ndims> *blocks) {
+void HsvKernel(const SampleDescriptor<OutputType, InputType, ndims> *samples,                          const BlockDesc<ndims> *blocks) {
 //  static_assert(ndims == 2, "Function requires 2 dimensions in the input");
 //  const auto &block = blocks[blockIdx.x];
 //  const auto &sample = samples[block.sample_idx];
@@ -163,12 +162,12 @@ template <typename OutputType, typename InputType>
 class HsvGpu {
  private:
   static constexpr size_t spatial_dims = ndims - 1;
-  using BlockDesc = kernels::BlockDesc<spatial_dims>;
+  using BlockDesc = kernels::BlockDesc<ndims>;
 
   std::vector<SampleDescriptor<OutputType, InputType, ndims>> sample_descriptors_;
 
  public:
-  BlockSetup<spatial_dims, -1 /* No channel dimension, only spatial */> block_setup_;
+  BlockSetup<ndims, 2> block_setup_;
 
 
   KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, ndims> &in,
@@ -198,8 +197,8 @@ class HsvGpu {
     auto nchannels = in.shape[0][ndims - 1];
     KernelRequirements req;
     ScratchpadEstimator se;
-    TensorListShape<spatial_dims> output_shape(RoiToShape(adjusted_rois, nchannels));
-    block_setup_.SetupBlocks(color_manipulation::Flatten(output_shape), true);
+    TensorListShape<spatial_dims> output_shape(ShapeFromRoi(adjusted_rois, nchannels));
+    block_setup_.SetupBlocks(output_shape, true);
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
     req.output_shapes = {in.shape};
@@ -225,6 +224,7 @@ class HsvGpu {
     auto stream = context.gpu.stream;
 
 //    BrightnessContrastKernel<<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
+HsvKernel(samples_gpu, blocks_gpu);
   }
 };
 
