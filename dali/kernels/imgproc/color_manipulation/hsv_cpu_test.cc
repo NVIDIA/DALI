@@ -17,122 +17,135 @@
 #include <tuple>
 #include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
+#include "dali/kernels/imgproc/color_manipulation/hsv_cpu.h"
 #include "dali/kernels/imgproc/color_manipulation/color_manipulation_test_utils.h"
 
 namespace dali {
 namespace kernels {
-namespace brightness_contrast {
+namespace hsv {
 namespace test {
 
 namespace {
+
+static constexpr int ndims = 3;
+
 
 void fill_roi(Box<2, int> &roi) {
   roi = {{1, 2},
          {5, 7}};
 }
 
+
+template <class GtestTypeParam>
+using HsvKernel = HsvCpu<typename GtestTypeParam::Out, typename GtestTypeParam::In>;
+
 }  // namespace
 
+
 template <class InputOutputTypes>
-class BrightnessContrastCpuTest : public ::testing::Test {
+class HsvCpuTest : public ::testing::Test {
+  using In = typename InputOutputTypes::In;
+  using Out = typename InputOutputTypes::Out;
+
  protected:
-  BrightnessContrastCpuTest() {
+  HsvCpuTest() {
     input_.resize(dali::volume(shape_));
+    ref_output_.resize(dali::volume(shape_));
   }
 
 
   void SetUp() final {
     std::mt19937_64 rng;
     UniformRandomFill(input_, rng, 0., 10.);
-    calc_output<typename InputOutputTypes::Out>();
+    calc_output<Out>();
     ref_out_tv_ = make_tensor_cpu(ref_output_.data(), shape_);
   }
 
 
-  std::vector<typename InputOutputTypes::In> input_;
-  std::vector<typename InputOutputTypes::Out> ref_output_;
-  OutTensorCPU<typename InputOutputTypes::Out, 3> ref_out_tv_;
-  TensorShape<3> shape_ = {240, 320, 3};
-  float brightness_ = 4;
-  float contrast_ = 3;
-  static constexpr size_t ndims = 3;
+  std::vector<In> input_;
+  std::vector<Out> ref_output_;
+  OutTensorCPU<Out, ndims> ref_out_tv_;
+  TensorShape<3> shape_ = {23, 45, ndims};
+  float hue_ = 2.8f;
+  float saturation_ = 1.9f;
+  float value_ = 0.3f;
 
 
   template <typename OutputType>
   std::enable_if_t<std::is_integral<OutputType>::value> calc_output() {
-    for (auto in : input_) {
-      ref_output_.push_back(std::round(in * contrast_ + brightness_));
+    for (size_t i = 0; i < input_.size(); i += ndims) {
+      ref_output_[i + 0] = std::round(input_[i + 0] + hue_);
+      ref_output_[i + 1] = std::round(input_[i + 1] * saturation_);
+      ref_output_[i + 2] = std::round(input_[i + 2] * value_);
     }
   }
 
 
   template <typename OutputType>
   std::enable_if_t<!std::is_integral<OutputType>::value> calc_output() {
-    for (auto in : input_) {
-      ref_output_.push_back(in * contrast_ + brightness_);
+    for (size_t i = 0; i < input_.size(); i += ndims) {
+      ref_output_[i + 0] = input_[i + 0] + hue_;
+      ref_output_[i + 1] = input_[i + 1] * saturation_;
+      ref_output_[i + 2] = input_[i + 2] * value_;
     }
   }
 };
 
 
 using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
-INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastCpuTest, TestTypes);
+INPUT_OUTPUT_TYPED_TEST_SUITE(HsvCpuTest, TestTypes);
 
 
-TYPED_TEST(BrightnessContrastCpuTest, check_kernel) {
-  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
+TYPED_TEST(HsvCpuTest, check_kernel) {
+  HsvKernel<TypeParam> kernel;
   check_kernel<decltype(kernel)>();
 }
 
 
-TYPED_TEST(BrightnessContrastCpuTest, SetupTestAndCheckKernel) {
-  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
-  constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
+TYPED_TEST(HsvCpuTest, SetupTestAndCheckKernel) {
+  HsvKernel<TypeParam> kernel;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
-  auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
+  auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_);
   auto sh = reqs.output_shapes[0][0];
   ASSERT_EQ(this->shape_, sh);
 }
 
 
-TYPED_TEST(BrightnessContrastCpuTest, RunTest) {
-  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
-  constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
+TYPED_TEST(HsvCpuTest, RunTest) {
+  HsvKernel<TypeParam> kernel;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
-  auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
+  auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_);
   auto out_shape = reqs.output_shapes[0][0];
   vector<typename TypeParam::Out> output;
   output.resize(dali::volume(out_shape));
   OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
                                                    out_shape.template to_static<ndims>());
 
-  kernel.Run(ctx, out, in, this->brightness_, this->contrast_);
+  kernel.Run(ctx, out, in, this->hue_, this->saturation_, this->value_);
   for (int i = 0; i < out.num_elements(); i++) {
     EXPECT_FLOAT_EQ(this->ref_out_tv_.data[i], out.data[i]) << "Failed at idx: " << i;
   }
 }
 
 
-TYPED_TEST(BrightnessContrastCpuTest, RunTestWithRoi) {
-  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
-  constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
+TYPED_TEST(HsvCpuTest, RunTestWithRoi) {
+  HsvKernel<TypeParam> kernel;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
 
   typename decltype(kernel)::Roi roi;
   fill_roi(roi);
 
-  auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_, &roi);
+  auto reqs = kernel.Setup(ctx, in, this->hue_, this->saturation_, this->value_, &roi);
   auto out_shape = reqs.output_shapes[0][0];
   vector<typename TypeParam::Out> output;
   output.resize(dali::volume(out_shape));
   OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
                                                    out_shape.template to_static<ndims>());
 
-  kernel.Run(ctx, out, in, this->brightness_, this->contrast_, &roi);
+  kernel.Run(ctx, out, in, this->hue_, this->saturation_, this->value_, &roi);
 
   auto mat = color_manipulation::test::to_mat<ndims>(this->ref_output_.data(), roi,
                                                      this->shape_[0], this->shape_[1]);
@@ -145,24 +158,24 @@ TYPED_TEST(BrightnessContrastCpuTest, RunTestWithRoi) {
 }
 
 
-TYPED_TEST(BrightnessContrastCpuTest, roi_shape) {
+TYPED_TEST(HsvCpuTest, roi_shape) {
   {
     Box<2, int> box{0, 3};
-    auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 3);
+    auto sh = ::dali::kernels::hsv::roi_shape(box, 3);
     TensorShape<3> ref_sh = {3, 3, 3};
     ASSERT_EQ(ref_sh, sh);
   }
   {
     Box<2, int> box{{0, 2},
                     {5, 6}};
-    auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
+    auto sh = ::dali::kernels::hsv::roi_shape(box, 666);
     TensorShape<3> ref_sh = {4, 5, 666};
     ASSERT_EQ(ref_sh, sh);
   }
   {
     Box<2, int> box{{0, 0},
                     {0, 0}};
-    auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
+    auto sh = ::dali::kernels::hsv::roi_shape(box, 666);
     TensorShape<3> ref_sh = {0, 0, 666};
     ASSERT_EQ(ref_sh, sh);
   }
@@ -170,6 +183,6 @@ TYPED_TEST(BrightnessContrastCpuTest, roi_shape) {
 
 
 }  // namespace test
-}  // namespace brightness_contrast
+}  // namespace hsv
 }  // namespace kernels
 }  // namespace dali
