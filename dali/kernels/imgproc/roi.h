@@ -46,7 +46,7 @@ using Roi = Box<ndims, int>;
 namespace detail {
 
 /**
- * Create Roi for whole image defined by TensorShape
+ * Create a Roi with size matching the whole image
  */
 template <int ndims, size_t spatial_dims = ndims - 1>
 Roi<spatial_dims> WholeImage(const TensorShape <ndims> &shape) {

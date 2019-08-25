@@ -53,7 +53,7 @@ struct SampleDescriptor {
  * and SampleDescriptor don't need to know about channels.
  */
 template <size_t ndims>
-TensorShape<ndims - 1> Flatten(const TensorShape<ndims> &shape) {
+TensorShape<ndims - 1> FlattenChannels(const TensorShape<ndims> &shape) {
   static_assert(ndims >= 2, "If there are less than 2 dims, there's nothing to flatten...");
   TensorShape<ndims - 1> ret;
   for (int i = 0; i < shape.size() - 1; i++) {
@@ -68,11 +68,11 @@ TensorShape<ndims - 1> Flatten(const TensorShape<ndims> &shape) {
  * Convenient overload for TensorListShape case
  */
 template <size_t ndims>
-TensorListShape<ndims - 1> Flatten(const TensorListShape<ndims> &shape) {
+TensorListShape<ndims - 1> FlattenChannels(const TensorListShape<ndims> &shape) {
   static_assert(ndims >= 2, "If there are less than 2 dims, there's nothing to flatten...");
   TensorListShape<ndims - 1> ret(shape.size());
   for (int i = 0; i < shape.size(); i++) {
-    ret.set_tensor_shape(i, Flatten<ndims>(shape[i]));
+    ret.set_tensor_shape(i, FlattenChannels<ndims>(shape[i]));
   }
   return ret;
 }
@@ -82,7 +82,7 @@ TensorListShape<ndims - 1> Flatten(const TensorListShape<ndims> &shape) {
  * Note: Since the brightness-contrast calculation is channel-agnostic (it is performed in the same
  * way for every channel), SampleDescriptor assumes, that sample is channel-agnostic. Therefore it
  * needs to be flattened
- * @see Flatten
+ * @see FlattenChannels
  */
 template <class OutputType, class InputType, int ndims>
 std::vector<SampleDescriptor<OutputType, InputType, ndims - 1>>
@@ -173,7 +173,7 @@ class BrightnessContrastGpu {
     KernelRequirements req;
     ScratchpadEstimator se;
     auto sh = ShapeFromRoi(adjusted_rois, nchannels);
-    TensorListShape<spatial_dims> flattened_shape(Flatten<ndims>(sh));
+    TensorListShape<spatial_dims> flattened_shape(FlattenChannels<ndims>(sh));
     block_setup_.SetupBlocks(flattened_shape, true);
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
