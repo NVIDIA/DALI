@@ -18,6 +18,7 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
@@ -138,15 +139,13 @@ class BrightnessContrast : public Operator<Backend> {
     const auto &output = ws.template OutputRef<Backend>(0);
     output_desc.resize(1);
 
-    // @autoformat:off
-    DALI_TYPE_SWITCH(output_type_, OutputType,
+    TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
         {
           TypeInfo type;
           type.SetType<OutputType>(output_type_);
           output_desc[0] = {input.shape(), type};
         }
-    )
-    // @autoformat:on
+    ), DALI_FAIL("Unsupported image type"))
     return true;
   }
 
@@ -162,9 +161,8 @@ class BrightnessContrast : public Operator<Backend> {
     const auto &input = ws.template Input<Backend>(0);
     auto &output = ws.template Output<Backend>(0);
 
-    // @autoformat:off
-    DALI_TYPE_SWITCH(input.type().id(), InputType,
-        DALI_TYPE_SWITCH(output_type_, OutputType,
+    TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
+            TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
             {
                 using TheKernel =
                         detail::BrightnessContrastKernel<Backend, OutputType, InputType, 3>;
@@ -177,9 +175,8 @@ class BrightnessContrast : public Operator<Backend> {
                 kernel_manager_.Run<TheKernel>(ws.thread_idx(), ws.data_idx(),
                         ctx, tvout, tvin, brightness_, contrast_);
             }
-        )
-    )
-    // @autoformat:on
+            ), DALI_FAIL("Unsupported output type"))
+    ), DALI_FAIL("Unsupported input type"))
   }
 
 

@@ -76,7 +76,7 @@ class BrightnessContrastCpuTest : public ::testing::Test {
 };
 
 
-using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
+using TestTypes = std::tuple<uint8_t, int16_t, int32_t, float>;
 INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastCpuTest, TestTypes);
 
 namespace {

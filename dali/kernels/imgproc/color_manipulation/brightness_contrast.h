@@ -46,21 +46,6 @@ inline TensorShape<ndims + 1> roi_shape(Box<ndims, CoordinateType> roi, size_t n
   return ret;
 }
 
-
-template <class Ret, class Val>
-std::enable_if_t<std::is_integral<Ret>::value && std::is_floating_point<Val>::value, Ret>
-custom_convert(const Val &val) {
-  return std::round(val);
-}
-
-
-template <class Ret, class Val>
-std::enable_if_t<!std::is_integral<Ret>::value || !std::is_floating_point<Val>::value, Ret>
-custom_convert(const Val &val) {
-  return val;
-}
-
-
 }  // namespace brightness_contrast
 
 
@@ -108,11 +93,7 @@ class BrightnessContrastCpu {
     auto *row = in.data + adjusted_roi.lo.y * row_stride;
     for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
       for (int xc = adjusted_roi.lo.x * num_channels; xc < adjusted_roi.hi.x * num_channels; xc++)
-
-        // TODO(mszolucha): Change to the line below, when ConvertSat() is fixed
-        *ptr++ = brightness_contrast::custom_convert<OutputType>(row[xc] * contrast + brightness);
-         // *ptr++ = ConvertSat<OutputType>(row[xc] * contrast + brightness);
-
+        *ptr++ = ConvertSat<OutputType>(row[xc] * contrast + brightness);
       row += row_stride;
     }
   }
