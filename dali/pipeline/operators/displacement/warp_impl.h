@@ -286,9 +286,9 @@ class Warp : public Operator<Backend> {
     out_type = output_type_;
   }
 
-  void RunImpl(DeviceWorkspace* ws) {
+  void RunImpl(Workspace &ws) override {
     assert(impl_);
-    impl_->Run(*ws);
+    impl_->Run(ws);
   }
 
  protected:
