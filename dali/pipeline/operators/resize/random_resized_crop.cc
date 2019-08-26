@@ -69,7 +69,7 @@ void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws)
   int W = input_shape[1];
   int id = ws.data_idx();
 
-  crops_[id] = GetCropWindowGenerator(id)(H, W);
+  crops_[id] = GetCropWindowGenerator(id)({H, W});
   resample_params_[ws.thread_idx()] = CalcResamplingParams(id);
 }
 

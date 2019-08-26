@@ -254,11 +254,10 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     const bool is_whole_image = IsWholeImage();
     int crop_h = is_whole_image ? H : crop_height_[data_idx];
     int crop_w = is_whole_image ? W : crop_width_[data_idx];
-    auto crop_pos_y_x = CalculateCropYX(crop_y_norm_[data_idx], crop_x_norm_[data_idx],
-                                        crop_h, crop_w, H, W);
 
-    int64_t crop_y, crop_x;
-    std::tie(crop_y, crop_x) = crop_pos_y_x;
+    float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
+    auto anchor = CalculateAnchor(make_span(anchor_norm), {crop_h, crop_w}, {H, W});
+    int64_t crop_y = anchor[0], crop_x = anchor[1];
 
     switch (layout) {
       case DALI_NHWC:

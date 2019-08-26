@@ -32,8 +32,9 @@ RandomCropGenerator::RandomCropGenerator(
   , num_attempts_(num_attempts) {
 }
 
-CropWindow RandomCropGenerator::GenerateCropWindowImpl(int H, int W) {
-  CropWindow crop = {};
+CropWindow RandomCropGenerator::GenerateCropWindowImpl(const kernels::TensorShape<>& shape) {
+  CropWindow crop;
+  int H = shape[0], W = shape[1];
   if (W <= 0 || H <= 0) {
     return crop;
   }
@@ -47,11 +48,9 @@ CropWindow RandomCropGenerator::GenerateCropWindowImpl(int H, int W) {
 
   // detect two impossible cases early
   if (H * maxW < min_area) {  // image too wide
-    crop.h = H;
-    crop.w = maxW;
+    crop.SetShape({H, maxW});
   } else if (W * maxH < min_area) {  // image too tall
-    crop.w = W;
-    crop.h = maxH;
+    crop.SetShape({maxH, W});
   } else {
     // it can still fail for very small images when size granularity matters
     int attempts_left = num_attempts_;
@@ -62,61 +61,61 @@ CropWindow RandomCropGenerator::GenerateCropWindowImpl(int H, int W) {
       float target_area = scale * original_area;
 
       float ratio = std::exp(aspect_ratio_log_dis_(rand_gen_));
-      crop.w = static_cast<int>(
+      auto w = static_cast<int>(
           std::roundf(sqrtf(target_area * ratio)));
-      crop.h = static_cast<int>(
+      auto h = static_cast<int>(
           std::roundf(sqrtf(target_area / ratio)));
 
-      if (crop.w < 1)
-        crop.w = 1;
-      if (crop.h < 1)
-        crop.h = 1;
+      if (w < 1)
+        w = 1;
+      if (h < 1)
+        h = 1;
+      crop.SetShape({h, w});
 
-      ratio = static_cast<float>(crop.w) / crop.h;
-      if (crop.w <= W && crop.h <= H && ratio >= min_wh_ratio && ratio <= max_wh_ratio)
+      ratio = static_cast<float>(w) / h;
+      if (w <= W && h <= H && ratio >= min_wh_ratio && ratio <= max_wh_ratio)
         break;
     }
 
     if (attempts_left <= 0) {
+      int h = crop.shape[0], w = crop.shape[1];
       float max_area = area_dis_.b() * W * H;
       float ratio = static_cast<float>(W)/H;
       if (ratio > max_wh_ratio) {
-        crop.h = H;
-        crop.w = maxW;
+        crop.SetShape({H, maxW});
       } else if (ratio < min_wh_ratio) {
-        crop.w = W;
-        crop.h = maxH;
+        crop.SetShape({maxH, W});
       } else {
-        crop.w = W;
-        crop.h = H;
+        crop.SetShape({H, W});
       }
-      float scale = std::min(1.0f, max_area / (crop.w * crop.h));
-      crop.w = std::max<int>(1, crop.w * std::sqrt(scale));
-      crop.h = std::max<int>(1, crop.h * std::sqrt(scale));
+      float scale = std::min(1.0f, max_area / (crop.shape[0] * crop.shape[1]));
+      crop.shape[0] = std::max<int>(1, crop.shape[0] * std::sqrt(scale));
+      crop.shape[1] = std::max<int>(1, crop.shape[1] * std::sqrt(scale));
     }
   }
 
-  crop.x = std::uniform_int_distribution<int>(0, W - crop.w)(rand_gen_);
-  crop.y = std::uniform_int_distribution<int>(0, H - crop.h)(rand_gen_);
+  crop.anchor[0] = std::uniform_int_distribution<int>(0, H - crop.shape[0])(rand_gen_);
+  crop.anchor[1] = std::uniform_int_distribution<int>(0, W - crop.shape[1])(rand_gen_);
   return crop;
 }
 
-CropWindow RandomCropGenerator::GenerateCropWindow(int H, int W) {
-    return GenerateCropWindowImpl(H, W);
+CropWindow RandomCropGenerator::GenerateCropWindow(const kernels::TensorShape<>& shape) {
+    return GenerateCropWindowImpl(shape);
 }
 
-std::vector<CropWindow> RandomCropGenerator::GenerateCropWindows(int H, int W, std::size_t N) {
-    std::seed_seq seq{seed_};
-    std::vector<int64_t> seeds(N);
-    seq.generate(seeds.begin(), seeds.end());
+std::vector<CropWindow>
+RandomCropGenerator::GenerateCropWindows(const kernels::TensorShape<>& shape,
+                                         std::size_t N) {
+  std::seed_seq seq{seed_};
+  std::vector<int64_t> seeds(N);
+  seq.generate(seeds.begin(), seeds.end());
 
-    std::vector<CropWindow> crop_windows;
-    for (std::size_t i = 0; i < N; i++) {
-        rand_gen_.seed(seeds[i]);
-        crop_windows.push_back(
-            GenerateCropWindowImpl(H, W));
-    }
-    return crop_windows;
+  std::vector<CropWindow> crop_windows;
+  for (std::size_t i = 0; i < N; i++) {
+    rand_gen_.seed(seeds[i]);
+    crop_windows.push_back(GenerateCropWindowImpl(shape));
+  }
+  return crop_windows;
 }
 
 }  // namespace dali

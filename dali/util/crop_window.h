@@ -16,48 +16,52 @@
 #define DALI_UTIL_CROP_WINDOW_H_
 
 #include <functional>
+#include "dali/kernels/tensor_shape.h"
 
 namespace dali {
 
 struct CropWindow {
-    int x, y, w, h;
+    // TODO(janton): there must be a better type to represent n-dimensional coordinates
+    kernels::TensorShape<> anchor;
 
-    CropWindow(int _x, int _y, int _w, int _h)
-      : x(_x), y(_y), w(_w), h(_h)
-    {}
+    kernels::TensorShape<> shape;
 
     CropWindow()
-      : x(0), y(0), w(0), h(0)
+      : anchor{0, 0}, shape{0, 0}
     {}
 
     operator bool() const {
-      return w > 0 && h > 0;
+      bool res = true;
+      for (int dim = 0; dim < shape.size(); dim++)
+        res = res && shape[dim] > 0;
+      return res;
     }
 
     inline bool operator==(const CropWindow& oth) const {
-      return x == oth.x
-          && y == oth.y
-          && h == oth.h
-          && w == oth.w;
+      return anchor == oth.anchor && shape == oth.shape;
     }
 
     inline bool operator!=(const CropWindow& oth) const {
       return !operator==(oth);
     }
 
-    inline bool IsInRange(int H, int W) const {
-      return x >= 0
-          && x < W
-          && y >= 0
-          && y < H
-          && x+w >= 0
-          && x+w <= W
-          && y+h >= 0
-          && y+h <= H;
+    inline bool IsInRange(const kernels::TensorShape<>& input_shape) const {
+      bool res = true;
+      for (int dim = 0; dim < input_shape.size(); dim++)
+        res = res && anchor[dim] >= 0 && anchor[dim] + shape[dim] <= input_shape[dim];
+      return res;
+    }
+
+    void SetAnchor(const kernels::TensorShape<>& anchor_abs) {
+      anchor = anchor_abs;
+    }
+
+    void SetShape(const kernels::TensorShape<>& shape_) {
+      shape = shape_;
     }
 };
 
-using CropWindowGenerator = std::function<CropWindow(int /*H*/, int /*W*/)>;
+using CropWindowGenerator = std::function<CropWindow(const kernels::TensorShape<>& shape)>;
 
 }  // namespace dali
 

@@ -82,8 +82,8 @@ class DALITest : public ::testing::Test {
 
     if (crop_window_generator) {
       cv::Mat cropped;
-      auto crop = crop_window_generator(tmp.rows, tmp.cols);
-      cv::Rect roi(crop.x, crop.y, crop.w, crop.h);
+      auto crop = crop_window_generator({tmp.rows, tmp.cols});
+      cv::Rect roi(crop.anchor[1], crop.anchor[0], crop.shape[1], crop.shape[0]);
       tmp(roi).copyTo(cropped);
       tmp = cropped;
     }

@@ -87,35 +87,35 @@ class SliceAttr {
   std::vector<CropWindowGenerator> crop_window_generators_;
 
  private:
-    void ProcessArgumentsHelper(int data_idx, float crop_w, float crop_h,
-                                float crop_x_norm, float crop_y_norm) {
-        crop_width_[data_idx] = crop_w;
-        crop_height_[data_idx] = crop_h;
-        crop_x_norm_[data_idx] = crop_x_norm;
-        crop_y_norm_[data_idx] = crop_y_norm;
+  void ProcessArgumentsHelper(int data_idx, float crop_w, float crop_h,
+                              float crop_x_norm, float crop_y_norm) {
+    crop_width_[data_idx] = crop_w;
+    crop_height_[data_idx] = crop_h;
+    crop_x_norm_[data_idx] = crop_x_norm;
+    crop_y_norm_[data_idx] = crop_y_norm;
 
-        DALI_ENFORCE(crop_x_norm + crop_w <= 1.0f,
-            "crop_x[" + std::to_string(crop_x_norm) + "] + crop_width["
-            + std::to_string(crop_w) + "] must be <= 1.0f");
-        DALI_ENFORCE(crop_y_norm + crop_h <= 1.0f,
-            "crop_y[" + std::to_string(crop_y_norm) + "] + crop_height["
-            + std::to_string(crop_h) + "] must be <= 1.0f");
+    DALI_ENFORCE(crop_x_norm + crop_w <= 1.0f,
+      "crop_x[" + std::to_string(crop_x_norm) + "] + crop_width["
+      + std::to_string(crop_w) + "] must be <= 1.0f");
+    DALI_ENFORCE(crop_y_norm + crop_h <= 1.0f,
+      "crop_y[" + std::to_string(crop_y_norm) + "] + crop_height["
+      + std::to_string(crop_h) + "] must be <= 1.0f");
 
-        crop_window_generators_[data_idx] =
-            [this, data_idx](int H, int W) {
-                CropWindow crop_window;
-                crop_window.y = crop_y_norm_[data_idx] * H;
-                crop_window.x = crop_x_norm_[data_idx] * W;
-                crop_window.h =
-                    (crop_height_[data_idx] + crop_y_norm_[data_idx]) * H - crop_window.y;
-                crop_window.w =
-                    (crop_width_[data_idx] + crop_x_norm_[data_idx]) * W - crop_window.x;
-                DALI_ENFORCE(crop_window.IsInRange(H, W));
-                return crop_window;
-            };
-    }
+    crop_window_generators_[data_idx] =
+      [this, data_idx](const kernels::TensorShape<>& shape) {
+        CropWindow crop_window;
+        crop_window.anchor[0] = crop_y_norm_[data_idx] * shape[0];
+        crop_window.anchor[1] = crop_x_norm_[data_idx] * shape[1];
+        crop_window.shape[0] =
+          (crop_height_[data_idx] + crop_y_norm_[data_idx]) * shape[0] - crop_window.anchor[0];
+        crop_window.shape[1] =
+          (crop_width_[data_idx] + crop_x_norm_[data_idx]) * shape[1] - crop_window.anchor[1];
+        DALI_ENFORCE(crop_window.IsInRange(shape));
+        return crop_window;
+    };
+  }
 
-    std::size_t batch_size__;
+  std::size_t batch_size__;
 };
 
 }  // namespace dali
