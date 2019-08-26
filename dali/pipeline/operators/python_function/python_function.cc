@@ -18,31 +18,36 @@
 
 namespace dali {
 
-DALI_SCHEMA(PythonFunctionImpl)
-        .DocStr(R"code(This is an auxiliary operator. Use PythonFunction instead.)code")
-        .NumInput(0, 256)
+DALI_SCHEMA(PythonFunctionImplBase)
         .AddArg("function_id", R"code(Id of the python function)code", DALI_INT64)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
+        /*.MakeInternal()*/;
+
+DALI_SCHEMA(PythonFunctionImpl)
+        .AddParent("PythonFunctionImplBase")
+        .DocStr(R"code(This is an auxiliary operator. Use PythonFunction instead.)code")
+        .NumInput(0, 256)
         .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
         .MakeInternal()
         .NoPrune();
 
-DALI_SCHEMA(PythonFunction)
-        .DocStr("Executes a python function")
-        .NumInput(0, 256)
+DALI_SCHEMA(PythonFunctionBase)
         .AddArg("function",
                 R"code(Function object consuming and producing numpy arrays.)code",
                 DALI_PYTHON_OBJECT)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
+        .MakeInternal();
+
+DALI_SCHEMA(PythonFunction)
+        .AddParent("PythonFunctionBase")
+        .DocStr("Executes a python function")
+        .NumInput(0, 256)
         .NoPrune();
 
 DALI_SCHEMA(TorchPythonFunction)
+        .AddParent("PythonFunctionBase")
         .DocStr("Executes a function operating on Torch tensors")
         .NumInput(0, 256)
-        .AddArg("function",
-                R"code(Function object consuming and producing Torch tensors.)code",
-                DALI_PYTHON_OBJECT)
-        .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
         .NoPrune();
 
 struct PyBindInitializer {
@@ -87,7 +92,7 @@ void CopyOutputs(SampleWorkspace &ws, const py::tuple &output) {
   }
 }
 
-static std::mutex operator_lock{};
+std::mutex operator_lock{};
 
 template<>
 void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace &ws) {

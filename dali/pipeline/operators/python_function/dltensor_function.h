@@ -12,36 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
-#define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
+#ifndef DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_DLTENSOR_FUNCTION_H_
+#define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_DLTENSOR_FUNCTION_H_
 
-#include <pybind11/embed.h>
-
-#include <vector>
-
-#include "dali/util/pybind.h"
-#include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operators/python_function/python_function.h"
 
 namespace dali {
 
-extern std::mutex operator_lock;
-
 template <typename Backend>
-class PythonFunctionImplBase : public Operator<Backend> {
+class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
  public:
-  explicit PythonFunctionImplBase(const OpSpec &spec)
-  : Operator<Backend>(spec)
-  , python_function(py::reinterpret_borrow<py::object>(
-      reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {}
-
- protected:
-  py::object python_function;
-};
-
-template <typename Backend>
-class PythonFunctionImpl : public PythonFunctionImplBase<Backend> {
- public:
-  inline explicit PythonFunctionImpl(const OpSpec &spec)
+  inline explicit DLTensorPythonFunctionImpl(const OpSpec &spec)
     : PythonFunctionImplBase<Backend>(spec) {}
 
  protected:
@@ -49,13 +30,12 @@ class PythonFunctionImpl : public PythonFunctionImplBase<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
+  void RunImpl(workspace_t<Backend> *ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
-
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
+#endif  // DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_DLTENSOR_FUNCTION_H_
