@@ -93,31 +93,35 @@ inline Copier GetCopier() {
  * the pipeline can output.
  */
 enum DALIDataType {
-  DALI_NO_TYPE = -1,
-  DALI_UINT8 = 0,
-  DALI_INT16 = 1,
-  DALI_INT32 = 2,
-  DALI_INT64 = 3,
-  DALI_FLOAT16 = 4,
-  DALI_FLOAT = 5,
-  DALI_FLOAT64 = 6,
-  DALI_BOOL = 7,
-  DALI_STRING = 8,
-  DALI_BOOL_VEC = 9,
-  DALI_INT_VEC = 10,
-  DALI_STRING_VEC = 11,
-  DALI_FLOAT_VEC = 12,
+  DALI_NO_TYPE         = -1,
+  DALI_UINT8           =  0,
+  DALI_UINT16          =  1,
+  DALI_UINT32          =  2,
+  DALI_UINT64          =  3,
+  DALI_INT8            =  4,
+  DALI_INT16           =  5,
+  DALI_INT32           =  6,
+  DALI_INT64           =  7,
+  DALI_FLOAT16         =  8,
+  DALI_FLOAT           =  9,
+  DALI_FLOAT64         = 10,
+  DALI_BOOL            = 11,
+  DALI_STRING          = 12,
+  DALI_BOOL_VEC        = 13,
+  DALI_INT_VEC         = 14,
+  DALI_STRING_VEC      = 15,
+  DALI_FLOAT_VEC       = 16,
 #ifdef DALI_BUILD_PROTO3
-  DALI_TF_FEATURE = 13,
-  DALI_TF_FEATURE_VEC = 14,
-  DALI_TF_FEATURE_DICT = 15,
+  DALI_TF_FEATURE      = 17,
+  DALI_TF_FEATURE_VEC  = 18,
+  DALI_TF_FEATURE_DICT = 19,
 #endif  // DALI_BUILD_PROTO3
-  DALI_IMAGE_TYPE = 16,
-  DALI_DATA_TYPE = 17,
-  DALI_INTERP_TYPE = 18,
-  DALI_TENSOR_LAYOUT = 19,
-  DALI_PYTHON_OBJECT = 20,
-  DALI_DATATYPE_END = 1000
+  DALI_IMAGE_TYPE      = 20,
+  DALI_DATA_TYPE       = 21,
+  DALI_INTERP_TYPE     = 22,
+  DALI_TENSOR_LAYOUT   = 23,
+  DALI_PYTHON_OBJECT   = 24,
+  DALI_DATATYPE_END    = 1000
 };
 
 template <DALIDataType id>
@@ -324,37 +328,41 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
 // the type as a string. This does not work for non-fundamental types,
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
-#define DALI_REGISTER_TYPE(Type, dtype)                             \
+#define DALI_REGISTER_TYPE(Type, TypeName, dtype)                   \
   template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()      \
-    DALI_TYPENAME_REGISTERER(Type);                                 \
+    DALI_TYPENAME_REGISTERER(TypeName);                                 \
   template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()  \
     DALI_TYPEID_REGISTERER(Type, dtype);                            \
   DALI_STATIC_TYPE_MAPPING(Type, dtype);
 
 // Instantiate some basic types
-DALI_REGISTER_TYPE(NoType, DALI_NO_TYPE);
-DALI_REGISTER_TYPE(uint8, DALI_UINT8);
-DALI_REGISTER_TYPE(int16, DALI_INT16);
-DALI_REGISTER_TYPE(int32, DALI_INT32);
-DALI_REGISTER_TYPE(int64, DALI_INT64);
-DALI_REGISTER_TYPE(float16, DALI_FLOAT16);
-DALI_REGISTER_TYPE(float, DALI_FLOAT);
-DALI_REGISTER_TYPE(double, DALI_FLOAT64);
-DALI_REGISTER_TYPE(bool, DALI_BOOL);
-DALI_REGISTER_TYPE(string, DALI_STRING);
-DALI_REGISTER_TYPE(DALIImageType, DALI_IMAGE_TYPE);
-DALI_REGISTER_TYPE(DALIDataType, DALI_DATA_TYPE);
-DALI_REGISTER_TYPE(DALIInterpType, DALI_INTERP_TYPE);
-DALI_REGISTER_TYPE(DALITensorLayout, DALI_TENSOR_LAYOUT);
+DALI_REGISTER_TYPE(NoType,            NoType,           DALI_NO_TYPE);
+DALI_REGISTER_TYPE(uint8_t,           uint8,            DALI_UINT8);
+DALI_REGISTER_TYPE(uint16_t,          uint16,           DALI_UINT16);
+DALI_REGISTER_TYPE(uint32_t,          uint32,           DALI_UINT32);
+DALI_REGISTER_TYPE(uint64_t,          uint64,           DALI_UINT64);
+DALI_REGISTER_TYPE(int8_t,            int8,             DALI_INT8);
+DALI_REGISTER_TYPE(int16_t,           int16,            DALI_INT16);
+DALI_REGISTER_TYPE(int32_t,           int32,            DALI_INT32);
+DALI_REGISTER_TYPE(int64_t,           int64,            DALI_INT64);
+DALI_REGISTER_TYPE(float16,           float16,          DALI_FLOAT16);
+DALI_REGISTER_TYPE(float,             float,            DALI_FLOAT);
+DALI_REGISTER_TYPE(double,            double,           DALI_FLOAT64);
+DALI_REGISTER_TYPE(bool,              bool,             DALI_BOOL);
+DALI_REGISTER_TYPE(string,            string,           DALI_STRING);
+DALI_REGISTER_TYPE(DALIImageType,     DALIImageType,    DALI_IMAGE_TYPE);
+DALI_REGISTER_TYPE(DALIDataType,      DALIDataType,     DALI_DATA_TYPE);
+DALI_REGISTER_TYPE(DALIInterpType,    DALIInterpType,   DALI_INTERP_TYPE);
+DALI_REGISTER_TYPE(DALITensorLayout,  DALITensorLayout, DALI_TENSOR_LAYOUT);
 
 #ifdef DALI_BUILD_PROTO3
-DALI_REGISTER_TYPE(TFUtil::Feature, DALI_TF_FEATURE);
-DALI_REGISTER_TYPE(std::vector<TFUtil::Feature>, DALI_TF_FEATURE_VEC);
+DALI_REGISTER_TYPE(TFUtil::Feature,   TFUtil::Feature,  DALI_TF_FEATURE);
+DALI_REGISTER_TYPE(std::vector<TFUtil::Feature>, std::vector<TFUtil::Feature>, DALI_TF_FEATURE_VEC);
 #endif
-DALI_REGISTER_TYPE(std::vector<bool>, DALI_BOOL_VEC);
-DALI_REGISTER_TYPE(std::vector<int>, DALI_INT_VEC);
-DALI_REGISTER_TYPE(std::vector<std::string>, DALI_STRING_VEC);
-DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
+DALI_REGISTER_TYPE(std::vector<bool>, std::vector<bool>, DALI_BOOL_VEC);
+DALI_REGISTER_TYPE(std::vector<int>, std::vector<int>, DALI_INT_VEC);
+DALI_REGISTER_TYPE(std::vector<std::string>, std::vector<std::string>, DALI_STRING_VEC);
+DALI_REGISTER_TYPE(std::vector<float>, std::vector<float>, DALI_FLOAT_VEC);
 
 /**
  * @brief Easily instantiate templates for all types
