@@ -21,9 +21,6 @@
   source:
     git_url: https://github.com/NVIDIA/DALI/
     git_rev: master
-    patches:
-        - 0001-c++14.patch
-        - 0002-remove-futures.patch            # [ppc64le]
 
   build:
     number: 0
@@ -36,19 +33,22 @@
       - pkg-config 0.29.2
       - cmake 3.12.2
       - make 4.2.1
-      - cudatoolkit 10.1
+    host:
+      - python
+      - future 0.17.1
       - protobuf 3.7.1
       - jpeg-turbo 1.5.0
       - ffmpeg
-      - python
-    host:
-      - future 0.17.1
+      - tensorflow-gpu
+      - libopencv 3.4.2
       - opencv 3.4.2
       - boost 1.67
-      - python
     run:
       - python
-      - cudatoolkit 10.1
       - future 0.17.1
-      - opencv 3.4.2
+      - protobuf 3.7.1
       - jpeg-turbo 1.5.0
+      - ffmpeg
+      - tensorflow-gpu
+      - libopencv 3.4.2
+      - opencv 3.4.2
