@@ -144,19 +144,6 @@ struct id2type_helper<id> { using type = data_type; };
 // Dummy type to represent the invalid default state of dali types.
 struct NoType {};
 
-template <typename T>
-struct NormalizedType { using type = T; };
-
-// This way SetType<float16_cpu> will set SetType<float16>
-// As these types are compatible python wont need a special
-// case for float16_cpu
-template <>
-struct NormalizedType<float16_cpu> { using type = float16; };
-
-template <typename T>
-using normalize_t = typename NormalizedType<T>::type;
-
-
 // Stores the unqiue ID for a type and its size in bytes
 class DLL_PUBLIC TypeInfo {
  public:
@@ -171,7 +158,7 @@ class DLL_PUBLIC TypeInfo {
     return type;
   }
 
-  template <typename T, typename U = normalize_t<T> >
+  template <typename T>
   DLL_PUBLIC inline void SetType(DALIDataType dtype = DALI_NO_TYPE);
 
   template <typename DstBackend, typename SrcBackend>
@@ -284,7 +271,7 @@ struct TypeNameHelper<std::array<T, N> > {
   }
 };
 
-template <typename, typename T>
+template <typename T>
 void TypeInfo::SetType(DALIDataType dtype) {
   // Note: We enforce the fact that NoType is invalid by
   // explicitly setting its type size as 0
@@ -452,7 +439,7 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
       break;                                         \
     case DALI_FLOAT16:                               \
       {                                              \
-        typedef float16_cpu DType;                   \
+        typedef float16 DType;                   \
         {__VA_ARGS__}                                \
       }                                              \
       break;                                         \
