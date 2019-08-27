@@ -21,44 +21,42 @@
 namespace dali {
 
 struct CropWindow {
-    // TODO(janton): there must be a better type to represent n-dimensional coordinates
-    kernels::TensorShape<> anchor;
+  kernels::TensorShape<> anchor;
+  kernels::TensorShape<> shape;
 
-    kernels::TensorShape<> shape;
+  CropWindow()
+    : anchor{0, 0}, shape{0, 0}
+  {}
 
-    CropWindow()
-      : anchor{0, 0}, shape{0, 0}
-    {}
+  operator bool() const {
+    for (int dim = 0; dim < shape.size(); dim++)
+      if (shape[dim] <= 0)
+        return false;
+    return true;
+  }
 
-    operator bool() const {
-      bool res = true;
-      for (int dim = 0; dim < shape.size(); dim++)
-        res = res && shape[dim] > 0;
-      return res;
-    }
+  inline bool operator==(const CropWindow& oth) const {
+    return anchor == oth.anchor && shape == oth.shape;
+  }
 
-    inline bool operator==(const CropWindow& oth) const {
-      return anchor == oth.anchor && shape == oth.shape;
-    }
+  inline bool operator!=(const CropWindow& oth) const {
+    return !operator==(oth);
+  }
 
-    inline bool operator!=(const CropWindow& oth) const {
-      return !operator==(oth);
-    }
+  inline bool IsInRange(const kernels::TensorShape<>& input_shape) const {
+    for (int dim = 0; dim < input_shape.size(); dim++)
+      if (anchor[dim] < 0 || anchor[dim] + shape[dim] > input_shape[dim])
+        return false;
+    return true;
+  }
 
-    inline bool IsInRange(const kernels::TensorShape<>& input_shape) const {
-      bool res = true;
-      for (int dim = 0; dim < input_shape.size(); dim++)
-        res = res && anchor[dim] >= 0 && anchor[dim] + shape[dim] <= input_shape[dim];
-      return res;
-    }
+  void SetAnchor(const kernels::TensorShape<>& anchor_abs) {
+    anchor = anchor_abs;
+  }
 
-    void SetAnchor(const kernels::TensorShape<>& anchor_abs) {
-      anchor = anchor_abs;
-    }
-
-    void SetShape(const kernels::TensorShape<>& shape_) {
-      shape = shape_;
-    }
+  void SetShape(const kernels::TensorShape<>& shape_) {
+    shape = shape_;
+  }
 };
 
 using CropWindowGenerator = std::function<CropWindow(const kernels::TensorShape<>& shape)>;

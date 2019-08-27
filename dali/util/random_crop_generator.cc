@@ -33,6 +33,7 @@ RandomCropGenerator::RandomCropGenerator(
 }
 
 CropWindow RandomCropGenerator::GenerateCropWindowImpl(const kernels::TensorShape<>& shape) {
+  assert(shape.size() == 2);
   CropWindow crop;
   int H = shape[0], W = shape[1];
   if (W <= 0 || H <= 0) {
