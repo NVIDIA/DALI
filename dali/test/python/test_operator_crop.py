@@ -238,3 +238,84 @@ def test_crop_no_cast_vs_cast_to_float_and_back():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
             yield check_crop_no_cast_vs_cast_to_float_and_back, device, batch_size
+
+class Crop3dPipeline(Pipeline):
+    def __init__(self, device, batch_size, iterator, num_threads=1, device_id=0):
+        super(Crop3dPipeline, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id)
+        self.device = device
+        self.iterator = iterator
+        self.inputs = ops.ExternalSource()
+        self.crop = ops.Crop(device = self.device,
+                             crop_pos_z = 0.1,
+                             crop_pos_y = 0.2,
+                             crop_pos_x = 0.3,
+                             crop_d = 220,
+                             crop_h = 222,
+                             crop_w = 224,
+                             image_type = types.RGB)
+
+    def define_graph(self):
+        self.data = self.inputs()
+        sequence = self.data.gpu() if self.device == 'gpu' else self.data
+        out = self.crop(sequence)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data, layout=types.NFHWC)
+
+class Crop3dPythonOpPipeline(Pipeline):
+    def __init__(self, function, batch_size, iterator, num_threads=1, device_id=0):
+        super(Crop3dPythonOpPipeline, self).__init__(batch_size,
+                                                     num_threads,
+                                                     device_id,
+                                                     exec_async=False,
+                                                     exec_pipelined=False)
+        self.iterator = iterator
+        self.inputs = ops.ExternalSource()
+        self.crop = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        self.data = self.inputs()
+        out = self.crop(self.data)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data, layout=types.NFHWC)
+
+def crop3d_func_help(image, crop_z = 0.1, crop_y = 0.2, crop_x = 0.3, crop_d = 220, crop_h = 222, crop_w = 224):
+    assert len(image.shape) == 4
+    D = image.shape[0]
+    H = image.shape[1]
+    W = image.shape[2]
+
+    assert D >= crop_d
+    assert H >= crop_h
+    assert W >= crop_w
+
+    start_z = int(np.float32(0.5) + np.float32(crop_z) * np.float32(D - crop_d))
+    end_z = start_z + crop_d
+    start_y = int(np.float32(0.5) + np.float32(crop_y) * np.float32(H - crop_h))
+    end_y = start_y + crop_h
+    start_x = int(np.float32(0.5) + np.float32(crop_x) * np.float32(W - crop_w))
+    end_x = start_x + crop_w
+
+    return image[start_z:end_z, start_y:end_y, start_x:end_x, :]
+
+def crop_3d_func(image):
+    return crop3d_func_help(image)
+
+def check_crop_3d_vs_python_op_crop(device, batch_size):
+    eii1 = RandomDataIterator(batch_size, shape=(303, 302, 301, 3))
+    eii2 = RandomDataIterator(batch_size, shape=(303, 302, 301, 3))
+    compare_pipelines(Crop3dPipeline(device, batch_size, iter(eii1)),
+                      Crop3dPythonOpPipeline(crop_3d_func, batch_size, iter(eii2)),
+                      batch_size=batch_size, N_iterations=3)
+
+def test_crop_3d_vs_python_op_crop():
+    for device in {'cpu', 'gpu'}:
+        for batch_size in {1, 4}:
+            yield check_crop_3d_vs_python_op_crop, device, batch_size
