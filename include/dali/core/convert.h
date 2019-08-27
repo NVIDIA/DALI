@@ -195,29 +195,41 @@ DALI_HOST_DEV constexpr T clamp(U value) {
 namespace detail {
 #ifdef __CUDA_ARCH__
 
-__device__ int cuda_round_helper(float f, int) {  // NOLINT
+inline __device__ int cuda_round_helper(float f, int) {  // NOLINT
   return __float2int_rn(f);
 }
-__device__ unsigned cuda_round_helper(float f, unsigned) {  // NOLINT
+inline __device__ unsigned cuda_round_helper(float f, unsigned) {  // NOLINT
   return __float2uint_rn(f);
 }
-__device__ long long  cuda_round_helper(float f, long long) {  // NOLINT
-  return __float2ll_rn(f);
+inline __device__ long long  cuda_round_helper(float f, long long) {  // NOLINT
+  return __float2ll_rd(f+0.5f);
 }
-__device__ unsigned long long cuda_round_helper(float f, unsigned long long) {  // NOLINT
-  return __float2ull_rn(f);
+inline __device__ unsigned long long cuda_round_helper(float f, unsigned long long) {  // NOLINT
+  return __float2ull_rd(f+0.5f);
 }
-__device__ int cuda_round_helper(double f, int) {  // NOLINT
+inline __device__ long cuda_round_helper(float f, long) {  // NOLINT
+  return sizeof(long) == sizeof(int) ? __float2int_rn(f) : __float2ll_rd(f+0.5f);  // NOLINT
+}
+inline __device__ unsigned long cuda_round_helper(float f, unsigned long) {  // NOLINT
+  return sizeof(unsigned long) == sizeof(unsigned int) ? __float2uint_rn(f) : __float2ull_rd(f+0.5f);  // NOLINT
+}
+inline __device__ int cuda_round_helper(double f, int) {  // NOLINT
   return __double2int_rn(f);
 }
-__device__ unsigned cuda_round_helper(double f, unsigned) {  // NOLINT
+inline __device__ unsigned cuda_round_helper(double f, unsigned) {  // NOLINT
   return __double2uint_rn(f);
 }
-__device__ long long  cuda_round_helper(double f, long long) {  // NOLINT
-  return __double2ll_rn(f);
+inline __device__ long long  cuda_round_helper(double f, long long) {  // NOLINT
+  return __double2ll_rd(f+0.5f);
 }
-__device__ unsigned long long cuda_round_helper(double f, unsigned long long) {  // NOLINT
-  return __double2ull_rn(f);
+inline __device__ unsigned long long cuda_round_helper(double f, unsigned long long) {  // NOLINT
+  return __double2ull_rd(f+0.5f);
+}
+inline __device__ long cuda_round_helper(double f, long) {  // NOLINT
+  return sizeof(long) == sizeof(int) ? __double2int_rn(f) : __double2ll_rd(f+0.5f);  // NOLINT
+}
+inline __device__ unsigned long cuda_round_helper(double f, unsigned long) {  // NOLINT
+  return sizeof(unsigned long) == sizeof(unsigned int) ? __double2uint_rn(f) : __double2ull_rd(f+0.5f);  // NOLINT
 }
 #endif
 
