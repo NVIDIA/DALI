@@ -196,7 +196,7 @@ cmake_parse_arguments(
   "" # multi value keywords
   ${ARGV})
 
-  file(GLOB collect_headers_tmp *.h)
+  file(GLOB collect_headers_tmp *.h *.hpp)
   set(${DALI_HEADERS_GROUP} ${${DALI_HEADERS_GROUP}} ${collect_headers_tmp})
   # We remove filenames containing substring test
   if(NOT COLLECT_HEADERS_INCLUDE_TEST)
