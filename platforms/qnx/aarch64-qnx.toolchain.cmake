@@ -20,7 +20,7 @@ set(CMAKE_C_COMPILER_TARGET_FORCED TRUE)
 set(CMAKE_C_COMPILER_TARGET aarch64)
 set(CMAKE_CXX_COMPILER_TARGET aarch64)
 set(CMAKE_LINKER $ENV{QNX_HOST}/usr/bin/${CMAKE_SYSTEM_PROVESSOR}-unknown-nto-${QNX_VERSION}-ld)
-set(LINKER_FLAGS "-Wl,--no-undefined -Wl,--gc-sections -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now,-lc")
+set(LINKER_FLAGS "-Wl,--no-undefined -Wl,--gc-sections -Wl,-z,relro -Wl,-z,now,-lc")
 
 set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".so,.a")
