@@ -324,45 +324,49 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
 }
 
 // Used to define a type for use in dali. Inserts the type into the
-// TypeTable w/ a unique id and creates a method to get the name of
-// the type as a string. This does not work for non-fundamental types,
-// as we do not have any mechanism for calling the constructor of the
+// TypeTable w/ a unique id and creates a method to get tDALI_REGISTER_TYPE_WITH_NAME name of
+// the type as a string. This does not work for non-fundaDALI_REGISTER_TYPE_WITH_NAMEntal types,
+// as we do not have any mechanism for calling the constrDALI_REGISTER_TYPE_WITH_NAMEtor of the
 // type when the buffer allocates the memory.
-#define DALI_REGISTER_TYPE(Type, TypeName, dtype)                   \
+#define DALI_REGISTER_TYPE_WITH_NAME(Type, TypeString, dtype)       \
   template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()      \
-    DALI_TYPENAME_REGISTERER(TypeName);                                 \
+    DALI_TYPENAME_REGISTERER(TypeString);                           \
   template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()  \
     DALI_TYPEID_REGISTERER(Type, dtype);                            \
   DALI_STATIC_TYPE_MAPPING(Type, dtype);
 
+#define DALI_REGISTER_TYPE(Type, dtype) \
+  DALI_REGISTER_TYPE_WITH_NAME(Type, #Type, dtype)
+
 // Instantiate some basic types
-DALI_REGISTER_TYPE(NoType,            NoType,           DALI_NO_TYPE);
-DALI_REGISTER_TYPE(uint8_t,           uint8,            DALI_UINT8);
-DALI_REGISTER_TYPE(uint16_t,          uint16,           DALI_UINT16);
-DALI_REGISTER_TYPE(uint32_t,          uint32,           DALI_UINT32);
-DALI_REGISTER_TYPE(uint64_t,          uint64,           DALI_UINT64);
-DALI_REGISTER_TYPE(int8_t,            int8,             DALI_INT8);
-DALI_REGISTER_TYPE(int16_t,           int16,            DALI_INT16);
-DALI_REGISTER_TYPE(int32_t,           int32,            DALI_INT32);
-DALI_REGISTER_TYPE(int64_t,           int64,            DALI_INT64);
-DALI_REGISTER_TYPE(float16,           float16,          DALI_FLOAT16);
-DALI_REGISTER_TYPE(float,             float,            DALI_FLOAT);
-DALI_REGISTER_TYPE(double,            double,           DALI_FLOAT64);
-DALI_REGISTER_TYPE(bool,              bool,             DALI_BOOL);
-DALI_REGISTER_TYPE(string,            string,           DALI_STRING);
-DALI_REGISTER_TYPE(DALIImageType,     DALIImageType,    DALI_IMAGE_TYPE);
-DALI_REGISTER_TYPE(DALIDataType,      DALIDataType,     DALI_DATA_TYPE);
-DALI_REGISTER_TYPE(DALIInterpType,    DALIInterpType,   DALI_INTERP_TYPE);
-DALI_REGISTER_TYPE(DALITensorLayout,  DALITensorLayout, DALI_TENSOR_LAYOUT);
+DALI_REGISTER_TYPE_WITH_NAME(NoType,   "NoType", DALI_NO_TYPE);
+DALI_REGISTER_TYPE_WITH_NAME(uint8_t,  "uint8",  DALI_UINT8);
+DALI_REGISTER_TYPE_WITH_NAME(uint16_t, "uint16", DALI_UINT16);
+DALI_REGISTER_TYPE_WITH_NAME(uint32_t, "uint32", DALI_UINT32);
+DALI_REGISTER_TYPE_WITH_NAME(uint64_t, "uint64", DALI_UINT64);
+DALI_REGISTER_TYPE_WITH_NAME(int8_t,   "int8",   DALI_INT8);
+DALI_REGISTER_TYPE_WITH_NAME(int16_t,  "int16",  DALI_INT16);
+DALI_REGISTER_TYPE_WITH_NAME(int32_t,  "int32",  DALI_INT32);
+DALI_REGISTER_TYPE_WITH_NAME(int64_t,  "int64",  DALI_INT64);
+
+DALI_REGISTER_TYPE(float16,          DALI_FLOAT16);
+DALI_REGISTER_TYPE(float,            DALI_FLOAT);
+DALI_REGISTER_TYPE(double,           DALI_FLOAT64);
+DALI_REGISTER_TYPE(bool,             DALI_BOOL);
+DALI_REGISTER_TYPE(string,           DALI_STRING);
+DALI_REGISTER_TYPE(DALIImageType,    DALI_IMAGE_TYPE);
+DALI_REGISTER_TYPE(DALIDataType,     DALI_DATA_TYPE);
+DALI_REGISTER_TYPE(DALIInterpType,   DALI_INTERP_TYPE);
+DALI_REGISTER_TYPE(DALITensorLayout, DALI_TENSOR_LAYOUT);
 
 #ifdef DALI_BUILD_PROTO3
-DALI_REGISTER_TYPE(TFUtil::Feature,   TFUtil::Feature,  DALI_TF_FEATURE);
-DALI_REGISTER_TYPE(std::vector<TFUtil::Feature>, std::vector<TFUtil::Feature>, DALI_TF_FEATURE_VEC);
+DALI_REGISTER_TYPE(TFUtil::Feature, DALI_TF_FEATURE);
+DALI_REGISTER_TYPE(std::vector<TFUtil::Feature>, DALI_TF_FEATURE_VEC);
 #endif
-DALI_REGISTER_TYPE(std::vector<bool>, std::vector<bool>, DALI_BOOL_VEC);
-DALI_REGISTER_TYPE(std::vector<int>, std::vector<int>, DALI_INT_VEC);
-DALI_REGISTER_TYPE(std::vector<std::string>, std::vector<std::string>, DALI_STRING_VEC);
-DALI_REGISTER_TYPE(std::vector<float>, std::vector<float>, DALI_FLOAT_VEC);
+DALI_REGISTER_TYPE(std::vector<bool>, DALI_BOOL_VEC);
+DALI_REGISTER_TYPE(std::vector<int>, DALI_INT_VEC);
+DALI_REGISTER_TYPE(std::vector<std::string>, DALI_STRING_VEC);
+DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
 
 /**
  * @brief Easily instantiate templates for all types

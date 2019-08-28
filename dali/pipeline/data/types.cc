@@ -13,9 +13,9 @@
 // limitations under the License.
 
 
-#define DALI_TYPENAME_REGISTERER(Type) \
-{                                      \
-  return #Type;                        \
+#define DALI_TYPENAME_REGISTERER(TypeString) \
+{                                            \
+  return TypeString;                               \
 }
 
 #define DALI_TYPEID_REGISTERER(Type, dtype)                           \
