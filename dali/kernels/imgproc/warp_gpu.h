@@ -27,15 +27,23 @@ namespace dali {
 namespace kernels {
 
 /**
- * @remarks Assume HWC layout
+ * @brief Performs generic warping of a batch of tensors (on GPU)
+ *
+ * The warping uses a mapping functors to map destination coordinates to source
+ * coordinates and samples the source tensors at the resulting locations.
+ *
+ * @remarks
+ *  * Assumes HWC layout
+ *  * Output and input have same number of spatial dimenions
+ *  * Output and input have same number of channels and layout
  */
-template <typename _Mapping, int ndim, typename _OutputType, typename _InputType,
+template <typename _Mapping, int _spatial_ndim, typename _OutputType, typename _InputType,
           typename _BorderType>
 class WarpGPU {
  public:
-  using WarpSetup = warp::WarpSetup<ndim, _OutputType, _InputType>;
-  static constexpr int spatial_ndim = ndim;
-  static constexpr int tensor_ndim = ndim + 1;
+  using WarpSetup = warp::WarpSetup<_spatial_ndim, _OutputType, _InputType>;
+  static constexpr int spatial_ndim = _spatial_ndim;
+  static constexpr int tensor_ndim = spatial_ndim + 1;
 
   using Mapping = _Mapping;
   using OutputType = _OutputType;

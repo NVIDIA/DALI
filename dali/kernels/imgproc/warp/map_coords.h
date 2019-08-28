@@ -24,6 +24,11 @@ namespace dali {
 namespace kernels {
 namespace warp {
 
+/** @brief Converts destination _integer_ coordinates to _floating point_ source coordinates
+ *
+ * This function is used by warp implementations to calculate source coordinates using
+ * using non-integer mapping. The coordinates are converted to pixel-centered.
+ */
 template <typename Mapping, std::size_t dim>
 DALI_HOST_DEV
 enable_if_t<is_fp_mapping<Mapping>::value, vec<dim>> map_coords(const Mapping &m, ivec<dim> pos) {
@@ -33,6 +38,11 @@ enable_if_t<is_fp_mapping<Mapping>::value, vec<dim>> map_coords(const Mapping &m
   return m(pos + 0.5f);
 }
 
+/** @brief Converts destination _integer_ coordinates to _integer_ source coordinates
+ *
+ * This function is used by warp implementations to calculate source coordinates using
+ * using integer mapping.
+ */
 template <typename Mapping, std::size_t dim>
 DALI_HOST_DEV
 enable_if_t<!is_fp_mapping<Mapping>::value, ivec<dim>> map_coords(const Mapping &m, ivec<dim> pos) {

@@ -26,14 +26,24 @@
 namespace dali {
 namespace kernels {
 
-/// @remarks Assume HWC layout
-template <typename _Mapping, int ndim, typename _OutputType, typename _InputType,
+/**
+ * @brief Performs generic warping of one tensor (on CPU)
+ *
+ * The warping uses a mapping functor to map destination coordinates to source
+ * coordinates and samples the source tensor at the resulting locations.
+ *
+ * @remarks
+ *  * Assumes HWC layout
+ *  * Output and input have same number of spatial dimenions
+ *  * Output and input have same number of channels and layout
+ */
+template <typename _Mapping, int _spatial_ndim, typename _OutputType, typename _InputType,
           typename _BorderType>
 class WarpCPU {
  public:
-  static constexpr int spatial_ndim = ndim;
-  static constexpr int tensor_ndim = ndim + 1;
-  static constexpr int channel_dim = ndim;
+  static constexpr int spatial_ndim = _spatial_ndim;
+  static constexpr int tensor_ndim = spatial_ndim + 1;
+  static constexpr int channel_dim = spatial_ndim;
 
   static_assert(spatial_ndim == 2, "Not implemented for spatial_ndim != 2");
 
@@ -51,9 +61,8 @@ class WarpCPU {
       DALIInterpType interp = DALI_INTERP_LINEAR,
       const BorderType &border = {}) {
     KernelRequirements req;
-    req.output_shapes.resize(1);
     auto out_shape = shape_cat(out_size, input.shape[channel_dim]);
-    req.output_shapes[0] = TensorListShape<tensor_ndim>({out_shape});
+    req.output_shapes = { TensorListShape<tensor_ndim>({out_shape}) };
     return req;
   }
 
@@ -65,7 +74,7 @@ class WarpCPU {
       const TensorShape<spatial_ndim> &out_size,
       DALIInterpType interp = DALI_INTERP_LINEAR,
       const BorderType &border = {}) {
-    Mapping mapping = mapping_params;
+    Mapping mapping(mapping_params);
 
     assert(output.shape == shape_cat(out_size, input.shape[channel_dim]));
 
@@ -75,6 +84,7 @@ class WarpCPU {
     ); // NOLINT
   }
 
+ private:
   template <DALIInterpType static_interp>
   void RunImpl(
       KernelContext &context,
@@ -82,8 +92,8 @@ class WarpCPU {
       const InTensorCPU<InputType, 3> &input,
       Mapping &mapping,
       const BorderType &border = {}) {
-    static_assert(spatial_ndim == 2, "No channel dimesnion or too many dimensions.");
-
+    // 2D HWC implementation.
+    // 3D will be added as an overload for input/output ndim == 4.
     int out_w = output.shape[1];
     int out_h = output.shape[0];
     int c     = output.shape[2];
