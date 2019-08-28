@@ -41,8 +41,9 @@ class WarpPrivateTest {
   }
 };
 
-inline void IsWarpKernelValid() {
+TEST(WarpGPU, check_kernel) {
   check_kernel<WarpGPU<AffineMapping2D, 2, float, uint8_t, float>>();
+  SUCCEED();
 }
 
 void WarpGPU_Affine_Transpose(bool force_variable) {
@@ -199,7 +200,7 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
                  cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255, 255));
   auto ref_img = view_as_tensor<uint8_t>(cv_ref);
   Check(cpu_out, ref_img, EqualEps(8));
-  if (HasFailure)
+  if (HasFailure())
     testing::DumpDiff("WarpAffine_RotateScale", cv_out, cv_ref);
 }
 

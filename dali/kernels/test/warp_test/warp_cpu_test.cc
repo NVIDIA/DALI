@@ -32,8 +32,9 @@
 namespace dali {
 namespace kernels {
 
-inline void IsWarpKernelValid() {
+TEST(WarpCPU, check_kernel) {
   check_kernel<WarpCPU<AffineMapping2D, 2, float, uint8_t, float>>();
+  SUCCEED();
 }
 
 TEST(WarpCPU, Affine_Transpose_Single) {
@@ -141,7 +142,7 @@ TEST(WarpCPU, Affine_RotateScale) {
                   cv::BORDER_CONSTANT, cv::Scalar(255, 255, 255, 255));
     auto ref_img = view_as_tensor<uint8_t>(cv_ref);
     Check(cpu_out, ref_img, EqualEps(8));
-    if (HasFailure)
+    if (HasFailure())
       testing::DumpDiff("WarpAffine_RotateScale_" + name, cv_out, cv_ref);
   }
 }
