@@ -121,7 +121,7 @@ RUN CLANG_VERSION=6.0.1 && \
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
 # FFmpeg
-RUN FFMPEG_VERSION=3.4.2 && \
+RUN FFMPEG_VERSION=4.2.1 && \
     cd /tmp && wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
     tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \

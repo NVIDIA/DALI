@@ -497,8 +497,6 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
 }
 
 std::pair<int, int> VideoLoader::load_width_height() {
-  av_register_all();
-
   AVFormatContext* raw_fmt_ctx = nullptr;
 
   DALI_ENFORCE(!file_label_pair_.empty(), "Could not read any files.");
