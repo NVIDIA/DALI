@@ -122,7 +122,8 @@ enum DALITensorLayout {
   DALI_NHWC  = 1,
   DALI_NFHWC = 2,
   DALI_NFCHW = 3,
-  DALI_SAME  = 4
+  DALI_NDHWC = 4,
+  DALI_SAME  = 5
 };
 
 inline bool IsColor(DALIImageType type) {
@@ -242,6 +243,8 @@ inline std::string to_string(const DALITensorLayout& layout) {
       return "NFHWC";
     case DALI_NFCHW:
       return "NFCHW";
+    case DALI_NDHWC:
+      return "NDHWC";
     case DALI_SAME:
       return "SAME";
     default:
@@ -273,6 +276,10 @@ inline DALITensorLayout GetSequenceLayout(DALITensorLayout element_layout) {
 
 inline bool IsSequence(DALITensorLayout layout) {
   return layout == DALI_NFHWC || layout == DALI_NFCHW;
+}
+
+inline bool IsVolumetric(DALITensorLayout layout) {
+  return layout == DALI_NDHWC;
 }
 
 template <typename T>

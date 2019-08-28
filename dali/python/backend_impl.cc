@@ -564,6 +564,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("NHWC", DALI_NHWC)
     .value("NFHWC", DALI_NFHWC)
     .value("NFCHW", DALI_NFCHW)
+    .value("NDHWC", DALI_NDHWC)
     .value("SAME", DALI_SAME)
     .export_values();
 

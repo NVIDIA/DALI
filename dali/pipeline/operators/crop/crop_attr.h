@@ -56,26 +56,43 @@ class CropAttr {
         "`crop` argument is not compatible with `crop_h`, `crop_w`, `crop_d`");
 
       auto cropArg = spec.GetRepeatedArgument<float>("crop");
-      DALI_ENFORCE(cropArg.size() > 0 && cropArg.size() <= 2);
-      crop_h = static_cast<int>(cropArg[0]);
-      crop_w = static_cast<int>(cropArg.size() >= 2 ? cropArg[1] : cropArg[0]);
+      if (cropArg.size() == 1) {
+          DALI_WARN("Warning: Single value argument for `crop` is now deprecated. "
+                    "To produce a squared cropping window, please provide both values explicitly `crop=(c, c)`."
+                    "Future releases will treat this as an error");
+          cropArg.push_back(cropArg[0]);
+      }
+      size_t crop_ndims = cropArg.size();
+      DALI_ENFORCE(crop_ndims <= 3,
+        "Cropping windows with more than 3 dimensions are not supported");
 
-      DALI_ENFORCE(crop_h >= 0,
+      size_t idx = 0;
+      if (crop_ndims == 3) {
+        crop_d = static_cast<int>(cropArg[idx++]);
+        DALI_ENFORCE(crop_d >= 0,
+          "If provided, crop depth must be greater than zero. Received: " +
+          std::to_string(crop_d));
+      }
+      crop_h = static_cast<int>(cropArg[idx++]);
+      crop_w = static_cast<int>(cropArg[idx++]);
+
+      DALI_ENFORCE(crop_h > 0,
         "Crop height must be greater than zero. Received: " +
         std::to_string(crop_h));
 
-      DALI_ENFORCE(crop_w >= 0,
+      DALI_ENFORCE(crop_w > 0,
         "Crop width must be greater than zero. Received: " +
          std::to_string(crop_w));
     }
+    has_crop_d_ = has_crop_d_arg || crop_d > 0;
 
     crop_height_.resize(batch_size__, crop_h);
     crop_width_.resize(batch_size__, crop_w);
-    if (has_crop_d_arg)
+    if (has_crop_d_)
       crop_depth_.resize(batch_size__, crop_d);
     crop_x_norm_.resize(batch_size__, 0.0f);
     crop_y_norm_.resize(batch_size__, 0.0f);
-    if (has_crop_d_arg)
+    if (has_crop_d_)
       crop_z_norm_.resize(batch_size__, 0.0f);
     crop_window_generators_.resize(batch_size__, {});
   }
@@ -83,7 +100,7 @@ class CropAttr {
   void ProcessArguments(const ArgumentWorkspace *ws, std::size_t data_idx) {
     crop_x_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_x", ws, data_idx);
     crop_y_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_y", ws, data_idx);
-    if (Is3dCrop())
+    if (has_crop_d_)
       crop_z_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_z", ws, data_idx);
     if (!is_whole_image_) {
       if (crop_width_[data_idx] == 0) {
@@ -94,7 +111,7 @@ class CropAttr {
         crop_height_[data_idx] = static_cast<int>(
           spec__.GetArgument<float>("crop_h", ws, data_idx));
       }
-      if (Is3dCrop() && crop_depth_[data_idx] == 0) {
+      if (has_crop_d_ && crop_depth_[data_idx] == 0) {
         crop_depth_[data_idx] = static_cast<int>(
           spec__.GetArgument<float>("crop_d", ws, data_idx));
       }
@@ -104,21 +121,22 @@ class CropAttr {
       [this, data_idx](kernels::TensorShape<> input_shape) {
         CropWindow crop_window;
         if (input_shape.size() == 3) {
+          auto crop_d = crop_depth_[data_idx] > 0 ? crop_depth_[data_idx] : input_shape[2];
           kernels::TensorShape<> crop_shape =
-            {crop_depth_[data_idx], crop_height_[data_idx], crop_width_[data_idx]};
+            {crop_d, crop_height_[data_idx], crop_width_[data_idx]};
           crop_window.SetShape(crop_shape);
 
           float anchor_norm[3] =
             {crop_z_norm_[data_idx], crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
           auto anchor = CalculateAnchor(make_span(anchor_norm), crop_shape, input_shape);
-          crop_window.SetAnchor(std::move(anchor));
+          crop_window.SetAnchor(anchor);
         } else if (input_shape.size() == 2) {
           kernels::TensorShape<> crop_shape = {crop_height_[data_idx], crop_width_[data_idx]};
           crop_window.SetShape(crop_shape);
 
           float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
           auto anchor = CalculateAnchor(make_span(anchor_norm), crop_shape, input_shape);
-          crop_window.SetAnchor(std::move(anchor));
+          crop_window.SetAnchor(anchor);
         } else {
           DALI_FAIL("not supported number of dimensions (" +
                     std::to_string(input_shape.size()) + ")");
@@ -167,10 +185,6 @@ class CropAttr {
     return is_whole_image_;
   }
 
-  inline bool Is3dCrop() const {
-    return !crop_depth_.empty();
-  }
-
   std::vector<int> crop_height_;
   std::vector<int> crop_width_;
   std::vector<int> crop_depth_;
@@ -179,6 +193,7 @@ class CropAttr {
   std::vector<float> crop_z_norm_;
   std::vector<CropWindowGenerator> crop_window_generators_;
   bool is_whole_image_ = false;
+  bool has_crop_d_ = false;
 
  private:
   OpSpec spec__;

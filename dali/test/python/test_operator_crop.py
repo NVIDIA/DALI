@@ -264,7 +264,7 @@ class Crop3dPipeline(Pipeline):
 
     def iter_setup(self):
         data = self.iterator.next()
-        self.feed_input(self.data, data, layout=types.NFHWC)
+        self.feed_input(self.data, data, layout=types.NDHWC)
 
 class Crop3dPythonOpPipeline(Pipeline):
     def __init__(self, function, batch_size, iterator, num_threads=1, device_id=0):
@@ -284,7 +284,7 @@ class Crop3dPythonOpPipeline(Pipeline):
 
     def iter_setup(self):
         data = self.iterator.next()
-        self.feed_input(self.data, data, layout=types.NFHWC)
+        self.feed_input(self.data, data, layout=types.NDHWC)
 
 def crop3d_func_help(image, crop_z = 0.1, crop_y = 0.2, crop_x = 0.3, crop_d = 220, crop_h = 222, crop_w = 224):
     assert len(image.shape) == 4

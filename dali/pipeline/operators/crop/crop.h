@@ -59,12 +59,15 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
   std::size_t C_;
 
   void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
-    // TODO(janton): rename F (frames) to more generic name D (depth)
-    Index F = 1, H, W, C;
-    DALI_ENFORCE(shape.size() == 3 || shape.size() == 4,
-                 "Unexpected number of dimensions: " + std::to_string(shape.size()));
-    DALI_ENFORCE( (shape.size() == 4 && (layout == DALI_NFHWC || layout == DALI_NFCHW)) ||
-                  (shape.size() == 3 && (layout == DALI_NHWC || layout == DALI_NCHW)) );
+    Index F = 1, D, H, W, C;
+    const int ndims = shape.size();
+    const bool is_volumetric_layout = IsVolumetric(layout);
+    const bool is_sequence_layout = IsSequence(layout);
+    DALI_ENFORCE( (ndims == 4 && is_sequence_layout) ||
+                  (ndims == 4 && is_volumetric_layout) ||
+                  (ndims == 3 && (layout == DALI_NHWC || layout == DALI_NCHW)),
+                  "Unexpected number of dimensions [" + std::to_string(ndims) +
+                  "] or layout [" + std::to_string(layout) + "]");
     switch (layout) {
       case DALI_NHWC:
         std::tie(H, W, C) = std::make_tuple(shape[0], shape[1], shape[2]);
@@ -78,30 +81,51 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
       case DALI_NFCHW:
         std::tie(F, C, H, W) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
         break;
+      case DALI_NDHWC:
+        std::tie(D, H, W, C) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
+        break;
       default:
-        DALI_FAIL("Not supported layout");
+        DALI_FAIL("Not supported layout: " + std::to_string(layout));
     }
 
     auto crop_h = crop_height_[data_idx];
     auto crop_w = crop_width_[data_idx];
 
-    if (shape.size() == 4) {
-      auto crop_d = Is3dCrop() ? crop_depth_[data_idx] : F;
+    if (is_volumetric_layout) {
+      auto crop_d = (!crop_depth_.empty() && crop_depth_[data_idx] > 0) ? crop_depth_[data_idx] : D;
+      auto crop_z_norm = !crop_z_norm_.empty() ? crop_z_norm_[data_idx] : 0;
+
       float anchor_norm[3] =
-        {crop_z_norm_[data_idx], crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
+        {crop_z_norm, crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
       auto crop_anchor = CalculateAnchor(make_span(anchor_norm),
                                          {crop_d, crop_h, crop_w},
-                                         {F, H, W});
+                                         {D, H, W});
       int64_t crop_y, crop_x, crop_z;
       std::tie(crop_z, crop_y, crop_x) = std::make_tuple(crop_anchor[0], crop_anchor[1], crop_anchor[2]);
       switch (layout) {
-        case DALI_NFHWC:
+        case DALI_NDHWC:
           slice_anchors_[data_idx] = {crop_z, crop_y, crop_x, 0};
           slice_shapes_[data_idx] = {crop_d, crop_h, crop_w, C};
           break;
+        default:
+          DALI_FAIL("Not supported layout: " + std::to_string(layout));
+      }
+    } else if (is_sequence_layout) {
+      float anchor_norm[2] =
+        {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
+      auto crop_anchor = CalculateAnchor(make_span(anchor_norm),
+                                         {crop_h, crop_w},
+                                         {H, W});
+      int64_t crop_y, crop_x;
+      std::tie(crop_y, crop_x) = std::make_tuple(crop_anchor[0], crop_anchor[1]);
+      switch (layout) {
+        case DALI_NFHWC:
+          slice_anchors_[data_idx] = {0, crop_y, crop_x, 0};
+          slice_shapes_[data_idx] = {F, crop_h, crop_w, C};
+          break;
         case DALI_NFCHW:
-          slice_anchors_[data_idx] = {crop_z, 0, crop_y, crop_x};
-          slice_shapes_[data_idx] = {crop_d, C, crop_h, crop_w};
+          slice_anchors_[data_idx] = {0, 0, crop_y, crop_x};
+          slice_shapes_[data_idx] = {F, C, crop_h, crop_w};
           break;
         default:
           DALI_FAIL("Not supported layout: " + std::to_string(layout));
