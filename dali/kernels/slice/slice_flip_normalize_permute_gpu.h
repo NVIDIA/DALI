@@ -102,7 +102,7 @@ class SliceFlipNormalizePermutePadGPU {
       norm_add_cpu[i] = -mean_data[i] * inv_stddev_data[i];
       norm_mul_cpu[i] = inv_stddev_data[i];
     }
-    unsigned normalization_dim;
+    unsigned normalization_dim = Dims + 1;
     std::vector<size_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);

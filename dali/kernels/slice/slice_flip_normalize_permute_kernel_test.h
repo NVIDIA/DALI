@@ -370,9 +370,9 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES = ::testing::Types<
 >;
 
 using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES_CPU_ONLY = ::testing::Types<
-    SliceTestArgs<uint8_t, float16_cpu, 3, 1, 2,
-      SliceFlipNormPermArgsGen_SliceOnly<float16_cpu, 3>>,
-    SliceTestArgs<float16_cpu, uint8_t, 3, 1, 2,
+    SliceTestArgs<uint8_t, float16, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SliceOnly<float16, 3>>,
+    SliceTestArgs<float16, uint8_t, 3, 1, 2,
       SliceFlipNormPermArgsGen_SliceOnly<uint8_t, 3>>
 >;
 

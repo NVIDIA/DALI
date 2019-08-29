@@ -72,8 +72,8 @@ void SliceBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
   auto data_idx = ws.data_idx();
 
-  DALI_TYPE_SWITCH_WITH_FP16_CPU(input_type_, InputType,
-    DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OutputType,
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
       detail::RunHelper<OutputType, InputType>(
         output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
     )

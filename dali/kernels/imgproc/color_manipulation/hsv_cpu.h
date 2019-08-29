@@ -33,8 +33,8 @@ constexpr size_t kNchannels = 3;
 template <class OutputType, class InputType>
 class HsvCpu {
   // TODO(mszolucha): implement float16
-  static_assert(!std::is_same<OutputType, float16_cpu>::value &&
-                !std::is_same<InputType, float16_cpu>::value, "float16 not implemented yet");
+  static_assert(!std::is_same<OutputType, float16>::value &&
+                !std::is_same<InputType, float16>::value, "float16 not implemented yet");
 
  public:
   using Roi = ::dali::kernels::Roi<hsv::kNdims - 1>;

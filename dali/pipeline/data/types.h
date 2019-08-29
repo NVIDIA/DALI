@@ -144,19 +144,6 @@ struct id2type_helper<id> { using type = data_type; };
 // Dummy type to represent the invalid default state of dali types.
 struct NoType {};
 
-template <typename T>
-struct NormalizedType { using type = T; };
-
-// This way SetType<float16_cpu> will set SetType<float16>
-// As these types are compatible python wont need a special
-// case for float16_cpu
-template <>
-struct NormalizedType<float16_cpu> { using type = float16; };
-
-template <typename T>
-using normalize_t = typename NormalizedType<T>::type;
-
-
 // Stores the unqiue ID for a type and its size in bytes
 class DLL_PUBLIC TypeInfo {
  public:
@@ -171,7 +158,7 @@ class DLL_PUBLIC TypeInfo {
     return type;
   }
 
-  template <typename T, typename U = normalize_t<T> >
+  template <typename T>
   DLL_PUBLIC inline void SetType(DALIDataType dtype = DALI_NO_TYPE);
 
   template <typename DstBackend, typename SrcBackend>
@@ -284,7 +271,7 @@ struct TypeNameHelper<std::array<T, N> > {
   }
 };
 
-template <typename, typename T>
+template <typename T>
 void TypeInfo::SetType(DALIDataType dtype) {
   // Note: We enforce the fact that NoType is invalid by
   // explicitly setting its type size as 0
@@ -361,7 +348,7 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
  * type - DALIDataType
  * DType becomes a type corresponding to given DALIDataType
  */
-#define DALI_TYPE_SWITCH_WITH_FP16_GPU(type, DType, ...) \
+#define DALI_TYPE_SWITCH_WITH_FP16(type, DType, ...) \
   switch (type) {                                    \
     case DALI_NO_TYPE:                               \
       DALI_FAIL("Invalid type.");                    \
@@ -416,68 +403,6 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
     default:                                         \
       DALI_FAIL("Unknown type");                     \
   }
-
-/**
- * @brief Easily instantiate templates for all types
- * type - DALIDataType
- * DType becomes a type corresponding to given DALIDataType
- */
-#define DALI_TYPE_SWITCH_WITH_FP16_CPU(type, DType, ...) \
-  switch (type) {                                    \
-    case DALI_NO_TYPE:                               \
-      DALI_FAIL("Invalid type.");                    \
-    case DALI_UINT8:                                 \
-      {                                              \
-        typedef uint8 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT16:                                 \
-      {                                              \
-        typedef int16 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT32:                                 \
-      {                                              \
-        typedef int32 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT64:                                 \
-      {                                              \
-        typedef int64 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT16:                               \
-      {                                              \
-        typedef float16_cpu DType;                   \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT:                                 \
-      {                                              \
-        typedef float DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT64:                               \
-      {                                              \
-        typedef double DType;                        \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_BOOL:                                  \
-      {                                              \
-        typedef bool DType;                          \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    default:                                         \
-      DALI_FAIL("Unknown type");                     \
-  }
-
 
 #define DALI_TYPE_SWITCH(type, DType, ...)           \
   switch (type) {                                    \
