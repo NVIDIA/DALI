@@ -58,7 +58,7 @@ constexpr mat4 scaling(vec3 scale) {
 }
 
 DALI_HOST_DEV
-constexpr mat3 rotation2D(float angle) {
+inline mat3 rotation2D(float angle) {
 #ifdef __CUDA_ARCH__
   float c = cosf(angle);
   float s = sinf(angle);

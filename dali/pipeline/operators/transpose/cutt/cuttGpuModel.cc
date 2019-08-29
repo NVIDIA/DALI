@@ -418,7 +418,11 @@ void countPackedGlTransactions0(const int warpSize, const int accWidth, const in
 #ifdef NO_ALIGNED_ALLOC
   int_vector* writeSegVolMmk = (int_vector *)aligned_malloc(volMmk*sizeof(int_vector), sizeof(int_vector));
 #else
+  #if !defined(__AARCH64_QNX__)
   int_vector* writeSegVolMmk = (int_vector *)aligned_alloc(sizeof(int_vector), volMmk*sizeof(int_vector));
+  #else
+  int_vector* writeSegVolMmk = (int_vector *)memalign(sizeof(int_vector), volMmk*sizeof(int_vector));
+  #endif
 #endif
 
   const int accWidthShift = ilog2(accWidth);

@@ -7,19 +7,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     git \
     rsync \
-    libjpeg-dev \
     dh-autoreconf \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
     && rm -rf /var/lib/apt/lists/*
 
-ENV REPO_DEBS="cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb"
+COPY qnx/cuda* /cuda-qnx-cross.deb
+COPY qnx /qnx
+
+# We need to remove QNX's libjpeg.so so OpenCV and DALI do not pick it up over static libjpeg-turbo that we compile
+RUN rsync -a /qnx/host/linux/x86_64/ / && \
+    mkdir -p /lib64/qnx7/stubs && mv /qnx/lib64/* /lib64/qnx7/stubs && \
+    mv /qnx/target/qnx7 /usr/aarch64-unknown-nto-qnx && \
+    rm -rf /usr/aarch64-unknown-nto-qnx/aarch64le/lib/libjpeg.so* && \
+    rm -rf /usr/aarch64-unknown-nto-qnx/usr/include/j* && \
+    rm -rf /usr/aarch64-unknown-nto-qnx/armle-v7 /usr/aarch64-unknown-nto-qnx/x86 /usr/aarch64-unknown-nto-qnx/x86_64 && \
+    rm -rf /qnx
+
+ENV QNX_HOST=/
+ENV QNX_TARGET=/usr/aarch64-unknown-nto-qnx
+
+ENV REPO_DEBS="cuda-qnx-cross.deb"
+
 ENV CUDA_CROSS_VERSION=10-0
+
 ENV CUDA_CROSS_PACKAGES="cublas cudart cufft curand cusolver cusparse driver misc-headers npp"
 
-RUN wget https://developer.download.nvidia.com/devzone/devcenter/mobile/jetpack_l4t/4.1.1/xddsn.im/JetPackL4T_4.1.1_b57/16.04/cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb && \
-    dpkg -i $REPO_DEBS && \
-    echo "for i in \$CUDA_CROSS_PACKAGES; do echo \"cuda-\$i-cross-aarch64-\${CUDA_CROSS_VERSION}\";done" | bash > /tmp/cuda-packages.txt && \
+RUN dpkg -i $REPO_DEBS && \
+    echo "for i in \$CUDA_CROSS_PACKAGES; do echo \"cuda-\$i-cross-qnx-\${CUDA_CROSS_VERSION}\";done" | bash > /tmp/cuda-packages.txt && \
     apt-get update \
    && apt-get install -y $(cat /tmp/cuda-packages.txt) \
    && rm -rf /var/lib/apt/lists/* \
@@ -50,12 +63,14 @@ RUN curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VER
 
 RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
     ./autogen.sh && ./configure \
-    CXXFLAGS="-fPIC" \
-    CC=aarch64-linux-gnu-gcc \
-    CXX=aarch64-linux-gnu-g++ \
-      --host=aarch64-unknown-linux-gnu \
-      --with-protoc=/usr/local/bin/protoc \
-      --prefix=/usr/aarch64-linux-gnu/ && make -j$(nproc) install && \
+    CC=$QNX_HOST/usr/bin/aarch64-unknown-nto-qnx7.0.0-gcc \
+    CXX=$QNX_HOST/usr/bin/aarch64-unknown-nto-qnx7.0.0-g++ \
+    CXXFLAGS="-fPIC -D__EXT_POSIX1_198808 -I$QNX_TARGET/usr/include -I$QNX_TARGET/usr/include/aarch64 -I$QNX_TARGET/usr/include/c++/v1 -L$QNX_TARGET/aarch64le/lib -D_POSIX_C_SOURCE=200112L -D_QNX_SOURCE -D_FILE_OFFSET_BITS=64" \
+      --host=aarch64-unknown-nto-qnx7.0.0 \
+      --build=x86_64-linux-gnu \
+      --with-sysroot=$QNX_TARGET \
+      --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le \
+      --with-protoc=/usr/local/bin/protoc && make -j$(nproc) install && \
     rm -rf /protobuf-${PROTOBUF_VERSION}
 
 
@@ -67,20 +82,23 @@ RUN curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_
       --disable-shared \
       CFLAGS="-fPIC" \
       CXXFLAGS="-fPIC" \
-      CC=aarch64-linux-gnu-gcc \
-      CXX=aarch64-linux-gnu-g++ \
-      --host=aarch64-unknown-linux-gnu \
-      --prefix=/usr/aarch64-linux-gnu/ && \
+      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
+      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
+      --host=aarch64-unknown-nto-qnx7.0.0 \
+      --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
 # OpenCV
 ENV OPENCV_VERSION=3.4.3
+COPY docker/opencv-qnx.patch /opencv-qnx.patch
 RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
+    cd /opencv-${OPENCV_VERSION} && git apply /opencv-qnx.patch \
+    && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_TOOLCHAIN_FILE=$PWD/../platforms/linux/aarch64-gnu.toolchain.cmake \
-          -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ \
+          -DVIBRANTE_PDK:STRING=/ \
+          -DCMAKE_TOOLCHAIN_FILE=$PWD/../platforms/qnx/aarch64-qnx.toolchain.cmake \
+          -DCMAKE_INSTALL_PREFIX=/usr/aarch64-unknown-nto-qnx/aarch64le  \
           -DBUILD_SHARED_LIBS=OFF \
           -DBUILD_LIST=core,improc,imgcodecs \
           -DBUILD_PNG=ON \
@@ -121,30 +139,30 @@ VOLUME /dali
 
 WORKDIR /dali
 
-
 ENV PATH=/usr/local/cuda-10.0/bin:$PATH
 
-ARG DALI_BUILD_DIR=build_aarch64_linux
+ARG DALI_BUILD_DIR=build_aarch64_qnx
 
 WORKDIR /dali/${DALI_BUILD_DIR}
 
 CMD cmake \
   -DWERROR=ON \
-  -DCMAKE_TOOLCHAIN_FILE:STRING="$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake" \
+  -DCMAKE_TOOLCHAIN_FILE:STRING="$PWD/../platforms/qnx/aarch64-qnx.toolchain.cmake" \
   -DCMAKE_COLOR_MAKEFILE=ON \
   -DCMAKE_INSTALL_PREFIX=./install \
-  -DARCH=aarch64-linux \
+  -DARCH=aarch64-qnx \
   -DCUDA_HOST=/usr/local/cuda-10.0 \
-  -DCUDA_TARGET=/usr/local/cuda-10.0/targets/aarch64-linux \
+  -DCUDA_TARGET=/usr/local/cuda-10.0/targets/aarch64-qnx \
   -DBUILD_TEST=ON \
   -DBUILD_BENCHMARK=OFF \
   -DBUILD_NVTX=OFF \
   -DBUILD_PYTHON=OFF \
   -DBUILD_LMDB=OFF \
+  -DBUILD_TENSORFLOW=OFF \
   -DBUILD_JPEG_TURBO=ON \
   -DBUILD_NVJPEG=OFF \
   -DBUILD_NVOF=OFF \
   -DBUILD_NVDEC=OFF \
   -DBUILD_NVML=OFF \
-  ..  && \
-  make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
+  .. && \
+  make install -j"$(grep ^processor /proc/cpuinfo | wc -l)"
