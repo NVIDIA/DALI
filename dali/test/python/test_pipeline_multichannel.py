@@ -66,9 +66,12 @@ def resize_func(image):
 def transpose_func(image):
     return image.transpose((1, 0, 2))
 
+def normalize_func(image):
+    return np.float32(image) / np.float32(255.0)
+
 class MultichannelPipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0,
-                 should_resize=False, should_crop=False, should_transpose=False):
+                 should_resize=False, should_crop=False, should_transpose=False, should_normalize=False):
         super(MultichannelPipeline, self).__init__(batch_size,
                                                    num_threads,
                                                    device_id)
@@ -79,6 +82,7 @@ class MultichannelPipeline(Pipeline):
         self.should_crop = should_crop
         self.should_resize = should_resize
         self.should_transpose = should_transpose
+        self.should_normalize = should_normalize
         if self.should_resize:
             self.resize = ops.Resize(device = self.device,
                                      resize_y = 900,
@@ -93,6 +97,12 @@ class MultichannelPipeline(Pipeline):
         if self.should_transpose:
             self.transpose = ops.Transpose(device = self.device,
                                            perm = (1, 0, 2))
+        if self.should_normalize:
+            self.cmn = ops.CropMirrorNormalize(device = self.device,
+                                               std = 255.,
+                                               mean = 0.,
+                                               output_layout = types.NHWC,
+                                               output_dtype = types.FLOAT)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -104,6 +114,8 @@ class MultichannelPipeline(Pipeline):
             out = self.crop(out)
         if self.should_transpose:
             out = self.transpose(out)
+        if self.should_normalize:
+            out = self.cmn(out)
         return out
 
     def iter_setup(self):
@@ -172,3 +184,17 @@ def test_transpose_multichannel_vs_numpy():
         for batch_size in {1, 3}:
             for shape in {(2048, 512, 3), (2048, 512, 8)}:
                 yield check_transpose_multichannel_vs_numpy, device, batch_size, shape
+
+
+def check_normalize_multichannel_vs_numpy(device, batch_size, shape):
+    eii1 = RandomDataIterator(batch_size, shape=shape)
+    eii2 = RandomDataIterator(batch_size, shape=shape)
+    compare_pipelines(MultichannelPipeline(device, batch_size, types.NHWC, iter(eii1), should_normalize=True),
+                      MultichannelPythonOpPipeline(normalize_func, batch_size, types.NHWC, iter(eii2)),
+                      batch_size=batch_size, N_iterations=10)
+
+def test_normalize_multichannel_vs_numpy():
+    for device in {'cpu', 'gpu'}:
+        for batch_size in {1, 3}:
+            for shape in {(2048, 512, 3), (2048, 512, 8)}:
+                yield check_normalize_multichannel_vs_numpy, device, batch_size, shape
