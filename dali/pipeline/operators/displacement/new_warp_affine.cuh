@@ -16,12 +16,15 @@
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_CUH_
 
 #include <memory>
-#include "dali/pipeline/operators/displacement/new_warp_affine.h"
-#include "dali/pipeline/operators/displacement/warp_impl.h"
+#include "dali/kernels/imgproc/warp_gpu.h"
 #include "dali/kernels/imgproc/warp/affine.h"
+#include "dali/pipeline/operators/displacement/warp_impl.h"
+#include "dali/pipeline/operators/displacement/warp_affine_params.h"
 
 namespace dali {
 
+template <typename Backend>
+class NewWarpAffine;
 
 template <>
 class NewWarpAffine<GPUBackend> : public Warp<GPUBackend, NewWarpAffine<GPUBackend>> {

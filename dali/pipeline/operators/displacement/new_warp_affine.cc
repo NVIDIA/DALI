@@ -46,4 +46,6 @@ Channel dimension should be excluded (e.g. for RGB images specify 480,640, not 4
       R"code(Color value used for padding pixels.)code",
       0.f);
 
+DALI_REGISTER_OPERATOR(NewWarpAffine, NewWarpAffine<CPUBackend>, CPU);
+
 }  // namespace dali

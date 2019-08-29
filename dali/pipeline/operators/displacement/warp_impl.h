@@ -25,7 +25,6 @@
 #include "dali/pipeline/operators/displacement/warp.h"
 #include "dali/pipeline/operators/displacement/warp_param_provider.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/kernels/imgproc/warp_gpu.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/alloc.h"
 #include "dali/core/static_switch.h"
@@ -71,6 +70,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   enable_if_t<std::is_same<DeviceWorkspace, WorkspaceType>::value, void>
   SetupBackend(kernels::TensorListShape<> &shape, const WorkspaceType &ws) {
     auto context = GetContext(ws);
+    kmgr_.Resize<Kernel>(1, 1);
     auto &req = kmgr_.Setup<Kernel>(
         0, context,
         input_,
@@ -83,24 +83,32 @@ class WarpOpImpl : public OpImplInterface<Backend> {
 
   template <typename WorkspaceType>
   enable_if_t<std::is_same<HostWorkspace, WorkspaceType>::value, void>
-  CallBackend(kernels::TensorListShape<> &shape, const WorkspaceType &ws) {
-    auto context = GetContext(ws);
-    auto &req = kmgr_.Setup<Kernel>(
-        0, context,
-        input_,
-        param_provider_->ParamsCPU(),
-        param_provider_->OutputSizes(),
-        param_provider_->InterpTypes(),
-        param_provider_->Border());
-    shape = req.output_shapes[0];
+  SetupBackend(kernels::TensorListShape<> &shape, const WorkspaceType &ws) {
+    int threads = ws.HasThreadPool() ? ws.GetThreadPool().size() : 1;
+    int N = input_.num_samples();
+    kmgr_.Resize<Kernel>(threads, N);
+
+    shape.resize(N, input_.sample_dim());
+    auto interp_types = param_provider_->InterpTypes();
+
+    for (int i = 0; i < N; i++) {
+      auto context = GetContext(ws);
+      DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
+      auto &req = kmgr_.Setup<Kernel>(
+          i, context,
+          input_[i],
+          *param_provider_->ParamsCPU()(i),
+          param_provider_->OutputSizes()[i],
+          interp_type,
+          param_provider_->Border());
+      shape.set_tensor_shape(i, req.output_shapes[0][0]);
+    }
   }
 
   void Setup(kernels::TensorListShape<> &shape, const Workspace &ws) override {
     param_provider_->SetContext(Spec(), ws);
 
-    input_ = view<const InputType, tensor_ndim>(ws.template Input<Backend>(0));
-    kmgr_.Resize<Kernel>(1, 1);
-
+    input_ = view<const InputType, tensor_ndim>(ws.template InputRef<Backend>(0));
     param_provider_->Setup();
 
     SetupBackend(shape, ws);
@@ -108,32 +116,43 @@ class WarpOpImpl : public OpImplInterface<Backend> {
 
   template <typename WorkspaceType>
   std::enable_if_t<std::is_same<WorkspaceType, HostWorkspace>::value, void>
-  RunBackend(WorkspaceType &_ws) override {
-    DeviceWorkspace &ws = _ws;
+  RunBackend(WorkspaceType &_ws) {
+    HostWorkspace &ws = _ws;
     param_provider_->SetContext(Spec(), ws);
 
-    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
-    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
-    auto context = GetContext(ws);
-    kmgr_.Run<Kernel>(
-        0, 0, context,
-        output,
-        input_,
-        param_provider_->ParamsGPU(),
-        param_provider_->OutputSizes(),
-        param_provider_->InterpTypes(),
-        param_provider_->Border());
+    auto output = view<OutputType, tensor_ndim>(ws.template OutputRef<Backend>(0));
+    input_ = view<const InputType,  tensor_ndim>(ws.template InputRef<Backend>(0));
+
+
+    ThreadPool &pool = ws.GetThreadPool();
+    auto interp_types = param_provider_->InterpTypes();
+
+    for (int i = 0; i < input_.num_samples(); i++) {
+      pool.DoWorkWithID([&, i](int tid) {
+        DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
+        auto context = GetContext(ws);
+        kmgr_.Run<Kernel>(
+            tid, i, context,
+            output[i],
+            input_[i],
+            *param_provider_->ParamsCPU()(i),
+            param_provider_->OutputSizes()[i],
+            interp_type,
+            param_provider_->Border());
+      });
+    }
+    pool.WaitForWork(true);
   }
 
 
   template <typename WorkspaceType>
   std::enable_if_t<std::is_same<WorkspaceType, DeviceWorkspace>::value, void>
-  RunBackend(WorkspaceType &_ws) override {
+  RunBackend(WorkspaceType &_ws) {
     DeviceWorkspace &ws = _ws;
     param_provider_->SetContext(Spec(), ws);
 
-    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
-    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
+    auto output = view<OutputType, tensor_ndim>(ws.template OutputRef<Backend>(0));
+    input_ = view<const InputType,  tensor_ndim>(ws.template InputRef<Backend>(0));
     auto context = GetContext(ws);
     kmgr_.Run<Kernel>(
         0, 0, context,
@@ -230,7 +249,7 @@ class Warp : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &outputs, const DeviceWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {
     outputs.resize(1);
 
     DALIDataType out_type;
@@ -260,8 +279,8 @@ class Warp : public Operator<Backend> {
 
   void SetupWarp(kernels::TensorListShape<> &out_shape,
                  DALIDataType &out_type,
-                 const DeviceWorkspace &ws) {
-    auto &input = ws.template Input<Backend>(0);
+                 const Workspace &ws) {
+    auto &input = ws.template InputRef<Backend>(0);
     input_shape_ = input.shape();
     DALIDataType new_input_type = input.type().id();
     DALIDataType new_output_type;
