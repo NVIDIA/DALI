@@ -324,9 +324,9 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
 }
 
 // Used to define a type for use in dali. Inserts the type into the
-// TypeTable w/ a unique id and creates a method to get tDALI_REGISTER_TYPE_WITH_NAME name of
-// the type as a string. This does not work for non-fundaDALI_REGISTER_TYPE_WITH_NAMEntal types,
-// as we do not have any mechanism for calling the constrDALI_REGISTER_TYPE_WITH_NAMEtor of the
+// TypeTable w/ a unique id and creates a method to get the name of
+// the type as a string. This does not work for non-fundamental types,
+// as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
 #define DALI_REGISTER_TYPE_WITH_NAME(Type, TypeString, dtype)       \
   template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()      \
