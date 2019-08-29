@@ -58,7 +58,8 @@ class CropAttr {
       auto cropArg = spec.GetRepeatedArgument<float>("crop");
       if (cropArg.size() == 1) {
           DALI_WARN("Warning: Single value argument for `crop` is now deprecated. "
-                    "To produce a squared cropping window, please provide both values explicitly `crop=(c, c)`."
+                    "To produce a squared cropping window, please provide both values "
+                    "explicitly `crop=(c, c)`."
                     "Future releases will treat this as an error");
           cropArg.push_back(cropArg[0]);
       }
