@@ -36,7 +36,7 @@ SOFTWARE.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
+#include <cstdlib>               // aligned_alloc
 #include <algorithm>
 #include <random>
 #include <cuda_runtime.h>
