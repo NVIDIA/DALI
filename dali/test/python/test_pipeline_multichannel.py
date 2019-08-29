@@ -63,8 +63,12 @@ def resize_func_help(image, size_x = 300, size_y = 900):
 def resize_func(image):
     return resize_func_help(image)
 
+def transpose_func(image):
+    return image.transpose((1, 0, 2))
+
 class MultichannelPipeline(Pipeline):
-    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0, should_resize=False, should_crop=False):
+    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0,
+                 should_resize=False, should_crop=False, should_transpose=False):
         super(MultichannelPipeline, self).__init__(batch_size,
                                                    num_threads,
                                                    device_id)
@@ -74,6 +78,7 @@ class MultichannelPipeline(Pipeline):
         self.inputs = ops.ExternalSource()
         self.should_crop = should_crop
         self.should_resize = should_resize
+        self.should_transpose = should_transpose
         if self.should_resize:
             self.resize = ops.Resize(device = self.device,
                                      resize_y = 900,
@@ -85,6 +90,9 @@ class MultichannelPipeline(Pipeline):
                                  crop_pos_x = 0.3,
                                  crop_pos_y = 0.2,
                                  image_type = types.RGB)
+        if self.should_transpose:
+            self.transpose = ops.Transpose(device = self.device,
+                                           perm = (1, 0, 2))
 
     def define_graph(self):
         self.data = self.inputs()
@@ -94,6 +102,8 @@ class MultichannelPipeline(Pipeline):
             out = self.resize(out)
         if self.should_crop:
             out = self.crop(out)
+        if self.should_transpose:
+            out = self.transpose(out)
         return out
 
     def iter_setup(self):
@@ -148,3 +158,17 @@ def test_crop_multichannel_vs_numpy():
         for batch_size in {1, 3}:
             for shape in {(2048, 512, 3), (2048, 512, 8)}:
                 yield check_crop_multichannel_vs_numpy, device, batch_size, shape
+
+def check_transpose_multichannel_vs_numpy(device, batch_size, shape):
+    eii1 = RandomDataIterator(batch_size, shape=shape)
+    eii2 = RandomDataIterator(batch_size, shape=shape)
+    compare_pipelines(MultichannelPipeline(device, batch_size, types.NHWC, iter(eii1), should_transpose=True),
+                      MultichannelPythonOpPipeline(transpose_func, batch_size, types.NHWC, iter(eii2)),
+                      batch_size=batch_size, N_iterations=10)
+
+def test_transpose_multichannel_vs_numpy():
+    # TODO(janton) Transpose not implemented for CPU
+    for device in {'gpu'}:
+        for batch_size in {1, 3}:
+            for shape in {(2048, 512, 3), (2048, 512, 8)}:
+                yield check_transpose_multichannel_vs_numpy, device, batch_size, shape
