@@ -15,7 +15,7 @@
 
 #define DALI_TYPENAME_REGISTERER(TypeString) \
 {                                            \
-  return TypeString;                               \
+  return TypeString;                         \
 }
 
 #define DALI_TYPEID_REGISTERER(Type, dtype)                           \
