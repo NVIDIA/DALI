@@ -132,10 +132,11 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         info->heights[0] = std::get<0>(dims);
         info->widths[0] = std::get<1>(dims);
         if (crop_generator) {
-          info->crop_window = crop_generator(info->heights[0], info->widths[0]);
-          DALI_ENFORCE(info->crop_window.IsInRange(info->heights[0], info->widths[0]));
-          info->widths[0] = info->crop_window.w;
-          info->heights[0] = info->crop_window.h;
+          kernels::TensorShape<> shape{info->heights[0], info->widths[0]};
+          info->crop_window = crop_generator(shape);
+          DALI_ENFORCE(info->crop_window.IsInRange(shape));
+          info->heights[0] = info->crop_window.shape[0];
+          info->widths[0] = info->crop_window.shape[1];
         }
         auto& out = ws.Output<CPUBackend>(2);
         out.set_type(TypeInfo::Create<uint8_t>());
@@ -156,13 +157,14 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                    &info->c));
 
       if (crop_generator) {
-        info->crop_window = crop_generator(info->heights[0], info->widths[0]);
+        kernels::TensorShape<> shape{info->heights[0], info->widths[0]};
+        info->crop_window = crop_generator(shape);
         auto &crop_window = info->crop_window;
-        DALI_ENFORCE(crop_window.IsInRange(info->heights[0], info->widths[0]));
+        DALI_ENFORCE(crop_window.IsInRange(shape));
         nvjpegDecodeParamsSetROI(decode_params_[data_idx],
-          crop_window.x, crop_window.y, crop_window.w, crop_window.h);
-        info->widths[0] = crop_window.w;
-        info->heights[0] = crop_window.h;
+          crop_window.anchor[1], crop_window.anchor[0], crop_window.shape[1], crop_window.shape[0]);
+        info->widths[0] = crop_window.shape[1];
+        info->heights[0] = crop_window.shape[0];
       }
 
       state_nvjpeg->nvjpeg_backend =

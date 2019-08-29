@@ -85,12 +85,13 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   auto crop_window_generator = GetCropWindowGenerator();
   if (crop_window_generator) {
     flags.crop = true;
-    auto crop = crop_window_generator(h, w);
-    DALI_ENFORCE(crop.IsInRange(h, w));
-    flags.crop_x = crop.x;
-    flags.crop_y = crop.y;
-    flags.crop_width = crop.w;
-    flags.crop_height = crop.h;
+    kernels::TensorShape<> shape{static_cast<int>(h), static_cast<int>(w)};
+    auto crop = crop_window_generator(shape);
+    DALI_ENFORCE(crop.IsInRange(shape));
+    flags.crop_y = crop.anchor[0];
+    flags.crop_x = crop.anchor[1];
+    flags.crop_height = crop.shape[0];
+    flags.crop_width = crop.shape[1];
   }
 
   DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,

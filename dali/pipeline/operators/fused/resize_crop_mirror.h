@@ -138,14 +138,14 @@ class ResizeCropMirrorAttr : protected CropAttr {
     }
 
     if (flag & t_crop) {
-      auto crop_x_norm = spec.GetArgument<float>("crop_pos_x", ws, index);
-      auto crop_y_norm = spec.GetArgument<float>("crop_pos_y", ws, index);
-      meta.crop = CalculateCropYX(
-        crop_y_norm,
-        crop_x_norm,
-        crop_height_[index],
-        crop_width_[index],
-        meta.rsz_h, meta.rsz_w);
+      float crop_anchor_norm[2];
+      crop_anchor_norm[0] = spec.GetArgument<float>("crop_pos_y", ws, index);
+      crop_anchor_norm[1] = spec.GetArgument<float>("crop_pos_x", ws, index);
+
+      auto anchor_abs = CalculateAnchor(make_span(crop_anchor_norm),
+                                        {crop_height_[index], crop_width_[index]},
+                                        {meta.rsz_h, meta.rsz_w});
+      meta.crop = {anchor_abs[0], anchor_abs[1]};
     }
 
     if (flag & t_mirrorHor) {

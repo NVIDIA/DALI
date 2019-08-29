@@ -79,15 +79,15 @@ class Image {
   inline void SetCropWindow(const CropWindow& crop_window) {
     if (!crop_window)
       return;
-    crop_window_generator_ = [crop_window](int H, int W) {
-      DALI_ENFORCE(crop_window.IsInRange(H, W),
+    crop_window_generator_ = [crop_window](const kernels::TensorShape<>& shape) {
+      DALI_ENFORCE(crop_window.IsInRange(shape),
         "crop_window["
-        + std::to_string(crop_window.x)
-        + ", " + std::to_string(crop_window.y)
-        + ", " + std::to_string(crop_window.w)
-        + ", " + std::to_string(crop_window.h) + "]"
+        + std::to_string(crop_window.anchor[1])
+        + ", " + std::to_string(crop_window.anchor[0])
+        + ", " + std::to_string(crop_window.shape[1])
+        + ", " + std::to_string(crop_window.shape[0]) + "]"
         + " not valid from image dimensions [0, 0, "
-        + std::to_string(W) + ", " + std::to_string(H) + "]");
+        + std::to_string(shape[1]) + ", " + std::to_string(shape[0]) + "]");
       return crop_window;
     };
   }

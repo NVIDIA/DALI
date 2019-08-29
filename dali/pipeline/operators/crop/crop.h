@@ -81,11 +81,9 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
 
     auto crop_h = crop_height_[data_idx];
     auto crop_w = crop_width_[data_idx];
-    auto crop_pos_y_x = CalculateCropYX(crop_y_norm_[data_idx], crop_x_norm_[data_idx],
-                                        crop_h, crop_w, H, W);
-
-    int64_t crop_y, crop_x;
-    std::tie(crop_y, crop_x) = crop_pos_y_x;
+    float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
+    auto crop_anchor = CalculateAnchor(make_span(anchor_norm), {crop_h, crop_w}, {H, W});
+    int64_t crop_y = crop_anchor[0], crop_x = crop_anchor[1];
 
     switch (layout) {
       case DALI_NHWC:
