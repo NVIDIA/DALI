@@ -21,7 +21,7 @@
 #include "dali/kernels/imgproc/warp_cpu.h"
 #include "dali/kernels/imgproc/warp/affine.h"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
-#include "dali/pipeline/operators/displacement/warp_impl.h"
+#include "dali/pipeline/operators/displacement/warp.h"
 #include "dali/pipeline/operators/displacement/warp_affine_params.h"
 
 namespace dali {
@@ -43,7 +43,7 @@ class NewWarpAffine<CPUBackend> : public Warp<CPUBackend, NewWarpAffine<CPUBacke
     Mapping<ndim>, ndim, OutputType, InputType, BorderType>;
 
   template <int spatial_ndim, typename BorderType>
-  using ParamProvider = WarpAffineParamsProvider<CPUBackend, spatial_ndim, BorderType>;
+  using ParamProvider = WarpAffineParamProvider<CPUBackend, spatial_ndim, BorderType>;
 
   template <int spatial_ndim, typename BorderType>
   auto CreateParamProvider() {

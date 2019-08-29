@@ -31,7 +31,7 @@ using WarpAffineParams = kernels::warp::mapping_params_t<kernels::AffineMapping<
 template <typename Backend,
           int spatial_ndim,
           typename BorderType>
-class WarpAffineParamsProvider
+class WarpAffineParamProvider
 : public WarpParamProvider<Backend, spatial_ndim, WarpAffineParams<spatial_ndim>, BorderType> {
  protected:
   using MappingParams = WarpAffineParams<spatial_ndim>;

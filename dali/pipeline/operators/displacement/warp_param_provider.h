@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -201,7 +201,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     }
   }
 
-  virtual void GetExplicitPerSampleSisze(std::vector<SpatialShape> &out_sizes) const {
+  virtual void GetExplicitPerSampleSize(std::vector<SpatialShape> &out_sizes) const {
     assert(HasExplicitPerSampleSize());
     const Tensor<CPUBackend> &tensor = ws_->ArgumentInput(size_arg_name_);
     auto tv = view<const int>(tensor);
@@ -220,7 +220,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   void SetExplicitSize() {
     if (HasExplicitPerSampleSize()) {
-      GetExplicitPerSampleSisze(out_sizes_);
+      GetExplicitPerSampleSize(out_sizes_);
     } else {
       assert(HasExplicitSize());
       SpatialShape out_shape;
