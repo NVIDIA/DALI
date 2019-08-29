@@ -132,11 +132,11 @@ class MultichannelPythonOpPipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.crop = ops.PythonFunction(function=function)
+        self.oper = ops.PythonFunction(function=function)
 
     def define_graph(self):
         self.data = self.inputs()
-        out = self.crop(self.data)
+        out = self.oper(self.data)
         return out
 
     def iter_setup(self):
