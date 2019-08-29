@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 #include <fstream>
+#include <limits>
 
 namespace dali {
 
@@ -136,6 +137,18 @@ static constexpr auto frames_used_warning_ratio = 3.0f;
 static constexpr auto frames_used_warning_minimum = 1000;
 static constexpr auto frames_used_warning_interval = 10000;
 
+// Source: http://en.cppreference.com/w/cpp/types/numeric_limits/epsilon
+template<class T>
+typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
+    almost_equal(T x, T y, int ulp) {
+    if (x == y) return true;
+    // the machine epsilon has to be scaled to the magnitude of the values used
+    // and multiplied by the desired precision in ULPs (units in the last place)
+    return std::abs(x-y) <= std::numeric_limits<T>::epsilon() * std::abs(x+y) * ulp
+        // unless the result is subnormal
+        || std::abs(x-y) < std::numeric_limits<T>::min();
+}
+
 OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
   auto& file = open_files_[filename];
 
@@ -217,9 +230,18 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
                                   stream->avg_frame_rate.num};
 
     // This check is based on heuristic FFMPEG API
+    AVPacket pkt = AVPacket{};
+    int ret;
+    while ((ret = av_read_frame(file.fmt_ctx_.get(), &pkt)) >= 0) {
+      if (pkt.stream_index == file.vid_stream_idx_) break;
+    }
+
+    DALI_ENFORCE(ret >=0, "Unable to read frame from file :" + filename);
+
     DALI_ENFORCE(
-      file.frame_base_.num == 1,
+      almost_equal(av_q2d(file.frame_base_), pkt.duration * av_q2d(file.stream_base_), 2),
       "Variable frame rate videos are unsupported. Check failed for file: " + filename);
+
     file.frame_count_ = av_rescale_q(stream->duration,
                                      stream->time_base,
                                      file.frame_base_);
