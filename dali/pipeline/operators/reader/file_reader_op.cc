@@ -25,7 +25,10 @@ DALI_SCHEMA(FileReader)
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
   .AddArg("file_root",
-      R"code(Path to a directory containing data files.)code",
+      R"code(Path to a directory containing data files.
+`FileReader` supports flat directory structure. `file_root` directory should contain
+directories with images in them. To obtain labels `Filereader` sorts directories in 
+`file_root` in alphabetical order and takes an index in this order as a class label.)code",
       DALI_STRING)
   .AddOptionalArg("file_list",
       R"code(Path to the file with a list of pairs ``file label``
