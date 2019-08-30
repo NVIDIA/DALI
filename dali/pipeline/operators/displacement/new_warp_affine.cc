@@ -21,9 +21,9 @@ DALI_SCHEMA(NewWarpAffine)
   .NumInput(1, 2)
   .NumOutput(1)
   .AddOptionalArg<float>("matrix",
-      R"code(Matrix of the transform (dst -> src).
+      R"code(Transform matrix (dst -> src).
 Given list of values `(M11, M12, M13, M21, M22, M23)`
-this operation will produce a new image using  formula
+this operation will produce a new image using the following formula
 
 ..
 
@@ -35,7 +35,7 @@ with a flag `WARP_INVERSE_MAP` set.)code",
   .AddOptionalArg<float>("size",
       R"code(Output size, in pixels/points.
 Non-integer sizes are rounded to nearest integer.
-Channel dimension should be excluded (e.g. for RGB images specify 480,640, not 480,640,3).)code",
+Channel dimension should be excluded (e.g. for RGB images specify (480,640), not (480,640,3).)code",
       vector<float>(), true)
   .AddOptionalArg("border", "Value used to fill areas that are outside source image",
       0.0f)

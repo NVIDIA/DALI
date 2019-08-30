@@ -52,10 +52,9 @@ class WarpAffineParamProvider
       }
     } else {
       std::vector<float> matrix = spec_->template GetArgument<std::vector<float>>("matrix");
-      if (matrix.empty()) {
-        DALI_FAIL("`matrix` argument must be provided when transforms are not passed"
-                  " as a regular input.");
-      }
+      DALI_ENFORCE(!matrix.empty(),
+        "`matrix` argument must be provided when transforms are not passed"
+        " as a regular input.");
 
       DALI_ENFORCE(matrix.size() == spatial_ndim*(spatial_ndim+1),
         "`matrix` parameter must have " + std::to_string(spatial_ndim*(spatial_ndim+1)) +

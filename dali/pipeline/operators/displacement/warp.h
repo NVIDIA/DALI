@@ -62,9 +62,6 @@ class OpImplInterface {
   virtual void Run(workspace_t<Backend> &ws) = 0;
 };
 
-template <typename Kernel>
-class WarpOpImp;
-
 template <typename Backend, typename Kernel>
 class WarpOpImpl : public OpImplInterface<Backend> {
  public:
@@ -84,15 +81,37 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   : spec_(spec), param_provider_(std::move(pp)) {
   }
 
+  void Setup(kernels::TensorListShape<> &shape, const Workspace &ws) override {
+    param_provider_->SetContext(Spec(), ws);
+
+    input_ = view<const InputType, tensor_ndim>(ws.template InputRef<Backend>(0));
+    param_provider_->Setup();
+
+    SetupBackend(shape, ws);
+  }
+
+  void Run(Workspace &ws) override {
+    RunBackend(ws);
+  }
+
+  const OpSpec &Spec() const { return spec_; }
+
+ private:
+  const OpSpec &spec_;
+  kernels::KernelManager kmgr_;
+
+  kernels::TensorListView<Storage, const InputType, tensor_ndim> input_;
+  kernels::TensorListView<Storage, OutputType, tensor_ndim> output_;
+
+  std::unique_ptr<ParamProvider> param_provider_;
+
   kernels::KernelContext GetContext(const Workspace &ws) {
     kernels::KernelContext context;
     context.gpu.stream = ws.has_stream() ? ws.stream() : 0;
     return context;
   }
 
-  template <typename WorkspaceType>
-  enable_if_t<std::is_same<DeviceWorkspace, WorkspaceType>::value, void>
-  SetupBackend(kernels::TensorListShape<> &shape, const WorkspaceType &ws) {
+  void SetupBackend(kernels::TensorListShape<> &shape, const DeviceWorkspace &ws) {
     auto context = GetContext(ws);
     kmgr_.Resize<Kernel>(1, 1);
     auto &req = kmgr_.Setup<Kernel>(
@@ -105,9 +124,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     shape = req.output_shapes[0];
   }
 
-  template <typename WorkspaceType>
-  enable_if_t<std::is_same<HostWorkspace, WorkspaceType>::value, void>
-  SetupBackend(kernels::TensorListShape<> &shape, const WorkspaceType &ws) {
+  void SetupBackend(kernels::TensorListShape<> &shape, const HostWorkspace &ws) {
     int threads = ws.HasThreadPool() ? ws.GetThreadPool().size() : 1;
     int N = input_.num_samples();
     kmgr_.Resize<Kernel>(threads, N);
@@ -115,8 +132,8 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     shape.resize(N, input_.sample_dim());
     auto interp_types = param_provider_->InterpTypes();
 
+    auto context = GetContext(ws);
     for (int i = 0; i < N; i++) {
-      auto context = GetContext(ws);
       DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
       auto &req = kmgr_.Setup<Kernel>(
           i, context,
@@ -129,19 +146,8 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     }
   }
 
-  void Setup(kernels::TensorListShape<> &shape, const Workspace &ws) override {
-    param_provider_->SetContext(Spec(), ws);
 
-    input_ = view<const InputType, tensor_ndim>(ws.template InputRef<Backend>(0));
-    param_provider_->Setup();
-
-    SetupBackend(shape, ws);
-  }
-
-  template <typename WorkspaceType>
-  std::enable_if_t<std::is_same<WorkspaceType, HostWorkspace>::value, void>
-  RunBackend(WorkspaceType &_ws) {
-    HostWorkspace &ws = _ws;
+  void RunBackend(HostWorkspace &ws) {
     param_provider_->SetContext(Spec(), ws);
 
     auto output = view<OutputType, tensor_ndim>(ws.template OutputRef<Backend>(0));
@@ -168,11 +174,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     pool.WaitForWork(true);
   }
 
-
-  template <typename WorkspaceType>
-  std::enable_if_t<std::is_same<WorkspaceType, DeviceWorkspace>::value, void>
-  RunBackend(WorkspaceType &_ws) {
-    DeviceWorkspace &ws = _ws;
+  void RunBackend(DeviceWorkspace &ws) {
     param_provider_->SetContext(Spec(), ws);
 
     auto output = view<OutputType, tensor_ndim>(ws.template OutputRef<Backend>(0));
@@ -187,21 +189,6 @@ class WarpOpImpl : public OpImplInterface<Backend> {
         param_provider_->InterpTypes(),
         param_provider_->Border());
   }
-
-  void Run(Workspace &ws) override {
-    RunBackend(ws);
-  }
-
-  const OpSpec &Spec() const { return spec_; }
-
- protected:
-  const OpSpec &spec_;
-  kernels::KernelManager kmgr_;
-
-  kernels::TensorListView<Storage, const InputType, tensor_ndim> input_;
-  kernels::TensorListView<Storage, OutputType, tensor_ndim> output_;
-
-  std::unique_ptr<ParamProvider> param_provider_;
 };
 
 template <typename Backend,
@@ -258,32 +245,19 @@ class Warp : public Operator<Backend> {
     ToStaticTypeEx(supported_types(), std::forward<F>(functor));
   }
 
-  // TODO(michalz): Change value switch over SpatialDim to (2, 3) when kernel is implemented
-  #define WARP_STATIC_TYPES(...) {                                          \
-    VALUE_SWITCH(This().SpatialDim(), spatial_ndim, (2), (                  \
-      VALUE_SWITCH(This().BorderClamp() ? 1 : 0, UseBorderClamp, (0, 1), (  \
-          ToStaticType(                                                     \
-            [&](auto &&args) {                                              \
-            using OutputType = decltype(args.first);                        \
-            using InputType = decltype(args.second);                        \
-            using BorderType = std::conditional_t<                          \
-              UseBorderClamp, kernels::BorderClamp, OutputType>;            \
-            __VA_ARGS__                                                     \
-          });),                                                             \
-          (assert(!"impossible")))),                                        \
-        (DALI_FAIL("Only 2D and 3D warping is supported")));                \
-  }
-
   /// @}
  public:
-  using Operator<Backend>::Operator;
+  explicit Warp(const OpSpec &spec) : Operator<Backend>(spec) {
+    border_clamp_ = !spec.HasArgument("border");
+    spec.TryGetArgument(output_type_arg_, "output_type");
+  }
 
   int SpatialDim() const {
     return input_shape_.sample_dim()-1;
   }
 
   bool BorderClamp() const {
-    return !Spec().HasArgument("border");
+    return border_clamp_;
   }
 
   bool CanInferOutputs() const override {
@@ -315,7 +289,7 @@ class Warp : public Operator<Backend> {
     float,   float
   >;
 
-  /// @brief May be shadowed by Derived, if necessary
+  /** @brief May be shadowed by Derived, if necessary */
   using SupportedTypes = DefaultSupportedTypes;
 
   void SetupWarp(kernels::TensorListShape<> &out_shape,
@@ -323,25 +297,31 @@ class Warp : public Operator<Backend> {
                  const Workspace &ws) {
     auto &input = ws.template InputRef<Backend>(0);
     input_shape_ = input.shape();
-    DALIDataType new_input_type = input.type().id();
-    DALIDataType new_output_type;
-    if (!Spec().TryGetArgument(new_output_type, "output_type"))
-      new_output_type = new_input_type;
+    input_type_ = input.type().id();
+    output_type_ = output_type_arg_ == DALI_NO_TYPE ? input_type_ : output_type_arg_;
 
-    output_type_ = new_output_type;
-    input_type_ = new_input_type;
+    VALUE_SWITCH(This().SpatialDim(), spatial_ndim, (2), (
+      VALUE_SWITCH(This().BorderClamp() ? 1 : 0, UseBorderClamp, (0, 1), (
+          ToStaticType(
+            [&](auto &&args) {
+            using OutputType = decltype(args.first);
+            using InputType = decltype(args.second);
+            using BorderType = std::conditional_t<
+              UseBorderClamp, kernels::BorderClamp, OutputType>;
 
-    WARP_STATIC_TYPES(
-      using Mapping = typename MyType::template Mapping<spatial_ndim>;
-      using Kernel = typename WarpKernelSelector<
-          Backend, Mapping, spatial_ndim, OutputType, InputType, BorderType>::type;
+            using Mapping = typename MyType::template Mapping<spatial_ndim>;
+            using Kernel = typename WarpKernelSelector<
+                Backend, Mapping, spatial_ndim, OutputType, InputType, BorderType>::type;
 
-      using ImplType = WarpOpImpl<Backend, Kernel>;
-      if (!dynamic_cast<ImplType*>(impl_.get())) {
-        auto param_provider = This().template CreateParamProvider<spatial_ndim, BorderType>();
-        impl_.reset(new ImplType(Spec(), std::move(param_provider)));
-      }
-    ); // NOLINT
+            using ImplType = WarpOpImpl<Backend, Kernel>;
+            if (!dynamic_cast<ImplType*>(impl_.get())) {
+              auto param_provider = This().template CreateParamProvider<spatial_ndim, BorderType>();
+              impl_.reset(new ImplType(Spec(), std::move(param_provider)));
+            }
+          });),
+          (assert(!"impossible")))),
+        (DALI_FAIL("Only 2D warping is supported")));
+
 
     impl_->Setup(out_shape, ws);
     out_type = output_type_;
@@ -355,8 +335,10 @@ class Warp : public Operator<Backend> {
  protected:
   DALIDataType input_type_ = DALI_NO_TYPE;
   DALIDataType output_type_ = DALI_NO_TYPE;
+  DALIDataType output_type_arg_ = DALI_NO_TYPE;
   kernels::TensorListShape<> input_shape_;
   std::unique_ptr<OpImplInterface<Backend>> impl_;
+  bool border_clamp_;
 };
 
 
