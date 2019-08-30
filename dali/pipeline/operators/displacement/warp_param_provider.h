@@ -84,17 +84,18 @@ template <>
 inline void BorderTypeProvider<kernels::BorderClamp>::SetBorder(const OpSpec &spec) {
 }
 
-/// @brief Provides warp parameters
-///
-/// The classes derived from WarpParamProvider interpret the OpSpec and
-/// Workspace arguments and inputs and provide warp parameters, output sizes,
-/// border value, etc
-///
-/// Usage:
-/// In operator setup: SetContext, Setup
-/// In operator run: SetContext, GetParams[GPU/CPU]
-/// Overriding:
-/// Provide SetParams and InferShape (if supported)
+/** @brief Provides warp parameters
+ *
+ *  The classes derived from WarpParamProvider interpret the OpSpec and
+ *  Workspace arguments and inputs and provide warp parameters, output sizes,
+ *  border value, etc
+ *
+ *  Usage:
+ *  - In operator setup: SetContext, Setup
+ *  - In operator run: SetContext, GetParams[GPU/CPU]
+ *  Overriding:
+ *  - Provide SetParams and InferShape (if supported)
+ */
 template <typename Backend, int spatial_ndim, typename MappingParams, typename BorderType>
 class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<BorderType> {
  public:
@@ -141,10 +142,11 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     return make_span(out_sizes_);
   }
 
-  /// @brief Gets the mapping parameters in GPU memory
-  ///
-  /// If GPU tensor is empty, but CPU is not, an asyncrhonous copy is scheduled
-  /// on the stream associated with current workspace.
+  /** @brief Gets the mapping parameters in GPU memory
+   *
+   *  If GPU tensor is empty, but CPU is not, an asyncrhonous copy is scheduled
+   *  on the stream associated with current workspace.
+   */
   kernels::TensorView<kernels::StorageGPU, const MappingParams, 1> ParamsGPU() {
     if (!params_gpu_.data && params_cpu_.data) {
       auto *p = AllocParams(kernels::AllocType::GPU, params_cpu_.num_elements());
@@ -154,11 +156,12 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     return params_gpu_;
   }
 
-  /// @brief Gets the mapping parameters in GPU memory
-  ///
-  /// If CPU tensor is empty, but GPU is not, a copy is scheduled
-  /// on the stream associated with current workspace and the calling thread
-  /// is synchronized with the stream.
+  /** @brief Gets the mapping parameters in GPU memory
+   *
+   *  If CPU tensor is empty, but GPU is not, a copy is scheduled
+   *  on the stream associated with current workspace and the calling thread
+   *  is synchronized with the stream.
+   */
   kernels::TensorView<kernels::StorageCPU, const MappingParams, 1> ParamsCPU() {
     if (!params_cpu_.data && params_gpu_.data) {
       auto *p = AllocParams(kernels::AllocType::Host, params_gpu_.num_elements());

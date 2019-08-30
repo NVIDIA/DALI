@@ -12,23 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_WARP_GPU_H_
-#define DALI_KERNELS_IMGPROC_WARP_GPU_H_
+#ifndef DALI_KERNELS_IMGPROC_WARP_GPU_CUH_
+#define DALI_KERNELS_IMGPROC_WARP_GPU_CUH_
 
 #include "dali/core/common.h"
 #include "dali/core/geom/vec.h"
 #include "dali/kernels/kernel.h"
-#ifdef __CUDACC__
 #include "dali/kernels/imgproc/warp/warp_setup.cuh"
 #include "dali/kernels/imgproc/warp/warp_variable_size_impl.cuh"
 #include "dali/kernels/imgproc/warp/warp_uniform_size_impl.cuh"
-#endif
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
 
 namespace dali {
 namespace kernels {
-
-#ifdef __CUDACC__
 
 /**
  * @brief Performs generic warping of a batch of tensors (on GPU)
@@ -121,13 +117,7 @@ class WarpGPU {
   friend class WarpPrivateTest;
 };
 
-#else
-template <typename _Mapping, int _spatial_ndim, typename _OutputType, typename _InputType,
-          typename _BorderType>
-class WarpGPU;
-#endif
-
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_WARP_GPU_H_
+#endif  // DALI_KERNELS_IMGPROC_WARP_GPU_CUH_
