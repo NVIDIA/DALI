@@ -26,6 +26,8 @@
 #include "dali/core/tuple_helpers.h"
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/imgproc/warp_cpu.h"
+#include "dali/kernels/imgproc/warp_gpu.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/operators/displacement/warp_param_provider.h"
 #include "dali/pipeline/data/views.h"
@@ -202,6 +204,23 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   std::unique_ptr<ParamProvider> param_provider_;
 };
 
+template <typename Backend,
+          typename Mapping, int spatial_ndim,
+          typename OutputType, typename InputType, typename BorderType>
+struct WarpKernelSelector;
+
+template <typename Mapping, int spatial_ndim,
+          typename OutputType, typename InputType, typename BorderType>
+struct WarpKernelSelector<GPUBackend, Mapping, spatial_ndim, OutputType, InputType, BorderType> {
+  using type = kernels::WarpGPU<Mapping, spatial_ndim, OutputType, InputType, BorderType>;
+};
+
+template <typename Mapping, int spatial_ndim,
+          typename OutputType, typename InputType, typename BorderType>
+struct WarpKernelSelector<CPUBackend, Mapping, spatial_ndim, OutputType, InputType, BorderType> {
+  using type = kernels::WarpCPU<Mapping, spatial_ndim, OutputType, InputType, BorderType>;
+};
+
 
 template <typename Backend, typename Derived>
 class Warp : public Operator<Backend> {
@@ -313,8 +332,9 @@ class Warp : public Operator<Backend> {
     input_type_ = new_input_type;
 
     WARP_STATIC_TYPES(
-      using Kernel =
-        typename MyType::template KernelType<spatial_ndim, OutputType, InputType, BorderType>;
+      using Mapping = typename MyType::template Mapping<spatial_ndim>;
+      using Kernel = typename WarpKernelSelector<
+          Backend, Mapping, spatial_ndim, OutputType, InputType, BorderType>::type;
 
       using ImplType = WarpOpImpl<Backend, Kernel>;
       if (!dynamic_cast<ImplType*>(impl_.get())) {

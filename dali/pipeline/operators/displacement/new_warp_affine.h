@@ -18,7 +18,6 @@
 #include <memory>
 #include <vector>
 #include <sstream>
-#include "dali/kernels/imgproc/warp_cpu.h"
 #include "dali/kernels/imgproc/warp/affine.h"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
 #include "dali/pipeline/operators/displacement/warp.h"
@@ -27,30 +26,22 @@
 namespace dali {
 
 template <typename Backend>
-class NewWarpAffine;
-
-template <>
-class NewWarpAffine<CPUBackend> : public Warp<CPUBackend, NewWarpAffine<CPUBackend>> {
+class NewWarpAffine : public Warp<Backend, NewWarpAffine<Backend>> {
  public:
-  using Base = Warp<CPUBackend, NewWarpAffine<CPUBackend>>;
+  using Base = Warp<Backend, NewWarpAffine<Backend>>;
   using Base::Base;
 
   template <int ndim>
   using Mapping = kernels::AffineMapping<ndim>;
 
-  template <int ndim, typename OutputType, typename InputType, typename BorderType>
-  using KernelType = kernels::WarpCPU<
-    Mapping<ndim>, ndim, OutputType, InputType, BorderType>;
-
   template <int spatial_ndim, typename BorderType>
-  using ParamProvider = WarpAffineParamProvider<CPUBackend, spatial_ndim, BorderType>;
+  using ParamProvider = WarpAffineParamProvider<Backend, spatial_ndim, BorderType>;
 
   template <int spatial_ndim, typename BorderType>
   auto CreateParamProvider() {
     return std::make_unique<ParamProvider<spatial_ndim, BorderType>>();
   }
 };
-
 
 }  // namespace dali
 

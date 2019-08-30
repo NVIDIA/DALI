@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <vector>
-#include "dali/pipeline/operators/displacement/new_warp_affine.cuh"
+#include "dali/pipeline/operators/displacement/new_warp_affine.h"
 
 namespace dali {
 
