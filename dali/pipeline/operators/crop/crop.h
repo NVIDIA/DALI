@@ -89,14 +89,20 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
         break;
       default:
         DALI_FAIL("Not supported layout[" + std::to_string(layout)
-                  + "] for given number of dimensions" );
+                  + "] for given number of dimensions");
     }
 
     auto crop_h = crop_height_[data_idx];
+    if (crop_h <= 0)
+        crop_h = H;
     auto crop_w = crop_width_[data_idx];
+    if (crop_w <= 0)
+        crop_w = W;
 
     if (is_volumetric_layout) {
       auto crop_d = (!crop_depth_.empty() && crop_depth_[data_idx] > 0) ? crop_depth_[data_idx] : D;
+      if (crop_d <= 0)
+          crop_d = D;
       auto crop_z_norm = !crop_z_norm_.empty() ? crop_z_norm_[data_idx] : 0;
 
       float anchor_norm[3] =
@@ -104,9 +110,9 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
       auto crop_anchor = CalculateAnchor(make_span(anchor_norm),
                                          {crop_d, crop_h, crop_w},
                                          {D, H, W});
-      int64_t crop_y, crop_x, crop_z;
-      std::tie(crop_z, crop_y, crop_x) =
-          std::make_tuple(crop_anchor[0], crop_anchor[1], crop_anchor[2]);
+      int64_t crop_z = crop_anchor[0];
+      int64_t crop_y = crop_anchor[1];
+      int64_t crop_x = crop_anchor[2];
       switch (layout) {
         case DALI_NDHWC:
           slice_anchors_[data_idx] = {crop_z, crop_y, crop_x, 0};
@@ -118,7 +124,7 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
           break;
         default:
           DALI_FAIL("Not supported layout[" + std::to_string(layout)
-                    + "] for given number of dimensions" );
+                    + "] for given number of dimensions");
       }
     } else if (is_sequence_layout) {
       float anchor_norm[2] =
@@ -126,8 +132,8 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
       auto crop_anchor = CalculateAnchor(make_span(anchor_norm),
                                          {crop_h, crop_w},
                                          {H, W});
-      int64_t crop_y, crop_x;
-      std::tie(crop_y, crop_x) = std::make_tuple(crop_anchor[0], crop_anchor[1]);
+      int64_t crop_y = crop_anchor[0];
+      int64_t crop_x = crop_anchor[1];
       switch (layout) {
         case DALI_NFHWC:
           slice_anchors_[data_idx] = {0, crop_y, crop_x, 0};
@@ -139,13 +145,13 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
           break;
         default:
           DALI_FAIL("Not supported layout[" + std::to_string(layout)
-                    + "] for given number of dimensions" );
+                    + "] for given number of dimensions");
       }
     } else {
       float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
       auto crop_anchor = CalculateAnchor(make_span(anchor_norm), {crop_h, crop_w}, {H, W});
-      int64_t crop_y, crop_x;
-      std::tie(crop_y, crop_x) = std::make_tuple(crop_anchor[0], crop_anchor[1]);
+      int64_t crop_y = crop_anchor[0];
+      int64_t crop_x = crop_anchor[1];
       switch (layout) {
         case DALI_NHWC:
           slice_anchors_[data_idx] = {crop_y, crop_x, 0};
@@ -157,7 +163,7 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
           break;
         default:
           DALI_FAIL("Not supported layout[" + std::to_string(layout)
-                    + "] for given number of dimensions" );
+                    + "] for given number of dimensions");
       }
     }
   }

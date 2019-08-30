@@ -33,10 +33,11 @@ namespace dali {
  */
 class CropAttr {
  protected:
+  static constexpr int kUnspecifiedCrop = -1;
   explicit inline CropAttr(const OpSpec &spec)
     : spec__(spec)
     , batch_size__(spec__.GetArgument<int>("batch_size")) {
-    int crop_h = 0, crop_w = 0, crop_d = 0;
+    int crop_h = kUnspecifiedCrop, crop_w = kUnspecifiedCrop, crop_d = kUnspecifiedCrop;
     bool has_crop_arg = spec__.HasArgument("crop");
     bool has_crop_w_arg = spec__.ArgumentDefined("crop_w");
     bool has_crop_h_arg = spec__.ArgumentDefined("crop_h");
@@ -70,20 +71,9 @@ class CropAttr {
       size_t idx = 0;
       if (crop_ndims == 3) {
         crop_d = static_cast<int>(cropArg[idx++]);
-        DALI_ENFORCE(crop_d >= 0,
-          "If provided, crop depth must be greater than zero. Received: " +
-          std::to_string(crop_d));
       }
       crop_h = static_cast<int>(cropArg[idx++]);
       crop_w = static_cast<int>(cropArg[idx++]);
-
-      DALI_ENFORCE(crop_h > 0,
-        "Crop height must be greater than zero. Received: " +
-        std::to_string(crop_h));
-
-      DALI_ENFORCE(crop_w > 0,
-        "Crop width must be greater than zero. Received: " +
-         std::to_string(crop_w));
     }
     has_crop_d_ = has_crop_d_arg || crop_d > 0;
 
@@ -104,15 +94,15 @@ class CropAttr {
     if (has_crop_d_)
       crop_z_norm_[data_idx] = spec__.GetArgument<float>("crop_pos_z", ws, data_idx);
     if (!is_whole_image_) {
-      if (crop_width_[data_idx] == 0) {
+      if (crop_width_[data_idx] == kUnspecifiedCrop) {
         crop_width_[data_idx] = static_cast<int>(
           spec__.GetArgument<float>("crop_w", ws, data_idx));
       }
-      if (crop_height_[data_idx] == 0) {
+      if (crop_height_[data_idx] == kUnspecifiedCrop) {
         crop_height_[data_idx] = static_cast<int>(
           spec__.GetArgument<float>("crop_h", ws, data_idx));
       }
-      if (has_crop_d_ && crop_depth_[data_idx] == 0) {
+      if (has_crop_d_ && crop_depth_[data_idx] == kUnspecifiedCrop) {
         crop_depth_[data_idx] = static_cast<int>(
           spec__.GetArgument<float>("crop_d", ws, data_idx));
       }
@@ -122,9 +112,11 @@ class CropAttr {
       [this, data_idx](kernels::TensorShape<> input_shape) {
         CropWindow crop_window;
         if (input_shape.size() == 3) {
-          auto crop_d = crop_depth_[data_idx] > 0 ? crop_depth_[data_idx] : input_shape[2];
-          kernels::TensorShape<> crop_shape =
-            {crop_d, crop_height_[data_idx], crop_width_[data_idx]};
+          auto crop_d = !crop_depth_.empty() &&
+            crop_depth_[data_idx]  > 0 ? crop_depth_[data_idx]  : input_shape[0];
+          auto crop_h = crop_height_[data_idx] > 0 ? crop_height_[data_idx] : input_shape[1];
+          auto crop_w = crop_depth_[data_idx]  > 0 ? crop_width_[data_idx]  : input_shape[2];
+          kernels::TensorShape<> crop_shape = {crop_d, crop_h, crop_w};
           crop_window.SetShape(crop_shape);
 
           float anchor_norm[3] =
@@ -132,7 +124,9 @@ class CropAttr {
           auto anchor = CalculateAnchor(make_span(anchor_norm), crop_shape, input_shape);
           crop_window.SetAnchor(anchor);
         } else if (input_shape.size() == 2) {
-          kernels::TensorShape<> crop_shape = {crop_height_[data_idx], crop_width_[data_idx]};
+          auto crop_h = crop_height_[data_idx] > 0 ? crop_height_[data_idx] : input_shape[0];
+          auto crop_w = crop_width_[data_idx]  > 0 ? crop_width_[data_idx]  : input_shape[1];
+          kernels::TensorShape<> crop_shape = {crop_h, crop_w};
           crop_window.SetShape(crop_shape);
 
           float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
