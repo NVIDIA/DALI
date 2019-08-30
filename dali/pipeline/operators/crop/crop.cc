@@ -41,7 +41,7 @@ void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace &ws) {
   const DALITensorLayout in_layout = input.GetLayout();
   DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW
             || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW
-            || in_layout == DALI_NDHWC,
+            || in_layout == DALI_NDHWC || in_layout == DALI_NCDHW,
     "Unexpected data layout");
   DALITensorLayout out_layout = in_layout;
 

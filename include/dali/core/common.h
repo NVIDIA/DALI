@@ -123,7 +123,8 @@ enum DALITensorLayout {
   DALI_NFHWC = 2,
   DALI_NFCHW = 3,
   DALI_NDHWC = 4,
-  DALI_SAME  = 5
+  DALI_NCDHW = 5,
+  DALI_SAME  = 6
 };
 
 inline bool IsColor(DALIImageType type) {
@@ -279,7 +280,7 @@ inline bool IsSequence(DALITensorLayout layout) {
 }
 
 inline bool IsVolumetric(DALITensorLayout layout) {
-  return layout == DALI_NDHWC;
+  return layout == DALI_NDHWC || layout == DALI_NCDHW;
 }
 
 template <typename T>

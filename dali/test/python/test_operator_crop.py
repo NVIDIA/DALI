@@ -286,7 +286,7 @@ class Crop3dPythonOpPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=types.NDHWC)
 
-def crop3d_func_help(image, crop_z = 0.1, crop_y = 0.2, crop_x = 0.3, crop_d = 220, crop_h = 222, crop_w = 224):
+def crop_3d_func(image, layout = types.NDHWC, crop_z = 0.1, crop_y = 0.2, crop_x = 0.3, crop_d = 220, crop_h = 222, crop_w = 224):
     assert len(image.shape) == 4
     D = image.shape[0]
     H = image.shape[1]
@@ -302,13 +302,14 @@ def crop3d_func_help(image, crop_z = 0.1, crop_y = 0.2, crop_x = 0.3, crop_d = 2
     end_y = start_y + crop_h
     start_x = int(np.float32(0.5) + np.float32(crop_x) * np.float32(W - crop_w))
     end_x = start_x + crop_w
+    if layout == types.NDHWC:
+        return image[start_z:end_z, start_y:end_y, start_x:end_x, :]
+    elif layout == types.NCDHW:
+        return image[:, start_z:end_z, start_y:end_y, start_x:end_x]
+    else:
+        assert(True)
 
-    return image[start_z:end_z, start_y:end_y, start_x:end_x, :]
-
-def crop_3d_func(image):
-    return crop3d_func_help(image)
-
-def check_crop_3d_vs_python_op_crop(device, batch_size):
+def check_crop_3d_vs_python_op_crop(device, batch_size, layout, shape):
     eii1 = RandomDataIterator(batch_size, shape=(303, 302, 301, 3))
     eii2 = RandomDataIterator(batch_size, shape=(303, 302, 301, 3))
     compare_pipelines(Crop3dPipeline(device, batch_size, iter(eii1)),
@@ -318,4 +319,5 @@ def check_crop_3d_vs_python_op_crop(device, batch_size):
 def test_crop_3d_vs_python_op_crop():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
-            yield check_crop_3d_vs_python_op_crop, device, batch_size
+            for layout, shape in {(types.NDHWC, (303, 302, 301, 3)), (types.NCDHW, (3, 303, 302, 301))}:
+               yield check_crop_3d_vs_python_op_crop, device, batch_size, layout, shape

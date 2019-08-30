@@ -59,7 +59,7 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
   std::size_t C_;
 
   void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
-    Index F = 1, D, H, W, C;
+    Index F = 1, D = 1, H, W, C;
     const int ndims = shape.size();
     const bool is_volumetric_layout = IsVolumetric(layout);
     const bool is_sequence_layout = IsSequence(layout);
@@ -84,8 +84,12 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
       case DALI_NDHWC:
         std::tie(D, H, W, C) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
         break;
+      case DALI_NCDHW:
+        std::tie(C, D, H, W) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
+        break;
       default:
-        DALI_FAIL("Not supported layout: " + std::to_string(layout));
+        DALI_FAIL("Not supported layout[" + std::to_string(layout)
+                  + "] for given number of dimensions" );
     }
 
     auto crop_h = crop_height_[data_idx];
@@ -108,8 +112,13 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
           slice_anchors_[data_idx] = {crop_z, crop_y, crop_x, 0};
           slice_shapes_[data_idx] = {crop_d, crop_h, crop_w, C};
           break;
+        case DALI_NCDHW:
+          slice_anchors_[data_idx] = {0, crop_z, crop_y, crop_x};
+          slice_shapes_[data_idx] = {C, crop_d, crop_h, crop_w};
+          break;
         default:
-          DALI_FAIL("Not supported layout: " + std::to_string(layout));
+          DALI_FAIL("Not supported layout[" + std::to_string(layout)
+                    + "] for given number of dimensions" );
       }
     } else if (is_sequence_layout) {
       float anchor_norm[2] =
@@ -129,7 +138,8 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
           slice_shapes_[data_idx] = {F, C, crop_h, crop_w};
           break;
         default:
-          DALI_FAIL("Not supported layout: " + std::to_string(layout));
+          DALI_FAIL("Not supported layout[" + std::to_string(layout)
+                    + "] for given number of dimensions" );
       }
     } else {
       float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
@@ -146,7 +156,8 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
           slice_shapes_[data_idx] = {C, crop_h, crop_w};
           break;
         default:
-          DALI_FAIL("Not supported layout: " + std::to_string(layout));
+          DALI_FAIL("Not supported layout[" + std::to_string(layout)
+                    + "] for given number of dimensions" );
       }
     }
   }
