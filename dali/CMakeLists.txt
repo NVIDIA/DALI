@@ -182,8 +182,8 @@ if (BUILD_PYTHON)
 
   add_custom_command(
     TARGET ${CHECK_PYTHON_TARGET}
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/qa/L0_python-self-test/
-    COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/qa/L0_python-self-test/test_no_setup.sh
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test/
+    COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test/test_no_setup.sh
   )
   add_dependencies(${CHECK_TARGET} ${CHECK_PYTHON_TARGET})
   add_dependencies(${CHECK_PYTHON_TARGET} ${dali_python_lib})

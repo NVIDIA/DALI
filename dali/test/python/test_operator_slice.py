@@ -24,8 +24,9 @@ import os
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
+from test_utils import get_dali_extra_path
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
+test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_trailer')
 

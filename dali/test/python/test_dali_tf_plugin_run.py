@@ -7,8 +7,9 @@ import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import tensorflow as tf
 import nvidia.dali.plugin.tf as dali_tf
+from test_utils import get_dali_extra_path
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
+test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 IMG_SIZE = 227

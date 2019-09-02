@@ -7,9 +7,10 @@ import random
 import torch
 import nvidia.dali.plugin.pytorch as dalitorch
 import numpy
+from test_utils import get_dali_extra_path
 
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
+test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
 

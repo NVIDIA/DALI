@@ -117,6 +117,16 @@ macro(get_dali_version FILENAME FILE_VAR)
   message("-- DALI version: " ${${FILE_VAR}})
 endmacro()
 
+macro(get_dali_extra_tag FILENAME FILE_VAR)
+  if(EXISTS "${FILENAME}")
+    file(STRINGS "${FILENAME}" ${FILE_VAR} LIMIT_INPUT 40)
+  else()
+    set(${FILE_VAR} "0000000000000000000000000000000000000000")
+  endif()
+  message("-- DALI EXTRA tag: " ${${FILE_VAR}})
+endmacro()
+
+
 # add a post-build step to the provided target which copies
 # files or directories recursively from SRC to DST
 # create phony target first (if not exists with given name yet)
