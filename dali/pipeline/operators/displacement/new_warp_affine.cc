@@ -39,6 +39,9 @@ Channel dimension should be excluded (e.g. for RGB images specify (480,640), not
       vector<float>(), true)
   .AddOptionalArg("border", "Value used to fill areas that are outside source image",
       0.0f)
+  .AddOptionalArg("output_type",
+      R"code(Output data type. By default, same as input type)code",
+      DALI_NO_TYPE)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR)

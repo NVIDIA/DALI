@@ -227,13 +227,15 @@ class Warp : public Operator<Backend> {
 
   template <typename F>
   void ToStaticTypeEx(std::tuple<> &&, F &&functor) {
-    DALI_FAIL("Unsupported input/output types for the operator");
+    auto &in_name = TypeTable::GetTypeInfo(input_type_).name();
+    auto &out_name = TypeTable::GetTypeInfo(output_type_).name();
+    DALI_FAIL("Unsupported input/output types for the operator: " + in_name + " -> " + out_name);
   }
 
   template <typename F, typename FirstTypePair, typename... TypePairs>
   void ToStaticTypeEx(std::tuple<FirstTypePair, TypePairs...> &&, F &&functor) {
     if (type2id<typename FirstTypePair::first_type>::value == output_type_ &&
-        type2id<typename FirstTypePair::first_type>::value == input_type_)
+        type2id<typename FirstTypePair::second_type>::value == input_type_)
       functor(FirstTypePair());
     else
       ToStaticTypeEx(std::tuple<TypePairs...>(), std::forward<F>(functor));
