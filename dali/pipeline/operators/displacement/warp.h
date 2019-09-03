@@ -60,6 +60,7 @@ class OpImplInterface {
  public:
   virtual void Setup(kernels::TensorListShape<> &shape, const workspace_t<Backend> &ws) = 0;
   virtual void Run(workspace_t<Backend> &ws) = 0;
+  virtual ~OpImplInterface() = default;
 };
 
 template <typename Backend, typename Kernel>
