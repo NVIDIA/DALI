@@ -49,7 +49,7 @@ const std::string &dali_extra_path() {
       auto pipe = popen(check_hash.c_str(), "r");
       if (pipe == NULL) {
         std::cerr << "WARNING: Could not read the sha of DALI_extra at " << *_dali_extra_path
-                  << ". Make sure DALI_EXTRA is checked out to " << DALI_EXTRA_TAG
+                  << ". Make sure DALI_EXTRA is checked out to " << DALI_EXTRA_VERSION
                   << " so the test data is in the required version." << std::endl;
         return;
       }
@@ -57,13 +57,15 @@ const std::string &dali_extra_path() {
       auto ret = pclose(pipe);
       if (ret != 0 || count != kHashLen) {
         std::cerr << "WARNING: Could not read the sha of DALI_extra at " << *_dali_extra_path
-                  << ". Make sure DALI_EXTRA is checked out to " << DALI_EXTRA_TAG
+                  << ". Make sure DALI_EXTRA is checked out to " << DALI_EXTRA_VERSION
                   << " so the test data is in the required version." << std::endl;
         return;
       }
-      if (strncmp(DALI_EXTRA_TAG, hash, kHashLen) != 0) {
-        std::cerr << "Error: DALI_extra at " << *_dali_extra_path << " is not checked out to "
-                  << DALI_EXTRA_TAG << " which is the version required by this test." << std::endl;
+      if (strncmp(DALI_EXTRA_VERSION, hash, kHashLen) != 0) {
+        std::cerr << "WARNING: DALI_extra at " << *_dali_extra_path
+                  << " is in different version than one required by the tests. Some tests may "
+                     "fail to run or produce incorrect results.\nVersion required: "
+                  << DALI_EXTRA_VERSION << "\nVersion found: " << hash << std::endl;
       }
   });
   return *_dali_extra_path;
