@@ -450,14 +450,13 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddArg("features", features)
         return outputs
 
-class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
-    global _cpu_ops
-    _cpu_ops = _cpu_ops.union({'PythonFunction'})
 
-    def __init__(self, function, num_outputs=1, **kwargs):
-        self._schema = b.GetSchema("PythonFunctionImpl")
-        self._spec = b.OpSpec("PythonFunctionImpl")
-        self._device = "cpu"
+class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
+    def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
+        self._schema = b.GetSchema(impl_name)
+        self._spec = b.OpSpec(impl_name)
+        self._device = device
+        self._impl_name = impl_name
 
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
@@ -495,27 +494,47 @@ class PythonFunction(with_metaclass(_DaliOperatorMeta, object)):
                         len(inputs)))
         for inp in inputs:
             if not isinstance(inp, EdgeReference):
-                  raise TypeError(
-                      ("Expected inputs of type 'EdgeReference'. Received input of type '{}'. "+
-                      "Python Operator does not support Multiple Input Sets.")
+                raise TypeError(
+                      ("Expected inputs of type 'EdgeReference'. Received input of type '{}'. " +
+                       "Python Operators do not support Multiple Input Sets.")
                       .format(type(inp).__name__))
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)
         if self.num_outputs == 0:
-            t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id) + "_sink"
+            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
             t = EdgeReference(t_name, self._device, op_instance)
             pipeline.add_sink(t)
             return
         outputs = []
         for i in range(self.num_outputs):
-            t_name = "PythonFunctionImpl" + "_id_" + str(op_instance.id) + "_output_" + str(i)
+            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_output_" + str(i)
             t = EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
             pipeline.add_sink(t)
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
+
+
+class PythonFunction(PythonFunctionBase):
+    global _cpu_ops
+    _cpu_ops = _cpu_ops.union({'PythonFunction'})
+
+    def __init__(self, function, num_outputs=1, device='cpu', **kwargs):
+        super(PythonFunction, self).__init__(impl_name="PythonFunctionImpl", function=function,
+                                             num_outputs=num_outputs, device=device, **kwargs)
+
+
+class DLTensorPythonFunction(PythonFunctionBase):
+    global _cpu_ops
+    _cpu_ops = _cpu_ops.union({'DLTensorPythonFunction'})
+
+    def __init__(self, function, num_outputs=1, device='cpu', **kwargs):
+        super(DLTensorPythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
+                                                     function=function, num_outputs=num_outputs,
+                                                     device=device, **kwargs)
+
 
 def cpu_ops():
     return _cpu_ops

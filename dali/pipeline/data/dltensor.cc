@@ -40,14 +40,14 @@ void DLManagedTensorDeleter(DLManagedTensor *self) {
 void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr) {
   if (dlm_tensor_ptr) {
     dlm_tensor_ptr->deleter(dlm_tensor_ptr);
-    delete dlm_tensor_ptr;
   }
 }
 
 DLMTensorPtr MakeDLTensor(void* data, const TypeInfo& type,
                           bool device, int device_id,
                           std::unique_ptr<DLTensorResource> resource) {
-  DLTensor dl_tensor{};
+  DLManagedTensor *dlm_tensor_ptr = &resource->dlm_tensor;
+  DLTensor &dl_tensor = dlm_tensor_ptr->dl_tensor;
   dl_tensor.data = data;
   dl_tensor.ndim = resource->shape.size();
   dl_tensor.shape = resource->shape.begin();
@@ -57,8 +57,45 @@ DLMTensorPtr MakeDLTensor(void* data, const TypeInfo& type,
     dl_tensor.ctx = {kDLCPU, 0};
   }
   dl_tensor.dtype = GetDLType(type);
-  return {new DLManagedTensor{dl_tensor, resource.release(), &DLManagedTensorDeleter},
-          &DLMTensorPtrDeleter};
+  dlm_tensor_ptr->deleter = &DLManagedTensorDeleter;
+  dlm_tensor_ptr->manager_ctx = resource.release();
+  return {dlm_tensor_ptr, &DLMTensorPtrDeleter};
+}
+
+inline std::string to_string(const DLDataType &dl_type) {
+  return std::string("{code: ")
+    + (dl_type.code ? ((dl_type.code == 2) ? "kDLFloat" : "kDLUInt") : "kDLInt")
+    + ", bits: " + std::to_string(dl_type.bits) + ", lanes: " + std::to_string(dl_type.lanes) + "}";
+}
+
+DALIDataType DLToDALIType(const DLDataType &dl_type) {
+  DALI_ENFORCE(dl_type.lanes == 1,
+               "DALI Tensors do no not support types with the number of lanes other than 1");
+  switch (dl_type.code) {
+    case kDLUInt: {
+      switch (dl_type.bits) {
+        case 8: return DALI_UINT8;
+      }
+      break;
+    }
+    case kDLInt: {
+      switch (dl_type.bits) {
+        case 16: return DALI_INT16;
+        case 32: return DALI_INT32;
+        case 64: return DALI_INT64;
+      }
+      break;
+    }
+    case kDLFloat: {
+      switch (dl_type.bits) {
+        case 16: return DALI_FLOAT16;
+        case 32: return DALI_FLOAT;
+        case 64: return DALI_FLOAT64;
+      }
+      break;
+    }
+  }
+  DALI_FAIL("Could not convert DLPack tensor of unsupported type " + to_string(dl_type));
 }
 
 }  // namespace dali

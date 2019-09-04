@@ -13,16 +13,55 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/python_function/dltensor_function.h"
+#include "dali/pipeline/operators/python_function/util/copy_with_stride.h"
 
 namespace dali {
 
-DALI_SCHEMA(DLTensorPythonFunctionImpl).DocStr("Executes a function operating on Torch tensors").AddParent("PythonFunctionImplBase").NumInput(0, 256).NoPrune();
+DALI_SCHEMA(DLTensorPythonFunctionImpl)
+    .AddParent("PythonFunctionImplBase")
+    .NumInput(0, 256)
+    .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
+    .MakeInternal();
+
+DALI_SCHEMA(DLTensorPythonFunction)
+    .AddParent("PythonFunctionBase")
+    .DocStr("Execute a python function that operates on DLPack tensors.")
+    .NumInput(0, 256)
+    .NoPrune();
+
+namespace detail {
 
 template <>
-void DLTensorPythonFunctionImpl<CPUBackend>::RunImpl(workspace_t<CPUBackend> *ws) {
-  std::cout << ws->NumInput() << std::endl;
-
+py::list PrepareInputs<CPUBackend>(HostWorkspace &ws) {
+  py::list input_tuple;
+  for (Index idx = 0; idx < ws.NumInput(); ++idx) {
+    py::list dl_tensor_list;
+    for (Index i = 0; i < ws.NumInputAtIdx(idx); ++i) {
+      auto &t = ws.Input<CPUBackend>(idx, i);
+      auto dl_capsule = TensorToDLPackView(const_cast<Tensor<CPUBackend>&>(t));
+      dl_tensor_list.append(dl_capsule);
+    }
+    input_tuple.append(dl_tensor_list);
+  }
+  return input_tuple;
 }
+
+template <>
+void CopyOutputs<CPUBackend>(HostWorkspace &ws, py::tuple &output) {
+  for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
+    py::list dl_list = py::cast<py::list>(output[idx]);
+    auto dl_tensors = CastToDLTensorList<CPUBackend>(dl_list, ws.NumOutputAtIdx(idx), idx);
+    for (size_t i = 0; i < dl_tensors.size(); ++i) {
+      auto &tout = ws.Output<CPUBackend>(idx, i);
+      auto &dl_tensor = dl_tensors[i]->dl_tensor;
+      tout.set_type(TypeTable::GetTypeInfo(DLToDALIType(dl_tensor.dtype)));
+      tout.Resize(kernels::TensorShape<>(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim));
+      CopyDlTensor<CPUBackend>(ws.Output<CPUBackend>(idx, i).raw_mutable_data(), dl_tensors[i]);
+    }
+  }
+}
+
+}  // namespace detail
 
 DALI_REGISTER_OPERATOR(DLTensorPythonFunctionImpl, DLTensorPythonFunctionImpl<CPUBackend>, CPU);
 

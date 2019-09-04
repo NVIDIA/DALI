@@ -154,6 +154,7 @@ static TypeInfo TypeFromFormatStr(const std::string &format) {
 }
 
 constexpr const char *DLTENSOR_NAME = "dltensor";
+constexpr const char *USED_DLTENSOR_NAME = "used_dltensor";
 
 static void DLTensorCapsuleDestructor(PyObject *capsule) {
   // run the destructor only for unused capsules (those which keep the original name)
@@ -170,19 +171,26 @@ static py::capsule CapsuleDLTensor(DLMTensorPtr dl_tensor) {
 }
 
 template <typename Backend>
-py::capsule TensorToDLPack(Tensor<Backend> &tensor) {
-  DLMTensorPtr dl_tensor = GetDLTensor(tensor);
+py::capsule TensorToDLPackView(Tensor<Backend> &tensor) {
+  DLMTensorPtr dl_tensor = GetDLTensorView(tensor);
   return CapsuleDLTensor(std::move(dl_tensor));
 }
 
 template <typename Backend>
-py::list TensorListToDLPack(TensorList<Backend> &tensors) {
+py::list TensorListToDLPackView(TensorList<Backend> &tensors) {
   py::list result;
-  auto dl_tensors = GetDLTensors(tensors);
+  auto dl_tensors = GetDLTensorListView(tensors);
   for (DLMTensorPtr &dl_tensor : dl_tensors) {
     result.append(CapsuleDLTensor(std::move(dl_tensor)));
   }
   return result;
+}
+
+static DLMTensorPtr DLMTensorPtrFromCapsule(py::capsule &capsule) {
+  DALI_ENFORCE(std::string(capsule.name()) == DLTENSOR_NAME,
+      "Invalid DLPack tensor capsule. Notice that a dl tensor can be consumed only once");
+  PyCapsule_SetName(capsule.ptr(), USED_DLTENSOR_NAME);
+  return {static_cast<DLManagedTensor*>(capsule), DLMTensorPtrDeleter};
 }
 
 }  // namespace dali

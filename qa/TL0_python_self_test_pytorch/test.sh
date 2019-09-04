@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy torch"
+pip_packages="nose numpy torch mxnet-cu##CUDA_VERSION##"
 target_dir=./dali/test/python
 
 test_body() {

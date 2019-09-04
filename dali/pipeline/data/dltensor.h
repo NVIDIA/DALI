@@ -32,9 +32,11 @@ using DLMTensorPtr = std::unique_ptr<DLManagedTensor, void(*)(DLManagedTensor*)>
 DLL_PUBLIC DLDataType GetDLType(const TypeInfo &type);
 
 struct DLTensorResource {
-  explicit DLTensorResource(kernels::TensorShape<> shape): shape(std::move(shape)) {}
+  explicit DLTensorResource(kernels::TensorShape<> shape)
+  : shape(std::move(shape)) {}
 
   kernels::TensorShape<> shape;
+   DLManagedTensor dlm_tensor{};
 
   virtual ~DLTensorResource() = default;
 };
@@ -66,6 +68,8 @@ std::vector<DLMTensorPtr> GetDLTensorListView(TensorList<Backend> &tensor_list) 
   }
   return dl_tensors;
 }
+
+DLL_PUBLIC DALIDataType DLToDALIType(const DLDataType &dl_type);
 
 }  // namespace dali
 #endif  // DALI_PIPELINE_DATA_DLTENSOR_H_
