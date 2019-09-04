@@ -12,13 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
+
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali.edge import EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
+
 import subprocess
+import os
+import sys
+
+
+def get_dali_extra_path():
+  try:
+      dali_extra_path = os.environ['DALI_EXTRA_PATH']
+  except KeyError:
+      print("WARNING: DALI_EXTRA_PATH not initialized.", file=sys.stderr)
+      dali_extra_path = "."
+  return dali_extra_path
 
 # those functions import modules on demand to no impose additional dependency on numpy or matplot
 # to test that are using these utilities

@@ -20,10 +20,11 @@ from timeit import default_timer as timer
 import numpy as np
 import os
 from numpy.testing import assert_array_equal, assert_allclose
+from test_utils import get_dali_extra_path
 
 seed = 1549361629
 
-img_root = os.environ["DALI_EXTRA_PATH"]
+img_root = get_dali_extra_path()
 image_dir = img_root + "/db/single/jpeg"
 batch_size = 20
 
