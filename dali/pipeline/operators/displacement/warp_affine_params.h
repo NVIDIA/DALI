@@ -67,7 +67,7 @@ class WarpAffineParamProvider
           M.transform(i, j) = matrix[k];
 
       auto *params = this->AllocParams(kernels::AllocType::Host);
-      for (int i = 0; i < params_cpu_.shape[0]; i++)
+      for (int i = 0; i < num_samples_; i++)
         params[i] = M;
     }
   }

@@ -110,13 +110,36 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     num_samples_ = NumSamples(ws);
   }
 
+  /** @brief Prepares parameters and output sizes for a warp operator
+   *
+   * This function sets sizes and shapes in three steps:
+   * 1. Use explicitly provided sizes or copy from input
+   * 2. Set transform parameters - may depend on sizes specified in 1
+   * 3. Infer sizes based on params calculated in step 2, if not already set in 1
+   * Steps 1 and 3 are mutually exclusive.
+   *
+   * If different scheme is required, the derived class must override this method.
+   *
+   * Examples:
+   * Size-dependent transform: rotate and fit to canvas
+   * Transform-dependent size: canvas resized to fit rotated image
+   */
   virtual void Setup() {
     assert(ws_ && spec_ && "Use SetContext before calling Setup");
     ResetParams();
+    // Step 1: Check if the sizes are specified explicitly or copied
+    // from the input size. These sizes do not depend on the
+    // transform params, so they should be used first.
     bool infer_size = !SetOutputSizes();
+    // Step 2: Set the parameters. which _may_ depend on explicitly set params
     SetParams();
+    // Step 3: If the operator must infer the output size based
+    // on the params, then this size inference must obviously
+    // follow SetParams.
     if (infer_size)
       InferSize();
+
+    // Interpolation type and border can be set at any time
     this->SetInterp(*spec_, *ws_, num_samples_);
     this->SetBorder(*spec_);
   }
@@ -258,10 +281,12 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     DALI_FAIL("This operator does not support size inference.");
   }
 
+  /** @brief Allocates num_samples_ MappingParams objects in memory specified by alloc  */
   MappingParams *AllocParams(kernels::AllocType alloc) {
     return AllocParams(alloc, num_samples_);
   }
 
+  /** @brief Allocates count MappingParams objects in memory specified by alloc  */
   MappingParams *AllocParams(kernels::AllocType alloc, int count) {
     param_mem_.Reserve(alloc, count * sizeof(MappingParams));
     auto scratch = param_mem_.GetScratchpad();

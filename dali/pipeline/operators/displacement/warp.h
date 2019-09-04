@@ -78,7 +78,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   using ParamProvider = WarpParamProvider<Backend, spatial_ndim, MappingParams, BorderType>;
   using Workspace = workspace_t<Backend>;
 
-  WarpOpImpl(const OpSpec &spec, std::unique_ptr<ParamProvider> &&pp)
+  WarpOpImpl(const OpSpec &spec, std::unique_ptr<ParamProvider> pp)
   : spec_(spec), param_provider_(std::move(pp)) {
   }
 
@@ -102,7 +102,6 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   kernels::KernelManager kmgr_;
 
   kernels::TensorListView<Storage, const InputType, tensor_ndim> input_;
-  kernels::TensorListView<Storage, OutputType, tensor_ndim> output_;
 
   std::unique_ptr<ParamProvider> param_provider_;
 
