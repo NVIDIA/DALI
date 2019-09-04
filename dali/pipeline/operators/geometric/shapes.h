@@ -53,7 +53,7 @@ class Shapes : public Operator<Backend> {
     output_desc.resize(1);
     output_desc[0].type = TypeTable::GetTypeInfo(output_type_);
     decltype(auto) shape = GetInputShape(ws);
-    output_desc[0].shape = ShapeShape(shape);;
+    output_desc[0].shape = ShapeShape(shape);
     return true;
   }
 
@@ -63,49 +63,51 @@ class Shapes : public Operator<Backend> {
 
   template <typename type>
   void ConvertShape(TensorList<CPUBackend> &out, const kernels::TensorListShape<> &shape) {
-    assert(out.shape().num_samples() == shape.num_samples());
-    for (int i = 0; i < shape.num_samples(); i++) {
+    int n = out.ntensor();
+    assert(n == shape.num_samples());
+    for (int i = 0; i < n; i++) {
       type *data = out.mutable_tensor<type>(i);
-      auto tshape = shape.tensor_shape_span(i);
+      auto sample_shape = shape.tensor_shape_span(i);
       for (int j = 0; j < shape.sample_dim(); j++)
-        data[j] = tshape[j];
+        data[j] = sample_shape[j];
     }
   }
 
-  void ConvertShape(TensorList<CPUBackend> &out, const kernels::TensorListShape<> &shape) {
+  template <typename type>
+  void ConvertShape(TensorVector<CPUBackend> &out, const kernels::TensorListShape<> &shape) {
+    int n = out.size();
+    assert(n == shape.num_samples());
+    for (int i = 0; i < n; i++) {
+      type *data = out[i].mutable_data<type>();
+      auto sample_shape = shape.tensor_shape_span(i);
+      for (int j = 0; j < shape.sample_dim(); j++)
+        data[j] = sample_shape[j];
+    }
+  }
+
+  template <typename CPUTensorListOrVector>
+  void ConvertShape(CPUTensorListOrVector &out, const kernels::TensorListShape<> &shape) {
     TYPE_SWITCH(output_type_, type2id, type,
                 (int32_t, uint32_t, int64_t, uint64_t, float, double),
       (ConvertShape<type>(out, shape);),
       (DALI_FAIL("Unsupported type for Shapes")));
   }
 
-  void ConvertShapes(const workspace_t<Backend> &ws, bool pinned) {
+  void RunBackend(DeviceWorkspace &ws) {
     if (!tmp_.raw_data()) {
       auto &type = TypeTable::GetTypeInfo(output_type_);
       tmp_.set_type(type);
-      tmp_.set_pinned(pinned);
+      tmp_.set_pinned(true);
     }
 
-    auto &output = ws.template OutputRef<Backend>(0);
+    auto &output = ws.OutputRef<GPUBackend>(0);
     tmp_.Resize(output.shape());
     ConvertShape(tmp_, GetInputShape(ws));
-  }
-
-  void RunBackend(DeviceWorkspace &ws) {
-    ConvertShapes(ws, true);
-    auto &output = ws.template OutputRef<Backend>(0);
     output.Copy(tmp_, ws.stream());
   }
 
   void RunBackend(HostWorkspace &ws) {
-    ConvertShapes(ws, false);
-    auto &output = ws.template OutputRef<Backend>(0);
-    for (int i = 0 ; static_cast<size_t>(i) < tmp_.ntensor(); i++) {
-      auto &output_tensor = output[i];
-      auto *dest = output_tensor.raw_mutable_data();
-      auto *src = tmp_.raw_mutable_tensor(i);
-      std::memcpy(dest, src, output_tensor.nbytes());
-    }
+    ConvertShape(ws.OutputRef<CPUBackend>(0), GetInputShape(ws));
   }
 
   static kernels::TensorListShape<1> ShapeShape(const kernels::TensorListShape<> &shape) {
