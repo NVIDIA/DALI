@@ -5,6 +5,7 @@ target_dir=./dali/test/python
 
 test_body() {
     nosetests --verbose test_pytorch_operator
+    nosetests --verbose test_dltensor_operator
 }
 
 pushd ../..
