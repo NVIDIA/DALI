@@ -15,11 +15,9 @@
 #ifndef DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
 #define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
 
+#include <dali/util/pybind.h>
 #include <pybind11/embed.h>
-
 #include <vector>
-
-#include "dali/util/pybind.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
