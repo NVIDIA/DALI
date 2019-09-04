@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/data/dltensor.h"
+#include <string>
 
 namespace dali {
 

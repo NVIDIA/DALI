@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_DLTENSOR_FUNCTION_H_
 #define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_DLTENSOR_FUNCTION_H_
 
+#include <vector>
 #include "dali/pipeline/operators/python_function/python_function.h"
 #include "dali/pipeline/operators/python_function/util/copy_with_stride.h"
 

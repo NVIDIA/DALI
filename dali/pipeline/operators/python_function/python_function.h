@@ -53,7 +53,6 @@ class PythonFunctionImpl : public PythonFunctionImplBase<Backend> {
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
-
 };
 
 }  // namespace dali

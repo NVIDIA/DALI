@@ -36,7 +36,7 @@ struct DLTensorResource {
   : shape(std::move(shape)) {}
 
   kernels::TensorShape<> shape;
-   DLManagedTensor dlm_tensor{};
+  DLManagedTensor dlm_tensor{};
 
   virtual ~DLTensorResource() = default;
 };

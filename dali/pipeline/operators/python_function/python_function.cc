@@ -21,7 +21,7 @@ namespace dali {
 DALI_SCHEMA(PythonFunctionImplBase)
         .AddArg("function_id", R"code(Id of the python function)code", DALI_INT64)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
-        /*.MakeInternal()*/;
+        .MakeInternal();
 
 DALI_SCHEMA(PythonFunctionImpl)
         .AddParent("PythonFunctionImplBase")
