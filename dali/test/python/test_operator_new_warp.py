@@ -42,23 +42,31 @@ def ToCVMatrix(matrix):
   result[1][2] = offset[1] - 0.5
   return result
 
-def CVWarp(output_type, input_type):
+def CVWarp(output_type, input_type, warp_matrix = None):
   def warp_fn(img, matrix):
     size = (320, 240)
     matrix = ToCVMatrix(matrix)
     if output_type == dali.types.FLOAT or input_type == dali.types.FLOAT:
       img = np.float32(img)
-    out = cv2.warpAffine(img, matrix, size, borderMode = cv2.BORDER_CONSTANT, borderValue = 0,
+    out = cv2.warpAffine(img, matrix, size, borderMode = cv2.BORDER_CONSTANT, borderValue = [42,42,42],
       flags = (cv2.INTER_LINEAR|cv2.WARP_INVERSE_MAP));
     if output_type == dali.types.UINT8 and input_type == dali.types.FLOAT:
       out = np.uint8(np.clip(out, 0, 255))
     return out
+
+  if warp_matrix:
+    m = np.array(warp_matrix)
+    def warp_fixed(img):
+      return warp_fn(img, m)
+    return warp_fixed
+
   return warp_fn
 
 
 class NewWarpPipeline(Pipeline):
-    def __init__(self, device, batch_size, output_type, input_type, num_threads=1, device_id=0, num_gpus=1):
+    def __init__(self, device, batch_size, output_type, input_type, use_input, num_threads=3, device_id=0, num_gpus=1):
         super(NewWarpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
+        self.use_input = use_input
         self.name = device
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
@@ -66,68 +74,70 @@ class NewWarpPipeline(Pipeline):
           self.cast = ops.Cast(device = device, dtype = input_type)
         else:
           self.cast = None
-        self.warp = ops.NewWarpAffine(device = device, size=(240,320), output_type = output_type)
-        self.transform_source = ops.ExternalSource()
+
+        if use_input:
+          self.transform_source = ops.ExternalSource()
+          self.warp = ops.NewWarpAffine(device = device, size=(240,320), border = 42, output_type = output_type)
+        else:
+          warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
+          self.warp = ops.NewWarpAffine(device = device, size=(240,320), matrix = warp_matrix, border = 42, output_type = output_type)
+
         self.iter = 0
 
     def define_graph(self):
-        self.transform = self.transform_source()
         self.jpegs, self.labels = self.input(name = "Reader")
         images = self.decode(self.jpegs)
         if self.warp.device == "gpu":
           images = images.gpu()
         if self.cast:
           images = self.cast(images)
-        outputs = self.warp(images, self.transform)
+
+        if self.use_input:
+          self.transform = self.transform_source()
+          outputs = self.warp(images, self.transform)
+        else:
+          outputs = self.warp(images)
         return outputs
 
     def iter_setup(self):
-        self.feed_input(self.transform, gen_transforms(self.batch_size, 10))
+        if self.use_input:
+          self.feed_input(self.transform, gen_transforms(self.batch_size, 10))
 
 
 class CVPipeline(Pipeline):
-    def __init__(self, batch_size, output_type, input_type, num_threads=1, device_id=0, num_gpus=1):
+    def __init__(self, batch_size, output_type, input_type, use_input, num_threads=3, device_id=0, num_gpus=1):
         super(CVPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
+        self.use_input = use_input
         self.name = "cv"
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
-        self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type))
-        self.transform_source = ops.ExternalSource()
+        if self.use_input:
+          self.transform_source = ops.ExternalSource()
+          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type))
+        else:
+          self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, [[0.1, 0.9, 10], [0.8, -0.2, -20]]))
         self.iter = 0
 
     def define_graph(self):
-        self.transform = self.transform_source()
         self.jpegs, self.labels = self.input(name = "Reader")
         images = self.decode(self.jpegs)
-        outputs = self.warp(images, self.transform)
+        if self.use_input:
+          self.transform = self.transform_source()
+          outputs = self.warp(images, self.transform)
+        else:
+          outputs = self.warp(images)
         return outputs
 
     def iter_setup(self):
-        self.feed_input(self.transform, gen_transforms(self.batch_size, 10))
+        if self.use_input:
+          self.feed_input(self.transform, gen_transforms(self.batch_size, 10))
 
 
 def compare(pipe1, pipe2, eps):
-  epochSize = pipe1.epoch_size("Reader")
-  n = 0
-  while n < epochSize:
-    out1 = pipe1.run()[0]
-    out2 = pipe2.run()[0]
-    n += len(out1)
-    if hasattr(out1, 'as_cpu'):
-      out1 = out1.as_cpu()
-    if hasattr(out2, 'as_cpu'):
-      out2 = out2.as_cpu()
-    for i in range(len(out1)):
-      img1 = out1.at(i)
-      img2 = out2.at(i)
-      dif = cv2.absdiff(img1, img2)
-      err = np.amax(dif)
-      if (err > eps):
-        print("Max. difference ", err, " > ", eps)
-        cv2.imwrite("out_%0d_%s.png"%(i, pipe1.name), img1)
-        cv2.imwrite("out_%0d_%s.png"%(i, pipe2.name), img2)
-        cv2.imwrite("dif_%0d_%s_%s.png"%(i, pipe1.name, pipe2.name), dif*10)
-        assert(err <= eps)
+  epoch_size = pipe1.epoch_size("Reader")
+  batch_size = pipe1.batch_size
+  niter = (epoch_size + batch_size - 1) // batch_size
+  compare_pipelines(pipe1, pipe2, batch_size, niter, eps);
 
 io_types = [
   (dali.types.UINT8, dali.types.UINT8),
@@ -138,34 +148,55 @@ io_types = [
 
 
 def test_cpu_vs_cv():
-  for (itype, otype) in io_types:
-    cv_pipeline = CVPipeline(10, otype, itype);
-    cv_pipeline.build();
+  for batch_size in [1, 4, 19]:
+    for use_input in [False, True]:
+      for (itype, otype) in io_types:
+        print("Testing cpu vs cv",
+              "\nbatch size: ", batch_size,
+              " matrix as input: ", use_input,
+              " input_type: ", itype,
+              " output_type: ", otype)
+        cv_pipeline = CVPipeline(batch_size, otype, itype, use_input);
+        cv_pipeline.build();
 
-    cpu_pipeline = NewWarpPipeline("cpu", 10, otype, itype);
-    cpu_pipeline.build();
+        cpu_pipeline = NewWarpPipeline("cpu", batch_size, otype, itype, use_input);
+        cpu_pipeline.build();
 
-    compare(cv_pipeline, cpu_pipeline, 8)
+        compare(cv_pipeline, cpu_pipeline, 8)
 
 def test_gpu_vs_cv():
-  for (itype, otype) in io_types:
-    cv_pipeline = CVPipeline(10, otype, itype);
-    cv_pipeline.build();
+  for batch_size in [1, 4, 19]:
+    for use_input in [False, True]:
+      for (itype, otype) in io_types:
+        print("Testing gpu vs cv",
+              "\nbatch size: ", batch_size,
+              " matrix as input: ", use_input,
+              " input_type: ", itype,
+              " output_type: ", otype)
+        cv_pipeline = CVPipeline(batch_size, otype, itype, use_input);
+        cv_pipeline.build();
 
-    gpu_pipeline = NewWarpPipeline("gpu", 10, otype, itype);
-    gpu_pipeline.build();
+        gpu_pipeline = NewWarpPipeline("gpu", batch_size, otype, itype, use_input);
+        gpu_pipeline.build();
 
-  compare(cv_pipeline, gpu_pipeline, 8)
+        compare(cv_pipeline, gpu_pipeline, 8)
 
 def test_gpu_vs_cpu():
-  for (itype, otype) in io_types:
-    cpu_pipeline = NewWarpPipeline("cpu", 10, otype, itype);
-    cpu_pipeline.build();
+  for batch_size in [1, 4, 19]:
+    for use_input in [False, True]:
+      for (itype, otype) in io_types:
+        print("Testing gpu vs cpu",
+              "\nbatch size: ", batch_size,
+              " matrix as input: ", use_input,
+              " input_type: ", itype,
+              " output_type: ", otype)
+        cpu_pipeline = NewWarpPipeline("cpu", batch_size, otype, itype, use_input);
+        cpu_pipeline.build();
 
-    gpu_pipeline = NewWarpPipeline("gpu", 10, otype, itype);
-    gpu_pipeline.build();
+        gpu_pipeline = NewWarpPipeline("gpu", batch_size, otype, itype, use_input);
+        gpu_pipeline.build();
 
-    compare(cpu_pipeline, gpu_pipeline, 1)
+        compare(cpu_pipeline, gpu_pipeline, 1)
 
 
 

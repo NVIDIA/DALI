@@ -97,7 +97,8 @@ class WarpAffineParamProvider
     };
 
     if (shape.num_samples() == 1) {
-      DALI_ENFORCE(shape[0] == shape_cat(N, mat_shape), error_message());
+      DALI_ENFORCE(shape[0] == shape_cat(N, mat_shape) ||
+                   (N == 1 && shape[0] == mat_shape), error_message());
     } else {
       DALI_ENFORCE(shape.num_samples() == num_samples_ &&
                    kernels::is_uniform(shape) &&
