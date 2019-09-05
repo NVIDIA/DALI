@@ -22,7 +22,7 @@
 #include "dali/core/geom/vec.h"
 
 #ifndef MAT_LAYOUT_ROW_MAJOR
-#define MAT_LAYOUT_ROW_MAJOR 0
+#define MAT_LAYOUT_ROW_MAJOR 1
 #endif
 
 namespace dali {
@@ -255,11 +255,19 @@ struct mat {
   inline auto operator*(const mat<cols, rhs_cols, U> &rhs) const {
     using R = promote_vec_t<Element, U>;
     mat<rows, rhs_cols, R> result = {};
+  #if MAT_LAYOUT_ROW_MAJOR
+    for (size_t i = 0; i < rows; i++) {
+      for (size_t j = 0; j < rhs_cols; j++) {
+        result(i, j) = dot(row(i), rhs.col(j));
+      }
+    }
+  #else
     for (size_t j = 0; j < rhs_cols; j++) {
       for (size_t i = 0; i < rows; i++) {
         result(i, j) = dot(row(i), rhs.col(j));
       }
     }
+  #endif
     return result;
   }
 

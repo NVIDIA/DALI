@@ -12,23 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_WARP_GPU_H_
-#define DALI_KERNELS_IMGPROC_WARP_GPU_H_
-
-#ifdef __CUDACC__
-#include "dali/kernels/imgproc/warp_gpu.cuh"
-#else
+#include <vector>
+#include "dali/pipeline/operators/displacement/new_warp_affine.h"
 
 namespace dali {
-namespace kernels {
 
-template <typename _Mapping, int _spatial_ndim, typename _OutputType, typename _InputType,
-          typename _BorderType>
-class WarpGPU;
+DALI_REGISTER_OPERATOR(NewWarpAffine, NewWarpAffine<GPUBackend>, GPU);
 
-}  // namespace kernels
 }  // namespace dali
-
-#endif
-
-#endif  // DALI_KERNELS_IMGPROC_WARP_GPU_H_
