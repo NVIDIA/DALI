@@ -137,15 +137,21 @@ TEST(TensorLayout, ImageLayout) {
   EXPECT_EQ(ImageLayoutInfo::NumSpatialDims(ncdhw), 3);
 
   for (const TensorLayout &tl : layouts) {
+    EXPECT_TRUE(ImageLayoutInfo::IsImage(tl));
     EXPECT_EQ(ImageLayoutInfo::Is2D(tl), ImageLayoutInfo::NumSpatialDims(tl) == 2);
     EXPECT_EQ(ImageLayoutInfo::Is3D(tl), ImageLayoutInfo::NumSpatialDims(tl) == 3);
   }
+  EXPECT_FALSE(ImageLayoutInfo::IsImage("NC"));
 }
 
 TEST(TensorLayout, VideoLayout) {
-  EXPECT_TRUE(VideoLayoutInfo::IsSequence("NFCHW"));
+  EXPECT_TRUE(VideoLayoutInfo::IsVideo("NFCHW"));
+  EXPECT_FALSE(VideoLayoutInfo::IsStillImage("NFCHW"));
+  EXPECT_TRUE(VideoLayoutInfo::IsChannelFirst("NFCHW"));
+  EXPECT_FALSE(VideoLayoutInfo::IsChannelFirst("NFHWC"));
   EXPECT_EQ(VideoLayoutInfo::FrameDim("NFCHW"), 1);
   EXPECT_FALSE(VideoLayoutInfo::IsSequence("NDCHW"));
+  EXPECT_TRUE(VideoLayoutInfo::IsStillImage("NDCHW"));
 }
 
 }  // namespace dali

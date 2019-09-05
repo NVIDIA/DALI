@@ -23,15 +23,21 @@
 
 namespace dali {
 
+/** @brief Provides a domain-agnostic, flexible description of a tensor layout
+ *
+ * The object is essentially a string with storage optimized for short sequences.
+ */
 struct TensorLayout {
   TensorLayout() = default;
 
+  /** @brief Constructs a TensorLayout from a C-style string */
   TensorLayout(const char *str) {  // NOLINT
     data_.resize(std::strlen(str) + 1);
     for (size_t i = 0; i < data_.size(); i++)
       data_[i] = str[i];
   }
 
+  /** @brief Constructs a TensorLayout from a C-style string of known length */
   TensorLayout(const char *str, size_t n) {  // NOLINT
     data_.resize(n + 1);
     for (size_t i = 0; i < n; i++)
@@ -39,6 +45,7 @@ struct TensorLayout {
     data_[n] = 0;
   }
 
+  /** @brief Constructs a TensorLayout from a char array of known length, e.g. a string literal */
   template <size_t N>
   TensorLayout(const char (&s)[N]) {  // NOLINT
     size_t n = N && s[N-1] == '\0' ? N - 1 : N;
@@ -48,6 +55,7 @@ struct TensorLayout {
     data_[n] = 0;
   }
 
+  /** @brief Constructs a TensorLayout from std::string */
   TensorLayout(const std::string &s) : TensorLayout(s.data(), s.length()) {  // NOLINT
   }
 
@@ -58,12 +66,15 @@ struct TensorLayout {
     return data_[d];
   }
 
+  /** @brief Returns a pointer to the internal representation of the layout */
   const char *c_str() const noexcept {
     return data_.data();
   }
+  /** @brief Returns a pointer to the internal representation of the layout */
   const char *data() const noexcept {
     return data_.data();
   }
+  /** @brief Copies the contents to std::string */
   std::string str() const { return c_str(); }
 
   int find(char dim_name) const noexcept {
@@ -74,10 +85,12 @@ struct TensorLayout {
     return -1;
   }
 
+  /** @brief Checks if the string contains a character */
   bool contains(char dim_name) const noexcept {
     return find(dim_name) >= 0;
   }
 
+  /** @brief Provides a three-way comparison against another TensorLayout */
   int compare(const TensorLayout &tl) const noexcept {
     return std::strcmp(c_str(), tl.c_str());
   }
@@ -101,8 +114,11 @@ struct TensorLayout {
     return data_ != tl.data_;
   }
 
+  /** @brief Number of characters, excluding the (always present) null terminator */
   size_t size() const noexcept { return data_.size() - 1; }
+  /** @brief Number of dimensions described by this object; same value as size() */
   int ndim() const noexcept { return size(); }
+  /** @brief Returns true if size() == 0 */
   bool empty() const noexcept { return size() == 0; }
 
   auto begin() { return data_.begin(); }
@@ -115,7 +131,7 @@ struct TensorLayout {
   // This is the size that the SmallVector would take anyway
   static constexpr size_t static_capacity = sizeof(char*)+sizeof(size_t);
 
-  /// @brief Stores the dimension descriptions as a null-terminated string
+  /** @brief Stores the dimension descriptions as a null-terminated string */
   SmallVector<char, static_capacity> data_ = { '\0' };
 };
 
@@ -140,6 +156,7 @@ DEFINE_TENSOR_LAYOUT_COMPARISON(>=)
 DEFINE_TENSOR_LAYOUT_COMPARISON(==)
 DEFINE_TENSOR_LAYOUT_COMPARISON(!=)
 
+/** Provides basic functions for querying TensorLayout properties */
 struct LayoutInfo {
   static int HasSampleDim(const TensorLayout &tl) {
     // sample dim may only appear at outermost level
@@ -150,6 +167,9 @@ struct LayoutInfo {
   }
 };
 
+/** @brief Provides functions for querying TensorLayout properties,
+ *         assuming that the layout describes an image
+ */
 struct ImageLayoutInfo : LayoutInfo {
   static int NumSpatialDims(const TensorLayout &tl) {
     int s = 0;
@@ -184,14 +204,30 @@ struct ImageLayoutInfo : LayoutInfo {
   static bool IsChannelLast(const TensorLayout &tl) {
     return !tl.empty() && tl[tl.ndim()-1] == 'C';
   }
+  static bool IsImage(const TensorLayout &tl) {
+    return NumSpatialDims(tl) >= 2;
+  }
 };
 
+/** @brief Provides functions for querying TensorLayout properties,
+ *         assuming that the layout describes a video
+ */
 struct VideoLayoutInfo : ImageLayoutInfo {
+  /** @brief Returns the index of the dimension referring to frames */
   static int FrameDim(const TensorLayout &tl) {
     return DimIndex(tl, 'F');
   }
+  static bool IsChannelFirst(const TensorLayout &tl) {
+    return tl[FrameDim(tl)] == 'C';
+  }
   static bool IsSequence(const TensorLayout &tl) {
     return tl.contains('F');
+  }
+  static bool IsVideo(const TensorLayout &tl) {
+    return IsSequence(tl) && IsImage(tl);
+  }
+  static bool IsStillImage(const TensorLayout &tl) {
+    return !IsSequence(tl) && IsImage(tl);
   }
 };
 
