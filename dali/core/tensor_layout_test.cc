@@ -152,6 +152,25 @@ TEST(TensorLayout, ImageLayout) {
   EXPECT_FALSE(ImageLayoutInfo::IsImage("NC"));
 }
 
+TEST(TensorLayout, Sub) {
+  EXPECT_EQ(TensorLayout("NHWC").sub(1), "HWC");
+  EXPECT_EQ(TensorLayout("asdfgh").sub(2, 3), "dfg");
+  EXPECT_EQ(TensorLayout("12345").first(3), "123");
+  EXPECT_EQ(TensorLayout("12345").last(4), "2345");
+}
+
+TEST(TensorLayout, Concat) {
+  EXPECT_EQ(TensorLayout("NH") + TensorLayout("WC"), TensorLayout("NHWC"));
+  EXPECT_EQ(TensorLayout("1234") + "56", TensorLayout("123456"));
+  EXPECT_EQ("abc" + TensorLayout("def"), TensorLayout("abcdef"));
+}
+
+TEST(TensorLayout, SampleLayout) {
+  EXPECT_EQ(TensorLayout("NHWC").sample_layout(), TensorLayout("HWC"));
+  EXPECT_EQ(TensorLayout().sample_layout(), TensorLayout());
+  EXPECT_THROW(TensorLayout("HWC").sample_layout(), std::logic_error);
+}
+
 TEST(TensorLayout, VideoLayout) {
   EXPECT_TRUE(VideoLayoutInfo::IsVideo("NFCHW"));
   EXPECT_FALSE(VideoLayoutInfo::IsStillImage("NFCHW"));
