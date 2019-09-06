@@ -28,56 +28,52 @@ namespace dali {
  * The object is essentially a string with storage optimized for short sequences.
  */
 struct TensorLayout {
-  TensorLayout() = default;
+  constexpr TensorLayout() = default;
 
   /** @brief Constructs a TensorLayout from a C-style string */
-  TensorLayout(const char *str) {  // NOLINT
-    data_.resize(std::strlen(str) + 1);
-    for (size_t i = 0; i < data_.size(); i++)
-      data_[i] = str[i];
+  constexpr TensorLayout(const char *str) : TensorLayout(str, strlen(str)) {  // NOLINT
   }
 
   /** @brief Constructs a TensorLayout from a C-style string of known length */
-  TensorLayout(const char *str, size_t n) {  // NOLINT
-    data_.resize(n + 1);
+  constexpr TensorLayout(const char *str, size_t n) {  // NOLINT
+    assert(n < sizeof(data_));
+    if (n >= sizeof(data_))
+      n = sizeof(data_) - 1;
     for (size_t i = 0; i < n; i++)
       data_[i] = str[i];
     data_[n] = 0;
+    size_ = n;
   }
 
   /** @brief Constructs a TensorLayout from a char array of known length, e.g. a string literal */
   template <size_t N>
-  TensorLayout(const char (&s)[N]) {  // NOLINT
-    size_t n = N && s[N-1] == '\0' ? N - 1 : N;
-    data_.resize(n + 1);
-    for (size_t i = 0; i < n; i++)
-      data_[i] = s[i];
-    data_[n] = 0;
+  constexpr TensorLayout(const char (&s)[N])  // NOLINT
+  : TensorLayout(s, N && s[N-1] == '\0' ? N - 1 : N) {
   }
 
   /** @brief Constructs a TensorLayout from std::string */
   TensorLayout(const std::string &s) : TensorLayout(s.data(), s.length()) {  // NOLINT
   }
 
-  char &operator[](int d) {
+  constexpr char &operator[](int d) noexcept {
     return data_[d];
   }
-  const char &operator[](int d) const {
+  constexpr const char &operator[](int d) const noexcept {
     return data_[d];
   }
 
   /** @brief Returns a pointer to the internal representation of the layout */
-  const char *c_str() const noexcept {
-    return data_.data();
+  constexpr const char *c_str() const noexcept {
+    return data_;
   }
   /** @brief Returns a pointer to the internal representation of the layout */
-  const char *data() const noexcept {
-    return data_.data();
+  constexpr const char *data() const noexcept {
+    return data_;
   }
   /** @brief Copies the contents to std::string */
   std::string str() const { return c_str(); }
 
-  int find(char dim_name) const noexcept {
+  constexpr int find(char dim_name) const noexcept {
     for (int i = 0; i < ndim(); i++) {
       if (data_[i] == dim_name)
         return i;
@@ -86,7 +82,7 @@ struct TensorLayout {
   }
 
   /** @brief Checks if the string contains a character */
-  bool contains(char dim_name) const noexcept {
+  constexpr bool contains(char dim_name) const noexcept {
     return find(dim_name) >= 0;
   }
 
@@ -108,32 +104,50 @@ struct TensorLayout {
     return compare(tl) >= 0;
   }
   bool operator==(const TensorLayout &tl) const noexcept {
-    return data_ == tl.data_;
+    return size_ == tl.size_ && compare(tl) == 0;
   }
   bool operator!=(const TensorLayout &tl) const noexcept {
-    return data_ != tl.data_;
+    return !(*this == tl);
   }
 
   /** @brief Number of characters, excluding the (always present) null terminator */
-  size_t size() const noexcept { return data_.size() - 1; }
+  constexpr uint8_t size() const noexcept { return size_; }
   /** @brief Number of dimensions described by this object; same value as size() */
-  int ndim() const noexcept { return size(); }
+  constexpr int ndim() const noexcept { return size(); }
   /** @brief Returns true if size() == 0 */
-  bool empty() const noexcept { return size() == 0; }
+  constexpr bool empty() const noexcept { return size() == 0; }
 
-  auto begin() { return data_.begin(); }
-  auto end() { return data_.end() - 1; }
-  auto begin() const { return data_.begin(); }
-  auto end() const { return data_.end() - 1; }
-  auto cbegin() { return data_.cbegin(); }
-  auto cend() { return data_.cend() - 1; }
+  using iterator = char*;
+  using const_iterator = const char*;
 
-  // This is the size that the SmallVector would take anyway
-  static constexpr size_t static_capacity = sizeof(char*)+sizeof(size_t);
+  constexpr iterator begin() noexcept               { return data_; }
+  constexpr iterator end() noexcept                 { return data_ + size_; }
+  constexpr auto begin() const noexcept             { return cbegin(); }
+  constexpr auto end() const noexcept               { return cend(); }
+  constexpr const_iterator cbegin() const noexcept  { return data_; }
+  constexpr const_iterator cend() const noexcept    { return data_ + size_; }
+
+  TensorLayout sub(int start_dim, int n) const noexcept {
+    assert(start_dim + n <= ndim());
+    return TensorLayout(begin() + start_dim, n);
+  }
+
+  TensorLayout first(int n) const noexcept {
+    assert(n <= ndim());
+    return TensorLayout(begin(), n);
+  }
+
+  TensorLayout last(int n) const noexcept {
+    assert(n <= ndim());
+    return TensorLayout(end() - n, n);
+  }
 
   /** @brief Stores the dimension descriptions as a null-terminated string */
-  SmallVector<char, static_capacity> data_ = { '\0' };
+  uint8_t size_ = 0;
+  char data_[15] = { 0 };
 };
+
+static_assert(sizeof(TensorLayout) == 16, "Tensor layout size should be exactly 16B");
 
 #define DEFINE_TENSOR_LAYOUT_COMPARISON(op)\
 bool operator op (const TensorLayout &tl, const std::string &s) {\
@@ -218,7 +232,7 @@ struct VideoLayoutInfo : ImageLayoutInfo {
     return DimIndex(tl, 'F');
   }
   static bool IsChannelFirst(const TensorLayout &tl) {
-    return tl[FrameDim(tl)] == 'C';
+    return tl[FrameDim(tl)+1] == 'C';
   }
   static bool IsSequence(const TensorLayout &tl) {
     return tl.contains('F');
