@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_DATA_TENSOR_LAYOUT_H_
-#define DALI_PIPELINE_DATA_TENSOR_LAYOUT_H_
+#ifndef DALI_CORE_TENSOR_LAYOUT_H_
+#define DALI_CORE_TENSOR_LAYOUT_H_
 
-#include <memory>
 #include <string>
 #include <cstring>
-#include "dali/core/common.h"
-#include "dali/core/small_vector.h"
 
 namespace dali {
 
@@ -247,5 +244,4 @@ struct VideoLayoutInfo : ImageLayoutInfo {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_DATA_TENSOR_LAYOUT_H_
-
+#endif  // DALI_CORE_TENSOR_LAYOUT_H_

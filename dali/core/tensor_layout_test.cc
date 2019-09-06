@@ -13,9 +13,17 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/pipeline/data/tensor_layout.h"
+#include <type_traits>
+#include "dali/core/tensor_layout.h"
 
 namespace dali {
+
+static_assert(
+  std::is_standard_layout<TensorLayout>::value &&
+  std::is_trivially_copy_constructible<TensorLayout>::value &&
+  std::is_trivially_copy_assignable<TensorLayout>::value &&
+  std::is_trivially_destructible<TensorLayout>::value,
+  "TensorLayout must be a POD except for non-trivial construction");
 
 TEST(TensorLayout, Construction) {
   TensorLayout empty;
