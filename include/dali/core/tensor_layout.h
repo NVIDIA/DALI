@@ -106,7 +106,7 @@ struct TensorLayout {
 
   /** @brief Provides a three-way comparison against another TensorLayout */
   DALI_HOST_DEV
-  int compare(const TensorLayout &tl) const noexcept {
+  constexpr int compare(const TensorLayout &tl) const noexcept {
     int n = size_ < tl.size_ ? size_ : tl.size_;
     // <= to include the null terminator
     for (int i = 0; i <= n; i++) {
@@ -155,18 +155,29 @@ struct TensorLayout {
   using iterator = char*;
   using const_iterator = const char*;
 
+  DALI_HOST_DEV
   constexpr iterator begin() noexcept               { return data_; }
+  DALI_HOST_DEV
   constexpr iterator end() noexcept                 { return data_ + size_; }
+  DALI_HOST_DEV
   constexpr auto begin() const noexcept             { return cbegin(); }
+  DALI_HOST_DEV
   constexpr auto end() const noexcept               { return cend(); }
+  DALI_HOST_DEV
   constexpr const_iterator cbegin() const noexcept  { return data_; }
+  DALI_HOST_DEV
   constexpr const_iterator cend() const noexcept    { return data_ + size_; }
 
+  DALI_HOST_DEV
   TensorLayout sample_layout() const {
     if (empty())
       return {};
+#ifdef __CUDA_ARCH__
+    assert(data_[0] == 'N');
+#else
     if (find('N') != 0)
       throw std::logic_error("This is not a multi-sample layout: \"" + str() + "\"");
+#endif
     return sub(1);
   }
 
@@ -198,7 +209,7 @@ struct TensorLayout {
 };
 
 DALI_HOST_DEV
-TensorLayout operator+(const TensorLayout &a, const TensorLayout &b) {
+inline TensorLayout operator+(const TensorLayout &a, const TensorLayout &b) {
   assert(a.size() + b.size() < TensorLayout::max_ndim);
   TensorLayout result = a;
   int i, j;
@@ -211,18 +222,20 @@ TensorLayout operator+(const TensorLayout &a, const TensorLayout &b) {
 
 static_assert(sizeof(TensorLayout) == 16, "Tensor layout size should be exactly 16B");
 
-#define DEFINE_TENSOR_LAYOUT_COMPARISON(op)\
-bool operator op (const TensorLayout &tl, const std::string &s) {\
-  return std::strcmp(tl.c_str(), s.c_str()) op 0;\
-}\
-bool operator op (const TensorLayout &tl, const char *s) {\
-  return std::strcmp(tl.c_str(), s) op 0;\
-}\
-bool operator op (const std::string &s, const TensorLayout &tl) {\
-  return std::strcmp(s.c_str(), tl.c_str()) op 0;\
-}\
-bool operator op (const char *s, const TensorLayout &tl) {\
-  return std::strcmp(s, tl.c_str()) op 0;\
+#define DEFINE_TENSOR_LAYOUT_COMPARISON(op)                             \
+inline bool operator op(const TensorLayout &tl, const std::string &s) { \
+  return std::strcmp(tl.c_str(), s.c_str()) op 0;                       \
+}                                                                       \
+DALI_HOST_DEV                                                           \
+constexpr bool operator op(const TensorLayout &tl, const char *s) {     \
+  return tl.compare(s) op 0;                                            \
+}                                                                       \
+inline bool operator op(const std::string &s, const TensorLayout &tl) { \
+  return std::strcmp(s.c_str(), tl.c_str()) op 0;                       \
+}                                                                       \
+DALI_HOST_DEV                                                           \
+constexpr bool operator op(const char *s, const TensorLayout &tl) {     \
+  return TensorLayout(s).compare(tl) op 0;                              \
 }
 
 DEFINE_TENSOR_LAYOUT_COMPARISON(<)  // NOLINT
