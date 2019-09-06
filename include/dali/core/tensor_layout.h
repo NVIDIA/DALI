@@ -28,7 +28,8 @@ namespace dali {
  * The object is essentially a string with storage optimized for short sequences.
  */
 struct TensorLayout {
-  constexpr TensorLayout() = default;
+  DALI_HOST_DEV
+  constexpr TensorLayout() {}
 
   /** @brief Constructs a TensorLayout from a C-style string */
   DALI_HOST_DEV
