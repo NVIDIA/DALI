@@ -32,8 +32,8 @@ DALI_SCHEMA(Caffe2Reader)
     return 1 + num_label_outputs + additional_inputs + has_bbox;
   })
   .AddArg("path",
-      R"code(Path to Caffe2 LMDB directory.)code",
-      DALI_STRING)
+      R"code(List of paths to Caffe2 LMDB directories.)code",
+      DALI_STRING_VEC)
   .AddOptionalArg("num_labels",
       R"code(Number of classes in dataset. Required when sparse labels are used.)code", 1)
   .AddOptionalArg("label_type",

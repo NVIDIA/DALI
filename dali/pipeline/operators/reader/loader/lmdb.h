@@ -24,71 +24,154 @@
 
 namespace dali {
 
-#define CHECK_LMDB(status, filename) \
+#define CHECK_LMDB(status) \
   do { \
     DALI_ENFORCE(status == MDB_SUCCESS, "LMDB Error: " + string(mdb_strerror(status)) + \
-                                        ", with file: " + filename); \
+                                        ", with file: " + db_path_); \
   } while (0)
 
-namespace lmdb {
-  inline bool SeekLMDB(MDB_cursor* cursor, MDB_cursor_op op, MDB_val* key, MDB_val *value,
-                       const string &filename) {
-    int status = mdb_cursor_get(cursor, key, value, op);
 
-    if (status == MDB_NOTFOUND) {
-      // reached the end of the db
-      return false;
-    } else {
-      CHECK_LMDB(status, filename);
-      return true;
+class IndexedLMDB {
+  MDB_env* mdb_env_ = nullptr;
+  MDB_cursor* mdb_cursor_ = nullptr;
+  MDB_dbi mdb_dbi_;
+  MDB_txn* mdb_transaction_ = nullptr;
+  int num_;
+  Index mdb_index_;
+  std::string db_path_;
+  Index mdb_size_;
+
+ public:
+  bool Open(const std::string& path, int num) {
+    db_path_ = path;
+    num_ = num;
+    CHECK_LMDB(mdb_env_create(&mdb_env_));
+    auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
+    CHECK_LMDB(mdb_env_open(mdb_env_, path.c_str(), mdb_flags, 0664));
+
+    // Create transaction and cursor
+    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
+    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
+    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
+    MDB_stat stat;
+    CHECK_LMDB(mdb_stat(mdb_transaction_, mdb_dbi_, &stat));
+    mdb_size_ = stat.ms_entries;
+    printf("lmdb file %d %s has %ld entries\n", num_, path.c_str(), mdb_size_);
+    mdb_index_ = 0;
+    return true;
+  }
+  size_t GetSize() const { return mdb_size_; }
+  Index GetIndex() const { return mdb_index_; }
+  bool SeekByIndex(Index index, MDB_val* key = 0, MDB_val* value = 0) {
+    MDB_val tmp_key, tmp_value;
+    if (0 == key) {
+      key = &tmp_key;
     }
+    if (0 == value) {
+      value = &tmp_value;
+    }
+    //printf("index %ld, current_index %ld, size %ld\n", index, mdb_index_, mdb_size_);
+    if (index == 0) {
+      printf("lmdb %d %s rewind to the begin from %ld...\n", num_, db_path_.c_str(), mdb_index_);
+    }
+    DALI_ENFORCE(index >= 0 && index < mdb_size_);
+    if (index == 0) {
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_FIRST));
+    } else if (index == mdb_size_ - 1) {
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_LAST));
+    } else if (index == mdb_index_) {
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_GET_CURRENT));
+    } else if (index == mdb_index_ - 1) {
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_PREV));
+    } else if (index == mdb_index_ + 1) {
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_NEXT));
+    } else if (index > mdb_index_) {
+      printf("lmdb exec a large step forward %s %ld->%ld\n", db_path_.c_str(),
+             mdb_index_, index);
+      for (Index i = mdb_index_; i < index; ++i) {
+        CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_NEXT));
+      }
+    } else {
+      // index < mdb_index_
+      printf("lmdb exec a large step backward %s %ld->%ld\n", db_path_.c_str(),
+             mdb_index_, index);
+      for (Index i = index; i < mdb_index_; i++) {
+        CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_PREV));
+      }
+    }
+    mdb_index_ = index;
+    return true;
   }
 
-  inline uint64_t LMDB_size(MDB_txn* txn, MDB_dbi dbi, const string &filename) {
-    MDB_stat stat;
-
-    CHECK_LMDB(mdb_stat(txn, dbi, &stat), filename);
-
-    return stat.ms_entries;
+  bool Close() {
+    if (mdb_cursor_) {
+      mdb_cursor_close(mdb_cursor_);
+      mdb_dbi_close(mdb_env_, mdb_dbi_);
+      mdb_cursor_ = nullptr;
+    }
+    if (mdb_transaction_) {
+      mdb_txn_abort(mdb_transaction_);
+      mdb_transaction_ = nullptr;
+    }
+    if (mdb_env_) {
+      mdb_env_close(mdb_env_);
+      mdb_env_ = nullptr;
+    }
+    return true;
   }
+};
 
-  inline void PrintLMDBStats(MDB_txn* txn, MDB_dbi dbi, const string &filename) {
-    MDB_stat stat;
+static int find_lower_bound(const std::vector<Index>& a, Index x) {
+  DALI_ENFORCE(x >= a.front() && x < a.back() && a.size() >= 2);
+  int low = 0;
+  int high = a.size()-2;
+  do {
+    int mid = (low+high) / 2;
+    if (x >= a[mid] && x < a[mid+1]) {
+      return mid;
+    } else if (x >= a[mid+1]) {
+      low = mid+1;
+    } else if (x < a[mid]) {
+      high = mid-1;
+    }
+  } while (low <= high);
 
-    CHECK_LMDB(mdb_stat(txn, dbi, &stat), filename);
-
-    printf("DB has %d entries\n", static_cast<int>(stat.ms_entries));
-  }
-}  // namespace lmdb
+  DALI_ENFORCE(false, "size array is not in assending order.");
+  return -1;
+}
 
 class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit LMDBLoader(const OpSpec& options)
-    : Loader(options),
-      db_path_(options.GetArgument<string>("path")) {
-  }
+      : Loader(options),
+        db_path_(options.GetRepeatedArgument<std::string>("path")) {}
 
   ~LMDBLoader() override {
-    if (mdb_cursor_) {
-      mdb_cursor_close(mdb_cursor_);
-      mdb_dbi_close(mdb_env_, mdb_dbi_);
+    for (size_t i = 0; i < db_path_.size(); i++) {
+      mdb_[i].Close();
     }
-    if (mdb_transaction_)
-      mdb_txn_abort(mdb_transaction_);
-    if (mdb_env_)
-      mdb_env_close(mdb_env_);
-    mdb_env_ = nullptr;
+  }
+
+  void MapIndexToFile(Index index, Index* file_index, Index* local_index) {
+    DALI_ENFORCE(index >= 0 && index < size_array_[db_path_.size()]);
+    *file_index = find_lower_bound(size_array_, index);
+    *local_index = index - size_array_[*file_index];
   }
 
   void ReadSample(Tensor<CPUBackend>& tensor) override {
     // assume cursor is valid, read next, loop to start if necessary
-    lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_, db_path_);
+
+    Index file_index, local_index;
+    MapIndexToFile(current_index_, &file_index, &local_index);
+
+    MDB_val key, value;
+    mdb_[file_index].SeekByIndex(local_index, &key, &value);
     ++current_index_;
 
     MoveToNextShard(current_index_);
 
-    std::string image_key =
-      db_path_ + " at key " + to_string(reinterpret_cast<char*>(key_.mv_data));
+    std::string image_key = db_path_[file_index] + " at key " +
+                            to_string(reinterpret_cast<char*>(key.mv_data));
     DALIMeta meta;
 
     meta.SetSourceInfo(image_key);
@@ -107,64 +190,50 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     }
 
     tensor.SetMeta(meta);
-    tensor.Resize({static_cast<Index>(value_.mv_size)});
+    tensor.Resize({static_cast<Index>(value.mv_size)});
     std::memcpy(tensor.raw_mutable_data(),
-                reinterpret_cast<uint8_t*>(value_.mv_data),
-                value_.mv_size*sizeof(uint8_t));
+                reinterpret_cast<uint8_t*>(value.mv_data),
+                value.mv_size * sizeof(uint8_t));
   }
 
  protected:
-  Index SizeImpl() override {
-    return lmdb_size_;
-  }
+  Index SizeImpl() override { return size_array_[db_path_.size()]; }
 
   void PrepareMetadataImpl() override {
-    // Create the db environment, open the passed DB
-    CHECK_LMDB(mdb_env_create(&mdb_env_), db_path_);
-    auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
-    CHECK_LMDB(mdb_env_open(mdb_env_, db_path_.c_str(), mdb_flags, 0664), db_path_);
-
-    // Create transaction and cursor
-    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_), db_path_);
-    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_), db_path_);
-    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_), db_path_);
-    lmdb_size_ = lmdb::LMDB_size(mdb_transaction_, mdb_dbi_, db_path_);
-
-    // Optional: debug printing
-    lmdb::PrintLMDBStats(mdb_transaction_, mdb_dbi_, db_path_);
-
+    size_array_.resize(db_path_.size() + 1);
+    size_array_[0] = 0;
+    mdb_.resize(db_path_.size());
+    for (size_t i = 0; i < db_path_.size(); i++) {
+      mdb_[i].Open(db_path_[i], i);
+      size_array_[i + 1] = size_array_[i] + mdb_[i].GetSize();
+    }
     Reset(true);
   }
 
  private:
   void Reset(bool wrap_to_shard) override {
     // work out how many entries to move forward to handle sharding
-    current_index_ = start_index(shard_id_, num_shards_, Size());
-    bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_FIRST, &key_, &value_, db_path_);
-    DALI_ENFORCE(ok, "lmdb::SeekLMDB to the beginning failed");
-
     if (wrap_to_shard) {
-      for (size_t i = 0; i < current_index_; ++i) {
-        bool ok = lmdb::SeekLMDB(mdb_cursor_, MDB_NEXT, &key_, &value_, db_path_);
-        DALI_ENFORCE(ok, "lmdb::SeekLMDB to position " + to_string(current_index_) + " failed");
-      }
+      current_index_ = start_index(shard_id_, num_shards_, Size());
+    } else {
+      current_index_ = 0;
     }
+    Index file_index, local_index;
+    MapIndexToFile(current_index_, &file_index, &local_index);
+
+    bool ok = mdb_[file_index].SeekByIndex(local_index);
   }
   using Loader<CPUBackend, Tensor<CPUBackend>>::shard_id_;
   using Loader<CPUBackend, Tensor<CPUBackend>>::num_shards_;
 
-  MDB_env* mdb_env_ = nullptr;
-  MDB_cursor* mdb_cursor_ = nullptr;
-  MDB_dbi mdb_dbi_;
-  MDB_txn* mdb_transaction_ = nullptr;
-  size_t current_index_;
-  Index lmdb_size_;
+  std::vector<IndexedLMDB> mdb_;
 
-  // values
-  MDB_val key_, value_;
+  Index current_index_;
+
+  std::vector<Index> size_array_;
 
   // options
-  string db_path_;
+  std::vector<std::string> db_path_;
 };
 
 };  // namespace dali
