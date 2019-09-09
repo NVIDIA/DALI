@@ -62,7 +62,7 @@ class IndexedLMDB {
   }
   size_t GetSize() const { return mdb_size_; }
   Index GetIndex() const { return mdb_index_; }
-  bool SeekByIndex(Index index, MDB_val* key = 0, MDB_val* value = 0) {
+  void SeekByIndex(Index index, MDB_val* key = 0, MDB_val* value = 0) {
     MDB_val tmp_key, tmp_value;
     if (0 == key) {
       key = &tmp_key;
@@ -100,7 +100,6 @@ class IndexedLMDB {
       }
     }
     mdb_index_ = index;
-    return true;
   }
 
   bool Close() {
@@ -136,7 +135,7 @@ static int find_lower_bound(const std::vector<Index>& a, Index x) {
     }
   } while (low <= high);
 
-  DALI_ENFORCE(false, "size array is not in assending order.");
+  DALI_ENFORCE(false, "size array is not in ascending order.");
   return -1;
 }
 
@@ -221,7 +220,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     Index file_index, local_index;
     MapIndexToFile(current_index_, &file_index, &local_index);
 
-    bool ok = mdb_[file_index].SeekByIndex(local_index);
+    mdb_[file_index].SeekByIndex(local_index);
   }
   using Loader<CPUBackend, Tensor<CPUBackend>>::shard_id_;
   using Loader<CPUBackend, Tensor<CPUBackend>>::num_shards_;
