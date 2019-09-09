@@ -176,7 +176,7 @@ TEST(TensorLayout, VideoLayout) {
   EXPECT_FALSE(VideoLayoutInfo::IsStillImage("NFCHW"));
   EXPECT_TRUE(VideoLayoutInfo::IsChannelFirst("NFCHW"));
   EXPECT_FALSE(VideoLayoutInfo::IsChannelFirst("NFHWC"));
-  EXPECT_EQ(VideoLayoutInfo::FrameDim("NFCHW"), 1);
+  EXPECT_EQ(VideoLayoutInfo::FrameDimIndex("NFCHW"), 1);
   EXPECT_FALSE(VideoLayoutInfo::IsSequence("NDCHW"));
   EXPECT_TRUE(VideoLayoutInfo::IsStillImage("NDCHW"));
 }
