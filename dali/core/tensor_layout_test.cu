@@ -38,6 +38,23 @@ DEVICE_TEST(TensorLayout_Dev, Construction, 1, 1) {
     DEV_EXPECT_EQ(from_cstr.c_str()[i], "CHW"[i]);
 }
 
+DEVICE_TEST(TensorLayout_Dev, MaxLength, 1, 1) {
+  // copy to a local variable to prevent GTest from requiring
+  // external linkage on TensorLayout::max_ndim
+  constexpr int kMaxN = TensorLayout::max_ndim;
+  char buf[kMaxN + 1];
+  for (int i = 0; i < kMaxN; i++)
+    buf[i] = 'a' + i;
+  buf[kMaxN] = 0;
+
+  TensorLayout tl = buf;
+  DEV_EXPECT_EQ(tl.ndim(), kMaxN);
+
+  // include NULL terminator
+  for (int i = 0; i <= kMaxN; i++)
+    DEV_EXPECT_EQ(tl.c_str()[i], buf[i]);
+}
+
 DEVICE_TEST(TensorLayout_Dev, Equality, 1, 1) {
   DEV_EXPECT_TRUE(TensorLayout("NHWC") == TensorLayout("NHWC"));
   DEV_EXPECT_TRUE(TensorLayout("HWC") != TensorLayout("CHW"));

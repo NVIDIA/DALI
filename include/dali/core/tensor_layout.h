@@ -32,7 +32,7 @@ namespace dali {
 class TensorLayout {
  public:
   DALI_HOST_DEV
-  constexpr TensorLayout() {}
+  constexpr TensorLayout() { set_size(0); }
 
   /** @brief Constructs a TensorLayout from a C-style string */
   DALI_HOST_DEV
@@ -41,10 +41,11 @@ class TensorLayout {
     for (; str[i] && i < max_ndim; i++) {
       data_[i] = str[i];
     }
-    set_size(i);
-    for (; i <= max_ndim; i++) {
+    int n = i;
+    for (; i < max_ndim; i++) {
       data_[i] = 0;
     }
+    set_size(n);
   }
 
   /** @brief Constructs a TensorLayout from a C-style string of known length */
@@ -110,7 +111,7 @@ class TensorLayout {
 
   /** @brief Returns a layout without the dimension specified in dim_name */
   DALI_HOST_DEV
-  TensorLayout skip(char dim_name) const noexcept;
+  constexpr TensorLayout skip(char dim_name) const noexcept;
 
   /** @brief Provides a three-way comparison against another TensorLayout */
   DALI_HOST_DEV
@@ -216,7 +217,7 @@ class TensorLayout {
   }
 
   DALI_HOST_DEV
-  TensorLayout sub(int start_dim, int n = -1) const noexcept {
+  constexpr TensorLayout sub(int start_dim, int n = -1) const noexcept {
     assert(start_dim >= 0 && start_dim <= ndim());
     if (n < 0)
       n = ndim() - start_dim;
@@ -225,20 +226,26 @@ class TensorLayout {
   }
 
   DALI_HOST_DEV
-  TensorLayout first(int n) const noexcept {
+  constexpr TensorLayout first(int n) const noexcept {
     assert(n <= ndim());
     return TensorLayout(begin(), n);
   }
 
   DALI_HOST_DEV
-  TensorLayout last(int n) const noexcept {
+  constexpr TensorLayout last(int n) const noexcept {
     assert(n <= ndim());
     return TensorLayout(end() - n, n);
   }
 
   static constexpr int max_ndim = 15;
+
  private:
-  /** @brief Stores the dimension descriptions as a null-terminated string */
+  /** @brief Stores the dimension descriptions as a null-terminated string
+   *
+   * Last character in the string is aliased with max_ndim - length.
+   * If length == max_ndim, then 0 is stored and aliased as '\0' terminator,
+   * allowing 1 extra character to be stored.
+   */
   char data_[max_ndim + 1] = { 0 };
   DALI_HOST_DEV
   void set_size(int n) {
@@ -246,26 +253,31 @@ class TensorLayout {
     data_[max_ndim] = max_ndim - n;
   }
   DALI_HOST_DEV
-  friend TensorLayout operator+(const TensorLayout &a, const TensorLayout &b);
+  friend constexpr TensorLayout operator+(const TensorLayout &a, const TensorLayout &b);
 };
 
 static_assert(sizeof(TensorLayout) == 16, "Tensor layout size should be exactly 16B");
 
 DALI_HOST_DEV
-inline TensorLayout operator+(const TensorLayout &a, const TensorLayout &b) {
+constexpr TensorLayout operator+(const TensorLayout &a, const TensorLayout &b) {
   assert(a.size() + b.size() < TensorLayout::max_ndim);
   TensorLayout result = a;
-  int i, j;
+  int i = 0, j = 0;
   for (i = result.ndim(), j = 0; i < TensorLayout::max_ndim && j < b.ndim(); i++, j++)
     result[i] = b[j];
   result[i] = 0;
-  result.set_size(i);
+
+  /* Cannot use
+   *   result.set_size(i);
+   * because it's not constexpr
+   */
+  result.data_[TensorLayout::max_ndim] = TensorLayout::max_ndim - i;
   return result;
 }
 
 
 DALI_HOST_DEV
-TensorLayout TensorLayout::skip(char dim_name) const noexcept {
+constexpr TensorLayout TensorLayout::skip(char dim_name) const noexcept {
   int i = find(dim_name);
   if (i < 0)
     return *this;
@@ -298,7 +310,7 @@ DEFINE_TENSOR_LAYOUT_COMPARISON(!=)
 /** Provides basic functions for querying TensorLayout properties */
 struct LayoutInfo {
   DALI_HOST_DEV
-  static int HasSampleDim(const TensorLayout &tl) {
+  static bool HasSampleDim(const TensorLayout &tl) {
     // sample dim may only appear at outermost level
     return !tl.empty() && tl[0] == 'N';
   }
@@ -333,15 +345,15 @@ struct ImageLayoutInfo : LayoutInfo {
     return DimIndex(tl, 'C');
   }
   DALI_HOST_DEV
-  static int HasChannel(const TensorLayout &tl) {
+  static bool HasChannel(const TensorLayout &tl) {
     return ChannelDimIndex(tl) >= 0;
   }
   DALI_HOST_DEV
-  static int Is2D(const TensorLayout &tl) {
+  static bool Is2D(const TensorLayout &tl) {
     return NumSpatialDims(tl) == 2;
   }
   DALI_HOST_DEV
-  static int Is3D(const TensorLayout &tl) {
+  static bool Is3D(const TensorLayout &tl) {
     return NumSpatialDims(tl) == 3;
   }
   DALI_HOST_DEV
@@ -398,6 +410,30 @@ struct VideoLayoutInfo : ImageLayoutInfo {
   }
 };
 
+/** @brief Calculates mapping of dimensions from given output to input.
+ *
+ * Array element corresponding to given output dimensions is the index of that
+ * dimension in the input layout.
+ *
+ * Example:
+ * ```
+ * input_layout = "NHWC"
+ * output_layout = "NCHW"
+ * result = { 0, 3, 1, 2 }
+ * ```
+ * Explanation:
+ *   - 'N' appears at index 0 in both input_layout and output_layout.
+ *   - 'C' appears at index 3 in input
+ *   - 'H' appears at index 1 in input
+ *   - 'W' appears at index 2 in input
+ *
+ * If there are repetitions, the repeated names are listed in increasing order, e.g.
+ * ```
+ *  input_layout = "aaabb"
+ *  output_layout = "baaba"
+ *  result = { 3, 0, 1, 4, 2 }
+ * ```
+ */
 template <int Dims>
 inline std::array<int, Dims> permuted_dims(const TensorLayout &in_layout,
                                            const TensorLayout &out_layout) {
@@ -411,8 +447,24 @@ inline std::array<int, Dims> permuted_dims(const TensorLayout &in_layout,
 
   DALI_ENFORCE(in_layout.ndim() == Dims && out_layout.ndim() == Dims,
     "Unexpected number of dimensions in layout description");
-  for (int d = 0; d < Dims; d++) {
-    perm_dims[d] = in_layout.find(out_layout[d]);
+
+  const char *a = out_layout.data();
+  TensorLayout b = in_layout;
+
+  int min_j = 0;
+  for (int i = 0; i < Dims; i++) {
+    char c = a[i];
+    int j;
+    while (b[min_j] == 0 && min_j < Dims)
+      min_j++;
+    for (j = min_j; j < Dims; j++) {
+      if (b[j] == c)
+        break;
+    }
+    if (j == Dims)
+      DALI_FAIL("\"" + out_layout.str() + "\" is not a permutation of \"" + in_layout.str() + "\"");
+    b[j] = 0;  // mark as used
+    perm_dims[i] = j;
   }
 
   return perm_dims;

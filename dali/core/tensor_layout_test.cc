@@ -46,6 +46,20 @@ TEST(TensorLayout, Construction) {
   EXPECT_STREQ(from_str.c_str(), "asdfg");
 }
 
+TEST(TensorLayout, MaxLength) {
+  // copy to a local variable to prevent GTest from requiring
+  // external linkage on TensorLayout::max_ndim
+  constexpr int kMaxN = TensorLayout::max_ndim;
+  char buf[kMaxN + 1];
+  for (int i = 0; i < kMaxN; i++)
+    buf[i] = 'a' + i;
+  buf[kMaxN] = 0;
+
+  TensorLayout tl = buf;
+  EXPECT_EQ(tl.ndim(), kMaxN);
+  EXPECT_STREQ(tl.c_str(), buf);
+}
+
 TEST(TensorLayout, Equality) {
   EXPECT_TRUE(TensorLayout("NHWC") == TensorLayout("NHWC"));
   EXPECT_TRUE(TensorLayout("HWC") != TensorLayout("CHW"));
@@ -179,6 +193,47 @@ TEST(TensorLayout, VideoLayout) {
   EXPECT_EQ(VideoLayoutInfo::FrameDimIndex("NFCHW"), 1);
   EXPECT_FALSE(VideoLayoutInfo::IsSequence("NDCHW"));
   EXPECT_TRUE(VideoLayoutInfo::IsStillImage("NDCHW"));
+}
+
+TEST(TensorLayout, IsPermutationOf) {
+  EXPECT_TRUE(TensorLayout("asdfg").is_permutation_of("asdfg"));
+  EXPECT_TRUE(TensorLayout("asdfg").is_permutation_of("gfdsa"));
+  EXPECT_TRUE(TensorLayout("asdfa").is_permutation_of("aasdf"));
+  EXPECT_TRUE(TensorLayout("").is_permutation_of(""));
+  EXPECT_TRUE(TensorLayout("11211").is_permutation_of("21111"));
+  EXPECT_TRUE(TensorLayout("111122").is_permutation_of("211112"));
+  EXPECT_TRUE(TensorLayout("453162").is_permutation_of("123456"));
+  EXPECT_FALSE(TensorLayout("453162").is_permutation_of("12345"));
+  EXPECT_FALSE(TensorLayout("53162").is_permutation_of("123456"));
+  EXPECT_FALSE(TensorLayout("11122").is_permutation_of("1112"));
+  EXPECT_FALSE(TensorLayout("11122").is_permutation_of("1122"));
+  EXPECT_FALSE(TensorLayout("22111").is_permutation_of("1122"));
+  EXPECT_FALSE(TensorLayout("asdff").is_permutation_of("aasdf"));
+}
+
+TEST(TensorLayout, permuted_dims) {
+  {
+    auto perm = permuted_dims<4>("NHWC", "NCHW");
+    std::array<int, 4> ref{{ 0, 3, 1, 2 }};
+    EXPECT_EQ(perm, ref);
+
+    perm = permuted_dims<4>("NCHW", "NHWC");
+    ref = {{ 0, 2, 3, 1 }};
+    EXPECT_EQ(perm, ref);
+  }
+  {
+    auto perm = permuted_dims<5>("01234", "34201");
+    std::array<int, 5> ref{{ 3, 4, 2, 0, 1 }};
+    EXPECT_EQ(perm, ref);
+
+    perm = permuted_dims<5>("aabba", "baaba");
+    ref = {{ 2, 0, 1, 3, 4 }};
+    EXPECT_EQ(perm, ref);
+
+    perm = permuted_dims<5>("aaabb", "baaba");
+    ref = {{ 3, 0, 1, 4, 2 }};
+    EXPECT_EQ(perm, ref);
+  }
 }
 
 }  // namespace dali
