@@ -39,7 +39,7 @@ void DLManagedTensorDeleter(DLManagedTensor *self) {
 }
 
 void DLMTensorPtrDeleter(DLManagedTensor* dlm_tensor_ptr) {
-  if (dlm_tensor_ptr) {
+  if (dlm_tensor_ptr && dlm_tensor_ptr->deleter) {
     dlm_tensor_ptr->deleter(dlm_tensor_ptr);
   }
 }

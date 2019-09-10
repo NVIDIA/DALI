@@ -80,10 +80,10 @@ void CopyDlTensor(void *out_data, DLMTensorPtr &dlm_tensor_ptr) {
 }
 
 template <typename Backend>
-py::list PrepareInputs(workspace_t<Backend> &ws);
+py::list PrepareDLTensorInputs(workspace_t<Backend> &ws);
 
 template <typename Backend>
-void CopyOutputs(workspace_t<Backend> &ws, py::tuple &output);
+void CopyDLTensorOutputs(workspace_t<Backend> &ws, py::tuple &return_tuple);
 
 }  // namespace detail
 
@@ -103,13 +103,13 @@ class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
     py::gil_scoped_acquire interpreter_guard{};
     py::object output_o;
     try {
-      output_o = python_function(*py::tuple(detail::PrepareInputs<Backend>(ws)));
+      output_o = python_function(*py::tuple(detail::PrepareDLTensorInputs<Backend>(ws)));
     } catch(const py::error_already_set &e) {
       throw std::runtime_error(to_string("DLTensorPythonFunction error: ") + to_string(e.what()));
     }
     if (!output_o.is_none()) {
       py::tuple output = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
-      detail::CopyOutputs<Backend>(ws, output);
+      detail::CopyDLTensorOutputs<Backend>(ws, output);
     } else {
       DALI_ENFORCE(ws.NumOutput() == 0, "Python function returned 0 outputs and "
           + std::to_string(ws.NumOutput()) + " were expected.");

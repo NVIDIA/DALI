@@ -29,7 +29,7 @@ class CommonPipeline(Pipeline):
                                              exec_async=False, exec_pipelined=False)
         self.input = ops.FileReader(file_root=images_dir)
         self.decode = ops.ImageDecoder(device='cpu', output_type=types.RGB)
-        self.resize = ops.Resize(resize_x=3, resize_y=3)
+        self.resize = ops.Resize(resize_x=100, resize_y=50)
 
     def load(self):
         jpegs, labels = self.input()

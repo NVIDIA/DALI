@@ -32,7 +32,7 @@ DALI_SCHEMA(DLTensorPythonFunction)
 namespace detail {
 
 template <>
-py::list PrepareInputs<CPUBackend>(HostWorkspace &ws) {
+py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
   py::list input_tuple;
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
     py::list dl_tensor_list;
@@ -47,9 +47,9 @@ py::list PrepareInputs<CPUBackend>(HostWorkspace &ws) {
 }
 
 template <>
-void CopyOutputs<CPUBackend>(HostWorkspace &ws, py::tuple &output) {
+void CopyDLTensorOutputs<CPUBackend>(HostWorkspace &ws, py::tuple &return_tuple) {
   for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
-    py::list dl_list = py::cast<py::list>(output[idx]);
+    py::list dl_list = py::cast<py::list>(return_tuple[idx]);
     auto dl_tensors = CastToDLTensorList<CPUBackend>(dl_list, ws.NumOutputAtIdx(idx), idx);
     for (size_t i = 0; i < dl_tensors.size(); ++i) {
       auto &tout = ws.Output<CPUBackend>(idx, i);
