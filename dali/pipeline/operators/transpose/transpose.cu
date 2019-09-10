@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
 #include "dali/pipeline/operators/transpose/transpose.h"
 #include "dali/core/error_handling.h"
@@ -30,19 +31,57 @@ namespace dali {
   }                                                            \
 } while (0)
 
-using IntArr = std::unique_ptr<int[]>;
+namespace detail {
 
-std::pair<IntArr, IntArr>
-RowToColumnMajor(const int *dims, const int *perm, int rank) {
-  IntArr new_dims(new int[rank]);
-  IntArr new_perm(new int[rank]);
-
+void RowToColumnMajor(std::vector<int> &dims,
+                      std::vector<int> &perm) {
+  auto dims_copy = dims;
+  auto perm_copy = perm;
+  int rank = dims.size();
   for (int i = 0; i < rank; ++i) {
-    new_dims[i] = dims[rank - 1 - i];
-    new_perm[i] = rank - 1 - perm[rank - 1 - i];
+    dims[i] = dims_copy[rank - 1 - i];
+    perm[i] = rank - 1 - perm_copy[rank - 1 - i];
   }
-  return {std::move(new_dims), std::move(new_perm)};
 }
+
+void PrepareArguments(std::vector<int> &shape,
+                      std::vector<int> &perm,
+                      int batch_size = 1) {
+  DALI_ENFORCE(shape.size() == perm.size());
+  shape.insert(shape.begin(), batch_size);
+  perm.insert(perm.begin(), -1);
+
+  std::vector<int> idx(shape.size());
+  std::iota(idx.begin(), idx.end(), -1);
+
+  // cuTT does not handle dimensions with size 1 so we remove them
+  // (H, W, 1) is equivalent to (H, W)
+  auto it_shape = shape.begin();
+  auto it_perm = perm.begin();
+  auto it_idx = idx.begin();
+  while (it_shape != shape.end()) {
+    if (*it_shape == 1) {
+      it_shape = shape.erase(it_shape);
+      it_perm = perm.erase(it_perm);
+      it_idx = idx.erase(it_idx);
+    } else {
+      ++it_shape;
+      ++it_perm;
+      ++it_idx;
+    }
+  }
+
+  std::unordered_map<int, int> idx_map;
+  for (size_t i = 0; i < idx.size(); i++)
+    idx_map[idx[i]] = i;
+
+  for (auto &p : perm)
+    p = idx_map[p];
+
+  RowToColumnMajor(shape, perm);
+}
+
+}  // namespace detail
 
 namespace kernel {
 
@@ -55,22 +94,21 @@ void cuTTKernel(const TensorList<GPUBackend>& input,
   for (int i = 0; i < batch_size; ++i) {
     auto tmp = input.tensor_shape(i);
     std::vector<int> input_shape(tmp.begin(), tmp.end());
+    auto perm = permutation;
+    detail::PrepareArguments(input_shape, perm);
 
-    IntArr c_dims, c_perm;
-    std::tie(c_dims, c_perm) = RowToColumnMajor(input_shape.data(),
-                                                permutation.data(),
-                                                input_shape.size());
     const void* in = input.raw_tensor(0);
     void* out = output.raw_mutable_tensor(0);
     cuttHandle plan;
-    cuttCheck(cuttPlan(&plan, input_shape.size(), c_dims.get(), c_perm.get(), sizeof(T), stream));
+    cuttCheck(cuttPlan(&plan, input_shape.size(),
+                       input_shape.data(), perm.data(),
+                       sizeof(T), stream));
     cuttCheck(cuttExecute(plan, in, out));
     CUDA_CALL(cudaStreamSynchronize(stream));
     cuttCheck(cuttDestroy(plan));
   }
 }
 
-/* We insert an additional dim iff batch_size > 1 because cuTT require dim0 to be > 1 */
 template <typename T>
 void cuTTKernelBatched(const TensorList<GPUBackend>& input,
                        TensorList<GPUBackend>& output,
@@ -79,28 +117,16 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
                        cudaStream_t stream) {
   int batch_size = static_cast<int>(input.ntensor());
   auto tmp = input.tensor_shape(0);
-  std::vector<int> input_shape(tmp.begin(), tmp.end());
 
-  if (batch_size > 1) {
-    input_shape.insert(input_shape.begin(), batch_size);
-  }
-
-  std::vector<int> batched_perm(permutation.begin(), permutation.end());
-  if (batch_size > 1) {
-    std::for_each(batched_perm.begin(), batched_perm.end(), [](int& i) { i++; });
-    batched_perm.insert(batched_perm.begin(), 0);
-  }
-
-  IntArr c_dims, c_permutation;
-  std::tie(c_dims, c_permutation) = RowToColumnMajor(input_shape.data(),
-                                                     batched_perm.data(),
-                                                     input_shape.size());
+  std::vector<int> shape(tmp.begin(), tmp.end());
+  auto perm = permutation;
+  detail::PrepareArguments(shape, perm, batch_size);
 
   if (*plan == 0) {
     cuttCheck(cuttPlan(plan,
-                       batched_perm.size(),
-                       c_dims.get(),
-                       c_permutation.get(),
+                       perm.size(),
+                       shape.data(),
+                       perm.data(),
                        sizeof(T),
                        stream));
   }
