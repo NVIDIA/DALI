@@ -68,4 +68,35 @@ TEST_F(VideoReaderTest, ConstantFrameRate) {
   ASSERT_EQ(frames_shape[0][0], sequence_length);
 }
 
+TEST_F(VideoReaderTest, PackedBFrames) {
+  const int sequence_length = 5;
+  const int iterations = 10;
+  const int batch_size = 5;
+  Pipeline pipe(batch_size, 1, 0);
+
+  pipe.AddOperator(
+    OpSpec("VideoReader")
+    .AddArg("device", "gpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{testing::dali_extra_path() +
+      "/db/video/ucf101_test/packed_bframes_test.avi"})
+    .AddOutput("frames", "gpu"));
+
+  pipe.Build(this->Outputs());
+
+  DeviceWorkspace ws;
+  for (int i = 0; i < iterations; ++i) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+    const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+    const auto &frames_shape = frames_output.shape();
+
+    ASSERT_EQ(frames_shape.size(), batch_size);
+    ASSERT_EQ(frames_shape[0][0], sequence_length);
+  }
+}
+
 }  // namespace dali
