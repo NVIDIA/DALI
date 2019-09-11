@@ -165,67 +165,6 @@ TYPED_TEST(BrightnessContrastGpuTest, run_test) {
 }
 
 
-TYPED_TEST(BrightnessContrastGpuTest, roi_to_TensorListShape) {
-  using Rois = std::vector<Box<2, int>>;
-  constexpr int nchannels = 3;
-  Box<2, int> box1{0, 3};
-  Box<2, int> box2{{0, 2},
-                   {5, 6}};
-  Box<2, int> box3{{0, 0},
-                   {0, 0}};
-  Rois rois = {box1, box2, box3};
-
-  std::vector<TensorShape<-1>> ref = {{3, 3 * nchannels},
-                                      {4, 5 * nchannels},
-                                      {0, 0 * nchannels}};
-  auto shs = RoiToShape(rois, nchannels);
-  EXPECT_TRUE(shs == TensorListShape<-1>(ref));
-}
-
-
-TYPED_TEST(BrightnessContrastGpuTest, adjust_empty_rois) {
-  constexpr size_t ndims = 3;
-  std::vector<Roi<ndims - 1>> rois;
-
-  TensorListShape<ndims> tls({{2, 3, 4},
-                              {5, 6, 7}});
-  std::vector<Roi<ndims - 1>> ref = {
-          {{0, 0}, {3, 2}},
-          {{0, 0}, {6, 5}},
-  };
-  auto res = AdjustRois(rois, tls);
-  ASSERT_EQ(ref.size(), res.size());
-  for (size_t i = 0; i < ref.size(); i++) {
-    EXPECT_EQ(ref[i], res[i]);
-  }
-}
-
-
-TYPED_TEST(BrightnessContrastGpuTest, adjust_rois) {
-  constexpr size_t ndims = 3;
-
-  std::vector<Roi<ndims - 1>> rois = {
-          {{1, 2}, {3, 4}},
-          {{5, 6}, {7, 8}},
-          {0,      20}
-  };
-  std::vector<TensorShape<ndims>> ts = {{9,  10, 11},
-                                        {12, 13, 14},
-                                        {1,  1,  1}};
-  TensorListShape<ndims> tls = ts;
-  std::vector<Roi<ndims - 1>> ref = {
-          {{1, 2}, {3, 4}},
-          {{5, 6}, {7, 8}},
-          {0,      1}
-  };
-  auto res = AdjustRois(rois, tls);
-  ASSERT_EQ(ref.size(), res.size());
-  for (size_t i = 0; i < ref.size(); i++) {
-    EXPECT_EQ(ref[i], res[i]);
-  }
-}
-
-
 TYPED_TEST(BrightnessContrastGpuTest, sample_descriptors) {
   {
     InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);

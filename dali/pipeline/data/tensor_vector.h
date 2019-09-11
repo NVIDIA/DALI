@@ -216,9 +216,9 @@ class TensorVector {
   /**
    * @brief If the TensorVector is backed by TensorList (contiguous memory)
    */
-  bool IsContiguous() {
+  bool IsContiguous() const noexcept {
     // TODO(klecki): check the views_count as well?
-    return state_ == State::contiguous && views_count_ == size();
+    return state_ == State::contiguous && static_cast<size_t>(views_count_) == size();
   }
 
   /**
@@ -254,8 +254,8 @@ class TensorVector {
     if (!IsValidType(tl_->type())) return;
     if (!tl_->raw_data()) return;
 
+    views_count_ = tensors_.size();
     for (size_t i = 0; i < tensors_.size(); i++) {
-      views_count_ = tensors_.size();
       // TODO(klecki): deleter that reduces views_count or just noop sharing?
       // tensors_[i]->ShareData(tl_.get(), static_cast<int>(i));
       tensors_[i]->ShareData(

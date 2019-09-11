@@ -29,8 +29,8 @@ bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.OutputRef<GPUBackend>(0);
   std::size_t number_of_dims = input.shape().sample_dim();
-  DALI_TYPE_SWITCH_WITH_FP16_GPU(input_type_, InputType,
-    DALI_TYPE_SWITCH_WITH_FP16_GPU(output_type_, OutputType,
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
       VALUE_SWITCH(number_of_dims, Dims, (3, 4),
       (
         using Kernel = kernels::SliceFlipNormalizePermutePadGPU<OutputType, InputType, Dims>;
@@ -58,8 +58,8 @@ void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
 
   std::size_t number_of_dims = input.shape().sample_dim();
-  DALI_TYPE_SWITCH_WITH_FP16_GPU(input_type_, InputType,
-    DALI_TYPE_SWITCH_WITH_FP16_GPU(output_type_, OutputType,
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
       VALUE_SWITCH(number_of_dims, Dims, (3, 4),
       (
         using Kernel = kernels::SliceFlipNormalizePermutePadGPU<OutputType, InputType, Dims>;

@@ -22,6 +22,7 @@ import torch
 import mxnet
 import numpy as np
 import os
+from test_utils import get_dali_extra_path
 
 class COCOReaderPipeline(Pipeline):
     def __init__(self, data_paths, batch_size, num_threads, shard_id, num_gpus, random_shuffle, stick_to_shard, shuffle_after_epoch, pad_last_batch, initial_fill=1024):
@@ -36,7 +37,7 @@ class COCOReaderPipeline(Pipeline):
         images, bb, labels, ids = self.input(name="Reader")
         return ids
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
+test_data_root = get_dali_extra_path()
 coco_folder = os.path.join(test_data_root, 'db', 'coco')
 data_sets = [[os.path.join(coco_folder, 'images'), os.path.join(coco_folder, 'instances.json')]]
 

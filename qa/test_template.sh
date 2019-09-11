@@ -18,7 +18,7 @@ then
     return 0
 fi
 
-source $topdir/qa//setup_dali_extra.sh
+source $topdir/qa/setup_dali_extra.sh
 
 target_dir=${target_dir-./}
 cd ${target_dir}

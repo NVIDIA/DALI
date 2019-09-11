@@ -64,8 +64,8 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   std::size_t number_of_dims = input.shape().sample_dim();
-  DALI_TYPE_SWITCH_WITH_FP16_CPU(input_type_, InputType,
-    DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OutputType,
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
       VALUE_SWITCH(number_of_dims, Dims, (3, 4),
       (
         using Kernel = kernels::SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims>;
@@ -97,8 +97,8 @@ void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   auto sample_idx = data_idx;
   std::size_t number_of_dims = input.shape().sample_dim();
 
-  DALI_TYPE_SWITCH_WITH_FP16_CPU(input_type_, InputType,
-    DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OutputType,
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
       VALUE_SWITCH(number_of_dims, Dims, (3, 4),
       (
         using Kernel = kernels::SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims>;

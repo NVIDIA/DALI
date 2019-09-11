@@ -8,10 +8,11 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from random import shuffle
+from test_utils import get_dali_extra_path
 
 batch_size = 1
 sequence_length = 2
-dali_extra_path = os.environ['DALI_EXTRA_PATH']
+dali_extra_path = get_dali_extra_path()
 image_dir = os.path.join(dali_extra_path, "db", "optical_flow", "slow_preset", "two_frames")
 
 

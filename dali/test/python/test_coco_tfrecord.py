@@ -25,10 +25,9 @@ from nvidia.dali.pipeline import Pipeline
 
 import nvidia.dali.tfrecord as tfrec
 
-from test_utils import compare_pipelines
+from test_utils import compare_pipelines, get_dali_extra_path
 
-test_data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db', 'coco')
-
+test_data_path = os.path.join(get_dali_extra_path(), 'db', 'coco')
 
 def coco_anchors():
     anchors = []

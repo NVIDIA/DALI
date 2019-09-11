@@ -192,9 +192,9 @@ using SLICE_TEST_TYPES = ::testing::Types<
 >;
 
 using SLICE_TEST_TYPES_CPU_ONLY = ::testing::Types<
-    SliceTestArgs<int, float16_cpu, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
-    SliceTestArgs<float16_cpu, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
-    SliceTestArgs<float16_cpu, float16_cpu, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>
+    SliceTestArgs<int, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<float16, int, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>,
+    SliceTestArgs<float16, float16, 3, 1, 2, SliceArgsGenerator_WholeTensor<3>>
 >;
 
 }  // namespace kernels

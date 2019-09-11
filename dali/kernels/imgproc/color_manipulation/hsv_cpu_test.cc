@@ -161,21 +161,21 @@ TYPED_TEST(HsvCpuTest, RunTestWithRoi) {
 TYPED_TEST(HsvCpuTest, roi_shape) {
   {
     Box<2, int> box{0, 3};
-    auto sh = ::dali::kernels::hsv::roi_shape(box, 3);
+    auto sh = ::dali::kernels::ShapeFromRoi(box, 3);
     TensorShape<3> ref_sh = {3, 3, 3};
     ASSERT_EQ(ref_sh, sh);
   }
   {
     Box<2, int> box{{0, 2},
                     {5, 6}};
-    auto sh = ::dali::kernels::hsv::roi_shape(box, 666);
+    auto sh = ::dali::kernels::ShapeFromRoi(box, 666);
     TensorShape<3> ref_sh = {4, 5, 666};
     ASSERT_EQ(ref_sh, sh);
   }
   {
     Box<2, int> box{{0, 0},
                     {0, 0}};
-    auto sh = ::dali::kernels::hsv::roi_shape(box, 666);
+    auto sh = ::dali::kernels::ShapeFromRoi(box, 666);
     TensorShape<3> ref_sh = {0, 0, 666};
     ASSERT_EQ(ref_sh, sh);
   }

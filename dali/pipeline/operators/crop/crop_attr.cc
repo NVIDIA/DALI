@@ -24,7 +24,8 @@ DALI_SCHEMA(CropAttr)
         R"code(Size of the cropped image, specified as a pair `(crop_H, crop_W)`.
 If only a single value `c` is provided, the resulting crop will be square
 with size `(c,c)`. Providing `crop` argument is incompatible with providing separate
-arguments `crop_h` and `crop_w`.)code",
+arguments `crop_h` and `crop_w`. To specify 3-dimensional cropping windows, use `crop_h`,
+`crop_w`, `crop_d` instead)code",
         std::vector<float>{0.f, 0.f})
     .AddOptionalArg(
         "crop_pos_x",
@@ -41,15 +42,28 @@ where `crop_y_norm` is the normalized position, `H` is the height of the image
 and `crop_H` is the height of the cropping window.)code",
         0.5f, true)
     .AddOptionalArg(
+        "crop_pos_z",
+        R"code(**Volumetric inputs only** Normalized (0.0 - 1.0) normal position of the cropping window (front plane).
+Actual position is calculated as `crop_z = crop_z_norm * (D - crop_d)`,
+where `crop_z_norm` is the normalized position, `D` is the depth of the image
+and `crop_d` is the depth of the cropping window.)code",
+        0.5f, true)
+    .AddOptionalArg(
         "crop_w",
-        R"code(cropping window height (in pixels).
+        R"code(Cropping window width (in pixels).
 If provided, `crop_h` should be provided as well. Providing `crop_w`, `crop_h` is incompatible with
 providing fixed crop window dimensions (argument `crop`).)code",
         0.0f, true)
     .AddOptionalArg(
         "crop_h",
-        R"code(cropping window height (in pixels).
+        R"code(Cropping window height (in pixels).
 If provided, `crop_w` should be provided as well. Providing `crop_w`, `crop_h` is incompatible with
+providing fixed crop window dimensions (argument `crop`).)code",
+        0.0f, true)
+    .AddOptionalArg(
+        "crop_d",
+        R"code(**Volumetric inputs only** cropping window depth (in pixels).
+If provided, `crop_h` and `crop_w` should be provided as well. Providing `crop_w`, `crop_h`, `crop_d` is incompatible with
 providing fixed crop window dimensions (argument `crop`).)code",
         0.0f, true);
 

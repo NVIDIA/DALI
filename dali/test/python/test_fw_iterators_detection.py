@@ -20,9 +20,10 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
 from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+from test_utils import get_dali_extra_path
 
 
-DALI_EXTRA_PATH = os.environ['DALI_EXTRA_PATH']
+DALI_EXTRA_PATH = get_dali_extra_path()
 EPOCH_SIZE = 32
 BATCH_SIZE = 1
 

@@ -36,7 +36,7 @@ SOFTWARE.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
+#include <cstdlib>               // aligned_alloc
 #include <algorithm>
 #include <random>
 #include <cuda_runtime.h>
@@ -418,7 +418,11 @@ void countPackedGlTransactions0(const int warpSize, const int accWidth, const in
 #ifdef NO_ALIGNED_ALLOC
   int_vector* writeSegVolMmk = (int_vector *)aligned_malloc(volMmk*sizeof(int_vector), sizeof(int_vector));
 #else
+  #if !defined(__AARCH64_QNX__)
   int_vector* writeSegVolMmk = (int_vector *)aligned_alloc(sizeof(int_vector), volMmk*sizeof(int_vector));
+  #else
+  int_vector* writeSegVolMmk = (int_vector *)memalign(sizeof(int_vector), volMmk*sizeof(int_vector));
+  #endif
 #endif
 
   const int accWidthShift = ilog2(accWidth);
