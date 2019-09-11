@@ -16,7 +16,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <unordered_map>
 
 #include "dali/pipeline/operators/transpose/transpose.h"
 #include "dali/core/error_handling.h"
@@ -33,26 +32,28 @@ namespace dali {
 
 namespace detail {
 
-void RowToColumnMajor(std::vector<int> &dims,
-                      std::vector<int> &perm) {
-  auto dims_copy = dims;
-  auto perm_copy = perm;
-  int rank = dims.size();
-  for (int i = 0; i < rank; ++i) {
-    dims[i] = dims_copy[rank - 1 - i];
-    perm[i] = rank - 1 - perm_copy[rank - 1 - i];
-  }
+void RowToColumnMajor(int *dims,
+                      int *perm,
+                      size_t len) {
+  std::reverse(dims, dims + len);
+  std::reverse(perm, perm + len);
+  for (size_t i = 0; i < len; ++i)
+    perm[i] = len - 1 - perm[i];
 }
 
-void PrepareArguments(std::vector<int> &shape,
-                      std::vector<int> &perm,
-                      int batch_size = 1) {
-  DALI_ENFORCE(shape.size() == perm.size());
-  shape.insert(shape.begin(), batch_size);
-  perm.insert(perm.begin(), -1);
+// enough to represent batches of 4D
+using VecInt = SmallVector<int, 5>;
 
-  std::vector<int> idx(shape.size());
-  std::iota(idx.begin(), idx.end(), -1);
+void PrepareArguments(VecInt &shape,
+                      VecInt &perm) {
+  DALI_ENFORCE(shape.size() == perm.size());
+
+  VecInt idx;
+  idx.resize(shape.size());
+  std::iota(idx.begin(), idx.end(), 0);
+
+  detail::VecInt idx_map;
+  idx_map.resize(idx.size());
 
   // cuTT does not handle dimensions with size 1 so we remove them
   // (H, W, 1) is equivalent to (H, W)
@@ -71,14 +72,13 @@ void PrepareArguments(std::vector<int> &shape,
     }
   }
 
-  std::unordered_map<int, int> idx_map;
   for (size_t i = 0; i < idx.size(); i++)
     idx_map[idx[i]] = i;
 
   for (auto &p : perm)
     p = idx_map[p];
 
-  RowToColumnMajor(shape, perm);
+  RowToColumnMajor(shape.data(), perm.data(), shape.size());
 }
 
 }  // namespace detail
@@ -92,17 +92,25 @@ void cuTTKernel(const TensorList<GPUBackend>& input,
                 cudaStream_t stream) {
   int batch_size = static_cast<int>(input.ntensor());
   for (int i = 0; i < batch_size; ++i) {
-    auto tmp = input.tensor_shape(i);
-    std::vector<int> input_shape(tmp.begin(), tmp.end());
-    auto perm = permutation;
-    detail::PrepareArguments(input_shape, perm);
+    detail::VecInt shape;
+    for (auto s : input.tensor_shape(i))
+      shape.push_back(s);
+
+    detail::VecInt perm;
+    for (auto p : permutation)
+      perm.push_back(p);
+
+    detail::PrepareArguments(shape, perm);
 
     const void* in = input.raw_tensor(0);
     void* out = output.raw_mutable_tensor(0);
     cuttHandle plan;
-    cuttCheck(cuttPlan(&plan, input_shape.size(),
-                       input_shape.data(), perm.data(),
-                       sizeof(T), stream));
+    cuttCheck(cuttPlan(&plan,
+                       shape.size(),
+                       shape.data(),
+                       perm.data(),
+                       sizeof(T),
+                       stream));
     cuttCheck(cuttExecute(plan, in, out));
     CUDA_CALL(cudaStreamSynchronize(stream));
     cuttCheck(cuttDestroy(plan));
@@ -116,15 +124,21 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
                        cuttHandle* plan,
                        cudaStream_t stream) {
   int batch_size = static_cast<int>(input.ntensor());
-  auto tmp = input.tensor_shape(0);
+  detail::VecInt shape;
+  shape.push_back(batch_size);
+  for (auto &s : input.tensor_shape(0))
+    shape.push_back(s);
 
-  std::vector<int> shape(tmp.begin(), tmp.end());
-  auto perm = permutation;
-  detail::PrepareArguments(shape, perm, batch_size);
+  detail::VecInt perm;
+  perm.push_back(0);
+  for (auto p : permutation)
+    perm.push_back(p+1);
+
+  detail::PrepareArguments(shape, perm);
 
   if (*plan == 0) {
     cuttCheck(cuttPlan(plan,
-                       perm.size(),
+                       shape.size(),
                        shape.data(),
                        perm.data(),
                        sizeof(T),
