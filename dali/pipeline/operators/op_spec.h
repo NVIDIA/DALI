@@ -42,7 +42,13 @@ class DLL_PUBLIC OpSpec {
  public:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
-  using StrPair = std::pair<string, string>;
+  struct InOutDeviceDesc {
+    std::string name;
+    std::string device;
+    bool operator<(const InOutDeviceDesc &other) const {
+      return std::make_pair(name, device) < std::make_pair(other.name, other.device);
+    }
+  };
 
   DLL_PUBLIC inline OpSpec() {}
 
@@ -170,17 +176,17 @@ class DLL_PUBLIC OpSpec {
 
   DLL_PUBLIC inline string Input(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
-    return TensorName(inputs_[idx].first, inputs_[idx].second);
+    return TensorName(inputs_[idx].name, inputs_[idx].device);
   }
 
   DLL_PUBLIC inline string InputName(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
-    return inputs_[idx].first;
+    return inputs_[idx].name;
   }
 
   DLL_PUBLIC inline string InputDevice(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
-    return inputs_[idx].second;
+    return inputs_[idx].device;
   }
 
   DLL_PUBLIC inline bool IsArgumentInput(int idx) const {
@@ -203,17 +209,17 @@ class DLL_PUBLIC OpSpec {
 
   DLL_PUBLIC inline string Output(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
-    return TensorName(outputs_[idx].first, outputs_[idx].second);
+    return TensorName(outputs_[idx].name, outputs_[idx].device);
   }
 
   DLL_PUBLIC inline string OutputName(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
-    return outputs_[idx].first;
+    return outputs_[idx].name;
   }
 
   DLL_PUBLIC inline string OutputDevice(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
-    return outputs_[idx].second;
+    return outputs_[idx].device;
   }
 
   DLL_PUBLIC inline const std::unordered_map<string, Index>& ArgumentInputs() const {
@@ -225,7 +231,7 @@ class DLL_PUBLIC OpSpec {
   }
 
   DLL_PUBLIC inline int OutputIdxForName(const string &name, const string &device) {
-    auto it = output_name_idx_.find(std::make_pair(name, device));
+    auto it = output_name_idx_.find({name, device});
     DALI_ENFORCE(it != output_name_idx_.end(), "Output with name '" +
         name + "' and device '" + device + "' does not exist.");
     return it->second;
@@ -314,12 +320,12 @@ class DLL_PUBLIC OpSpec {
     return *this;
   }
 
-  DLL_PUBLIC inline StrPair& MutableInput(int idx) {
+  DLL_PUBLIC inline InOutDeviceDesc& MutableInput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     return inputs_[idx];
   }
 
-  DLL_PUBLIC inline StrPair& MutableOutput(int idx) {
+  DLL_PUBLIC inline InOutDeviceDesc& MutableOutput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx];
   }
@@ -369,8 +375,8 @@ class DLL_PUBLIC OpSpec {
   std::unordered_map<string, Index> argument_inputs_;
   std::set<Index> argument_inputs_indexes_;
 
-  std::map<StrPair, int> output_name_idx_;
-  vector<StrPair> inputs_, outputs_;
+  std::map<InOutDeviceDesc, int> output_name_idx_;
+  vector<InOutDeviceDesc> inputs_, outputs_;
 };
 
 template <typename T, typename S>
