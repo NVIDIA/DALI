@@ -240,20 +240,30 @@ def test_crop_no_cast_vs_cast_to_float_and_back():
             yield check_crop_no_cast_vs_cast_to_float_and_back, device, batch_size
 
 class Crop3dPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, num_threads=1, device_id=0):
+    def __init__(self, device, batch_size, iterator, data_shape, data_layout, num_threads=1, device_id=0):
         super(Crop3dPipeline, self).__init__(batch_size,
                                              num_threads,
                                              device_id)
         self.device = device
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
+        self.data_shape = data_shape
+        self.data_layout = data_layout
+
+        if self.data_layout == types.NDHWC:
+            D, H, W = self.data_shape[0], self.data_shape[1], self.data_shape[2]
+        elif self.data_layout == types.NCDHW:
+            D, H, W = self.data_shape[1], self.data_shape[2], self.data_shape[3]
+        else:
+            assert(False)
+
         self.crop = ops.Crop(device = self.device,
                              crop_pos_z = 0.1,
                              crop_pos_y = 0.2,
                              crop_pos_x = 0.3,
-                             crop_d = 220,
-                             crop_h = 222,
-                             crop_w = 224,
+                             crop_d = D * 0.91,
+                             crop_h = H * 0.85,
+                             crop_w = W * 0.75,
                              image_type = types.RGB)
 
     def define_graph(self):
@@ -264,10 +274,10 @@ class Crop3dPipeline(Pipeline):
 
     def iter_setup(self):
         data = self.iterator.next()
-        self.feed_input(self.data, data, layout=types.NDHWC)
+        self.feed_input(self.data, data, layout=self.data_layout)
 
 class Crop3dPythonOpPipeline(Pipeline):
-    def __init__(self, function, batch_size, iterator, num_threads=1, device_id=0):
+    def __init__(self, function, batch_size, iterator, data_shape, data_layout, num_threads=1, device_id=0):
         super(Crop3dPythonOpPipeline, self).__init__(batch_size,
                                                      num_threads,
                                                      device_id,
@@ -275,7 +285,13 @@ class Crop3dPythonOpPipeline(Pipeline):
                                                      exec_pipelined=False)
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.crop = ops.PythonFunction(function=function)
+        self.data_shape = data_shape
+        self.data_layout = data_layout
+
+        def crop_func(image):
+            return function(image, layout=self.data_layout, shape=self.data_shape)
+
+        self.crop = ops.PythonFunction(function=crop_func)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -284,17 +300,25 @@ class Crop3dPythonOpPipeline(Pipeline):
 
     def iter_setup(self):
         data = self.iterator.next()
-        self.feed_input(self.data, data, layout=types.NDHWC)
+        self.feed_input(self.data, data, layout=self.data_layout)
 
-def crop_3d_func(image, layout = types.NDHWC, crop_z = 0.1, crop_y = 0.2, crop_x = 0.3, crop_d = 220, crop_h = 222, crop_w = 224):
+def crop_3d_func(image, layout, shape, crop_anchor=(0.1, 0.2, 0.3), crop_shape=(0.91, 0.85, 0.75)):
     assert len(image.shape) == 4
-    D = image.shape[0]
-    H = image.shape[1]
-    W = image.shape[2]
+    assert len(crop_anchor) == 3
+    assert len(crop_shape) == 3
 
+    if layout == types.NDHWC:
+        D, H, W = image.shape[0], image.shape[1], image.shape[2]
+    elif layout == types.NCDHW:
+        D, H, W = image.shape[1], image.shape[2], image.shape[3]
+    else:
+        assert(False)
+
+    crop_d, crop_h, crop_w = int(crop_shape[0]*D), int(crop_shape[1]*H), int(crop_shape[2]*W),
     assert D >= crop_d
     assert H >= crop_h
     assert W >= crop_w
+    crop_z, crop_y, crop_x = crop_anchor[0], crop_anchor[1], crop_anchor[2]
 
     start_z = int(np.float32(0.5) + np.float32(crop_z) * np.float32(D - crop_d))
     end_z = start_z + crop_d
@@ -302,22 +326,29 @@ def crop_3d_func(image, layout = types.NDHWC, crop_z = 0.1, crop_y = 0.2, crop_x
     end_y = start_y + crop_h
     start_x = int(np.float32(0.5) + np.float32(crop_x) * np.float32(W - crop_w))
     end_x = start_x + crop_w
+
     if layout == types.NDHWC:
         return image[start_z:end_z, start_y:end_y, start_x:end_x, :]
     elif layout == types.NCDHW:
         return image[:, start_z:end_z, start_y:end_y, start_x:end_x]
     else:
-        assert(True)
+        assert(False)
 
 def check_crop_3d_vs_python_op_crop(device, batch_size, layout, shape):
-    eii1 = RandomDataIterator(batch_size, shape=(303, 302, 301, 3))
-    eii2 = RandomDataIterator(batch_size, shape=(303, 302, 301, 3))
-    compare_pipelines(Crop3dPipeline(device, batch_size, iter(eii1)),
-                      Crop3dPythonOpPipeline(crop_3d_func, batch_size, iter(eii2)),
+    eii1 = RandomDataIterator(batch_size, shape=shape)
+    eii2 = RandomDataIterator(batch_size, shape=shape)
+    compare_pipelines(Crop3dPipeline(device, batch_size, iter(eii1), data_shape=shape, data_layout=layout),
+                      Crop3dPythonOpPipeline(crop_3d_func, batch_size, iter(eii2), data_shape=shape, data_layout=layout),
                       batch_size=batch_size, N_iterations=3)
 
 def test_crop_3d_vs_python_op_crop():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
-            for layout, shape in {(types.NDHWC, (303, 302, 301, 3)), (types.NCDHW, (3, 303, 302, 301))}:
+            for layout, shape in {(types.NDHWC, (300, 100, 10, 3)),
+                                  (types.NDHWC, (100, 300, 10, 1)),
+                                  (types.NDHWC, (10, 30, 300, 1)),
+                                  (types.NDHWC, (20, 50, 60, 8)),
+                                  (types.NCDHW, (3, 300, 100, 10)),
+                                  (types.NCDHW, (3, 300, 10, 100)),
+                                  (types.NCDHW, (8, 30, 10, 50))}:
                yield check_crop_3d_vs_python_op_crop, device, batch_size, layout, shape
