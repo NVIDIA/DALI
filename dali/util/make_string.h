@@ -21,14 +21,14 @@ namespace dali {
 
 namespace detail {
 
-template <class T>
-void print_delim(std::ostream &os, const std::string &delimiter, const T &val) {
+template <class Delimiter, class T>
+void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val) {
   os << val;
 }
 
 
-template <class T, class... Args>
-void print_delim(std::ostream &os, const std::string &delimiter, const T &val,
+template <class Delimiter, class T, class... Args>
+void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val,
                  const Args &... args) {
   os << val << delimiter;
   print_delim(os, delimiter, args...);
@@ -47,10 +47,10 @@ void print_delim(std::ostream &os, const std::string &delimiter, const T &val,
  * @param delimiter String, which will separate arguments in the final string
  * @return Concatenated std::string
 */
-template <class... Args>
-std::string make_string_delim(const std::string &delimiter, const Args &... args) {
+template <class Delimiter, class... Args>
+std::string make_string_delim(const Delimiter &delimiter, Args &&... args) {
   std::stringstream ss;
-  detail::print_delim(ss, delimiter, args...);
+  detail::print_delim(ss, delimiter, std::forward<Args>(args)...);
   return ss.str();
 }
 
@@ -58,8 +58,8 @@ std::string make_string_delim(const std::string &delimiter, const Args &... args
 /**
  * In case there are no Args to operate on, return empty string.
  */
-template <>
-std::string make_string_delim(const std::string &delimiter) {
+template <class Delimiter, class... Args>
+std::string make_string_delim(const Delimiter &delimiter) {
   return {};
 }
 
