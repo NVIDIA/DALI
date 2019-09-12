@@ -68,7 +68,7 @@ bool stream_cmp(const std::ostream &lhs, const std::ostream &rhs) {
 
 }  // namespace
 
-TEST(PrintTest, multiple_arguments) {
+TEST(PrintDelimTest, multiple_arguments) {
   std::stringstream ref_ss, in_ss;
   ref_ss << "a" << "," << "b";
   print_delim(in_ss, ",", "a", "b");
@@ -76,7 +76,7 @@ TEST(PrintTest, multiple_arguments) {
 }
 
 
-TEST(PrintTest, one_argument) {
+TEST(PrintDelimTest, one_argument) {
   std::stringstream ref_ss, in_ss;
   ref_ss << "a";
   print_delim(in_ss, ",", "a");
@@ -84,7 +84,7 @@ TEST(PrintTest, one_argument) {
 }
 
 
-TEST(PrintTest, only_delimiter) {
+TEST(PrintDelimTest, only_delimiter) {
   std::stringstream ref_ss, in_ss;
   print_delim(in_ss, ",");
   ASSERT_PRED2(stream_cmp, ref_ss, in_ss);
