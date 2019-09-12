@@ -674,7 +674,7 @@ PYBIND11_MODULE(backend_impl, m) {
               list.append(&ws.Output<GPUBackend>(i));
             }
           }
-          return list;
+          return py::cast<py::tuple>(list);
         }, py::return_value_policy::take_ownership)
     .def("ShareOutputs",
         [](Pipeline *p) {
@@ -689,7 +689,7 @@ PYBIND11_MODULE(backend_impl, m) {
               list.append(&ws.Output<GPUBackend>(i));
             }
           }
-          return list;
+          return py::cast<py::tuple>(list);
         }, py::return_value_policy::take_ownership)
     .def("ReleaseOutputs",
         [](Pipeline *p) {
