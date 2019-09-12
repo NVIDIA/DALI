@@ -25,6 +25,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/util.h"
+#include "dali/core/span.h"
 #include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
@@ -83,6 +84,17 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename T>
   inline void Copy(const vector<T> &data, cudaStream_t stream) {
+    this->template mutable_data<T>();
+    this->Resize({(Index)data.size()});
+    type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
+        data.data(), this->size(), stream);
+  }
+
+  /**
+   * Loads the Tensor with data from a span.
+   */
+  template <typename T>
+  inline void Copy(const span<T> &data, cudaStream_t stream) {
     this->template mutable_data<T>();
     this->Resize({(Index)data.size()});
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
