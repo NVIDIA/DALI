@@ -22,17 +22,16 @@ namespace dali {
 namespace detail {
 
 template <class T>
-std::string make_string_delim(const std::string &delimiter, std::stringstream &ss, const T &val) {
-  ss << val;
-  return ss.str();
+void print_delim(std::ostream &os, const std::string &delimiter, const T &val) {
+  os << val;
 }
 
 
 template <class T, class... Args>
-std::string make_string_delim(const std::string &delimiter, std::stringstream &ss, const T &val,
-                              const Args &... args) {
-  ss << val << delimiter;
-  return make_string_delim(delimiter, ss, args...);
+void print_delim(std::ostream &os, const std::string &delimiter, const T &val,
+                 const Args &... args) {
+  os << val << delimiter;
+  print_delim(os, delimiter, args...);
 }
 
 }  // namespace detail
@@ -51,7 +50,17 @@ std::string make_string_delim(const std::string &delimiter, std::stringstream &s
 template <class... Args>
 std::string make_string_delim(const std::string &delimiter, const Args &... args) {
   std::stringstream ss;
-  return detail::make_string_delim(delimiter, ss, args...);
+  detail::print_delim(ss, delimiter, args...);
+  return ss.str();
+}
+
+
+/**
+ * In case there are no Args to operate on, return empty string.
+ */
+template <>
+std::string make_string_delim(const std::string &delimiter) {
+  return {};
 }
 
 

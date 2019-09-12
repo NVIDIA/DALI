@@ -24,8 +24,28 @@ TEST(MakeStringTest, default_delimiter) {
 }
 
 TEST(MakeStringTest, custom_delimiter) {
-  auto str = make_string_delim("]:->", "jeden", 2, 3);
-  ASSERT_EQ(str, "jeden]:->2]:->3");
+  auto str = make_string_delim("a custom delimiter", "jeden", 2, 3);
+  ASSERT_EQ(str, "jedena custom delimiter2a custom delimiter3");
+}
+
+TEST(MakeStringTest, no_arguments) {
+  auto str = make_string();
+  ASSERT_EQ(str, "");
+}
+
+TEST(MakeStringTest, one_argument) {
+  auto str = make_string("d[-_-]b");
+  ASSERT_EQ(str, "d[-_-]b");
+}
+
+TEST(MakeStringTest, only_delimiter) {
+  auto str = make_string_delim(">.<");
+  ASSERT_EQ(str, "");
+}
+
+TEST(MakeStringTest, delimiter_and_one_argument) {
+  auto str = make_string_delim("it really doesn't matter what's in here", "( . Y . )");
+  ASSERT_EQ(str, "( . Y . )");
 }
 
 
