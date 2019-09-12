@@ -15,22 +15,32 @@
 #ifndef DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
 #define DALI_PIPELINE_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_
 
+#include <dali/util/pybind.h>
 #include <pybind11/embed.h>
-
 #include <vector>
-
-#include "dali/util/pybind.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
+extern std::mutex operator_lock;
+
 template <typename Backend>
-class PythonFunctionImpl : public Operator<Backend> {
+class PythonFunctionImplBase : public Operator<Backend> {
+ public:
+  explicit PythonFunctionImplBase(const OpSpec &spec)
+  : Operator<Backend>(spec)
+  , python_function(py::reinterpret_borrow<py::object>(
+      reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {}
+
+ protected:
+  py::object python_function;
+};
+
+template <typename Backend>
+class PythonFunctionImpl : public PythonFunctionImplBase<Backend> {
  public:
   inline explicit PythonFunctionImpl(const OpSpec &spec)
-    : Operator<Backend>(spec)
-    , python_function(py::reinterpret_borrow<py::object>(
-        reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {}
+    : PythonFunctionImplBase<Backend>(spec) {}
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
@@ -41,8 +51,6 @@ class PythonFunctionImpl : public Operator<Backend> {
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
-
-  py::object python_function;
 };
 
 }  // namespace dali
