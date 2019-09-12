@@ -72,7 +72,7 @@ inline void CopyWithStrideHelper(void *output, const void *input,
 
 inline Index DeepestContiguous(const Index *in_strides,
                                const Index *shape,
-                               Index ndim,
+                               int ndim,
                                size_t item_size) {
   ssize_t dim_prod = 1;
   for (int i = ndim-1; i >= 0; --i) {
@@ -88,12 +88,16 @@ template <>
 void CopyWithStride<CPUBackend>(void *output, const void *input,
                     const Index *in_strides,
                     const Index *shape,
-                    Index ndim,
+                    int ndim,
                     size_t item_size) {
   assert(ndim > 0);
+  if (!in_strides) {
+    std::memcpy(output, input, item_size * volume(shape, shape + ndim));
+    return;
+  }
   std::vector<Index> out_strides(ndim);
   out_strides.back() = item_size;
-  for (Index i = ndim - 2; i >= 0; --i) {
+  for (int i = ndim - 2; i >= 0; --i) {
     out_strides[i] = out_strides[i + 1] * shape[i + 1];
   }
   auto deepest_contiguous = DeepestContiguous(in_strides, shape, ndim, item_size);

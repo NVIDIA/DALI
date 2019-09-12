@@ -166,7 +166,7 @@ static void DLTensorCapsuleDestructor(PyObject *capsule) {
 }
 
 // Steal a DLPack Tensor from the passed pointer and wrap it into Python capsule.
-static py::capsule CapsuleDLTensor(DLMTensorPtr dl_tensor) {
+static py::capsule DLTensorToCapsule(DLMTensorPtr dl_tensor) {
   auto caps = py::capsule(dl_tensor.release(), DLTENSOR_NAME, &DLTensorCapsuleDestructor);
   return caps;
 }
@@ -174,7 +174,7 @@ static py::capsule CapsuleDLTensor(DLMTensorPtr dl_tensor) {
 template <typename Backend>
 py::capsule TensorToDLPackView(Tensor<Backend> &tensor) {
   DLMTensorPtr dl_tensor = GetDLTensorView(tensor);
-  return CapsuleDLTensor(std::move(dl_tensor));
+  return DLTensorToCapsule(std::move(dl_tensor));
 }
 
 template <typename Backend>
@@ -182,7 +182,7 @@ py::list TensorListToDLPackView(TensorList<Backend> &tensors) {
   py::list result;
   auto dl_tensors = GetDLTensorListView(tensors);
   for (DLMTensorPtr &dl_tensor : dl_tensors) {
-    result.append(CapsuleDLTensor(std::move(dl_tensor)));
+    result.append(DLTensorToCapsule(std::move(dl_tensor)));
   }
   return result;
 }

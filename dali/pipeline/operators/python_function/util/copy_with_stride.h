@@ -25,7 +25,7 @@ template <typename Backend>
 DLL_PUBLIC void CopyWithStride(void *output, const void *input,
                                const Index *in_strides,
                                const Index *shape,
-                               Index ndim,
+                               int ndim,
                                size_t item_size);
 
 }

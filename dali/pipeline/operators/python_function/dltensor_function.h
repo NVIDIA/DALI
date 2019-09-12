@@ -50,33 +50,36 @@ std::vector<DLMTensorPtr> CastToDLTensorList(py::list &list, Index exp_size, Ind
     DALI_ENFORCE(result[0]->dl_tensor.ctx.device_type == Backend2DLDevice<Backend>(),
         "Wrong output backend");
     auto dtype = result[0]->dl_tensor.dtype;
+    auto ndim = result[0]->dl_tensor.ndim;
     for (Index i = 1; i < exp_size; ++i) {
       auto caps = py::cast<py::capsule>(list[i]);
       result.push_back(DLMTensorPtrFromCapsule(caps));
       DALI_ENFORCE(result[i]->dl_tensor.ctx.device_type == Backend2DLDevice<Backend>(),
                    "Wrong output backend.");
       DALI_ENFORCE(DLToDALIType(result[i]->dl_tensor.dtype) == DLToDALIType(dtype),
-          "Output DLPack tensor list should have consistent data type.");
+                   "Output DLPack tensor list should have consistent data type.");
+      DALI_ENFORCE(result[i]->dl_tensor.ndim == ndim,
+                   "All samples in the batch should have the same number of dimensions.");
     }
   }
   return result;
 }
 
+kernels::TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr> &dl_tensors);
+
 template <typename Backend>
 void CopyDlTensor(void *out_data, DLMTensorPtr &dlm_tensor_ptr) {
   auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
   auto item_size = dl_tensor.dtype.bits / 8;
-  std::vector<Index> strides(dl_tensor.ndim);
   if (dl_tensor.strides) {
+    std::vector<Index> strides(dl_tensor.ndim);
     for (Index i = 0; i < dl_tensor.ndim; ++i) strides[i] = dl_tensor.strides[i] * item_size;
+    CopyWithStride<Backend>(out_data, dl_tensor.data, strides.data(),
+                            dl_tensor.shape, dl_tensor.ndim, item_size);
   } else {
-    strides.back() = item_size;
-    for (Index i = dl_tensor.ndim - 2; i >= 0; --i) {
-      strides[i] = strides[i + 1] * dl_tensor.shape[i + 1];
-    }
+    CopyWithStride<Backend>(out_data, dl_tensor.data, nullptr,
+                            dl_tensor.shape, dl_tensor.ndim, item_size);
   }
-  CopyWithStride<Backend>(out_data, dl_tensor.data, strides.data(),
-                          dl_tensor.shape, dl_tensor.ndim, item_size);
 }
 
 template <typename Backend>

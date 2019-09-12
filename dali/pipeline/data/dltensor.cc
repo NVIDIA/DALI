@@ -76,11 +76,15 @@ DALIDataType DLToDALIType(const DLDataType &dl_type) {
     case kDLUInt: {
       switch (dl_type.bits) {
         case 8: return DALI_UINT8;
+        case 16: return DALI_UINT16;
+        case 32: return DALI_UINT32;
+        case 64: return DALI_UINT64;
       }
       break;
     }
     case kDLInt: {
       switch (dl_type.bits) {
+        case 8: return DALI_INT8;
         case 16: return DALI_INT16;
         case 32: return DALI_INT32;
         case 64: return DALI_INT64;

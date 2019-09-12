@@ -46,18 +46,34 @@ py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
   return input_tuple;
 }
 
+kernels::TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>& dl_tensors) {
+  kernels::TensorListShape<> list_shape{};
+  list_shape.resize(dl_tensors.size(), dl_tensors[0]->dl_tensor.ndim);
+  for (size_t i = 0; i < dl_tensors.size(); ++i) {
+    auto &dl_tensor = dl_tensors[i]->dl_tensor;
+    kernels::TensorShape<> shape(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim);
+    list_shape.set_tensor_shape(i, shape);
+  }
+  return list_shape;
+}
+
 template <>
 void CopyDLTensorOutputs<CPUBackend>(HostWorkspace &ws, py::tuple &return_tuple) {
   for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
     py::list dl_list = py::cast<py::list>(return_tuple[idx]);
     auto dl_tensors = CastToDLTensorList<CPUBackend>(dl_list, ws.NumOutputAtIdx(idx), idx);
-    for (size_t i = 0; i < dl_tensors.size(); ++i) {
-      auto &tout = ws.Output<CPUBackend>(idx, i);
-      auto &dl_tensor = dl_tensors[i]->dl_tensor;
-      tout.set_type(TypeTable::GetTypeInfo(DLToDALIType(dl_tensor.dtype)));
-      tout.Resize(kernels::TensorShape<>(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim));
-      CopyDlTensor<CPUBackend>(ws.Output<CPUBackend>(idx, i).raw_mutable_data(), dl_tensors[i]);
+    if (dl_tensors.empty()) continue;
+    auto &tvec = ws.OutputRef<CPUBackend>(idx);
+    tvec.set_type(TypeTable::GetTypeInfo(DLToDALIType(dl_tensors[0]->dl_tensor.dtype)));
+    tvec.Resize(GetDLTensorListShape(dl_tensors));
+    auto &thread_pool = ws.GetThreadPool();
+    const auto batch_size = dl_tensors.size();
+    for (size_t i = 0; i < batch_size; ++i) {
+      thread_pool.DoWorkWithID([&, i](int) {
+        CopyDlTensor<CPUBackend>(tvec[i].raw_mutable_data(), dl_tensors[i]);
+      });
     }
+    thread_pool.WaitForWork();
   }
 }
 
