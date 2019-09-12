@@ -445,7 +445,36 @@ inline T OpSpec::GetArgumentImpl(
   // Search for the argument in tensor arguments first
   if (this->HasTensorArgument(name)) {
     DALI_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");
-    const auto& value = ws->ArgumentInput(name);
+    const auto &value = ws->ArgumentInput(name);
+    DALI_ENFORCE(kernels::is_uniform(value.shape()),
+                 "Arguments should be passed as uniform TensorLists. Argument \"" + name +
+                     "\" is not uniform.");
+    auto check_shape = [](const auto &shape, int batch_size, const std::string &name) {
+      if (shape.num_samples() == 1) {
+        // TODO(klecki): 1 sample version will be of no use after the switch to CPU ops unless we
+        // generalize accepted batch sizes throughout the pipeline
+        DALI_ENFORCE(
+            shape[0] == kernels::TensorShape<>(batch_size),
+            "Unexpected shape of argument \"" + name +
+                "\". If only one tensor is passed, it should have a shape equal to {" +
+                std::to_string(batch_size) +
+                "}.  When accessing arguments as scalars 1 tensor of shape {" +
+                std::to_string(batch_size) + "} or " + std::to_string(batch_size) +
+                " tensors of shape {1} are expected. To access argument inputs where samples are "
+                "not scalars use ArgumentWorkspace::ArgumentInput method directly.");
+      } else {
+        DALI_ENFORCE(
+            shape.num_samples() == batch_size && shape.sample_dim() == 1 && shape[0][0] == 1,
+            "Unexpected shape of argument \"" + name + "\". Expected batch of " +
+                std::to_string(batch_size) + " tensors of shape {1}, got " +
+                std::to_string(shape.num_samples()) + " samples of " +
+                std::to_string(shape.sample_dim()) +
+                "-dim tensors. Alternatively 1 tensor of shape {" + std::to_string(batch_size) +
+                "} can be passed. To access argument inputs where samples are not scalars "
+                "use ArgumentWorkspace::ArgumentInput method directly.");
+      }
+    };
+    check_shape(value.shape(), GetArgument<int>("batch_size"), name);
     DALI_ENFORCE(IsType<T>(value.type()),
         "Unexpected type of argument \"" + name + "\". Expected " +
         TypeTable::GetTypeName<T>() + " and got " + value.type().name());
@@ -474,6 +503,9 @@ inline bool OpSpec::TryGetArgumentImpl(
     if (ws == nullptr)
       return false;
     const auto& value = ws->ArgumentInput(name);
+    if (value.shape() != kernels::uniform_list_shape(GetArgument<int>("batch_size"), {1})) {
+      return false;
+    }
     if (!IsType<T>(value.type()))
       return false;
     result = value.template data<T>()[idx];

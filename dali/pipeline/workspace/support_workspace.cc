@@ -17,12 +17,12 @@
 namespace dali {
 
 template <>
-const Tensor<CPUBackend>& SupportWorkspace::Input(int idx) const {
+const TensorList<CPUBackend>& SupportWorkspace::Input(int idx) const {
   return *CPUInput(idx);
 }
 
 template <>
-Tensor<CPUBackend>& SupportWorkspace::Output(int idx) {
+TensorList<CPUBackend>& SupportWorkspace::Output(int idx) {
   return *CPUOutput(idx);
 }
 
