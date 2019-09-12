@@ -48,5 +48,39 @@ TEST(MakeStringTest, delimiter_and_one_argument) {
   ASSERT_EQ(str, "( . Y . )");
 }
 
+namespace {
+
+std::string get_string(const std::ostream &os)
+{
+  std::stringstream ss;
+  ss << os.rdbuf();
+  return ss.str();
+}
+
+bool stream_cmp(const std::ostream &lhs, const std::ostream&rhs) {
+  return get_string(lhs) == get_string(rhs);
+}
+
+}  // namespace
+
+TEST(PrintTest, multiple_arguments) {
+  std::stringstream ref_ss, in_ss;
+  ref_ss<<"a"<<","<<"b";
+  print_delim(in_ss, ",", "a", "b");
+  ASSERT_PRED2(stream_cmp, ref_ss, in_ss);
+}
+
+TEST(PrintTest, one_argument) {
+  std::stringstream ref_ss, in_ss;
+  ref_ss<<"a";
+  print_delim(in_ss, ",", "a");
+  ASSERT_PRED2(stream_cmp, ref_ss, in_ss);
+}
+
+TEST(PrintTest, only_delimiter) {
+  std::stringstream ref_ss, in_ss;
+  print_delim(in_ss, ",");
+  ASSERT_PRED2(stream_cmp, ref_ss, in_ss);
+}
 
 }  // namespace dali

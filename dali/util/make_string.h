@@ -19,22 +19,27 @@
 
 namespace dali {
 
-namespace detail {
-
-template <class Delimiter, class T>
-void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val) {
-  os << val;
+template<class Delimiter>
+void print_delim(std::ostream&os, const Delimiter &delimiter) {
+  // No-op
 }
 
 
+template <class Delimiter, class T>
+void print_delim(std::ostream &os, const Delimiter &delimiter, const T& val) {
+  os << val;
+}
+
+/**
+ * Populates stream with given arguments, as long as they have
+ * `operator<<` defined for stream operation.
+ */
 template <class Delimiter, class T, class... Args>
 void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val,
                  const Args &... args) {
   os << val << delimiter;
   print_delim(os, delimiter, args...);
 }
-
-}  // namespace detail
 
 
 /**
@@ -48,9 +53,9 @@ void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val,
  * @return Concatenated std::string
 */
 template <class Delimiter, class... Args>
-std::string make_string_delim(const Delimiter &delimiter, Args &&... args) {
+std::string make_string_delim(const Delimiter &delimiter, const Args &... args) {
   std::stringstream ss;
-  detail::print_delim(ss, delimiter, std::forward<Args>(args)...);
+  print_delim(ss, delimiter, args...);
   return ss.str();
 }
 
@@ -58,7 +63,7 @@ std::string make_string_delim(const Delimiter &delimiter, Args &&... args) {
 /**
  * In case there are no Args to operate on, return empty string.
  */
-template <class Delimiter, class... Args>
+template <class Delimiter>
 std::string make_string_delim(const Delimiter &delimiter) {
   return {};
 }
