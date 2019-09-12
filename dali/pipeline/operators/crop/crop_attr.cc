@@ -21,11 +21,9 @@ DALI_SCHEMA(CropAttr)
     .DocStr(R"code(Crops attributes placeholder)code")
     .AddOptionalArg(
         "crop",
-        R"code(Size of the cropped image, specified as a pair `(crop_H, crop_W)`.
-If only a single value `c` is provided, the resulting crop will be square
-with size `(c,c)`. Providing `crop` argument is incompatible with providing separate
-arguments `crop_h` and `crop_w`. To specify 3-dimensional cropping windows, use `crop_h`,
-`crop_w`, `crop_d` instead)code",
+        R"code(Shape of the cropped image, specified as a list of value (e.g. `(crop_H, crop_W)` for
+2D crop, `(crop_D, crop_H, crop_W)` for volumetric crop). Providing `crop` argument is incompatible
+with providing separate arguments `crop_d`, `crop_h` and `crop_w`.)code",
         std::vector<float>{0.f, 0.f})
     .AddOptionalArg(
         "crop_pos_x",
