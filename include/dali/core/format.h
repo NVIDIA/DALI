@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.#ifndef DALI_MAKE_STRING_H
 
-#ifndef DALI_UTIL_MAKE_STRING_H_
-#define DALI_UTIL_MAKE_STRING_H_
+#ifndef DALI_CORE_FORMAT_H_
+#define DALI_CORE_FORMAT_H_
 
 #include <string>
 
@@ -80,4 +80,4 @@ std::string make_string(const Args &... args) {
 
 }  // namespace dali
 
-#endif  // DALI_UTIL_MAKE_STRING_H_
+#endif  // DALI_CORE_FORMAT_H_
