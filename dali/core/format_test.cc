@@ -13,8 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/core/geom/vec.h"
-#include "dali/util/make_string.h"
+#include "dali/core/format.h"
 
 namespace dali {
 
