@@ -67,6 +67,19 @@ else()
 endif()
 
 ##################################################################
+# libtiff
+##################################################################
+if (BUILD_LIBTIFF)
+  find_package(TIFF REQUIRED)
+  include_directories(${TIFF_INCLUDE_DIR})
+  message("Using libtiff at ${TIFF_LIBRARY}")
+  list(APPEND DALI_LIBS ${TIFF_LIBRARY})
+  add_definitions(-DDALI_USE_LIBTIFF)
+else()
+  message(STATUS "Building WITHOUT libtiff")
+endif()
+
+##################################################################
 # PyBind
 ##################################################################
 if (BUILD_PYTHON)
