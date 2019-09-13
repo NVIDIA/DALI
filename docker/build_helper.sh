@@ -52,9 +52,9 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=. -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
       -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN} \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
       -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA}
-if [ "${WERROR}" = "ON" ]; then
-    make -j lint
-fi
+# if [ "${WERROR}" = "ON" ]; then
+#     make -j lint
+# fi
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
 if [ "${BUILD_PYTHON}" = "ON" ]; then \

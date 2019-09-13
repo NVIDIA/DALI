@@ -205,7 +205,7 @@ if [ "$BUILD_TF_PLUGIN" = "YES" ]; then
         --build-arg "GIT_SHA=${GIT_SHA}" \
         --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
         .
-    nvidia-docker run --name ${DALI_TF_BUILDER_CONTAINER} ${BUILDER_DALI_TF}
+    docker run --gpus all --name ${DALI_TF_BUILDER_CONTAINER} ${BUILDER_DALI_TF}
 
     docker cp "${DALI_TF_BUILDER_CONTAINER}:/dali_tf_sdist/." "./wheelhouse"
 
