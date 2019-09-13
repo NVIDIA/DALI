@@ -28,6 +28,8 @@ static_assert(
 TEST(TensorLayout, Construction) {
   TensorLayout empty;
   EXPECT_EQ(empty.ndim(), 0);
+  EXPECT_EQ(empty.str(), string());
+  EXPECT_STREQ(empty.c_str(), "");
 
   TensorLayout from_literal = "NHWC";
   EXPECT_EQ(from_literal.ndim(), 4);
@@ -209,6 +211,8 @@ TEST(TensorLayout, IsPermutationOf) {
   EXPECT_FALSE(TensorLayout("11122").is_permutation_of("1122"));
   EXPECT_FALSE(TensorLayout("22111").is_permutation_of("1122"));
   EXPECT_FALSE(TensorLayout("asdff").is_permutation_of("aasdf"));
+  EXPECT_FALSE(TensorLayout("asdff").is_permutation_of(""));
+  EXPECT_FALSE(TensorLayout("").is_permutation_of("asdfdsa"));
 }
 
 TEST(TensorLayout, permuted_dims) {
@@ -233,6 +237,9 @@ TEST(TensorLayout, permuted_dims) {
     perm = permuted_dims<5>("aaabb", "baaba");
     ref = {{ 3, 0, 1, 4, 2 }};
     EXPECT_EQ(perm, ref);
+  }
+  {
+    EXPECT_THROW(permuted_dims<1>("@", "#"), DALIException);
   }
 }
 

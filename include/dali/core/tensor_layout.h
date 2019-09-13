@@ -48,7 +48,12 @@ class TensorLayout {
     set_size(n);
   }
 
-  /** @brief Constructs a TensorLayout from a C-style string of known length */
+  /** @brief Constructs a TensorLayout from a C-style string of known length.
+   *
+   * @param str - pointer to the beginning of the string; it shall not contain '\0' except as
+   *              an optional null terminator
+   * @param n   - number of characters in str
+   */
   DALI_HOST_DEV
   constexpr TensorLayout(const char *str, size_t n) {  // NOLINT
     assert(n < sizeof(data_));
@@ -56,11 +61,15 @@ class TensorLayout {
       n = sizeof(data_) - 1;
     for (size_t i = 0; i < n; i++)
       data_[i] = str[i];
-    data_[n] = 0;
+    data_[n] = '\0';
     set_size(n);
   }
 
-  /** @brief Constructs a TensorLayout from a char array of known length, e.g. a string literal */
+  /** @brief Constructs a TensorLayout from a char array of known length, e.g. a string literal
+   *
+   * Converts a character array or a string literal to a TensorLayout. If the literal contains
+   * null characters in the middle, the result is undefined.
+   */
   template <size_t N>
   DALI_HOST_DEV
   constexpr TensorLayout(const char (&s)[N])  // NOLINT
@@ -94,9 +103,10 @@ class TensorLayout {
   /** @brief Copies the contents to std::string */
   std::string str() const { return c_str(); }
 
+  /** @brief Searches for the first occurrence of dim_name, starting at index start */
   DALI_HOST_DEV
-  constexpr int find(char dim_name) const noexcept {
-    for (int i = 0; i < ndim(); i++) {
+  constexpr int find(char dim_name, int start = 0) const noexcept {
+    for (int i = start; i < ndim(); i++) {
       if (data_[i] == dim_name)
         return i;
     }
@@ -189,6 +199,11 @@ class TensorLayout {
 
   using iterator = char*;
   using const_iterator = const char*;
+  using value_type = char;
+  using pointer = char*;
+  using const_pointer = char*;
+  using reference = char &;
+  using const_reference = const char &;
 
   DALI_HOST_DEV
   constexpr iterator begin() noexcept               { return data_; }
@@ -265,7 +280,7 @@ constexpr TensorLayout operator+(const TensorLayout &a, const TensorLayout &b) {
   int i = 0, j = 0;
   for (i = result.ndim(), j = 0; i < TensorLayout::max_ndim && j < b.ndim(); i++, j++)
     result[i] = b[j];
-  result[i] = 0;
+  result[i] = '\0';
 
   /* Cannot use
    *   result.set_size(i);
@@ -463,7 +478,7 @@ inline std::array<int, Dims> permuted_dims(const TensorLayout &in_layout,
     }
     if (j == Dims)
       DALI_FAIL("\"" + out_layout.str() + "\" is not a permutation of \"" + in_layout.str() + "\"");
-    b[j] = 0;  // mark as used
+    b[j] = '\0';  // mark as used
     perm_dims[i] = j;
   }
 

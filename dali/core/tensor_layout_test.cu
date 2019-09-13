@@ -25,6 +25,7 @@ __device__ DeviceString dev_to_string(const TensorLayout &tl) {
 DEVICE_TEST(TensorLayout_Dev, Construction, 1, 1) {
   TensorLayout empty;
   DEV_EXPECT_EQ(empty.ndim(), 0);
+  DEV_EXPECT_EQ(empty.c_str()[0], 0);
 
   TensorLayout from_literal = "NHWC";
   DEV_EXPECT_EQ(from_literal.ndim(), 4);
