@@ -19,22 +19,23 @@
 
 namespace dali {
 
-template<class Delimiter>
-void print_delim(std::ostream&os, const Delimiter &delimiter) {
+template <typename Delimiter>
+void print_delim(std::ostream &os, const Delimiter &delimiter) {
   // No-op
 }
 
 
-template <class Delimiter, class T>
-void print_delim(std::ostream &os, const Delimiter &delimiter, const T& val) {
+template <typename Delimiter, typename T>
+void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val) {
   os << val;
 }
 
+
 /**
- * Populates stream with given arguments, as long as they have
- * `operator<<` defined for stream operation.
+ * @brief Populates stream with given arguments, as long as they have
+ * `operator<<` defined for stream operation
  */
-template <class Delimiter, class T, class... Args>
+template <typename Delimiter, typename T, typename... Args>
 void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val,
                  const Args &... args) {
   os << val << delimiter;
@@ -46,13 +47,12 @@ void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val,
  * Creates std::string from arguments, as long as every element has `operator<<`
  * defined for stream operation.
  *
- * If there's no `operator<<`, compiler will fire an error, saying:
- * " no match for ‘operator<<’ (operand types are ‘std::stringstream’ and ‘<your-type-here>’) "
+ * If there's no `operator<<`, compiler will fire an error
  *
  * @param delimiter String, which will separate arguments in the final string
  * @return Concatenated std::string
 */
-template <class Delimiter, class... Args>
+template <typename Delimiter, typename... Args>
 std::string make_string_delim(const Delimiter &delimiter, const Args &... args) {
   std::stringstream ss;
   print_delim(ss, delimiter, args...);
@@ -61,17 +61,16 @@ std::string make_string_delim(const Delimiter &delimiter, const Args &... args) 
 
 
 /**
- * In case there are no Args to operate on, return empty string.
+ * This overload handles the edge case when no arguments are given and returns an empty string
  */
-template <class Delimiter>
-std::string make_string_delim(const Delimiter &delimiter) {
+template <typename Delimiter>
+std::string make_string_delim(const Delimiter &) {
   return {};
 }
 
 
 /**
- * Convenient version of @see make_string_delim, which takes a whitespace (' ')
- * as a delimiter.
+ * @brief Prints args to a string, seperated by spaces
  */
 template <class... Args>
 std::string make_string(const Args &... args) {
