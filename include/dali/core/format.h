@@ -72,7 +72,7 @@ std::string make_string_delim(const Delimiter &) {
 /**
  * @brief Prints args to a string, seperated by spaces
  */
-template <class... Args>
+template <typename... Args>
 std::string make_string(const Args &... args) {
   return make_string_delim(" ", args...);
 }
