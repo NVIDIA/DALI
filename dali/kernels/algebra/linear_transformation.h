@@ -21,7 +21,6 @@
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/surface.h"
 #include "dali/kernels/imgproc/roi.h"
-#include "dali/kernels/imgproc/color_manipulation/color_common.h"
 
 namespace dali {
 namespace kernels {

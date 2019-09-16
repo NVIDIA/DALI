@@ -14,10 +14,11 @@
 
 project(kernels)
 
-add_subdirectory(test)
+add_subdirectory(algebra)
 add_subdirectory(common)
 add_subdirectory(imgproc)
 add_subdirectory(slice)
+add_subdirectory(test)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
