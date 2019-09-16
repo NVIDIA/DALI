@@ -205,37 +205,40 @@ unsigned daliGetNumOutput(daliPipelineHandle* pipe_handle) {
 
 template <typename T>
 static void daliCopyTensorListNToHelper(dali::DeviceWorkspace* ws, void* dst, int n,
-                                        device_type_t dst_type, cudaStream_t stream) {
-  dali::CopyToExternalTensor(&(ws->Output<T>(n)), dst, (dali::device_type_t)dst_type, stream);
+                                        device_type_t dst_type, cudaStream_t stream,
+                                        bool non_blocking) {
+  dali::CopyToExternalTensor(&(ws->Output<T>(n)), dst, (dali::device_type_t)dst_type, stream,
+                             non_blocking);
 }
 
 void daliCopyTensorListNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
-                           device_type_t dst_type, cudaStream_t stream) {
+                           device_type_t dst_type, cudaStream_t stream, bool non_blocking) {
   dali::TimeRange tr("daliCopyTensorNTo", dali::TimeRange::kGreen);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    daliCopyTensorListNToHelper<dali::CPUBackend>(ws, dst, n, dst_type, stream);
+    daliCopyTensorListNToHelper<dali::CPUBackend>(ws, dst, n, dst_type, stream, non_blocking);
   } else {
-    daliCopyTensorListNToHelper<dali::GPUBackend>(ws, dst, n, dst_type, stream);
+    daliCopyTensorListNToHelper<dali::GPUBackend>(ws, dst, n, dst_type, stream, non_blocking);
   }
 }
 
 template <typename T>
 static void daliCopyTensorNToHelper(dali::DeviceWorkspace* ws, void* dst, int n,
-                                    device_type_t dst_type, cudaStream_t stream) {
+                                    device_type_t dst_type, cudaStream_t stream,
+                                    bool non_blocking) {
   dali::Tensor<T> t;
   t.ShareData(&(ws->Output<T>(n)));
-  dali::CopyToExternalTensor(t, dst, (dali::device_type_t)dst_type, stream);
+  dali::CopyToExternalTensor(t, dst, (dali::device_type_t)dst_type, stream, non_blocking);
 }
 
 void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n, device_type_t dst_type,
-                       cudaStream_t stream) {
+                       cudaStream_t stream, bool non_blocking) {
   dali::TimeRange tr("daliCopyTensorNTo", dali::TimeRange::kGreen);
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
-    daliCopyTensorNToHelper<dali::CPUBackend>(ws, dst, n, dst_type, stream);
+    daliCopyTensorNToHelper<dali::CPUBackend>(ws, dst, n, dst_type, stream, non_blocking);
   } else {
-    daliCopyTensorNToHelper<dali::GPUBackend>(ws, dst, n, dst_type, stream);
+    daliCopyTensorNToHelper<dali::GPUBackend>(ws, dst, n, dst_type, stream, non_blocking);
   }
 }
 
