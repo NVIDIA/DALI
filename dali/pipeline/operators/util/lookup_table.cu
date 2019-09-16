@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/util/lookup_table.h"
+#include <limits>
 #include "dali/core/span.h"
 #include "dali/core/convert.h"
 
@@ -20,7 +21,7 @@ namespace dali {
 
 namespace detail {
 
-constexpr auto kMaxKey = LookupTable<GPUBackend>::kLookupTableSize - 1;
+constexpr auto kMaxKey = LookupTable<GPUBackend>::kMaxKey;
 
 template <typename OutputType, typename InputType>
 __global__ void
@@ -29,6 +30,7 @@ LookupValuesImpl(OutputType *output,
                  size_t data_size,
                  const OutputType* lookup_table,
                  const OutputType default_value) {
+  // We do not check the key range when the type range is smaller than the supported range
   constexpr bool check_range =
        !std::is_same<InputType, uint8_t>::value
     && !std::is_same<InputType, uint16_t>::value;
@@ -64,7 +66,7 @@ void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       auto *out_data = output.mutable_data<OutputType>();
       const auto *in_data = input.data<InputType>();
 
-      OutputType *tensor_lut_cpu = reinterpret_cast<OutputType*>(value_mem_.get());
+      OutputType *tensor_lut_cpu = static_cast<OutputType*>(value_mem_.get());
       lookup_table_gpu.Copy(make_span(tensor_lut_cpu, kLookupTableSize), stream);
       const OutputType *lookup_table = lookup_table_gpu.data<OutputType>();
       OutputType default_value = ConvertSat<OutputType>(default_value_f_);

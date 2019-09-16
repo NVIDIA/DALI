@@ -18,6 +18,7 @@
 #include <limits>
 #include <memory>
 #include <algorithm>
+#include <functional>
 #include <vector>
 #include "dali/pipeline/operators/operator.h"
 #include "dali/core/static_switch.h"
@@ -26,10 +27,20 @@
 
 namespace dali {
 
+namespace detail {
+
+template <typename T>
+void value_mem_deleter(void *ptr) {
+  delete [] static_cast<T*>(ptr);
+}
+
+}  // namespace detail
+
 template <typename Backend>
 class LookupTable : public Operator<Backend> {
  public:
   static constexpr size_t kLookupTableSize = 0x10000;
+  static constexpr size_t kMaxKey = kLookupTableSize - 1;
 
   explicit inline LookupTable(const OpSpec &spec)
     : Operator<Backend>(spec)
@@ -42,8 +53,8 @@ class LookupTable : public Operator<Backend> {
       keys = spec.GetRepeatedArgument<int>("keys");
       min_key = *std::min_element(keys.begin(), keys.end());
       max_key = *std::max_element(keys.begin(), keys.end());
-      DALI_ENFORCE(min_key >= 0 && max_key <= static_cast<int>(kLookupTableSize),
-        "`keys` should be in the range [0, " + std::to_string(kLookupTableSize) + "]");
+      DALI_ENFORCE(min_key >= 0 && max_key <= static_cast<int>(kMaxKey),
+        "`keys` should be in the range [0, " + std::to_string(kMaxKey) + "]");
     }
     if (spec.HasArgument("values")) {
       values_f = spec.GetRepeatedArgument<float>("values");
@@ -52,8 +63,8 @@ class LookupTable : public Operator<Backend> {
       "`keys` size should match `values` size");
 
     TYPE_SWITCH(output_type_, dali::type2id, OutputType, (float, uint8_t, int16_t, int32_t), (
-        value_mem_.reset(new uint8_t[kLookupTableSize * sizeof(OutputType)]);
-        OutputType *values = reinterpret_cast<OutputType*>(value_mem_.get());
+        value_mem_ = {new OutputType[kLookupTableSize], detail::value_mem_deleter<OutputType>};
+        OutputType *values = static_cast<OutputType*>(value_mem_.get());
         for (size_t i = 0; i < kLookupTableSize; i++) {
           values[i] = ConvertSat<OutputType>(default_value_f_);
         }
@@ -65,7 +76,7 @@ class LookupTable : public Operator<Backend> {
     );                                           // NOLINT
   }
 
-  inline ~LookupTable() override = default;
+  ~LookupTable() override = default;
   DISABLE_COPY_MOVE_ASSIGN(LookupTable);
 
  protected:
@@ -83,7 +94,7 @@ class LookupTable : public Operator<Backend> {
  private:
   DALIDataType input_type_, output_type_;
   float default_value_f_ = 0.0f;
-  std::unique_ptr<uint8_t[]> value_mem_;
+  std::unique_ptr<void, void(*)(void*)> value_mem_ = {nullptr, free};
   USE_OPERATOR_MEMBERS();
 };
 

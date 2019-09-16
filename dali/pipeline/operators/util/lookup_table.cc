@@ -16,8 +16,6 @@
 
 namespace dali {
 
-constexpr auto kMaxKey = LookupTable<CPUBackend>::kLookupTableSize - 1;
-
 template<>
 void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
@@ -25,6 +23,7 @@ void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   auto data_size = input.size();
   TYPE_SWITCH(input.type().id(), dali::type2id, InputType, (uint8_t, int16_t, int32_t, uint64_t), (
     TYPE_SWITCH(output_type_, dali::type2id, OutputType, (float, uint8_t, int16_t, int32_t), (
+      // We do not check the key range when the type range is smaller than the supported range
       constexpr bool check_range =
           !std::is_same<InputType, uint8_t>::value
        && !std::is_same<InputType, uint16_t>::value;
@@ -33,7 +32,7 @@ void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
       auto *out_data = output.mutable_data<OutputType>();
       const auto *in_data = input.data<InputType>();
       OutputType default_value = ConvertSat<OutputType>(default_value_f_);
-      OutputType* lookup_table = reinterpret_cast<OutputType*>(value_mem_.get());
+      OutputType* lookup_table = static_cast<OutputType*>(value_mem_.get());
       for (int i = 0; i < data_size; i++) {
         InputType key = in_data[i];
         if (check_range) {
@@ -51,7 +50,31 @@ DALI_REGISTER_OPERATOR(LookupTable, LookupTable<CPUBackend>, CPU);
 
 DALI_SCHEMA(LookupTable)
   .DocStr(R"code(Maps input to output by using a lookup table specified by `keys` and `values`
-and a `default_value` for non specified keys)code")
+and a `default_value` for non specified keys.
+
+`keys` and `values` are used to define the lookup table:
+```
+   keys[] =   {0,     2,   3,   4,   5,    3}
+   values[] = {0.2, 0.4, 0.5, 0.6, 0.7, 0.10}
+   default_value = 0.99
+```
+yielding
+```
+   lut[] = {0.2, 0.99, 0.4, 0.10, 0.6, 0.7}  // only last occurrence of a key is considered
+```
+producing the output according to the formula
+```
+   Output[i] = lut[Input[i]]   if 0 <= Input[i] <= len(lut)
+   Output[i] = default_value   otherwise
+```
+  Example:
+  Input[] =  {1,      4,    1,   0,  100,   2,     3,   4}
+  Output[] = {0.99, 0.6, 0.99, 0.2, 0.99, 0.4,  0.10, 0.6}
+```
+
+Note: Only integer types can be used as input to this operator
+
+)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("output_dtype",
@@ -61,9 +84,10 @@ and a `default_value` for non specified keys)code")
     R"code(Default output value for keys not present in the table.)code",
     0.0f)
   .AddOptionalArg("keys",
-    R"code(input values (keys) present in the lookup table.
-Length of `keys` and `values` argument should match.
-`keys` should be in the range [0, 65535])code",
+    "input values (keys) present in the lookup table."
+    " Length of `keys` and `values` argument should match."
+    "`keys` should be in the range [0, " +
+    std::to_string(LookupTable<CPUBackend>::kMaxKey) + "].",
     std::vector<int>{})
   .AddOptionalArg("values",
     R"code(mapped output values for each `keys` entry.
