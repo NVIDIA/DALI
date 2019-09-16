@@ -46,6 +46,17 @@ py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
   return input_tuple;
 }
 
+template <>
+py::list PrepareDLTensorInputs<GPUBackend>(DeviceWorkspace &ws) {
+  py::list input_tuple;
+  for (Index idx = 0; idx < ws.NumInput(); ++idx) {
+    auto &tlist = ws.InputRef<GPUBackend>(idx);
+    py::list dl_tensor_list = TensorListToDLPackView(tlist);
+    input_tuple.append(dl_tensor_list);
+  }
+  return input_tuple;
+}
+
 kernels::TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>& dl_tensors) {
   kernels::TensorListShape<> list_shape{};
   list_shape.resize(dl_tensors.size(), dl_tensors[0]->dl_tensor.ndim);
@@ -58,17 +69,16 @@ kernels::TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>&
 }
 
 template <>
-void CopyDLTensorOutputs<CPUBackend>(HostWorkspace &ws, py::tuple &return_tuple) {
+void CopyDLTensorOutputs<CPUBackend>(HostWorkspace &ws, py::tuple &return_tuple, int batch_size) {
   for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
     py::list dl_list = py::cast<py::list>(return_tuple[idx]);
-    auto dl_tensors = CastToDLTensorList<CPUBackend>(dl_list, ws.NumOutputAtIdx(idx), idx);
+    auto dl_tensors = CastToDLTensorList<CPUBackend>(dl_list, batch_size, idx);
     if (dl_tensors.empty()) continue;
     auto &tvec = ws.OutputRef<CPUBackend>(idx);
     tvec.set_type(TypeTable::GetTypeInfo(DLToDALIType(dl_tensors[0]->dl_tensor.dtype)));
     tvec.Resize(GetDLTensorListShape(dl_tensors));
     auto &thread_pool = ws.GetThreadPool();
-    const auto batch_size = dl_tensors.size();
-    for (size_t i = 0; i < batch_size; ++i) {
+    for (int i = 0; i < batch_size; ++i) {
       thread_pool.DoWorkWithID([&, i](int) {
         CopyDlTensor<CPUBackend>(tvec[i].raw_mutable_data(), dl_tensors[i]);
       });
@@ -77,8 +87,25 @@ void CopyDLTensorOutputs<CPUBackend>(HostWorkspace &ws, py::tuple &return_tuple)
   }
 }
 
+template <>
+void CopyDLTensorOutputs<GPUBackend>(DeviceWorkspace &ws, py::tuple &return_tuple, int batch_size) {
+  for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
+    py::list dl_list = py::cast<py::list>(return_tuple[idx]);
+    auto dl_tensors = CastToDLTensorList<GPUBackend>(dl_list, batch_size, idx);
+    if (dl_tensors.empty()) continue;
+    auto &tlist = ws.OutputRef<GPUBackend>(idx);
+    tlist.set_type(TypeTable::GetTypeInfo(DLToDALIType(dl_tensors[0]->dl_tensor.dtype)));
+    tlist.Resize(GetDLTensorListShape(dl_tensors));
+    for (int i = 0; i < batch_size; ++i) {
+      CopyDlTensor<GPUBackend>(tlist.raw_mutable_tensor(i), dl_tensors[i], ws.stream());
+    }
+  }
+}
+
 }  // namespace detail
 
 DALI_REGISTER_OPERATOR(DLTensorPythonFunctionImpl, DLTensorPythonFunctionImpl<CPUBackend>, CPU);
+
+DALI_REGISTER_OPERATOR(DLTensorPythonFunctionImpl, DLTensorPythonFunctionImpl<GPUBackend>, GPU);
 
 }  // namespace dali

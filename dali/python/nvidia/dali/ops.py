@@ -501,6 +501,7 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)
+        op_instance.spec.AddArg("device", self.device)
         if self.num_outputs == 0:
             t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
             t = EdgeReference(t_name, self._device, op_instance)
@@ -529,6 +530,8 @@ class PythonFunction(PythonFunctionBase):
 class DLTensorPythonFunction(PythonFunctionBase):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'DLTensorPythonFunction'})
+    global _gpu_ops
+    _gpu_ops = _gpu_ops.union({'DLTensorPythonFunction'})
 
     def __init__(self, function, num_outputs=1, device='cpu', **kwargs):
         super(DLTensorPythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",

@@ -13,7 +13,8 @@
 # limitations under the License.
 
 set(python_function_lib "python_function_plugin")
-set(SOURCES python_function.cc dltensor_function.cc util/copy_with_stride.cc)
+set(SOURCES python_function.cc dltensor_function.cc util/copy_with_stride.cc
+            util/copy_with_stride.cu)
 add_library(${python_function_lib} SHARED ${SOURCES})
 target_link_libraries(${python_function_lib} ${dali_lib})
 target_include_directories(${python_function_lib}
