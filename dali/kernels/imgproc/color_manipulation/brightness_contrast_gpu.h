@@ -19,7 +19,6 @@
 #include "dali/core/convert.h"
 #include "dali/core/geom/box.h"
 #include "dali/kernels/imgproc/roi.h"
-#include "dali/kernels/imgproc/color_manipulation/color_common.h"
 #include "dali/kernels/common/block_setup.h"
 
 namespace dali {
