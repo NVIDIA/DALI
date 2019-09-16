@@ -56,16 +56,20 @@ class DeviceArray {
   __host__ __device__ constexpr const T &operator[](ptrdiff_t index) const noexcept
   { return data_[index]; }
 
-  __host__ __device__ inline T *begin() noexcept { return data_; }
-  __host__ __device__ constexpr const T *begin() const noexcept { return data_; }
-  __host__ __device__ constexpr const T *cbegin() const noexcept { return data_; }
-  __host__ __device__ inline T *end() noexcept { return data_ + N; }
-  __host__ __device__ constexpr const T *end() const noexcept { return data_ + N; }
-  __host__ __device__ constexpr const T *cend() const noexcept { return data_ + N; }
-  __host__ __device__ constexpr size_t size() const noexcept { return N; }
-  __host__ __device__ constexpr bool empty() const noexcept { return N == 0; }
-  __host__ __device__ inline T *data() noexcept { return data_; }
-  __host__ __device__ constexpr const T *data() const noexcept { return data_; }
+  DALI_HOST_DEV inline iterator begin() noexcept { return data_; }
+  DALI_HOST_DEV constexpr const_iterator begin() const noexcept { return data_; }
+  DALI_HOST_DEV constexpr const_iterator cbegin() const noexcept { return data_; }
+  DALI_HOST_DEV inline iterator end() noexcept { return data_ + N; }
+  DALI_HOST_DEV constexpr const_iterator end() const noexcept { return data_ + N; }
+  DALI_HOST_DEV constexpr const_iterator cend() const noexcept { return data_ + N; }
+  DALI_HOST_DEV constexpr size_t size() const noexcept { return N; }
+  DALI_HOST_DEV constexpr bool empty() const noexcept { return N == 0; }
+  DALI_HOST_DEV inline iterator data() noexcept { return data_; }
+  DALI_HOST_DEV constexpr const_iterator data() const noexcept { return data_; }
+  DALI_HOST_DEV inline reference front() noexcept { return *data_; }
+  DALI_HOST_DEV constexpr const_reference front() const noexcept { return *data_; }
+  DALI_HOST_DEV inline reference back() noexcept { auto tmp = end(); return *--tmp; }
+  DALI_HOST_DEV constexpr const_reference back() const noexcept { auto tmp = end(); return *--tmp; }
 
   __host__ __device__ inline bool operator==(const DeviceArray &other) const noexcept {
     for (size_t i = 0; i < N; i++) {
