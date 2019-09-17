@@ -145,7 +145,7 @@ class BrightnessContrast : public Operator<Backend> {
           type.SetType<OutputType>(output_type_);
           output_desc[0] = {input.shape(), type};
         }
-    ), DALI_FAIL("Unsupported image type"))
+    ), DALI_FAIL("Unsupported image type"))  // NOLINT
     return true;
   }
 
@@ -175,8 +175,8 @@ class BrightnessContrast : public Operator<Backend> {
             kernel_manager_.Run<BrightnessContrastKernel>(ws.thread_idx(), ws.data_idx(),
                     ctx, tvout, tvin, brightness_, contrast_);
         }
-        ), DALI_FAIL("Unsupported output type"))
-    ), DALI_FAIL("Unsupported input type"))
+        ), DALI_FAIL("Unsupported output type"))  // NOLINT
+    ), DALI_FAIL("Unsupported input type"))  // NOLINT
   }
 
 
