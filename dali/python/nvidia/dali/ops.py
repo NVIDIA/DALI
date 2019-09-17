@@ -483,6 +483,9 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
 
     def __call__(self, *inputs, **kwargs):
         pipeline = Pipeline.current()
+        if pipeline.exec_async or pipeline.exec_pipelined:
+            raise RuntimeError("PythonFunction can be used only in pipelines with `exec_async` and "
+                               "`exec_pipelined` set to False.")
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
