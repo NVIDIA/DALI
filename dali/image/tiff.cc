@@ -115,7 +115,7 @@ std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
 TiffImage::DecodeImpl(DALIImageType type, const uint8 *encoded_buffer, size_t length) const {
 #ifdef DALI_USE_LIBTIFF
   if (!libtiff_decoder_->CanDecode()) {
-    DALI_WARN("Falling back to GenericImage");
+    DALI_WARN("Warning: Falling back to GenericImage");
     return GenericImage::DecodeImpl(type, encoded_buffer, length);
   }
   auto roi_generator = GetCropWindowGenerator();

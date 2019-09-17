@@ -35,14 +35,14 @@ struct CudaEventWrapper {
   CudaEventWrapper() {
     auto res = cudaEventCreate(&event);
     if (res != cudaSuccess) {
-      DALI_WARN("Fatal error: " + to_string(res) + " in CudaEventWrapper()");
+      DALI_ERROR("Fatal error: " + to_string(res) + " in CudaEventWrapper()");
       std::terminate();
     }
   }
   ~CudaEventWrapper() {
     auto res = cudaEventDestroy(event);
     if (res != cudaSuccess) {
-      DALI_WARN("Fatal error:: " + to_string(res) + " in ~CudaEventWrapper()");
+      DALI_ERROR("Fatal error:: " + to_string(res) + " in ~CudaEventWrapper()");
       std::terminate();
     }
   }
