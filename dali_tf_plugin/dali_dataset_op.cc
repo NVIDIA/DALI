@@ -36,9 +36,6 @@
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/partial_tensor_shape.h"
 #include "tensorflow/core/framework/tensor.h"
-#include "tensorflow/core/lib/random/philox_random.h"
-#include "tensorflow/core/lib/random/random.h"
-#include "tensorflow/core/lib/random/random_distributions.h"
 
 
 #define USE_TF_ALLOCATOR 0
@@ -65,24 +62,14 @@ class DALIDatasetOp : public DatasetOpKernel {
   explicit DALIDatasetOp(OpKernelConstruction* context) : DatasetOpKernel(context) { }
 
   void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
-    int64 seed;
-    OP_REQUIRES_OK(context, ParseScalarArgument<int64>(context, "seed", &seed));
-    int64 seed2;
-    OP_REQUIRES_OK(context, ParseScalarArgument<int64>(context, "seed2", &seed2));
-
-    if (seed == 0 && seed2 == 0) {
-      seed = random::New64();
-      seed2 = random::New64();
-    }
-
-    *output = new Dataset(context, seed, seed2);
+    *output = new Dataset(context);
   }
 
    private:
     class Dataset : public DatasetBase {
       public:
-        explicit Dataset(OpKernelContext *context, int64 seed, int64 seed2) 
-          : DatasetBase(DatasetContext(context)), seed_(seed), seed2_(seed2) {}
+        explicit Dataset(OpKernelContext *context) 
+          : DatasetBase(DatasetContext(context)) {}
 
         std::unique_ptr<IteratorBase> MakeIteratorInternal(
           const string &prefix) const override {
@@ -103,7 +90,7 @@ class DALIDatasetOp : public DatasetOpKernel {
         }
 
         string DebugString() const override { 
-          return strings::StrCat("DALI::DatasetOp(", seed_, ", ", seed2_, ")::Dataset"); }
+          return "DALI::DatasetOp()::Dataset"; }
 
         int64 Cardinality() const override { return kInfiniteCardinality; }
 \
@@ -113,25 +100,16 @@ class DALIDatasetOp : public DatasetOpKernel {
           DatasetGraphDefBuilder *b,
           Node **output) const override {
 
-          Node *seed = nullptr;
-          Node *seed2 = nullptr;
-          TF_RETURN_IF_ERROR(b->AddScalar(seed_, &seed));
-          TF_RETURN_IF_ERROR(b->AddScalar(seed2_, &seed2));
-          TF_RETURN_IF_ERROR(b->AddDataset(this, {seed, seed2}, output));
+          TF_RETURN_IF_ERROR(b->AddDataset(this, {}, output));
 
           return Status::OK();
         }
 
       private:
-        const int64 seed_;
-        const int64 seed2_;
-
         class Iterator : public DatasetIterator<Dataset> {
           public:
             explicit Iterator(const Params &params)
-              : DatasetIterator<Dataset>(params),
-                parent_generator_(dataset()->seed_, dataset()->seed2_),
-                generator_(&parent_generator_) {}
+              : DatasetIterator<Dataset>(params) {}
 
             Status GetNextInternal(
               IteratorContext *context,
@@ -146,18 +124,7 @@ class DALIDatasetOp : public DatasetOpKernel {
               }
 
           private:
-            random::SingleSampleAdapter<random::PhiloxRandom>::ResultType Random()
-              EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-              
-              num_random_samples_++;
-              auto out = generator_();
-              return out;
-            }
-
             tensorflow::mutex mu_;
-            random::PhiloxRandom parent_generator_ GUARDED_BY(mu_);
-            random::SingleSampleAdapter<random::PhiloxRandom> generator_ GUARDED_BY(mu_);
-            int64 num_random_samples_ GUARDED_BY(mu_) = 0;
         };
     };
 };
@@ -169,18 +136,10 @@ REGISTER_KERNEL_BUILDER(
   DALIDatasetOp);
 
 REGISTER_OP("DALIDataset")
-    .Input("seed: int64")
-    .Input("seed2: int64")
     .Output("handle: variant")
-    // .Attr("output_types: list(type) >= 1")
-    // .Attr("output_shapes: list(shape) >= 1")
-    .SetIsStateful()  // TODO(b/123753214): Source dataset ops must be marked
-                      // stateful to inhibit constant folding.
+    .SetIsStateful() 
     .SetShapeFn([](shape_inference::InferenceContext* c) {
       shape_inference::ShapeHandle unused;
-      // buffer_size, seed, and seed2 should be scalars.
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &unused));
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 0, &unused));
       return shape_inference::ScalarShape(c);
     });
 

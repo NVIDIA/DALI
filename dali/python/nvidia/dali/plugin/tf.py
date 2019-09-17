@@ -193,8 +193,7 @@ def DALIRawIterator():
 class DALIDatasetV2(dataset_ops.DatasetSource):
   def __init__(self, seed=None):
     self._seed, self._seed2 = random_seed.get_seed(seed)
-    variant_tensor = _dali_tf_module.dali_dataset(
-      seed=self._seed, seed2=self._seed2)
+    variant_tensor = _dali_tf_module.dali_dataset()
     super(DALIDatasetV2, self).__init__(variant_tensor)
 
   @property
