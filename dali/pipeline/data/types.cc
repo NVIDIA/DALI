@@ -31,6 +31,9 @@
 
 #include "dali/pipeline/data/backend.h"
 
+#define DALI_ADD_TO_TYPE_TABLE(Type) \
+static const auto ANONYMIZE_VARIABLE(id) = TypeTable::GetTypeID<Type>()
+
 namespace dali {
 std::mutex TypeTable::mutex_;
 std::unordered_map<std::type_index, DALIDataType> TypeTable::type_map_;
@@ -63,5 +66,30 @@ void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
   MemCopy(dst, src, n*size(), stream);
 }
 
+DALI_ADD_TO_TYPE_TABLE(uint8_t);
+DALI_ADD_TO_TYPE_TABLE(uint16_t);
+DALI_ADD_TO_TYPE_TABLE(uint32_t);
+DALI_ADD_TO_TYPE_TABLE(uint64_t);
+DALI_ADD_TO_TYPE_TABLE(int8_t);
+DALI_ADD_TO_TYPE_TABLE(int16_t);
+DALI_ADD_TO_TYPE_TABLE(int32_t);
+DALI_ADD_TO_TYPE_TABLE(int64_t);
+DALI_ADD_TO_TYPE_TABLE(float16);
+DALI_ADD_TO_TYPE_TABLE(float);
+DALI_ADD_TO_TYPE_TABLE(double);
+DALI_ADD_TO_TYPE_TABLE(bool);
+DALI_ADD_TO_TYPE_TABLE(string);
+DALI_ADD_TO_TYPE_TABLE(DALIImageType);
+DALI_ADD_TO_TYPE_TABLE(DALIDataType);
+DALI_ADD_TO_TYPE_TABLE(DALIInterpType);
+DALI_ADD_TO_TYPE_TABLE(DALITensorLayout);
+#ifdef DALI_BUILD_PROTO3
+DALI_ADD_TO_TYPE_TABLE(TFUtil::Feature);
+DALI_ADD_TO_TYPE_TABLE(std::vector<TFUtil::Feature>);
+#endif
+DALI_ADD_TO_TYPE_TABLE(std::vector<bool>);
+DALI_ADD_TO_TYPE_TABLE(std::vector<int>);
+DALI_ADD_TO_TYPE_TABLE(std::vector<std::string>);
+DALI_ADD_TO_TYPE_TABLE(std::vector<float>);
 
 }  // namespace dali

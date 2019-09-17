@@ -84,4 +84,35 @@ TYPED_TEST(TypesTest, TestRegisteredType) {
   ASSERT_EQ(type.name(), this->TypeName());
 }
 
+#define GET_TYPE_INFO(Type) \
+const auto &ANONYMIZE_VARIABLE(info) = TypeTable::GetTypeInfo(type2id<Type>::value)
+
+TEST(TypeTableTest, BasicTypesLookup) {
+  GET_TYPE_INFO(uint8_t);
+  GET_TYPE_INFO(uint16_t);
+  GET_TYPE_INFO(uint32_t);
+  GET_TYPE_INFO(uint64_t);
+  GET_TYPE_INFO(int8_t);
+  GET_TYPE_INFO(int16_t);
+  GET_TYPE_INFO(int32_t);
+  GET_TYPE_INFO(int64_t);
+  GET_TYPE_INFO(float16);
+  GET_TYPE_INFO(float);
+  GET_TYPE_INFO(double);
+  GET_TYPE_INFO(bool);
+  GET_TYPE_INFO(string);
+  GET_TYPE_INFO(DALIImageType);
+  GET_TYPE_INFO(DALIDataType);
+  GET_TYPE_INFO(DALIInterpType);
+  GET_TYPE_INFO(DALITensorLayout);
+#ifdef DALI_BUILD_PROTO3
+  GET_TYPE_INFO(TFUtil::Feature);
+  GET_TYPE_INFO(std::vector<TFUtil::Feature>);
+#endif
+  GET_TYPE_INFO(std::vector<bool>);
+  GET_TYPE_INFO(std::vector<int>);
+  GET_TYPE_INFO(std::vector<std::string>);
+  GET_TYPE_INFO(std::vector<float>);
+}
+
 }  // namespace dali
