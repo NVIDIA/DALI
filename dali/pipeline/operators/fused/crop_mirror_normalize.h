@@ -134,8 +134,8 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     if (output_type_ == DALI_NO_TYPE)
       output_type_ = input_type_;
 
-    input_layout_ = input.GetLayout();
     const auto &in_shape = input.shape();  // This can be a copy
+    input_layout_ = this->InputLayout(ws, 0);
     DALI_ENFORCE(ImageLayoutInfo::IsImage(input_layout_),
       "Unsupported layout: " + input_layout_.str());
     DALI_ENFORCE(input_layout_.ndim() == in_shape.sample_dim(),
