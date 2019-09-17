@@ -33,7 +33,7 @@ namespace dali {
 
     // Output is CHW
     output.Resize({C_, H_, W_});
-    output.SetLayout(DALI_NCHW);
+    output.SetLayout("CHW");
     if (output_type_ == DALI_FLOAT) {
       CPURunHelper<float>(input, output);
     } else {
@@ -93,6 +93,6 @@ instead, which implements a faster algorithm and does not require height and wid
   .AddArg("std",
       R"code(Standard deviation values for image normalization.)code",
       DALI_FLOAT_VEC)
-  .EnforceInputLayout(DALI_NHWC);
+  .InputLayout("HWC");
 
 }  // namespace dali

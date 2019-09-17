@@ -44,7 +44,7 @@ TYPED_TEST(CropMirrorNormalizeTest, Layout_DALI_NCHW) {
   static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
-                                 {"output_layout", EnumToString(DALI_NCHW), DALI_INT32}};
+                                 {"output_layout", "CHW", DALI_TENSOR_LAYOUT}};
 
   this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
                 addImageType, eps);
@@ -54,7 +54,7 @@ TYPED_TEST(CropMirrorNormalizeTest, Layout_DALI_NHWC) {
   static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
-                                 {"output_layout", EnumToString(DALI_NHWC), DALI_INT32}};
+                                 {"output_layout", "HWC", DALI_TENSOR_LAYOUT}};
 
   this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
                 addImageType, eps);
@@ -64,7 +64,7 @@ TYPED_TEST(CropMirrorNormalizeTest, Layout_DALI_SAME) {
   static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},
                                  {"std", "1.", DALI_FLOAT_VEC},
-                                 {"output_layout", EnumToString(DALI_SAME), DALI_INT32}};
+                                 {"output_layout", "", DALI_TENSOR_LAYOUT}};
 
   this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
                 addImageType, eps);

@@ -59,6 +59,7 @@ DALI_SCHEMA(Resize)
   .AdditionalOutputsFn([](const OpSpec& spec) {
     return static_cast<int>(spec.GetArgument<bool>("save_attrs"));
   })
+  .InputLayout(0, "HWC")
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
   .AddParent("ResizeAttr")
@@ -93,12 +94,13 @@ void Resize<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
   DALI_ENFORCE(input.ndim() == 3, "Resize expects 3-dimensional tensor input.");
-  if (input.GetLayout() != DALI_UNKNOWN) {
-    DALI_ENFORCE(input.GetLayout() == DALI_NHWC,
-                 "Resize expects interleaved channel layout (NHWC)");
+  if (!input.GetLayout().empty()) {
+    DALI_ENFORCE(ImageLayoutInfo::IsChannelLast(input.GetLayout()),
+                 "Resize expects interleaved channel layout aka (N)HWC");
   }
 
   RunCPU(output, input, thread_idx);
+  output.SetLayout(InputLayout(ws, 0));
 
   if (save_attrs_) {
     auto &attr_output = ws.Output<CPUBackend>(1);

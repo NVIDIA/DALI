@@ -126,6 +126,7 @@ class DLL_PUBLIC OpSchema {
     DALI_ENFORCE(n >= 0);
     max_num_input_ = n;
     min_num_input_ = n;
+    input_layouts_.resize(n);
     return *this;
   }
 
@@ -138,6 +139,7 @@ class DLL_PUBLIC OpSchema {
     DALI_ENFORCE(max >= 0);
     min_num_input_ = min;
     max_num_input_ = max;
+    input_layouts_.resize(max);
     return *this;
   }
 
@@ -207,10 +209,100 @@ class DLL_PUBLIC OpSchema {
     return *this;
   }
 
-  DLL_PUBLIC inline OpSchema& EnforceInputLayout(DALITensorLayout layout) {
-    layout_ = layout;
-    enforce_layout_ = true;
+  /**
+   * @brief Sets input layout constraints and default for given input.
+   *
+   * At run-time, when the operator encounters a tensor(list) with specified
+   * layout, but different than one provided to this function, error is raised.
+   *
+   * If the input tensor has no layout, the one provided to this function is assumed
+   * if number of dimensions matches. Otherswise, error is raised.
+   */
+  DLL_PUBLIC inline OpSchema& InputLayout(int index, TensorLayout layout) {
+    CheckInputIndex(index);
+    DALI_ENFORCE(input_layouts_[index].empty(), "Layouts for input " + std::to_string(index) +
+                 " already specified");
+    DALI_ENFORCE(!layout.empty(), "Cannot specify an empty layout for an input");
+    input_layouts_[index] = { layout };
     return *this;
+  }
+
+  /**
+   * @brief Sets input layout constraints and default for given input.
+   *
+   * At run-time, when the operator encounters a tensor(list) with specified
+   * layout, but not one of those provided to this function, error is raised.
+   *
+   * If the input tensor has no layout, the layouts specified by call to this function
+   * are searched for the first matching the number of dimensions of the input -
+   * it will be the default value for this input. If number of dimensions doesn't
+   * match any of the layouts provided here, an error is raised.
+   */
+  DLL_PUBLIC inline OpSchema& InputLayout(int index, std::initializer_list<TensorLayout> layouts) {
+    CheckInputIndex(index);
+    DALI_ENFORCE(input_layouts_[index].empty(), "Layouts for input " + std::to_string(index) +
+                 " already specified");
+    for (auto &l : layouts) {
+      DALI_ENFORCE(!l.empty(), "Cannot specify an empty layout for an input");
+    }
+    input_layouts_[index] = layouts;
+    return *this;
+  }
+
+  /**
+   * @brief Sets input layout constraint and default for all inputs.
+   * @see InputLayout(int index, TensorLayout layout)
+   */
+  DLL_PUBLIC inline OpSchema& InputLayout(TensorLayout layout) {
+    for (int i = 0; i < max_num_input_; i++)
+      InputLayout(i, layout);
+    return *this;
+  }
+
+  /**
+   * @brief Sets input layout constraint and default for all inputs.
+   * @see InputLayout(int index, TensorLayout layout)
+   */
+  DLL_PUBLIC inline OpSchema& InputLayout(std::initializer_list<TensorLayout> layouts) {
+    for (int i = 0; i < max_num_input_; i++)
+      InputLayout(i, layouts);
+    return *this;
+  }
+
+  /**
+   * @brief Verifies that the layout is valid for given input index and number of dimensions
+   *        or returns a default layout if the layout parameter is empty.
+   */
+  DLL_PUBLIC inline const TensorLayout &GetInputLayout(int index, int sample_ndim,
+                                                       const TensorLayout &layout = {}) const {
+    CheckInputIndex(index);
+    if (input_layouts_[index].empty()) {
+      DALI_ENFORCE(layout.empty() || layout.ndim() == sample_ndim,
+        "The layout for the input has different number of dimensions than actual input");
+      return layout;
+    }
+
+    if (layout.empty()) {
+      for (auto &l : input_layouts_[index])
+        if (l.ndim() == sample_ndim)
+          return l;
+      std::stringstream ss;
+      ss << "The number of dimensions " << sample_ndim << " does not match any of the allowed"
+        " layouts for input " << index << ". Valid layouts are:\n";
+      for (auto &l : input_layouts_[index])
+        ss << l.c_str() << "\n";
+      DALI_FAIL(ss.str());
+    } else {
+      for (auto &l : input_layouts_[index])
+        if (l == layout)
+          return l;
+      std::stringstream ss;
+      ss << "The layout \"" << layout.c_str() << "\" does not match any of the allowed"
+        " layouts for input " << index << ". Valid layouts are:\n";
+      for (auto &l : input_layouts_[index])
+        ss << l.c_str() << "\n";
+      DALI_FAIL(ss.str());
+    }
   }
 
   /**
@@ -230,6 +322,12 @@ class DLL_PUBLIC OpSchema {
       tensor_arguments_.insert(s);
     }
     return *this;
+  }
+
+  DLL_PUBLIC inline OpSchema &AddOptionalArg(const std::string &s,
+                                             const std::string &doc,
+                                             const char *default_value) {
+    return AddOptionalArg(s, doc, std::string(default_value), false);
   }
 
   /**
@@ -303,14 +401,6 @@ class DLL_PUBLIC OpSchema {
     return allow_instance_grouping_;
   }
 
-  DLL_PUBLIC inline bool EnforceInputLayout() const {
-    return enforce_layout_;
-  }
-
-  DLL_PUBLIC inline DALITensorLayout InputLayout() const {
-    return layout_;
-  }
-
   DLL_PUBLIC inline bool IsSequenceOperator() const {
     return is_sequence_operator_;
   }
@@ -380,12 +470,17 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC bool IsTensorArgument(const std::string &name) const;
 
  private:
-  inline bool CheckArgument(const std::string &s) {
+  inline void CheckArgument(const std::string &s) {
     DALI_ENFORCE(!HasArgument(s),
                  "Argument \"" + s + "\" already added to the schema");
     DALI_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(),
                  "Argument name \"" + s + "\" is reserved for internal use");
-    return true;
+  }
+
+  inline void CheckInputIndex(int index) const {
+    DALI_ENFORCE(index >= 0 && index < max_num_input_,
+      "Output index (=" + std::to_string(index) +  ") out of range [0.." +
+      std::to_string(max_num_input_) + ").\nWas NumInput called?");
   }
 
   std::map<std::string, std::pair<std::string, DALIDataType> > GetRequiredArguments() const;
@@ -402,9 +497,6 @@ class DLL_PUBLIC OpSchema {
   bool allow_instance_grouping_ = true;
   vector<string> parents_;
 
-  bool enforce_layout_ = false;
-  DALITensorLayout layout_;
-
   bool allow_sequences_ = false;
   bool is_sequence_operator_ = false;
 
@@ -420,6 +512,7 @@ class DLL_PUBLIC OpSchema {
   std::map<std::string, std::pair<std::string, Value*> > internal_arguments_;
   std::vector<std::unique_ptr<Value> > optional_arguments_unq_;
   std::vector<std::unique_ptr<Value> > internal_arguments_unq_;
+  std::vector<std::vector<TensorLayout>> input_layouts_;
 
   std::set<std::string> tensor_arguments_;
 };
@@ -443,6 +536,12 @@ class SchemaRegistry {
     DALI_ENFORCE(it != schema_map.end(), "Schema for operator '" +
         name + "' not registered");
     return it->second;
+  }
+
+  static const OpSchema* TryGetSchema(const std::string &name) {
+    auto &schema_map = registry();
+    auto it = schema_map.find(name);
+    return it != schema_map.end() ? &it->second : nullptr;
   }
 
  private:

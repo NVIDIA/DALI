@@ -34,75 +34,21 @@ namespace dali {
 
 namespace detail {
 
-inline size_t horizontal_dim_idx(DALITensorLayout layout) {
-  switch (layout) {
-    case DALI_NHWC:
-      return 1;
-    case DALI_NCHW:
-      return 2;
-    case DALI_NFHWC:
-      return 2;
-    case DALI_NFCHW:
-      return 3;
-    default:
-      DALI_FAIL("not supported layout: " + std::to_string(layout));
-  }
+inline size_t horizontal_dim_idx(const TensorLayout &layout) {
+  return layout.find('W');
 }
 
-template <size_t Dims>
-inline std::array<int64_t, Dims> permuted_dims(DALITensorLayout in_layout,
-                                               DALITensorLayout out_layout) {
-  std::array<int64_t, Dims> perm_dims;
-  for (size_t d = 0; d < Dims; d++) {
-    perm_dims[d] = d;
-  }
 
-  if (in_layout != out_layout) {
-    if (in_layout == DALI_NHWC && out_layout == DALI_NCHW) {
-      perm_dims[0] = 2;
-      perm_dims[1] = 0;
-      perm_dims[2] = 1;
-    } else if (in_layout == DALI_NCHW && out_layout == DALI_NHWC) {
-      perm_dims[0] = 1;
-      perm_dims[1] = 2;
-      perm_dims[2] = 0;
-    } else if (in_layout == DALI_NFHWC && out_layout == DALI_NFCHW) {
-      perm_dims[1] = 3;
-      perm_dims[2] = 1;
-      perm_dims[3] = 2;
-    } else if (in_layout == DALI_NFCHW && out_layout == DALI_NFHWC) {
-      perm_dims[1] = 2;
-      perm_dims[2] = 3;
-      perm_dims[3] = 1;
-    } else {
-      DALI_FAIL("layout conversion from " + std::to_string(in_layout) + " to "
-        + std::to_string(out_layout) + " not supported");
-    }
-  }
 
-  return perm_dims;
-}
-
-inline size_t channels_dim(DALITensorLayout in_layout) {
-  switch (in_layout) {
-    case DALI_NHWC:
-      return 2;
-    case DALI_NCHW:
-      return 0;
-    case DALI_NFHWC:
-      return 3;
-    case DALI_NFCHW:
-      return 1;
-    default:
-      DALI_FAIL("not supported layout: " + std::to_string(in_layout));
-  }
+inline int channels_dim(TensorLayout in_layout) {
+  return ImageLayoutInfo::ChannelDimIndex(in_layout);
 }
 
 // Rewrite Operator data as arguments for kernel
 // TODO(klecki): It probably could be written directly in that format
 template <size_t Dims>
 kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
-    DALITensorLayout input_layout, DALITensorLayout output_layout,
+    TensorLayout input_layout, TensorLayout output_layout,
     const std::vector<int64_t> &slice_anchor, const std::vector<int64_t> &slice_shape,
     bool horizontal_flip, bool pad_output, const std::vector<float> &mean,
     const std::vector<float> &inv_std_dev) {
@@ -121,9 +67,8 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
   }
 
   // Check if permutation is needed
-  if (input_layout != output_layout) {
-    args.permuted_dims = permuted_dims<Dims>(input_layout, output_layout);
-  }
+  args.permuted_dims = permuted_dims<Dims>(input_layout, output_layout);
+
   const bool should_normalize =
       !std::all_of(mean.begin(), mean.end(), [](float x) { return x == 0.0f; }) ||
       !std::all_of(inv_std_dev.begin(), inv_std_dev.end(), [](float x) { return x == 1.0f; });
@@ -146,7 +91,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
       : Operator<Backend>(spec),
         CropAttr(spec),
         output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
-        output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
+        output_layout_(spec.GetArgument<TensorLayout>("output_layout")),
         pad_output_(spec.GetArgument<bool>("pad_output")),
         slice_anchors_(batch_size_),
         slice_shapes_(batch_size_),
@@ -190,15 +135,20 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
       output_type_ = input_type_;
 
     input_layout_ = input.GetLayout();
-    DALI_ENFORCE(input_layout_ == DALI_NHWC || input_layout_ == DALI_NCHW ||
-                 input_layout_ == DALI_NFHWC || input_layout_ == DALI_NFCHW,
-      "Unexpected data layout");
-    if (output_layout_ == DALI_SAME)
+    const auto &in_shape = input.shape();  // This can be a copy
+    DALI_ENFORCE(ImageLayoutInfo::IsImage(input_layout_),
+      "Unsupported layout: " + input_layout_.str());
+    DALI_ENFORCE(input_layout_.ndim() == in_shape.sample_dim(),
+      "Number of dimension in layout description does not match the number"
+      " of dimensions in the input.");
+    if (output_layout_.empty())
       output_layout_ = input_layout_;
+    else
+      DALI_ENFORCE(output_layout_.is_permutation_of(input_layout_),
+        "The requested output layout is not a permutation of input layout.");
 
     CropAttr::ProcessArguments(ws);
 
-    const auto &in_shape = input.shape();  // This can be a copy
     std::size_t number_of_dims = in_shape.sample_dim();
 
     VALUE_SWITCH(number_of_dims, Dims, (3, 4),
@@ -230,25 +180,28 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
   }
 
   // Calculate slice window and anchor for given data_idx
-  void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
+  void SetupSample(int data_idx, TensorLayout layout, const kernels::TensorShape<> &shape) {
     Index F = 1, H, W, C;
     DALI_ENFORCE(shape.size() == 3 || shape.size() == 4,
       "Unexpected number of dimensions: " + std::to_string(shape.size()));
-    switch (layout) {
-      case DALI_NHWC:
-        std::tie(H, W, C) = std::make_tuple(shape[0], shape[1], shape[2]);
-        break;
-      case DALI_NCHW:
-        std::tie(C, H, W) = std::make_tuple(shape[0], shape[1], shape[2]);
-        break;
-      case DALI_NFHWC:
-        std::tie(F, H, W, C) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
-        break;
-      case DALI_NFCHW:
-        std::tie(F, C, H, W) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
-        break;
-      default:
-        DALI_FAIL("Not supported layout");
+    DALI_ENFORCE(ImageLayoutInfo::NumSpatialDims(layout) == 2,
+      "Only 2D images and sequences of images are supported");
+    DALI_ENFORCE(ImageLayoutInfo::HasChannel(layout),
+      "This operator expects an explicit channel dimesnion, even for monochrome images");
+
+    int h_dim = layout.find('H');
+    int w_dim = layout.find('W');
+    int c_dim = layout.find('C');
+    int f_dim = layout.find('F');
+
+    DALI_ENFORCE(h_dim >= 0 && w_dim >= 0 && c_dim >= 0,
+      "Height, Width and Channel must be present in the layout. Got: " + layout.str());
+
+    H = shape[h_dim];
+    W = shape[w_dim];
+    C = shape[c_dim];
+    if (f_dim >= 0) {
+      F = shape[layout.find('F')];
     }
 
     const bool is_whole_image = IsWholeImage();
@@ -259,33 +212,28 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     auto anchor = CalculateAnchor(make_span(anchor_norm), {crop_h, crop_w}, {H, W});
     int64_t crop_y = anchor[0], crop_x = anchor[1];
 
-    switch (layout) {
-      case DALI_NHWC:
-        slice_anchors_[data_idx] = {crop_y, crop_x, 0};
-        slice_shapes_[data_idx] = {crop_h, crop_w, C};
-        break;
-      case DALI_NCHW:
-        slice_anchors_[data_idx] = {0, crop_y, crop_x};
-        slice_shapes_[data_idx] = {C, crop_h, crop_w};
-        break;
-      case DALI_NFHWC:
-        slice_anchors_[data_idx] = {0, crop_y, crop_x, 0};
-        slice_shapes_[data_idx] = {F, crop_h, crop_w, C};
-        break;
-      case DALI_NFCHW:
-        slice_anchors_[data_idx] = {0, 0, crop_y, crop_x};
-        slice_shapes_[data_idx] = {F, C, crop_h, crop_w};
-        break;
-      default:
-        DALI_FAIL("Not supported layout");
+    int ndim = shape.sample_dim();
+    slice_anchors_[data_idx].resize(ndim);
+    slice_shapes_[data_idx].resize(ndim);
+
+    slice_anchors_[data_idx][h_dim] = crop_y;
+    slice_shapes_[data_idx][h_dim] = crop_h;
+    slice_anchors_[data_idx][w_dim] = crop_x;
+    slice_shapes_[data_idx][w_dim] = crop_w;
+
+    slice_anchors_[data_idx][c_dim] = 0;
+    slice_shapes_[data_idx][c_dim] = C;
+    if (f_dim >= 0) {
+      slice_anchors_[data_idx][f_dim] = 0;
+      slice_shapes_[data_idx][f_dim] = F;
     }
   }
 
   DALIDataType input_type_ = DALI_NO_TYPE;
   DALIDataType output_type_ = DALI_NO_TYPE;
 
-  DALITensorLayout input_layout_ = DALI_NHWC;
-  DALITensorLayout output_layout_ = DALI_SAME;
+  TensorLayout input_layout_ = "HWC";
+  TensorLayout output_layout_;
 
   // Whether to pad output to 4 channels
   bool pad_output_;

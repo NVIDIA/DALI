@@ -447,16 +447,16 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     meta_[idx].SetSourceInfo(source_info);
   }
 
-  inline DALITensorLayout GetLayout() const {
+  inline TensorLayout GetLayout() const {
     // Layout is enforced to be the same across all the samples
     return layout_;
   }
 
-  inline void SetLayout(DALITensorLayout layout) {
-    // Layout is enforced to be the same across all the samples
+  /** @brief Set uniform layout for all samples in the list */
+  inline void SetLayout(const TensorLayout &layout) {
     layout_ = layout;
     for (auto& meta : meta_)
-      meta.SetLayout(layout_);
+      meta.SetLayout(layout);
   }
 
   inline void SetSkipSample(int idx, bool skip_sample) {
@@ -474,7 +474,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   kernels::TensorListShape<> shape_;
   vector<Index> offsets_;
   vector<DALIMeta> meta_;
-  DALITensorLayout layout_{DALI_NHWC};
+  TensorLayout layout_;
 
   // In order to not leak memory (and make it slightly faster)
   // when sharing data with a Tensor, we will store a pointer to

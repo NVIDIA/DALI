@@ -28,7 +28,7 @@ void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &inp
                const std::vector<int32> &vertical, cudaStream_t stream) {
   DALI_TYPE_SWITCH(
       input.type().id(), DType,
-      auto in_shape = TransformShapes(input.shape(), input.GetLayout() == DALI_NHWC);
+      auto in_shape = TransformShapes(input.shape(), input.GetLayout());
       kernels::InListGPU<DType, 4> in_view(input.data<DType>(), in_shape);
       kernels::KernelContext ctx;
       ctx.gpu.stream = stream;
@@ -45,7 +45,6 @@ template <>
 void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
-  DALI_ENFORCE(input.GetLayout() == DALI_NHWC || input.GetLayout() == DALI_NCHW);
   output.SetLayout(input.GetLayout());
   output.set_type(input.type());
   output.ResizeLike(input);

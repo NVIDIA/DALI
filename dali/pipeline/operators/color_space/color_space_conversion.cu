@@ -117,7 +117,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto stream = ws.stream();
   nppSetStream(stream);
 
-  if (input.GetLayout() == DALI_NHWC) {
+  if (InputLayout(ws, 0) == "HWC") {
     // RGB -> BGR || BGR -> RGB
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
       // image dimensions

@@ -130,33 +130,34 @@ void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix, float bi
   const auto type = tl.type();
   const auto layout = tl.GetLayout();
 
+  bool is_channel_first = ImageLayoutInfo::IsChannelFirst(layout);
   if (IsType<uint8>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<uint8>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<uint8>(tl, bias, scale, suffix);
   } else if (IsType<int16>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<int16>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<int16>(tl, bias, scale, suffix);
   } else if (IsType<int32>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<int32>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<int32>(tl, bias, scale, suffix);
   } else if (IsType<int64>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<int64>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<int64>(tl, bias, scale, suffix);
   } else if (IsType<float16>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<float16>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<float16>(tl, bias, scale, suffix);
   } else if (IsType<float>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<float>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<float>(tl, bias, scale, suffix);

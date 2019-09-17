@@ -40,6 +40,6 @@ Length of the tuple needs to be equal to `n_channels`.)code",
   .AddOptionalArg("min_canvas_size",
       R"code(Enforce minimum paste canvas dimension after scaling input size by ratio.)code",
       0.0f, true)
-  .EnforceInputLayout(DALI_NHWC);
+  .InputLayout("HWC");
 
 }  // namespace dali

@@ -268,6 +268,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // Resize the output (contiguous)
     auto &output = ws.Output<GPUBackend>(0);
     output.Resize(output_shape_);
+    output.SetLayout("HWC");
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
 

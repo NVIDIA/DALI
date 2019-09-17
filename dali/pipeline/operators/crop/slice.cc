@@ -35,18 +35,20 @@ DALI_SCHEMA(Slice)
       "image_type",
       R"code(The color space of input and output image)code",
       DALI_RGB, false)
-    .AddParent("SliceBase");
+    .AddParent("SliceBase")
+    .InputLayout(0, { "HW", "HWC", "DHWC" });
 
 template <>
 void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace &ws) {
   const auto &images = ws.Input<CPUBackend>(kImagesInId);
+  TensorLayout image_layout = InputLayout(ws, kImagesInId);
   const auto &anchor_tensor = ws.Input<CPUBackend>(kAnchorsInId);
   const auto &slice_shape_tensor = ws.Input<CPUBackend>(kSliceShapesInId);
   const auto img_shape = images.shape();
   const auto args_ndim = anchor_tensor.shape()[0];
   const float* anchor_norm = anchor_tensor.template data<float>();
   const float* slice_shape_norm = slice_shape_tensor.template data<float>();
-  SetupSample(ws.data_idx(), images.GetLayout(), img_shape, args_ndim,
+  SetupSample(ws.data_idx(), image_layout, img_shape, args_ndim,
               anchor_norm, slice_shape_norm);
 }
 

@@ -36,7 +36,7 @@ DALI_SCHEMA(ElementExtract)
 template <>
 void ElementExtract<CPUBackend>::RunImpl(SampleWorkspace &ws) {
     const auto &input = ws.Input<CPUBackend>(0);
-    auto element_layout = GetElementLayout(input.GetLayout());
+    auto element_layout = VideoLayoutInfo::GetFrameLayout(input.GetLayout());
 
     auto shape = input.shape();
     detail::CheckInputShape(shape, element_map_);

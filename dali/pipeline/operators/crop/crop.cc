@@ -38,12 +38,12 @@ template <>
 void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
 
-  const DALITensorLayout in_layout = input.GetLayout();
-  DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW
-            || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW
-            || in_layout == DALI_NDHWC || in_layout == DALI_NCDHW,
+  const TensorLayout in_layout = InputLayout(ws, 0);
+  DALI_ENFORCE(in_layout.ndim() == input.shape().sample_dim());
+  DALI_ENFORCE(ImageLayoutInfo::HasChannel(in_layout) &&
+    (ImageLayoutInfo::IsImage(in_layout) || VideoLayoutInfo::IsVideo(in_layout)),
     "Unexpected data layout");
-  DALITensorLayout out_layout = in_layout;
+  TensorLayout out_layout = in_layout;
 
   auto data_idx = ws.data_idx();
   SetupSample(data_idx, in_layout, input.shape());
