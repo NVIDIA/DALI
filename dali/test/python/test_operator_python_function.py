@@ -403,9 +403,10 @@ def test_func_with_side_effects():
         assert elems_two == [i for i in range(BATCH_SIZE + 1, 2 * BATCH_SIZE + 1)]
 
 
-class WrongPipeline(Pipeline):
+class AsyncPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, _seed):
-        super(WrongPipeline, self).__init__(batch_size, num_threads, device_id, seed=_seed)
+        super(AsyncPipeline, self).__init__(batch_size, num_threads, device_id, seed=_seed,
+                                            exec_async=True, exec_pipelined=True)
         self.op = ops.PythonFunction(function=lambda: numpy.zeros([2, 2, 2]))
 
     def define_graph(self):
@@ -414,5 +415,5 @@ class WrongPipeline(Pipeline):
 
 @raises(RuntimeError)
 def test_wrong_pipeline():
-    pipe = WrongPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED)
+    pipe = AsyncPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED)
     pipe.build()
