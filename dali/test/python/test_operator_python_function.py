@@ -10,7 +10,7 @@ import os
 import glob
 import tempfile
 import time
-from nose.tools import assert_raises
+from nose.tools import raises
 from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
@@ -257,21 +257,19 @@ def invalid_function(image):
     return img
 
 
+@raises(Exception)
 def test_python_operator_invalid_function():
     invalid_pipe = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
                                           invalid_function)
     invalid_pipe.build()
-    try:
-        invalid_pipe.run()
-    except Exception as e:
-        print(e)
-        return
-    raise Exception('Should not pass')
+    invalid_pipe.run()
 
+
+@raises(TypeError)
 def test_python_operator_invalid_pipeline():
     invalid_pipe = PythonOperatorInvalidPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
                                                  images_dir, Rotate)
-    assert_raises(TypeError, invalid_pipe.build)
+    invalid_pipe.build()
 
 
 
@@ -341,16 +339,12 @@ def test_output_with_stride_mixed_types():
     run_multi_input_multi_output(output_with_stride_mixed_types)
 
 
+@raises(RuntimeError)
 def test_wrong_outputs_number():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
                                                     images_dir, flip)
     invalid_pipe.build()
-    try:
-        invalid_pipe.run()
-    except Exception as e:
-        print(e)
-        return
-    raise Exception('Should not pass')
+    invalid_pipe.run()
 
 
 SINK_PATH = tempfile.mkdtemp()
@@ -418,11 +412,7 @@ class WrongPipeline(Pipeline):
         return self.op()
 
 
+@raises(RuntimeError)
 def test_wrong_pipeline():
     pipe = WrongPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED)
-    try:
-        pipe.build()
-    except Exception as e:
-        print(e)
-        return
-    raise Exception('Should not pass')
+    pipe.build()
