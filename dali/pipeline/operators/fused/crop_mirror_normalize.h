@@ -67,7 +67,7 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
   }
 
   // Check if permutation is needed
-  args.permuted_dims = permuted_dims<Dims>(input_layout, output_layout);
+  args.permuted_dims = GetLayoutMapping<Dims>(input_layout, output_layout);
 
   const bool should_normalize =
       !std::all_of(mean.begin(), mean.end(), [](float x) { return x == 0.0f; }) ||
