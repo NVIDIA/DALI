@@ -352,6 +352,10 @@ struct LayoutInfo {
  *         assuming that the layout describes an image
  */
 struct ImageLayoutInfo : LayoutInfo {
+  /** @brief Counts spatial dimensions in the layout.
+   *
+   * Spatial dimensions are: 'D'epth, 'H'eight and 'W'idth
+   */
   DALI_HOST_DEV
   static int NumSpatialDims(const TensorLayout &tl) {
     int s = 0;
@@ -368,10 +372,12 @@ struct ImageLayoutInfo : LayoutInfo {
     }
     return s;
   }
+  /* @brief Returns the index at which 'C' dimesnion (channel) is present or -1 if not found */
   DALI_HOST_DEV
   static int ChannelDimIndex(const TensorLayout &tl) {
     return DimIndex(tl, 'C');
   }
+  /* @brief Returns true if the layout contains 'C' dimension (channel) */
   DALI_HOST_DEV
   static bool HasChannel(const TensorLayout &tl) {
     return ChannelDimIndex(tl) >= 0;
@@ -392,6 +398,10 @@ struct ImageLayoutInfo : LayoutInfo {
   static bool IsChannelLast(const TensorLayout &tl) {
     return !tl.empty() && tl[tl.ndim()-1] == 'C';
   }
+  /** @brief Returns true if there are at least 2 spatial dimensions in the layout
+   *
+   * This function returns true for 2D and 3D images and videos.
+   */
   DALI_HOST_DEV
   static bool IsImage(const TensorLayout &tl) {
     return NumSpatialDims(tl) >= 2;
@@ -402,7 +412,7 @@ struct ImageLayoutInfo : LayoutInfo {
  *         assuming that the layout describes a video
  */
 struct VideoLayoutInfo : ImageLayoutInfo {
-  /** @brief Returns the index of the dimension referring to frames */
+  /** @brief Returns the index of the dimension referring to frames ('F') */
   DALI_HOST_DEV
   static int FrameDimIndex(const TensorLayout &tl) {
     return DimIndex(tl, 'F');
@@ -411,22 +421,27 @@ struct VideoLayoutInfo : ImageLayoutInfo {
   static bool IsChannelFirst(const TensorLayout &tl) {
     return tl[FrameDimIndex(tl)+1] == 'C';
   }
+  /** @brief Returns true, if 'F' (frame) dimension is present */
   DALI_HOST_DEV
   static bool IsSequence(const TensorLayout &tl) {
     return tl.contains('F');
   }
+  /** @brief Returns true if the layout describes an image with 'F' (frame) dimension */
   DALI_HOST_DEV
   static bool IsVideo(const TensorLayout &tl) {
     return IsSequence(tl) && IsImage(tl);
   }
+  /** @brief Returns true if the layout describes an image, but does not contain 'F' (frame) */
   DALI_HOST_DEV
   static bool IsStillImage(const TensorLayout &tl) {
     return !IsSequence(tl) && IsImage(tl);
   }
+  /** @brief Removes frame dimension ('F') from the layout */
   DALI_HOST_DEV
   static TensorLayout GetFrameLayout(const TensorLayout &tl) {
     return tl.skip('F');
   }
+  /** @brief Adds 'F' to the layout at the beginning or after 'N' if not already present */
   DALI_HOST_DEV
   static TensorLayout GetSequenceLayout(const TensorLayout &tl) {
     if (tl.contains('F'))
