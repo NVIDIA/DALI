@@ -48,8 +48,8 @@ TEST(MakeStringTest, only_delimiter) {
 
 
 TEST(MakeStringTest, delimiter_and_one_argument) {
-  auto str = make_string_delim("it really doesn't matter what's in here", "( . Y . )");
-  ASSERT_EQ(str, "( . Y . )");
+  auto str = make_string_delim("it really doesn't matter what's in here", "¯\_(ツ)_/¯");
+  ASSERT_EQ(str, "¯\_(ツ)_/¯");
 }
 
 
