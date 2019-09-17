@@ -134,6 +134,14 @@ class Pipeline(object):
         """Id of the GPU used by the pipeline."""
         return self._device_id
 
+    @property
+    def exec_pipelined(self):
+        return self._exec_pipelined
+
+    @property
+    def exec_async(self):
+        return self._exec_async
+
     def epoch_size(self, name = None):
         """Epoch size of a pipeline.
 

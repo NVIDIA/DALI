@@ -407,3 +407,22 @@ def test_func_with_side_effects():
         elems_two = [out_two.at(s)[0][0][0] for s in range(BATCH_SIZE)]
         elems_two.sort()
         assert elems_two == [i for i in range(BATCH_SIZE + 1, 2 * BATCH_SIZE + 1)]
+
+
+class WrongPipeline(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, _seed):
+        super(WrongPipeline, self).__init__(batch_size, num_threads, device_id, seed=_seed)
+        self.op = ops.PythonFunction(function=lambda: numpy.zeros([2, 2, 2]))
+
+    def define_graph(self):
+        return self.op()
+
+
+def test_wrong_pipeline():
+    pipe = WrongPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED)
+    try:
+        pipe.build()
+    except Exception as e:
+        print(e)
+        return
+    raise Exception('Should not pass')
