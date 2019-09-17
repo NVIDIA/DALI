@@ -37,14 +37,10 @@ class TensorLayout {
   /** @brief Constructs a TensorLayout from a C-style string */
   DALI_HOST_DEV
   constexpr TensorLayout(const char *str) {  // NOLINT
-    int i = 0;
-    for (; str[i] && i < max_ndim; i++) {
-      data_[i] = str[i];
-    }
-    int n = i;
-    for (; i < max_ndim; i++) {
-      data_[i] = 0;
-    }
+    int n = 0;
+    for (; str[n] && n < max_ndim; n++)
+      data_[n] = str[n];
+    assert(!str[n] && "Input string too long!");
     set_size(n);
   }
 
@@ -56,12 +52,11 @@ class TensorLayout {
    */
   DALI_HOST_DEV
   constexpr TensorLayout(const char *str, size_t n) {  // NOLINT
-    assert(n < sizeof(data_));
+    assert(n < sizeof(data_) && "Input string too long");
     if (n >= sizeof(data_))
       n = sizeof(data_) - 1;
     for (size_t i = 0; i < n; i++)
       data_[i] = str[i];
-    data_[n] = '\0';
     set_size(n);
   }
 
@@ -80,11 +75,20 @@ class TensorLayout {
   TensorLayout(const std::string &s) : TensorLayout(s.data(), s.length()) {  // NOLINT
   }
 
+  /** @brief Returns a reference to d-th dimension in the layout
+   * @remarks Any of the following leads to undefined behavior:
+   *    - accessing values at d > ndim()
+   *    - changing '\0' terminator to any other value
+   *    - replacing any meaningful character with '\0'
+   */
   DALI_HOST_DEV
   constexpr char &operator[](int d) noexcept {
     return data_[d];
   }
 
+  /** @brief Returns a reference to d-th dimension in the layout
+   * @remarks Value at ndim() is always '\0', accessing values beyond ndim() is forbidden.
+   */
   DALI_HOST_DEV
   constexpr const char &operator[](int d) const noexcept {
     return data_[d];
@@ -119,7 +123,12 @@ class TensorLayout {
     return find(dim_name) >= 0;
   }
 
-  /** @brief Returns a layout without the dimension specified in dim_name */
+  /** @brief Returns a layout without the dimension specified in dim_name
+   *
+   * @return Layout without the first occurrence of given dimension.
+   *         When repetitions are present, only the first occurrence is removed.
+   *         When given dim is not found, the function returns unchanged layout.
+   */
   DALI_HOST_DEV
   constexpr TensorLayout skip(char dim_name) const noexcept;
 
@@ -225,7 +234,7 @@ class TensorLayout {
 #ifdef __CUDA_ARCH__
     assert(data_[0] == 'N');
 #else
-    if (find('N') != 0)
+    if (data_[0] != 'N')
       throw std::logic_error("This is not a multi-sample layout: \"" + str() + "\"");
 #endif
     return sub(1);
@@ -427,8 +436,9 @@ struct VideoLayoutInfo : ImageLayoutInfo {
 
 /** @brief Calculates mapping of dimensions from given output to input.
  *
- * Array element corresponding to given output dimensions is the index of that
- * dimension in the input layout.
+ * Array element corresponding to given output dimension is the index of that
+ * dimension in the input layout:
+ * `input_layout[result[i]] == output_layout[i]` for all valid i.
  *
  * Example:
  * ```

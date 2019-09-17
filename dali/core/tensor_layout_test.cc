@@ -126,6 +126,30 @@ TEST(TensorLayout, Comparison) {
   TestTLCompare("111", "1111");
   TestTLCompare("4321", "432");
   TestTLCompare("bang", "bang");
+  TestTLCompare("str1", "");
+  TestTLCompare("", "str2");
+  TestTLCompare("", "");
+}
+
+TEST(TensorLayout, Find) {
+  EXPECT_EQ(TensorLayout("asdfgh").find('a'), 0);
+  EXPECT_EQ(TensorLayout("asdfgh").find('s'), 1);
+  EXPECT_EQ(TensorLayout("asdfgh").find('h'), 5);
+  EXPECT_EQ(TensorLayout("asdfgh").find('S'), -1);
+  EXPECT_EQ(TensorLayout("asdfgh").find('\0'), -1);
+  EXPECT_EQ(TensorLayout().find('a'), -1);
+  EXPECT_EQ(TensorLayout().find('\0'), -1);
+}
+
+TEST(TensorLayout, Skip) {
+  EXPECT_EQ(TensorLayout("asdfgh").skip('a'), TensorLayout("sdfgh"));
+  EXPECT_EQ(TensorLayout("asdfgh").skip('s'), TensorLayout("adfgh"));
+  EXPECT_EQ(TensorLayout("asdfgh").skip('h'), TensorLayout("asdfg"));
+  EXPECT_EQ(TensorLayout("asdfgh").skip('\0'), TensorLayout("asdfgh"));
+  EXPECT_EQ(TensorLayout("HWC").skip('N'), TensorLayout("HWC"));
+  EXPECT_EQ(TensorLayout().skip('a'), TensorLayout());
+  EXPECT_EQ(TensorLayout("a").skip('a'), TensorLayout());
+  EXPECT_EQ(TensorLayout("through").skip('h'), TensorLayout("trough"));
 }
 
 TEST(TensorLayout, ImageLayout) {
@@ -195,6 +219,8 @@ TEST(TensorLayout, VideoLayout) {
   EXPECT_EQ(VideoLayoutInfo::FrameDimIndex("NFCHW"), 1);
   EXPECT_FALSE(VideoLayoutInfo::IsSequence("NDCHW"));
   EXPECT_TRUE(VideoLayoutInfo::IsStillImage("NDCHW"));
+  EXPECT_EQ(VideoLayoutInfo::GetFrameLayout("FCHW"), TensorLayout("CHW"));
+  EXPECT_EQ(VideoLayoutInfo::GetFrameLayout("NFHWC"), TensorLayout("NHWC"));
 }
 
 TEST(TensorLayout, IsPermutationOf) {

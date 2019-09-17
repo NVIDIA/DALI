@@ -108,6 +108,28 @@ DEVICE_TEST(TensorLayout_Dev, ImageLayout, 1, 1) {
   DEV_EXPECT_FALSE(ImageLayoutInfo::IsImage("NC"));
 }
 
+DEVICE_TEST(TensorLayout_Dev, Find, 1, 1) {
+  DEV_EXPECT_EQ(TensorLayout("asdfgh").find('a'), 0);
+  DEV_EXPECT_EQ(TensorLayout("asdfgh").find('s'), 1);
+  DEV_EXPECT_EQ(TensorLayout("asdfgh").find('h'), 5);
+  DEV_EXPECT_EQ(TensorLayout("asdfgh").find('S'), -1);
+  DEV_EXPECT_EQ(TensorLayout("asdfgh").find('\0'), -1);
+  DEV_EXPECT_EQ(TensorLayout().find('a'), -1);
+  DEV_EXPECT_EQ(TensorLayout().find('\0'), -1);
+}
+
+DEVICE_TEST(TensorLayout_Dev, Skip, 1, 1) {
+  DEV_EXPECT_EQ(TensorLayout("asdfgh").skip('a'), TensorLayout("sdfgh"));
+  DEV_EXPECT_EQ(TensorLayout("asdfgh").skip('s'), TensorLayout("adfgh"));
+  DEV_EXPECT_EQ(TensorLayout("asdfgh").skip('h'), TensorLayout("asdfg"));
+  DEV_EXPECT_EQ(TensorLayout("asdfgh").skip('\0'), TensorLayout("asdfgh"));
+  DEV_EXPECT_EQ(TensorLayout("HWC").skip('N'), TensorLayout("HWC"));
+  DEV_EXPECT_EQ(TensorLayout().skip('a'), TensorLayout());
+  DEV_EXPECT_EQ(TensorLayout("a").skip('a'), TensorLayout());
+  DEV_EXPECT_EQ(TensorLayout("through").skip('h'), TensorLayout("trough"));
+}
+
+
 DEVICE_TEST(TensorLayout_Dev, Sub, 1, 1) {
   DEV_EXPECT_EQ(TensorLayout("NHWC").sub(1), TensorLayout("HWC"));
   DEV_EXPECT_EQ(TensorLayout("asdfgh").sub(2, 3), TensorLayout("dfg"));
