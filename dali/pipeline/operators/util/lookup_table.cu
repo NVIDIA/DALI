@@ -61,8 +61,9 @@ void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   const auto stream = ws.stream();
   Tensor<GPUBackend> lookup_table_gpu;
 
-  TYPE_SWITCH(input.type().id(), dali::type2id, InputType, (uint8_t, int16_t, int32_t, uint64_t), (
-    TYPE_SWITCH(output_type_, dali::type2id, OutputType, (float, uint8_t, int16_t, int32_t), (
+  TYPE_SWITCH(input.type().id(), dali::type2id, InputType,
+              (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t), (
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
       auto *out_data = output.mutable_data<OutputType>();
       const auto *in_data = input.data<InputType>();
 
@@ -74,7 +75,7 @@ void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       detail::LookupValuesImpl<OutputType, InputType><<<blocks, kThreads, 0, stream>>>(
         out_data, in_data, data_size,
         lookup_table, default_value);
-    ), DALI_FAIL("Unsupported output type"); )   // NOLINT
+    )
   ), DALI_FAIL("Unsupported input type"); );     // NOLINT
 }
 

@@ -30,26 +30,30 @@ using float16 = __half;
 using float16 = half_float::half;
 #endif
 
+namespace detail {
+
 template <typename T>
-struct _is_half : std::false_type {};
+struct is_half : std::false_type {};
 
 template <>
-struct _is_half<float16> : std::true_type {};
+struct is_half<float16> : std::true_type {};
+
+}  // namespace detail
 
 template <typename T>
-struct is_half : _is_half<std::remove_cv_t<T>> {};
+struct is_half : detail::is_half<std::remove_cv_t<T>> {};
 
 template <typename T>
-struct is_fp_or_half : std::is_floating_point<T> {};
-
-template <>
-struct is_fp_or_half<float16> : std::true_type {};
+struct is_arithmetic_or_half {
+  static constexpr bool value =
+    std::is_arithmetic<T>::value || is_half<T>::value;
+};
 
 template <typename T>
-struct is_arithmetic_or_half : std::is_arithmetic<T> {};
-
-template <>
-struct is_arithmetic_or_half<float16> : std::true_type {};
+struct is_fp_or_half {
+  static constexpr bool value =
+    std::is_floating_point<T>::value || is_half<T>::value;
+};
 
 
 }  // namespace dali

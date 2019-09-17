@@ -21,8 +21,9 @@ void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto data_size = input.size();
-  TYPE_SWITCH(input.type().id(), dali::type2id, InputType, (uint8_t, int16_t, int32_t, uint64_t), (
-    TYPE_SWITCH(output_type_, dali::type2id, OutputType, (float, uint8_t, int16_t, int32_t), (
+  TYPE_SWITCH(input.type().id(), dali::type2id, InputType,
+              (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t), (
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
       // We do not check the key range when the type range is smaller than the supported range
       constexpr bool check_range =
           !std::is_same<InputType, uint8_t>::value
@@ -42,7 +43,7 @@ void LookupTable<CPUBackend>::RunImpl(SampleWorkspace &ws) {
           out_data[i] = lookup_table[key];
         }
       }
-    ), DALI_FAIL("Unsupported output type"); )   // NOLINT
+    )
   ), DALI_FAIL("Unsupported input type"); );     // NOLINT
 }
 
