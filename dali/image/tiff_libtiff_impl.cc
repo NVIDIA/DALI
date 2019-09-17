@@ -189,8 +189,9 @@ kernels::TensorShape<3> LibtiffImpl::Dims() const {
 
 bool LibtiffImpl::CanDecode() const {
   // TODO(janton): Implement to other variants
-  std::cout << "is_tiled[" << is_tiled_ << "] bit_depth["
-            << bit_depth_ << "] orientation[" << orientation_ << "]" << std::endl;
+  // TODO(janton): remove this
+  //std::cout << "is_tiled[" << is_tiled_ << "] bit_depth["
+  //          << bit_depth_ << "] orientation[" << orientation_ << "]" << std::endl;
   return !is_tiled_
       && bit_depth_ == 8
       && orientation_ == ORIENTATION_TOPLEFT;
