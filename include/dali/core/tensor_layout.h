@@ -75,18 +75,19 @@ class TensorLayout {
   TensorLayout(const std::string &s) : TensorLayout(s.data(), s.length()) {  // NOLINT
   }
 
-  /** @brief Returns a reference to d-th dimension in the layout
-   * @remarks Any of the following leads to undefined behavior:
-   *    - accessing values at d > ndim()
-   *    - changing '\0' terminator to any other value
-   *    - replacing any meaningful character with '\0'
+  /** @brief Returns a reference to the d-th dimension in the layout
+   * @remarks Value at ndim() is always '\0'.
+   *          Any of the following leads to undefined behavior:
+   *            - accessing values at d > ndim()
+   *            - changing '\0' terminator to any other value
+   *            - replacing any meaningful character with '\0'
    */
   DALI_HOST_DEV
   constexpr char &operator[](int d) noexcept {
     return data_[d];
   }
 
-  /** @brief Returns a reference to d-th dimension in the layout
+  /** @brief Returns a reference to the d-th dimension in the layout
    * @remarks Value at ndim() is always '\0', accessing values beyond ndim() is forbidden.
    */
   DALI_HOST_DEV
@@ -106,6 +107,9 @@ class TensorLayout {
   }
   /** @brief Copies the contents to std::string */
   std::string str() const { return c_str(); }
+
+  /** @brief Copies the contents to std::string */
+  explicit operator std::string() const { return c_str(); }
 
   /** @brief Searches for the first occurrence of dim_name, starting at index start */
   DALI_HOST_DEV
@@ -460,15 +464,15 @@ struct VideoLayoutInfo : ImageLayoutInfo {
  * ```
  */
 template <int Dims>
-inline std::array<int, Dims> permuted_dims(const TensorLayout &in_layout,
-                                           const TensorLayout &out_layout) {
-  std::array<int, Dims> perm_dims;
+inline std::array<int, Dims> GetLayoutMapping(const TensorLayout &in_layout,
+                                              const TensorLayout &out_layout) {
+  std::array<int, Dims> dim_map;
   for (int d = 0; d < Dims; d++) {
-    perm_dims[d] = d;
+    dim_map[d] = d;
   }
 
   if (in_layout.empty() || out_layout.empty() || in_layout == out_layout)
-    return perm_dims;
+    return dim_map;
 
   DALI_ENFORCE(in_layout.ndim() == Dims && out_layout.ndim() == Dims,
     "Unexpected number of dimensions in layout description");
@@ -479,9 +483,9 @@ inline std::array<int, Dims> permuted_dims(const TensorLayout &in_layout,
   int min_j = 0;
   for (int i = 0; i < Dims; i++) {
     char c = a[i];
-    int j;
     while (b[min_j] == 0 && min_j < Dims)
       min_j++;
+    int j;
     for (j = min_j; j < Dims; j++) {
       if (b[j] == c)
         break;
@@ -489,10 +493,10 @@ inline std::array<int, Dims> permuted_dims(const TensorLayout &in_layout,
     if (j == Dims)
       DALI_FAIL("\"" + out_layout.str() + "\" is not a permutation of \"" + in_layout.str() + "\"");
     b[j] = '\0';  // mark as used
-    perm_dims[i] = j;
+    dim_map[i] = j;
   }
 
-  return perm_dims;
+  return dim_map;
 }
 
 }  // namespace dali

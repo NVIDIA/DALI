@@ -241,31 +241,31 @@ TEST(TensorLayout, IsPermutationOf) {
   EXPECT_FALSE(TensorLayout("").is_permutation_of("asdfdsa"));
 }
 
-TEST(TensorLayout, permuted_dims) {
+TEST(TensorLayout, GetLayoutMapping) {
   {
-    auto perm = permuted_dims<4>("NHWC", "NCHW");
+    auto perm = GetLayoutMapping<4>("NHWC", "NCHW");
     std::array<int, 4> ref{{ 0, 3, 1, 2 }};
     EXPECT_EQ(perm, ref);
 
-    perm = permuted_dims<4>("NCHW", "NHWC");
+    perm = GetLayoutMapping<4>("NCHW", "NHWC");
     ref = {{ 0, 2, 3, 1 }};
     EXPECT_EQ(perm, ref);
   }
   {
-    auto perm = permuted_dims<5>("01234", "34201");
+    auto perm = GetLayoutMapping<5>("01234", "34201");
     std::array<int, 5> ref{{ 3, 4, 2, 0, 1 }};
     EXPECT_EQ(perm, ref);
 
-    perm = permuted_dims<5>("aabba", "baaba");
+    perm = GetLayoutMapping<5>("aabba", "baaba");
     ref = {{ 2, 0, 1, 3, 4 }};
     EXPECT_EQ(perm, ref);
 
-    perm = permuted_dims<5>("aaabb", "baaba");
+    perm = GetLayoutMapping<5>("aaabb", "baaba");
     ref = {{ 3, 0, 1, 4, 2 }};
     EXPECT_EQ(perm, ref);
   }
   {
-    EXPECT_THROW(permuted_dims<1>("@", "#"), DALIException);
+    EXPECT_THROW(GetLayoutMapping<1>("@", "#"), DALIException);
   }
 }
 

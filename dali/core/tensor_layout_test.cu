@@ -66,6 +66,14 @@ DEVICE_TEST(TensorLayout_Dev, Equality, 1, 1) {
   DEV_EXPECT_FALSE(TensorLayout("HWC") == TensorLayout("CHW"));
   DEV_EXPECT_FALSE(TensorLayout("asdf") != "asdf");               // NOLINT
   DEV_EXPECT_FALSE("fadd" == TensorLayout("fads"));               // NOLINT
+
+  DEV_EXPECT_FALSE("" == TensorLayout("asdf"));
+  DEV_EXPECT_FALSE("asdf" == TensorLayout(""));
+  DEV_EXPECT_TRUE("" != TensorLayout("asdf"));
+  DEV_EXPECT_TRUE("asdf" != TensorLayout(""));
+  DEV_EXPECT_FALSE("" != TensorLayout(""));
+  DEV_EXPECT_TRUE("" == TensorLayout(""));
+  DEV_EXPECT_TRUE(TensorLayout("") == "");
 }
 
 DEVICE_TEST(TensorLayout_Dev, ImageLayout, 1, 1) {
