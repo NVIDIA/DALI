@@ -36,19 +36,19 @@ const std::string kContrast = "contrast_delta";      // NOLINT
 const std::string kOutputType = "output_type";       // NOLINT
 
 
-template <class Backend, class Out, class In, size_t ndims>
+template <typename Backend, typename Out, typename In, size_t ndims>
 struct Kernel {
   using type = kernels::BrightnessContrastCpu<Out, In, ndims>;
 };
 
 
-template <class Out, class In, size_t ndims>
+template <typename Out, typename In, size_t ndims>
 struct Kernel<GPUBackend, Out, In, ndims> {
   using type = kernels::brightness_contrast::BrightnessContrastGpu<Out, In, ndims>;
 };
 
 
-template <class Backend>
+template <typename Backend>
 struct ArgumentType {
   static_assert(
           std::is_same<Backend, CPUBackend>::value || std::is_same<Backend, GPUBackend>::value,
@@ -66,14 +66,14 @@ struct ArgumentType<GPUBackend> {
 /**
  * Select proper type for argument (for either sample processing or batch processing cases)
  */
-template <class Backend>
+template <typename Backend>
 using argument_t = typename ArgumentType<Backend>::type;
 
 
 /**
  * Chooses proper kernel (CPU or GPU) for given template parameters
  */
-template <class Backend, class OutputType, class InputType, size_t ndims>
+template <typename Backend, typename OutputType, typename InputType, size_t ndims>
 using BrightnessContrastKernel = typename Kernel<Backend, OutputType, InputType, ndims>::type;
 
 
@@ -81,7 +81,7 @@ using BrightnessContrastKernel = typename Kernel<Backend, OutputType, InputType,
  * Assign argument, whether it is a single value (for sample-wise processing)
  * or vector of values (for batch processing, where every argument is defined per-sample)
  */
-template <class Backend>
+template <typename Backend>
 void assign_argument_value(const OpSpec &, const std::string &, argument_t<Backend> &) {
   DALI_FAIL("Unsupported Backend. You may want to write your own specialization.");
 }
@@ -105,7 +105,7 @@ void assign_argument_value<GPUBackend>(const OpSpec &spec, const std::string &ar
 }  // namespace detail
 
 
-template <class Backend>
+template <typename Backend>
 class BrightnessContrast : public Operator<Backend> {
  public:
   explicit BrightnessContrast(const OpSpec &spec) :
@@ -162,20 +162,20 @@ class BrightnessContrast : public Operator<Backend> {
     auto &output = ws.template Output<Backend>(0);
 
     TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-            TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-            {
-                using TheKernel =
-                        detail::BrightnessContrastKernel<Backend, OutputType, InputType, 3>;
-                auto tvin = view<const InputType, 3>(input);
-                auto tvout = view<OutputType, 3>(output);
-                kernel_manager_.Initialize<TheKernel>();
-                kernels::KernelContext ctx;
-                kernel_manager_.Setup<TheKernel>(ws.data_idx(),
-                        ctx, tvin, brightness_, contrast_);
-                kernel_manager_.Run<TheKernel>(ws.thread_idx(), ws.data_idx(),
-                        ctx, tvout, tvin, brightness_, contrast_);
-            }
-            ), DALI_FAIL("Unsupported output type"))
+        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
+        {
+            using BrightnessContrastKernel =
+                    detail::BrightnessContrastKernel<Backend, OutputType, InputType, 3>;
+            auto tvin = view<const InputType, 3>(input);
+            auto tvout = view<OutputType, 3>(output);
+            kernel_manager_.Initialize<BrightnessContrastKernel>();
+            kernels::KernelContext ctx;
+            kernel_manager_.Setup<BrightnessContrastKernel>(ws.data_idx(),
+                    ctx, tvin, brightness_, contrast_);
+            kernel_manager_.Run<BrightnessContrastKernel>(ws.thread_idx(), ws.data_idx(),
+                    ctx, tvout, tvin, brightness_, contrast_);
+        }
+        ), DALI_FAIL("Unsupported output type"))
     ), DALI_FAIL("Unsupported input type"))
   }
 
