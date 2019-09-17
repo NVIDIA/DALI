@@ -16,8 +16,8 @@
 #define DALI_IMAGE_JPEG_UTILS_H_
 
 extern "C" {
-#include <jerror.h>
-#include <jpeglib.h>
+#include "jerror.h"  // NOLINT(build/include)
+#include "jpeglib.h"  // NOLINT(build/include)
 }
 
 #endif  // DALI_IMAGE_JPEG_UTILS_H_

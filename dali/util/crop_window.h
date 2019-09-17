@@ -16,48 +16,54 @@
 #define DALI_UTIL_CROP_WINDOW_H_
 
 #include <functional>
+#include <utility>
+#include "dali/kernels/tensor_shape.h"
 
 namespace dali {
 
 struct CropWindow {
-    int x, y, w, h;
+  kernels::TensorShape<> anchor;
+  kernels::TensorShape<> shape;
 
-    CropWindow(int _x, int _y, int _w, int _h)
-      : x(_x), y(_y), w(_w), h(_h)
-    {}
+  CropWindow()
+    : anchor{0, 0}, shape{0, 0}
+  {}
 
-    CropWindow()
-      : x(0), y(0), w(0), h(0)
-    {}
+  operator bool() const {
+    for (int dim = 0; dim < shape.size(); dim++)
+      if (shape[dim] <= 0)
+        return false;
+    return true;
+  }
 
-    operator bool() const {
-      return w > 0 && h > 0;
-    }
+  inline bool operator==(const CropWindow& oth) const {
+    return anchor == oth.anchor && shape == oth.shape;
+  }
 
-    inline bool operator==(const CropWindow& oth) const {
-      return x == oth.x
-          && y == oth.y
-          && h == oth.h
-          && w == oth.w;
-    }
+  inline bool operator!=(const CropWindow& oth) const {
+    return !operator==(oth);
+  }
 
-    inline bool operator!=(const CropWindow& oth) const {
-      return !operator==(oth);
-    }
+  inline bool IsInRange(const kernels::TensorShape<>& input_shape) const {
+    DALI_ENFORCE(input_shape.size() == anchor.size()
+              && input_shape.size() == shape.size(),
+      "Input shape doesn't match number of dimensions of the anchor and/or shape");
+    for (int dim = 0; dim < input_shape.size(); dim++)
+      if (anchor[dim] < 0 || anchor[dim] + shape[dim] > input_shape[dim])
+        return false;
+    return true;
+  }
 
-    inline bool IsInRange(int H, int W) const {
-      return x >= 0
-          && x < W
-          && y >= 0
-          && y < H
-          && x+w >= 0
-          && x+w <= W
-          && y+h >= 0
-          && y+h <= H;
-    }
+  void SetAnchor(kernels::TensorShape<> new_anchor) {
+    anchor = std::move(new_anchor);
+  }
+
+  void SetShape(kernels::TensorShape<> new_shape) {
+    shape = std::move(new_shape);
+  }
 };
 
-using CropWindowGenerator = std::function<CropWindow(int /*H*/, int /*W*/)>;
+using CropWindowGenerator = std::function<CropWindow(const kernels::TensorShape<>& shape)>;
 
 }  // namespace dali
 

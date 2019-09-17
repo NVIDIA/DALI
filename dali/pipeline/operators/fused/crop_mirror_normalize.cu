@@ -21,104 +21,57 @@
 
 namespace dali {
 
-namespace detail {
-
-template <typename OutputType, typename InputType>
-void RunHelper(TensorList<GPUBackend> &output,
-               const TensorList<GPUBackend> &input,
-               const std::vector<std::vector<int64_t>>& slice_anchors,
-               const std::vector<std::vector<int64_t>>& slice_shapes,
-               const std::vector<int> &horizontal_flip,
-               bool pad_output,
-               const std::vector<float> &mean,
-               const std::vector<float> &inv_std_dev,
-               DALITensorLayout input_layout,
-               DALITensorLayout output_layout,
-               cudaStream_t stream,
-               kernels::ScratchpadAllocator &scratch_alloc) {
-  std::size_t number_of_dims = input.tensor_shape(0).size();
-  VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
-    kernels::SliceFlipNormalizePermutePadGPU<OutputType, InputType, NumDims> kernel;
-    kernels::KernelContext ctx;
-    ctx.gpu.stream = stream;
-    auto in_view = view<const InputType, NumDims>(input);
-
-    std::vector<kernels::SliceFlipNormalizePermutePadArgs<NumDims>> per_sample_args;
-    per_sample_args.reserve(slice_anchors.size());
-    for (std::size_t i = 0; i < slice_anchors.size(); i++) {
-      per_sample_args.emplace_back(slice_shapes[i]);
-      auto &args = per_sample_args[i];
-      const auto& slice_anchor = slice_anchors[i];
-      for (std::size_t d = 0; d < NumDims; d++) {
-        args.anchor[d] = slice_anchor[d];
-      }
-
-      if (horizontal_flip[i]) {
-        args.flip[horizontal_dim_idx(input_layout)] = true;
-      }
-
-      if (pad_output) {
-        args.padded_shape[channels_dim(input_layout)] = 4;
-      }
-
-      if (input_layout != output_layout) {
-        args.permuted_dims = permuted_dims<NumDims>(input_layout, output_layout);
-      }
-
-      const bool should_normalize =
-         !std::all_of(mean.begin(), mean.end(), [](float x){ return x == 0.0f; })
-      || !std::all_of(inv_std_dev.begin(), inv_std_dev.end(), [](float x){ return x == 1.0f; });
-      if (should_normalize) {
-        args.mean = mean;
-        args.inv_stddev = inv_std_dev;
-        args.normalization_dim = channels_dim(input_layout);
-      }
-    }
-
-    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, per_sample_args);
-
-    output.set_type(TypeInfo::Create<OutputType>());
-    output.SetLayout(input_layout);
-    output.Resize(req.output_shapes[0]);
-
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
-
-    auto out_view = view<OutputType, NumDims>(output);
-    kernel.Run(ctx, out_view, in_view, per_sample_args);
-  ),  // NOLINT
-  (
-    DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims));
-  ));  // NOLINT
-}
-
-}  // namespace detail
-
 template <>
-void CropMirrorNormalize<GPUBackend>::DataDependentSetup(DeviceWorkspace &ws) {
+bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                                const DeviceWorkspace &ws) {
+  output_desc.resize(1);
+  SetupAndInitialize(ws);
   const auto &input = ws.Input<GPUBackend>(0);
-  for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
-    SetupSample(sample_idx, input_layout_, input.tensor_shape(sample_idx));
-    mirror_[sample_idx] = spec_.GetArgument<int>("mirror", &ws, sample_idx);
-  }
-  auto &output = ws.Output<GPUBackend>(0);
-  output.SetLayout(output_layout_);
+  auto &output = ws.OutputRef<GPUBackend>(0);
+  std::size_t number_of_dims = input.shape().sample_dim();
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
+      VALUE_SWITCH(number_of_dims, Dims, (3, 4),
+      (
+        using Kernel = kernels::SliceFlipNormalizePermutePadGPU<OutputType, InputType, Dims>;
+        using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
+        auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+        output_desc[0].type = TypeInfo::Create<OutputType>();
+        output_desc[0].shape.resize(batch_size_, Dims);
+        kmgr_.Initialize<Kernel>();
+
+        kernels::KernelContext ctx;
+        ctx.gpu.stream = ws.stream();
+        auto in_view = view<const InputType, Dims>(input);
+        auto &req = kmgr_.Setup<Kernel>(0, ctx, in_view, kernel_sample_args);
+        output_desc[0].shape = req.output_shapes[0];
+        // NOLINTNEXTLINE(whitespace/parens)
+      ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
+    )
+  );  // NOLINT(whitespace/parens)
+  return true;
 }
 
 template<>
 void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  this->DataDependentSetup(ws);
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
 
-  DALI_TYPE_SWITCH_WITH_FP16_GPU(input_type_, InputType,
-    DALI_TYPE_SWITCH_WITH_FP16_GPU(output_type_, OutputType,
-      detail::RunHelper<OutputType, InputType>(
-        output, input, slice_anchors_, slice_shapes_,
-        mirror_, pad_output_, mean_vec_, inv_std_vec_,
-        input_layout_, output_layout_,
-        ws.stream(), scratch_alloc_);
+  std::size_t number_of_dims = input.shape().sample_dim();
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
+      VALUE_SWITCH(number_of_dims, Dims, (3, 4),
+      (
+        using Kernel = kernels::SliceFlipNormalizePermutePadGPU<OutputType, InputType, Dims>;
+        using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
+        auto in_view = view<const InputType, Dims>(input);
+        auto out_view = view<OutputType, Dims>(output);
+        kernels::KernelContext ctx;
+        ctx.gpu.stream = ws.stream();
+        auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+        kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, kernel_sample_args);
+        // NOLINTNEXTLINE(whitespace/parens)
+      ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
     )
   )
 }

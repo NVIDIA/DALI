@@ -360,11 +360,11 @@ inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string &ins
   spec.SetArg("device", "cpu");
 
   auto& op_output = spec.MutableOutput(0);
-  string op_output_name = op_output.first;
+  string op_output_name = op_output.name;
 
   const std::string mangled_outputname(cpu_stage_name + inst_name);
-  op_output.first = mangled_outputname + "0";
-  op_output.second = "cpu";
+  op_output.name = mangled_outputname + "0";
+  op_output.device = "cpu";
   spec.AddOutput(mangled_outputname + "1", "cpu");
   spec.AddOutput(mangled_outputname + "2", "cpu");
 
@@ -604,10 +604,10 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_
 
   // Update the OpSpec to use the contiguous input
   auto& input_strs = spec->MutableInput(input_idx);
-  DALI_ENFORCE(input_strs.first == it->first, "Input at index " +
+  DALI_ENFORCE(input_strs.name == it->first, "Input at index " +
       std::to_string(input_idx) + " does not match input iterator "
-      "name (" + input_strs.first + " v. " + it->first + ").");
-  input_strs.first = "contiguous_" + input_strs.first;
+      "name (" + input_strs.name + " v. " + it->first + ").");
+  input_strs.name = "contiguous_" + input_strs.name;
 }
 
 void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {

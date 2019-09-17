@@ -398,6 +398,7 @@ find_program(Protobuf_PROTOC_EXECUTABLE
     PATHS
     ${Protobuf_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Release
     ${Protobuf_SRC_ROOT_FOLDER}/vsprojects/${_PROTOBUF_ARCH_DIR}Debug
+    NO_CMAKE_SYSTEM_PATH
 )
 mark_as_advanced(Protobuf_PROTOC_EXECUTABLE)
 

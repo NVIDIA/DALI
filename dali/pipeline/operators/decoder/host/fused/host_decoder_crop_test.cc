@@ -26,12 +26,12 @@ class ImageDecoderCropTest_CPU : public DecodeTestBase<ImgType> {
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return [this] (int H, int W) {
+    return [this] (const kernels::TensorShape<>& shape) {
       CropWindow crop_window;
-      crop_window.h = crop_H;
-      crop_window.w = crop_W;
-      crop_window.y = std::round(0.5f * (H - crop_window.h));
-      crop_window.x = std::round(0.5f * (W - crop_window.w));
+      crop_window.shape[0] = crop_H;
+      crop_window.shape[1] = crop_W;
+      crop_window.anchor[0] = std::round(0.5f * (shape[0] - crop_window.shape[0]));
+      crop_window.anchor[1] = std::round(0.5f * (shape[1] - crop_window.shape[1]));
       return crop_window;
     };
   }

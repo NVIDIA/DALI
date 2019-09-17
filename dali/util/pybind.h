@@ -18,8 +18,10 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#include <utility>
 #include <string>
 #include "dali/pipeline/data/types.h"
+#include "dali/pipeline/data/dltensor.h"
 
 namespace dali {
 
@@ -150,6 +152,46 @@ static TypeInfo TypeFromFormatStr(const std::string &format) {
       DALI_FAIL("Cannot create type for unknown format string: " + format);
     }
   }
+}
+
+constexpr const char *DLTENSOR_NAME = "dltensor";
+constexpr const char *USED_DLTENSOR_NAME = "used_dltensor";
+
+static void DLTensorCapsuleDestructor(PyObject *capsule) {
+  // run the destructor only for unused capsules (those which keep the original name)
+  if (std::string(PyCapsule_GetName(capsule)) == DLTENSOR_NAME) {
+    auto *ptr = static_cast<DLManagedTensor*>(PyCapsule_GetPointer(capsule, DLTENSOR_NAME));
+    DLMTensorPtrDeleter(ptr);
+  }
+}
+
+// Steal a DLPack Tensor from the passed pointer and wrap it into Python capsule.
+static py::capsule DLTensorToCapsule(DLMTensorPtr dl_tensor) {
+  auto caps = py::capsule(dl_tensor.release(), DLTENSOR_NAME, &DLTensorCapsuleDestructor);
+  return caps;
+}
+
+template <typename Backend>
+py::capsule TensorToDLPackView(Tensor<Backend> &tensor) {
+  DLMTensorPtr dl_tensor = GetDLTensorView(tensor);
+  return DLTensorToCapsule(std::move(dl_tensor));
+}
+
+template <typename Backend>
+py::list TensorListToDLPackView(TensorList<Backend> &tensors) {
+  py::list result;
+  auto dl_tensors = GetDLTensorListView(tensors);
+  for (DLMTensorPtr &dl_tensor : dl_tensors) {
+    result.append(DLTensorToCapsule(std::move(dl_tensor)));
+  }
+  return result;
+}
+
+static DLMTensorPtr DLMTensorPtrFromCapsule(py::capsule &capsule) {
+  DALI_ENFORCE(std::string(capsule.name()) == DLTENSOR_NAME,
+      "Invalid DLPack tensor capsule. Notice that a dl tensor can be consumed only once");
+  PyCapsule_SetName(capsule.ptr(), USED_DLTENSOR_NAME);
+  return {static_cast<DLManagedTensor*>(capsule), DLMTensorPtrDeleter};
 }
 
 }  // namespace dali

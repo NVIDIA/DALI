@@ -57,12 +57,12 @@ class ImageDecoderSplitSliceTest_GPU : public DecodeTestBase<ImgType> {
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return [this] (int H, int W) {
+    return [this] (const kernels::TensorShape<>& shape) {
       CropWindow crop_window;
-      crop_window.y = crop_y * H;
-      crop_window.x = crop_x * W;
-      crop_window.h = (crop_h + crop_y) * H - crop_window.y;
-      crop_window.w = (crop_w + crop_x) * W - crop_window.x;
+      crop_window.anchor[0] = crop_y * shape[0];
+      crop_window.anchor[1] = crop_x * shape[1];
+      crop_window.shape[0] = (crop_h + crop_y) * shape[0] - crop_window.anchor[0];
+      crop_window.shape[1] = (crop_w + crop_x) * shape[1] - crop_window.anchor[1];
       return crop_window;
     };
   }

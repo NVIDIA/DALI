@@ -38,7 +38,7 @@ to_torch_type = {
 
 def feed_ndarray(dali_tensor, arr):
     """
-    Copy contents of DALI tensor to pyTorch's Tensor.
+    Copy contents of DALI tensor to PyTorch's Tensor.
 
     Parameters
     ----------
@@ -57,8 +57,8 @@ def feed_ndarray(dali_tensor, arr):
 
 class DALIGenericIterator(object):
     """
-    General DALI iterator for pyTorch. It can return any number of
-    outputs from the DALI pipeline in the form of pyTorch's Tensors.
+    General DALI iterator for PyTorch. It can return any number of
+    outputs from the DALI pipeline in the form of PyTorch's Tensors.
 
     Parameters
     ----------
@@ -258,8 +258,8 @@ class DALIGenericIterator(object):
 
 class DALIClassificationIterator(DALIGenericIterator):
     """
-    DALI iterator for classification tasks for pyTorch. It returns 2 outputs
-    (data and label) in the form of pyTorch's Tensor.
+    DALI iterator for classification tasks for PyTorch. It returns 2 outputs
+    (data and label) in the form of PyTorch's Tensor.
 
     Calling
 

@@ -130,6 +130,8 @@ constexpr __device__ const char *dev_to_string(const char *literal) { return lit
 inline __device__ DeviceString dev_to_string(bool b) { return b ? "true" : "false"; }
 
 inline __device__ DeviceString dev_to_string(long long x) {  // NOLINT
+  static_assert(sizeof(long long) == 8,  // NOLINT
+                "This function does not work when long long is not 64-bit");
   if (x == 0)
     return "0";
   char buf[32];
@@ -139,6 +141,10 @@ inline __device__ DeviceString dev_to_string(long long x) {  // NOLINT
   if (x < 0) {
     neg = true;
     x = -x;
+    if (x < 0) {
+      // number is self-negative - it must be -2^63
+      return "-9223372036854775808";
+    }
   }
   while (x) {
     int digit = x%10;

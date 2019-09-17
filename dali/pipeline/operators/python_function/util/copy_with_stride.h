@@ -17,12 +17,15 @@
 
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/pipeline/data/backend.h"
 
 namespace dali {
 
+template <typename Backend>
 DLL_PUBLIC void CopyWithStride(void *output, const void *input,
-                               const std::vector<Index> &in_strides,
-                               const std::vector<Index> &shape,
+                               const Index *in_strides,
+                               const Index *shape,
+                               int ndim,
                                size_t item_size);
 
 }

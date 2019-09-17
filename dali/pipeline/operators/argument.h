@@ -28,6 +28,22 @@
 
 namespace dali {
 
+
+template <typename T>
+struct argument_storage {
+  using type = std::conditional_t<
+      std::is_integral<T>::value || std::is_enum<T>::value,
+      int64_t, T>;
+};
+
+template <>
+struct argument_storage<bool> {
+  using type = bool;
+};
+
+template <typename T>
+using argument_storage_t = typename argument_storage<T>::type;
+
 class Value {
  public:
   virtual std::string ToString() const = 0;
@@ -51,8 +67,8 @@ class Value {
 template <typename T>
 class ValueInst : public Value {
  public:
-  explicit ValueInst(const T& val) {
-    this->val_ = val;
+  template <typename... Args>
+  explicit ValueInst(Args&&... args) : val_(std::forward<Args>(args)...) {
     this->type_ = TypeTable::GetTypeID<T>();
   }
 
@@ -60,7 +76,7 @@ class ValueInst : public Value {
     return to_string(val_);
   }
 
-  T Get() const {
+  const T &Get() const {
     return val_;
   }
 
@@ -70,34 +86,9 @@ class ValueInst : public Value {
 
 template <typename T>
 inline std::unique_ptr<Value> Value::construct(const T& val) {
-  return std::unique_ptr<Value>(new ValueInst<T>(val));
+  using S = argument_storage_t<T>;
+  return std::unique_ptr<Value>(new ValueInst<S>(val));
 }
-
-#define INSTANTIATE_VALUE_AS_INT64(T)                             \
-  template <>                                                     \
-  inline std::unique_ptr<Value> Value::construct(const T& val) {  \
-    auto ret = std::unique_ptr<Value>(new ValueInst<Index>(val)); \
-    return ret;                                                   \
-  }
-
-#define INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(T)               \
-  template <>                                                     \
-  inline std::unique_ptr<Value> Value::construct(const T& val) {  \
-    auto ret = std::unique_ptr<Value>(new ValueInst<Index>(val)); \
-    /* preserve type information */                               \
-    ret->SetTypeID(TypeTable::GetTypeID<T>());                    \
-    return ret;                                                   \
-  }
-
-INSTANTIATE_VALUE_AS_INT64(int);
-INSTANTIATE_VALUE_AS_INT64(unsigned int);
-INSTANTIATE_VALUE_AS_INT64(uint64_t);
-INSTANTIATE_VALUE_AS_INT64(int8_t);
-INSTANTIATE_VALUE_AS_INT64(uint8_t);
-INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(DALIImageType);
-INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(DALIDataType);
-INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(DALIInterpType);
-INSTANTIATE_VALUE_AS_INT64_PRESERVE_TYPE(DALITensorLayout);
 
 /**
  * @brief Stores a single argument.

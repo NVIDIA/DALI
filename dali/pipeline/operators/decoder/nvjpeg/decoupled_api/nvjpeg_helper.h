@@ -143,8 +143,8 @@ inline bool ShouldUseHybridHuffman(EncodedImageInfo<T>& info,
                                    unsigned int threshold) {
   auto &roi = info.crop_window;
   unsigned int w = static_cast<unsigned int>(info.widths[0]);
-  unsigned int h = static_cast<unsigned int>(roi ? (roi.y + roi.h)
-                                                  : info.heights[0]);
+  unsigned int h = static_cast<unsigned int>(
+    roi ? (roi.anchor[0] + roi.shape[0]) : info.heights[0]);
   // TODO(spanev): replace it by nvJPEG API function when available in future release
   // We don't wanna call IsProgressiveJPEG if not needed
   return h*w > threshold && !IsProgressiveJPEG(input, size);

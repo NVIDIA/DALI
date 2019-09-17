@@ -52,6 +52,11 @@ propagate_option(BUILD_FFMPEG)
 
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 
+get_dali_extra_version(${PROJECT_SOURCE_DIR}/DALI_EXTRA_VERSION DALI_EXTRA_VERSION)
+configure_file("${PROJECT_SOURCE_DIR}/dali/test/dali_test_info.h.in"
+               "${PROJECT_BINARY_DIR}/dali/test/dali_test_info.h")
+set(DALI_INST_HDRS ${DALI_INST_HDRS} "${PROJECT_BINARY_DIR}/dali/test/dali_test_info.h")
+
 # Default to release build
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING
@@ -66,6 +71,9 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 if(${ARCH} MATCHES "aarch64-linux")
   message("Target set to aarch64-linux")
   include(cmake/Dependencies.aarch64-linux.cmake)
+elseif(${ARCH} MATCHES "aarch64-qnx")
+  message("Target set to aarch64-qnx")
+  include(cmake/Dependencies.aarch64-qnx.cmake)
 else()
   include(cmake/Dependencies.cmake)
 endif()

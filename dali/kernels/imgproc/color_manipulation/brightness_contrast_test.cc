@@ -18,7 +18,7 @@
 #include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast_test_utils.h"
+#include "dali/kernels/imgproc/color_manipulation/color_manipulation_test_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -142,7 +142,8 @@ TYPED_TEST(BrightnessContrastCpuTest, RunTestWithRoi) {
 
   kernel.Run(ctx, out, in, this->brightness_, this->contrast_, &roi);
 
-  auto mat = to_mat<ndims>(this->ref_output_.data(), roi, this->shape_[0], this->shape_[1]);
+  auto mat = color_manipulation::test::to_mat<ndims>(this->ref_output_.data(), roi,
+                                                     this->shape_[0], this->shape_[1]);
   ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
                         << "Number of elements doesn't match";
   auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
@@ -152,28 +153,6 @@ TYPED_TEST(BrightnessContrastCpuTest, RunTestWithRoi) {
 }
 
 
-TYPED_TEST(BrightnessContrastCpuTest, roi_shape) {
-  {
-    Box<2, int> box{0, 3};
-    auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 3);
-    TensorShape<3> ref_sh = {3, 3, 3};
-    ASSERT_EQ(ref_sh, sh);
-  }
-  {
-    Box<2, int> box{{0, 2},
-                    {5, 6}};
-    auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
-    TensorShape<3> ref_sh = {4, 5, 666};
-    ASSERT_EQ(ref_sh, sh);
-  }
-  {
-    Box<2, int> box{{0, 0},
-                    {0, 0}};
-    auto sh = ::dali::kernels::brightness_contrast::roi_shape(box, 666);
-    TensorShape<3> ref_sh = {0, 0, 666};
-    ASSERT_EQ(ref_sh, sh);
-  }
-}
 
 
 }  // namespace test

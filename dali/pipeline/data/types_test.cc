@@ -33,20 +33,24 @@ namespace {
   static constexpr size_t DUMMY_ARRAY_SIZE = 42;
 }
 
-#define TYPENAME_FUNC(type)                     \
+#define TYPENAME_FUNC(type, type_name)           \
   template <>                                   \
   std::string TypesTest<type>::TypeName() {     \
-    return #type;                               \
+    return #type_name;                               \
   }                                             \
 
-TYPENAME_FUNC(uint8);
-TYPENAME_FUNC(int16);
-TYPENAME_FUNC(int32);
-TYPENAME_FUNC(int64);
-TYPENAME_FUNC(float16);
-TYPENAME_FUNC(float);
-TYPENAME_FUNC(double);
-TYPENAME_FUNC(bool);
+TYPENAME_FUNC(uint8_t, uint8);
+TYPENAME_FUNC(uint16_t, uint16);
+TYPENAME_FUNC(uint32_t, uint32);
+TYPENAME_FUNC(uint64_t, uint64);
+TYPENAME_FUNC(int8_t, int8);
+TYPENAME_FUNC(int16_t, int16);
+TYPENAME_FUNC(int32_t, int32);
+TYPENAME_FUNC(int64_t, int64);
+TYPENAME_FUNC(float16, float16);
+TYPENAME_FUNC(float, float);
+TYPENAME_FUNC(double, double);
+TYPENAME_FUNC(bool, bool);
 
 template <>
 std::string TypesTest<std::vector<uint8>>::TypeName() {
@@ -58,17 +62,10 @@ std::string TypesTest<std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>>::TypeNam
   return "list of list of uint8";
 }
 
-typedef ::testing::Types<uint8,
-                         int16,
-                         int32,
-                         int64,
-                         float16,
-                         float,
-                         double,
-                         bool,
-                         std::vector<uint8>,
-                         std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>
-                         > TestTypes;
+typedef ::testing::Types<uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t,
+                         float16, float, double, bool, std::vector<uint8>,
+                         std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>>
+    TestTypes;
 
 TYPED_TEST_SUITE(TypesTest, TestTypes);
 

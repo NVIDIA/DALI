@@ -41,11 +41,11 @@ GenericImage::DecodeImpl(DALIImageType image_type,
   auto crop_generator = GetCropWindowGenerator();
   if (crop_generator) {
       cv::Mat decoded_image_roi;
-      auto crop = crop_generator(H, W);
-      const int x = crop.x;
-      const int y = crop.y;
-      const int newW = crop.w;
-      const int newH = crop.h;
+      auto crop = crop_generator({H, W});
+      const int y = crop.anchor[0];
+      const int x = crop.anchor[1];
+      const int newH = crop.shape[0];
+      const int newW = crop.shape[1];
       DALI_ENFORCE(newW > 0 && newW <= W);
       DALI_ENFORCE(newH > 0 && newH <= H);
       cv::Rect roi(x, y, newW, newH);

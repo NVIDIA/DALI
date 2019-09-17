@@ -133,7 +133,8 @@ extern "C" {
    * @remarks Tensor list doesn't need to be dense
    */
   DLL_PUBLIC void daliCopyTensorListNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
-                                        device_type_t dst_type, cudaStream_t stream);
+                                        device_type_t dst_type, cudaStream_t stream,
+                                        bool non_blocking);
 
   /**
    * @brief Returns number of DALI pipeline outputs
@@ -146,7 +147,8 @@ extern "C" {
    * @remarks If the output is tensor list then it need to be dense
    */
   DLL_PUBLIC void daliCopyTensorNTo(daliPipelineHandle* pipe_handle, void* dst, int n,
-                                    device_type_t dst_type, cudaStream_t stream);
+                                    device_type_t dst_type, cudaStream_t stream,
+                                    bool non_blocking);
 
   /**
    * @brief Delete the pipeline object.

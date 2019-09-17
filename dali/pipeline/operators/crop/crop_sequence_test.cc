@@ -79,14 +79,17 @@ class CropSequenceTest : public DaliOperatorTest {
         int nouttensors = output_tl->ntensor();
         ASSERT_EQ(nintensors, nouttensors);
         for (int idx = 0; idx < nouttensors; idx++) {
-            auto shape = output_tl->tensor_shape(idx);
+            auto out_shape = output_tl->tensor_shape(idx);
+            auto in_shape = input_tl->tensor_shape(idx);
             const auto *data = output_tl->tensor<typename TestArgs::T>(idx);
-            ASSERT_EQ(TestArgs::F, shape[0]);
-            ASSERT_EQ(TestArgs::crop_H, shape[1]);
-            ASSERT_EQ(TestArgs::crop_W, shape[2]);
-            ASSERT_EQ(TestArgs::C, shape[3]);
+            ASSERT_EQ(TestArgs::F, out_shape[0]);
+            auto expected_height = TestArgs::crop_H > 0 ? TestArgs::crop_H : in_shape[1];
+            ASSERT_EQ(expected_height, out_shape[1]);
+            auto expected_width = TestArgs::crop_W > 0 ? TestArgs::crop_W : in_shape[2];
+            ASSERT_EQ(expected_width, out_shape[2]);
+            ASSERT_EQ(TestArgs::C, out_shape[3]);
 
-            auto size_frame = TestArgs::crop_H * TestArgs::crop_W * TestArgs::C;
+            auto size_frame = volume(out_shape.begin()+1, out_shape.end());
             for (int f = 0; f < TestArgs::F; f++) {
                 for (int k = f*size_frame; k < (f+1)*size_frame; k++) {
                     ASSERT_EQ(f%256, (int)data[k]);
@@ -116,7 +119,8 @@ using ValidCropArgs = ::testing::Types<
     CropSequenceTestArgs<Backend, uint8_t, 1, 10, 1280, 800, 3, 224, 256>,
     CropSequenceTestArgs<Backend, uint8_t, 2, 1,  1280, 800, 3, 224, 256>,
     CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1280, 800, 3, 1,   1>,
-    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1280, 800, 3, 1,   256>>;
+    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1280, 800, 3, 1,   256>,
+    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1280, 800, 3, -1, -1>>;
 
 using GPU_ValidCropArgs = ValidCropArgs<GPUBackend>;
 using CPU_ValidCropArgs = ValidCropArgs<CPUBackend>;
@@ -139,30 +143,25 @@ TYPED_TEST(CropSequenceTest_CPU_Valid, test_valid_crop_cpu) {
 
 template <typename Backend>
 using InvalidCropArgs = ::testing::Types<
-    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1, 1, 3, 224, 256>,
-    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1, 1, 3, -1, -1>>;
+    CropSequenceTestArgs<Backend, uint8_t, 2, 10, 1, 1, 3, 224, 256>>;
 
 using GPU_InvalidCropArgs = InvalidCropArgs<GPUBackend>;
 using CPU_InvalidCropArgs = InvalidCropArgs<CPUBackend>;
 
-template < typename T>
+template <typename T>
 using CropSequenceTest_GPU_Invalid = CropSequenceTest<T>;
 TYPED_TEST_SUITE(CropSequenceTest_GPU_Invalid, GPU_InvalidCropArgs);
 
-TYPED_TEST(CropSequenceTest_GPU_Invalid, invalid_arguments) {
-    EXPECT_THROW(
-        this->Run(),
-        std::runtime_error);
+TYPED_TEST(CropSequenceTest_GPU_Invalid, invalid_args) {
+    EXPECT_THROW(this->Run(), std::runtime_error);
 }
 
-template < typename T>
+template <typename T>
 using CropSequenceTest_CPU_Invalid = CropSequenceTest<T>;
 TYPED_TEST_SUITE(CropSequenceTest_CPU_Invalid, CPU_InvalidCropArgs);
 
-TYPED_TEST(CropSequenceTest_CPU_Invalid, invalid_arguments) {
-    EXPECT_THROW(
-        this->Run(),
-        std::runtime_error);
+TYPED_TEST(CropSequenceTest_CPU_Invalid, invalid_args) {
+    EXPECT_THROW(this->Run(), std::runtime_error);
 }
 
 }  // namespace testing

@@ -108,12 +108,12 @@ struct is_tuple<std::tuple<Ts...>> : std::true_type {
  * [int int], [int float], [int char], [float int], [float float],
  * [float char], [char int], [char float], [char char]
  *
- * To reference given type, use regular GTest's `TypeParam` type, with `::in` and `::out` suffixes:
+ * To reference given type, use regular GTest's `TypeParam` type, with `::In` and `::Out` suffixes:
  *
  * ```
  * TYPED_TEST(MyTestCase, test) {
- *   TypeParam::in in_value;
- *   std::vector<typename TypeParam::out> out_vec;
+ *   TypeParam::In in_value;
+ *   std::vector<typename TypeParam::Out> out_vec;
  * }
  * ```
  *

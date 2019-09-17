@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <unistd.h>
 #include <mutex>
 #include <cstring>
 #include <cassert>
 #include <iostream>
 #include <memory>
 #include "dali/test/dali_test_config.h"
+#include "dali/test/dali_test_info.h"
 
 namespace dali {
 namespace testing {
@@ -36,10 +38,34 @@ const std::string &dali_extra_path() {
   std::call_once(noninit_warning, []() {
       auto ptr = std::getenv("DALI_EXTRA_PATH");
       if (!ptr) {
-        std::cerr << "DALI_EXTRA_PATH not initialized." << std::endl;
+        std::cerr << "WARNING: DALI_EXTRA_PATH not initialized." << std::endl;
         *_dali_extra_path = ".";
       } else {
         *_dali_extra_path = std::string(ptr);
+      }
+      auto check_hash = "cd " + *_dali_extra_path + " ; git rev-parse HEAD";
+      constexpr int kHashLen = 40;
+      char hash[kHashLen];
+      auto pipe = popen(check_hash.c_str(), "r");
+      if (pipe == NULL) {
+        std::cerr << "WARNING: Could not read the sha of DALI_extra at " << *_dali_extra_path
+                  << ". Make sure DALI_EXTRA is checked out to " << DALI_EXTRA_VERSION
+                  << " so the test data is in the required version." << std::endl;
+        return;
+      }
+      auto count = fread(hash, sizeof(hash[0]), kHashLen, pipe);
+      auto ret = pclose(pipe);
+      if (ret != 0 || count != kHashLen) {
+        std::cerr << "WARNING: Could not read the sha of DALI_extra at " << *_dali_extra_path
+                  << ". Make sure DALI_EXTRA is checked out to " << DALI_EXTRA_VERSION
+                  << " so the test data is in the required version." << std::endl;
+        return;
+      }
+      if (strncmp(DALI_EXTRA_VERSION, hash, kHashLen) != 0) {
+        std::cerr << "WARNING: DALI_extra at " << *_dali_extra_path
+                  << " is in different version than one required by the tests. Some tests may "
+                     "fail to run or produce incorrect results.\nVersion required: "
+                  << DALI_EXTRA_VERSION << "\nVersion found: " << hash << std::endl;
       }
   });
   return *_dali_extra_path;
