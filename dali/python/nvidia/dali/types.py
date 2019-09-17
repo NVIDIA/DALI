@@ -78,9 +78,3 @@ class PipelineAPIType(object):
     BASIC = 0
     ITERATOR = 1
     SCHEDULED = 2
-
-NHWC='HWC'
-NCHW='CHW'
-NFHWC='FHWC'
-NFCHW='FCHW'
-SAME=''

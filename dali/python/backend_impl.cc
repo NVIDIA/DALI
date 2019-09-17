@@ -825,6 +825,12 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeTensor(m);
   ExposeTensorList(m);
 
+  types_m.attr("NHWC") = "HWC";
+  types_m.attr("NCHW") = "CHW";
+  types_m.attr("NFHWC") = "FHWC";
+  types_m.attr("NFCHW") = "FCHW";
+  types_m.attr("SAME") = "";
+
 #ifdef DALI_BUILD_PROTO3
   // TFRecord
   py::module tfrecord_m = m.def_submodule("tfrecord");
