@@ -19,8 +19,13 @@
 #include <string>
 #include "dali/image/generic_image.h"
 
+#ifdef DALI_USE_LIBTIFF
+#include "dali/image/tiff_libtiff_impl.h"
+#endif
+
 namespace dali {
 
+namespace legacy_impl {
 
 /**
  * Class, that handles byte buffer for tiff image
@@ -57,7 +62,6 @@ class TiffBuffer {
     return ret;
   }
 
-
  private:
   /**
    * Converts given value in big-endian representation to little-endian
@@ -76,11 +80,12 @@ class TiffBuffer {
     }
   }
 
-
   std::istringstream stream_;
   size_t buffer_size_;
   bool little_endian_;
 };
+
+}  // namespace legacy_impl
 
 /**
  * Tiff image decoding is performed using OpenCV, thus it's the same as Generic decoding
@@ -89,8 +94,16 @@ class TiffImage : public GenericImage {
  public:
   TiffImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
- private:
+ protected:
+  std::pair<std::shared_ptr<uint8_t>, ImageDims>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
+
   ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+
+ private:
+#ifdef DALI_USE_LIBTIFF
+  std::unique_ptr<LibtiffImpl> libtiff_decoder_;
+#endif
 };
 
 }  // namespace dali

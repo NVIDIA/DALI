@@ -16,7 +16,7 @@
 
 namespace dali {
 
-namespace {
+namespace legacy_impl {
 
 constexpr int COUNT_SIZE = 2;
 constexpr int ENTRY_SIZE = 12;
@@ -26,7 +26,6 @@ constexpr int TYPE_WORD = 3;
 constexpr int TYPE_DWORD = 4;
 
 constexpr std::array<int, 4> le_header = {77, 77, 0, 42};
-
 
 bool is_little_endian(const unsigned char *tiff) {
   DALI_ENFORCE(tiff);
@@ -38,24 +37,16 @@ bool is_little_endian(const unsigned char *tiff) {
   return true;
 }
 
-}  // namespace
-
-TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type) :
-        GenericImage(encoded_buffer, length, image_type) {
-}
-
-
-Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
-  DALI_ENFORCE(encoded_buffer);
-
+kernels::TensorShape<3> PeekDimsImpl(const uint8_t *encoded_buffer, size_t length) {
   TiffBuffer buffer(
-          std::string(reinterpret_cast<const char *>(encoded_buffer), static_cast<size_t>(length)),
-          is_little_endian(encoded_buffer));
+    std::string(reinterpret_cast<const char *>(encoded_buffer),
+    static_cast<size_t>(length)),
+    is_little_endian(encoded_buffer));
 
   const auto ifd_offset = buffer.Read<uint32_t>(4);
   const auto entry_count = buffer.Read<uint16_t>(ifd_offset);
   bool width_read = false, height_read = false;
-  size_t width, height;
+  size_t width = 0, height = 0;
 
   for (int entry_idx = 0;
        entry_idx < entry_count && !(width_read && height_read);
@@ -90,7 +81,55 @@ Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t lengt
   }
 
   // TODO(mszolucha): fill channels count
-  return std::make_tuple(height, width, 0);
+  return {static_cast<int64_t>(height),
+          static_cast<int64_t>(width),
+          0};
+}
+
+}  // namespace
+
+TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type) :
+        GenericImage(encoded_buffer, length, image_type) {
+#ifdef DALI_USE_LIBTIFF
+  libtiff_decoder_.reset(new LibtiffImpl(make_span(encoded_buffer, length)));
+#endif
+}
+
+Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
+  DALI_ENFORCE(encoded_buffer != nullptr);
+
+  kernels::TensorShape<3> shape;
+#ifdef DALI_USE_LIBTIFF
+  shape = libtiff_decoder_->Dims();
+#else
+  shape = legacy_impl::PeekDimsImpl(encoded_buffer, length);
+#endif
+
+  return std::make_tuple(
+    static_cast<size_t>(shape[0]),
+    static_cast<size_t>(shape[1]),
+    static_cast<size_t>(shape[2]));
+}
+
+std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
+TiffImage::DecodeImpl(DALIImageType type, const uint8 *encoded_buffer, size_t length) const {
+#ifdef DALI_USE_LIBTIFF
+  if (!libtiff_decoder_->CanDecode()) {
+    DALI_WARN("Falling back to GenericImage");
+    return GenericImage::DecodeImpl(type, encoded_buffer, length);
+  }
+  auto roi_generator = GetCropWindowGenerator();
+  std::shared_ptr<uint8_t> decoded_data;
+  kernels::TensorShape<3> decoded_shape;
+  std::tie(decoded_data, decoded_shape) = libtiff_decoder_->Decode(roi_generator);
+  return {
+    decoded_data,
+    std::make_tuple(static_cast<size_t>(decoded_shape[0]),
+                    static_cast<size_t>(decoded_shape[1]),
+                    static_cast<size_t>(decoded_shape[2]))};
+#else
+  return GenericImage::DecodeImpl(type, encoded_buffer, length);
+#endif
 }
 
 }  // namespace dali

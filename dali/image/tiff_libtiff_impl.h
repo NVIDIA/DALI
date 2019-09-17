@@ -17,12 +17,13 @@
 #include <tiffio.h>
 #include "dali/core/span.h"
 #include "dali/kernels/tensor_shape.h"
+#include "dali/util/crop_window.h"
 
 namespace dali {
 
 class LibtiffImpl {
 private:
-  span<uint8_t> buf_;
+  span<const uint8_t> buf_;
   size_t buf_pos_;
   std::unique_ptr<TIFF, void (*)(TIFF *)> tif_ = {nullptr, &TIFFClose};
 
@@ -32,14 +33,14 @@ private:
   uint16_t orientation_ = ORIENTATION_TOPLEFT;
 
 public:
-  LibtiffImpl(span<uint8_t> buf);
+  LibtiffImpl(span<const uint8_t> buf);
 
   kernels::TensorShape<3> Dims() const;
 
   bool CanDecode() const;
 
   std::pair<std::shared_ptr<uint8_t>, kernels::TensorShape<3>>
-  Decode() const;
+  Decode(CropWindowGenerator crop_window_generator) const;
 };
 
 }  // namespace dali

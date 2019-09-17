@@ -65,6 +65,7 @@
 #include <utility>
 #include <memory>
 #include <tiffio.h>
+#include "dali/core/convert.h"
 
 #define LIBTIFF_CALL(call)                                \
   do {                                                    \
@@ -82,16 +83,16 @@ namespace detail {
 // Extracted and adjusted from OpenCV's modules/imgcodecs/src/grfmt_tiff.cpp
 class BufDecoderHelper {
  private:
-  span<uint8_t> &buf_;
+  span<const uint8_t> &buf_;
   size_t &buf_pos_;
 
  public:
-  BufDecoderHelper(span<uint8_t> &buf, size_t &buf_pos)
+  BufDecoderHelper(span<const uint8_t> &buf, size_t &buf_pos)
       : buf_(buf), buf_pos_(buf_pos) {}
 
   static tmsize_t read(thandle_t handle, void *buffer, tmsize_t n) {
     BufDecoderHelper *helper = reinterpret_cast<BufDecoderHelper *>(handle);
-    span<uint8_t> &buf = helper->buf_;
+    auto &buf = helper->buf_;
     const tmsize_t size = buf.size();
     tmsize_t pos = helper->buf_pos_;
     if (n > (size - pos))
@@ -110,7 +111,7 @@ class BufDecoderHelper {
 
   static toff_t seek(thandle_t handle, toff_t offset, int whence) {
     BufDecoderHelper *helper = reinterpret_cast<BufDecoderHelper *>(handle);
-    span<uint8_t> &buf = helper->buf_;
+    auto &buf = helper->buf_;
     const toff_t size = buf.size();
     toff_t new_pos = helper->buf_pos_;
     switch (whence) {
@@ -131,8 +132,8 @@ class BufDecoderHelper {
 
   static int map(thandle_t handle, void **base, toff_t *size) {
     BufDecoderHelper *helper = reinterpret_cast<BufDecoderHelper *>(handle);
-    span<uint8_t> &buf = helper->buf_;
-    *base = buf.data();
+    auto &buf = helper->buf_;
+    *base = const_cast<uint8_t*>(buf.data());
     *size = buf.size();
     return 0;
   }
@@ -151,7 +152,7 @@ class BufDecoderHelper {
 
 } // namespace detail
 
-LibtiffImpl::LibtiffImpl(span<uint8_t> buf)
+LibtiffImpl::LibtiffImpl(span<const uint8_t> buf)
     : buf_(std::move(buf)), buf_pos_(0) {
   tif_.reset(
     TIFFClientOpen("", "r",
@@ -188,48 +189,62 @@ kernels::TensorShape<3> LibtiffImpl::Dims() const {
 
 bool LibtiffImpl::CanDecode() const {
   // TODO(janton): Implement to other variants
-  std::cout << "is_tiled[" << is_tiled_ << "] bit_depth[" << bit_depth_ << "] orientation[" << orientation_ << "]" << std::endl;
+  std::cout << "is_tiled[" << is_tiled_ << "] bit_depth["
+            << bit_depth_ << "] orientation[" << orientation_ << "]" << std::endl;
   return !is_tiled_
       && bit_depth_ == 8
       && orientation_ == ORIENTATION_TOPLEFT;
 }
 
 std::pair<std::shared_ptr<uint8_t>, kernels::TensorShape<3>>
-LibtiffImpl::Decode() const {
+LibtiffImpl::Decode(CropWindowGenerator crop_window_generator) const {
   DALI_ENFORCE(CanDecode(), "The image can't be decoded");
 
-  // TODO(janton): Implement partial decoding
-  auto crop_generator = false; // GetCropWindowGenerator();
-  DALI_ENFORCE(!static_cast<bool>(crop_generator),
-    "Partial decoding not implemented for TIFF images with more than 3 channels");
+  const int64_t H = shape_[0], W = shape_[1], C = shape_[2];
 
-  // Will decode image dimensions if they were not yet read
-  const size_t H = shape_[0], W = shape_[1], C = shape_[2];
-  const size_t decoded_size = volume(shape_);
+  int64_t roi_x = 0, roi_y = 0;
+  int64_t roi_h = H, roi_w = W;
+  if (crop_window_generator) {
+    auto roi = crop_window_generator({H, W});
+    roi_y = roi.anchor[0];
+    roi_x = roi.anchor[1];
+    roi_h = roi.shape[0];
+    roi_w = roi.shape[1];
+  }
 
-  //allocate memory for reading tif image
-  std::unique_ptr<uint8_t, void(*)(void*)> row_buf{
-    static_cast<uint8_t *>(_TIFFmalloc(decoded_size)), _TIFFfree};
-  DALI_ENFORCE(row_buf.get() != nullptr, "Could not allocate memory");
-
+  kernels::TensorShape<3> decoded_shape = {roi_h, roi_w, C};
+  const size_t decoded_size = volume(decoded_shape);
   std::shared_ptr<uint8_t> decoded_img_ptr{
     new uint8_t[decoded_size],
     [](uint8_t* ptr){ delete [] ptr; }
   };
 
-  const size_t row_stride = W * C;
-  for (size_t y = 0; y < H; y++) {
+  //allocate memory for reading tif image
+  const std::size_t row_size = W * C;
+  std::unique_ptr<uint8_t, void(*)(void*)> row_buf{
+    static_cast<uint8_t *>(_TIFFmalloc(row_size)), _TIFFfree};
+  DALI_ENFORCE(row_buf.get() != nullptr, "Could not allocate memory");
+
+  // TODO(janton): support different types in ImageDecoder
+  using InType = uint8_t;
+  using OutType = uint8_t;
+
+  const int64_t out_row_stride = roi_w * C;
+  InType * const row_in  = row_buf.get();
+  for (int64_t y = 0; y < roi_h; y++) {
     LIBTIFF_CALL(
-      TIFFReadScanline(tif_.get(), row_buf.get(), y, 0));
-    uint8_t *ptr = decoded_img_ptr.get() + y * row_stride;
-    for (size_t x = 0; x < W; x++) {
-      for (size_t c = 0; c < C; c++) {
-        ptr[x*C + c] = row_buf.get()[x*C + c];
+      TIFFReadScanline(tif_.get(), row_in, roi_y + y, 0));
+    OutType * const row_out = decoded_img_ptr.get() + y * out_row_stride;
+    for (int64_t x = 0; x < roi_w; x++) {
+      OutType *out = row_out + x * C;
+      InType *in  = row_in + (roi_x + x) * C;
+      for (int64_t c = 0; c < C; c++) {
+        out[c] = ConvertSat<OutType>(in[c]);
       }
     }
   }
 
-  return std::make_pair(decoded_img_ptr, shape_);
+  return std::make_pair(decoded_img_ptr, decoded_shape);
 }
 
 }  // namespace dali

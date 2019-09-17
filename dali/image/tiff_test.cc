@@ -19,6 +19,8 @@
 
 namespace dali {
 
+using legacy_impl::TiffBuffer;
+
 class TiffDecoderTest : public DALITest {
  protected:
   std::string bin = {'\x41', '\x42', '\x43', '\x44', '\x45', '\x46', '\x47', '\x48', '\x49',
