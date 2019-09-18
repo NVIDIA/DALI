@@ -25,7 +25,8 @@
 
 namespace dali {
 
-/** @brief Provides a domain-agnostic, flexible description of a tensor layout
+/**
+ * @brief Provides a domain-agnostic, flexible description of a tensor layout
  *
  * The object is essentially a string with storage optimized for short sequences.
  */
@@ -44,7 +45,8 @@ class TensorLayout {
     set_size(n);
   }
 
-  /** @brief Constructs a TensorLayout from a C-style string of known length.
+  /**
+   * @brief Constructs a TensorLayout from a C-style string of known length.
    *
    * @param str - pointer to the beginning of the string; it shall not contain '\0' except as
    *              an optional null terminator
@@ -60,7 +62,8 @@ class TensorLayout {
     set_size(n);
   }
 
-  /** @brief Constructs a TensorLayout from a char array of known length, e.g. a string literal
+  /**
+   * @brief Constructs a TensorLayout from a char array of known length, e.g. a string literal
    *
    * Converts a character array or a string literal to a TensorLayout. If the literal contains
    * null characters in the middle, the result is undefined.
@@ -75,7 +78,8 @@ class TensorLayout {
   TensorLayout(const std::string &s) : TensorLayout(s.data(), s.length()) {  // NOLINT
   }
 
-  /** @brief Returns a reference to the d-th dimension in the layout
+  /**
+   * @brief Returns a reference to the d-th dimension in the layout
    * @remarks Value at ndim() is always '\0'.
    *          Any of the following leads to undefined behavior:
    *            - accessing values at d > ndim()
@@ -87,7 +91,8 @@ class TensorLayout {
     return data_[d];
   }
 
-  /** @brief Returns a reference to the d-th dimension in the layout
+  /**
+   * @brief Returns a reference to the d-th dimension in the layout
    * @remarks Value at ndim() is always '\0', accessing values beyond ndim() is forbidden.
    */
   DALI_HOST_DEV
@@ -127,7 +132,8 @@ class TensorLayout {
     return find(dim_name) >= 0;
   }
 
-  /** @brief Returns a layout without the dimension specified in dim_name
+  /**
+   * @brief Returns a layout without the dimension specified in dim_name
    *
    * @return Layout without the first occurrence of given dimension.
    *         When repetitions are present, only the first occurrence is removed.
@@ -245,12 +251,12 @@ class TensorLayout {
   }
 
   DALI_HOST_DEV
-  constexpr TensorLayout sub(int start_dim, int n = -1) const noexcept {
-    assert(start_dim >= 0 && start_dim <= ndim());
+  constexpr TensorLayout sub(int start, int n = -1) const noexcept {
+    assert(start >= 0 && start <= ndim());
     if (n < 0)
-      n = ndim() - start_dim;
-    assert(start_dim + n <= ndim());
-    return TensorLayout(begin() + start_dim, n);
+      n = ndim() - start;
+    assert(start + n <= ndim());
+    return TensorLayout(begin() + start, n);
   }
 
   DALI_HOST_DEV
@@ -265,10 +271,11 @@ class TensorLayout {
     return TensorLayout(end() - n, n);
   }
 
-  static constexpr int max_ndim = 15;
+  static constexpr int max_ndim = 16-1;
 
  private:
-  /** @brief Stores the dimension descriptions as a null-terminated string
+  /**
+   * @brief Stores the dimension descriptions as a null-terminated string
    *
    * Last character in the string is aliased with max_ndim - length.
    * If length == max_ndim, then 0 is stored and aliased as '\0' terminator,
@@ -280,12 +287,14 @@ class TensorLayout {
     assert(n >= 0 && n <= max_ndim);
     data_[max_ndim] = max_ndim - n;
   }
+
   DALI_HOST_DEV
   friend constexpr TensorLayout operator+(const TensorLayout &a, const TensorLayout &b);
 };
 
 static_assert(sizeof(TensorLayout) == 16, "Tensor layout size should be exactly 16B");
 
+/** @brief Concatenates the layout strings */
 DALI_HOST_DEV
 constexpr TensorLayout operator+(const TensorLayout &a, const TensorLayout &b) {
   assert(a.size() + b.size() < TensorLayout::max_ndim);
@@ -348,11 +357,13 @@ struct LayoutInfo {
   }
 };
 
-/** @brief Provides functions for querying TensorLayout properties,
- *         assuming that the layout describes an image
+/**
+ * @brief Provides functions for querying TensorLayout properties,
+ *        assuming that the layout describes an image
  */
 struct ImageLayoutInfo : LayoutInfo {
-  /** @brief Counts spatial dimensions in the layout.
+  /**
+   * @brief Counts spatial dimensions in the layout.
    *
    * Spatial dimensions are: 'D'epth, 'H'eight and 'W'idth
    */
@@ -372,33 +383,41 @@ struct ImageLayoutInfo : LayoutInfo {
     }
     return s;
   }
-  /* @brief Returns the index at which 'C' dimesnion (channel) is present or -1 if not found */
-  DALI_HOST_DEV
-  static int ChannelDimIndex(const TensorLayout &tl) {
-    return DimIndex(tl, 'C');
-  }
-  /* @brief Returns true if the layout contains 'C' dimension (channel) */
-  DALI_HOST_DEV
-  static bool HasChannel(const TensorLayout &tl) {
-    return ChannelDimIndex(tl) >= 0;
-  }
+
   DALI_HOST_DEV
   static bool Is2D(const TensorLayout &tl) {
     return NumSpatialDims(tl) == 2;
   }
+
   DALI_HOST_DEV
   static bool Is3D(const TensorLayout &tl) {
     return NumSpatialDims(tl) == 3;
   }
+
+  /** @brief Returns the index at which 'C' dimesnion (channel) is present or -1 if not found */
+  DALI_HOST_DEV
+  static int ChannelDimIndex(const TensorLayout &tl) {
+    return DimIndex(tl, 'C');
+  }
+
+  /** @brief Returns true if the layout contains 'C' dimension (channel) */
+  DALI_HOST_DEV
+  static bool HasChannel(const TensorLayout &tl) {
+    return ChannelDimIndex(tl) >= 0;
+  }
+
   DALI_HOST_DEV
   static bool IsChannelFirst(const TensorLayout &tl) {
     return tl[0] == 'C' || (tl[0] == 'N' && tl[1] == 'C');
   }
+
   DALI_HOST_DEV
   static bool IsChannelLast(const TensorLayout &tl) {
     return !tl.empty() && tl[tl.ndim()-1] == 'C';
   }
-  /** @brief Returns true if there are at least 2 spatial dimensions in the layout
+
+  /**
+   * @brief Returns true if there are at least 2 spatial dimensions in the layout
    *
    * This function returns true for 2D and 3D images and videos.
    */
@@ -408,8 +427,9 @@ struct ImageLayoutInfo : LayoutInfo {
   }
 };
 
-/** @brief Provides functions for querying TensorLayout properties,
- *         assuming that the layout describes a video
+/**
+ * @brief Provides functions for querying TensorLayout properties,
+ *        assuming that the layout describes a video
  */
 struct VideoLayoutInfo : ImageLayoutInfo {
   /** @brief Returns the index of the dimension referring to frames ('F') */
@@ -417,30 +437,36 @@ struct VideoLayoutInfo : ImageLayoutInfo {
   static int FrameDimIndex(const TensorLayout &tl) {
     return DimIndex(tl, 'F');
   }
+
   DALI_HOST_DEV
   static bool IsChannelFirst(const TensorLayout &tl) {
     return tl[FrameDimIndex(tl)+1] == 'C';
   }
+
   /** @brief Returns true, if 'F' (frame) dimension is present */
   DALI_HOST_DEV
   static bool IsSequence(const TensorLayout &tl) {
     return tl.contains('F');
   }
+
   /** @brief Returns true if the layout describes an image with 'F' (frame) dimension */
   DALI_HOST_DEV
   static bool IsVideo(const TensorLayout &tl) {
     return IsSequence(tl) && IsImage(tl);
   }
+
   /** @brief Returns true if the layout describes an image, but does not contain 'F' (frame) */
   DALI_HOST_DEV
   static bool IsStillImage(const TensorLayout &tl) {
     return !IsSequence(tl) && IsImage(tl);
   }
+
   /** @brief Removes frame dimension ('F') from the layout */
   DALI_HOST_DEV
   static TensorLayout GetFrameLayout(const TensorLayout &tl) {
     return tl.skip('F');
   }
+
   /** @brief Adds 'F' to the layout at the beginning or after 'N' if not already present */
   DALI_HOST_DEV
   static TensorLayout GetSequenceLayout(const TensorLayout &tl) {
@@ -453,7 +479,8 @@ struct VideoLayoutInfo : ImageLayoutInfo {
   }
 };
 
-/** @brief Calculates mapping of dimensions from given output to input.
+/**
+ * @brief Calculates mapping of dimensions from given output to input.
  *
  * Array element corresponding to given output dimension is the index of that
  * dimension in the input layout:
