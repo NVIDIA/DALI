@@ -32,7 +32,7 @@ class DeviceArray {
   }
 
   template <typename... Args>
-  __host__ __device__ DeviceArray(const T &arg0, const Args&... args)
+  DALI_HOST_DEV DeviceArray(const T &arg0, const Args&... args)
   : data_{arg0, args...} {
     static_assert(sizeof...(Args) == N-1, "Wrong number of initializers");
   }
@@ -50,10 +50,12 @@ class DeviceArray {
   using const_reference = const T&;
   using iterator = T*;
   using const_iterator = const T*;
+  using pointer = value_type *;
+  using const_pointer = const value_type *;
 
-  __host__ __device__ T &operator[](ptrdiff_t index) noexcept
+  DALI_HOST_DEV T &operator[](ptrdiff_t index) noexcept
   { return data_[index]; }
-  __host__ __device__ constexpr const T &operator[](ptrdiff_t index) const noexcept
+  DALI_HOST_DEV constexpr const T &operator[](ptrdiff_t index) const noexcept
   { return data_[index]; }
 
   DALI_HOST_DEV inline iterator begin() noexcept { return data_; }
@@ -64,14 +66,14 @@ class DeviceArray {
   DALI_HOST_DEV constexpr const_iterator cend() const noexcept { return data_ + N; }
   DALI_HOST_DEV constexpr size_t size() const noexcept { return N; }
   DALI_HOST_DEV constexpr bool empty() const noexcept { return N == 0; }
-  DALI_HOST_DEV inline iterator data() noexcept { return data_; }
-  DALI_HOST_DEV constexpr const_iterator data() const noexcept { return data_; }
+  DALI_HOST_DEV inline pointer data() noexcept { return data_; }
+  DALI_HOST_DEV constexpr const_pointer data() const noexcept { return data_; }
   DALI_HOST_DEV inline reference front() noexcept { return *data_; }
   DALI_HOST_DEV constexpr const_reference front() const noexcept { return *data_; }
-  DALI_HOST_DEV inline reference back() noexcept { auto tmp = end(); return *--tmp; }
-  DALI_HOST_DEV constexpr const_reference back() const noexcept { auto tmp = end(); return *--tmp; }
+  DALI_HOST_DEV inline reference back() noexcept { return data_[N-1]; }
+  DALI_HOST_DEV constexpr const_reference back() const noexcept { return data_[N-1]; }
 
-  __host__ __device__ inline bool operator==(const DeviceArray &other) const noexcept {
+  DALI_HOST_DEV inline bool operator==(const DeviceArray &other) const noexcept {
     for (size_t i = 0; i < N; i++) {
       if (data_[i] != other.data_[i])
         return false;
@@ -79,7 +81,7 @@ class DeviceArray {
     return true;
   }
 
-  __host__ __device__ inline bool operator!=(const DeviceArray &other) const noexcept {
+  DALI_HOST_DEV inline bool operator!=(const DeviceArray &other) const noexcept {
     return !(*this == other);
   }
 
@@ -91,12 +93,10 @@ template <typename T>
 class DeviceArray<T, 0> {
  public:
   constexpr DeviceArray() = default;
-  __host__ __device__ DeviceArray(const std::array<T, 0> &) noexcept {
-  }
 
-  constexpr __host__ __device__ operator std::array<T, 0>() const noexcept {
-    return {};
-  }
+  DALI_HOST_DEV DeviceArray(const std::array<T, 0> &) noexcept {}
+
+  constexpr DALI_HOST_DEV operator std::array<T, 0>() const noexcept { return {}; }
 
   using value_type = T;
   using reference = T&;
@@ -104,36 +104,36 @@ class DeviceArray<T, 0> {
   using iterator = T*;
   using const_iterator = const T*;
 
-  __host__ __device__ T &operator[](ptrdiff_t index) noexcept
+  DALI_HOST_DEV T &operator[](ptrdiff_t index) noexcept
   { return data()[index]; }
-  __host__ __device__ constexpr const T &operator[](ptrdiff_t index) const noexcept
+  DALI_HOST_DEV constexpr const T &operator[](ptrdiff_t index) const noexcept
   { return data()[index]; }
 
-  __host__ __device__ inline T *begin() noexcept { return data(); }
-  __host__ __device__ constexpr const T *begin() const noexcept { return data(); }
-  __host__ __device__ constexpr const T *cbegin() const noexcept { return data(); }
-  __host__ __device__ inline T *end() noexcept { return data(); }
-  __host__ __device__ constexpr const T *end() const noexcept { return data(); }
-  __host__ __device__ constexpr const T *cend() const noexcept { return data(); }
-  __host__ __device__ constexpr size_t size() const noexcept { return 0; }
-  __host__ __device__ constexpr bool empty() const noexcept { return true; }
+  DALI_HOST_DEV inline T *begin() noexcept { return data(); }
+  DALI_HOST_DEV constexpr const T *begin() const noexcept { return data(); }
+  DALI_HOST_DEV constexpr const T *cbegin() const noexcept { return data(); }
+  DALI_HOST_DEV inline T *end() noexcept { return data(); }
+  DALI_HOST_DEV constexpr const T *end() const noexcept { return data(); }
+  DALI_HOST_DEV constexpr const T *cend() const noexcept { return data(); }
+  DALI_HOST_DEV constexpr size_t size() const noexcept { return 0; }
+  DALI_HOST_DEV constexpr bool empty() const noexcept { return true; }
 
-  __host__ __device__ inline T *data() noexcept {
+  DALI_HOST_DEV inline T *data() noexcept {
     return reinterpret_cast<T*>(this);
   }
-  __host__ __device__ constexpr const T *data() const noexcept {
+  DALI_HOST_DEV constexpr const T *data() const noexcept {
     return reinterpret_cast<const T*>(this);
   }
 };
 
 
 template <typename T>
-constexpr __host__ __device__ volume_t<T> volume(const DeviceArray<T, 0> &) {
+constexpr DALI_HOST_DEV volume_t<T> volume(const DeviceArray<T, 0> &) {
   return 0;
 }
 
 template <typename T, size_t N>
-__host__ __device__ volume_t<T> volume(const DeviceArray<T, N> &arr) {
+DALI_HOST_DEV volume_t<T> volume(const DeviceArray<T, N> &arr) {
   volume_t<T> v = arr[0];
   for (size_t i = 1; i < N; i++) {
     v *= arr[i];
