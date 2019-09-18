@@ -223,8 +223,10 @@ def cupy_case(fun):
         cupy_pre2 = [cupy.asarray(pre2.at(i)) for i in range(BATCH_SIZE)]
         cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2)
         for i in range(BATCH_SIZE):
-            assert numpy.array_equal(post1.at(i), cupy.asnumpy(cupy_post1[i]))
-            assert numpy.array_equal(post2.at(i), cupy.asnumpy(cupy_post2[i]))
+            assert post1.at(i).shape == cupy_post1[i].shape
+            assert post2.at(i).shape == cupy_post2[i].shape
+            assert numpy.allclose(post1.at(i), cupy.asnumpy(cupy_post1[i]))
+            assert numpy.allclose(post2.at(i), cupy.asnumpy(cupy_post2[i]))
 
 
 def cupy_simple(in1, in2):
