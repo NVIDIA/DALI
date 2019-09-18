@@ -67,10 +67,11 @@
 #include <tiffio.h>
 #include "dali/core/convert.h"
 
+#define LIBTIFF_CALL_SUCCESS 1
 #define LIBTIFF_CALL(call)                                \
   do {                                                    \
     int retcode = (call);                                 \
-    if (0 == retcode) {                                   \
+    if (LIBTIFF_CALL_SUCCESS != retcode) {                                   \
       DALI_FAIL("libtiff call failed with code "          \
         + std::to_string(retcode) + ": " #call);          \
     }                                                     \
@@ -187,19 +188,18 @@ kernels::TensorShape<3> LibtiffImpl::Dims() const {
   return shape_;
 }
 
-bool LibtiffImpl::CanDecode() const {
+bool LibtiffImpl::CanDecode(DALIImageType image_type) const {
   // TODO(janton): Implement to other variants
   // TODO(janton): remove this
-  //std::cout << "is_tiled[" << is_tiled_ << "] bit_depth["
-  //          << bit_depth_ << "] orientation[" << orientation_ << "]" << std::endl;
   return !is_tiled_
       && bit_depth_ == 8
-      && orientation_ == ORIENTATION_TOPLEFT;
+      && orientation_ == ORIENTATION_TOPLEFT
+      && image_type != DALI_YCbCr;
 }
 
 std::pair<std::shared_ptr<uint8_t>, kernels::TensorShape<3>>
-LibtiffImpl::Decode(CropWindowGenerator crop_window_generator) const {
-  DALI_ENFORCE(CanDecode(), "The image can't be decoded");
+LibtiffImpl::Decode(DALIImageType image_type, CropWindowGenerator crop_window_generator) const {
+  DALI_ENFORCE(CanDecode(image_type), "The image can't be decoded");
 
   const int64_t H = shape_[0], W = shape_[1], C = shape_[2];
 
@@ -211,36 +211,72 @@ LibtiffImpl::Decode(CropWindowGenerator crop_window_generator) const {
     roi_x = roi.anchor[1];
     roi_h = roi.shape[0];
     roi_w = roi.shape[1];
+    DALI_ENFORCE(roi_w > 0 && roi_w <= W);
+    DALI_ENFORCE(roi_h > 0 && roi_h <= H);
   }
 
-  kernels::TensorShape<3> decoded_shape = {roi_h, roi_w, C};
+  const int64_t out_C = image_type == DALI_GRAY ? 1 : C;
+  kernels::TensorShape<3> decoded_shape = {roi_h, roi_w, out_C};
   const size_t decoded_size = volume(decoded_shape);
   std::shared_ptr<uint8_t> decoded_img_ptr{
     new uint8_t[decoded_size],
     [](uint8_t* ptr){ delete [] ptr; }
   };
 
-  //allocate memory for reading tif image
-  const std::size_t row_size = W * C;
-  std::unique_ptr<uint8_t, void(*)(void*)> row_buf{
-    static_cast<uint8_t *>(_TIFFmalloc(row_size)), _TIFFfree};
-  DALI_ENFORCE(row_buf.get() != nullptr, "Could not allocate memory");
-
   // TODO(janton): support different types in ImageDecoder
   using InType = uint8_t;
   using OutType = uint8_t;
 
-  const int64_t out_row_stride = roi_w * C;
+  //allocate memory for reading tif image
+  auto row_nbytes = TIFFScanlineSize(tif_.get());
+  DALI_ENFORCE(row_nbytes > 0);
+
+  std::unique_ptr<InType, void(*)(void*)> row_buf{
+    static_cast<InType *>(_TIFFmalloc(row_nbytes)), _TIFFfree};
+  DALI_ENFORCE(row_buf.get() != nullptr, "Could not allocate memory");
+  memset(row_buf.get(), 0, row_nbytes);
+
+
+  const int64_t out_row_stride = roi_w * out_C;
   InType * const row_in  = row_buf.get();
+  OutType * const img_out = decoded_img_ptr.get();
+
+  // Need to read sequentially since not all the images support random access
+
+  // From: http://www.libtiff.org/man/TIFFReadScanline.3t.html
+  // Compression algorithm does not support random access. Data was requested in a non-sequential
+  // order from a file that uses a compression algorithm and that has RowsPerStrip greater than one.
+  // That is, data in the image is stored in a compressed form, and with multiple rows packed into a
+  // strip. In this case, the library does not support random access to the data. The data should
+  // either be accessed sequentially, or the file should be converted so that each strip is made up
+  // of one row of data.
+  const bool can_access_roi_y = (roi_y == 0)
+    || (1 == TIFFReadScanline(tif_.get(), row_in, roi_y, 0));
+
+  if (!can_access_roi_y) {
+    for (int64_t y = 0; y < roi_y; y++) {
+      LIBTIFF_CALL(
+        TIFFReadScanline(tif_.get(), row_in, y, 0));
+    }
+  }
   for (int64_t y = 0; y < roi_h; y++) {
     LIBTIFF_CALL(
       TIFFReadScanline(tif_.get(), row_in, roi_y + y, 0));
-    OutType * const row_out = decoded_img_ptr.get() + y * out_row_stride;
+    OutType * const row_out = img_out + (y * out_row_stride);
     for (int64_t x = 0; x < roi_w; x++) {
-      OutType *out = row_out + x * C;
-      InType *in  = row_in + (roi_x + x) * C;
-      for (int64_t c = 0; c < C; c++) {
-        out[c] = ConvertSat<OutType>(in[c]);
+      OutType * const out = row_out + (x * out_C);
+      InType * const in  = row_in + (roi_x + x) * C;
+
+      if (image_type == DALI_GRAY) {
+        out[0] = ConvertSat<OutType>(0.299f * in[0] + 0.587f * in[1] + 0.114f * in[2]);
+      } else {
+        for (int64_t c = 0; c < C; c++) {
+          if (image_type == DALI_BGR) {
+            out[C-1-c] = ConvertSat<OutType>(in[c]);
+          } else {  // including DALI_RGB and DALI_MULTICHANNEL
+            out[c] = ConvertSat<OutType>(in[c]);
+          }
+        }
       }
     }
   }

@@ -37,10 +37,10 @@ public:
 
   kernels::TensorShape<3> Dims() const;
 
-  bool CanDecode() const;
+  bool CanDecode(DALIImageType image_type) const;
 
   std::pair<std::shared_ptr<uint8_t>, kernels::TensorShape<3>>
-  Decode(CropWindowGenerator crop_window_generator) const;
+  Decode(DALIImageType image_type, CropWindowGenerator crop_window_generator) const;
 };
 
 }  // namespace dali

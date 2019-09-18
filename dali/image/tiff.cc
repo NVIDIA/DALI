@@ -114,14 +114,14 @@ Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t lengt
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
 TiffImage::DecodeImpl(DALIImageType type, const uint8 *encoded_buffer, size_t length) const {
 #ifdef DALI_USE_LIBTIFF
-  if (!libtiff_decoder_->CanDecode()) {
+  if (!libtiff_decoder_->CanDecode(type)) {
     DALI_WARN("Warning: Falling back to GenericImage");
     return GenericImage::DecodeImpl(type, encoded_buffer, length);
   }
   auto roi_generator = GetCropWindowGenerator();
   std::shared_ptr<uint8_t> decoded_data;
   kernels::TensorShape<3> decoded_shape;
-  std::tie(decoded_data, decoded_shape) = libtiff_decoder_->Decode(roi_generator);
+  std::tie(decoded_data, decoded_shape) = libtiff_decoder_->Decode(type, roi_generator);
   return {
     decoded_data,
     std::make_tuple(static_cast<size_t>(decoded_shape[0]),
