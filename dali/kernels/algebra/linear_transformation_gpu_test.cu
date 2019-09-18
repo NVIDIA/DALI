@@ -193,8 +193,6 @@ TYPED_TEST(LinearTransformationGpuTest, sample_descriptors) {
   EXPECT_EQ(this->output_, res[0].out);
   EXPECT_TRUE(cmp_shapes<kNDims>(this->in_shapes_[0], res[0].in_size));
   EXPECT_TRUE(cmp_shapes<kNDims>(this->out_shapes_[0], res[0].out_size));
-  EXPECT_EQ(this->in_shapes_[0].shape.back(), res[0].in_channels);
-  EXPECT_EQ(this->out_shapes_[0].shape.back(), res[0].out_channels);
   EXPECT_EQ(this->vmat_[0], res[0].transformation_matrix);
 }
 
