@@ -58,18 +58,24 @@ namespace data {
 namespace {
 
 class DALIDatasetOp : public DatasetOpKernel {
- public:
-  explicit DALIDatasetOp(OpKernelConstruction* context) : DatasetOpKernel(context) { }
+  public:
+    explicit DALIDatasetOp(OpKernelConstruction* context) 
+      : DatasetOpKernel(context) { 
+        OP_REQUIRES_OK(context, context->GetAttr("value", &value_));
+        std::cout << "============= " << value_ << std::endl;
+      }
 
-  void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
-    *output = new Dataset(context);
-  }
+    void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
+      *output = new Dataset(context, value_);
+    }
 
-   private:
+  private:
+    int64 value_;
+
     class Dataset : public DatasetBase {
       public:
-        explicit Dataset(OpKernelContext *context) 
-          : DatasetBase(DatasetContext(context)) {}
+        explicit Dataset(OpKernelContext *context, const int64 value) 
+          : DatasetBase(DatasetContext(context)), value_(value) {}
 
         std::unique_ptr<IteratorBase> MakeIteratorInternal(
           const string &prefix) const override {
@@ -93,14 +99,23 @@ class DALIDatasetOp : public DatasetOpKernel {
           return "DALI::DatasetOp()::Dataset"; }
 
         int64 Cardinality() const override { return kInfiniteCardinality; }
-\
+
       protected:
+        const int64 value_;
+
         Status AsGraphDefInternal(
           SerializationContext *context,
           DatasetGraphDefBuilder *b,
           Node **output) const override {
 
-          TF_RETURN_IF_ERROR(b->AddDataset(this, {}, output));
+          AttrValue value;
+          b->BuildAttrValue<int>(value_, &value);
+
+          TF_RETURN_IF_ERROR(b->AddDataset(
+            this, 
+            {}, 
+            { std::make_pair("value", value) }, 
+            output));
 
           return Status::OK();
         }
@@ -117,7 +132,7 @@ class DALIDatasetOp : public DatasetOpKernel {
               bool *end_of_sequence) override {
                 tensorflow::mutex_lock l(mu_);
                 out_tensors->emplace_back(context->allocator({}), DT_INT64, TensorShape({}));
-                out_tensors->back().scalar<int64>()() = 999;
+                out_tensors->back().scalar<int64>()() = dataset()->value_;
                 *end_of_sequence = false;
 
                 return Status::OK();
@@ -132,10 +147,11 @@ class DALIDatasetOp : public DatasetOpKernel {
 
 // Regestrations
 REGISTER_KERNEL_BUILDER(
-  Name("DALIDataset").Device(tensorflow::DEVICE_CPU),
+  Name("DaliDataset").Device(tensorflow::DEVICE_CPU),
   DALIDatasetOp);
 
-REGISTER_OP("DALIDataset")
+REGISTER_OP("DaliDataset")
+    .Attr("value: int")
     .Output("handle: variant")
     .SetIsStateful() 
     .SetShapeFn([](shape_inference::InferenceContext* c) {
