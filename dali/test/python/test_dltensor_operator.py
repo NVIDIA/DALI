@@ -31,7 +31,7 @@ class CommonPipeline(Pipeline):
         self.input = ops.FileReader(file_root=images_dir)
         self.decode = ops.ImageDecoder(device='mixed' if device == 'gpu' else 'cpu',
                                        output_type=types.RGB)
-        self.resize = ops.Resize(resize_x=100, resize_y=50, device=device)
+        self.resize = ops.Resize(resize_x=5, resize_y=5, device=device)
 
     def load(self):
         jpegs, labels = self.input()
@@ -223,10 +223,19 @@ def cupy_case(fun):
         cupy_pre2 = [cupy.asarray(pre2.at(i)) for i in range(BATCH_SIZE)]
         cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2)
         for i in range(BATCH_SIZE):
+            print("i: " + str(i))
+            print("post 1 data: ")
+            print(post1.at(i))
+            print("cupy 1 data: ")
+            print(cupy.asnumpy(cupy_post1[i]))
+            print("post 2 data: ")
+            print(post2.at(i))
+            print("cupy 2 data: ")
+            print(cupy.asnumpy(cupy_post2[i]))
             assert post1.at(i).shape == cupy_post1[i].shape
             assert post2.at(i).shape == cupy_post2[i].shape
-            assert numpy.allclose(post1.at(i), cupy.asnumpy(cupy_post1[i]))
-            assert numpy.allclose(post2.at(i), cupy.asnumpy(cupy_post2[i]))
+            assert numpy.allclose(post1.at(i), cupy.asnumpy(cupy_post1[i]), atol=0.0001)
+            assert numpy.allclose(post2.at(i), cupy.asnumpy(cupy_post2[i]), atol=0.0001)
 
 
 def cupy_simple(in1, in2):
