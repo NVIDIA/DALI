@@ -73,7 +73,7 @@ using argument_t = typename ArgumentType<Backend>::type;
 /**
  * Chooses proper kernel (CPU or GPU) for given template parameters
  */
-template <typename Backend, typename OutputType, typename InputType, size_t ndims>
+template <typename Backend, typename OutputType, typename InputType, int ndims>
 using BrightnessContrastKernel = typename Kernel<Backend, OutputType, InputType, ndims>::type;
 
 
