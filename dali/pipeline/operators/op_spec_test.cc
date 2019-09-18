@@ -12,25 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include <gtest/gtest.h>
-
-#include "dali/pipeline/pipeline.h"
 
 #include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/test/dali_test.h"
 
-
 namespace dali {
 
-class SupportGeneratingOp : public Operator<SupportBackend> {
+class TestArgumentInput_Producer : public Operator<SupportBackend> {
  public:
-  explicit SupportGeneratingOp(const OpSpec &spec) : Operator<SupportBackend>(spec) {}
+  explicit TestArgumentInput_Producer(const OpSpec &spec) : Operator<SupportBackend>(spec) {}
 
   bool CanInferOutputs() const override {
     return true;
@@ -72,17 +69,16 @@ class SupportGeneratingOp : public Operator<SupportBackend> {
   }
 };
 
-DALI_REGISTER_OPERATOR(SupportGeneratingOp, SupportGeneratingOp, Support);
+DALI_REGISTER_OPERATOR(TestArgumentInput_Producer, TestArgumentInput_Producer, Support);
 
-DALI_SCHEMA(SupportGeneratingOp)
-  .DocStr("SupportGeneratingOp")
-  .NumInput(0)
-  .NumOutput(4);
+DALI_SCHEMA(TestArgumentInput_Producer)
+    .DocStr("TestArgumentInput_Producer")
+    .NumInput(0)
+    .NumOutput(4);
 
-
-class SupportAccessingOp : public Operator<CPUBackend> {
+class TestArgumentInput_Consumer : public Operator<CPUBackend> {
  public:
-  explicit SupportAccessingOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
+  explicit TestArgumentInput_Consumer(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
   bool CanInferOutputs() const override {
     return true;
@@ -125,38 +121,44 @@ class SupportAccessingOp : public Operator<CPUBackend> {
   }
 };
 
-DALI_REGISTER_OPERATOR(SupportAccessingOp, SupportAccessingOp, CPU);
+DALI_REGISTER_OPERATOR(TestArgumentInput_Consumer, TestArgumentInput_Consumer, CPU);
 
-DALI_SCHEMA(SupportAccessingOp)
-  .DocStr("SupportAccessingOp")
-  .NumInput(0)
-  .NumOutput(1)
-  .AddOptionalArg("arg0", "no-doc", 42, true)
-  .AddOptionalArg("arg1", "no-doc", 42.f, true)
-  .AddOptionalArg("arg2", "no-doc", 42, true)
-  .AddOptionalArg("arg3", "no-doc", 42, true);
+DALI_SCHEMA(TestArgumentInput_Consumer)
+    .DocStr("TestArgumentInput_Consumer")
+    .NumInput(0)
+    .NumOutput(1)
+    .AddOptionalArg("arg0", "no-doc", 42, true)
+    .AddOptionalArg("arg1", "no-doc", 42.f, true)
+    .AddOptionalArg("arg2", "no-doc", 42, true)
+    .AddOptionalArg("arg3", "no-doc", 42, true);
 
+/*
+ * This test is based on test operators implemented specifically for the purpose of testing
+ * the access to argument inputs.
+ *
+ * The EXPECT_* and ASSERT_* macros are actually placed in the RunImpl of operator
+ * accessing the data (TestArgumentInput_Consumer), and the different (valid and invalid)
+ * arguments inputs are provided by a SupportOp: TestArgumentInput_Producer.
+ */
 TEST(ArgumentInputTest, OpSpecAccess) {
   Pipeline pipe(10, 4, 0);
-  pipe.AddOperator(
-      OpSpec("SupportGeneratingOp")
-      .AddArg("device", "support")
-      .AddOutput("support_arg0", "cpu")
-      .AddOutput("support_arg1", "cpu")
-      .AddOutput("support_arg2", "cpu")
-      .AddOutput("support_arg3", "cpu"));
+  pipe.AddOperator(OpSpec("TestArgumentInput_Producer")
+                       .AddArg("device", "support")
+                       .AddOutput("support_arg0", "cpu")
+                       .AddOutput("support_arg1", "cpu")
+                       .AddOutput("support_arg2", "cpu")
+                       .AddOutput("support_arg3", "cpu"));
 
-  pipe.AddOperator(
-      OpSpec("SupportAccessingOp")
-      .AddArg("device", "cpu")
-      .AddArgumentInput("arg0", "support_arg0")
-      .AddArgumentInput("arg1", "support_arg1")
-      .AddArgumentInput("arg2", "support_arg2")
-      .AddArgumentInput("arg3", "support_arg3")
-      .AddOutput("I need to specify something", "cpu")
-      .AddArg("preserve", true));
+  pipe.AddOperator(OpSpec("TestArgumentInput_Consumer")
+                       .AddArg("device", "cpu")
+                       .AddArgumentInput("arg0", "support_arg0")
+                       .AddArgumentInput("arg1", "support_arg1")
+                       .AddArgumentInput("arg2", "support_arg2")
+                       .AddArgumentInput("arg3", "support_arg3")
+                       .AddOutput("I need to specify something", "cpu")
+                       .AddArg("preserve", true));
 
-  vector<std::pair<string, string>> outputs = { {"I need to specify something", "cpu"} };
+  vector<std::pair<string, string>> outputs = {{"I need to specify something", "cpu"}};
   pipe.Build(outputs);
 
   pipe.RunCPU();
