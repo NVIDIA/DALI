@@ -173,7 +173,7 @@ TEST(ResampleCPU, NN) {
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
 
   ResampleNN(as_surface_HWC(out_tensor), as_surface_HWC(in_tensor),
-    0, 0, scalex, scaley);
+    { 0, 0 }, { scalex, scaley });
 
   auto ref_tensor = view_as_tensor<const uint8_t, 3>(ref);
   Check(ref_tensor, out_tensor);
@@ -196,7 +196,7 @@ TEST(ResampleCPU, NN_Identity) {
   auto out_tensor = view_as_tensor<uint8_t, 3>(out_img);
 
   ResampleNN(as_surface_HWC(out_tensor), as_surface_HWC(in_tensor),
-    0, 0, scalex, scaley);
+    { 0, 0 }, { scalex, scaley });
 
   Check(in_tensor, out_tensor);
 }

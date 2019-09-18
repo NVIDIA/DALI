@@ -20,6 +20,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/core/convert.h"
 #include "dali/kernels/imgproc/surface.h"
+#include "dali/core/geom/vec.h"
 
 namespace dali {
 namespace kernels {
@@ -178,25 +179,23 @@ inline void ResampleAxis(Surface2D<Out> out, Surface2D<In> in,
  * @brief Resamples `in` using Nearest Neighbor interpolation and stores result in `out`
  * @param out - output surface
  * @param in - input surface
- * @param src_x0 - starting X coordinate of input
- * @param src_y0 - starting Y coordinate of input
- * @param scale_x - step of X input coordinate taken for each output pixel
- * @param scale_y - step of Y input coordinate taken for each output row
+ * @param origin - input coordinates corresponding to output's origin
+ * @param scale - step of input coordinates taken for each output pixel
  * @remarks The function clamps input coordinates to fit in range defined by `in` dimensions.
  *          Scales can be negative to achieve flipping.
  */
 template <typename Out, typename In>
 void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
-                float src_x0, float src_y0, float scale_x, float scale_y) {
+                vec2 origin, vec2 scale) {
   assert(out.channels == in.channels);
   assert((in.channel_stride == 1 && out.channel_stride == 1) ||
          (in.channels == 1 && out.channels == 1));
   // assume HWC layout with contiguous pixels (not necessarily rows)
   assert(out.strides.x == out.channels);
 
-  if (scale_x == 1) {
+  if (scale.x == 1) {
     // FAST PATH - not scaling along X axis - just copy with repeated boundaries
-    int sx0 = std::floor(src_x0 + 0.5f);
+    int sx0 = std::floor(origin.x + 0.5f);
     int dx1 = sx0 + in.size.x;
     if (dx1 > out.size.x)
       dx1 = out.size.x;
@@ -205,8 +204,8 @@ void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
       dx0 = std::min(-sx0, out.size.x);
     }
 
-    float sy = src_y0 + 0.5f * scale_y;
-    for (int y = 0; y < out.size.y; y++, sy += scale_y) {
+    float sy = origin.y + 0.5f * scale.y;
+    for (int y = 0; y < out.size.y; y++, sy += scale.y) {
       int srcy = std::floor(sy);
 
       if (srcy < 0) srcy = 0;
@@ -239,20 +238,20 @@ void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
   int col_offsets[max_span_width];  // NOLINT (kOnstant)
 
   for (int x0 = 0; x0 < out.size.x; x0 += max_span_width) {
-    float sy = src_y0 + 0.5f * scale_y;
+    float sy = origin.y + 0.5f * scale.y;
 
     int span_width = x0 + max_span_width <= out.size.x ? max_span_width : out.size.x - x0;
 
     for (int j = 0; j < span_width; j++) {
       int x = x0 + j;
-      float sx = src_x0 + (x + 0.5f) * scale_x;
+      float sx = origin.x + (x + 0.5f) * scale.x;
       int srcx = std::floor(sx);
       if (srcx < 0) srcx = 0;
       else if (srcx > in.size.x-1) srcx += in.size.x - 1;
       col_offsets[j] = srcx * in.strides.x;
     }
 
-    for (int y = 0; y < out.size.y; y++, sy += scale_y) {
+    for (int y = 0; y < out.size.y; y++, sy += scale.y) {
       int srcy = std::floor(sy);
 
       if (srcy < 0) srcy = 0;
@@ -268,6 +267,28 @@ void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
         }
       }
     }
+  }
+}
+
+
+/**
+ * @brief Resamples `in` using Nearest Neighbor interpolation and stores result in `out`
+ * @param out - output surface
+ * @param in - input surface
+ * @param origin - input coordinates corresponding to output's origin
+ * @param scale - step of input coordinates taken for each output pixel
+ * @remarks The function clamps input coordinates to fit in range defined by `in` dimensions.
+ *          Scales can be negative to achieve flipping.
+ */
+template <typename Out, typename In, int n>
+void ResampleNN(Surface<n, Out> out, Surface<n, const In> in,
+                vec<n> origin, vec<n> scale) {
+  static_assert(n > 2, "This function only works with surfaces of dimensionality > 2");
+  const float step = scale[n-1];
+  float src = origin[n-1] + 0.5f * step;
+  for (int i = 0; i < out.size[n-1]; i++, src += step) {
+    int isrc = std::floor(src);
+    ResampleNN(out.slice(i), in.slice(isrc), sub<n-1>(origin), sub<n-1>(scale));
   }
 }
 

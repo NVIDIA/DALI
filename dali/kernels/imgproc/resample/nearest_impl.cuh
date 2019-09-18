@@ -20,6 +20,7 @@
 #include <algorithm>
 #endif
 #include "dali/core/convert.h"
+#include "dali/core/math_util.h"
 
 namespace dali {
 namespace kernels {
@@ -34,14 +35,14 @@ __device__ void NNResample(
   src_x0 += 0.5f * scale_x;
   for (int i = y0 + threadIdx.y; i < y1; i += blockDim.y) {
     int ysrc = i * scale_y + src_y0;
-    ysrc = min(max(0, ysrc), in_h-1);
+    ysrc = clamp(ysrc, 0, in_h-1);
 
     Dst *out_row = &out[i * out_stride];
     const Src *in_row = &in[ysrc * in_stride];
 
     for (int j = x0 + threadIdx.x; j < x1; j += blockDim.x) {
       int xsrc = j * scale_x + src_x0;
-      xsrc = min(max(0, xsrc), in_w-1);
+      xsrc = clamp(xsrc, 0, in_w-1);
       const Src *src_px = &in_row[xsrc * channels];
       for (int c = 0; c < channels; c++)
         out_row[j*channels + c] = __ldg(&src_px[c]);

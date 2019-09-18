@@ -14,9 +14,11 @@
 
 #include <cuda_runtime.h>
 #include "dali/kernels/imgproc/resample/resampling_setup.h"
+#include "dali/kernels/common/block_setup.h"
 
 namespace dali {
 namespace kernels {
+namespace resampling {
 
 ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params) {
   switch (params.type) {
@@ -35,8 +37,11 @@ ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const Fil
   }
 }
 
-void SeparableResamplingSetup::SetFilters(SampleDesc &desc, const ResamplingParams2D &params) {
-  for (int axis = 0; axis < 2; axis++) {
+template <int spatial_ndim>
+void SeparableResamplingSetup<spatial_ndim>::SetFilters(
+    SampleDesc &desc,
+    const ResamplingParamsND<spatial_ndim> &params) {
+  for (int axis = 0; axis < spatial_ndim; axis++) {
     float in_size;
     if (params[axis].roi.use_roi) {
       in_size = std::abs(params[axis].roi.end - params[axis].roi.start);
@@ -54,11 +59,13 @@ void SeparableResamplingSetup::SetFilters(SampleDesc &desc, const ResamplingPara
   }
 }
 
-SeparableResamplingSetup::ROI SeparableResamplingSetup::ComputeScaleAndROI(
-    SampleDesc &desc, const ResamplingParams2D &params) {
+template <int spatial_ndim>
+typename SeparableResamplingSetup<spatial_ndim>::ROI
+SeparableResamplingSetup<spatial_ndim>::ComputeScaleAndROI(
+    SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params) {
   ROI roi;
 
-  for (int axis = 0; axis < 2; axis++) {
+  for (int axis = 0; axis < spatial_ndim; axis++) {
     float roi_start, roi_end;
     if (params[axis].roi.use_roi) {
       roi_start = params[axis].roi.start;
@@ -89,10 +96,12 @@ SeparableResamplingSetup::ROI SeparableResamplingSetup::ComputeScaleAndROI(
   return roi;
 }
 
-void SeparableResamplingSetup::SetupSample(
+template <>
+void SeparableResamplingSetup<2>::SetupSample(
     SampleDesc &desc,
-    const TensorShape<3> &in_shape,
+    const TensorShape<tensor_ndim> &in_shape,
     const ResamplingParams2D &params) {
+
   int H = in_shape[0];
   int W = in_shape[1];
   int C = in_shape[2];
@@ -124,19 +133,19 @@ void SeparableResamplingSetup::SetupSample(
 
   int tmp_H, tmp_W;
   if (cost_vert < cost_horz) {
-    desc.order = VertHorz;
+    desc.order = VertHorz();
     tmp_H = out_H;
     tmp_W = roi.size(1);
-    desc.block_count.pass[0] = (out_H + block_size.y - 1) / block_size.y;
-    desc.block_count.pass[1] = (out_W + block_size.x - 1) / block_size.x;
+    desc.block_count[0] = (out_H + block_size.y - 1) / block_size.y;
+    desc.block_count[1] = (out_W + block_size.x - 1) / block_size.x;
   } else {
-    desc.order = HorzVert;
+    desc.order = HorzVert();
     tmp_H = roi.size(0);
     tmp_W = out_W;
-    desc.block_count.pass[0] = (out_W + block_size.x - 1) / block_size.x;
-    desc.block_count.pass[1] = (out_H + block_size.y - 1) / block_size.y;
+    desc.block_count[0] = (out_W + block_size.x - 1) / block_size.x;
+    desc.block_count[1] = (out_H + block_size.y - 1) / block_size.y;
   }
-  desc.tmp_shape() = {{ tmp_H, tmp_W }};
+  desc.tmp_shape(0) = {{ tmp_H, tmp_W }};
 
   for (int stage = 0; stage < 3; stage++) {
     desc.strides[stage] = desc.shapes[stage][1] * C;
@@ -144,7 +153,7 @@ void SeparableResamplingSetup::SetupSample(
   }
   desc.channels = C;
 
-  if (desc.order == VertHorz) {
+  if (desc.order == VertHorz()) {
     desc.origin[1] -= roi.lo[1];
     desc.in_offset() += roi.lo[1] * desc.channels;
     desc.in_shape()[1] = roi.size(1);
@@ -155,7 +164,8 @@ void SeparableResamplingSetup::SetupSample(
   }
 }
 
-void BatchResamplingSetup::SetupBatch(
+template <>
+void BatchResamplingSetup<2>::SetupBatch(
     const TensorListShape<3> &in, const Params &params) {
   if (!filters)
     Initialize();
@@ -164,9 +174,12 @@ void BatchResamplingSetup::SetupBatch(
   assert(params.size() == static_cast<span_extent_t>(N));
 
   sample_descs.resize(N);
-  intermediate_shape.resize(N);
+  for (auto &shape : intermediate_shapes)
+    shape.resize(N);
+
   output_shape.resize(N);
-  intermediate_size = 0;
+  for (auto &size : intermediate_sizes)
+    size = 0;
 
   total_blocks = { 0, 0 };
 
@@ -175,41 +188,53 @@ void BatchResamplingSetup::SetupBatch(
     auto ts_in = in.tensor_shape(i);
     SetupSample(desc, ts_in, params[i]);
 
-    auto ts_tmp = intermediate_shape.tensor_shape_span(i);
-    ts_tmp[0] = desc.tmp_shape()[0];
-    ts_tmp[1] = desc.tmp_shape()[1];
-    ts_tmp[2] = desc.channels;
+    for (int t = 0; t < num_tmp_buffers; t++) {
+      auto ts_tmp = intermediate_shapes[t].tensor_shape_span(i);
+      for (int d = 0; d < spatial_ndim; d++) {
+        ts_tmp[d] = desc.tmp_shape(t)[d];
+      }
+      ts_tmp[channel_dim] = desc.channels;
+      intermediate_sizes[t] += volume(ts_tmp);
+    }
 
     auto ts_out = output_shape.tensor_shape_span(i);
     ts_out[0] = desc.out_shape()[0];
     ts_out[1] = desc.out_shape()[1];
-    ts_out[2] = desc.channels;
+    ts_out[channel_dim] = desc.channels;
 
-    intermediate_size += volume(ts_tmp);
-
-    total_blocks.pass[0] += desc.block_count.pass[0];
-    total_blocks.pass[1] += desc.block_count.pass[1];
+    total_blocks += desc.block_count;
   }
 }
 
-void BatchResamplingSetup::InitializeSampleLookup(
+template <int spatial_ndim>
+void BatchResamplingSetup<spatial_ndim>::InitializeSampleLookup(
     const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup) {
-  assert(sample_lookup.shape[0] >= total_blocks.pass[0] + total_blocks.pass[1]);
+  int blocks_in_all_passes = 0;
+  for (int i = 0; i < spatial_ndim; i++)
+    blocks_in_all_passes = total_blocks[i];
+
+  assert(sample_lookup.shape[0] >= blocks_in_all_passes);
+  (void)blocks_in_all_passes;  // for non-debug builds
+
   int block = 0;
   int N = sample_descs.size();
   for (int i = 0; i < N; i++) {
-    for (int b = 0; b < sample_descs[i].block_count.pass[0]; b++) {
+    for (int b = 0; b < sample_descs[i].block_count[0]; b++) {
       sample_lookup.data[block++] = { i, b };
     }
   }
-  assert(block == total_blocks.pass[0]);
+  assert(block == total_blocks[0]);
   for (int i = 0; i < N; i++) {
-    for (int b = 0; b < sample_descs[i].block_count.pass[1]; b++) {
+    for (int b = 0; b < sample_descs[i].block_count[1]; b++) {
       sample_lookup.data[block++] = { i, b };
     }
   }
-  assert(block == total_blocks.pass[0] + total_blocks.pass[1]);
+  assert(block == total_blocks[0] + total_blocks[1]);
 }
 
+template class BatchResamplingSetup<2>;
+template class BatchResamplingSetup<3>;
+
+}  // namespace resampling
 }  // namespace kernels
 }  // namespace dali

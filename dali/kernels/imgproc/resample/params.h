@@ -81,6 +81,8 @@ struct ResamplingParams {
 };
 
 using ResamplingParams2D = std::array<ResamplingParams, 2>;
+template <int ndim>
+using ResamplingParamsND = std::array<ResamplingParams, ndim>;
 
 }  // namespace kernels
 }  // namespace dali

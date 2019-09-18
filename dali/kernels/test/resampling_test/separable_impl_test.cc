@@ -65,7 +65,7 @@ TEST(SeparableImpl, Setup) {
   int N = 32;
   KernelContext ctx;
   ctx.gpu.stream = 0;
-  SeparableResamplingGPUImpl<uint8_t, uint8_t> resampling;
+  SeparableResamplingGPUImpl<uint8_t, uint8_t, 2> resampling;
   TestTensorList<uint8_t, 3> input, output;
 
   TensorListShape<3> tls;
@@ -91,11 +91,11 @@ TEST(SeparableImpl, Setup) {
     };
     EXPECT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
 
-    EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[0], 1);
-    EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[1], 1);
+    EXPECT_GE(resampling.setup.sample_descs[i].block_count[0], 1);
+    EXPECT_GE(resampling.setup.sample_descs[i].block_count[1], 1);
   }
-  EXPECT_GT(resampling.setup.total_blocks.pass[0], N);
-  EXPECT_GT(resampling.setup.total_blocks.pass[1], N);
+  EXPECT_GT(resampling.setup.total_blocks[0], N);
+  EXPECT_GT(resampling.setup.total_blocks[1], N);
 }
 
 ResamplingTestBatch SingleImageBatch = {
@@ -169,7 +169,7 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
   ScratchpadAllocator scratch_alloc;
   KernelContext ctx;
   ctx.gpu.stream = 0;
-  SeparableResamplingGPUImpl<uint8_t, uint8_t> resampling;
+  SeparableResamplingGPUImpl<uint8_t, uint8_t, 2> resampling;
   TestTensorList<uint8_t, 3> input, output;
 
   FilterDesc tri;
@@ -209,8 +209,8 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
     };
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
 
-    EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[0], 1);
-    EXPECT_GE(resampling.setup.sample_descs[i].block_count.pass[1], 1);
+    EXPECT_GE(resampling.setup.sample_descs[i].block_count[0], 1);
+    EXPECT_GE(resampling.setup.sample_descs[i].block_count[1], 1);
   }
 
   auto scratchpad = scratch_alloc.GetScratchpad();
