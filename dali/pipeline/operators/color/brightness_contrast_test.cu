@@ -17,6 +17,7 @@
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/dali_operator_test_utils.h"
 #include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/core/convert.h"
 
 namespace dali {
 
@@ -80,10 +81,7 @@ void BrightnessContrastVerify(TensorListWrapper input, TensorListWrapper output,
     auto in_tensor = input_tl->tensor<InputDataType>(t);
     ASSERT_EQ(in_shape, out_shape);
     for (int i = 0; i < volume(out_shape); i++) {
-      // TODO(mszolucha): Change to the statement below, when ConvertSat() is fixed
-      EXPECT_EQ(out_tensor[i],
-                static_cast<OutputType>(std::round(in_tensor[i] * contrast + brightness)));
-      // EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(in_tensor[i] * contrast + brightness));
+       EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(in_tensor[i] * contrast + brightness));
     }
   }
 }
