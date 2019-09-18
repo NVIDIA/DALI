@@ -24,7 +24,7 @@ DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrast<GPUBackend>, GPU)
 
 DALI_SCHEMA(BrightnessContrast)
                 .DocStr(R"code(Change the brightness and contrast of the image.
-                               Additionally, this operator can change the type of data.)code")
+Additionally, this operator can change the type of data.)code")
                 .NumInput(1)
                 .NumOutput(1)
                 .AddOptionalArg(detail::kBrightness,
