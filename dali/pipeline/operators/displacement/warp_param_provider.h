@@ -39,11 +39,11 @@ class InterpTypeProvider {
   void SetInterp(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples) {
     interp_types_.clear();
     if (spec.HasTensorArgument("interp_type")) {
-      auto &tensor = ws.ArgumentInput("interp_type");
-      int n = tensor.shape()[0];
+      auto &tensor_list = ws.ArgumentInput("interp_type");
+      int n = tensor_list.shape().num_samples();
       DALI_ENFORCE(n == 1 || n == num_samples,
         "interp_type must be a single value or contain one value per sample");
-      auto *data = tensor.template data<DALIInterpType>();
+      auto *data = tensor_list.template data<DALIInterpType>();
       interp_types_.resize(n);
 
       for (int i = 0; i < n; i++)
@@ -229,19 +229,29 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   virtual void GetExplicitPerSampleSize(std::vector<SpatialShape> &out_sizes) const {
     assert(HasExplicitPerSampleSize());
-    const Tensor<CPUBackend> &tensor = ws_->ArgumentInput(size_arg_name_);
-    auto tv = view<const int>(tensor);
+    const TensorList<CPUBackend> &tensor_list = ws_->ArgumentInput(size_arg_name_);
+    const auto &shape = tensor_list.shape();
+    auto tv = view<const int>(tensor_list);
     const int N = num_samples_;
+
+    DALI_ENFORCE(is_uniform(shape), "Output sizes must be passed as uniform Tensor List.");
     DALI_ENFORCE(
-      tv.shape == kernels::TensorShape<>(N, spatial_ndim) ||
-      tv.shape == kernels::TensorShape<>(N * spatial_ndim),
-      "Output sizes must either be a flat array of size num_samples*dim "
-      "or a 2D tensor of size num_samples x dim");
+        (shape.num_samples() == N && shape[0] == kernels::TensorShape<>(spatial_ndim)) ||
+            (shape.num_samples() == 1 && (shape[0] == kernels::TensorShape<>(N, spatial_ndim) ||
+                                          shape[0] == kernels::TensorShape<>(N * spatial_ndim))),
+        "Output sizes must either be a batch of `dim`-sized tensors, flat array of size "
+        "num_samples*dim or one 2D tensor of shape {num_samples, dim}.");
 
     out_sizes.resize(N);
-    for (int i = 0; i < N; i++)
-      for (int d = 0; d < spatial_ndim; d++)
-        out_sizes[i][d] = tv.data[i*N + d];
+    if (shape.num_samples() == N) {
+      for (int i = 0; i < N; i++)
+        for (int d = 0; d < spatial_ndim; d++)
+          out_sizes[i][d] = tv.data[i][d];
+    } else {
+      for (int i = 0; i < N; i++)
+        for (int d = 0; d < spatial_ndim; d++)
+          out_sizes[i][d] = tv.data[0][i*N + d];
+    }
   }
 
   void SetExplicitSize() {

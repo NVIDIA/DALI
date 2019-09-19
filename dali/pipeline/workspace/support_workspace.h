@@ -27,9 +27,9 @@
 namespace dali {
 
 template <typename Backend>
-using SupportInputType = shared_ptr<Tensor<Backend>>;
+using SupportInputType = shared_ptr<TensorList<Backend>>;
 template <typename Backend>
-using SupportOutputType = shared_ptr<Tensor<Backend>>;
+using SupportOutputType = shared_ptr<TensorList<Backend>>;
 
 /**
  * @brief SupportWorkspace stores all data that a support operator operates on,
@@ -47,13 +47,13 @@ class DLL_PUBLIC SupportWorkspace : public WorkspaceBase<SupportInputType, Suppo
    * @brief Returns the input Tensor at index `idx`.
    */
   template <typename Backend>
-  DLL_PUBLIC const Tensor<Backend>& Input(int idx) const;
+  DLL_PUBLIC const TensorList<Backend>& Input(int idx) const;
 
   /**
    * @brief Returns the output Tensor at index `idx`.
    */
   template <typename Backend>
-  DLL_PUBLIC Tensor<Backend>& Output(int idx);
+  DLL_PUBLIC TensorList<Backend>& Output(int idx);
 
   bool has_stream() const override {
     return false;

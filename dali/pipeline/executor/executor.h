@@ -48,21 +48,6 @@ namespace detail {
 // pipeline run is finished
 static void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData);
 
-template <typename Workspace>
-std::enable_if_t<!std::is_same<Workspace, SupportWorkspace>::value,
-                 const kernels::TensorListShape<> &>
-ShapeSelectHelper(const kernels::TensorListShape<> &shape) {
-  return shape;
-}
-
-template <typename Workspace>
-std::enable_if_t<std::is_same<Workspace, SupportWorkspace>::value, const kernels::TensorShape<>>
-ShapeSelectHelper(const kernels::TensorListShape<> &shape) {
-  DALI_ENFORCE(shape.size() == 1,
-               "Support op should provide shape information for only one tensor.");
-  return shape[0];
-}
-
 }  // namespace detail
 
 class DLL_PUBLIC ExecutorBase {
@@ -240,12 +225,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
                    "always return true.");
       for (int i = 0; i < ws.NumOutput(); i++) {
         auto &desc = output_desc[i];
-        const auto &shape = detail::ShapeSelectHelper<Workspace>(desc.shape);
         if (ws.template OutputIsType<CPUBackend>(i)) {
-          ws.template OutputRef<CPUBackend>(i).Resize(shape);
+          ws.template OutputRef<CPUBackend>(i).Resize(desc.shape);
           ws.template OutputRef<CPUBackend>(i).set_type(desc.type);
         } else {
-          ws.template OutputRef<GPUBackend>(i).Resize(shape);
+          ws.template OutputRef<GPUBackend>(i).Resize(desc.shape);
           ws.template OutputRef<GPUBackend>(i).set_type(desc.type);
         }
       }
