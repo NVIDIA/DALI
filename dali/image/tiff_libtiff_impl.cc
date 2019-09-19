@@ -59,12 +59,12 @@
 // ****************************************************************************************
 
 #include "dali/image/tiff_libtiff_impl.h"
+#include <tiffio.h>
+#include <cstring>
 #include <vector>
 #include <string>
-#include <cstring>
 #include <utility>
 #include <memory>
-#include <tiffio.h>
 #include "dali/core/convert.h"
 
 #define LIBTIFF_CALL_SUCCESS 1
@@ -96,8 +96,7 @@ class BufDecoderHelper {
     auto &buf = helper->buf_;
     const tmsize_t size = buf.size();
     tmsize_t pos = helper->buf_pos_;
-    if (n > (size - pos))
-    {
+    if (n > (size - pos)) {
       n = size - pos;
     }
     memcpy(buffer, buf.data() + pos, n);
@@ -151,7 +150,7 @@ class BufDecoderHelper {
   }
 };
 
-} // namespace detail
+}  // namespace detail
 
 LibtiffImpl::LibtiffImpl(span<const uint8_t> buf)
     : buf_(std::move(buf)), buf_pos_(0) {
@@ -225,7 +224,7 @@ LibtiffImpl::Decode(DALIImageType image_type, CropWindowGenerator crop_window_ge
   using InType = uint8_t;
   using OutType = uint8_t;
 
-  //allocate memory for reading tif image
+  // allocate memory for reading tif image
   auto row_nbytes = TIFFScanlineSize(tif_.get());
   DALI_ENFORCE(row_nbytes > 0);
 

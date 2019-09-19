@@ -17,6 +17,8 @@
 
 #include <vector>
 #include <string>
+#include <utility>
+#include <memory>
 #include "dali/image/generic_image.h"
 
 #ifdef DALI_USE_LIBTIFF
