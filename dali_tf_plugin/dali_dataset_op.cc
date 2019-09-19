@@ -62,20 +62,33 @@ class DALIDatasetOp : public DatasetOpKernel {
     explicit DALIDatasetOp(OpKernelConstruction* context) 
       : DatasetOpKernel(context) { 
         OP_REQUIRES_OK(context, context->GetAttr("value", &value_));
-        std::cout << "============= " << value_ << std::endl;
+        OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
+
+        std::cout << "======= Dataset constructor ==========\n ";
+        std::cout << "value: " << value_ << std::endl;
+        std::cout << "shapes: { ";
+        for(const auto &shape : shapes_)
+          std::cout << shape << ", ";
+        std::cout << "}" <<std::endl;
+        std::cout << std::endl;
+
       }
 
     void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
-      *output = new Dataset(context, value_);
+      *output = new Dataset(context, value_, shapes_);
     }
 
   private:
     int64 value_;
+    std::vector<PartialTensorShape> shapes_;
 
     class Dataset : public DatasetBase {
       public:
-        explicit Dataset(OpKernelContext *context, const int64 value) 
-          : DatasetBase(DatasetContext(context)), value_(value) {}
+        explicit Dataset(
+          OpKernelContext *context, 
+          const int64 value,
+          const std::vector<PartialTensorShape> &shapes) 
+          : DatasetBase(DatasetContext(context)), value_(value), shapes_(shapes) {}
 
         std::unique_ptr<IteratorBase> MakeIteratorInternal(
           const string &prefix) const override {
@@ -90,9 +103,7 @@ class DALIDatasetOp : public DatasetOpKernel {
         }
 
         const std::vector<PartialTensorShape> &output_shapes() const override {
-          static std::vector<PartialTensorShape> *shapes = 
-            new std::vector<PartialTensorShape>({{}});
-          return *shapes;
+          return shapes_;
         }
 
         string DebugString() const override { 
@@ -102,6 +113,7 @@ class DALIDatasetOp : public DatasetOpKernel {
 
       protected:
         const int64 value_;
+        const std::vector<PartialTensorShape> shapes_;
 
         Status AsGraphDefInternal(
           SerializationContext *context,
@@ -111,10 +123,16 @@ class DALIDatasetOp : public DatasetOpKernel {
           AttrValue value;
           b->BuildAttrValue<int>(value_, &value);
 
+          AttrValue shapes;
+          b->BuildAttrValue<std::vector<PartialTensorShape>>(shapes_, &shapes);
+
           TF_RETURN_IF_ERROR(b->AddDataset(
             this, 
             {}, 
-            { std::make_pair("value", value) }, 
+            { 
+              std::make_pair("value", value),
+              std::make_pair("shapes", shapes),
+            }, 
             output));
 
           return Status::OK();
@@ -131,8 +149,12 @@ class DALIDatasetOp : public DatasetOpKernel {
               std::vector<Tensor> *out_tensors,
               bool *end_of_sequence) override {
                 tensorflow::mutex_lock l(mu_);
-                out_tensors->emplace_back(context->allocator({}), DT_INT64, TensorShape({}));
-                out_tensors->back().scalar<int64>()() = dataset()->value_;
+                TensorShape output_shape;
+                dataset()->shapes_[0].AsTensorShape(&output_shape);
+                out_tensors->emplace_back(context->allocator({}), DT_INT64, output_shape);
+                // out_tensors->back().scalar<int64>()() = dataset()->value_;
+                Tensor &output = out_tensors->operator[](0);
+                
                 *end_of_sequence = false;
 
                 return Status::OK();
@@ -152,12 +174,24 @@ REGISTER_KERNEL_BUILDER(
 
 REGISTER_OP("DaliDataset")
     .Attr("value: int")
+    .Attr("shapes: list(shape) = [{ dim { size: 1 } dim { size: 2 } }, { dim { size: 1 } dim { size: 2 } }]")
     .Output("handle: variant")
     .SetIsStateful() 
     .SetShapeFn([](shape_inference::InferenceContext* c) {
-      shape_inference::ShapeHandle unused;
-      return shape_inference::ScalarShape(c);
-    });
+      std::vector<PartialTensorShape> shapes;
+      TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
+      for (unsigned i = 0; i < shapes.size(); ++i) {
+        if (shapes[i].dims() > 0) {
+          shape_inference::ShapeHandle passed_shape;
+          TF_RETURN_IF_ERROR(
+              c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
+          TF_RETURN_IF_ERROR(
+              c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
+          c->set_output(i, passed_shape);
+        }
+      }
+      return Status::OK();
+  });
 
 }  // namespace
 }  // namespace data

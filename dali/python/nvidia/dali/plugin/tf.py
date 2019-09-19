@@ -191,14 +191,22 @@ def DALIRawIterator():
 
 
 class DALIDatasetV2(dataset_ops.DatasetSource):
-  def __init__(self, value = 1234):
+  def __init__(self, value = 1234, shapes = []):
     self._value = value
-    variant_tensor = _dali_tf_module.dali_dataset(self._value)
+    self._shapes = shapes
+    variant_tensor = _dali_tf_module.dali_dataset(self._value, self._shapes)
+
+    types = (tf.int64)
+    output_classes = (ops.Tensor)
+    shapes = self._shapes[0]
+    # self._structure = structure.convert_legacy_structure(types, self._shapes, output_classes)
+    self._structure = structure.TensorStructure(tf.int64, self._shapes[0])
+
     super(DALIDatasetV2, self).__init__(variant_tensor)
 
   @property
   def _element_structure(self):
-    return structure.TensorStructure(dtypes.int64, [])
+    return self._structure
 
 class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
   @functools.wraps(DALIDatasetV2.__init__)
