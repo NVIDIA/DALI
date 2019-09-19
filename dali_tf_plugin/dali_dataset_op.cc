@@ -152,8 +152,13 @@ class DALIDatasetOp : public DatasetOpKernel {
                 TensorShape output_shape;
                 dataset()->shapes_[0].AsTensorShape(&output_shape);
                 out_tensors->emplace_back(context->allocator({}), DT_INT64, output_shape);
-                // out_tensors->back().scalar<int64>()() = dataset()->value_;
-                Tensor &output = out_tensors->operator[](0);
+                
+                tensorflow::Tensor &output = out_tensors->operator[](0);
+
+                for (int i = 0; i < output.NumElements(); ++i) {
+                  output.flat<int64>()(i) = dataset()->value_;
+                }
+                
                 
                 *end_of_sequence = false;
 
