@@ -99,7 +99,7 @@ TEST(BoxSimpleTest, empty_test) {
 
 TEST(BoxSimpleTest, extent_test) {
   ASSERT_EQ(boxes.size(), extents.size()) << "Bad testing data";
-  for (size_t i = 0; i < boxes.size(); i++) {
+  for (int i = 0; i < boxes.size(); i++) {
     EXPECT_TRUE(boxes[i].extent() == extents[i]) << "Failed at index: " << i;
   }
 }
@@ -107,7 +107,7 @@ TEST(BoxSimpleTest, extent_test) {
 
 TEST(BoxSimpleTest, contains_box_test) {
   ASSERT_EQ(boxes.size(), contains_box.size()) << "Bad testing data";
-  for (size_t i = 0; i < boxes.size(); i++) {
+  for (int i = 0; i < boxes.size(); i++) {
     EXPECT_EQ(reference_box.contains(boxes[i]), contains_box[i]) << "Failed at index: " << i;
   }
 }
@@ -115,7 +115,7 @@ TEST(BoxSimpleTest, contains_box_test) {
 
 TEST(BoxSimpleTest, contains_corner_test) {
   ASSERT_EQ(boxes.size(), contains_corner.size()) << "Bad testing data";
-  for (size_t i = 0; i < boxes.size(); i++) {
+  for (int i = 0; i < boxes.size(); i++) {
     EXPECT_EQ(reference_box.contains(boxes[i].lo), contains_corner[i]) << "Failed at index: " << i;
   }
 }
@@ -123,7 +123,7 @@ TEST(BoxSimpleTest, contains_corner_test) {
 
 TEST(BoxSimpleTest, overlaps_test) {
   ASSERT_EQ(boxes.size(), overlaps.size()) << "Bad testing data";
-  for (size_t i = 0; i < boxes.size(); i++) {
+  for (int i = 0; i < boxes.size(); i++) {
     EXPECT_EQ(reference_box.overlaps(boxes[i]), overlaps[i]) << "Failed at index: " << i;
   }
 }
@@ -131,7 +131,7 @@ TEST(BoxSimpleTest, overlaps_test) {
 
 TEST(BoxSimpleTest, volume_test) {
   ASSERT_EQ(boxes.size(), volumes.size()) << "Bad testing data";
-  for (size_t i = 0; i < boxes.size(); i++) {
+  for (int i = 0; i < boxes.size(); i++) {
     EXPECT_EQ(volume(boxes[i]), volumes[i]) << "Failed at index: " << i;
   }
 }
@@ -139,7 +139,7 @@ TEST(BoxSimpleTest, volume_test) {
 
 TEST(BoxSimpleTest, intersection_test) {
   ASSERT_EQ(boxes.size(), intersections.size()) << "Bad testing data";
-  for (size_t i = 0; i < boxes.size(); i++) {
+  for (int i = 0; i < boxes.size(); i++) {
     EXPECT_EQ(intersection(reference_box, boxes[i]), intersections[i]) << "Failed at index: " << i;
   }
 }
