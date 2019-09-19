@@ -126,8 +126,8 @@ TEST(Mat, CompoundAssignMatrix) {
   #define TEST_ASSIGN_OP(op)                          \
   {                                                   \
     m1 op##= m2;                                      \
-    for (int i = 0; i < 3; i++)                    \
-      for (int j = 0; j < 4; j++)                  \
+    for (int i = 0; i < 3; i++)                       \
+      for (int j = 0; j < 4; j++)                     \
         EXPECT_EQ(m1(i, j), orig(i, j) op m2(i, j));  \
     m1 = orig;                                        \
   }
@@ -188,8 +188,8 @@ TEST(Mat, CompoundAssignScalar) {
 #define TEST_ASSIGN_OP(op)                    \
   {                                           \
     m1 op## = s;                              \
-    for (int i = 0; i < 3; i++)            \
-      for (int j = 0; j < 4; j++)          \
+    for (int i = 0; i < 3; i++)               \
+      for (int j = 0; j < 4; j++)             \
         EXPECT_EQ(m1(i, j), orig(i, j) op s); \
     m1 = orig;                                \
   }
@@ -250,17 +250,17 @@ TEST(Mat, BinOp) {
     cuda_rng rng = { 12345 };                                 \
     RandomFill(m1, rng, lo, hi); RandomFill(m2, rng, lo, hi); \
     mat_type result = m1 op m2;                               \
-    for (int i = 0; i < result.rows; i++)                  \
-      for (int j = 0; j < result.cols; j++)                \
+    for (int i = 0; i < result.rows; i++)                     \
+      for (int j = 0; j < result.cols; j++)                   \
         EXPECT_EQ(result(i, j), m1(i, j) op m2(i, j));        \
     int scalar = rng()&31;                                    \
     result = m1 op scalar;                                    \
-    for (int i = 0; i < result.rows; i++)                  \
-      for (int j = 0; j < result.cols; j++)                \
+    for (int i = 0; i < result.rows; i++)                     \
+      for (int j = 0; j < result.cols; j++)                   \
         EXPECT_EQ(result(i, j), m1(i, j) op scalar);          \
     result = scalar op m2;                                    \
-    for (int i = 0; i < result.rows; i++)                  \
-      for (int j = 0; j < result.cols; j++)                \
+    for (int i = 0; i < result.rows; i++)                     \
+      for (int j = 0; j < result.cols; j++)                   \
         EXPECT_EQ(result(i, j), scalar op m2(i, j));          \
   }
 
