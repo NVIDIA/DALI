@@ -111,7 +111,7 @@ enum DALIImageType {
   DALI_BGR          = 1,
   DALI_GRAY         = 2,
   DALI_YCbCr        = 3,
-  DALI_MULTICHANNEL = 4   // more than 3 channels, no specific channel layout
+  DALI_ANY_DATA     = 4
 };
 
 /**

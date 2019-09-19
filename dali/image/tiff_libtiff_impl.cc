@@ -189,8 +189,6 @@ kernels::TensorShape<3> LibtiffImpl::Dims() const {
 }
 
 bool LibtiffImpl::CanDecode(DALIImageType image_type) const {
-  // TODO(janton): Implement to other variants
-  // TODO(janton): remove this
   return !is_tiled_
       && bit_depth_ == 8
       && orientation_ == ORIENTATION_TOPLEFT
@@ -250,15 +248,19 @@ LibtiffImpl::Decode(DALIImageType image_type, CropWindowGenerator crop_window_ge
   // strip. In this case, the library does not support random access to the data. The data should
   // either be accessed sequentially, or the file should be converted so that each strip is made up
   // of one row of data.
+
+  // First try to access random row
   const bool can_access_roi_y = (roi_y == 0)
     || (1 == TIFFReadScanline(tif_.get(), row_in, roi_y, 0));
 
+  // If random access did not work, need to read sequentially all previous rows
   if (!can_access_roi_y) {
     for (int64_t y = 0; y < roi_y; y++) {
       LIBTIFF_CALL(
         TIFFReadScanline(tif_.get(), row_in, y, 0));
     }
   }
+
   for (int64_t y = 0; y < roi_h; y++) {
     LIBTIFF_CALL(
       TIFFReadScanline(tif_.get(), row_in, roi_y + y, 0));
@@ -273,7 +275,7 @@ LibtiffImpl::Decode(DALIImageType image_type, CropWindowGenerator crop_window_ge
         for (int64_t c = 0; c < C; c++) {
           if (image_type == DALI_BGR) {
             out[C-1-c] = ConvertSat<OutType>(in[c]);
-          } else {  // including DALI_RGB and DALI_MULTICHANNEL
+          } else {  // including DALI_RGB and DALI_ANY_DATA
             out[c] = ConvertSat<OutType>(in[c]);
           }
         }
