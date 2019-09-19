@@ -31,8 +31,8 @@ class ArgValue {
   inline ArgValue(const ArgValue &other) { *this = other; }
   inline ArgValue(const std::string &name, const OpSpec &spec, ArgumentWorkspace *ws) {
     if (spec.HasTensorArgument(name)) {
-      tensor_ = &ws->ArgumentInput(name);
-      data_ = tensor_->data<T>();
+      tensor_list_ = &ws->ArgumentInput(name);
+      data_ = tensor_list_->data<T>();
     } else {
       value_ = spec.GetArgument<T>(name, ws);
     }
@@ -42,7 +42,7 @@ class ArgValue {
   inline ArgValue &operator=(const ArgValue &other) {
     gpu_.reset();
     value_  = other.value_;
-    tensor_ = other.tensor_;
+    tensor_list_ = other.tensor_list_;
     data_   = other.data_;
     return *this;
   }
@@ -52,7 +52,7 @@ class ArgValue {
   inline const T &operator[](Index index) {
     if (IsTensor()) {
 #if DALI_DEBUG
-      DALI_ENFORCE(index < tensor_->size());
+      DALI_ENFORCE(index < tensor_list_->size());
 #endif
       return data_[index];
     } else {
@@ -60,11 +60,11 @@ class ArgValue {
     }
   }
 
-  inline const Tensor<GPUBackend> *AsGPU(cudaStream_t stream) {
+  inline const TensorList<GPUBackend> *AsGPU(cudaStream_t stream) {
     DALI_ENFORCE(IsTensor());
     if (!gpu_) {
-      gpu_.reset(new Tensor<GPUBackend>());
-      gpu_->Copy(*tensor_, stream);
+      gpu_.reset(new TensorList<GPUBackend>());
+      gpu_->Copy(*tensor_list_, stream);
     }
     return gpu_.get();
   }
@@ -72,8 +72,8 @@ class ArgValue {
  private:
   T value_;
   const T *data_ = nullptr;
-  const Tensor<CPUBackend> *tensor_ = nullptr;
-  std::unique_ptr<Tensor<GPUBackend>> gpu_;
+  const TensorList<CPUBackend> *tensor_list_ = nullptr;
+  std::unique_ptr<TensorList<GPUBackend>> gpu_;
 };
 
 }  // namespace dali
