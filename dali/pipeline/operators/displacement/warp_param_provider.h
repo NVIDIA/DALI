@@ -240,7 +240,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
             (shape.num_samples() == 1 && (shape[0] == kernels::TensorShape<>(N, spatial_ndim) ||
                                           shape[0] == kernels::TensorShape<>(N * spatial_ndim))),
         "Output sizes must either be a batch of `dim`-sized tensors, flat array of size "
-        "num_samples*dim or a one 2-dim tensor of shape {num_samples, dim}.");
+        "num_samples*dim or one 2D tensor of shape {num_samples, dim}.");
 
     out_sizes.resize(N);
     if (shape.num_samples() == N) {
