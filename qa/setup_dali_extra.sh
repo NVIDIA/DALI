@@ -1,13 +1,7 @@
 #!/bin/bash
 
 # Fetch test data
-
-# User can specify optional argument with target where to download DALI_extra
-if [ "$#" -eq 1 ]; then
-    export DALI_EXTRA_PATH=$1
-else
-    export DALI_EXTRA_PATH=/opt/dali_extra
-fi
+export DALI_EXTRA_PATH=${DALI_EXTRA_PATH:-/opt/dali_extra}
 
 DALI_EXTRA_URL="https://github.com/NVIDIA/DALI_extra.git"
 DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )
