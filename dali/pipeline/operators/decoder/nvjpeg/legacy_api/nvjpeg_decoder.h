@@ -231,9 +231,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         auto file_name = in.GetSourceInfo();
         try {
           const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
-          const auto dims = image->GetImageDims();
-          info.heights[0] = std::get<0>(dims);
-          info.widths[0] = std::get<1>(dims);
+          const auto dims = image->GetShape();
+          info.heights[0] = dims[0];
+          info.widths[0] = dims[1];
           info.nvjpeg_support = false;
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + "File: " + file_name);

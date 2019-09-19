@@ -93,7 +93,7 @@ class TiffImage : public GenericImage {
   TiffImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
  protected:
-  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+  Shape PeekShape(const uint8_t *encoded_buffer, size_t length) const override;
 };
 
 }  // namespace dali

@@ -37,7 +37,7 @@ bool is_little_endian(const unsigned char *tiff) {
   return true;
 }
 
-kernels::TensorShape<3> PeekDimsImpl(const uint8_t *encoded_buffer, size_t length) {
+kernels::TensorShape<3> PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) {
   TiffBuffer buffer(
     std::string(reinterpret_cast<const char *>(encoded_buffer),
     static_cast<size_t>(length)),
@@ -91,13 +91,9 @@ kernels::TensorShape<3> PeekDimsImpl(const uint8_t *encoded_buffer, size_t lengt
 TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type) :
         GenericImage(encoded_buffer, length, image_type) {}
 
-Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
+Image::Shape TiffImage::PeekShape(const uint8_t *encoded_buffer, size_t length) const {
   DALI_ENFORCE(encoded_buffer != nullptr);
-  auto shape = legacy_impl::PeekDimsImpl(encoded_buffer, length);
-  return std::make_tuple(
-    static_cast<size_t>(shape[0]),
-    static_cast<size_t>(shape[1]),
-    static_cast<size_t>(shape[2]));
+  return legacy_impl::PeekShapeImpl(encoded_buffer, length);
 }
 
 }  // namespace dali
