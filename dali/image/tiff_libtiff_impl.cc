@@ -58,8 +58,6 @@
 //
 // ****************************************************************************************
 
-#ifdef DALI_USE_LIBTIFF
-
 #include "dali/image/tiff_libtiff_impl.h"
 #include <tiffio.h>
 #include <cstring>
@@ -74,10 +72,9 @@
 #define LIBTIFF_CALL(call)                                \
   do {                                                    \
     int retcode = (call);                                 \
-    if (LIBTIFF_CALL_SUCCESS != retcode) {                                   \
-      DALI_FAIL("libtiff call failed with code "          \
-        + std::to_string(retcode) + ": " #call);          \
-    }                                                     \
+    DALI_ENFORCE(LIBTIFF_CALL_SUCCESS == retcode,         \
+      "libtiff call failed with code "                    \
+      + std::to_string(retcode) + ": " #call);            \
   } while (0)
 
 namespace dali {
@@ -155,10 +152,12 @@ class BufDecoderHelper {
 
 }  // namespace detail
 
-TiffImage_LibtiffImpl::TiffImage_LibtiffImpl(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type)
-    : GenericImage(encoded_buffer, length, image_type)
-    , buf_({encoded_buffer, static_cast<ptrdiff_t>(length)})
-    , buf_pos_(0) {
+TiffImage_LibtiffImpl::TiffImage_LibtiffImpl(const uint8_t *encoded_buffer,
+                                             size_t length,
+                                             DALIImageType image_type)
+    : GenericImage(encoded_buffer, length, image_type),
+      buf_({encoded_buffer, static_cast<ptrdiff_t>(length)}),
+      buf_pos_(0) {
   tif_.reset(
     TIFFClientOpen("", "r",
                    reinterpret_cast<thandle_t>(
@@ -188,7 +187,8 @@ TiffImage_LibtiffImpl::TiffImage_LibtiffImpl(const uint8_t *encoded_buffer, size
   TIFFGetField(tif_.get(), TIFFTAG_ORIENTATION, &orientation_);
 }
 
-Image::ImageDims TiffImage_LibtiffImpl::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
+Image::ImageDims TiffImage_LibtiffImpl::PeekDims(const uint8_t *encoded_buffer,
+                                                 size_t length) const {
   DALI_ENFORCE(encoded_buffer != nullptr);
   assert(encoded_buffer == buf_.data());
   return std::make_tuple(static_cast<size_t>(shape_[0]),
@@ -197,7 +197,9 @@ Image::ImageDims TiffImage_LibtiffImpl::PeekDims(const uint8_t *encoded_buffer, 
 }
 
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
-TiffImage_LibtiffImpl::DecodeImpl(DALIImageType image_type, const uint8 *encoded_buffer, size_t length) const {
+TiffImage_LibtiffImpl::DecodeImpl(DALIImageType image_type,
+                                  const uint8 *encoded_buffer,
+                                  size_t length) const {
   if (!CanDecode(image_type)) {
     DALI_WARN("Warning: Falling back to GenericImage");
     return GenericImage::DecodeImpl(image_type, encoded_buffer, length);
@@ -304,5 +306,3 @@ bool TiffImage_LibtiffImpl::CanDecode(DALIImageType image_type) const {
 }
 
 }  // namespace dali
-
-#endif  // DALI_USE_LIBTIFF

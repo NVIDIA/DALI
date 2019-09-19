@@ -74,6 +74,24 @@ RUN curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# libtiff
+RUN LIBTIFF_VERSION=4.0.10 && \
+    cd /tmp && \
+    curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
+    cd tiff-${LIBTIFF_VERSION} && \
+    ./autogen.sh && \
+    ./configure \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+      CC=aarch64-linux-gnu-gcc \
+      CXX=aarch64-linux-gnu-g++ \
+      --host=aarch64-unknown-linux-gnu \
+      --prefix=/usr/aarch64-linux-gnu/ && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    make install && \
+    cd && \
+    rm -rf /tmp/tiff-${LIBTIFF_VERSION}
+
 # OpenCV
 ENV OPENCV_VERSION=3.4.3
 RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
@@ -142,8 +160,8 @@ CMD cmake \
   -DBUILD_PYTHON=OFF \
   -DBUILD_LMDB=OFF \
   -DBUILD_JPEG_TURBO=ON \
+  -DBUILD_LIBTIFF=ON \
   -DBUILD_NVJPEG=OFF \
-  -DBUILD_LIBTIFF=OFF \
   -DBUILD_NVOF=OFF \
   -DBUILD_NVDEC=OFF \
   -DBUILD_NVML=OFF \

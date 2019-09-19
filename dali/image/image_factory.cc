@@ -17,7 +17,7 @@
 #include "dali/image/png.h"
 #include "dali/image/bmp.h"
 #include "dali/image/jpeg.h"
-#ifdef DALI_USE_LIBTIFF
+#if LIBTIFF_ENABLED
 #include "dali/image/tiff_libtiff_impl.h"
 #else
 #include "dali/image/tiff.h"
@@ -96,7 +96,7 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
   } else if (CheckIsGIF(encoded_image, length)) {
     DALI_FAIL("GIF format is not supported");
   } else if (CheckIsTiff(encoded_image, length)) {
-#ifdef DALI_USE_LIBTIFF
+#if LIBTIFF_ENABLED
     return std::make_unique<TiffImage_LibtiffImpl>(encoded_image, length, image_type);
 #else
     return std::make_unique<TiffImage>(encoded_image, length, image_type);

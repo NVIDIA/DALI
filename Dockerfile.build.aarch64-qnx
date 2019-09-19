@@ -95,7 +95,13 @@ RUN LIBTIFF_VERSION=4.0.10 && \
     curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
     cd tiff-${LIBTIFF_VERSION} && \
     ./autogen.sh && \
-    ./configure --prefix=/usr/local && \
+    ./configure \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
+      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
+      --host=aarch64-unknown-nto-qnx7.0.0 \
+      --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
     make install && \
     cd && \
@@ -173,8 +179,8 @@ CMD cmake \
   -DBUILD_LMDB=OFF \
   -DBUILD_TENSORFLOW=OFF \
   -DBUILD_JPEG_TURBO=ON \
+  -DBUILD_LIBTIFF=ON \
   -DBUILD_NVJPEG=OFF \
-  -DBUILD_LIBTIFF=OFF \
   -DBUILD_NVOF=OFF \
   -DBUILD_NVDEC=OFF \
   -DBUILD_NVML=OFF \
