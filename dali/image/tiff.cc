@@ -89,47 +89,15 @@ kernels::TensorShape<3> PeekDimsImpl(const uint8_t *encoded_buffer, size_t lengt
 }  // namespace legacy_impl
 
 TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type) :
-        GenericImage(encoded_buffer, length, image_type) {
-#ifdef DALI_USE_LIBTIFF
-  libtiff_decoder_.reset(new LibtiffImpl(make_span(encoded_buffer, length)));
-#endif
-}
+        GenericImage(encoded_buffer, length, image_type) {}
 
 Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
   DALI_ENFORCE(encoded_buffer != nullptr);
-
-  kernels::TensorShape<3> shape;
-#ifdef DALI_USE_LIBTIFF
-  shape = libtiff_decoder_->Dims();
-#else
-  shape = legacy_impl::PeekDimsImpl(encoded_buffer, length);
-#endif
-
+  auto shape = legacy_impl::PeekDimsImpl(encoded_buffer, length);
   return std::make_tuple(
     static_cast<size_t>(shape[0]),
     static_cast<size_t>(shape[1]),
     static_cast<size_t>(shape[2]));
-}
-
-std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
-TiffImage::DecodeImpl(DALIImageType type, const uint8 *encoded_buffer, size_t length) const {
-#ifdef DALI_USE_LIBTIFF
-  if (!libtiff_decoder_->CanDecode(type)) {
-    DALI_WARN("Warning: Falling back to GenericImage");
-    return GenericImage::DecodeImpl(type, encoded_buffer, length);
-  }
-  auto roi_generator = GetCropWindowGenerator();
-  std::shared_ptr<uint8_t> decoded_data;
-  kernels::TensorShape<3> decoded_shape;
-  std::tie(decoded_data, decoded_shape) = libtiff_decoder_->Decode(type, roi_generator);
-  return {
-    decoded_data,
-    std::make_tuple(static_cast<size_t>(decoded_shape[0]),
-                    static_cast<size_t>(decoded_shape[1]),
-                    static_cast<size_t>(decoded_shape[2]))};
-#else
-  return GenericImage::DecodeImpl(type, encoded_buffer, length);
-#endif
 }
 
 }  // namespace dali

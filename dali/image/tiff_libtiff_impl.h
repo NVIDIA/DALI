@@ -20,11 +20,21 @@
 #include <memory>
 #include "dali/core/span.h"
 #include "dali/kernels/tensor_shape.h"
-#include "dali/util/crop_window.h"
+#include "dali/image/generic_image.h"
 
 namespace dali {
 
-class LibtiffImpl {
+class TiffImage_LibtiffImpl : public GenericImage {
+ public:
+  TiffImage_LibtiffImpl(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+  bool CanDecode(DALIImageType image_type) const;
+
+ protected:
+  std::pair<std::shared_ptr<uint8_t>, ImageDims>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
+
+  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+
  private:
   span<const uint8_t> buf_;
   size_t buf_pos_;
@@ -34,16 +44,6 @@ class LibtiffImpl {
   bool is_tiled_ = false;
   uint16_t bit_depth_ = 8;
   uint16_t orientation_ = ORIENTATION_TOPLEFT;
-
- public:
-  explicit LibtiffImpl(span<const uint8_t> buf);
-
-  kernels::TensorShape<3> Dims() const;
-
-  bool CanDecode(DALIImageType image_type) const;
-
-  std::pair<std::shared_ptr<uint8_t>, kernels::TensorShape<3>>
-  Decode(DALIImageType image_type, CropWindowGenerator crop_window_generator) const;
 };
 
 }  // namespace dali

@@ -21,10 +21,6 @@
 #include <memory>
 #include "dali/image/generic_image.h"
 
-#ifdef DALI_USE_LIBTIFF
-#include "dali/image/tiff_libtiff_impl.h"
-#endif
-
 namespace dali {
 
 namespace legacy_impl {
@@ -97,15 +93,7 @@ class TiffImage : public GenericImage {
   TiffImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
  protected:
-  std::pair<std::shared_ptr<uint8_t>, ImageDims>
-  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
-
   ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
-
- private:
-#ifdef DALI_USE_LIBTIFF
-  std::unique_ptr<LibtiffImpl> libtiff_decoder_;
-#endif
 };
 
 }  // namespace dali
