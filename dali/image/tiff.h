@@ -23,8 +23,6 @@
 
 namespace dali {
 
-namespace legacy_impl {
-
 /**
  * Class, that handles byte buffer for tiff image
  */
@@ -82,8 +80,6 @@ class TiffBuffer {
   size_t buffer_size_;
   bool little_endian_;
 };
-
-}  // namespace legacy_impl
 
 /**
  * Tiff image decoding is performed using OpenCV, thus it's the same as Generic decoding

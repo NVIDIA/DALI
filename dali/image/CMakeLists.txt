@@ -19,6 +19,6 @@ collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
 
 if (NOT BUILD_LIBTIFF)
     list(REMOVE_ITEM DALI_SRCS
-        ${DALI_SRC_DIR}/dali/image/tiff_libtiff_impl.cc
+        ${DALI_SRC_DIR}/dali/image/tiff_libtiff.cc
     )
 endif()

@@ -16,7 +16,7 @@
 
 namespace dali {
 
-namespace legacy_impl {
+namespace {
 
 constexpr int COUNT_SIZE = 2;
 constexpr int ENTRY_SIZE = 12;
@@ -86,14 +86,14 @@ kernels::TensorShape<3> PeekDimsImpl(const uint8_t *encoded_buffer, size_t lengt
           0};
 }
 
-}  // namespace legacy_impl
+}  // namespace
 
 TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type) :
         GenericImage(encoded_buffer, length, image_type) {}
 
 Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
   DALI_ENFORCE(encoded_buffer != nullptr);
-  auto shape = legacy_impl::PeekDimsImpl(encoded_buffer, length);
+  auto shape = PeekDimsImpl(encoded_buffer, length);
   return std::make_tuple(
     static_cast<size_t>(shape[0]),
     static_cast<size_t>(shape[1]),

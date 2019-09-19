@@ -58,7 +58,7 @@
 //
 // ****************************************************************************************
 
-#include "dali/image/tiff_libtiff_impl.h"
+#include "dali/image/tiff_libtiff.h"
 #include <tiffio.h>
 #include <cstring>
 #include <vector>
@@ -152,9 +152,9 @@ class BufDecoderHelper {
 
 }  // namespace detail
 
-TiffImage_LibtiffImpl::TiffImage_LibtiffImpl(const uint8_t *encoded_buffer,
-                                             size_t length,
-                                             DALIImageType image_type)
+TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
+                                     size_t length,
+                                     DALIImageType image_type)
     : GenericImage(encoded_buffer, length, image_type),
       buf_({encoded_buffer, static_cast<ptrdiff_t>(length)}),
       buf_pos_(0) {
@@ -187,7 +187,7 @@ TiffImage_LibtiffImpl::TiffImage_LibtiffImpl(const uint8_t *encoded_buffer,
   TIFFGetField(tif_.get(), TIFFTAG_ORIENTATION, &orientation_);
 }
 
-Image::ImageDims TiffImage_LibtiffImpl::PeekDims(const uint8_t *encoded_buffer,
+Image::ImageDims TiffImage_Libtiff::PeekDims(const uint8_t *encoded_buffer,
                                                  size_t length) const {
   DALI_ENFORCE(encoded_buffer != nullptr);
   assert(encoded_buffer == buf_.data());
@@ -197,7 +197,7 @@ Image::ImageDims TiffImage_LibtiffImpl::PeekDims(const uint8_t *encoded_buffer,
 }
 
 std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
-TiffImage_LibtiffImpl::DecodeImpl(DALIImageType image_type,
+TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
                                   const uint8 *encoded_buffer,
                                   size_t length) const {
   if (!CanDecode(image_type)) {
@@ -298,7 +298,7 @@ TiffImage_LibtiffImpl::DecodeImpl(DALIImageType image_type,
                     static_cast<size_t>(decoded_shape[2]))};
 }
 
-bool TiffImage_LibtiffImpl::CanDecode(DALIImageType image_type) const {
+bool TiffImage_Libtiff::CanDecode(DALIImageType image_type) const {
   return !is_tiled_
       && bit_depth_ == 8
       && orientation_ == ORIENTATION_TOPLEFT

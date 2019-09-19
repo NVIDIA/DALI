@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_TIFF_LIBTIFF_IMPL_H_
-#define DALI_IMAGE_TIFF_LIBTIFF_IMPL_H_
+#ifndef DALI_IMAGE_TIFF_LIBTIFF_H_
+#define DALI_IMAGE_TIFF_LIBTIFF_H_
 
 #include <tiffio.h>
 #include <utility>
@@ -24,9 +24,9 @@
 
 namespace dali {
 
-class TiffImage_LibtiffImpl : public GenericImage {
+class TiffImage_Libtiff : public GenericImage {
  public:
-  TiffImage_LibtiffImpl(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+  TiffImage_Libtiff(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
   bool CanDecode(DALIImageType image_type) const;
 
  protected:
@@ -48,4 +48,4 @@ class TiffImage_LibtiffImpl : public GenericImage {
 
 }  // namespace dali
 
-#endif  // DALI_IMAGE_TIFF_LIBTIFF_IMPL_H_
+#endif  // DALI_IMAGE_TIFF_LIBTIFF_H_
