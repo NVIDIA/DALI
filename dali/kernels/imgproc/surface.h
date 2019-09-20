@@ -17,6 +17,7 @@
 
 #include <cuda_runtime.h>
 #include "dali/kernels/tensor_view.h"
+#include "dali/kernels/imgproc/roi.h"
 
 namespace dali {
 namespace kernels {
@@ -90,6 +91,19 @@ constexpr Surface2D<T> as_surface(const TensorView<Storage, T, 2> &t) {
     static_cast<int>(t.shape[1]),  // row stride
     0                              // channel stride - irrelevant
   };
+}
+
+
+/**
+ * Crops Surface according to given Roi
+ */
+template <typename T>
+DALI_HOST_DEV constexpr Surface2D<T> crop(const Surface2D<T> &surface, const Roi<2> &roi) {
+  auto cropped = surface;
+  cropped.data = &surface(roi.lo.x, roi.lo.y);
+  cropped.width = roi.extent().x;
+  cropped.height = roi.extent().y;
+  return cropped;
 }
 
 }  // namespace kernels

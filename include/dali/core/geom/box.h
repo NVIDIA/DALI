@@ -134,7 +134,7 @@ operator!=(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateTyp
 }
 
 
-template <size_t ndims, typename CoordinateType>
+template <int ndims, typename CoordinateType>
 std::ostream &operator<<(std::ostream &os, const Box<ndims, CoordinateType> &box) {
   auto print_corner = [&os](const typename Box<ndims, CoordinateType>::corner_t &c) {
       for (size_t i = 0; i < ndims; i++)
