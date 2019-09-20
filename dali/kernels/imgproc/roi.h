@@ -40,7 +40,7 @@ namespace kernels {
  * Additionally, by definition, ROI is top-left inclusive and bottom-right exclusive.
  * That means, that `Roi.lo` point is included in actual ROI and `Roi.hi` point isn't.
  */
-template <size_t ndims>
+template <int ndims>
 using Roi = Box<ndims, int>;
 
 namespace detail {
@@ -48,7 +48,7 @@ namespace detail {
 /**
  * Create a Roi with size matching the whole image
  */
-template <int ndims, size_t spatial_dims = ndims - 1>
+template <int ndims, int spatial_dims = ndims - 1>
 Roi<spatial_dims> WholeImage(const TensorShape <ndims> &shape) {
   ivec<spatial_dims> size;
   for (size_t i = 0; i < spatial_dims; i++)
@@ -71,7 +71,7 @@ Roi<spatial_dims> WholeImage(const TensorShape <ndims> &shape) {
  * @param nchannels Number of channels in data
  * @return Corresponding TensorShape
  */
-template <size_t spatial_dims, int ndims = spatial_dims + 1>
+template <int spatial_dims, int ndims = spatial_dims + 1>
 TensorShape<ndims> ShapeFromRoi(const Roi<spatial_dims> &roi, int nchannels) {
   DALI_ENFORCE(all_coords(roi.hi >= roi.lo), "Cannot create a TensorShape from an invalid Roi");
   TensorShape<ndims> ret;
@@ -88,7 +88,7 @@ TensorShape<ndims> ShapeFromRoi(const Roi<spatial_dims> &roi, int nchannels) {
 /**
  * Convenient overload for batch processing (creating TensorListShape)
  */
-template <size_t spatial_dims, int ndims = spatial_dims + 1>
+template <int spatial_dims, int ndims = spatial_dims + 1>
 TensorListShape<ndims> ShapeFromRoi(const std::vector<Roi<spatial_dims>> &rois, int nchannels) {
   DALI_ENFORCE(!rois.empty(), "Provided argument doesn't contain any Roi");
   TensorListShape<ndims> ret(rois.size());
@@ -110,7 +110,7 @@ TensorListShape<ndims> ShapeFromRoi(const std::vector<Roi<spatial_dims>> &rois, 
  *
  * Assumes HWC memory layout
  */
-template <int ndims, size_t spatial_dims = ndims - 1>
+template <int ndims, int spatial_dims = ndims - 1>
 Roi<spatial_dims> AdjustRoi(const Roi<spatial_dims> *roi, const TensorShape <ndims> &shape) {
   auto whole_image = detail::WholeImage(shape);
   return roi ? intersection(*roi, whole_image) : whole_image;
@@ -128,7 +128,7 @@ Roi<spatial_dims> AdjustRoi(const Roi<spatial_dims> *roi, const TensorShape <ndi
  *
  * Assumes HWC memory layout
  */
-template <int ndims, size_t spatial_dims = ndims - 1>
+template <int ndims, int spatial_dims = ndims - 1>
 std::vector<Roi<spatial_dims>>
 AdjustRoi(const std::vector<Roi<spatial_dims>> rois, const TensorListShape <ndims> &shapes) {
   DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()),
