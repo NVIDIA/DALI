@@ -128,9 +128,9 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
       try {
         const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(input_data),
                                                      in_size);
-        const auto dims = image->GetImageDims();
-        info->heights[0] = std::get<0>(dims);
-        info->widths[0] = std::get<1>(dims);
+        const auto dims = image->GetShape();
+        info->heights[0] = dims[0];
+        info->widths[0] = dims[1];
         if (crop_generator) {
           kernels::TensorShape<> shape{info->heights[0], info->widths[0]};
           info->crop_window = crop_generator(shape);
