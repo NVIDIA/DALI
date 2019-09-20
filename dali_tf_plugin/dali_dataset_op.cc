@@ -98,7 +98,7 @@ class DALIDatasetOp : public DatasetOpKernel {
         }
 
         const DataTypeVector &output_dtypes() const override {
-          static DataTypeVector* dtypes = new DataTypeVector({DT_INT64});
+          static DataTypeVector* dtypes = new DataTypeVector({DT_FLOAT, DT_INT64});
           return *dtypes;
         }
 
@@ -151,13 +151,16 @@ class DALIDatasetOp : public DatasetOpKernel {
                 tensorflow::mutex_lock l(mu_);
                 TensorShape output_shape;
                 dataset()->shapes_[0].AsTensorShape(&output_shape);
-                out_tensors->emplace_back(context->allocator({}), DT_INT64, output_shape);
+                out_tensors->emplace_back(context->allocator({}), DT_FLOAT, output_shape);
                 
                 tensorflow::Tensor &output = out_tensors->operator[](0);
 
                 for (int i = 0; i < output.NumElements(); ++i) {
-                  output.flat<int64>()(i) = dataset()->value_;
+                  output.flat<float>()(i) = dataset()->value_;
                 }
+                
+                dataset()->shapes_[1].AsTensorShape(&output_shape);
+                out_tensors->emplace_back(context->allocator({}), DT_INT64, output_shape);
                 
                 
                 *end_of_sequence = false;
@@ -185,13 +188,15 @@ REGISTER_OP("DaliDataset")
     .SetShapeFn([](shape_inference::InferenceContext* c) {
       std::vector<PartialTensorShape> shapes;
       TF_RETURN_IF_ERROR(c->GetAttr("shapes", &shapes));
+      c->ExpandOutputs(shapes.size());
+
       for (unsigned i = 0; i < shapes.size(); ++i) {
         if (shapes[i].dims() > 0) {
           shape_inference::ShapeHandle passed_shape;
           TF_RETURN_IF_ERROR(
-              c->MakeShapeFromPartialTensorShape(shapes[i], &passed_shape));
+              c->MakeShapeFromPartialTensorShape(shapes[0], &passed_shape));
           TF_RETURN_IF_ERROR(
-              c->WithRank(passed_shape, shapes[i].dims(), &passed_shape));
+              c->WithRank(passed_shape, shapes[0].dims(), &passed_shape));
           c->set_output(i, passed_shape);
         }
       }
