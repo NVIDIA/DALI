@@ -65,6 +65,7 @@
 #include <string>
 #include <utility>
 #include <memory>
+#include "dali/util/color_space_conversion_utils.h"
 #include "dali/core/convert.h"
 #include "dali/core/span.h"
 
@@ -151,32 +152,8 @@ class BufDecoderHelper {
 };
 
 template <typename OutType, typename InType>
-inline OutType Y(InType R, InType G, InType B) {
-  return ConvertSatNorm<OutType>(
-    static_cast<InType>(0.257f * R + 0.504f * G + 0.098f * B + 16.0f));
-}
-
-template <typename OutType, typename InType>
-inline OutType Cb(InType R, InType G, InType B) {
-  return ConvertSatNorm<OutType>(
-    static_cast<InType>(-0.148f * R - 0.291f * G + 0.439f * B + 128.0f));
-}
-
-template <typename OutType, typename InType>
-inline OutType Cr(InType R, InType G, InType B) {
-  return ConvertSatNorm<OutType>(
-    static_cast<InType>(0.439f * R - 0.368f * G - 0.071f * B + 128.0f));
-}
-
-template <typename OutType, typename InType>
-inline OutType Gray(InType R, InType G, InType B) {
-  return ConvertSatNorm<OutType>(
-    static_cast<InType>(0.299f * R + 0.587f * G + 0.114f * B));
-}
-
-template <typename OutType, typename InType>
-void ConvertLineFromAnyData(OutType *out_row, int64_t out_C, const InType *in_row, int64_t in_C,
-                            int64_t roi_x, int64_t roi_w, DALIImageType out_img_type) {
+void ConvertLineFromRGBX(OutType *out_row, int64_t out_C, const InType *in_row, int64_t in_C,
+                         int64_t roi_x, int64_t roi_w, DALIImageType out_img_type) {
   DALI_ENFORCE(in_C >= 3 || out_img_type == DALI_ANY_DATA);
   OutType * const out_row_end = out_row + roi_w * out_C;
   const InType *in = in_row + roi_x * in_C;
@@ -190,9 +167,8 @@ void ConvertLineFromAnyData(OutType *out_row, int64_t out_C, const InType *in_ro
     for (; out < out_row_end; out += out_C, in += in_C) {
       const auto R = in[0], G = in[1], B = in[2];
       if (out_img_type == DALI_GRAY) {
-        out[0] = Gray<OutType>(R, G, B);
+        out[0] = GrayScale<OutType>(R, G, B);
       } else if (out_img_type == DALI_YCbCr) {
-        // Using formula from: https://docs.nvidia.com/cuda/archive/9.1/npp/group__rgbtoycbcr.html
         out[0] = Y<OutType>(R, G, B);
         out[1] = Cb<OutType>(R, G, B);
         out[2] = Cr<OutType>(R, G, B);
@@ -212,12 +188,6 @@ void ConvertLineFromAnyData(OutType *out_row, int64_t out_C, const InType *in_ro
 }
 
 template <typename OutType, typename InType>
-void ConvertLineFromRGB(OutType *out_row, int64_t out_C, const InType *in_row, int64_t in_C,
-                        int64_t roi_x, int64_t roi_w, DALIImageType out_img_type) {
-  return ConvertLineFromAnyData(out_row, out_C, in_row, in_C, roi_x, roi_w, out_img_type);
-}
-
-template <typename OutType, typename InType>
 void ConvertLineFromMonochrome(OutType *out_row, int64_t out_C, const InType *in_row, int64_t in_C,
                                int64_t roi_x, int64_t roi_w, DALIImageType out_img_type) {
   DALI_ENFORCE(in_C == 1);
@@ -225,15 +195,15 @@ void ConvertLineFromMonochrome(OutType *out_row, int64_t out_C, const InType *in
   const InType *in = in_row + roi_x * in_C;
   OutType *out = out_row;
   for (; out < out_row_end; out += out_C, in += in_C) {
-    const auto value = ConvertSatNorm<OutType>(in[0]);
     if (out_img_type == DALI_GRAY) {
-      out[0] = value;
+      out[0] = ConvertSatNorm<OutType>(in[0]);
     } else if (out_img_type == DALI_YCbCr) {
-      out[0] = value;
-      out[1] = out[2] = ConvertSatNorm<OutType>(128);
+      out[0] = ConvertSatNorm<OutType>(in[0] * 0.859f + 16.0f / 256.0f);
+      out[1] = out[2] = ConvertNorm<OutType>(0.5f);
     } else if (out_img_type == DALI_RGB || out_img_type == DALI_BGR) {
-      out[0] = out[1] = out[2] = value;
+      out[0] = out[1] = out[2] = ConvertSatNorm<OutType>(in[0]);
     } else {  // DALI_ANY_DATA
+      const auto value = ConvertSatNorm<OutType>(in[0]);
       for (int64_t c = 0; c < out_C; c++) {
         out[c] = value;
       }
@@ -247,7 +217,7 @@ void ConvertLine(OutType *out_row, int64_t out_C, const InType *in_row, int64_t 
   if (in_C == 1) {
     return ConvertLineFromMonochrome(out_row, out_C, in_row, in_C, roi_x, roi_w, out_img_type);
   } else {
-    return ConvertLineFromAnyData(out_row, out_C, in_row, in_C, roi_x, roi_w, out_img_type);
+    return ConvertLineFromRGBX(out_row, out_C, in_row, in_C, roi_x, roi_w, out_img_type);
   }
 }
 
@@ -320,7 +290,19 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
     DALI_ENFORCE(roi_h > 0 && roi_h <= H);
   }
 
-  const int64_t out_C = image_type == DALI_GRAY ? 1 : C;
+  int64_t out_C = C;
+  switch(image_type) {
+    case DALI_GRAY:
+      out_C = 1;
+      break;
+    case DALI_RGB:
+    case DALI_BGR:
+    case DALI_YCbCr:
+      out_C = 3;
+      break;
+    default:
+      out_C = C;
+  }
   kernels::TensorShape<3> decoded_shape = {roi_h, roi_w, out_C};
   const size_t decoded_size = volume(decoded_shape);
   std::shared_ptr<uint8_t> decoded_img_ptr{
@@ -381,8 +363,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
 bool TiffImage_Libtiff::CanDecode(DALIImageType image_type) const {
   return !is_tiled_
       && bit_depth_ == 8
-      && orientation_ == ORIENTATION_TOPLEFT
-      && image_type != DALI_YCbCr;
+      && orientation_ == ORIENTATION_TOPLEFT;
 }
 
 }  // namespace dali
