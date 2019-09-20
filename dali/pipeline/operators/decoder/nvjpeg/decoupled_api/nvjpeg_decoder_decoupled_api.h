@@ -207,9 +207,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         try {
           const auto image = ImageFactory::CreateImage(
             static_cast<const uint8 *>(input_data), in_size);
-          const auto dims = image->GetShape();
-          info.heights[0] = dims[0];
-          info.widths[0] = dims[1];
+          const auto shape = image->GetShape();
+          info.heights[0] = shape[0];
+          info.widths[0] = shape[1];
           if (crop_generator) {
             kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
             info.crop_window = crop_generator(shape);
@@ -272,8 +272,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       if (DeferCacheLoad(file_name, output_data))
         continue;
 
-      auto dims = output_shape_[i];
-      ImageCache::ImageShape shape = {dims[0], dims[1], dims[2]};
+      ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
       thread_pool_.DoWorkWithID(
         [this, i, file_name, &in, output_data, shape](int tid) {
           SampleWorker(i, file_name, in.size(), tid,

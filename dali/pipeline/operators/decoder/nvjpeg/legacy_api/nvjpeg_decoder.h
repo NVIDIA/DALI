@@ -231,9 +231,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         auto file_name = in.GetSourceInfo();
         try {
           const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
-          const auto dims = image->GetShape();
-          info.heights[0] = dims[0];
-          info.widths[0] = dims[1];
+          const auto shape = image->GetShape();
+          info.heights[0] = shape[0];
+          info.widths[0] = shape[1];
           info.nvjpeg_support = false;
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + "File: " + file_name);
@@ -340,8 +340,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
           continue;
 
-        const auto dims = output_shape_[j];
-        const ImageCache::ImageShape output_shape{dims[0], dims[1], dims[2]};
+        const ImageCache::ImageShape output_shape = output_shape_[j].to_static<3>();
         auto info = output_info_[j];
 
         thread_pool_.DoWorkWithID(

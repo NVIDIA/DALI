@@ -57,7 +57,7 @@ void Image::Decode() {
   DALI_ENFORCE(!decoded_, "Called decode for already decoded image");
   auto decoded = DecodeImpl(image_type_, encoded_image_, length_);
   decoded_image_ = decoded.first;
-  dims_ = decoded.second;
+  shape_ = decoded.second;
   decoded_ = true;
 }
 
@@ -69,7 +69,7 @@ std::shared_ptr<uint8_t> Image::GetImage() const {
 
 Image::Shape Image::GetShape() const {
   if (decoded_) {
-    return dims_;
+    return shape_;
   }
   return PeekShape(encoded_image_, length_);
 }

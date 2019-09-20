@@ -187,16 +187,14 @@ TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
   TIFFGetField(tif_.get(), TIFFTAG_ORIENTATION, &orientation_);
 }
 
-Image::ImageDims TiffImage_Libtiff::PeekDims(const uint8_t *encoded_buffer,
-                                                 size_t length) const {
+Image::Shape TiffImage_Libtiff::PeekShape(const uint8_t *encoded_buffer,
+                                          size_t length) const {
   DALI_ENFORCE(encoded_buffer != nullptr);
   assert(encoded_buffer == buf_.data());
-  return std::make_tuple(static_cast<size_t>(shape_[0]),
-                         static_cast<size_t>(shape_[1]),
-                         static_cast<size_t>(shape_[2]));
+  return shape_;
 }
 
-std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
+std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
                                   const uint8 *encoded_buffer,
                                   size_t length) const {
@@ -291,11 +289,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
     }
   }
 
-  return {
-    decoded_img_ptr,
-    std::make_tuple(static_cast<size_t>(decoded_shape[0]),
-                    static_cast<size_t>(decoded_shape[1]),
-                    static_cast<size_t>(decoded_shape[2]))};
+  return {decoded_img_ptr, decoded_shape};
 }
 
 bool TiffImage_Libtiff::CanDecode(DALIImageType image_type) const {

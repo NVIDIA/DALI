@@ -61,7 +61,7 @@ class Image {
   template<typename DstType>
   void GetImage(DstType *dst) const {
     DALI_ENFORCE(decoded_image_ && decoded_, "Image hasn't been decoded, call Decode(...)");
-    std::memcpy(dst, decoded_image_.get(), dims_multiply() * sizeof(DstType));
+    std::memcpy(dst, decoded_image_.get(), volume(shape_) * sizeof(DstType));
   }
 
 
@@ -137,18 +137,12 @@ class Image {
   }
 
  private:
-  inline size_t dims_multiply() const {
-    // There's no elegant way in C++11
-    return volume(dims_);
-  }
-
-
   const uint8_t *encoded_image_;
   const size_t length_;
   const DALIImageType image_type_;
   bool decoded_ = false;
   bool use_fast_idct_ = false;
-  Shape dims_;
+  Shape shape_;
   CropWindowGenerator crop_window_generator_;
   std::shared_ptr<uint8_t> decoded_image_ = nullptr;
 };

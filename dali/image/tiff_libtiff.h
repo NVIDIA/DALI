@@ -30,10 +30,10 @@ class TiffImage_Libtiff : public GenericImage {
   bool CanDecode(DALIImageType image_type) const;
 
  protected:
-  std::pair<std::shared_ptr<uint8_t>, ImageDims>
+  std::pair<std::shared_ptr<uint8_t>, Image::Shape>
   DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
 
-  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+  Image::Shape PeekShape(const uint8_t *encoded_buffer, size_t length) const override;
 
  private:
   span<const uint8_t> buf_;
