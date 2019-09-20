@@ -32,13 +32,14 @@ using T = int;
 static_assert(is_container<std::vector<T>>::value, "");
 static_assert(is_container<std::list<T>>::value, "");
 static_assert(is_container<std::map<T, T>>::value, "");
-static_assert(is_container<std::array<T, 42>>::value, "");
 static_assert(is_container<std::deque<T>>::value, "");
 static_assert(is_container<std::set<T>>::value, "");
 
 static_assert(!is_container<int>::value, "");
 static_assert(!is_container<void>::value, "");
 static_assert(!is_container<std::stack<T>>::value, "");
+static_assert(!is_container<std::array<T, 42>>::value,
+        "std::array is not regarded as a container, since it doesn't have custom allocator");
 
 
 }  // namespace dali

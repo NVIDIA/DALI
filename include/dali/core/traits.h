@@ -58,6 +58,7 @@ struct is_container<T,
                 is_container_helper<
                         typename T::value_type,
                         typename T::size_type,
+                        typename T::allocator_type,
                         typename T::iterator,
                         typename T::const_iterator,
                         decltype(std::declval<T>().size()),

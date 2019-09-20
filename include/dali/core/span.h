@@ -59,17 +59,23 @@ class span {
   >>
   DALI_HOST_DEV constexpr span(const span<U, Extent>& s) noexcept : data_(s.data()) {}
 
-  
+
   DALI_HOST_DEV constexpr span(pointer firstElem, pointer lastElem) : data_(firstElem) {
     /* assert(lastElem - firstElem == Extent); */
   }
 
-
+  /**
+   * @remarks Container is not a specialization of span,
+   *          specialization of std::array or an array type
+   */
   template <typename Container, typename std::enable_if<is_container<Container>::value, int>::type = 0>
   DALI_HOST_DEV constexpr span(Container &container)
           : span(container.data(), container.size()) {}
 
-
+  /**
+   * @remarks Container is not a specialization of span,
+   *          specialization of std::array or an array type
+   */
   template <typename Container, typename std::enable_if<is_container<Container>::value, int>::type = 0>
   DALI_HOST_DEV constexpr span(const Container &container)
           : span(container.data(), container.size()) {}
@@ -130,12 +136,19 @@ class span<ElementType, dynamic_extent> {
   DALI_HOST_DEV constexpr span(const span<U, N>& s) noexcept : span(s.data(), s.size()) {}
 
 
+  /**
+   * @remarks Container is not a specialization of span,
+   *          specialization of std::array or an array type
+   */
   template <typename Container,
           typename std::enable_if<is_container<Container>::value, int>::type = 0>
   DALI_HOST_DEV constexpr span(Container &container)
           : span(container.data(), container.size()) {}
 
-
+  /**
+   * @remarks Container is not a specialization of span,
+   *          specialization of std::array or an array type
+   */
   template <typename Container,
           typename std::enable_if<is_container<Container>::value, int>::type = 0>
   DALI_HOST_DEV constexpr span(const Container &container)
