@@ -37,7 +37,13 @@ bool is_little_endian(const unsigned char *tiff) {
   return true;
 }
 
-kernels::TensorShape<3> PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) {
+}  // namespace
+
+TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type)
+    : GenericImage(encoded_buffer, length, image_type) {}
+
+Image::Shape TiffImage::PeekShape(const uint8_t *encoded_buffer, size_t length) const {
+  DALI_ENFORCE(encoded_buffer != nullptr);
   TiffBuffer buffer(
     std::string(reinterpret_cast<const char *>(encoded_buffer),
     static_cast<size_t>(length)),
@@ -58,7 +64,7 @@ kernels::TensorShape<3> PeekShapeImpl(const uint8_t *encoded_buffer, size_t leng
       const auto value_count = buffer.Read<uint32_t>(entry_offset + 4);
       DALI_ENFORCE(value_count == 1);
 
-      size_t value;
+      int64_t value;
       if (value_type == TYPE_WORD) {
         value = buffer.Read<uint16_t>(entry_offset + 8);
       } else if (value_type == TYPE_DWORD) {
@@ -81,20 +87,7 @@ kernels::TensorShape<3> PeekShapeImpl(const uint8_t *encoded_buffer, size_t leng
   }
 
   // TODO(mszolucha): fill channels count
-  return {static_cast<int64_t>(height),
-          static_cast<int64_t>(width),
-          0};
-}
-
-}  // namespace
-
-TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type) :
-        GenericImage(encoded_buffer, length, image_type) {}
-
-Image::Shape TiffImage::PeekShape(const uint8_t *encoded_buffer, size_t length) const {
-  DALI_ENFORCE(encoded_buffer != nullptr);
-  auto shape = PeekShapeImpl(encoded_buffer, length);
-  return shape;
+  return {height, width, 0};
 }
 
 }  // namespace dali
