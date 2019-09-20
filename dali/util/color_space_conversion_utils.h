@@ -46,6 +46,6 @@ inline static OutputType GrayScale(InputType r, InputType g, InputType b) {
       static_cast<InputType>(0.299f * r + 0.587f * g + 0.114f * b));
 }
 
-}  // namespace
+}  // namespace dali
 
 #endif  // DALI_UTIL_COLOR_SPACE_CONVERSION_UTILS_H_

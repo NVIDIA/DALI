@@ -291,7 +291,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
   }
 
   int64_t out_C = C;
-  switch(image_type) {
+  switch (image_type) {
     case DALI_GRAY:
       out_C = 1;
       break;
@@ -303,6 +303,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
     default:
       out_C = C;
   }
+
   kernels::TensorShape<3> decoded_shape = {roi_h, roi_w, out_C};
   const size_t decoded_size = volume(decoded_shape);
   std::shared_ptr<uint8_t> decoded_img_ptr{

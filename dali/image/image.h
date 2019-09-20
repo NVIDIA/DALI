@@ -103,12 +103,10 @@ class Image {
     return use_fast_idct_;
   }
 
-
   virtual ~Image() = default;
   DISABLE_COPY_MOVE_ASSIGN(Image);
 
  protected:
-
   /**
    * Template method, that implements actual decoding.
    * @param image_type
