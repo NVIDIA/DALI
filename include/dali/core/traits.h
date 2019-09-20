@@ -27,11 +27,13 @@ struct is_vector : std::false_type {};
 template <typename T, typename A>
 struct is_vector<std::vector<T, A> > : std::true_type {};
 
+
 template <typename T>
 struct is_std_array : std::false_type {};
 
 template <typename T, size_t A>
 struct is_std_array<std::array<T, A> > : std::true_type {};
+
 
 template <typename T>
 using remove_const_t = std::remove_const_t<T>;
@@ -41,6 +43,31 @@ using remove_cv_t = std::remove_cv_t<T>;
 
 template <bool Value, typename Type = void>
 using enable_if_t = std::enable_if_t<Value, Type>;
+
+
+template <typename T, typename _ = void>
+struct is_container : std::false_type {};
+
+template <typename... Ts>
+struct is_container_helper {};
+
+template <typename T>
+struct is_container<T,
+        std::conditional_t<
+                false,
+                is_container_helper<
+                        typename T::value_type,
+                        typename T::size_type,
+                        typename T::iterator,
+                        typename T::const_iterator,
+                        decltype(std::declval<T>().size()),
+                        decltype(std::declval<T>().begin()),
+                        decltype(std::declval<T>().end()),
+                        decltype(std::declval<T>().cbegin()),
+                        decltype(std::declval<T>().cend())
+                >, void
+        >
+> : public std::true_type {};
 
 }  // namespace dali
 

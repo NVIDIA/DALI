@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <array>
 #include <type_traits>
+#include "dali/core/traits.h"
 #include "dali/core/host_dev.h"
 
 namespace dali {
@@ -58,9 +59,21 @@ class span {
   >>
   DALI_HOST_DEV constexpr span(const span<U, Extent>& s) noexcept : data_(s.data()) {}
 
+  
   DALI_HOST_DEV constexpr span(pointer firstElem, pointer lastElem) : data_(firstElem) {
     /* assert(lastElem - firstElem == Extent); */
   }
+
+
+  template <typename Container, typename std::enable_if<is_container<Container>::value, int>::type = 0>
+  DALI_HOST_DEV constexpr span(Container &container)
+          : span(container.data(), container.size()) {}
+
+
+  template <typename Container, typename std::enable_if<is_container<Container>::value, int>::type = 0>
+  DALI_HOST_DEV constexpr span(const Container &container)
+          : span(container.data(), container.size()) {}
+
 
   ~span() noexcept = default;
   span &operator=(const span &other) noexcept = default;
@@ -115,6 +128,19 @@ class span<ElementType, dynamic_extent> {
     std::is_convertible<U(*)[], ElementType(*)[]>::value
   >>
   DALI_HOST_DEV constexpr span(const span<U, N>& s) noexcept : span(s.data(), s.size()) {}
+
+
+  template <typename Container,
+          typename std::enable_if<is_container<Container>::value, int>::type = 0>
+  DALI_HOST_DEV constexpr span(Container &container)
+          : span(container.data(), container.size()) {}
+
+
+  template <typename Container,
+          typename std::enable_if<is_container<Container>::value, int>::type = 0>
+  DALI_HOST_DEV constexpr span(const Container &container)
+          : span(container.data(), container.size()) {}
+
 
   constexpr span(const span &other) noexcept = default;
   ~span() noexcept = default;
