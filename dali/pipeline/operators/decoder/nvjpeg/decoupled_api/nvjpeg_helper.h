@@ -86,6 +86,7 @@ inline nvjpegJpegState_t GetNvjpegState(const StateNvJPEG& state) {
 
 inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
     case DALI_RGB:
       return NVJPEG_OUTPUT_RGBI;
     case DALI_BGR:

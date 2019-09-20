@@ -81,6 +81,7 @@ int DeviceDelete(void *ptr) {
 inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
       return NVJPEG_OUTPUT_RGBI;
     case DALI_BGR:
       return NVJPEG_OUTPUT_BGRI;
@@ -95,6 +96,7 @@ inline int GetOutputPitch(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
     case DALI_BGR:
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
       return 3;
     case DALI_GRAY:
       return 1;
