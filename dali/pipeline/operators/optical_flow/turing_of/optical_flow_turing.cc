@@ -50,8 +50,13 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
   SetInitParams(params);
   DeviceGuard g(device_id_);
   CUDA_CALL(cuCtxGetCurrent(&context_));
-
-  TURING_OF_API_CALL(turing_of_.nvCreateOpticalFlowCuda(context_, &of_handle_));
+  {
+    auto ret = turing_of_.nvCreateOpticalFlowCuda(context_, &of_handle_);
+    if (ret != NV_OF_SUCCESS) {
+      throw unsupported_exception(
+          "Failed to create Optical Flow context: Verify that your device supports Optical Flow.");
+    }
+  }
   TURING_OF_API_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
   VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
 
