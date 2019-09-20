@@ -96,6 +96,18 @@ RUN JPEG_TURBO_VERSION=2.0.2 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# libtiff
+RUN LIBTIFF_VERSION=4.0.10 && \
+    cd /tmp && \
+    curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
+    cd tiff-${LIBTIFF_VERSION} && \
+    ./autogen.sh && \
+    ./configure --prefix=/usr/local && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    make install && \
+    cd && \
+    rm -rf /tmp/tiff-${LIBTIFF_VERSION}
+
 # OpenCV
 RUN OPENCV_VERSION=3.4.3 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
@@ -104,6 +116,7 @@ RUN OPENCV_VERSION=3.4.3 && \
           -DBUILD_SHARED_LIBS=OFF \
           -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
           -DBUILD_JPEG=OFF -DWITH_JPEG=ON \
+          -DBUILD_TIFF=OFF -DWITH_TIFF=ON \
           -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PNG=ON \
           -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF \
           -DWITH_TBB=OFF -DWITH_OPENMP=OFF -DWITH_PTHREADS_PF=OFF -DWITH_CSTRIPES=OFF .. && \
