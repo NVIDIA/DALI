@@ -27,14 +27,14 @@
 
 namespace dali {
 
-template <size_t rows_, size_t cols_, typename Element>
+template <int rows_, int cols_, typename Element>
 struct mat {
   using element_t = Element;
   using col_t = vec<rows_, Element>;
   using row_t = vec<cols_, Element>;
 
-  static constexpr size_t rows = rows_;
-  static constexpr size_t cols = cols_;
+  static constexpr int rows = rows_;
+  static constexpr int cols = cols_;
 #if MAT_LAYOUT_ROW_MAJOR
   vec<cols, Element> m[rows];
 #else
@@ -43,18 +43,18 @@ struct mat {
 
 #if MAT_LAYOUT_ROW_MAJOR
   #define MAT_ELEMENT_LOOP(row_index, col_index)                \
-    for (size_t row_index = 0; row_index < rows; row_index++)   \
-      for (size_t col_index = 0; col_index < cols; col_index++)
+    for (int row_index = 0; row_index < rows; row_index++)   \
+      for (int col_index = 0; col_index < cols; col_index++)
 
   #define MAT_STORAGE_LOOP(m_index) \
-    for (size_t m_index = 0; m_index < rows; m_index++)
+    for (int m_index = 0; m_index < rows; m_index++)
 #else
   #define MAT_ELEMENT_LOOP(row_index, col_index)                \
-    for (size_t col_index = 0; col_index < cols; col_index++)   \
-      for (size_t row_index = 0; row_index < rows; row_index++)
+    for (int col_index = 0; col_index < cols; col_index++)   \
+      for (int row_index = 0; row_index < rows; row_index++)
 
   #define MAT_STORAGE_LOOP(m_index) \
-    for (size_t m_index = 0; m_index < cols; m_index++)
+    for (int m_index = 0; m_index < cols; m_index++)
 #endif
 
   static_assert(std::is_standard_layout<Element>::value,
@@ -68,8 +68,8 @@ struct mat {
   /// @brief Fills the diagonal with a scalar value
   DALI_HOST_DEV
   constexpr mat(Element scalar) : m{} {  // NOLINT
-    size_t n = rows < cols ? rows : cols;
-    for (size_t i = 0; i < n; i++)
+    int n = rows < cols ? rows : cols;
+    for (int i = 0; i < n; i++)
       at(i, i) = scalar;
   }
 
@@ -79,11 +79,11 @@ struct mat {
       at(i, j) = values[i][j];
   }
 
-  template <typename U, size_t c = cols>
+  template <typename U, int c = cols>
   DALI_HOST_DEV
   constexpr mat(const vec<rows, U> &v) : m{} {  // NOLINT
     static_assert(c == 1, "Only single-column matrices can be constructed from vectors");
-    for (size_t i = 0; i < rows; i++)
+    for (int i = 0; i < rows; i++)
       at(i, 0) = v[i];
   }
 
@@ -98,7 +98,7 @@ struct mat {
     return m[r];
   #else
     vec<cols, Element> ret = {};
-    for (size_t j = 0; j < cols; j++)
+    for (int j = 0; j < cols; j++)
       ret[j] = at(r, j);
     return ret;
   #endif
@@ -108,7 +108,7 @@ struct mat {
   constexpr auto col(int c) const {
   #if MAT_LAYOUT_ROW_MAJOR
     vec<rows, Element> ret = {};
-    for (size_t i = 0; i < rows; i++)
+    for (int i = 0; i < rows; i++)
       ret[i] = at(i, c);
     return ret;
   #else
@@ -119,7 +119,7 @@ struct mat {
   DALI_HOST_DEV
   void set_col(int c, const col_t &col) {
   #if MAT_LAYOUT_ROW_MAJOR
-    for (size_t i = 0; i < rows; i++)
+    for (int i = 0; i < rows; i++)
       m[i][c] = col[i];
   #else
     m[c] = col;
@@ -131,7 +131,7 @@ struct mat {
   #if MAT_LAYOUT_ROW_MAJOR
     m[r] = row;
   #else
-    for (size_t j = 0; j < cols; j++)
+    for (int j = 0; j < cols; j++)
       m[j][r] = row[j];
   #endif
   }
@@ -242,7 +242,7 @@ struct mat {
   #undef DEFINE_ASSIGN_MAT_OP
   #undef DEFINE_ASSIGN_MAT_SCALAR_OP
 
-  template <size_t rhs_cols, typename U>
+  template <int rhs_cols, typename U>
   DALI_HOST_DEV
   inline mat &operator*=(const mat<cols, rhs_cols, U> &m) {
     static_assert(rhs_cols == cols && rhs_cols == rows,
@@ -250,20 +250,20 @@ struct mat {
     *this = *this * m;
   }
 
-  template <typename U, size_t rhs_cols>
+  template <typename U, int rhs_cols>
   DALI_HOST_DEV
   inline auto operator*(const mat<cols, rhs_cols, U> &rhs) const {
     using R = promote_vec_t<Element, U>;
     mat<rows, rhs_cols, R> result = {};
   #if MAT_LAYOUT_ROW_MAJOR
-    for (size_t i = 0; i < rows; i++) {
-      for (size_t j = 0; j < rhs_cols; j++) {
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < rhs_cols; j++) {
         result(i, j) = dot(row(i), rhs.col(j));
       }
     }
   #else
-    for (size_t j = 0; j < rhs_cols; j++) {
-      for (size_t i = 0; i < rows; i++) {
+    for (int j = 0; j < rhs_cols; j++) {
+      for (int i = 0; i < rows; i++) {
         result(i, j) = dot(row(i), rhs.col(j));
       }
     }
@@ -277,18 +277,18 @@ struct mat {
     using R = promote_vec_t<Element, U>;
   #if MAT_LAYOUT_ROW_MAJOR
     vec<rows, R> result;
-    for (size_t i = 0; i < rows; i++)
+    for (int i = 0; i < rows; i++)
       result[i] = dot(v, m[i]);
   #else
     vec<rows, R> result = v[0] * m[0];
-    for (size_t i = 1; i < cols; i++)
+    for (int i = 1; i < cols; i++)
       result += v[i] * m[i];
   #endif
     return result;
   }
 };
 
-template <size_t rows, size_t cols, typename T, typename U>
+template <int rows, int cols, typename T, typename U>
 DALI_HOST_DEV
 constexpr bool operator==(const mat<rows, cols, T> &a, const mat<rows, cols, U> &b) {
   MAT_ELEMENT_LOOP(i, j)
@@ -297,24 +297,24 @@ constexpr bool operator==(const mat<rows, cols, T> &a, const mat<rows, cols, U> 
   return true;
 }
 
-template <size_t rows, size_t cols, typename T, typename U>
+template <int rows, int cols, typename T, typename U>
 DALI_HOST_DEV
 constexpr bool operator!=(const mat<rows, cols, T> &a, const mat<rows, cols, U> &b) {
   return !(a == b);
 }
 
-template <size_t sub_r, size_t sub_c, size_t rows, size_t cols, typename Element>
+template <int sub_r, int sub_c, int rows, int cols, typename Element>
 DALI_HOST_DEV
 constexpr auto sub(const mat<rows, cols, Element> &m, int r, int c) {
   mat<sub_r, sub_c, Element> result = {};
-  for (size_t j = 0; j < sub_c; j++)
-    for (size_t i = 0; i < sub_r; i++)
+  for (int j = 0; j < sub_c; j++)
+    for (int i = 0; i < sub_r; i++)
       result(i, j) = m(i+r, j+c);
   return result;
 }
 
 #define DEFINE_ELEMENTWISE_MAT_MAT_BINOP(op)                            \
-  template <size_t rows, size_t cols, typename T1, typename T2>         \
+  template <int rows, int cols, typename T1, typename T2>         \
   DALI_HOST_DEV inline auto operator op(const mat<rows, cols, T1> &a,   \
                                         const mat<rows, cols, T2> &b) { \
     using R = promote_vec_t<T1, T2>;                                    \
@@ -325,7 +325,7 @@ constexpr auto sub(const mat<rows, cols, Element> &m, int r, int c) {
   }
 
 #define DEFINE_ELEMENTWISE_RHS_BINOP(op)                            \
-  template <size_t rows, size_t cols, typename T1, typename T2,     \
+  template <int rows, int cols, typename T1, typename T2,     \
             typename R = promote_vec_scalar_t<T1, T2>>              \
   DALI_HOST_DEV                                                     \
   inline std::enable_if_t<is_scalar<T2>::value, mat<rows, cols, R>> \
@@ -337,7 +337,7 @@ constexpr auto sub(const mat<rows, cols, Element> &m, int r, int c) {
   }
 
 #define DEFINE_ELEMENTWISE_LHS_BINOP(op)                            \
-  template <size_t rows, size_t cols, typename T1, typename T2,     \
+  template <int rows, int cols, typename T1, typename T2,     \
             typename R = promote_vec_scalar_t<T2, T1>>              \
   DALI_HOST_DEV                                                     \
   inline std::enable_if_t<is_scalar<T1>::value, mat<rows, cols, R>> \
@@ -366,9 +366,9 @@ DEFINE_ELEMENTWISE_RHS_BINOP(*)
 DEFINE_ELEMENTWISE_RHS_BINOP(/)
 
 
-template <size_t rows, size_t cols>
+template <int rows, int cols>
 using imat = mat<rows, cols, int>;
-template <size_t rows, size_t cols>
+template <int rows, int cols>
 using dmat = mat<rows, cols, double>;
 
 #define DEFINE_SQUARE_MAT_ALIASES(n)\
@@ -405,58 +405,58 @@ DEFINE_MAT_ALIASES(3, 4)
 DEFINE_MAT_ALIASES(4, 3)
 DEFINE_MAT_ALIASES(4, 4)
 
-template <typename T, size_t rows, size_t c1, size_t c2>
+template <typename T, int rows, int c1, int c2>
 DALI_HOST_DEV
 mat<rows, c1+c2, T> cat_cols(const mat<rows, c1, T> &a, const mat<rows, c2, T> &b) {
   mat<rows, c1+c2, T> ret;
 #if MAT_LAYOUT_ROW_MAJOR
-  for (size_t i = 0; i < rows; i++)
+  for (int i = 0; i < rows; i++)
     ret.set_row(i, cat(a.row(i), b.row(i)));
 #else
-  for (size_t j = 0; j < c1; j++)
+  for (int j = 0; j < c1; j++)
     ret.set_col(j, a.col(j));
-  for (size_t j = 0; j < c2; j++)
+  for (int j = 0; j < c2; j++)
     ret.set_col(j+c1, b.col(j));
 #endif
   return ret;
 }
 
-template <typename T, size_t rows, size_t cols>
+template <typename T, int rows, int cols>
 DALI_HOST_DEV
 mat<rows, cols+1> cat_cols(const mat<rows, cols, T> &a, const vec<rows, T> &v) {
   mat<rows, cols+1, T> ret;
 #if MAT_LAYOUT_ROW_MAJOR
-  for (size_t i = 0; i < rows; i++)
+  for (int i = 0; i < rows; i++)
     ret.set_row(i, cat(a.row(i), v[i]));
 #else
-  for (size_t j = 0; j < cols; j++)
+  for (int j = 0; j < cols; j++)
     ret.set_col(j, a.col(j));
   ret.set_col(cols, v);
 #endif
   return ret;
 }
 
-template <typename T, size_t rows, size_t cols>
+template <typename T, int rows, int cols>
 DALI_HOST_DEV
 mat<rows, cols+1> cat_cols(const vec<rows, T> &v, const mat<rows, cols, T> &a) {
   mat<rows, cols+1, T> ret;
 #if MAT_LAYOUT_ROW_MAJOR
-  for (size_t i = 0; i < rows; i++)
+  for (int i = 0; i < rows; i++)
     ret.set_row(i, cat(v[i], a.row(i)));
 #else
   ret.set_col(0, v);
-  for (size_t j = 0; j < cols; j++)
+  for (int j = 0; j < cols; j++)
     ret.set_col(j+1, a.col(j));
 #endif
   return ret;
 }
 
-template <typename T, size_t rows>
+template <typename T, int rows>
 DALI_HOST_DEV
 mat<rows, 2> cat_cols(const vec<rows, T> &a, const vec<rows, T> &b) {
   mat<rows, 2, T> ret;
 #if MAT_LAYOUT_ROW_MAJOR
-  for (size_t i = 0; i < rows; i++)
+  for (int i = 0; i < rows; i++)
     ret.set_row(i, vec<2, T>(a[i], b[i]));
 #else
   ret.set_col(0, a);
@@ -465,17 +465,17 @@ mat<rows, 2> cat_cols(const vec<rows, T> &a, const vec<rows, T> &b) {
   return ret;
 }
 
-template <size_t r1, size_t r2, size_t cols, typename T>
+template <int r1, int r2, int cols, typename T>
 DALI_HOST_DEV
 mat<r1+r2, cols, T> cat_rows(const mat<r1, cols, T> &a, const mat<r2, cols, T> &b) {
   mat<r1+r2, cols, T> ret;
 #if MAT_LAYOUT_ROW_MAJOR
-  for (size_t i = 0; i < r1; i++)
+  for (int i = 0; i < r1; i++)
     ret.set_row(i, a.row(i));
-  for (size_t i = 0; i < r2; i++)
+  for (int i = 0; i < r2; i++)
     ret.set_row(i+r1, b.row(i));
 #else
-  for (size_t j = 0; j < cols; j++)
+  for (int j = 0; j < cols; j++)
     ret.set_col(j, cat(a.col(j), b.col(j)));
 #endif
   return ret;
