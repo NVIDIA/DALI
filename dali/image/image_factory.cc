@@ -17,7 +17,11 @@
 #include "dali/image/png.h"
 #include "dali/image/bmp.h"
 #include "dali/image/jpeg.h"
+#if LIBTIFF_ENABLED
+#include "dali/image/tiff_libtiff.h"
+#else
 #include "dali/image/tiff.h"
+#endif
 #include "dali/image/pnm.h"
 
 namespace dali {
@@ -92,7 +96,11 @@ ImageFactory::CreateImage(const uint8_t *encoded_image, size_t length, DALIImage
   } else if (CheckIsGIF(encoded_image, length)) {
     DALI_FAIL("GIF format is not supported");
   } else if (CheckIsTiff(encoded_image, length)) {
+#if LIBTIFF_ENABLED
+    return std::make_unique<TiffImage_Libtiff>(encoded_image, length, image_type);
+#else
     return std::make_unique<TiffImage>(encoded_image, length, image_type);
+#endif
   }
   return std::make_unique<GenericImage>(encoded_image, length, image_type);
 }
