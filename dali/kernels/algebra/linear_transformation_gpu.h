@@ -28,12 +28,14 @@ namespace kernels {
 namespace linear_transformation {
 namespace detail {
 
+
 template <class OutputType, class InputType, int channels_out, int channels_in, int spatial_ndims>
 struct SampleDescriptor {
   const InputType *in;
   OutputType *out;
   ivec<spatial_ndims> in_size, in_strides, out_size, out_strides;
   mat<channels_out, channels_in, float> transformation_matrix;
+  Roi<spatial_ndims> roi;
 };
 
 
@@ -42,7 +44,9 @@ std::vector<SampleDescriptor<OutputType, InputType, channels_out, channels_in, s
 CreateSampleDescriptors(
         const OutListGPU<OutputType, spatial_ndims + 1> &out,
         const InListGPU<InputType, spatial_ndims + 1> &in,
-        const std::vector<mat<channels_out, channels_in, float>> &transformation_matrices) {
+        const std::vector<mat<channels_out, channels_in, float>> &transformation_matrices,
+        const std::vector<Roi<spatial_ndims>> &rois) {
+  auto adjusted_rois = AdjustRoi(rois, in.shape);
   std::vector<SampleDescriptor<OutputType, InputType, channels_out, channels_in, spatial_ndims>>
           ret(in.num_samples());
 
@@ -64,6 +68,7 @@ CreateSampleDescriptors(
     sample.in_strides = {channels_in, sample.in_size.x * channels_in};
     sample.out_strides = {channels_out, sample.out_size.x * channels_out};
     sample.transformation_matrix = transformation_matrices[i];
+    sample.roi = adjusted_rois[i];
   }
 
   return ret;
@@ -91,15 +96,17 @@ void __global__ LinearTransformationKernel(
           sample.out_strides.x, sample.out_strides.y, 1
   };
 
+  auto in_roi = crop(in, sample.roi);
+
   for (int y = threadIdx.y + block.start.y; y < block.end.y; y += blockDim.y) {
     for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
       vec<channels_in> v_in;
       for (int i = 0; i < channels_in; i++) {
-        v_in[i] = in(x, y, i);
+        v_in[i] = in_roi(x, y, i);
       }
       vec<channels_out> v_out = sample.transformation_matrix * v_in;
       for (int i = 0; i < channels_out; i++) {
-        out(x, y, i) = v_out[i];  // TODO(mszolucha): Convert
+        out(x, y, i) = ConvertSat<OutputType>(v_out[i]);
       }
     }
   }
@@ -157,8 +164,8 @@ class LinearTransformationGpu {
            const InListGPU<InputType, spatial_ndims + 1> &in,
            const std::vector<::dali::mat<channels_out, channels_in, float>> &tmatrices,
            const std::vector<Roi<spatial_ndims>> &rois = {}) {
-    auto sample_descs = detail::CreateSampleDescriptors
-            <OutputType, InputType, channels_out, channels_in, spatial_ndims>(out, in, tmatrices);
+    auto sample_descs = detail::CreateSampleDescriptors<OutputType, InputType,
+            channels_out, channels_in, spatial_ndims>(out, in, tmatrices, rois);
 
     typename decltype(sample_descs)::value_type *samples_gpu;
     BlockDesc *blocks_gpu;
