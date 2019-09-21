@@ -552,6 +552,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("BGR", DALI_BGR)
     .value("GRAY", DALI_GRAY)
     .value("YCbCr", DALI_YCbCr)
+    .value("ANY_DATA", DALI_ANY_DATA)
     .export_values();
 
   // DALIInterpType

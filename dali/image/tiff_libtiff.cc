@@ -65,6 +65,7 @@
 #include <string>
 #include <utility>
 #include <memory>
+#include "dali/util/color_space_conversion_utils.h"
 #include "dali/core/convert.h"
 #include "dali/core/span.h"
 
@@ -150,6 +151,76 @@ class BufDecoderHelper {
   }
 };
 
+template <typename OutType, typename InType>
+void ConvertLineFromRGBX(OutType *out_row, int64_t out_C, const InType *in_row, int64_t in_C,
+                         int64_t roi_x, int64_t roi_w, DALIImageType out_img_type) {
+  DALI_ENFORCE(in_C >= 3 || out_img_type == DALI_ANY_DATA);
+  OutType * const out_row_end = out_row + roi_w * out_C;
+  const InType *in = in_row + roi_x * in_C;
+  OutType *out = out_row;
+
+  if (out_img_type == DALI_ANY_DATA) {
+    for (; out < out_row_end; out++, in++) {
+      *out = ConvertSatNorm<OutType>(*in);
+    }
+  } else {
+    for (; out < out_row_end; out += out_C, in += in_C) {
+      const auto R = in[0], G = in[1], B = in[2];
+      if (out_img_type == DALI_GRAY) {
+        out[0] = GrayScale<OutType>(R, G, B);
+      } else if (out_img_type == DALI_YCbCr) {
+        out[0] = Y<OutType>(R, G, B);
+        out[1] = Cb<OutType>(R, G, B);
+        out[2] = Cr<OutType>(R, G, B);
+      } else if (out_img_type == DALI_RGB) {
+        out[0] = ConvertSatNorm<OutType>(R);
+        out[1] = ConvertSatNorm<OutType>(G);
+        out[2] = ConvertSatNorm<OutType>(B);
+      } else if (out_img_type == DALI_BGR) {
+        out[0] = ConvertSatNorm<OutType>(B);
+        out[1] = ConvertSatNorm<OutType>(G);
+        out[2] = ConvertSatNorm<OutType>(R);
+      } else {
+        DALI_FAIL("Image type not supported" + std::to_string(out_img_type));
+      }
+    }
+  }
+}
+
+template <typename OutType, typename InType>
+void ConvertLineFromMonochrome(OutType *out_row, int64_t out_C, const InType *in_row, int64_t in_C,
+                               int64_t roi_x, int64_t roi_w, DALIImageType out_img_type) {
+  DALI_ENFORCE(in_C == 1);
+  OutType * const out_row_end = out_row + roi_w * out_C;
+  const InType *in = in_row + roi_x * in_C;
+  OutType *out = out_row;
+  for (; out < out_row_end; out += out_C, in += in_C) {
+    if (out_img_type == DALI_GRAY) {
+      out[0] = ConvertSatNorm<OutType>(in[0]);
+    } else if (out_img_type == DALI_YCbCr) {
+      out[0] = ConvertSatNorm<OutType>(in[0] * 0.859f + 16.0f / 256.0f);
+      out[1] = out[2] = ConvertNorm<OutType>(0.5f);
+    } else if (out_img_type == DALI_RGB || out_img_type == DALI_BGR) {
+      out[0] = out[1] = out[2] = ConvertSatNorm<OutType>(in[0]);
+    } else {  // DALI_ANY_DATA
+      const auto value = ConvertSatNorm<OutType>(in[0]);
+      for (int64_t c = 0; c < out_C; c++) {
+        out[c] = value;
+      }
+    }
+  }
+}
+
+template <typename OutType, typename InType>
+void ConvertLine(OutType *out_row, int64_t out_C, const InType *in_row, int64_t in_C,
+                 int64_t roi_x, int64_t roi_w, DALIImageType out_img_type) {
+  if (in_C == 1) {
+    return ConvertLineFromMonochrome(out_row, out_C, in_row, in_C, roi_x, roi_w, out_img_type);
+  } else {
+    return ConvertLineFromRGBX(out_row, out_C, in_row, in_C, roi_x, roi_w, out_img_type);
+  }
+}
+
 }  // namespace detail
 
 TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
@@ -187,19 +258,17 @@ TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
   TIFFGetField(tif_.get(), TIFFTAG_ORIENTATION, &orientation_);
 }
 
-Image::ImageDims TiffImage_Libtiff::PeekDims(const uint8_t *encoded_buffer,
-                                                 size_t length) const {
+Image::Shape TiffImage_Libtiff::PeekShape(const uint8_t *encoded_buffer,
+                                          size_t length) const {
   DALI_ENFORCE(encoded_buffer != nullptr);
   assert(encoded_buffer == buf_.data());
-  return std::make_tuple(static_cast<size_t>(shape_[0]),
-                         static_cast<size_t>(shape_[1]),
-                         static_cast<size_t>(shape_[2]));
+  return shape_;
 }
 
-std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
+std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
-                                  const uint8 *encoded_buffer,
-                                  size_t length) const {
+                              const uint8 *encoded_buffer,
+                              size_t length) const {
   if (!CanDecode(image_type)) {
     DALI_WARN("Warning: Falling back to GenericImage");
     return GenericImage::DecodeImpl(image_type, encoded_buffer, length);
@@ -221,7 +290,20 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
     DALI_ENFORCE(roi_h > 0 && roi_h <= H);
   }
 
-  const int64_t out_C = image_type == DALI_GRAY ? 1 : C;
+  int64_t out_C = C;
+  switch (image_type) {
+    case DALI_GRAY:
+      out_C = 1;
+      break;
+    case DALI_RGB:
+    case DALI_BGR:
+    case DALI_YCbCr:
+      out_C = 3;
+      break;
+    default:
+      out_C = C;
+  }
+
   kernels::TensorShape<3> decoded_shape = {roi_h, roi_w, out_C};
   const size_t decoded_size = volume(decoded_shape);
   std::shared_ptr<uint8_t> decoded_img_ptr{
@@ -273,36 +355,16 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
     LIBTIFF_CALL(
       TIFFReadScanline(tif_.get(), row_in, roi_y + y, 0));
     OutType * const row_out = img_out + (y * out_row_stride);
-    for (int64_t x = 0; x < roi_w; x++) {
-      OutType * const out = row_out + (x * out_C);
-      InType * const in  = row_in + (roi_x + x) * C;
-
-      if (image_type == DALI_GRAY) {
-        out[0] = ConvertSat<OutType>(0.299f * in[0] + 0.587f * in[1] + 0.114f * in[2]);
-      } else {
-        for (int64_t c = 0; c < C; c++) {
-          if (image_type == DALI_BGR) {
-            out[C-1-c] = ConvertSat<OutType>(in[c]);
-          } else {  // including DALI_RGB and DALI_ANY_DATA
-            out[c] = ConvertSat<OutType>(in[c]);
-          }
-        }
-      }
-    }
+    detail::ConvertLine(row_out, out_C, row_in, C, roi_x, roi_w, image_type);
   }
 
-  return {
-    decoded_img_ptr,
-    std::make_tuple(static_cast<size_t>(decoded_shape[0]),
-                    static_cast<size_t>(decoded_shape[1]),
-                    static_cast<size_t>(decoded_shape[2]))};
+  return {decoded_img_ptr, decoded_shape};
 }
 
 bool TiffImage_Libtiff::CanDecode(DALIImageType image_type) const {
   return !is_tiled_
       && bit_depth_ == 8
-      && orientation_ == ORIENTATION_TOPLEFT
-      && image_type != DALI_YCbCr;
+      && orientation_ == ORIENTATION_TOPLEFT;
 }
 
 }  // namespace dali

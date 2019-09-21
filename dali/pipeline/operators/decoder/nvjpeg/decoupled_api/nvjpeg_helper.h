@@ -86,6 +86,7 @@ inline nvjpegJpegState_t GetNvjpegState(const StateNvJPEG& state) {
 
 inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
     case DALI_RGB:
       return NVJPEG_OUTPUT_RGBI;
     case DALI_BGR:
@@ -164,10 +165,10 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
     DALI_FAIL(e.what() + ". File: " + file_name);
   }
   const auto decoded = img->GetImage();
-  const auto hwc = img->GetImageDims();
-  const auto h = std::get<0>(hwc);
-  const auto w = std::get<1>(hwc);
-  const auto c = std::get<2>(hwc);
+  const auto hwc = img->GetShape();
+  const auto h = hwc[0];
+  const auto w = hwc[1];
+  const auto c = hwc[2];;
 
   kernels::copy<StorageType, kernels::StorageCPU>(output_buffer, decoded.get(), h * w * c, stream);
 }

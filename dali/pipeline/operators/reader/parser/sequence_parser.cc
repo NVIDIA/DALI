@@ -40,10 +40,10 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
     }
     const auto decoded = img->GetImage();
 
-    const auto hwc = img->GetImageDims();
-    const Index h = std::get<0>(hwc);
-    const Index w = std::get<1>(hwc);
-    const Index c = std::get<2>(hwc);
+    const auto hwc = img->GetShape();
+    const Index h = hwc[0];
+    const Index w = hwc[1];
+    const Index c = hwc[2];
     const auto frame_size = h * w * c;
 
     // Calculate shape of sequence tensor, that is Frames x (Frame Shape)

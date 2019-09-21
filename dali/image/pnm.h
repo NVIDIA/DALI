@@ -27,7 +27,7 @@ class PnmImage final : public GenericImage {
   PnmImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
  private:
-  Image::ImageDims PeekDims(const uint8_t *pnm, size_t length) const override;
+  Image::Shape PeekShape(const uint8_t *pnm, size_t length) const override;
 };
 
 }  // namespace dali
