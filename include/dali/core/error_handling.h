@@ -233,8 +233,8 @@ inline dali::string GetStacktrace() {
 #define DALI_FAIL(str)                            \
     throw dali::DALIException(DALI_MESSAGE_WITH_STACKTRACE(str));
 
-#define DALI_ERROR(str)                            \
-  do {                                           \
+#define DALI_ERROR(str)                                          \
+  do {                                                           \
     std::cerr << DALI_MESSAGE_WITH_STACKTRACE(str) << std::endl; \
   } while (0)
 
