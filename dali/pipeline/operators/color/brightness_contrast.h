@@ -29,12 +29,16 @@
 namespace dali {
 namespace brightness_contrast {
 
-namespace detail {
+namespace spec {
 
 const std::string kBrightness = "brightness_delta";  // NOLINT
 const std::string kContrast = "contrast_delta";      // NOLINT
 const std::string kOutputType = "output_type";       // NOLINT
 
+}  // namespace spec
+
+
+namespace detail {
 
 template <typename Backend, typename Out, typename In, size_t ndims>
 struct Kernel {
@@ -110,9 +114,9 @@ class BrightnessContrast : public Operator<Backend> {
  public:
   explicit BrightnessContrast(const OpSpec &spec) :
           Operator<Backend>(spec),
-          output_type_(spec.GetArgument<DALIDataType>(detail::kOutputType)) {
-    detail::assign_argument_value<Backend>(spec, detail::kBrightness, brightness_);
-    detail::assign_argument_value<Backend>(spec, detail::kContrast, contrast_);
+          output_type_(spec.GetArgument<DALIDataType>(spec::kOutputType)) {
+    detail::assign_argument_value<Backend>(spec, spec::kBrightness, brightness_);
+    detail::assign_argument_value<Backend>(spec, spec::kContrast, contrast_);
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
@@ -149,7 +153,7 @@ class BrightnessContrast : public Operator<Backend> {
     return true;
   }
 
-  /**
+  /*
    * So that compiler wouldn't complain, that
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
    * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"

@@ -27,13 +27,13 @@ DALI_SCHEMA(BrightnessContrast)
 Additionally, this operator can change the type of data.)code")
                 .NumInput(1)
                 .NumOutput(1)
-                .AddOptionalArg(detail::kBrightness,
+                .AddOptionalArg(spec::kBrightness,
                                 R"code(Set additive brightness delta. 0 denotes no-op)code", .0f,
                                 true)
-                .AddOptionalArg(detail::kContrast,
+                .AddOptionalArg(spec::kContrast,
                                 R"code(Set multiplicative contrast delta. 1 denotes no-op)code",
                                 1.f, true)
-                .AddOptionalArg(detail::kOutputType, R"code(Set output data type)code", DALI_INT16);
+                .AddOptionalArg(spec::kOutputType, R"code(Set output data type)code", DALI_INT16);
 
 
 }  // namespace brightness_contrast

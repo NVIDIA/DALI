@@ -197,7 +197,7 @@ class ExternalSource : public Operator<Backend> {
     return false;
   }
 
-  /**
+  /*
    * So that compiler wouldn't complain, that
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
    * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
