@@ -37,7 +37,7 @@ namespace {
  */
 template <class Out>
 std::enable_if_t<std::is_integral<Out>::value, Out> custom_round(float val) {
-  return static_cast<Out>(std::nearbyint(val));
+  return ConvertSat<Out>(std::nearbyint(val));
 }
 
 
@@ -84,14 +84,16 @@ class LinearTransformationGpuTest : public ::testing::Test {
   std::vector<TensorShape<kNDims>> in_shapes_ = {{4, 3, kNChannelsIn}};
   std::vector<TensorShape<kNDims>> out_shapes_ = {{4, 3, kNChannelsOut}};
   mat<kNChannelsOut, kNChannelsIn, float> mat_{{{1, 2, 3, 4, 5}, {6, 7, 8, 9, 10}}};
+  vec<kNChannelsOut, float> vec_{42, 69};
   std::vector<mat<kNChannelsOut, kNChannelsIn, float>> vmat_ = {mat_};
+  std::vector<vec<kNChannelsOut, float>> vvec_ = {vec_};
   std::vector<Roi<2>> rois_ = {{{1, 1}, {2, 2}}};
 
 
   void calc_output() {
     for (size_t i = 0; i < input_host_.size(); i += kNChannelsIn) {
       for (size_t j = 0; j < kNChannelsOut; j++) {
-        float res = 0;
+        float res = vec_.v[j];
         for (size_t k = 0; k < kNChannelsIn; k++) {
           res += static_cast<float>(input_host_[i + k]) * mat_.at(j, k);
         }
@@ -134,7 +136,7 @@ TYPED_TEST(LinearTransformationGpuTest, setup_test) {
   TheKernel<TypeParam> kernel;
   KernelContext ctx;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
-  auto reqs = kernel.Setup(ctx, in, this->vmat_);
+  auto reqs = kernel.Setup(ctx, in, this->vmat_, this->vvec_);
   ASSERT_EQ(this->out_shapes_.size(), static_cast<size_t>(reqs.output_shapes[0].num_samples()))
                         << "Kernel::Setup provides incorrect shape";
   for (size_t i = 0; i < this->out_shapes_.size(); i++) {
@@ -149,7 +151,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
   KernelContext c;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
 
-  auto reqs = kernel.Setup(c, in, this->vmat_);
+  auto reqs = kernel.Setup(c, in, this->vmat_, this->vvec_);
 
   ScratchpadAllocator sa;
   sa.Reserve(reqs.scratch_sizes);
@@ -159,7 +161,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
   OutListGPU<typename TypeParam::Out, kNDims> out(
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
-  kernel.Run(c, out, in, this->vmat_);
+  kernel.Run(c, out, in, this->vmat_, this->vvec_);
   cudaDeviceSynchronize();
 
   auto res = copy<AllocType::Host>(out[0]);
@@ -175,7 +177,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
   KernelContext c;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
 
-  auto reqs = kernel.Setup(c, in, this->vmat_, this->rois_);
+  auto reqs = kernel.Setup(c, in, this->vmat_, this->vvec_, this->rois_);
 
   ScratchpadAllocator sa;
   sa.Reserve(reqs.scratch_sizes);
@@ -185,7 +187,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
   OutListGPU<typename TypeParam::Out, kNDims> out(
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
-  kernel.Run(c, out, in, this->vmat_, this->rois_);
+  kernel.Run(c, out, in, this->vmat_, this->vvec_, this->rois_);
   cudaDeviceSynchronize();
 
   auto res = copy<AllocType::Host>(out[0]);
@@ -216,6 +218,7 @@ bool cmp_shapes(const TensorShape<ndims> &lhs, ivec<ndims - 1> rhs) {
 
 }  // namespace
 
+
 TYPED_TEST(LinearTransformationGpuTest, sample_descriptors) {
   using In = typename TypeParam::In;
   using Out = typename TypeParam::Out;
@@ -223,8 +226,7 @@ TYPED_TEST(LinearTransformationGpuTest, sample_descriptors) {
   InListGPU<In, kNDims> in(this->input_device_, this->in_shapes_);
   OutListGPU<Out, kNDims> out(this->output_, TensorListShape<3>(this->out_shapes_));
 
-  auto res = detail::CreateSampleDescriptors
-          <Out, In, kNChannelsOut, kNChannelsIn, kNDims - 1>(out, in, this->vmat_, this->rois_);
+  auto res = detail::CreateSampleDescriptors(out, in, this->vmat_, this->vvec_, this->rois_);
 
   EXPECT_EQ(this->input_device_, res[0].in);
   EXPECT_EQ(this->output_, res[0].out);
