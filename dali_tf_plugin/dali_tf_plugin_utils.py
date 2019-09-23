@@ -86,8 +86,8 @@ def which(program):
 
 # Checks whether we are inside a conda env
 def is_conda_env():
-    return "" != os.environ.get('CONDA_PREFIX')
-    
+    return True if os.environ.get('CONDA_PREFIX') else False
+
 # Get compile and link flags for installed tensorflow
 def get_tf_build_flags():
     tf_cflags = ''
@@ -134,7 +134,7 @@ def get_cuda_build_flags():
     cuda_cflags=" ".join(["-I" + cuda_home + "/include"])
     cuda_lflags=" ".join([])
     return (cuda_cflags, cuda_lflags)
-    
+
 def find_available_prebuilt_tf(requested_version, available_libs):
     req_ver_first, req_ver_second = [int(v) for v in requested_version.split('.', 2)]
     selected_ver = None
@@ -147,4 +147,3 @@ def find_available_prebuilt_tf(requested_version, available_libs):
             if ver_second <= req_ver_second and (selected_ver is None or selected_ver < (ver_first, ver_second)):
                 selected_ver = (ver_first, ver_second)
     return '.'.join([str(v) for v in selected_ver]) if selected_ver is not None else None
-
