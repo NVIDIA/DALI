@@ -41,14 +41,10 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
     DALI_FAIL(e.what() + "File: " + file_name);
   }
   const auto decoded = img->GetImage();
-  const auto hwc = img->GetShape();
-  const auto h = hwc[0];
-  const auto w = hwc[1];
-  const auto c = hwc[2];
-
-  output.Resize({static_cast<int>(h), static_cast<int>(w), static_cast<int>(c)});
+  const auto shape = img->GetShape();
+  output.Resize(shape);
   unsigned char *out_data = output.mutable_data<unsigned char>();
-  std::memcpy(out_data, decoded.get(), h * w * c);
+  std::memcpy(out_data, decoded.get(), volume(shape));
 }
 
 DALI_SCHEMA(HostDecoder)

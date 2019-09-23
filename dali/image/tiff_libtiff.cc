@@ -258,8 +258,8 @@ TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
   TIFFGetField(tif_.get(), TIFFTAG_ORIENTATION, &orientation_);
 }
 
-Image::Shape TiffImage_Libtiff::PeekShape(const uint8_t *encoded_buffer,
-                                          size_t length) const {
+Image::Shape TiffImage_Libtiff::PeekShapeImpl(const uint8_t *encoded_buffer,
+                                              size_t length) const {
   DALI_ENFORCE(encoded_buffer != nullptr);
   assert(encoded_buffer == buf_.data());
   return shape_;
@@ -300,6 +300,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
     case DALI_YCbCr:
       out_C = 3;
       break;
+    case DALI_ANY_DATA:
     default:
       out_C = C;
   }

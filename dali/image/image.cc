@@ -67,12 +67,13 @@ std::shared_ptr<uint8_t> Image::GetImage() const {
   return decoded_image_;
 }
 
-Image::Shape Image::GetShape() const {
-  if (decoded_) {
-    return shape_;
-  }
-  return PeekShape(encoded_image_, length_);
+Image::Shape Image::PeekShape() const {
+  return PeekShapeImpl(encoded_image_, length_);
 }
 
+Image::Shape Image::GetShape() const {
+  DALI_ENFORCE(decoded_, "Image not decoded. Run Decode()");
+  return shape_;
+}
 
 }  // namespace dali

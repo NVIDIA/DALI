@@ -160,9 +160,9 @@ inline void custom_conversion(const cv::Mat& img, cv::Mat& output_img) {
 
 void OpenCvColorConversion(DALIImageType input_type, const cv::Mat& input_img,
                            DALIImageType output_type, cv::Mat& output_img) {
-  DALI_ENFORCE(input_img.elemSize()  == NumberOfChannels(input_type),
+  DALI_ENFORCE(input_img.elemSize() == static_cast<size_t>(NumberOfChannels(input_type)),
     "Incorrect number of channels");
-  DALI_ENFORCE(output_img.elemSize() == NumberOfChannels(output_type),
+  DALI_ENFORCE(output_img.elemSize() == static_cast<size_t>(NumberOfChannels(output_type)),
     "Incorrect number of channels");
   auto ocv_conversion_code = GetOpenCvColorConversionCode(input_type, output_type);
   bool ocv_supported = (ocv_conversion_code != cv::COLOR_COLORCVT_MAX);
