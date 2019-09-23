@@ -28,7 +28,7 @@ PngImage::PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType i
 }
 
 
-Image::Shape PngImage::PeekShape(const uint8_t *encoded_buffer, size_t length) const {
+Image::Shape PngImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const {
   DALI_ENFORCE(encoded_buffer);
   DALI_ENFORCE(length >= 16);
 

@@ -23,7 +23,7 @@ namespace dali {
 class ImageFactory {
  public:
   DLL_PUBLIC static std::unique_ptr<Image>
-  CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type = DALI_RGB);
+  CreateImage(const uint8_t *encoded_image, size_t length, DALIImageType image_type);
 };
 
 }  // namespace dali
