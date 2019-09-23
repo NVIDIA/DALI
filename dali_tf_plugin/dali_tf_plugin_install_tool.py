@@ -75,7 +75,7 @@ class InstallerHelper:
             print("Prebuilt DALI TF plugin version {} is not present. Best match is {}".format(self.tf_version, best_version))
             tf_version_underscore = best_version.replace('.', '_')
             plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
-            prebuilt_plugin = src_path + '/' + plugin_name
+            prebuilt_plugin = self.src_path + '/' + plugin_name
         plugin_dest = self.plugin_dest_dir + '/' + plugin_name
         print("Copy {} to {}".format(prebuilt_plugin, self.plugin_dest_dir))
         copyfile(prebuilt_plugin, plugin_dest)
