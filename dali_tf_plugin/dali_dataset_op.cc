@@ -63,12 +63,10 @@ class DALIDatasetOp : public DatasetOpKernel {
   public:
     explicit DALIDatasetOp(OpKernelConstruction* context) 
       : DatasetOpKernel(context) { 
-        OP_REQUIRES_OK(context, context->GetAttr("value", &value_));
         OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
         OP_REQUIRES_OK(context, context->GetAttr("pipeline", &pipeline_));
 
         // std::cout << "======= Dataset constructor ==========   " << this << std::endl;
-        // std::cout << "value: " << value_ << std::endl;
         // // std::cout << "pipeline: " << pipeline_ << std::endl;
         // std::cout << "shapes: { ";
         // for(const auto &shape : shapes_)
@@ -80,11 +78,10 @@ class DALIDatasetOp : public DatasetOpKernel {
 
     void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
       dbg(this);
-      *output = new Dataset(context, value_, shapes_, pipeline_);
+      *output = new Dataset(context, shapes_, pipeline_);
     }
 
   private:
-    int64 value_;
     std::vector<PartialTensorShape> shapes_;
     std::string pipeline_;
 
@@ -92,10 +89,9 @@ class DALIDatasetOp : public DatasetOpKernel {
       public:
         explicit Dataset(
           OpKernelContext *context, 
-          const int64 value,
           const std::vector<PartialTensorShape> &shapes,
           const std::string pipeline) 
-          : DatasetBase(DatasetContext(context)), value_(value), shapes_(shapes), pipeline_(pipeline) {
+          : DatasetBase(DatasetContext(context)), shapes_(shapes), pipeline_(pipeline) {
             dbg(this);
             daliCreatePipeline(
               &pipeline_handle_,
@@ -139,7 +135,6 @@ class DALIDatasetOp : public DatasetOpKernel {
         }
 
       protected:
-        const int64 value_;
         const std::vector<PartialTensorShape> shapes_;
         const std::string pipeline_;
         
@@ -151,9 +146,6 @@ class DALIDatasetOp : public DatasetOpKernel {
           DatasetGraphDefBuilder *b,
           Node **output) const override {
 
-          AttrValue value;
-          b->BuildAttrValue<int>(value_, &value);
-
           AttrValue shapes;
           b->BuildAttrValue<std::vector<PartialTensorShape>>(shapes_, &shapes);
 
@@ -164,7 +156,6 @@ class DALIDatasetOp : public DatasetOpKernel {
             this, 
             {}, 
             { 
-              std::make_pair("value", value),
               std::make_pair("shapes", shapes),
               std::make_pair("pipeline", pipeline)
             }, 
@@ -206,7 +197,7 @@ class DALIDatasetOp : public DatasetOpKernel {
                 tensorflow::Tensor &output = out_tensors->operator[](0);
 
                 for (int i = 0; i < output.NumElements(); ++i) {
-                  output.flat<float>()(i) = dataset()->value_;
+                  output.flat<float>()(i) = 1;
                 }
                 
                 dataset()->shapes_[1].AsTensorShape(&output_shape);
@@ -239,7 +230,6 @@ REGISTER_KERNEL_BUILDER(
   DALIDatasetOp);
 
 REGISTER_OP("DaliDataset")
-    .Attr("value: int")
     .Attr("shapes: list(shape) = [{ dim { size: 1 } dim { size: 2 } }, { dim { size: 1 } dim { size: 2 } }]")
     .Attr("pipeline: string")
     .Output("handle: variant")
