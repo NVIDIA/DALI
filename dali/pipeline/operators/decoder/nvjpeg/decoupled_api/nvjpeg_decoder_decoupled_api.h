@@ -199,17 +199,19 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                      static_cast<const unsigned char*>(input_data), in_size,
                                      &info.c, &info.subsampling,
                                      info.widths, info.heights);
-      int nchannels = static_cast<int>(NumberOfChannels(output_image_type_));
+      int64_t nchannels = NumberOfChannels(output_image_type_);
       info.nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
       auto crop_generator = GetCropWindowGenerator(i);
       if (!info.nvjpeg_support) {
         try {
           const auto image = ImageFactory::CreateImage(
-            static_cast<const uint8 *>(input_data), in_size);
-          const auto shape = image->GetShape();
+            static_cast<const uint8 *>(input_data), in_size, output_image_type_);
+          const auto shape = image->PeekShape();
           info.heights[0] = shape[0];
           info.widths[0] = shape[1];
-          nchannels = shape[2] > 0 ? shape[2] : nchannels;
+          if (output_image_type_ == DALI_ANY_DATA)
+            nchannels = shape[2];
+
           if (crop_generator) {
             kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
             info.crop_window = crop_generator(shape);
@@ -242,7 +244,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           image_states_[i] = decoder_host_state_[i];
         }
       }
-      DALI_ENFORCE(nchannels > 0);
       output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], nchannels});
       output_info_[i] = info;
     }
