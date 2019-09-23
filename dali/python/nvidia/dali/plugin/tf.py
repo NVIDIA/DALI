@@ -197,7 +197,7 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
     self._dtypes = tuple(dtype for dtype in dtypes)
     self._pipeline = pipeline
 
-    variant_tensor = _dali_tf_module.dali_dataset(shapes = self._shapes, pipeline = self._pipeline)
+    variant_tensor = _dali_tf_module.dali_dataset(shapes = self._shapes, dtypes = self._dtypes, pipeline = self._pipeline)
 
     self._structure = structure.convert_legacy_structure(
       self._dtypes, self._shapes, self._output_classes)
