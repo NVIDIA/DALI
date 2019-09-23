@@ -37,6 +37,8 @@
 #include "tensorflow/core/framework/partial_tensor_shape.h"
 #include "tensorflow/core/framework/tensor.h"
 
+#include "dbg.h"
+
 
 #define USE_TF_ALLOCATOR 0
 
@@ -63,42 +65,62 @@ class DALIDatasetOp : public DatasetOpKernel {
       : DatasetOpKernel(context) { 
         OP_REQUIRES_OK(context, context->GetAttr("value", &value_));
         OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
+        OP_REQUIRES_OK(context, context->GetAttr("pipeline", &pipeline_));
 
-        std::cout << "======= Dataset constructor ==========\n ";
-        std::cout << "value: " << value_ << std::endl;
-        std::cout << "shapes: { ";
-        for(const auto &shape : shapes_)
-          std::cout << shape << ", ";
-        std::cout << "}" <<std::endl;
-        std::cout << std::endl;
-
+        // std::cout << "======= Dataset constructor ==========   " << this << std::endl;
+        // std::cout << "value: " << value_ << std::endl;
+        // // std::cout << "pipeline: " << pipeline_ << std::endl;
+        // std::cout << "shapes: { ";
+        // for(const auto &shape : shapes_)
+        //   std::cout << shape << ", ";
+        // std::cout << "}" <<std::endl;
+        // std::cout << std::endl;
+        dbg(this);
       }
 
     void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
-      *output = new Dataset(context, value_, shapes_);
+      dbg(this);
+      *output = new Dataset(context, value_, shapes_, pipeline_);
     }
 
   private:
     int64 value_;
     std::vector<PartialTensorShape> shapes_;
+    std::string pipeline_;
 
     class Dataset : public DatasetBase {
       public:
         explicit Dataset(
           OpKernelContext *context, 
           const int64 value,
-          const std::vector<PartialTensorShape> &shapes) 
-          : DatasetBase(DatasetContext(context)), value_(value), shapes_(shapes) {}
+          const std::vector<PartialTensorShape> &shapes,
+          const std::string pipeline) 
+          : DatasetBase(DatasetContext(context)), value_(value), shapes_(shapes), pipeline_(pipeline) {
+            dbg(this);
+            daliCreatePipeline(
+              &pipeline_handle_,
+              pipeline_.c_str(),
+              pipeline_.length(),
+              8,
+              4,
+              0,
+              false,
+              2,
+              2,
+              2);
+            daliPrefetchUniform(&pipeline_handle_, 2);
+          }
 
         std::unique_ptr<IteratorBase> MakeIteratorInternal(
           const string &prefix) const override {
+            dbg(this);
             return absl::make_unique<Iterator>(
               Iterator::Params{this, strings::StrCat(prefix, "::DALI")}
             );
         }
 
         const DataTypeVector &output_dtypes() const override {
-          static DataTypeVector* dtypes = new DataTypeVector({DT_FLOAT, DT_INT64});
+          static DataTypeVector* dtypes = new DataTypeVector({DT_FLOAT, DT_INT32});
           return *dtypes;
         }
 
@@ -111,9 +133,18 @@ class DALIDatasetOp : public DatasetOpKernel {
 
         int64 Cardinality() const override { return kInfiniteCardinality; }
 
+        ~Dataset() {
+          dbg(this);
+          daliDeletePipeline(&pipeline_handle_);
+        }
+
       protected:
         const int64 value_;
         const std::vector<PartialTensorShape> shapes_;
+        const std::string pipeline_;
+        
+        daliPipelineHandle pipeline_handle_;
+
 
         Status AsGraphDefInternal(
           SerializationContext *context,
@@ -126,12 +157,16 @@ class DALIDatasetOp : public DatasetOpKernel {
           AttrValue shapes;
           b->BuildAttrValue<std::vector<PartialTensorShape>>(shapes_, &shapes);
 
+          AttrValue pipeline;
+          b->BuildAttrValue<std::string>(pipeline_, &pipeline);
+
           TF_RETURN_IF_ERROR(b->AddDataset(
             this, 
             {}, 
             { 
               std::make_pair("value", value),
               std::make_pair("shapes", shapes),
+              std::make_pair("pipeline", pipeline)
             }, 
             output));
 
@@ -142,13 +177,28 @@ class DALIDatasetOp : public DatasetOpKernel {
         class Iterator : public DatasetIterator<Dataset> {
           public:
             explicit Iterator(const Params &params)
-              : DatasetIterator<Dataset>(params) {}
+              : DatasetIterator<Dataset>(params) 
+              {
+                dbg(this);
+              }
 
             Status GetNextInternal(
               IteratorContext *context,
               std::vector<Tensor> *out_tensors,
               bool *end_of_sequence) override {
                 tensorflow::mutex_lock l(mu_);
+
+                cudaStream_t stream = 0;
+
+                auto pipeline_handle = dataset()->pipeline_handle_;
+
+                dbg(this);
+                TF_DALI_CALL(daliShareOutput(&pipeline_handle));
+
+                dbg(daliGetNumOutput(&pipeline_handle));
+
+
+
                 TensorShape output_shape;
                 dataset()->shapes_[0].AsTensorShape(&output_shape);
                 out_tensors->emplace_back(context->allocator({}), DT_FLOAT, output_shape);
@@ -160,11 +210,19 @@ class DALIDatasetOp : public DatasetOpKernel {
                 }
                 
                 dataset()->shapes_[1].AsTensorShape(&output_shape);
-                out_tensors->emplace_back(context->allocator({}), DT_INT64, output_shape);
+                out_tensors->emplace_back(context->allocator({}), DT_INT32, output_shape);
+
+
+                dbg(daliTensorSize(&pipeline_handle, 1));
+                tensorflow::Tensor &label_output = out_tensors->operator[](1);
+                auto dst = reinterpret_cast<void*>(label_output.flat<int>().data());
+                TF_DALI_CALL(daliCopyTensorNTo(&pipeline_handle, dst, 1, device_type_t::CPU, stream));
                 
                 
                 *end_of_sequence = false;
 
+                TF_DALI_CALL(daliOutputRelease(&pipeline_handle));
+                TF_DALI_CALL(daliRun(&pipeline_handle));
                 return Status::OK();
               }
 
@@ -183,6 +241,7 @@ REGISTER_KERNEL_BUILDER(
 REGISTER_OP("DaliDataset")
     .Attr("value: int")
     .Attr("shapes: list(shape) = [{ dim { size: 1 } dim { size: 2 } }, { dim { size: 1 } dim { size: 2 } }]")
+    .Attr("pipeline: string")
     .Output("handle: variant")
     .SetIsStateful() 
     .SetShapeFn([](shape_inference::InferenceContext* c) {

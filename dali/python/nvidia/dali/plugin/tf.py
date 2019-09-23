@@ -191,14 +191,15 @@ def DALIRawIterator():
 
 
 class DALIDatasetV2(dataset_ops.DatasetSource):
-  def __init__(self, value = 0, shapes = []):
+  def __init__(self, value = 0, shapes = [], pipeline = 'Hello, World!'):
     self._value = value
     self._shapes = tuple(tf.TensorShape(shape) for shape in shapes)
     self._output_classes = tuple(ops.Tensor for shape in shapes)
+    self._pipeline = pipeline
 
-    variant_tensor = _dali_tf_module.dali_dataset(self._value, self._shapes)
+    variant_tensor = _dali_tf_module.dali_dataset(value = self._value, shapes = self._shapes, pipeline = self._pipeline)
 
-    types = (tf.float32, tf.int64)
+    types = (tf.float32, tf.int32)
     self._structure = structure.convert_legacy_structure(
       types, self._shapes, self._output_classes)
 
