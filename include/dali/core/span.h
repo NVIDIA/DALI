@@ -68,7 +68,8 @@ class span {
    * @remarks Container is not a specialization of span,
    *          specialization of std::array or an array type
    */
-  template <typename Container, typename std::enable_if<is_container<Container>::value, int>::type = 0>
+  template <typename Container,
+          typename std::enable_if<is_container<Container>::value, int>::type = 0>
   DALI_HOST_DEV constexpr span(Container &container)
           : span(container.data(), container.size()) {}
 
@@ -76,7 +77,8 @@ class span {
    * @remarks Container is not a specialization of span,
    *          specialization of std::array or an array type
    */
-  template <typename Container, typename std::enable_if<is_container<Container>::value, int>::type = 0>
+  template <typename Container,
+          typename std::enable_if<is_container<Container>::value, int>::type = 0>
   DALI_HOST_DEV constexpr span(const Container &container)
           : span(container.data(), container.size()) {}
 
