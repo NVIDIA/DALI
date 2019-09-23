@@ -27,4 +27,19 @@ TEST(SpanTest, ContainerTest) {
   }
 }
 
+
+TEST(SpanTest, ImplicitConversion) {
+    std::vector<int> vec = {1, 2, 3, 4, 5};
+    span<int> sp{vec};
+    auto func = [&sp](span<const int> _sp) -> bool {
+        if (sp.size() != _sp.size()) return false;
+        for (int i = 0; i < sp.size(); i++) {
+            if (sp[i] != _sp[i]) return false;
+        }
+        return true;
+    };
+
+    EXPECT_TRUE(func(vec));
+}
+
 }  // namespace dali
