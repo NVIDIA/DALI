@@ -222,6 +222,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       const auto *data = in.data<uint8_t>();
 
       EncodedImageInfo info;
+      int nchannels = (output_type_ == DALI_GRAY) ? 1 : 3;
 
       // Get necessary image information
       nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
@@ -236,6 +237,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           const auto shape = image->GetShape();
           info.heights[0] = shape[0];
           info.widths[0] = shape[1];
+          nchannels = shape[2] > 0 ? shape[2] : nchannels;
           info.nvjpeg_support = false;
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + "File: " + file_name);
@@ -256,8 +258,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
       // Store pertinent info for later
-      const int image_depth = (output_type_ == DALI_GRAY) ? 1 : 3;
-      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], image_depth});
+      DALI_ENFORCE(nchannels > 0);
+      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], nchannels});
       output_info_[i] = info;
       image_order[i] = std::make_pair(volume(output_shape_[i]), i);
     }

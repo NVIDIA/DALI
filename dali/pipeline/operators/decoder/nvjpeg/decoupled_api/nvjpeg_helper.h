@@ -168,7 +168,7 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
   const auto hwc = img->GetShape();
   const auto h = hwc[0];
   const auto w = hwc[1];
-  const auto c = hwc[2];;
+  const auto c = hwc[2];
 
   kernels::copy<StorageType, kernels::StorageCPU>(output_buffer, decoded.get(), h * w * c, stream);
 }

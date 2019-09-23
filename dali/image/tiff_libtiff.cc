@@ -300,6 +300,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
     case DALI_YCbCr:
       out_C = 3;
       break;
+    case DALI_ANY_DATA:
     default:
       out_C = C;
   }
