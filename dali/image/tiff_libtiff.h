@@ -44,6 +44,8 @@ class TiffImage_Libtiff : public GenericImage {
   bool is_tiled_ = false;
   uint16_t bit_depth_ = 8;
   uint16_t orientation_ = ORIENTATION_TOPLEFT;
+  uint32_t rows_per_strip_ = 0xFFFFFFFF;
+  uint16_t compression_ = COMPRESSION_NONE;
 };
 
 }  // namespace dali
