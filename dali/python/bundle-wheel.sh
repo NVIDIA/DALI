@@ -89,19 +89,19 @@ make_wheel_record() {
 
 DEPS_LIST=(
     "/usr/local/lib64/libjpeg.so.62"
-    "/usr/local/lib/libavformat.so.57"
-    "/usr/local/lib/libavcodec.so.57"
-    "/usr/local/lib/libavfilter.so.6"
-    "/usr/local/lib/libavutil.so.55"
+    "/usr/local/lib/libavformat.so.58"
+    "/usr/local/lib/libavcodec.so.58"
+    "/usr/local/lib/libavfilter.so.7"
+    "/usr/local/lib/libavutil.so.56"
     "/usr/local/lib/libtiff.so.5"
 )
 
 DEPS_SONAME=(
     "libjpeg.so.62"
-    "libavformat.so.57"
-    "libavcodec.so.57"
-    "libavfilter.so.6"
-    "libavutil.so.55"
+    "libavformat.so.58"
+    "libavcodec.so.58"
+    "libavfilter.so.7"
+    "libavutil.so.56"
     "libtiff.so.5"
 )
 

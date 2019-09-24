@@ -246,12 +246,17 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
                                      stream->time_base,
                                      file.frame_base_);
 
-    if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
+    if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC ||
+        codec_id == AV_CODEC_ID_MPEG4) {
       const char* filtername = nullptr;
       if (codec_id == AV_CODEC_ID_H264) {
         filtername = "h264_mp4toannexb";
-      } else {
+      } else if (codec_id == AV_CODEC_ID_MPEG4 && !strcmp(file.fmt_ctx_->iformat->name, "avi")) {
+        filtername = "mpeg4_unpack_bframes";
+      } else if (codec_id == AV_CODEC_ID_HEVC) {
         filtername = "hevc_mp4toannexb";
+      } else {
+        filtername = "null";
       }
 
 #if HAVE_AVBSFCONTEXT
@@ -288,6 +293,17 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
       DALI_FAIL(err.str());
     }
     file.open = true;
+  } else {
+    /* Flush the bitstream filter handle when using mpeg4_unpack_bframes filter.
+     * When mpeg4_unpack_bframe is used the filter handle stores information
+     * about packed B frames. When we seek in a stream this can confuse the filter
+     * and cause it to drop B-Frames.
+     */
+    auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
+    if (codecpar(stream)->codec_id ==  AV_CODEC_ID_MPEG4 &&
+        !strcmp(file.fmt_ctx_->iformat->name, "avi")) {
+      av_bsf_flush(file.bsf_ctx_.get());
+    }
   }
   return file;
 }
@@ -519,8 +535,6 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
 }
 
 std::pair<int, int> VideoLoader::load_width_height() {
-  av_register_all();
-
   AVFormatContext* raw_fmt_ctx = nullptr;
 
   DALI_ENFORCE(!file_label_pair_.empty(), "Could not read any files.");

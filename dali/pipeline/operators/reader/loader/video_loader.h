@@ -146,8 +146,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     /* Required to use libavformat: Initialize libavformat and register all
      * the muxers, demuxers and protocols.
      */
-
-    av_register_all();
   }
 
   ~VideoLoader() noexcept override {

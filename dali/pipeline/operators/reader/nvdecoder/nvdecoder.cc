@@ -77,6 +77,10 @@ NvDecoder::NvDecoder(int device_id,
       codec = Codec::HEVC;
       break;
 
+    case AV_CODEC_ID_MPEG4:
+      codec = Codec::MPEG4;
+      break;
+
     default:
       DALI_FAIL("Invalid codec for NvDecoder");
       return;
