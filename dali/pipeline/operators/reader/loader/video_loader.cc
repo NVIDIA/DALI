@@ -23,11 +23,6 @@
 #include <fstream>
 #include <limits>
 
-#undef LOG_LINE
-
-#define LOG_LINE \
-  std::cout << "# " << __LINE__ << ": "
-
 inline int gcd(int a, int b) {
   while (b) {
     int tmp = b;
