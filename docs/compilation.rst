@@ -73,6 +73,8 @@ Prerequisites
 .. _cmake link: https://cmake.org
 .. |jpegturbo link| replace:: **libjpeg-turbo 1.5.x**
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
+.. |libtiff link| replace:: **libtiff 4.0.x**
+.. _libtiff link: http://libtiff.org/
 .. |ffmpeg link| replace:: **FFmpeg 3.4.2**
 .. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-3.4.2.tar.bz2
 .. |opencv link| replace:: **OpenCV 3**
@@ -114,6 +116,8 @@ Prerequisites
    | |cmake link|_ or later                 |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |jpegturbo link|_ or later             | *This can be unofficially disabled. See below.*                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |libtiff link|_ or later               | *This can be unofficially disabled. See below.*                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |ffmpeg link|_ or later                | We recommend using version 3.4.2 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
@@ -237,6 +241,7 @@ Building DALI using Clang (experimental):
 
 -  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
+-  *(Unofficial)* ``BUILD_LIBTIFF`` - build with ``libtiff`` (default: ON)
 
 .. note::
 
