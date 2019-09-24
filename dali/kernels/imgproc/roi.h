@@ -131,7 +131,7 @@ Roi<spatial_dims> AdjustRoi(const Roi<spatial_dims> *roi, const TensorShape <ndi
 template <int ndims, int spatial_dims = ndims - 1>
 std::vector<Roi<spatial_dims>>
 AdjustRoi(span<const Roi<spatial_dims>> rois, const TensorListShape <ndims> &shapes) {
-  DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()),
+  DALI_ENFORCE(rois.empty() || rois.size() == shapes.num_samples(),
                "Either provide `rois` for every corresponding `shape`, or none.");
   std::vector<Roi<spatial_dims>> ret(shapes.num_samples());
 
@@ -140,7 +140,7 @@ AdjustRoi(span<const Roi<spatial_dims>> rois, const TensorListShape <ndims> &sha
       ret[i] = detail::WholeImage(shapes[i]);
     }
   } else {
-    for (size_t i = 0; i < rois.size(); i++) {
+    for (int i = 0; i < rois.size(); i++) {
       ret[i] = intersection(rois[i], detail::WholeImage(shapes[i]));
     }
   }
