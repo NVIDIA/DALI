@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATORS_SUPPORT_RANDOM_COIN_FLIP_H_
 
 #include <random>
+#include <vector>
 
 #include "dali/pipeline/operators/operator.h"
 
@@ -36,7 +37,18 @@ class CoinFlip : public Operator<SupportBackend> {
   using Operator<SupportBackend>::RunImpl;
 
  protected:
-  void RunImpl(Workspace<SupportBackend> * ws) override;
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
+    output_desc.resize(1);
+    output_desc[0].shape = kernels::uniform_list_shape(batch_size_, {1});
+    output_desc[0].type = TypeInfo::Create<int>();
+    return true;
+  }
+
+  void RunImpl(Workspace<SupportBackend> &ws) override;
 
  private:
   std::bernoulli_distribution dis_;

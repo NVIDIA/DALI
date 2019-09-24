@@ -100,7 +100,15 @@ class DLL_PUBLIC HostWorkspace : public WorkspaceBase<HostInputType, HostOutputT
     return *thread_pool_;
   }
 
+  bool has_stream() const override {
+    return false;
+  };
+
  private:
+  cudaStream_t stream_impl() const override {
+    return nullptr;
+  }
+
   ThreadPool* thread_pool_ = nullptr;
 };
 

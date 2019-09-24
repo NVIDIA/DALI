@@ -52,8 +52,12 @@ class RandomResizedCrop : public Operator<Backend>
   using Operator<Backend>::RunImpl;
 
  protected:
-  void RunImpl(Workspace<Backend> * ws) override;
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace<Backend> &ws) override;
+  void SetupSharedSampleParams(Workspace<Backend> &ws) override;
 
  private:
   void BackendInit();
@@ -68,8 +72,8 @@ class RandomResizedCrop : public Operator<Backend>
   kernels::ResamplingParams2D CalcResamplingParams(int index) const {
     auto &wnd = crops_[index];
     auto params = shared_params_;
-    params[0].roi = kernels::ResamplingParams::ROI(wnd.y, wnd.y+wnd.h);
-    params[1].roi = kernels::ResamplingParams::ROI(wnd.x, wnd.x+wnd.w);
+    params[0].roi = kernels::ResamplingParams::ROI(wnd.anchor[0], wnd.anchor[0]+wnd.shape[0]);
+    params[1].roi = kernels::ResamplingParams::ROI(wnd.anchor[1], wnd.anchor[1]+wnd.shape[1]);
     return params;
   }
 

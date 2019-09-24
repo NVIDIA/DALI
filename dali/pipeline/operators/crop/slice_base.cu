@@ -72,15 +72,15 @@ void RunHelper(TensorList<GPUBackend>& output,
 
 
 template <>
-void SliceBase<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
+void SliceBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   this->DataDependentSetup(ws);
-  const auto &input = ws->Input<GPUBackend>(0);
-  auto &output = ws->Output<GPUBackend>(0);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
-  DALI_TYPE_SWITCH_WITH_FP16_GPU(input_type_, InputType,
-    DALI_TYPE_SWITCH_WITH_FP16_GPU(output_type_, OutputType,
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
       detail::RunHelper<OutputType, InputType>(
-        output, input, slice_anchors_, slice_shapes_, ws->stream(), scratch_alloc_);
+        output, input, slice_anchors_, slice_shapes_, ws.stream(), scratch_alloc_);
     )
   )
 }

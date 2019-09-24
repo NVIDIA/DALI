@@ -21,6 +21,7 @@ import os
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
+from test_utils import get_dali_extra_path
 
 class DecoderPipeline(Pipeline):
     def __init__(self, data_path, batch_size, num_threads, device_id, device, use_fast_idct=False):
@@ -35,7 +36,7 @@ class DecoderPipeline(Pipeline):
         output = self.decode(inputs)
         return (output, labels)
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
+test_data_root = get_dali_extra_path()
 good_path = 'db/single'
 missnamed_path = 'db/single/missnamed'
 test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp'}

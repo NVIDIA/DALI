@@ -28,7 +28,7 @@ PngImage::PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType i
 }
 
 
-Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
+Image::Shape PngImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const {
   DALI_ENFORCE(encoded_buffer);
   DALI_ENFORCE(length >= 16);
 
@@ -57,7 +57,7 @@ Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length
   const auto H = ReadIntFromPNG(png_dimens + 12);
   // TODO(mszolucha): fill channels count
   const auto C = 0;
-  return std::make_tuple(H, W, C);
+  return {H, W, C};
 }
 
 

@@ -18,16 +18,16 @@
 namespace dali {
 
 template<>
-void Cast<CPUBackend>::RunImpl(SampleWorkspace *ws) {
-  auto &input = ws->Input<CPUBackend>(0);
-  auto &output = ws->Output<CPUBackend>(0);
+void Cast<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+  auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
 
   DALIDataType itype = input.type().id();
 
-  DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OType,
+  DALI_TYPE_SWITCH_WITH_FP16(output_type_, OType,
       output.mutable_data<OType>();
       output.ResizeLike(input);
-      DALI_TYPE_SWITCH_WITH_FP16_CPU(itype, IType,
+      DALI_TYPE_SWITCH_WITH_FP16(itype, IType,
         CPUHelper<IType, OType>(
           output.mutable_data<OType>(),
           input.data<IType>(),

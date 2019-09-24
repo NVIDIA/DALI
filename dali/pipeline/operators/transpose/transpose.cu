@@ -30,19 +30,58 @@ namespace dali {
   }                                                            \
 } while (0)
 
-using IntArr = std::unique_ptr<int[]>;
+namespace detail {
 
-std::pair<IntArr, IntArr>
-RowToColumnMajor(const int *dims, const int *perm, int rank) {
-  IntArr new_dims(new int[rank]);
-  IntArr new_perm(new int[rank]);
-
-  for (int i = 0; i < rank; ++i) {
-    new_dims[i] = dims[rank - 1 - i];
-    new_perm[i] = rank - 1 - perm[rank - 1 - i];
-  }
-  return {std::move(new_dims), std::move(new_perm)};
+void RowToColumnMajor(int *dims,
+                      int *perm,
+                      size_t len) {
+  std::reverse(dims, dims + len);
+  std::reverse(perm, perm + len);
+  for (size_t i = 0; i < len; ++i)
+    perm[i] = len - 1 - perm[i];
 }
+
+// enough to represent batches of 4D
+using VecInt = SmallVector<int, 5>;
+
+void PrepareArguments(VecInt &shape,
+                      VecInt &perm) {
+  DALI_ENFORCE(shape.size() == perm.size());
+
+  VecInt idx;
+  idx.resize(shape.size());
+  std::iota(idx.begin(), idx.end(), 0);
+
+  detail::VecInt idx_map;
+  idx_map.resize(idx.size());
+
+  // cuTT does not handle dimensions with size 1 so we remove them
+  // (H, W, 1) is equivalent to (H, W)
+  auto it_shape = shape.begin();
+  auto it_perm = perm.begin();
+  auto it_idx = idx.begin();
+  while (it_shape != shape.end()) {
+    if (*it_shape == 1) {
+      it_shape = shape.erase(it_shape);
+      it_perm = perm.erase(it_perm);
+      it_idx = idx.erase(it_idx);
+    } else {
+      ++it_shape;
+      ++it_perm;
+      ++it_idx;
+    }
+  }
+
+  for (size_t i = 0; i < idx.size(); i++)
+    idx_map[idx[i]] = i;
+
+  for (auto &p : perm)
+    p = idx_map[p];
+
+  RowToColumnMajor(shape.data(), perm.data(), shape.size());
+}
+
+}  // namespace detail
 
 namespace kernel {
 
@@ -53,24 +92,31 @@ void cuTTKernel(const TensorList<GPUBackend>& input,
                 cudaStream_t stream) {
   int batch_size = static_cast<int>(input.ntensor());
   for (int i = 0; i < batch_size; ++i) {
-    auto tmp = input.tensor_shape(i);
-    std::vector<int> input_shape(tmp.begin(), tmp.end());
+    detail::VecInt shape;
+    for (auto s : input.tensor_shape(i))
+      shape.push_back(s);
 
-    IntArr c_dims, c_perm;
-    std::tie(c_dims, c_perm) = RowToColumnMajor(input_shape.data(),
-                                                permutation.data(),
-                                                input_shape.size());
+    detail::VecInt perm;
+    for (auto p : permutation)
+      perm.push_back(p);
+
+    detail::PrepareArguments(shape, perm);
+
     const void* in = input.raw_tensor(0);
     void* out = output.raw_mutable_tensor(0);
     cuttHandle plan;
-    cuttCheck(cuttPlan(&plan, input_shape.size(), c_dims.get(), c_perm.get(), sizeof(T), stream));
+    cuttCheck(cuttPlan(&plan,
+                       shape.size(),
+                       shape.data(),
+                       perm.data(),
+                       sizeof(T),
+                       stream));
     cuttCheck(cuttExecute(plan, in, out));
     CUDA_CALL(cudaStreamSynchronize(stream));
     cuttCheck(cuttDestroy(plan));
   }
 }
 
-/* We insert an additional dim iff batch_size > 1 because cuTT require dim0 to be > 1 */
 template <typename T>
 void cuTTKernelBatched(const TensorList<GPUBackend>& input,
                        TensorList<GPUBackend>& output,
@@ -78,29 +124,23 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
                        cuttHandle* plan,
                        cudaStream_t stream) {
   int batch_size = static_cast<int>(input.ntensor());
-  auto tmp = input.tensor_shape(0);
-  std::vector<int> input_shape(tmp.begin(), tmp.end());
+  detail::VecInt shape;
+  shape.push_back(batch_size);
+  for (auto &s : input.tensor_shape(0))
+    shape.push_back(s);
 
-  if (batch_size > 1) {
-    input_shape.insert(input_shape.begin(), batch_size);
-  }
+  detail::VecInt perm;
+  perm.push_back(0);
+  for (auto p : permutation)
+    perm.push_back(p+1);
 
-  std::vector<int> batched_perm(permutation.begin(), permutation.end());
-  if (batch_size > 1) {
-    std::for_each(batched_perm.begin(), batched_perm.end(), [](int& i) { i++; });
-    batched_perm.insert(batched_perm.begin(), 0);
-  }
-
-  IntArr c_dims, c_permutation;
-  std::tie(c_dims, c_permutation) = RowToColumnMajor(input_shape.data(),
-                                                     batched_perm.data(),
-                                                     input_shape.size());
+  detail::PrepareArguments(shape, perm);
 
   if (*plan == 0) {
     cuttCheck(cuttPlan(plan,
-                       batched_perm.size(),
-                       c_dims.get(),
-                       c_permutation.get(),
+                       shape.size(),
+                       shape.data(),
+                       perm.data(),
                        sizeof(T),
                        stream));
   }
@@ -134,9 +174,9 @@ inline kernels::TensorShape<> GetPermutedDims(const kernels::TensorShape<>& dims
 }
 
 template<>
-void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws) {
-  const auto& input = ws->Input<GPUBackend>(0);
-  auto& output = ws->Output<GPUBackend>(0);
+void Transpose<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+  const auto& input = ws.Input<GPUBackend>(0);
+  auto& output = ws.Output<GPUBackend>(0);
 
   TypeInfo itype = input.type();
   DALI_ENFORCE((itype.size() == 1 || itype.size() == 2 || itype.size() == 4 || itype.size() == 8),
@@ -162,13 +202,13 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws) {
     auto permuted_dims = GetPermutedDims(input_shape, perm_);
     output.Resize(kernels::uniform_list_shape(batch_size_, permuted_dims));
     if (itype.size() == 1) {
-      kernel::cuTTKernelBatched<uint8_t>(input, output, perm_, &cutt_handle_, ws->stream());
+      kernel::cuTTKernelBatched<uint8_t>(input, output, perm_, &cutt_handle_, ws.stream());
     } else if (itype.size() == 2) {
-      kernel::cuTTKernelBatched<uint16_t>(input, output, perm_, &cutt_handle_, ws->stream());
+      kernel::cuTTKernelBatched<uint16_t>(input, output, perm_, &cutt_handle_, ws.stream());
     } else if (itype.size() == 4) {
-      kernel::cuTTKernelBatched<int32_t>(input, output, perm_, &cutt_handle_, ws->stream());
+      kernel::cuTTKernelBatched<int32_t>(input, output, perm_, &cutt_handle_, ws.stream());
     } else {  // itype.size() == 8
-      kernel::cuTTKernelBatched<int64_t>(input, output, perm_, &cutt_handle_, ws->stream());
+      kernel::cuTTKernelBatched<int64_t>(input, output, perm_, &cutt_handle_, ws.stream());
     }
   } else {
     std::vector<kernels::TensorShape<>> tl_shape;
@@ -178,13 +218,13 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace* ws) {
     }
     output.Resize(tl_shape);
     if (itype.size() == 1) {
-      kernel::cuTTKernel<uint8_t>(input, output, perm_, ws->stream());
+      kernel::cuTTKernel<uint8_t>(input, output, perm_, ws.stream());
     } else if (itype.size() == 2) {
-      kernel::cuTTKernel<uint16_t>(input, output, perm_, ws->stream());
+      kernel::cuTTKernel<uint16_t>(input, output, perm_, ws.stream());
     } else if (itype.size() == 4) {
-      kernel::cuTTKernel<int32_t>(input, output, perm_, ws->stream());
+      kernel::cuTTKernel<int32_t>(input, output, perm_, ws.stream());
     } else {  // itype.size() == 8
-      kernel::cuTTKernel<int64_t>(input, output, perm_, ws->stream());
+      kernel::cuTTKernel<int64_t>(input, output, perm_, ws.stream());
     }
   }
 }

@@ -69,11 +69,11 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   inline ~VideoReader() override = default;
 
  protected:
-  void SetupSharedSampleParams(DeviceWorkspace *ws) override {
+  void SetupSharedSampleParams(DeviceWorkspace &ws) override {
   }
 
-  void RunImpl(DeviceWorkspace *ws) override {
-    auto& tl_sequence_output = ws->Output<GPUBackend>(0);
+  void RunImpl(DeviceWorkspace &ws) override {
+    auto& tl_sequence_output = ws.Output<GPUBackend>(0);
     TensorList<GPUBackend> *label_output = NULL;
 
     if (dtype_ == DALI_FLOAT) {
@@ -91,7 +91,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     tl_sequence_output.SetLayout(DALI_NFHWC);
 
     if (enable_label_output_) {
-      label_output = &ws->Output<GPUBackend>(1);
+      label_output = &ws.Output<GPUBackend>(1);
       label_output->set_type(TypeInfo::Create<int>());
       label_output->Resize(label_shape_);
     }
@@ -103,12 +103,12 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
       tl_sequence_output.type().Copy<GPUBackend, GPUBackend>(sequence_output,
                                   prefetched_sequence.sequence.raw_data(),
                                   prefetched_sequence.sequence.size(),
-                                  ws->stream());
+                                  ws.stream());
 
         if (enable_label_output_) {
           auto *label = label_output->mutable_tensor<int>(data_idx);
           CUDA_CALL(cudaMemcpyAsync(label, &prefetched_sequence.label, sizeof(int),
-                                    cudaMemcpyDefault, ws->stream()));
+                                    cudaMemcpyDefault, ws.stream()));
         }
     }
   }

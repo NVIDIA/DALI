@@ -270,9 +270,9 @@ int *BoxEncoder<GPUBackend>::CalculateBoxesOffsets(
   return offsets_data;
 }
 
-void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
-  const auto &boxes_input = ws->Input<GPUBackend>(kBoxesInId);
-  const auto &labels_input = ws->Input<GPUBackend>(kLabelsInId);
+void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
+  const auto &boxes_input = ws.Input<GPUBackend>(kBoxesInId);
+  const auto &labels_input = ws.Input<GPUBackend>(kLabelsInId);
 
   const auto anchors_data = reinterpret_cast<const float4 *>(anchors_.data<float>());
   const auto anchors_as_cwh_data =
@@ -280,17 +280,17 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
   const auto boxes_data = reinterpret_cast<const float4 *>(boxes_input.data<float>());
   const auto labels_data = labels_input.data<int>();
 
-  const auto buffers = ClearBuffers(ws->stream());
+  const auto buffers = ClearBuffers(ws.stream());
 
-  auto boxes_offsets_data = CalculateBoxesOffsets(boxes_input, ws->stream());
+  auto boxes_offsets_data = CalculateBoxesOffsets(boxes_input, ws.stream());
   auto dims = CalculateDims(boxes_input);
 
-  auto &boxes_output = ws->Output<GPUBackend>(kBoxesOutId);
+  auto &boxes_output = ws.Output<GPUBackend>(kBoxesOutId);
   boxes_output.set_type(boxes_input.type());
   boxes_output.Resize(dims.first);
   auto boxes_out_data = reinterpret_cast<float4 *>(boxes_output.mutable_data<float>());
 
-  auto &labels_output = ws->Output<GPUBackend>(kLabelsOutId);
+  auto &labels_output = ws.Output<GPUBackend>(kLabelsOutId);
   labels_output.set_type(labels_input.type());
   labels_output.Resize(dims.second);
   auto labels_out_data = labels_output.mutable_data<int>();
@@ -299,11 +299,11 @@ void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
   const auto stds_data = stds_.data<float>();
 
   if (!offset_)
-    WriteAnchorsToOutput(boxes_out_data, labels_out_data, ws->stream());
+    WriteAnchorsToOutput(boxes_out_data, labels_out_data, ws.stream());
   else
-    ClearOutput(boxes_out_data, labels_out_data, ws->stream());
+    ClearOutput(boxes_out_data, labels_out_data, ws.stream());
 
-  Encode<BlockSize><<<batch_size_, BlockSize, 0, ws->stream()>>>(
+  Encode<BlockSize><<<batch_size_, BlockSize, 0, ws.stream()>>>(
     boxes_data,
     labels_data,
     boxes_offsets_data,

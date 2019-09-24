@@ -21,7 +21,7 @@ PnmImage::PnmImage(const uint8_t *encoded_buffer, size_t length, DALIImageType i
         GenericImage(encoded_buffer, length, image_type) {
 }
 
-Image::ImageDims PnmImage::PeekDims(const uint8_t *pnm, size_t length) const {
+Image::Shape PnmImage::PeekShapeImpl(const uint8_t *pnm, size_t length) const {
   DALI_ENFORCE(pnm);
 
   // http://netpbm.sourceforge.net/doc/ppm.html
@@ -65,7 +65,7 @@ Image::ImageDims PnmImage::PeekDims(const uint8_t *pnm, size_t length) const {
   } while (state < STATE_DONE);
   int h = dim[STATE_HEIGHT-1];
   int w = dim[STATE_WIDTH-1];
-  return std::make_tuple(h, w, channels);
+  return {h, w, channels};
 }
 
 

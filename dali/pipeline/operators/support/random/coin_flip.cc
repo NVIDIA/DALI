@@ -17,11 +17,10 @@
 
 namespace dali {
 
-void CoinFlip::RunImpl(SupportWorkspace * ws) {
-  auto &output = ws->Output<CPUBackend>(0);
-  output.Resize({batch_size_});
+void CoinFlip::RunImpl(SupportWorkspace &ws) {
+  auto &output = ws.Output<CPUBackend>(0);
 
-  int * out_data = output.template mutable_data<int>();
+  int *out_data = output.template mutable_data<int>();
 
   for (int i = 0; i < batch_size_; ++i) {
     out_data[i] = dis_(rng_) ? 1 : 0;

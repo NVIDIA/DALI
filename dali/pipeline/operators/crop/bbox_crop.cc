@@ -58,11 +58,11 @@ Default values disallow changes in aspect ratio.)code",
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(
-  SampleWorkspace *ws, const Crop &crop) const {
+  SampleWorkspace &ws, const Crop &crop) const {
   const auto coordinates = crop.AsXywh();
 
   // Copy the anchor to output
-  auto &anchor_out = ws->Output<CPUBackend>(0);
+  auto &anchor_out = ws.Output<CPUBackend>(0);
   anchor_out.Resize({2});
 
   auto *anchor_out_data = anchor_out.mutable_data<float>();
@@ -70,7 +70,7 @@ void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(
   anchor_out_data[1] = coordinates[1];
 
   // Copy the offsets to output 1
-  auto &offsets_out = ws->Output<CPUBackend>(1);
+  auto &offsets_out = ws.Output<CPUBackend>(1);
   offsets_out.Resize({2});
 
   auto *offsets_out_data = offsets_out.mutable_data<float>();
@@ -80,8 +80,8 @@ void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
-    SampleWorkspace *ws, const BoundingBoxes &bounding_boxes) const {
-  auto &bbox_out = ws->Output<CPUBackend>(2);
+    SampleWorkspace &ws, const BoundingBoxes &bounding_boxes) const {
+  auto &bbox_out = ws.Output<CPUBackend>(2);
   bbox_out.Resize(
       {static_cast<int64_t>(bounding_boxes.size()), static_cast<int64_t>(BoundingBox::kSize)});
 
@@ -99,8 +99,8 @@ void RandomBBoxCrop<CPUBackend>::WriteBoxesToOutput(
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
-  SampleWorkspace *ws, const std::vector<int> &labels) const {
-  auto &labels_out = ws->Output<CPUBackend>(3);
+  SampleWorkspace &ws, const std::vector<int> &labels) const {
+  auto &labels_out = ws.Output<CPUBackend>(3);
   labels_out.Resize({static_cast<Index>(labels.size()), 1});
 
   auto *labels_out_data = labels_out.mutable_data<int>();
@@ -110,8 +110,8 @@ void RandomBBoxCrop<CPUBackend>::WriteLabelsToOutput(
 }
 
 template <>
-void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
-  const auto &boxes_tensor = ws->Input<CPUBackend>(0);
+void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+  const auto &boxes_tensor = ws.Input<CPUBackend>(0);
 
   BoundingBoxes bounding_boxes;
   bounding_boxes.reserve(static_cast<size_t>(boxes_tensor.dim(0)));
@@ -125,7 +125,7 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
     bounding_boxes.emplace_back(box);
   }
 
-  const auto &labels_tensor = ws->Input<CPUBackend>(1);
+  const auto &labels_tensor = ws.Input<CPUBackend>(1);
 
   std::vector<int> labels;
   labels.reserve(static_cast<size_t>(labels_tensor.dim(0)));
@@ -136,7 +136,7 @@ void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace *ws) {
   }
 
   ProspectiveCrop prospective_crop;
-  int sample = ws->data_idx();
+  int sample = ws.data_idx();
   while (!prospective_crop.success)
     prospective_crop  = FindProspectiveCrop(
         bounding_boxes, labels, SelectMinimumOverlap(sample), sample);

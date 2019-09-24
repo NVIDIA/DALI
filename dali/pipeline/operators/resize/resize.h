@@ -54,8 +54,12 @@ class Resize : public Operator<Backend>
   explicit Resize(const OpSpec &spec);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws) override;
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace<Backend> &ws) override;
+  void SetupSharedSampleParams(Workspace<Backend> &ws) override;
 
   kernels::ResamplingParams2D GetResamplingParams(const TransformMeta &meta) const {
     kernels::ResamplingParams2D params;

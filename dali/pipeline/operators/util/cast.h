@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATORS_UTIL_CAST_H_
 #define DALI_PIPELINE_OPERATORS_UTIL_CAST_H_
 
+#include <vector>
+
 #include "dali/pipeline/operators/operator.h"
 #include "dali/core/convert.h"
 
@@ -33,7 +35,11 @@ class Cast : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Cast);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace<Backend> &ws) override;
 
  private:
   template <typename IType, typename OType>

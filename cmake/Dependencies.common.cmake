@@ -57,13 +57,25 @@ endif()
 ##################################################################
 if (BUILD_JPEG_TURBO)
   find_package(JPEG 62 REQUIRED) # 1.5.3 version
-  include_directories(SYSTEM ${JPEG_INCLUDE_DIR})
+  include_directories(${JPEG_INCLUDE_DIR})
   message("Using libjpeg-turbo at ${JPEG_LIBRARY}")
   list(APPEND DALI_LIBS ${JPEG_LIBRARY})
   add_definitions(-DDALI_USE_JPEG_TURBO)
 else()
   # Note: Support for disabling libjpeg-turbo is unofficial
   message(STATUS "Building WITHOUT JpegTurbo")
+endif()
+
+##################################################################
+# libtiff
+##################################################################
+if (BUILD_LIBTIFF)
+  find_package(TIFF REQUIRED)
+  include_directories(${TIFF_INCLUDE_DIR})
+  message("Using libtiff at ${TIFF_LIBRARY}")
+  list(APPEND DALI_LIBS ${TIFF_LIBRARY})
+else()
+  message(STATUS "Building WITHOUT libtiff")
 endif()
 
 ##################################################################
@@ -95,7 +107,7 @@ if(BUILD_FFMPEG)
   include(CheckStructHasMember)
   include(CheckTypeSize)
 
-  set(FFMPEG_ROOT_DIR "" CACHE PATH "Folder contains FFmeg")
+  set(FFMPEG_ROOT_DIR "" CACHE PATH "Folder contains ffmpeg")
   set(PKG_CONFIG_USE_CMAKE_PREFIX_PATH YES)
 
   find_package(PkgConfig REQUIRED)

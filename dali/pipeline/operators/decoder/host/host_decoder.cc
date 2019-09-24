@@ -20,9 +20,9 @@
 
 namespace dali {
 
-void HostDecoder::RunImpl(SampleWorkspace *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
-  auto &output = ws->Output<CPUBackend>(0);
+void HostDecoder::RunImpl(SampleWorkspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto file_name = input.GetSourceInfo();
 
   // Verify input
@@ -34,21 +34,17 @@ void HostDecoder::RunImpl(SampleWorkspace *ws) {
   std::unique_ptr<Image> img;
   try {
     img = ImageFactory::CreateImage(input.data<uint8>(), input.size(), output_type_);
-    img->SetCropWindowGenerator(GetCropWindowGenerator(ws->data_idx()));
+    img->SetCropWindowGenerator(GetCropWindowGenerator(ws.data_idx()));
     img->SetUseFastIdct(use_fast_idct_);
     img->Decode();
   } catch (std::exception &e) {
     DALI_FAIL(e.what() + "File: " + file_name);
   }
   const auto decoded = img->GetImage();
-  const auto hwc = img->GetImageDims();
-  const auto h = std::get<0>(hwc);
-  const auto w = std::get<1>(hwc);
-  const auto c = std::get<2>(hwc);
-
-  output.Resize({static_cast<int>(h), static_cast<int>(w), static_cast<int>(c)});
+  const auto shape = img->GetShape();
+  output.Resize(shape);
   unsigned char *out_data = output.mutable_data<unsigned char>();
-  std::memcpy(out_data, decoded.get(), h * w * c);
+  std::memcpy(out_data, decoded.get(), volume(shape));
 }
 
 DALI_SCHEMA(HostDecoder)

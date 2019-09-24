@@ -22,32 +22,11 @@
 #include "dali/core/geom/box.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/imgproc/roi.h"
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
 namespace kernels {
-
-namespace brightness_contrast {
-
-
-/**
- * Assumes HWC layout
- */
-template<size_t ndims, class CoordinateType>
-TensorShape<ndims + 1> roi_shape(Box<ndims, CoordinateType> roi, size_t nchannels) {
-  assert(all_coords(roi.hi >= roi.lo) && "Cannot create a tensor shape from an invalid Box");
-  TensorShape<ndims + 1> ret;
-  auto e = roi.extent();
-  auto ridx = ndims;
-  ret[ridx--] = nchannels;
-  for (size_t idx = 0; idx < ndims; idx++) {
-    ret[ridx--] = e[idx];
-  }
-  return ret;
-}
-
-}  // namespace brightness_contrast
-
 
 template<typename InputType, typename OutputType, size_t ndims = 3>
 class BrightnessContrastCPU {
@@ -64,8 +43,7 @@ class BrightnessContrastCPU {
     DALI_ENFORCE(!roi || all_coords(roi->hi >= roi->lo), "Region of interest is invalid");
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     KernelRequirements req;
-    TensorListShape<> out_shape({
-        brightness_contrast::roi_shape(adjusted_roi, in.shape[ndims - 1])
+    TensorListShape<> out_shape({ShapeFromRoi(adjusted_roi, in.shape[ndims - 1])
     });
     req.output_shapes = {std::move(out_shape)};
     return req;
@@ -96,16 +74,6 @@ class BrightnessContrastCPU {
         *ptr++ = ConvertSat<OutputType>(row[xc] * contrast + brightness);
       row += row_stride;
     }
-  }
-
-
- private:
-  Roi AdjustRoi(const Roi *roi, const TensorShape<ndims> &shape) {
-    ivec<spatial_dims> size;
-    for (size_t i = 0; i < spatial_dims; i++)
-      size[i] = shape[spatial_dims - 1 - i];
-    Roi whole_image = {0, size};
-    return roi ? intersection(*roi, whole_image) : whole_image;
   }
 };
 

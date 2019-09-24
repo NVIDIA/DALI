@@ -111,10 +111,12 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
+    pipe.SetExternalInput("raw_jpegs", data);
     if (st.iterations() == 1 && pipelined) {
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
+      pipe.SetExternalInput("raw_jpegs", data);
       pipe.RunCPU();
       pipe.RunGPU();
     }
@@ -244,10 +246,12 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
+    pipe.SetExternalInput("raw_jpegs", data);
     if (st.iterations() == 1 && pipelined) {
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
+      pipe.SetExternalInput("raw_jpegs", data);
       pipe.RunCPU();
       pipe.RunGPU();
     }
@@ -355,10 +359,12 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
+    pipe.SetExternalInput("raw_jpegs", data);
     if (st.iterations() == 1 && pipelined) {
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
+      pipe.SetExternalInput("raw_jpegs", data);
       pipe.RunCPU();
       pipe.RunGPU();
     }

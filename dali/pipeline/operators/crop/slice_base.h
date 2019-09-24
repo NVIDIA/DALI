@@ -38,16 +38,20 @@ class SliceBase : public Operator<Backend> {
   }
 
  protected:
-  void RunImpl(Workspace<Backend> *ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
 
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override {
-    const auto &input = ws->template Input<Backend>(0);
+  void RunImpl(Workspace<Backend> &ws) override;
+
+  void SetupSharedSampleParams(Workspace<Backend> &ws) override {
+    const auto &input = ws.template Input<Backend>(0);
     input_type_ = input.type().id();
     if (output_type_ == DALI_NO_TYPE)
       output_type_ = input_type_;
   }
 
-  virtual void DataDependentSetup(Workspace<Backend> *ws) = 0;
+  virtual void DataDependentSetup(Workspace<Backend> &ws) = 0;
 
   std::vector<std::vector<int64_t>> slice_anchors_, slice_shapes_;
   DALIDataType input_type_ = DALI_NO_TYPE;

@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_GPU_CUH_
 #define DALI_PIPELINE_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_IMPL_GPU_CUH_
 
+#include <vector>
+
 #include "dali/core/common.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/pipeline/operators/displacement/displacement_filter.h"
@@ -224,23 +226,27 @@ class DisplacementFilter<GPUBackend, Displacement,
      displace_.Cleanup();
   }
 
-  void RunImpl(DeviceWorkspace* ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(DeviceWorkspace& ws) override {
     DataDependentSetup(ws);
 
-    auto &input = ws->Input<GPUBackend>(0);
+    auto &input = ws.Input<GPUBackend>(0);
     if (IsType<float>(input.type())) {
-      BatchedGPUKernel<float>(ws, 0);
+      BatchedGPUKernel<float>(&ws, 0);
     } else if (IsType<uint8_t>(input.type())) {
-      BatchedGPUKernel<uint8_t>(ws, 0);
+      BatchedGPUKernel<uint8_t>(&ws, 0);
     } else {
       DALI_FAIL("Unexpected input type " + input.type().name());
     }
   }
 
-  virtual void DataDependentSetup(DeviceWorkspace *ws) {
+  virtual void DataDependentSetup(DeviceWorkspace &ws) {
     // check input is valid, resize output
-    auto &input = ws->Input<GPUBackend>(0);
-    auto &output = ws->Output<GPUBackend>(0);
+    auto &input = ws.Input<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     output.ResizeLike(input);
   }
 
@@ -260,14 +266,14 @@ class DisplacementFilter<GPUBackend, Displacement,
   template <typename U = Displacement>
   std::enable_if_t<!HasParam<U>::value> PrepareDisplacement(DeviceWorkspace *) {}
 
-  void SetupSharedSampleParams(DeviceWorkspace *ws) override {
+  void SetupSharedSampleParams(DeviceWorkspace &ws) override {
     if (has_mask_) {
-      const auto &mask = ws->ArgumentInput("mask");
+      const auto &mask = ws.ArgumentInput("mask");
       mask_gpu_.ResizeLike(mask);
       mask_gpu_.template mutable_data<int>();
-      mask_gpu_.Copy(mask, ws->stream());
+      mask_gpu_.Copy(mask, ws.stream());
     }
-    PrepareDisplacement(ws);
+    PrepareDisplacement(&ws);
   }
 
   USE_OPERATOR_MEMBERS();
@@ -397,7 +403,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   Tensor<GPUBackend> meta_gpu;
 
   bool has_mask_;
-  Tensor<GPUBackend> mask_gpu_;
+  TensorList<GPUBackend> mask_gpu_;
 
   Tensor<CPUBackend> params_;
   Tensor<GPUBackend> params_gpu_;

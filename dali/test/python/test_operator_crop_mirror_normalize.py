@@ -25,8 +25,9 @@ from functools import partial
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
+from test_utils import get_dali_extra_path
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
+test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 class CropMirrorNormalizePipeline(Pipeline):
@@ -71,7 +72,7 @@ def check_cmn_cpu_vs_gpu(batch_size, output_dtype, output_layout, mirror_probabi
 
 def test_cmn_cpu_vs_gpu():
     for batch_size in [1, 8]:
-        for output_dtype in [types.FLOAT, types.INT32]:
+        for output_dtype in [types.FLOAT, types.INT32, types.FLOAT16]:
             for output_layout in [types.NHWC, types.NCHW]:
                 for mirror_probability in [0.0, 0.5, 1.0]:
                     norm_data = [ ([0., 0., 0.], [1., 1., 1.]),

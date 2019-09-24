@@ -360,8 +360,10 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC bool HasOptionalArgument(const std::string &name, const bool local_only = false) const;
 
-  /// @brief Finds default value for a given argument
-  /// @return A pair of the defining schema and the value
+  /**
+   * @brief Finds default value for a given argument
+   * @return A pair of the defining schema and the value
+   */
   DLL_PUBLIC std::pair<const OpSchema *, const Value *>
   FindDefaultValue(const std::string &arg_name,
                    bool local_only = false,

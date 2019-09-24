@@ -61,7 +61,7 @@ class RandomCropAttr {
           {aspect_ratio[0], aspect_ratio[1]}, {area[0], area[1]}, seeds[i], num_attempts));
       crop_window_generators_[i] = std::bind(
         &RandomCropGenerator::GenerateCropWindow, random_crop_generator,
-        std::placeholders::_1, std::placeholders::_2);
+        std::placeholders::_1);
     }
   }
 

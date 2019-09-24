@@ -37,15 +37,15 @@ class Slice : public SliceBase<Backend> {
   using SliceBase<Backend>::slice_anchors_;
   using SliceBase<Backend>::slice_shapes_;
 
-  void RunImpl(Workspace<Backend> *ws) override;
+  void RunImpl(Workspace<Backend> &ws) override;
 
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override {
-    DALI_ENFORCE(ws->NumInput() == 3,
-      "Expected 3 inputs. Received: " + std::to_string(ws->NumInput()));
+  void SetupSharedSampleParams(Workspace<Backend> &ws) override {
+    DALI_ENFORCE(ws.NumInput() == 3,
+      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
     SliceBase<Backend>::SetupSharedSampleParams(ws);
   }
 
-  void DataDependentSetup(Workspace<Backend> *ws) override;
+  void DataDependentSetup(Workspace<Backend> &ws) override;
 
   void SetupSample(int data_idx,
                    DALITensorLayout layout,

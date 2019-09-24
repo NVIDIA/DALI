@@ -18,19 +18,25 @@
 
 namespace dali {
 
-/// @param output                - output bounding boxes
-/// @param input                 - input bounding boxes
-/// @param num_boxes             - number of bounding boxes in the input
-/// @param sample_indices        - when using per-sample flip, contains sample indices for each
-///                                bounding box in the input tensor list
-/// @param per_sample_horizontal - per-sample flag indicating whether bounding boxes from
-//                                 a given sample should be flipped horizontally; may by NULL
-/// @param per_sample_vertical   - per-sample flag indicating whether bounding boxes from
-//                                 a given sample should be flipped vertically; may be NULL
-/// @param global_horizontal     - whether to flip horizontally; overriden by
-///                                per_sample_horizontal, if specified
-/// @param global_vertical       - whether to flip vertically; overriden by
-///                                per_sample_vertical, if specified
+/**
+ * @param output                - output bounding boxes
+ * @param input                 - input bounding boxes
+ * @param num_boxes             - number of bounding boxes in the input
+ * @param sample_indices        - when using per-sample flip, contains sample indices for each
+ *                                bounding box in the input tensor list
+ * @param per_sample_horizontal - per-sample flag indicating whether bounding boxes from
+ *
+ *                                 a given sample should be flipped horizontally; may by NULL
+ *
+ * @param per_sample_vertical   - per-sample flag indicating whether bounding boxes from
+ *
+ *                                 a given sample should be flipped vertically; may be NULL
+ *
+ * @param global_horizontal     - whether to flip horizontally; overriden by
+ *                                per_sample_horizontal, if specified
+ * @param global_vertical       - whether to flip vertically; overriden by
+ *                                per_sample_vertical, if specified
+ */
 template <bool ltrb>
 __global__ void BbFlipKernel(float *output, const float *input, size_t num_boxes,
                              bool global_horizontal, const int *per_sample_horizontal,
@@ -66,9 +72,9 @@ __global__ void BbFlipKernel(float *output, const float *input, size_t num_boxes
 }
 
 
-void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
-  auto &input = ws->Input<GPUBackend>(0);
-  auto&output = ws->Output<GPUBackend>(0);
+void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
+  auto &input = ws.Input<GPUBackend>(0);
+  auto&output = ws.Output<GPUBackend>(0);
 
   DALI_ENFORCE(IsType<float>(input.type()), "Expected input data as float;"
                " got " + input.type().name());
@@ -76,11 +82,11 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> *ws) {
                "Input data size must be a multiple of 4 if it contains bounding boxes;"
                " got " + std::to_string(input.size()));
 
-  ArgValue<int> horz("horizontal", spec_, ws);
-  ArgValue<int> vert("vertical", spec_, ws);
+  ArgValue<int> horz("horizontal", spec_, &ws);
+  ArgValue<int> vert("vertical", spec_, &ws);
   bool ltrb = spec_.GetArgument<bool>("ltrb");
 
-  auto stream = ws->stream();
+  auto stream = ws.stream();
 
   const auto num_boxes = input.size() / 4;
 

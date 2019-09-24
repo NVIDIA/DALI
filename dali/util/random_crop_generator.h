@@ -34,10 +34,11 @@ class DLL_PUBLIC RandomCropGenerator {
     int64_t seed = time(0),
     int num_attempts_ = 10);
 
-  DLL_PUBLIC CropWindow GenerateCropWindow(int H, int W);
-  DLL_PUBLIC std::vector<CropWindow> GenerateCropWindows(int H, int W, std::size_t N);
+  DLL_PUBLIC CropWindow GenerateCropWindow(const kernels::TensorShape<>& shape);
+  DLL_PUBLIC std::vector<CropWindow> GenerateCropWindows(const kernels::TensorShape<>& shape,
+                                                         std::size_t N);
  private:
-  CropWindow GenerateCropWindowImpl(int H, int W);
+  CropWindow GenerateCropWindowImpl(const kernels::TensorShape<>& shape);
 
   AspectRatioRange aspect_ratio_range_;
   // Aspect ratios are uniformly distributed on logarithmic scale.

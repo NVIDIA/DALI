@@ -41,6 +41,15 @@ DEVICE_TEST(ConvertSatCUDA_Dev, float2int, 110, 1024) {
   DEV_EXPECT_EQ(ConvertSat<uint32_t>(f), clamped);
 }
 
+DEVICE_TEST(ConvertSatCUDA_Dev, fp2int64, 1, 1) {
+  DEV_EXPECT_EQ(ConvertSat<int64_t>(123456789123.0), 123456789123ll);
+  DEV_EXPECT_EQ(ConvertSat<int64_t>(-123456789123.0), -123456789123ll);
+  DEV_EXPECT_EQ(ConvertSat<int64_t>(2e+20f), 0x7fffffffffffffffll);
+  DEV_EXPECT_EQ(ConvertSat<int64_t>(-2e+20f), ~0x7fffffffffffffffll);
+  DEV_EXPECT_EQ(ConvertSat<uint64_t>(2e+20f), 0xffffffffffffffffull);
+  DEV_EXPECT_EQ(ConvertSat<uint64_t>(-1.0f), 0);
+}
+
 DEVICE_TEST(ConvertNormCUDA_Dev, float2int, 1, 1) {
   DEV_EXPECT_EQ(ConvertNorm<uint8_t>(0.0f), 0);
   DEV_EXPECT_EQ(ConvertNorm<uint8_t>(0.499f), 127);
@@ -49,11 +58,16 @@ DEVICE_TEST(ConvertNormCUDA_Dev, float2int, 1, 1) {
   DEV_EXPECT_EQ(ConvertNorm<int8_t>(0.499f), 63);
   DEV_EXPECT_EQ(ConvertNorm<int8_t>(-1.0f), -127);
 
-
   DEV_EXPECT_EQ(ConvertNorm<uint16_t>(0.0f), 0);
   DEV_EXPECT_EQ(ConvertNorm<uint16_t>(1.0f), 0xffff);
   DEV_EXPECT_EQ(ConvertNorm<int16_t>(1.0f), 0x7fff);
   DEV_EXPECT_EQ(ConvertNorm<int16_t>(-1.0f), -0x7fff);
+  DEV_EXPECT_EQ(ConvertNorm<uint16_t>(0.0f), 0);
+
+  // float doesn't have appropriate precision, so we can only expect 23 MSBs to be valid.
+  DEV_EXPECT_GE(ConvertNorm<uint64_t>(1.0f),  0xffffff0000000000);
+  DEV_EXPECT_GE(ConvertNorm<int64_t>(1.0f),   0x7fffff8000000000);
+  DEV_EXPECT_LE(ConvertNorm<int64_t>(-1.0f), -0x7fffff8000000000);
 }
 
 DEVICE_TEST(ConvertSatNorm_Dev, float2int, 1, 1) {
@@ -68,6 +82,10 @@ DEVICE_TEST(ConvertSatNorm_Dev, float2int, 1, 1) {
 
   DEV_EXPECT_EQ(ConvertSatNorm<int16_t>(2.0f), 0x7fff);
   DEV_EXPECT_EQ(ConvertSatNorm<int16_t>(-2.0f), -0x8000);
+
+  DEV_EXPECT_GE(ConvertSatNorm<int64_t>(2.0f),  0x7fffff8000000000);
+  DEV_EXPECT_LE(ConvertSatNorm<int64_t>(-2.0f), -0x7fffff8000000000);
+  DEV_EXPECT_EQ(ConvertSatNorm<uint64_t>(-2.0f), 0);
 }
 
 TEST(ConvertNorm_CUDA_Host, int2float) {

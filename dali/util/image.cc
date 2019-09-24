@@ -48,8 +48,10 @@ std::vector<std::string> list_files(
   DIR *d = opendir(directory.c_str());
   DALI_ENFORCE(d, "didn't find any files in `" + directory + "`");
   while ((dir=readdir(d)) != nullptr) {
+#if !defined(__AARCH64_QNX__)
     if (dir->d_type != DT_REG)
       continue;
+#endif
     std::string filename{dir->d_name};
     if (!is_supported_extension(filename, supported_extensions))
       continue;

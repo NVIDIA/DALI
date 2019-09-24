@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATORS_UTIL_DUMMY_OP_H_
 #define DALI_PIPELINE_OPERATORS_UTIL_DUMMY_OP_H_
 
+#include <vector>
+
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
@@ -30,7 +32,11 @@ class DummyOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 
  protected:
-  void RunImpl(Workspace<Backend> *) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace<Backend> &) override {
     DALI_FAIL("I'm a dummy op don't run me");
   }
 };

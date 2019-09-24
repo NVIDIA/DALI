@@ -38,7 +38,7 @@ to_torch_type = {
 
 def feed_ndarray(dali_tensor, arr):
     """
-    Copy contents of DALI tensor to pyTorch's Tensor.
+    Copy contents of DALI tensor to PyTorch's Tensor.
 
     Parameters
     ----------
@@ -57,8 +57,8 @@ def feed_ndarray(dali_tensor, arr):
 
 class DALIGenericIterator(object):
     """
-    General DALI iterator for pyTorch. It can return any number of
-    outputs from the DALI pipeline in the form of pyTorch's Tensors.
+    General DALI iterator for PyTorch. It can return any number of
+    outputs from the DALI pipeline in the form of PyTorch's Tensors.
 
     Parameters
     ----------
@@ -116,7 +116,7 @@ class DALIGenericIterator(object):
         self._pipes = pipelines
         # Build all pipelines
         for p in self._pipes:
-            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR) as check:
                 p.build()
         # Use double-buffering of data batches
         self._data_batches = [[None, None] for i in range(self._num_gpus)]
@@ -129,7 +129,7 @@ class DALIGenericIterator(object):
         # We need data about the batches (like shape information),
         # so we need to run a single batch as part of setup to get that info
         for p in self._pipes:
-            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR) as check:
                 p.schedule_run()
         self._first_batch = None
         self._first_batch = self.next()
@@ -146,7 +146,7 @@ class DALIGenericIterator(object):
         # Gather outputs
         outputs = []
         for p in self._pipes:
-            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR) as check:
                outputs.append(p.share_outputs())
         for i in range(self._num_gpus):
             dev_id = self._pipes[i].device_id
@@ -197,7 +197,7 @@ class DALIGenericIterator(object):
                   feed_ndarray(tensor, pyt_tensors[category])
 
         for p in self._pipes:
-            with p._check_api_type_scope(types.PieplineAPIType.ITERATOR) as check:
+            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR) as check:
                 p.release_outputs()
                 p.schedule_run()
 
@@ -250,13 +250,16 @@ class DALIGenericIterator(object):
                 self._counter = 0
             for p in self._pipes:
                 p.reset()
+                if p.empty():
+                    with p._check_api_type_scope(types.PipelineAPIType.ITERATOR) as check:
+                        p.schedule_run()
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
 class DALIClassificationIterator(DALIGenericIterator):
     """
-    DALI iterator for classification tasks for pyTorch. It returns 2 outputs
-    (data and label) in the form of pyTorch's Tensor.
+    DALI iterator for classification tasks for PyTorch. It returns 2 outputs
+    (data and label) in the form of PyTorch's Tensor.
 
     Calling
 

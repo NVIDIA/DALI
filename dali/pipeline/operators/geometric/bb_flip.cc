@@ -49,23 +49,23 @@ BbFlip<CPUBackend>::BbFlip(const dali::OpSpec &spec)
   hflip_is_tensor_ = spec.HasTensorArgument(kHorizontalArgName);
 }
 
-void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
+void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
   const auto input_data = input.data<float>();
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
 
   const auto vertical =
       vflip_is_tensor_
-          ? spec_.GetArgument<int>(kVerticalArgName, ws, ws->data_idx())
+          ? spec_.GetArgument<int>(kVerticalArgName, &ws, ws.data_idx())
           : spec_.GetArgument<int>(kVerticalArgName);
 
   const auto horizontal =
       hflip_is_tensor_
-          ? spec_.GetArgument<int>(kHorizontalArgName, ws, ws->data_idx())
+          ? spec_.GetArgument<int>(kHorizontalArgName, &ws, ws.data_idx())
           : spec_.GetArgument<int>(kHorizontalArgName);
 
-  auto &output = ws->Output<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   // XXX: Setting type of output (i.e. Buffer -> buffer.h)
   //      explicitly is required for further processing
   //      It can also be achieved with mutable_data<>()

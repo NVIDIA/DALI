@@ -40,21 +40,23 @@ inline void CopyVecStatic(uint8 *output, const uint8 *input, size_t elems, size_
 }
 
 inline void CopyWithStrideHelper(void *output, const void *input,
-                                 const std::vector<Index> &in_strides,
-                                 const std::vector<Index> &out_strides,
-                                 const std::vector<Index> &shape,
+                                 const Index *in_strides,
+                                 const Index *out_strides,
+                                 const Index *shape,
+                                 Index ndim,
                                  Index dim, Index deepest_contiguous) {
   auto out_ptr = reinterpret_cast<uint8*>(output);
   auto in_ptr = reinterpret_cast<const uint8*>(input);
+  const auto item_size = out_strides[ndim - 1];
   if (dim == deepest_contiguous) {
     std::memcpy(out_ptr, in_ptr,
-        volume(shape.begin() + dim, shape.end())*out_strides.back());
+        volume(shape + dim, shape + ndim)*item_size);
     return;
   }
-  if (static_cast<size_t>(dim) == shape.size() - 1) {
-    VALUE_SWITCH(out_strides.back(), elem_size, (1, 2, 3, 4, 5, 6, 7, 8, 12, 16),
-                 (CopyVecStatic<elem_size>(out_ptr, in_ptr, shape.back(), in_strides.back())),
-                 (CopyVec(out_ptr, in_ptr, shape.back(), in_strides.back(), out_strides.back())));
+  if (dim == ndim - 1) {
+    VALUE_SWITCH(item_size, elem_size, (1, 2, 3, 4, 5, 6, 7, 8, 12, 16),
+                 (CopyVecStatic<elem_size>(out_ptr, in_ptr, shape[ndim - 1], in_strides[ndim - 1])),
+                 (CopyVec(out_ptr, in_ptr, shape[ndim - 1], in_strides[ndim - 1], item_size)));
     return;
   }
   const auto out_stride = out_strides[dim];
@@ -62,17 +64,18 @@ inline void CopyWithStrideHelper(void *output, const void *input,
   const auto n = shape[dim];
   for (Index i = 0; i < n; ++i) {
     CopyWithStrideHelper(out_ptr, in_ptr, in_strides, out_strides,
-        shape, dim + 1, deepest_contiguous);
+        shape, ndim, dim + 1, deepest_contiguous);
     out_ptr += out_stride;
     in_ptr += in_stride;
   }
 }
 
-inline Index DeepestContiguous(const std::vector<Index>& in_strides,
-                               const std::vector<Index>& shape,
+inline Index DeepestContiguous(const Index *in_strides,
+                               const Index *shape,
+                               int ndim,
                                size_t item_size) {
   ssize_t dim_prod = 1;
-  for (int i = in_strides.size()-1; i >= 0; --i) {
+  for (int i = ndim-1; i >= 0; --i) {
     if (in_strides[i] != dim_prod*static_cast<Index>(item_size)) {
       return i+1;
     }
@@ -81,19 +84,25 @@ inline Index DeepestContiguous(const std::vector<Index>& in_strides,
   return 0;
 }
 
-void CopyWithStride(void *output, const void *input,
-                    const std::vector<Index>& in_strides,
-                    const std::vector<Index>& shape,
+template <>
+void CopyWithStride<CPUBackend>(void *output, const void *input,
+                    const Index *in_strides,
+                    const Index *shape,
+                    int ndim,
                     size_t item_size) {
-  assert(!shape.empty());
-  assert(in_strides.size() == shape.size());
-  std::vector<Index> out_strides(shape.size());
+  assert(ndim > 0);
+  if (!in_strides) {
+    std::memcpy(output, input, item_size * volume(shape, shape + ndim));
+    return;
+  }
+  std::vector<Index> out_strides(ndim);
   out_strides.back() = item_size;
-  for (Index i = shape.size() - 2; i >= 0; --i) {
+  for (int i = ndim - 2; i >= 0; --i) {
     out_strides[i] = out_strides[i + 1] * shape[i + 1];
   }
-  auto deepest_contiguous = DeepestContiguous(in_strides, shape, item_size);
-  CopyWithStrideHelper(output, input, in_strides, out_strides, shape, 0, deepest_contiguous);
+  auto deepest_contiguous = DeepestContiguous(in_strides, shape, ndim, item_size);
+  CopyWithStrideHelper(output, input, in_strides, out_strides.data(),
+                       shape, ndim, 0, deepest_contiguous);
 }
 
 }  // namespace dali

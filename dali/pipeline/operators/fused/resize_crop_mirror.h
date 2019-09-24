@@ -138,14 +138,14 @@ class ResizeCropMirrorAttr : protected CropAttr {
     }
 
     if (flag & t_crop) {
-      auto crop_x_norm = spec.GetArgument<float>("crop_pos_x", ws, index);
-      auto crop_y_norm = spec.GetArgument<float>("crop_pos_y", ws, index);
-      meta.crop = CalculateCropYX(
-        crop_y_norm,
-        crop_x_norm,
-        crop_height_[index],
-        crop_width_[index],
-        meta.rsz_h, meta.rsz_w);
+      float crop_anchor_norm[2];
+      crop_anchor_norm[0] = spec.GetArgument<float>("crop_pos_y", ws, index);
+      crop_anchor_norm[1] = spec.GetArgument<float>("crop_pos_x", ws, index);
+
+      auto anchor_abs = CalculateAnchor(make_span(crop_anchor_norm),
+                                        {crop_height_[index], crop_width_[index]},
+                                        {meta.rsz_h, meta.rsz_w});
+      meta.crop = {anchor_abs[0], anchor_abs[1]};
     }
 
     if (flag & t_mirrorHor) {
@@ -216,26 +216,30 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
   ~ResizeCropMirror() override = default;
 
  protected:
-  inline void SetupSharedSampleParams(SampleWorkspace *ws) override {
-    per_thread_meta_[ws->thread_idx()] = GetTransfomMeta(ws, spec_);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
   }
 
-  inline void RunImpl(SampleWorkspace *ws) override {
+  inline void SetupSharedSampleParams(SampleWorkspace &ws) override {
+    per_thread_meta_[ws.thread_idx()] = GetTransfomMeta(&ws, spec_);
+  }
+
+  inline void RunImpl(SampleWorkspace &ws) override {
     RunResizeImpl(ws, ResizeCropMirrorHost);
   }
 
-  inline void RunResizeImpl(SampleWorkspace *ws, resizeCropMirroHost func) {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto &output = ws->Output<CPUBackend>(0);
+  inline void RunResizeImpl(SampleWorkspace &ws, resizeCropMirroHost func) {
+    auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
     CheckParam(input, "ResizeCropMirror");
 
-    const TransformMeta &meta = per_thread_meta_[ws->thread_idx()];
+    const TransformMeta &meta = per_thread_meta_[ws.thread_idx()];
 
     // Resize the output & run
     output.Resize(
-        std::vector<Index>{crop_height_[ws->data_idx()], crop_width_[ws->data_idx()], meta.C});
+        std::vector<Index>{crop_height_[ws.data_idx()], crop_width_[ws.data_idx()], meta.C});
 
-    tl_workspace_[ws->thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
+    tl_workspace_[ws.thread_idx()].resize(meta.rsz_h*meta.rsz_w*meta.C);
     DALI_CALL((*func)(
         input.template data<uint8>(),
         meta.H, meta.W, meta.C,
@@ -245,7 +249,7 @@ class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirror
         meta.mirror,
         output.template mutable_data<uint8>(),
         interp_type_,
-        tl_workspace_[ws->thread_idx()].data()));
+        tl_workspace_[ws.thread_idx()].data()));
   }
 
   vector<vector<uint8>> tl_workspace_;
@@ -267,7 +271,7 @@ class FastResizeCropMirror : public ResizeCropMirror<CPUBackend> {
   inline ~FastResizeCropMirror() override = default;
 
  protected:
-  inline void RunImpl(SampleWorkspace *ws) override {
+  inline void RunImpl(SampleWorkspace &ws) override {
     RunResizeImpl(ws, FastResizeCropMirrorHost);
   }
 };

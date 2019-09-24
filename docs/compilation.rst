@@ -73,8 +73,8 @@ Prerequisites
 .. _cmake link: https://cmake.org
 .. |jpegturbo link| replace:: **libjpeg-turbo 1.5.x**
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
-.. |ffmpeg link| replace:: **FFmpeg 3.4.2**
-.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-3.4.2.tar.bz2
+.. |ffmpeg link| replace:: **FFmpeg 4.2.1**
+.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2
 .. |opencv link| replace:: **OpenCV 3**
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
@@ -115,7 +115,7 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |jpegturbo link|_ or later             | *This can be unofficially disabled. See below.*                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |ffmpeg link|_ or later                | We recommend using version 3.4.2 compiled following the *instructions below*.               |
+   | |ffmpeg link|_ or later                | We recommend using version 4.2.1 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |opencv link|_ or later                | Supported version: 3.4                                                                      |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
@@ -138,7 +138,7 @@ Prerequisites
 
 .. note::
 
-   This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here. <https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-3.4.2.tar.bz2>`_
+   This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here. <https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2>`_
 
    FFmpeg was compiled using the following command line:
 
@@ -155,8 +155,8 @@ Prerequisites
      --enable-avcodec \
      --enable-avfilter \
      --enable-protocol=file \
-     --enable-demuxer=mov,matroska \
-     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
+     --enable-demuxer=mov,matroska,avi \
+     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes  && \
      make
 
 
@@ -222,6 +222,7 @@ Building DALI using Clang (experimental):
 -  ``BUILD_LMDB`` - build with support for LMDB (default: OFF)
 -  ``BUILD_NVTX`` - build with NVTX profiling enabled (default: OFF)
 -  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
+-  ``BUILD_LIBTIFF`` - build with ``libtiff`` support (default: ON)
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
 -  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
@@ -286,5 +287,41 @@ From the root of the DALI source tree
 .. code-block:: bash
 
     docker run -v $(pwd):/dali dali_builder:aarch64-linux
+
+The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``
+
+Cross-compiling DALI C++ API for aarch64 QNX (Docker)
+-----------------------------------------------------
+
+.. note::
+
+  Support for aarch64 QNX platform is experimental. Some of the features are available only for
+  x86-64 target and they are turned off in this build. There is no support for DALI Python library
+  on aarch64 yet. Some Operators may not work as intended due to x86-64 specific implementations.
+
+Setup
+^^^^^
+After aquiring the QNX Toolchain, place it in a directory called ``qnx`` in the root of the DALI tree.
+Then using the SDK Manager for NVIDIA DRIVE, select **QNX** as the *Target Operating System*
+and select **DRIVE OS 5.1.0.0 SDK**.
+
+In STEP 02 under **Download & Install Options**, select *Download Now. Install Later*.
+and agree to the Terms and Conditions. Once downloaded move the **cuda-repo-cross-qnx**
+debian package into the ``qnx`` directory you created in the DALI tree.
+
+Build the aarch64 Build Container
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+    docker build -t dali_builder:aarch64-qnx -f Dockerfile.build.aarch64-qnx .
+
+Compile
+^^^^^^^
+From the root of the DALI source tree
+
+.. code-block:: bash
+
+    docker run -v $(pwd):/dali dali_builder:aarch64-qnx
 
 The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``

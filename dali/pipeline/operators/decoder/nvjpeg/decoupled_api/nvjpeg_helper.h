@@ -86,6 +86,7 @@ inline nvjpegJpegState_t GetNvjpegState(const StateNvJPEG& state) {
 
 inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
     case DALI_RGB:
       return NVJPEG_OUTPUT_RGBI;
     case DALI_BGR:
@@ -143,8 +144,8 @@ inline bool ShouldUseHybridHuffman(EncodedImageInfo<T>& info,
                                    unsigned int threshold) {
   auto &roi = info.crop_window;
   unsigned int w = static_cast<unsigned int>(info.widths[0]);
-  unsigned int h = static_cast<unsigned int>(roi ? (roi.y + roi.h)
-                                                  : info.heights[0]);
+  unsigned int h = static_cast<unsigned int>(
+    roi ? (roi.anchor[0] + roi.shape[0]) : info.heights[0]);
   // TODO(spanev): replace it by nvJPEG API function when available in future release
   // We don't wanna call IsProgressiveJPEG if not needed
   return h*w > threshold && !IsProgressiveJPEG(input, size);
@@ -164,12 +165,9 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
     DALI_FAIL(e.what() + ". File: " + file_name);
   }
   const auto decoded = img->GetImage();
-  const auto hwc = img->GetImageDims();
-  const auto h = std::get<0>(hwc);
-  const auto w = std::get<1>(hwc);
-  const auto c = std::get<2>(hwc);
-
-  kernels::copy<StorageType, kernels::StorageCPU>(output_buffer, decoded.get(), h * w * c, stream);
+  const auto shape = img->GetShape();
+  kernels::copy<StorageType, kernels::StorageCPU>(
+    output_buffer, decoded.get(), volume(shape), stream);
 }
 
 }  // namespace dali

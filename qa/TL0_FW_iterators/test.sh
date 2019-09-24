@@ -2,7 +2,7 @@
 # used pip packages
 
 
-pip_packages="nose numpy opencv-python tensorflow-gpu torchvision mxnet-cu##CUDA_VERSION##"
+pip_packages="nose numpy opencv-python tensorflow-gpu torch torchvision mxnet-cu##CUDA_VERSION##"
 target_dir=./dali/test/python
 
 one_config_only=true
@@ -16,7 +16,7 @@ test_body() {
     python test_RN50_data_fw_iterators.py --gpus ${NUM_GPUS} -b 13 --workers 3 --prefetch 2 -i 2 --epochs 2 --fp16
 
     nosetests --verbose test_fw_iterators_detection.py
-    nosetests --verbose test_FW_iterators_shuffling.py
+    nosetests --verbose test_fw_iterators.py
 }
 
 pushd ../..

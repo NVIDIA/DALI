@@ -42,8 +42,8 @@ void RandomResizedCrop<CPUBackend>::BackendInit() {
 }
 
 template<>
-void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws) {
-  auto &input = ws->Input<CPUBackend>(0);
+void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+  auto &input = ws.Input<CPUBackend>(0);
   DALI_ENFORCE(input.ndim() == 3, "Operator expects 3-dimensional image input.");
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
 
@@ -53,24 +53,24 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace * ws) {
   const int newH = size_[0];
   const int newW = size_[1];
 
-  auto &output = ws->Output<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
 
-  RunCPU(output, input, ws->thread_idx());
+  RunCPU(output, input, ws.thread_idx());
 }
 
 template<>
-void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace *ws) {
-  auto &input = ws->Input<CPUBackend>(0);
+void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws) {
+  auto &input = ws.Input<CPUBackend>(0);
   auto& input_shape = input.shape();
   DALI_ENFORCE(input_shape.size() == 3,
       "Expects 3-dimensional image input.");
 
   int H = input_shape[0];
   int W = input_shape[1];
-  int id = ws->data_idx();
+  int id = ws.data_idx();
 
-  crops_[id] = GetCropWindowGenerator(id)(H, W);
-  resample_params_[ws->thread_idx()] = CalcResamplingParams(id);
+  crops_[id] = GetCropWindowGenerator(id)({H, W});
+  resample_params_[ws.thread_idx()] = CalcResamplingParams(id);
 }
 
 DALI_REGISTER_OPERATOR(RandomResizedCrop, RandomResizedCrop<CPUBackend>, CPU);

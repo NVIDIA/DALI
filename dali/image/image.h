@@ -27,6 +27,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/util/crop_window.h"
+#include "dali/kernels/tensor_shape.h"
 
 namespace dali {
 
@@ -38,6 +39,8 @@ DLL_PUBLIC bool HasKnownImageExtension(const std::string &image_path);
 
 class Image {
  public:
+  using Shape = kernels::TensorShape<3>;
+
   /**
    * Perform image decoding. Actual implementation is defined
    * by DecodeImpl template method
@@ -58,16 +61,22 @@ class Image {
   template<typename DstType>
   void GetImage(DstType *dst) const {
     DALI_ENFORCE(decoded_image_ && decoded_, "Image hasn't been decoded, call Decode(...)");
-    std::memcpy(dst, decoded_image_.get(), dims_multiply() * sizeof(DstType));
+    std::memcpy(dst, decoded_image_.get(), volume(shape_) * sizeof(DstType));
   }
 
 
   /**
-   * Returns image dimensions. If image hasn't been decoded,
-   * reads the dims without decoding the image.
-   * @return [height, width, depth (channels)]
+   * Returns the decoded image dimensions.
+   * It will fail if image hasn't been decoded,
+   * @return [height, width, depth channels]
    */
-  DLL_PUBLIC std::tuple<size_t, size_t, size_t> GetImageDims() const;
+  DLL_PUBLIC Shape GetShape() const;
+
+  /**
+   * Reads the original image dimensions without decoding the image.
+   * @return [height, width, channels]
+   */
+  DLL_PUBLIC Shape PeekShape() const;
 
  /**
   * Sets crop window generator
@@ -79,15 +88,15 @@ class Image {
   inline void SetCropWindow(const CropWindow& crop_window) {
     if (!crop_window)
       return;
-    crop_window_generator_ = [crop_window](int H, int W) {
-      DALI_ENFORCE(crop_window.IsInRange(H, W),
+    crop_window_generator_ = [crop_window](const kernels::TensorShape<>& shape) {
+      DALI_ENFORCE(crop_window.IsInRange(shape),
         "crop_window["
-        + std::to_string(crop_window.x)
-        + ", " + std::to_string(crop_window.y)
-        + ", " + std::to_string(crop_window.w)
-        + ", " + std::to_string(crop_window.h) + "]"
+        + std::to_string(crop_window.anchor[1])
+        + ", " + std::to_string(crop_window.anchor[0])
+        + ", " + std::to_string(crop_window.shape[1])
+        + ", " + std::to_string(crop_window.shape[0]) + "]"
         + " not valid from image dimensions [0, 0, "
-        + std::to_string(W) + ", " + std::to_string(H) + "]");
+        + std::to_string(shape[1]) + ", " + std::to_string(shape[0]) + "]");
       return crop_window;
     };
   }
@@ -100,21 +109,18 @@ class Image {
     return use_fast_idct_;
   }
 
-
   virtual ~Image() = default;
   DISABLE_COPY_MOVE_ASSIGN(Image);
 
  protected:
-  using ImageDims = std::tuple<size_t, size_t, size_t>;  /// (height, width, channels)
-
   /**
    * Template method, that implements actual decoding.
    * @param image_type
    * @param encoded_buffer encoded image data
    * @param length length of the encoded buffer
-   * @return [ptr to decoded image, ImageDims]
+   * @return [ptr to decoded image, Shape]
    */
-  virtual std::pair<std::shared_ptr<uint8_t>, ImageDims>
+  virtual std::pair<std::shared_ptr<uint8_t>, Shape>
   DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const = 0;
 
   /**
@@ -123,7 +129,7 @@ class Image {
    * @param length length of the encoded buffer
    * @return [height, width, depth]
    */
-  virtual ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const = 0;
+  virtual Shape PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const = 0;
 
   Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
@@ -135,18 +141,12 @@ class Image {
   }
 
  private:
-  inline size_t dims_multiply() const {
-    // There's no elegant way in C++11
-    return std::get<0>(dims_) * std::get<1>(dims_) * std::get<2>(dims_);
-  }
-
-
   const uint8_t *encoded_image_;
   const size_t length_;
   const DALIImageType image_type_;
   bool decoded_ = false;
   bool use_fast_idct_ = false;
-  ImageDims dims_;
+  Shape shape_;
   CropWindowGenerator crop_window_generator_;
   std::shared_ptr<uint8_t> decoded_image_ = nullptr;
 };

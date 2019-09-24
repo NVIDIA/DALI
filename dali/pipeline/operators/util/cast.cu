@@ -45,9 +45,9 @@ DALIError_t BatchedCast(OType * output,
 }
 
 template<>
-void Cast<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
-  const auto &input = ws->Input<GPUBackend>(0);
-  auto &output = ws->Output<GPUBackend>(0);
+void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
   DALIDataType itype = input.type().id();
 
@@ -59,7 +59,7 @@ void Cast<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
             output.mutable_data<OType>(),
             input.data<IType>(),
             input.size(),
-            ws->stream()));););
+            ws.stream()));););
 }
 
 DALI_REGISTER_OPERATOR(Cast, Cast<GPUBackend>, GPU);

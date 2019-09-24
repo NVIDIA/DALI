@@ -29,22 +29,26 @@ struct Surface2D {
     return data[y * row_stride + x * pixel_stride + c * channel_stride];
   }
 
-  /// @brief Provides implicit _reference_ cast to surface of type const T,
-  ///        if T is not already const
-  ///
-  /// @remarks The template magic is a workaround to avoid conversion to self
-  ///          when T is already const
+  /**
+   * @brief Provides implicit _reference_ cast to surface of type const T,
+   *        if T is not already const
+   *
+   * @remarks The template magic is a workaround to avoid conversion to self
+   *          when T is already const
+   */
   template <typename U = T,
             typename V = std::enable_if_t<!std::is_const<U>::value, const U>>
   __host__ __device__ operator Surface2D<V>&() {
     return *reinterpret_cast<Surface2D<V>*>(this);
   }
 
-  /// @brief Provides implicit _reference_ cast to surface of type const T,
-  ///        if T is not already const
-  ///
-  /// @remarks The template magic is a workaround to avoid conversion to self
-  ///          when T is already const
+  /**
+   * @brief Provides implicit _reference_ cast to surface of type const T,
+   *        if T is not already const
+   *
+   * @remarks The template magic is a workaround to avoid conversion to self
+   *          when T is already const
+   */
   template <typename U = T,
             typename V = std::enable_if_t<!std::is_const<U>::value, const U>>
   __host__ __device__ constexpr operator const Surface2D<V>&() const {

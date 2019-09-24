@@ -25,16 +25,20 @@
 namespace dali {
 namespace kernels {
 
-/// @brief Represents requirements for kernel to do its job for given inputs and arguments.
+/**
+ * @brief Represents requirements for kernel to do its job for given inputs and arguments.
+ */
 struct KernelRequirements {
   std::vector<TensorListShape<DynamicDimensions>> output_shapes;
 
-  std::array<size_t, (size_t)AllocType::Count> scratch_sizes;
+  std::array<size_t, (size_t)AllocType::Count> scratch_sizes = {};
 
-  /// @param reuse_scratch  - if true, scratch size is taken to be maximum from that for
-  ///                         all input sets, otherwise it's the sum
-  /// @param new_req        - requirements for the new input set, to be merged with this one
-  /// @return               - *this, for chaining
+  /**
+   * @param reuse_scratch  - if true, scratch size is taken to be maximum from that for
+   *                         all input sets, otherwise it's the sum
+   * @param new_req        - requirements for the new input set, to be merged with this one
+   * @return               - *this, for chaining
+   */
   KernelRequirements &AddInputSet(const KernelRequirements &new_req, bool reuse_scratch) {
     auto &r = new_req;
 
@@ -50,21 +54,23 @@ struct KernelRequirements {
   }
 };
 
-/// @brief A utility class for adding scratchpad requirements with proper alignment,
-///        assuming bump allocation.
+/**
+ * @brief A utility class for adding scratchpad requirements with proper alignment,
+ *        assuming bump allocation.
+ */
 struct ScratchpadEstimator {
-  ScratchpadEstimator() : sizes{} {}  // zero-fill
-
-  /// @brief Adds a new memory requirement for count instances of T
-  ///
-  /// The method includes padding, assuming the add function is called in order of allocations.
-  /// The resulting allocation size is equal to size of a structure which contains all allocated
-  /// objects assuming natural alignment.
-  /// The estimator assumes that scratch buffer implementation will provide memory block based at
-  /// largest possible alignment boundary.
-  ///
-  /// @return Total number of bytes required for given allocation method,
-  ///         including this allocation.
+  /**
+   * @brief Adds a new memory requirement for count instances of T
+   *
+   * The method includes padding, assuming the add function is called in order of allocations.
+   * The resulting allocation size is equal to size of a structure which contains all allocated
+   * objects assuming natural alignment.
+   * The estimator assumes that scratch buffer implementation will provide memory block based at
+   * largest possible alignment boundary.
+   *
+   * @return Total number of bytes required for given allocation method,
+   *         including this allocation.
+   */
   template <typename T>
   size_t add(AllocType alloc_type, size_t count, size_t alignment = alignof(T)) {
     size_t offset = align_up(sizes[(size_t)alloc_type], alignment);
@@ -74,7 +80,7 @@ struct ScratchpadEstimator {
     return sizes[(size_t)alloc_type];
   }
 
-  std::array<size_t, (size_t)AllocType::Count> sizes;
+  std::array<size_t, (size_t)AllocType::Count> sizes = {};
 };
 
 }  // namespace kernels

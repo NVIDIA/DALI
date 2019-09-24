@@ -293,9 +293,13 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
       : Operator<CPUBackend>(spec) {
   }
 
-  void RunImpl(Workspace<CPUBackend>* ws) override {
-    auto &input = ws->Input<CPUBackend>(0);
-    auto &output = ws->Output<CPUBackend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace<CPUBackend> &ws) override {
+    auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
     auto tmp_size = output.capacity();
     output.mutable_data<size_t>();
     output.Resize({2});
@@ -311,15 +315,19 @@ class DummyPresizeOpGPU : public Operator<GPUBackend> {
       : Operator<GPUBackend>(spec) {
   }
 
-  void RunImpl(Workspace<GPUBackend>* ws) override {
-    auto &input = ws->Input<GPUBackend>(0);
-    auto &output = ws->Output<GPUBackend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace<GPUBackend> &ws) override {
+    auto &input = ws.Input<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     output.mutable_data<size_t>();
     size_t tmp_size[2] = {output.capacity(), input.capacity()};
     std::vector< std::vector<Index> > shape {{1}};
     output.Resize(shape);
     auto out = output.mutable_data<size_t>();
-    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+    CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     CUDA_CALL(cudaMemcpy(out, &tmp_size, sizeof(size_t) * 2, cudaMemcpyDefault));
   }
 };
@@ -330,16 +338,20 @@ class DummyPresizeOpMixed : public Operator<MixedBackend> {
       : Operator<MixedBackend>(spec) {
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    return false;
+  }
+
   using Operator<MixedBackend>::Run;
-  void Run(MixedWorkspace* ws) override {
-    auto &input = ws->Input<CPUBackend>(0, 0);
-    auto &output = ws->Output<GPUBackend>(0);
+  void Run(MixedWorkspace &ws) override {
+    auto &input = ws.Input<CPUBackend>(0, 0);
+    auto &output = ws.Output<GPUBackend>(0);
     output.mutable_data<size_t>();
     size_t tmp_size[2] = {output.capacity(), input.capacity()};
     std::vector< std::vector<Index> > shape {{1}};
     output.Resize(shape);
     auto out = output.mutable_data<size_t>();
-    CUDA_CALL(cudaStreamSynchronize(ws->stream()));
+    CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     CUDA_CALL(cudaMemcpy(out, &tmp_size, sizeof(size_t) * 2, cudaMemcpyDefault));
   }
 };
@@ -680,7 +692,11 @@ class DummyOpToAdd : public Operator<CPUBackend> {
  public:
   explicit DummyOpToAdd(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  void RunImpl(HostWorkspace *ws) override {}
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(HostWorkspace &ws) override {}
 };
 
 DALI_REGISTER_OPERATOR(DummyOpToAdd, DummyOpToAdd, CPU);
@@ -695,7 +711,11 @@ class DummyOpNoSync : public Operator<CPUBackend> {
  public:
   explicit DummyOpNoSync(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  void RunImpl(HostWorkspace *ws) override {}
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(HostWorkspace &ws) override {}
 };
 
 DALI_REGISTER_OPERATOR(DummyOpNoSync, DummyOpNoSync, CPU);

@@ -35,19 +35,20 @@ DALI_SCHEMA(Crop)
     .AddParent("SliceBase");
 
 template <>
-void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
+void Crop<CPUBackend>::DataDependentSetup(SampleWorkspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
 
   const DALITensorLayout in_layout = input.GetLayout();
   DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW
-            || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW,
+            || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW
+            || in_layout == DALI_NDHWC || in_layout == DALI_NCDHW,
     "Unexpected data layout");
   DALITensorLayout out_layout = in_layout;
 
-  auto data_idx = ws->data_idx();
+  auto data_idx = ws.data_idx();
   SetupSample(data_idx, in_layout, input.shape());
 
-  auto &output = ws->Output<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout(out_layout);
 }
 

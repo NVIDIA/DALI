@@ -15,7 +15,9 @@
 #ifndef DALI_PIPELINE_OPERATORS_GEOMETRIC_BB_FLIP_CUH_
 #define DALI_PIPELINE_OPERATORS_GEOMETRIC_BB_FLIP_CUH_
 
-#include <dali/pipeline/operators/geometric/bb_flip.h>
+#include <vector>
+
+#include "dali/pipeline/operators/geometric/bb_flip.h"
 
 namespace dali {
 
@@ -24,7 +26,11 @@ class BbFlip<GPUBackend> : public Operator<GPUBackend> {
  public:
   explicit BbFlip(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
 
-  void RunImpl(Workspace<GPUBackend> *ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace<GPUBackend> &ws) override;
  private:
 };
 

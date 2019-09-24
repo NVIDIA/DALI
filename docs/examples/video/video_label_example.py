@@ -33,7 +33,7 @@ def YUV2RGB(yuv):
     rgb[:,:,2]-=226.8183044444304
     return rgb
 
-VIDEO_FILE_ROOT = "labelled_videos"
+VIDEO_FILE_ROOT = os.path.join(os.environ['DALI_EXTRA_PATH'], "db", "video", "sintel", "labelled_videos")
 
 ITER=100
 

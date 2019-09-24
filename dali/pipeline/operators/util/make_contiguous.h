@@ -40,16 +40,20 @@ class MakeContiguous : public Operator<MixedBackend> {
 
   virtual inline ~MakeContiguous() = default;
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    return false;
+  }
+
   using Operator<MixedBackend>::Run;
-  void Run(MixedWorkspace *ws) override {
-    const auto& input = ws->Input<CPUBackend>(0, 0);
+  void Run(MixedWorkspace &ws) override {
+    const auto& input = ws.Input<CPUBackend>(0, 0);
     int sample_dim = input.shape().sample_dim();
     kernels::TensorListShape<> output_shape(batch_size_, sample_dim);
     DALITensorLayout layout = input.GetLayout();
     TypeInfo type = input.type();
     size_t total_bytes = 0;
     for (int i = 0; i < batch_size_; ++i) {
-      auto &sample = ws->Input<CPUBackend>(0, i);
+      auto &sample = ws.Input<CPUBackend>(0, i);
       output_shape.set_tensor_shape(i, sample.shape());
       size_t sample_bytes = sample.nbytes();
       if (coalesced && sample_bytes > COALESCE_TRESHOLD)
@@ -61,14 +65,14 @@ class MakeContiguous : public Operator<MixedBackend> {
           "in input batch. Cannot copy to contiguous device buffer.");
     }
 
-    if (ws->OutputIsType<CPUBackend>(0)) {
-      auto &output = ws->Output<CPUBackend>(0);
+    if (ws.OutputIsType<CPUBackend>(0)) {
+      auto &output = ws.Output<CPUBackend>(0);
       output.Resize(output_shape);
       output.SetLayout(layout);
       output.set_type(type);
 
       for (int i = 0; i < batch_size_; ++i) {
-        auto &input = ws->Input<CPUBackend>(0, i);
+        auto &input = ws.Input<CPUBackend>(0, i);
 
         // Note: We know that this will translate into
         // a std::memcpy, so it is safe to pass stream 0
@@ -77,7 +81,7 @@ class MakeContiguous : public Operator<MixedBackend> {
             input.raw_data(), input.size(), 0);
       }
     } else {
-      auto &output = ws->Output<GPUBackend>(0);
+      auto &output = ws.Output<GPUBackend>(0);
       output.Resize(output_shape);
       output.SetLayout(layout);
       output.set_type(type);
@@ -95,7 +99,7 @@ class MakeContiguous : public Operator<MixedBackend> {
         cpu_output_buff.set_type(type);
 
         for (int i = 0; i < batch_size_; ++i) {
-          auto &input = ws->Input<CPUBackend>(0, i);
+          auto &input = ws.Input<CPUBackend>(0, i);
           memcpy(cpu_output_buff.raw_mutable_tensor(i), input.raw_data(), input.nbytes());
         }
         CUDA_CALL(cudaMemcpyAsync(
@@ -103,17 +107,17 @@ class MakeContiguous : public Operator<MixedBackend> {
               cpu_output_buff.raw_mutable_data(),
               cpu_output_buff.nbytes(),
               cudaMemcpyHostToDevice,
-              ws->stream()));
+              ws.stream()));
       } else {
         TimeRange tm("non coalesced", TimeRange::kGreen);
         for (int i = 0; i < batch_size_; ++i) {
-          auto &input = ws->Input<CPUBackend>(0, i);
+          auto &input = ws.Input<CPUBackend>(0, i);
           CUDA_CALL(cudaMemcpyAsync(
                   output.raw_mutable_tensor(i),
                   input.raw_data(),
                   input.nbytes(),
                   cudaMemcpyHostToDevice,
-                  ws->stream()));
+                  ws.stream()));
         }
       }
     }

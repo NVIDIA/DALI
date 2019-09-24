@@ -51,24 +51,24 @@ False for for width-height representation.)code",
       0.5f, true);
 
 template<>
-void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
+void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
   const auto input_data = input.data<float>();
 
   DALI_ENFORCE(input.type().id() == DALI_FLOAT, "Bounding box in wrong format");
   DALI_ENFORCE(input.size() % 4 == 0, "Bounding box tensor size must be a multiple of 4."
                                       "Got: " + std::to_string(input.size()));
 
-  auto &output = ws->Output<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   output.set_type(TypeInfo::Create<float>());
   output.ResizeLike(input);
   auto *output_data = output.mutable_data<float>();
 
-  const auto data_idx = ws->data_idx();
+  const auto data_idx = ws.data_idx();
   // pasting onto a larger canvas scales bounding boxes down by scale ratio
-  float ratio = spec_.GetArgument<float>("ratio", ws, data_idx);
-  float px = spec_.GetArgument<float>("paste_x", ws, data_idx);
-  float py = spec_.GetArgument<float>("paste_y", ws, data_idx);
+  float ratio = spec_.GetArgument<float>("ratio", &ws, data_idx);
+  float px = spec_.GetArgument<float>("paste_x", &ws, data_idx);
+  float py = spec_.GetArgument<float>("paste_y", &ws, data_idx);
   float scale = 1 / ratio;
 
   // offsets are scaled so that (0,0) pastes the image aligned to the top-left

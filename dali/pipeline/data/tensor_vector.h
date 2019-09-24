@@ -148,6 +148,26 @@ class TensorVector {
     return type_;
   }
 
+  inline void SetLayout(DALITensorLayout layout) {
+    if (state_ == State::noncontiguous) {
+      DALI_ENFORCE(!tensors_.empty(), "Layout cannot be set uniformly for empty batch");
+    }
+    tl_->SetLayout(layout);
+    for (auto t : tensors_) {
+      t->SetLayout(layout);
+    }
+  }
+
+  inline DALITensorLayout GetLayout() const {
+    if (state_ == State::contiguous) {
+      return tl_->GetLayout();
+    }
+    if (tensors_.size() > 0) {
+      return tensors_[0]->GetLayout();
+    }
+    return DALITensorLayout::DALI_UNKNOWN;
+  }
+
   inline void set_pinned(bool pinned) {
     // Store the value, in case we pin empty vector and later call Resize
     pinned_ = pinned;
@@ -168,13 +188,17 @@ class TensorVector {
     return pinned_;
   }
 
-  /// @brief Reserve as contiguous tensor list internally
+  /**
+   * @brief Reserve as contiguous tensor list internally
+   */
   inline void reserve(size_t total_bytes) {
     state_ = State::contiguous;
     tl_->reserve(total_bytes);
   }
 
-  /// @brief Reserve as vector of `batch_size` tensors internally
+  /**
+   * @brief Reserve as vector of `batch_size` tensors internally
+   */
   inline void reserve(size_t bytes_per_sample, int batch_size) {
     DALI_ENFORCE(tensors_.empty() || static_cast<int>(tensors_.size()) == batch_size,
                  "Changing the batch size is prohibited. It should be set once.");
@@ -189,14 +213,18 @@ class TensorVector {
     }
   }
 
-  /// @brief If the TensorVector is backed by TensorList (contiguous memory)
-  bool IsContiguous() {
+  /**
+   * @brief If the TensorVector is backed by TensorList (contiguous memory)
+   */
+  bool IsContiguous() const noexcept {
     // TODO(klecki): check the views_count as well?
-    return state_ == State::contiguous && views_count_ == size();
+    return state_ == State::contiguous && static_cast<size_t>(views_count_) == size();
   }
 
-  /// @brief Set the current state if further calls like Resize() or set_type
-  ///        should use TensorList or std::vector<Tensor> as backing memory
+  /**
+   * @brief Set the current state if further calls like Resize() or set_type
+   *        should use TensorList or std::vector<Tensor> as backing memory
+   */
   void SetContiguous(bool contiguous) {
     if (contiguous) {
       state_ = State::contiguous;
@@ -226,8 +254,8 @@ class TensorVector {
     if (!IsValidType(tl_->type())) return;
     if (!tl_->raw_data()) return;
 
+    views_count_ = tensors_.size();
     for (size_t i = 0; i < tensors_.size(); i++) {
-      views_count_ = tensors_.size();
       // TODO(klecki): deleter that reduces views_count or just noop sharing?
       // tensors_[i]->ShareData(tl_.get(), static_cast<int>(i));
       tensors_[i]->ShareData(

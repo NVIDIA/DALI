@@ -117,6 +117,16 @@ macro(get_dali_version FILENAME FILE_VAR)
   message("-- DALI version: " ${${FILE_VAR}})
 endmacro()
 
+macro(get_dali_extra_version FILENAME VERSION_VAR)
+  if(EXISTS "${FILENAME}")
+    file(STRINGS "${FILENAME}" ${VERSION_VAR} LIMIT_INPUT 40)
+  else()
+    set(${VERSION_VAR} "0000000000000000000000000000000000000000")
+  endif()
+  message("-- DALI_extra version: " ${${VERSION_VAR}})
+endmacro()
+
+
 # add a post-build step to the provided target which copies
 # files or directories recursively from SRC to DST
 # create phony target first (if not exists with given name yet)
@@ -196,7 +206,7 @@ cmake_parse_arguments(
   "" # multi value keywords
   ${ARGV})
 
-  file(GLOB collect_headers_tmp *.h)
+  file(GLOB collect_headers_tmp *.h *.hpp)
   set(${DALI_HEADERS_GROUP} ${${DALI_HEADERS_GROUP}} ${collect_headers_tmp})
   # We remove filenames containing substring test
   if(NOT COLLECT_HEADERS_INCLUDE_TEST)

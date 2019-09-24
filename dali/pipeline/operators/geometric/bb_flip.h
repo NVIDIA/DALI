@@ -15,9 +15,11 @@
 #ifndef DALI_PIPELINE_OPERATORS_GEOMETRIC_BB_FLIP_H_
 #define DALI_PIPELINE_OPERATORS_GEOMETRIC_BB_FLIP_H_
 
-#include <dali/pipeline/operators/common.h>
-#include <dali/pipeline/operators/operator.h>
 #include <string>
+#include <vector>
+
+#include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/operators/operator.h"
 
 namespace dali {
 
@@ -33,7 +35,11 @@ class BbFlip<CPUBackend> : public Operator<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BbFlip);
 
  protected:
-  void RunImpl(SampleWorkspace *ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(SampleWorkspace &ws) override;
   using Operator<CPUBackend>::RunImpl;
 
  private:

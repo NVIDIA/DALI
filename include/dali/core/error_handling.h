@@ -16,7 +16,7 @@
 #define DALI_CORE_ERROR_HANDLING_H_
 
 #ifndef _MSC_VER
-  #if defined(__AARCH64_GNU__)
+  #if defined(__AARCH64_QNX__) || defined(__AARCH64_GNU__)
      #define DALI_USE_STACKTRACE 0
   #else
      #define DALI_USE_STACKTRACE 1
@@ -231,12 +231,19 @@ inline dali::string GetStacktrace() {
 #define DALI_STR(x) DALI_STR2(x)
 #define FILE_AND_LINE __FILE__ ":" DALI_STR(__LINE__)
 
-#define DALI_MESSAGE(str)\
+#define DALI_MESSAGE_WITH_STACKTRACE(str)\
   (std::string("[" FILE_AND_LINE "] ") + str + dali::GetStacktrace())
 
-#define DALI_FAIL(str)                            \
-    throw dali::DALIException(DALI_MESSAGE(str)); \
+#define DALI_MESSAGE(str)\
+  (std::string("[" FILE_AND_LINE "] ") + str)
 
+#define DALI_FAIL(str)                            \
+    throw dali::DALIException(DALI_MESSAGE_WITH_STACKTRACE(str));
+
+#define DALI_ERROR(str)                                          \
+  do {                                                           \
+    std::cerr << DALI_MESSAGE_WITH_STACKTRACE(str) << std::endl; \
+  } while (0)
 
 #define DALI_WARN(str)                           \
   do {                                           \

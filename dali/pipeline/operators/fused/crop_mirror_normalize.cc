@@ -56,92 +56,63 @@ normalization only.
 
 DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>, CPU);
 
-namespace detail {
-
-template <typename OutputType, typename InputType>
-void RunHelper(Tensor<CPUBackend> &output,
-               const Tensor<CPUBackend> &input,
-               const std::vector<int64_t> &slice_anchor,
-               const std::vector<int64_t> &slice_shape,
-               bool horizontal_flip,
-               bool pad_output,
-               const std::vector<float> &mean,
-               const std::vector<float> &inv_std_dev) {
-  std::size_t number_of_dims = input.shape().size();
-  auto input_layout = input.GetLayout();
-  auto output_layout = output.GetLayout();
-  VALUE_SWITCH(number_of_dims, Dims, (3, 4), (
-    auto in_view = view<const InputType, Dims>(input);
-
-    kernels::SliceFlipNormalizePermuteArgs<Dims> args(slice_shape);
-    for (std::size_t d = 0; d < Dims; d++) {
-      args.anchor[d] = slice_anchor[d];
-    }
-
-    if (pad_output) {
-      args.padded_shape[channels_dim(input_layout)] = 4;
-    }
-
-    if (horizontal_flip) {
-      args.flip[horizontal_dim_idx(input_layout)] = true;
-    }
-
-    // Check if permutation is needed
-    if (input_layout != output_layout) {
-      args.permuted_dims = permuted_dims<Dims>(input_layout, output_layout);
-    }
-
-    const bool should_normalize =
-         !std::all_of(mean.begin(), mean.end(), [](float x){ return x == 0.0f; })
-      || !std::all_of(inv_std_dev.begin(), inv_std_dev.end(), [](float x){ return x == 1.0f; });
-    if (should_normalize) {
-      args.mean = mean;
-      args.inv_stddev = inv_std_dev;
-      args.normalization_dim = channels_dim(input_layout);
-    }
-
-    kernels::SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims> kernel;
-    kernels::KernelContext ctx;
-    kernels::KernelRequirements req = kernel.Setup(ctx, in_view, args);
-
-    output.set_type(TypeInfo::Create<OutputType>());
-    output.SetLayout(input.GetLayout());
-    output.Resize(req.output_shapes[0][0].shape.to_vector());
-
-    auto out_view = view<OutputType, Dims>(output);
-    kernel.Run(ctx, out_view, in_view, args);
-  ), // NOLINT
-  (
-    DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims));
-  )); // NOLINT
-}
-
-}  // namespace detail
-
 template <>
-void CropMirrorNormalize<CPUBackend>::DataDependentSetup(SampleWorkspace *ws) {
-  const auto &input = ws->Input<CPUBackend>(0);
-  SetupSample(ws->data_idx(), input_layout_, input.shape());
-  mirror_[ws->data_idx()] = spec_.GetArgument<int>("mirror", ws, ws->data_idx());
-
-  auto &output = ws->Output<CPUBackend>(0);
-  output.SetLayout(output_layout_);
-}
-
-template <>
-void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace *ws) {
-  this->DataDependentSetup(ws);
-  const auto &input = ws->Input<CPUBackend>(0);
-  auto &output = ws->Output<CPUBackend>(0);
-  auto data_idx = ws->data_idx();
-
-  DALI_TYPE_SWITCH_WITH_FP16_CPU(input_type_, InputType,
-    DALI_TYPE_SWITCH_WITH_FP16_CPU(output_type_, OutputType,
-      detail::RunHelper<OutputType, InputType>(
-        output, input, slice_anchors_[data_idx], slice_shapes_[data_idx],
-        mirror_[data_idx], pad_output_, mean_vec_, inv_std_vec_);
+bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                                const HostWorkspace &ws) {
+  output_desc.resize(1);
+  SetupAndInitialize(ws);
+  const auto &input = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
+  std::size_t number_of_dims = input.shape().sample_dim();
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
+      VALUE_SWITCH(number_of_dims, Dims, (3, 4),
+      (
+        using Kernel = kernels::SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims>;
+        using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
+        output_desc[0].type = TypeInfo::Create<OutputType>();
+        output_desc[0].shape.resize(batch_size_, Dims);
+        kmgr_.Initialize<Kernel>();
+        // Do the kernel setup
+        auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+        for (int sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
+          auto in_view = view<const InputType, Dims>(input[sample_idx]);
+          kernels::KernelContext ctx;
+          auto &req = kmgr_.Setup<Kernel>(sample_idx, ctx, in_view, kernel_sample_args[sample_idx]);
+          output_desc[0].shape.set_tensor_shape(sample_idx, req.output_shapes[0][0].shape);
+        }
+        // NOLINTNEXTLINE(whitespace/parens)
+      ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
     )
-  )
+  );  // NOLINT(whitespace/parens)
+
+  return true;
+}
+
+template <>
+void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
+  auto data_idx = ws.data_idx();
+  auto sample_idx = data_idx;
+  std::size_t number_of_dims = input.shape().sample_dim();
+
+  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
+    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
+      VALUE_SWITCH(number_of_dims, Dims, (3, 4),
+      (
+        using Kernel = kernels::SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims>;
+        using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
+        auto in_view = view<const InputType, Dims>(input);
+        auto out_view = view<OutputType, Dims>(output);
+        auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+        auto &args = kernel_sample_args[sample_idx];
+        kernels::KernelContext ctx;
+        kmgr_.Run<Kernel>(ws.thread_idx(), sample_idx, ctx, out_view, in_view, args);
+        // NOLINTNEXTLINE(whitespace/parens)
+      ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
+    )
+  );  // NOLINT(whitespace/parens)
 }
 
 }  // namespace dali

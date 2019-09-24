@@ -22,19 +22,20 @@
 namespace dali {
 
 template <>
-void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace *ws) {
-  const auto &input = ws->Input<GPUBackend>(0);
+void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
 
   const DALITensorLayout in_layout = input.GetLayout();
   DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW
-            || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW,
-    "Unexpected data layout");
+            || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW
+            || in_layout == DALI_NDHWC || in_layout == DALI_NCDHW,
+    "Unexpected data layout: " + std::to_string(in_layout));
   DALITensorLayout out_layout = in_layout;
 
   for (int i = 0; i < batch_size_; ++i) {
     SetupSample(i, in_layout, input.tensor_shape(i));
   }
-  auto &output = ws->Output<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(out_layout);
 }
 

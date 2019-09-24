@@ -164,8 +164,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    return false;
+  }
+
   using dali::OperatorBase::Run;
-  void Run(MixedWorkspace *ws) override {
+  void Run(MixedWorkspace &ws) override {
     SetupSharedSampleParams(ws);
     ParseImagesInfo(ws);
     ProcessImages(ws);
@@ -176,11 +180,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     return {};
   }
 
-  void ParseImagesInfo(MixedWorkspace *ws) {
-    const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
+  void ParseImagesInfo(MixedWorkspace &ws) {
     // Parsing and preparing metadata
     for (int i = 0; i < batch_size_; i++) {
-      const auto &in = ws->Input<CPUBackend>(0, i);
+      const auto &in = ws.Input<CPUBackend>(0, i);
       const auto *input_data = in.data<uint8_t>();
       const auto in_size = in.size();
       const auto file_name = in.GetSourceInfo();
@@ -196,21 +199,25 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                      static_cast<const unsigned char*>(input_data), in_size,
                                      &info.c, &info.subsampling,
                                      info.widths, info.heights);
-
+      int64_t nchannels = NumberOfChannels(output_image_type_);
       info.nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
       auto crop_generator = GetCropWindowGenerator(i);
       if (!info.nvjpeg_support) {
         try {
           const auto image = ImageFactory::CreateImage(
-            static_cast<const uint8 *>(input_data), in_size);
-          const auto dims = image->GetImageDims();
-          info.heights[0] = std::get<0>(dims);
-          info.widths[0] = std::get<1>(dims);
+            static_cast<const uint8 *>(input_data), in_size, output_image_type_);
+          const auto shape = image->PeekShape();
+          info.heights[0] = shape[0];
+          info.widths[0] = shape[1];
+          if (output_image_type_ == DALI_ANY_DATA)
+            nchannels = shape[2];
+
           if (crop_generator) {
-            info.crop_window = crop_generator(info.heights[0], info.widths[0]);
-            DALI_ENFORCE(info.crop_window.IsInRange(info.heights[0], info.widths[0]));
-            info.widths[0] = info.crop_window.w;
-            info.heights[0] = info.crop_window.h;
+            kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
+            info.crop_window = crop_generator(shape);
+            DALI_ENFORCE(info.crop_window.IsInRange(shape));
+            info.heights[0] = info.crop_window.shape[0];
+            info.widths[0] = info.crop_window.shape[1];
           }
           output_info_[i] = info;
         } catch (const std::runtime_error &e) {
@@ -218,13 +225,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         }
       } else {
         if (crop_generator) {
-          info.crop_window = crop_generator(info.heights[0], info.widths[0]);
+          kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
+          info.crop_window = crop_generator(shape);
           auto &crop_window = info.crop_window;
-          DALI_ENFORCE(crop_window.IsInRange(info.heights[0], info.widths[0]));
+          DALI_ENFORCE(crop_window.IsInRange(shape));
           nvjpegDecodeParamsSetROI(decode_params_[i],
-            crop_window.x, crop_window.y, crop_window.w, crop_window.h);
-          info.widths[0] = crop_window.w;
-          info.heights[0] = crop_window.h;
+                                   crop_window.anchor[1], crop_window.anchor[0],
+                                   crop_window.shape[1], crop_window.shape[0]);
+          info.heights[0] = crop_window.shape[0];
+          info.widths[0] = crop_window.shape[1];
         }
 
         if (ShouldUseHybridHuffman(info, input_data, in_size, hybrid_huffman_threshold_)) {
@@ -235,12 +244,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           image_states_[i] = decoder_host_state_[i];
         }
       }
-      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], c});
+      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], nchannels});
       output_info_[i] = info;
     }
   }
 
-  void ProcessImages(MixedWorkspace* ws) {
+  void ProcessImages(MixedWorkspace &ws) {
     // Creating output shape and setting the order of images so the largest are processed first
     // (for load balancing)
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
@@ -250,7 +259,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     std::sort(image_order.begin(), image_order.end(),
               std::greater<std::pair<size_t, size_t>>());
 
-    auto& output = ws->Output<GPUBackend>(0);
+    auto& output = ws.Output<GPUBackend>(0);
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
     output.Resize(output_shape_);
@@ -259,14 +268,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     for (int idx = 0; idx < batch_size_; ++idx) {
       const int i = image_order[idx].second;
 
-      const auto &in = ws->Input<CPUBackend>(0, i);
+      const auto &in = ws.Input<CPUBackend>(0, i);
       const auto file_name = in.GetSourceInfo();
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       if (DeferCacheLoad(file_name, output_data))
         continue;
 
-      auto dims = output_shape_[i];
-      ImageCache::ImageShape shape = {dims[0], dims[1], dims[2]};
+      ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
       thread_pool_.DoWorkWithID(
         [this, i, file_name, &in, output_data, shape](int tid) {
           SampleWorker(i, file_name, in.size(), tid,
@@ -274,13 +282,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           CacheStore(file_name, output_data, shape, streams_[tid]);
         });
     }
-    LoadDeferred(ws->stream());
+    LoadDeferred(ws.stream());
 
     thread_pool_.WaitForWork();
     // wait for all work in workspace master stream
     for (int i = 0; i < num_threads_; ++i) {
       CUDA_CALL(cudaEventRecord(decode_events_[i], streams_[i]));
-      CUDA_CALL(cudaStreamWaitEvent(ws->stream(), decode_events_[i], 0));
+      CUDA_CALL(cudaStreamWaitEvent(ws.stream(), decode_events_[i], 0));
     }
   }
 

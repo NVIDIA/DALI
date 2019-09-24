@@ -50,8 +50,13 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
   SetInitParams(params);
   DeviceGuard g(device_id_);
   CUDA_CALL(cuCtxGetCurrent(&context_));
-
-  TURING_OF_API_CALL(turing_of_.nvCreateOpticalFlowCuda(context_, &of_handle_));
+  {
+    auto ret = turing_of_.nvCreateOpticalFlowCuda(context_, &of_handle_);
+    if (ret != NV_OF_SUCCESS) {
+      throw unsupported_exception(
+          "Failed to create Optical Flow context: Verify that your device supports Optical Flow.");
+    }
+  }
   TURING_OF_API_CALL(turing_of_.nvOFSetIOCudaStreams(of_handle_, stream_, stream_));
   VerifySupport(turing_of_.nvOFInit(of_handle_, &init_params_));
 
@@ -197,10 +202,10 @@ NV_OF_EXECUTE_OUTPUT_PARAMS OpticalFlowTuring::GenerateExecuteOutParams
 
 
 void OpticalFlowTuring::LoadTuringOpticalFlow(const std::string &library_path) {
-  auto handle = dlopen(library_path.c_str(), RTLD_LOCAL | RTLD_LAZY);
+  const std::string library_path_1 = library_path + ".1";
+  auto handle = dlopen(library_path_1.c_str(), RTLD_LOCAL | RTLD_LAZY);
   if (!handle) {
-    const std::string library_path_1 = library_path + ".1";
-    handle = dlopen(library_path_1.c_str(), RTLD_LOCAL | RTLD_LAZY);
+    handle = dlopen(library_path.c_str(), RTLD_LOCAL | RTLD_LAZY);
     if (!handle) {
       throw unsupported_exception("Failed to load TuringOF library: " + std::string(dlerror()));
     }

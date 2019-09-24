@@ -59,7 +59,11 @@ class NormalizePermute : public Operator<Backend> {
   inline ~NormalizePermute() override = default;
 
  protected:
-  void RunImpl(Workspace<Backend> *ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace<Backend> &ws) override;
 
   template <typename OUT>
   void CPURunHelper(const Tensor<CPUBackend> &input, Tensor<CPUBackend> &output);

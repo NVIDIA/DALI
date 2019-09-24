@@ -134,6 +134,14 @@ class Pipeline(object):
         """Id of the GPU used by the pipeline."""
         return self._device_id
 
+    @property
+    def exec_pipelined(self):
+        return self._exec_pipelined
+
+    @property
+    def exec_async(self):
+        return self._exec_async
+
     def epoch_size(self, name = None):
         """Epoch size of a pipeline.
 
@@ -174,9 +182,9 @@ class Pipeline(object):
         self._sinks.append(edge)
 
     def _set_api_type(self, type):
-        if not types.PieplineAPIType._is_member(type):
+        if not types.PipelineAPIType._is_member(type):
             raise RuntimeError("Wrong pipeline API set!"
-                               "check available values in :meth:`nvidia.dali.types.PieplineAPIType`")
+                               "check available values in :meth:`nvidia.dali.types.PipelineAPIType`")
         self._api_type = type
 
     def _check_api_type(self, type):
@@ -307,7 +315,7 @@ class Pipeline(object):
 
     def feed_input(self, ref, data, layout=types.NHWC):
         """Bind the NumPy array to a tensor produced by ExternalSource
-        operator. It is worth mentioning that `ref` should not be overriden
+        operator. It is worth mentioning that `ref` should not be overridden
         with other operator outputs."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -352,7 +360,7 @@ class Pipeline(object):
         If the pipeline is executed asynchronously, this function blocks
         until the results become available. It rises StopIteration if data set
         reached its end - usually when iter_setup cannot produce any more data"""
-        with self._check_api_type_scope(types.PieplineAPIType.SCHEDULED) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
                 raise StopIteration
             self._batches_to_consume -= 1
@@ -370,7 +378,7 @@ class Pipeline(object):
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
         and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`.
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
-        with self._check_api_type_scope(types.PieplineAPIType.SCHEDULED) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
             if self._first_iter and self._exec_pipelined:
                 self._prefetch()
             else:
@@ -394,7 +402,7 @@ class Pipeline(object):
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
         and :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
-        with self._check_api_type_scope(types.PieplineAPIType.SCHEDULED) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
                 raise StopIteration
             self._batches_to_consume -= 1
@@ -417,7 +425,7 @@ class Pipeline(object):
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
         and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
-        with self._check_api_type_scope(types.PieplineAPIType.SCHEDULED) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
             if not self._built:
                 raise RuntimeError("Pipeline must be built first.")
             return self._pipe.ReleaseOutputs()
@@ -445,7 +453,7 @@ class Pipeline(object):
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run` in the same pipeline,
         :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` and
         :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`"""
-        with self._check_api_type_scope(types.PieplineAPIType.BASIC) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.BASIC) as check:
             self.schedule_run()
             return self.outputs()
 
@@ -517,6 +525,11 @@ class Pipeline(object):
         if self._last_iter:
             self._first_iter = True
             self._last_iter = False
+
+    def empty(self):
+        """If there is any work scheduled in the pipeline but not yet consumed
+        """
+        return self._batches_to_consume == 0
 
     def serialize(self):
         """Serialize the pipeline to a Protobuf string."""

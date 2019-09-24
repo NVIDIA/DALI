@@ -35,7 +35,9 @@ struct CopyRange {
 size_t Coalesce(span<CopyRange> ranges);
 }  // namespace detail
 
-/// Implements a device-to-device batch copy of multiple sources to multiple destinations
+/**
+ * Implements a device-to-device batch copy of multiple sources to multiple destinations
+ */
 class DLL_PUBLIC ScatterGatherGPU {
  public:
   static constexpr size_t kDefaultBlockSize = 64<<10;
@@ -62,7 +64,9 @@ class DLL_PUBLIC ScatterGatherGPU {
     blocks_.clear();
   }
 
-  /// @brief Adds one copy to the batch
+  /**
+   * @brief Adds one copy to the batch
+   */
   void AddCopy(void *dst, const void *src, size_t size) {
     if (size > 0) {
       ranges_.push_back({
@@ -73,11 +77,13 @@ class DLL_PUBLIC ScatterGatherGPU {
     }
   }
 
-  /// @brief Executes the copies
-  /// @param stream - the cudaStream on which the copies are scheduled
-  /// @param reset - if true, calls Reset after processing is over
-  /// @param useMemcpyOnly - if true, all copies are executed using cudaMemcpy;
-  ///                        otherwise a batched kernel is used if there are more than 2 ranges
+  /**
+   * @brief Executes the copies
+   * @param stream - the cudaStream on which the copies are scheduled
+   * @param reset - if true, calls Reset after processing is over
+   * @param useMemcpyOnly - if true, all copies are executed using cudaMemcpy;
+   *                        otherwise a batched kernel is used if there are more than 2 ranges
+   */
   DLL_PUBLIC void Run(cudaStream_t stream, bool reset = true, bool useMemcpyOnly = false);
 
   using CopyRange = detail::CopyRange;
@@ -85,16 +91,22 @@ class DLL_PUBLIC ScatterGatherGPU {
  private:
   std::vector<CopyRange> ranges_;
 
-  /// @brief Sorts and merges contiguous ranges
+  /**
+   * @brief Sorts and merges contiguous ranges
+   */
   void Coalesce() {
     size_t n = detail::Coalesce(make_span(ranges_.data(), ranges_.size()));
     ranges_.resize(n);
   }
 
-  /// @brief Divides ranges so they don't exceed `max_block_size_`
+  /**
+   * @brief Divides ranges so they don't exceed `max_block_size_`
+   */
   void MakeBlocks();
 
-  /// @brief Reserves GPU memory for the description of the blocks.
+  /**
+   * @brief Reserves GPU memory for the description of the blocks.
+   */
   void ReserveGPUBlocks();
 
   size_t max_size_per_block_ = kDefaultBlockSize;

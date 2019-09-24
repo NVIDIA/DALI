@@ -29,7 +29,9 @@ namespace detail {
 
 inline void copy_to_buffer(char *buffer, const size_t *offsets) {}
 
-/// @brief Copy contents of collections `{ c, tail... }` to pointers stored in `ptrs`.
+/**
+ * @brief Copy contents of collections `{ c, tail... }` to pointers stored in `ptrs`.
+ */
 template <typename Collection, typename... Collections>
 void copy_to_buffer(char *buffer,
                   const size_t *offsets,
@@ -42,12 +44,14 @@ void copy_to_buffer(char *buffer,
 
 inline void GetCollectionOffsets(size_t base, size_t *offsets) { *offsets = base; }
 
-/// @brief Assuming aligned storage in a single buffer,
-///        calculates start offsets of collections `{ c, tail... }`
-/// @param base     - offset of the first element of the first collection `c`
-/// @param offsets  - the array to store the offsets
-/// @param c        - collection to be stored at (aligned) `base`
-/// @param tail     - collections to be stored after `c`
+/**
+ * @brief Assuming aligned storage in a single buffer,
+ *        calculates start offsets of collections `{ c, tail... }`
+ * @param base     - offset of the first element of the first collection `c`
+ * @param offsets  - the array to store the offsets
+ * @param c        - collection to be stored at (aligned) `base`
+ * @param tail     - collections to be stored after `c`
+ */
 template <typename Collection, typename... Collections>
 void GetCollectionOffsets(size_t base, size_t *offsets,
                               const Collection &c,
@@ -90,7 +94,9 @@ auto variadic_max(T0 t0, T... tail) {
 }  // namespace detail
 
 
-/// @brief Allocates from scratchpad and copies the collections to the allocated buffer.
+/**
+ * @brief Allocates from scratchpad and copies the collections to the allocated buffer.
+ */
 template <typename... Collections>
 std::tuple<std::remove_cv_t<element_t<Collections>>*...>
 ToContiguousHostMem(Scratchpad &scratchpad, const Collections &... c) {
@@ -110,9 +116,11 @@ ToContiguousHostMem(Scratchpad &scratchpad, const Collections &... c) {
   return detail::GetCollectionPtrs(tmp, &offsets[0], c...);
 }
 
-/// @brief Allocates GPU from scratchpad, copies the collections to a
-///        temporary host buffer and then transfers the contents to the GPU in just one
-///        `cudaMemcpyAsync`.
+/**
+ * @brief Allocates GPU from scratchpad, copies the collections to a
+ *        temporary host buffer and then transfers the contents to the GPU in just one
+ *        `cudaMemcpyAsync`.
+ */
 template <typename... Collections>
 std::tuple<std::remove_cv_t<element_t<Collections>>*...>
 ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collections &... c) {

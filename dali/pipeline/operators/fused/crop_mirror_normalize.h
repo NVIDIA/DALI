@@ -19,139 +19,18 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/any.h"
 #include "dali/core/common.h"
-#include "dali/pipeline/operators/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/crop/crop_attr.h"
+#include "dali/core/static_switch.h"
+#include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/scratch.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_common.h"
+#include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/operators/crop/crop_attr.h"
+#include "dali/pipeline/operators/operator.h"
 
 namespace dali {
-
-template <typename Backend>
-class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
- public:
-  explicit inline CropMirrorNormalize(const OpSpec &spec)
-      : Operator<Backend>(spec),
-        CropAttr(spec),
-        output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
-        output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
-        pad_output_(spec.GetArgument<bool>("pad_output")),
-        slice_anchors_(batch_size_),
-        slice_shapes_(batch_size_),
-        mirror_(batch_size_) {
-    if (!spec.TryGetRepeatedArgument(mean_vec_, "mean")) {
-      mean_vec_ = { spec.GetArgument<float>("mean") };
-    }
-
-    if (!spec.TryGetRepeatedArgument(inv_std_vec_, "std")) {
-      inv_std_vec_ = { spec.GetArgument<float>("std") };
-    }
-
-    // Inverse the std-deviation
-    for (auto &element : inv_std_vec_) {
-      element = 1.f / element;
-    }
-  }
-
-  inline ~CropMirrorNormalize() override = default;
-
- protected:
-  void RunImpl(Workspace<Backend> *ws) override;
-
-  void SetupSharedSampleParams(Workspace<Backend> *ws) override {
-    const auto &input = ws->template Input<Backend>(0);
-    input_type_ = input.type().id();
-    if (output_type_ == DALI_NO_TYPE)
-      output_type_ = input_type_;
-
-    input_layout_ = input.GetLayout();
-    DALI_ENFORCE(input_layout_ == DALI_NHWC || input_layout_ == DALI_NCHW ||
-                 input_layout_ == DALI_NFHWC || input_layout_ == DALI_NFCHW,
-      "Unexpected data layout");
-    if (output_layout_ == DALI_SAME)
-      output_layout_ = input_layout_;
-
-    CropAttr::ProcessArguments(ws);
-  }
-
-  void DataDependentSetup(Workspace<Backend> *ws);
-
-  void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
-    Index F = 1, H, W, C;
-    DALI_ENFORCE(shape.size() == 3 || shape.size() == 4,
-      "Unexpected number of dimensions: " + std::to_string(shape.size()));
-    switch (layout) {
-      case DALI_NHWC:
-        std::tie(H, W, C) = std::make_tuple(shape[0], shape[1], shape[2]);
-        break;
-      case DALI_NCHW:
-        std::tie(C, H, W) = std::make_tuple(shape[0], shape[1], shape[2]);
-        break;
-      case DALI_NFHWC:
-        std::tie(F, H, W, C) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
-        break;
-      case DALI_NFCHW:
-        std::tie(F, C, H, W) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
-        break;
-      default:
-        DALI_FAIL("Not supported layout");
-    }
-
-    const bool is_whole_image = IsWholeImage();
-    int crop_h = is_whole_image ? H : crop_height_[data_idx];
-    int crop_w = is_whole_image ? W : crop_width_[data_idx];
-    auto crop_pos_y_x = CalculateCropYX(crop_y_norm_[data_idx], crop_x_norm_[data_idx],
-                                        crop_h, crop_w, H, W);
-
-    int64_t crop_y, crop_x;
-    std::tie(crop_y, crop_x) = crop_pos_y_x;
-
-    switch (layout) {
-      case DALI_NHWC:
-        slice_anchors_[data_idx] = {crop_y, crop_x, 0};
-        slice_shapes_[data_idx] = {crop_h, crop_w, C};
-        break;
-      case DALI_NCHW:
-        slice_anchors_[data_idx] = {0, crop_y, crop_x};
-        slice_shapes_[data_idx] = {C, crop_h, crop_w};
-        break;
-      case DALI_NFHWC:
-        slice_anchors_[data_idx] = {0, crop_y, crop_x, 0};
-        slice_shapes_[data_idx] = {F, crop_h, crop_w, C};
-        break;
-      case DALI_NFCHW:
-        slice_anchors_[data_idx] = {0, 0, crop_y, crop_x};
-        slice_shapes_[data_idx] = {F, C, crop_h, crop_w};
-        break;
-      default:
-        DALI_FAIL("Not supported layout");
-    }
-  }
-
-  DALIDataType input_type_ = DALI_NO_TYPE;
-  DALIDataType output_type_ = DALI_NO_TYPE;
-
-  DALITensorLayout input_layout_ = DALI_NHWC;
-  DALITensorLayout output_layout_ = DALI_SAME;
-
-  // Whether to pad output to 4 channels
-  bool pad_output_;
-
-  std::vector<std::vector<int64_t>> slice_anchors_, slice_shapes_;
-
-  std::vector<float> mean_vec_, inv_std_vec_;
-  std::vector<int> mirror_;
-
-  // In current implementation scratchpad memory is only used in the GPU kernel
-  // In case of using scratchpad in the CPU kernel a scratchpad allocator per thread
-  // should be instantiated
-  std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-    kernels::ScratchpadAllocator,
-    std::vector<kernels::ScratchpadAllocator>> scratch_alloc_;
-
-  USE_OPERATOR_MEMBERS();
-};
 
 namespace detail {
 
@@ -219,7 +98,209 @@ inline size_t channels_dim(DALITensorLayout in_layout) {
   }
 }
 
+// Rewrite Operator data as arguments for kernel
+// TODO(klecki): It probably could be written directly in that format
+template <size_t Dims>
+kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
+    DALITensorLayout input_layout, DALITensorLayout output_layout,
+    const std::vector<int64_t> &slice_anchor, const std::vector<int64_t> &slice_shape,
+    bool horizontal_flip, bool pad_output, const std::vector<float> &mean,
+    const std::vector<float> &inv_std_dev) {
+  kernels::SliceFlipNormalizePermutePadArgs<Dims> args(slice_shape);
+
+  for (std::size_t d = 0; d < Dims; d++) {
+    args.anchor[d] = slice_anchor[d];
+  }
+
+  if (pad_output) {
+    args.padded_shape[channels_dim(input_layout)] = 4;
+  }
+
+  if (horizontal_flip) {
+    args.flip[horizontal_dim_idx(input_layout)] = true;
+  }
+
+  // Check if permutation is needed
+  if (input_layout != output_layout) {
+    args.permuted_dims = permuted_dims<Dims>(input_layout, output_layout);
+  }
+  const bool should_normalize =
+      !std::all_of(mean.begin(), mean.end(), [](float x) { return x == 0.0f; }) ||
+      !std::all_of(inv_std_dev.begin(), inv_std_dev.end(), [](float x) { return x == 1.0f; });
+  if (should_normalize) {
+    args.mean = mean;
+    args.inv_stddev = inv_std_dev;
+    args.normalization_dim = channels_dim(input_layout);
+  }
+
+  return args;
+}
+
 }  // namespace detail
+
+
+template <typename Backend>
+class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
+ public:
+  explicit inline CropMirrorNormalize(const OpSpec &spec)
+      : Operator<Backend>(spec),
+        CropAttr(spec),
+        output_type_(spec.GetArgument<DALIDataType>("output_dtype")),
+        output_layout_(spec.GetArgument<DALITensorLayout>("output_layout")),
+        pad_output_(spec.GetArgument<bool>("pad_output")),
+        slice_anchors_(batch_size_),
+        slice_shapes_(batch_size_),
+        mirror_(batch_size_) {
+    if (!spec.TryGetRepeatedArgument(mean_vec_, "mean")) {
+      mean_vec_ = { spec.GetArgument<float>("mean") };
+    }
+
+    if (!spec.TryGetRepeatedArgument(inv_std_vec_, "std")) {
+      inv_std_vec_ = { spec.GetArgument<float>("std") };
+    }
+
+    // Inverse the std-deviation
+    for (auto &element : inv_std_vec_) {
+      element = 1.f / element;
+    }
+    if (std::is_same<Backend, GPUBackend>::value) {
+      kmgr_.Resize(1, 1);
+    } else {
+      kmgr_.Resize(num_threads_, batch_size_);
+    }
+  }
+
+  inline ~CropMirrorNormalize() override = default;
+
+ protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
+
+  void RunImpl(Workspace<Backend> &ws) override;
+
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
+  // Propagate input -> output type and layout
+  // Gather the CropAttr (obtain arguments from Spec/ArgumentWorkspace)
+  void SetupAndInitialize(const workspace_t<Backend> &ws) {
+    const auto &input = ws.template InputRef<Backend>(0);
+    input_type_ = input.type().id();
+    if (output_type_ == DALI_NO_TYPE)
+      output_type_ = input_type_;
+
+    input_layout_ = input.GetLayout();
+    DALI_ENFORCE(input_layout_ == DALI_NHWC || input_layout_ == DALI_NCHW ||
+                 input_layout_ == DALI_NFHWC || input_layout_ == DALI_NFCHW,
+      "Unexpected data layout");
+    if (output_layout_ == DALI_SAME)
+      output_layout_ = input_layout_;
+
+    CropAttr::ProcessArguments(ws);
+
+    const auto &in_shape = input.shape();  // This can be a copy
+    std::size_t number_of_dims = in_shape.sample_dim();
+
+    VALUE_SWITCH(number_of_dims, Dims, (3, 4),
+    (
+      using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
+      // We won't change the underlying type after the first allocation
+      if (!kernel_sample_args_.has_value()) {
+        kernel_sample_args_ = std::vector<Args>(batch_size_);
+      }
+      auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+
+      // Set internal info for each sample based on CropAttr
+      for (int data_idx = 0; data_idx < batch_size_; data_idx++) {
+        mirror_[data_idx] = spec_.template GetArgument<int>("mirror", &ws, data_idx);
+        SetupSample(data_idx, input_layout_, in_shape.tensor_shape(data_idx));
+        // convert the Operator representation to Kernel parameter representation
+        kernel_sample_args[data_idx] = detail::GetKernelArgs<Dims>(
+          input_layout_, output_layout_, slice_anchors_[data_idx], slice_shapes_[data_idx],
+          mirror_[data_idx], pad_output_, mean_vec_, inv_std_vec_);
+      }
+
+      // NOLINTNEXTLINE(whitespace/parens)
+    ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_dims)););
+
+
+
+    auto &output = ws.template OutputRef<Backend>(0);
+    output.SetLayout(output_layout_);
+  }
+
+  // Calculate slice window and anchor for given data_idx
+  void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
+    Index F = 1, H, W, C;
+    DALI_ENFORCE(shape.size() == 3 || shape.size() == 4,
+      "Unexpected number of dimensions: " + std::to_string(shape.size()));
+    switch (layout) {
+      case DALI_NHWC:
+        std::tie(H, W, C) = std::make_tuple(shape[0], shape[1], shape[2]);
+        break;
+      case DALI_NCHW:
+        std::tie(C, H, W) = std::make_tuple(shape[0], shape[1], shape[2]);
+        break;
+      case DALI_NFHWC:
+        std::tie(F, H, W, C) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
+        break;
+      case DALI_NFCHW:
+        std::tie(F, C, H, W) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
+        break;
+      default:
+        DALI_FAIL("Not supported layout");
+    }
+
+    const bool is_whole_image = IsWholeImage();
+    int crop_h = is_whole_image ? H : crop_height_[data_idx];
+    int crop_w = is_whole_image ? W : crop_width_[data_idx];
+
+    float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
+    auto anchor = CalculateAnchor(make_span(anchor_norm), {crop_h, crop_w}, {H, W});
+    int64_t crop_y = anchor[0], crop_x = anchor[1];
+
+    switch (layout) {
+      case DALI_NHWC:
+        slice_anchors_[data_idx] = {crop_y, crop_x, 0};
+        slice_shapes_[data_idx] = {crop_h, crop_w, C};
+        break;
+      case DALI_NCHW:
+        slice_anchors_[data_idx] = {0, crop_y, crop_x};
+        slice_shapes_[data_idx] = {C, crop_h, crop_w};
+        break;
+      case DALI_NFHWC:
+        slice_anchors_[data_idx] = {0, crop_y, crop_x, 0};
+        slice_shapes_[data_idx] = {F, crop_h, crop_w, C};
+        break;
+      case DALI_NFCHW:
+        slice_anchors_[data_idx] = {0, 0, crop_y, crop_x};
+        slice_shapes_[data_idx] = {F, C, crop_h, crop_w};
+        break;
+      default:
+        DALI_FAIL("Not supported layout");
+    }
+  }
+
+  DALIDataType input_type_ = DALI_NO_TYPE;
+  DALIDataType output_type_ = DALI_NO_TYPE;
+
+  DALITensorLayout input_layout_ = DALI_NHWC;
+  DALITensorLayout output_layout_ = DALI_SAME;
+
+  // Whether to pad output to 4 channels
+  bool pad_output_;
+
+  std::vector<std::vector<int64_t>> slice_anchors_, slice_shapes_;
+
+  std::vector<float> mean_vec_, inv_std_vec_;
+  std::vector<int> mirror_;
+
+  kernels::KernelManager kmgr_;
+  any kernel_sample_args_;
+
+  USE_OPERATOR_MEMBERS();
+};
+
 
 
 }  // namespace dali

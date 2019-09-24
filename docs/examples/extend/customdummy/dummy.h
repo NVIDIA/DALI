@@ -1,6 +1,8 @@
 #ifndef EXAMPLE_DUMMY_H_
 #define EXAMPLE_DUMMY_H_
 
+#include <vector>
+
 #include "dali/pipeline/operators/operator.h"
 
 namespace other_ns {
@@ -19,7 +21,19 @@ class Dummy : public ::dali::Operator<Backend> {
   Dummy& operator=(Dummy&&) = delete;
 
  protected:
-  void RunImpl(::dali::Workspace<Backend> *ws) override;
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
+  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
+                 const ::dali::workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    output_desc.resize(1);
+    output_desc[0] = {input.shape(), input.type()};
+    return true;
+  }
+
+  void RunImpl(::dali::Workspace<Backend> &ws) override;
 };
 
 }  // namespace other_ns

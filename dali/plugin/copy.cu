@@ -27,14 +27,16 @@ static void CopyToExternalTensorHelper(const dali::Buffer<T> &src,
                                        void *dst,
                                        device_type_t dst_type,
                                        size_t num,
-                                       cudaStream_t stream) {}
+                                       cudaStream_t stream,
+                                       bool non_blocking) {}
 
 template <>
 void CopyToExternalTensorHelper<CPUBackend>(const dali::Buffer<CPUBackend> &src,
                                             void *dst,
                                             device_type_t dst_type,
                                             size_t num,
-                                            cudaStream_t /** stream */) {
+                                            cudaStream_t /** stream */,
+                                            bool /** non_blocking */) {
   if (dst_type == CPU) {
     std::memcpy(dst, src.raw_data(), num);
   } else {
@@ -47,7 +49,8 @@ void CopyToExternalTensorHelper<GPUBackend>(const dali::Buffer<GPUBackend> &src,
                                             void *dst,
                                             device_type_t dst_type,
                                             size_t num,
-                                            cudaStream_t stream) {
+                                            cudaStream_t stream,
+                                            bool non_blocking) {
   DeviceGuard d(src.device_id());
   cudaMemcpyKind direction;
   if (dst_type == GPU) {
@@ -62,54 +65,64 @@ void CopyToExternalTensorHelper<GPUBackend>(const dali::Buffer<GPUBackend> &src,
                             num,
                             direction,
                             stream));
-  CUDA_CALL(cudaStreamSynchronize(stream));
+  if (!non_blocking) {
+    CUDA_CALL(cudaStreamSynchronize(stream));
+  }
 }
 
 template <typename T>
 static void CopyToExternalTensorListHelper(TensorList<T>* tl,
                                            void* ptr,
                                            device_type_t dst_type,
-                                           cudaStream_t stream) {
+                                           cudaStream_t stream,
+                                           bool non_blocking) {
   if (tl->IsDenseTensor()) {
     Tensor<T> t;
     t.ShareData(tl);
     CopyToExternalTensor(t, ptr, dst_type, stream);
   } else {
-    CopyToExternalTensorHelper<T>(*tl, ptr, dst_type, tl->nbytes(), stream);
+    CopyToExternalTensorHelper<T>(*tl, ptr, dst_type, tl->nbytes(), stream,
+                                  non_blocking);
   }
 }
 
 void CopyToExternalTensor(const Tensor<CPUBackend>& t,
                           void* ptr,
                           device_type_t dst_type,
-                          cudaStream_t stream) {
+                          cudaStream_t stream,
+                          bool non_blocking) {
   DALI_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
   CopyToExternalTensorHelper<CPUBackend>(t, ptr, dst_type,
                                          volume(t.shape()) * t.type().size(),
-                                         stream);
+                                         stream, non_blocking);
 }
 
 void CopyToExternalTensor(const Tensor<GPUBackend>& t,
                           void* ptr,
                           device_type_t dst_type,
-                          cudaStream_t stream) {
+                          cudaStream_t stream,
+                          bool non_blocking) {
   DALI_ENFORCE(t.ndim() > 0, "Can't copy empty Tensor!");
   CopyToExternalTensorHelper<GPUBackend>(t, ptr, dst_type,
                                          volume(t.shape()) * t.type().size(),
-                                         stream);
+                                         stream, non_blocking);
 }
 void CopyToExternalTensor(TensorList<CPUBackend>* tl,
                           void* ptr,
                           device_type_t dst_type,
-                          cudaStream_t stream) {
-  CopyToExternalTensorListHelper<CPUBackend>(tl, ptr, dst_type, stream);
+                          cudaStream_t stream,
+                          bool non_blocking) {
+  CopyToExternalTensorListHelper<CPUBackend>(tl, ptr, dst_type, stream,
+                                             non_blocking);
 }
 
 void CopyToExternalTensor(TensorList<GPUBackend>* tl,
                           void* ptr,
                           device_type_t dst_type,
-                          cudaStream_t stream) {
-  CopyToExternalTensorListHelper<GPUBackend>(tl, ptr, dst_type, stream);
+                          cudaStream_t stream,
+                          bool non_blocking) {
+  CopyToExternalTensorListHelper<GPUBackend>(tl, ptr, dst_type, stream,
+                                             non_blocking);
 }
 
 }  // namespace dali

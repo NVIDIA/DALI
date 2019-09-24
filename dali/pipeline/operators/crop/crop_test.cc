@@ -71,8 +71,17 @@ TYPED_TEST(CropTest, ErrorTooBigWindow5) {
 }
 
 TYPED_TEST(CropTest, ErrorWrongArgs_NoCropWindowDims) {
-  EXPECT_ANY_THROW(
-    this->RunTest("Crop", nullptr, 0, addImageType));
+  this->RunTest("Crop", nullptr, 0, addImageType);
+}
+
+TYPED_TEST(CropTest, ErrorWrongArgs_ExplicitNoCropWindowDims) {
+  const OpArg params[] = {{"crop", "-1, -1", DALI_FLOAT_VEC}};
+  this->RunTest("Crop", params, 1, addImageType);
+}
+
+TYPED_TEST(CropTest, ErrorWrongArgs_PartialNoCropWindowDims) {
+  const OpArg params[] = {{"crop", "-1, 256", DALI_FLOAT_VEC}};
+  this->RunTest("Crop", params, 1, addImageType);
 }
 
 TYPED_TEST(CropTest, ErrorWrongArgs2_BothCropAndCropHW) {

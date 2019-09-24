@@ -16,3 +16,9 @@
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
+
+if (NOT BUILD_LIBTIFF)
+    list(REMOVE_ITEM DALI_SRCS
+        ${DALI_SRC_DIR}/dali/image/tiff_libtiff.cc
+    )
+endif()

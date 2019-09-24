@@ -16,33 +16,34 @@
 #define DALI_CORE_GEOM_VEC_H_
 
 #include <cmath>
+#include <iosfwd>
 #include "dali/core/host_dev.h"
 #include "dali/core/util.h"
 #include "dali/core/math_util.h"
 
 namespace dali {
 
-template <size_t rows, size_t cols, typename T = float>
+template <int rows, int cols, typename T = float>
 struct mat;
 
-template <size_t N, typename T = float>
+template <int N, typename T = float>
 struct vec;
 
-template <size_t N>
+template <int N>
 using ivec = vec<N, int32_t>;
-template <size_t N>
+template <int N>
 using uvec = vec<N, uint32_t>;
-template <size_t N>
+template <int N>
 using i16vec = vec<N, int16_t>;
-template <size_t N>
+template <int N>
 using u16vec = vec<N, uint16_t>;
-template <size_t N>
+template <int N>
 using i8vec = vec<N, int8_t>;
-template <size_t N>
+template <int N>
 using u8vec = vec<N, uint8_t>;
-template <size_t N>
+template <int N>
 using dvec = vec<N, double>;
-template <size_t N>
+template <int N>
 using bvec = vec<N, bool>;
 
 #define DEFINE_VEC_ALIASES(prefix)     \
@@ -66,13 +67,13 @@ DEFINE_VEC_ALIASES()
 template <typename T>
 struct is_vec : std::false_type {};
 
-template <size_t N, typename T>
+template <int N, typename T>
 struct is_vec<vec<N, T>> : std::true_type {};
 
 template <typename T>
 struct is_mat : std::false_type {};
 
-template <size_t rows, size_t cols, typename Element>
+template <int rows, int cols, typename Element>
 struct is_mat<mat<rows, cols, Element>> : std::true_type {};
 
 template <typename T>
@@ -119,14 +120,14 @@ using promote_vec_t = typename promote_vec<T, U>::type;
 template <typename T, typename U>
 using promote_vec_scalar_t = typename promote_vec_scalar<T, U>::type;
 
-template <size_t N, typename T>
+template <int N, typename T>
 struct vec_base {
   constexpr vec_base() = default;
 
   /// @brief Distributes the scalar value to all components
   DALI_HOST_DEV
   constexpr vec_base(T scalar) {  // NOLINT
-    for (size_t i = 0; i < N; i++)
+    for (int i = 0; i < N; i++)
       v[i] = scalar;
   }
 
@@ -194,7 +195,7 @@ struct vec_base<4, T> {
   constexpr vec_base(T x, T y, T z, T w) : v{x, y, z, w} {}
 };
 
-template <size_t N, typename T>
+template <int N, typename T>
 struct vec : vec_base<N, T> {
   static_assert(std::is_standard_layout<T>::value,
                 "Cannot create a vector ofa non-standard layout type");
@@ -216,21 +217,21 @@ struct vec : vec_base<N, T> {
   constexpr vec(mat<N, 1, U> &m) : vec(m.col(0).template cast<T>()) {}  // NOLINT
 
   DALI_HOST_DEV
-  constexpr T &operator[](size_t i) { return v[i]; }
+  constexpr T &operator[](int i) { return v[i]; }
   DALI_HOST_DEV
-  constexpr const T &operator[](size_t i) const { return v[i]; }
+  constexpr const T &operator[](int i) const { return v[i]; }
 
   template <typename U>
   DALI_HOST_DEV
   constexpr vec<N, U> cast() const {
     vec<N, U> ret = {};
-    for (size_t i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
       ret.v[i] = static_cast<U>(v[i]);
     }
     return ret;
   }
 
-  DALI_HOST_DEV constexpr size_t size() const { return N; }
+  DALI_HOST_DEV constexpr int size() const { return N; }
 
   DALI_HOST_DEV constexpr T *begin() { return &v[0]; }
   DALI_HOST_DEV constexpr const T *cbegin() const { return &v[0]; }
@@ -242,7 +243,7 @@ struct vec : vec_base<N, T> {
   /// @brief Calculates the sum of squares of components.
   DALI_HOST_DEV constexpr auto length_square() const {
     decltype(v[0]*v[0] + v[0]*v[0]) ret = v[0]*v[0];
-    for (size_t i = 1; i < N; i++)
+    for (int i = 1; i < N; i++)
       ret += v[i]*v[i];
     return ret;
   }
@@ -267,7 +268,7 @@ struct vec : vec_base<N, T> {
   DALI_HOST_DEV
   inline vec operator-() const {
     vec<N, T> ret;
-    for (size_t i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
       ret.v[i] = -v[i];
     }
     return ret;
@@ -275,7 +276,7 @@ struct vec : vec_base<N, T> {
   DALI_HOST_DEV
   inline vec operator~() const {
     vec<N, T> ret;
-    for (size_t i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
       ret.v[i] = ~v[i];
     }
     return ret;
@@ -284,12 +285,12 @@ struct vec : vec_base<N, T> {
 #define DEFINE_ASSIGN_VEC_OP(op)                                                         \
   template <typename U>                                                                  \
   DALI_HOST_DEV vec &operator op(const vec<N, U> &rhs) {                                 \
-    for (size_t i = 0; i < N; i++) v[i] op rhs[i];                                       \
+    for (int i = 0; i < N; i++) v[i] op rhs[i];                                       \
     return *this;                                                                        \
   }                                                                                      \
   template <typename U>                                                                  \
   DALI_HOST_DEV std::enable_if_t<is_scalar<U>::value, vec &> operator op(const U &rhs) { \
-    for (size_t i = 0; i < N; i++) v[i] op rhs;                                          \
+    for (int i = 0; i < N; i++) v[i] op rhs;                                          \
     return *this;                                                                        \
   }
 
@@ -308,11 +309,11 @@ struct vec : vec_base<N, T> {
 };
 
 
-template <size_t N, typename T, typename U>
+template <int N, typename T, typename U>
 DALI_HOST_DEV
 constexpr auto dot(const vec<N, T> &a, const vec<N, U> &b) {
   decltype(a[0]*b[0] + a[0]*b[0]) ret = a[0]*b[0];
-  for (size_t i = 1; i < N; i++)
+  for (int i = 1; i < N; i++)
     ret += a[i]*b[i];
   return ret;
 }
@@ -336,24 +337,24 @@ constexpr auto cross(const vec<2, T> &a, const vec<2, U> &b) {
 }
 
 #define DEFINE_ELEMENTIWSE_VEC_BIN_OP(op)                                              \
-  template <size_t N, typename T, typename U>                                          \
+  template <int N, typename T, typename U>                                          \
   DALI_HOST_DEV inline auto operator op(const vec<N, T> &a, const vec<N, U> &b) {      \
     vec<N, promote_vec_t<T, U>> ret;                                                   \
-    for (size_t i = 0; i < N; i++) ret[i] = a[i] op b[i];                              \
+    for (int i = 0; i < N; i++) ret[i] = a[i] op b[i];                              \
     return ret;                                                                        \
   }                                                                                    \
-  template <size_t N, typename T, typename U, typename R = promote_vec_scalar_t<T, U>> \
+  template <int N, typename T, typename U, typename R = promote_vec_scalar_t<T, U>> \
   DALI_HOST_DEV inline std::enable_if_t<is_scalar<U>::value, vec<N, R>> operator op(   \
       const vec<N, T> &a, const U &b) {                                                \
     vec<N, R> ret;                                                                     \
-    for (size_t i = 0; i < N; i++) ret[i] = a[i] op b;                                 \
+    for (int i = 0; i < N; i++) ret[i] = a[i] op b;                                 \
     return ret;                                                                        \
   }                                                                                    \
-  template <size_t N, typename T, typename U, typename R = promote_vec_scalar_t<U, T>> \
+  template <int N, typename T, typename U, typename R = promote_vec_scalar_t<U, T>> \
   DALI_HOST_DEV inline std::enable_if_t<is_scalar<T>::value, vec<N, R>> operator op(   \
       const T &a, const vec<N, U> &b) {                                                \
     vec<N, R> ret;                                                                     \
-    for (size_t i = 0; i < N; i++) ret[i] = a op b[i];                                 \
+    for (int i = 0; i < N; i++) ret[i] = a op b[i];                                 \
     return ret;                                                                        \
   }
 
@@ -371,24 +372,24 @@ DEFINE_ELEMENTIWSE_VEC_BIN_OP(<=)
 DEFINE_ELEMENTIWSE_VEC_BIN_OP(>=)
 
 #define DEFINE_SHIFT_VEC_BIN_OP(op)                                                                \
-  template <size_t N, typename T, typename U>                                                      \
+  template <int N, typename T, typename U>                                                      \
   DALI_HOST_DEV vec<N, T> operator op(const vec<N, T> &a, const vec<N, U> &b) {                    \
     vec<N, T> ret;                                                                                 \
-    for (size_t i = 0; i < N; i++) ret[i] = a[i] op b[i];                                          \
+    for (int i = 0; i < N; i++) ret[i] = a[i] op b[i];                                          \
     return ret;                                                                                    \
   }                                                                                                \
-  template <size_t N, typename T, typename U>                                                      \
+  template <int N, typename T, typename U>                                                      \
   DALI_HOST_DEV std::enable_if_t<is_scalar<U>::value, vec<N, T>> operator op(const vec<N, T> &a,   \
                                                                              const U &b) {         \
     vec<N, T> ret;                                                                                 \
-    for (size_t i = 0; i < N; i++) ret[i] = a[i] op b;                                             \
+    for (int i = 0; i < N; i++) ret[i] = a[i] op b;                                             \
     return ret;                                                                                    \
   }                                                                                                \
-  template <size_t N, typename T, typename U>                                                      \
+  template <int N, typename T, typename U>                                                      \
   DALI_HOST_DEV std::enable_if_t<is_scalar<T>::value, vec<N, T>> operator op(const T &a,           \
                                                                              const vec<N, U> &b) { \
     vec<N, T> ret;                                                                                 \
-    for (size_t i = 0; i < N; i++) ret[i] = a op b[i];                                             \
+    for (int i = 0; i < N; i++) ret[i] = a op b[i];                                             \
     return ret;                                                                                    \
   }
 
@@ -402,33 +403,33 @@ struct is_true {
   }
 };
 
-template <size_t N, typename T, typename Pred = is_true>
+template <int N, typename T, typename Pred = is_true>
 DALI_HOST_DEV constexpr bool all_coords(const vec<N, T> &a, Pred P = {}) {
-  for (size_t i = 0; i < N; i++)
+  for (int i = 0; i < N; i++)
     if (!P(a[i]))
       return false;
   return true;
 }
 
-template <size_t N, typename T, typename Pred = is_true>
+template <int N, typename T, typename Pred = is_true>
 DALI_HOST_DEV constexpr bool any_coord(const vec<N, T> &a, Pred P = {}) {
-  for (size_t i = 0; i < N; i++)
+  for (int i = 0; i < N; i++)
     if (P(a[i]))
       return true;
   return false;
 }
 
-template <size_t N, typename T, typename U>
+template <int N, typename T, typename U>
 DALI_HOST_DEV constexpr bool operator==(const vec<N, T> &a, const vec<N, U> &b) {
-  for (size_t i = 0; i < N; i++)
+  for (int i = 0; i < N; i++)
     if (a[i] != b[i])
       return false;
   return true;
 }
 
-template <size_t N, typename T, typename U>
+template <int N, typename T, typename U>
 DALI_HOST_DEV constexpr bool operator!=(const vec<N, T> &a, const vec<N, U> &b) {
-  for (size_t i = 0; i < N; i++)
+  for (int i = 0; i < N; i++)
     if (a[i] != b[i])
       return true;
   return false;
@@ -438,7 +439,7 @@ DALI_HOST_DEV constexpr bool operator!=(const vec<N, T> &a, const vec<N, U> &b) 
 ///        with an index `i` ranging from 0 to N-1. `N` must be a compile-time constant
 ///        present at evaluation site.
 #define IMPL_VEC_ELEMENTWISE(...)                                             \
-  size_t i = 0;                                                               \
+  int i = 0;                                                               \
   using R = std::remove_cv_t<std::remove_reference_t<decltype(__VA_ARGS__)>>; \
   vec<N, R> result = {};                                                      \
   for (i = 0; i < N; i++) {                                                   \
@@ -446,119 +447,119 @@ DALI_HOST_DEV constexpr bool operator!=(const vec<N, T> &a, const vec<N, U> &b) 
   }                                                                           \
   return result;
 
-template <typename To, size_t N, typename From>
+template <typename To, int N, typename From>
 DALI_HOST_DEV inline vec<N, To> cast(const vec<N, From> &v) {
   return v.template cast<To>();
 }
 
-template <size_t N, typename T>
+template <int N, typename T>
 DALI_HOST_DEV vec<N, T>
 clamp(const vec<N, T> &in, const vec<N, T> &lo, const vec<N, T> &hi) {
   IMPL_VEC_ELEMENTWISE(clamp(in[i], lo[i], hi[i]));
 }
 
 #ifdef __CUDA_ARCH__
-template <size_t N>
+template <int N>
 __device__ vec<N> floor(const vec<N> &a) {
   IMPL_VEC_ELEMENTWISE(floorf(a[i]));
 }
 
-template <size_t N>
+template <int N>
 __device__ vec<N> ceil(const vec<N> &a) {
   IMPL_VEC_ELEMENTWISE(ceilf(a[i]));
 }
 
-template <size_t N, typename T>
+template <int N, typename T>
 __device__ vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
   IMPL_VEC_ELEMENTWISE(::min(a[i], b[i]));
 }
 
-template <size_t N, typename T>
+template <int N, typename T>
 __device__ vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
   IMPL_VEC_ELEMENTWISE(::max(a[i], b[i]));
 }
 
 #else
 
-template <size_t N, typename T>
+template <int N, typename T>
 constexpr vec<N, T> floor(const vec<N, T> &a) {
   IMPL_VEC_ELEMENTWISE(std::floor(a[i]));
 }
 
-template <size_t N, typename T>
+template <int N, typename T>
 constexpr vec<N, T> ceil(const vec<N, T> &a) {
   IMPL_VEC_ELEMENTWISE(std::ceil(a[i]));
 }
 
-template <size_t N, typename T>
+template <int N, typename T>
 constexpr vec<N, T> min(const vec<N, T> &a, const vec<N, T> &b) {
   IMPL_VEC_ELEMENTWISE(std::min(a[i], b[i]));
 }
 
-template <size_t N, typename T>
+template <int N, typename T>
 constexpr vec<N, T> max(const vec<N, T> &a, const vec<N, T> &b) {
   IMPL_VEC_ELEMENTWISE(std::max(a[i], b[i]));
 }
 
 #endif
 
-template <size_t N>
+template <int N>
 DALI_HOST_DEV ivec<N> round_int(const vec<N> &a) {
   IMPL_VEC_ELEMENTWISE(round_int(a[i]));
 }
 
-template <typename T, size_t size0, size_t size1>
+template <typename T, int size0, int size1>
 DALI_HOST_DEV
 constexpr auto cat(const vec<size0, T> &v0, const vec<size1, T> &v1) {
   vec<size0 + size1, T> ret = {};
-  for (size_t i = 0; i < size0; i ++) {
+  for (int i = 0; i < size0; i ++) {
     ret[i] = v0[i];
   }
-  for (size_t i = 0; i < size1; i ++) {
+  for (int i = 0; i < size1; i ++) {
     ret[i + size0] = v1[i];
   }
   return ret;
 }
 
-template <typename T, size_t size0>
+template <typename T, int size0>
 DALI_HOST_DEV
 constexpr auto cat(const vec<size0, T> &v0, T v1) {
   vec<size0 + 1, T> ret = {};
-  for (size_t i = 0; i < size0; i ++) {
+  for (int i = 0; i < size0; i ++) {
     ret[i] = v0[i];
   }
   ret[size0] = v1;
   return ret;
 }
 
-template <typename T, size_t size1>
+template <typename T, int size1>
 DALI_HOST_DEV
 constexpr auto cat(T v0, const vec<size1, T> &v1) {
   vec<size1 + 1, T> ret = {};
   ret[0] = v0;
-  for (size_t i = 0; i < size1; i ++) {
+  for (int i = 0; i < size1; i ++) {
     ret[i+1] = v1[i];
   }
   return ret;
 }
 
-template <typename T, size_t size0, size_t... sizes>
+template <typename T, int size0, int... sizes>
 DALI_HOST_DEV
 constexpr auto cat(const vec<size0, T> &v0, const vec<sizes, T> &...tail) {
   return cat(v0, cat(tail...));
 }
 
-template <size_t sub_n, size_t n, typename T>
+template <int sub_n, int n, typename T>
 DALI_HOST_DEV
-constexpr auto sub(const vec<n, T> &orig, size_t start = 0) {
+constexpr auto sub(const vec<n, T> &orig, int start = 0) {
   static_assert(sub_n <= n, "Cannot extend a vector using `sub` function.");
   vec<sub_n, T> ret = {};
-  for (size_t i = 0; i < sub_n; i++)
+  for (int i = 0; i < sub_n; i++)
     ret[i] = orig[i + start];
   return ret;
 }
 
-template <size_t... indices, size_t N, typename T>
+template <int... indices, int N, typename T>
 constexpr vec<sizeof...(indices), T> shuffle(const vec<N, T> &v) {
   static_assert(all_of<(indices < N)...>::value, "Vector component index out of range");
   return { v[indices]... };
@@ -569,6 +570,14 @@ static_assert(std::is_pod<vec<2>>::value, "vec<2, T> must be a POD type");
 static_assert(std::is_pod<vec<3>>::value, "vec<3, T> must be a POD type");
 static_assert(std::is_pod<vec<4>>::value, "vec<4, T> must be a POD type");
 static_assert(std::is_pod<vec<5>>::value, "vec<N, T> must be a POD type");
+
+template <int N, typename T>
+std::ostream &operator<<(std::ostream& os, const dali::vec<N, T> &v) {
+  for (int i = 0; i < N; i++)
+    os << (i ? ", " : "{") << v[i];
+  os << "}";
+  return os;
+}
 
 }  // namespace dali
 

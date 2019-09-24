@@ -137,12 +137,14 @@ __device__ void suite_name##_##test_name##_body( \
 
 #define TEST_KERNEL_NAME(suite_name, test_name) suite_name##_##test_name##_kernel
 
-/// Executes default test case body.
-/// @param suite_name - test suite name, as used in DEFINE_TEST_KERNEL
-/// @param test_name - test case name, as used in DEFINE_TEST_KERNEL
-/// @param grid - CUDA grid size
-/// @param block - CUDA block size
-/// @param ... - extra parameters passed to the kernel invocation, if any
+/**
+ * Executes default test case body.
+ * @param suite_name - test suite name, as used in DEFINE_TEST_KERNEL
+ * @param test_name - test case name, as used in DEFINE_TEST_KERNEL
+ * @param grid - CUDA grid size
+ * @param block - CUDA block size
+ * @param ... - extra parameters passed to the kernel invocation, if any
+ */
 #define DEVICE_TEST_CASE_BODY(suite_name, test_name, grid, block, ...) \
   using TestStatus = dali::testing::TestStatus; \
   TestStatus *status = nullptr; \
@@ -163,11 +165,13 @@ __device__ void suite_name##_##test_name##_body( \
   } \
   EXPECT_FALSE(host_status.failed) << "There were errors in device code";
 
-/// Simple test of a device function
-/// @param suite_name GTest's suite name
-/// @param test_name GTest's test case name
-/// @param grid CUDA grid size
-/// @param block CUDA block size
+/**
+ * Simple test of a device function
+ * @param suite_name GTest's suite name
+ * @param test_name GTest's test case name
+ * @param grid CUDA grid size
+ * @param block CUDA block size
+ */
 #define DEVICE_TEST(suite_name, test_name, grid, block) \
 DECLARE_TEST_KERNEL(suite_name, test_name); \
 TEST(suite_name, test_name) \

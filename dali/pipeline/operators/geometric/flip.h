@@ -32,22 +32,26 @@ class Flip: public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Flip);
 
  protected:
-  void RunImpl(Workspace<Backend> *ws) override;
-
-  int GetHorizontal(const ArgumentWorkspace *ws, int idx) {
-    return this->spec_.template GetArgument<int>("horizontal", ws, idx);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    return false;
   }
 
-  int GetVertical(const ArgumentWorkspace *ws, int idx) {
-    return this->spec_.template GetArgument<int>("vertical", ws, idx);
+  void RunImpl(Workspace<Backend> &ws) override;
+
+  int GetHorizontal(const ArgumentWorkspace &ws, int idx) {
+    return this->spec_.template GetArgument<int>("horizontal", &ws, idx);
   }
 
-  std::vector<int> GetHorizontal(const ArgumentWorkspace *ws) {
-    return GetTensorArgument(ws, "horizontal");
+  int GetVertical(const ArgumentWorkspace &ws, int idx) {
+    return this->spec_.template GetArgument<int>("vertical", &ws, idx);
   }
 
-  std::vector<int> GetVertical(const ArgumentWorkspace *ws) {
-    return GetTensorArgument(ws, "vertical");
+  std::vector<int> GetHorizontal(const ArgumentWorkspace &ws) {
+    return GetTensorArgument(&ws, "horizontal");
+  }
+
+  std::vector<int> GetVertical(const ArgumentWorkspace &ws) {
+    return GetTensorArgument(&ws, "vertical");
   }
 
  private:

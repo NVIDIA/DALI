@@ -1,0 +1,40 @@
+# (C) Copyright IBM Corp. 2019. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{% set build_version = "1.5.0" %}
+
+  package:
+    name: jpeg-turbo
+    version: {{ build_version }}
+
+  source:
+    git_url: https://github.com/libjpeg-turbo/libjpeg-turbo
+    git_rev: 1.5.x
+
+  build:
+    number: 0
+    string: jpeg_turbo
+
+  requirements:
+    build: 
+      - {{ compiler('c') }}
+      - {{ compiler('cxx') }}
+      - autoconf 2.69
+      - automake 1.16.1
+      - libtool 2.4.6
+      - java-openjdk-ppc64le 1.8.0 # [ppc64le]
+      - openjdk 8.0.152  # [x86_64]
+      - cmake 3.12.2
+      - make 4.2.1
+      - nasm 2.13.03 # [x86_64]

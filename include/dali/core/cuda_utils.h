@@ -15,26 +15,14 @@
 #ifndef DALI_CORE_CUDA_UTILS_H_
 #define DALI_CORE_CUDA_UTILS_H_
 
-#include <cuda_fp16.h>  // for __half & related methods
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
 #include <type_traits>
+#include "dali/core/float16.h"
 #include "dali/core/host_dev.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_error.h"
 
-// For the CPU we use half_float lib and float16_cpu type
-namespace half_float {
-
-class half;
-
-}
-
 namespace dali {
-
-// For the GPU
-typedef __half float16;
-// For the CPU
-typedef half_float::half float16_cpu;
 
 // Compatible wrapper for CUDA 8 which does not have builtin
 // static_cast<float16>

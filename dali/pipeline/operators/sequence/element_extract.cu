@@ -34,8 +34,8 @@ kernels::TensorListShape<> GetOutputShape(const TensorList<GPUBackend> &input,
 }  // namespace detail
 
 template <>
-void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
-    auto &input = ws->Input<GPUBackend>(0);
+void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+    auto &input = ws.Input<GPUBackend>(0);
     auto output_shape = detail::GetOutputShape(input, element_map_);
     auto element_layout = GetElementLayout(input.GetLayout());
     int elements_per_sample = element_map_.size();
@@ -43,7 +43,7 @@ void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
     auto data_type = input.type();
     for (int k = 0; k < elements_per_sample; k++) {
         int element = element_map_[k];
-        auto &output = ws->Output<GPUBackend>(output_offset + k);
+        auto &output = ws.Output<GPUBackend>(output_offset + k);
         output.set_type(input.type());
         output.SetLayout(element_layout);
         output.Resize(output_shape);
@@ -57,7 +57,7 @@ void ElementExtract<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
                 output.raw_mutable_tensor(i),
                 static_cast<const uint8_t*>(input.raw_tensor(i)) + input_offset_bytes,
                 element_size,
-                ws->stream());
+                ws.stream());
         }
     }
 }

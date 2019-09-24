@@ -22,15 +22,15 @@ typedef NppStatus (*colorTwistFunc)(const Npp8u *pSrc, int nSrcStep, Npp8u *pDst
                                     NppiSize oSizeROI, const Npp32f aTwist[3][4]);
 
 template <>
-void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
-  const auto &input = ws->Input<GPUBackend>(0);
+void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   DALI_ENFORCE(IsType<uint8_t>(input.type()),
       "Color augmentations accept only uint8 tensors");
-  auto &output = ws->Output<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.ResizeLike(input);
 
   cudaStream_t old_stream = nppGetStream();
-  nppSetStream(ws->stream());
+  nppSetStream(ws.stream());
 
   for (size_t i = 0; i < input.ntensor(); ++i) {
     if (!augments_.empty()) {
@@ -38,7 +38,7 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
       float * m = reinterpret_cast<float*>(matrix);
       IdentityMatrix(m);
       for (size_t j = 0; j < augments_.size(); ++j) {
-        augments_[j]->Prepare(i, spec_, ws);
+        augments_[j]->Prepare(i, spec_, &ws);
         (*augments_[j])(m);
       }
       NppiSize size;
@@ -57,7 +57,7 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace *ws) {
                                 input.raw_tensor(i),
                                 volume(input.tensor_shape(i)),
                                 cudaMemcpyDefault,
-                                ws->stream()));
+                                ws.stream()));
     }
   }
   nppSetStream(old_stream);

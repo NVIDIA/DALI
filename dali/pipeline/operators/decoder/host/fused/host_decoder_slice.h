@@ -30,7 +30,7 @@ class HostDecoderSlice : public HostDecoder, public SliceAttr {
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderSlice);
 
  protected:
-  inline void RunImpl(SampleWorkspace *ws) override {
+  inline void RunImpl(SampleWorkspace &ws) override {
     SliceAttr::ProcessArguments(ws);
     HostDecoder::RunImpl(ws);
   }

@@ -28,6 +28,15 @@
 namespace dali {
 
 /**
+ * @brief Used to specify the shape and type of Output
+ * that a Workspace can hold.
+ */
+struct OutputDesc {
+  kernels::TensorListShape<> shape;
+  TypeInfo type;
+};
+
+/**
  * @brief ArgumentWorskpace is a base class of
  * objects storing tensor arguments
  * of operators
@@ -41,17 +50,17 @@ class ArgumentWorkspace {
     argument_inputs_.clear();
   }
 
-  void AddArgumentInput(shared_ptr<Tensor<CPUBackend>> input, const std::string &arg_name) {
+  void AddArgumentInput(shared_ptr<TensorList<CPUBackend>> input, const std::string &arg_name) {
     argument_inputs_[arg_name] = std::move(input);
   }
 
-  void SetArgumentInput(shared_ptr<Tensor<CPUBackend>> input, const std::string &arg_name) {
+  void SetArgumentInput(shared_ptr<TensorList<CPUBackend>> input, const std::string &arg_name) {
     DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
         "Argument \"" + arg_name + "\" not found.");
     argument_inputs_[arg_name] = std::move(input);
   }
 
-  const Tensor<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
+  const TensorList<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
     DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
         "Argument \"" + arg_name + "\" not found.");
     return *(argument_inputs_.at(arg_name));
@@ -59,7 +68,7 @@ class ArgumentWorkspace {
 
  protected:
   // Argument inputs
-  std::unordered_map<std::string, shared_ptr<Tensor<CPUBackend>>> argument_inputs_;
+  std::unordered_map<std::string, shared_ptr<TensorList<CPUBackend>>> argument_inputs_;
 };
 
 /**
@@ -193,6 +202,28 @@ class WorkspaceBase : public ArgumentWorkspace {
                                      &gpu_inputs_index_,
                                      StorageDevice::GPU);
   }
+
+
+  /**
+   * @brief Returns true if this workspace has CUDA stream available
+   */
+  virtual bool has_stream() const = 0;
+
+
+  /**
+   * @brief Returns the CUDA stream that this work is to be done in.
+   */
+  cudaStream_t stream() const {
+    DALI_ENFORCE(has_stream(),
+                 "No valid CUDA stream in the Workspace. "
+                 "Either the Workspace doesn't support CUDA streams or "
+                 "the stream hasn't been successfully set. "
+                 "Use `has_stream()`, to runtime-check, "
+                 "if CUDA stream is available for this workspace");
+    auto stream = stream_impl();
+    return stream;
+  }
+
 
   /**
    * @brief Adds new CPU output
@@ -406,6 +437,12 @@ class WorkspaceBase : public ArgumentWorkspace {
       + ")");
     return index_map[idx];
   }
+
+
+  /**
+   * @brief Returns CUDA stream or nullptr, if the stream is unavailable
+   */
+  virtual cudaStream_t stream_impl() const = 0;
 };
 
 }  // namespace dali

@@ -24,12 +24,14 @@
 namespace dali {
 namespace kernels {
 
-/// @brief Implements a separable resampling filter
-///
-/// This implementation can apply differnt resampling filters to each sample.
-/// Resampling order is chosen based on input/output shapes and filter type and support.
-/// The filter allocates memory only in `Setup` - and even there, it won't reallocate
-/// if subsequent calls do not exceed previous number of samples.
+/**
+ * @brief Implements a separable resampling filter
+ *
+ * This implementation can apply differnt resampling filters to each sample.
+ * Resampling order is chosen based on input/output shapes and filter type and support.
+ * The filter allocates memory only in `Setup` - and even there, it won't reallocate
+ * if subsequent calls do not exceed previous number of samples.
+ */
 template <typename OutputElement, typename InputElement,
           typename Interface = SeparableResamplingFilter<OutputElement, InputElement>>
 struct SeparableResamplingGPUImpl : Interface {
@@ -38,13 +40,17 @@ struct SeparableResamplingGPUImpl : Interface {
   using typename Interface::Output;
   using SampleDesc = SeparableResamplingSetup::SampleDesc;
 
-  /// Generates and stores resampling setup
+  /**
+   * Generates and stores resampling setup
+   */
   BatchResamplingSetup setup;
 
   using IntermediateElement = float;
   using Intermediate = OutListGPU<IntermediateElement, 3>;
 
-  /// The intermediate tensor list
+  /**
+   * The intermediate tensor list
+   */
   Intermediate intermediate;
 
   void Initialize(KernelContext &context) {
@@ -88,8 +94,10 @@ struct SeparableResamplingGPUImpl : Interface {
         stream);
   }
 
-  /// @remarks This function shall not allocate memory by ano other means
-  ///          than through `context.scratchpad`
+  /**
+   * @remarks This function shall not allocate memory by ano other means
+   *          than through `context.scratchpad`
+   */
   virtual void
   Run(KernelContext &context, const Output &out, const Input &in, const Params &params) {
     cudaStream_t stream = context.gpu.stream;

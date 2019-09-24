@@ -67,7 +67,11 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 
  protected:
-  void RunImpl(Workspace<GPUBackend> *ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace<GPUBackend> &ws) override;
 
  private:
   static constexpr int kBoxesOutputDim = 2;

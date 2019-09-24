@@ -81,6 +81,7 @@ int DeviceDelete(void *ptr) {
 inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
       return NVJPEG_OUTPUT_RGBI;
     case DALI_BGR:
       return NVJPEG_OUTPUT_BGRI;
@@ -95,6 +96,7 @@ inline int GetOutputPitch(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
     case DALI_BGR:
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
       return 3;
     case DALI_GRAY:
       return 1;
@@ -198,11 +200,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+    return false;
+  }
+
   using dali::OperatorBase::Run;
-  void Run(MixedWorkspace *ws) override {
+  void Run(MixedWorkspace &ws) override {
     // TODO(slayton): Is this necessary?
-    // CUDA_CALL(cudaStreamSynchronize(ws->stream()));
-    CUDA_CALL(cudaEventRecord(master_event_, ws->stream()));
+    // CUDA_CALL(cudaStreamSynchronize(ws.stream()));
+    CUDA_CALL(cudaEventRecord(master_event_, ws.stream()));
     for (int i = 0; i < max_streams_; ++i) {
       CUDA_CALL(cudaStreamWaitEvent(streams_[i], master_event_, 0));
     }
@@ -211,11 +217,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     int idx_in_batch = 0;
     std::vector<std::pair<size_t, size_t>> image_order(batch_size_);
     for (int i = 0; i < batch_size_; ++i) {
-      auto& in = ws->Input<CPUBackend>(0, i);
+      auto& in = ws.Input<CPUBackend>(0, i);
       auto in_size = in.size();
       const auto *data = in.data<uint8_t>();
 
       EncodedImageInfo info;
+      int64_t nchannels = (output_type_ == DALI_GRAY) ? 1 : 3;
 
       // Get necessary image information
       nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
@@ -226,10 +233,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
         auto file_name = in.GetSourceInfo();
         try {
-          const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
-          const auto dims = image->GetImageDims();
-          info.heights[0] = std::get<0>(dims);
-          info.widths[0] = std::get<1>(dims);
+          const auto image = ImageFactory::CreateImage(
+            static_cast<const uint8 *>(data), in_size, output_type_);
+          const auto shape = image->PeekShape();
+          info.heights[0] = shape[0];
+          info.widths[0] = shape[1];
+          if (output_type_ == DALI_ANY_DATA)
+            nchannels = shape[2];
           info.nvjpeg_support = false;
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + "File: " + file_name);
@@ -250,14 +260,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
       // Store pertinent info for later
-      const int image_depth = (output_type_ == DALI_GRAY) ? 1 : 3;
-      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], image_depth});
+      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], nchannels});
       output_info_[i] = info;
       image_order[i] = std::make_pair(volume(output_shape_[i]), i);
     }
 
     // Resize the output (contiguous)
-    auto &output = ws->Output<GPUBackend>(0);
+    auto &output = ws.Output<GPUBackend>(0);
     output.Resize(output_shape_);
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
@@ -275,7 +284,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                                 GetFormat(output_type_)), "");
 
       for (int i = 0; i < batch_size_; ++i) {
-        auto& in = ws->Input<CPUBackend>(0, i);
+        auto& in = ws.Input<CPUBackend>(0, i);
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
@@ -328,7 +337,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       for (int i = 0; i < batch_size_; ++i) {
         size_t j = image_order[i].second;
 
-        auto &in = ws->Input<CPUBackend>(0, j);
+        auto &in = ws.Input<CPUBackend>(0, j);
         auto file_name = in.GetSourceInfo();
         auto in_size = in.size();
         const auto *data = in.data<uint8_t>();
@@ -336,8 +345,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
           continue;
 
-        const auto dims = output_shape_[j];
-        const ImageCache::ImageShape output_shape{dims[0], dims[1], dims[2]};
+        const ImageCache::ImageShape output_shape = output_shape_[j].to_static<3>();
         auto info = output_info_[j];
 
         thread_pool_.DoWorkWithID(
@@ -359,7 +367,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
             CacheStore(file_name, output_data, output_shape, streams_[stream_idx]);
           });
       }
-      LoadDeferred(ws->stream());
+      LoadDeferred(ws.stream());
       // Make sure work is finished being submitted
       thread_pool_.WaitForWork();
     }
@@ -367,7 +375,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // ensure we're consistent with the main op stream
     for (int i = 0; i < max_streams_; ++i) {
       CUDA_CALL(cudaEventRecord(events_[i], streams_[i]));
-      CUDA_CALL(cudaStreamWaitEvent(ws->stream(), events_[i], 0));
+      CUDA_CALL(cudaStreamWaitEvent(ws.stream(), events_[i], 0));
     }
   }
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoder);

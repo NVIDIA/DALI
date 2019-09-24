@@ -16,6 +16,7 @@ from __future__ import print_function
 
 import os
 from test_utils import get_gpu_num
+from test_utils import get_dali_extra_path
 
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types

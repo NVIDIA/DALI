@@ -188,7 +188,7 @@ void SliceFlipNormalizePermute(OutputType *output, const InputType *input,
 template <typename OutputType, typename InputType, size_t Dims>
 class SliceFlipNormalizePermuteCPU {
  public:
-  using Args = SliceFlipNormalizePermuteArgs<Dims>;
+  using Args = SliceFlipNormalizePermutePadArgs<Dims>;
 
   KernelRequirements Setup(KernelContext &context,
                            const InTensorCPU<InputType, Dims> &in,
