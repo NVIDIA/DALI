@@ -181,7 +181,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ParseImagesInfo(MixedWorkspace &ws) {
-    const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
     // Parsing and preparing metadata
     for (int i = 0; i < batch_size_; i++) {
       const auto &in = ws.Input<CPUBackend>(0, i);
@@ -200,16 +199,19 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                      static_cast<const unsigned char*>(input_data), in_size,
                                      &info.c, &info.subsampling,
                                      info.widths, info.heights);
-
+      int64_t nchannels = NumberOfChannels(output_image_type_);
       info.nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
       auto crop_generator = GetCropWindowGenerator(i);
       if (!info.nvjpeg_support) {
         try {
           const auto image = ImageFactory::CreateImage(
-            static_cast<const uint8 *>(input_data), in_size);
-          const auto shape = image->GetShape();
+            static_cast<const uint8 *>(input_data), in_size, output_image_type_);
+          const auto shape = image->PeekShape();
           info.heights[0] = shape[0];
           info.widths[0] = shape[1];
+          if (output_image_type_ == DALI_ANY_DATA)
+            nchannels = shape[2];
+
           if (crop_generator) {
             kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
             info.crop_window = crop_generator(shape);
@@ -242,7 +244,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           image_states_[i] = decoder_host_state_[i];
         }
       }
-      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], c});
+      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], nchannels});
       output_info_[i] = info;
     }
   }

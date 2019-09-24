@@ -66,11 +66,17 @@ class Image {
 
 
   /**
-   * Returns image dimensions. If image hasn't been decoded,
-   * reads the dims without decoding the image.
-   * @return [height, width, depth (channels)]
+   * Returns the decoded image dimensions.
+   * It will fail if image hasn't been decoded,
+   * @return [height, width, depth channels]
    */
   DLL_PUBLIC Shape GetShape() const;
+
+  /**
+   * Reads the original image dimensions without decoding the image.
+   * @return [height, width, channels]
+   */
+  DLL_PUBLIC Shape PeekShape() const;
 
  /**
   * Sets crop window generator
@@ -123,7 +129,7 @@ class Image {
    * @param length length of the encoded buffer
    * @return [height, width, depth]
    */
-  virtual Shape PeekShape(const uint8_t *encoded_buffer, size_t length) const = 0;
+  virtual Shape PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const = 0;
 
   Image(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 

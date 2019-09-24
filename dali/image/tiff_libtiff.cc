@@ -253,13 +253,14 @@ TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
     TIFFGetField(tif_.get(), TIFFTAG_BITSPERSAMPLE, &bit_depth_));
   DALI_ENFORCE(bit_depth_ <= 64,
     "Unexpected bit depth: " + std::to_string(bit_depth_));
-
   // optional
   TIFFGetField(tif_.get(), TIFFTAG_ORIENTATION, &orientation_);
+  TIFFGetField(tif_.get(), TIFFTAG_ROWSPERSTRIP, &rows_per_strip_);
+  TIFFGetField(tif_.get(), TIFFTAG_COMPRESSION, &compression_);
 }
 
-Image::Shape TiffImage_Libtiff::PeekShape(const uint8_t *encoded_buffer,
-                                          size_t length) const {
+Image::Shape TiffImage_Libtiff::PeekShapeImpl(const uint8_t *encoded_buffer,
+                                              size_t length) const {
   DALI_ENFORCE(encoded_buffer != nullptr);
   assert(encoded_buffer == buf_.data());
   return shape_;
@@ -300,6 +301,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
     case DALI_YCbCr:
       out_C = 3;
       break;
+    case DALI_ANY_DATA:
     default:
       out_C = C;
   }
@@ -338,13 +340,11 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
   // strip. In this case, the library does not support random access to the data. The data should
   // either be accessed sequentially, or the file should be converted so that each strip is made up
   // of one row of data.
+  const bool allow_random_row_access =
+    (compression_ == COMPRESSION_NONE || rows_per_strip_ == 1);
 
-  // First try to access random row
-  const bool can_access_roi_y = (roi_y == 0)
-    || (1 == TIFFReadScanline(tif_.get(), row_in, roi_y, 0));
-
-  // If random access did not work, need to read sequentially all previous rows
-  if (!can_access_roi_y) {
+  // If random access is not allowed, need to read sequentially all previous rows
+  if (!allow_random_row_access) {
     for (int64_t y = 0; y < roi_y; y++) {
       LIBTIFF_CALL(
         TIFFReadScanline(tif_.get(), row_in, y, 0));

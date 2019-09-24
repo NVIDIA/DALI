@@ -108,17 +108,15 @@ class InstallerHelper:
             return
 
         if self.default_cpp_version != self.tf_compiler:
-            if self.is_conda:
+            if self.has_alt_compiler:
+                print("Will use alternative compiler {}".format(self.alt_compiler))
+                compiler = self.alt_compiler
+            elif self.is_conda:
                 error_msg = "Installation error:"
                 error_msg += "\n Conda C++ compiler version should be the same as the compiler used to build tensorflow ({} != {}).".format(self.default_cpp_version, self.tf_compiler)
                 error_msg += "\n Try to run `conda install gxx_linux-64=={}` or install an alternative compiler `g++-{}` and install again".format(self.tf_compiler, self.tf_compiler)
                 error_msg += '\n' + self.debug_str()
                 raise ImportError(error_msg)
-
-            if self.has_alt_compiler:
-                print("Will use alternative compiler {}".format(alt_compiler))
-                compiler = self.alt_compiler
-
             else:
                 error_msg = "Installation error:"
                 error_msg += "\n Tensorflow was built with a different compiler than the currently installed ({} != {})".format(self.default_cpp_version, self.tf_compiler)

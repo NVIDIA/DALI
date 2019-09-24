@@ -80,7 +80,7 @@ GenericImage::DecodeImpl(DALIImageType image_type,
 }
 
 
-Image::Shape GenericImage::PeekShape(const uint8_t *encoded_buffer, size_t length) const {
+Image::Shape GenericImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const {
   DALI_FAIL("Cannot peek dims for Generic image (of unknown format)");
 }
 

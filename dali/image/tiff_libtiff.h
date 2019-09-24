@@ -33,7 +33,7 @@ class TiffImage_Libtiff : public GenericImage {
   std::pair<std::shared_ptr<uint8_t>, Image::Shape>
   DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
 
-  Image::Shape PeekShape(const uint8_t *encoded_buffer, size_t length) const override;
+  Image::Shape PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const override;
 
  private:
   span<const uint8_t> buf_;
@@ -44,6 +44,8 @@ class TiffImage_Libtiff : public GenericImage {
   bool is_tiled_ = false;
   uint16_t bit_depth_ = 8;
   uint16_t orientation_ = ORIENTATION_TOPLEFT;
+  uint32_t rows_per_strip_ = 0xFFFFFFFF;
+  uint16_t compression_ = COMPRESSION_NONE;
 };
 
 }  // namespace dali

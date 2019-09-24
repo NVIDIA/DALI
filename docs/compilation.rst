@@ -73,8 +73,10 @@ Prerequisites
 .. _cmake link: https://cmake.org
 .. |jpegturbo link| replace:: **libjpeg-turbo 1.5.x**
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
-.. |ffmpeg link| replace:: **FFmpeg 3.4.2**
-.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-3.4.2.tar.bz2
+.. |libtiff link| replace:: **libtiff 4.0.x**
+.. _libtiff link: http://libtiff.org/
+.. |ffmpeg link| replace:: **FFmpeg 4.2.1**
+.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2
 .. |opencv link| replace:: **OpenCV 3**
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
@@ -115,7 +117,9 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |jpegturbo link|_ or later             | *This can be unofficially disabled. See below.*                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |ffmpeg link|_ or later                | We recommend using version 3.4.2 compiled following the *instructions below*.               |
+   | |libtiff link|_ or later               | *This can be unofficially disabled. See below.*                                             |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |ffmpeg link|_ or later                | We recommend using version 4.2.1 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |opencv link|_ or later                | Supported version: 3.4                                                                      |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
@@ -138,7 +142,7 @@ Prerequisites
 
 .. note::
 
-   This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here. <https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-3.4.2.tar.bz2>`_
+   This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here. <https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2>`_
 
    FFmpeg was compiled using the following command line:
 
@@ -155,8 +159,8 @@ Prerequisites
      --enable-avcodec \
      --enable-avfilter \
      --enable-protocol=file \
-     --enable-demuxer=mov,matroska \
-     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
+     --enable-demuxer=mov,matroska,avi \
+     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes  && \
      make
 
 
@@ -237,6 +241,7 @@ Building DALI using Clang (experimental):
 
 -  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
+-  *(Unofficial)* ``BUILD_LIBTIFF`` - build with ``libtiff`` (default: ON)
 
 .. note::
 

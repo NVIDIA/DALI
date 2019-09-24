@@ -134,7 +134,7 @@ RUN CLANG_VERSION=6.0.1 && \
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
 # FFmpeg
-RUN FFMPEG_VERSION=3.4.2 && \
+RUN FFMPEG_VERSION=4.2.1 && \
     cd /tmp && wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
     tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
@@ -150,8 +150,8 @@ RUN FFMPEG_VERSION=3.4.2 && \
       --enable-avcodec \
       --enable-avfilter \
       --enable-protocol=file \
-      --enable-demuxer=mov,matroska \
-      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
+      --enable-demuxer=mov,matroska,avi  \
+      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
     cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
 

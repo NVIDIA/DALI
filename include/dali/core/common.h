@@ -132,7 +132,7 @@ inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
 }
 
-inline std::size_t NumberOfChannels(DALIImageType type) {
+inline int NumberOfChannels(DALIImageType type) {
   return IsColor(type) ? 3 : 1;
 }
 

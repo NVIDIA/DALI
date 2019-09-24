@@ -60,7 +60,7 @@ bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width)
 std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) const {
   const int c = IsColor(type) ? 3 : 1;
-  const auto shape = PeekShape(jpeg, length);
+  const auto shape = PeekShapeImpl(jpeg, length);
   const auto h = shape[0];
   const auto w = shape[1];
 
@@ -123,8 +123,8 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
 #endif  // DALI_USE_JPEG_TURBO
 }
 
-Image::Shape JpegImage::PeekShape(const uint8_t *encoded_buffer,
-                                     size_t length) const {
+Image::Shape JpegImage::PeekShapeImpl(const uint8_t *encoded_buffer,
+                                      size_t length) const {
   int height = 0, width = 0, components = 0;
 #ifdef DALI_USE_JPEG_TURBO
   DALI_ENFORCE(
