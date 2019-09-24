@@ -60,7 +60,7 @@ TEST(RoiTest, roi_to_TensorListShape) {
   std::vector<TensorShape<-1>> ref = {{3, 3, nchannels},
                                       {4, 5, nchannels},
                                       {0, 0, nchannels}};
-  auto shs = ShapeFromRoi(rois, nchannels);
+  auto shs = ShapeFromRoi(make_cspan(rois), nchannels);
   EXPECT_EQ(shs, TensorListShape<-1>(ref));
 }
 
@@ -117,7 +117,7 @@ TEST(RoiTest, adjust_empty_rois) {
           {{0, 0}, {3, 2}},
           {{0, 0}, {6, 5}},
   };
-  auto res = AdjustRoi(rois, tls);
+  auto res = AdjustRoi(make_cspan(rois), tls);
   ASSERT_EQ(ref.size(), res.size());
   for (size_t i = 0; i < ref.size(); i++) {
     EXPECT_EQ(ref[i], res[i]);
@@ -145,7 +145,7 @@ TEST(RoiTest, adjust_rois) {
           {0,      1},
           {0,      {640, 480}},
   };
-  auto res = AdjustRoi(rois, tls);
+  auto res = AdjustRoi(make_cspan(rois), tls);
   ASSERT_EQ(ref.size(), res.size());
   for (size_t i = 0; i < ref.size(); i++) {
     EXPECT_EQ(ref[i], res[i]);

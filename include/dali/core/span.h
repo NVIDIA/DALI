@@ -257,6 +257,47 @@ DALI_HOST_DEV constexpr span<const T, N> make_cspan(T (&a)[N]) {
   return { a };
 }
 
+template <span_extent_t Extent, typename T>
+DALI_HOST_DEV constexpr span<const T, Extent> make_cspan(T *data) { return { data }; }
+
+template <span_extent_t Extent = dynamic_extent, typename T>
+DALI_HOST_DEV constexpr span<const T, Extent> make_cspan(T *data, span_extent_t extent) {
+  return { data, extent };
+}
+
+DALI_NO_EXEC_CHECK
+template <typename Collection>
+DALI_HOST_DEV constexpr auto make_cspan(Collection &c) {
+  return make_cspan(c.data(), c.size());
+}
+
+DALI_NO_EXEC_CHECK
+template <typename Collection>
+DALI_HOST_DEV constexpr auto make_cspan(Collection &&c) {
+  static_assert(!std::is_rvalue_reference<Collection&&>::value,
+                "Cannot create a span from an r-value.");
+  return make_cspan(c.data(), c.size());
+}
+
+DALI_NO_EXEC_CHECK
+template <typename T, size_t N>
+DALI_HOST_DEV constexpr span<const T, N> make_cspan(const std::array<T, N> &a) {
+  return { a.data() };
+}
+
+DALI_NO_EXEC_CHECK
+template <typename T, size_t N>
+DALI_HOST_DEV constexpr span<const T, N> make_cspan(std::array<T, N> &&a) {
+  static_assert(!std::is_rvalue_reference<std::array<T, N> &&>::value,
+                "Cannot create a span from an r-value.");
+  return { a.data() };
+}
+
+template <typename T, size_t N>
+DALI_HOST_DEV constexpr span<const T, N> make_cspan(T (&a)[N]) {
+  return { a };
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_SPAN_H_
