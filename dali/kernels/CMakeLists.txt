@@ -14,7 +14,6 @@
 
 project(kernels)
 
-add_subdirectory(algebra)
 add_subdirectory(common)
 add_subdirectory(imgproc)
 add_subdirectory(slice)

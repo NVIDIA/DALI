@@ -16,7 +16,7 @@
 #include <vector>
 #include <tuple>
 #include "dali/core/geom/mat.h"
-#include "dali/kernels/algebra/linear_transformation_gpu.h"
+#include "linear_transformation_gpu.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/tensor_shape.h"
 #include "dali/kernels/common/copy.h"
