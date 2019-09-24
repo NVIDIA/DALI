@@ -123,73 +123,6 @@ def DALIRawIterator():
     return _dali_tf
 
 
-# ================================================================================================================================
-
-# def _PrepareDALIArgsHelper(shapes = [], **kwargs):
-#   prepared_args = {'shapes':shapes}
-#   prepared_args.update(**kwargs)
-#   return prepared_args
-
-
-# class DALIDatasetV2(dataset_ops.DatasetSource):
-#     def __init__(self, shapes=None, **kwargs):
-#         """Creates a `DALIDataset`.
-#         Args:
-#         pipeline: A`nvidia.dali.Pipeline` defining the augmentation to be performed
-#         batch_size: `int` defining the number of samples in a batch
-#         shapes: A `List` of `tf.TensorShape` with the expected output shapes
-#         dtypes: A `List` of `tf.DType` with the expected output types
-#         devices: A `List` with the indexes of the devices to use
-#         prefetch_queue_depth: `int` with the amount of prefetched batches
-#         num_threads: `int` with the number of reader threads in the pipeline per GPU
-#         """
-#         oldargs = locals().copy()
-#         oldargs.pop('self', None)
-#         oldargs.pop('kwargs', None)
-#         oldargs.pop('__class__', None)
-#         self._dali_args = _PrepareDALIArgsHelper(**oldargs)
-#         self._dali_args.update(**kwargs)
-
-#         # self._shapes = self._dali_args['shapes']
-
-#         # types = (dtypes.int32)
-#         # shapes = (self._shapes[0])
-#         # output_classes = (ops.Tensor, ops.Tensor)
-#         # self._structure = structure.convert_legacy_structure(types, shapes, output_classes)
-
-#         # super(DALIDatasetV2, self).__init__()
-#         # Change to this when TF updates
-#         variant_tensor = self._as_variant_tensor
-#         super(DALIDatasetV2, self).__init__(variant_tensor)
-
-#     @property
-#     def _element_structure(self):
-#       return structure.TensorStructure(dtypes.int64, [])
-
-#     def _as_variant_tensor(self):
-#         dali_args = self._dali_args
-#         return _dali_tf_module.dali_dataset(**dali_args)
-
-# class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
-#   """Creates a `DALIDataset`.
-#   Args:
-#   pipeline: A`nvidia.dali.Pipeline` defining the augmentation to be performed
-#   batch_size: `int` defining the number of samples in a batch
-#   shapes: A `List` of `tf.TensorShape` with the expected output shapes
-#   dtypes: A `List` of `tf.DType` with the expected output types
-#   devices: A `List` with the indexes of the devices to use
-#   prefetch_queue_depth: `int` with the amount of prefetched batches
-#   num_threads: `int` with the number of reader threads in the pipeline per GPU
-#   """
-
-#   @functools.wraps(DALIDatasetV2.__init__)
-#   def __init__(self, **kwargs):
-#     wrapped = DALIDatasetV2(**kwargs)
-#     super(DALIDatasetV1, self).__init__(wrapped)
-
-# DALIDataset = DALIDatasetV1
-
-
 class DALIDatasetV2(dataset_ops.DatasetSource):
   def __init__(self, shapes = [], dtypes = [], pipeline = ''):
     self._shapes = tuple(tf.TensorShape(shape) for shape in shapes)
@@ -215,7 +148,6 @@ class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
     super(DALIDatasetV1, self).__init__(wrapped)
 
 DALIDataset = DALIDatasetV1
-
 
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__

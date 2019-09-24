@@ -67,18 +67,18 @@ class DALIDatasetOp : public DatasetOpKernel {
         OP_REQUIRES_OK(context, context->GetAttr("dtypes", &dtypes_));
         OP_REQUIRES_OK(context, context->GetAttr("pipeline", &pipeline_));
 
-        std::cout << "======= Dataset constructor ==========   " << this << std::endl;
-        // std::cout << "pipeline: " << pipeline_ << std::endl;
-        std::cout << "shapes: { ";
-        for(const auto &shape : shapes_)
-          std::cout << shape << ", ";
-        std::cout << "}" <<std::endl;
-        std::cout << "dtypes: { ";
-        for(const auto &t : dtypes_)
-          std::cout << t << ", ";
-        std::cout << "}" <<std::endl;
-        std::cout << std::endl;
-        dbg(this);
+        // std::cout << "======= Dataset constructor ==========   " << this << std::endl;
+        // // std::cout << "pipeline: " << pipeline_ << std::endl;
+        // std::cout << "shapes: { ";
+        // for(const auto &shape : shapes_)
+        //   std::cout << shape << ", ";
+        // std::cout << "}" <<std::endl;
+        // std::cout << "dtypes: { ";
+        // for(const auto &t : dtypes_)
+        //   std::cout << t << ", ";
+        // std::cout << "}" <<std::endl;
+        // std::cout << std::endl;
+        // dbg(this);
       }
 
     void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
@@ -123,8 +123,7 @@ class DALIDatasetOp : public DatasetOpKernel {
         }
 
         const DataTypeVector &output_dtypes() const override {
-          static DataTypeVector* dtypes = new DataTypeVector({DT_FLOAT, DT_INT32});
-          return *dtypes;
+          return dtypes_;
         }
 
         const std::vector<PartialTensorShape> &output_shapes() const override {
@@ -147,7 +146,6 @@ class DALIDatasetOp : public DatasetOpKernel {
         const DataTypeVector &dtypes_;
         
         daliPipelineHandle pipeline_handle_;
-
 
         Status AsGraphDefInternal(
           SerializationContext *context,
@@ -180,8 +178,7 @@ class DALIDatasetOp : public DatasetOpKernel {
         class Iterator : public DatasetIterator<Dataset> {
           public:
             explicit Iterator(const Params &params)
-              : DatasetIterator<Dataset>(params) 
-              {
+              : DatasetIterator<Dataset>(params) {
                 dbg(this);
               }
 
@@ -198,28 +195,65 @@ class DALIDatasetOp : public DatasetOpKernel {
                 dbg(this);
                 TF_DALI_CALL(daliShareOutput(&pipeline_handle));
 
-                dbg(daliGetNumOutput(&pipeline_handle));
+                const auto num_outputs = daliGetNumOutput(&pipeline_handle);
 
+                for (int out_id = 0; out_id < num_outputs; ++out_id) {
+                  TensorShape output_shape;
+                  dataset()->shapes_[out_id].AsTensorShape(&output_shape);
+                  out_tensors->emplace_back(context->allocator({}), dataset()->dtypes_[out_id], output_shape);
+                  tensorflow::Tensor &output = out_tensors->operator[](out_id);
 
+                  void* dst = nullptr;
+                  switch (dataset()->dtypes_[out_id]) {
+                    case DT_HALF:
+                          dst = reinterpret_cast<void*>(output.flat<uint16_t>().data());
+                      break;
+                    case DT_FLOAT:
+                          dst = reinterpret_cast<void*>(output.flat<float>().data());
+                      break;
+                    case DT_UINT8:
+                          dst = reinterpret_cast<void*>(output.flat<uint8_t>().data());
+                      break;
+                    case DT_INT16:
+                          dst = reinterpret_cast<void*>(output.flat<int16_t>().data());
+                      break;
+                    case DT_INT32:
+                          dst = reinterpret_cast<void*>(output.flat<int32_t>().data());
+                      break;
+                    case DT_INT64:
+                          dst = reinterpret_cast<void*>(output.flat<int64>().data());
+                      break;
+                    default:
+                        // std::string error = "Unsupported type: " + DataTypeString(dataset()->dtypes_[i]) +
+                        //                     "for tensor " + std::to_string(i);
+                        // propagate error
+                    break;
+                  }
 
-                TensorShape output_shape;
-                dataset()->shapes_[0].AsTensorShape(&output_shape);
-                out_tensors->emplace_back(context->allocator({}), DT_FLOAT, output_shape);
-                
-                tensorflow::Tensor &output = out_tensors->operator[](0);
+                  TF_DALI_CALL(daliCopyTensorNTo(&pipeline_handle, dst, out_id, device_type_t::CPU, stream));
 
-                for (int i = 0; i < output.NumElements(); ++i) {
-                  output.flat<float>()(i) = 1;
                 }
+
+
+
+                // TensorShape output_shape;
+                // dataset()->shapes_[0].AsTensorShape(&output_shape);
+                // out_tensors->emplace_back(context->allocator({}), DT_FLOAT, output_shape);
                 
-                dataset()->shapes_[1].AsTensorShape(&output_shape);
-                out_tensors->emplace_back(context->allocator({}), DT_INT32, output_shape);
+                // tensorflow::Tensor &output = out_tensors->operator[](0);
+
+                // for (int i = 0; i < output.NumElements(); ++i) {
+                //   output.flat<float>()(i) = 1;
+                // }
+                
+                // dataset()->shapes_[1].AsTensorShape(&output_shape);
+                // out_tensors->emplace_back(context->allocator({}), DT_INT32, output_shape);
 
 
-                dbg(daliTensorSize(&pipeline_handle, 1));
-                tensorflow::Tensor &label_output = out_tensors->operator[](1);
-                auto dst = reinterpret_cast<void*>(label_output.flat<int>().data());
-                TF_DALI_CALL(daliCopyTensorNTo(&pipeline_handle, dst, 1, device_type_t::CPU, stream));
+                // dbg(daliTensorSize(&pipeline_handle, 1));
+                // tensorflow::Tensor &label_output = out_tensors->operator[](1);
+                // auto dst = reinterpret_cast<void*>(label_output.flat<int>().data());
+                // TF_DALI_CALL(daliCopyTensorNTo(&pipeline_handle, dst, 1, device_type_t::CPU, stream));
                 
                 
                 *end_of_sequence = false;
