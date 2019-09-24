@@ -75,8 +75,8 @@ Prerequisites
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
 .. |libtiff link| replace:: **libtiff 4.0.x**
 .. _libtiff link: http://libtiff.org/
-.. |ffmpeg link| replace:: **FFmpeg 3.4.2**
-.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-3.4.2.tar.bz2
+.. |ffmpeg link| replace:: **FFmpeg 4.2.1**
+.. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2
 .. |opencv link| replace:: **OpenCV 3**
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
@@ -119,7 +119,7 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |libtiff link|_ or later               | *This can be unofficially disabled. See below.*                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |ffmpeg link|_ or later                | We recommend using version 3.4.2 compiled following the *instructions below*.               |
+   | |ffmpeg link|_ or later                | We recommend using version 4.2.1 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |opencv link|_ or later                | Supported version: 3.4                                                                      |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
@@ -142,7 +142,7 @@ Prerequisites
 
 .. note::
 
-   This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here. <https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-3.4.2.tar.bz2>`_
+   This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here. <https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2>`_
 
    FFmpeg was compiled using the following command line:
 
@@ -159,8 +159,8 @@ Prerequisites
      --enable-avcodec \
      --enable-avfilter \
      --enable-protocol=file \
-     --enable-demuxer=mov,matroska \
-     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
+     --enable-demuxer=mov,matroska,avi \
+     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes  && \
      make
 
 
