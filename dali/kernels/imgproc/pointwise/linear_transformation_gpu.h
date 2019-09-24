@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_ALGEBRA_LINEAR_TRANSFORMATION_GPU_H_
-#define DALI_KERNELS_ALGEBRA_LINEAR_TRANSFORMATION_GPU_H_
+#ifndef DALI_KERNELS_IMGPROC_POINTWISE_LINEAR_TRANSFORMATION_GPU_H_
+#define DALI_KERNELS_IMGPROC_POINTWISE_LINEAR_TRANSFORMATION_GPU_H_
 
 #include <vector>
 #include "dali/core/format.h"
@@ -192,4 +192,4 @@ class LinearTransformationGpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_ALGEBRA_LINEAR_TRANSFORMATION_GPU_H_
+#endif  // DALI_KERNELS_IMGPROC_POINTWISE_LINEAR_TRANSFORMATION_GPU_H_
