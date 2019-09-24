@@ -40,6 +40,7 @@ with a flag `WARP_INVERSE_MAP` set.)code",
         R"code(Whether to use image center as the center of transformation.
 When this is `True` coordinates are calculated from the center of the image.)code",
         false)
+    .InputLayout(0, "HWC")
     .AddParent("DisplacementFilter");
 
 }  // namespace dali

@@ -137,7 +137,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     const auto &in_shape = input.shape();  // This can be a copy
     input_layout_ = this->InputLayout(ws, 0);
     DALI_ENFORCE(ImageLayoutInfo::IsImage(input_layout_),
-      "Unsupported layout: " + input_layout_.str());
+      "Unsupported layout: '" + input_layout_.str() + "' for input 0 '" + spec_.InputName(0) + "'");
     DALI_ENFORCE(input_layout_.ndim() == in_shape.sample_dim(),
       "Number of dimension in layout description does not match the number"
       " of dimensions in the input.");
