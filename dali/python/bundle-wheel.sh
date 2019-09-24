@@ -93,6 +93,7 @@ DEPS_LIST=(
     "/usr/local/lib/libavcodec.so.58"
     "/usr/local/lib/libavfilter.so.7"
     "/usr/local/lib/libavutil.so.56"
+    "/usr/local/lib/libtiff.so.5"
 )
 
 DEPS_SONAME=(
@@ -101,6 +102,7 @@ DEPS_SONAME=(
     "libavcodec.so.58"
     "libavfilter.so.7"
     "libavutil.so.56"
+    "libtiff.so.5"
 )
 
 TMPDIR=$(mktemp -d)

@@ -20,11 +20,8 @@
 #include <limits>
 #include <type_traits>
 #include "dali/core/host_dev.h"
-#ifndef __CUDA_ARCH__
-#include "dali/util/half.hpp"
-#else
-#include "dali/core/cuda_utils.h"
-#endif
+#include "dali/core/float16.h"
+
 namespace dali {
 
 template <typename T>
@@ -57,8 +54,8 @@ DEFINE_TYPE_RANGE(double, -1.7976931348623157e+308, 1.7976931348623157e+308);
 
 template <typename From, typename To>
 struct needs_clamp {
-  static constexpr bool from_fp = std::is_floating_point<From>::value;
-  static constexpr bool to_fp = std::is_floating_point<To>::value;
+  static constexpr bool from_fp = is_fp_or_half<From>::value;
+  static constexpr bool to_fp = is_fp_or_half<To>::value;
   static constexpr bool from_unsigned = std::is_unsigned<From>::value;
   static constexpr bool to_unsigned = std::is_unsigned<To>::value;
 
@@ -140,28 +137,6 @@ DALI_HOST_DEV constexpr bool clamp(T value, ret_type<bool>) {
   return static_cast<bool>(value);
 }
 
-#ifndef __CUDA_ARCH__
-template <typename T>
-DALI_HOST_DEV constexpr half_float::half clamp(T value, ret_type<half_float::half>) {
-  return static_cast<half_float::half>(value);
-}
-
-template <typename T>
-DALI_HOST_DEV constexpr T clamp(half_float::half value, ret_type<T>) {
-  return clamp(static_cast<float>(value), ret_type<T>());
-}
-
-DALI_HOST_DEV inline bool clamp(half_float::half value, ret_type<bool>) {
-  return static_cast<bool>(value);
-}
-
-DALI_HOST_DEV constexpr half_float::half clamp(half_float::half value,
-                                                     ret_type<half_float::half>) {
-  return value;
-}
-
-#else
-
 template <typename T>
 DALI_HOST_DEV constexpr float16 clamp(T value, ret_type<float16>) {
   return static_cast<float16>(value);
@@ -184,8 +159,6 @@ DALI_HOST_DEV inline bool clamp(float16 value, ret_type<bool>) {
 DALI_HOST_DEV constexpr float16 clamp(float16 value, ret_type<float16>) {
   return value;
 }
-
-#endif
 
 template <typename T, typename U>
 DALI_HOST_DEV constexpr T clamp(U value) {
@@ -234,13 +207,13 @@ inline __device__ unsigned long cuda_round_helper(double f, unsigned long) {  //
 #endif
 
 template <typename Out, typename In,
-  bool OutIsFP = std::is_floating_point<Out>::value,
-  bool InIsFP = std::is_floating_point<In>::value>
+  bool OutIsFP = is_fp_or_half<Out>::value,
+  bool InIsFP = is_fp_or_half<In>::value>
 struct ConverterBase;
 
 template <typename Out, typename In>
 struct Converter : ConverterBase<Out, In> {
-  static_assert(std::is_arithmetic<Out>::value && std::is_arithmetic<In>::value,
+  static_assert(is_arithmetic_or_half<Out>::value && is_arithmetic_or_half<In>::value,
     "Default ConverterBase can only be used with arithmetic types. For custom types, "
     "specialize or overload dali::Convert");
 };

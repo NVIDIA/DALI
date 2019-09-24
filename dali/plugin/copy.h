@@ -29,19 +29,23 @@ enum device_type_t {
 DLL_PUBLIC void CopyToExternalTensor(TensorList<CPUBackend>* tl,
                                      void* ptr,
                                      device_type_t dst_type,
-                                     cudaStream_t stream = 0);
+                                     cudaStream_t stream = 0,
+                                     bool non_blocking = false);
 DLL_PUBLIC void CopyToExternalTensor(TensorList<GPUBackend>* tl,
                                      void* ptr,
                                      device_type_t dst_type,
-                                     cudaStream_t stream = 0);
+                                     cudaStream_t stream = 0,
+                                     bool non_blocking = false);
 DLL_PUBLIC void CopyToExternalTensor(const Tensor<CPUBackend>& tl,
                                      void* ptr,
                                      device_type_t dst_type,
-                                     cudaStream_t stream = 0);
+                                     cudaStream_t stream = 0,
+                                     bool non_blocking = false);
 DLL_PUBLIC void CopyToExternalTensor(const Tensor<GPUBackend>& tl,
                                      void* ptr,
                                      device_type_t dst_type,
-                                     cudaStream_t stream = 0);
+                                     cudaStream_t stream = 0,
+                                     bool non_blocking = false);
 
 }  // namespace dali
 

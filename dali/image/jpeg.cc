@@ -57,12 +57,12 @@ bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width)
 }
 #endif
 
-std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
+std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) const {
   const int c = IsColor(type) ? 3 : 1;
-  const auto dims = PeekDims(jpeg, length);
-  const auto h = std::get<0>(dims);
-  const auto w = std::get<1>(dims);
+  const auto shape = PeekShapeImpl(jpeg, length);
+  const auto h = shape[0];
+  const auto w = shape[1];
 
   DALI_ENFORCE(jpeg != nullptr);
   DALI_ENFORCE(length > 0);
@@ -117,14 +117,14 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     return GenericImage::DecodeImpl(type, jpeg, length);
   }
 
-  return std::make_pair(decoded_image, std::make_tuple(cropped_h, cropped_w, c));
+  return {decoded_image, {cropped_h, cropped_w, c}};
 #else  // DALI_USE_JPEG_TURBO
   return GenericImage::DecodeImpl(type, jpeg, length);
 #endif  // DALI_USE_JPEG_TURBO
 }
 
-Image::ImageDims JpegImage::PeekDims(const uint8_t *encoded_buffer,
-                                     size_t length) const {
+Image::Shape JpegImage::PeekShapeImpl(const uint8_t *encoded_buffer,
+                                      size_t length) const {
   int height = 0, width = 0, components = 0;
 #ifdef DALI_USE_JPEG_TURBO
   DALI_ENFORCE(
@@ -132,7 +132,7 @@ Image::ImageDims JpegImage::PeekDims(const uint8_t *encoded_buffer,
 #else
   DALI_ENFORCE(get_jpeg_size(encoded_buffer, length, &height, &width));
 #endif
-  return std::make_tuple(height, width, components);
+  return {height, width, components};
 }
 
 }  // namespace dali

@@ -41,6 +41,22 @@ TEST_F(VideoReaderTest, VariableFrameRate) {
   EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
 }
 
+TEST_F(VideoReaderTest, FractionalConstantFrameRate) {
+  Pipeline pipe(1, 1, 0);
+  const int sequence_length = 60;
+
+  pipe.AddOperator(
+    OpSpec("VideoReader")
+    .AddArg("device", "gpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{testing::dali_extra_path() + "/db/video/cfr_ntsc_29_97_test.mp4"})
+    .AddOutput("frames", "gpu"));
+
+  pipe.Build(this->Outputs());
+}
+
 TEST_F(VideoReaderTest, ConstantFrameRate) {
   Pipeline pipe(1, 1, 0);
   const int sequence_length = 60;

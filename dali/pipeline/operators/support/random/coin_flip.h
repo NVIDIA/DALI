@@ -37,8 +37,15 @@ class CoinFlip : public Operator<SupportBackend> {
   using Operator<SupportBackend>::RunImpl;
 
  protected:
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
-    return false;
+    output_desc.resize(1);
+    output_desc[0].shape = kernels::uniform_list_shape(batch_size_, {1});
+    output_desc[0].type = TypeInfo::Create<int>();
+    return true;
   }
 
   void RunImpl(Workspace<SupportBackend> &ws) override;

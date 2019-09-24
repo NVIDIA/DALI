@@ -59,51 +59,85 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
   std::size_t C_;
 
   void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
-    Index F = 1, H, W, C;
-    DALI_ENFORCE(shape.size() == 3 || shape.size() == 4,
-      "Unexpected number of dimensions: " + std::to_string(shape.size()));
+    const int ndims = shape.size();
+    const bool is_volumetric_layout = IsVolumetric(layout);
+    const bool is_sequence_layout = IsSequence(layout);
+    DALI_ENFORCE((ndims == 4 && is_sequence_layout) ||
+                 (ndims == 4 && is_volumetric_layout) ||
+                 (ndims == 3 && (layout == DALI_NHWC || layout == DALI_NCHW)),
+                 "Unexpected number of dimensions [" + std::to_string(ndims) +
+                 "] or layout [" + std::to_string(layout) + "]");
+
+    auto crop_window_gen = GetCropWindowGenerator(data_idx);
+    CropWindow win;
     switch (layout) {
       case DALI_NHWC:
-        std::tie(H, W, C) = std::make_tuple(shape[0], shape[1], shape[2]);
-        break;
+      {
+        int64_t H = shape[0];
+        int64_t W = shape[1];
+        int64_t C = shape[2];
+        win = crop_window_gen({H, W});
+        slice_shapes_[data_idx] = {win.shape[0], win.shape[1], C};
+        slice_anchors_[data_idx] = {win.anchor[0], win.anchor[1], 0};
+      }
+      break;
       case DALI_NCHW:
-        std::tie(C, H, W) = std::make_tuple(shape[0], shape[1], shape[2]);
-        break;
+      {
+        int64_t C = shape[0];
+        int64_t H = shape[1];
+        int64_t W = shape[2];
+        win = crop_window_gen({H, W});
+        slice_shapes_[data_idx] = {C, win.shape[0], win.shape[1]};
+        slice_anchors_[data_idx] = {0, win.anchor[0], win.anchor[1]};
+      }
+      break;
       case DALI_NFHWC:
-        std::tie(F, H, W, C) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
-        break;
+      {
+        int64_t F = shape[0];
+        int64_t H = shape[1];
+        int64_t W = shape[2];
+        int64_t C = shape[3];
+        win = crop_window_gen({H, W});
+        slice_shapes_[data_idx] = {F, win.shape[0], win.shape[1], C};
+        slice_anchors_[data_idx] = {0, win.anchor[0], win.anchor[1], 0};
+      }
+      break;
       case DALI_NFCHW:
-        std::tie(F, C, H, W) = std::make_tuple(shape[0], shape[1], shape[2], shape[3]);
-        break;
+      {
+        int64_t F = shape[0];
+        int64_t C = shape[1];
+        int64_t H = shape[2];
+        int64_t W = shape[3];
+        win = crop_window_gen({H, W});
+        slice_shapes_[data_idx] = {F, C, win.shape[0], win.shape[1]};
+        slice_anchors_[data_idx] = {0, 0, win.anchor[0], win.anchor[1]};
+      }
+      break;
+      case DALI_NDHWC:
+      {
+        int64_t D = shape[0];
+        int64_t H = shape[1];
+        int64_t W = shape[2];
+        int64_t C = shape[3];
+        win = crop_window_gen({D, H, W});
+        slice_shapes_[data_idx] = {win.shape[0], win.shape[1], win.shape[2], C};
+        slice_anchors_[data_idx] = {win.anchor[0], win.anchor[1], win.anchor[2], 0};
+      }
+      break;
+      case DALI_NCDHW:
+      {
+        int64_t C = shape[0];
+        int64_t D = shape[1];
+        int64_t H = shape[2];
+        int64_t W = shape[3];
+        win = crop_window_gen({D, H, W});
+        slice_shapes_[data_idx] = {C, win.shape[0], win.shape[1], win.shape[2]};
+        slice_anchors_[data_idx] = {0, win.anchor[0], win.anchor[1], win.anchor[2]};
+      }
+      break;
       default:
-        DALI_FAIL("Not supported layout");
-    }
-
-    auto crop_h = crop_height_[data_idx];
-    auto crop_w = crop_width_[data_idx];
-    float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
-    auto crop_anchor = CalculateAnchor(make_span(anchor_norm), {crop_h, crop_w}, {H, W});
-    int64_t crop_y = crop_anchor[0], crop_x = crop_anchor[1];
-
-    switch (layout) {
-      case DALI_NHWC:
-        slice_anchors_[data_idx] = {crop_y, crop_x, 0};
-        slice_shapes_[data_idx] = {crop_h, crop_w, C};
-        break;
-      case DALI_NCHW:
-        slice_anchors_[data_idx] = {0, crop_y, crop_x};
-        slice_shapes_[data_idx] = {C, crop_h, crop_w};
-        break;
-      case DALI_NFHWC:
-        slice_anchors_[data_idx] = {0, crop_y, crop_x, 0};
-        slice_shapes_[data_idx] = {F, crop_h, crop_w, C};
-        break;
-      case DALI_NFCHW:
-        slice_anchors_[data_idx] = {0, 0, crop_y, crop_x};
-        slice_shapes_[data_idx] = {F, C, crop_h, crop_w};
-        break;
-      default:
-        DALI_FAIL("Not supported layout");
+        DALI_FAIL("Not supported layout[" + std::to_string(layout)
+                  + "] for given number of dimensions[" + std::to_string(shape.size()) + "]");
     }
   }
 };

@@ -183,7 +183,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   float fill_value_;
 
   bool has_mask_;
-  const Tensor<CPUBackend> *mask_;
+  const TensorList<CPUBackend> *mask_;
 };
 
 }  // namespace dali

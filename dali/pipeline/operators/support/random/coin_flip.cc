@@ -19,7 +19,6 @@ namespace dali {
 
 void CoinFlip::RunImpl(SupportWorkspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
-  output.Resize({batch_size_});
 
   int *out_data = output.template mutable_data<int>();
 

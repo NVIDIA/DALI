@@ -127,7 +127,7 @@ void ExposeTensor(py::module &m) { // NOLINT
          )code")
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
-          CopyToExternalTensor(t, ctypes_void_ptr(p), CPU, 0);
+          CopyToExternalTensor(t, ctypes_void_ptr(p), CPU, 0, false);
         },
       "ptr"_a,
       R"code(
@@ -156,15 +156,16 @@ void ExposeTensor(py::module &m) { // NOLINT
          Remove single-dimensional entries from the shape of the Tensor.
          )code")
     .def("copy_to_external",
-        [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream) {
+        [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream, bool non_blocking) {
           void *ptr = ctypes_void_ptr(p);
           cudaStream_t stream = static_cast<cudaStream_t>(
             ctypes_void_ptr(cuda_stream));
 
-          CopyToExternalTensor(t, ptr, GPU, stream);
+          CopyToExternalTensor(t, ptr, GPU, stream, non_blocking);
         },
       "ptr"_a,
       "cuda_stream"_a = 0,
+      "non_blocking"_a = false,
       R"code(
       Copy to external pointer in the GPU memory.
 
@@ -174,6 +175,8 @@ void ExposeTensor(py::module &m) { // NOLINT
             Destination of the copy.
       cuda_stream : ctypes.c_void_p
             CUDA stream to schedule the copy on (default stream if not provided).
+      non_blocking : bool
+            Asynchronous copy.
       )code")
     .def("dtype",
         [](Tensor<GPUBackend> &t) {
@@ -386,14 +389,15 @@ void ExposeTensorList(py::module &m) { // NOLINT
       may be viewed as a tensor of shape `(N, H, W, C)`.
       )code")
     .def("copy_to_external",
-        [](TensorList<GPUBackend> &t, py::object p, py::object cuda_stream) {
+        [](TensorList<GPUBackend> &t, py::object p, py::object cuda_stream, bool non_blocking) {
           void *ptr = ctypes_void_ptr(p);
           cudaStream_t stream = static_cast<cudaStream_t>(
             ctypes_void_ptr(cuda_stream));
-          CopyToExternalTensor(&t, ptr, GPU, stream);
+          CopyToExternalTensor(&t, ptr, GPU, stream, non_blocking);
         },
       "ptr"_a,
       "cuda_stream"_a = 0,
+      "non_blocking"_a = false,
       R"code(
       Copy the contents of this `TensorList` to an external pointer
       residing in CPU memory.
@@ -407,6 +411,8 @@ void ExposeTensorList(py::module &m) { // NOLINT
             Destination of the copy.
       cuda_stream : ctypes.c_void_p
             CUDA stream to schedule the copy on (default stream if not provided).
+      non_blocking : bool
+            Asynchronous copy.
       )code")
     .def("at",
         [](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
@@ -546,6 +552,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("BGR", DALI_BGR)
     .value("GRAY", DALI_GRAY)
     .value("YCbCr", DALI_YCbCr)
+    .value("ANY_DATA", DALI_ANY_DATA)
     .export_values();
 
   // DALIInterpType
@@ -564,6 +571,8 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("NHWC", DALI_NHWC)
     .value("NFHWC", DALI_NFHWC)
     .value("NFCHW", DALI_NFCHW)
+    .value("NDHWC", DALI_NDHWC)
+    .value("NCDHW", DALI_NCDHW)
     .value("SAME", DALI_SAME)
     .export_values();
 
@@ -672,7 +681,7 @@ PYBIND11_MODULE(backend_impl, m) {
               list.append(&ws.Output<GPUBackend>(i));
             }
           }
-          return list;
+          return py::cast<py::tuple>(list);
         }, py::return_value_policy::take_ownership)
     .def("ShareOutputs",
         [](Pipeline *p) {
@@ -687,7 +696,7 @@ PYBIND11_MODULE(backend_impl, m) {
               list.append(&ws.Output<GPUBackend>(i));
             }
           }
-          return list;
+          return py::cast<py::tuple>(list);
         }, py::return_value_policy::take_ownership)
     .def("ReleaseOutputs",
         [](Pipeline *p) {

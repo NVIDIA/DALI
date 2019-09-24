@@ -16,7 +16,6 @@
 #define DALI_UTIL_OCV_H_
 
 #include <opencv2/opencv.hpp>
-
 #include "dali/core/common.h"
 
 namespace dali {

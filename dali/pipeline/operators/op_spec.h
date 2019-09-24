@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <memory>
 #include <set>
+#include <type_traits>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -31,6 +32,40 @@
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
+
+namespace detail {
+
+template <typename T, typename S>
+void copy_vector(std::vector<T> &out, const std::vector<S> &in) {
+  out.reserve(in.size());
+  out.clear();
+  for (decltype(auto) v : in) {
+    out.emplace_back(v);
+  }
+}
+
+/** @brief This overload simply forwards the reference */
+template <typename T>
+std::vector<T> &&convert_vector(std::vector<T> &&v) {
+  return std::move(v);
+}
+
+/** @brief This overload simply forwards the reference */
+template <typename T>
+const std::vector<T> &convert_vector(const std::vector<T> &v) {
+  return v;
+}
+
+/** @brief This overload converts elements from v and returns a vector of converted objects */
+template <typename T, typename S>
+std::enable_if_t<!std::is_same<T, S>::value, std::vector<T>>
+convert_vector(const std::vector<S> &v) {
+  std::vector<T> out;
+  copy_vector(out, v);
+  return out;
+}
+
+}  // namespace detail
 
 /**
  * @brief Defines all parameters needed to construct an Operator,
@@ -42,7 +77,13 @@ class DLL_PUBLIC OpSpec {
  public:
   template <typename T>
   using TensorPtr = shared_ptr<Tensor<T>>;
-  using StrPair = std::pair<string, string>;
+  struct InOutDeviceDesc {
+    std::string name;
+    std::string device;
+    bool operator<(const InOutDeviceDesc &other) const {
+      return std::make_pair(name, device) < std::make_pair(other.name, other.device);
+    }
+  };
 
   DLL_PUBLIC inline OpSpec() {}
 
@@ -99,8 +140,20 @@ class DLL_PUBLIC OpSpec {
    */
   template <typename T>
   DLL_PUBLIC inline OpSpec& SetArg(const string &name, const T &val) {
-    return SetInitializedArg(name, Argument::Store(name, val));
+    using S = argument_storage_t<T>;
+    return SetInitializedArg(name, Argument::Store<S>(name, static_cast<S>(val)));
   }
+
+  /**
+   * @brief Sets or adds an argument with the given name and value.
+   */
+  template <typename T>
+  DLL_PUBLIC inline OpSpec& SetArg(const string &name, const std::vector<T> &val) {
+    using S = argument_storage_t<T>;
+    using V = std::vector<S>;
+    return SetInitializedArg(name, Argument::Store<V>(name, detail::convert_vector<S>(val)));
+  }
+
 
   /**
    * @brief Add an instantiated argument with given name
@@ -170,17 +223,17 @@ class DLL_PUBLIC OpSpec {
 
   DLL_PUBLIC inline string Input(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
-    return TensorName(inputs_[idx].first, inputs_[idx].second);
+    return TensorName(inputs_[idx].name, inputs_[idx].device);
   }
 
   DLL_PUBLIC inline string InputName(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
-    return inputs_[idx].first;
+    return inputs_[idx].name;
   }
 
   DLL_PUBLIC inline string InputDevice(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
-    return inputs_[idx].second;
+    return inputs_[idx].device;
   }
 
   DLL_PUBLIC inline bool IsArgumentInput(int idx) const {
@@ -203,17 +256,17 @@ class DLL_PUBLIC OpSpec {
 
   DLL_PUBLIC inline string Output(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
-    return TensorName(outputs_[idx].first, outputs_[idx].second);
+    return TensorName(outputs_[idx].name, outputs_[idx].device);
   }
 
   DLL_PUBLIC inline string OutputName(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
-    return outputs_[idx].first;
+    return outputs_[idx].name;
   }
 
   DLL_PUBLIC inline string OutputDevice(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
-    return outputs_[idx].second;
+    return outputs_[idx].device;
   }
 
   DLL_PUBLIC inline const std::unordered_map<string, Index>& ArgumentInputs() const {
@@ -225,7 +278,7 @@ class DLL_PUBLIC OpSpec {
   }
 
   DLL_PUBLIC inline int OutputIdxForName(const string &name, const string &device) {
-    auto it = output_name_idx_.find(std::make_pair(name, device));
+    auto it = output_name_idx_.find({name, device});
     DALI_ENFORCE(it != output_name_idx_.end(), "Output with name '" +
         name + "' and device '" + device + "' does not exist.");
     return it->second;
@@ -277,7 +330,8 @@ class DLL_PUBLIC OpSpec {
   DLL_PUBLIC inline T GetArgument(const string &name,
                        const ArgumentWorkspace *ws = nullptr,
                        Index idx = 0) const {
-    return GetArgument<T, T>(name, ws, idx);
+    using S = argument_storage_t<T>;
+    return GetArgumentImpl<T, S>(name, ws, idx);
   }
 
   template <typename T>
@@ -285,7 +339,8 @@ class DLL_PUBLIC OpSpec {
                                         const string &name,
                                         const ArgumentWorkspace *ws = nullptr,
                                         Index idx = 0) const {
-    return TryGetArgumentImpl<T, T>(result, name, ws, idx);
+    using S = argument_storage_t<T>;
+    return TryGetArgumentImpl<T, S>(result, name, ws, idx);
   }
 
   /**
@@ -294,7 +349,8 @@ class DLL_PUBLIC OpSpec {
    */
   template <typename T>
   DLL_PUBLIC inline std::vector<T> GetRepeatedArgument(const string &name) const {
-    return GetArgument<T, std::vector<T>>(name, nullptr, 0);
+    using S = argument_storage_t<T>;
+    return GetRepeatedArgumentImpl<T, S>(name);
   }
 
   /**
@@ -302,9 +358,11 @@ class DLL_PUBLIC OpSpec {
    * Returns the default if an argument with the given name does not exist.
    */
   template <typename T>
-  DLL_PUBLIC inline bool TryGetRepeatedArgument(std::vector<T> &result,
+  DLL_PUBLIC bool TryGetRepeatedArgument(
+      std::vector<T> &result,
       const string &name) const {
-    return TryGetArgumentImpl<T, std::vector<T>>(result, name, nullptr, 0);
+    using S = argument_storage_t<T>;
+    return TryGetRepeatedArgumentImpl<T, S>(result, name);
   }
 
   DLL_PUBLIC OpSpec& ShareArguments(OpSpec& other) {
@@ -314,12 +372,12 @@ class DLL_PUBLIC OpSpec {
     return *this;
   }
 
-  DLL_PUBLIC inline StrPair& MutableInput(int idx) {
+  DLL_PUBLIC inline InOutDeviceDesc& MutableInput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     return inputs_[idx];
   }
 
-  DLL_PUBLIC inline StrPair& MutableOutput(int idx) {
+  DLL_PUBLIC inline InOutDeviceDesc& MutableOutput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx];
   }
@@ -356,49 +414,109 @@ class DLL_PUBLIC OpSpec {
 
  private:
   template <typename T, typename S>
-  inline S GetArgument(const string &name, const ArgumentWorkspace *ws, Index idx) const;
+  inline T GetArgumentImpl(const string &name, const ArgumentWorkspace *ws, Index idx) const;
+
+  /**
+   * @brief Check if the ArgumentInput of given shape can be used with GetArgument(),
+   *        representing a batch of scalars
+   *
+   * @argument should_throw whether this function should throw an error if the shape doesn't match
+   * @return true iff the shape is allowed to be used as Argument
+   */
+  bool CheckArgumentShape(const kernels::TensorListShape<> &shape, int batch_size,
+                          const std::string &name, bool should_throw = false) const {
+    DALI_ENFORCE(kernels::is_uniform(shape),
+                 "Arguments should be passed as uniform TensorLists. Argument \"" + name +
+                     "\" is not uniform. To access non-uniform argument inputs use "
+                     "ArgumentWorkspace::ArgumentInput method directly.");
+    if (shape.num_samples() == 1) {
+      // TODO(klecki): 1 sample version will be of no use after the switch to CPU ops unless we
+      // generalize accepted batch sizes throughout the pipeline
+      bool is_one_sample_with_batch = shape[0] == kernels::TensorShape<>(batch_size);
+      if (should_throw) {
+        DALI_ENFORCE(is_one_sample_with_batch,
+            "Unexpected shape of argument \"" + name +
+                "\". If only one tensor is passed, it should have a shape equal to {" +
+                std::to_string(batch_size) +
+                "}.  When accessing arguments as scalars 1 tensor of shape {" +
+                std::to_string(batch_size) + "} or " + std::to_string(batch_size) +
+                " tensors of shape {1} are expected. To access argument inputs where samples are "
+                "not scalars use ArgumentWorkspace::ArgumentInput method directly.");
+      } else if (!is_one_sample_with_batch) {
+        return false;
+      }
+    } else {
+      bool is_batch_of_scalars =
+          shape.num_samples() == batch_size && shape.sample_dim() == 1 && shape[0][0] == 1;
+      if (should_throw) {
+        DALI_ENFORCE(
+            is_batch_of_scalars,
+            "Unexpected shape of argument \"" + name + "\". Expected batch of " +
+                std::to_string(batch_size) + " tensors of shape {1}, got " +
+                std::to_string(shape.num_samples()) + " samples of " +
+                std::to_string(shape.sample_dim()) +
+                "D tensors. Alternatively, a single 1D tensor with " + std::to_string(batch_size) +
+                " elements can be passed. To access argument inputs where samples are not scalars "
+                "use ArgumentWorkspace::ArgumentInput method directly.");
+      } else if (!is_batch_of_scalars) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   template <typename T, typename S>
-  inline bool TryGetArgumentImpl(S &result,
+  inline bool TryGetArgumentImpl(T &result,
                                  const string &name,
                                  const ArgumentWorkspace *ws,
                                  Index idx) const;
+
+  template <typename T, typename S>
+  inline std::vector<T> GetRepeatedArgumentImpl(const string &name) const;
+
+  template <typename T, typename S>
+  inline bool TryGetRepeatedArgumentImpl(std::vector<T> &result, const string &name) const;
 
   string name_;
   std::unordered_map<string, std::shared_ptr<Argument>> arguments_;
   std::unordered_map<string, Index> argument_inputs_;
   std::set<Index> argument_inputs_indexes_;
 
-  std::map<StrPair, int> output_name_idx_;
-  vector<StrPair> inputs_, outputs_;
+  std::map<InOutDeviceDesc, int> output_name_idx_;
+  vector<InOutDeviceDesc> inputs_, outputs_;
 };
 
+
 template <typename T, typename S>
-inline S OpSpec::GetArgument(const string &name, const ArgumentWorkspace *ws, Index idx) const {
+inline T OpSpec::GetArgumentImpl(
+      const string &name,
+      const ArgumentWorkspace *ws,
+      Index idx) const {
   // Search for the argument in tensor arguments first
   if (this->HasTensorArgument(name)) {
     DALI_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");
-    const auto& value = ws->ArgumentInput(name);
-    DALI_ENFORCE(IsType<S>(value.type()),
+    const auto &value = ws->ArgumentInput(name);
+    CheckArgumentShape(value.shape(), GetArgument<int>("batch_size"), name, true);
+    DALI_ENFORCE(IsType<T>(value.type()),
         "Unexpected type of argument \"" + name + "\". Expected " +
-        TypeTable::GetTypeName<S>() + " and got " + value.type().name());
-    return value.template data<S>()[idx];
+        TypeTable::GetTypeName<T>() + " and got " + value.type().name());
+    return static_cast<T>(value.template data<T>()[idx]);
   }
   // Search for the argument locally
   auto arg_it = arguments_.find(name);
   if (arg_it != arguments_.end()) {
     // Found locally - return
-    return arg_it->second->template Get<S>();
+    return static_cast<T>(arg_it->second->template Get<S>());
   } else {
     // Argument wasn't present locally, get the default from the associated schema
     const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
-    return schema.GetDefaultValueForOptionalArgument<S>(name);
+    return static_cast<T>(schema.GetDefaultValueForOptionalArgument<S>(name));
   }
 }
 
 template <typename T, typename S>
 inline bool OpSpec::TryGetArgumentImpl(
-      S &result,
+      T &result,
       const string &name,
       const ArgumentWorkspace *ws,
       Index idx) const {
@@ -407,9 +525,12 @@ inline bool OpSpec::TryGetArgumentImpl(
     if (ws == nullptr)
       return false;
     const auto& value = ws->ArgumentInput(name);
-    if (!IsType<S>(value.type()))
+    if (!CheckArgumentShape(value.shape(), GetArgument<int>("batch_size"), name, false)) {
       return false;
-    result = value.template data<S>()[idx];
+    }
+    if (!IsType<T>(value.type()))
+      return false;
+    result = value.template data<T>()[idx];
     return true;
   }
   // Search for the argument locally
@@ -417,7 +538,7 @@ inline bool OpSpec::TryGetArgumentImpl(
   if (arg_it != arguments_.end()) {
     // Found locally - return
     if (arg_it->second->template IsType<S>()) {
-      result = arg_it->second->template Get<S>();
+      result = static_cast<T>(arg_it->second->template Get<S>());
       return true;
     }
   } else {
@@ -426,87 +547,53 @@ inline bool OpSpec::TryGetArgumentImpl(
     auto schema_val = schema.FindDefaultValue(name);
     using VT = const ValueInst<S>;
     if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {
-      result = vt->Get();
+      result = static_cast<T>(vt->Get());
       return true;
     }
   }
   return false;
 }
 
-#define INSTANTIATE_ARGUMENT_AS_INT64(T)                                                        \
-  template<>                                                                                    \
-  inline OpSpec& OpSpec::SetArg(const string& name, const T& val) {                             \
-    return this->SetArg<int64>(name, static_cast<int64>(val));                                  \
-  }                                                                                             \
-  template<>                                                                                    \
-  inline OpSpec& OpSpec::SetArg(const string& name, const std::vector<T>& val) {                \
-    vector<int64> tmp;                                                                          \
-    for (auto t : val) {                                                                        \
-      tmp.push_back(static_cast<int64>(t));                                                     \
-    }                                                                                           \
-    Argument * arg = Argument::Store(name, tmp);                                                \
-    arguments_[name].reset(arg);                                                                \
-    return *this;                                                                               \
-  }                                                                                             \
-  template<>                                                                                    \
-  inline T OpSpec::GetArgument(const string& name, const ArgumentWorkspace *ws, Index idx) const { \
-    if (this->HasTensorArgument(name)) {                                                          \
-      DALI_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");   \
-      const auto& value = ws->ArgumentInput(name);                                                \
-      if (IsType<T>(value.type())) {                                                              \
-        return value.template data<T>()[idx];                                                     \
-      }                                                                                           \
-    }                                                                                             \
-    int64 tmp = this->GetArgument<int64>(name, ws, idx);                                          \
-    return static_cast<T>(tmp);                                                                   \
-  }                                                                                               \
-  template<>                                                                                      \
-  inline bool OpSpec::TryGetArgument(T &result, const string& name,                               \
-                                     const ArgumentWorkspace *ws, Index idx) const {              \
-    if (this->HasTensorArgument(name)) {                                                          \
-      if (ws == nullptr)                                                                          \
-        return false;                                                                             \
-      const auto& value = ws->ArgumentInput(name);                                                \
-      if (IsType<T>(value.type())) {                                                              \
-        return value.template data<T>()[idx];                                                     \
-      }                                                                                           \
-    }                                                                                             \
-    int64 tmp;                                                                                    \
-    if (this->TryGetArgument<int64>(tmp, name, ws, idx)) {                                        \
-      result = static_cast<T>(tmp);                                                               \
-      return true;                                                                                \
-    }                                                                                             \
-    return false;                                                                                 \
-  }                                                                                               \
-  template<>                                                                                      \
-  inline std::vector<T> OpSpec::GetRepeatedArgument(const string& name) const {                   \
-    vector<int64> tmp = this->GetRepeatedArgument<int64>(name);                                   \
-    vector<T> ret(tmp.size());                                                                    \
-    for (size_t i = 0; i < tmp.size(); i++)                                                       \
-      ret[i] = static_cast<T>(tmp[i]);                                                            \
-    return ret;                                                                                   \
-  }                                                                                               \
-  template<>                                                                                      \
-  inline bool OpSpec::TryGetRepeatedArgument(                                                     \
-      vector<T> &ret, const string& name) const {                                                 \
-    vector<int64> tmp;                                                                            \
-    if (!this->TryGetRepeatedArgument<int64>(tmp, name))                                          \
-      return false;                                                                               \
-    ret.resize(tmp.size());                                                                       \
-    for (size_t i = 0; i < tmp.size(); i++)                                                       \
-      ret[i] = static_cast<T>(tmp[i]);                                                            \
-    return true;                                                                                  \
-  }
 
-INSTANTIATE_ARGUMENT_AS_INT64(int);
-INSTANTIATE_ARGUMENT_AS_INT64(unsigned int);
-INSTANTIATE_ARGUMENT_AS_INT64(uint64_t);
-INSTANTIATE_ARGUMENT_AS_INT64(int8_t);
-INSTANTIATE_ARGUMENT_AS_INT64(uint8_t);
-INSTANTIATE_ARGUMENT_AS_INT64(DALIImageType);
-INSTANTIATE_ARGUMENT_AS_INT64(DALIDataType);
-INSTANTIATE_ARGUMENT_AS_INT64(DALIInterpType);
-INSTANTIATE_ARGUMENT_AS_INT64(DALITensorLayout);
+template <typename T, typename S>
+inline std::vector<T> OpSpec::GetRepeatedArgumentImpl(const string &name) const {
+  using V = std::vector<S>;
+  // Search for the argument locally
+  auto arg_it = arguments_.find(name);
+  if (arg_it != arguments_.end()) {
+    // Found locally - return
+    return detail::convert_vector<T>(arg_it->second->template Get<V>());
+  } else {
+    // Argument wasn't present locally, get the default from the associated schema
+    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    return detail::convert_vector<T>(schema.GetDefaultValueForOptionalArgument<V>(name));
+  }
+}
+
+template <typename T, typename S>
+inline bool OpSpec::TryGetRepeatedArgumentImpl(std::vector<T> &result, const string &name) const {
+  using V = std::vector<S>;
+  // Search for the argument locally
+  auto arg_it = arguments_.find(name);
+  if (arg_it != arguments_.end()) {
+    // Found locally - return
+    if (arg_it->second->template IsType<V>()) {
+      detail::copy_vector(result, arg_it->second->template Get<V>());
+      return true;
+    }
+  } else {
+    // Argument wasn't present locally, get the default from the associated schema
+    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    auto schema_val = schema.FindDefaultValue(name);
+    using VT = const ValueInst<V>;
+    if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {
+      detail::copy_vector(result, vt->Get());
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATORS_OP_SPEC_H_

@@ -403,7 +403,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   Tensor<GPUBackend> meta_gpu;
 
   bool has_mask_;
-  Tensor<GPUBackend> mask_gpu_;
+  TensorList<GPUBackend> mask_gpu_;
 
   Tensor<CPUBackend> params_;
   Tensor<GPUBackend> params_gpu_;
