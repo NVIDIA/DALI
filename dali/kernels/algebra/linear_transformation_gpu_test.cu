@@ -26,7 +26,6 @@
 
 namespace dali {
 namespace kernels {
-namespace linear_transformation {
 namespace test {
 
 
@@ -136,7 +135,7 @@ TYPED_TEST(LinearTransformationGpuTest, setup_test) {
   TheKernel<TypeParam> kernel;
   KernelContext ctx;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
-  auto reqs = kernel.Setup(ctx, in, this->vmat_, this->vvec_);
+  auto reqs = kernel.Setup(ctx, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
   ASSERT_EQ(this->out_shapes_.size(), static_cast<size_t>(reqs.output_shapes[0].num_samples()))
                         << "Kernel::Setup provides incorrect shape";
   for (size_t i = 0; i < this->out_shapes_.size(); i++) {
@@ -151,7 +150,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
   KernelContext c;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
 
-  auto reqs = kernel.Setup(c, in, this->vmat_, this->vvec_);
+  auto reqs = kernel.Setup(c, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
 
   ScratchpadAllocator sa;
   sa.Reserve(reqs.scratch_sizes);
@@ -161,7 +160,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
   OutListGPU<typename TypeParam::Out, kNDims> out(
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
-  kernel.Run(c, out, in, this->vmat_, this->vvec_);
+  kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
   cudaDeviceSynchronize();
 
   auto res = copy<AllocType::Host>(out[0]);
@@ -177,7 +176,9 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
   KernelContext c;
   InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
 
-  auto reqs = kernel.Setup(c, in, this->vmat_, this->vvec_, this->rois_);
+  auto reqs = kernel.Setup(c, in,
+                           make_cspan(this->vmat_), make_cspan(this->vvec_),
+                           make_cspan(this->rois_));
 
   ScratchpadAllocator sa;
   sa.Reserve(reqs.scratch_sizes);
@@ -187,7 +188,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
   OutListGPU<typename TypeParam::Out, kNDims> out(
           this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
-  kernel.Run(c, out, in, this->vmat_, this->vvec_, this->rois_);
+  kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_), make_cspan(this->rois_));
   cudaDeviceSynchronize();
 
   auto res = copy<AllocType::Host>(out[0]);
@@ -226,18 +227,18 @@ TYPED_TEST(LinearTransformationGpuTest, sample_descriptors) {
   InListGPU<In, kNDims> in(this->input_device_, this->in_shapes_);
   OutListGPU<Out, kNDims> out(this->output_, TensorListShape<3>(this->out_shapes_));
 
-  auto res = detail::CreateSampleDescriptors(out, in, this->vmat_, this->vvec_, this->rois_);
+  auto res = lin_trans::CreateSampleDescriptors(out, in, make_cspan(this->vmat_),
+                                                make_cspan(this->vvec_), make_cspan(this->rois_));
 
   EXPECT_EQ(this->input_device_, res[0].in);
   EXPECT_EQ(this->output_, res[0].out);
   EXPECT_TRUE(cmp_shapes<kNDims>(this->in_shapes_[0], res[0].in_size));
   EXPECT_TRUE(cmp_shapes<kNDims>(this->out_shapes_[0], res[0].out_size));
-  EXPECT_EQ(this->vmat_[0], res[0].transformation_matrix);
+  EXPECT_EQ(this->vmat_[0], res[0].A);
 }
 
 
 }  // namespace test
-}  // namespace linear_transformation
 }  // namespace kernels
 }  // namespace dali
 

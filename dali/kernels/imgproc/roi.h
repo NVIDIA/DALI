@@ -89,7 +89,7 @@ TensorShape<ndims> ShapeFromRoi(const Roi<spatial_dims> &roi, int nchannels) {
  * Convenient overload for batch processing (creating TensorListShape)
  */
 template <int spatial_dims, int ndims = spatial_dims + 1>
-TensorListShape<ndims> ShapeFromRoi(const std::vector<Roi<spatial_dims>> &rois, int nchannels) {
+TensorListShape<ndims> ShapeFromRoi(span<const Roi<spatial_dims>> rois, int nchannels) {
   DALI_ENFORCE(!rois.empty(), "Provided argument doesn't contain any Roi");
   TensorListShape<ndims> ret(rois.size());
   size_t i = 0;
@@ -130,7 +130,7 @@ Roi<spatial_dims> AdjustRoi(const Roi<spatial_dims> *roi, const TensorShape <ndi
  */
 template <int ndims, int spatial_dims = ndims - 1>
 std::vector<Roi<spatial_dims>>
-AdjustRoi(const std::vector<Roi<spatial_dims>> rois, const TensorListShape <ndims> &shapes) {
+AdjustRoi(span<const Roi<spatial_dims>> rois, const TensorListShape <ndims> &shapes) {
   DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(shapes.num_samples()),
                "Either provide `rois` for every corresponding `shape`, or none.");
   std::vector<Roi<spatial_dims>> ret(shapes.num_samples());

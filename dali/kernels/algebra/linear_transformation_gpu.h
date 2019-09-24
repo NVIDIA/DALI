@@ -25,9 +25,7 @@
 
 namespace dali {
 namespace kernels {
-namespace linear_transformation {
-
-namespace detail {
+namespace lin_trans {
 
 template <typename OutputType, typename InputType,
         int channels_out, int channels_in, int spatial_ndims>
@@ -35,8 +33,11 @@ struct SampleDescriptor {
   const InputType *in;
   OutputType *out;
   ivec<spatial_ndims> in_size, in_strides, out_size, out_strides;
-  mat<channels_out, channels_in, float> transformation_matrix;
-  vec<channels_out, float> transformation_vector;
+
+  /// A*x + B
+  mat<channels_out, channels_in, float> A;
+  vec<channels_out, float> B;
+
   Roi<spatial_ndims> roi;
 };
 
@@ -44,13 +45,12 @@ struct SampleDescriptor {
 template <typename OutputType, typename InputType,
         int channels_out, int channels_in, int spatial_ndims>
 std::vector<SampleDescriptor<OutputType, InputType, channels_out, channels_in, spatial_ndims>>
-CreateSampleDescriptors(
-        const OutListGPU<OutputType, spatial_ndims + 1> &out,
-        const InListGPU<InputType, spatial_ndims + 1> &in,
-        const std::vector<mat<channels_out, channels_in, float>> &transformation_matrices,
-        const std::vector<vec<channels_out, float>> &transformation_vectors,
-        const std::vector<Roi<spatial_ndims>> &rois) {
-  assert(transformation_matrices.size() == transformation_vectors.size());
+CreateSampleDescriptors(const OutListGPU<OutputType, spatial_ndims + 1> &out,
+                        const InListGPU<InputType, spatial_ndims + 1> &in,
+                        span<const mat<channels_out, channels_in, float>> tmatrices,
+                        span<const vec<channels_out, float>> tvectors,
+                        span<const Roi<spatial_ndims>> rois) {
+  assert(tmatrices.size() == tvectors.size());
   auto adjusted_rois = AdjustRoi(rois, in.shape);
   std::vector<SampleDescriptor<OutputType, InputType, channels_out, channels_in, spatial_ndims>>
           ret(in.num_samples());
@@ -72,21 +72,19 @@ CreateSampleDescriptors(
     sample.out_size = get_size(out.tensor_shape(i));
     sample.in_strides = {channels_in, sample.in_size.x * channels_in};
     sample.out_strides = {channels_out, sample.out_size.x * channels_out};
-    sample.transformation_matrix = transformation_matrices[i];
-    sample.transformation_vector = transformation_vectors[i];
+    sample.A = tmatrices[i];
+    sample.B = tvectors[i];
     sample.roi = adjusted_rois[i];
   }
 
   return ret;
 }
 
-}  // namespace detail
-
 
 template <typename OutputType, typename InputType,
         int channels_out, int channels_in, int spatial_ndims>
 void __global__ LinearTransformationKernel(
-        const detail::SampleDescriptor<OutputType, InputType,
+        const lin_trans::SampleDescriptor<OutputType, InputType,
                 channels_out, channels_in, spatial_ndims> *samples,
         const BlockDesc<spatial_ndims> *blocks) {
   const auto &block = blocks[blockIdx.x];
@@ -110,7 +108,7 @@ void __global__ LinearTransformationKernel(
       for (int i = 0; i < channels_in; i++) {
         v_in[i] = in_roi(x, y, i);
       }
-      vec<channels_out> v_out = sample.transformation_matrix * v_in + sample.transformation_vector;
+      vec<channels_out> v_out = sample.A * v_in + sample.B;
       for (int i = 0; i < channels_out; i++) {
         out(x, y, i) = ConvertSat<OutputType>(v_out[i]);
       }
@@ -118,6 +116,7 @@ void __global__ LinearTransformationKernel(
   }
 }
 
+}  // namespace lin_trans
 
 template <typename OutputType, typename InputType,
         int channels_out, int channels_in, int spatial_ndims>
@@ -127,7 +126,7 @@ class LinearTransformationGpu {
   using Mat = ::dali::mat<channels_out, channels_in, float>;
   using Vec = ::dali::vec<channels_out, float>;
   using BlockDesc = kernels::BlockDesc<spatial_ndims>;
-  using SampleDescriptor = detail::SampleDescriptor<OutputType, InputType,
+  using SampleDescriptor = lin_trans::SampleDescriptor<OutputType, InputType,
           channels_out, channels_in, spatial_ndims>;
 
   std::vector<SampleDescriptor> sample_descriptors_;
@@ -137,10 +136,9 @@ class LinearTransformationGpu {
           spatial_ndims /* Assumed, that the channel dim is the last dim */> block_setup_;
 
 
-  KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, ndims_> &in,
-                           const std::vector<Mat> &transformation_matrices,
-                           const std::vector<Vec> &transformation_vectors,
-                           const std::vector<Roi<spatial_ndims>> &rois = {}) {
+  KernelRequirements
+  Setup(KernelContext &context, const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices,
+        span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois = {}) {
     DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
                  "Provide ROIs either for all or none input tensors");
     for (int i = 0; i < in.size(); i++) {
@@ -158,7 +156,7 @@ class LinearTransformationGpu {
     auto adjusted_rois = AdjustRoi(rois, in.shape);
     KernelRequirements req;
     ScratchpadEstimator se;
-    TensorListShape<ndims_> output_shape(ShapeFromRoi(adjusted_rois, channels_out));
+    TensorListShape<ndims_> output_shape(ShapeFromRoi(make_cspan(adjusted_rois), channels_out));
     block_setup_.SetupBlocks(output_shape, true);
     se.add<SampleDescriptor>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
@@ -169,10 +167,9 @@ class LinearTransformationGpu {
 
 
   void Run(KernelContext &context, const OutListGPU<OutputType, spatial_ndims + 1> &out,
-           const InListGPU<InputType, spatial_ndims + 1> &in,
-           const std::vector<Mat> &tmatrices, const std::vector<Vec> &tvectors,
-           const std::vector<Roi<spatial_ndims>> &rois = {}) {
-    auto sample_descs = detail::CreateSampleDescriptors(out, in, tmatrices, tvectors, rois);
+           const InListGPU<InputType, spatial_ndims + 1> &in, span<const Mat> tmatrices,
+           span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois = {}) {
+    auto sample_descs = lin_trans::CreateSampleDescriptors(out, in, tmatrices, tvectors, rois);
 
     typename decltype(sample_descs)::value_type *samples_gpu;
     BlockDesc *blocks_gpu;
@@ -184,7 +181,7 @@ class LinearTransformationGpu {
     dim3 block_dim = block_setup_.BlockDim();
     auto stream = context.gpu.stream;
     // @autoformat:off
-    LinearTransformationKernel
+    lin_trans::LinearTransformationKernel
             <OutputType, InputType, channels_out, channels_in, spatial_ndims>
             <<<grid_dim, block_dim, 0, stream>>>
             (samples_gpu, blocks_gpu);
@@ -192,7 +189,6 @@ class LinearTransformationGpu {
   }
 };
 
-}  // namespace linear_transformation
 }  // namespace kernels
 }  // namespace dali
 
