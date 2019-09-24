@@ -27,7 +27,6 @@ constexpr int TYPE_DWORD = 4;
 
 constexpr std::array<int, 4> le_header = {77, 77, 0, 42};
 
-
 bool is_little_endian(const unsigned char *tiff) {
   DALI_ENFORCE(tiff);
   for (unsigned int i = 0; i < le_header.size(); i++) {
@@ -40,22 +39,20 @@ bool is_little_endian(const unsigned char *tiff) {
 
 }  // namespace
 
-TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type) :
-        GenericImage(encoded_buffer, length, image_type) {
-}
+TiffImage::TiffImage(const uint8_t *encoded_buffer, size_t length, dali::DALIImageType image_type)
+    : GenericImage(encoded_buffer, length, image_type) {}
 
-
-Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
-  DALI_ENFORCE(encoded_buffer);
-
+Image::Shape TiffImage::PeekShape(const uint8_t *encoded_buffer, size_t length) const {
+  DALI_ENFORCE(encoded_buffer != nullptr);
   TiffBuffer buffer(
-          std::string(reinterpret_cast<const char *>(encoded_buffer), static_cast<size_t>(length)),
-          is_little_endian(encoded_buffer));
+    std::string(reinterpret_cast<const char *>(encoded_buffer),
+    static_cast<size_t>(length)),
+    is_little_endian(encoded_buffer));
 
   const auto ifd_offset = buffer.Read<uint32_t>(4);
   const auto entry_count = buffer.Read<uint16_t>(ifd_offset);
   bool width_read = false, height_read = false;
-  size_t width, height;
+  int64_t width = 0, height = 0;
 
   for (int entry_idx = 0;
        entry_idx < entry_count && !(width_read && height_read);
@@ -67,7 +64,7 @@ Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t lengt
       const auto value_count = buffer.Read<uint32_t>(entry_offset + 4);
       DALI_ENFORCE(value_count == 1);
 
-      size_t value;
+      int64_t value;
       if (value_type == TYPE_WORD) {
         value = buffer.Read<uint16_t>(entry_offset + 8);
       } else if (value_type == TYPE_DWORD) {
@@ -90,7 +87,7 @@ Image::ImageDims TiffImage::PeekDims(const uint8_t *encoded_buffer, size_t lengt
   }
 
   // TODO(mszolucha): fill channels count
-  return std::make_tuple(height, width, 0);
+  return {height, width, 0};
 }
 
 }  // namespace dali

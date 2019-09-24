@@ -81,6 +81,7 @@ int DeviceDelete(void *ptr) {
 inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
       return NVJPEG_OUTPUT_RGBI;
     case DALI_BGR:
       return NVJPEG_OUTPUT_BGRI;
@@ -95,6 +96,7 @@ inline int GetOutputPitch(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
     case DALI_BGR:
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
       return 3;
     case DALI_GRAY:
       return 1;
@@ -231,9 +233,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         auto file_name = in.GetSourceInfo();
         try {
           const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
-          const auto dims = image->GetImageDims();
-          info.heights[0] = std::get<0>(dims);
-          info.widths[0] = std::get<1>(dims);
+          const auto shape = image->GetShape();
+          info.heights[0] = shape[0];
+          info.widths[0] = shape[1];
           info.nvjpeg_support = false;
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + "File: " + file_name);
@@ -340,8 +342,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
           continue;
 
-        const auto dims = output_shape_[j];
-        const ImageCache::ImageShape output_shape{dims[0], dims[1], dims[2]};
+        const ImageCache::ImageShape output_shape = output_shape_[j].to_static<3>();
         auto info = output_info_[j];
 
         thread_pool_.DoWorkWithID(

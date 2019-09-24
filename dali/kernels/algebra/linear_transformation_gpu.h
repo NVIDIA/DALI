@@ -26,26 +26,31 @@
 namespace dali {
 namespace kernels {
 namespace linear_transformation {
+
 namespace detail {
 
-
-template <class OutputType, class InputType, int channels_out, int channels_in, int spatial_ndims>
+template <typename OutputType, typename InputType,
+        int channels_out, int channels_in, int spatial_ndims>
 struct SampleDescriptor {
   const InputType *in;
   OutputType *out;
   ivec<spatial_ndims> in_size, in_strides, out_size, out_strides;
   mat<channels_out, channels_in, float> transformation_matrix;
+  vec<channels_out, float> transformation_vector;
   Roi<spatial_ndims> roi;
 };
 
 
-template <class OutputType, class InputType, int channels_out, int channels_in, int spatial_ndims>
+template <typename OutputType, typename InputType,
+        int channels_out, int channels_in, int spatial_ndims>
 std::vector<SampleDescriptor<OutputType, InputType, channels_out, channels_in, spatial_ndims>>
 CreateSampleDescriptors(
         const OutListGPU<OutputType, spatial_ndims + 1> &out,
         const InListGPU<InputType, spatial_ndims + 1> &in,
         const std::vector<mat<channels_out, channels_in, float>> &transformation_matrices,
+        const std::vector<vec<channels_out, float>> &transformation_vectors,
         const std::vector<Roi<spatial_ndims>> &rois) {
+  assert(transformation_matrices.size() == transformation_vectors.size());
   auto adjusted_rois = AdjustRoi(rois, in.shape);
   std::vector<SampleDescriptor<OutputType, InputType, channels_out, channels_in, spatial_ndims>>
           ret(in.num_samples());
@@ -68,17 +73,18 @@ CreateSampleDescriptors(
     sample.in_strides = {channels_in, sample.in_size.x * channels_in};
     sample.out_strides = {channels_out, sample.out_size.x * channels_out};
     sample.transformation_matrix = transformation_matrices[i];
+    sample.transformation_vector = transformation_vectors[i];
     sample.roi = adjusted_rois[i];
   }
 
   return ret;
 }
 
-
 }  // namespace detail
 
 
-template <class OutputType, class InputType, int channels_out, int channels_in, int spatial_ndims>
+template <typename OutputType, typename InputType,
+        int channels_out, int channels_in, int spatial_ndims>
 void __global__ LinearTransformationKernel(
         const detail::SampleDescriptor<OutputType, InputType,
                 channels_out, channels_in, spatial_ndims> *samples,
@@ -104,7 +110,7 @@ void __global__ LinearTransformationKernel(
       for (int i = 0; i < channels_in; i++) {
         v_in[i] = in_roi(x, y, i);
       }
-      vec<channels_out> v_out = sample.transformation_matrix * v_in;
+      vec<channels_out> v_out = sample.transformation_matrix * v_in + sample.transformation_vector;
       for (int i = 0; i < channels_out; i++) {
         out(x, y, i) = ConvertSat<OutputType>(v_out[i]);
       }
@@ -118,7 +124,8 @@ template <typename OutputType, typename InputType,
 class LinearTransformationGpu {
  private:
   static constexpr auto ndims_ = spatial_ndims + 1;
-  using mat = ::dali::mat<channels_out, channels_in, float>;
+  using Mat = ::dali::mat<channels_out, channels_in, float>;
+  using Vec = ::dali::vec<channels_out, float>;
   using BlockDesc = kernels::BlockDesc<spatial_ndims>;
   using SampleDescriptor = detail::SampleDescriptor<OutputType, InputType,
           channels_out, channels_in, spatial_ndims>;
@@ -131,7 +138,8 @@ class LinearTransformationGpu {
 
 
   KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, ndims_> &in,
-                           const std::vector<mat> &transformation_matrices,
+                           const std::vector<Mat> &transformation_matrices,
+                           const std::vector<Vec> &transformation_vectors,
                            const std::vector<Roi<spatial_ndims>> &rois = {}) {
     DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
                  "Provide ROIs either for all or none input tensors");
@@ -162,10 +170,9 @@ class LinearTransformationGpu {
 
   void Run(KernelContext &context, const OutListGPU<OutputType, spatial_ndims + 1> &out,
            const InListGPU<InputType, spatial_ndims + 1> &in,
-           const std::vector<::dali::mat<channels_out, channels_in, float>> &tmatrices,
+           const std::vector<Mat> &tmatrices, const std::vector<Vec> &tvectors,
            const std::vector<Roi<spatial_ndims>> &rois = {}) {
-    auto sample_descs = detail::CreateSampleDescriptors<OutputType, InputType,
-            channels_out, channels_in, spatial_ndims>(out, in, tmatrices, rois);
+    auto sample_descs = detail::CreateSampleDescriptors(out, in, tmatrices, tvectors, rois);
 
     typename decltype(sample_descs)::value_type *samples_gpu;
     BlockDesc *blocks_gpu;
