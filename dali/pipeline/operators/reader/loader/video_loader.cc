@@ -23,6 +23,11 @@
 #include <fstream>
 #include <limits>
 
+#undef LOG_LINE
+
+#define LOG_LINE \
+  std::cout << "# " << __LINE__ << ": "
+
 inline int gcd(int a, int b) {
   while (b) {
     int tmp = b;
@@ -365,8 +370,9 @@ void VideoLoader::seek(OpenFile& file, int frame) {
 void VideoLoader::read_file() {
   // av_packet_unref is unlike the other libav free functions
   using pkt_ptr = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
-  auto raw_pkt = AVPacket{};
-  auto seek_hack = 1;
+  AVPacket raw_pkt = {};
+  int seek_hack = 1;
+
   while (!stop_) {
     if (stop_) {
       break;
@@ -398,8 +404,12 @@ void VideoLoader::read_file() {
     auto nonkey_frame_count = 0;
     int frames_left = req.count;
     std::vector<bool> frames_read(frames_left, false);
+
+    bool is_first_frame = true;
     bool key = false;
-    while (frames_left > 0 && av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
+    bool seek_must_succeed = false;
+
+    while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
       auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
 
       stats_.bytes_read += pkt->size;
@@ -423,6 +433,42 @@ void VideoLoader::read_file() {
                  << "\nPacket contains " << pkt_frames << " frames\n";
       }
 
+      if (frame > req.frame) {
+        if (key) {
+          if (frames_left <= 0)
+            break;
+          if (is_first_frame) {
+            LOG_LINE << device_id_ << ": We got ahead of ourselves! "
+                          << frame << " > " << req.frame << " + "
+                          << nonkey_frame_count
+                          << " seek_hack = " << seek_hack << std::endl;
+            if (seek_must_succeed) {
+              std::stringstream ss;
+              ss << device_id_ << ": failed to seek frame "
+                  << req.frame;
+              DALI_FAIL(ss.str());
+            }
+            if (req.frame > seek_hack) {
+              seek(file, req.frame - seek_hack);
+              seek_hack *= 2;
+            } else {
+              seek_must_succeed = true;
+              seek(file, 0);
+            }
+            continue;
+          } else {
+            nonkey_frame_count = 0;
+          }
+          seek_must_succeed = false;
+        } else {
+          nonkey_frame_count += pkt_frames;
+          // A heuristic so we don't go way over... what should "20" be?
+          if (frames_left <= 0 && frame > req.frame + req.count + 20) {
+            break;
+          }
+        }
+      }
+
       if (frame >= req.frame && frame < req.frame + req.count) {
         if (frames_read[frame - req.frame]) {
           ERROR_LOG << "Frame " << frame << " appeared twice\n";
@@ -434,44 +480,6 @@ void VideoLoader::read_file() {
       } else {
         LOG_LINE << "Frame " << frame << " not in the interesting range.\n";
       }
-
-      if (frame >= req.frame) {
-        if (key) {
-          if (frames_left <= 0)
-            break;
-          static auto final_try = false;
-          if (frame >= req.frame + req.count) {
-            LOG_LINE << device_id_ << ": We got ahead of ourselves! "
-                          << frame << " > " << req.frame << " + "
-                          << nonkey_frame_count
-                          << " seek_hack = " << seek_hack << std::endl;
-            seek_hack *= 2;
-            if (final_try) {
-              std::stringstream ss;
-              ss << device_id_ << ": failed to seek frame "
-                  << req.frame;
-              DALI_FAIL(ss.str());
-            }
-            if (req.frame > seek_hack) {
-              seek(file, req.frame - seek_hack);
-            } else {
-              final_try = true;
-              seek(file, 0);
-            }
-            continue;
-          } else {
-            nonkey_frame_count = 0;
-          }
-          final_try = false;
-        } else {
-          nonkey_frame_count += pkt_frames;
-          // A heuristic so we don't go way over... what should "20" be?
-          if (frame > req.frame + req.count + 20) {
-            frames_left = 0;;
-          }
-        }
-      }
-      seek_hack = 1;
 
       LOG_LINE << device_id_ << ": Sending " << (key ? "  key " : "nonkey")
                   << " frame " << frame << " to the decoder."
@@ -536,7 +544,9 @@ void VideoLoader::read_file() {
       } else {
         vid_decoder_->decode_packet(pkt.get(), file.start_time_);
       }
+      is_first_frame = false;
     }
+
     // flush the decoder
     vid_decoder_->decode_packet(nullptr, 0);
   }  // while not done
