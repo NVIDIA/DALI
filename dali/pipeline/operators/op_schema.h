@@ -219,12 +219,7 @@ class DLL_PUBLIC OpSchema {
    * if number of dimensions matches. Otherswise, error is raised.
    */
   DLL_PUBLIC inline OpSchema& InputLayout(int index, TensorLayout layout) {
-    CheckInputIndex(index);
-    DALI_ENFORCE(input_layouts_[index].empty(), "Layouts for input " + std::to_string(index) +
-                 " already specified");
-    DALI_ENFORCE(!layout.empty(), "Cannot specify an empty layout for an input");
-    input_layouts_[index] = { layout };
-    return *this;
+    return InputLayout(index, { layout });
   }
 
   /**
@@ -254,9 +249,7 @@ class DLL_PUBLIC OpSchema {
    * @see InputLayout(int index, TensorLayout layout)
    */
   DLL_PUBLIC inline OpSchema& InputLayout(TensorLayout layout) {
-    for (int i = 0; i < max_num_input_; i++)
-      InputLayout(i, layout);
-    return *this;
+    return InputLayout({ layout });
   }
 
   /**

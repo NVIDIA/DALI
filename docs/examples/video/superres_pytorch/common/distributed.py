@@ -40,7 +40,7 @@ class DistributedDataParallel(Module):
         param_list = [param for param in self.module.state_dict().values() if torch.is_tensor(param)]
         if dist._backend == dist.dist_backend.NCCL:
             for param in param_list:
-                assert param.is_cuda, "CCL backend only supports model parameters to be on GPU."
+                assert param.is_cuda, "NCCL backend only supports model parameters to be on GPU."
 
         #broadcast parameters
         flat_dist_call(param_list, dist.broadcast, (0,) )

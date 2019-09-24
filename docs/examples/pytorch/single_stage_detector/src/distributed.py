@@ -24,7 +24,7 @@ class DistributedDataParallel(Module):
             if not torch.is_tensor(p):
                 continue
             if dist._backend == dist.dist_backend.NCCL:
-                assert p.is_cuda, "CCL backend only supports model parameters to be on GPU."
+                assert p.is_cuda, "NCCL backend only supports model parameters to be on GPU."
             dist.broadcast(p, 0)
 
         def allreduce_params():
