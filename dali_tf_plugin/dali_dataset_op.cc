@@ -16,7 +16,7 @@
 
 #include "tensorflow/core/public/version.h"
 
-// #if TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 12
+#if TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 12
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wreorder"
@@ -37,9 +37,6 @@
 #include "tensorflow/core/framework/partial_tensor_shape.h"
 #include "tensorflow/core/framework/tensor.h"
 
-#include "dbg.h"
-
-
 #define USE_TF_ALLOCATOR 0
 
 #if USE_TF_ALLOCATOR
@@ -48,7 +45,6 @@
 
 #include "dali/core/common.h"
 #include "dali/c_api/c_api.h"
-#include "tf_helper.h"
 
 #define TF_DALI_CALL(FUNC)                                                     \
     _DALI_CALL_IMPL(FUNC, _RET_ERROR)
@@ -63,69 +59,94 @@ class DALIDatasetOp : public DatasetOpKernel {
   public:
     explicit DALIDatasetOp(OpKernelConstruction* context) 
       : DatasetOpKernel(context) { 
+        OP_REQUIRES_OK(context, context->GetAttr("pipeline", &pipeline_));
         OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size_));
+        OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads_));
+        OP_REQUIRES_OK(context, context->GetAttr("device_id", &device_id_));
+        OP_REQUIRES_OK(context, context->GetAttr("exec_separated", &exec_separated_));
+        OP_REQUIRES_OK(context, context->GetAttr("prefetch_queue_depth", &prefetch_queue_depth_));
+        OP_REQUIRES_OK(context, context->GetAttr("cpu_prefetch_queue_depth", &cpu_prefetch_queue_depth_));
+        OP_REQUIRES_OK(context, context->GetAttr("gpu_prefetch_queue_depth", &gpu_prefetch_queue_depth_));
         OP_REQUIRES_OK(context, context->GetAttr("shapes", &shapes_));
         OP_REQUIRES_OK(context, context->GetAttr("dtypes", &dtypes_));
-        OP_REQUIRES_OK(context, context->GetAttr("pipeline", &pipeline_));
-
-
-        // std::cout << "======= Dataset constructor ==========   " << this << std::endl;
-        // // std::cout << "pipeline: " << pipeline_ << std::endl;
-        // std::cout << "shapes: { ";
-        // for(const auto &shape : shapes_)
-        //   std::cout << shape << ", ";
-        // std::cout << "}" <<std::endl;
-        // std::cout << "dtypes: { ";
-        // for(const auto &t : dtypes_)
-        //   std::cout << t << ", ";
-        // std::cout << "}" <<std::endl;
-        // std::cout << std::endl;
-        // dbg(this);
       }
 
     void MakeDataset(OpKernelContext* context, DatasetBase** output) override {
-      dbg(this);
-      dbg(context);
-      *output = new Dataset(context, batch_size_, shapes_, dtypes_, pipeline_);
+      *output = new Dataset(
+        context, 
+        pipeline_, 
+        batch_size_, 
+        num_threads_,
+        device_id_,
+        exec_separated_,
+        prefetch_queue_depth_,
+        cpu_prefetch_queue_depth_,
+        gpu_prefetch_queue_depth_,
+        shapes_, 
+        dtypes_);
     }
 
   private:
-    int batch_size_;
-    std::vector<PartialTensorShape> shapes_;
     std::string pipeline_;
+    int batch_size_;
+    int num_threads_;
+    int device_id_;
+    bool exec_separated_;
+    int prefetch_queue_depth_;
+    int cpu_prefetch_queue_depth_;
+    int gpu_prefetch_queue_depth_;
+    std::vector<PartialTensorShape> shapes_;
     DataTypeVector dtypes_;
 
     class Dataset : public DatasetBase {
       public:
         explicit Dataset(
           OpKernelContext *context,
-          const int batch_size, 
+          const std::string pipeline,
+          const int batch_size,
+          const int num_threads,
+          const int device_id,
+          const bool exec_separated,
+          const int prefetch_queue_depth,
+          const int cpu_prefetch_queue_depth,
+          const int gpu_prefetch_queue_depth,
           const std::vector<PartialTensorShape> &shapes,
-          const DataTypeVector &dtypes,
-          const std::string pipeline) 
+          const DataTypeVector &dtypes) 
           : DatasetBase(DatasetContext(context)), 
+          pipeline_(pipeline),
           batch_size_(batch_size),
+          num_threads_(num_threads),
+          device_id_(device_id),
+          exec_separated_(exec_separated),
+          prefetch_queue_depth_(prefetch_queue_depth),
+          cpu_prefetch_queue_depth_(cpu_prefetch_queue_depth),
+          gpu_prefetch_queue_depth_(gpu_prefetch_queue_depth),
           shapes_(shapes), 
-          dtypes_(dtypes), 
-          pipeline_(pipeline) {
-            dbg(this);
+          dtypes_(dtypes) {
             daliCreatePipeline(
               &pipeline_handle_,
               pipeline_.c_str(),
               pipeline_.length(),
               batch_size,
-              4,
-              0,
-              false,
-              2,
-              2,
-              2);
-            daliPrefetchUniform(&pipeline_handle_, 2);
+              num_threads,
+              device_id,
+              exec_separated,
+              prefetch_queue_depth,
+              cpu_prefetch_queue_depth,
+              gpu_prefetch_queue_depth);
+
+            if (!exec_separated) {
+              daliPrefetchUniform(&pipeline_handle_, prefetch_queue_depth_);
+            } else {
+              daliPrefetchSeparate(
+                &pipeline_handle_, 
+                cpu_prefetch_queue_depth,
+                prefetch_queue_depth);
+            }
           }
 
         std::unique_ptr<IteratorBase> MakeIteratorInternal(
           const string &prefix) const override {
-            dbg(this);
             return absl::make_unique<Iterator>(
               Iterator::Params{this, strings::StrCat(prefix, "::DALI")}
             );
@@ -145,14 +166,19 @@ class DALIDatasetOp : public DatasetOpKernel {
         int64 Cardinality() const override { return kInfiniteCardinality; }
 
         ~Dataset() {
-          dbg(this);
           daliDeletePipeline(&pipeline_handle_);
         }
 
       protected:
-        const int batch_size_;
-        const std::vector<PartialTensorShape> shapes_;
         const std::string pipeline_;
+        const int batch_size_;
+        const int num_threads_;
+        const int device_id_;
+        const bool exec_separated_;
+        const int prefetch_queue_depth_;
+        const int cpu_prefetch_queue_depth_;
+        const int gpu_prefetch_queue_depth_;
+        const std::vector<PartialTensorShape> shapes_;
         const DataTypeVector &dtypes_;
         
         daliPipelineHandle pipeline_handle_;
@@ -162,8 +188,29 @@ class DALIDatasetOp : public DatasetOpKernel {
           DatasetGraphDefBuilder *b,
           Node **output) const override {
 
+          AttrValue pipeline;
+          b->BuildAttrValue<std::string>(pipeline_, &pipeline);
+
           AttrValue batch_size;
           b->BuildAttrValue<int>(batch_size_, &batch_size);
+
+          AttrValue num_threads;
+          b->BuildAttrValue<int>(num_threads_, &num_threads);
+
+          AttrValue device_id;
+          b->BuildAttrValue<int>(device_id_, &device_id);
+
+          AttrValue exec_separated;
+          b->BuildAttrValue<bool>(exec_separated_, &exec_separated);
+
+          AttrValue prefetch_queue_depth;
+          b->BuildAttrValue<int>(prefetch_queue_depth_, &prefetch_queue_depth);
+
+          AttrValue cpu_prefetch_queue_depth;
+          b->BuildAttrValue<int>(cpu_prefetch_queue_depth_, &cpu_prefetch_queue_depth);
+
+          AttrValue gpu_prefetch_queue_depth;
+          b->BuildAttrValue<int>(gpu_prefetch_queue_depth_, &gpu_prefetch_queue_depth);
 
           AttrValue shapes;
           b->BuildAttrValue<std::vector<PartialTensorShape>>(shapes_, &shapes);
@@ -171,17 +218,20 @@ class DALIDatasetOp : public DatasetOpKernel {
           AttrValue dtypes;
           b->BuildAttrValue<DataTypeVector>(dtypes_, &dtypes);
 
-          AttrValue pipeline;
-          b->BuildAttrValue<std::string>(pipeline_, &pipeline);
-
           TF_RETURN_IF_ERROR(b->AddDataset(
             this, 
             {}, 
             { 
+              std::make_pair("pipeline", pipeline),
               std::make_pair("batch_size", batch_size),
+              std::make_pair("num_threads", num_threads),
+              std::make_pair("device_id" ,device_id),
+              std::make_pair("exec_separated", exec_separated),
+              std::make_pair("prefetch_queue_depth", prefetch_queue_depth),
+              std::make_pair("cpu_prefetch_queue_depth", cpu_prefetch_queue_depth),
+              std::make_pair("gpu_prefetch_queue_depth", gpu_prefetch_queue_depth),
               std::make_pair("shapes", shapes),
-              std::make_pair("dtypes", dtypes),
-              std::make_pair("pipeline", pipeline)
+              std::make_pair("dtypes", dtypes)
             }, 
             output));
 
@@ -192,9 +242,7 @@ class DALIDatasetOp : public DatasetOpKernel {
         class Iterator : public DatasetIterator<Dataset> {
           public:
             explicit Iterator(const Params &params)
-              : DatasetIterator<Dataset>(params) {
-                dbg(this);
-              }
+              : DatasetIterator<Dataset>(params) { }
 
             Status GetNextInternal(
               IteratorContext *context,
@@ -204,7 +252,7 @@ class DALIDatasetOp : public DatasetOpKernel {
                 cudaStream_t stream = 0;
                 auto pipeline_handle = dataset()->pipeline_handle_;
 
-                TF_DALI_CALL(daliShareOutput(&pipeline_handle));
+                daliShareOutput(&pipeline_handle);
                 
                 const auto num_outputs = daliGetNumOutput(&pipeline_handle);
                 for (int out_id = 0; out_id < num_outputs; ++out_id) {
@@ -240,13 +288,13 @@ class DALIDatasetOp : public DatasetOpKernel {
                     break;
                   }
 
-                  TF_DALI_CALL(daliCopyTensorNTo(&pipeline_handle, dst, out_id, device_type_t::CPU, stream));
+                  daliCopyTensorNTo(&pipeline_handle, dst, out_id, device_type_t::CPU, stream);
                 }
                 
                 *end_of_sequence = false;
 
-                TF_DALI_CALL(daliOutputRelease(&pipeline_handle));
-                TF_DALI_CALL(daliRun(&pipeline_handle));
+                daliOutputRelease(&pipeline_handle);
+                daliRun(&pipeline_handle);
                 return Status::OK();
               }
 
@@ -263,10 +311,16 @@ REGISTER_KERNEL_BUILDER(
   DALIDatasetOp);
 
 REGISTER_OP("DaliDataset")
+  .Attr("pipeline: string")
   .Attr("batch_size: int")
+  .Attr("num_threads: int")
+  .Attr("device_id: int")
+  .Attr("exec_separated: bool")
+  .Attr("prefetch_queue_depth: int")
+  .Attr("cpu_prefetch_queue_depth: int")
+  .Attr("gpu_prefetch_queue_depth: int")
   .Attr("shapes: list(shape) = [{ dim { size: 1 } dim { size: 2 } }, { dim { size: 1 } dim { size: 2 } }]")
   .Attr("dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
-  .Attr("pipeline: string")
   .Output("handle: variant")
   .SetIsStateful() 
   .SetShapeFn([](shape_inference::InferenceContext* c) {
@@ -291,4 +345,4 @@ REGISTER_OP("DaliDataset")
 }  // namespace data
 }  // namespace tensorflow
 
-// #endif  // TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 12
+#endif  // TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 12
