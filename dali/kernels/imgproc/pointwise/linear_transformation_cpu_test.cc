@@ -21,7 +21,7 @@
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
-#include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
+#include "dali/kernels/imgproc/pointwise/linear_transformation_gpu.h"
 #include "dali/kernels/imgproc/color_manipulation/color_manipulation_test_utils.h"
 
 namespace dali {
@@ -31,9 +31,12 @@ namespace test {
 
 namespace {
 
+/**
+ * Rounding in CPU style
+ */
 template <class Out>
 std::enable_if_t<std::is_integral<Out>::value, Out> custom_round(float val) {
-  return ConvertSat<Out>(val);
+  return std::round(val);
 }
 
 
@@ -57,33 +60,41 @@ class LinearTransformationCpuTest : public ::testing::Test {
 
  public:
   LinearTransformationCpuTest() {
-    input_.resize(dataset_size(in_shape_));
+    input_host_.resize(dataset_size(in_shapes_));
   }
 
 
   void SetUp() final {
     std::mt19937_64 rng;
-    UniformRandomFill(input_, rng, 0., 10.);
+    UniformRandomFill(input_host_, rng, 0., 10.);
     calc_output();
+    CUDA_CALL(cudaMalloc(&input_device_, sizeof(In) * dataset_size(in_shapes_)));
+    CUDA_CALL(cudaMemcpy(input_device_, input_host_.data(), input_host_.size() * sizeof(In),
+                         cudaMemcpyDefault));
+    CUDA_CALL(cudaMalloc(&output_, dataset_size(out_shapes_) * sizeof(Out)));
+    cudaDeviceSynchronize();
   }
 
 
-  std::vector<In> input_;
+  In *input_device_;
+  Out *output_;
+  std::vector<In> input_host_;
   std::vector<Out> ref_output_;
-  TensorShape<kNDims> in_shape_ = {9, 12, kNChannelsIn};
-  TensorShape<kNDims> out_shape_ = {9, 12, kNChannelsOut};
+  std::vector<TensorShape<kNDims>> in_shapes_ = {{4, 3, kNChannelsIn}};
+  std::vector<TensorShape<kNDims>> out_shapes_ = {{4, 3, kNChannelsOut}};
   mat<kNChannelsOut, kNChannelsIn, float> mat_{{{1, 2, 3, 4, 5}, {6, 7, 8, 9, 10}}};
   vec<kNChannelsOut, float> vec_{42, 69};
-  Roi<2> roi_ = {{1, 1},
-                 {3, 5}};
+  std::vector<mat<kNChannelsOut, kNChannelsIn, float>> vmat_ = {mat_};
+  std::vector<vec<kNChannelsOut, float>> vvec_ = {vec_};
+  std::vector<Roi<2>> rois_ = {{{1, 1}, {2, 2}}};
 
 
   void calc_output() {
-    for (size_t i = 0; i < input_.size(); i += kNChannelsIn) {
+    for (size_t i = 0; i < input_host_.size(); i += kNChannelsIn) {
       for (size_t j = 0; j < kNChannelsOut; j++) {
         float res = vec_.v[j];
         for (size_t k = 0; k < kNChannelsIn; k++) {
-          res += static_cast<float>(input_[i + k]) * mat_.at(j, k);
+          res += static_cast<float>(input_host_[i + k]) * mat_.at(j, k);
         }
         ref_output_.push_back(custom_round<Out>(res));
       }
@@ -91,19 +102,25 @@ class LinearTransformationCpuTest : public ::testing::Test {
   }
 
 
-  size_t dataset_size(const TensorShape<kNDims> &shape) {
-    return volume(shape);
+  size_t dataset_size(const std::vector<TensorShape<kNDims>> &shapes) {
+    int ret = 0;
+    for (auto sh : shapes) {
+      ret += volume(sh);
+    }
+    return ret;
   }
 };
 
-using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
+using TestTypes = std::tuple<uint8_t>;
+/* Cause the line below takes RIDICULOUSLY long time to compile */
+// using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
 
 INPUT_OUTPUT_TYPED_TEST_SUITE(LinearTransformationCpuTest, TestTypes);
 
 namespace {
 
 template <class GtestTypeParam>
-using TheKernel = LinearTransformationCpu<typename GtestTypeParam::Out, typename GtestTypeParam::In,
+using TheKernel = LinearTransformationGpu<typename GtestTypeParam::Out, typename GtestTypeParam::In,
         kNChannelsOut, kNChannelsIn, kNDims - 1>;
 
 }  // namespace
@@ -117,61 +134,109 @@ TYPED_TEST(LinearTransformationCpuTest, check_kernel) {
 TYPED_TEST(LinearTransformationCpuTest, setup_test) {
   TheKernel<TypeParam> kernel;
   KernelContext ctx;
-  InTensorCPU<typename TypeParam::In, kNDims> in(this->input_.data(), this->in_shape_);
-  auto reqs = kernel.Setup(ctx, in, this->mat_, this->vec_);
-  ASSERT_EQ(this->out_shape_, reqs.output_shapes[0][0]) << "Kernel::Setup provides incorrect shape";
+  InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
+  auto reqs = kernel.Setup(ctx, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
+  ASSERT_EQ(this->out_shapes_.size(), static_cast<size_t>(reqs.output_shapes[0].num_samples()))
+                        << "Kernel::Setup provides incorrect shape";
+  for (size_t i = 0; i < this->out_shapes_.size(); i++) {
+    EXPECT_EQ(this->out_shapes_[i], reqs.output_shapes[0][i])
+                  << "Kernel::Setup provides incorrect shape";
+  }
 }
 
 
 TYPED_TEST(LinearTransformationCpuTest, run_test) {
   TheKernel<TypeParam> kernel;
-  KernelContext ctx;
-  InTensorCPU<typename TypeParam::In, kNDims> in(this->input_.data(), this->in_shape_);
+  KernelContext c;
+  InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
 
-  auto reqs = kernel.Setup(ctx, in, this->mat_, this->vec_);
+  auto reqs = kernel.Setup(c, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
 
-  auto out_shape = reqs.output_shapes[0][0];
-  std::vector<typename TypeParam::Out> output;
-  output.resize(dali::volume(out_shape));
-  OutTensorCPU<typename TypeParam::Out, kNDims> out(output.data(),
-                                                    out_shape.template to_static<kNDims>());
+  ScratchpadAllocator sa;
+  sa.Reserve(reqs.scratch_sizes);
+  auto scratchpad = sa.GetScratchpad();
+  c.scratchpad = &scratchpad;
 
-  kernel.Run(ctx, out, in, this->mat_, this->vec_);
+  OutListGPU<typename TypeParam::Out, kNDims> out(
+          this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
-  ASSERT_EQ(out.num_elements(), this->ref_output_.size()) << "Number of elements doesn't match";
-  for (int i = 0; i < out.num_elements(); i++) {
-    EXPECT_FLOAT_EQ(this->ref_output_[i], out.data[i]) << "Failed at idx: " << i;
+  kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_));
+  cudaDeviceSynchronize();
+
+  auto res = copy<AllocType::Host>(out[0]);
+  ASSERT_EQ(static_cast<int>(this->ref_output_.size()), res.first.num_elements());
+  for (size_t i = 0; i < this->ref_output_.size(); i++) {
+    EXPECT_FLOAT_EQ(this->ref_output_[i], res.second.get()[i]) << "Failed for index " << i;
   }
 }
 
 
 TYPED_TEST(LinearTransformationCpuTest, run_test_with_roi) {
   TheKernel<TypeParam> kernel;
-  KernelContext ctx;
-  InTensorCPU<typename TypeParam::In, kNDims> in(this->input_.data(), this->in_shape_);
+  KernelContext c;
+  InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
 
-  auto reqs = kernel.Setup(ctx, in, this->mat_, this->vec_, &this->roi_);
+  auto reqs = kernel.Setup(c, in,
+                           make_cspan(this->vmat_), make_cspan(this->vvec_),
+                           make_cspan(this->rois_));
 
-  auto out_shape = reqs.output_shapes[0][0];
-  std::vector<typename TypeParam::Out> output;
-  output.resize(dali::volume(out_shape));
-  OutTensorCPU<typename TypeParam::Out, kNDims> out(output.data(),
-                                                    out_shape.template to_static<kNDims>());
+  ScratchpadAllocator sa;
+  sa.Reserve(reqs.scratch_sizes);
+  auto scratchpad = sa.GetScratchpad();
+  c.scratchpad = &scratchpad;
 
-  kernel.Run(ctx, out, in, this->mat_, this->vec_, &this->roi_);
+  OutListGPU<typename TypeParam::Out, kNDims> out(
+          this->output_, reqs.output_shapes[0].template to_static<kNDims>());
 
+  kernel.Run(c, out, in, make_cspan(this->vmat_), make_cspan(this->vvec_), make_cspan(this->rois_));
+  cudaDeviceSynchronize();
 
-  auto mat = color_manipulation::test::to_mat<kNChannelsOut>(this->ref_output_.data(), this->roi_,
-                                                             this->in_shape_[0],
-                                                             this->in_shape_[1]);
+  auto res = copy<AllocType::Host>(out[0]);
+  auto mat = color_manipulation::test::to_mat<kNChannelsOut>(this->ref_output_.data(),
+                                                             this->rois_[0],
+                                                             this->out_shapes_[0][0],
+                                                             this->out_shapes_[0][1]);
 
-  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
+  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), res.first.num_elements())
                         << "Number of elements doesn't match";
   auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
-  for (int i = 0; i < out.num_elements(); i++) {
-    EXPECT_FLOAT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
+  for (int i = 0; i < res.first.num_elements(); i++) {
+    EXPECT_FLOAT_EQ(ptr[i], res.second.get()[i]) << "Failed at idx: " << i;
   }
 }
+
+
+namespace {
+
+template <int ndims>
+bool cmp_shapes(const TensorShape<ndims> &lhs, ivec<ndims - 1> rhs) {
+  std::reverse(rhs.begin(), rhs.end());
+  for (size_t i = 0; i < rhs.size(); i++) {
+    if (lhs[i] != rhs[i]) return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+
+TYPED_TEST(LinearTransformationCpuTest, sample_descriptors) {
+  using In = typename TypeParam::In;
+  using Out = typename TypeParam::Out;
+
+  InListGPU<In, kNDims> in(this->input_device_, this->in_shapes_);
+  OutListGPU<Out, kNDims> out(this->output_, TensorListShape<3>(this->out_shapes_));
+
+  auto res = lin_trans::CreateSampleDescriptors(out, in, make_cspan(this->vmat_),
+                                                make_cspan(this->vvec_), make_cspan(this->rois_));
+
+  EXPECT_EQ(this->input_device_, res[0].in);
+  EXPECT_EQ(this->output_, res[0].out);
+  EXPECT_TRUE(cmp_shapes<kNDims>(this->in_shapes_[0], res[0].in_size));
+  EXPECT_TRUE(cmp_shapes<kNDims>(this->out_shapes_[0], res[0].out_size));
+  EXPECT_EQ(this->vmat_[0], res[0].A);
+}
+
 
 }  // namespace test
 }  // namespace kernels
