@@ -281,10 +281,6 @@ class DALIDatasetOp : public DatasetOpKernel {
                     case DT_INT64:
                           dst = reinterpret_cast<void*>(output.flat<int64>().data());
                       break;
-                    default:
-                        // std::string error = "Unsupported type: " + DataTypeString(dataset()->dtypes_[i]) +
-                        //                     "for tensor " + std::to_string(i);
-                        // propagate error
                     break;
                   }
 
