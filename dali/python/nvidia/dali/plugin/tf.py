@@ -128,6 +128,9 @@ def DALIIterator():
 def DALIRawIterator():
     return _dali_tf
 
+def get_tf_minor_version():
+  return tf.__version__.split('.')[1]
+
 
 class DALIDatasetV2(dataset_ops.DatasetSource):
   def __init__(
@@ -143,28 +146,53 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
     shapes = [], 
     dtypes = []):
 
-
-    pipeline = pipeline.serialize()
-    shapes = tuple(tf.TensorShape(shape) for shape in shapes)
     output_classes = tuple(ops.Tensor for shape in shapes)
-    dtypes = tuple(dtype for dtype in dtypes)
+
+    self._pipeline = pipeline.serialize()
+    self._batch_size = batch_size
+    self._num_threads = num_threads
+    self._device_id = device_id
+    self._exec_separated = exec_separated
+    self._prefetch_queue_depth = prefetch_queue_depth
+    self._cpu_prefetch_queue_depth = cpu_prefetch_queue_depth
+    self._gpu_prefetch_queue_depth = gpu_prefetch_queue_depth
+    self._shapes = tuple(tf.TensorShape(shape) for shape in shapes)
+    self._dtypes = tuple(dtype for dtype in dtypes)
 
     variant_tensor = _dali_tf_module.dali_dataset(
-      pipeline = pipeline,
-      batch_size = batch_size,
-      num_threads = num_threads,
-      device_id = device_id,
-      exec_separated = exec_separated,
-      prefetch_queue_depth = prefetch_queue_depth,
-      cpu_prefetch_queue_depth = cpu_prefetch_queue_depth,
-      gpu_prefetch_queue_depth = gpu_prefetch_queue_depth,
-      shapes = shapes, 
-      dtypes = dtypes)
+      pipeline = self._pipeline,
+      batch_size = self._batch_size,
+      num_threads = self._num_threads,
+      device_id = self._device_id,
+      exec_separated = self._exec_separated,
+      prefetch_queue_depth = self._prefetch_queue_depth,
+      cpu_prefetch_queue_depth = self._cpu_prefetch_queue_depth,
+      gpu_prefetch_queue_depth = self._gpu_prefetch_queue_depth,
+      shapes = self._shapes, 
+      dtypes = self._dtypes)
 
     self._structure = structure.convert_legacy_structure(
-      dtypes, shapes, output_classes)
+      self._dtypes, self._shapes, output_classes)
 
-    super(DALIDatasetV2, self).__init__(variant_tensor)
+    if get_tf_minor_version() == '14':
+      super(DALIDatasetV2, self).__init__(variant_tensor)
+    else:
+      super(DALIDatasetV2, self).__init__()
+
+  if get_tf_minor_version() == '13':
+    def _as_tensor_variant(self):
+      return _dali_tf_module.dali_dataset(
+        pipeline = self._pipeline,
+        batch_size = self._batch_size,
+        num_threads = self._num_threads,
+        device_id = self._device_id,
+        exec_separated = self._exec_separated,
+        prefetch_queue_depth = self._prefetch_queue_depth,
+        cpu_prefetch_queue_depth = self._cpu_prefetch_queue_depth,
+        gpu_prefetch_queue_depth = self._gpu_prefetch_queue_depth,
+        shapes = self._shapes, 
+        dtypes = self._dtypes)
+
 
   @property
   def _element_structure(self):

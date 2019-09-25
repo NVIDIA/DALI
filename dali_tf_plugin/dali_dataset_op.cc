@@ -16,7 +16,7 @@
 
 #include "tensorflow/core/public/version.h"
 
-#if TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 12
+#if TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 13
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wreorder"
