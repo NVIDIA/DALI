@@ -16,6 +16,7 @@
 #define DALI_CORE_FORMAT_H_
 
 #include <string>
+#include <sstream>
 
 namespace dali {
 
