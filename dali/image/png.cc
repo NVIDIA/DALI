@@ -57,7 +57,7 @@ T ReadValue(const uint8_t* data) {
   static_assert(sizeof(T) >= nbytes, "T can't hold the requested number of bytes");
   T value = 0;
   for (int i = 0; i < nbytes; i++) {
-    value = (value<<8) + data[offset + i];
+    value = (value << 8) + data[offset + i];
   }
   return value;
 }
