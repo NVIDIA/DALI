@@ -16,7 +16,7 @@
 
 namespace dali {
 
-namespace detail {
+namespace {
 
   // https://www.w3.org/TR/PNG-Chunks.html
 
@@ -31,29 +31,25 @@ namespace detail {
   // 1 byte : Filter method
   // 1 byte : Interlace method
 
-enum {
-  SIZE_CHUNK_SIZE = 4,
-  SIZE_CHUNK_ID = 4,
-  SIZE_WIDTH = 4,
-  SIZE_HEIGHT = 4,
-  SIZE_BIT_DEPTH = 1,
-  SIZE_COLOR_TYPE = 1,
-  SIZE_COMPRESSION_METHOD = 1,
-  SIZE_FILTER_METHOD = 1,
-  SIZE_INTERLACE_METHOD = 1
-};
+constexpr int kSizeChunkSize = 4;
+constexpr int kSizeChunkId = 4;
+constexpr int kSizeWidth = 4;
+constexpr int kSizeHeight = 4;
+constexpr int kSizeBitDepth = 1;
+constexpr int kSizeColorType = 1;
+constexpr int kSizeCompressionMethod = 1;
+constexpr int kSizeFilterMethod = 1;
+constexpr int kSizeInterlaceMethod = 1;
 
-enum {
-  OFFSET_CHUNK_SIZE = 0,
-  OFFSET_CHUNK_ID = OFFSET_CHUNK_SIZE + SIZE_CHUNK_SIZE,
-  OFFSET_WIDTH = OFFSET_CHUNK_ID + SIZE_CHUNK_ID,
-  OFFSET_HEIGHT = OFFSET_WIDTH + SIZE_WIDTH,
-  OFFSET_BIT_DEPTH = OFFSET_HEIGHT + SIZE_HEIGHT,
-  OFFSET_COLOR_TYPE = OFFSET_BIT_DEPTH + SIZE_BIT_DEPTH,
-  OFFSET_COMPRESSION_METHOD = OFFSET_COLOR_TYPE + SIZE_COLOR_TYPE,
-  OFFSET_FILTER_METHOD = OFFSET_COMPRESSION_METHOD + SIZE_COMPRESSION_METHOD,
-  OFFSET_INTERLACE_METHOD = OFFSET_FILTER_METHOD + SIZE_FILTER_METHOD
-};
+constexpr int kOffsetChunkSize = 0;
+constexpr int kOffsetChunkId = kOffsetChunkSize + kSizeChunkSize;
+constexpr int kOffsetWidth = kOffsetChunkId + kSizeChunkId;
+constexpr int kOffsetHeight = kOffsetWidth + kSizeWidth;
+constexpr int kOffsetBitDepth = kOffsetHeight + kSizeHeight;
+constexpr int kOffsetColorType = kOffsetBitDepth + kSizeBitDepth;
+constexpr int kOffsetCompressionMethod = kOffsetColorType + kSizeColorType;
+constexpr int kOffsetFilterMethod = kOffsetCompressionMethod + kSizeCompressionMethod;
+constexpr int kOffsetInterlaceMethod = kOffsetFilterMethod + kSizeFilterMethod;
 
 template <typename T, int offset, int nbytes>
 T ReadValue(const uint8_t* data) {
@@ -67,14 +63,14 @@ T ReadValue(const uint8_t* data) {
 }
 
 uint32_t ReadHeight(const uint8_t *data) {
-  return ReadValue<uint32_t, OFFSET_HEIGHT, SIZE_HEIGHT>(data);
+  return ReadValue<uint32_t, kOffsetHeight, kSizeHeight>(data);
 }
 
 uint32_t ReadWidth(const uint8_t *data) {
-  return ReadValue<uint32_t, OFFSET_WIDTH, SIZE_WIDTH>(data);
+  return ReadValue<uint32_t, kOffsetWidth, kSizeWidth>(data);
 }
 
-enum {
+enum : uint8_t {
   PNG_COLOR_TYPE_GRAY       = 0,
   PNG_COLOR_TYPE_RGB        = 2,
   PNG_COLOR_TYPE_PALETTE    = 3,
@@ -83,7 +79,7 @@ enum {
 };
 
 uint8_t ReadColorType(const uint8_t *data) {
-  return ReadValue<uint8_t, OFFSET_COLOR_TYPE, SIZE_COLOR_TYPE>(data);
+  return ReadValue<uint8_t, kOffsetColorType, kSizeColorType>(data);
 }
 
 int ReadNumberOfChannels(const uint8_t *data) {
@@ -93,8 +89,8 @@ int ReadNumberOfChannels(const uint8_t *data) {
     case PNG_COLOR_TYPE_GRAY_ALPHA:
       return 1;
     case PNG_COLOR_TYPE_RGB:
-    case PNG_COLOR_TYPE_PALETTE:
-    case PNG_COLOR_TYPE_RGBA:
+    case PNG_COLOR_TYPE_PALETTE:  // 1 byte but it's converted to 3-channel BGR by OpenCV
+    case PNG_COLOR_TYPE_RGBA:     // RGBA is converted to 3-channel BGR by OpenCV
       return 3;
     default:
       DALI_FAIL("color type not supported: " + std::to_string(color_type));
@@ -102,7 +98,7 @@ int ReadNumberOfChannels(const uint8_t *data) {
   return 0;
 }
 
-}  // namespace detail
+}  // namespace
 
 
 PngImage::PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
@@ -124,9 +120,9 @@ Image::Shape PngImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t lengt
 
   DALI_ENFORCE(static_cast<int>(length) >= png_dimens - encoded_buffer + 16u);
 
-  const int64_t W = detail::ReadWidth(png_dimens);
-  const int64_t H = detail::ReadHeight(png_dimens);
-  const int64_t C = detail::ReadNumberOfChannels(png_dimens);
+  const int64_t W = ReadWidth(png_dimens);
+  const int64_t H = ReadHeight(png_dimens);
+  const int64_t C = ReadNumberOfChannels(png_dimens);
   return {H, W, C};
 }
 
