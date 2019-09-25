@@ -232,7 +232,7 @@ template <typename Kernel, bool assert_,
     bool has_setup = has_unique_member_function_Setup<Kernel>::value>
 struct check_kernel_has_setup : std::false_type {
   static_assert(!assert_ || has_setup,
-  "Kernel class must have a unique, non-static Setup function");
+  "Kernel class must have a public, unique, non-static Setup function");
 };
 
 template <typename Kernel, bool assert_>
@@ -242,7 +242,8 @@ struct check_kernel_has_setup<Kernel, assert_, true>
 template <typename Kernel, bool assert_,
     bool has_run = has_unique_member_function_Run<Kernel>::value>
 struct check_kernel_has_run : std::false_type {
-  static_assert(!assert_ || has_run, "Kernel class must have a unique, non-static Run function");
+  static_assert(!assert_ || has_run,
+  "Kernel class must have a public, unique, non-static Run function");
 };
 
 template <typename Kernel, bool assert_>
