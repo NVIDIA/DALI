@@ -16,7 +16,7 @@
 
 namespace dali {
 
-//DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrast<CPUBackend>, CPU)
+DALI_REGISTER_OPERATOR(Hsv, Hsv<CPUBackend>, CPU)
 //DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrast<GPUBackend>, GPU)
 
 
@@ -24,16 +24,16 @@ DALI_SCHEMA(Hsv)
                 .DocStr(R"code()code")
                 .NumInput(1)
                 .NumOutput(1)
-                .AddOptionalArg(spec::kHue,
+                .AddOptionalArg(hsv::kHue,
                                 R"code(Set additive brightness delta. 0 denotes no-op)code", .0f,
                                 true)
-                .AddOptionalArg(spec::kSaturation,
+                .AddOptionalArg(hsv::kSaturation,
                                 R"code(Set multiplicative contrast delta. 1 denotes no-op)code",
                                 1.f, true)
-                .AddOptionalArg(spec::kValue,
+                .AddOptionalArg(hsv::kValue,
                                 R"code(Set multiplicative contrast delta. 1 denotes no-op)code",
                                 1.f, true)
-                .AddOptionalArg(spec::kOutputType, R"code(Set output data type)code", DALI_INT16);
+                .AddOptionalArg(hsv::kOutputType, R"code(Set output data type)code", DALI_INT16);
 
 
 }  // namespace dali

@@ -18,6 +18,7 @@
 #include "dali/test/dali_operator_test_utils.h"
 #include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/core/convert.h"
+#include "hsv.h"
 
 namespace dali {
 
@@ -67,12 +68,13 @@ namespace {
 
 template <class OutputType>
 void HsvVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
-//  static_assert(std::is_fundamental<OutputType>::value, "");
-//  auto input_tl = input.CopyTo<CPUBackend>();
-//  auto output_tl = output.CopyTo<CPUBackend>();
-//  auto brightness = args["brightness_delta"].GetValue<float>();
-//  auto contrast = args["contrast_delta"].GetValue<float>();
-//  ASSERT_EQ(input_tl->ntensor(), output_tl->ntensor());
+  static_assert(std::is_fundamental<OutputType>::value, "");
+  auto input_tl = input.CopyTo<CPUBackend>();
+  auto output_tl = output.CopyTo<CPUBackend>();
+  auto hue = args[hsv::kHue.c_str()].GetValue<float>();
+  auto saturation = args[hsv::kSaturation.c_str()].GetValue<float>();
+  auto value = args[hsv::kValue.c_str()].GetValue<float>();
+  ASSERT_EQ(input_tl->ntensor(), output_tl->ntensor());
 //  for (size_t t = 0; t < input.cpu().ntensor(); t++) {
 //    auto out_shape = output_tl->tensor_shape(t);
 //    auto out_tensor = output_tl->tensor<OutputType>(t);
