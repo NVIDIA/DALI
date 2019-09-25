@@ -18,6 +18,8 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <dali/kernels/imgproc/color_manipulation/hsv_cpu.h>
+#include <dali/kernels/imgproc/color_manipulation/brightness_contrast.h>
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operators/common.h"
@@ -108,7 +110,7 @@ class Hsv : public Operator<Backend> {
  public:
   explicit Hsv(const OpSpec &spec) :
           Operator<Backend>(spec),
-          output_type_(spec.GetArgument<DALIDataType>(detail::kOutputType)) {
+          output_type_(spec.GetArgument<DALIDataType>(hsv::kOutputType)) {
 //    detail::assign_argument_value<Backend>(spec, detail::kBrightness, brightness_);
 //    detail::assign_argument_value<Backend>(spec, detail::kContrast, contrast_);
 //    if (std::is_same<Backend, GPUBackend>::value) {
@@ -131,20 +133,19 @@ class Hsv : public Operator<Backend> {
   }
 
 
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const ::dali::workspace_t<Backend> &ws) override {
-//    const auto &input = ws.template InputRef<Backend>(0);
-//    const auto &output = ws.template OutputRef<Backend>(0);
-//    output_desc.resize(1);
-//
-//    TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-//            {
-//              TypeInfo type;
-//              type.SetType<OutputType>(output_type_);
-//              output_desc[0] = {input.shape(), type};
-//            }
-//    ), DALI_FAIL("Unsupported image type"))  // NOLINT
-//    return true;
+  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc, const ::dali::workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    const auto &output = ws.template OutputRef<Backend>(0);
+    output_desc.resize(1);
+    // @autoformat:off
+        TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
+            TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
+                    {
+
+                    }
+            ), DALI_FAIL("Unsupported output type"))  // NOLINT
+    ), DALI_FAIL("Unsupported input type"))  // NOLINT
+    // @autoformat:on
   }
 
   /**
