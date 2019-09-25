@@ -29,7 +29,7 @@ namespace warp {
  * This function is used by warp implementations to calculate source coordinates using
  * using non-integer mapping. The coordinates are converted to pixel-centered.
  */
-template <typename Mapping, std::size_t dim>
+template <typename Mapping, int dim>
 DALI_HOST_DEV
 enable_if_t<is_fp_mapping<Mapping>::value, vec<dim>> map_coords(const Mapping &m, ivec<dim> pos) {
   // When given floating point coordinates, samplers expect pixel centers to be offset by half.
@@ -43,7 +43,7 @@ enable_if_t<is_fp_mapping<Mapping>::value, vec<dim>> map_coords(const Mapping &m
  * This function is used by warp implementations to calculate source coordinates using
  * using integer mapping.
  */
-template <typename Mapping, std::size_t dim>
+template <typename Mapping, int dim>
 DALI_HOST_DEV
 enable_if_t<!is_fp_mapping<Mapping>::value, ivec<dim>> map_coords(const Mapping &m, ivec<dim> pos) {
   // When given integer point coordinates, samplers simply uses them as 0-based indices.

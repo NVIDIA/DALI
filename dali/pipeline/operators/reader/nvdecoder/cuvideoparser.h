@@ -27,7 +27,8 @@ namespace dali {
 
 enum class Codec {
   H264,
-  HEVC
+  HEVC,
+  MPEG4
 };
 
 class CUVideoParser {
@@ -57,8 +58,12 @@ class CUVideoParser {
         parser_info_.CodecType = cudaVideoCodec_HEVC;
         parser_info_.ulMaxNumDecodeSurfaces = 20;
         break;
+      case Codec::MPEG4:
+        parser_info_.CodecType = cudaVideoCodec_MPEG4;
+        parser_info_.ulMaxNumDecodeSurfaces = 20;
+        break;
       default:
-        DALI_FAIL("Invalid codec: must be H.264 or HEVC");
+        DALI_FAIL("Invalid codec: must be H.264, HEVC or MPEG4");
         return;
     }
     parser_info_.ulMaxNumDecodeSurfaces = decode_surfaces;

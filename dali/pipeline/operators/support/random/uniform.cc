@@ -21,8 +21,6 @@ namespace dali {
 
 void Uniform::RunImpl(SupportWorkspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
-  output.Resize({batch_size_});
-
   float *out_data = output.template mutable_data<float>();
 
   for (int i = 0; i < batch_size_; ++i) {

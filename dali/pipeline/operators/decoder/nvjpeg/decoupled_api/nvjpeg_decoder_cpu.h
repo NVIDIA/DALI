@@ -124,13 +124,17 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                 state_nvjpeg->jpeg_stream);
     info->nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
     auto crop_generator = GetCropWindowGenerator(data_idx);
+    int64_t nchannels = NumberOfChannels(output_image_type_);
     if (!info->nvjpeg_support) {
       try {
         const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(input_data),
-                                                     in_size);
-        const auto dims = image->GetImageDims();
-        info->heights[0] = std::get<0>(dims);
-        info->widths[0] = std::get<1>(dims);
+                                                     in_size, output_image_type_);
+        const auto shape = image->PeekShape();
+        info->heights[0] = shape[0];
+        info->widths[0] = shape[1];
+        if (output_image_type_ == DALI_ANY_DATA)
+          nchannels = shape[2];
+
         if (crop_generator) {
           kernels::TensorShape<> shape{info->heights[0], info->widths[0]};
           info->crop_window = crop_generator(shape);
@@ -140,8 +144,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         }
         auto& out = ws.Output<CPUBackend>(2);
         out.set_type(TypeInfo::Create<uint8_t>());
-        const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
-        out.Resize({info->heights[0], info->widths[0], c});
+        out.Resize({info->heights[0], info->widths[0], nchannels});
         auto *output_data = out.mutable_data<uint8_t>();
 
         HostFallback<kernels::StorageCPU>(input_data, in_size, output_image_type_, output_data, 0,

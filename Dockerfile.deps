@@ -96,6 +96,18 @@ RUN JPEG_TURBO_VERSION=2.0.2 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# libtiff
+RUN LIBTIFF_VERSION=4.0.10 && \
+    cd /tmp && \
+    curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
+    cd tiff-${LIBTIFF_VERSION} && \
+    ./autogen.sh && \
+    ./configure --prefix=/usr/local && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    make install && \
+    cd && \
+    rm -rf /tmp/tiff-${LIBTIFF_VERSION}
+
 # OpenCV
 RUN OPENCV_VERSION=3.4.3 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
@@ -104,6 +116,7 @@ RUN OPENCV_VERSION=3.4.3 && \
           -DBUILD_SHARED_LIBS=OFF \
           -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
           -DBUILD_JPEG=OFF -DWITH_JPEG=ON \
+          -DBUILD_TIFF=OFF -DWITH_TIFF=ON \
           -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PNG=ON \
           -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF \
           -DWITH_TBB=OFF -DWITH_OPENMP=OFF -DWITH_PTHREADS_PF=OFF -DWITH_CSTRIPES=OFF .. && \
@@ -121,7 +134,7 @@ RUN CLANG_VERSION=6.0.1 && \
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
 # FFmpeg
-RUN FFMPEG_VERSION=3.4.2 && \
+RUN FFMPEG_VERSION=4.2.1 && \
     cd /tmp && wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-${FFMPEG_VERSION}.tar.bz2 && \
     tar xf ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
     rm ffmpeg-$FFMPEG_VERSION.tar.bz2 && \
@@ -137,8 +150,8 @@ RUN FFMPEG_VERSION=3.4.2 && \
       --enable-avcodec \
       --enable-avfilter \
       --enable-protocol=file \
-      --enable-demuxer=mov,matroska \
-      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb && \
+      --enable-demuxer=mov,matroska,avi  \
+      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
     cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
 

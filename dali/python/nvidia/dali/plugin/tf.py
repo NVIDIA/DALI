@@ -16,6 +16,7 @@ import tensorflow as tf
 import os
 import glob
 from collections import Iterable
+import re
 
 import functools
 
@@ -32,20 +33,25 @@ from tensorflow.python.framework import tensor_spec
 
 _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
 _dali_tf_module = None
-# Order: 'current', prebuilt versions
+# Order: 'current', prebuilt for current TF version, prebuilt for other TF versions
+_tf_version = re.search("(\d+.\d+).\d+", tf.__version__).group(1)
+_tf_version_underscore = _tf_version.replace('.', '_')
 _dali_tf_current = list(filter(lambda x: 'current' in x, _tf_plugins))
-_dali_tf_prebuilt = list(filter(lambda x: 'current' not in x, _tf_plugins))
-_processed_tf_plugins = _dali_tf_current + _dali_tf_prebuilt
+_dali_tf_prebuilt_tf_ver = list(filter(lambda x: _tf_version_underscore in x, _tf_plugins))
+_dali_tf_prebuilt_others = list(filter(lambda x: 'current' not in x and _tf_version_underscore not in x, _tf_plugins))
+_processed_tf_plugins = _dali_tf_current + _dali_tf_prebuilt_tf_ver + _dali_tf_prebuilt_others
 
+first_error = None
 for _libdali_tf in _processed_tf_plugins:
   try:
     _dali_tf_module = tf.load_op_library(_libdali_tf)
     break
   # if plugin is not compatible skip it
-  except tf.errors.NotFoundError:
-    pass
+  except tf.errors.NotFoundError as error:
+    if first_error == None:
+      first_error = error
 else:
-  raise Exception('No matching DALI plugin found for installed TensorFlow version')
+  raise first_error or Exception('No matching DALI plugin found for installed TensorFlow version')
 
 _dali_tf = _dali_tf_module.dali
 

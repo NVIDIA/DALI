@@ -23,7 +23,7 @@ GenericImage::GenericImage(const uint8_t *encoded_buffer, size_t length, DALIIma
 }
 
 
-std::pair<std::shared_ptr<uint8_t>, Image::ImageDims>
+std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 GenericImage::DecodeImpl(DALIImageType image_type,
                          const uint8_t *encoded_buffer,
                          size_t length) const {
@@ -76,11 +76,11 @@ GenericImage::DecodeImpl(DALIImageType image_type,
               // It will be freed, when last shared_ptr is deleted.
           });
 
-  return std::make_pair(decoded_img_ptr, std::make_tuple(H, W, c));
+  return {decoded_img_ptr, {H, W, c}};
 }
 
 
-Image::ImageDims GenericImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
+Image::Shape GenericImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const {
   DALI_FAIL("Cannot peek dims for Generic image (of unknown format)");
 }
 

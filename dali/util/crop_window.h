@@ -16,6 +16,7 @@
 #define DALI_UTIL_CROP_WINDOW_H_
 
 #include <functional>
+#include <utility>
 #include "dali/kernels/tensor_shape.h"
 
 namespace dali {
@@ -44,18 +45,21 @@ struct CropWindow {
   }
 
   inline bool IsInRange(const kernels::TensorShape<>& input_shape) const {
+    DALI_ENFORCE(input_shape.size() == anchor.size()
+              && input_shape.size() == shape.size(),
+      "Input shape doesn't match number of dimensions of the anchor and/or shape");
     for (int dim = 0; dim < input_shape.size(); dim++)
       if (anchor[dim] < 0 || anchor[dim] + shape[dim] > input_shape[dim])
         return false;
     return true;
   }
 
-  void SetAnchor(const kernels::TensorShape<>& anchor_abs) {
-    anchor = anchor_abs;
+  void SetAnchor(kernels::TensorShape<> new_anchor) {
+    anchor = std::move(new_anchor);
   }
 
-  void SetShape(const kernels::TensorShape<>& shape_) {
-    shape = shape_;
+  void SetShape(kernels::TensorShape<> new_shape) {
+    shape = std::move(new_shape);
   }
 };
 

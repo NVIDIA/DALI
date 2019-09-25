@@ -89,6 +89,24 @@ RUN curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
+# libtiff
+RUN LIBTIFF_VERSION=4.0.10 && \
+    cd /tmp && \
+    curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
+    cd tiff-${LIBTIFF_VERSION} && \
+    ./autogen.sh && \
+    ./configure \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
+      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
+      --host=aarch64-unknown-nto-qnx7.0.0 \
+      --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && \
+    make install && \
+    cd && \
+    rm -rf /tmp/tiff-${LIBTIFF_VERSION}
+
 # OpenCV
 ENV OPENCV_VERSION=3.4.3
 COPY docker/opencv-qnx.patch /opencv-qnx.patch
@@ -102,11 +120,12 @@ RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | 
           -DBUILD_SHARED_LIBS=OFF \
           -DBUILD_LIST=core,improc,imgcodecs \
           -DBUILD_PNG=ON \
-          -DBUILD_TIFF=OFF \
           -DBUILD_TBB=OFF \
           -DBUILD_WEBP=OFF \
           -DBUILD_JPEG=OFF \
+          -DBUILD_TIFF=OFF \
           -DWITH_JPEG=ON \
+          -DWITH_TIFF=ON \
           -DBUILD_JASPER=OFF \
           -DBUILD_ZLIB=ON \
           -DBUILD_EXAMPLES=OFF \
@@ -160,6 +179,7 @@ CMD cmake \
   -DBUILD_LMDB=OFF \
   -DBUILD_TENSORFLOW=OFF \
   -DBUILD_JPEG_TURBO=ON \
+  -DBUILD_LIBTIFF=ON \
   -DBUILD_NVJPEG=OFF \
   -DBUILD_NVOF=OFF \
   -DBUILD_NVDEC=OFF \

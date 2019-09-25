@@ -32,19 +32,19 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
     std::unique_ptr<Image> img;
 
     try {
-      img = ImageFactory::CreateImage(data.tensors[0].data<uint8_t>(), data.tensors[0].size(),
-                                         image_type_);
+      img = ImageFactory::CreateImage(
+        data.tensors[0].data<uint8_t>(), data.tensors[0].size(), image_type_);
       img->Decode();
     } catch (std::exception &e) {
       DALI_FAIL(e.what() + " File: " + file_name);
     }
     const auto decoded = img->GetImage();
 
-    const auto hwc = img->GetImageDims();
-    const Index h = std::get<0>(hwc);
-    const Index w = std::get<1>(hwc);
-    const Index c = std::get<2>(hwc);
-    const auto frame_size = h * w * c;
+    const auto shape = img->GetShape();
+    const Index h = shape[0];
+    const Index w = shape[1];
+    const Index c = shape[2];
+    const auto frame_size = volume(shape);
 
     // Calculate shape of sequence tensor, that is Frames x (Frame Shape)
     auto seq_shape = std::vector<Index>{seq_length, h, w, c};
@@ -61,7 +61,7 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
     std::unique_ptr<Image> img;
     try {
       img = ImageFactory::CreateImage(data.tensors[frame].data<uint8_t>(),
-                                         data.tensors[frame].size(), image_type_);
+                                      data.tensors[frame].size(), image_type_);
       img->Decode();
     } catch (std::exception &e) {
       DALI_FAIL(e.what() + " File: " + file_name);

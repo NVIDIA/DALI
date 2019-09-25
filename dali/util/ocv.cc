@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/util/ocv.h"
 #include <cmath>
 #include <utility>
 #include <map>
 #include <algorithm>
 #include <tuple>
-#include "dali/util/ocv.h"
 #include "dali/core/error_handling.h"
+#include "dali/util/color_space_conversion_utils.h"
 
 namespace dali {
 
@@ -69,28 +70,14 @@ static cv::ColorConversionCodes GetOpenCvColorConversionCode(
 template <DALIImageType input_type, DALIImageType output_type>
 void custom_conversion_pixel(const uint8_t* input, uint8_t* output);
 
-inline static uint8_t Y(uint8_t r, uint8_t g, uint8_t b) {
-  return static_cast<uint8_t>(0.257f * r + 0.504f * g + 0.098f * b + 16.0f);
-}
-
-inline static uint8_t Cb(uint8_t r, uint8_t g, uint8_t b) {
-  return (r == g && g == b) ? 128 :
-    static_cast<uint8_t>(-0.148f * r - 0.291f * g + 0.439f * b + 128.0f);
-}
-
-inline static uint8_t Cr(uint8_t r, uint8_t g, uint8_t b) {
-  return (r == g && g == b) ? 128 :
-    static_cast<uint8_t>(0.439f * r - 0.368f * g - 0.071f * b + 128.0f);
-}
-
 template <>
 inline void custom_conversion_pixel<DALI_RGB, DALI_YCbCr>(const uint8_t* input, uint8_t* output) {
   const auto r = input[0];
   const auto g = input[1];
   const auto b = input[2];
-  output[0] = Y(r, g, b);
-  output[1] = Cb(r, g, b);
-  output[2] = Cr(r, g, b);
+  output[0] = Y<uint8_t>(r, g, b);
+  output[1] = Cb<uint8_t>(r, g, b);
+  output[2] = Cr<uint8_t>(r, g, b);
 }
 
 template <>
@@ -98,9 +85,9 @@ inline void custom_conversion_pixel<DALI_BGR, DALI_YCbCr>(const uint8_t* input, 
   const auto b = input[0];
   const auto g = input[1];
   const auto r = input[2];
-  output[0] = Y(r, g, b);
-  output[1] = Cb(r, g, b);
-  output[2] = Cr(r, g, b);
+  output[0] = Y<uint8_t>(r, g, b);
+  output[1] = Cb<uint8_t>(r, g, b);
+  output[2] = Cr<uint8_t>(r, g, b);
 }
 
 inline static uint8_t clip(float x, float max = 255.0f) {
@@ -173,9 +160,9 @@ inline void custom_conversion(const cv::Mat& img, cv::Mat& output_img) {
 
 void OpenCvColorConversion(DALIImageType input_type, const cv::Mat& input_img,
                            DALIImageType output_type, cv::Mat& output_img) {
-  DALI_ENFORCE(input_img.elemSize()  == NumberOfChannels(input_type),
+  DALI_ENFORCE(input_img.elemSize() == static_cast<size_t>(NumberOfChannels(input_type)),
     "Incorrect number of channels");
-  DALI_ENFORCE(output_img.elemSize() == NumberOfChannels(output_type),
+  DALI_ENFORCE(output_img.elemSize() == static_cast<size_t>(NumberOfChannels(output_type)),
     "Incorrect number of channels");
   auto ocv_conversion_code = GetOpenCvColorConversionCode(input_type, output_type);
   bool ocv_supported = (ocv_conversion_code != cv::COLOR_COLORCVT_MAX);

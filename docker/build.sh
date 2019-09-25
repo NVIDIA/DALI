@@ -107,6 +107,7 @@ if [ "$BUILD_INHOST" = "YES" ]; then
                                         BUILD_LMDB=${BUILD_LMDB}                  \
                                         BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}      \
                                         BUILD_NVJPEG=${BUILD_NVJPEG}              \
+                                        BUILD_LIBTIFF=${BUILD_LIBTIFF}            \
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
                                         BUILD_NVML=${BUILD_NVML}                  \

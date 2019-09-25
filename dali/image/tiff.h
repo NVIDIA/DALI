@@ -17,10 +17,11 @@
 
 #include <vector>
 #include <string>
+#include <utility>
+#include <memory>
 #include "dali/image/generic_image.h"
 
 namespace dali {
-
 
 /**
  * Class, that handles byte buffer for tiff image
@@ -57,7 +58,6 @@ class TiffBuffer {
     return ret;
   }
 
-
  private:
   /**
    * Converts given value in big-endian representation to little-endian
@@ -76,7 +76,6 @@ class TiffBuffer {
     }
   }
 
-
   std::istringstream stream_;
   size_t buffer_size_;
   bool little_endian_;
@@ -89,8 +88,8 @@ class TiffImage : public GenericImage {
  public:
   TiffImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
- private:
-  ImageDims PeekDims(const uint8_t *encoded_buffer, size_t length) const override;
+ protected:
+  Image::Shape PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const override;
 };
 
 }  // namespace dali

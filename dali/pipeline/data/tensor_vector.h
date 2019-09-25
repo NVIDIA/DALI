@@ -218,7 +218,7 @@ class TensorVector {
    */
   bool IsContiguous() const noexcept {
     // TODO(klecki): check the views_count as well?
-    return state_ == State::contiguous && views_count_ == size();
+    return state_ == State::contiguous && static_cast<size_t>(views_count_) == size();
   }
 
   /**

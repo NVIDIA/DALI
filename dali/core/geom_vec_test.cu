@@ -17,10 +17,10 @@
 #include "dali/core/geom/vec.h"
 
 namespace dali {
-template <size_t N, typename T>
+template <int N, typename T>
 __device__ DeviceString dev_to_string(const vec<N, T> &v) {
   DeviceString str;
-  for (size_t i = 0; i < N; i++) {
+  for (int i = 0; i < N; i++) {
     if (i) str += ", ";
     str += dev_to_string(v[i]);
   }
@@ -125,10 +125,10 @@ TEST(Vec, Cast) {
 }
 
 TEST(Vec, Iteration) {
-  const size_t N = 3;
+  const int N = 3;
   vec<N> v;
   EXPECT_EQ(dali::size(v), N);
-  for (size_t i = 0; i < N; i++)
+  for (int i = 0; i < N; i++)
     v[i] = i + 5;
   for (auto &x : v) {
     auto ofs = &x - &v[0];
@@ -136,7 +136,7 @@ TEST(Vec, Iteration) {
     x++;
   }
 
-  for (size_t i = 0; i < N; i++)
+  for (int i = 0; i < N; i++)
     EXPECT_EQ(v[i], i + 6);
 }
 

@@ -284,7 +284,7 @@ class DALIDatasetOp : public DatasetOpKernel {
                     break;
                   }
 
-                  daliCopyTensorNTo(&pipeline_handle, dst, out_id, device_type_t::CPU, stream);
+                  daliCopyTensorNTo(&pipeline_handle, dst, out_id, device_type_t::CPU, stream, false);
                 }
                 
                 *end_of_sequence = false;
