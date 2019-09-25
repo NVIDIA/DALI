@@ -125,7 +125,7 @@ class BrightnessContrast : public Operator<Backend> {
   }
 
 
-  ~BrightnessContrast() = default;
+  ~BrightnessContrast() override = default;
 
 
   DISABLE_COPY_MOVE_ASSIGN(BrightnessContrast);
