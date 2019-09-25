@@ -16,11 +16,89 @@
 
 namespace dali {
 
-// Assume chunk points to a 4-byte value
-int ReadIntFromPNG(const uint8 *chunk) {
-  // reverse the bytes, cast
-  return (unsigned int) (chunk[0] << 24 | chunk[1] << 16 | chunk[2] << 8 | chunk[3]);
+namespace {
+
+  // https://www.w3.org/TR/PNG-Chunks.html
+
+  // Layout:
+  // 4 bytes: chunk size (should be 13 bytes for IHDR)
+  // 4 bytes: Chunk Identifier (should be "IHDR")
+  // 4 bytes: Width
+  // 4 bytes: Height
+  // 1 byte : Bit Depth
+  // 1 byte : Color Type
+  // 1 byte : Compression method
+  // 1 byte : Filter method
+  // 1 byte : Interlace method
+
+constexpr int kSizeChunkSize = 4;
+constexpr int kSizeChunkId = 4;
+constexpr int kSizeWidth = 4;
+constexpr int kSizeHeight = 4;
+constexpr int kSizeBitDepth = 1;
+constexpr int kSizeColorType = 1;
+constexpr int kSizeCompressionMethod = 1;
+constexpr int kSizeFilterMethod = 1;
+constexpr int kSizeInterlaceMethod = 1;
+
+constexpr int kOffsetChunkSize = 0;
+constexpr int kOffsetChunkId = kOffsetChunkSize + kSizeChunkSize;
+constexpr int kOffsetWidth = kOffsetChunkId + kSizeChunkId;
+constexpr int kOffsetHeight = kOffsetWidth + kSizeWidth;
+constexpr int kOffsetBitDepth = kOffsetHeight + kSizeHeight;
+constexpr int kOffsetColorType = kOffsetBitDepth + kSizeBitDepth;
+constexpr int kOffsetCompressionMethod = kOffsetColorType + kSizeColorType;
+constexpr int kOffsetFilterMethod = kOffsetCompressionMethod + kSizeCompressionMethod;
+constexpr int kOffsetInterlaceMethod = kOffsetFilterMethod + kSizeFilterMethod;
+
+template <typename T, int offset, int nbytes>
+T ReadValue(const uint8_t* data) {
+  static_assert(std::is_unsigned<T>::value, "T must be an unsigned type");
+  static_assert(sizeof(T) >= nbytes, "T can't hold the requested number of bytes");
+  T value = 0;
+  for (int i = 0; i < nbytes; i++) {
+    value = (value << 8) + data[offset + i];
+  }
+  return value;
 }
+
+uint32_t ReadHeight(const uint8_t *data) {
+  return ReadValue<uint32_t, kOffsetHeight, kSizeHeight>(data);
+}
+
+uint32_t ReadWidth(const uint8_t *data) {
+  return ReadValue<uint32_t, kOffsetWidth, kSizeWidth>(data);
+}
+
+enum : uint8_t {
+  PNG_COLOR_TYPE_GRAY       = 0,
+  PNG_COLOR_TYPE_RGB        = 2,
+  PNG_COLOR_TYPE_PALETTE    = 3,
+  PNG_COLOR_TYPE_GRAY_ALPHA = 4,
+  PNG_COLOR_TYPE_RGBA       = 6
+};
+
+uint8_t ReadColorType(const uint8_t *data) {
+  return ReadValue<uint8_t, kOffsetColorType, kSizeColorType>(data);
+}
+
+int ReadNumberOfChannels(const uint8_t *data) {
+  int color_type = ReadColorType(data);
+  switch (color_type) {
+    case PNG_COLOR_TYPE_GRAY:
+    case PNG_COLOR_TYPE_GRAY_ALPHA:
+      return 1;
+    case PNG_COLOR_TYPE_RGB:
+    case PNG_COLOR_TYPE_PALETTE:  // 1 byte but it's converted to 3-channel BGR by OpenCV
+    case PNG_COLOR_TYPE_RGBA:     // RGBA is converted to 3-channel BGR by OpenCV
+      return 3;
+    default:
+      DALI_FAIL("color type not supported: " + std::to_string(color_type));
+  }
+  return 0;
+}
+
+}  // namespace
 
 
 PngImage::PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
@@ -42,21 +120,9 @@ Image::Shape PngImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t lengt
 
   DALI_ENFORCE(static_cast<int>(length) >= png_dimens - encoded_buffer + 16u);
 
-  // Layout:
-  // 4 bytes: chunk size (should be 13 bytes for IHDR)
-  // 4 bytes: Chunk Identifier (should be "IHDR")
-  // 4 bytes: Width
-  // 4 bytes: Height
-  // 1 byte : Bit Depth
-  // 1 byte : Color Type
-  // 1 byte : Compression method
-  // 1 byte : Filter method
-  // 1 byte : Interlace method
-
-  const auto W = ReadIntFromPNG(png_dimens + 8);
-  const auto H = ReadIntFromPNG(png_dimens + 12);
-  // TODO(mszolucha): fill channels count
-  const auto C = 0;
+  const int64_t W = ReadWidth(png_dimens);
+  const int64_t H = ReadHeight(png_dimens);
+  const int64_t C = ReadNumberOfChannels(png_dimens);
   return {H, W, C};
 }
 
