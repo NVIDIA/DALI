@@ -179,7 +179,7 @@ class DALIDatasetOp : public DatasetOpKernel {
         const int cpu_prefetch_queue_depth_;
         const int gpu_prefetch_queue_depth_;
         const std::vector<PartialTensorShape> shapes_;
-        const DataTypeVector &dtypes_;
+        const DataTypeVector dtypes_;
         
         daliPipelineHandle pipeline_handle_;
 

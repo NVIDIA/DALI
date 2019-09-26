@@ -163,8 +163,10 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
       self._dtypes, self._shapes, output_classes)
 
     if get_tf_minor_version() == '14':
+      print('Using TF 14 veriosn')
       super(DALIDatasetV2, self).__init__(self._as_variant_tensor())
     else:
+      print('Using TF 13 veriosn')
       super(DALIDatasetV2, self).__init__()
 
   @property
