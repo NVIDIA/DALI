@@ -16,6 +16,7 @@ CONDA_PREFIX=${CONDA_PREFIX:-/root/miniconda3}
 
 # Building dependency packages
 conda build ${CONDA_BUILD_OPTIONS} third_party/jpeg_turbo/recipe
+conda build ${CONDA_BUILD_OPTIONS} third_party/ffmpeg/recipe
 
 # Building DALI package
 conda build ${CONDA_BUILD_OPTIONS} recipe
