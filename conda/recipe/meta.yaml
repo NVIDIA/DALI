@@ -17,8 +17,8 @@ package:
   version: {{ GIT_DESCRIBE_TAG | replace("-","_") }}.{{ GIT_BUILD_STR }}
 
 source:
-  git_url: https://github.com/NVIDIA/DALI/
-  git_rev: {{ GIT_DESCRIBE_TAG }}
+  # Beware: Only commited files are used
+  git_url: ../..
 
 build:
   number: 0
@@ -36,7 +36,7 @@ requirements:
     - future 0.17.1
     - protobuf 3.7.1
     - jpeg-turbo 1.5.0
-    - ffmpeg 4.2.1
+    - ffmpeg 4.0
     - tensorflow-gpu
     - libopencv 3.4.2
     - opencv 3.4.2
@@ -46,7 +46,7 @@ requirements:
     - future 0.17.1
     - protobuf 3.7.1
     - jpeg-turbo 1.5.0
-    - ffmpeg 4.2.1
+    - ffmpeg 4.0
     - tensorflow-gpu
     - libopencv 3.4.2
     - opencv 3.4.2
