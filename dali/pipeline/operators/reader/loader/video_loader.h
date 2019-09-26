@@ -64,6 +64,7 @@ struct OpenFile {
   bool open = false;
   AVRational frame_base_;
   AVRational stream_base_;
+  int64_t start_time_;
   int frame_count_;
 
   int vid_stream_idx_;

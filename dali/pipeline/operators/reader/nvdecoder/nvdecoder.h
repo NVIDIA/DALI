@@ -91,7 +91,7 @@ class NvDecoder {
   static int handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
   static int handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
 
-  int decode_packet(AVPacket* pkt);
+  int decode_packet(AVPacket* pkt, int64_t start_time);
 
   void push_req(FrameReq req);
 
@@ -100,7 +100,7 @@ class NvDecoder {
   void finish();
 
  private:
-  int decode_av_packet(AVPacket* pkt);
+  int decode_av_packet(AVPacket* pkt, int64_t start_time);
 
   void record_sequence_event_(SequenceWrapper& sequence);
 

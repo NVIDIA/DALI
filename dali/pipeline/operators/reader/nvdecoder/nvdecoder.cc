@@ -99,8 +99,11 @@ bool NvDecoder::initialized() const {
 }
 NvDecoder::~NvDecoder() = default;
 
-int NvDecoder::decode_av_packet(AVPacket* avpkt) {
-  if (stop_) return 0;
+int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time) {
+  if (stop_) {
+    LOG_LINE << "NvDecoder::stop_ requested" << std::endl;
+    return 0;
+  }
 
   CUVIDSOURCEDATAPACKET cupkt = {0};
 
@@ -112,9 +115,9 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt) {
       if (avpkt->pts != AV_NOPTS_VALUE) {
         cupkt.flags = CUVID_PKT_TIMESTAMP;
         if (time_base_.num && time_base_.den) {
-          cupkt.timestamp = av_rescale_q(avpkt->pts, time_base_, nv_time_base_);
+          cupkt.timestamp = av_rescale_q(avpkt->pts - start_time, time_base_, nv_time_base_);
         } else {
-          cupkt.timestamp = avpkt->pts;
+          cupkt.timestamp = avpkt->pts - start_time;
         }
       }
   } else {
@@ -277,7 +280,7 @@ NvDecoder::TextureObject::operator cudaTextureObject_t() const {
   }
 }
 
-// Callback called by the driver decoder one a frame has been decoded
+// Callback called by the driver decoder once a frame has been decoded
 int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   auto frame = av_rescale_q(disp_info->timestamp,
                             nv_time_base_, frame_base_);
@@ -323,11 +326,11 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   return kNvcuvid_success;
 }
 
-int NvDecoder::decode_packet(AVPacket* pkt) {
+int NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time) {
   switch (codecpar_->codec_type) {
     case AVMEDIA_TYPE_AUDIO:
     case AVMEDIA_TYPE_VIDEO:
-      return decode_av_packet(pkt);
+      return decode_av_packet(pkt, start_time);
 
     default:
       DALI_FAIL("Got to decode_packet in a decoder that is not "
@@ -346,8 +349,7 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
   DeviceGuard g(device_id_);
   for (int i = 0; i < sequence.count; ++i) {
       LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
-               << frame_queue_.size() << " reqs left"
-               << std::endl;
+               << frame_queue_.size() << " reqs left" << std::endl;
 
       auto* frame_disp_info = frame_queue_.pop();
       if (stop_) break;
