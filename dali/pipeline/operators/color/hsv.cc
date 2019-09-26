@@ -17,8 +17,6 @@
 namespace dali {
 
 DALI_REGISTER_OPERATOR(Hsv, Hsv<CPUBackend>, CPU)
-//DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrast<GPUBackend>, GPU)
-
 
 DALI_SCHEMA(Hsv)
                 .DocStr(R"code()code")
