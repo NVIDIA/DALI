@@ -41,7 +41,7 @@ bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width,
       if (data[i + 1] >= 0xC0 && data[i + 1] <= 0xC3) {
         // 0xFFC0 is the "Start of frame" marker which contains the file size
         // The structure of the 0xFFC0 block is quite simple
-        // [0xFFC0][ushort length][uchar precision][ushort x][ushort y][uchar number_of_components]
+        // [0xFFC0][ushort length][uchar precision][ushort height][ushort width][uchar components]
         *height = (data[i + 5] << 8) + data[i + 6];
         *width  = (data[i + 7] << 8) + data[i + 8];
         *nchannels = data[i + 9];
