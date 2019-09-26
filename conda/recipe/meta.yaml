@@ -1,4 +1,5 @@
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,25 +29,25 @@ requirements:
   build:
     - {{ compiler('c') }}
     - {{ compiler('cxx')}}
-    - pkg-config 0.29.2
-    - cmake 3.12.2
-    - make 4.2.1
+    - pkg-config >=0.29.2
+    - cmake >=3.12.2
+    - make >=4.2.1
   host:
     - python
-    - future 0.17.1
-    - protobuf 3.7.1
-    - jpeg-turbo 1.5.0
-    - ffmpeg 4.0
+    - future >=0.17.1
+    - protobuf >=3.5
+    - libjpeg-turbo >=1.5
+    - ffmpeg >=4.1
     - tensorflow-gpu
-    - libopencv 3.4.2
-    - opencv 3.4.2
-    - boost 1.67
+    - libopencv >=3.4.1
+    - opencv >=3.4.1
+    - boost >=1.67
   run:
     - python
-    - future 0.17.1
-    - protobuf 3.7.1
-    - jpeg-turbo 1.5.0
-    - ffmpeg 4.0
+    - future >=0.17.1
+    - protobuf >=3.5
+    - libjpeg-turbo >=1.5
+    - ffmpeg >=4.1
     - tensorflow-gpu
-    - libopencv 3.4.2
-    - opencv 3.4.2
+    - libopencv >=3.4.1
+    - opencv >=3.4.1
