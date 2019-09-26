@@ -821,7 +821,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsDeprecated", &OpSchema::IsDeprecated)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf);
 
-  ExposeTensorLayout(m);
+  ExposeTensorLayout(types_m);
   ExposeTensor(m);
   ExposeTensorList(m);
 
