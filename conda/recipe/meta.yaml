@@ -38,7 +38,7 @@
       - future 0.17.1
       - protobuf 3.7.1
       - jpeg-turbo 1.5.0
-      - ffmpeg
+      - ffmpeg >= 4.2.1
       - tensorflow-gpu
       - libopencv 3.4.2
       - opencv 3.4.2
@@ -48,7 +48,7 @@
       - future 0.17.1
       - protobuf 3.7.1
       - jpeg-turbo 1.5.0
-      - ffmpeg
+      - ffmpeg >= 4.2.1
       - tensorflow-gpu
       - libopencv 3.4.2
       - opencv 3.4.2
