@@ -12,129 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
-#include <memory>
-#include "dali/test/dali_operator_test.h"
-#include "dali/test/dali_operator_test_utils.h"
-#include "dali/kernels/test/tensor_test_utils.h"
-#include "dali/core/convert.h"
-#include "hsv.h"
+#include <gtest/gtest.h>
+#include "dali/pipeline/operators/color/hsv.h"
 
 namespace dali {
 
 namespace testing {
 
-
-using InputDataType = float;
-
-
-class HsvTest : public testing::DaliOperatorTest {
- public:
-  HsvTest() {
-    Init(input_, volume(shape_));
-  }
-
-
-  GraphDescr GenerateOperatorGraph() const override {
-    GraphDescr g("Hsv");
-    return g;
-  }
-
-
-  void Init(std::vector<InputDataType> &input, size_t n) {
-    std::mt19937_64 rng;
-    input.resize(n);
-    kernels::UniformRandomFill(input, rng, 0.f, 10.f);
-  }
-
-
-  template <typename Backend>
-  std::unique_ptr<TensorList<Backend>> ToTensorList(std::vector<InputDataType> data) {
-    std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-    tl->Resize(kernels::TensorListShape<3>({shape_}));
-    auto ptr = tl->template mutable_data<InputDataType>();
-    assert(data.size() == static_cast<size_t>(volume(shape_)));
-    std::memcpy(ptr, data.data(), data.size() * sizeof(InputDataType));
-    return tl;
-  }
-
-
-  std::vector<InputDataType> input_;
-  kernels::TensorShape<3> shape_ = {2, 4, 3};
-};
-
-namespace {
-
-
-template <class OutputType>
-void HsvVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
-  static_assert(std::is_fundamental<OutputType>::value, "");
-  auto input_tl = input.CopyTo<CPUBackend>();
-  auto output_tl = output.CopyTo<CPUBackend>();
-  auto hue = args[hsv::kHue.c_str()].GetValue<float>();
-  auto saturation = args[hsv::kSaturation.c_str()].GetValue<float>();
-  auto value = args[hsv::kValue.c_str()].GetValue<float>();
-  ASSERT_EQ(input_tl->ntensor(), output_tl->ntensor());
-//  for (size_t t = 0; t < input.cpu().ntensor(); t++) {
-//    auto out_shape = output_tl->tensor_shape(t);
-//    auto out_tensor = output_tl->tensor<OutputType>(t);
-//    auto in_shape = input_tl->tensor_shape(t);
-//    auto in_tensor = input_tl->tensor<InputDataType>(t);
-//    ASSERT_EQ(in_shape, out_shape);
-//    for (int i = 0; i < volume(out_shape); i++) {
-//      EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(in_tensor[i] * contrast + brightness));
-//    }
-//  }
+TEST(HsvTest, transformation_matrix) {
+    auto identity = hsv::transformation_matrix(0, 1, 1);
+    auto one = eye<3, 3>();
+    for (int i = 0; i < identity.cols; i++) {
+        for (int j = 0; j < identity.rows; j++) {
+            EXPECT_NEAR(identity(i, j), one(i, j), .01f);
+        }
+    }
 }
-
-
-Arguments args1 = {
-        {"output_type",      DALI_UINT8},
-        {"brightness_delta", 0.f},
-        {"contrast_delta",   1.f}
-};
-Arguments args2 = {
-        {"output_type",      DALI_UINT8},
-        {"brightness_delta", 1.f},
-        {"contrast_delta",   0.f}
-};
-Arguments args3 = {
-        {"output_type",      DALI_UINT8},
-        {"brightness_delta", 13.f},
-        {"contrast_delta",   0.5f}
-};
-
-std::vector<Arguments> args_for_types = {args1, args2, args3};
-
-}  // namespace
-
-INSTANTIATE_TEST_SUITE_P(HsvTest, HsvTest,
-                         ::testing::ValuesIn(testing::cartesian(utils::kDevices, args_for_types)));
-
-
-TEST_P(HsvTest, basic_test_float) {
-  auto tl = ToTensorList<CPUBackend>(this->input_);
-  auto args = GetParam();
-  TensorListWrapper tlout;
-  this->RunTest(tl.get(), tlout, args, HsvVerify<uint8_t>);
-}
-
-
-TEST_P(HsvTest, basic_test_int16) {
-  auto tl = ToTensorList<CPUBackend>(this->input_);
-  auto args = GetParam();
-  TensorListWrapper tlout;
-  this->RunTest(tl.get(), tlout, args, HsvVerify<uint8_t>);
-}
-
-
-TEST_P(HsvTest, basic_test_uint8) {
-  auto tl = ToTensorList<CPUBackend>(this->input_);
-  auto args = GetParam();
-  TensorListWrapper tlout;
-  this->RunTest(tl.get(), tlout, args, HsvVerify<uint8_t>);
-}
-
 
 }  // namespace testing
 }  // namespace dali

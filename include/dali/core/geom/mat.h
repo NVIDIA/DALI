@@ -481,6 +481,25 @@ mat<r1+r2, cols, T> cat_rows(const mat<r1, cols, T> &a, const mat<r2, cols, T> &
   return ret;
 }
 
+
+template<int rows, int cols, typename T = float>
+DALI_HOST_DEV constexpr dali::mat<rows, cols, T> eye() {
+  mat<rows, cols, T> ret(0);
+  for (int i = 0; i < rows && i < cols; i++) {
+    ret(i, i) = 1;
+  }
+  return ret;
+}
+
+
+template<int rows, int cols, typename T>
+std::ostream &operator<<(std::ostream &os, const dali::mat<rows, cols, T> &m) {
+  for (int i = 0; i < rows; i++) {
+    os << m.row(i) << std::endl;
+  }
+  return os;
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_GEOM_MAT_H_

@@ -129,6 +129,9 @@ struct id2type_helper;
 
 /**
  * @brief Compile-time mapping from a type to DALIDataType
+ *
+ * @note If your compiler complains, that "Use of class template `type2id`
+ * requires template arguments", include `static_swtich.h` is your file.
  */
 template <typename data_type>
 struct type2id;
