@@ -13,8 +13,17 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/color/hsv.h"
+#include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
 
 namespace dali {
+namespace hsv {
+
+template <typename Backend, typename Out, typename In, int channels_out, int channels_in, int ndims>
+struct Kernel {
+  using type= kernels::LinearTransformationCpu<Out, In, channels_out, channels_in, ndims>;
+};
+
+}  // namespace hsv
 
 DALI_REGISTER_OPERATOR(Hsv, Hsv<CPUBackend>, CPU)
 
@@ -31,7 +40,7 @@ DALI_SCHEMA(Hsv)
                 .AddOptionalArg(hsv::kValue,
                                 R"code(Set multiplicative contrast delta. 1 denotes no-op)code",
                                 1.f, true)
-                .AddOptionalArg(hsv::kOutputType, R"code(Set output data type)code", DALI_INT16);
+                .AddOptionalArg(hsv::kOutputType, R"code(Set output data type)code", DALI_UINT8);
 
 
 }  // namespace dali

@@ -12,22 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
 #include "dali/pipeline/operators/color/hsv.h"
+#include "dali/kernels/imgproc/pointwise/linear_transformation_gpu.h"
 
 namespace dali {
+namespace hsv {
 
-namespace testing {
+template <typename Backend, typename Out, typename In, int channels_out, int channels_in, int ndims>
+struct Kernel {
+  using type= kernels::LinearTransformationGpu<Out, In, channels_out, channels_in, ndims>;
+};
 
-//TEST(HsvTest, transformation_matrix) {
-//    auto identity = hsv::transformation_matrix(0, 1, 1);
-//    auto one = eye<3, 3>();
-//    for (int i = 0; i < identity.cols; i++) {
-//        for (int j = 0; j < identity.rows; j++) {
-//            EXPECT_NEAR(identity(i, j), one(i, j), .01f);
-//        }
-//    }
-//}
+//DALI_REGISTER_OPERATOR(Hsv, Hsv<GPUBackend>, GPU)
 
-}  // namespace testing
+}  // namespace hsv
 }  // namespace dali
