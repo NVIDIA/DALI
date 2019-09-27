@@ -190,31 +190,37 @@ struct FillStorageOwner {
  */
 template <template <OpType, StorageDevice> class ToExecute, typename Ret, typename... T>
 Ret Switch_OpType_Device(OpType op_type, StorageDevice device, T &&... args) {
+  Ret ret;
   VALUE_SWITCH(op_type, op_type_static,
       (OpType::GPU, OpType::CPU, OpType::MIXED, OpType::SUPPORT),
   (
     VALUE_SWITCH(device, device_static, (StorageDevice::CPU, StorageDevice::GPU),
     (
-      return ToExecute<op_type_static, device_static>{}(std::forward<T>(args)...);
+      ret = ToExecute<op_type_static, device_static>{}(std::forward<T>(args)...);
     ), DALI_FAIL("Unexpected device"))  // NOLINT(whitespace/parens)
   ), DALI_FAIL("Unexpected op_type"));  // NOLINT(whitespace/parens)
+  return ret;
 }
 
 template <template <OpType> class ToExecute, typename Ret, typename... T>
 Ret Switch_OpType(OpType op_type, T &&... args) {
+  Ret ret;
   VALUE_SWITCH(op_type, op_type_static,
       (OpType::GPU, OpType::CPU, OpType::MIXED, OpType::SUPPORT),
   (
-    return ToExecute<op_type_static>{}(std::forward<T>(args)...);
+    ret = ToExecute<op_type_static>{}(std::forward<T>(args)...);
   ), DALI_FAIL("Unexpected op_type"));  // NOLINT(whitespace/parens)
+  return ret;
 }
 
 template <template <StorageDevice> class ToExecute, typename Ret, typename... T>
 Ret Switch_Device(StorageDevice device, T &&... args) {
+  Ret ret;
   VALUE_SWITCH(device, device_static, (StorageDevice::CPU, StorageDevice::GPU),
   (
-    return ToExecute<device_static>{}(std::forward<T>(args)...);
+    ret = ToExecute<device_static>{}(std::forward<T>(args)...);
   ), DALI_FAIL("Unexpected device"));  // NOLINT(whitespace/parens)
+  return ret;
 }
 
 /**

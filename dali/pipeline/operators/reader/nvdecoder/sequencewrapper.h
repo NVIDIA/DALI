@@ -70,6 +70,7 @@ struct SequenceWrapper {
   void wait() const {
     LOG_LINE << event_ << " wait to start" << std::endl;
     wait_until_started_();
+    LOG_LINE << event_ << " waiting for sequence event" << std::endl;
     CUDA_CALL(cudaEventSynchronize(event_));
     LOG_LINE << event_ << " synchronized!" << std::endl;
   }

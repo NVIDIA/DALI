@@ -26,8 +26,6 @@ namespace dali {
 template<typename T>
 class ThreadSafeQueue {
  public:
-  ThreadSafeQueue() : interrupt_{false} {}
-
   void push(T item) {
     {
       std::lock_guard<std::mutex> lock(lock_);
@@ -37,11 +35,10 @@ class ThreadSafeQueue {
   }
 
   T pop() {
-    static auto int_return = T{};
     std::unique_lock<std::mutex> lock{lock_};
     cond_.wait(lock, [&](){return !queue_.empty() || interrupt_;});
     if (interrupt_) {
-      return std::move(int_return);
+      return {};
     }
     T item = std::move(queue_.front());
     queue_.pop();
@@ -49,11 +46,11 @@ class ThreadSafeQueue {
   }
 
   const T& peek() {
-    static auto int_return = T{};
+    static const auto int_return = T{};
     std::unique_lock<std::mutex> lock{lock_};
     cond_.wait(lock, [&](){return !queue_.empty() || interrupt_;});
     if (interrupt_) {
-      return std::move(int_return);
+      return int_return;
     }
     return queue_.front();
   }
@@ -75,7 +72,7 @@ class ThreadSafeQueue {
   std::queue<T> queue_;
   std::mutex lock_;
   std::condition_variable cond_;
-  bool interrupt_;
+  bool interrupt_ = false;
 };
 
 }  // namespace dali

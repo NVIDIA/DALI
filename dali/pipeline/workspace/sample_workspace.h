@@ -76,7 +76,9 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
    * @brief Returns the index of the sample that this workspace stores
    * in the input/output batch.
    */
-  DLL_PUBLIC inline int data_idx() const { return data_idx_; }
+  DLL_PUBLIC inline int data_idx() const override {
+    return data_idx_;
+  }
 
   /**
    * @brief Sets the data index for the workspace.
@@ -89,7 +91,9 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
   /**
    * @brief Returns the index of the thread that will process this data.
    */
-  DLL_PUBLIC inline int thread_idx() const { return thread_idx_; }
+  DLL_PUBLIC inline int thread_idx() const override {
+    return thread_idx_;
+  }
 
   /**
    * @brief Sets the thread index for the workspace.

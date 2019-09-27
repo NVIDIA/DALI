@@ -208,7 +208,7 @@ class DLL_PUBLIC OpGraph {
     return tensor_nodes_[id];
   }
 
-  DLL_PUBLIC const TensorNodeId TensorId(const std::string& name) const {
+  DLL_PUBLIC TensorNodeId TensorId(const std::string& name) const {
     auto it = tensor_name_to_id_.find(name);
     DALI_ENFORCE(it != tensor_name_to_id_.end(),
                  "Tensor with name " + name + " does not exist in graph.");
