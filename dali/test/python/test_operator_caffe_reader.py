@@ -150,10 +150,7 @@ def test_reader_vs_db_stat():
 # test 3: compare with a simple CaffeReader with batch_size=1
 def check_reader_vs_simple(path, batch_size, num_threads, num_gpus, images, labels):
     pipelines = [CaffeReaderPipeline(path, batch_size, num_threads, device_id, num_gpus) for device_id in range(num_gpus)]
-    if isinstance(path, str):
-        num_paths = 1
-    else:
-        num_paths = len(path)
+    num_paths = 1 if isinstance(path, str) else len(path)
 
     num_batches = 2
     for pipe in pipelines:

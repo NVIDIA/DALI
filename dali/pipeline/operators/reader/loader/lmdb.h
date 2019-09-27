@@ -42,7 +42,8 @@ class IndexedLMDB {
   Index mdb_size_;
 
  public:
-  bool Open(const std::string& path, int num) {
+  void Open(const std::string& path, int num) {
+    DALI_ENFORCE(mdb_env_ == nullptr, "Previous MDB environment was not closed");
     db_path_ = path;
     num_ = num;
     CHECK_LMDB(mdb_env_create(&mdb_env_));
@@ -56,23 +57,23 @@ class IndexedLMDB {
     MDB_stat stat;
     CHECK_LMDB(mdb_stat(mdb_transaction_, mdb_dbi_, &stat));
     mdb_size_ = stat.ms_entries;
-    printf("lmdb file %d %s has %ld entries\n", num_, path.c_str(), mdb_size_);
+    LOG_LINE << "lmdb " << num_ << " " << db_path_
+             << " has " << mdb_size_ << " entries" << std::endl;
     mdb_index_ = 0;
-    return true;
   }
   size_t GetSize() const { return mdb_size_; }
   Index GetIndex() const { return mdb_index_; }
-  void SeekByIndex(Index index, MDB_val* key = 0, MDB_val* value = 0) {
+  void SeekByIndex(Index index, MDB_val* key = nullptr, MDB_val* value = nullptr) {
     MDB_val tmp_key, tmp_value;
-    if (0 == key) {
+    if (nullptr == key) {
       key = &tmp_key;
     }
-    if (0 == value) {
+    if (nullptr == value) {
       value = &tmp_value;
     }
-    //printf("index %ld, current_index %ld, size %ld\n", index, mdb_index_, mdb_size_);
     if (index == 0) {
-      printf("lmdb %d %s rewind to the begin from %ld...\n", num_, db_path_.c_str(), mdb_index_);
+      LOG_LINE << "lmdb " << num_ << " " << db_path_
+               << " rewind to the begin from " << mdb_index_ << std::endl;
     }
     DALI_ENFORCE(index >= 0 && index < mdb_size_);
     if (index == 0) {
@@ -86,15 +87,15 @@ class IndexedLMDB {
     } else if (index == mdb_index_ + 1) {
       CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_NEXT));
     } else if (index > mdb_index_) {
-      printf("lmdb exec a large step forward %s %ld->%ld\n", db_path_.c_str(),
-             mdb_index_, index);
+      LOG_LINE << "lmdb " << num_ << " " << db_path_
+               << " exec a large step forward " << mdb_index_ << "->" << index << std::endl;
       for (Index i = mdb_index_; i < index; ++i) {
         CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_NEXT));
       }
     } else {
       // index < mdb_index_
-      printf("lmdb exec a large step backward %s %ld->%ld\n", db_path_.c_str(),
-             mdb_index_, index);
+      LOG_LINE << "lmdb " << num_ << " " << db_path_
+               << " exec a large step backward " << mdb_index_ << "->" << index << std::endl;
       for (Index i = index; i < mdb_index_; i++) {
         CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_PREV));
       }
@@ -102,7 +103,7 @@ class IndexedLMDB {
     mdb_index_ = index;
   }
 
-  bool Close() {
+  void Close() {
     if (mdb_cursor_) {
       mdb_cursor_close(mdb_cursor_);
       mdb_dbi_close(mdb_env_, mdb_dbi_);
@@ -116,7 +117,6 @@ class IndexedLMDB {
       mdb_env_close(mdb_env_);
       mdb_env_ = nullptr;
     }
-    return true;
   }
 };
 
@@ -135,7 +135,7 @@ static int find_lower_bound(const std::vector<Index>& a, Index x) {
     }
   } while (low <= high);
 
-  DALI_ENFORCE(false, "size array is not in ascending order.");
+  DALI_FAIL("size array is not in ascending order.");
   return -1;
 }
 
@@ -227,7 +227,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
   std::vector<IndexedLMDB> mdb_;
 
-  Index current_index_;
+  Index current_index_ = 0;
 
   std::vector<Index> size_array_;
 
