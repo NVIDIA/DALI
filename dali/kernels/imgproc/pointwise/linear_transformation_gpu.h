@@ -131,14 +131,19 @@ class LinearTransformationGpu {
 
   std::vector<SampleDescriptor> sample_descriptors_;
 
+  // Containers, that keep default values alive, in case they are needed
+  std::vector<Mat> default_mats_;
+  std::vector<Vec> default_vecs_;
+
  public:
   BlockSetup<spatial_ndims,
           spatial_ndims /* Assumed, that the channel dim is the last dim */> block_setup_;
 
 
   KernelRequirements
-  Setup(KernelContext &context, const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices,
-        span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois = {}) {
+  Setup(KernelContext &context, const InListGPU<InputType, ndims_> &in,
+        span<const Mat> tmatrices = {}, span<const Vec> tvectors = {},
+        span<const Roi<spatial_ndims>> rois = {}) {
     DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
                  "Provide ROIs either for all or none input tensors");
     for (int i = 0; i < in.size(); i++) {
@@ -167,8 +172,15 @@ class LinearTransformationGpu {
 
 
   void Run(KernelContext &context, const OutListGPU<OutputType, spatial_ndims + 1> &out,
-           const InListGPU<InputType, spatial_ndims + 1> &in, span<const Mat> tmatrices,
-           span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois = {}) {
+           const InListGPU<InputType, spatial_ndims + 1> &in, span<const Mat> tmatrices = {},
+           span<const Vec> tvectors = {}, span<const Roi<spatial_ndims>> rois = {}) {
+    DALI_ENFORCE(tmatrices.size() == tvectors.size());
+    if (tmatrices.empty()) {
+      gen_default_values(in.num_samples());
+      tmatrices = make_cspan(default_mats_);
+      tvectors = make_cspan(default_vecs_);
+    }
+
     auto sample_descs = lin_trans::CreateSampleDescriptors(out, in, tmatrices, tvectors, rois);
 
     typename decltype(sample_descs)::value_type *samples_gpu;
@@ -186,6 +198,17 @@ class LinearTransformationGpu {
             <<<grid_dim, block_dim, 0, stream>>>
             (samples_gpu, blocks_gpu);
     // @autoformat:on
+  }
+
+
+ private:
+  void gen_default_values(int how_many) {
+    default_mats_={how_many, eye<channels_out, channels_in>()};
+    Vec zero_vec;
+    for (int i = 0; i < channels_out; i++) {
+      zero_vec[i] = 0;
+    }
+    default_vecs_={how_many, zero_vec};
   }
 };
 

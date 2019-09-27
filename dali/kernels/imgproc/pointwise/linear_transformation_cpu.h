@@ -36,7 +36,7 @@ class LinearTransformationCpu {
   using Vec = ::dali::vec<channels_out, float>;
 
  public:
-    KernelRequirements Setup(KernelContext &context, const InTensorCPU<InputType, ndims_> &in,
+    KernelRequirements Setup(KernelContext &context, const InTensorCPU<const InputType, ndims_> &in,
                              Mat tmatrix = eye<channels_out, channels_in>(), Vec tvector = {},
                              const Roi<spatial_ndims> *roi = nullptr) {
     DALI_ENFORCE(in.shape.shape.back() == channels_in,
@@ -54,7 +54,7 @@ class LinearTransformationCpu {
 
 
     void Run(KernelContext &context, const OutTensorCPU<OutputType, spatial_ndims + 1> &out,
-             const InTensorCPU<InputType, spatial_ndims + 1> &in,
+             const InTensorCPU<const InputType, spatial_ndims + 1> &in,
              Mat tmatrix = eye<channels_out, channels_in>(), Vec tvector = {},
              const Roi<spatial_ndims> *roi = nullptr) {
     auto adjusted_roi = AdjustRoi(roi, in.shape);
