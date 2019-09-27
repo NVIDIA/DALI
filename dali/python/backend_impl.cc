@@ -27,6 +27,7 @@
 #include "dali/plugin/plugin_manager.h"
 #include "dali/util/half.hpp"
 #include "dali/core/device_guard.h"
+#include "dali/core/python_util.h"
 
 namespace dali {
 namespace python {
@@ -60,13 +61,21 @@ py::list py_shape(const Tensor<Backend> &t) {
   return as_py_list(t.shape());
 }
 
+static string TensorLayoutRepr(const TensorLayout &tl) {
+  std::stringstream ss;
+  ss << "nvidia.dali.types.TensorLayout('";
+  escape_string(ss, tl.c_str());
+  ss << "')";
+  return ss.str();
+}
+
 void ExposeTensorLayout(py::module &m) {
   py::class_<TensorLayout>(m, "TensorLayout")
   .def(py::init([](string s) {
     return new TensorLayout(s);
   }))
   .def("__str__", &TensorLayout::str)
-  .def("__repr__", &TensorLayout::str)
+  .def("__repr__", TensorLayoutRepr)
   .def("__len__", &TensorLayout::ndim);
 }
 
