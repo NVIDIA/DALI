@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/image/png.h"
+#include "dali/core/parse_utils.h"
 
 namespace dali {
 
@@ -51,23 +52,14 @@ constexpr int kOffsetCompressionMethod = kOffsetColorType + kSizeColorType;
 constexpr int kOffsetFilterMethod = kOffsetCompressionMethod + kSizeCompressionMethod;
 constexpr int kOffsetInterlaceMethod = kOffsetFilterMethod + kSizeFilterMethod;
 
-template <typename T, int offset, int nbytes>
-T ReadValue(const uint8_t* data) {
-  static_assert(std::is_unsigned<T>::value, "T must be an unsigned type");
-  static_assert(sizeof(T) >= nbytes, "T can't hold the requested number of bytes");
-  T value = 0;
-  for (int i = 0; i < nbytes; i++) {
-    value = (value << 8) + data[offset + i];
-  }
-  return value;
-}
+
 
 uint32_t ReadHeight(const uint8_t *data) {
-  return ReadValue<uint32_t, kOffsetHeight, kSizeHeight>(data);
+  return ReadValueBE<uint32_t, kOffsetHeight, kSizeHeight>(data);
 }
 
 uint32_t ReadWidth(const uint8_t *data) {
-  return ReadValue<uint32_t, kOffsetWidth, kSizeWidth>(data);
+  return ReadValueBE<uint32_t, kOffsetWidth, kSizeWidth>(data);
 }
 
 enum : uint8_t {
@@ -79,7 +71,7 @@ enum : uint8_t {
 };
 
 uint8_t ReadColorType(const uint8_t *data) {
-  return ReadValue<uint8_t, kOffsetColorType, kSizeColorType>(data);
+  return ReadValueBE<uint8_t, kOffsetColorType, kSizeColorType>(data);
 }
 
 int ReadNumberOfChannels(const uint8_t *data) {
