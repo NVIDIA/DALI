@@ -112,6 +112,8 @@ struct sequence_meta {
   size_t filename_idx;
   int frame_idx;
   int label;
+  int height;
+  int width;
 };
 
 
@@ -125,8 +127,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       count_(spec.GetArgument<int>("sequence_length")),
       step_(spec.GetArgument<int>("step")),
       stride_(spec.GetArgument<int>("stride")),
-      height_(0),
-      width_(0),
+      max_height_(0),
+      max_width_(0),
       image_type_(spec.GetArgument<DALIImageType>("image_type")),
       dtype_(spec.GetArgument<DALIDataType>("dtype")),
       normalized_(spec.GetArgument<bool>("normalized")),
@@ -139,6 +141,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
     file_label_pair_ = filesystem::get_file_label_pair(file_root_, filenames_,
                                                        file_list_);
+    DALI_ENFORCE(!file_label_pair_.empty(), "No files were read.");
 
     DALI_ENFORCE(cuvidInitChecked(0),
      "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
@@ -172,7 +175,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);
   void receive_frames(SequenceWrapper& sequence);
-  std::pair<int, int> load_width_height();
 
  protected:
   Index SizeImpl() override;
@@ -181,11 +183,29 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     int total_count = 1 + (count_ - 1) * stride_;
 
     for (size_t i = 0; i < file_label_pair_.size(); ++i) {
-      int frame_count = get_or_open_file(file_label_pair_[i].first).frame_count_;
+      const auto& file = get_or_open_file(file_label_pair_[i].first);
+      const auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
+      int frame_count = file.frame_count_;
+
       for (int s = 0; s < frame_count && s + total_count <= frame_count; s += step_) {
-        frame_starts_.emplace_back(sequence_meta{i, s, file_label_pair_[i].second});
+        frame_starts_.emplace_back(sequence_meta{i, s, file_label_pair_[i].second,
+                                   codecpar(stream)->height, codecpar(stream)->width});
       }
     }
+
+
+    const auto& file = get_or_open_file(file_label_pair_[0].first);
+    auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
+
+    vid_decoder_ = std::unique_ptr<NvDecoder>{
+        new NvDecoder(device_id_,
+                      codecpar(stream),
+                      stream->time_base,
+                      image_type_,
+                      dtype_,
+                      normalized_,
+                      ALIGN16(max_height_),
+                      ALIGN16(max_width_))};
 
     if (shuffle_) {
       // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
@@ -214,10 +234,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int count_;
   int step_;
   int stride_;
-  int output_height_;
-  int output_width_;
-  int height_;
-  int width_;
+  int max_height_;
+  int max_width_;
+  static constexpr int channels_ = 3;
   DALIImageType image_type_;
   DALIDataType dtype_;
   bool normalized_;

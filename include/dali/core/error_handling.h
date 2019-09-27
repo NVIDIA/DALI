@@ -68,6 +68,13 @@ class DALIException : public std::runtime_error {
   explicit DALIException(const std::string &message) : std::runtime_error(message) {}
 };
 
+struct unsupported_exception : std::runtime_error {
+  explicit unsupported_exception(const std::string &str) : runtime_error(str), msg(str) {}
+
+  const char *what() const noexcept override { return msg.c_str(); }
+  std::string msg;
+};
+
 inline string BuildErrorString(string statement, string file, int line) {
   string line_str = std::to_string(line);
   string error = "[" + std::move(file) + ":" + std::move(line_str) +
