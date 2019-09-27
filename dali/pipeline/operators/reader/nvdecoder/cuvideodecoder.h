@@ -23,6 +23,7 @@ namespace dali {
 class CUVideoDecoder {
  public:
   CUVideoDecoder();
+  CUVideoDecoder(int, int);
   explicit CUVideoDecoder(CUvideodecoder);
   ~CUVideoDecoder();
 
@@ -35,6 +36,7 @@ class CUVideoDecoder {
 
   operator CUvideodecoder() const;
 
+  void reconfigure(unsigned int height, unsigned int width);
   int initialize(CUVIDEOFORMAT* format);
   bool initialized() const;
 
@@ -44,8 +46,11 @@ class CUVideoDecoder {
  private:
   CUvideodecoder decoder_;
   CUVIDDECODECREATEINFO decoder_info_;
+  CUVIDDECODECAPS caps_;
 
   bool initialized_;
+  int max_height_;
+  int max_width_;
 };
 
 }  // namespace dali

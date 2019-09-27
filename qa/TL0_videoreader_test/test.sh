@@ -10,6 +10,7 @@ do_once() {
 
   mkdir -p video_files
   mkdir -p labelled_videos/{0..2}
+  cp -r ${DALI_EXTRA_PATH}/db/video_resolution .
 
   container_path=${DALI_EXTRA_PATH}/db/optical_flow/sintel_trailer/sintel_trailer.mp4
 
