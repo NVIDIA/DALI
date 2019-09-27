@@ -135,7 +135,7 @@ static int find_lower_bound(const std::vector<Index>& a, Index x) {
     }
   } while (low <= high);
 
-  DALI_FAIL("size array is not in ascending order.");
+  DALI_FAIL("the array is not in ascending order.");
   return -1;
 }
 
@@ -143,18 +143,18 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit LMDBLoader(const OpSpec& options)
       : Loader(options),
-        db_path_(options.GetRepeatedArgument<std::string>("path")) {}
+        db_paths_(options.GetRepeatedArgument<std::string>("path")) {}
 
   ~LMDBLoader() override {
-    for (size_t i = 0; i < db_path_.size(); i++) {
+    for (size_t i = 0; i < db_paths_.size(); i++) {
       mdb_[i].Close();
     }
   }
 
   void MapIndexToFile(Index index, Index* file_index, Index* local_index) {
-    DALI_ENFORCE(index >= 0 && index < size_array_[db_path_.size()]);
-    *file_index = find_lower_bound(size_array_, index);
-    *local_index = index - size_array_[*file_index];
+    DALI_ENFORCE(index >= 0 && index < offsets_[db_paths_.size()]);
+    *file_index = find_lower_bound(offsets_, index);
+    *local_index = index - offsets_[*file_index];
   }
 
   void ReadSample(Tensor<CPUBackend>& tensor) override {
@@ -169,7 +169,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
     MoveToNextShard(current_index_);
 
-    std::string image_key = db_path_[file_index] + " at key " +
+    std::string image_key = db_paths_[file_index] + " at key " +
                             to_string(reinterpret_cast<char*>(key.mv_data));
     DALIMeta meta;
 
@@ -196,15 +196,15 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
  protected:
-  Index SizeImpl() override { return size_array_[db_path_.size()]; }
+  Index SizeImpl() override { return offsets_[db_paths_.size()]; }
 
   void PrepareMetadataImpl() override {
-    size_array_.resize(db_path_.size() + 1);
-    size_array_[0] = 0;
-    mdb_.resize(db_path_.size());
-    for (size_t i = 0; i < db_path_.size(); i++) {
-      mdb_[i].Open(db_path_[i], i);
-      size_array_[i + 1] = size_array_[i] + mdb_[i].GetSize();
+    offsets_.resize(db_paths_.size() + 1);
+    offsets_[0] = 0;
+    mdb_.resize(db_paths_.size());
+    for (size_t i = 0; i < db_paths_.size(); i++) {
+      mdb_[i].Open(db_paths_[i], i);
+      offsets_[i + 1] = offsets_[i] + mdb_[i].GetSize();
     }
     Reset(true);
   }
@@ -229,10 +229,10 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
   Index current_index_ = 0;
 
-  std::vector<Index> size_array_;
+  std::vector<Index> offsets_;
 
   // options
-  std::vector<std::string> db_path_;
+  std::vector<std::string> db_paths_;
 };
 
 };  // namespace dali
