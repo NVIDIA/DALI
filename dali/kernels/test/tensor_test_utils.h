@@ -25,15 +25,29 @@
 #include "dali/kernels/tensor_shape_print.h"
 #include "dali/kernels/backend_tags.h"
 #include "dali/core/util.h"
+#include "dali/core/convert.h"
 
 namespace dali {
 namespace kernels {
 
 namespace detail {
 static constexpr int DefaultMaxErrors = 100;
+
+
 }  // namespace detail
 
 // COMPARISON
+
+template <typename Output, typename Reference>
+bool IsEqWithConvert(Output out, Reference ref, int ulp = 4) {
+  for (int i = 0; i <= ulp; i++) {
+    if (dali::ConvertSat<Output>(ref) == out)
+      return true;
+    ref = std::nextafter(ref, static_cast<Reference>(out));
+  }
+  return false;
+}
+
 
 template <int dim1, int dim2>
 void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2, int &max_errors) {
@@ -73,9 +87,12 @@ void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2
 template <typename T>
 T printable(T t) { return t; }
 
+
 inline int printable(char c) { return c; }
 
+
 inline int printable(signed char c) { return c; }
+
 
 inline int printable(unsigned char c) { return c; }
 
@@ -132,6 +149,7 @@ struct Equal {
   }
 };
 
+
 struct EqualEps {
   EqualEps() = default;
 
@@ -146,6 +164,20 @@ struct EqualEps {
 
 
   double eps = 1e-6;
+};
+
+
+struct EqualUlp {
+  explicit EqualUlp(int ulp) : ulp_(ulp) {}
+
+
+  template <typename Output, typename Reference>
+  bool operator()(Output out, Reference ref) {
+    return IsEqWithConvert(out, ref, ulp_);
+  }
+
+
+  int ulp_;
 };
 
 

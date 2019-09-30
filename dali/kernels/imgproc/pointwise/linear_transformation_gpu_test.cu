@@ -23,6 +23,7 @@
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_gpu.h"
 #include "dali/kernels/imgproc/color_manipulation/color_manipulation_test_utils.h"
+#include "dali/kernels/imgproc/roi.h"
 
 namespace dali {
 namespace kernels {
@@ -31,25 +32,9 @@ namespace test {
 
 namespace {
 
-/**
- * Rounding to nearest even (like GPU does it)
- */
-template <class Out>
-std::enable_if_t<std::is_integral<Out>::value, Out> custom_round(float val) {
-  return ConvertSat<Out>(std::nearbyint(val));
-}
-
-
-template <class Out>
-std::enable_if_t<!std::is_integral<Out>::value, Out> custom_round(float val) {
-  return val;
-}
-
-
 constexpr int kNDims = 3;
 constexpr int kNChannelsIn = 5;
 constexpr int kNChannelsOut = 2;
-
 
 }  // namespace
 
@@ -79,7 +64,7 @@ class LinearTransformationGpuTest : public ::testing::Test {
   In *input_device_;
   Out *output_;
   std::vector<In> input_host_;
-  std::vector<Out> ref_output_;
+  std::vector<float> ref_output_;
   std::vector<TensorShape<kNDims>> in_shapes_ = {{4, 3, kNChannelsIn}};
   std::vector<TensorShape<kNDims>> out_shapes_ = {{4, 3, kNChannelsOut}};
   mat<kNChannelsOut, kNChannelsIn, float> mat_{{{1, 2, 3, 4, 5}, {6, 7, 8, 9, 10}}};
@@ -96,7 +81,7 @@ class LinearTransformationGpuTest : public ::testing::Test {
         for (size_t k = 0; k < kNChannelsIn; k++) {
           res += static_cast<float>(input_host_[i + k]) * mat_.at(j, k);
         }
-        ref_output_.push_back(custom_round<Out>(res));
+        ref_output_.push_back(res);
       }
     }
   }
@@ -111,7 +96,7 @@ class LinearTransformationGpuTest : public ::testing::Test {
   }
 };
 
-using TestTypes = std::tuple<uint8_t>;
+using TestTypes = std::tuple<float>;
 /* Cause the line below takes RIDICULOUSLY long time to compile */
 // using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
 
@@ -145,6 +130,17 @@ TYPED_TEST(LinearTransformationGpuTest, setup_test) {
 }
 
 
+TYPED_TEST(LinearTransformationGpuTest, setup_test_with_roi) {
+  TheKernel<TypeParam> kernel;
+  KernelContext ctx;
+  InListGPU<typename TypeParam::In, kNDims> in(this->input_device_, this->in_shapes_);
+  auto reqs = kernel.Setup(ctx, in, make_cspan(this->vmat_), make_cspan(this->vvec_),
+                           make_cspan(this->rois_));
+  auto ref_shape = ShapeFromRoi(this->rois_[0], kNChannelsOut);
+  ASSERT_EQ(ref_shape, reqs.output_shapes[0][0]);
+}
+
+
 TYPED_TEST(LinearTransformationGpuTest, run_test) {
   TheKernel<TypeParam> kernel;
   KernelContext c;
@@ -166,7 +162,8 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
   auto res = copy<AllocType::Host>(out[0]);
   ASSERT_EQ(static_cast<int>(this->ref_output_.size()), res.first.num_elements());
   for (size_t i = 0; i < this->ref_output_.size(); i++) {
-    EXPECT_FLOAT_EQ(this->ref_output_[i], res.second.get()[i]) << "Failed for index " << i;
+    EXPECT_PRED3((IsEqWithConvert<typename TypeParam::Out, float>), res.second.get()[i],
+                 this->ref_output_[i], 4) << "Failed at idx: " << i;
   }
 }
 
@@ -201,7 +198,8 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
                         << "Number of elements doesn't match";
   auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
   for (int i = 0; i < res.first.num_elements(); i++) {
-    EXPECT_FLOAT_EQ(ptr[i], res.second.get()[i]) << "Failed at idx: " << i;
+    EXPECT_PRED3((IsEqWithConvert<typename TypeParam::Out, float>), res.second.get()[i], ptr[i], 4)
+                  << "Failed at idx: " << i;
   }
 }
 

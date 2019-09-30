@@ -139,7 +139,7 @@ class LinearTransformationGpu {
   KernelRequirements
   Setup(KernelContext &context, const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices,
         span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois = {}) {
-    DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
+    DALI_ENFORCE(rois.empty() || rois.size() == in.num_samples(),
                  "Provide ROIs either for all or none input tensors");
     for (int i = 0; i < in.size(); i++) {
       DALI_ENFORCE(in[i].shape.shape.back() == channels_in,
@@ -147,7 +147,7 @@ class LinearTransformationGpu {
                                "in InListGPU. Number of channels in every InListGPU has to match"
                                " the number of channels, that the kernel is instantiated with"));
     }
-    for (size_t i = 0; i < rois.size(); i++) {
+    for (int i = 0; i < rois.size(); i++) {
       DALI_ENFORCE(all_coords(rois[i].hi >= rois[i].lo),
                    make_string("Found invalid ROI at index", i,
                                "ROI doesn't follow {lo, hi} convention.", rois[i]));
@@ -171,7 +171,7 @@ class LinearTransformationGpu {
            span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois = {}) {
     auto sample_descs = lin_trans::CreateSampleDescriptors(out, in, tmatrices, tvectors, rois);
 
-    typename decltype(sample_descs)::value_type *samples_gpu;
+    decltype(sample_descs.data()) samples_gpu;
     BlockDesc *blocks_gpu;
 
     std::tie(samples_gpu, blocks_gpu) = context.scratchpad->ToContiguousGPU(
@@ -182,9 +182,7 @@ class LinearTransformationGpu {
     auto stream = context.gpu.stream;
     // @autoformat:off
     lin_trans::LinearTransformationKernel
-            <OutputType, InputType, channels_out, channels_in, spatial_ndims>
-            <<<grid_dim, block_dim, 0, stream>>>
-            (samples_gpu, blocks_gpu);
+            <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
     // @autoformat:on
   }
 };

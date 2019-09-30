@@ -90,7 +90,6 @@ TensorShape<ndims> ShapeFromRoi(const Roi<spatial_dims> &roi, int nchannels) {
  */
 template <int spatial_dims, int ndims = spatial_dims + 1>
 TensorListShape<ndims> ShapeFromRoi(span<const Roi<spatial_dims>> rois, int nchannels) {
-  DALI_ENFORCE(!rois.empty(), "Provided argument doesn't contain any Roi");
   TensorListShape<ndims> ret(rois.size());
   size_t i = 0;
   for (const auto &roi : rois) {
