@@ -19,19 +19,13 @@ namespace dali {
 
 // https://en.wikipedia.org/wiki/BMP_file_format#DIB_header_(bitmap_information_header)
 
-namespace {
-  constexpr int kHeaderSizeOffset = 14;
-}  // namespace
-
-
 BmpImage::BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type)
   : GenericImage(encoded_buffer, length, image_type) {}
 
 Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
   DALI_ENFORCE(bmp != nullptr);
 
-  uint32_t header_size =
-      ReadValueLE<uint32_t>(bmp + kHeaderSizeOffset);
+  uint32_t header_size = ReadValueLE<uint32_t>(bmp + 14);
   int64_t h = 0, w = 0;
   // BITMAPCOREHEADER: | 32u header | 16u width | 16u height | ...
   if (length >= 22 && header_size == 12) {
