@@ -341,4 +341,4 @@ REGISTER_OP("DaliDataset")
 }  // namespace data
 }  // namespace tensorflow
 
-#endif  // TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 12
+#endif  // TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 13

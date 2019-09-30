@@ -128,7 +128,12 @@ class InstallerHelper:
         dali_cflags, dali_lflags = get_dali_build_flags()
         tf_cflags, tf_lflags = get_tf_build_flags()
         cuda_cflags, cuda_lflags = get_cuda_build_flags()
-        plugin_src = self.src_path + '/daliop.cc' + ' ' + self.src_path + '/dali_dataset_op.cc'
+
+        filenames = ['daliop.cc', 'dali_dataset_op.cc']
+        plugin_src = ''
+        for filename in filenames:
+            plugin_src = plugin_src + ' ' + self.src_path + '/' + filename
+            
         lib_path = self.plugin_dest_dir + '/libdali_tf_current.so'
         cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -DNDEBUG -shared ' \
             + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' \
