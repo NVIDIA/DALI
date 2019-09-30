@@ -134,28 +134,3 @@ def test_differnt_num_shapes_dtypes():
             shapes=shapes, 
             dtypes=dtypes,
             num_threads=num_threads)
-
-@raises(Exception)
-def test_none_cpu_prefetch_queue_depth():
-    batch_size = 12
-    num_threads = 4
-
-    dataset_pipeline = TestPipeline(batch_size, num_threads)
-    shapes = [
-        (batch_size, 3, 224, 224), 
-        (batch_size, 1),
-        (batch_size, 1)]
-    dtypes = [
-        tf.float32,
-        tf.int32, 
-        tf.float32]
-
-    with tf.device('/cpu:0'):
-        dali_tf.DALIDataset(
-            pipeline=dataset_pipeline,
-            batch_size=batch_size,
-            shapes=shapes, 
-            dtypes=dtypes,
-            num_threads=num_threads,
-            exec_separated=True,
-            cpu_prefetch_queue_depth=None)
