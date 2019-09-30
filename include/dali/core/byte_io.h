@@ -22,14 +22,14 @@ namespace detail {
 template <int nbytes, bool is_little_endian, typename T>
 void ReadValueImpl(T &value, const uint8_t* data) {
   static_assert(std::is_integral<T>::value, "T must be an integral type");
-  static_assert(std::is_unsigned<T>::value || sizeof(T) == nbytes,
-    "T must be an unsigned type or nbytes == sizeof(T)");
   static_assert(sizeof(T) >= nbytes, "T can't hold the requested number of bytes");
   value = 0;
+  constexpr unsigned pad = (sizeof(T) - nbytes) * 8;  // handle sign when nbytes < sizeof(T)
   for (int i = 0; i < nbytes; i++) {
-    unsigned shift = is_little_endian ? (i*8) : (nbytes-1-i)*8;
+    unsigned shift = is_little_endian ? (i*8) + pad: (sizeof(T)-1-i)*8;
     value |= data[i] << shift;
   }
+  value >>= pad;
 }
 
 template <int nbytes, bool is_little_endian>
