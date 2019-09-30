@@ -134,6 +134,48 @@ def get_tf_minor_version():
 
 
 class DALIDatasetV2(dataset_ops.DatasetSource):
+  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline.
+
+  Parameters
+  ----------
+  `pipeline` : `nvidia.dali.Pipeline` defining the augmentations to be performed. 
+  `batch_size` : int,
+      Batch size of the pipeline. Negative values for this parameter
+      are invalid - the default value may only be used with
+      serialized pipeline (the value stored in serialized pipeline
+      is used instead).
+  `num_threads` : int,
+      Number of CPU threads used by the pipeline.
+      Negative values for this parameter are invalid - the default
+      value may only be used with serialized pipeline (the value
+      stored in serialized pipeline is used instead).
+  `device_id` : int,
+      Id of GPU used by the pipeline.
+      Negative values for this parameter are invalid - the default
+      value may only be used with serialized pipeline (the value
+      stored in serialized pipeline is used instead).
+  `exec_separated` : bool,
+      Whether to execute the pipeline in a way that enables
+      overlapping CPU and GPU computation, typically resulting
+      in faster execution speed, but larger memory consumption.
+  `prefetch_queue_depth` : int,
+      depth of the executor queue. Deeper queue makes DALI more 
+      resistant to uneven execution  time of each batch, but it also 
+      consumes more memory for internal buffers.
+      Value will be used with `exec_separated` set to False.
+  `cpu_prefetch_queue_depth` : int,
+      depth of the executor cpu queue. Deeper queue makes DALI more 
+      resistant to uneven execution  time of each batch, but it also 
+      consumes more memory for internal buffers.
+      Value will be used with `exec_separated` set to True.
+  `gpu_prefetch_queue_depth` : int,
+      depth of the executor gpu queue. Deeper queue makes DALI more 
+      resistant to uneven execution  time of each batch, but it also 
+      consumes more memory for internal buffers.
+      Value will be used with `exec_separated` set to True.
+  `shapes`: `List` of tuples with the expected output shapes
+  `dtypes`: `List` of `tf.DType` with the expected output types
+  """
   def __init__(
     self,
     pipeline = '',
@@ -147,18 +189,17 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
     shapes = [], 
     dtypes = []):
 
-    assert(
-      len(shapes) == len(dtypes),
+    assert(len(shapes) == len(dtypes),
       "Different number of provided shapes and dtypes.")
 
     if exec_separated:
       assert(cpu_prefetch_queue_depth is not None,
-      "With exec_separated == True cpu_prefetch_queue_depth cannot be None")
+        "With exec_separated == True cpu_prefetch_queue_depth cannot be None")
       assert(gpu_prefetch_queue_depth is not None,
-      "With exec_separated == True gpu_prefetch_queue_depth cannot be None")
+        "With exec_separated == True gpu_prefetch_queue_depth cannot be None")
     else:
       assert(prefetch_queue_depth is not None,
-      "With exec_separated == False prefetch_queue_depth cannot be None")
+        "With exec_separated == False prefetch_queue_depth cannot be None")
 
     output_classes = tuple(ops.Tensor for shape in shapes)
 
@@ -206,6 +247,50 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
 
 
 class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
+  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline.
+
+  Parameters
+  ----------
+  `pipeline` : `nvidia.dali.Pipeline` defining the augmentations to be performed. 
+  `batch_size` : int,
+      Batch size of the pipeline. Negative values for this parameter
+      are invalid - the default value may only be used with
+      serialized pipeline (the value stored in serialized pipeline
+      is used instead).
+  `num_threads` : int,
+      Number of CPU threads used by the pipeline.
+      Negative values for this parameter are invalid - the default
+      value may only be used with serialized pipeline (the value
+      stored in serialized pipeline is used instead).
+  `device_id` : int,
+      Id of GPU used by the pipeline.
+      Negative values for this parameter are invalid - the default
+      value may only be used with serialized pipeline (the value
+      stored in serialized pipeline is used instead).
+  `exec_separated` : bool,
+      Whether to execute the pipeline in a way that enables
+      overlapping CPU and GPU computation, typically resulting
+      in faster execution speed, but larger memory consumption.
+  `prefetch_queue_depth` : int,
+      depth of the executor queue. Deeper queue makes DALI more 
+      resistant to uneven execution  time of each batch, but it also 
+      consumes more memory for internal buffers.
+      Value will be used with `exec_separated` set to False.
+  `cpu_prefetch_queue_depth` : int,
+      depth of the executor cpu queue. Deeper queue makes DALI more 
+      resistant to uneven execution  time of each batch, but it also 
+      consumes more memory for internal buffers.
+      Value will be used with `exec_separated` set to True.
+  `gpu_prefetch_queue_depth` : int,
+      depth of the executor gpu queue. Deeper queue makes DALI more 
+      resistant to uneven execution  time of each batch, but it also 
+      consumes more memory for internal buffers.
+      Value will be used with `exec_separated` set to True.
+  `shapes`: `List` of tuples with the expected output shapes
+  `dtypes`: `List` of `tf.DType` with the expected output types
+  """
+
+
   @functools.wraps(DALIDatasetV2.__init__)
   def __init__(self, **kwargs):
     wrapped = DALIDatasetV2(**kwargs)

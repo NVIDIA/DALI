@@ -354,7 +354,13 @@ REGISTER_OP("DaliDataset")
       }
     }
     return Status::OK();
-  });
+  })
+  .Doc(R"doc(
+DALI Dataset plugin
+Creates a DALI dataset compatible with tf.data.Dataset from a DALI pipeline.
+`shapes` must match the shape of the corresponding DALI Pipeline output tensor shape.
+`dtypes` must match the type of the corresponding DALI Pipeline output tensors type.
+)doc");
 
 }  // namespace
 }  // namespace data
