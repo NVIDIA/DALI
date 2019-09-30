@@ -21,6 +21,8 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 
+from nose.tools import raises
+
 test_data_root = os.environ['DALI_EXTRA_PATH']
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')

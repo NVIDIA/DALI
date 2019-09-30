@@ -128,6 +128,7 @@ def DALIIterator():
 def DALIRawIterator():
     return _dali_tf
 
+
 def get_tf_minor_version():
   return tf.__version__.split('.')[1]
 
@@ -164,13 +165,19 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
 
     if get_tf_minor_version() == '14':
       super(DALIDatasetV2, self).__init__(self._as_variant_tensor())
-    else:
+    elif get_tf_minor_version() == '13':
       super(DALIDatasetV2, self).__init__()
+    else:
+      raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALI DatasetOp supports versions: 1.13, 1.14')
+
 
   @property
   def _element_structure(self):
     return self._structure
 
+
+  # This function should not be removed or refactored.
+  # It is needed for TF 1.13.1
   def _as_variant_tensor(self):
     return _dali_tf_module.dali_dataset(
       pipeline = self._pipeline,
@@ -191,6 +198,8 @@ class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
     wrapped = DALIDatasetV2(**kwargs)
     super(DALIDatasetV1, self).__init__(wrapped)
 
+
+# This is for TensorFlow 1.x compatibility
 DALIDataset = DALIDatasetV1
 
 

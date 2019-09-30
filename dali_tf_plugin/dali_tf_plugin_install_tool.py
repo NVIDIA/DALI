@@ -133,8 +133,12 @@ class InstallerHelper:
         plugin_src = ''
         for filename in filenames:
             plugin_src = plugin_src + ' ' + self.src_path + '/' + filename
-            
+
         lib_path = self.plugin_dest_dir + '/libdali_tf_current.so'
+        
+        # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
+        # https://github.com/tensorflow/tensorflow/issues/17316
+        # Do not remove it.
         cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -std=c++11 -DNDEBUG -shared ' \
             + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' \
             + tf_cflags + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' + tf_lflags + ' ' \
