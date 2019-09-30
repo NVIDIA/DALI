@@ -112,3 +112,50 @@ def test_tf_dataset():
     for dataset_result, standalone_result in zip(dataset_results, standalone_results):
         for dataset_out, standalone_out in zip(dataset_result, standalone_result):
             assert np.array_equal(dataset_out, standalone_out)
+
+@raises(Exception)
+def test_differnt_num_shapes_dtypes():
+    batch_size = 12
+    num_threads = 4
+
+    dataset_pipeline = TestPipeline(batch_size, num_threads)
+    shapes = [
+        (batch_size, 3, 224, 224), 
+        (batch_size, 1),
+        (batch_size, 1)]
+    dtypes = [
+        tf.float32,
+        tf.float32]
+
+    with tf.device('/cpu:0'):
+        dali_tf.DALIDataset(
+            pipeline=dataset_pipeline,
+            batch_size=batch_size,
+            shapes=shapes, 
+            dtypes=dtypes,
+            num_threads=num_threads)
+
+@raises(Exception)
+def test_none_cpu_prefetch_queue_depth():
+    batch_size = 12
+    num_threads = 4
+
+    dataset_pipeline = TestPipeline(batch_size, num_threads)
+    shapes = [
+        (batch_size, 3, 224, 224), 
+        (batch_size, 1),
+        (batch_size, 1)]
+    dtypes = [
+        tf.float32,
+        tf.int32, 
+        tf.float32]
+
+    with tf.device('/cpu:0'):
+        dali_tf.DALIDataset(
+            pipeline=dataset_pipeline,
+            batch_size=batch_size,
+            shapes=shapes, 
+            dtypes=dtypes,
+            num_threads=num_threads,
+            exec_separated=True,
+            cpu_prefetch_queue_depth=None)

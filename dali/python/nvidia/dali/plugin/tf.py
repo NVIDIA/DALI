@@ -147,6 +147,19 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
     shapes = [], 
     dtypes = []):
 
+    assert(
+      len(shapes) == len(dtypes),
+      "Different number of provided shapes and dtypes.")
+
+    if exec_separated:
+      assert(cpu_prefetch_queue_depth is not None,
+      "With exec_separated == True cpu_prefetch_queue_depth cannot be None")
+      assert(gpu_prefetch_queue_depth is not None,
+      "With exec_separated == True gpu_prefetch_queue_depth cannot be None")
+    else:
+      assert(prefetch_queue_depth is not None,
+      "With exec_separated == False prefetch_queue_depth cannot be None")
+
     output_classes = tuple(ops.Tensor for shape in shapes)
 
     self._pipeline = pipeline.serialize()
@@ -168,7 +181,7 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
     elif get_tf_minor_version() == '13':
       super(DALIDatasetV2, self).__init__()
     else:
-      raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALI DatasetOp supports versions: 1.13, 1.14')
+      raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14')
 
 
   @property
