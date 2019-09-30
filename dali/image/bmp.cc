@@ -42,7 +42,6 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
     w = ReadValueLE<int32_t>(bmp + 18);
     h = abs(ReadValueLE<int32_t>(bmp + 22));
   }
-  std::cout << h << " x " << w << " x " << 0 << std::endl;
   return {h, w, 0};  // TODO(mszolucha): fill channels
 }
 
