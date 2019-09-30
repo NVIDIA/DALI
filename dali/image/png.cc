@@ -32,34 +32,22 @@ namespace {
   // 1 byte : Filter method
   // 1 byte : Interlace method
 
-constexpr int kSizeChunkSize = 4;
-constexpr int kSizeChunkId = 4;
-constexpr int kSizeWidth = 4;
-constexpr int kSizeHeight = 4;
-constexpr int kSizeBitDepth = 1;
-constexpr int kSizeColorType = 1;
-constexpr int kSizeCompressionMethod = 1;
-constexpr int kSizeFilterMethod = 1;
-constexpr int kSizeInterlaceMethod = 1;
-
 constexpr int kOffsetChunkSize = 0;
-constexpr int kOffsetChunkId = kOffsetChunkSize + kSizeChunkSize;
-constexpr int kOffsetWidth = kOffsetChunkId + kSizeChunkId;
-constexpr int kOffsetHeight = kOffsetWidth + kSizeWidth;
-constexpr int kOffsetBitDepth = kOffsetHeight + kSizeHeight;
-constexpr int kOffsetColorType = kOffsetBitDepth + kSizeBitDepth;
-constexpr int kOffsetCompressionMethod = kOffsetColorType + kSizeColorType;
-constexpr int kOffsetFilterMethod = kOffsetCompressionMethod + kSizeCompressionMethod;
-constexpr int kOffsetInterlaceMethod = kOffsetFilterMethod + kSizeFilterMethod;
-
-
+constexpr int kOffsetChunkId = kOffsetChunkSize + sizeof(uint32_t);
+constexpr int kOffsetWidth = kOffsetChunkId + sizeof(uint32_t);
+constexpr int kOffsetHeight = kOffsetWidth + sizeof(uint32_t);
+constexpr int kOffsetBitDepth = kOffsetHeight + sizeof(uint32_t);
+constexpr int kOffsetColorType = kOffsetBitDepth + sizeof(uint8_t);
+constexpr int kOffsetCompressionMethod = kOffsetColorType + sizeof(uint8_t);
+constexpr int kOffsetFilterMethod = kOffsetCompressionMethod + sizeof(uint8_t);
+constexpr int kOffsetInterlaceMethod = kOffsetFilterMethod + sizeof(uint8_t);
 
 uint32_t ReadHeight(const uint8_t *data) {
-  return ReadValueBE<uint32_t, kOffsetHeight, kSizeHeight>(data);
+  return ReadValueBE<uint32_t>(data + kOffsetHeight);
 }
 
 uint32_t ReadWidth(const uint8_t *data) {
-  return ReadValueBE<uint32_t, kOffsetWidth, kSizeWidth>(data);
+  return ReadValueBE<uint32_t>(data + kOffsetWidth);
 }
 
 enum : uint8_t {
@@ -71,7 +59,7 @@ enum : uint8_t {
 };
 
 uint8_t ReadColorType(const uint8_t *data) {
-  return ReadValueBE<uint8_t, kOffsetColorType, kSizeColorType>(data);
+  return ReadValueBE<uint8_t>(data + kOffsetColorType);
 }
 
 int ReadNumberOfChannels(const uint8_t *data) {

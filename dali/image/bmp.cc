@@ -21,8 +21,6 @@ namespace dali {
 
 namespace {
   constexpr int kHeaderSizeOffset = 14;
-  constexpr int kHeaderSizeSize = 4;
-
 }  // namespace
 
 
@@ -33,16 +31,16 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
   DALI_ENFORCE(bmp != nullptr);
 
   uint32_t header_size =
-      ReadValueLE<uint32_t, kHeaderSizeOffset, kHeaderSizeSize>(bmp);
+      ReadValueLE<uint32_t>(bmp + kHeaderSizeOffset);
   int64_t h = 0, w = 0;
   // BITMAPCOREHEADER: | 32u header | 16u width | 16u height | ...
   if (length >= 22 && header_size == 12) {
-    w = ReadValueLE<uint16_t, 18, sizeof(uint16_t)>(bmp);
-    h = ReadValueLE<uint16_t, 20, sizeof(uint16_t)>(bmp);
+    w = ReadValueLE<uint16_t>(bmp + 18);
+    h = ReadValueLE<uint16_t>(bmp + 20);
     // BITMAPINFOHEADER and later: | 32u header | 32s width | 32s height | ...
   } else if (length >= 26 && header_size >= 40) {
-    w = ReadValueLE<int32_t, 18, sizeof(int32_t)>(bmp);
-    h = abs(ReadValueLE<int32_t, 22, sizeof(int32_t)>(bmp));
+    w = ReadValueLE<int32_t>(bmp + 18);
+    h = abs(ReadValueLE<int32_t>(bmp + 22));
   }
   std::cout << h << " x " << w << " x " << 0 << std::endl;
   return {h, w, 0};  // TODO(mszolucha): fill channels

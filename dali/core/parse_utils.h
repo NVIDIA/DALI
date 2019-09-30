@@ -19,7 +19,7 @@ namespace dali {
 
 namespace detail {
 
-template <typename T, int offset, int nbytes, bool is_little_endian>
+template <typename T, int nbytes, bool is_little_endian>
 T ReadValueImpl(const uint8_t* data) {
   static_assert(std::is_integral<T>::value, "T must be an integral type");
   static_assert(std::is_unsigned<T>::value || sizeof(T) == nbytes,
@@ -28,7 +28,7 @@ T ReadValueImpl(const uint8_t* data) {
   T value = 0;
   for (int i = 0; i < nbytes; i++) {
     unsigned shift = is_little_endian ? (i*8) : (nbytes-1-i)*8;
-    value |= data[offset + i] << shift;
+    value |= data[i] << shift;
   }
   return value;
 }
@@ -39,17 +39,17 @@ T ReadValueImpl(const uint8_t* data) {
 /**
  * @brief Reads value of size `nbytes` from a stream of bytes (little-endian)
  */
-template <typename T, int offset, int nbytes>
+template <typename T, int nbytes = sizeof(T)>
 T ReadValueLE(const uint8_t* data) {
-  return detail::ReadValueImpl<T, offset, nbytes, true>(data);
+  return detail::ReadValueImpl<T, nbytes, true>(data);
 }
 
 /**
  * @brief Reads value of size `nbytes` from a stream of bytes (big-endian)
  */
-template <typename T, int offset, int nbytes>
+template <typename T, int nbytes = sizeof(T)>
 T ReadValueBE(const uint8_t* data) {
-  return detail::ReadValueImpl<T, offset, nbytes, false>(data);
+  return detail::ReadValueImpl<T, nbytes, false>(data);
 }
 
 }  // namespace dali
