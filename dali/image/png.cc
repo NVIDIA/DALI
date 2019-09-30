@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/image/png.h"
-#include "dali/core/parse_utils.h"
+#include "dali/core/byte_io.h"
 
 namespace dali {
 

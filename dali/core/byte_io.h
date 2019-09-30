@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CORE_PARSE_UTILS_H_
-#define DALI_CORE_PARSE_UTILS_H_
+#ifndef DALI_CORE_BYTE_IO_H_
+#define DALI_CORE_BYTE_IO_H_
 
 namespace dali {
 
@@ -54,4 +54,4 @@ T ReadValueBE(const uint8_t* data) {
 
 }  // namespace dali
 
-#endif  // DALI_CORE_PARSE_UTILS_H_
+#endif  // DALI_CORE_BYTE_IO_H_
