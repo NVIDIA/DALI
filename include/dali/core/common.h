@@ -310,8 +310,14 @@ std::vector<std::string> string_split(const std::string &s, const char delim);
 
 }  // namespace dali
 
+#ifdef DALI_VERBOSE_LOGS
+  #define LOGS_ENABLED 1
+#else
+  #define LOGS_ENABLED 0
+#endif
+
 #define LOG_LINE \
-  if (0) \
+  if (LOGS_ENABLED) \
   std::cout << __FILE__ << ":" << __LINE__ << ": "
 
 #define ERROR_LOG \
