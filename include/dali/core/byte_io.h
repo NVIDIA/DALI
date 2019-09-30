@@ -19,18 +19,26 @@ namespace dali {
 
 namespace detail {
 
-template <typename T, int nbytes, bool is_little_endian>
-T ReadValueImpl(const uint8_t* data) {
+template <int nbytes, bool is_little_endian, typename T>
+void ReadValueImpl(T &value, const uint8_t* data) {
   static_assert(std::is_integral<T>::value, "T must be an integral type");
   static_assert(std::is_unsigned<T>::value || sizeof(T) == nbytes,
     "T must be an unsigned type or nbytes == sizeof(T)");
   static_assert(sizeof(T) >= nbytes, "T can't hold the requested number of bytes");
-  T value = 0;
+  value = 0;
   for (int i = 0; i < nbytes; i++) {
     unsigned shift = is_little_endian ? (i*8) : (nbytes-1-i)*8;
     value |= data[i] << shift;
   }
-  return value;
+}
+
+template <int nbytes, bool is_little_endian>
+void ReadValueImpl(float &value, const uint8_t* data) {
+  static_assert(nbytes == sizeof(float),
+    "nbytes is expected to be the same as sizeof(float)");
+  uint32_t tmp;
+  ReadValueImpl<nbytes, is_little_endian>(tmp, data);
+  memcpy(&value, &tmp, sizeof(float));
 }
 
 }  // namespace detail
@@ -41,7 +49,9 @@ T ReadValueImpl(const uint8_t* data) {
  */
 template <typename T, int nbytes = sizeof(T)>
 T ReadValueLE(const uint8_t* data) {
-  return detail::ReadValueImpl<T, nbytes, true>(data);
+  T ret;
+  detail::ReadValueImpl<nbytes, true>(ret, data);
+  return ret;
 }
 
 /**
@@ -49,7 +59,9 @@ T ReadValueLE(const uint8_t* data) {
  */
 template <typename T, int nbytes = sizeof(T)>
 T ReadValueBE(const uint8_t* data) {
-  return detail::ReadValueImpl<T, nbytes, false>(data);
+  T ret;
+  detail::ReadValueImpl<nbytes, false>(ret, data);
+  return ret;
 }
 
 }  // namespace dali
