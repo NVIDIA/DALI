@@ -212,7 +212,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
 
       // Set internal info for each sample based on CropAttr
       for (int data_idx = 0; data_idx < batch_size_; data_idx++) {
-        mirror_[data_idx] = spec_.template GetArgument<int>("mirror", &ws, data_idx);
+        mirror_[data_idx] = this->spec_.template GetArgument<int>("mirror", &ws, data_idx);
         SetupSample(data_idx, input_layout_, in_shape.tensor_shape(data_idx));
         // convert the Operator representation to Kernel parameter representation
         kernel_sample_args[data_idx] = detail::GetKernelArgs<Dims>(
