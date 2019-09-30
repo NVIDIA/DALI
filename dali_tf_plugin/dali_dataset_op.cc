@@ -46,8 +46,17 @@
 #include "dali/core/common.h"
 #include "dali/c_api/c_api.h"
 
-#define TF_DALI_CALL(FUNC)                                                     \
-    _DALI_CALL_IMPL(FUNC, _RET_ERROR)
+#define DALI_CALL(FUNC)                                                    \
+do {                                                                       \
+  try {                                                                    \
+    FUNC;                                                                  \
+  } catch (std::exception &e) {                                            \
+    std::string error = "DALI " + std::string(#FUNC)                       \
+                        + " failed: " + std::string(e.what());             \
+    std::cout << error << std::endl;                                       \
+    return ::tensorflow::errors::Internal(error);                          \
+  }                                                                        \
+} while (0)
 
 namespace tensorflow {
 
@@ -123,26 +132,7 @@ class DALIDatasetOp : public DatasetOpKernel {
           gpu_prefetch_queue_depth_(gpu_prefetch_queue_depth),
           shapes_(shapes), 
           dtypes_(dtypes) {
-            daliCreatePipeline(
-              &pipeline_handle_,
-              pipeline_.c_str(),
-              pipeline_.length(),
-              batch_size,
-              num_threads,
-              device_id,
-              exec_separated,
-              prefetch_queue_depth,
-              cpu_prefetch_queue_depth,
-              gpu_prefetch_queue_depth);
-
-            if (!exec_separated) {
-              daliPrefetchUniform(&pipeline_handle_, prefetch_queue_depth_);
-            } else {
-              daliPrefetchSeparate(
-                &pipeline_handle_, 
-                cpu_prefetch_queue_depth,
-                prefetch_queue_depth);
-            }
+            OP_REQUIRES_OK(context, InitPipeline());
           }
 
         std::unique_ptr<IteratorBase> MakeIteratorInternal(
@@ -239,10 +229,35 @@ class DALIDatasetOp : public DatasetOpKernel {
         }
 
       private:
+        Status InitPipeline() {
+          DALI_CALL(daliCreatePipeline(
+            &pipeline_handle_,
+            pipeline_.c_str(),
+            pipeline_.length(),
+            batch_size_,
+            num_threads_,
+            device_id_,
+            exec_separated_,
+            prefetch_queue_depth_,
+            cpu_prefetch_queue_depth_,
+            gpu_prefetch_queue_depth_));
+
+          if (!exec_separated_) {
+            DALI_CALL(daliPrefetchUniform(&pipeline_handle_, prefetch_queue_depth_));
+          } else {
+            DALI_CALL(daliPrefetchSeparate(
+              &pipeline_handle_, 
+              cpu_prefetch_queue_depth_,
+              prefetch_queue_depth_));
+          }
+          return Status::OK();
+        }
+
         class Iterator : public DatasetIterator<Dataset> {
           public:
             explicit Iterator(const Params &params)
-              : DatasetIterator<Dataset>(params) { }
+              : DatasetIterator<Dataset>(params),
+              pipeline_handle_(dataset()->pipeline_handle_) { }
 
             Status GetNextInternal(
               IteratorContext *context,
@@ -250,11 +265,12 @@ class DALIDatasetOp : public DatasetOpKernel {
               bool *end_of_sequence) override {
                 tensorflow::mutex_lock l(mu_);
                 cudaStream_t stream = 0;
-                auto pipeline_handle = dataset()->pipeline_handle_;
 
-                daliShareOutput(&pipeline_handle);
+                DALI_CALL(daliShareOutput(&pipeline_handle_));
                 
-                const auto num_outputs = daliGetNumOutput(&pipeline_handle);
+                auto num_outputs = 0;
+                DALI_CALL(num_outputs = daliGetNumOutput(&pipeline_handle_));
+                
                 for (int out_id = 0; out_id < num_outputs; ++out_id) {
                   TensorShape output_shape;
                   dataset()->shapes_[out_id].AsTensorShape(&output_shape);
@@ -284,18 +300,20 @@ class DALIDatasetOp : public DatasetOpKernel {
                     break;
                   }
 
-                  daliCopyTensorNTo(&pipeline_handle, dst, out_id, device_type_t::CPU, stream, false);
+                  DALI_CALL(daliCopyTensorNTo(&pipeline_handle_, dst, out_id, device_type_t::CPU, stream, false));
                 }
                 
                 *end_of_sequence = false;
 
-                daliOutputRelease(&pipeline_handle);
-                daliRun(&pipeline_handle);
+                DALI_CALL(daliOutputRelease(&pipeline_handle_));
+                DALI_CALL(daliRun(&pipeline_handle_));
+
                 return Status::OK();
               }
 
           private:
             tensorflow::mutex mu_;
+            daliPipelineHandle pipeline_handle_;
         };
     };
 };
