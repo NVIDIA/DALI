@@ -76,18 +76,27 @@ class BrightnessContrastCpuTest : public ::testing::Test {
 };
 
 
-using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
+using TestTypes = std::tuple<uint8_t, int16_t, int32_t, float>;
 INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastCpuTest, TestTypes);
+
+namespace {
+
+template <class GtestTypeParam>
+using BrightnessContrastKernel = BrightnessContrastCpu
+        <typename GtestTypeParam::Out, typename GtestTypeParam::In>;
+
+}  // namespace
+
 
 
 TYPED_TEST(BrightnessContrastCpuTest, check_kernel) {
-  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
+  BrightnessContrastKernel<TypeParam> kernel;
   check_kernel<decltype(kernel)>();
 }
 
 
 TYPED_TEST(BrightnessContrastCpuTest, SetupTestAndCheckKernel) {
-  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
+  BrightnessContrastKernel<TypeParam> kernel;
   constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
@@ -98,7 +107,7 @@ TYPED_TEST(BrightnessContrastCpuTest, SetupTestAndCheckKernel) {
 
 
 TYPED_TEST(BrightnessContrastCpuTest, RunTest) {
-  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
+  BrightnessContrastKernel<TypeParam> kernel;
   constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
@@ -117,7 +126,7 @@ TYPED_TEST(BrightnessContrastCpuTest, RunTest) {
 
 
 TYPED_TEST(BrightnessContrastCpuTest, RunTestWithRoi) {
-  BrightnessContrastCPU<typename TypeParam::In, typename TypeParam::Out> kernel;
+  BrightnessContrastKernel<TypeParam> kernel;
   constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);

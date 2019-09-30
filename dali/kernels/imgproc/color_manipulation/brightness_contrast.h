@@ -28,8 +28,8 @@
 namespace dali {
 namespace kernels {
 
-template<typename InputType, typename OutputType, size_t ndims = 3>
-class BrightnessContrastCPU {
+template<typename OutputType, typename InputType, int ndims = 3>
+class BrightnessContrastCpu {
  private:
   static constexpr size_t spatial_dims = ndims - 1;
 
