@@ -140,20 +140,11 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
   ----------
   `pipeline` : `nvidia.dali.Pipeline` defining the augmentations to be performed. 
   `batch_size` : int,
-      Batch size of the pipeline. Negative values for this parameter
-      are invalid - the default value may only be used with
-      serialized pipeline (the value stored in serialized pipeline
-      is used instead).
+      Batch size of the pipeline.
   `num_threads` : int,
       Number of CPU threads used by the pipeline.
-      Negative values for this parameter are invalid - the default
-      value may only be used with serialized pipeline (the value
-      stored in serialized pipeline is used instead).
   `device_id` : int,
       Id of GPU used by the pipeline.
-      Negative values for this parameter are invalid - the default
-      value may only be used with serialized pipeline (the value
-      stored in serialized pipeline is used instead).
   `exec_separated` : bool,
       Whether to execute the pipeline in a way that enables
       overlapping CPU and GPU computation, typically resulting
@@ -253,20 +244,11 @@ class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
   ----------
   `pipeline` : `nvidia.dali.Pipeline` defining the augmentations to be performed. 
   `batch_size` : int,
-      Batch size of the pipeline. Negative values for this parameter
-      are invalid - the default value may only be used with
-      serialized pipeline (the value stored in serialized pipeline
-      is used instead).
+      Batch size of the pipeline.
   `num_threads` : int,
       Number of CPU threads used by the pipeline.
-      Negative values for this parameter are invalid - the default
-      value may only be used with serialized pipeline (the value
-      stored in serialized pipeline is used instead).
   `device_id` : int,
       Id of GPU used by the pipeline.
-      Negative values for this parameter are invalid - the default
-      value may only be used with serialized pipeline (the value
-      stored in serialized pipeline is used instead).
   `exec_separated` : bool,
       Whether to execute the pipeline in a way that enables
       overlapping CPU and GPU computation, typically resulting
