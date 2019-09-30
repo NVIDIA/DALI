@@ -95,8 +95,8 @@ class DALIGenericIterator(object):
                  or it just wraps up. In the conjunction with `fill_last_batch` it tells
                  if the iterator returning last batch with data only partially filled with
                  data from the current epoch is dropping padding samples or samples from
-                 the next epoch. If set to True next epoch will end sooner as data from
-                 it was consumed but dropped. If set to false next epoch would be the
+                 the next epoch. If set to False next epoch will end sooner as data from
+                 it was consumed but dropped. If set to True next epoch would be the
                  same length as the first one.
     """
     def __init__(self,
