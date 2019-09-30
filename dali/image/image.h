@@ -35,6 +35,11 @@ static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
                                               ".bmp", ".tif",  ".tiff",
                                               ".pnm", ".ppm", ".pgm", ".pbm"};
 
+/**
+ * Some file systems returns `.` and `..` as entries in the directory. DALI should just skip them
+ */
+static const char *kSkipImageExtensions[] = {"..", ".", };
+
 DLL_PUBLIC bool HasKnownImageExtension(const std::string &image_path);
 
 class Image {
