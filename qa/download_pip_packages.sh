@@ -16,6 +16,7 @@ do
         inst=$(python setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
         if [ -n "$inst" ]
         then
+            echo "DOWNLOADING PIP PACKAGE: $inst"
             pip download $inst -d /pip-packages
         fi
     done
