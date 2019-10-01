@@ -61,6 +61,11 @@ class LinearTransformationGpuTest : public ::testing::Test {
     cudaDeviceSynchronize();
   }
 
+  void TearDown() final {
+    CUDA_CALL(cudaFree(input_device_));
+    CUDA_CALL(cudaFree(output_));
+  }
+
 
   In *input_device_;
   Out *output_;
