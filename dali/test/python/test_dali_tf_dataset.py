@@ -21,11 +21,16 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 
+from nose import SkipTest
 from nose.tools import raises
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
+
+def skip_for_incompatible_tf():
+    if tf.__version__.split('.')[1] not in {'13', '14'}:
+        raise SkipTest('This feature is enabled for TF 1.13 and 1.14 only')
 
 
 class TestPipeline(Pipeline):
@@ -73,6 +78,8 @@ class TestPipeline(Pipeline):
 
 
 def test_tf_dataset():
+    skip_for_incompatible_tf()
+
     batch_size = 12
     num_threads = 4
     epochs = 10
@@ -112,6 +119,7 @@ def test_tf_dataset():
     for dataset_result, standalone_result in zip(dataset_results, standalone_results):
         for dataset_out, standalone_out in zip(dataset_result, standalone_result):
             assert np.array_equal(dataset_out, standalone_out)
+
 
 @raises(Exception)
 def test_differnt_num_shapes_dtypes():
