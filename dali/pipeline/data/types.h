@@ -22,13 +22,13 @@
 #include <vector>
 
 #include <functional>
-#include <mutex>
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
 #include <type_traits>
 
 #include "dali/core/common.h"
+#include "dali/core/spinlock.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_layout.h"
@@ -55,6 +55,10 @@
 
 #ifndef DALI_TYPEID_REGISTERER
 #define DALI_TYPEID_REGISTERER(...)
+#endif
+
+#ifndef DALI_REGISTER_TYPE_IMPL
+#define DALI_REGISTER_TYPE_IMPL(...)
 #endif
 
 namespace dali {
@@ -95,7 +99,7 @@ inline Copier GetCopier() {
  * @brief Enum identifiers for the different data types that
  * the pipeline can output.
  */
-enum DALIDataType {
+enum DALIDataType : int {
   DALI_NO_TYPE         = -1,
   DALI_UINT8           =  0,
   DALI_UINT16          =  1,
@@ -214,8 +218,8 @@ class DLL_PUBLIC TypeTable {
  public:
   template <typename T>
   DLL_PUBLIC static DALIDataType GetTypeID() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    static DALIDataType type_id = TypeTable::RegisterType<T>(static_cast<DALIDataType>(++index_));
+    auto &inst = instance();
+    static DALIDataType type_id = inst.RegisterType<T>(static_cast<DALIDataType>(++inst.index_));
     return type_id;
   }
 
@@ -225,22 +229,21 @@ class DLL_PUBLIC TypeTable {
   }
 
   DLL_PUBLIC static const TypeInfo& GetTypeInfo(DALIDataType dtype) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto id_it = type_info_map_.find(dtype);
-    DALI_ENFORCE(id_it != type_info_map_.end(),
+    auto &inst = instance();
+    std::lock_guard<spinlock> guard(inst.lock_);
+    auto id_it = inst.type_info_map_.find(dtype);
+    DALI_ENFORCE(id_it != inst.type_info_map_.end(),
         "Type with id " + to_string((size_t)dtype) + " was not registered.");
     return id_it->second;
   }
 
  private:
   // TypeTable should only be referenced through its static members
-  TypeTable();
+  TypeTable() {}
 
   template <typename T>
-  static DALIDataType RegisterType(DALIDataType dtype) {
-    // Use only when already guarded by the mutex to
-    // avoid races when used from multiple threads
-
+  DALIDataType RegisterType(DALIDataType dtype) {
+    std::lock_guard<spinlock> guard(lock_);
     // Check the map for this types id
     auto id_it = type_map_.find(typeid(T));
 
@@ -255,12 +258,14 @@ class DLL_PUBLIC TypeTable {
     }
   }
 
-  static std::mutex mutex_;
-  static std::unordered_map<std::type_index, DALIDataType> type_map_;
+
+  spinlock lock_;
+  std::unordered_map<std::type_index, DALIDataType> type_map_;
   // Unordered maps do not work with enums,
-  // so we need to use size_t instead of DALIDataType
-  static std::unordered_map<size_t, TypeInfo> type_info_map_;
-  static int index_;
+  // so we need to use underlying type instead of DALIDataType
+  std::unordered_map<std::underlying_type_t<DALIDataType>, TypeInfo> type_info_map_;
+  int index_ = DALI_DATATYPE_END;
+  DLL_PUBLIC static TypeTable &instance();
 };
 
 
@@ -323,7 +328,8 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
     DALI_TYPENAME_REGISTERER(TypeString);                           \
   template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeID<Type>()  \
     DALI_TYPEID_REGISTERER(Type, dtype);                            \
-  DALI_STATIC_TYPE_MAPPING(Type, dtype);
+  DALI_STATIC_TYPE_MAPPING(Type, dtype);                            \
+  DALI_REGISTER_TYPE_IMPL(Type, TypeString, dtype);
 
 #define DALI_REGISTER_TYPE(Type, dtype) \
   DALI_REGISTER_TYPE_WITH_NAME(Type, #Type, dtype)
