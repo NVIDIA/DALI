@@ -129,11 +129,11 @@ def DALIRawIterator():
     return _dali_tf
 
 
-def get_tf_minor_version():
+def _get_tf_minor_version():
   return tf.__version__.split('.')[1]
 
 
-class DALIDatasetV2(dataset_ops.DatasetSource):
+class _DALIDatasetV2(dataset_ops.DatasetSource):
   """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline.
 
   Parameters
@@ -199,10 +199,10 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
     self._structure = structure.convert_legacy_structure(
       self._dtypes, self._shapes, output_classes)
 
-    if get_tf_minor_version() == '14':
-      super(DALIDatasetV2, self).__init__(self._as_variant_tensor())
-    elif get_tf_minor_version() == '13':
-      super(DALIDatasetV2, self).__init__()
+    if _get_tf_minor_version() == '14':
+      super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
+    elif _get_tf_minor_version() == '13':
+      super(_DALIDatasetV2, self).__init__()
     else:
       raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14')
 
@@ -228,7 +228,7 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
       dtypes = self._dtypes)
 
 
-class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
+class _DALIDatasetV1(dataset_ops.DatasetV1Adapter):
   """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline.
 
   Parameters
@@ -264,15 +264,16 @@ class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
   """
 
 
-  @functools.wraps(DALIDatasetV2.__init__)
+  @functools.wraps(_DALIDatasetV2.__init__)
   def __init__(self, **kwargs):
-    wrapped = DALIDatasetV2(**kwargs)
-    super(DALIDatasetV1, self).__init__(wrapped)
+    wrapped = _DALIDatasetV2(**kwargs)
+    super(_DALIDatasetV1, self).__init__(wrapped)
 
 
 # This is for TensorFlow 1.x compatibility
-DALIDataset = DALIDatasetV1
+DALIDataset = _DALIDatasetV1
 
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
 DALIRawIterator.__doc__ = _dali_tf.__doc__
+DALIDataset.__doc__ = _DALIDatasetV1.__doc__
