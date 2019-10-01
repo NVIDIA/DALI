@@ -95,9 +95,17 @@ class DALIGenericIterator(object):
                  or it just wraps up. In the conjunction with `fill_last_batch` it tells
                  if the iterator returning last batch with data only partially filled with
                  data from the current epoch is dropping padding samples or samples from
-                 the next epoch. If set to True next epoch will end sooner as data from
-                 it was consumed but dropped. If set to false next epoch would be the
+                 the next epoch. If set to False next epoch will end sooner as data from
+                 it was consumed but dropped. If set to True next epoch would be the
                  same length as the first one.
+
+    Example
+    -------
+    With the data set [1,2,3,4,5,6,7] and the batch size 2:
+    fill_last_batch = False, last_batch_padded = True  -> last batch = [7], next iteration will return [1, 2]
+    fill_last_batch = False, last_batch_padded = False -> last batch = [7], next iteration will return [2, 3]
+    fill_last_batch = True, last_batch_padded = True   -> last batch = [7, 7], next iteration will return [1, 2]
+    fill_last_batch = True, last_batch_padded = False  -> last batch = [7, 1], next iteration will return [2, 3]
     """
     def __init__(self,
                  pipelines,
@@ -351,9 +359,17 @@ class DALIClassificationIterator(DALIGenericIterator):
                  or it just wraps up. In the conjunction with `fill_last_batch` it tells
                  if the iterator returning last batch with data only partially filled with
                  data from the current epoch is dropping padding samples or samples from
-                 the next epoch. If set to True next epoch will end sooner as data from
-                 it was consumed but dropped. If set to false next epoch would be the
+                 the next epoch. If set to False next epoch will end sooner as data from
+                 it was consumed but dropped. If set to True next epoch would be the
                  same length as the first one.
+
+    Example
+    -------
+    With the data set [1,2,3,4,5,6,7] and the batch size 2:
+    fill_last_batch = False, last_batch_padded = True  -> last batch = [7], next iteration will return [1, 2]
+    fill_last_batch = False, last_batch_padded = False -> last batch = [7], next iteration will return [2, 3]
+    fill_last_batch = True, last_batch_padded = True   -> last batch = [7, 7], next iteration will return [1, 2]
+    fill_last_batch = True, last_batch_padded = False  -> last batch = [7, 1], next iteration will return [2, 3]
     """
     def __init__(self,
                  pipelines,
