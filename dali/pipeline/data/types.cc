@@ -18,13 +18,14 @@
   return TypeString;                         \
 }
 
-#define DALI_TYPEID_REGISTERER(Type, dtype)                           \
-{                                                                     \
-  std::lock_guard<std::mutex> lock(mutex_);                           \
-  static DALIDataType type_id = TypeTable::RegisterType<Type>(dtype); \
-  return type_id;                                                     \
+#define DALI_TYPEID_REGISTERER(Type, dtype)                                      \
+{                                                                                \
+  static DALIDataType type_id = TypeTable::instance().RegisterType<Type>(dtype); \
+  return type_id;                                                                \
 }
 
+#define DALI_REGISTER_TYPE_IMPL(Type, Name, Id) \
+const auto &_type_info_##Id = TypeTable::GetTypeID<Type>()
 
 #include "dali/pipeline/data/types.h"
 #include "dali/util/half.hpp"
@@ -32,10 +33,11 @@
 #include "dali/pipeline/data/backend.h"
 
 namespace dali {
-std::mutex TypeTable::mutex_;
-std::unordered_map<std::type_index, DALIDataType> TypeTable::type_map_;
-std::unordered_map<size_t, TypeInfo> TypeTable::type_info_map_;
-int TypeTable::index_ = DALI_DATATYPE_END;
+
+TypeTable &TypeTable::instance() {
+  static TypeTable singleton;
+  return singleton;
+}
 
 template <>
 void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,

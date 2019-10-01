@@ -13,11 +13,9 @@
 // limitations under the License.
 
 #include "dali/pipeline/data/types.h"
-
 #include <gtest/gtest.h>
-
 #include <string>
-
+#include <utility>
 #include "dali/test/dali_test.h"
 
 namespace dali {
@@ -31,6 +29,35 @@ class TypesTest : public DALITest {
 
 namespace {
   static constexpr size_t DUMMY_ARRAY_SIZE = 42;
+}
+
+template <typename T>
+auto GetTypeInfo() {
+  return std::make_pair(type2id<T>::value, &TypeTable::GetTypeInfo(type2id<T>::value));
+}
+
+static std::pair<DALIDataType, const TypeInfo *> g_types[] = {
+  GetTypeInfo<uint8_t>(),
+  GetTypeInfo<int8_t>(),
+  GetTypeInfo<uint16_t>(),
+  GetTypeInfo<int16_t>(),
+  GetTypeInfo<uint32_t>(),
+  GetTypeInfo<int32_t>(),
+  GetTypeInfo<uint64_t>(),
+  GetTypeInfo<int64_t>(),
+  GetTypeInfo<bool>(),
+  GetTypeInfo<float>(),
+  GetTypeInfo<double>(),
+  GetTypeInfo<string>(),
+  GetTypeInfo<DALIDataType>()
+};
+
+
+TEST(TypeTableTest, BasicTypesLookup) {
+  for (auto &info : g_types) {
+    ASSERT_NE(info.second, nullptr);
+    EXPECT_EQ(info.first, info.second->id());
+  }
 }
 
 #define TYPENAME_FUNC(type, type_name)           \
