@@ -111,6 +111,7 @@ if [ "$BUILD_INHOST" = "YES" ]; then
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
                                         BUILD_NVML=${BUILD_NVML}                  \
+                                        VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
                                         BUILD_WITH_ASAN=${BUILD_WITH_ASAN}        \
                                         NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}        \
