@@ -50,6 +50,10 @@ TYPED_TEST(ImageDecoderCropTest_CPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
+TYPED_TEST(ImageDecoderCropTest_CPU, BmpDecode) {
+  this->Run(t_bmpImgType);
+}
+
 TYPED_TEST(ImageDecoderCropTest_CPU, TiffDecode) {
   this->crop_H = 100;
   this->crop_W = 90;
