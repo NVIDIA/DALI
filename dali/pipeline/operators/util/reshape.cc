@@ -165,27 +165,16 @@ TensorLayout Reshape<Backend>::GetOutputLayout(const Workspace &ws) const {
 
 template <>
 void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  /*std::cerr << "TRAP!\nPID = " << getpid() << "\nattach reset flag in debugger\n" << std::endl;
-  volatile int flag = 1;
-  while (flag)
-    usleep(10);*/
-  std::cerr << "Requested output shape: " << output_shape_ << std::endl;
   auto &out = ws.OutputRef<CPUBackend>(0);
   auto &in = ws.InputRef<CPUBackend>(0);
   out.Resize(output_shape_);
   out.SetContiguous(false);
   int N = output_shape_.num_samples();
-  std::cerr << "Input shape: " << in.shape() << std::endl;
   for (int i = 0; i < N; i++) {
-    std::cerr << "i = " << i << std::endl;
-    std::cerr << "ShareData" << std::endl;
     out[i].ShareData(&in[i]);
-    std::cerr << "Resize" << std::endl;
     out[i].Resize(output_shape_[i]);
-    std::cerr << "assert" << std::endl;
     assert(out[i].raw_data() == in[i].raw_data());
   }
-  std::cerr << "Reshape::RunImpl done" << std::endl;
 }
 
 template <>
