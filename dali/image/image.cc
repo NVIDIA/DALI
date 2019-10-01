@@ -34,6 +34,15 @@ std::string ListSupportedExtensions() {
 bool HasKnownImageExtension(const std::string &image_path) {
   std::string path_low{image_path};
   std::transform(path_low.begin(), path_low.end(), path_low.begin(), ::tolower);
+
+  /** Skip but without any warning */
+  for (const auto &ext : kSkipImageExtensions) {
+    if (strlen(ext) == strlen(image_path.c_str()) &&
+        strncmp(ext, image_path.c_str(), strlen(ext)) == 0) {
+      return false;
+    }
+  }
+
   for (const auto &ext : kKnownImageExtensions) {
     size_t pos = path_low.rfind(ext);
     if (pos != std::string::npos && pos + strlen(ext) == path_low.size()) {
