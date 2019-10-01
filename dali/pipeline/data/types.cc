@@ -18,12 +18,10 @@
   return TypeString;                         \
 }
 
-#define DALI_TYPEID_REGISTERER(Type, dtype)                           \
-{                                                                     \
-  auto &inst = instance();                                            \
-  std::lock_guard<std::mutex> lock(inst.mutex_);                      \
-  static DALIDataType type_id = inst.RegisterType<Type>(dtype);       \
-  return type_id;                                                     \
+#define DALI_TYPEID_REGISTERER(Type, dtype)                                      \
+{                                                                                \
+  static DALIDataType type_id = TypeTable::instance().RegisterType<Type>(dtype); \
+  return type_id;                                                                \
 }
 
 #define DALI_REGISTER_TYPE_IMPL(Type, Name, Id) \

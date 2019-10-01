@@ -22,13 +22,13 @@
 #include <vector>
 
 #include <functional>
-#include <mutex>
 #include <typeindex>
 #include <typeinfo>
 #include <unordered_map>
 #include <type_traits>
 
 #include "dali/core/common.h"
+#include "dali/core/spinlock.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/error_handling.h"
 
@@ -96,7 +96,7 @@ inline Copier GetCopier() {
  * @brief Enum identifiers for the different data types that
  * the pipeline can output.
  */
-enum DALIDataType {
+enum DALIDataType : int {
   DALI_NO_TYPE         = -1,
   DALI_UINT8           =  0,
   DALI_UINT16          =  1,
@@ -216,7 +216,6 @@ class DLL_PUBLIC TypeTable {
   template <typename T>
   DLL_PUBLIC static DALIDataType GetTypeID() {
     auto &inst = instance();
-    std::lock_guard<std::mutex> lock(inst.mutex_);
     static DALIDataType type_id = inst.RegisterType<T>(static_cast<DALIDataType>(++inst.index_));
     return type_id;
   }
@@ -228,7 +227,7 @@ class DLL_PUBLIC TypeTable {
 
   DLL_PUBLIC static const TypeInfo& GetTypeInfo(DALIDataType dtype) {
     auto &inst = instance();
-    std::lock_guard<std::mutex> lock(inst.mutex_);
+    std::lock_guard<spinlock> guard(inst.lock_);
     auto id_it = inst.type_info_map_.find(dtype);
     DALI_ENFORCE(id_it != inst.type_info_map_.end(),
         "Type with id " + to_string((size_t)dtype) + " was not registered.");
@@ -241,9 +240,7 @@ class DLL_PUBLIC TypeTable {
 
   template <typename T>
   DALIDataType RegisterType(DALIDataType dtype) {
-    // Use only when already guarded by the mutex to
-    // avoid races when used from multiple threads
-
+    std::lock_guard<spinlock> guard(lock_);
     // Check the map for this types id
     auto id_it = type_map_.find(typeid(T));
 
@@ -258,11 +255,12 @@ class DLL_PUBLIC TypeTable {
     }
   }
 
-  std::mutex mutex_;
+
+  spinlock lock_;
   std::unordered_map<std::type_index, DALIDataType> type_map_;
   // Unordered maps do not work with enums,
-  // so we need to use size_t instead of DALIDataType
-  std::unordered_map<size_t, TypeInfo> type_info_map_;
+  // so we need to use underlying type instead of DALIDataType
+  std::unordered_map<std::underlying_type_t<DALIDataType>, TypeInfo> type_info_map_;
   int index_ = DALI_DATATYPE_END;
   DLL_PUBLIC static TypeTable &instance();
 };
