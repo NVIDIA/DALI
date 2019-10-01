@@ -26,7 +26,7 @@ from test_utils import RandomDataIterator
 import cv2
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
-caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+multichannel_tiff_root = os.path.join(test_data_root, 'db', 'single', 'tiff', 'multichannel')
 
 def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 220, crop_w = 224):
     if layout == types.NFHWC:
@@ -69,12 +69,19 @@ def transpose_func(image):
 def normalize_func(image):
     return np.float32(image) / np.float32(255.0)
 
-class MultichannelPipeline(Pipeline):
+def full_pipe_func(image):
+    out = resize_func(image)
+    out = crop_NHWC_func(out)
+    out = transpose_func(out)
+    out = normalize_func(out)
+    return out
+
+class MultichannelSynthPipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0,
                  should_resize=False, should_crop=False, should_transpose=False, should_normalize=False):
-        super(MultichannelPipeline, self).__init__(batch_size,
-                                                   num_threads,
-                                                   device_id)
+        super(MultichannelSynthPipeline, self).__init__(batch_size,
+                                                        num_threads,
+                                                        device_id)
         self.device = device
         self.layout = layout
         self.iterator = iterator
@@ -122,13 +129,13 @@ class MultichannelPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
-class MultichannelPythonOpPipeline(Pipeline):
+class MultichannelSynthPythonOpPipeline(Pipeline):
     def __init__(self, function, batch_size, layout, iterator, num_threads=1, device_id=0):
-        super(MultichannelPythonOpPipeline, self).__init__(batch_size,
-                                                           num_threads,
-                                                           device_id,
-                                                           exec_async=False,
-                                                           exec_pipelined=False)
+        super(MultichannelSynthPythonOpPipeline, self).__init__(batch_size,
+                                                                num_threads,
+                                                                device_id,
+                                                                exec_async=False,
+                                                                exec_pipelined=False)
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
@@ -146,8 +153,8 @@ class MultichannelPythonOpPipeline(Pipeline):
 def check_resize_multichannel_vs_numpy(device, batch_size, shape):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
-    compare_pipelines(MultichannelPipeline(device, batch_size, types.NHWC, iter(eii1), should_resize=True),
-                      MultichannelPythonOpPipeline(resize_func, batch_size, types.NHWC, iter(eii2)),
+    compare_pipelines(MultichannelSynthPipeline(device, batch_size, types.NHWC, iter(eii1), should_resize=True),
+                      MultichannelSynthPythonOpPipeline(resize_func, batch_size, types.NHWC, iter(eii2)),
                       batch_size=batch_size, N_iterations=10,
                       eps = 0.2)
 
@@ -161,8 +168,8 @@ def test_resize_multichannel_vs_numpy():
 def check_crop_multichannel_vs_numpy(device, batch_size, shape):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
-    compare_pipelines(MultichannelPipeline(device, batch_size, types.NHWC, iter(eii1), should_crop=True),
-                      MultichannelPythonOpPipeline(crop_NHWC_func, batch_size, types.NHWC, iter(eii2)),
+    compare_pipelines(MultichannelSynthPipeline(device, batch_size, types.NHWC, iter(eii1), should_crop=True),
+                      MultichannelSynthPythonOpPipeline(crop_NHWC_func, batch_size, types.NHWC, iter(eii2)),
                       batch_size=batch_size, N_iterations=10)
 
 def test_crop_multichannel_vs_numpy():
@@ -174,8 +181,8 @@ def test_crop_multichannel_vs_numpy():
 def check_transpose_multichannel_vs_numpy(device, batch_size, shape):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
-    compare_pipelines(MultichannelPipeline(device, batch_size, types.NHWC, iter(eii1), should_transpose=True),
-                      MultichannelPythonOpPipeline(transpose_func, batch_size, types.NHWC, iter(eii2)),
+    compare_pipelines(MultichannelSynthPipeline(device, batch_size, types.NHWC, iter(eii1), should_transpose=True),
+                      MultichannelSynthPythonOpPipeline(transpose_func, batch_size, types.NHWC, iter(eii2)),
                       batch_size=batch_size, N_iterations=10)
 
 def test_transpose_multichannel_vs_numpy():
@@ -189,8 +196,8 @@ def test_transpose_multichannel_vs_numpy():
 def check_normalize_multichannel_vs_numpy(device, batch_size, shape):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
-    compare_pipelines(MultichannelPipeline(device, batch_size, types.NHWC, iter(eii1), should_normalize=True),
-                      MultichannelPythonOpPipeline(normalize_func, batch_size, types.NHWC, iter(eii2)),
+    compare_pipelines(MultichannelSynthPipeline(device, batch_size, types.NHWC, iter(eii1), should_normalize=True),
+                      MultichannelSynthPythonOpPipeline(normalize_func, batch_size, types.NHWC, iter(eii2)),
                       batch_size=batch_size, N_iterations=10)
 
 def test_normalize_multichannel_vs_numpy():
@@ -198,3 +205,70 @@ def test_normalize_multichannel_vs_numpy():
         for batch_size in {1, 3}:
             for shape in {(2048, 512, 3), (2048, 512, 8)}:
                 yield check_normalize_multichannel_vs_numpy, device, batch_size, shape
+
+class MultichannelPipeline(Pipeline):
+    def __init__(self, device, batch_size, num_threads=1, device_id=0):
+        super(MultichannelPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.device = device
+
+        self.reader = ops.FileReader(file_root=multichannel_tiff_root)
+
+        decoder_device = 'mixed' if self.device == 'gpu' else 'cpu'
+        self.decoder = ops.ImageDecoder(device = decoder_device, output_type = types.ANY_DATA)
+
+        self.resize = ops.Resize(device = self.device,
+                                 resize_y = 900, resize_x = 300,
+                                 min_filter=types.DALIInterpType.INTERP_LINEAR)
+
+        self.crop = ops.Crop(device = self.device,
+                             crop_h = 220, crop_w = 224,
+                             crop_pos_x = 0.3, crop_pos_y = 0.2,
+                             image_type = types.ANY_DATA)
+
+        self.transpose = ops.Transpose(device = self.device,
+                                       perm = (1, 0, 2))
+
+        self.cmn = ops.CropMirrorNormalize(device = self.device,
+                                           std = 255., mean = 0.,
+                                           output_layout = types.NHWC,
+                                           output_dtype = types.FLOAT)
+
+    def define_graph(self):
+        encoded_data, _ = self.reader()
+        decoded_data = self.decoder(encoded_data)
+        out = decoded_data.gpu() if self.device == 'gpu' else decoded_data
+        out = self.resize(out)
+        out = self.crop(out)
+        out = self.transpose(out)
+        out = self.cmn(out)
+        return out
+
+class MultichannelPythonOpPipeline(Pipeline):
+    def __init__(self, function, batch_size, num_threads=1, device_id=0):
+        super(MultichannelPythonOpPipeline, self).__init__(batch_size,
+                                                           num_threads,
+                                                           device_id,
+                                                           exec_async=False,
+                                                           exec_pipelined=False)
+        self.reader = ops.FileReader(file_root=multichannel_tiff_root)
+        self.decoder = ops.ImageDecoder(device = 'cpu', output_type = types.ANY_DATA)
+        self.oper = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        encoded_data, _ = self.reader()
+        decoded_data = self.decoder(encoded_data)
+        out = self.oper(decoded_data)
+        return out
+
+
+def check_full_pipe_multichannel_vs_numpy(device, batch_size):
+    compare_pipelines(MultichannelPipeline(device, batch_size),
+                      MultichannelPythonOpPipeline(full_pipe_func, batch_size),
+                      batch_size=batch_size, N_iterations=10,
+                      eps = 1e-03)
+
+def test_full_pipe_multichannel_vs_numpy():
+    # TODO(janton): enable 'cpu' when we provide a Transpose operator for it
+    for device in {'gpu'}:
+        for batch_size in {1, 3}:
+                yield check_full_pipe_multichannel_vs_numpy, device, batch_size
