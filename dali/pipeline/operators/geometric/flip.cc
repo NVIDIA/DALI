@@ -27,7 +27,8 @@ DALI_SCHEMA(Flip)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("horizontal", R"code(Perform a horizontal flip.)code", 1, true)
-    .AddOptionalArg("vertical", R"code(Perform a vertical flip.)code", 0, true);
+    .AddOptionalArg("vertical", R"code(Perform a vertical flip.)code", 0, true)
+    .InputLayout({"HWC", "CHW"});
 
 
 template <>
@@ -35,6 +36,7 @@ Flip<CPUBackend>::Flip(const OpSpec &spec)
     : Operator<CPUBackend>(spec) {}
 
 void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+             const TensorLayout &layout,
              bool horizontal, bool vertical) {
   DALI_TYPE_SWITCH(input.type().id(), DType,
       auto output_ptr = output.mutable_data<DType>();
@@ -42,7 +44,7 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
       auto kernel = kernels::FlipCPU<DType>();
       kernels::KernelContext ctx;
       auto shape_dims = kernels::TensorListShape<>{{input.shape()}};
-      auto shape = TransformShapes(shape_dims, input.GetLayout() == DALI_NHWC)[0];
+      auto shape = TransformShapes(shape_dims, layout)[0];
       auto in_view = kernels::InTensorCPU<DType, 4>(input_ptr, shape);
       auto reqs = kernel.Setup(ctx, in_view);
       auto out_shape = reqs.output_shapes[0][0].to_static<4>();
@@ -64,7 +66,7 @@ void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
   if (!_horizontal && !_vertical) {
     output.Copy(input, nullptr);
   } else {
-    RunFlip(output, input, _horizontal, _vertical);
+    RunFlip(output, input, InputLayout(ws, 0), _horizontal, _vertical);
   }
 }
 

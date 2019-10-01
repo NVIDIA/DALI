@@ -53,8 +53,7 @@ Default values disallow changes in aspect ratio.)code",
     .AddOptionalArg(
         "allow_no_crop",
         R"code(If true, includes no cropping as one of the random options.)code",
-        true)
-    .EnforceInputLayout(DALI_NHWC);
+        true);
 
 template <>
 void RandomBBoxCrop<CPUBackend>::WriteCropToOutput(

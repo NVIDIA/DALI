@@ -37,6 +37,7 @@ DALI_SCHEMA(Water)
         R"code(Phase of the wave in x direction.)code", 0.f)
     .AddOptionalArg("phase_y",
         R"code(Phase of the wave in y direction.)code", 0.f)
+    .InputLayout(0, "HWC")
     .AddParent("DisplacementFilter");
 
 }  // namespace dali

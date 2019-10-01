@@ -43,6 +43,7 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
   const auto decoded = img->GetImage();
   const auto shape = img->GetShape();
   output.Resize(shape);
+  output.SetLayout("HWC");
   unsigned char *out_data = output.mutable_data<unsigned char>();
   std::memcpy(out_data, decoded.get(), volume(shape));
 }

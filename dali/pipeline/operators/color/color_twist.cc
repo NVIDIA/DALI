@@ -34,7 +34,8 @@ Values >= 0 are accepted. For example:
 * `1` - no change
 * `2` - increase brightness twice
 )code", 1.f, true)
-    .AddParent("ColorTransformBase");
+    .AddParent("ColorTransformBase")
+    .InputLayout(0, "HWC");
 
 DALI_SCHEMA(Contrast)
     .DocStr(R"code(Changes the color contrast of the image.)code")
@@ -56,7 +57,8 @@ DALI_SCHEMA(Hue)
     .NumOutput(1)
     .AddOptionalArg("hue",
         R"code(Hue change, in degrees.)code", 0.f, true)
-    .AddParent("ColorTransformBase");
+    .AddParent("ColorTransformBase")
+    .InputLayout(0, "HWC");
 
 DALI_SCHEMA(Saturation)
     .DocStr(R"code(Changes saturation level of the image.)code")
@@ -69,7 +71,8 @@ Values >= 0 are supported. For example:
 * `0` - completely desaturated image
 * `1` - no change to image's saturation
 )code", 1.f, true)
-    .AddParent("ColorTransformBase");
+    .AddParent("ColorTransformBase")
+    .InputLayout(0, "HWC");
 
 DALI_SCHEMA(ColorTwist)
     .DocStr(R"code(Combination of hue, saturation, contrast and brightness.)code")
@@ -101,7 +104,8 @@ Values >= 0 are accepted. For example:
 * `2` - increase brightness twice
 
 )code", 1.f, true)
-    .AddParent("ColorTransformBase");
+    .AddParent("ColorTransformBase")
+    .InputLayout(0, "HWC");
 
 template <>
 void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
@@ -116,6 +120,7 @@ void ColorTwistBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto C = input_shape[2];
 
   output.ResizeLike(input);
+  output.SetLayout(InputLayout(ws, 0));
 
   auto pImgInp = input.template data<uint8>();
   auto pImgOut = output.template mutable_data<uint8>();

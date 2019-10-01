@@ -28,6 +28,7 @@ void ColorTwistBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       "Color augmentations accept only uint8 tensors");
   auto &output = ws.Output<GPUBackend>(0);
   output.ResizeLike(input);
+  output.SetLayout(InputLayout(ws, 0));
 
   cudaStream_t old_stream = nppGetStream();
   nppSetStream(ws.stream());

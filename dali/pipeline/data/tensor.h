@@ -493,11 +493,11 @@ class Tensor : public Buffer<Backend> {
     meta_ = meta;
   }
 
-  inline DALITensorLayout GetLayout() const {
+  inline TensorLayout GetLayout() const {
     return meta_.GetLayout();
   }
 
-  inline void SetLayout(DALITensorLayout layout) {
+  inline void SetLayout(const TensorLayout &layout) {
     meta_.SetLayout(layout);
   }
 
@@ -519,7 +519,7 @@ class Tensor : public Buffer<Backend> {
 
  protected:
   kernels::TensorShape<> shape_;
-  DALIMeta meta_{DALI_NHWC};
+  DALIMeta meta_;
   USE_BUFFER_MEMBERS();
 };
 

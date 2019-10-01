@@ -84,6 +84,7 @@ class nvJPEGDecoderGPUStage : public Operator<MixedBackend> {
 
     auto& output = ws.Output<GPUBackend>(0);
     output.Resize(output_shape);
+    output.SetLayout("HWC");
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
 

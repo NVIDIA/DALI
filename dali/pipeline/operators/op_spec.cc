@@ -51,7 +51,7 @@ OpSpec& OpSpec::AddOutput(const string &name, const string &device) {
 OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name) {
   DALI_ENFORCE(!this->HasArgument(arg_name),
       "Argument " + arg_name + " was already added to the op.");
-  const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+  const OpSchema& schema = GetSchema();
   DALI_ENFORCE(schema.HasArgument(arg_name),
       "Argument '" + arg_name + "' is not part of the op schema '" + schema.name() + "'");
   argument_inputs_[arg_name] = inputs_.size();

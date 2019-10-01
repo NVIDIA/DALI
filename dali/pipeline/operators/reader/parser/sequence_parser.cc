@@ -22,7 +22,7 @@ namespace dali {
 
 void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
   auto& sequence = ws->Output<CPUBackend>(0);
-  sequence.SetLayout(DALITensorLayout::DALI_NFHWC);
+  sequence.SetLayout("FHWC");
   sequence.set_type(TypeInfo::Create<uint8_t>());
   Index seq_length = data.tensors.size();
 

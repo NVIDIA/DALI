@@ -27,6 +27,7 @@
 #include "dali/plugin/plugin_manager.h"
 #include "dali/util/half.hpp"
 #include "dali/core/device_guard.h"
+#include "dali/core/python_util.h"
 
 namespace dali {
 namespace python {
@@ -60,7 +61,25 @@ py::list py_shape(const Tensor<Backend> &t) {
   return as_py_list(t.shape());
 }
 
-void ExposeTensor(py::module &m) { // NOLINT
+static string TensorLayoutRepr(const TensorLayout &tl) {
+  std::stringstream ss;
+  ss << "nvidia.dali.types.TensorLayout('";
+  escape_string(ss, tl.c_str());
+  ss << "')";
+  return ss.str();
+}
+
+void ExposeTensorLayout(py::module &m) {
+  py::class_<TensorLayout>(m, "TensorLayout")
+  .def(py::init([](string s) {
+    return new TensorLayout(s);
+  }))
+  .def("__str__", &TensorLayout::str)
+  .def("__repr__", TensorLayoutRepr)
+  .def("__len__", &TensorLayout::ndim);
+}
+
+void ExposeTensor(py::module &m) {
   py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
@@ -82,7 +101,7 @@ void ExposeTensor(py::module &m) { // NOLINT
               FormatStrFromType(t.type()),
               t.ndim(), shape, stride);
         })
-    .def(py::init([](py::buffer b, DALITensorLayout layout = DALI_NHWC) {
+    .def(py::init([](py::buffer b, string layout = "") {
           // We need to verify that hte input data is c contiguous
           // and of a type that we can work with in the backend
           py::buffer_info info = b.request();
@@ -186,50 +205,53 @@ void ExposeTensor(py::module &m) { // NOLINT
       String representing NumPy type of the Tensor.
       )code");
 }
-
-void ExposeTensorList(py::module &m) { // NOLINT
+void ExposeTensorList(py::module &m) {
   // We only want to wrap buffers w/ TensorLists to feed then to
   // the backend. We do not support converting from TensorLists
   // to numpy arrays currently.
+
+
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
-    .def(py::init([](py::buffer b, DALITensorLayout layout) {
-          // We need to verify that the input data is C_CONTIGUOUS
-          // and of a type that we can work with in the backend
-          py::buffer_info info = b.request();
+    .def(py::init([](py::buffer b, string layout = "") {
+        // We need to verify that the input data is C_CONTIGUOUS
+        // and of a type that we can work with in the backend
+        py::buffer_info info = b.request();
 
-          DALI_ENFORCE(info.shape.size() > 0,
-              "Cannot create TensorList from 0-dim array.");
+        DALI_ENFORCE(info.shape.size() > 0,
+            "Cannot create TensorList from 0-dim array.");
 
-          // Create a list of shapes
-          std::vector<Index> tensor_shape(info.shape.size()-1);
-          for (size_t i = 1; i < info.shape.size(); ++i) {
-            tensor_shape[i-1] = info.shape[i];
-          }
-          auto i_shape = kernels::uniform_list_shape(info.shape[0], tensor_shape);
-          size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
+        // Create a list of shapes
+        std::vector<Index> tensor_shape(info.shape.size()-1);
+        for (size_t i = 1; i < info.shape.size(); ++i) {
+          tensor_shape[i-1] = info.shape[i];
+        }
+        auto i_shape = kernels::uniform_list_shape(info.shape[0], tensor_shape);
+        size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
-          // Validate the stride
-          ssize_t dim_prod = 1;
-          for (int i = info.strides.size()-1; i >= 0; --i) {
-            DALI_ENFORCE(info.strides[i] == info.itemsize*dim_prod,
-                "Strided data not supported. Detected on dimension " + std::to_string(i));
-            dim_prod *= info.shape[i];
-          }
+        // Validate the stride
+        ssize_t dim_prod = 1;
+        for (int i = info.strides.size()-1; i >= 0; --i) {
+          DALI_ENFORCE(info.strides[i] == info.itemsize*dim_prod,
+              "Strided data not supported. Detected on dimension " + std::to_string(i));
+          dim_prod *= info.shape[i];
+        }
 
-          // Create the Tensor and wrap the data
-          auto t = new TensorList<CPUBackend>;
-          TypeInfo type = TypeFromFormatStr(info.format);
-          t->ShareData(info.ptr, bytes);
-          t->set_type(type);
-          t->SetLayout(layout);
-          t->Resize(i_shape);
-          return t;
-        }),
+        // Create the Tensor and wrap the data
+        auto t = new TensorList<CPUBackend>;
+        TypeInfo type = TypeFromFormatStr(info.format);
+        t->ShareData(info.ptr, bytes);
+        t->set_type(type);
+        t->SetLayout(layout);
+        t->Resize(i_shape);
+        return t;
+      }),
       R"code(
       List of tensors residing in the CPU memory.
 
       Parameters
       ----------
+      b : the buffer to wrap into the TensorListCPU object
+      layout : the layout description
       )code")
     .def("at", [](TensorList<CPUBackend> &t, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
@@ -565,17 +587,6 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("INTERP_GAUSSIAN", DALI_INTERP_GAUSSIAN)
     .export_values();
 
-  // DALITensorLayout
-  py::enum_<DALITensorLayout>(types_m, "DALITensorLayout", "Tensor layout")
-    .value("NCHW", DALI_NCHW)
-    .value("NHWC", DALI_NHWC)
-    .value("NFHWC", DALI_NFHWC)
-    .value("NFCHW", DALI_NFCHW)
-    .value("NDHWC", DALI_NDHWC)
-    .value("NCDHW", DALI_NCDHW)
-    .value("SAME", DALI_SAME)
-    .export_values();
-
   // Operator node
   py::class_<OpNode>(m, "OpNode")
     .def("instance_name",
@@ -819,8 +830,15 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsDeprecated", &OpSchema::IsDeprecated)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf);
 
+  ExposeTensorLayout(types_m);
   ExposeTensor(m);
   ExposeTensorList(m);
+
+  types_m.attr("NHWC") = "HWC";
+  types_m.attr("NCHW") = "CHW";
+  types_m.attr("NFHWC") = "FHWC";
+  types_m.attr("NFCHW") = "FCHW";
+  types_m.attr("SAME") = "";
 
 #ifdef DALI_BUILD_PROTO3
   // TFRecord

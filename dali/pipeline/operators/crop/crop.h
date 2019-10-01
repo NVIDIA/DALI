@@ -58,86 +58,55 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
   using Operator<Backend>::RunImpl;
   std::size_t C_;
 
-  void SetupSample(int data_idx, DALITensorLayout layout, const kernels::TensorShape<> &shape) {
-    const int ndims = shape.size();
-    const bool is_volumetric_layout = IsVolumetric(layout);
-    const bool is_sequence_layout = IsSequence(layout);
-    DALI_ENFORCE((ndims == 4 && is_sequence_layout) ||
-                 (ndims == 4 && is_volumetric_layout) ||
-                 (ndims == 3 && (layout == DALI_NHWC || layout == DALI_NCHW)),
-                 "Unexpected number of dimensions [" + std::to_string(ndims) +
-                 "] or layout [" + std::to_string(layout) + "]");
+  void SetupSample(int data_idx, const TensorLayout &layout, const kernels::TensorShape<> &shape) {
+    int64_t F = 1, D = 1, H, W, C;
+    DALI_ENFORCE(shape.size() >= 3 || shape.size() <= 5,
+      "Unexpected number of dimensions: " + std::to_string(shape.size()));
+    DALI_ENFORCE(layout.ndim() == shape.size());
+
+    int d_dim = layout.find('D');
+    int h_dim = layout.find('H');
+    int w_dim = layout.find('W');
+    int c_dim = layout.find('C');
+    int f_dim = layout.find('F');
+
+    DALI_ENFORCE(h_dim >= 0 && w_dim >= 0 && c_dim >= 0,
+      "Height, Width and Channel must be present in the layout. Got: " + layout.str());
+    if (d_dim >= 0)
+      D = shape[d_dim];
+    H = shape[h_dim];
+    W = shape[w_dim];
+    C = shape[c_dim];
+    if (f_dim >= 0)
+      F = shape[f_dim];
+
+    int spatial_ndim = ImageLayoutInfo::NumSpatialDims(layout);
+    assert(spatial_ndim >= 2);  // bug-check: should never occur with h_dim, w_dim >= 0
 
     auto crop_window_gen = GetCropWindowGenerator(data_idx);
-    CropWindow win;
-    switch (layout) {
-      case DALI_NHWC:
-      {
-        int64_t H = shape[0];
-        int64_t W = shape[1];
-        int64_t C = shape[2];
-        win = crop_window_gen({H, W});
-        slice_shapes_[data_idx] = {win.shape[0], win.shape[1], C};
-        slice_anchors_[data_idx] = {win.anchor[0], win.anchor[1], 0};
-      }
-      break;
-      case DALI_NCHW:
-      {
-        int64_t C = shape[0];
-        int64_t H = shape[1];
-        int64_t W = shape[2];
-        win = crop_window_gen({H, W});
-        slice_shapes_[data_idx] = {C, win.shape[0], win.shape[1]};
-        slice_anchors_[data_idx] = {0, win.anchor[0], win.anchor[1]};
-      }
-      break;
-      case DALI_NFHWC:
-      {
-        int64_t F = shape[0];
-        int64_t H = shape[1];
-        int64_t W = shape[2];
-        int64_t C = shape[3];
-        win = crop_window_gen({H, W});
-        slice_shapes_[data_idx] = {F, win.shape[0], win.shape[1], C};
-        slice_anchors_[data_idx] = {0, win.anchor[0], win.anchor[1], 0};
-      }
-      break;
-      case DALI_NFCHW:
-      {
-        int64_t F = shape[0];
-        int64_t C = shape[1];
-        int64_t H = shape[2];
-        int64_t W = shape[3];
-        win = crop_window_gen({H, W});
-        slice_shapes_[data_idx] = {F, C, win.shape[0], win.shape[1]};
-        slice_anchors_[data_idx] = {0, 0, win.anchor[0], win.anchor[1]};
-      }
-      break;
-      case DALI_NDHWC:
-      {
-        int64_t D = shape[0];
-        int64_t H = shape[1];
-        int64_t W = shape[2];
-        int64_t C = shape[3];
-        win = crop_window_gen({D, H, W});
-        slice_shapes_[data_idx] = {win.shape[0], win.shape[1], win.shape[2], C};
-        slice_anchors_[data_idx] = {win.anchor[0], win.anchor[1], win.anchor[2], 0};
-      }
-      break;
-      case DALI_NCDHW:
-      {
-        int64_t C = shape[0];
-        int64_t D = shape[1];
-        int64_t H = shape[2];
-        int64_t W = shape[3];
-        win = crop_window_gen({D, H, W});
-        slice_shapes_[data_idx] = {C, win.shape[0], win.shape[1], win.shape[2]};
-        slice_anchors_[data_idx] = {0, win.anchor[0], win.anchor[1], win.anchor[2]};
-      }
-      break;
-      default:
-        DALI_FAIL("Not supported layout[" + std::to_string(layout)
-                  + "] for given number of dimensions[" + std::to_string(shape.size()) + "]");
+    auto win = spatial_ndim == 3 ? crop_window_gen({D, H, W}) : crop_window_gen({H, W});
+
+    int ndim = shape.sample_dim();
+    slice_anchors_[data_idx].resize(ndim);
+    slice_shapes_[data_idx].resize(ndim);
+
+    if (d_dim >= 0) {
+      slice_anchors_[data_idx][d_dim] = win.anchor[spatial_ndim - 3];
+      slice_shapes_[data_idx][d_dim] = win.shape[spatial_ndim - 3];
+    }
+
+    slice_anchors_[data_idx][h_dim] = win.anchor[spatial_ndim - 2];
+    slice_shapes_[data_idx][h_dim] = win.shape[spatial_ndim - 2];
+
+    slice_anchors_[data_idx][w_dim] = win.anchor[spatial_ndim - 1];
+    slice_shapes_[data_idx][w_dim] = win.shape[spatial_ndim - 1];
+
+    slice_anchors_[data_idx][c_dim] = 0;
+    slice_shapes_[data_idx][c_dim] = C;
+
+    if (f_dim >= 0) {
+      slice_anchors_[data_idx][f_dim] = 0;
+      slice_shapes_[data_idx][f_dim] = F;
     }
   }
 };

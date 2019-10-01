@@ -53,7 +53,6 @@ void RunHelper(TensorList<GPUBackend>& output,
     kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
 
     output.set_type(TypeInfo::Create<OutputType>());
-    output.SetLayout(input.GetLayout());
     output.Resize(req.output_shapes[0]);
 
     scratch_alloc.Reserve(req.scratch_sizes);
@@ -83,6 +82,7 @@ void SliceBase<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
         output, input, slice_anchors_, slice_shapes_, ws.stream(), scratch_alloc_);
     )
   )
+  output.SetLayout(InputLayout(ws, 0));
 }
 
 }  // namespace dali
