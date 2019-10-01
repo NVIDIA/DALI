@@ -19,6 +19,7 @@
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/tensor_shape.h"
 #include "dali/kernels/common/copy.h"
+#include "dali/kernels/test/mat2tensor.h"
 #include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_gpu.h"
@@ -160,11 +161,9 @@ TYPED_TEST(LinearTransformationGpuTest, run_test) {
   cudaDeviceSynchronize();
 
   auto res = copy<AllocType::Host>(out[0]);
-  ASSERT_EQ(static_cast<int>(this->ref_output_.size()), res.first.num_elements());
-  for (size_t i = 0; i < this->ref_output_.size(); i++) {
-    EXPECT_PRED3((IsEqWithConvert<typename TypeParam::Out, float>), res.second.get()[i],
-                 this->ref_output_[i], 4) << "Failed at idx: " << i;
-  }
+  auto ref_tv = TensorView<StorageCPU, typename TypeParam::Out>(this->ref_output_.data(),
+                                                                this->out_shapes_[0]);
+  Check(res.first, ref_tv, EqualUlp());
 }
 
 
@@ -193,14 +192,7 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
                                                              this->rois_[0],
                                                              this->out_shapes_[0][0],
                                                              this->out_shapes_[0][1]);
-
-  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), res.first.num_elements())
-                        << "Number of elements doesn't match";
-  auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
-  for (int i = 0; i < res.first.num_elements(); i++) {
-    EXPECT_PRED3((IsEqWithConvert<typename TypeParam::Out, float>), res.second.get()[i], ptr[i], 4)
-                  << "Failed at idx: " << i;
-  }
+  Check(view_as_tensor<typename TypeParam::Out>(mat), res.first, EqualUlp());
 }
 
 }  // namespace test

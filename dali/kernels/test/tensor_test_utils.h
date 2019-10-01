@@ -116,10 +116,7 @@ void Check(const TensorView<StorageBackend, T1, dim1> &tv1,
   for (ptrdiff_t i = 0; i < n; i++) {
     if (!eq(tv1.data[i], tv2.data[i])) {
       if (errors++ < max_errors) {
-        EXPECT_TRUE(eq(tv1.data[i], tv2.data[i]))
-                      << "Failed at offset " << i << ", pos = " << pos
-                      << " tv1[" << i << "] = " << printable(tv1.data[i])
-                      << " tv2[" << i << "] = " << printable(tv2.data[i]);
+        EXPECT_PRED2(eq, tv1.data[i], tv2.data[i]) << "Failed at index " << i;
       }
     }
 
@@ -153,31 +150,28 @@ struct Equal {
 struct EqualEps {
   EqualEps() = default;
 
-
   explicit EqualEps(double eps) : eps(eps) {}
-
 
   template <typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
     return std::abs(b - a) <= eps;
   }
 
-
   double eps = 1e-6;
 };
 
 
 struct EqualUlp {
-  explicit EqualUlp(int ulp) : ulp_(ulp) {}
+  EqualUlp() = default;
 
+  explicit EqualUlp(int ulp) : ulp_(ulp) {}
 
   template <typename Output, typename Reference>
   bool operator()(Output out, Reference ref) {
     return IsEqWithConvert(out, ref, ulp_);
   }
 
-
-  int ulp_;
+  int ulp_ = 4;
 };
 
 
