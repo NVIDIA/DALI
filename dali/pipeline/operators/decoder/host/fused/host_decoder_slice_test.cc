@@ -77,6 +77,10 @@ TYPED_TEST(ImageDecoderSliceTest_CPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
+TYPED_TEST(ImageDecoderSliceTest_CPU, BmpDecode) {
+  this->Run(t_bmpImgType);
+}
+
 TYPED_TEST(ImageDecoderSliceTest_CPU, TiffDecode) {
   this->Run(t_tiffImgType);
 }

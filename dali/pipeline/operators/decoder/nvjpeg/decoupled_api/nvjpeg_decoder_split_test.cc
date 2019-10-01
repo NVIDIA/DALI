@@ -41,6 +41,11 @@ class ImageDecoderSplitTest_GPU : public GenericDecoderTest<ImgType> {
     this->RunTestDecode(t_pngImgType, 0.7);
   }
 
+  void BmpTestDecode(int num_threads) {
+    this->SetNumThreads(num_threads);
+    this->RunTestDecode(t_bmpImgType, 0.7);
+  }
+
   void TiffTestDecode(int num_threads) {
     this->SetNumThreads(num_threads);
     this->RunTestDecode(t_tiffImgType , 0.7);
@@ -144,6 +149,25 @@ TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleJPEGDecode4THybridHuffman) {
 }
 
 /***********************************************
+************* BMP fallback decode **************
+***********************************************/
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleBmpDecode) {
+  this->BmpTestDecode(1);
+}
+
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleBmpDecode2T) {
+  this->BmpTestDecode(2);
+}
+
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleBmpDecode3T) {
+  this->BmpTestDecode(3);
+}
+
+TYPED_TEST(ImageDecoderSplitTest_GPU, TestSingleBmpDecode4T) {
+  this->BmpTestDecode(4);
+}
+
+/***********************************************
 ************* PNG fallback decode **************
 ***********************************************/
 TYPED_TEST(ImageDecoderSplitTest_GPU, TestSinglePNGDecode) {
@@ -161,6 +185,7 @@ TYPED_TEST(ImageDecoderSplitTest_GPU, TestSinglePNGDecode3T) {
 TYPED_TEST(ImageDecoderSplitTest_GPU, TestSinglePNGDecode4T) {
   this->PngTestDecode(4);
 }
+
 
 /***********************************************
 ************ TIFF fallback decode **************

@@ -81,6 +81,10 @@ TYPED_TEST(ImageDecoderSliceTest_GPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
+TYPED_TEST(ImageDecoderSliceTest_GPU, BmpDecode) {
+  this->Run(t_bmpImgType);
+}
+
 TYPED_TEST(ImageDecoderSliceTest_GPU, TiffDecode) {
   this->Run(t_tiffImgType);
 }

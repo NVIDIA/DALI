@@ -369,7 +369,7 @@ class DALITest : public ::testing::Test {
 
   std::mt19937 rand_gen_;
   vector<string> jpeg_names_, png_names_, tiff_names_;
-  ImgSetDescr jpegs_, png_, tiff_;
+  ImgSetDescr jpegs_, png_, tiff_, bmp_;
 
   // Decoded images
   vector<vector<uint8>> images_;
