@@ -114,19 +114,6 @@ enum DALIImageType {
   DALI_ANY_DATA     = 4
 };
 
-/**
- * @brief Supported tensor layouts
- */
-enum DALITensorLayout {
-  DALI_UNKNOWN = -1,
-  DALI_NCHW  = 0,
-  DALI_NHWC  = 1,
-  DALI_NFHWC = 2,
-  DALI_NFCHW = 3,
-  DALI_NDHWC = 4,
-  DALI_NCDHW = 5,
-  DALI_SAME  = 6
-};
 
 inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
@@ -233,55 +220,6 @@ inline std::string to_string(const DALIImageType& im_type) {
     default:
       return "<unknown>";
   }
-}
-
-inline std::string to_string(const DALITensorLayout& layout) {
-  switch (layout) {
-    case DALI_NCHW:
-      return "NCHW";
-    case DALI_NHWC:
-      return "NHWC";
-    case DALI_NFHWC:
-      return "NFHWC";
-    case DALI_NFCHW:
-      return "NFCHW";
-    case DALI_NDHWC:
-      return "NDHWC";
-    case DALI_SAME:
-      return "SAME";
-    default:
-      return "<unknown>";
-  }
-}
-
-inline DALITensorLayout GetElementLayout(DALITensorLayout sequence_layout) {
-  switch (sequence_layout) {
-    case DALI_NFHWC:
-      return DALI_NHWC;
-    case DALI_NFCHW:
-      return DALI_NCHW;
-    default:  // if cannot produce anything meaningful, keep the same layout
-      return sequence_layout;
-  }
-}
-
-inline DALITensorLayout GetSequenceLayout(DALITensorLayout element_layout) {
-  switch (element_layout) {
-    case DALI_NHWC:
-      return DALI_NFHWC;
-    case DALI_NCHW:
-      return DALI_NFCHW;
-    default:  // if cannot produce anything meaningful, keep the same layout
-      return element_layout;
-  }
-}
-
-inline bool IsSequence(DALITensorLayout layout) {
-  return layout == DALI_NFHWC || layout == DALI_NFCHW;
-}
-
-inline bool IsVolumetric(DALITensorLayout layout) {
-  return layout == DALI_NDHWC || layout == DALI_NCDHW;
 }
 
 template <typename T>

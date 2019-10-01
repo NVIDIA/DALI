@@ -34,43 +34,36 @@
 
 namespace dali {
 
-template <typename InputType>
-inline void CheckInputLayout(const InputType &input, const OpSpec &spec) {
-  auto &schema = SchemaRegistry::GetSchema(spec.name());
-  if (schema.EnforceInputLayout()) {
-    DALI_ENFORCE(input.GetLayout() == schema.InputLayout());
+/**
+ * @brief Gets a data layout for the input at given index
+ *
+ * If the layout is explicitly defined, it's verified against the schema.
+ * If the layout is not specified, a default one is taken from the schema
+ * based on the input's dimensionality.
+ */
+template <typename Workspace>
+inline TensorLayout GetInputLayout(const Workspace &ws, const OpSchema &schema, int index) {
+  if (ws.template InputIsType<CPUBackend>(index)) {
+    auto &input = ws.template InputRef<CPUBackend>(index);
+    return schema.GetInputLayout(index, input.shape().sample_dim(), input.GetLayout());
+  } else if (ws.template InputIsType<GPUBackend>(index)) {
+    auto &input = ws.template InputRef<GPUBackend>(index);
+    return schema.GetInputLayout(index, input.shape().sample_dim(), input.GetLayout());
+  } else {
+    DALI_FAIL("Input " + std::to_string(index) + " has an unknown backend");
   }
 }
 
+/**
+ * @brief Verifies that the inputs in the workspace satisfy the layout
+ *        constraints imposed by the schema.
+ */
 template <typename Workspace>
 inline void CheckInputLayouts(const Workspace &ws, const OpSpec &spec) {
-  for (int i = 0; i < spec.NumRegularInput(); ++i) {
-    auto &input = ws.template Input<CPUBackend>(i);
-    CheckInputLayout(input, spec);
-  }
-}
-
-template <>
-inline void CheckInputLayouts(const HostWorkspace &ws, const OpSpec &spec) {
-  for (int i = 0; i < spec.NumRegularInput(); ++i) {
-    for (int sample_id = 0; sample_id < spec.GetArgument<int>("batch_size"); ++sample_id) {
-      auto &input = ws.template Input<CPUBackend>(i, sample_id);
-      CheckInputLayout(input, spec);
-    }
-  }
-}
-
-template <>
-inline void CheckInputLayouts(const DeviceWorkspace &ws, const OpSpec &spec) {
-  for (int i = 0; i < spec.NumRegularInput(); ++i) {
-    if (ws.InputIsType<CPUBackend>(i)) {
-      auto &input = ws.Input<CPUBackend>(i);
-      CheckInputLayout(input, spec);
-    } else if (ws.InputIsType<GPUBackend>(i)) {
-      auto &input = ws.Input<GPUBackend>(i);
-      CheckInputLayout(input, spec);
-    } else {
-      DALI_FAIL("Input has an unkown backend");
+  if (spec.NumRegularInput() > 0) {
+    auto &schema = spec.GetSchema();
+    for (int i = 0; i < spec.NumRegularInput(); ++i) {
+      (void)GetInputLayout(ws, schema, i);
     }
   }
 }
@@ -162,8 +155,13 @@ class DLL_PUBLIC OperatorBase {
     return -1;
   }
 
+  template <typename Workspace>
+  TensorLayout InputLayout(const Workspace &ws, int index) const {
+    return GetInputLayout(ws, spec_.GetSchema(), index);
+  }
+
   DLL_PUBLIC bool CanBePruned() const {
-    const auto &schema = SchemaRegistry::GetSchema(spec_.name());
+    const auto &schema = spec_.GetSchema();
     return !spec_.GetArgument<bool>("preserve") && !schema.IsNoPrune();
   }
 

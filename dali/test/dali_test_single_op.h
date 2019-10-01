@@ -384,6 +384,9 @@ class DALISingleOpTest : public DALITest {
           spec->AddArg(name, b);
           break;
         }
+        case DALI_TENSOR_LAYOUT:
+          spec->AddArg(name, TensorLayout(val));
+          break;
         case DALI_FLOAT_VEC:
           StringToVector<float>(name, val.c_str(), spec, param.type);
           break;

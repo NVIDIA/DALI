@@ -132,11 +132,11 @@ class CropSequencePythonOpPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 224, crop_w = 224):
-    if layout == types.NFHWC:
+    if layout == "FHWC":
         assert len(image.shape) == 4
         H = image.shape[1]
         W = image.shape[2]
-    elif layout == types.NHWC:
+    elif layout == "HWC":
         assert len(image.shape) == 3
         H = image.shape[0]
         W = image.shape[1]
@@ -149,24 +149,24 @@ def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 224, crop
     start_x = int(np.round(np.float32(crop_x) * np.float32(W - crop_w)))
     end_x = start_x + crop_w
 
-    if layout == types.NFHWC:
+    if layout == "FHWC":
         return image[:, start_y:end_y, start_x:end_x, :]
-    elif layout == types.NHWC:
+    elif layout == "HWC":
         return image[start_y:end_y, start_x:end_x, :]
     else:
         assert(False)  # should not happen
 
 def crop_NFHWC_func(image):
-    return crop_func_help(image, types.NFHWC)
+    return crop_func_help(image, "FHWC")
 
 def crop_NHWC_func(image):
-    return crop_func_help(image, types.NHWC)
+    return crop_func_help(image, "HWC")
 
 def check_crop_NFHWC_vs_python_op_crop(device, batch_size):
     eii1 = RandomDataIterator(batch_size, shape=(10, 600, 800, 3))
     eii2 = RandomDataIterator(batch_size, shape=(10, 600, 800, 3))
-    compare_pipelines(CropSequencePipeline(device, batch_size, types.NFHWC, iter(eii1)),
-                      CropSequencePythonOpPipeline(crop_NFHWC_func, batch_size, types.NFHWC, iter(eii2)),
+    compare_pipelines(CropSequencePipeline(device, batch_size, "FHWC", iter(eii1)),
+                      CropSequencePythonOpPipeline(crop_NFHWC_func, batch_size, "FHWC", iter(eii2)),
                       batch_size=batch_size, N_iterations=10)
 
 def test_crop_NFHWC_vs_python_op_crop():
@@ -177,8 +177,8 @@ def test_crop_NFHWC_vs_python_op_crop():
 def check_crop_NHWC_vs_python_op_crop(device, batch_size):
     eii1 = RandomDataIterator(batch_size, shape=(600, 800, 3))
     eii2 = RandomDataIterator(batch_size, shape=(600, 800, 3))
-    compare_pipelines(CropSequencePipeline(device, batch_size, types.NHWC, iter(eii1)),
-                      CropSequencePythonOpPipeline(crop_NHWC_func, batch_size, types.NHWC, iter(eii2)),
+    compare_pipelines(CropSequencePipeline(device, batch_size, "HWC", iter(eii1)),
+                      CropSequencePythonOpPipeline(crop_NHWC_func, batch_size, "HWC", iter(eii2)),
                       batch_size=batch_size, N_iterations=10)
 
 def test_crop_NHWC_vs_python_op_crop():
@@ -250,9 +250,9 @@ class Crop3dPipeline(Pipeline):
         self.data_shape = data_shape
         self.data_layout = data_layout
 
-        if self.data_layout == types.NDHWC:
+        if self.data_layout == "DHWC":
             D, H, W = self.data_shape[0], self.data_shape[1], self.data_shape[2]
-        elif self.data_layout == types.NCDHW:
+        elif self.data_layout == "CDHW":
             D, H, W = self.data_shape[1], self.data_shape[2], self.data_shape[3]
         else:
             assert(False)
@@ -307,9 +307,9 @@ def crop_3d_func(image, layout, shape, crop_anchor=(0.1, 0.2, 0.3), crop_shape=(
     assert len(crop_anchor) == 3
     assert len(crop_shape) == 3
 
-    if layout == types.NDHWC:
+    if layout == "DHWC":
         D, H, W = image.shape[0], image.shape[1], image.shape[2]
-    elif layout == types.NCDHW:
+    elif layout == "CDHW":
         D, H, W = image.shape[1], image.shape[2], image.shape[3]
     else:
         assert(False)
@@ -327,9 +327,9 @@ def crop_3d_func(image, layout, shape, crop_anchor=(0.1, 0.2, 0.3), crop_shape=(
     start_x = int(np.float32(0.5) + np.float32(crop_x) * np.float32(W - crop_w))
     end_x = start_x + crop_w
 
-    if layout == types.NDHWC:
+    if layout == "DHWC":
         return image[start_z:end_z, start_y:end_y, start_x:end_x, :]
-    elif layout == types.NCDHW:
+    elif layout == "CDHW":
         return image[:, start_z:end_z, start_y:end_y, start_x:end_x]
     else:
         assert(False)
@@ -344,11 +344,11 @@ def check_crop_3d_vs_python_op_crop(device, batch_size, layout, shape):
 def test_crop_3d_vs_python_op_crop():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
-            for layout, shape in {(types.NDHWC, (300, 100, 10, 3)),
-                                  (types.NDHWC, (100, 300, 10, 1)),
-                                  (types.NDHWC, (10, 30, 300, 1)),
-                                  (types.NDHWC, (20, 50, 60, 8)),
-                                  (types.NCDHW, (3, 300, 100, 10)),
-                                  (types.NCDHW, (3, 300, 10, 100)),
-                                  (types.NCDHW, (8, 30, 10, 50))}:
+            for layout, shape in {("DHWC", (300, 100, 10, 3)),
+                                  ("DHWC", (100, 300, 10, 1)),
+                                  ("DHWC", (10, 30, 300, 1)),
+                                  ("DHWC", (20, 50, 60, 8)),
+                                  ("CDHW", (3, 300, 100, 10)),
+                                  ("CDHW", (3, 300, 10, 100)),
+                                  ("CDHW", (8, 30, 10, 50))}:
                yield check_crop_3d_vs_python_op_crop, device, batch_size, layout, shape

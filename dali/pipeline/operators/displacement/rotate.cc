@@ -26,6 +26,7 @@ DALI_SCHEMA(Rotate)
     .NumOutput(1)
     .AddArg("angle",
         R"code(Counterclockwise rotation angle, in degrees.)code", DALI_FLOAT, true)
+    .InputLayout(0, "HWC")
     .AddParent("DisplacementFilter");
 
 }  // namespace dali

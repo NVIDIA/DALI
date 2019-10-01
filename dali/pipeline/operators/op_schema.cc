@@ -13,9 +13,10 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/op_schema.h"
-#include "dali/pipeline/operators/op_spec.h"
 
 #include <string>
+#include "dali/pipeline/operators/op_spec.h"
+#include "dali/core/python_util.h"
 
 namespace dali {
 
@@ -110,7 +111,14 @@ DALIDataType OpSchema::GetArgumentType(const std::string &name) const {
 std::string OpSchema::GetArgumentDefaultValueString(const std::string &name) const {
   DALI_ENFORCE(HasOptionalArgument(name), "Argument \"" + name +
       "\" is either not supported by operator \"" + this->name() + "\" or is not optional.");
-  return GetOptionalArguments().at(name).second->ToString();
+
+  auto &val = *GetOptionalArguments().at(name).second;
+  auto str = val.ToString();
+  if (val.GetTypeID() == DALI_STRING ||
+      val.GetTypeID() == DALI_TENSOR_LAYOUT)
+    return python_repr(str);
+  else
+    return str;
 }
 
 std::vector<std::string> OpSchema::GetArgumentNames() const {

@@ -248,6 +248,7 @@ class DisplacementFilter<GPUBackend, Displacement,
     auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
     output.ResizeLike(input);
+    output.SetLayout(InputLayout(ws, 0));
   }
 
   template <typename U = Displacement>

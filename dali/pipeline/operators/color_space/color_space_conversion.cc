@@ -22,7 +22,7 @@ DALI_SCHEMA(ColorSpaceConversion)
     .DocStr(R"code(Converts between various image color models)code")
     .NumInput(1)
     .NumOutput(1)
-    .EnforceInputLayout(DALI_NHWC)
+    .InputLayout("HWC")
     .AddArg("image_type",
         R"code(The color space of the input image)code",
         DALI_IMAGE_TYPE)

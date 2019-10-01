@@ -31,6 +31,7 @@
 #include "dali/core/common.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/tensor_layout.h"
 
 // Workaround missing "is_trivially_copyable" in libstdc++ for g++ < 5.0.
 // We have to first include some standard library headers, so to have __GLIBCXX__ symbol,
@@ -57,6 +58,8 @@
 #endif
 
 namespace dali {
+
+class TensorLayout;
 
 namespace detail {
 
@@ -344,7 +347,7 @@ DALI_REGISTER_TYPE(string,           DALI_STRING);
 DALI_REGISTER_TYPE(DALIImageType,    DALI_IMAGE_TYPE);
 DALI_REGISTER_TYPE(DALIDataType,     DALI_DATA_TYPE);
 DALI_REGISTER_TYPE(DALIInterpType,   DALI_INTERP_TYPE);
-DALI_REGISTER_TYPE(DALITensorLayout, DALI_TENSOR_LAYOUT);
+
 
 #ifdef DALI_BUILD_PROTO3
 DALI_REGISTER_TYPE(TFUtil::Feature, DALI_TF_FEATURE);

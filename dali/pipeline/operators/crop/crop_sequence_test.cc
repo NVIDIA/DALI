@@ -51,7 +51,7 @@ class CropSequenceTest : public DaliOperatorTest {
         auto shape = kernels::uniform_list_shape(TestArgs::N,
             kernels::TensorShape<>{TestArgs::F, TestArgs::W, TestArgs::H, TestArgs::C});
         data->set_type(TypeInfo::Create<typename TestArgs::T>());
-        data->SetLayout(DALITensorLayout::DALI_NFHWC);
+        data->SetLayout("FHWC");
         data->Resize(shape);
 
         const auto frame_size = TestArgs::W * TestArgs::H * TestArgs::C;

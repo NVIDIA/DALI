@@ -25,12 +25,12 @@ template <>
 void Crop<GPUBackend>::DataDependentSetup(DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
 
-  const DALITensorLayout in_layout = input.GetLayout();
-  DALI_ENFORCE(in_layout == DALI_NHWC || in_layout == DALI_NCHW
-            || in_layout == DALI_NFHWC || in_layout == DALI_NFCHW
-            || in_layout == DALI_NDHWC || in_layout == DALI_NCDHW,
-    "Unexpected data layout: " + std::to_string(in_layout));
-  DALITensorLayout out_layout = in_layout;
+  const TensorLayout in_layout = input.GetLayout();
+  DALI_ENFORCE(in_layout.ndim() == input.shape().sample_dim());
+  DALI_ENFORCE(ImageLayoutInfo::HasChannel(in_layout) &&
+    (ImageLayoutInfo::IsImage(in_layout) || VideoLayoutInfo::IsVideo(in_layout)),
+    "Unexpected data layout");
+  TensorLayout out_layout = in_layout;
 
   for (int i = 0; i < batch_size_; ++i) {
     SetupSample(i, in_layout, input.tensor_shape(i));

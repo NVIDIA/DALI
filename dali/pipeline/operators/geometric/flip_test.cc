@@ -75,7 +75,7 @@ std::vector<Arguments> arguments = {{{"horizontal", 0}, {"vertical", 0}},
                                     {{"horizontal", 0}, {"vertical", 1}},
                                     {{"horizontal", 1}, {"vertical", 1}}};
 
-std::vector<Arguments> layout = {{{"nhwc", true}}, {{"nhwc", false}}};
+std::vector<Arguments> layout = {{{"hwc", true}}, {{"hwc", false}}};
 
 void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
   int _horizontal = args["horizontal"].GetValue<int>();
@@ -86,9 +86,9 @@ void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments arg
     auto size =
         output_d->tensor_shape(i)[0] * output_d->tensor_shape(i)[1] * output_d->tensor_shape(i)[2];
     auto out_tensor = output_d->raw_tensor(i);
-    if (output_d->GetLayout() == DALI_NHWC) {
+    if (output_d->GetLayout() == "HWC") {
       ASSERT_EQ(std::memcmp(out_tensor, &data_nhwc[_horizontal][_vertical], size * item_size), 0);
-    } else if (output_d->GetLayout() == DALI_NCHW) {
+    } else if (output_d->GetLayout() == "CHW") {
       ASSERT_EQ(std::memcmp(out_tensor, &data_nchw[_horizontal][_vertical], size * item_size), 0);
     }
   }
@@ -96,13 +96,13 @@ void FlipVerify(TensorListWrapper input, TensorListWrapper output, Arguments arg
 
 TEST_P(FlipTest, BasicTest) {
   auto args = GetParam();
-  auto nhwc = args["nhwc"].GetValue<bool>();
+  auto hwc = args["hwc"].GetValue<bool>();
   auto data_size = kDataWidth * kDataHeight * kDataChannels * sizeof(float);
   TensorList<CPUBackend> tl;
-  if (nhwc) {
+  if (hwc) {
     tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size);
     tl.set_type(TypeInfo::Create<float>());
-    tl.SetLayout(DALI_NHWC);
+    tl.SetLayout("HWC");
     auto shape = kernels::TensorListShape<>{{
         {kDataHeight, kDataWidth, kDataChannels},
         {kDataHeight, kDataWidth, kDataChannels}}};
@@ -110,7 +110,7 @@ TEST_P(FlipTest, BasicTest) {
   } else {
     tl.ShareData(nchw_tensor_list_data.ptr(), 2 * data_size);
     tl.set_type(TypeInfo::Create<float>());
-    tl.SetLayout(DALI_NCHW);
+    tl.SetLayout("CHW");
     tl.Resize({{{kDataChannels, kDataHeight, kDataWidth},
               {kDataChannels, kDataHeight, kDataWidth}}});
   }

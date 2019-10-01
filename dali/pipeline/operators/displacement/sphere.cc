@@ -24,6 +24,7 @@ DALI_SCHEMA(Sphere)
     .DocStr("Perform a sphere augmentation.")
     .NumInput(1)
     .NumOutput(1)
+    .InputLayout(0, "HWC")
     .AddParent("DisplacementFilter");
 
 }  // namespace dali

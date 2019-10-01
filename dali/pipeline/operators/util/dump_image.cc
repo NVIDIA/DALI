@@ -45,6 +45,6 @@ DALI_SCHEMA(DumpImage)
   .AddOptionalArg("suffix",
       R"code(Suffix to be added to output file names.)code", std::string())
   .AddOptionalArg("input_layout",
-      R"code(Layout of input images.)code", DALI_NHWC);
+      R"code(Layout of input images.)code", "HWC");
 
 }  // namespace dali

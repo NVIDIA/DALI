@@ -313,7 +313,7 @@ class Pipeline(object):
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, ref, data, layout=types.NHWC):
+    def feed_input(self, ref, data, layout=""):
         """Bind the NumPy array to a tensor produced by ExternalSource
         operator. It is worth mentioning that `ref` should not be overridden
         with other operator outputs."""

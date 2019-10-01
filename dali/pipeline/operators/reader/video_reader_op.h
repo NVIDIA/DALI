@@ -88,7 +88,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     }
 
     tl_sequence_output.Resize(tl_shape_);
-    tl_sequence_output.SetLayout(DALI_NFHWC);
+    tl_sequence_output.SetLayout("FHWC");
 
     if (enable_label_output_) {
       label_output = &ws.Output<GPUBackend>(1);

@@ -43,7 +43,7 @@ struct SliceFlipNormalizePermutePadArgs {
   std::array<int64_t, Dims> shape;
   std::array<int64_t, Dims> padded_shape;
   std::array<bool, Dims> flip;
-  std::array<int64_t, Dims> permuted_dims;
+  std::array<int, Dims> permuted_dims;
   size_t normalization_dim = Dims-1;
   size_t normalization_index = 0;
   std::vector<float> mean;
@@ -67,7 +67,7 @@ struct SliceFlipNormalizePermutePadProcessedArgs {
 };
 
 template <size_t Dims, typename Container>
-Container permute(const Container &container, const std::array<int64_t, Dims> &permuted_dims) {
+Container permute(const Container &container, const std::array<int, Dims> &permuted_dims) {
   auto permuted_container = container;
   for (size_t d = 0; d < Dims; d++) {
     permuted_container[d] = container[permuted_dims[d]];
@@ -76,8 +76,8 @@ Container permute(const Container &container, const std::array<int64_t, Dims> &p
 }
 
 template <size_t Dims>
-std::array<int64_t, Dims> inverse_permutation(const std::array<int64_t, Dims> &permutation) {
-  std::array<int64_t, Dims> inv_perm = permutation;
+std::array<int, Dims> inverse_permutation(const std::array<int, Dims> &permutation) {
+  std::array<int, Dims> inv_perm = permutation;
   for (size_t d = 0; d < Dims; d++) {
     auto perm_d = permutation[d];
     inv_perm[perm_d] = d;
