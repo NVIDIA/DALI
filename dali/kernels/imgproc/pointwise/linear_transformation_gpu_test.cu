@@ -66,13 +66,13 @@ class LinearTransformationGpuTest : public ::testing::Test {
   Out *output_;
   std::vector<In> input_host_;
   std::vector<float> ref_output_;
-  std::vector<TensorShape<kNDims>> in_shapes_ = {{4, 3, kNChannelsIn}};
-  std::vector<TensorShape<kNDims>> out_shapes_ = {{4, 3, kNChannelsOut}};
+  std::vector<TensorShape<kNDims>> in_shapes_ = {{4, 3, kNChannelsIn}, {4, 3, kNChannelsIn}};
+  std::vector<TensorShape<kNDims>> out_shapes_ = {{4, 3, kNChannelsOut}, {4, 3, kNChannelsOut}};
   mat<kNChannelsOut, kNChannelsIn, float> mat_{{{1, 2, 3, 4, 5}, {6, 7, 8, 9, 10}}};
   vec<kNChannelsOut, float> vec_{42, 69};
-  std::vector<mat<kNChannelsOut, kNChannelsIn, float>> vmat_ = {mat_};
-  std::vector<vec<kNChannelsOut, float>> vvec_ = {vec_};
-  std::vector<Roi<2>> rois_ = {{{1, 1}, {2, 2}}};
+  std::vector<mat<kNChannelsOut, kNChannelsIn, float>> vmat_ = {mat_, mat_};
+  std::vector<vec<kNChannelsOut, float>> vvec_ = {vec_, vec_};
+  std::vector<Roi<2>> rois_ = {{{1, 1}, {2, 2}}, {{1, 1}, {2, 2}}};
 
 
   void calc_output() {
