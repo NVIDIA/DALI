@@ -151,17 +151,17 @@ class DALIDatasetV2(dataset_ops.DatasetSource):
       in faster execution speed, but larger memory consumption.
   `prefetch_queue_depth` : int,
       depth of the executor queue. Deeper queue makes DALI more 
-      resistant to uneven execution  time of each batch, but it also 
+      resistant to uneven execution time of each batch, but it also 
       consumes more memory for internal buffers.
       Value will be used with `exec_separated` set to False.
   `cpu_prefetch_queue_depth` : int,
       depth of the executor cpu queue. Deeper queue makes DALI more 
-      resistant to uneven execution  time of each batch, but it also 
+      resistant to uneven execution time of each batch, but it also 
       consumes more memory for internal buffers.
       Value will be used with `exec_separated` set to True.
   `gpu_prefetch_queue_depth` : int,
       depth of the executor gpu queue. Deeper queue makes DALI more 
-      resistant to uneven execution  time of each batch, but it also 
+      resistant to uneven execution time of each batch, but it also 
       consumes more memory for internal buffers.
       Value will be used with `exec_separated` set to True.
   `shapes`: `List` of tuples with the expected output shapes
@@ -246,17 +246,17 @@ class DALIDatasetV1(dataset_ops.DatasetV1Adapter):
       in faster execution speed, but larger memory consumption.
   `prefetch_queue_depth` : int,
       depth of the executor queue. Deeper queue makes DALI more 
-      resistant to uneven execution  time of each batch, but it also 
+      resistant to uneven execution time of each batch, but it also 
       consumes more memory for internal buffers.
       Value will be used with `exec_separated` set to False.
   `cpu_prefetch_queue_depth` : int,
       depth of the executor cpu queue. Deeper queue makes DALI more 
-      resistant to uneven execution  time of each batch, but it also 
+      resistant to uneven execution time of each batch, but it also 
       consumes more memory for internal buffers.
       Value will be used with `exec_separated` set to True.
   `gpu_prefetch_queue_depth` : int,
       depth of the executor gpu queue. Deeper queue makes DALI more 
-      resistant to uneven execution  time of each batch, but it also 
+      resistant to uneven execution time of each batch, but it also 
       consumes more memory for internal buffers.
       Value will be used with `exec_separated` set to True.
   `shapes`: `List` of tuples with the expected output shapes

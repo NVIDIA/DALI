@@ -58,8 +58,8 @@ do {                                                                       \
   }                                                                        \
 } while (0)
 
-namespace tensorflow {
-namespace data {
+using namespace tensorflow;
+
 namespace {
 
 class DALIDatasetOp : public DatasetOpKernel {
@@ -119,17 +119,17 @@ class DALIDatasetOp : public DatasetOpKernel {
       const int gpu_prefetch_queue_depth,
       const std::vector<PartialTensorShape> &shapes,
       const DataTypeVector &dtypes) 
-      : DatasetBase(DatasetContext(context)), 
-      pipeline_(pipeline),
-      batch_size_(batch_size),
-      num_threads_(num_threads),
-      device_id_(device_id),
-      exec_separated_(exec_separated),
-      prefetch_queue_depth_(prefetch_queue_depth),
-      cpu_prefetch_queue_depth_(cpu_prefetch_queue_depth),
-      gpu_prefetch_queue_depth_(gpu_prefetch_queue_depth),
-      shapes_(shapes), 
-      dtypes_(dtypes) {
+        : DatasetBase(DatasetContext(context)), 
+        pipeline_(pipeline),
+        batch_size_(batch_size),
+        num_threads_(num_threads),
+        device_id_(device_id),
+        exec_separated_(exec_separated),
+        prefetch_queue_depth_(prefetch_queue_depth),
+        cpu_prefetch_queue_depth_(cpu_prefetch_queue_depth),
+        gpu_prefetch_queue_depth_(gpu_prefetch_queue_depth),
+        shapes_(shapes), 
+        dtypes_(dtypes) {
         OP_REQUIRES_OK(context, InitPipeline());
       }
 
@@ -151,7 +151,7 @@ class DALIDatasetOp : public DatasetOpKernel {
     string DebugString() const override { 
       return "DALI::DatasetOp()::Dataset"; }
 
-    int64 Cardinality() const override { return kInfiniteCardinality; }
+    tensorflow::int64 Cardinality() const override { return data::kInfiniteCardinality; }
 
     ~Dataset() {
       daliDeletePipeline(&pipeline_handle_);
@@ -363,7 +363,5 @@ Creates a DALI dataset compatible with tf.data.Dataset from a DALI pipeline.
 )doc");
 
 }  // namespace
-}  // namespace data
-}  // namespace tensorflow
 
 #endif  // TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 13
