@@ -70,9 +70,10 @@ class LinearTransformationGpuTest : public ::testing::Test {
   std::vector<TensorShape<kNDims>> out_shapes_ = {{4, 3, kNChannelsOut}, {4, 3, kNChannelsOut}};
   mat<kNChannelsOut, kNChannelsIn, float> mat_{{{1, 2, 3, 4, 5}, {6, 7, 8, 9, 10}}};
   vec<kNChannelsOut, float> vec_{42, 69};
-  std::vector<mat<kNChannelsOut, kNChannelsIn, float>> vmat_ = {mat_, mat_};
-  std::vector<vec<kNChannelsOut, float>> vvec_ = {vec_, vec_};
-  std::vector<Roi<2>> rois_ = {{{1, 1}, {2, 2}}, {{1, 1}, {2, 2}}};
+  std::vector<mat<kNChannelsOut, kNChannelsIn, float>> vmat_ = {mat_, mat_ + 1.f};
+  std::vector<vec<kNChannelsOut, float>> vvec_ = {vec_, vec_ + 1.f};
+  std::vector<Roi<2>> rois_ = {{{1, 1}, {2, 2}},
+                               {{0, 1}, {1, 2}}};
 
 
   void calc_output() {
