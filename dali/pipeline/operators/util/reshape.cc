@@ -13,10 +13,11 @@
 // limitations under the License.
 
 #include "dali/pipeline/operators/util/reshape.h"
+
+#include <vector>
 #include "dali/pipeline/data/views.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/tensor_shape_print.h"
-#include <unistd.h>
 
 namespace dali {
 
@@ -77,7 +78,8 @@ bool Reshape<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
 
 template <typename Backend>
 template <typename Integer>
-void Reshape<Backend>::ShapeFromInput(const kernels::TensorListView<kernels::StorageCPU, Integer> &shape) {
+void Reshape<Backend>::ShapeFromInput(
+      const kernels::TensorListView<kernels::StorageCPU, Integer> &shape) {
   DALI_ENFORCE(shape.sample_dim() == 1 || (shape.sample_dim() == 2 && shape.num_samples() == 1),
     "Reshape: shape input must be a list of 1D tensors or a single 2D tensor");
   if (shape.sample_dim() == 2) {
@@ -116,7 +118,7 @@ void Reshape<Backend>::ShapeFromInput(const TensorListLike &tl) {
   TYPE_SWITCH(tl.type().id(), type2id, type, (int32_t),
     (this->ShapeFromInput(view<const type>(tl));),
     (DALI_FAIL("Reshape: shape input must have integral type; got: " + tl.type().name());)
-  );
+  );  // NOLINT
 }
 
 template <typename Backend>

@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_PIPELINE_OPERATORS_UTIL_RESHAPE_H_
+#define DALI_PIPELINE_OPERATORS_UTIL_RESHAPE_H_
+
+#include <vector>
+
 #include "dali/pipeline/operators/operator.h"
 #include "dali/kernels/tensor_view.h"
 
@@ -23,7 +28,7 @@ class Reshape : public Operator<Backend> {
   using Base = Operator<Backend>;
   using Workspace = workspace_t<Backend>;
 
-  Reshape(const OpSpec &spec_);
+  explicit Reshape(const OpSpec &spec_);
 
   bool CanInferOutputs() const override { return false; }
 
@@ -50,7 +55,8 @@ class Reshape : public Operator<Backend> {
   void ShapeFromInput(const kernels::TensorListView<kernels::StorageCPU, Integer> &shape);
 
   TensorLayout GetOutputLayout(const Workspace &ws) const;
-
 };
 
 }  // namespace dali
+
+#endif  // DALI_PIPELINE_OPERATORS_UTIL_RESHAPE_H_
