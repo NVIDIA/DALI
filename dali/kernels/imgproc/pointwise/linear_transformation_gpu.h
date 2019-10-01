@@ -93,8 +93,8 @@ class LinearTransformationGpu {
   std::vector<SampleDescriptor> sample_descriptors_;
 
  public:
-  BlockSetup<spatial_ndims,
-          spatial_ndims /* Assumed, that the channel dim is the last dim */> block_setup_;
+  BlockSetup<spatial_ndims, spatial_ndims /* Assumed, that the channel dim is the last dim */>
+          block_setup_;
 
 
   KernelRequirements
@@ -161,7 +161,7 @@ class LinearTransformationGpu {
       sample.in = in[i].data;
       sample.out = out[i].data;
 
-      auto get_size = [](const TensorShape<ndims_> &ts) -> auto {
+      auto get_size = [](const TensorShape<ndims_> &ts) {
           ivec<spatial_ndims> ret;
           for (int i = ret.size() - 1, j = 0; i >= 0; i--, j++) {
             ret[j] = ts[i];
