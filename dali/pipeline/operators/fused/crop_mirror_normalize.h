@@ -196,9 +196,9 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     W = shape[w_dim];
     C = shape[c_dim];
     if (f_dim >= 0)
-      F = shape[layout.find('F')];
+      F = shape[f_dim];
     if (d_dim >= 0)
-      D = shape[layout.find('D')];
+      D = shape[d_dim];
 
     auto crop_window_gen = GetCropWindowGenerator(data_idx);
     auto win = spatial_ndim == 3 ? crop_window_gen({D, H, W}) : crop_window_gen({H, W});

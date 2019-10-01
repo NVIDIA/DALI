@@ -394,7 +394,7 @@ struct ImageLayoutInfo : LayoutInfo {
     return NumSpatialDims(tl) == 3;
   }
 
-  /** @brief Returns the index at which 'C' dimesnion (channel) is present or -1 if not found */
+  /** @brief Returns the index at which 'C' dimension (channel) is present or -1 if not found */
   DALI_HOST_DEV
   static int ChannelDimIndex(const TensorLayout &tl) {
     return DimIndex(tl, 'C');
