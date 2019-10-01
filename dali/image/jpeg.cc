@@ -29,11 +29,11 @@ JpegImage::JpegImage(const uint8_t *encoded_buffer,
 
 #ifndef DALI_USE_JPEG_TURBO
 bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width, int *nchannels) {
-  // Check for valid JPEG image
-  if (ReadValueBE<uint16_t>(data) != 0xFFD8)
+  unsigned int i = 0;
+  if (!(data[i] == 0xFF && data[i + 1] == 0xD8))
     return false;  // Not a valid SOI header
 
-  unsigned int i = 4;
+  i += 4;
   // Retrieve the block length of the first block since
   // the first block will not contain the size of file
   uint16_t block_length = ReadValueBE<uint16_t>(data + i);
