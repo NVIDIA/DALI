@@ -44,45 +44,6 @@ struct SampleDescriptor {
 
 template <typename OutputType, typename InputType,
         int channels_out, int channels_in, int spatial_ndims>
-std::vector<SampleDescriptor<OutputType, InputType, channels_out, channels_in, spatial_ndims>>
-CreateSampleDescriptors(const OutListGPU<OutputType, spatial_ndims + 1> &out,
-                        const InListGPU<InputType, spatial_ndims + 1> &in,
-                        span<const mat<channels_out, channels_in, float>> tmatrices,
-                        span<const vec<channels_out, float>> tvectors,
-                        span<const Roi<spatial_ndims>> rois) {
-  assert(tmatrices.size() == tvectors.size());
-  auto adjusted_rois = AdjustRoi(rois, in.shape);
-  std::vector<SampleDescriptor<OutputType, InputType, channels_out, channels_in, spatial_ndims>>
-          ret(in.num_samples());
-
-  for (int i = 0; i < in.num_samples(); i++) {
-    auto &sample = ret[i];
-    sample.in = in[i].data;
-    sample.out = out[i].data;
-
-    auto get_size = [](const TensorShape<spatial_ndims + 1> &ts) -> auto {
-        ivec<spatial_ndims> ret;
-        for (int i = ret.size() - 1, j = 0; i >= 0; i--, j++) {
-          ret[j] = ts[i];
-        }
-        return ret;
-    };
-
-    sample.in_size = get_size(in.tensor_shape(i));
-    sample.out_size = get_size(out.tensor_shape(i));
-    sample.in_strides = {channels_in, sample.in_size.x * channels_in};
-    sample.out_strides = {channels_out, sample.out_size.x * channels_out};
-    sample.A = tmatrices[i];
-    sample.B = tvectors[i];
-    sample.roi = adjusted_rois[i];
-  }
-
-  return ret;
-}
-
-
-template <typename OutputType, typename InputType,
-        int channels_out, int channels_in, int spatial_ndims>
 void __global__ LinearTransformationKernel(
         const lin_trans::SampleDescriptor<OutputType, InputType,
                 channels_out, channels_in, spatial_ndims> *samples,
@@ -166,16 +127,16 @@ class LinearTransformationGpu {
   }
 
 
-  void Run(KernelContext &context, const OutListGPU<OutputType, spatial_ndims + 1> &out,
-           const InListGPU<InputType, spatial_ndims + 1> &in, span<const Mat> tmatrices,
+  void Run(KernelContext &context, const OutListGPU<OutputType, ndims_> &out,
+           const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices,
            span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois = {}) {
-    auto sample_descs = lin_trans::CreateSampleDescriptors(out, in, tmatrices, tvectors, rois);
+    CreateSampleDescriptors(out, in, tmatrices, tvectors, rois);
 
-    decltype(sample_descs.data()) samples_gpu;
+    SampleDescriptor *samples_gpu;
     BlockDesc *blocks_gpu;
 
     std::tie(samples_gpu, blocks_gpu) = context.scratchpad->ToContiguousGPU(
-            context.gpu.stream, sample_descs, block_setup_.Blocks());
+            context.gpu.stream, sample_descriptors_, block_setup_.Blocks());
 
     dim3 grid_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
@@ -184,6 +145,38 @@ class LinearTransformationGpu {
     lin_trans::LinearTransformationKernel
             <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
     // @autoformat:on
+  }
+
+
+ private:
+  void CreateSampleDescriptors(const OutListGPU<OutputType, ndims_> &out,
+                               const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices,
+                               span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois) {
+    assert(tmatrices.size() == tvectors.size());
+    auto adjusted_rois = AdjustRoi(rois, in.shape);
+    sample_descriptors_.resize(in.num_samples());
+
+    for (int i = 0; i < in.num_samples(); i++) {
+      auto &sample = sample_descriptors_[i];
+      sample.in = in[i].data;
+      sample.out = out[i].data;
+
+      auto get_size = [](const TensorShape<ndims_> &ts) -> auto {
+          ivec<spatial_ndims> ret;
+          for (int i = ret.size() - 1, j = 0; i >= 0; i--, j++) {
+            ret[j] = ts[i];
+          }
+          return ret;
+      };
+
+      sample.in_size = get_size(in.tensor_shape(i));
+      sample.out_size = get_size(out.tensor_shape(i));
+      sample.in_strides = {channels_in, sample.in_size.x * channels_in};
+      sample.out_strides = {channels_out, sample.out_size.x * channels_out};
+      sample.A = tmatrices[i];
+      sample.B = tvectors[i];
+      sample.roi = adjusted_rois[i];
+    }
   }
 };
 

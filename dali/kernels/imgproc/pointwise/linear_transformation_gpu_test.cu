@@ -203,39 +203,6 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
   }
 }
 
-
-namespace {
-
-template <int ndims>
-bool cmp_shapes(const TensorShape<ndims> &lhs, ivec<ndims - 1> rhs) {
-  std::reverse(rhs.begin(), rhs.end());
-  for (size_t i = 0; i < rhs.size(); i++) {
-    if (lhs[i] != rhs[i]) return false;
-  }
-  return true;
-}
-
-}  // namespace
-
-
-TYPED_TEST(LinearTransformationGpuTest, sample_descriptors) {
-  using In = typename TypeParam::In;
-  using Out = typename TypeParam::Out;
-
-  InListGPU<In, kNDims> in(this->input_device_, this->in_shapes_);
-  OutListGPU<Out, kNDims> out(this->output_, TensorListShape<3>(this->out_shapes_));
-
-  auto res = lin_trans::CreateSampleDescriptors(out, in, make_cspan(this->vmat_),
-                                                make_cspan(this->vvec_), make_cspan(this->rois_));
-
-  EXPECT_EQ(this->input_device_, res[0].in);
-  EXPECT_EQ(this->output_, res[0].out);
-  EXPECT_TRUE(cmp_shapes<kNDims>(this->in_shapes_[0], res[0].in_size));
-  EXPECT_TRUE(cmp_shapes<kNDims>(this->out_shapes_[0], res[0].out_size));
-  EXPECT_EQ(this->vmat_[0], res[0].A);
-}
-
-
 }  // namespace test
 }  // namespace kernels
 }  // namespace dali
