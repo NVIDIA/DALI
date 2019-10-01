@@ -13,28 +13,28 @@
 // limitations under the License.
 
 #include "dali/image/bmp.h"
+#include "dali/core/byte_io.h"
 
 namespace dali {
 
-BmpImage::BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
-        GenericImage(encoded_buffer, length, image_type) {
-}
+// https://en.wikipedia.org/wiki/BMP_file_format#DIB_header_(bitmap_information_header)
 
+BmpImage::BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type)
+  : GenericImage(encoded_buffer, length, image_type) {}
 
 Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
-  DALI_ENFORCE(bmp);
+  DALI_ENFORCE(bmp != nullptr);
 
-  // https://en.wikipedia.org/wiki/BMP_file_format#DIB_header_(bitmap_information_header)
-  unsigned header_size = bmp[14] | bmp[15] << 8 | bmp[16] << 16 | bmp[17] << 24;
+  uint32_t header_size = ReadValueLE<uint32_t>(bmp + 14);
   int64_t h = 0, w = 0;
   // BITMAPCOREHEADER: | 32u header | 16u width | 16u height | ...
   if (length >= 22 && header_size == 12) {
-    w = static_cast<unsigned int>((bmp[18] | bmp[19] << 8) & 0xFFFF);
-    h = static_cast<unsigned int>((bmp[20] | bmp[21] << 8) & 0xFFFF);
+    w = ReadValueLE<uint16_t>(bmp + 18);
+    h = ReadValueLE<uint16_t>(bmp + 20);
     // BITMAPINFOHEADER and later: | 32u header | 32s width | 32s height | ...
   } else if (length >= 26 && header_size >= 40) {
-    w = static_cast<int>(bmp[18] | bmp[19] << 8 | bmp[20] << 16 | bmp[21] << 24);
-    h = abs(static_cast<int>(bmp[22] | bmp[23] << 8 | bmp[24] << 16 | bmp[25] << 24));
+    w = ReadValueLE<int32_t>(bmp + 18);
+    h = abs(ReadValueLE<int32_t>(bmp + 22));
   }
   return {h, w, 0};  // TODO(mszolucha): fill channels
 }
