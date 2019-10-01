@@ -34,6 +34,7 @@ option(BUILD_NVJPEG "Build with nvJPEG support" ON)
 option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON)
 option(BUILD_NVDEC "Build with NVIDIA NVDEC support" ON)
 option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON)
+option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 
 option(WERROR "Threat all warnings as errors" OFF)
 

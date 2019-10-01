@@ -84,6 +84,10 @@ if (BUILD_NVTX)
   add_definitions(-DDALI_USE_NVTX)
 endif()
 
+if (VERBOSE_LOGS)
+  add_definitions(-DDALI_VERBOSE_LOGS)
+endif()
+
 
 include(cmake/Dependencies.common.cmake)
 
