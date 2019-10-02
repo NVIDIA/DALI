@@ -47,8 +47,8 @@ for i in `seq 0 $last_config_index`; do
         # install packages
         eval "packages=(`$topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION} | tr -d '[],'`)"
         eval "packages_with_link=(`$topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION} --include-link | tr -d '[],'`)"
-        last_j=`expr ${#packages[@]} - 1`
-        for j in `seq 0 $last_j`; do
+        number_of_packages=${#packages[@]}
+        for j in $(seq 0 $((${number_of_packages}-1))); do
             pkg="${packages[${j}]}"
             pkg_with_link="${packages_with_link[${j}]}"
 
@@ -59,15 +59,15 @@ for i in `seq 0 $last_config_index`; do
                 pip uninstall -y nvidia-dali-tf-plugin || true
                 pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
             fi
-        fi
+        done
         # test code
         test_body
 
         # remove packages
-        eval "remove=`$topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION} | tr -d '[],'`)"
+        eval "remove=(`$topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION} | tr -d '[],'`)"
         for pkg in "${packages[@]}"; do
             pip uninstall -y "$pkg"
-        fi
+        done
         ${epilog[variant]}
     done
 done
