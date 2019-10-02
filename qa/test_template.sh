@@ -10,7 +10,7 @@ source $topdir/qa/setup_test_common.sh
 
 # Set proper CUDA version for packages, like MXNet, requiring it
 pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
-last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
+last_config_index=`$topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION}`
 
 if [ -n "$gather_pip_packages" ]; then
     # early exit
@@ -45,20 +45,14 @@ for i in `seq 0 $last_config_index`; do
         ${prolog[variant]}
         echo "Test variant run: $variant"
         # install packages
-        packages=($($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION} | tr -d '[],')))
-        packages_with_link=($($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION} --include-link | tr -d '[],')))
-        for j in `seq 0 ${#packages[@]}`; do
-            pkg = packages[i]
-            # remove single quotes ('')
-            pkg="${pkg%\'}"
-            pkg="${pkg#\'}"
+        eval "packages=(`$topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION} | tr -d '[],'`)"
+        eval "packages_with_link=(`$topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION} --include-link | tr -d '[],'`)"
+        last_j=`expr ${#packages[@]} - 1`
+        for j in `seq 0 $last_j`; do
+            pkg="${packages[${j}]}"
+            pkg_with_link="${packages_with_link[${j}]}"
 
-            pkg_with_link = packages_with_link[i]
-            # remove single quotes ('')
-            pkg_with_link="${pkg_with_link%\'}"
-            pkg_with_link="${pkg_with_link#\'}"
-
-            pip install $pkg -f /pip-packages --no-index || pip install $pkg_with_link
+            pip install "$pkg" -f /pip-packages --no-index || pip install "$pkg_with_link"
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin
             if [[ "$pkg" == *tensorflow-gpu* ]]; then
@@ -70,9 +64,9 @@ for i in `seq 0 $last_config_index`; do
         test_body
 
         # remove packages
-        remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
-        if [ -n "$remove" ]; then
-            pip uninstall -y $remove
+        eval "remove=`$topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION} | tr -d '[],'`)"
+        for pkg in "${packages[@]}"; do
+            pip uninstall -y "$pkg"
         fi
         ${epilog[variant]}
     done

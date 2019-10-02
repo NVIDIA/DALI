@@ -107,7 +107,6 @@ def get_install_string(variant, use, cuda):
     # add all remaining used packages with default versions
     additional = [v for v in use if v not in package_data.keys()]
     return ret + additional
-    return " ".join(ret + additional)
 
 def get_remove_string(use, cuda):
     # Remove only these which version we want to change
@@ -118,7 +117,7 @@ def get_remove_string(use, cuda):
         pkg_list_len = len(get_package_list(package_data, key, cuda))
         if pkg_list_len > 1:
             to_remove.append(key)
-    return " ".join(to_remove)
+    return to_remove
 
 def cal_num_of_configs(use, cuda):
     ret = 1
@@ -142,7 +141,7 @@ def get_all_strings(use, cuda):
                 ret.append(key + "==" + val)
     # add all remaining used packages with default versions
     additional = [v for v in use if v not in package_data.keys()]
-    return " ".join(ret + additional)
+    return ret + additional
 
 def main():
     global args
