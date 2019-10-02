@@ -19,7 +19,7 @@ def random_seed():
 
 DEVICE_ID = 0
 BATCH_SIZE = 8
-ITERS = 32
+ITERS = 128
 SEED = random_seed()
 NUM_WORKERS = 6
 
@@ -31,7 +31,8 @@ class CommonPipeline(Pipeline):
         self.input = ops.FileReader(file_root=images_dir)
         self.decode = ops.ImageDecoder(device='mixed' if device == 'gpu' else 'cpu',
                                        output_type=types.RGB)
-        self.resize = ops.Resize(resize_x=5, resize_y=5, device=device)
+        self.resize = ops.Resize(resize_x=5, resize_y=1, device=device)
+        self.flip = ops.Flip(device=device)
 
     def load(self):
         jpegs, labels = self.input()
@@ -46,7 +47,7 @@ class LoadingPipeline(CommonPipeline):
     def define_graph(self):
         im = self.load()
         im2 = self.load()
-        return im, im2
+        return im, self.flip(im2)
 
 
 class DLTensorOpPipeline(CommonPipeline):
@@ -57,7 +58,7 @@ class DLTensorOpPipeline(CommonPipeline):
     def define_graph(self):
         im = self.load()
         im2 = self.load()
-        return self.op(im, im2)
+        return self.op(im, self.flip(im2))
 
 
 def torch_adapter(fun, in1, in2):
@@ -222,8 +223,13 @@ def cupy_case(fun):
         cupy_pre1 = [cupy.asarray(pre1.at(i)) for i in range(BATCH_SIZE)]
         cupy_pre2 = [cupy.asarray(pre2.at(i)) for i in range(BATCH_SIZE)]
         cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2)
+        print("iter: " + str(iter))
         for i in range(BATCH_SIZE):
             print("i: " + str(i))
+            print("pre1 : ")
+            print(pre1.at(i))
+            print("pre2 : ")
+            print(pre2.at(i))
             print("post 1 data: ")
             print(post1.at(i))
             print("cupy 1 data: ")
@@ -255,7 +261,7 @@ square_diff_kernel = cupy.ElementwiseKernel(
 mix_channels_kernel = cupy.ElementwiseKernel(
     'uint8 x, uint8 y',
     'uint8 z',
-    'z = (i % 2) ? x : y',
+    'z = (i % 3) ? x : y',
     'mix_channels'
 )
 
