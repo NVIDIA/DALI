@@ -19,7 +19,7 @@
 
 namespace dali {
 
-TEST(Mat, Constructor) {
+TEST(MatTest, Constructor) {
   mat3x4 m = {{ { 1, 2, 3, 4 }, { 5, 6, 7, 8 }, { 9, 10, 11, 12 } }};
   for (int i = 0; i < m.rows; i++)
     for (int j = 0; j < m.cols; j++)
@@ -31,7 +31,7 @@ TEST(Mat, Constructor) {
   EXPECT_EQ(m31(2, 0), 3);
 }
 
-TEST(Mat, Equality) {
+TEST(MatTest, Equality) {
   mat2x4 a = {{ { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }};
   imat2x4 b = {{ { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }};
   EXPECT_TRUE((a == b));
@@ -48,7 +48,7 @@ TEST(Mat, Equality) {
   }
 }
 
-TEST(Mat, FromScalar) {
+TEST(MatTest, FromScalar) {
   mat3x4 m = 5;
   mat3x4 ref = {{
     { 5, 0, 0, 0 },
@@ -60,7 +60,7 @@ TEST(Mat, FromScalar) {
       EXPECT_EQ(m(i, j), ref(i, j));
 }
 
-TEST(Mat, Transpose) {
+TEST(MatTest, Transpose) {
   mat3x4 m = {{
     { 1, 2, 3, 4 },
     { 5, 6, 7, 8 },
@@ -72,7 +72,7 @@ TEST(Mat, Transpose) {
       EXPECT_EQ(transposed(j, i), m(i, j));
 }
 
-TEST(Mat, Mul) {
+TEST(MatTest, Mul) {
   mat3x4 m1 = {{
     { 1, 10, 100, 1000 },
     { 2, 20, 200, 2000 },
@@ -95,7 +95,7 @@ TEST(Mat, Mul) {
       EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
 }
 
-TEST(Mat, Mul4x4) {
+TEST(MatTest, Mul4x4) {
   mat4 m1 = {{
     { 1, 10, 100, 1000 },
     { 2, 20, 200, 2000 },
@@ -122,7 +122,7 @@ TEST(Mat, Mul4x4) {
 }
 
 
-TEST(Mat, CompoundAssignMatrix) {
+TEST(MatTest, CompoundAssignMatrix) {
   #define TEST_ASSIGN_OP(op)                          \
   {                                                   \
     m1 op##= m2;                                      \
@@ -184,7 +184,7 @@ TEST(Mat, CompoundAssignMatrix) {
   #undef TEST_ASSIGN_OP
 }
 
-TEST(Mat, CompoundAssignScalar) {
+TEST(MatTest, CompoundAssignScalar) {
 #define TEST_ASSIGN_OP(op)                    \
   {                                           \
     m1 op## = s;                              \
@@ -243,7 +243,7 @@ void RandomFill(mat<rows, cols, T> &m, RNG &rng, int lo, int hi) {
       m(i, j) = rng()%(hi-lo) + lo;
 }
 
-TEST(Mat, BinOp) {
+TEST(MatTest, BinOp) {
 #define TEST_OPERATOR_SIZE(op, mat_type) {                    \
     mat_type m1, m2;                                          \
     int lo = 0, hi = 31;                                      \
@@ -304,7 +304,7 @@ DEVICE_TEST(Dev_Mat, NormalUsage, 1, 1) {
   DEV_EXPECT_EQ(v[3], 1);
 }
 
-TEST(Mat, VecTransform) {
+TEST(MatTest, VecTransform) {
   mat2x3 m = {{
     { 2, 3, 100 },
     { 5, 11, 1000 }
@@ -313,7 +313,7 @@ TEST(Mat, VecTransform) {
   EXPECT_EQ(v, vec2(180, 1270));
 }
 
-TEST(Mat, SelectCol) {
+TEST(MatTest, SelectCol) {
   mat3 m = {{
     { 1, 2, 3 },
     { 4, 5, 6 },
@@ -324,7 +324,7 @@ TEST(Mat, SelectCol) {
   EXPECT_EQ(v, vec3(2, 5, 8));
 }
 
-TEST(Mat, CatCols) {
+TEST(MatTest, CatCols) {
   mat3 a = {{
     { 1, 2, 3 },
     { 4, 5, 6 },
@@ -346,7 +346,7 @@ TEST(Mat, CatCols) {
       EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
 }
 
-TEST(Mat, CatColsVec) {
+TEST(MatTest, CatColsVec) {
   mat3 a = {{
     { 1, 2, 3 },
     { 4, 5, 6 },
@@ -385,7 +385,7 @@ TEST(Mat, CatColsVec) {
       EXPECT_EQ(result2(i, j), ref2(i, j)) << "@ " << i << ", " << j;
 }
 
-TEST(Mat, CatRows) {
+TEST(MatTest, CatRows) {
   mat3 a = {{
     { 1, 2, 3 },
     { 4, 5, 6 },
@@ -406,6 +406,29 @@ TEST(Mat, CatRows) {
   for (int i = 0; i < 5; i++)
     for (int j = 0; j < 3; j++)
       EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
+}
+
+
+TEST(MatTest, Identity) {
+  mat3 three_by_three = {{
+    {1, 0, 0},
+    {0, 1, 0},
+    {0, 0, 1}
+  }};
+  mat3x1 three_by_one = {{
+    {1},{0},{0}
+  }};
+  mat3x2 three_by_two = {{
+    {1, 0},
+    {0, 1},
+    {0, 0},
+  }};
+  auto m1 = eye<3,3,int>();
+  auto m2 = eye<3,1,int>();
+  auto m3 = eye<3,2,int>();
+  EXPECT_EQ(m1, three_by_three);
+  EXPECT_EQ(m2, three_by_one);
+  EXPECT_EQ(m3, three_by_two);
 }
 
 }  // namespace dali

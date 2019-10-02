@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <tuple>
+#include <dali/kernels/test/mat2tensor.h>
 #include "dali/core/geom/mat.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/tensor_shape.h"
@@ -31,22 +32,9 @@ namespace test {
 
 namespace {
 
-template <class Out>
-std::enable_if_t<std::is_integral<Out>::value, Out> custom_round(float val) {
-  return ConvertSat<Out>(val);
-}
-
-
-template <class Out>
-std::enable_if_t<!std::is_integral<Out>::value, Out> custom_round(float val) {
-  return val;
-}
-
-
 constexpr int kNDims = 3;
 constexpr int kNChannelsIn = 5;
 constexpr int kNChannelsOut = 2;
-
 
 }  // namespace
 
@@ -69,7 +57,7 @@ class LinearTransformationCpuTest : public ::testing::Test {
 
 
   std::vector<In> input_;
-  std::vector<Out> ref_output_;
+  std::vector<float> ref_output_;
   TensorShape<kNDims> in_shape_ = {9, 12, kNChannelsIn};
   TensorShape<kNDims> out_shape_ = {9, 12, kNChannelsOut};
   mat<kNChannelsOut, kNChannelsIn, float> mat_{{{1, 2, 3, 4, 5}, {6, 7, 8, 9, 10}}};
@@ -85,7 +73,7 @@ class LinearTransformationCpuTest : public ::testing::Test {
         for (size_t k = 0; k < kNChannelsIn; k++) {
           res += static_cast<float>(input_[i + k]) * mat_.at(j, k);
         }
-        ref_output_.push_back(custom_round<Out>(res));
+        ref_output_.push_back(res);
       }
     }
   }
@@ -122,13 +110,22 @@ TYPED_TEST(LinearTransformationCpuTest, setup_test) {
   ASSERT_EQ(this->out_shape_, reqs.output_shapes[0][0]) << "Kernel::Setup provides incorrect shape";
 }
 
+TYPED_TEST(LinearTransformationCpuTest, setup_test_with_roi) {
+  TheKernel<TypeParam> kernel;
+  KernelContext ctx;
+  InTensorCPU<typename TypeParam::In, kNDims> in(this->input_.data(), this->in_shape_);
+  auto reqs = kernel.Setup(ctx, in, this->mat_, this->vec_, &this->roi_);
+  auto ref_shape = ShapeFromRoi(this->roi_, kNChannelsOut);
+  ASSERT_EQ(ref_shape, reqs.output_shapes[0][0]);
+}
+
 
 TYPED_TEST(LinearTransformationCpuTest, run_test) {
   TheKernel<TypeParam> kernel;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, kNDims> in(this->input_.data(), this->in_shape_);
 
-  auto reqs = kernel.Setup(ctx, in, this->mat_, this->vec_);
+  auto reqs = kernel.Setup(ctx, in, this->mat_, this->vec_, &this->roi_);
 
   auto out_shape = reqs.output_shapes[0][0];
   std::vector<typename TypeParam::Out> output;
@@ -138,10 +135,13 @@ TYPED_TEST(LinearTransformationCpuTest, run_test) {
 
   kernel.Run(ctx, out, in, this->mat_, this->vec_);
 
-  ASSERT_EQ(out.num_elements(), this->ref_output_.size()) << "Number of elements doesn't match";
-  for (int i = 0; i < out.num_elements(); i++) {
-    EXPECT_FLOAT_EQ(this->ref_output_[i], out.data[i]) << "Failed at idx: " << i;
-  }
+  auto ref_tv = TensorView<StorageCPU, float>(this->ref_output_.data(), this->out_shape_);
+  Check(out, ref_tv, EqualUlp());
+
+//  ASSERT_EQ(out.num_elements(), this->ref_output_.size()) << "Number of elements doesn't match";
+//  for (int i = 0; i < out.num_elements(); i++) {
+//    EXPECT_FLOAT_EQ(this->ref_output_[i], out.data[i]) << "Failed at idx: " << i;
+//  }
 }
 
 
@@ -165,12 +165,14 @@ TYPED_TEST(LinearTransformationCpuTest, run_test_with_roi) {
                                                              this->in_shape_[0],
                                                              this->in_shape_[1]);
 
-  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
-                        << "Number of elements doesn't match";
-  auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
-  for (int i = 0; i < out.num_elements(); i++) {
-    EXPECT_FLOAT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
-  }
+  Check(view_as_tensor<typename TypeParam::Out>(mat), out, EqualUlp());
+
+//  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
+//                        << "Number of elements doesn't match";
+//  auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
+//  for (int i = 0; i < out.num_elements(); i++) {
+//    EXPECT_FLOAT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
+//  }
 }
 
 }  // namespace test
