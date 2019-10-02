@@ -27,18 +27,21 @@ namespace dali {
 template <typename Backend>
 class Transpose : public Operator<Backend> {
  public:
-  explicit inline Transpose(const OpSpec &spec) :
-    Operator<Backend>(spec),
-    perm_(spec.GetRepeatedArgument<int>("perm")) {
-      DALI_ENFORCE([](std::vector<int> perm) {
-          std::sort(perm.begin(), perm.end());
-          for (int i = 0; i < static_cast<int>(perm.size()); ++i) {
-            if (perm[i] != i) {
-              return false;
-            }
+  explicit inline Transpose(const OpSpec &spec)
+      : Operator<Backend>(spec)
+      , perm_(spec.GetRepeatedArgument<int>("perm"))
+      , transpose_layout_(spec.GetArgument<bool>("transpose_layout"))
+      , output_layout_arg_(spec.GetArgument<TensorLayout>("output_layout")) {
+    DALI_ENFORCE(
+      [](std::vector<int> perm) {
+        std::sort(perm.begin(), perm.end());
+        for (int i = 0; i < static_cast<int>(perm.size()); ++i) {
+          if (perm[i] != i) {
+            return false;
           }
-          return true;
-        }(perm_), "Invalid permutation: sorted `perm` is not equal to [0, ..., n-1].");
+        }
+        return true;
+      }(perm_), "Invalid permutation: sorted `perm` is not equal to [0, ..., n-1].");
     }
 
   ~Transpose() override;
@@ -46,7 +49,18 @@ class Transpose : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Transpose);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template Input<Backend>(0);
+    auto in_layout = input.GetLayout();
+    output_layout_ = in_layout;
+    if (!output_layout_arg_.empty()) {
+      output_layout_ = output_layout_arg_;
+    } else if (transpose_layout_) {
+      for (int d = 0; d < in_layout.ndim(); d++) {
+        output_layout_[d] = in_layout[perm_[d]];
+      }
+    }
     return false;
   }
 
@@ -54,6 +68,9 @@ class Transpose : public Operator<Backend> {
 
  private:
   std::vector<int> perm_;
+  bool transpose_layout_;
+  TensorLayout output_layout_arg_;
+  TensorLayout output_layout_;
 
   cuttHandle cutt_handle_ = 0;
   // used by dense TL cuttHandle

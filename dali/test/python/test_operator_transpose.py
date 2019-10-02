@@ -37,7 +37,8 @@ class TransposePipeline(Pipeline):
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         self.transpose = ops.Transpose(device = self.device,
-                                       perm = (1, 0, 2))
+                                       perm = (1, 0, 2),
+                                       transpose_layout = False)
 
     def define_graph(self):
         self.data = self.inputs()

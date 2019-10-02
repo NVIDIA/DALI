@@ -183,7 +183,7 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
       "cuTT transpose supports only [1-2-4-8] bytes types.");
 
   output.set_type(itype);
-  // output.SetLayout(DALI_UNKNOWN);
+  output.SetLayout(output_layout_);
 
   auto input_shape = input.tensor_shape(0);
   DALI_ENFORCE(input_shape.size() == static_cast<int>(perm_.size()),
