@@ -28,6 +28,36 @@ namespace dali {
 namespace py = pybind11;
 
 static std::string FormatStrFromType(const TypeInfo &type) {
+  // handle common types in a switch
+  switch (type.id()) {
+    case DALI_INT8:
+      return "=b";
+    case DALI_UINT8:
+      return "=B";
+    case DALI_INT16:
+      return "=h";
+    case DALI_UINT16:
+      return "=H";
+    case DALI_INT32:
+      return "=i";
+    case DALI_UINT32:
+      return "=I";
+    case DALI_INT64:
+      return "=q";
+    case DALI_UINT64:
+      return "=Q";
+    case DALI_FLOAT:
+      return "=f";
+    case DALI_FLOAT16:
+      return "=e";
+    case DALI_FLOAT64:
+      return "=d";
+    default:
+      break;
+  }
+
+  // fall back to 'if' ladder
+
   if (IsType<int8_t>(type)) {
     return "=b";
   } else if (IsType<uint8_t>(type)) {
@@ -71,86 +101,57 @@ static std::string FormatStrFromType(const TypeInfo &type) {
 }
 
 static TypeInfo TypeFromFormatStr(const std::string &format) {
-  std::string format_letter = format;
-  std::string modificator_letter = "@";
-  if (format.size() > 1) {
-    format_letter = std::string(format, 1, 1);
-    modificator_letter = std::string(format, 0, 1);
+  char format_letter;
+  if (format.size() == 1) {
+    format_letter = format[0];
+  } else if (format.size() > 1) {
+    format_letter = format[1];
+  } else {
+    DALI_FAIL("Cannot create type for unknown format string: " + format);
   }
 
-  if (modificator_letter == "=") {
-    // create tensors with well defined element sizes under the hood
-    if (format_letter == "c") {
+  using sized_long = std::conditional_t<sizeof(long) == 4, int32_t, int64_t>;  // NOLINT
+  using sized_ulong = std::make_unsigned_t<sized_long>;
+  static_assert(sizeof(sized_long) == sizeof(long),  // NOLINT
+    "This code requires `long` to be 32 or 64 bit");
+
+  switch (format_letter) {
+    case 'c':
       return TypeInfo::Create<char>();
-    } else if (format_letter == "b") {
+    case 'b':
       return TypeInfo::Create<int8_t>();
-    } else if (format_letter == "B") {
+    case 'B':
       return TypeInfo::Create<uint8_t>();
-    } else if (format_letter == "h") {
+    case 'h':
       return TypeInfo::Create<int16_t>();
-    } else if (format_letter == "H") {
+    case 'H':
       return TypeInfo::Create<uint16_t>();
-    } else if (format_letter == "i" || format_letter == "l") {
+    case 'i':
       return TypeInfo::Create<int32_t>();
-    } else if (format_letter == "I") {
+    case 'I':
       return TypeInfo::Create<uint32_t>();
-    } else if (format_letter == "q") {
+    case 'l':
+      return TypeInfo::Create<sized_long>();
+    case 'L':
+      return TypeInfo::Create<sized_ulong>();
+    case 'q':
       return TypeInfo::Create<int64_t>();
-    } else if (format_letter == "Q") {
+    case 'Q':
       return TypeInfo::Create<uint64_t>();
-    } else if (format_letter == "f") {
+    case 'f':
       return TypeInfo::Create<float>();
-    } else if (format_letter == "d") {
+    case 'd':
       return TypeInfo::Create<double>();
-    } else if (format_letter == "?") {
+    case '?':
       return TypeInfo::Create<bool>();
-    } else if (format_letter == "e") {
+    case 'e':
       return TypeInfo::Create<float16>();
-    } else if (format_letter == "n") {
+    case 'n':
       return TypeInfo::Create<ssize_t>();
-    } else if (format_letter == "N") {
+    case 'N':
       return TypeInfo::Create<size_t>();
-    } else {
+    default:
       DALI_FAIL("Cannot create type for unknown format string: " + format);
-    }
-  } else {  // for '@' or any other case as we don't care about endianess, at least now
-    // create tensor with elements of whatever size there is under the hood
-    if (format_letter == "c") {
-      return TypeInfo::Create<char>();
-    } else if (format_letter == "b") {
-      return TypeInfo::Create<signed char>();
-    } else if (format_letter == "B") {
-      return TypeInfo::Create<unsigned char>();
-    } else if (format_letter == "h") {
-      return TypeInfo::Create<short>();  // NOLINT
-    } else if (format_letter == "H") {
-      return TypeInfo::Create<unsigned short>();  // NOLINT
-    } else if (format_letter == "i" ||
-              (format_letter == "l" && sizeof(long) == sizeof(int))) { // NOLINT
-      // long size may differ depending on the platform, special case for that here
-      return TypeInfo::Create<int>();
-    } else if (format_letter == "I" ||
-              (format_letter == "L" && sizeof(long) == sizeof(int))) { // NOLINT
-      return TypeInfo::Create<unsigned int>();
-    } else if (format_letter == "q" ||
-              (format_letter == "l" && sizeof(long) == sizeof(long long))) { // NOLINT
-      // long size may differ depending on the platform, special case for that here
-      return TypeInfo::Create<long long>();  // NOLINT
-    } else if (format_letter == "Q" ||
-              (format_letter == "L" && sizeof(long) == sizeof(long long))) { // NOLINT
-      // long size may differ depending on the platform, special case for that here
-      return TypeInfo::Create<unsigned long long>();  // NOLINT
-    } else if (format_letter == "f") {
-      return TypeInfo::Create<float>();
-    } else if (format_letter == "d") {
-      return TypeInfo::Create<double>();
-    } else if (format_letter == "?") {
-      return TypeInfo::Create<bool>();
-    } else if (format_letter == "e") {
-      return TypeInfo::Create<float16>();
-    } else {
-      DALI_FAIL("Cannot create type for unknown format string: " + format);
-    }
   }
 }
 

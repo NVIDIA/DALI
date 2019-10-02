@@ -117,9 +117,11 @@ void Reshape<Backend>::ShapeFromInput(
 template <typename Backend>
 template <typename TensorListLike>
 void Reshape<Backend>::ShapeFromInput(const TensorListLike &tl) {
-  TYPE_SWITCH(tl.type().id(), type2id, type, (int32_t),
+  TYPE_SWITCH(tl.type().id(), type2id, type,
+    (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t),
     (this->ShapeFromInput(view<const type>(tl));),
-    (DALI_FAIL("Reshape: shape input must have integral type; got: " + tl.type().name());)
+    (DALI_FAIL("Reshape: shape input must have integral type; got: " + tl.type().name() +
+               " (id = " + to_string(static_cast<int>(tl.type().id())) + ")");)
   );  // NOLINT
 }
 
@@ -176,13 +178,9 @@ void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &out = ws.OutputRef<CPUBackend>(0);
   auto &in = ws.InputRef<CPUBackend>(0);
   TensorLayout layout = GetOutputLayout(ws);
-  out.Resize(output_shape_);
-  // the output TensorVector no longer consists of views at its
-  // internal TensorList - even if it's otherwise contiguous
-  out.SetContiguous(false);
+  out.ShareData(&in);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
-    out[i].ShareData(&in[i]);
     out[i].Resize(output_shape_[i]);
     assert(out[i].raw_data() == in[i].raw_data());
   }
@@ -194,6 +192,7 @@ void Reshape<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &out = ws.OutputRef<GPUBackend>(0);
   auto &in = ws.InputRef<GPUBackend>(0);
   TensorLayout layout = GetOutputLayout(ws);
+  out.Reset();
   out.ShareData(&in);
   out.Resize(output_shape_);
   int N = output_shape_.num_samples();
