@@ -59,7 +59,7 @@ class DALITest : public ::testing::Test {
  public:
   DALITest() {
     rand_gen_.seed(time(nullptr));
-    jpeg_names_ = ImageList(testing::dali_extra_path() + "/db/single/jpeg/0", {".jpg"});
+    jpeg_names_ = ImageList(testing::dali_extra_path() + "/db/single/jpeg", {".jpg"});
     LoadImages(jpeg_names_, &jpegs_);
   }
 
