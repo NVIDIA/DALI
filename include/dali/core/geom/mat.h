@@ -481,10 +481,11 @@ mat<r1+r2, cols, T> cat_rows(const mat<r1, cols, T> &a, const mat<r2, cols, T> &
   return ret;
 }
 
+
 /**
- * Returns a 2-D array with ones on the diagonal and zeros elsewhere.
+ * Returns a dali::mat with ones on the diagonal and zeros elsewhere.
  */
-template<int rows, int cols, typename T = float>
+template <int rows, int cols, typename T = float>
 DALI_HOST_DEV constexpr dali::mat<rows, cols, T> eye() {
   mat<rows, cols, T> ret(0);
   for (int i = 0; i < rows && i < cols; i++) {
@@ -494,7 +495,13 @@ DALI_HOST_DEV constexpr dali::mat<rows, cols, T> eye() {
 }
 
 
-template<int rows, int cols, typename T>
+template <int N, typename T = float>
+DALI_HOST_DEV constexpr dali::mat<N, N, T> eye() {
+  return eye<N, N, T>();
+}
+
+
+template <int rows, int cols, typename T>
 std::ostream &operator<<(std::ostream &os, const dali::mat<rows, cols, T> &m) {
   for (int i = 0; i < rows; i++) {
     os << m.row(i) << std::endl;

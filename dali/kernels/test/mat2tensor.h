@@ -44,6 +44,7 @@ TensorShape<ndim> tensor_shape(const cv::Mat &mat) {
   return shape;
 }
 
+
 template <typename T>
 void enforce_type(const cv::Mat &mat) {
   using U = std::remove_const_t<T>;

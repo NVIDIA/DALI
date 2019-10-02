@@ -31,6 +31,7 @@ template <typename OutputType, typename InputType,
         int channels_out, int channels_in, int spatial_ndims>
 class LinearTransformationCpu {
  private:
+  static_assert(spatial_ndims == 2, "This kernel is currently implemented for 2 spatial dims only");
   static constexpr auto ndims_ = spatial_ndims + 1;
   using Mat = ::dali::mat<channels_out, channels_in, float>;
   using Vec = ::dali::vec<channels_out, float>;
@@ -63,9 +64,10 @@ class LinearTransformationCpu {
 
     for (int y = adjusted_roi.lo.y; y < adjusted_roi.lo.y + adjusted_roi.extent().y; y++) {
       for (int x = adjusted_roi.lo.x; x < adjusted_roi.lo.x + adjusted_roi.extent().x; x++) {
-        vec<channels_in> v_in;
+        vec<channels_in, float> v_in;
+        auto offset = (y * in_width + x) * channels_in;
         for (int k = 0; k < channels_in; k++) {
-          v_in[k] = in.data[(y * in_width + x) * channels_in + k];
+          v_in[k] = static_cast<float>(in.data[offset + k]);
         }
         vec<channels_out> v_out = tmatrix * v_in + tvector;
         for (int k = 0; k < channels_out; k++) {

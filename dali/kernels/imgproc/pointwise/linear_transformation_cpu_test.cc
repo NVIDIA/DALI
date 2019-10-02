@@ -15,11 +15,11 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <tuple>
-#include <dali/kernels/test/mat2tensor.h>
 #include "dali/core/geom/mat.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/tensor_shape.h"
 #include "dali/kernels/common/copy.h"
+#include "dali/kernels/test/mat2tensor.h"
 #include "dali/kernels/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
@@ -125,7 +125,7 @@ TYPED_TEST(LinearTransformationCpuTest, run_test) {
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, kNDims> in(this->input_.data(), this->in_shape_);
 
-  auto reqs = kernel.Setup(ctx, in, this->mat_, this->vec_, &this->roi_);
+  auto reqs = kernel.Setup(ctx, in, this->mat_, this->vec_);
 
   auto out_shape = reqs.output_shapes[0][0];
   std::vector<typename TypeParam::Out> output;
@@ -137,11 +137,6 @@ TYPED_TEST(LinearTransformationCpuTest, run_test) {
 
   auto ref_tv = TensorView<StorageCPU, float>(this->ref_output_.data(), this->out_shape_);
   Check(out, ref_tv, EqualUlp());
-
-//  ASSERT_EQ(out.num_elements(), this->ref_output_.size()) << "Number of elements doesn't match";
-//  for (int i = 0; i < out.num_elements(); i++) {
-//    EXPECT_FLOAT_EQ(this->ref_output_[i], out.data[i]) << "Failed at idx: " << i;
-//  }
 }
 
 
@@ -164,15 +159,7 @@ TYPED_TEST(LinearTransformationCpuTest, run_test_with_roi) {
   auto mat = color_manipulation::test::to_mat<kNChannelsOut>(this->ref_output_.data(), this->roi_,
                                                              this->in_shape_[0],
                                                              this->in_shape_[1]);
-
-  Check(view_as_tensor<typename TypeParam::Out>(mat), out, EqualUlp());
-
-//  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
-//                        << "Number of elements doesn't match";
-//  auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
-//  for (int i = 0; i < out.num_elements(); i++) {
-//    EXPECT_FLOAT_EQ(ptr[i], out.data[i]) << "Failed at idx: " << i;
-//  }
+  Check(out, view_as_tensor<float>(mat), EqualUlp());
 }
 
 }  // namespace test
