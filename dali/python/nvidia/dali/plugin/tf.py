@@ -211,7 +211,7 @@ else:
       dtypes = []):
       raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.')
 
-DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline.
+DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13 and 1.14
 
     Parameters
     ----------
@@ -219,7 +219,7 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
         defining the augmentations to be performed. 
     `batch_size` : int
         batch size of the pipeline.
-    `num_threads` : int,
+    `num_threads` : int
         number of CPU threads used by the pipeline.
     `device_id` : int
         id of GPU used by the pipeline.
