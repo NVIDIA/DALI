@@ -30,7 +30,7 @@ class DumpImage : public Operator<Backend> {
   explicit inline DumpImage(const OpSpec &spec) :
     Operator<Backend>(spec),
     suffix_(spec.GetArgument<string>("suffix")) {
-    DALI_ENFORCE(spec.GetArgument<DALITensorLayout>("input_layout") == DALI_NHWC,
+    DALI_ENFORCE(spec.GetArgument<TensorLayout>("input_layout") == "HWC",
         "CHW not supported yet.");
   }
 

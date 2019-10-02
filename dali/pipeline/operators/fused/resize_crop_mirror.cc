@@ -36,7 +36,7 @@ DALI_SCHEMA(ResizeCropMirror)
       R"code(Type of interpolation used.)code",
       DALI_INTERP_LINEAR)  .AddParent("Crop")
   .AddParent("ResizeCropMirrorAttr")
-  .EnforceInputLayout(DALI_NHWC);
+  .InputLayout("HWC");
 
 DALI_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
 
@@ -48,6 +48,6 @@ DALI_SCHEMA(FastResizeCropMirror)
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ResizeCropMirror")
-  .EnforceInputLayout(DALI_NHWC);
+  .InputLayout("HWC");
 
 }  // namespace dali

@@ -27,6 +27,7 @@ VIDEO_DIRECTORY="video_files"
 VIDEO_FILES=os.listdir(VIDEO_DIRECTORY)
 VIDEO_FILES = [VIDEO_DIRECTORY + '/' + f for f in VIDEO_FILES]
 FILE_LIST="file_list.txt"
+MUTLIPLE_RESOLUTION_ROOT='video_resolution/'
 
 ITER=6
 BATCH_SIZE=4
@@ -49,6 +50,16 @@ class VideoPipeList(Pipeline):
     def __init__(self, batch_size, data, device_id=0):
         super(VideoPipeList, self).__init__(batch_size, num_threads=2, device_id=device_id)
         self.input = ops.VideoReader(device="gpu", file_list=data, sequence_length=COUNT)
+
+    def define_graph(self):
+        output = self.input(name="Reader")
+        return output
+
+class VideoPipeRoot(Pipeline):
+    def __init__(self, batch_size, data, device_id=0):
+        super(VideoPipeRoot, self).__init__(batch_size, num_threads=2, device_id=device_id)
+        self.input = ops.VideoReader(device="gpu", file_root=data, sequence_length=COUNT,
+                                     random_shuffle=True, initial_fill=10)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -84,6 +95,20 @@ def test_stride_video_pipeline():
     for i in range(ITER):
         print("Iter " + str(i))
         pipe_out = pipe.run()
+    del pipe
+
+def test_multiple_resolution_videopipeline():
+    pipe = VideoPipeRoot(batch_size=BATCH_SIZE, data=MUTLIPLE_RESOLUTION_ROOT)
+    try:
+        pipe.build()
+        for i in range(ITER):
+            print("Iter " + str(i))
+            pipe_out = pipe.run()
+    except Exception as e:
+        if str(e) == "Decoder reconfigure feature not supported":
+            print("Multiple resolution test skipped")
+        else:
+            raise
     del pipe
 
 def test_multi_gpu_video_pipeline():

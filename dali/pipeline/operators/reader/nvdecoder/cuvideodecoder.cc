@@ -78,11 +78,18 @@ const char* GetVideoChromaFormatString(cudaVideoChromaFormat eChromaFormat) {
 }  // namespace
 
 CUVideoDecoder::CUVideoDecoder() : decoder_{0},
-                                   decoder_info_{}, initialized_{false} {
+                                   decoder_info_{}, initialized_{false},
+                                   max_height_{0}, max_width_{0} {
+}
+
+CUVideoDecoder::CUVideoDecoder(int max_height, int max_width)
+                              : decoder_{0}, decoder_info_{}, initialized_{false},
+                                max_height_{max_height}, max_width_{max_width} {
 }
 
 CUVideoDecoder::CUVideoDecoder(CUvideodecoder decoder)
-    : decoder_{decoder}, decoder_info_{}, initialized_{true} {
+    : decoder_{decoder}, decoder_info_{}, initialized_{true},
+      max_height_{0}, max_width_{0} {
 }
 
 CUVideoDecoder::~CUVideoDecoder() {
@@ -92,9 +99,12 @@ CUVideoDecoder::~CUVideoDecoder() {
 }
 
 CUVideoDecoder::CUVideoDecoder(CUVideoDecoder&& other)
-    : decoder_{other.decoder_}, initialized_{other.initialized_} {
+    : decoder_{other.decoder_}, initialized_{other.initialized_},
+      max_height_{other.max_height_}, max_width_{other.max_width_} {
     other.decoder_ = 0;
     other.initialized_ = false;
+    other.max_height_ = 0;
+    other.max_width_ = 0;
 }
 
 CUVideoDecoder& CUVideoDecoder::operator=(CUVideoDecoder&& other) {
@@ -103,18 +113,64 @@ CUVideoDecoder& CUVideoDecoder::operator=(CUVideoDecoder&& other) {
     }
     decoder_ = other.decoder_;
     initialized_ = other.initialized_;
+    max_height_ = other.max_height_;
+    max_width_ = other.max_width_;
     other.decoder_ = 0;
     other.initialized_ = false;
+    other.max_height_ = 0;
+    other.max_width_ = 0;
     return *this;
+}
+
+void CUVideoDecoder::reconfigure(unsigned int height, unsigned int width) {
+    DALI_ENFORCE(NVCUVID_API_EXISTS(cuvidReconfigureDecoder),
+                 "cuvidReconfigureDecoder API is not available.");
+
+    CUVIDRECONFIGUREDECODERINFO reconfigParams = { 0 };
+
+    DALI_ENFORCE(initialized_, "Trying to reconfigure uninitialized decoder");
+
+    DALI_ENFORCE(width >= caps_.nMinWidth && height >= caps_.nMinHeight,
+                 "Video is too small in at least one dimension.");
+
+    DALI_ENFORCE(width <= caps_.nMaxWidth && height <= caps_.nMaxHeight,
+                 "Video is too large in at least one dimension.");
+
+    DALI_ENFORCE(width * height / 256 <= caps_.nMaxMBCount,
+                 "Video is too large (too many macroblocks).");
+
+    reconfigParams.display_area.bottom = decoder_info_.display_area.bottom = height;
+    reconfigParams.display_area.top = 0;
+    reconfigParams.display_area.left = 0;
+    reconfigParams.display_area.right = decoder_info_.display_area.right = width;
+
+    decoder_info_.ulTargetWidth = decoder_info_.ulWidth = width;
+    reconfigParams.ulTargetWidth = reconfigParams.ulWidth = width;
+
+    decoder_info_.ulTargetHeight = decoder_info_.ulHeight = height;
+    reconfigParams.ulTargetHeight = reconfigParams.ulHeight = height;
+
+    reconfigParams.ulNumDecodeSurfaces = decoder_info_.ulNumDecodeSurfaces;
+
+
+    NVCUVID_CALL(cuvidReconfigureDecoder(decoder_, &reconfigParams));
 }
 
 int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
     if (initialized_) {
         if ((format->codec != decoder_info_.CodecType) ||
-            (format->coded_width != decoder_info_.ulWidth) ||
-            (format->coded_height != decoder_info_.ulHeight) ||
             (format->chroma_format != decoder_info_.ChromaFormat)) {
             DALI_FAIL("Encountered a dynamic video format change.");
+        }
+        if ((format->coded_width != decoder_info_.ulWidth) ||
+            (format->coded_height != decoder_info_.ulHeight)) {
+            if (NVCUVID_API_EXISTS(cuvidReconfigureDecoder)) {
+              LOG_LINE << "reconfigure decoder";
+              CUVideoDecoder::reconfigure(format->coded_height, format->coded_width);
+            } else {
+             DALI_FAIL("Encountered a dynamic video resolution change. Install Nvidia driver"
+                       " version >=396 (x86) or >=415 (Power PC)");
+            }
         }
         return 1;
     }
@@ -147,6 +203,7 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
             << GetVideoChromaFormatString(format->chroma_format);
         DALI_FAIL(ss.str());
     }
+    caps_ = caps;
     LOG_LINE << "NVDEC Capabilities" << std::endl
         << "\tMax width : " << caps.nMaxWidth << std::endl
         << "\tMax height : " << caps.nMaxHeight << std::endl
@@ -175,6 +232,8 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
     decoder_info_.DeinterlaceMode = cudaVideoDeinterlaceMode_Adaptive;
     decoder_info_.ulTargetWidth = format->display_area.right - format->display_area.left;
     decoder_info_.ulTargetHeight = format->display_area.bottom - format->display_area.top;
+    decoder_info_.ulMaxWidth = static_cast<unsigned long>(max_width_);  // NOLINT
+    decoder_info_.ulMaxHeight = static_cast<unsigned long>(max_height_);  // NOLINT
 
     auto& area = decoder_info_.display_area;
     area.left   = format->display_area.left;

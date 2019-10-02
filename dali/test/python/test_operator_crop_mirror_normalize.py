@@ -32,7 +32,7 @@ caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 class CropMirrorNormalizePipeline(Pipeline):
     def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1,
-                 output_dtype = types.FLOAT, output_layout = types.NHWC,
+                 output_dtype = types.FLOAT, output_layout = "HWC",
                  mirror_probability = 0.0, mean=[0., 0., 0.], std=[1., 1., 1.], pad_output=False):
         super(CropMirrorNormalizePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865)
         self.device = device
@@ -73,7 +73,7 @@ def check_cmn_cpu_vs_gpu(batch_size, output_dtype, output_layout, mirror_probabi
 def test_cmn_cpu_vs_gpu():
     for batch_size in [1, 8]:
         for output_dtype in [types.FLOAT, types.INT32, types.FLOAT16]:
-            for output_layout in [types.NHWC, types.NCHW]:
+            for output_layout in ["HWC", "CHW"]:
                 for mirror_probability in [0.0, 0.5, 1.0]:
                     norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
                                   ([0.5 * 255], [0.225 * 255]),
@@ -97,7 +97,7 @@ class NoCropPipeline(Pipeline):
             self.cmn = ops.CropMirrorNormalize(device = self.device,
                                                image_type = types.RGB,
                                                output_dtype = types.UINT8,
-                                               output_layout = types.NHWC)
+                                               output_layout = "HWC")
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -144,13 +144,13 @@ cmn_idx = 0
 
 def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, mirror_probability, should_pad, mean, std,
                                input_layout, output_layout, image):
-    assert input_layout == types.NHWC or input_layout == types.NFHWC
-    if input_layout == types.NHWC:
-        assert output_layout == types.NHWC or output_layout == types.NCHW
+    assert input_layout == "HWC" or input_layout == "FHWC"
+    if input_layout == "HWC":
+        assert output_layout == "HWC" or output_layout == "CHW"
         assert len(image.shape) == 3
         F, H, W, C = 1, image.shape[0], image.shape[1], image.shape[2]
-    elif input_layout == types.NFHWC:
-        assert output_layout == types.NFHWC or output_layout == types.NFCHW
+    elif input_layout == "FHWC":
+        assert output_layout == "FHWC" or output_layout == "FCHW"
         assert len(image.shape) == 4
         F, H, W, C = image.shape[0], image.shape[1], image.shape[2], image.shape[3]
     assert H >= crop_h and W >= crop_w
@@ -161,10 +161,10 @@ def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, mirror_probabilit
     end_x = start_x + crop_w
 
     # Crop
-    if input_layout == types.NHWC:
+    if input_layout == "HWC":
         out = image[start_y:end_y, start_x:end_x, :]
         H, W = out.shape[0], out.shape[1]
-    elif input_layout == types.NFHWC:
+    elif input_layout == "FHWC":
         out = image[:, start_y:end_y, start_x:end_x, :]
         H, W = out.shape[1], out.shape[2]
 
@@ -180,19 +180,19 @@ def crop_mirror_normalize_func(crop_y, crop_x, crop_h, crop_w, mirror_probabilit
     should_flip = cmn_coin_flip_samples[mirror_probability][cmn_idx]
     cmn_idx = (cmn_idx + 1) % len(cmn_coin_flip_samples[mirror_probability])
 
-    dim_h = 2 if input_layout == types.NFHWC else 1
+    dim_h = 2 if input_layout == "FHWC" else 1
     out1 = np.flip(out, dim_h) if should_flip else out
 
     # Pad, normalize, transpose
     out_C = C + 1 if should_pad else C
-    if input_layout == types.NHWC:
+    if input_layout == "HWC":
         out2 = np.zeros([H, W, out_C], dtype=np.float32)
         out2[:, :, 0:C] = (np.float32(out1) - mean) * inv_std
-        return np.transpose(out2, (2, 0, 1)) if output_layout == types.NCHW else out2
-    elif input_layout == types.NFHWC:
+        return np.transpose(out2, (2, 0, 1)) if output_layout == "CHW" else out2
+    elif input_layout == "FHWC":
         out2 = np.zeros([F, H, W, out_C], dtype=np.float32)
         out2[:, :, :, 0:C] = (np.float32(out1) - mean) * inv_std
-        return np.transpose(out2, (0, 3, 1, 2)) if output_layout == types.NFCHW else out2
+        return np.transpose(out2, (0, 3, 1, 2)) if output_layout == "FCHW" else out2
     else:
         assert False
 
@@ -205,7 +205,7 @@ def check_cmn_vs_numpy(device, batch_size, output_dtype, output_layout,
     crop_y, crop_x, crop_h, crop_w = (0.2, 0.3, 224, 224)
     function = partial(crop_mirror_normalize_func,
                        crop_y, crop_x, crop_h, crop_w, mirror_probability, should_pad,
-                       mean, std, types.NHWC, output_layout)
+                       mean, std, "HWC", output_layout)
 
     iterations = 8 if batch_size == 1 else 1
     compare_pipelines(CropMirrorNormalizePipeline(device, batch_size, output_dtype=output_dtype,
@@ -221,7 +221,7 @@ def test_cmn_vs_numpy():
     for device in ['cpu', 'gpu']:
         for batch_size in [1, 8]:
             for output_dtype in [types.FLOAT]:
-                for output_layout in [types.NHWC, types.NCHW]:
+                for output_layout in ["HWC", "CHW"]:
                     mirror_probs = [0.0, 0.5, 1.0] if batch_size > 1 else [0.0, 1.0]
                     for mirror_probability in mirror_probs:
                         for (mean, std) in norm_data:
@@ -232,7 +232,7 @@ def test_cmn_vs_numpy():
 
 class CMNRandomDataPipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0, num_gpus=1,
-                 output_dtype = types.FLOAT, output_layout = types.NFHWC,
+                 output_dtype = types.FLOAT, output_layout = "FHWC",
                  mirror_probability = 0.0, mean=[0., 0., 0.], std=[1., 1., 1.], pad_output=False):
         super(CMNRandomDataPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
@@ -308,23 +308,23 @@ def test_cmn_random_data_vs_numpy():
     norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
                   ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]
     output_layouts = {
-        types.NHWC : [types.NHWC, types.NCHW],
-        types.NFHWC : [types.NFHWC, types.NFCHW]
+        "HWC" : ["HWC", "CHW"],
+        "FHWC" : ["FHWC", "FCHW"]
     }
 
     input_shapes = {
-        types.NHWC : [(600, 800, 3)],
-        types.NFHWC : [(5, 600, 800, 3)],
+        "HWC" : [(600, 800, 3)],
+        "FHWC" : [(5, 600, 800, 3)],
     }
 
     for device in ['cpu', 'gpu']:
         for batch_size in [1, 8]:
             for output_dtype in [types.FLOAT]:
-                for input_layout in [types.NHWC, types.NFHWC]:
+                for input_layout in ["HWC", "FHWC"]:
                     for input_shape in input_shapes[input_layout]:
-                        if input_layout == types.NFHWC:
+                        if input_layout == "FHWC":
                             assert len(input_shape) == 4
-                        elif input_layout == types.NHWC:
+                        elif input_layout == "HWC":
                             assert len(input_shape) == 3
                         for output_layout in output_layouts[input_layout]:
                             mirror_probs = [0.5] if batch_size > 1 else [0.0, 1.0]

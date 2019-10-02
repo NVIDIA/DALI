@@ -41,9 +41,9 @@ void Resize<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
 
   DALI_ENFORCE(IsType<uint8>(input.type()), "Expected input data as uint8.");
-  if (input.GetLayout() != DALI_UNKNOWN) {
-    DALI_ENFORCE(input.GetLayout() == DALI_NHWC,
-                 "Resize expects interleaved channel layout (NHWC)");
+  if (!input.GetLayout().empty()) {
+    DALI_ENFORCE(ImageLayoutInfo::IsChannelLast(input.GetLayout()),
+                 "Resize expects interleaved channel layout (aka channel-last or NHWC)");
   }
 
   for (int i = 0; i < batch_size_; ++i) {
@@ -61,6 +61,7 @@ void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
 
   RunGPU(output, input, ws.stream());
+  output.SetLayout(InputLayout(ws, 0));
 
   // Setup and output the resize attributes if necessary
   if (save_attrs_) {

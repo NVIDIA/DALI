@@ -263,7 +263,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
     output.Resize(output_shape_);
-    output.SetLayout(DALI_NHWC);
+    output.SetLayout("HWC");
 
     for (int idx = 0; idx < batch_size_; ++idx) {
       const int i = image_order[idx].second;

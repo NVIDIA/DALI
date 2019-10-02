@@ -49,7 +49,7 @@ class MakeContiguous : public Operator<MixedBackend> {
     const auto& input = ws.Input<CPUBackend>(0, 0);
     int sample_dim = input.shape().sample_dim();
     kernels::TensorListShape<> output_shape(batch_size_, sample_dim);
-    DALITensorLayout layout = input.GetLayout();
+    TensorLayout layout = input.GetLayout();
     TypeInfo type = input.type();
     size_t total_bytes = 0;
     for (int i = 0; i < batch_size_; ++i) {

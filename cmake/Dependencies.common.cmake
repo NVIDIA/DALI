@@ -118,11 +118,14 @@ if(BUILD_FFMPEG)
         pkg_check_modules(${m} REQUIRED lib${m})
         list(APPEND FFmpeg_LIBS ${m})
       else()
-        find_library(FFmpeg_Lib ${m}
+        # Set the name of the destination variable, it cannot be the same across
+        # consecutive find_library calls to avoid caching
+        set(FFmpeg_Lib "FFmpeg_Lib${m}")
+        find_library(${FFmpeg_Lib} ${m}
               PATHS ${FFMPEG_ROOT_DIR}
               PATH_SUFFIXES lib lib64
               NO_DEFAULT_PATH)
-        list(APPEND FFmpeg_LIBS ${FFmpeg_Lib})
+        list(APPEND FFmpeg_LIBS ${${FFmpeg_Lib}})
         message(STATUS ${m})
       endif()
   endforeach(m)

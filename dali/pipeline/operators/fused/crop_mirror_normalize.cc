@@ -36,7 +36,7 @@ normalization only.
   .AddOptionalArg("output_dtype",
     R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
-    R"code(Output tensor data layout)code", DALI_NCHW)
+    R"code(Output tensor data layout)code", "CHW")
   .AddOptionalArg(
     "pad_output",
     R"code(Whether to pad the output to number of channels being multiple of 4.)code", false)

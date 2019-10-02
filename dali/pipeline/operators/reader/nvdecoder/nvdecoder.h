@@ -20,7 +20,6 @@ extern "C" {
 }
 #include <libavcodec/avcodec.h>
 
-
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -47,6 +46,8 @@ using CodecParameters = AVCodecParameters;
 struct AVCodecContext;
 using CodecParameters = AVCodecContext;
 #endif
+
+#define ALIGN16(value) ((((value) + 15) >> 4) << 4)
 
 namespace dali {
 
@@ -76,7 +77,9 @@ class NvDecoder {
             AVRational time_base,
             DALIImageType image_type,
             DALIDataType dtype,
-            bool normalized);
+            bool normalized,
+            int max_height,
+            int max_width);
 
   NvDecoder(const NvDecoder&) = default;
   NvDecoder(NvDecoder&&) = default;
@@ -182,13 +185,26 @@ class NvDecoder {
   ThreadSafeQueue<CUVIDPARSERDISPINFO*> frame_queue_;
   FrameReq current_recv_;
 
-  using TexID = std::tuple<uint8_t*, ScaleMethod>;
+  using TexID = std::tuple<uint8_t*, ScaleMethod, uint16_t, uint16_t, unsigned int>;
+
   struct tex_hash {
-      std::hash<uint8_t*> ptr_hash;
-      std::hash<int> scale_hash;
+      // hash_combine taken from
+      // http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n3876.pdf
+      template <typename T>
+      inline void hash_combine(size_t& seed, const T& value) const {
+        std::hash<T> hasher;
+        seed ^= hasher(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      }
+
       std::size_t operator () (const TexID& tex) const {
-          return ptr_hash(std::get<0>(tex))
-                  ^ scale_hash(std::get<1>(tex));
+        size_t seed = 0;
+        hash_combine(seed, std::get<0>(tex));
+        hash_combine(seed, std::get<1>(tex));
+        hash_combine(seed, std::get<2>(tex));
+        hash_combine(seed, std::get<3>(tex));
+        hash_combine(seed, std::get<4>(tex));
+
+        return seed;
       }
   };
 
@@ -201,5 +217,17 @@ class NvDecoder {
 };
 
 }  // namespace dali
+
+namespace std {
+template<>
+struct hash<dali::ScaleMethod> {
+ public:
+  std::size_t operator()(dali::ScaleMethod const& s) const noexcept {
+  return std::hash<int>()(s);
+  }
+};
+
+}  // namespace std
+
 
 #endif  // DALI_PIPELINE_OPERATORS_READER_NVDECODER_NVDECODER_H_

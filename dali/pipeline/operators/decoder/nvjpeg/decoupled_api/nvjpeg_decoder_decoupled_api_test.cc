@@ -40,6 +40,13 @@ class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
     this->RunTestDecode(t_pngImgType);
   }
 
+  void BmpTestDecode(int num_threads) {
+    hybrid_huffman_threshold_ = 0;
+    this->SetNumThreads(num_threads);
+    this->RunTestDecode(t_bmpImgType);
+  }
+
+
   void TiffTestDecode(int num_threads) {
     hybrid_huffman_threshold_ = 0;
     this->SetNumThreads(num_threads);
@@ -131,6 +138,25 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSinglePNGDecode3T) {
 
 TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSinglePNGDecode4T) {
   this->PngTestDecode(4);
+}
+
+/***********************************************
+************* BMP fallback decode **************
+***********************************************/
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleBmpDecode) {
+  this->BmpTestDecode(1);
+}
+
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleBmpDecode2T) {
+  this->BmpTestDecode(2);
+}
+
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleBmpDecode3T) {
+  this->BmpTestDecode(3);
+}
+
+TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleBmpDecode4T) {
+  this->BmpTestDecode(4);
 }
 
 /***********************************************

@@ -79,10 +79,8 @@ Parameters
                 default_value = eval(default_value_string)
             else:
                 default_value = default_value_string
-            if dtype == DALIDataType.STRING:
-                default_value = "\'" + str(default_value) + "\'"
             ret += (", optional, default = " +
-                    str(_type_convert_value(dtype, default_value)))
+                    repr(_type_convert_value(dtype, default_value)))
         indent = '\n' + " " * len(arg_name_doc)
         ret += indent
         ret += schema.GetArgumentDox(arg).replace("\n", indent)

@@ -173,7 +173,7 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace &ws) {
 
   output.set_type(input.type());
   output.Resize(output_shape);
-  output.SetLayout(DALI_NHWC);
+  output.SetLayout("HWC");
 
   for (int i = 0; i < batch_size_; ++i) {
       input_ptrs_.template mutable_data<const uint8*>()[i] =

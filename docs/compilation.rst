@@ -230,6 +230,7 @@ Building DALI using Clang (experimental):
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
 -  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
+-  ``VERBOSE_LOGS`` - enables verbose loging in DALI. (default: OFF)
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
 -  ``BUILD_WITH_ASAN`` - build with ASAN support (default: OFF). To run issue:
 

@@ -98,8 +98,9 @@ class DLL_PUBLIC OpSpec {
   /**
    * @brief Constructs a specification for an op with the given name.
    */
-  DLL_PUBLIC explicit inline OpSpec(const string &name)
-    : name_(name) {}
+  DLL_PUBLIC explicit inline OpSpec(const string &name) {
+    set_name(name);
+  }
 
   /**
    * @brief Getter for the name of the Operator.
@@ -111,6 +112,12 @@ class DLL_PUBLIC OpSpec {
    */
   DLL_PUBLIC inline void set_name(const string &name) {
     name_ = name;
+    schema_ = name.empty() ? nullptr : SchemaRegistry::TryGetSchema(name);
+  }
+
+  DLL_PUBLIC inline const OpSchema &GetSchema() const {
+    DALI_ENFORCE(schema_ != nullptr, "No schema found for operator \"" + name() + "\"");
+    return *schema_;
   }
 
   /**
@@ -401,17 +408,6 @@ class DLL_PUBLIC OpSpec {
     return ret;
   }
 
-  DLL_PUBLIC OpSpec& operator=(const OpSpec& other) {
-    this->name_ = other.name_;
-    this->arguments_ = other.arguments_;
-    this->argument_inputs_ = other.argument_inputs_;
-    this->argument_inputs_indexes_ = other.argument_inputs_indexes_;
-    this->output_name_idx_ = other.output_name_idx_;
-    this->inputs_ = other.inputs_;
-    this->outputs_ = other.outputs_;
-    return *this;
-  }
-
  private:
   template <typename T, typename S>
   inline T GetArgumentImpl(const string &name, const ArgumentWorkspace *ws, Index idx) const;
@@ -478,6 +474,7 @@ class DLL_PUBLIC OpSpec {
   inline bool TryGetRepeatedArgumentImpl(std::vector<T> &result, const string &name) const;
 
   string name_;
+  const OpSchema *schema_ = nullptr;
   std::unordered_map<string, std::shared_ptr<Argument>> arguments_;
   std::unordered_map<string, Index> argument_inputs_;
   std::set<Index> argument_inputs_indexes_;
@@ -509,7 +506,7 @@ inline T OpSpec::GetArgumentImpl(
     return static_cast<T>(arg_it->second->template Get<S>());
   } else {
     // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const OpSchema& schema = GetSchema();
     return static_cast<T>(schema.GetDefaultValueForOptionalArgument<S>(name));
   }
 }
@@ -543,7 +540,7 @@ inline bool OpSpec::TryGetArgumentImpl(
     }
   } else {
     // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const OpSchema& schema = GetSchema();
     auto schema_val = schema.FindDefaultValue(name);
     using VT = const ValueInst<S>;
     if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {
@@ -565,7 +562,7 @@ inline std::vector<T> OpSpec::GetRepeatedArgumentImpl(const string &name) const 
     return detail::convert_vector<T>(arg_it->second->template Get<V>());
   } else {
     // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const OpSchema& schema = GetSchema();
     return detail::convert_vector<T>(schema.GetDefaultValueForOptionalArgument<V>(name));
   }
 }
@@ -583,7 +580,7 @@ inline bool OpSpec::TryGetRepeatedArgumentImpl(std::vector<T> &result, const str
     }
   } else {
     // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const OpSchema& schema = GetSchema();
     auto schema_val = schema.FindDefaultValue(name);
     using VT = const ValueInst<V>;
     if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {

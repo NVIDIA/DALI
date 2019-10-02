@@ -32,6 +32,7 @@ random amount bounded by half of `nDegree` parameter
     .AddOptionalArg("nDegree",
         R"code(Each pixel is moved by a random amount in range `[-nDegree/2, nDegree/2]`.)code",
         2)
+    .InputLayout(0, "HWC")
     .AddParent("DisplacementFilter");
 
 }  // namespace dali

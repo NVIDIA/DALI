@@ -42,7 +42,7 @@ Enums
    :members:
    :undoc-members:
 
-.. autoclass:: nvidia.dali.types.DALITensorLayout
+.. autoclass:: nvidia.dali.types.TensorLayout
    :members:
    :undoc-members:
 

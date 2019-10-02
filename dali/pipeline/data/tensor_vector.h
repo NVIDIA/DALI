@@ -148,7 +148,8 @@ class TensorVector {
     return type_;
   }
 
-  inline void SetLayout(DALITensorLayout layout) {
+  /** @brief Set uniform layout for all samples in the list */
+  inline void SetLayout(const TensorLayout &layout) {
     if (state_ == State::noncontiguous) {
       DALI_ENFORCE(!tensors_.empty(), "Layout cannot be set uniformly for empty batch");
     }
@@ -158,14 +159,14 @@ class TensorVector {
     }
   }
 
-  inline DALITensorLayout GetLayout() const {
+  inline TensorLayout GetLayout() const {
     if (state_ == State::contiguous) {
       return tl_->GetLayout();
     }
     if (tensors_.size() > 0) {
       return tensors_[0]->GetLayout();
     }
-    return DALITensorLayout::DALI_UNKNOWN;
+    return {};
   }
 
   inline void set_pinned(bool pinned) {
