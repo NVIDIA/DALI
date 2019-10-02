@@ -126,40 +126,8 @@ if _get_tf_minor_version() in {'13', '14'}:
   from tensorflow.python.data.ops import dataset_ops
   from tensorflow.python.data.util import structure
   import functools
-  class _DALIDatasetV2(dataset_ops.DatasetSource):
-    """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline.
 
-    Parameters
-    ----------
-    `pipeline` : `nvidia.dali.Pipeline` defining the augmentations to be performed. 
-    `batch_size` : int,
-        Batch size of the pipeline.
-    `num_threads` : int,
-        Number of CPU threads used by the pipeline.
-    `device_id` : int,
-        Id of GPU used by the pipeline.
-    `exec_separated` : bool,
-        Whether to execute the pipeline in a way that enables
-        overlapping CPU and GPU computation, typically resulting
-        in faster execution speed, but larger memory consumption.
-    `prefetch_queue_depth` : int,
-        depth of the executor queue. Deeper queue makes DALI more 
-        resistant to uneven execution time of each batch, but it also 
-        consumes more memory for internal buffers.
-        Value will be used with `exec_separated` set to False.
-    `cpu_prefetch_queue_depth` : int,
-        depth of the executor cpu queue. Deeper queue makes DALI more 
-        resistant to uneven execution time of each batch, but it also 
-        consumes more memory for internal buffers.
-        Value will be used with `exec_separated` set to True.
-    `gpu_prefetch_queue_depth` : int,
-        depth of the executor gpu queue. Deeper queue makes DALI more 
-        resistant to uneven execution time of each batch, but it also 
-        consumes more memory for internal buffers.
-        Value will be used with `exec_separated` set to True.
-    `shapes`: `List` of tuples with the expected output shapes
-    `dtypes`: `List` of `tf.DType` with the expected output types
-    """
+  class _DALIDatasetV2(dataset_ops.DatasetSource):
     def __init__(
       self,
       pipeline = '',
@@ -222,46 +190,63 @@ if _get_tf_minor_version() in {'13', '14'}:
 
 
   class DALIDataset(dataset_ops.DatasetV1Adapter):
-    """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline.
-
-    Parameters
-    ----------
-    `pipeline` : `nvidia.dali.Pipeline` defining the augmentations to be performed. 
-    `batch_size` : int,
-        Batch size of the pipeline.
-    `num_threads` : int,
-        Number of CPU threads used by the pipeline.
-    `device_id` : int,
-        Id of GPU used by the pipeline.
-    `exec_separated` : bool,
-        Whether to execute the pipeline in a way that enables
-        overlapping CPU and GPU computation, typically resulting
-        in faster execution speed, but larger memory consumption.
-    `prefetch_queue_depth` : int,
-        depth of the executor queue. Deeper queue makes DALI more 
-        resistant to uneven execution time of each batch, but it also 
-        consumes more memory for internal buffers.
-        Value will be used with `exec_separated` set to False.
-    `cpu_prefetch_queue_depth` : int,
-        depth of the executor cpu queue. Deeper queue makes DALI more 
-        resistant to uneven execution time of each batch, but it also 
-        consumes more memory for internal buffers.
-        Value will be used with `exec_separated` set to True.
-    `gpu_prefetch_queue_depth` : int,
-        depth of the executor gpu queue. Deeper queue makes DALI more 
-        resistant to uneven execution time of each batch, but it also 
-        consumes more memory for internal buffers.
-        Value will be used with `exec_separated` set to True.
-    `shapes`: `List` of tuples with the expected output shapes
-    `dtypes`: `List` of `tf.DType` with the expected output types
-    """
-
-
     @functools.wraps(_DALIDatasetV2.__init__)
     def __init__(self, **kwargs):
       wrapped = _DALIDatasetV2(**kwargs)
       super(DALIDataset, self).__init__(wrapped)
 
+else:
+  class DALIDataset:
+    def __init__(
+      self,
+      pipeline = '',
+      batch_size = 1,
+      num_threads = 4,
+      device_id = 0,
+      exec_separated = False,
+      prefetch_queue_depth = 2,
+      cpu_prefetch_queue_depth = 2,
+      gpu_prefetch_queue_depth = 2,
+      shapes = [], 
+      dtypes = []):
+      raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.')
+
+DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline.
+
+    Parameters
+    ----------
+    `pipeline` : `nvidia.dali.Pipeline` 
+        defining the augmentations to be performed. 
+    `batch_size` : int
+        batch size of the pipeline.
+    `num_threads` : int,
+        number of CPU threads used by the pipeline.
+    `device_id` : int
+        id of GPU used by the pipeline.
+    `exec_separated` : bool
+        Whether to execute the pipeline in a way that enables
+        overlapping CPU and GPU computation, typically resulting
+        in faster execution speed, but larger memory consumption.
+    `prefetch_queue_depth` : int
+        depth of the executor queue. Deeper queue makes DALI more 
+        resistant to uneven execution time of each batch, but it also 
+        consumes more memory for internal buffers.
+        Value will be used with `exec_separated` set to False.
+    `cpu_prefetch_queue_depth` : int
+        depth of the executor cpu queue. Deeper queue makes DALI more 
+        resistant to uneven execution time of each batch, but it also 
+        consumes more memory for internal buffers.
+        Value will be used with `exec_separated` set to True.
+    `gpu_prefetch_queue_depth` : int
+        depth of the executor gpu queue. Deeper queue makes DALI more 
+        resistant to uneven execution time of each batch, but it also 
+        consumes more memory for internal buffers.
+        Value will be used with `exec_separated` set to True.
+    `shapes`: `List` of tuples 
+        expected output shapes
+    `dtypes`: `List` of `tf.DType` 
+        expected output types
+    """
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
 DALIRawIterator.__doc__ = _dali_tf.__doc__
