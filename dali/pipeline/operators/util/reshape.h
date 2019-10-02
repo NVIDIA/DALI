@@ -30,7 +30,11 @@ class Reshape : public Operator<Backend> {
 
   explicit Reshape(const OpSpec &spec_);
 
-  bool CanInferOutputs() const override { return false; }
+  bool CanInferOutputs() const override {
+    // Return false, because we specifically don't want the executor to allocate
+    // the storage for the output - even though we can infer the shape.
+    return false;
+  }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 

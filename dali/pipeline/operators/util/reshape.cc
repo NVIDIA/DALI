@@ -73,6 +73,8 @@ bool Reshape<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
   CalculateOutputShape(ws);
   output_desc[0].type = ws.template InputRef<Backend>(0).type();
   output_desc[0].shape = output_shape_;
+  // return false, because we don't want the executor to allocate anything
+  // - this operator returns pointer to input memory
   return false;
 }
 
@@ -97,12 +99,12 @@ void Reshape<Backend>::ShapeFromInput(
     int sample_dim;
     for (int i = 0; i < N; i++) {
       int current_sample_dim = shape.tensor_shape_span(i)[0];
-      if (i) {
-        DALI_ENFORCE(current_sample_dim == sample_dim,
-          "Reshape: all samples must have the same number of dimensions");
-      } else {
+      if (i == 0) {
         sample_dim = current_sample_dim;
         output_shape_.resize(N, sample_dim);
+      } else {
+        DALI_ENFORCE(current_sample_dim == sample_dim,
+          "Reshape: all samples must have the same number of dimensions");
       }
 
       for (int d = 0; d < sample_dim; d++) {
@@ -150,7 +152,10 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
     auto actual_volume = volume(input_shape_.tensor_shape_span(i));
     auto requested_volume = volume(output_shape_.tensor_shape_span(i));
     DALI_ENFORCE(actual_volume == requested_volume,
-      "Input and output samples should have the same number of elements");
+      "Reshape: Input and output samples should have the same number of elements."
+      "\nSample index:     " + to_string(i) +
+      "\nActual volume:    " + to_string(actual_volume) +
+      "\nRequested volume: " + to_string(requested_volume));
   }
 }
 
@@ -158,7 +163,8 @@ template <typename Backend>
 TensorLayout Reshape<Backend>::GetOutputLayout(const Workspace &ws) const {
   if (!layout_.empty()) {
     DALI_ENFORCE(output_shape_.sample_dim() == layout_.ndim(), "Reshape: requested layout '" +
-      layout_.str() + "' not compatible with " + to_string(output_shape_.sample_dim()) + "D shape");
+      layout_.str() + "' is not compatible with a " +
+      to_string(output_shape_.sample_dim()) + "D shape");
     return layout_;
   }
   auto in_layout = this->InputLayout(ws, 0);
@@ -169,7 +175,10 @@ template <>
 void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &out = ws.OutputRef<CPUBackend>(0);
   auto &in = ws.InputRef<CPUBackend>(0);
+  TensorLayout layout = GetOutputLayout(ws);
   out.Resize(output_shape_);
+  // the output TensorVector no longer consists of views at its
+  // internal TensorList - even if it's otherwise contiguous
   out.SetContiguous(false);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
@@ -177,18 +186,21 @@ void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
     out[i].Resize(output_shape_[i]);
     assert(out[i].raw_data() == in[i].raw_data());
   }
+  out.SetLayout(layout);
 }
 
 template <>
 void Reshape<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &out = ws.OutputRef<GPUBackend>(0);
   auto &in = ws.InputRef<GPUBackend>(0);
+  TensorLayout layout = GetOutputLayout(ws);
   out.ShareData(&in);
   out.Resize(output_shape_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
     assert(out.raw_tensor(i) == in.raw_tensor(i));
   }
+  out.SetLayout(layout);
 }
 
 DALI_REGISTER_OPERATOR(Reshape, Reshape<CPUBackend>, CPU);

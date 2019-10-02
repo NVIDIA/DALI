@@ -95,6 +95,10 @@ class TensorVector {
     return tensors_.size();
   }
 
+  size_t ntensor() const noexcept {
+    return tensors_.size();
+  }
+
   kernels::TensorListShape<> shape() const {
     if (state_ == State::contiguous) {
       return tl_->shape();
@@ -167,6 +171,14 @@ class TensorVector {
       return tensors_[0]->GetLayout();
     }
     return {};
+  }
+
+  inline const DALIMeta &GetMeta(int idx) const {
+    return tensors_[idx]->GetMeta();
+  }
+
+  inline void SetMeta(int idx, const DALIMeta &meta) {
+    tensors_[idx]->SetMeta(meta);
   }
 
   inline void set_pinned(bool pinned) {

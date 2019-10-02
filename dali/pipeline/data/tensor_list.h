@@ -467,6 +467,14 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     return meta_[idx].ShouldSkipSample();
   }
 
+  inline const DALIMeta &GetMeta(int idx) const {
+    return meta_[idx];
+  }
+
+  inline void SetMeta(int idx, const DALIMeta &meta) {
+    meta_[idx] = meta;
+  }
+
  protected:
   // We store a set of dimension for each tensor in the list.
   // We also pre-compute the offsets of each tensor in the

@@ -23,46 +23,52 @@ class ReshapePipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.resize = ops.Resize(device = "cpu", resize_x = 224, resize_y = 224);
-        self.reshape = ops.Reshape(device = device, shape = (224, 224 * 3));
+        self.reshape = ops.Reshape(device = device, shape = (224, 224 * 3), layout = "ab");
 
     def define_graph(self):
         jpegs, labels = self.input(name = "Reader")
         images = self.resize(self.decode(jpegs))
         if self.device == "gpu":
           images = images.gpu()
-          reshaped = self.reshape(images)
-        else:
-          reshaped = self.reshape(images)
+        reshaped = self.reshape(images)
 
         return [images, reshaped]
 
+def verify_tensor_layouts(imgs, reshaped):
+  assert imgs.layout() == "HWC"
+  assert reshaped.layout() == "ab"
+  for i in range(len(imgs)):
+    assert imgs.at(i).layout() == "HWC"
+    assert reshaped.at(i).layout() == "ab"
+
 def verify(imgs, reshaped):
+  assert imgs.layout() == "HWC"
+  assert reshaped.layout() == "ab"
   for i in range(len(imgs)):
     assert imgs.at(i).shape == (224, 224, 3)
     assert reshaped.at(i).shape == (224, 224 * 3)
     assert_array_equal(imgs.at(i).flatten(), reshaped.at(i).flatten())
 
 
-def test_gpu():
-  pipe = ReshapePipeline("gpu", 16)
+def check_reshape(device, batch_size):
+  pipe = ReshapePipeline(device, batch_size)
   pipe.build()
   for iter in range(10):
     imgs, reshaped = pipe.run()
-    imgs_cpu = imgs.as_cpu()
-    reshaped_cpu = reshaped.as_cpu()
-    verify(imgs_cpu, reshaped_cpu)
+    if device == "gpu":
+      verify_tensor_layouts(imgs, reshaped)
+      imgs = imgs.as_cpu()
+      reshaped = reshaped.as_cpu()
+    verify(imgs, reshaped)
 
-def test_cpu():
-  pipe = ReshapePipeline("cpu", 16)
-  pipe.build()
-  for iter in range(10):
-    imgs_cpu, reshaped_cpu = pipe.run()
-    verify(imgs_cpu, reshaped_cpu)
+def test_reshape():
+  for device in ["cpu", "gpu"]:
+    for batch_size in [16]:
+      yield check_reshape, device, batch_size
 
 def main():
-  test_gpu()
-  test_cpu()
-
+  for test in test_reshape():
+    test[0](*test[1:])
 
 if __name__ == '__main__':
   main()

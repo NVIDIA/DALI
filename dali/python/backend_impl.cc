@@ -70,13 +70,26 @@ static string TensorLayoutRepr(const TensorLayout &tl) {
 }
 
 void ExposeTensorLayout(py::module &m) {
-  py::class_<TensorLayout>(m, "TensorLayout")
+  auto &tl = py::class_<TensorLayout>(m, "TensorLayout")
   .def(py::init([](string s) {
     return new TensorLayout(s);
   }))
   .def("__str__", &TensorLayout::str)
   .def("__repr__", TensorLayoutRepr)
   .def("__len__", &TensorLayout::ndim);
+  #define DEFINE_LAYOUT_CMP(name, expr)\
+    tl.def("__" #name "__", [](const TensorLayout &self, const TensorLayout *other) {\
+      return expr;\
+    })\
+    .def("__" #name "__", [](const TensorLayout &self, const string *other) {\
+      return expr;\
+    })
+  DEFINE_LAYOUT_CMP(eq, other  && self == *other);
+  DEFINE_LAYOUT_CMP(ne, !other && self != *other);  // null is not equal to non-null
+  DEFINE_LAYOUT_CMP(lt, !other && self <  *other);  // null precedes non-null
+  DEFINE_LAYOUT_CMP(gt, other  && self >  *other);
+  DEFINE_LAYOUT_CMP(le, !other && self <= *other);
+  DEFINE_LAYOUT_CMP(ge, other  && self >= *other);
 }
 
 void ExposeTensor(py::module &m) {
@@ -144,6 +157,7 @@ void ExposeTensor(py::module &m) {
          R"code(
          Remove single-dimensional entries from the shape of the Tensor.
          )code")
+    .def("layout", &Tensor<CPUBackend>::GetLayout)
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
           CopyToExternalTensor(t, ctypes_void_ptr(p), CPU, 0, false);
@@ -170,6 +184,7 @@ void ExposeTensor(py::module &m) {
          R"code(
          Shape of the tensor.
          )code")
+    .def("layout", &Tensor<GPUBackend>::GetLayout)
     .def("squeeze", &Tensor<GPUBackend>::Squeeze,
          R"code(
          Remove single-dimensional entries from the shape of the Tensor.
@@ -253,6 +268,7 @@ void ExposeTensorList(py::module &m) {
       b : the buffer to wrap into the TensorListCPU object
       layout : the layout description
       )code")
+    .def("layout", &TensorList<CPUBackend>::GetLayout)
     .def("at", [](TensorList<CPUBackend> &t, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
@@ -449,6 +465,7 @@ void ExposeTensorList(py::module &m) {
       ----------
       )code",
       py::keep_alive<0, 1>())
+    .def("layout", &TensorList<GPUBackend>::GetLayout)
     .def("as_reshaped_tensor",
         [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<GPUBackend>* {
           return tl.AsReshapedTensor(new_shape);
