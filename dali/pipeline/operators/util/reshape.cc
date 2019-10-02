@@ -57,8 +57,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
       }
       shape_source_ = ShapeSource::Arg;
     }
-  }
-  if (has_shape_input) {
+  } else if (has_shape_input) {
     DALI_ENFORCE(spec.InputDevice(1) == "cpu", "Output shapes must be provided as a CPU input");
     shape_source_ = ShapeSource::Input;
   }

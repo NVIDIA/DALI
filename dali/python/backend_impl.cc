@@ -77,7 +77,7 @@ void ExposeTensorLayout(py::module &m) {
   .def("__str__", &TensorLayout::str)
   .def("__repr__", TensorLayoutRepr)
   .def("__len__", &TensorLayout::ndim);
-  #define DEFINE_LAYOUT_CMP(name, expr)\
+#define DEFINE_LAYOUT_CMP(name, expr)\
     tl.def("__" #name "__", [](const TensorLayout &self, const TensorLayout *other) {\
       return expr;\
     })\
@@ -90,6 +90,7 @@ void ExposeTensorLayout(py::module &m) {
   DEFINE_LAYOUT_CMP(gt, other  && self >  *other);
   DEFINE_LAYOUT_CMP(le, !other && self <= *other);
   DEFINE_LAYOUT_CMP(ge, other  && self >= *other);
+#undef DEFINE_LAYOUT_CMP
 }
 
 void ExposeTensor(py::module &m) {

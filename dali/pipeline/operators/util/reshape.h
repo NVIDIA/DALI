@@ -44,12 +44,16 @@ class Reshape : public Operator<Backend> {
   kernels::TensorListShape<> input_shape_, output_shape_;
   kernels::TensorShape<> uniform_shape_;
   TensorLayout layout_;
+
   enum class ShapeSource {
     None,
     Input,
     Arg,
     ArgInput
-  } shape_source_ = ShapeSource::None;
+  };
+
+  ShapeSource shape_source_ = ShapeSource::None;
+
   void CalculateOutputShape(const Workspace &ws);
 
   template <typename TensorListLike>
