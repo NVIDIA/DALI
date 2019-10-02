@@ -62,7 +62,8 @@ DLL_PUBLIC void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs)
  * Unsupported extensions and empty files are discarded
  */
 DLL_PUBLIC std::vector<std::string> ImageList(const std::string& image_folder,
-                                              const std::vector<std::string> &supported_extensions);
+                                              const std::vector<std::string> &supported_extensions,
+                                              const int max_images = INT_MAX);
 
 /**
  * @brief Writes the input image as a ppm file

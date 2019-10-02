@@ -85,10 +85,12 @@ void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
 }
 
 std::vector<std::string> ImageList(const std::string& image_folder,
-                                   const std::vector<std::string> &supported_extensions) {
+                                   const std::vector<std::string> &supported_extensions,
+                                   const int max_images) {
   std::vector<std::string> image_names;
   const string image_list = image_folder + "/image_list.txt";
   std::ifstream file(image_list);
+  int loaded_images = 0;
   if (file.is_open()) {
     std::string filename;
     while (file >> filename) {
@@ -96,6 +98,10 @@ std::vector<std::string> ImageList(const std::string& image_folder,
       std::string full_path = image_folder + "/" + filename;
       if (is_supported_extension(filename, supported_extensions) && !is_empty_file(full_path)) {
         image_names.push_back(full_path);
+        ++loaded_images;
+        if (loaded_images >= max_images) {
+          break;
+        }
       }
     }
     return image_names;
