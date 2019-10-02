@@ -133,6 +133,22 @@ operator!=(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateTyp
   return lhs.lo != rhs.lo || lhs.hi != rhs.hi;
 }
 
+
+template <int ndims, typename CoordinateType>
+std::ostream &operator<<(std::ostream &os, const Box<ndims, CoordinateType> &box) {
+  auto print_corner = [&os](const typename Box<ndims, CoordinateType>::corner_t &c) {
+      for (size_t i = 0; i < ndims; i++)
+        os << (i ? ", " : "(") << c[i];
+      os << ")";
+  };
+  os << "{";
+  print_corner(box.lo);
+  os << ", ";
+  print_corner(box.hi);
+  os << "}";
+  return os;
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_GEOM_BOX_H_

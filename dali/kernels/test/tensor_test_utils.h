@@ -25,15 +25,29 @@
 #include "dali/kernels/tensor_shape_print.h"
 #include "dali/kernels/backend_tags.h"
 #include "dali/core/util.h"
+#include "dali/core/convert.h"
 
 namespace dali {
 namespace kernels {
 
 namespace detail {
 static constexpr int DefaultMaxErrors = 100;
+
+
 }  // namespace detail
 
 // COMPARISON
+
+template <typename Output, typename Reference>
+bool IsEqWithConvert(Output out, Reference ref, int ulp = 4) {
+  for (int i = 0; i <= ulp; i++) {
+    if (dali::ConvertSat<Output>(ref) == out)
+      return true;
+    ref = std::nextafter(ref, static_cast<Reference>(out));
+  }
+  return false;
+}
+
 
 template <int dim1, int dim2>
 void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2, int &max_errors) {
@@ -73,9 +87,12 @@ void CheckEqual(const TensorListShape<dim1> &s1, const TensorListShape<dim2> &s2
 template <typename T>
 T printable(T t) { return t; }
 
+
 inline int printable(char c) { return c; }
 
+
 inline int printable(signed char c) { return c; }
+
 
 inline int printable(unsigned char c) { return c; }
 
@@ -99,10 +116,7 @@ void Check(const TensorView<StorageBackend, T1, dim1> &tv1,
   for (ptrdiff_t i = 0; i < n; i++) {
     if (!eq(tv1.data[i], tv2.data[i])) {
       if (errors++ < max_errors) {
-        EXPECT_TRUE(eq(tv1.data[i], tv2.data[i]))
-                      << "Failed at offset " << i << ", pos = " << pos
-                      << " tv1[" << i << "] = " << printable(tv1.data[i])
-                      << " tv2[" << i << "] = " << printable(tv2.data[i]);
+        EXPECT_PRED2(eq, tv1.data[i], tv2.data[i]) << "Failed at index " << i << ", pos = " << pos;
       }
     }
 
@@ -132,20 +146,32 @@ struct Equal {
   }
 };
 
+
 struct EqualEps {
   EqualEps() = default;
 
-
   explicit EqualEps(double eps) : eps(eps) {}
-
 
   template <typename T1, typename T2>
   bool operator()(const T1 &a, const T2 &b) const {
     return std::abs(b - a) <= eps;
   }
 
-
   double eps = 1e-6;
+};
+
+
+struct EqualUlp {
+  EqualUlp() = default;
+
+  explicit EqualUlp(int ulp) : ulp_(ulp) {}
+
+  template <typename Output, typename Reference>
+  bool operator()(Output out, Reference ref) {
+    return IsEqWithConvert(out, ref, ulp_);
+  }
+
+  int ulp_ = 4;
 };
 
 

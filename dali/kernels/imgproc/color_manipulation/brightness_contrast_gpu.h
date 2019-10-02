@@ -168,11 +168,11 @@ class BrightnessContrastGpu {
         return true;
     }(), "Number of channels for every image in batch must be equal");
 
-    auto adjusted_rois = AdjustRoi(rois, in.shape);
+    auto adjusted_rois = AdjustRoi(make_cspan(rois), in.shape);
     auto nchannels = in.shape[0][ndims - 1];
     KernelRequirements req;
     ScratchpadEstimator se;
-    auto sh = ShapeFromRoi(adjusted_rois, nchannels);
+    auto sh = ShapeFromRoi(make_cspan(adjusted_rois), nchannels);
     TensorListShape<spatial_dims> flattened_shape(FlattenChannels<ndims>(sh));
     block_setup_.SetupBlocks(flattened_shape, true);
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
