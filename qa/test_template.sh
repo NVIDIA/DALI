@@ -12,8 +12,7 @@ source $topdir/qa/setup_test_common.sh
 pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
-if [ -n "$gather_pip_packages" ]
-then
+if [ -n "$gather_pip_packages" ]; then
     # early exit
     return 0
 fi
@@ -39,33 +38,41 @@ epilog=${epilog-:}
 # get the number of elements in `prolog` array
 numer_of_prolog_elms=${#prolog[@]}
 
-for i in `seq 0 $last_config_index`;
-do
+for i in `seq 0 $last_config_index`; do
     echo "Test run $i"
     # seq from 0 to number of elements in `prolog` array - 1
     for variant in $(seq 0 $((${numer_of_prolog_elms}-1))); do
         ${prolog[variant]}
         echo "Test variant run: $variant"
         # install packages
-        inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
-        if [ -n "$inst" ]
-        then
-        pip install $inst -f /pip-packages
+        packages=($($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION} | tr -d '[],')))
+        packages_with_link=($($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION} --include-link | tr -d '[],')))
+        for j in `seq 0 ${#packages[@]}`; do
+            pkg = packages[i]
+            # remove single quotes ('')
+            pkg="${pkg%\'}"
+            pkg="${pkg#\'}"
 
-        # If we just installed tensorflow, we need to reinstall DALI TF plugin
-        if [[ "$inst" == *tensorflow-gpu* ]]; then
-            pip uninstall -y nvidia-dali-tf-plugin || true
-            pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
-        fi
+            pkg_with_link = packages_with_link[i]
+            # remove single quotes ('')
+            pkg_with_link="${pkg_with_link%\'}"
+            pkg_with_link="${pkg_with_link#\'}"
+
+            pip install $pkg -f /pip-packages --no-index || pip install $pkg_with_link
+
+            # If we just installed tensorflow, we need to reinstall DALI TF plugin
+            if [[ "$pkg" == *tensorflow-gpu* ]]; then
+                pip uninstall -y nvidia-dali-tf-plugin || true
+                pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
+            fi
         fi
         # test code
         test_body
 
         # remove packages
         remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
-        if [ -n "$remove" ]
-        then
-        pip uninstall -y $remove
+        if [ -n "$remove" ]; then
+            pip uninstall -y $remove
         fi
         ${epilog[variant]}
     done
