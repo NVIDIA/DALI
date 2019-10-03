@@ -18,8 +18,8 @@ def random_seed():
 
 
 DEVICE_ID = 0
-BATCH_SIZE = 8
-ITERS = 128
+BATCH_SIZE = 16
+ITERS = 1024
 SEED = random_seed()
 NUM_WORKERS = 6
 
@@ -31,7 +31,7 @@ class CommonPipeline(Pipeline):
         self.input = ops.FileReader(file_root=images_dir)
         self.decode = ops.ImageDecoder(device='mixed' if device == 'gpu' else 'cpu',
                                        output_type=types.RGB)
-        self.resize = ops.Resize(resize_x=5, resize_y=1, device=device)
+        self.resize = ops.Resize(resize_x=400, resize_y=400, device=device)
         self.flip = ops.Flip(device=device)
 
     def load(self):
