@@ -17,7 +17,6 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-// #include <dbg.h>
 
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/types.h"
@@ -37,8 +36,8 @@ TEST(ArithmeticOps, ExpressionTree) {
   ASSERT_EQ(result_ref.GetOp(), "mul");
   ASSERT_EQ(result_ref[0].GetNodeType(), NodeType::Tensor);
   ASSERT_EQ(result_ref[1].GetNodeType(), NodeType::Tensor);
-  ASSERT_EQ(dynamic_cast<ExprTensor&>(result_ref[0]).GetMappedInput(), 0);
-  ASSERT_EQ(dynamic_cast<ExprTensor&>(result_ref[1]).GetMappedInput(), 1);
+  ASSERT_EQ(dynamic_cast<ExprTensor &>(result_ref[0]).GetMappedInput(), 0);
+  ASSERT_EQ(dynamic_cast<ExprTensor &>(result_ref[1]).GetMappedInput(), 1);
 }
 
 TEST(ArithmeticOps, ExpressionTreeComplex) {
@@ -52,22 +51,22 @@ TEST(ArithmeticOps, ExpressionTreeComplex) {
   ASSERT_EQ(result_ref[0].GetSubexpressionCount(), 2);
   EXPECT_EQ(result_ref[0].GetOp(), "sub");
   ASSERT_EQ(result_ref[0][0].GetNodeType(), NodeType::Tensor);
-  EXPECT_EQ(dynamic_cast<ExprTensor&>(result_ref[0][0]).GetMappedInput(), 42);
+  EXPECT_EQ(dynamic_cast<ExprTensor &>(result_ref[0][0]).GetMappedInput(), 42);
   ASSERT_EQ(result_ref[0][1].GetNodeType(), NodeType::Tensor);
-  EXPECT_EQ(dynamic_cast<ExprTensor&>(result_ref[0][1]).GetMappedInput(), 2);
+  EXPECT_EQ(dynamic_cast<ExprTensor &>(result_ref[0][1]).GetMappedInput(), 2);
   ASSERT_EQ(result_ref[1].GetNodeType(), NodeType::Tensor);
-  EXPECT_EQ(dynamic_cast<ExprTensor&>(result_ref[1]).GetMappedInput(), 1);
+  EXPECT_EQ(dynamic_cast<ExprTensor &>(result_ref[1]).GetMappedInput(), 1);
 }
 
 TEST(ArithmeticOps, TreePropagation) {
-  std::string expr_str = "div(sub(&0 &1) $2:int8)";
+  std::string expr_str = "div(sub(&0 &1) $2:int32)";
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
   HostWorkspace ws;
   std::shared_ptr<TensorVector<CPUBackend>> in[3];
   for (auto &ptr : in) {
     ptr = std::make_shared<TensorVector<CPUBackend>>();
-    ptr->Resize({{1}});
+    ptr->Resize({{1}, {2}});
   }
   in[0]->set_type(TypeInfo::Create<uint8_t>());
   in[1]->set_type(TypeInfo::Create<int16_t>());
@@ -78,64 +77,64 @@ TEST(ArithmeticOps, TreePropagation) {
 
   auto result_type = PropagateTypes<CPUBackend>(expr_ref, ws);
   auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws);
-  // dbg(result_type);
-  // dbg(result_shape);
-  // dbg(expr_ref.GetNodeDesc());
-  // dbg(expr_ref.GetOutputDesc());
-  // dbg(expr_ref.GetNodeDesc());
-  // dbg(expr_ref.GetOutputDesc());
-  // dbg(expr_ref[0].GetNodeDesc());
-  // dbg(expr_ref[0].GetOutputDesc());
-  // dbg(expr_ref[1].GetNodeDesc());
-  // dbg(expr_ref[1].GetOutputDesc());
-  // auto &result_ref = *result;
-  // ASSERT_EQ(result_ref.GetNodeType(), NodeType::Function);
-  // ASSERT_EQ(result_ref.GetSubexpressionCount(), 2);
-  // EXPECT_EQ(result_ref.GetOp(), "div");
-  // ASSERT_EQ(result_ref[0].GetNodeType(), NodeType::Function);
-  // ASSERT_EQ(result_ref[0].GetSubexpressionCount(), 2);
-  // EXPECT_EQ(result_ref[0].GetOp(), "sub");
-  // ASSERT_EQ(result_ref[0][0].GetNodeType(), NodeType::Tensor);
-  // EXPECT_EQ(dynamic_cast<ExprTensor&>(result_ref[0][0]).GetMappedInput(), 42);
-  // ASSERT_EQ(result_ref[0][1].GetNodeType(), NodeType::Tensor);
-  // EXPECT_EQ(dynamic_cast<ExprTensor&>(result_ref[0][1]).GetMappedInput(), 2);
-  // ASSERT_EQ(result_ref[1].GetNodeType(), NodeType::Tensor);
-  // EXPECT_EQ(dynamic_cast<ExprTensor&>(result_ref[1]).GetMappedInput(), 1);
+  auto expected_shpe = kernels::TensorListShape<>{{1}, {2}};
+  EXPECT_EQ(result_type, DALIDataType::DALI_INT32);
+  EXPECT_EQ(result_shape, expected_shpe);
+  EXPECT_EQ(expr_ref.GetNodeDesc(), "div:T:int32(FT:int16 CC:int32)");
+  EXPECT_EQ(expr_ref.GetOutputDesc(), "FT:int32");
+  EXPECT_EQ(expr_ref.GetNodeDesc(), "div:T:int32(FT:int16 CC:int32)");
+  EXPECT_EQ(expr_ref.GetOutputDesc(), "FT:int32");
+  EXPECT_EQ(expr_ref[0].GetNodeDesc(), "sub:T:int16(TT:uint8 TT:int16)");
+  EXPECT_EQ(expr_ref[0].GetOutputDesc(), "FT:int16");
+  EXPECT_EQ(expr_ref[1].GetNodeDesc(), "CC:int32");
+  EXPECT_EQ(expr_ref[1].GetOutputDesc(), "CC:int32");
 }
 
-
-
 // namespace {
-//   bool operator==(const SampleExtent &l, const SampleExtent &r) {
-//     return l.extent_idx == r.extent_idx && l.extent_size == l.extent_size &&
-//            l.sample_idx == r.sample_idx && l.task_idx == r.task_idx;
-//   }
+
+inline bool operator==(const TileDesc &l, const TileDesc &r) {
+  return l.sample_idx == r.sample_idx && l.extent_idx == r.extent_idx && l.task_idx == r.task_idx &&
+         l.extent_size == r.extent_size && l.tile_size == r.tile_size;
+}
+
+inline bool operator==(const TileRange &l, const TileRange &r) {
+  return l.begin == r.begin && l.end == r.end;
+}
+
 // }  // namespace
 
 TEST(ArithmeticOps, GetTiledCover) {
   kernels::TensorListShape<> shape0({{150}, {50}, {150}, {30}});
   auto result0 = GetTiledCover(shape0, 50, 2);
-  std::vector<TileDesc> cover0 = {{0, 0, 0, 50}, {0, 1, 0, 50}, {0, 2, 0, 50}, {1, 0, 0, 50},
-                                      {2, 0, 1, 50}, {2, 1, 1, 50}, {2, 2, 1, 50}, {3, 0, 1, 30}};
-  // dbg(std::get<0>(result0));
-  // EXPECT_EQ(cover0, result0);
+  std::vector<TileDesc> cover0 = {{0, 0, 0, 50, 50}, {0, 1, 0, 50, 50}, {0, 2, 0, 50, 50},
+                                  {1, 0, 0, 50, 50}, {2, 0, 1, 50, 50}, {2, 1, 1, 50, 50},
+                                  {2, 2, 1, 50, 50}, {3, 0, 1, 30, 50}};
+  std::vector<TileRange> range0 = {{0, 4}, {4, 8}};
+  EXPECT_EQ(std::get<0>(result0), cover0);
+  EXPECT_EQ(std::get<1>(result0), range0);
 
   kernels::TensorListShape<> shape1({{42}, {75}, {42}, {121}});
   auto result1 = GetTiledCover(shape1, 50, 2);
-  std::vector<TileDesc> cover1 = {{0, 0, 0, 42}, {1, 0, 0, 50}, {1, 1, 0, 25}, {2, 0, 0, 42},
-                                      {3, 0, 1, 50}, {3, 1, 1, 50}, {3, 2, 1, 21}};
-  // dbg(std::get<0>(result1));
-  // EXPECT_EQ(cover1, result1);
+  std::vector<TileDesc> cover1 = {{0, 0, 0, 42, 50}, {1, 0, 0, 50, 50}, {1, 1, 0, 25, 50},
+                                  {2, 0, 0, 42, 50}, {3, 0, 1, 50, 50}, {3, 1, 1, 50, 50},
+                                  {3, 2, 1, 21, 50}};
+  std::vector<TileRange> range1 = {{0, 4}, {4, 7}};
+  EXPECT_EQ(std::get<0>(result1), cover1);
+  EXPECT_EQ(std::get<1>(result1), range1);
 
   auto result2 = GetCover(shape0, 2);
-  std::vector<TileDesc> cover2 = {{0, 0, 0, 150}, {1, 0, 0, 50}, {2, 0, 1, 150}, {3, 0, 1, 30}};
-  // dbg(std::get<0>(result2));
-  //  EXPECT_EQ(cover2, result2);
+  std::vector<TileDesc> cover2 = {
+      {0, 0, 0, 150, 150}, {1, 0, 0, 50, 50}, {2, 0, 1, 150, 150}, {3, 0, 1, 30, 30}};
+  std::vector<TileRange> range2 = {{0, 2}, {2, 4}};
+  EXPECT_EQ(std::get<0>(result2), cover2);
+  EXPECT_EQ(std::get<1>(result2), range2);
 
   auto result3 = GetCover(shape1, 2);
-  std::vector<TileDesc> cover3 = {{0, 0, 0, 42}, {1, 0, 0, 75}, {2, 0, 1, 42}, {3, 0, 1, 121}};
-  // dbg(std::get<0>(result3));
-  //  EXPECT_EQ(cover3, result3);
+  std::vector<TileDesc> cover3 = {
+      {0, 0, 0, 42, 42}, {1, 0, 0, 75, 75}, {2, 0, 1, 42, 42}, {3, 0, 1, 121, 121}};
+  std::vector<TileRange> range3 = {{0, 2}, {2, 4}};
+  EXPECT_EQ(std::get<0>(result3), cover3);
+  EXPECT_EQ(std::get<1>(result3), range3);
 }
 
 template <typename T>
@@ -145,17 +144,16 @@ template <typename Backend, typename T>
 class BinaryArithmeticOpTest
     : public ::testing::TestWithParam<std::tuple<std::string, bin_op_pointer<T>>> {
  protected:
-  static constexpr int batch_size = 16;
   static constexpr int num_threads = 4;
-  static constexpr int tensor_elements = 16;
 
-  void TestFunction() {
+  void TestFunction(const kernels::TensorListShape<> &shape) {
     auto backend = testing::detail::BackendStringName<Backend>();
 
     auto param = this->GetParam();
     auto expression_desc = std::get<0>(param) + "(&0 &1)";
     auto result_fun = std::get<1>(param);
-    Pipeline pipe(batch_size, num_threads, 0);
+
+    Pipeline pipe(shape.num_samples(), num_threads, 0);
 
     pipe.AddExternalInput("data0");
     pipe.AddExternalInput("data1");
@@ -172,9 +170,7 @@ class BinaryArithmeticOpTest
     pipe.Build(outputs);
 
     TensorList<CPUBackend> batch[2];
-    kernels::TensorListShape<> shape{{32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323}, {32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323}};
     for (auto &b : batch) {
-      // b.Resize(kernels::uniform_list_shape(batch_size, {tensor_elements}));
       b.Resize(shape);
       b.set_type(TypeInfo::Create<T>());
       for (int i = 0; i < shape.num_samples(); i++) {
@@ -196,20 +192,25 @@ class BinaryArithmeticOpTest
     vector<T> result_cpu(shape.num_elements());
     MemCopy(result_cpu.data(), result, shape.num_elements() * sizeof(T));
 
-    // for (int i = 0; i < shape.num_elements(); i++) {
-    //   EXPECT_EQ(result_cpu[i],
-    //             result_fun(batch[0].template data<T>()[i], batch[1].template data<T>()[i])) << " difference at position " << i;
-    // }
-
     int64_t offset = 0;
     for (int i = 0; i < shape.num_samples(); i++) {
       for (int j = 0; j < shape[i].num_elements(); j++) {
         ASSERT_EQ(result_cpu[offset + j],
                   result_fun(batch[0].template tensor<T>(i)[j], batch[1].template tensor<T>(i)[j]))
-                   << " difference at sample: " << i << ", element: " << j;
+            << " difference at sample: " << i << ", element: " << j;
       }
       offset += shape[i].num_elements();
     }
+  }
+
+  void TestFunction() {
+    kernels::TensorListShape<> shape0{{32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323},
+                                      {32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323}};
+
+    kernels::TensorListShape<> shape1{{1024, 768}, {4096, 1440}, {2435, 33},
+                                      {17, 696},   {42, 42},     {1, 1}};
+    TestFunction(shape0);
+    TestFunction(shape1);
   }
 
   template <typename S>

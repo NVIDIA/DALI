@@ -241,7 +241,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
   std::vector<ExpressionImplTask> exec_order_;
   ExprImplCache cache_;
   int num_tasks_;
-  static constexpr int kExtent = 1024;
+  static constexpr int kExtent = std::is_same<Backend, CPUBackend>::value ? 1024 : 16384;
   USE_OPERATOR_MEMBERS();
 };
 
