@@ -162,16 +162,6 @@ Transpose<GPUBackend>::~Transpose() noexcept {
   }
 }
 
-inline kernels::TensorShape<> GetPermutedDims(const kernels::TensorShape<>& dims,
-                                              const std::vector<int>& permutation) {
-  kernels::TensorShape<> permuted_dims;
-  permuted_dims.resize(permutation.size());
-  for (size_t i = 0; i < permutation.size(); i++) {
-    auto idx = permutation[i];
-    permuted_dims[i] = dims[idx];
-  }
-  return permuted_dims;
-}
 
 template<>
 void Transpose<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
@@ -199,7 +189,7 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     } else {
       previous_iter_shape_ = input_shape;
     }
-    auto permuted_dims = GetPermutedDims(input_shape, perm_);
+    auto permuted_dims = detail::Permute(input_shape, perm_);
     output.Resize(kernels::uniform_list_shape(batch_size_, permuted_dims));
     if (itype.size() == 1) {
       kernel::cuTTKernelBatched<uint8_t>(input, output, perm_, &cutt_handle_, ws.stream());
@@ -214,7 +204,7 @@ void Transpose<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     std::vector<kernels::TensorShape<>> tl_shape;
     for (int i = 0; i < batch_size_; ++i) {
       auto in_shape = input.tensor_shape(i);
-      tl_shape.emplace_back(GetPermutedDims(in_shape, perm_));
+      tl_shape.emplace_back(detail::Permute(in_shape, perm_));
     }
     output.Resize(tl_shape);
     if (itype.size() == 1) {

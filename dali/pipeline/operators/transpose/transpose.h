@@ -24,6 +24,21 @@
 
 namespace dali {
 
+namespace detail {
+
+template <typename T>
+T Permute(const T& in, const std::vector<int>& permutation) {
+  T out = in;
+  for (size_t i = 0; i < permutation.size(); i++) {
+    auto idx = permutation[i];
+    out[i] = in[idx];
+  }
+  return out;
+}
+
+}  // namespace detail
+
+
 template <typename Backend>
 class Transpose : public Operator<Backend> {
  public:
@@ -57,9 +72,7 @@ class Transpose : public Operator<Backend> {
     if (!output_layout_arg_.empty()) {
       output_layout_ = output_layout_arg_;
     } else if (transpose_layout_) {
-      for (int d = 0; d < in_layout.ndim(); d++) {
-        output_layout_[d] = in_layout[perm_[d]];
-      }
+      output_layout_ = detail::Permute(in_layout, perm_);
     }
     return false;
   }
