@@ -52,7 +52,7 @@ class Transpose : public Operator<Backend> {
         "Providing an empty output layout is not supported");
     }
 
-    DALI_ENFORCE(
+    auto check_permutation =
       [](std::vector<int> perm) {
         std::sort(perm.begin(), perm.end());
         for (int i = 0; i < static_cast<int>(perm.size()); ++i) {
@@ -61,8 +61,11 @@ class Transpose : public Operator<Backend> {
           }
         }
         return true;
-      }(perm_), "Invalid permutation: sorted `perm` is not equal to [0, ..., n-1].");
-    }
+      };
+
+    DALI_ENFORCE(check_permutation(perm_),
+      "Invalid permutation: sorted `perm` is not equal to [0, ..., n-1].");
+  }
 
   ~Transpose() override;
 
@@ -73,11 +76,11 @@ class Transpose : public Operator<Backend> {
                  const workspace_t<Backend> &ws) override {
     const auto &input = ws.template Input<Backend>(0);
     auto in_layout = input.GetLayout();
-    auto sample_ndims = input.shape().sample_dim();
-    DALI_ENFORCE(in_layout.ndim() == sample_ndims || in_layout.empty());
+    auto sample_ndim = input.shape().sample_dim();
+    DALI_ENFORCE(in_layout.ndim() == sample_ndim || in_layout.empty());
     output_layout_ = in_layout;
     if (!output_layout_arg_.empty()) {
-      DALI_ENFORCE(output_layout_.ndim() == sample_ndims);
+      DALI_ENFORCE(output_layout_.ndim() == sample_ndim);
       output_layout_ = output_layout_arg_;
     } else if (transpose_layout_ && !in_layout.empty()) {
       output_layout_ = detail::Permute(in_layout, perm_);
