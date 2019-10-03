@@ -41,9 +41,9 @@ def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 220, crop
     assert H >= crop_h
     assert W >= crop_w
 
-    start_y = int(np.round(np.float32(crop_y) * np.float32(H - crop_h)))
+    start_y = int(np.float32(crop_y) * np.float32(H - crop_h) + np.float32(0.5))
     end_y = start_y + crop_h
-    start_x = int(np.round(np.float32(crop_x) * np.float32(W - crop_w)))
+    start_x = int(np.float32(crop_x) * np.float32(W - crop_w) + np.float32(0.5))
     end_x = start_x + crop_w
 
     if layout == types.NFHWC:
