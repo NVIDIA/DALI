@@ -184,6 +184,9 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     // If the other tensor has a non-zero size allocation, mark that
     // we are now sharing an allocation with another buffer
     shares_data_ = num_bytes_ > 0 ? true : false;
+
+    // copy metadata
+    meta_ = other->meta_;
   }
 
   /**
@@ -465,6 +468,14 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
 
   inline bool ShouldSkipSample(int idx) const {
     return meta_[idx].ShouldSkipSample();
+  }
+
+  inline const DALIMeta &GetMeta(int idx) const {
+    return meta_[idx];
+  }
+
+  inline void SetMeta(int idx, const DALIMeta &meta) {
+    meta_[idx] = meta;
   }
 
  protected:
