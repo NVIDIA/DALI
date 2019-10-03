@@ -23,5 +23,13 @@ DALI_SCHEMA(Transpose)
   .AllowSequences()
   .AddArg("perm",
       R"code(Permutation of the dimensions of the input (e.g. [2, 0, 1]).)code",
-      DALI_INT_VEC);
+      DALI_INT_VEC)
+  .AddOptionalArg("transpose_layout",
+      R"code(When set to true, the output data layout will be transposed according to perm.
+Otherwise, the input layout is copied to the output)code",
+      true)
+  .AddOptionalArg("output_layout",
+      R"code(If provided, sets output data layout, overriding any `transpose_layout` setting)code",
+      "");
+
 }  // namespace dali
