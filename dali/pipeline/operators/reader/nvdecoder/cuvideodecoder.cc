@@ -202,8 +202,11 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
         ss << "Unsupported Codec " << GetVideoCodecString(format->codec)
             << " with chroma format "
             << GetVideoChromaFormatString(format->chroma_format);
-        DALI_FAIL(ss.str());
+        DALI_WARN(ss.str());
+        throw unsupported_exception("Decoder hardware does not support this video codec"
+                                    " and/or chroma format");
     }
+
     caps_ = caps;
     LOG_LINE << "NVDEC Capabilities" << std::endl
         << "\tMax width : " << caps.nMaxWidth << std::endl
