@@ -47,6 +47,11 @@ class Transpose : public Operator<Backend> {
       , perm_(spec.GetRepeatedArgument<int>("perm"))
       , transpose_layout_(spec.GetArgument<bool>("transpose_layout"))
       , output_layout_arg_(spec.GetArgument<TensorLayout>("output_layout")) {
+    if (spec.HasArgument("output_layout")) {
+      DALI_ENFORCE(!output_layout_arg_.empty(),
+        "Providing an empty output layout is not supported");
+    }
+
     DALI_ENFORCE(
       [](std::vector<int> perm) {
         std::sort(perm.begin(), perm.end());
@@ -68,10 +73,13 @@ class Transpose : public Operator<Backend> {
                  const workspace_t<Backend> &ws) override {
     const auto &input = ws.template Input<Backend>(0);
     auto in_layout = input.GetLayout();
+    auto sample_ndims = input.shape().sample_dim();
+    DALI_ENFORCE(in_layout.ndim() == sample_ndims || in_layout.empty());
     output_layout_ = in_layout;
     if (!output_layout_arg_.empty()) {
+      DALI_ENFORCE(output_layout_.ndim() == sample_ndims);
       output_layout_ = output_layout_arg_;
-    } else if (transpose_layout_) {
+    } else if (transpose_layout_ && !in_layout.empty()) {
       output_layout_ = detail::Permute(in_layout, perm_);
     }
     return false;
