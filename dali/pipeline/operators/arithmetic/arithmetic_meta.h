@@ -281,7 +281,7 @@ struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
           (sizeof(L) < sizeof(double) && sizeof(R) < sizeof(double)),
       binary_result_t<L, R>>
   impl(L l, R r) {
-    return remainderf((float)l, (float)r);
+    return remainderf(static_cast<float>(l), static_cast<float>(r));
   }
 
   template <typename L, typename R>
@@ -290,7 +290,7 @@ struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
           (sizeof(L) >= sizeof(double) || sizeof(R) >= sizeof(double)),
       binary_result_t<L, R>>
   impl(L l, R r) {
-    return remainder((double)l, (double)r);
+    return remainder(static_cast<double>(l), static_cast<double>(r));
   }
 
   static std::string to_string() {
