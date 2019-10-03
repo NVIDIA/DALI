@@ -56,19 +56,6 @@ def get_package_list(package_data, key, cuda):
     else:
         return None
 
-def get_pyvers_name(name, cuda):
-    for v in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and 'any' not in y]:
-        v = "-".join(v)
-        v = name.format(v, cuda_v = "cu" + cuda)
-        request = Request(v)
-        request.get_method = lambda : 'HEAD'
-        try:
-             response = urlopen(request)
-             return v
-        except HTTPError:
-             pass
-    return ""
-
 def get_version(package_version_entry):
     if isinstance(package_version_entry, tuple):
         return package_version_entry[0]
@@ -93,10 +80,7 @@ def get_install_string(variant, use, cuda):
         val = get_package_list(package_data, key, cuda)[idx]
         pkg_str = key
         if isinstance(val, str):
-            if val.startswith('http'):
-                pkg_str = get_pyvers_name(val, cuda)
-            else:
-                pkg_str = key + "==" + val
+            pkg_str = key + "==" + val
         elif isinstance(val, tuple):
             version, url = val
             pkg_str = key + '==' + version
@@ -134,11 +118,13 @@ def get_all_strings(use, cuda):
             continue
         for val in get_package_list(package_data, key, cuda):
             if val is None:
-                ret.append(key)
-            elif val.startswith('http'):
-                ret.append(get_pyvers_name(val, cuda))
-            else:
-                ret.append(key + "==" + val)
+                pkg_str = key
+            if isinstance(val, str):
+                pkg_str = key + "==" + val
+            elif isinstance(val, tuple):
+                version, _ = val
+                pkg_str = key + '==' + version
+            ret.append(key)
     # add all remaining used packages with default versions
     additional = [v for v in use if v not in package_data.keys()]
     return ret + additional
