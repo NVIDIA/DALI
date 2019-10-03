@@ -37,9 +37,8 @@ normalization only.
     R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",
     R"code(Output tensor data layout)code", "CHW")
-  .AddOptionalArg(
-    "pad_output",
-    R"code(Whether to pad the output to number of channels being multiple of 4.)code", false)
+  .AddOptionalArg("pad_output",
+    R"code(Whether to pad the output to number of channels being a power of 2.)code", false)
   .AddOptionalArg("mirror",
     R"code(Mask for horizontal flip.
 - `0` - do not perform horizontal flip for this image

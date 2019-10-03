@@ -30,6 +30,9 @@ from test_utils import get_dali_extra_path
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
+def next_power_of_two(x):
+    return 1 if x == 0 else 2**(x - 1).bit_length()
+
 class CropMirrorNormalizePipeline(Pipeline):
     def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1,
                  output_dtype = types.FLOAT, output_layout = "HWC",
@@ -215,7 +218,9 @@ def crop_mirror_normalize_func(crop_z, crop_y, crop_x,
     out1 = np.flip(out, horizontal_dim) if should_flip else out
 
     # Pad, normalize, transpose
-    out_C = C + 1 if should_pad else C
+
+    out_C = next_power_of_two(C) if should_pad else C
+
     if input_layout == "HWC":
         out2 = np.zeros([H, W, out_C], dtype=np.float32)
         out2[:, :, 0:C] = (np.float32(out1) - mean) * inv_std

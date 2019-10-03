@@ -34,6 +34,14 @@ namespace dali {
 
 namespace detail {
 
+template <typename T>
+T NextPowerOfTwo(T value) {
+  T power = 1;
+  while (power < value)
+    power <<= 1;
+  return power;
+}
+
 // Rewrite Operator data as arguments for kernel
 // TODO(klecki): It probably could be written directly in that format
 template <size_t Dims>
@@ -51,7 +59,7 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
   int channel_dim_idx = ImageLayoutInfo::ChannelDimIndex(input_layout);
   assert(channel_dim_idx >= 0);
   if (pad_output) {
-    args.padded_shape[channel_dim_idx] = 4;
+    args.padded_shape[channel_dim_idx] = NextPowerOfTwo(args.shape[channel_dim_idx]);
   }
 
   if (horizontal_flip) {
