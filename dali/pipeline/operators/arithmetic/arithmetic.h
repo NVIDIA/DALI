@@ -215,7 +215,6 @@ class ArithmeticGenericOp : public Operator<Backend> {
     exec_order_ = CreateExecutionOrder<Backend>(*expr_, cache_);
 
     output_desc[0] = {result_shape_, TypeTable::GetTypeInfo(result_type_id_)};
-    // TODO(klecki): cover for GPU should be whole batch in one go/non linear tensor list?
     std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kExtent, num_tasks_);
     return true;
   }

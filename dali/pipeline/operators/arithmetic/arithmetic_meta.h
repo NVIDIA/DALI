@@ -181,6 +181,16 @@ inline DALIDataType TypePromotion(DALIDataType left, DALIDataType right) {
   return result;
 }
 
+/**
+ * @brief Struct intended as a mapping from ArithmeticOp enum to it's implemetation.
+ * It should provide an `impl` static member function of required arity accepting scalar inputs
+ * of arbitrary arithmetic types.
+ *
+ * It also contains input and output counts as well as to_string member function.
+ *
+ * @tparam op  Mapped Op.
+ * @tparam Backend Allows to specialize for given backend
+ */
 template <ArithmeticOp op, typename Backend>
 struct arithm_meta {
   template <typename T>
