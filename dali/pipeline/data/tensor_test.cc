@@ -151,9 +151,6 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  // Give the Tensor a size, type is smaller so it will throw
-  ASSERT_THROW(t.Resize(shape), std::runtime_error);
-
   // Kind of exception safety test
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);

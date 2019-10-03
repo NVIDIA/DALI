@@ -285,7 +285,7 @@ class Buffer {
     size_t new_num_bytes = new_size * type_.size();
 
     if (shares_data_) {
-      DALI_ENFORCE(new_num_bytes == num_bytes_ || new_num_bytes == 0,
+      DALI_ENFORCE(new_num_bytes <= num_bytes_,
                    "Cannot change size of a Buffer if it is sharing data. "
                    "Clear the status by `Reset()` first.");
     }
