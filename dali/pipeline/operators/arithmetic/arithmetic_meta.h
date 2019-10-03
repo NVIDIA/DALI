@@ -24,6 +24,7 @@
 #include "dali/core/cuda_utils.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/tensor_shape.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
@@ -180,7 +181,7 @@ inline DALIDataType TypePromotion(DALIDataType left, DALIDataType right) {
   return result;
 }
 
-template <ArithmeticOp op>
+template <ArithmeticOp op, typename Backend>
 struct arithm_meta {
   template <typename T>
   DALI_HOST_DEV static constexpr std::enable_if_t<GetOpArity(op) == 1, T> impl(T v);
@@ -195,62 +196,101 @@ struct arithm_meta {
   static constexpr int num_outputs = 1;
 };
 
-#define REGISTER_UNARY_IMPL(OP, EXPRESSION)                                                   \
-template <>                                                                                   \
-template <typename T>                                                                         \
-DALI_HOST_DEV constexpr std::enable_if_t<GetOpArity(OP) == 1, T> arithm_meta<OP>::impl(T v) { \
-  static_assert(GetOpArity(OP) == 1,                                                          \
-                "Registered operation arrity does not match the requirements.");              \
-  return EXPRESSION v;                                                                        \
-}                                                                                             \
-template <>                                                                                   \
-inline std::string arithm_meta<OP>::to_string() {                                             \
-  return #EXPRESSION;                                                                         \
-}
+#define REGISTER_UNARY_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                       \
+  template <>                                                                      \
+  template <typename T>                                                            \
+  DALI_HOST_DEV constexpr std::enable_if_t<GetOpArity(OP) == 1, T>                 \
+  arithm_meta<OP, BACKEND>::impl(T v) {                                            \
+    static_assert(GetOpArity(OP) == 1,                                             \
+                  "Registered operation arrity does not match the requirements."); \
+    return EXPRESSION v;                                                           \
+  }                                                                                \
+  template <>                                                                      \
+  inline std::string arithm_meta<OP, BACKEND>::to_string() {                       \
+    return #EXPRESSION;                                                            \
+  }
 
-// we use dummy cast expression to source type
+#define REGISTER_UNARY_IMPL(OP, EXPRESSION)               \
+  REGISTER_UNARY_IMPL_BACKEND(OP, EXPRESSION, CPUBackend) \
+  REGISTER_UNARY_IMPL_BACKEND(OP, EXPRESSION, GPUBackend)
+
 REGISTER_UNARY_IMPL(ArithmeticOp::plus, +);
 REGISTER_UNARY_IMPL(ArithmeticOp::minus, -);
 
-#define REGISTER_BINARY_IMPL(OP, EXPRESSION)                                         \
-template <>                                                                          \
-template <typename L, typename R>                                                    \
-DALI_HOST_DEV constexpr std::enable_if_t<GetOpArity(OP) == 2, binary_result_t<L, R>> \
-arithm_meta<OP>::impl(L l, R r) {                                                    \
-  static_assert(GetOpArity(OP) == 2,                                                 \
-                "Registered operation arrity does not match the requirements.");     \
-  return l EXPRESSION r;                                                             \
-}                                                                                    \
-template <>                                                                          \
-inline std::string arithm_meta<OP>::to_string() {                                    \
-  return #EXPRESSION;                                                                \
-}
+#define REGISTER_BINARY_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                          \
+  template <>                                                                          \
+  template <typename L, typename R>                                                    \
+  DALI_HOST_DEV constexpr std::enable_if_t<GetOpArity(OP) == 2, binary_result_t<L, R>> \
+  arithm_meta<OP, BACKEND>::impl(L l, R r) {                                           \
+    static_assert(GetOpArity(OP) == 2,                                                 \
+                  "Registered operation arrity does not match the requirements.");     \
+    return l EXPRESSION r;                                                             \
+  }                                                                                    \
+  template <>                                                                          \
+  inline std::string arithm_meta<OP, BACKEND>::to_string() {                           \
+    return #EXPRESSION;                                                                \
+  }
 
-// TODO(klecki): although I "register" the binary ops, I still need to list the
-// possible enum values in the Operator.
+#define REGISTER_BINARY_IMPL(OP, EXPRESSION)               \
+  REGISTER_BINARY_IMPL_BACKEND(OP, EXPRESSION, CPUBackend) \
+  REGISTER_BINARY_IMPL_BACKEND(OP, EXPRESSION, GPUBackend)
+
 REGISTER_BINARY_IMPL(ArithmeticOp::add, +);
 REGISTER_BINARY_IMPL(ArithmeticOp::sub, -);
 REGISTER_BINARY_IMPL(ArithmeticOp::mul, *);
 REGISTER_BINARY_IMPL(ArithmeticOp::div, /);
 
 template <>
-struct arithm_meta<ArithmeticOp::mod> {
+struct arithm_meta<ArithmeticOp::mod, CPUBackend> {
   template <typename L, typename R>
-  DALI_HOST_DEV static constexpr std::enable_if_t<
+  static constexpr std::enable_if_t<
       std::is_integral<L>::value && std::is_integral<R>::value, binary_result_t<L, R>>
   impl(L l, R r) {
     return l % r;
   }
 
-  // TODO(klecki): approximate implementation without using host functions
   template <typename L, typename R>
-  DALI_HOST_DEV static constexpr std::enable_if_t<
+  static constexpr std::enable_if_t<
       !std::is_integral<L>::value || !std::is_integral<R>::value, binary_result_t<L, R>>
   impl(L l, R r) {
-    auto l_over_r = l / r;
-    auto trunc_l_over_r = static_cast<int64_t>(l_over_r);
-    auto result = l - trunc_l_over_r * r;
-    return result;
+    using L_promotion = std::conditional_t<std::is_same<float16, L>::value, float, L>;
+    using R_promotion = std::conditional_t<std::is_same<float16, R>::value, float, R>;
+    return std::remainder(static_cast<L_promotion>(l), static_cast<R_promotion>(r));
+  }
+
+  static std::string to_string() {
+    return "%";
+  }
+
+  static constexpr int num_inputs = 2;
+  static constexpr int num_outputs = 1;
+};
+
+template <>
+struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
+  template <typename L, typename R>
+  __device__ static constexpr std::enable_if_t<
+      std::is_integral<L>::value && std::is_integral<R>::value, binary_result_t<L, R>>
+  impl(L l, R r) {
+    return l % r;
+  }
+
+  template <typename L, typename R>
+  __device__ static constexpr std::enable_if_t<
+      (!std::is_integral<L>::value || !std::is_integral<R>::value) &&
+          (sizeof(L) < sizeof(double) && sizeof(R) < sizeof(double)),
+      binary_result_t<L, R>>
+  impl(L l, R r) {
+    return remainderf((float)l, (float)r);
+  }
+
+  template <typename L, typename R>
+  __device__ static constexpr std::enable_if_t<
+      (!std::is_integral<L>::value || !std::is_integral<R>::value) &&
+          (sizeof(L) >= sizeof(double) || sizeof(R) >= sizeof(double)),
+      binary_result_t<L, R>>
+  impl(L l, R r) {
+    return remainder((double)l, (double)r);
   }
 
   static std::string to_string() {
@@ -265,7 +305,7 @@ inline std::string to_string(ArithmeticOp op) {
   std::string result;
   VALUE_SWITCH(op, op_static,
     (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod),
-      (result = arithm_meta<op_static>::to_string();),
+      (result = arithm_meta<op_static, CPUBackend>::to_string();),
       (result = "InvalidOp";)
   );  // NOLINT(whitespace/parens)
   return result;

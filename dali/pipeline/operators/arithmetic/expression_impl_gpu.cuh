@@ -42,7 +42,7 @@ struct GPUTileDesc {
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBin(Result *result, const Left *l, const Right *r, int64_t extent) {
-  using meta = arithm_meta<op>;
+  using meta = arithm_meta<op, GPUBackend>;
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
     result[i] = meta::impl(l[i], r[i]);
   }
@@ -50,7 +50,7 @@ __device__ void ExecuteBin(Result *result, const Left *l, const Right *r, int64_
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBin(Result *result, Left l, const Right *r, int64_t extent) {
-  using meta = arithm_meta<op>;
+  using meta = arithm_meta<op, GPUBackend>;
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
     result[i] = meta::impl(l, r[i]);
   }
@@ -58,7 +58,7 @@ __device__ void ExecuteBin(Result *result, Left l, const Right *r, int64_t exten
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBin(Result *result, const Left *l, Right r, int64_t extent) {
-  using meta = arithm_meta<op>;
+  using meta = arithm_meta<op, GPUBackend>;
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
     result[i] = meta::impl(l[i], r);
   }
@@ -101,7 +101,6 @@ class ExpressionImplBinGPU : public ExpressionImplBase, ExpressionImplParam<GPUB
   }
 
  private:
-  using meta = arithm_meta<op>;
   using Tile = GPUTileDesc<Result, Left, LeftTensor, Right, RightTensor>;
 
   static void Invoke(const Tile *tiles, int num_tiles, cudaStream_t stream) {

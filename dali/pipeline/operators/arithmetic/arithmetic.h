@@ -64,11 +64,10 @@ inline std::tuple<std::vector<TileDesc>, std::vector<TileRange>> GetTiledCover(
   std::vector<TileDesc> descs;
   std::vector<TileRange> ranges(num_tasks, {0, 0});
   Index elements_per_thread = total_elements / num_tasks;
-  // One extent covers all, TODO(klecki): consider small cases better?
+  // One extent covers all
   if (total_elements < extent || elements_per_thread == 0) {
     return GetCover(shape, num_tasks);
   }
-  // if (total_elements / num_tasks < extent) {}
   int task_idx = 0;
   int previous_idx = -1;
   std::vector<Index> covered_by_thread(num_tasks, 0);
@@ -107,7 +106,6 @@ inline std::tuple<std::vector<TileDesc>, std::vector<TileRange>> GetTiledCover(
  */
 template <typename Backend>
 DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend> &ws) {
-  // TODO(klecki): assume that everything is binary for now
   if (expr.GetNodeType() == NodeType::Constant) {
     return expr.GetTypeId();
   }
@@ -116,10 +114,13 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
     expr.SetTypeId(ws.template InputRef<Backend>(e.GetMappedInput()).type().id());
     return expr.GetTypeId();
   }
-  auto left_type = PropagateTypes<Backend>(expr[0], ws);
-  auto right_type = PropagateTypes<Backend>(expr[1], ws);
-  expr.SetTypeId(TypePromotion(left_type, right_type));
-  return expr.GetTypeId();
+  if (expr.GetSubexpressionCount() == 2) {
+    auto left_type = PropagateTypes<Backend>(expr[0], ws);
+    auto right_type = PropagateTypes<Backend>(expr[1], ws);
+    expr.SetTypeId(TypePromotion(left_type, right_type));
+    return expr.GetTypeId();
+  }
+  DALI_FAIL("Only binary expressions are supported");
 }
 
 
@@ -169,17 +170,9 @@ inline kernels::TensorListShape<> ShapePromotion(std::string op,
   return left;
 }
 
-/**
- * @brief TODO(klecki): TensorVector returns by value
- *
- * @param expr
- * @param ws
- * @return kernels::TensorListShape<> Shape of a valid result
- */
 template <typename Backend>
 DLL_PUBLIC kernels::TensorListShape<> PropagateShapes(ExprNode &expr,
                                                       const workspace_t<Backend> &ws) {
-  // TODO(klecki): assume that everything is binary for now
   if (expr.GetNodeType() == NodeType::Constant) {
     expr.SetShape(kernels::TensorListShape<>{{1}});
     return expr.GetShape();
@@ -202,8 +195,6 @@ template <typename Backend>
 class ArithmeticGenericOp : public Operator<Backend> {
  public:
   inline explicit ArithmeticGenericOp(const OpSpec &spec) : Operator<Backend>(spec) {
-    // partial specification, needs to be filled in
-    // expr_ = Expression(spec.GetArgument<std::string>("expression_desc"));
     expr_ = ParseExpressionString(spec.GetArgument<std::string>("expression_desc"));
     num_tasks_ = 2 * num_threads_;
   }
@@ -218,10 +209,9 @@ class ArithmeticGenericOp : public Operator<Backend> {
 
     result_type_id_ = PropagateTypes<Backend>(*expr_, ws);  // can be done once
 
-    // TODO(klecki) - we may need to set the shapes of intermediate results from bottom-up
-    result_shape_ = PropagateShapes<Backend>(*expr_, ws);  // need to be done every iteration
-    AllocateIntermediateNodes();                           // do it after the shapes are propagated
-    exec_order_ = CreateExecutionOrder<Backend>(*expr_, cache_);  // should be done after shapes
+    result_shape_ = PropagateShapes<Backend>(*expr_, ws);
+    AllocateIntermediateNodes();
+    exec_order_ = CreateExecutionOrder<Backend>(*expr_, cache_);
 
     output_desc[0] = {result_shape_, TypeTable::GetTypeInfo(result_type_id_)};
     // TODO(klecki): cover for GPU should be whole batch in one go/non linear tensor list?

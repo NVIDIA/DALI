@@ -91,7 +91,6 @@ inline std::string GetAbbreviation(NodeType t) {
  */
 class ExprNode {
  public:
-  // TODO(klecki): Should inputs also provide this?
   virtual const std::string &GetOp() const {
     DALI_FAIL("No op in this expression node.");
   }

@@ -51,7 +51,7 @@ class ExpressionImplBinCPU : public ExpressionImplBase, ExpressionImplParam<CPUB
   }
 
  private:
-  using meta = arithm_meta<op>;
+  using meta = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, const Left *l, const Right *r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {

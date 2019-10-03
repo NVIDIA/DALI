@@ -71,7 +71,6 @@ class ExpressionImplParam {
     return static_cast<Type>(spec.GetArgument<std::vector<float>>("float_scalars")[scalar_id]);
   }
 
-  // TODO(klecki): More than one output, same way as inputs
   template <typename Result>
   std::enable_if_t<is_cpu, Result *> ObtainOutput(const ExprNode &expr,
                                                   workspace_t<Backend> &ws, const OpSpec &spec,
@@ -81,7 +80,6 @@ class ExpressionImplParam {
     return tensor + tile.extent_idx * tile.extent_size;
   }
 
-  // TODO(klecki): More than on output, same way as inputs
   template <typename Result>
   std::enable_if_t<!is_cpu, Result *> ObtainOutput(const ExprNode &expr,
                                                    workspace_t<GPUBackend> &ws, const OpSpec &spec,
