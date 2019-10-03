@@ -181,7 +181,7 @@ def crop_mirror_normalize_func(crop_z, crop_y, crop_x,
     end_x = start_x + crop_w
     if input_layout.count('D') > 0:
         assert D >= crop_d
-        start_z = int(np.round(np.float32(crop_z) * np.float32(D - crop_d)))
+        start_z = int(np.float32(crop_z) * np.float32(D - crop_d) + np.float32(0.5))
         end_z = start_z + crop_d
 
     # Crop
