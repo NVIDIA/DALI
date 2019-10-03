@@ -144,6 +144,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         }
         auto& out = ws.Output<CPUBackend>(2);
         out.set_type(TypeInfo::Create<uint8_t>());
+        out.SetLayout("HWC");
         out.Resize({info->heights[0], info->widths[0], nchannels});
         auto *output_data = out.mutable_data<uint8_t>();
 
