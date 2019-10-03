@@ -39,9 +39,9 @@ class TransposePipeline(Pipeline):
         self.inputs = ops.ExternalSource()
         if out_layout_arg:
             self.transpose = ops.Transpose(device = self.device,
-                                        perm = permutation,
-                                        transpose_layout = transpose_layout,
-                                        output_layout = out_layout_arg)
+                                           perm = permutation,
+                                           transpose_layout = transpose_layout,
+                                           output_layout = out_layout_arg)
         else:
             self.transpose = ops.Transpose(device = self.device,
                                            perm = permutation,
