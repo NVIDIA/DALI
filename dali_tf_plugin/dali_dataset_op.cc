@@ -37,12 +37,6 @@
 #include "tensorflow/core/framework/partial_tensor_shape.h"
 #include "tensorflow/core/framework/tensor.h"
 
-#define USE_TF_ALLOCATOR 0
-
-#if USE_TF_ALLOCATOR
-#include "tfallocator.h"
-#endif
-
 #include "dali/core/common.h"
 #include "dali/c_api/c_api.h"
 

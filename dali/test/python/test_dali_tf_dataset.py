@@ -59,7 +59,7 @@ class TestPipeline(Pipeline):
         self.uniform = ops.Uniform(range = (0.0, 1.0))
         self.cast = ops.Cast(
             device = "cpu",
-            dtype = types.FLOAT)
+            dtype = types.FLOAT16)
 
     def define_graph(self):
         inputs, _, _, im_ids = self.input()
@@ -92,7 +92,7 @@ def test_tf_dataset():
     dtypes = [
         tf.float32,
         tf.int32, 
-        tf.float32]
+        tf.float16]
 
     dataset_results = []
     with tf.device('/cpu:0'):
