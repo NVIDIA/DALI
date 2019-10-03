@@ -35,6 +35,7 @@ const char* GetVideoCodecString(cudaVideoCodec eCodec) {
         { cudaVideoCodec_H264_SVC,  "H.264/SVC"    },
         { cudaVideoCodec_H264_MVC,  "H.264/MVC"    },
         { cudaVideoCodec_HEVC,      "H.265/HEVC"   },
+        { cudaVideoCodec_VP9,       "VP9"          },
         { cudaVideoCodec_NumCodecs, "Invalid"      },
         { cudaVideoCodec_YUV420,    "YUV  4:2:0"   },
         { cudaVideoCodec_YV12,      "YV12 4:2:0"   },

@@ -278,7 +278,7 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
                                      file.frame_base_);
 
     if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC ||
-        codec_id == AV_CODEC_ID_MPEG4) {
+        codec_id == AV_CODEC_ID_MPEG4 || codec_id == AV_CODEC_ID_VP9) {
       const char* filtername = nullptr;
       if (codec_id == AV_CODEC_ID_H264) {
         filtername = "h264_mp4toannexb";
@@ -379,6 +379,7 @@ void VideoLoader::read_file() {
     }
 
     auto& file = get_or_open_file(req.filename);
+    req.frame_base = file.frame_base_;
 
     if (vid_decoder_) {
         vid_decoder_->push_req(req);
@@ -550,7 +551,7 @@ void VideoLoader::read_file() {
 
 void VideoLoader::push_sequence_to_read(std::string filename, int frame, int count) {
     int total_count = 1 + (count - 1) * stride_;
-    auto req = FrameReq{std::move(filename), frame, total_count, stride_};
+    auto req = FrameReq{std::move(filename), frame, total_count, stride_, {0, 0}};
     // give both reader thread and decoder a copy of what is coming
     send_queue_.push(req);
 }
