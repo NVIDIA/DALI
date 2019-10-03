@@ -95,6 +95,7 @@ When not supported, will decode the whole image and then crop.
 Output of the decoder is in `HWC` ordering.)code")
   .NumInput(3)
   .NumOutput(1)
-  .AddParent("ImageDecoder");
+  .AddParent("ImageDecoder")
+  .AddParent("SliceAttr");
 
 }  // namespace dali
