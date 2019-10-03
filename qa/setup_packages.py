@@ -124,7 +124,7 @@ def get_all_strings(use, cuda):
             elif isinstance(val, tuple):
                 version, _ = val
                 pkg_str = key + '==' + version
-            ret.append(key)
+            ret.append(pkg_str)
     # add all remaining used packages with default versions
     additional = [v for v in use if v not in package_data.keys()]
     return ret + additional
