@@ -92,7 +92,7 @@ namespace {
 
 template <class GtestTypeParam>
 using TheKernel = LinearTransformationCpu<typename GtestTypeParam::Out, typename GtestTypeParam::In,
-        kNChannelsOut, kNChannelsIn, kNDims - 1>;
+        kNChannelsOut, kNChannelsIn, kNDims>;
 
 }  // namespace
 

@@ -161,11 +161,11 @@ struct EqualEps {
 };
 
 /**
- * Functor for comparing floating point types.
+ * @brief Functor for comparing (potentially rounded) value to a floating point reference
  * Performs ULP comparision.
- * Verifies using Saturation Cast
+ * Verifies using Saturation Cast.
  *
- * XXX: Be aware, that when using this functor in `Check()`, order of arguments matter!
+ * @remark Be aware, that when using this functor in `Check()`, order of arguments matters!
  */
 struct EqualUlp {
   EqualUlp() = default;

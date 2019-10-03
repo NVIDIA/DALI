@@ -27,19 +27,18 @@
 namespace dali {
 namespace kernels {
 
-template <typename OutputType, typename InputType,
-        int channels_out, int channels_in, int spatial_ndims>
+template <typename OutputType, typename InputType, int channels_out, int channels_in, int ndims>
 class LinearTransformationCpu {
  private:
-  static_assert(spatial_ndims == 2, "This kernel is currently implemented for 2 spatial dims only");
-  static constexpr auto ndims_ = spatial_ndims + 1;
+  static_assert(ndims == 3, "This kernel is currently implemented for 3 dims only");
+  static constexpr int spatial_ndims_ = ndims - 1;
   using Mat = ::dali::mat<channels_out, channels_in, float>;
   using Vec = ::dali::vec<channels_out, float>;
 
  public:
-    KernelRequirements Setup(KernelContext &context, const InTensorCPU<InputType, ndims_> &in,
+    KernelRequirements Setup(KernelContext &context, const InTensorCPU<InputType, ndims> &in,
                              Mat tmatrix = eye<channels_out, channels_in>(), Vec tvector = {},
-                             const Roi<spatial_ndims> *roi = nullptr) {
+                             const Roi<spatial_ndims_> *roi = nullptr) {
     DALI_ENFORCE(in.shape.shape.back() == channels_in,
                  "Unexpected number of channels. Number of channels in InTensorCPU has to match"
                  " the number of channels, that the kernel is instantiated with");
@@ -48,26 +47,26 @@ class LinearTransformationCpu {
 
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     KernelRequirements req;
-    TensorListShape<ndims_> output_shape({ShapeFromRoi(adjusted_roi, channels_out)});
+    TensorListShape<ndims> output_shape({ShapeFromRoi(adjusted_roi, channels_out)});
     req.output_shapes = {std::move(output_shape)};
     return req;
   }
 
 
-    void Run(KernelContext &context, const OutTensorCPU<OutputType, spatial_ndims + 1> &out,
-             const InTensorCPU<InputType, spatial_ndims + 1> &in,
+    void Run(KernelContext &context, const OutTensorCPU<OutputType, ndims> &out,
+             const InTensorCPU<InputType, ndims> &in,
              Mat tmatrix = eye<channels_out, channels_in>(), Vec tvector = {},
-             const Roi<spatial_ndims> *roi = nullptr) {
+             const Roi<spatial_ndims_> *roi = nullptr) {
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     auto ptr = out.data;
     auto in_width = in.shape[1];
 
-    for (int y = adjusted_roi.lo.y; y < adjusted_roi.lo.y + adjusted_roi.extent().y; y++) {
-      for (int x = adjusted_roi.lo.x; x < adjusted_roi.lo.x + adjusted_roi.extent().x; x++) {
+    for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
+      auto *row_ptr = &in.data[y * in_width * channels_in];
+      for (int x = adjusted_roi.lo.x; x < adjusted_roi.hi.x; x++) {
         vec<channels_in, float> v_in;
-        auto offset = (y * in_width + x) * channels_in;
         for (int k = 0; k < channels_in; k++) {
-          v_in[k] = static_cast<float>(in.data[offset + k]);
+          v_in[k] = row_ptr[channels_in * x + k];
         }
         vec<channels_out> v_out = tmatrix * v_in + tvector;
         for (int k = 0; k < channels_out; k++) {
