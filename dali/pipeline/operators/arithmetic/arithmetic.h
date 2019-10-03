@@ -43,7 +43,8 @@ inline std::tuple<std::vector<TileDesc>, std::vector<TileRange>> GetCover(
   int previous_idx = -1;
   for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
     int task_idx = sample_idx / samples_per_task;
-    descs.push_back({sample_idx, 0, task_idx, shape[sample_idx].num_elements()});
+    descs.push_back({sample_idx, 0, task_idx, shape[sample_idx].num_elements(),
+                     shape[sample_idx].num_elements()});
     if (task_idx != previous_idx) {
       ranges[task_idx].begin = descs.size() - 1;
       ranges[task_idx].end = descs.size();
@@ -76,7 +77,7 @@ inline std::tuple<std::vector<TileDesc>, std::vector<TileRange>> GetTiledCover(
     for (Index covered = 0; covered < shape[sample_idx].num_elements(); covered += extent) {
       auto actually_covered =
           std::min(static_cast<Index>(extent), shape[sample_idx].num_elements() - covered);
-      descs.push_back({sample_idx, extent_idx, task_idx, actually_covered});
+      descs.push_back({sample_idx, extent_idx, task_idx, actually_covered, extent});
       // We either cover a full extent, of what is left in the sample
       covered_by_thread[task_idx] += actually_covered;
       // Update range information
@@ -216,7 +217,6 @@ class ArithmeticGenericOp : public Operator<Backend> {
     output_desc[0] = {result_shape_, TypeTable::GetTypeInfo(result_type_id_)};
     // TODO(klecki): cover for GPU should be whole batch in one go/non linear tensor list?
     std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kExtent, num_tasks_);
-
     return true;
   }
 

@@ -23,7 +23,7 @@ void ArithmeticGenericOp<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     // call impl for whole batch
     // expr_ptr->Execute(ws, spec_, sample_cover_[0]);
     expr_task.impl->Execute(ws, spec_, expr_task.ctx,
-                            {{0, 0, 0, expr_->GetShape().num_elements()}}, {0, 1});
+                            {{0, 0, 0, expr_->GetShape().num_elements(), expr_->GetShape().num_elements()}}, {0, 1});
   }
 }
 

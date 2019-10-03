@@ -172,12 +172,14 @@ class BinaryArithmeticOpTest
     pipe.Build(outputs);
 
     TensorList<CPUBackend> batch[2];
+    kernels::TensorListShape<> shape{{32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323}, {32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323}};
     for (auto &b : batch) {
-      b.Resize(kernels::uniform_list_shape(batch_size, {tensor_elements}));
+      // b.Resize(kernels::uniform_list_shape(batch_size, {tensor_elements}));
+      b.Resize(shape);
       b.set_type(TypeInfo::Create<T>());
-      for (int i = 0; i < batch_size; i++) {
+      for (int i = 0; i < shape.num_samples(); i++) {
         auto *t = b.template mutable_tensor<T>(i);
-        for (int j = 0; j < tensor_elements; j++) {
+        for (int j = 0; j < shape[i].num_elements(); j++) {
           t[j] = GenerateData<T>(i, j);
         }
       }
@@ -191,23 +193,39 @@ class BinaryArithmeticOpTest
     DeviceWorkspace ws;
     pipe.Outputs(&ws);
     auto *result = ws.OutputRef<Backend>(0).template data<T>();
-    vector<T> result_cpu(batch_size * tensor_elements);
-    MemCopy(result_cpu.data(), result, batch_size * tensor_elements * sizeof(T));
+    vector<T> result_cpu(shape.num_elements());
+    MemCopy(result_cpu.data(), result, shape.num_elements() * sizeof(T));
 
-    for (int i = 0; i < batch_size * tensor_elements; i++) {
-      EXPECT_EQ(result_cpu[i],
-                result_fun(batch[0].template data<T>()[i], batch[1].template data<T>()[i]));
+    // for (int i = 0; i < shape.num_elements(); i++) {
+    //   EXPECT_EQ(result_cpu[i],
+    //             result_fun(batch[0].template data<T>()[i], batch[1].template data<T>()[i])) << " difference at position " << i;
+    // }
+
+    int64_t offset = 0;
+    for (int i = 0; i < shape.num_samples(); i++) {
+      for (int j = 0; j < shape[i].num_elements(); j++) {
+        ASSERT_EQ(result_cpu[offset + j],
+                  result_fun(batch[0].template tensor<T>(i)[j], batch[1].template tensor<T>(i)[j]))
+                   << " difference at sample: " << i << ", element: " << j;
+      }
+      offset += shape[i].num_elements();
     }
   }
 
   template <typename S>
   std::enable_if_t<std::is_integral<S>::value, S> GenerateData(int sample, int element) {
-    return sample * tensor_elements + element + 1;
+    static std::mt19937 gen(42);
+    std::uniform_int_distribution<> dis(-1024, 1024);
+    auto result = dis(gen);
+    return result == 0 ? 1 : result;
   }
 
   template <typename S>
   std::enable_if_t<!std::is_integral<S>::value, S> GenerateData(int sample, int element) {
-    return sample * tensor_elements + element + 0.42;
+    static std::mt19937 gen(42);
+    std::uniform_real_distribution<float> dis(-1024, 1024);
+    auto result = dis(gen);
+    return result == 0.f ? 1.f : result;
   }
 };
 
@@ -218,7 +236,10 @@ std::vector<std::tuple<std::string, bin_op_pointer<T>>> getOpNameRef() {
       std::make_tuple("sub", [](T l, T r) -> T { return l - r; }),
       std::make_tuple("mul", [](T l, T r) -> T { return l * r; }),
       std::make_tuple("div", [](T l, T r) -> T { return l / r; }),
-      std::make_tuple("mod", [](T l, T r) -> T { return fmod(l, r); }),
+      std::make_tuple("mod",
+                      std::is_integral<T>::value
+                      ? [](T l, T r) -> T { return std::fmod(l, r); }
+                      : [](T l, T r) -> T { return std::remainder(l, r); }),
   };
 }
 

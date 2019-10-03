@@ -46,7 +46,7 @@ class ExpressionImplParam {
                                                                  int subexpr_id) {
     int input_id = dynamic_cast<const ExprTensor&>(expr[subexpr_id]).GetMappedInput();
     auto *tensor = ws.template InputRef<Backend>(input_id)[tile.sample_idx].template data<Type>();
-    return tensor + tile.extent_idx * tile.extent_size;
+    return tensor + tile.extent_idx * tile.tile_size;
   }
 
   template <bool IsTensor, typename Type>
@@ -57,7 +57,7 @@ class ExpressionImplParam {
                                                                   int subexpr_id) {
     int input_id = dynamic_cast<const ExprTensor&>(expr[subexpr_id]).GetMappedInput();
     auto *tensor = ws.template InputRef<Backend>(input_id).template tensor<Type>(tile.sample_idx);
-    return tensor + tile.extent_idx * tile.extent_size;
+    return tensor + tile.extent_idx * tile.tile_size;
   }
 
   template <bool IsTensor, typename Type>
@@ -77,7 +77,7 @@ class ExpressionImplParam {
                                                   TileDesc tile) {
     auto *tensor =
         ws.template OutputRef<Backend>(0)[tile.sample_idx].template mutable_data<Result>();
-    return tensor + tile.extent_idx * tile.extent_size;
+    return tensor + tile.extent_idx * tile.tile_size;
   }
 
   template <typename Result>
@@ -86,7 +86,7 @@ class ExpressionImplParam {
                                                    TileDesc tile) {
     auto *tensor =
         ws.template OutputRef<Backend>(0).template mutable_tensor<Result>(tile.sample_idx);
-    return tensor + tile.extent_idx * tile.extent_size;
+    return tensor + tile.extent_idx * tile.tile_size;
   }
 };
 

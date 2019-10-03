@@ -33,7 +33,8 @@ struct TileDesc {
   int sample_idx;
   int extent_idx;  // extents are number inside given sample_idx
   int task_idx;  // thread assgined to this extent
-  int64_t extent_size;
+  int64_t extent_size; // actually covered int this tile, the last can be smaller
+  int64_t tile_size; // the size of regular tile
 };
 
 struct TileRange {
@@ -43,7 +44,7 @@ struct TileRange {
 
 inline std::ostream& operator<<(std::ostream& os, const TileDesc& v) {
   os << "{ " << v.sample_idx << ", " << v.extent_idx << ", " << v.task_idx << ", " << v.extent_size
-     << "}";
+     << ", " << v.tile_size << "}";
   return os;
 }
 
