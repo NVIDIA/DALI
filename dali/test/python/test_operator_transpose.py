@@ -28,7 +28,8 @@ def transpose_func(image):
     return image.transpose((1, 0, 2))
 
 class TransposePipeline(Pipeline):
-    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0):
+    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0,
+                 permutation = (1, 0, 2), transpose_layout=False, out_layout_arg=None):
         super(TransposePipeline, self).__init__(batch_size,
                                                 num_threads,
                                                 device_id)
@@ -36,9 +37,15 @@ class TransposePipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.transpose = ops.Transpose(device = self.device,
-                                       perm = (1, 0, 2),
-                                       transpose_layout = False)
+        if out_layout_arg:
+            self.transpose = ops.Transpose(device = self.device,
+                                        perm = permutation,
+                                        transpose_layout = transpose_layout,
+                                        out_layout_arg = out_layout_arg)
+        else:
+            self.transpose = ops.Transpose(device = self.device,
+                                        perm = permutation,
+                                        transpose_layout = transpose_layout)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -84,3 +91,36 @@ def test_transpose_vs_numpy():
         for batch_size in {1, 3}:
             for shape in {(2048, 512, 1), (2048, 512, 3), (2048, 512, 8)}:
                 yield check_transpose_vs_numpy, device, batch_size, shape
+
+def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
+                           transpose_layout, out_layout_arg):
+    eii = RandomDataIterator(batch_size, shape=shape)
+    pipe = TransposePipeline(device, batch_size, types.NHWC, iter(eii))
+    pipe.build()
+    out = pipe.run()
+
+    expected_out_layout = in_layout
+    if out_layout_arg:
+        expected_out_layout = out_layout_arg
+    elif transpose_layout:
+        expected_out_layout = str([list(in_layout)[d] for d in permutation])
+    else:
+        expected_out_layout = in_layout
+
+    print('expected_out_layout is {}'.format(expected_out_layout))
+    # TODO(janton): check layout
+    # assert (actual_layout == expected_out_layout)
+
+def test_transpose_layout():
+    batch_size = 3
+    shape = (600, 400, 3)
+    in_layout = "HWC"
+    for device in {'gpu'}:
+        for permutation, transpose_layout, out_layout_arg in \
+            [((2, 0, 1), True, None),
+             ((2, 0, 1), True, "CHW"),
+             ((2, 0, 1), False, "CHW"),
+             ((1, 0, 2), False, None),
+             ((1, 0, 2), True, "HWC")]:
+            yield check_transpose_layout, device, batch_size, shape, \
+                in_layout, permutation, transpose_layout, out_layout_arg
