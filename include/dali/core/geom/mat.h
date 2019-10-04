@@ -67,7 +67,7 @@ struct mat {
 
   /// @brief Fills the diagonal with a scalar value
   DALI_HOST_DEV
-  constexpr mat(Element scalar) : mat(diag(1)) {}  // NOLINT
+  constexpr mat(Element scalar) : mat(diag(scalar)) {}  // NOLINT
 
   DALI_HOST_DEV
   constexpr mat(const Element(&values)[rows][cols]) : m{} {  // NOLINT
