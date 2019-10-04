@@ -31,11 +31,11 @@ DALI_SCHEMA(Slice)
     .NumInput(3)
     .NumOutput(1)
     .AllowSequences()
-    .AddOptionalArg(
-      "image_type",
+    .AddOptionalArg("image_type",
       R"code(The color space of input and output image)code",
       DALI_RGB, false)
     .AddParent("SliceBase")
+    .AddParent("SliceAttr")
     .InputLayout(0, { "HW", "HWC", "DHWC" });
 
 template <>
