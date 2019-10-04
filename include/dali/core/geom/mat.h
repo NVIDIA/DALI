@@ -67,11 +67,7 @@ struct mat {
 
   /// @brief Fills the diagonal with a scalar value
   DALI_HOST_DEV
-  constexpr mat(Element scalar) : m{} {  // NOLINT
-    int n = rows < cols ? rows : cols;
-    for (int i = 0; i < n; i++)
-      at(i, i) = scalar;
-  }
+  constexpr mat(Element scalar) : mat(diag(1)) {}  // NOLINT
 
   DALI_HOST_DEV
   constexpr mat(const Element(&values)[rows][cols]) : m{} {  // NOLINT
@@ -289,20 +285,26 @@ struct mat {
 
 
   /**
-   * @return dali::mat with ones on the diagonal and zeros elsewhere
+   * @brief Creates a matrix with given value assigned on it's main diagonal
+   */
+  DALI_HOST_DEV static constexpr mat diag(Element scalar) {
+    mat m = {};
+    int n = rows < cols ? rows : cols;
+    for (int i = 0; i < n; i++)
+      m(i, i) = scalar;
+  }
+
+
+  /**
+   * @return dali::mat with ones on the main diagonal and zeros elsewhere
    */
   DALI_HOST_DEV static constexpr mat eye() {
-    mat m(0);
-    auto limit = rows < cols ? rows : cols;
-    for (int i = 0; i < limit; i++) {
-      m.at(i, i) = 1;
-    }
-    return m;
+    return diag(1);
   }
 
 
   DALI_HOST_DEV static constexpr mat identity() {
-    return eye();
+    return diag(1);
   }
 };
 
