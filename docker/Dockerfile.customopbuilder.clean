@@ -7,6 +7,8 @@ ENV PYVER=${PYVER}
 ARG PYV=27
 ENV PYV=${PYV}
 
+SHELL ["/bin/bash", "-c"]
+
 # Python 3.6 and 3.7 are not available in Ubuntu 14
 # Python 3.7 can't be installed with PPA method in this Ubuntu 14
 RUN apt-get update && \
@@ -66,5 +68,6 @@ COPY qa/setup_packages.py qa/setup_packages.py
 RUN export USE_CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/') && \
     export last_config_index=$(python qa/setup_packages.py -n -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}) && \
     for i in `seq 0 $last_config_index`; do \
-        pip download $(python qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}) -d /pip-packages; \
+        eval "pkg=(`python qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${USE_CUDA_VERSION} | tr -d '[],'`)"; \
+        pip download ${pkg} -d /pip-packages; \
     done
