@@ -108,7 +108,10 @@ class CropAttr {
     }
 
     crop_window_generators_[data_idx] =
-      [this, data_idx](kernels::TensorShape<> input_shape) {
+      [this, data_idx](kernels::TensorShape<> input_shape,
+                       const TensorLayout& shape_layout) {
+        DALI_ENFORCE(shape_layout == "HW",
+          make_string("Unexpected input shape layout:", shape_layout.c_str(), "vs HW"));
         CropWindow crop_window;
         if (input_shape.size() == 3) {
           auto crop_d = has_crop_d_ && crop_depth_[data_idx] > 0 ?

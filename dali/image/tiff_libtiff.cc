@@ -282,7 +282,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
   int64_t roi_x = 0, roi_y = 0;
   int64_t roi_h = H, roi_w = W;
   if (roi_generator) {
-    auto roi = roi_generator({H, W});
+    auto roi = roi_generator({H, W}, "HW");
     roi_y = roi.anchor[0];
     roi_x = roi.anchor[1];
     roi_h = roi.shape[0];
