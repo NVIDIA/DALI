@@ -36,12 +36,14 @@ class SliceAttr {
       , crop_window_generators_(batch_size__) {
     const bool has_dims_arg = spec.HasArgument("dims");
     const bool has_dim_names_arg = spec.HasArgument("dim_names");
-    if (has_dim_names_arg) {
-      // Process dim names
+    // Process `dim_names` if provided, or if neither `dir_names` nor `dims` are
+    if (has_dim_names_arg || !has_dims_arg) {
       dim_names_ = spec.GetArgument<TensorLayout>("dim_names");
+      dims_ = {};
     } else {
-      // Process dims
+      // Process `dims` only if provided and `dim_names` isn't
       dims_ = spec.GetRepeatedArgument<int>("dims");
+      dim_names_ = TensorLayout{};
     }
   }
 
@@ -52,12 +54,7 @@ class SliceAttr {
       const auto &images = ws.Input<CPUBackend>(0, data_idx);
       const auto &crop_anchor = ws.Input<CPUBackend>(1, data_idx);
       const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
-      auto args_shape = crop_anchor.shape();
-      DALI_ENFORCE(args_shape == crop_shape.shape());
-      size_t args_size = volume(args_shape); 
-      DALI_ENFORCE(args_size == dims_.size(),
-        make_string("Unexpected number of arguments", args_size, 
-                    " vs ", dims_.size()));
+      VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
       ProcessArgumentsHelper(data_idx, crop_anchor.data<float>(), crop_shape.data<float>());
     }
   }
@@ -69,12 +66,7 @@ class SliceAttr {
     const auto &crop_anchor = ws.Input<CPUBackend>(1);
     const auto &crop_shape = ws.Input<CPUBackend>(2);
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-      auto args_shape = crop_anchor.tensor_shape(data_idx);
-      DALI_ENFORCE(args_shape == crop_shape.tensor_shape(data_idx));
-      size_t args_size = volume(args_shape); 
-      DALI_ENFORCE(args_size == dims_.size(),
-        make_string("Unexpected number of arguments", args_size, 
-                    " vs ", dims_.size()));
+      VerifyArgsShape(crop_anchor.tensor_shape(data_idx), crop_shape.tensor_shape(data_idx));
       ProcessArgumentsHelper(data_idx, crop_anchor.tensor<float>(data_idx),
                              crop_shape.tensor<float>(data_idx));
     }
@@ -86,12 +78,7 @@ class SliceAttr {
     const auto &images = ws.Input<CPUBackend>(0);
     const auto &crop_anchor = ws.Input<CPUBackend>(1);
     const auto &crop_shape = ws.Input<CPUBackend>(2);
-    auto args_shape = crop_anchor.shape();
-    DALI_ENFORCE(args_shape == crop_shape.shape());
-    size_t args_size = volume(args_shape); 
-    DALI_ENFORCE(args_size == dims_.size(),
-      make_string("Unexpected number of arguments", args_size, 
-		  " vs ", dims_.size()));
+    VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
     ProcessArgumentsHelper(ws.data_idx(), crop_anchor.data<float>(), crop_shape.data<float>());
   }
 
@@ -105,10 +92,22 @@ class SliceAttr {
                               const float *slice_anchor_data,
                               const float *slice_shape_data) {
     crop_window_generators_[data_idx] =
-      [this, slice_anchor_data, slice_shape_data](const kernels::TensorShape<> &shape) {
+      [this, slice_anchor_data, slice_shape_data](const kernels::TensorShape<> &shape,
+                                                  const TensorLayout& shape_layout) {
         CropWindow slice;
         slice.anchor = std::vector<int64_t>(shape.size(), 0);
         slice.shape = shape;
+
+        if (!dim_names_.empty()) {
+          dims_ = {};
+          for (auto dim_name : dim_names_) {
+            auto dim_idx = shape_layout.find(dim_name);
+            DALI_ENFORCE(dim_idx >= 0,
+              make_string("Requested to slice dimension", dim_name,
+                "which is not present in the shape layout", shape_layout.c_str()));
+            dims_.push_back(dim_idx);
+          }
+        }
 
         for (size_t i = 0; i < dims_.size(); i++) {
           auto dim = dims_[i];
@@ -129,6 +128,15 @@ class SliceAttr {
         slice.IsInRange(shape);
         return slice;
       };
+  }
+
+  void VerifyArgsShape(const kernels::TensorShape<>& crop_anchor_shape,
+                       const kernels::TensorShape<>& crop_shape_shape) {
+    DALI_ENFORCE(crop_anchor_shape == crop_shape_shape);
+    size_t args_size = volume(crop_anchor_shape);
+    auto dims_size = !dim_names_.empty() ? dim_names_.size() : dims_.size();
+    DALI_ENFORCE(args_size == dims_size,
+      make_string("Unexpected number of arguments", args_size, "vs", dims_size));
   }
 
   size_t batch_size__;
