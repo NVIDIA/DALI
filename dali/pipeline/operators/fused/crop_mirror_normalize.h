@@ -209,7 +209,8 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
       D = shape[d_dim];
 
     auto crop_window_gen = GetCropWindowGenerator(data_idx);
-    auto win = spatial_ndim == 3 ? crop_window_gen({D, H, W}) : crop_window_gen({H, W});
+    auto win = spatial_ndim == 3 ?
+      crop_window_gen({D, H, W}, "DHW") : crop_window_gen({H, W}, "HW");
 
     int ndim = shape.sample_dim();
     slice_anchors_[data_idx].resize(ndim);

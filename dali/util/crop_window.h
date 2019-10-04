@@ -18,6 +18,7 @@
 #include <functional>
 #include <utility>
 #include "dali/kernels/tensor_shape.h"
+#include "dali/kernels/tensor_shape_print.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/core/format.h"
 
@@ -47,11 +48,11 @@ struct CropWindow {
   }
 
   inline bool IsInRange(const kernels::TensorShape<>& input_shape) const {
-    DALI_ENFORCE(input_shape.size() == anchor.size() && input_shape.size() == shape.size(),
-      make_string(
-        "Input shape number of dimensions (", input_shape.size(),
-        ") doesn't match the  number of dimensions of the anchor (",
-        anchor.size(), ") and/or shape (", shape.size(), ")"));
+    DALI_ENFORCE(input_shape.size() == anchor.size()
+              && input_shape.size() == shape.size(),
+      make_string("Input shape, output shape and anchor must have the "
+                  "same number of dimensions. Got:\ninput: ",
+                  input_shape, "\nanchor: ", anchor, "\noutput shape:", shape));
     for (int dim = 0; dim < input_shape.size(); dim++)
       if (anchor[dim] < 0 || anchor[dim] + shape[dim] > input_shape[dim])
         return false;
@@ -67,7 +68,8 @@ struct CropWindow {
   }
 };
 
-using CropWindowGenerator = std::function<CropWindow(const kernels::TensorShape<>& shape)>;
+  using CropWindowGenerator = std::function<CropWindow(const kernels::TensorShape<>& shape,
+                                                       const TensorLayout& shape_layout)>;
 
 }  // namespace dali
 
