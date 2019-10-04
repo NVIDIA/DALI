@@ -291,7 +291,7 @@ struct mat {
   /**
    * @return dali::mat with ones on the diagonal and zeros elsewhere
    */
-  DALI_HOST_DEV static constexpr auto eye() {
+  DALI_HOST_DEV static constexpr mat eye() {
     mat m(0);
     auto limit = rows < cols ? rows : cols;
     for (int i = 0; i < limit; i++) {
@@ -301,7 +301,7 @@ struct mat {
   }
 
 
-  DALI_HOST_DEV static constexpr auto identity() {
+  DALI_HOST_DEV static constexpr mat identity() {
     return eye();
   }
 };
