@@ -1,0 +1,19 @@
+FROM alpine
+
+# CUDA toolkit needs gcc to be callable during installation even if it does nothing
+RUN apk add curl perl && ln -s /bin/ls /bin/gcc
+
+RUN CUDA_VERSION=10.0 && \
+    CUDA_BUILD=10.0.130_410.48 && \
+    curl -LO https://developer.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/local_installers/cuda_${CUDA_BUILD}_linux && \
+    chmod +x cuda_${CUDA_BUILD}_linux && \
+    ./cuda_${CUDA_BUILD}_linux --silent --no-opengl-libs --toolkit && \
+    rm -f cuda_${CUDA_BUILD}_linux; \
+    # nvJpeg
+    CUDA_VERSION=10.0 && \
+    CUDA_PATCH=1 && \
+    CUDA_BUILD=10.0.130.1 && \
+    curl -LO  https://developer.download.nvidia.com/compute/cuda/${CUDA_VERSION}/Prod/patches/${CUDA_PATCH}/cuda_${CUDA_BUILD}_linux.run && \
+    chmod +x cuda_${CUDA_BUILD}_linux.run && \
+    ./cuda_${CUDA_BUILD}_linux.run --silent --accept-eula --installdir=/usr/local/cuda-10.0 && \
+    rm -f cuda_${CUDA_BUILD}_linux-run;
