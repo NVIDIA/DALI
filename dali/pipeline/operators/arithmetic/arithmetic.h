@@ -39,19 +39,19 @@ inline std::tuple<std::vector<TileDesc>, std::vector<TileRange>> GetCover(
   std::vector<TileRange> ranges(num_tasks, {0, 0});
   int samples_per_task = shape.num_samples() / num_tasks;
   if (!samples_per_task)
-    samples_per_task = shape.num_samples();
-  int previous_idx = -1;
+    samples_per_task = 1;
+  int prev_task_idx = -1;
   for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
     int task_idx = sample_idx / samples_per_task;
     descs.push_back({sample_idx, 0, task_idx, shape[sample_idx].num_elements(),
                      shape[sample_idx].num_elements()});
-    if (task_idx != previous_idx) {
+    if (task_idx != prev_task_idx) {
       ranges[task_idx].begin = descs.size() - 1;
       ranges[task_idx].end = descs.size();
     } else {
       ranges[task_idx].end = descs.size();
     }
-    previous_idx = task_idx;
+    prev_task_idx = task_idx;
   }
   return std::make_tuple(descs, ranges);
 }
@@ -70,7 +70,7 @@ inline std::tuple<std::vector<TileDesc>, std::vector<TileRange>> GetTiledCover(
     return GetCover(shape, num_tasks);
   }
   int task_idx = 0;
-  int previous_idx = -1;
+  int prev_task_idx = -1;
   std::vector<Index> covered_by_thread(num_tasks, 0);
   for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
     int extent_idx = 0;
@@ -81,13 +81,13 @@ inline std::tuple<std::vector<TileDesc>, std::vector<TileRange>> GetTiledCover(
       // We either cover a full extent, of what is left in the sample
       covered_by_thread[task_idx] += actually_covered;
       // Update range information
-      if (task_idx != previous_idx) {
+      if (task_idx != prev_task_idx) {
         ranges[task_idx].begin = descs.size() - 1;
         ranges[task_idx].end = descs.size();
       } else {
         ranges[task_idx].end = descs.size();
       }
-      previous_idx = task_idx;
+      prev_task_idx = task_idx;
       // If we covered what we need, proceed to next thread
       if (covered_by_thread[task_idx] >= elements_per_thread && task_idx < num_tasks - 1) {
         task_idx++;
@@ -192,12 +192,28 @@ DLL_PUBLIC kernels::TensorListShape<> PropagateShapes(ExprNode &expr,
   DALI_FAIL("Only binary expressions are supported");
 }
 
+/**
+ * @brief Arithmetic operator capable of executing expression tree of elementwise
+ *        arithmetic operations.
+ *
+ * Only expression consisting of one function node with tensor inputs are now supported.
+ *
+ * There are 3 levels for unit of work.
+ * - Thread (CPUBackend) or CUDA kernel invokation (GPUBackend)
+ * - Task - group of tiles to process by thread or CUDA kernel
+ * - Tile - describes a portion of linear buffer, we try to split the amount of work
+ *          evenly into tasks.
+ *
+ * For CPUBackend we have fixed number of threads that get to process a number of tasks,
+ * so the work is evenly distributed. For GPUBackend we pack all tiles into 1 task, to limit
+ * the number of CUDA calls.
+ */
 template <typename Backend>
 class ArithmeticGenericOp : public Operator<Backend> {
  public:
   inline explicit ArithmeticGenericOp(const OpSpec &spec) : Operator<Backend>(spec) {
     expr_ = ParseExpressionString(spec.GetArgument<std::string>("expression_desc"));
-    num_tasks_ = std::is_same<Backend, CPUBackend>::value ? 2 * num_threads_ : 1;
+    num_tasks_ = std::is_same<Backend, CPUBackend>::value ? kTaskToThreadRatio * num_threads_ : 1;
   }
 
  protected:
@@ -240,7 +256,10 @@ class ArithmeticGenericOp : public Operator<Backend> {
   std::vector<ExpressionImplTask> exec_order_;
   ExprImplCache cache_;
   int num_tasks_;
+  // For CPU we limit the tile size to limit the sizes of intermediate buffers
+  // For GPU it's better to execute more at one time.
   static constexpr int kExtent = std::is_same<Backend, CPUBackend>::value ? 1024 : 16384;
+  static constexpr int kTaskToThreadRatio = 4;
   USE_OPERATOR_MEMBERS();
 };
 

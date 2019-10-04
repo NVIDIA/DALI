@@ -34,7 +34,7 @@ namespace dali {
 template <typename Backend>
 class ExpressionImplParam {
  protected:
-  // We differentiate between TensorVector nd TensorList, that still have inconsistent
+  // We differentiate between TensorVector and TensorList, that still have inconsistent
   // access patterns
   static constexpr bool is_cpu = std::is_same<Backend, CPUBackend>::value;
 
@@ -65,7 +65,7 @@ class ExpressionImplParam {
                                                 workspace_t<Backend> &ws, const OpSpec &spec,
                                                 TileDesc tile, int subexpr_id) {
     int scalar_id = dynamic_cast<const ExprConstant&>(expr[subexpr_id]).GetMappedInput();
-    if (expr.GetTypeId() < DALIDataType::DALI_FLOAT16) {
+    if (IsIntegral(expr.GetTypeId())) {
       return static_cast<Type>(spec.GetArgument<std::vector<int>>("integer_scalars")[scalar_id]);
     }
     return static_cast<Type>(spec.GetArgument<std::vector<float>>("float_scalars")[scalar_id]);

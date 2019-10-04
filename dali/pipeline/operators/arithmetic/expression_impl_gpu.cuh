@@ -32,11 +32,11 @@ using in_desc_t = std::conditional_t<IsTensor, const T*, T>;
 
 // Using the distinction between the Tensors and Constant
 // Otherwise void* could be used.
-template <typename Result, typename Left, bool LeftTensor, typename Right, bool RightTensor>
+template <typename Result, typename Left, bool LeftIsTensor, typename Right, bool RightIsTensor>
 struct GPUTileDesc {
   Result *result;
-  in_desc_t<LeftTensor, Left> left;
-  in_desc_t<RightTensor, Right> right;
+  in_desc_t<LeftIsTensor, Left> left;
+  in_desc_t<RightIsTensor, Right> right;
   int64_t extent;
 };
 
@@ -70,15 +70,15 @@ __global__ void ExecuteTiled(const Tile *tiles, int num_tiles) {
   ExecuteBin<op>(tile.result, tile.left, tile.right, tile.extent);
 }
 
-dim3 GetBlockLayout(int extent, int thread_num, int tiles) {
+dim3 GetGridLayout(int extent, int thread_num, int tiles) {
   return dim3(extent, tiles, 1);
 }
 
 // Assumes that it will get a workspace for given Backend,
 // and the backend will store the inputs and outputs at given Backend.
 template <ArithmeticOp op, typename Result,
-          typename Left, bool LeftTensor,
-          typename Right, bool RightTensor>
+          typename Left, bool LeftIsTensor,
+          typename Right, bool RightIsTensor>
 class ExpressionImplBinGPU : public ExpressionImplBase, ExpressionImplParam<GPUBackend> {
  public:
   explicit ExpressionImplBinGPU() {}
@@ -91,8 +91,8 @@ class ExpressionImplBinGPU : public ExpressionImplBase, ExpressionImplParam<GPUB
     const auto &expr = *ctx.node;
     for (int i = range.begin; i < range.end; i++) {
       const auto &source_tile = tiles[i];
-      target_tiles[i].left = ObtainInput<LeftTensor, Left>(expr, ws, spec, source_tile, 0);
-      target_tiles[i].right = ObtainInput<RightTensor, Right>(expr, ws, spec, source_tile, 1);
+      target_tiles[i].left = ObtainInput<LeftIsTensor, Left>(expr, ws, spec, source_tile, 0);
+      target_tiles[i].right = ObtainInput<RightIsTensor, Right>(expr, ws, spec, source_tile, 1);
       target_tiles[i].result = ObtainOutput<Result>(expr, ws, spec, source_tile);
       target_tiles[i].extent = source_tile.extent_size;
     }
@@ -101,11 +101,11 @@ class ExpressionImplBinGPU : public ExpressionImplBase, ExpressionImplParam<GPUB
   }
 
  private:
-  using Tile = GPUTileDesc<Result, Left, LeftTensor, Right, RightTensor>;
+  using Tile = GPUTileDesc<Result, Left, LeftIsTensor, Right, RightIsTensor>;
 
   static void Invoke(const Tile *tiles, int num_tiles, cudaStream_t stream) {
     // TODO(klecki): TUNE THIS
-    auto blocks = GetBlockLayout(kBlocksX, kThreadNum, num_tiles);
+    auto blocks = GetGridLayout(kBlocksX, kThreadNum, num_tiles);
     ExecuteTiled<op><<<blocks, kThreadNum, 0, stream>>>(tiles, num_tiles);
   }
   static constexpr int kThreadNum = 256;

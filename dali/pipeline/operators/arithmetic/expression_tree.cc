@@ -32,7 +32,7 @@ namespace {
 // <input> := &uint
 // <scalar> := $uint:Type
 
-// add(&0 mul(&1 $0:i8))
+// add(&0 mul(&1 $0:int8))
 // add(&0 rand())
 
 using ParseResult = std::tuple<std::unique_ptr<ExprNode>, int>;

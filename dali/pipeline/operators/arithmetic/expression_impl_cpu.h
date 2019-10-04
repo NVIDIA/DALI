@@ -31,8 +31,8 @@ namespace dali {
 // Assumes that it will get a workspace for given Backend,
 // and the backend will store the inputs and outputs at given Backend.
 template <ArithmeticOp op, typename Result,
-          typename Left, bool LeftTensor,
-          typename Right, bool RightTensor>
+          typename Left, bool LeftIsTensor,
+          typename Right, bool RightIsTensor>
 class ExpressionImplBinCPU : public ExpressionImplBase, ExpressionImplParam<CPUBackend> {
  public:
   explicit ExpressionImplBinCPU() {}
@@ -44,8 +44,8 @@ class ExpressionImplBinCPU : public ExpressionImplBase, ExpressionImplParam<CPUB
     auto &ws = dynamic_cast<workspace_t<CPUBackend> &>(workspace);
     const auto &expr = *ctx.node;
     const auto &tile = tiles[range.begin];
-    auto left = ObtainInput<LeftTensor, Left>(expr, ws, spec, tile, 0);
-    auto right = ObtainInput<RightTensor, Right>(expr, ws, spec, tile, 1);
+    auto left = ObtainInput<LeftIsTensor, Left>(expr, ws, spec, tile, 0);
+    auto right = ObtainInput<RightIsTensor, Right>(expr, ws, spec, tile, 1);
     auto output = ObtainOutput<Result>(expr, ws, spec, tile);
     Execute(output, left, right, tile.extent_size);
   }

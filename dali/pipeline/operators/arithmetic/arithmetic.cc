@@ -41,7 +41,14 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
 DALI_SCHEMA(ArithmeticGenericOp)
     .DocStr(R"code(Arithmetic operator capable of executing expression tree of elementwise
  arithmetic operations.)code")
-    .AddArg("expression_desc", "Polish notation describing the expression.",
+    .AddArg("expression_desc", R"code(Polish notation describing the expression extendend with
+ parentheses, see https://en.wikipedia.org/wiki/Polish_notation.
+Examples:
+  add(&0 mul(&1 $0:int8))
+  add(&0 rand())
+Inputs are separated by spaces, &<uint> indicates tensor input,
+$<uint>:<type_string> indicates constant.
+)code",
             DALIDataType::DALI_STRING, false)
     .AddOptionalArg("integer_scalars", "", std::vector<int>{})
     .NumInput(1, 64)  // TODO(klecki): Some arbitrary number that needs to be validated in operator

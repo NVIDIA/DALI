@@ -306,7 +306,6 @@ TEST(ArithmeticOps, GenericPipeline) {
   vector<std::pair<string, string>> outputs = {{"result", "cpu"}, {"result2", "gpu"}};
 
   pipe.Build(outputs);
-  pipe.SaveGraphToDotFile("test.dot");
 
   TensorList<CPUBackend> batch;
   batch.Resize(kernels::uniform_list_shape(batch_size, {tensor_elements}));
