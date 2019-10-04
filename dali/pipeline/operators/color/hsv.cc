@@ -24,7 +24,13 @@ using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
 
 
 DALI_SCHEMA(Hsv)
-                .DocStr(R"code()code")
+                .DocStr(R"code(This operator performs HSV manipulation.
+To change hue, saturation and/or value of the image, pass corresponding deltas.
+Keep in mind, that `hue` has additive delta argument,
+while for `saturation` and `value` they are multiplicative.
+
+This operator accepts RGB color space as an input.
+)code")
                 .NumInput(1)
                 .NumOutput(1)
                 .AddOptionalArg(hsv::kHue,
