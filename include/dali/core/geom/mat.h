@@ -286,6 +286,25 @@ struct mat {
   #endif
     return result;
   }
+
+
+  /**
+   * @return dali::mat with ones on the diagonal and zeros elsewhere
+   */
+  DALI_HOST_DEV static constexpr auto eye() {
+    mat m(0);
+    auto limit = rows < cols ? rows : cols;
+    for (int i = 0; i < limit; i++) {
+      m.at(i, i) = 1;
+    }
+    return m;
+  }
+
+
+  DALI_HOST_DEV static constexpr auto identity() {
+    return eye();
+  }
+
 };
 
 template <int rows, int cols, typename T, typename U>
@@ -479,25 +498,6 @@ mat<r1+r2, cols, T> cat_rows(const mat<r1, cols, T> &a, const mat<r2, cols, T> &
     ret.set_col(j, cat(a.col(j), b.col(j)));
 #endif
   return ret;
-}
-
-
-/**
- * Returns a dali::mat with ones on the diagonal and zeros elsewhere.
- */
-template <int rows, int cols, typename T = float>
-DALI_HOST_DEV constexpr dali::mat<rows, cols, T> eye() {
-  mat<rows, cols, T> ret(0);
-  for (int i = 0; i < rows && i < cols; i++) {
-    ret(i, i) = 1;
-  }
-  return ret;
-}
-
-
-template <int N, typename T = float>
-DALI_HOST_DEV constexpr dali::mat<N, N, T> eye() {
-  return eye<N, N, T>();
 }
 
 

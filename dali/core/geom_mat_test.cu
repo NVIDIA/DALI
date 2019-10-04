@@ -409,7 +409,7 @@ TEST(MatTest, CatRows) {
 }
 
 
-TEST(MatTest, identity_matrix) {
+TEST(MatTest, IdentityMatrix) {
   mat3 three_by_three = {{
          {1, 0, 0},
          {0, 1, 0},
@@ -423,9 +423,9 @@ TEST(MatTest, identity_matrix) {
          {0, 1},
          {0, 0},
   }};
-  auto m1 = eye<3, int>();
-  auto m2 = eye<3, 1, int>();
-  auto m3 = eye<3, 2, int>();
+  auto m1 = imat3::eye();
+  auto m2 = mat<3,1,int>::eye();
+  auto m3 = mat<3,2,int>::eye();
   EXPECT_EQ(m1, three_by_three);
   EXPECT_EQ(m2, three_by_one);
   EXPECT_EQ(m3, three_by_two);

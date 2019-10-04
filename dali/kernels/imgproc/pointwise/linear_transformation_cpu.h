@@ -37,7 +37,7 @@ class LinearTransformationCpu {
 
  public:
     KernelRequirements Setup(KernelContext &context, const InTensorCPU<InputType, ndims> &in,
-                             Mat tmatrix = eye<channels_out, channels_in>(), Vec tvector = {},
+                             Mat tmatrix = Mat::eye(), Vec tvector = {},
                              const Roi<spatial_ndims_> *roi = nullptr) {
     DALI_ENFORCE(in.shape.shape.back() == channels_in,
                  "Unexpected number of channels. Number of channels in InTensorCPU has to match"
@@ -54,8 +54,7 @@ class LinearTransformationCpu {
 
 
     void Run(KernelContext &context, const OutTensorCPU<OutputType, ndims> &out,
-             const InTensorCPU<InputType, ndims> &in,
-             Mat tmatrix = eye<channels_out, channels_in>(), Vec tvector = {},
+             const InTensorCPU<InputType, ndims> &in, Mat tmatrix = Mat::eye(), Vec tvector = {},
              const Roi<spatial_ndims_> *roi = nullptr) {
     auto adjusted_roi = AdjustRoi(roi, in.shape);
     auto ptr = out.data;
