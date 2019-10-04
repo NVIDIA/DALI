@@ -119,6 +119,13 @@ class LinearTransformationGpu {
                                "ROI doesn't follow {lo, hi} convention.", rois[i]));
     }
 
+    gen_default_values(in.num_samples());
+    if (tmatrices.empty()) {
+      tmatrices = make_cspan(default_mats_);
+    }
+    if (tvectors.empty()) {
+      tvectors = make_cspan(default_vecs_);
+    }
     auto adjusted_rois = AdjustRoi(rois, in.shape);
     KernelRequirements req;
     ScratchpadEstimator se;
@@ -135,35 +142,21 @@ class LinearTransformationGpu {
   void Run(KernelContext &context, const OutListGPU<OutputType, ndims_> &out,
            const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices = {},
            span<const Vec> tvectors = {}, span<const Roi<spatial_ndims>> rois = {}) {
-    cout<<"ASDASDASDD 6\n";
-    DALI_ENFORCE(tmatrices.size()==0||tvectors.size()==0||tmatrices.size() == tvectors.size());
-    if (tmatrices.empty()) {
-      gen_default_values(in.num_samples());
-      tmatrices = make_cspan(default_mats_);
-      tvectors = make_cspan(default_vecs_);
-    }
-    cout<<"ASDASDASDD 61\n";
-
     CreateSampleDescriptors(out, in, tmatrices, tvectors, rois);
-    cout<<"ASDASDASDD 62\n";
 
     SampleDescriptor *samples_gpu;
     BlockDesc *blocks_gpu;
-    cout<<"ASDASDASDD 63\n";
 
     std::tie(samples_gpu, blocks_gpu) = context.scratchpad->ToContiguousGPU(
             context.gpu.stream, sample_descriptors_, block_setup_.Blocks());
-    cout<<"ASDASDASDD 64\n";
 
     dim3 grid_dim = block_setup_.GridDim();
     dim3 block_dim = block_setup_.BlockDim();
     auto stream = context.gpu.stream;
     // @autoformat:off
-    cout<<"ASDASDASDD 4\n";
     lin_trans::LinearTransformationKernel
             <<<grid_dim, block_dim, 0, stream>>>(samples_gpu, blocks_gpu);
     // @autoformat:on
-    cout<<"ASDASDASDD 5\n";
   }
 
 
@@ -171,15 +164,16 @@ class LinearTransformationGpu {
   void CreateSampleDescriptors(const OutListGPU<OutputType, ndims_> &out,
                                const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices,
                                span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois) {
-    cout<<"ASDASDASDD 71\n";
+    if (tmatrices.empty()) {
+      tmatrices = make_cspan(default_mats_);
+    }
+    if (tvectors.empty()) {
+      tvectors = make_cspan(default_vecs_);
+    }
     assert(tmatrices.size() == tvectors.size());
-    cout<<"ASDASDASDD 72\n";
     auto adjusted_rois = AdjustRoi(rois, in.shape);
     sample_descriptors_.resize(in.num_samples());
-    cout<<"ASDASDASDD 73\n"<<in.num_samples()<<endl;
     for (int i = 0; i < in.num_samples(); i++) {
-      cout<<"ASDASDASDD 731\n";
-      cout<<tmatrices.size()<<endl<<tvectors.size()<<endl<<tmatrices[i]<<endl<<tvectors[i]<<endl;
       auto &sample = sample_descriptors_[i];
       sample.in = in[i].data;
       sample.out = out[i].data;
@@ -192,32 +186,21 @@ class LinearTransformationGpu {
           return ret;
       };
 
-      cout<<"ASDASDASDD 732\n";
       sample.in_size = get_size(in.tensor_shape(i));
-      cout<<"ASDASDASDD 733\n";
       sample.out_size = get_size(out.tensor_shape(i));
-      cout<<"ASDASDASDD 734\n";
       sample.in_strides = {channels_in, sample.in_size.x * channels_in};
-      cout<<"ASDASDASDD 735\n";
       sample.out_strides = {channels_out, sample.out_size.x * channels_out};
-      cout<<"ASDASDASDD 736\n";
       sample.A = tmatrices[i];
-      cout<<"ASDASDASDD 737\n";
       sample.B = tvectors[i];
-      cout<<"ASDASDASDD 738\n";
       sample.roi = adjusted_rois[i];
-      cout<<"ASDASDASDD 739\n";
     }
-    cout<<"ASDASDASDD 74\n";
   }
 
-  void gen_default_values(int how_many) {
-    default_mats_={how_many, eye<channels_out, channels_in>()};
-    Vec zero_vec;
-    for (int i = 0; i < channels_out; i++) {
-      zero_vec[i] = 0;
-    }
-    default_vecs_={how_many, zero_vec};
+
+  void gen_default_values(int nsamples) {
+    default_mats_ = {nsamples, Mat::eye()};
+    Vec zero_vec = 0;
+    default_vecs_ = {nsamples, zero_vec};
   }
 };
 

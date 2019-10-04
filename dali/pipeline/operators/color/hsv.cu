@@ -12,35 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
 #include "dali/pipeline/operators/color/hsv.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_gpu.h"
 
 namespace dali {
 namespace {
 
-//template <typename Backend, typename Out, typename In, int channels_out, int channels_in, int ndims>
-//struct Kernel {
-//  using type= kernels::LinearTransformationGpu<Out, In, channels_out, channels_in, ndims>;
-//};
 
 template <typename Out, typename In>
 using TheKernel = kernels::LinearTransformationGpu<Out, In, 3, 3, 2>;
 
 
-}  // namespace hsv
-DALI_REGISTER_OPERATOR(Hsv, HsvGpu, GPU)
+}  // namespace
 
+DALI_REGISTER_OPERATOR(Hsv, HsvGpu, GPU)
 
 
 bool HsvGpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                        const workspace_t<GPUBackend> &ws) {
-  cout<<"ASDASDASDD 1\n";
   const TensorList<GPUBackend> &input = ws.template InputRef<GPUBackend>(0);
   const auto &output = ws.template OutputRef<GPUBackend>(0);
   output_desc.resize(1);
 // @autoformat:off
-//using InputType =uint8_t;
-//using OutputType =uint8_t;
     TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
         TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
             {
@@ -57,8 +51,8 @@ bool HsvGpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
   return true;
 }
 
+
 void HsvGpu::RunImpl(Workspace<GPUBackend> &ws) {
-  cout<<"ASDASDASDD 2\n";
   const auto &input = ws.template Input<GPUBackend>(0);
   auto &output = ws.template Output<GPUBackend>(0);
 // @autoformat:off
@@ -70,18 +64,13 @@ void HsvGpu::RunImpl(Workspace<GPUBackend> &ws) {
                 auto tvin = view<const InputType, 3>(input);
                 auto tvout = view<OutputType, 3>(output);
                 auto tmat = transformation_matrix(hue_, saturation_, value_);
-                kernel_manager_.Run<Kernel>(ws.thread_idx(),ws.data_idx(), ctx, tvout, tvin,
-                        make_cspan(tmat));
-//                                kernel_manager_.Run<TheKernel>(ws.thread_idx(),ws.data_idx(), ctx, tvout, tvin);
+                kernel_manager_.Run<Kernel>(ws.thread_idx(), ws.data_idx(),
+                        ctx, tvout, tvin, make_cspan(tmat));
             }
         ), DALI_FAIL("Unsupported output type"))  // NOLINT
     ), DALI_FAIL("Unsupported input type"))  // NOLINT
     // @autoformat:on
-
 }
-
-
-
 
 
 }  // namespace dali

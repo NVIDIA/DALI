@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DUPAJASIU
-#define DUPAJASIU
+#ifndef DALI_PIPELINE_OPERATORS_COLOR_HSV_H_
+#define DALI_PIPELINE_OPERATORS_COLOR_HSV_H_
 
 #include <vector>
 #include <memory>
 #include <string>
-#include <dali/pipeline/operators/common.h>
+#include "dali/core/static_switch.h"
 #include "dali/core/geom/mat.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operators/common.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/core/static_switch.h"
-#include "dali/pipeline/data/views.h"
-#include  "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
-#include <dali/kernels/tensor_shape_print.h>
+#include "dali/kernels/tensor_shape_print.h"
+#include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
 
 
 namespace dali {
@@ -54,7 +54,7 @@ const mat3 Yiq2Rgb = {{
 inline mat3 compose_hue(float hue) {
   const float pi = 3.14159265359f;
   const auto h_rad = hue * pi / 180;
-  mat3 ret = eye<3, 3>();
+  mat3 ret = mat3::eye();
   ret(1, 1) = cos(h_rad);
   ret(2, 2) = cos(h_rad);
   ret(1, 2) = -sin(h_rad);
@@ -64,7 +64,7 @@ inline mat3 compose_hue(float hue) {
 
 
 inline mat3 compose_saturation(float saturation) {
-  auto ret = eye<3, 3>();
+  mat3 ret = mat3::eye();
   ret(1, 1) = saturation;
   ret(2, 2) = saturation;
   return ret;
@@ -72,24 +72,8 @@ inline mat3 compose_saturation(float saturation) {
 
 
 inline mat3 compose_value(float value) {
-  return eye<3, 3>() * value;
+  return mat3::eye() * value;
 }
-
-
-
-
-//template <typename Backend, typename Out, typename In, int channels_out, int channels_in, int ndims>
-//struct Kernel {
-//  using type= kernels::LinearTransformationCpu<Out, In, channels_out, channels_in, ndims>;
-//};
-
-//template <typename Backend, typename Out, typename In, int channels_out, int channels_in, int ndims>
-//struct Kernel;
-
-//template<typename Backend, typename Out, typename In, int channels_out, int channels_in, int ndims>
-//struct Kernel<GPUBackend, Out, In, channels_out, channels_in, ndims> {
-//    using type = int;
-//};
 
 
 template <typename Backend, typename T>
@@ -110,15 +94,15 @@ struct ArgumentType<GPUBackend, T> {
 /**
  * Select proper type for argument (for either sample processing or batch processing cases)
  */
-template <typename Backend, typename T=float>
+template <typename Backend, typename T = float>
 using argument_t = typename ArgumentType<Backend, T>::type;
 
 
 template <typename Backend>
 void
 assign_argument_value(const OpSpec &spec, const std::string &arg_name, argument_t<Backend> &arg) {
-
 }
+
 
 template <>
 inline void assign_argument_value<CPUBackend>(const OpSpec &spec, const std::string &arg_name,
@@ -136,28 +120,19 @@ inline void assign_argument_value<GPUBackend>(const OpSpec &spec, const std::str
 }
 
 
-//template <>
-//inline argument_t<CPUBackend, mat3>
-//transformation_matrix<CPUBackend>(const argument_t<CPUBackend> &hue, const argument_t<CPUBackend> &saturation,
-//                                  const argument_t<CPUBackend> &value) {
-//  return Rgb2Yiq * compose_hue(hue) * compose_saturation(saturation) * compose_value(value) *
-//         Yiq2Rgb;
-//}
+template <typename Backend>
+struct WorkspaceInputType {
+  using type = TensorVector<CPUBackend>;
+};
 
+template <>
+struct WorkspaceInputType<GPUBackend> {
+  using type = TensorList<GPUBackend>;
+};
 
-//template <>
-//inline argument_t<GPUBackend, mat3>
-//transformation_matrix<GPUBackend>(const argument_t<GPUBackend> &hue, const argument_t<GPUBackend> &saturation,
-//                                  const argument_t<GPUBackend> &value) {
-//  std::vector<mat3> ret;
-//  DALI_ENFORCE(hue.size() == saturation.size());
-//  DALI_ENFORCE(saturation.size() == value.size());
-//  for (size_t i = 0; i < hue.size(); i++) {
-//    ret.emplace_back(Rgb2Yiq * compose_hue(hue[i]) * compose_saturation(saturation[i]) *
-//                     compose_value(value[i]) * Yiq2Rgb);
-//  }
-//  return ret;
-//}
+template <typename Backend>
+using workspace_input_t = typename WorkspaceInputType<Backend>::type;
+
 
 }  // namespace hsv
 
@@ -179,102 +154,15 @@ class Hsv : public Operator<Backend> {
     }
   }
 
-
   ~Hsv() override = default;
 
-
   DISABLE_COPY_MOVE_ASSIGN(Hsv);
-
 
  protected:
   bool CanInferOutputs() const override {
     return true;
   }
 
-
-
-
-//  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-//                 const workspace_t<Backend> &ws) override {
-//    const auto &input = ws.template InputRef<Backend>(0);
-//    const auto &output = ws.template OutputRef<Backend>(0);
-//    output_desc.resize(1);
-//    // @autoformat:off
-//    TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t/*, int16_t, int32_t, float, float16*/), (
-//        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t/*, int16_t, int32_t, float, float16*/), (
-//            {
-//                using TheKernel = hsv::KernelSelector<Backend, OutputType, InputType, 3, 3, 2>;
-//                kernel_manager_.Initialize<TheKernel>();
-//                auto shapes = CallSetup<TheKernel, InputType>(input, ws.data_idx());
-//                TypeInfo type;
-//                type.SetType<OutputType>(output_type_);
-//                output_desc[0] = {shapes, type};
-//            }
-//        ), DALI_FAIL("Unsupported output type"))  // NOLINT
-//    ), DALI_FAIL("Unsupported input type"))  // NOLINT
-//    // @autoformat:on
-//    return true;
-//  }
-
-  /*
-   * So that compiler wouldn't complain, that
-   * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
-   * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
-   */
-//  using Operator<Backend>::RunImpl;
-
-
-//  void RunImpl(Workspace<Backend> &ws) override {
-//    const auto &input = ws.template Input<Backend>(0);
-//    auto &output = ws.template Output<Backend>(0);
-//    // @autoformat:off
-//    TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t/*, int16_t, int32_t, float, float16*/), (
-//        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t/*, int16_t, int32_t, float, float16*/), (
-//            {
-//                using TheKernel = hsv::KernelSelector<Backend, OutputType, InputType, 3, 3, 2>;
-//                kernels::KernelContext ctx;
-//                auto sh = input.shape();
-//                auto tvin = view<const InputType, 3>(input);
-//                auto tvout = view<OutputType, 3>(output);
-//                kernel_manager_.Run<TheKernel>(ws.thread_idx(),ws.data_idx(), ctx, tvout, tvin,
-//                        hsv::transformation_matrix(hue_, saturation_, value_));
-////                                kernel_manager_.Run<TheKernel>(ws.thread_idx(),ws.data_idx(), ctx, tvout, tvin);
-//            }
-//        ), DALI_FAIL("Unsupported output type"))  // NOLINT
-//    ), DALI_FAIL("Unsupported input type"))  // NOLINT
-//    // @autoformat:on
-//
-//  }
-
-
- private:
-//  template <typename Kernel, typename InputType>
-//  kernels::TensorListShape<> CallSetup(const TensorVector<Backend> &input, int instance_idx) {
-//    kernels::KernelContext ctx;
-//    kernels::TensorListShape<> sh = input.shape();
-//    std::vector<kernels::TensorShape<>> shapes;
-//    shapes.resize(sh.num_samples());
-//    for (size_t i = 0; i < shapes.size(); i++) {
-//      const auto tvin = view<const InputType, 3>(input[i]);
-////      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, hsv::transformation_matrix(hue_, saturation_, value_));
-//      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin);
-//      kernels::TensorListShape<> out_sh = reqs.output_shapes[0];
-//      shapes[i] = out_sh.tensor_shape(0);
-//    }
-//    return {shapes};
-//  }
-
-
-//  template <typename Kernel, typename InputType>
-//  kernels::TensorListShape<> CallSetup(const TensorList<Backend> &tl, int instance_idx) {
-//    kernels::KernelContext ctx;
-//    kernels::TensorListView<kernels::StorageGPU, const InputType, 3> tvin = view<const InputType, 3>(tl);
-//    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, make_cspan(hsv::transformation_matrix(hue_, saturation_,value_)));
-////    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin);
-//    return reqs.output_shapes[0];
-//  }
-
- protected:
   USE_OPERATOR_MEMBERS();
   hsv::argument_t<Backend> hue_, saturation_, value_;
   DALIDataType output_type_;
@@ -283,8 +171,7 @@ class Hsv : public Operator<Backend> {
 
 class HsvCpu : public Hsv<CPUBackend> {
  public:
-
-  HsvCpu(const OpSpec &spec) : Hsv(spec) {}
+  explicit HsvCpu(const OpSpec &spec) : Hsv(spec) {}
 
 
   ~HsvCpu() override = default;
@@ -294,23 +181,16 @@ class HsvCpu : public Hsv<CPUBackend> {
 
 
  protected:
-
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
-
+  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
+                 const workspace_t<CPUBackend> &ws) override;
 
 
   void RunImpl(Workspace<CPUBackend> &ws) override;
 
 
-
  private:
-
-//  template <typename Out, typename In>
-//  using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 2>;
-
-
   static mat3 transformation_matrix(float hue, float saturation, float value) {
-    using namespace hsv;
+    using namespace hsv;  // NOLINT
     return Rgb2Yiq * compose_hue(hue) * compose_saturation(saturation) * compose_value(value) *
            Yiq2Rgb;
   }
@@ -332,27 +212,12 @@ class HsvCpu : public Hsv<CPUBackend> {
     }
     return {shapes};
   }
-
-
-//  template <typename Kernel, typename InputType>
-//  kernels::TensorListShape<> CallSetup(const TensorList<GPUBackend> &tl, int instance_idx) {
-//    kernels::KernelContext ctx;
-//    kernels::TensorListView<kernels::StorageGPU, const InputType, 3> tvin = view<const InputType, 3>(tl);
-//    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, make_cspan(transformation_matrix(hue_, saturation_,value_)));
-////    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin);
-//    return reqs.output_shapes[0];
-//  }
-
 };
-
-
-
 
 
 class HsvGpu : public Hsv<GPUBackend> {
  public:
-
-  HsvGpu(const OpSpec &spec) : Hsv(spec) {cout<<"ASDASDASDD 3\n";}
+  explicit HsvGpu(const OpSpec &spec) : Hsv(spec) {}
 
 
   ~HsvGpu() override = default;
@@ -362,74 +227,40 @@ class HsvGpu : public Hsv<GPUBackend> {
 
 
  protected:
-
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
-
+  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
+                 const workspace_t<GPUBackend> &ws) override;
 
 
   void RunImpl(Workspace<GPUBackend> &ws) override;
 
 
-
  private:
-
-//  template <typename Out, typename In>
-//  using TheKernel = kernels::LinearTransformationGpu<Out, In, 3, 3, 2>;
-
-
-//  static mat3 transformation_matrix(float hue, float saturation, float value) {
-//    using namespace hsv;
-//    return Rgb2Yiq * compose_hue(hue) * compose_saturation(saturation) * compose_value(value) *
-//           Yiq2Rgb;
-//  }
-
-std::vector<mat3>
-transformation_matrix(const std::vector<float> &hue, const std::vector<float> &saturation,
-                                  const std::vector<float> &value) {
-  using namespace hsv;
-  std::vector<mat3> ret;
-  DALI_ENFORCE(hue.size() == saturation.size());
-  DALI_ENFORCE(saturation.size() == value.size());
-  for (size_t i = 0; i < hue.size(); i++) {
-    ret.emplace_back(Rgb2Yiq * compose_hue(hue[i]) * compose_saturation(saturation[i]) *
-                     compose_value(value[i]) * Yiq2Rgb);
+  std::vector<mat3>
+  transformation_matrix(const std::vector<float> &hue, const std::vector<float> &saturation,
+                        const std::vector<float> &value) {
+    using namespace hsv;  // NOLINT
+    std::vector<mat3> ret;
+    DALI_ENFORCE(hue.size() == saturation.size());
+    DALI_ENFORCE(saturation.size() == value.size());
+    for (size_t i = 0; i < hue.size(); i++) {
+      ret.emplace_back(Rgb2Yiq * compose_hue(hue[i]) * compose_saturation(saturation[i]) *
+                       compose_value(value[i]) * Yiq2Rgb);
+    }
+    return ret;
   }
-  return ret;
-}
-
-
-//  template <typename Kernel, typename InputType>
-//  kernels::TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input, int instance_idx) {
-//    kernels::KernelContext ctx;
-//    kernels::TensorListShape<> sh = input.shape();
-//    std::vector<kernels::TensorShape<>> shapes;
-//    shapes.resize(sh.num_samples());
-//    for (size_t i = 0; i < shapes.size(); i++) {
-//      const auto tvin = view<const InputType, 3>(input[i]);
-//      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin,
-//                                                      transformation_matrix(hue_, saturation_,
-//                                                                            value_));
-//      kernels::TensorListShape<> out_sh = reqs.output_shapes[0];
-//      shapes[i] = out_sh.tensor_shape(0);
-//    }
-//    return {shapes};
-//  }
 
 
   template <typename Kernel, typename InputType>
   kernels::TensorListShape<> CallSetup(const TensorList<GPUBackend> &tl, int instance_idx) {
     kernels::KernelContext ctx;
-    kernels::TensorListView<kernels::StorageGPU, const InputType, 3> tvin = view<const InputType, 3>(tl);
-    auto tmat = transformation_matrix(hue_, saturation_,value_);
+    auto tvin = view<const InputType, 3>(tl);
+    auto tmat = transformation_matrix(hue_, saturation_, value_);
     const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, make_cspan(tmat));
-//    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin);
     return reqs.output_shapes[0];
   }
-
 };
-
 
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_COLOR_BRIGHTNESS_CONTRAST_H_
+#endif  // DALI_PIPELINE_OPERATORS_COLOR_HSV_H_

@@ -18,15 +18,11 @@
 namespace dali {
 namespace {
 
-//template <typename Backend, typename Out, typename In, int channels_out, int channels_in, int ndims>
-//struct Kernel {
-//  using type= kernels::LinearTransformationCpu<Out, In, channels_out, channels_in, ndims>;
-//};
 
-  template <typename Out, typename In>
-  using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 2>;
+template <typename Out, typename In>
+using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
 
-}  // namespace hsv
+}  // namespace
 
 
 DALI_SCHEMA(Hsv)
@@ -47,48 +43,46 @@ DALI_SCHEMA(Hsv)
 DALI_REGISTER_OPERATOR(Hsv, HsvCpu, CPU)
 
 
-
 bool HsvCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                        const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   const auto &output = ws.template OutputRef<CPUBackend>(0);
   output_desc.resize(1);
-// @autoformat:off
-    TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
-        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
-            {
-                using Kernel = TheKernel<OutputType, InputType>;
-                kernel_manager_.Initialize<Kernel>();
-                auto shapes = CallSetup<Kernel, InputType>(input, ws.data_idx());
-                TypeInfo type;
-                type.SetType<OutputType>(output_type_);
-                output_desc[0] = {shapes, type};
-            }
-        ), DALI_FAIL(make_string("Unsupported output type:", output_type_)))  // NOLINT
-    ), DALI_FAIL(make_string("Unsupported input type:", input.type().id())))  // NOLINT
-    // @autoformat:on
+  // @autoformat:off
+  TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
+      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
+          {
+              using Kernel = TheKernel<OutputType, InputType>;
+              kernel_manager_.Initialize<Kernel>();
+              auto shapes = CallSetup<Kernel, InputType>(input, ws.data_idx());
+              TypeInfo type;
+              type.SetType<OutputType>(output_type_);
+              output_desc[0] = {shapes, type};
+          }
+      ), DALI_FAIL(make_string("Unsupported output type:", output_type_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type:", input.type().id())))  // NOLINT
+  // @autoformat:on
   return true;
 }
 
-void HsvCpu::RunImpl(Workspace<CPUBackend> &ws) {
-const auto &input = ws.template Input<CPUBackend>(0);
-auto &output = ws.template Output<CPUBackend>(0);
-// @autoformat:off
-    TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
-        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
-            {
-                using Kernel = TheKernel<OutputType, InputType>;
-                kernels::KernelContext ctx;
-                auto tvin = view<const InputType, 3>(input);
-                auto tvout = view<OutputType, 3>(output);
-                kernel_manager_.Run<Kernel>(ws.thread_idx(),ws.data_idx(), ctx, tvout, tvin,
-                        transformation_matrix(hue_, saturation_, value_));
-//                                kernel_manager_.Run<TheKernel>(ws.thread_idx(),ws.data_idx(), ctx, tvout, tvin);
-            }
-        ), DALI_FAIL("Unsupported output type"))  // NOLINT
-    ), DALI_FAIL("Unsupported input type"))  // NOLINT
-    // @autoformat:on
 
+void HsvCpu::RunImpl(Workspace<CPUBackend> &ws) {
+  const auto &input = ws.template Input<CPUBackend>(0);
+  auto &output = ws.template Output<CPUBackend>(0);
+  // @autoformat:off
+  TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
+      TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
+          {
+              using Kernel = TheKernel<OutputType, InputType>;
+              kernels::KernelContext ctx;
+              auto tvin = view<const InputType, 3>(input);
+              auto tvout = view<OutputType, 3>(output);
+              auto tmat = transformation_matrix(hue_, saturation_, value_);
+              kernel_manager_.Run<Kernel>(ws.thread_idx(), ws.data_idx(), ctx, tvout, tvin, tmat);
+          }
+      ), DALI_FAIL("Unsupported output type"))  // NOLINT
+  ), DALI_FAIL("Unsupported input type"))  // NOLINT
+  // @autoformat:on
 }
 
 
