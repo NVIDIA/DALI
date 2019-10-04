@@ -304,7 +304,6 @@ struct mat {
   DALI_HOST_DEV static constexpr auto identity() {
     return eye();
   }
-
 };
 
 template <int rows, int cols, typename T, typename U>
