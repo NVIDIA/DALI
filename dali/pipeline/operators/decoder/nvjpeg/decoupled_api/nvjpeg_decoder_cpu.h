@@ -137,13 +137,14 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
         if (crop_generator) {
           kernels::TensorShape<> shape{info->heights[0], info->widths[0]};
-          info->crop_window = crop_generator(shape);
+          info->crop_window = crop_generator(shape, "HW");
           DALI_ENFORCE(info->crop_window.IsInRange(shape));
           info->heights[0] = info->crop_window.shape[0];
           info->widths[0] = info->crop_window.shape[1];
         }
         auto& out = ws.Output<CPUBackend>(2);
         out.set_type(TypeInfo::Create<uint8_t>());
+        out.SetLayout("HWC");
         out.Resize({info->heights[0], info->widths[0], nchannels});
         auto *output_data = out.mutable_data<uint8_t>();
 
@@ -161,7 +162,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
 
       if (crop_generator) {
         kernels::TensorShape<> shape{info->heights[0], info->widths[0]};
-        info->crop_window = crop_generator(shape);
+        info->crop_window = crop_generator(shape, "HW");
         auto &crop_window = info->crop_window;
         DALI_ENFORCE(crop_window.IsInRange(shape));
         nvjpegDecodeParamsSetROI(decode_params_[data_idx],

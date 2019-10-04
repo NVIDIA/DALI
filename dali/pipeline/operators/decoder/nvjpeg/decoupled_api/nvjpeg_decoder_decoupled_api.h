@@ -214,7 +214,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
           if (crop_generator) {
             kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
-            info.crop_window = crop_generator(shape);
+            info.crop_window = crop_generator(shape, "HW");
             DALI_ENFORCE(info.crop_window.IsInRange(shape));
             info.heights[0] = info.crop_window.shape[0];
             info.widths[0] = info.crop_window.shape[1];
@@ -226,7 +226,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       } else {
         if (crop_generator) {
           kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
-          info.crop_window = crop_generator(shape);
+          info.crop_window = crop_generator(shape, "HW");
           auto &crop_window = info.crop_window;
           DALI_ENFORCE(crop_window.IsInRange(shape));
           nvjpegDecodeParamsSetROI(decode_params_[i],

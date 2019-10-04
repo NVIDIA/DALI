@@ -18,6 +18,7 @@ import glob
 from collections import Iterable
 import re
 
+
 _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
 _dali_tf_module = None
 # Order: 'current', prebuilt for current TF version, prebuilt for other TF versions
@@ -115,6 +116,137 @@ def DALIIterator():
 def DALIRawIterator():
     return _dali_tf
 
+
+def _get_tf_minor_version():
+  return tf.__version__.split('.')[1]
+
+
+if _get_tf_minor_version() in {'13', '14'}:
+  from tensorflow.python.framework import ops
+  from tensorflow.python.data.ops import dataset_ops
+  from tensorflow.python.data.util import structure
+  import functools
+
+  class _DALIDatasetV2(dataset_ops.DatasetSource):
+    def __init__(
+      self,
+      pipeline = '',
+      batch_size = 1,
+      num_threads = 4,
+      device_id = 0,
+      exec_separated = False,
+      prefetch_queue_depth = 2,
+      cpu_prefetch_queue_depth = 2,
+      gpu_prefetch_queue_depth = 2,
+      shapes = [], 
+      dtypes = []):
+
+      assert(len(shapes) == len(dtypes),
+        "Different number of provided shapes and dtypes.")
+
+      output_classes = tuple(ops.Tensor for shape in shapes)
+
+      self._pipeline = pipeline.serialize()
+      self._batch_size = batch_size
+      self._num_threads = num_threads
+      self._device_id = device_id
+      self._exec_separated = exec_separated
+      self._prefetch_queue_depth = prefetch_queue_depth
+      self._cpu_prefetch_queue_depth = cpu_prefetch_queue_depth
+      self._gpu_prefetch_queue_depth = gpu_prefetch_queue_depth
+      self._shapes = tuple(tf.TensorShape(shape) for shape in shapes)
+      self._dtypes = tuple(dtype for dtype in dtypes)
+
+      self._structure = structure.convert_legacy_structure(
+        self._dtypes, self._shapes, output_classes)
+
+      if _get_tf_minor_version() == '14':
+        super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
+      elif _get_tf_minor_version() == '13':
+        super(_DALIDatasetV2, self).__init__()
+      else:
+        raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14')
+
+
+    @property
+    def _element_structure(self):
+      return self._structure
+
+
+    # This function should not be removed or refactored.
+    # It is needed for TF 1.13.1
+    def _as_variant_tensor(self):
+      return _dali_tf_module.dali_dataset(
+        pipeline = self._pipeline,
+        batch_size = self._batch_size,
+        num_threads = self._num_threads,
+        device_id = self._device_id,
+        exec_separated = self._exec_separated,
+        prefetch_queue_depth = self._prefetch_queue_depth,
+        cpu_prefetch_queue_depth = self._cpu_prefetch_queue_depth,
+        gpu_prefetch_queue_depth = self._gpu_prefetch_queue_depth,
+        shapes = self._shapes, 
+        dtypes = self._dtypes)
+
+
+  class DALIDataset(dataset_ops.DatasetV1Adapter):
+    @functools.wraps(_DALIDatasetV2.__init__)
+    def __init__(self, **kwargs):
+      wrapped = _DALIDatasetV2(**kwargs)
+      super(DALIDataset, self).__init__(wrapped)
+
+else:
+  class DALIDataset:
+    def __init__(
+      self,
+      pipeline = '',
+      batch_size = 1,
+      num_threads = 4,
+      device_id = 0,
+      exec_separated = False,
+      prefetch_queue_depth = 2,
+      cpu_prefetch_queue_depth = 2,
+      gpu_prefetch_queue_depth = 2,
+      shapes = [], 
+      dtypes = []):
+      raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.')
+
+DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13 and 1.14
+
+    Parameters
+    ----------
+    `pipeline` : `nvidia.dali.Pipeline` 
+        defining the augmentations to be performed. 
+    `batch_size` : int
+        batch size of the pipeline.
+    `num_threads` : int
+        number of CPU threads used by the pipeline.
+    `device_id` : int
+        id of GPU used by the pipeline.
+    `exec_separated` : bool
+        Whether to execute the pipeline in a way that enables
+        overlapping CPU and GPU computation, typically resulting
+        in faster execution speed, but larger memory consumption.
+    `prefetch_queue_depth` : int
+        depth of the executor queue. Deeper queue makes DALI more 
+        resistant to uneven execution time of each batch, but it also 
+        consumes more memory for internal buffers.
+        Value will be used with `exec_separated` set to False.
+    `cpu_prefetch_queue_depth` : int
+        depth of the executor cpu queue. Deeper queue makes DALI more 
+        resistant to uneven execution time of each batch, but it also 
+        consumes more memory for internal buffers.
+        Value will be used with `exec_separated` set to True.
+    `gpu_prefetch_queue_depth` : int
+        depth of the executor gpu queue. Deeper queue makes DALI more 
+        resistant to uneven execution time of each batch, but it also 
+        consumes more memory for internal buffers.
+        Value will be used with `exec_separated` set to True.
+    `shapes`: `List` of tuples 
+        expected output shapes
+    `dtypes`: `List` of `tf.DType` 
+        expected output types
+    """
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
 DALIRawIterator.__doc__ = _dali_tf.__doc__

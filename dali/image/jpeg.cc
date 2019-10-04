@@ -87,7 +87,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   if (crop_window_generator) {
     flags.crop = true;
     kernels::TensorShape<> shape{static_cast<int>(h), static_cast<int>(w)};
-    auto crop = crop_window_generator(shape);
+    auto crop = crop_window_generator(shape, "HW");
     DALI_ENFORCE(crop.IsInRange(shape));
     flags.crop_y = crop.anchor[0];
     flags.crop_x = crop.anchor[1];

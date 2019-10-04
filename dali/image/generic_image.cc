@@ -41,7 +41,7 @@ GenericImage::DecodeImpl(DALIImageType image_type,
   auto crop_generator = GetCropWindowGenerator();
   if (crop_generator) {
       cv::Mat decoded_image_roi;
-      auto crop = crop_generator({H, W});
+      auto crop = crop_generator({H, W}, "HW");
       const int y = crop.anchor[0];
       const int x = crop.anchor[1];
       const int newH = crop.shape[0];

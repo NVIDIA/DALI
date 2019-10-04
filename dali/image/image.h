@@ -93,7 +93,10 @@ class Image {
   inline void SetCropWindow(const CropWindow& crop_window) {
     if (!crop_window)
       return;
-    crop_window_generator_ = [crop_window](const kernels::TensorShape<>& shape) {
+    crop_window_generator_ = [crop_window](const kernels::TensorShape<>& shape,
+                                           const TensorLayout& shape_layout) {
+      DALI_ENFORCE(shape_layout == "HW",
+        make_string("Unexpected input shape layout:", shape_layout.c_str(), "vs HW"));
       DALI_ENFORCE(crop_window.IsInRange(shape),
         "crop_window["
         + std::to_string(crop_window.anchor[1])

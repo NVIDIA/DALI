@@ -22,6 +22,9 @@ test_body() {
 
     # DALI TF run
     nosetests --verbose test_dali_tf_plugin_run.py
+
+    # DALI TF DATASET run
+    nosetests --verbose test_dali_tf_dataset.py
 }
 
 pushd ../..
