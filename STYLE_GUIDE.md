@@ -27,9 +27,19 @@ and introduces ugly code like `foo(&bar)` or `(*buf)[i]`.
 
 ### Test suites naming guide
 
-We use GTest for most of testing code in DALI. TestSuites names should start with a capital letter and end with `Test`. 
+We use GTest for most of testing code in DALI. Names of TestSuites should start with a capital letter and end with `Test`. 
 Additionally, both suite and case name mustn't contain underscores (`_`). 
 For details on the latter, cf. [GTest FAQ](https://github.com/google/googletest/blob/master/googletest/docs/faq.md#why-should-test-suite-names-and-test-names-not-contain-underscore).
+Examples:
+```
+TEST(MatTest, IdentityMatrix) {}  // OK
+TEST_F(PregnancyTest, AlwaysPositive) {}  // OK
+TYPED_TEST(CannyOperatorTest, EmptyImage) {}  // OK
+TYPED_TEST_SUITE(Skittles, InTheSky);  // Wrong! Should be "SkittlesTest"
+INSTANTIATE_TYPED_TEST_SUITE_P(Integral, HelloTest, IntegralTypes);  // OK. "Integral" is a prefix for type-parameterized test suite
+
+```
+
 
 ## DALI specific rules
 
