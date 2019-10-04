@@ -35,7 +35,6 @@ DALI_SCHEMA(Slice)
       R"code(The color space of input and output image)code",
       DALI_RGB, false)
     .AddParent("SliceBase")
-    .AddParent("SliceAttr")
     .InputLayout(0, { "HW", "HWC", "DHWC" });
 
 template <>
