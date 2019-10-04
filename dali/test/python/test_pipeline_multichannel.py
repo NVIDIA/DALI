@@ -96,7 +96,7 @@ class MultichannelSynthPipeline(Pipeline):
                                  crop = (220, 224),
                                  crop_pos_x = 0.3,
                                  crop_pos_y = 0.2,
-                                 image_type = types.RGB)
+                                 image_type = types.ANY_DATA)
         if self.tested_operator == 'transpose' or not self.tested_operator:
             self.transpose = ops.Transpose(device = self.device,
                                            perm = (1, 0, 2),
