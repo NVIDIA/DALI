@@ -67,11 +67,7 @@ struct mat {
 
   /// @brief Fills the diagonal with a scalar value
   DALI_HOST_DEV
-  constexpr mat(Element scalar) : m{} {  // NOLINT
-    int n = rows < cols ? rows : cols;
-    for (int i = 0; i < n; i++)
-      at(i, i) = scalar;
-  }
+  constexpr mat(Element scalar) : mat(diag(scalar)) {}  // NOLINT
 
   DALI_HOST_DEV
   constexpr mat(const Element(&values)[rows][cols]) : m{} {  // NOLINT
@@ -286,6 +282,31 @@ struct mat {
   #endif
     return result;
   }
+
+
+  /**
+   * @brief Creates a matrix with given value assigned on it's main diagonal
+   */
+  DALI_HOST_DEV static constexpr mat diag(Element scalar) {
+    mat m = {};
+    int n = rows < cols ? rows : cols;
+    for (int i = 0; i < n; i++)
+      m(i, i) = scalar;
+    return m;
+  }
+
+
+  /**
+   * @return dali::mat with ones on the main diagonal and zeros elsewhere
+   */
+  DALI_HOST_DEV static constexpr mat eye() {
+    return diag(1);
+  }
+
+
+  DALI_HOST_DEV static constexpr mat identity() {
+    return diag(1);
+  }
 };
 
 template <int rows, int cols, typename T, typename U>
@@ -479,6 +500,15 @@ mat<r1+r2, cols, T> cat_rows(const mat<r1, cols, T> &a, const mat<r2, cols, T> &
     ret.set_col(j, cat(a.col(j), b.col(j)));
 #endif
   return ret;
+}
+
+
+template <int rows, int cols, typename T>
+std::ostream &operator<<(std::ostream &os, const dali::mat<rows, cols, T> &m) {
+  for (int i = 0; i < rows; i++) {
+    os << m.row(i) << std::endl;
+  }
+  return os;
 }
 
 }  // namespace dali

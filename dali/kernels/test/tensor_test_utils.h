@@ -160,7 +160,13 @@ struct EqualEps {
   double eps = 1e-6;
 };
 
-
+/**
+ * @brief Functor for comparing (potentially rounded) value to a floating point reference
+ * Performs ULP comparision.
+ * Verifies using Saturation Cast.
+ *
+ * @remark Be aware, that when using this functor in `Check()`, order of arguments matters!
+ */
 struct EqualUlp {
   EqualUlp() = default;
 
