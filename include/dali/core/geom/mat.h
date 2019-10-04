@@ -292,6 +292,7 @@ struct mat {
     int n = rows < cols ? rows : cols;
     for (int i = 0; i < n; i++)
       m(i, i) = scalar;
+    return m;
   }
 
 
