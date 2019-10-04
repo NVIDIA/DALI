@@ -416,7 +416,7 @@ TEST(MatTest, IdentityMatrix) {
          {0, 0, 1}
   }};
   mat3x1 three_by_one = {{
-         {1},{0},{0}  // NOLINT
+         {1}, {0}, {0}
   }};
   mat3x2 three_by_two = {{
          {1, 0},
