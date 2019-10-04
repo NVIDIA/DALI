@@ -47,17 +47,17 @@ std::unique_ptr<ExpressionImplBase> ExprImplFactory(const HostWorkspace &ws,
                   expr[1].GetNodeType() == NodeType::Tensor) {
                 result.reset(new ExpressionImplBinCPU<op_static, Out_t,
                                                       Left_t, true,
-                                                      Right_t, true>(expr));
+                                                      Right_t, true>());
               } else if (expr[0].GetNodeType() == NodeType::Tensor &&
                          expr[1].GetNodeType() != NodeType::Tensor) {
                 result.reset(new ExpressionImplBinCPU<op_static, Out_t,
                                                       Left_t, true,
-                                                      Right_t, false>(expr));
+                                                      Right_t, false>());
               } else if (expr[0].GetNodeType() != NodeType::Tensor &&
                          expr[1].GetNodeType() == NodeType::Tensor) {
                 result.reset(new ExpressionImplBinCPU<op_static, Out_t,
                                                       Left_t, false,
-                                                      Right_t, true>(expr));
+                                                      Right_t, true>());
               } else {
                 DALI_FAIL("Expression cannot have two scalar operands");
               }

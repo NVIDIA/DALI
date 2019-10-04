@@ -197,7 +197,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
  public:
   inline explicit ArithmeticGenericOp(const OpSpec &spec) : Operator<Backend>(spec) {
     expr_ = ParseExpressionString(spec.GetArgument<std::string>("expression_desc"));
-    num_tasks_ = 2 * num_threads_;
+    num_tasks_ = std::is_same<Backend, CPUBackend>::value ? 2 * num_threads_ : 1;
   }
 
  protected:

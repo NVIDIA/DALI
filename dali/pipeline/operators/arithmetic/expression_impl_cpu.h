@@ -35,7 +35,7 @@ template <ArithmeticOp op, typename Result,
           typename Right, bool RightTensor>
 class ExpressionImplBinCPU : public ExpressionImplBase, ExpressionImplParam<CPUBackend> {
  public:
-  explicit ExpressionImplBinCPU(const ExprNode &expr) {}
+  explicit ExpressionImplBinCPU() {}
 
   void Execute(ArgumentWorkspace &workspace, const OpSpec &spec, ExpressionImplContext &ctx,
                const std::vector<TileDesc> &tiles, TileRange range) override {
