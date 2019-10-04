@@ -42,6 +42,7 @@ build:
    - GIT_SHA
    - DALI_TIMESTAMP
    - NVIDIA_DALI_BUILD_FLAVOR
+   - LD_LIBRARY_PATH
   number: 0
   string: py{{ python | replace(".","") }}
 
