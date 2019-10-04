@@ -16,6 +16,7 @@
 #define DALI_CORE_GEOM_MAT_H_
 
 #include <cmath>
+#include <iosfwd>
 #include "dali/core/host_dev.h"
 #include "dali/core/util.h"
 #include "dali/core/tuple_helpers.h"

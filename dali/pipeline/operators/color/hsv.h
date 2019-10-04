@@ -154,14 +154,18 @@ class Hsv : public Operator<Backend> {
     }
   }
 
+  
   ~Hsv() override = default;
 
+
   DISABLE_COPY_MOVE_ASSIGN(Hsv);
+
 
  protected:
   bool CanInferOutputs() const override {
     return true;
   }
+
 
   USE_OPERATOR_MEMBERS();
   hsv::argument_t<Backend> hue_, saturation_, value_;
@@ -169,10 +173,18 @@ class Hsv : public Operator<Backend> {
   kernels::KernelManager kernel_manager_;
 };
 
+
+
 class HsvCpu : public Hsv<CPUBackend> {
  public:
   explicit HsvCpu(const OpSpec &spec) : Hsv(spec) {}
 
+  /*
+   * So that compiler wouldn't complain, that
+   * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl`
+   * is only partially overridden in class `dali::HsvCpu`"
+   */
+  using Operator<CPUBackend>::RunImpl;
 
   ~HsvCpu() override = default;
 
@@ -189,7 +201,7 @@ class HsvCpu : public Hsv<CPUBackend> {
 
 
  private:
-  static mat3 transformation_matrix(float hue, float saturation, float value) {
+  mat3 transformation_matrix(float hue, float saturation, float value) const {
     using namespace hsv;  // NOLINT
     return Rgb2Yiq * compose_hue(hue) * compose_saturation(saturation) * compose_value(value) *
            Yiq2Rgb;
@@ -204,15 +216,15 @@ class HsvCpu : public Hsv<CPUBackend> {
     shapes.resize(sh.num_samples());
     for (size_t i = 0; i < shapes.size(); i++) {
       const auto tvin = view<const InputType, 3>(input[i]);
-      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin,
-                                                      transformation_matrix(hue_, saturation_,
-                                                                            value_));
+      const auto tmat = transformation_matrix(hue_, saturation_, value_);
+      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, tmat);
       kernels::TensorListShape<> out_sh = reqs.output_shapes[0];
       shapes[i] = out_sh.tensor_shape(0);
     }
     return {shapes};
   }
 };
+
 
 
 class HsvGpu : public Hsv<GPUBackend> {
@@ -235,9 +247,12 @@ class HsvGpu : public Hsv<GPUBackend> {
 
 
  private:
+  /**
+   * @brief Creates transformation matrices based on given args
+   */
   std::vector<mat3>
-  transformation_matrix(const std::vector<float> &hue, const std::vector<float> &saturation,
-                        const std::vector<float> &value) {
+  determine_transformation(const std::vector<float> &hue, const std::vector<float> &saturation,
+                           const std::vector<float> &value) const {
     using namespace hsv;  // NOLINT
     std::vector<mat3> ret;
     DALI_ENFORCE(hue.size() == saturation.size());
@@ -253,11 +268,14 @@ class HsvGpu : public Hsv<GPUBackend> {
   template <typename Kernel, typename InputType>
   kernels::TensorListShape<> CallSetup(const TensorList<GPUBackend> &tl, int instance_idx) {
     kernels::KernelContext ctx;
-    auto tvin = view<const InputType, 3>(tl);
-    auto tmat = transformation_matrix(hue_, saturation_, value_);
-    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, make_cspan(tmat));
+    const auto tvin = view<const InputType, 3>(tl);
+    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin,
+                                                    make_cspan(tmatrices_));
     return reqs.output_shapes[0];
   }
+
+
+  std::vector<mat3> tmatrices_;
 };
 
 

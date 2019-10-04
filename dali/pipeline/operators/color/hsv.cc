@@ -18,10 +18,8 @@
 namespace dali {
 namespace {
 
-
 template <typename Out, typename In>
 using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
-
 }  // namespace
 
 
@@ -43,8 +41,8 @@ DALI_SCHEMA(Hsv)
 DALI_REGISTER_OPERATOR(Hsv, HsvCpu, CPU)
 
 
-bool HsvCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                       const workspace_t<CPUBackend> &ws) {
+bool
+HsvCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   const auto &output = ws.template OutputRef<CPUBackend>(0);
   output_desc.resize(1);

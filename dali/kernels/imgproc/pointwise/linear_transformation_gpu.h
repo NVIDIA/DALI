@@ -105,7 +105,7 @@ class LinearTransformationGpu {
   Setup(KernelContext &context, const InListGPU<InputType, ndims_> &in,
         span<const Mat> tmatrices = {}, span<const Vec> tvectors = {},
         span<const Roi<spatial_ndims>> rois = {}) {
-    DALI_ENFORCE(rois.empty() || rois.size() == static_cast<size_t>(in.num_samples()),
+    DALI_ENFORCE(rois.empty() || rois.size() == in.num_samples(),
                  "Provide ROIs either for all or none input tensors");
     for (int i = 0; i < in.size(); i++) {
       DALI_ENFORCE(in[i].shape.shape.back() == channels_in,
@@ -197,10 +197,9 @@ class LinearTransformationGpu {
   }
 
 
-  void gen_default_values(int nsamples) {
-    default_mats_ = {nsamples, Mat::eye()};
-    Vec zero_vec = 0;
-    default_vecs_ = {nsamples, zero_vec};
+  void gen_default_values(size_t nsamples) {
+    default_mats_ = std::vector<Mat>(nsamples, Mat::eye());
+    default_vecs_ = std::vector<Vec>(nsamples, Vec(0));
   }
 };
 
