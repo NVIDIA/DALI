@@ -31,7 +31,9 @@ caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_trailer')
 
 class SlicePipeline(Pipeline):
-    def __init__(self, device, batch_size, pos_size_iter, num_threads=1, device_id=0, is_fused_decoder=False):
+    def __init__(self, device, batch_size, pos_size_iter,
+                 num_threads=1, device_id=0, is_fused_decoder=False,
+                 dims=(1,0), dim_names="WH"):
         super(SlicePipeline, self).__init__(batch_size,
                                             num_threads,
                                             device_id,
@@ -45,12 +47,13 @@ class SlicePipeline(Pipeline):
 
         if self.is_fused_decoder:
             self.decode = ops.ImageDecoderSlice(device = 'cpu',
-                                               output_type = types.RGB)
+                                                output_type = types.RGB)
         else:
             self.decode = ops.ImageDecoder(device = "cpu",
-                                          output_type = types.RGB)
+                                           output_type = types.RGB)
             self.slice = ops.Slice(device = device,
-                                   image_type = types.RGB)
+                                   image_type = types.RGB,
+                                   dims=(1,0))
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -72,8 +75,31 @@ class SlicePipeline(Pipeline):
         self.feed_input(self.crop_size, crop_size)
 
 class SliceArgsIterator(object):
-    def __init__(self, batch_size):
+    def __init__(self,
+                 batch_size,
+                 num_dims=3,
+                 image_shape=None,  # Needed if normalized_anchor and normalized_shape are False
+                 normalized_anchor=True,
+                 normalized_shape=True,
+                 dims=(1,0),
+                 dim_names="WH",
+                 min_norm_anchor=0.0,
+                 max_norm_anchor=0.2,
+                 min_norm_shape=0.4,
+                 max_norm_shape=0.75,
+                 seed=54643613):
         self.batch_size = batch_size
+        self.num_dims = num_dims
+        self.image_shape = image_shape
+        self.normalized_anchor = normalized_anchor
+        self.normalized_shape = normalized_shape
+        self.dims = dims
+        self.dim_names = dim_names
+        self.min_norm_anchor=min_norm_anchor
+        self.max_norm_anchor=max_norm_anchor
+        self.min_norm_shape=min_norm_shape
+        self.max_norm_shape=max_norm_shape
+        self.seed=seed
 
     def __iter__(self):
         self.i = 0
@@ -83,60 +109,61 @@ class SliceArgsIterator(object):
     def __next__(self):
         pos = []
         size = []
+        anchor_amplitude = self.max_norm_anchor - self.min_norm_anchor
+        anchor_offset = self.min_norm_anchor
+        shape_amplitude = self.max_norm_shape - self.min_norm_shape
+        shape_offset = self.min_norm_shape
+        np.random.seed(self.seed)
         for k in range(self.batch_size):
-            pos.append(np.asarray([0.4, 0.2], dtype=np.float32)) # xy
-            size.append(np.asarray([0.3, 0.5], dtype=np.float32)) # WH
+            norm_anchor = anchor_amplitude * np.random.rand(len(self.dims)) + anchor_offset
+            norm_shape = shape_amplitude * np.random.rand(len(self.dims)) + shape_offset
+            if self.normalized_anchor:
+                anchor = norm_anchor
+            else:
+                anchor = norm_anchor * image_shape
+
+            if self.normalized_shape:
+                shape = norm_shape
+            else:
+                shape = norm_shape * image_shape
+            pos.append(np.asarray(anchor, dtype=np.float32))
+            size.append(np.asarray(shape, dtype=np.float32))
             self.i = (self.i + 1) % self.n
         return (pos, size)
     next = __next__
+
+def check_slice_vs_fused_decoder(device, batch_size, normalized_anchor, normalized_shape, dims, dim_names):
+    eii1 = SliceArgsIterator(batch_size)
+    eii2 = SliceArgsIterator(batch_size)
+    compare_pipelines(SlicePipeline(device, batch_size, iter(eii1), is_fused_decoder=True),
+                      SlicePipeline(device, batch_size, iter(eii2), is_fused_decoder=False),
+                      batch_size=batch_size, N_iterations=5)
 
 def test_slice_vs_fused_decoder():
-    for device in {'cpu', 'gpu'}:
-        for batch_size in {1, 13, 64}:
-            eii1 = SliceArgsIterator(batch_size)
-            eii2 = SliceArgsIterator(batch_size)
+    for device in ['cpu', 'gpu']:
+        for batch_size in [1, 13, 64]:
+            for normalized_anchor, normalized_shape, dims, dim_names in \
+                [(True, True, (0,1), "WH"),
+                 (True, True, (1,0), "HW"),
+                 (True, True, (2), "C")]:
+                yield check_slice_vs_fused_decoder, device, batch_size, normalized_anchor, \
+                    normalized_shape, dims, dim_names
 
-            compare_pipelines(SlicePipeline(device, batch_size, iter(eii1), is_fused_decoder=True),
-                              SlicePipeline(device, batch_size, iter(eii2), is_fused_decoder=False),
-                              batch_size=batch_size, N_iterations=10)
-
-class SliceArgsIteratorAllDims(object):
-    def __init__(self, batch_size):
-        self.batch_size = batch_size
-
-    def __iter__(self):
-        self.i = 0
-        self.n = self.batch_size
-        return self
-
-    def __next__(self):
-        pos = []
-        size = []
-        for k in range(self.batch_size):
-            pos.append(np.asarray([0.2, 0.4, 0.0], dtype=np.float32)) # yxc
-            size.append(np.asarray([0.5, 0.3, 1.0], dtype=np.float32)) # HWC
-            self.i = (self.i + 1) % self.n
-        return (pos, size)
-    next = __next__
-
-def test_slice_args_WH_vs_args_HWC():
-    for device in {'cpu', 'gpu'}:
-        for batch_size in {3, 32, 64}:
-            eii1 = SliceArgsIterator(batch_size)
-            eii2 = SliceArgsIteratorAllDims(batch_size)
-
-            compare_pipelines(SlicePipeline(device, batch_size, iter(eii1), is_fused_decoder=False),
-                              SlicePipeline(device, batch_size, iter(eii2), is_fused_decoder=False),
-                              batch_size=batch_size, N_iterations=10)
+def check_slice_vs_cpu_vs_gpu(device, batch_size, normalized_anchor, normalized_shape, dims, dim_names):
+    eii1 = SliceArgsIterator(batch_size)
+    eii2 = SliceArgsIterator(batch_size)
+    compare_pipelines(SlicePipeline(device, batch_size, iter(eii1), is_fused_decoder=True),
+                      SlicePipeline(device, batch_size, iter(eii2), is_fused_decoder=False),
+                      batch_size=batch_size, N_iterations=5)
 
 def test_slice_cpu_vs_gpu():
-    for batch_size in {3, 32, 64}:
-        eii1 = SliceArgsIterator(batch_size)
-        eii2 = SliceArgsIterator(batch_size)
-
-        compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii1), is_fused_decoder=False),
-                          SlicePipeline('cpu', batch_size, iter(eii2), is_fused_decoder=False),
-                          batch_size=batch_size, N_iterations=10)
+    for device in ['cpu', 'gpu']:
+        for batch_size in [1, 13, 64]:
+            for normalized_anchor, normalized_shape, dims, dim_names in \
+                [(True, True, (0,1), "WH"),
+                 (True, True, (1,0), "HW")]:
+                yield check_slice_vs_cpu_vs_gpu, device, batch_size, normalized_anchor, \
+                    normalized_shape, dims, dim_names
 
 class SliceArgsIteratorExtractFirstChannel(object):
     def __init__(self, batch_size):
@@ -177,14 +204,14 @@ class PythonOperatorPipeline(Pipeline):
 def extract_first_channel(image):
     return image[:,:,0].reshape(image.shape[0:2] + (1,))
 
-def test_slice_extract_channel_cpu():
+def t3est_slice_extract_channel_cpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorExtractFirstChannel(batch_size)
         compare_pipelines(SlicePipeline('cpu', batch_size, iter(eii)),
                           PythonOperatorPipeline(extract_first_channel, batch_size),
                           batch_size=batch_size, N_iterations=10)
 
-def test_slice_extract_channel_gpu():
+def tes2t_slice_extract_channel_gpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorExtractFirstChannel(batch_size)
         compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii)),
@@ -198,14 +225,14 @@ def slice_func(image):
     end_x = int(np.float32(image.shape[1]) * np.float32(0.4 + 0.3))
     return image[start_y:end_y, start_x:end_x, :]
 
-def test_slice_vs_numpy_slice_gpu():
+def tes2t_slice_vs_numpy_slice_gpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorAllDims(batch_size)
         compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii)),
                           PythonOperatorPipeline(slice_func, batch_size),
                           batch_size=batch_size, N_iterations=10)
 
-def test_slice_vs_numpy_slice_cpu():
+def te2st_slice_vs_numpy_slice_cpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorAllDims(batch_size)
         compare_pipelines(SlicePipeline('cpu', batch_size, iter(eii)),

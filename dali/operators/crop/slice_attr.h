@@ -19,11 +19,11 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/core/tensor_layout.h"
+#include "dali/core/format.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/util/crop_window.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/util/crop_window.h"
-#include "dali/core/tensor_layout.h"
 
 namespace dali {
 
@@ -54,8 +54,11 @@ class SliceAttr {
       const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
       auto args_shape = crop_anchor.shape();
       DALI_ENFORCE(args_shape == crop_shape.shape());
-      ProcessArgumentsHelper(data_idx, images.GetLayout(), images.shape(), args_shape,
-                             crop_anchor.data<float>(), crop_shape.data<float>());
+      size_t args_size = volume(args_shape); 
+      DALI_ENFORCE(args_size == dims_.size(),
+        make_string("Unexpected number of arguments", args_size, 
+                    " vs ", dims_.size()));
+      ProcessArgumentsHelper(data_idx, crop_anchor.data<float>(), crop_shape.data<float>());
     }
   }
 
@@ -68,8 +71,11 @@ class SliceAttr {
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
       auto args_shape = crop_anchor.tensor_shape(data_idx);
       DALI_ENFORCE(args_shape == crop_shape.tensor_shape(data_idx));
-      ProcessArgumentsHelper(data_idx, images.GetLayout(), images.tensor_shape(data_idx),
-                             args_shape, crop_anchor.tensor<float>(data_idx),
+      size_t args_size = volume(args_shape); 
+      DALI_ENFORCE(args_size == dims_.size(),
+        make_string("Unexpected number of arguments", args_size, 
+                    " vs ", dims_.size()));
+      ProcessArgumentsHelper(data_idx, crop_anchor.tensor<float>(data_idx),
                              crop_shape.tensor<float>(data_idx));
     }
   }
@@ -82,8 +88,11 @@ class SliceAttr {
     const auto &crop_shape = ws.Input<CPUBackend>(2);
     auto args_shape = crop_anchor.shape();
     DALI_ENFORCE(args_shape == crop_shape.shape());
-    ProcessArgumentsHelper(ws.data_idx(), images.GetLayout(), images.shape(), args_shape,
-                           crop_anchor.data<float>(), crop_shape.data<float>());
+    size_t args_size = volume(args_shape); 
+    DALI_ENFORCE(args_size == dims_.size(),
+      make_string("Unexpected number of arguments", args_size, 
+		  " vs ", dims_.size()));
+    ProcessArgumentsHelper(ws.data_idx(), crop_anchor.data<float>(), crop_shape.data<float>());
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
@@ -93,49 +102,32 @@ class SliceAttr {
 
  private:
   void ProcessArgumentsHelper(int data_idx,
-                              TensorLayout in_layout,
-                              const kernels::TensorShape<> &shape,
-                              const kernels::TensorShape<> &args_shape,
                               const float *slice_anchor_data,
                               const float *slice_shape_data) {
-    // TODO(janton): verify args_shape is as expected
-    std::cout << "args shape " << args_shape[0] << std::endl;
-    std::cout << "batch_size_ " << batch_size__ << std::endl;
-    std::cout << "dims size " << dims_.size() << std::endl;
-
-    auto slice_shape = shape;
-    auto slice_anchor = shape;
-    for (auto &x : slice_anchor)
-      x = 0;
-
-    if (normalized_shape_) {
-      for (auto dim : dims_) {
-        float anchor_val = slice_anchor_data[dim];
-        float shape_val = slice_shape_data[dim];
-        DALI_ENFORCE(anchor_val + shape_val <= 1.0f,
-          make_string("anchor[", dim, "] + crop[", dim, "] must be <= 1.0f"));
-        slice_anchor[dim] = static_cast<int64_t>(anchor_val * shape[dim] + 0.5f);
-        slice_shape[dim] = static_cast<int64_t>(shape_val * shape[dim] + 0.5f);
-        assert(anchor_val + shape_val <= shape[dim]);
-      }
-    } else {
-      for (auto dim : dims_) {
-        auto anchor_val = static_cast<int64_t>(slice_anchor_data[dim]);
-        auto shape_val = static_cast<int64_t>(slice_shape_data[dim]);
-        DALI_ENFORCE(anchor_val + shape_val <= shape[dim],
-          make_string("anchor[", dim, "] + crop[", dim, "] must be <=", shape[dim]));
-        slice_anchor[dim] = anchor_val;
-        slice_shape[dim] = shape_val;
-      }
-    }
-
     crop_window_generators_[data_idx] =
-      [this, slice_shape, slice_anchor](const kernels::TensorShape<> &shape) {
-        CropWindow crop_window;
-        crop_window.anchor = slice_anchor;
-        crop_window.shape = slice_shape;
-        DALI_ENFORCE(crop_window.IsInRange(shape));
-        return crop_window;
+      [this, slice_anchor_data, slice_shape_data](const kernels::TensorShape<> &shape) {
+        CropWindow slice;
+        slice.anchor = std::vector<int64_t>(shape.size(), 0);
+        slice.shape = shape;
+
+        for (size_t i = 0; i < dims_.size(); i++) {
+          auto dim = dims_[i];
+          float anchor_val = slice_anchor_data[i];
+          if (normalized_anchor_)
+            anchor_val *= shape[dim];
+          float shape_val = slice_shape_data[i];
+          if (normalized_shape_)
+            shape_val *= shape[dim];
+          int64_t slice_end = static_cast<int64_t>(anchor_val + shape_val);
+          DALI_ENFORCE(slice_end <= shape[dim],
+            make_string("Slice end for dim", dim, "is out of bounds:",
+                        slice_end, ">", shape[dim]));
+          slice.anchor[dim] = static_cast<int64_t>(anchor_val);
+          slice.shape[dim] = slice_end - slice.anchor[dim];
+          assert(slice.anchor[dim] + slice.shape[dim] <= shape[dim]);
+        }
+        slice.IsInRange(shape);
+        return slice;
       };
   }
 
