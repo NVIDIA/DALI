@@ -24,10 +24,10 @@
 
 namespace dali {
 
-#define CHECK_LMDB(status) \
+#define CHECK_LMDB(status, filename) \
   do { \
     DALI_ENFORCE(status == MDB_SUCCESS, "LMDB Error: " + string(mdb_strerror(status)) + \
-                                        ", with file: " + db_path_); \
+                                        ", with file: " + filename); \
   } while (0)
 
 
@@ -46,16 +46,16 @@ class IndexedLMDB {
     DALI_ENFORCE(mdb_env_ == nullptr, "Previous MDB environment was not closed");
     db_path_ = path;
     num_ = num;
-    CHECK_LMDB(mdb_env_create(&mdb_env_));
+    CHECK_LMDB(mdb_env_create(&mdb_env_), db_path_);
     auto mdb_flags = MDB_RDONLY | MDB_NOTLS | MDB_NOLOCK;
-    CHECK_LMDB(mdb_env_open(mdb_env_, path.c_str(), mdb_flags, 0664));
+    CHECK_LMDB(mdb_env_open(mdb_env_, path.c_str(), mdb_flags, 0664), db_path_);
 
     // Create transaction and cursor
-    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_));
-    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_));
-    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_));
+    CHECK_LMDB(mdb_txn_begin(mdb_env_, NULL, MDB_RDONLY, &mdb_transaction_), db_path_);
+    CHECK_LMDB(mdb_dbi_open(mdb_transaction_, NULL, 0, &mdb_dbi_), db_path_);
+    CHECK_LMDB(mdb_cursor_open(mdb_transaction_, mdb_dbi_, &mdb_cursor_), db_path_);
     MDB_stat stat;
-    CHECK_LMDB(mdb_stat(mdb_transaction_, mdb_dbi_, &stat));
+    CHECK_LMDB(mdb_stat(mdb_transaction_, mdb_dbi_, &stat), db_path_);
     mdb_size_ = stat.ms_entries;
     LOG_LINE << "lmdb " << num_ << " " << db_path_
              << " has " << mdb_size_ << " entries" << std::endl;
@@ -77,27 +77,27 @@ class IndexedLMDB {
     }
     DALI_ENFORCE(index >= 0 && index < mdb_size_);
     if (index == 0) {
-      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_FIRST));
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_FIRST), db_path_);
     } else if (index == mdb_size_ - 1) {
-      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_LAST));
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_LAST), db_path_);
     } else if (index == mdb_index_) {
-      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_GET_CURRENT));
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_GET_CURRENT), db_path_);
     } else if (index == mdb_index_ - 1) {
-      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_PREV));
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_PREV), db_path_);
     } else if (index == mdb_index_ + 1) {
-      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_NEXT));
+      CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_NEXT), db_path_);
     } else if (index > mdb_index_) {
       LOG_LINE << "lmdb " << num_ << " " << db_path_
                << " exec a large step forward " << mdb_index_ << "->" << index << std::endl;
       for (Index i = mdb_index_; i < index; ++i) {
-        CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_NEXT));
+        CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_NEXT), db_path_);
       }
     } else {
       // index < mdb_index_
       LOG_LINE << "lmdb " << num_ << " " << db_path_
                << " exec a large step backward " << mdb_index_ << "->" << index << std::endl;
       for (Index i = index; i < mdb_index_; i++) {
-        CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_PREV));
+        CHECK_LMDB(mdb_cursor_get(mdb_cursor_, key, value, MDB_PREV), db_path_);
       }
     }
     mdb_index_ = index;
