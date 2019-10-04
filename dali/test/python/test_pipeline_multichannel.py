@@ -29,11 +29,11 @@ test_data_root = os.environ['DALI_EXTRA_PATH']
 multichannel_tiff_root = os.path.join(test_data_root, 'db', 'single', 'tiff', 'multichannel')
 
 def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 220, crop_w = 224):
-    if layout == "NFHWC":
+    if layout == "FHWC":
         assert len(image.shape) == 4
         H = image.shape[1]
         W = image.shape[2]
-    elif layout == "NHWC":
+    elif layout == "HWC":
         assert len(image.shape) == 3
         H = image.shape[0]
         W = image.shape[1]
@@ -46,15 +46,15 @@ def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 220, crop
     start_x = int(np.float32(crop_x) * np.float32(W - crop_w) + np.float32(0.5))
     end_x = start_x + crop_w
 
-    if layout == "NFHWC":
+    if layout == "FHWC":
         return image[:, start_y:end_y, start_x:end_x, :]
-    elif layout == "NHWC":
+    elif layout == "HWC":
         return image[start_y:end_y, start_x:end_x, :]
     else:
         assert(False)  # should not happen
 
 def crop_NHWC_func(image):
-    return crop_func_help(image, "NHWC")
+    return crop_func_help(image, "HWC")
 
 def resize_func_help(image, size_x = 300, size_y = 900):
     res = cv2.resize(image, (size_x, size_y))
@@ -105,7 +105,7 @@ class MultichannelSynthPipeline(Pipeline):
             self.cmn = ops.CropMirrorNormalize(device = self.device,
                                                std = 255.,
                                                mean = 0.,
-                                               output_layout = "NHWC",
+                                               output_layout = "HWC",
                                                output_dtype = types.FLOAT)
 
     def define_graph(self):
@@ -163,8 +163,8 @@ def get_numpy_func(tested_operator):
 def check_multichannel_synth_data_vs_numpy(tested_operator, device, batch_size, shape):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
-    compare_pipelines(MultichannelSynthPipeline(device, batch_size, "NHWC", iter(eii1), tested_operator=tested_operator),
-                      MultichannelSynthPythonOpPipeline(get_numpy_func(tested_operator), batch_size, "NHWC", iter(eii2)),
+    compare_pipelines(MultichannelSynthPipeline(device, batch_size, "HWC", iter(eii1), tested_operator=tested_operator),
+                      MultichannelSynthPythonOpPipeline(get_numpy_func(tested_operator), batch_size, "HWC", iter(eii2)),
                       batch_size=batch_size, N_iterations=10,
                       eps = 0.2)
 
@@ -203,7 +203,7 @@ class MultichannelPipeline(Pipeline):
 
         self.cmn = ops.CropMirrorNormalize(device = self.device,
                                            std = 255., mean = 0.,
-                                           output_layout = "NHWC",
+                                           output_layout = "HWC",
                                            output_dtype = types.FLOAT)
 
     def define_graph(self):
