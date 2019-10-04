@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <memory>
+#include <tuple>
 
 #include "dali/pipeline/operators/arithmetic/expression_tree.h"
 #include "dali/pipeline/operators/arithmetic/arithmetic_meta.h"
@@ -48,19 +49,16 @@ std::unique_ptr<ExpressionImplBase> ExprImplFactory(const DeviceWorkspace &ws,
               if (expr[0].GetNodeType() == NodeType::Tensor &&
                   expr[1].GetNodeType() == NodeType::Tensor) {
                 result.reset(new ExpressionImplBinGPU<op_static, Out_t,
-                                                      Left_t, true,
-                                                      Right_t, true>());
+                  std::tuple<InputDescriptor<Left_t, true>, InputDescriptor<Right_t, true>>>());
               } else if (expr[0].GetNodeType() == NodeType::Tensor &&
                          expr[1].GetNodeType() != NodeType::Tensor) {
                 result.reset(new ExpressionImplBinGPU<op_static, Out_t,
-                                                      Left_t, true,
-                                                      Right_t, false>());
+                  std::tuple<InputDescriptor<Left_t, true>, InputDescriptor<Right_t, false>>>());
 
               } else if (expr[0].GetNodeType() != NodeType::Tensor &&
                          expr[1].GetNodeType() == NodeType::Tensor) {
                 result.reset(new ExpressionImplBinGPU<op_static, Out_t,
-                                                      Left_t, false,
-                                                      Right_t, true>());
+                  std::tuple<InputDescriptor<Left_t, false>, InputDescriptor<Right_t, true>>>());
               } else {
                 DALI_FAIL("Expression cannot have two scalar operands");
               }
