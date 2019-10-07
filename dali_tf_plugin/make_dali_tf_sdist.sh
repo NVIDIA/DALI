@@ -3,8 +3,11 @@
 set -o xtrace
 set -e
 
+PREBUILT_DIR=/prebuilt
 echo "Listing available *.so files"
-ls */*.so
+ls ${PREBUILT_DIR}/*/*.so
+
+mv ${PREBUILT_DIR}/* .
 
 mkdir -p dali_tf_sdist_build
 cd dali_tf_sdist_build
