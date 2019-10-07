@@ -204,14 +204,14 @@ class PythonOperatorPipeline(Pipeline):
 def extract_first_channel(image):
     return image[:,:,0].reshape(image.shape[0:2] + (1,))
 
-def t3est_slice_extract_channel_cpu():
+def test_slice_extract_channel_cpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorExtractFirstChannel(batch_size)
         compare_pipelines(SlicePipeline('cpu', batch_size, iter(eii)),
                           PythonOperatorPipeline(extract_first_channel, batch_size),
                           batch_size=batch_size, N_iterations=10)
 
-def tes2t_slice_extract_channel_gpu():
+def test_slice_extract_channel_gpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorExtractFirstChannel(batch_size)
         compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii)),
@@ -225,14 +225,14 @@ def slice_func(image):
     end_x = int(np.float32(image.shape[1]) * np.float32(0.4 + 0.3))
     return image[start_y:end_y, start_x:end_x, :]
 
-def tes2t_slice_vs_numpy_slice_gpu():
+def test_slice_vs_numpy_slice_gpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorAllDims(batch_size)
         compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii)),
                           PythonOperatorPipeline(slice_func, batch_size),
                           batch_size=batch_size, N_iterations=10)
 
-def te2st_slice_vs_numpy_slice_cpu():
+def test_slice_vs_numpy_slice_cpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorAllDims(batch_size)
         compare_pipelines(SlicePipeline('cpu', batch_size, iter(eii)),
