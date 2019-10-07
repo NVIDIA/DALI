@@ -154,12 +154,9 @@ class Hsv : public Operator<Backend> {
     }
   }
 
-  
   ~Hsv() override = default;
 
-
   DISABLE_COPY_MOVE_ASSIGN(Hsv);
-
 
  protected:
   bool CanInferOutputs() const override {
