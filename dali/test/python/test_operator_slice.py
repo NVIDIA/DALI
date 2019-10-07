@@ -21,10 +21,11 @@ from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import os
-
+from functools import partial
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
+from test_utils import RandomDataIterator
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -79,10 +80,11 @@ class SliceArgsIterator(object):
                  batch_size,
                  num_dims=3,
                  image_shape=None,  # Needed if normalized_anchor and normalized_shape are False
+                 image_layout=None, # Needed if dim_names is used to specify the slice
                  normalized_anchor=True,
                  normalized_shape=True,
-                 dims=(1,0),
-                 dim_names="WH",
+                 dims=None,
+                 dim_names=None,
                  min_norm_anchor=0.0,
                  max_norm_anchor=0.2,
                  min_norm_shape=0.4,
@@ -91,6 +93,7 @@ class SliceArgsIterator(object):
         self.batch_size = batch_size
         self.num_dims = num_dims
         self.image_shape = image_shape
+        self.image_layout = image_layout
         self.normalized_anchor = normalized_anchor
         self.normalized_shape = normalized_shape
         self.dims = dims
@@ -100,6 +103,16 @@ class SliceArgsIterator(object):
         self.min_norm_shape=min_norm_shape
         self.max_norm_shape=max_norm_shape
         self.seed=seed
+
+        if not self.dim_names and not self.dims:
+            self.dim_names = "WH"
+
+        if self.dim_names:
+            self.dims = []
+            for dim_name in self.dim_names:
+                assert dim_name in self.image_layout
+                self.dims.append(self.image_layout.index(dim_name))
+        assert(len(self.dims)>0)
 
     def __iter__(self):
         self.i = 0
@@ -139,7 +152,7 @@ def check_slice_vs_fused_decoder(device, batch_size, normalized_anchor, normaliz
                       SlicePipeline(device, batch_size, iter(eii2), is_fused_decoder=False),
                       batch_size=batch_size, N_iterations=5)
 
-def test_slice_vs_fused_decoder():
+def tes3t_slice_vs_fused_decoder():
     for device in ['cpu', 'gpu']:
         for batch_size in [1, 13, 64]:
             for normalized_anchor, normalized_shape, dims, dim_names in \
@@ -156,7 +169,7 @@ def check_slice_vs_cpu_vs_gpu(device, batch_size, normalized_anchor, normalized_
                       SlicePipeline(device, batch_size, iter(eii2), is_fused_decoder=False),
                       batch_size=batch_size, N_iterations=5)
 
-def test_slice_cpu_vs_gpu():
+def te3st_slice_cpu_vs_gpu():
     for device in ['cpu', 'gpu']:
         for batch_size in [1, 13, 64]:
             for normalized_anchor, normalized_shape, dims, dim_names in \
@@ -204,14 +217,14 @@ class PythonOperatorPipeline(Pipeline):
 def extract_first_channel(image):
     return image[:,:,0].reshape(image.shape[0:2] + (1,))
 
-def test_slice_extract_channel_cpu():
+def te3st_slice_extract_channel_cpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorExtractFirstChannel(batch_size)
         compare_pipelines(SlicePipeline('cpu', batch_size, iter(eii)),
                           PythonOperatorPipeline(extract_first_channel, batch_size),
                           batch_size=batch_size, N_iterations=10)
 
-def test_slice_extract_channel_gpu():
+def te3st_slice_extract_channel_gpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorExtractFirstChannel(batch_size)
         compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii)),
@@ -225,16 +238,162 @@ def slice_func(image):
     end_x = int(np.float32(image.shape[1]) * np.float32(0.4 + 0.3))
     return image[start_y:end_y, start_x:end_x, :]
 
-def test_slice_vs_numpy_slice_gpu():
+def te3st_slice_vs_numpy_slice_gpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorAllDims(batch_size)
         compare_pipelines(SlicePipeline('gpu', batch_size, iter(eii)),
                           PythonOperatorPipeline(slice_func, batch_size),
                           batch_size=batch_size, N_iterations=10)
 
-def test_slice_vs_numpy_slice_cpu():
+def t3st_slice_vs_numpy_slice_cpu():
     for batch_size in {1, 32, 64}:
         eii = SliceArgsIteratorAllDims(batch_size)
         compare_pipelines(SlicePipeline('cpu', batch_size, iter(eii)),
                           PythonOperatorPipeline(slice_func, batch_size),
                           batch_size=batch_size, N_iterations=10)
+
+class SliceSynthDataPipeline(Pipeline):
+    def __init__(self, device, batch_size, layout, iterator, pos_size_iter,
+                 num_threads=1, device_id=0, num_gpus=1,
+                 dims=None, dim_names=None):
+        super(SliceSynthDataPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.device = device
+        self.layout = layout
+        self.iterator = iterator
+        self.pos_size_iter = pos_size_iter
+        self.inputs = ops.ExternalSource()
+        self.input_crop_pos = ops.ExternalSource()
+        self.input_crop_size = ops.ExternalSource()
+
+        if not dims and not dim_names:
+            self.slice = ops.Slice(device = self.device)
+        elif dim_names:
+            self.slice = ops.Slice(device = self.device,
+                                   dim_names = dim_names)
+        elif dims:
+            self.slice = ops.Slice(device = self.device,
+                                   dims = dims)
+
+    def define_graph(self):
+        self.data = self.inputs()
+        self.crop_pos = self.input_crop_pos()
+        self.crop_size = self.input_crop_size()
+        data = self.data.gpu() if self.device == 'gpu' else self.data
+        out = self.slice(data, self.crop_pos, self.crop_size)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data, layout=self.layout)
+
+        (crop_pos, crop_size) = self.pos_size_iter.next()
+        self.feed_input(self.crop_pos, crop_pos)
+        self.feed_input(self.crop_size, crop_size)
+
+class PythonOperatorPipeline(Pipeline):
+    def __init__(self, function, batch_size, num_threads=1, device_id=0):
+        super(PythonOperatorPipeline, self).__init__(batch_size, num_threads, device_id,
+                                                     exec_async=False,
+                                                     exec_pipelined=False,
+                                                     seed=1234)
+        self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle=False)
+        self.decode = ops.ImageDecoder(device = 'cpu', output_type = types.RGB)
+        self.python_function = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        jpegs, _ = self.input()
+        decoded = self.decode(jpegs)
+        processed = self.python_function(decoded)
+        assert isinstance(processed, EdgeReference)
+        return processed
+
+def slice_func_helper(dims, dim_names, layout, image, slice_anchor, slice_shape):
+    # TODO(janton): remove this
+    if not dims and not dim_names:
+        dim_names = "WH"
+
+    if dim_names:
+        dims = []
+        for dim_name in dim_names:
+            assert(dim_name in layout)
+            dim_pos = layout.find(dim_name)
+            dims.append(dim_pos)
+
+    shape = image.shape
+    full_slice_anchor = [0] * len(shape)
+    full_slice_shape = list(shape)
+    for dim in dims:
+        idx = dims.index(dim)
+        full_slice_anchor[dim] = slice_anchor[idx]
+        full_slice_shape[dim] = slice_shape[idx]
+
+    start = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]))
+             for i in range(len(shape))]
+    end = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i] + full_slice_shape[i]))
+           for i in range(len(shape))]
+
+    if len(full_slice_anchor) == 3:
+        return image[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
+    else:
+        assert(False)
+
+class SliceSynthDataPipelinePythonOp(Pipeline):
+    def __init__(self, batch_size, layout, iterator, pos_size_iter,
+                 num_threads=1, device_id=0, num_gpus=1,
+                 dims=None, dim_names=None):
+        super(SliceSynthDataPipelinePythonOp, self).__init__(
+            batch_size, num_threads, device_id,
+            seed=12345, exec_async=False, exec_pipelined=False)
+        self.device = "cpu"
+        self.layout = layout
+        self.iterator = iterator
+        self.pos_size_iter = pos_size_iter
+        self.inputs = ops.ExternalSource()
+        self.input_crop_pos = ops.ExternalSource()
+        self.input_crop_size = ops.ExternalSource()
+
+        function = partial(
+            slice_func_helper, dims, dim_names, self.layout)
+        self.slice = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        self.data = self.inputs()
+        self.crop_pos = self.input_crop_pos()
+        self.crop_size = self.input_crop_size()
+        out = self.slice(self.data, self.crop_pos, self.crop_size)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data, layout=self.layout)
+
+        (crop_pos, crop_size) = self.pos_size_iter.next()
+        self.feed_input(self.crop_pos, crop_pos)
+        self.feed_input(self.crop_size, crop_size)
+
+
+def check_slice_synth_data_cpu_vs_gpu(device, batch_size, input_shape, layout, dims, dim_names):
+    eiis = [RandomDataIterator(batch_size, shape=input_shape)
+            for k in range(2)]
+    eii_args = [SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
+                image_layout=layout, dims=dims, dim_names=dim_names)
+                for k in range(2)]
+
+    compare_pipelines(
+        SliceSynthDataPipeline(device, batch_size, layout, iter(eiis[0]), iter(eii_args[0]),
+            dims=dims, dim_names=dim_names),
+        SliceSynthDataPipelinePythonOp(batch_size, layout, iter(eiis[0]), iter(eii_args[1]),
+            dims=dims, dim_names=dim_names),
+        batch_size=batch_size, N_iterations=5)
+
+def test_slice_synth_data_cpu_vs_gpu():
+    for device in ["cpu", "gpu"]:
+        for batch_size in {1, 8}:
+            for input_shape, layout, dims, dim_names in \
+                [((200,400,3), "HWC", None, "WH"),
+                ((200,400,3), "HWC", None, "HW"),
+                ((200,400,3), "HWC", (1,0), None),
+                ((200,400,3), "HWC", (0,1), None),]:
+                #((80, 30, 20, 3), "DHWC", (2,1,0), None),]:
+                yield check_slice_synth_data_cpu_vs_gpu, device, batch_size, \
+                    input_shape, layout, dims, dim_names
