@@ -17,8 +17,17 @@ import nvidia.dali.backend
 from nvidia.dali.backend import TensorCPU
 from nvidia.dali.backend import TensorListCPU
 
+print("[Warning] nvidia.dali.edge is deprecated. For TensorCPU and TensorListCPU " +
+        "use nvidia.dali.tensors. EdgeReference is intended to be created only by " +
+        "DALI Operators, and should not be instantiated directly by the user. " +
+        "This class will be removed in DALI 0.17.")
+
+# Deprecate and move to ops.py
 class EdgeReference(object):
     def __init__(self, name, device="cpu", source=None):
+        print("[Warning] EdgeReference from nvidia.dali.edge module is now deprecated. " +
+                "This class is intended to be created only by DALI Operators, and should not be " +
+                "instantiated directly by the user. This class will be removed in DALI 0.17.")
         self.name = name
         self.device = device
         self.source = source

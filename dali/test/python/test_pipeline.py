@@ -14,7 +14,6 @@
 
 import glob
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.edge import EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
@@ -124,10 +123,10 @@ def test_multiple_input_sets():
             boxes = [boxes_ssd0, boxes_ssd1]
             labels = [labels_ssd0, labels_ssd1]
             enc_boxes0, enc_labels0 = self.box_encoder_cpu(boxes, labels)
-            # Test one list with one EdgeReference
+            # Test one list with one _EdgeReference
             enc_boxes1, enc_labels1 = self.box_encoder_cpu(boxes, labels_ssd0)
 
-            # Return everything (only EdgeReferences allowed)
+            # Return everything (only _EdgeReference allowed)
             return (encoded_boxes0, encoded_labels0, encoded_boxes1, encoded_labels1,
                     enc_boxes0[0], enc_labels0[0], enc_boxes0[1], enc_labels0[1],
                     enc_boxes1[0], enc_labels1[0], enc_boxes1[1], enc_labels1[1])
