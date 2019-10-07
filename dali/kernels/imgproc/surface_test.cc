@@ -26,13 +26,13 @@ TEST(Surface, HWC) {
   float data[W*H*C];
   auto tensor = make_tensor_cpu<3>(data, { H, W, C });
   Surface2D<float> s = as_surface_HWC(tensor);
-  EXPECT_EQ(s.width, W);
-  EXPECT_EQ(s.height, H);
+  EXPECT_EQ(s.size.x, W);
+  EXPECT_EQ(s.size.y, H);
   EXPECT_EQ(s.channels, C);
 
   EXPECT_EQ(s.channel_stride, 1);
-  EXPECT_EQ(s.pixel_stride, C);
-  EXPECT_EQ(s.row_stride, W*C);
+  EXPECT_EQ(s.strides.x, C);
+  EXPECT_EQ(s.strides.y, W*C);
 
   EXPECT_EQ(&s(0, 0, 0), data);
   EXPECT_EQ(&s(0, 0, 1), &data[1]);
@@ -48,13 +48,13 @@ TEST(Surface, CHW) {
   float data[W*H*C];
   auto tensor = make_tensor_cpu<3>(data, { C, H, W, });
   Surface2D<float> s = as_surface_CHW(tensor);
-  EXPECT_EQ(s.width, W);
-  EXPECT_EQ(s.height, H);
+  EXPECT_EQ(s.size.x, W);
+  EXPECT_EQ(s.size.y, H);
   EXPECT_EQ(s.channels, C);
 
   EXPECT_EQ(s.channel_stride, W*H);
-  EXPECT_EQ(s.pixel_stride, 1);
-  EXPECT_EQ(s.row_stride, W);
+  EXPECT_EQ(s.strides.x, 1);
+  EXPECT_EQ(s.strides.y, W);
 
   EXPECT_EQ(&s(0, 0, 0), data);
   EXPECT_EQ(&s(0, 0, 1), &data[W*H]);
@@ -69,12 +69,12 @@ TEST(Surface, HW) {
   float data[W*H];
   auto tensor = make_tensor_cpu<2>(data, { H, W, });
   Surface2D<float> s = as_surface(tensor);
-  EXPECT_EQ(s.width, W);
-  EXPECT_EQ(s.height, H);
+  EXPECT_EQ(s.size.x, W);
+  EXPECT_EQ(s.size.y, H);
   EXPECT_EQ(s.channels, 1);
 
-  EXPECT_EQ(s.pixel_stride, 1);
-  EXPECT_EQ(s.row_stride, W);
+  EXPECT_EQ(s.strides.x, 1);
+  EXPECT_EQ(s.strides.y, W);
 
   EXPECT_EQ(&s(0, 0), data);
   EXPECT_EQ(&s(1, 0), &data[1]);

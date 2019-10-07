@@ -28,7 +28,7 @@ __global__ void RunSampler(
       float dx, float dy, float x0, float y0) {
   int x = threadIdx.x + blockIdx.x * blockDim.x;
   int y = threadIdx.y + blockIdx.y * blockDim.y;
-  if (x >= out.width || y >= out.height)
+  if (x >= out.size.x || y >= out.size.y)
     return;
 
   In border[3] = { border_value, border_value, border_value };
@@ -58,19 +58,19 @@ TEST(SamplerGPU, NN) {
   float x0 = -1;
   float y0 = -1;
 
-  int h = (surf_cpu.height+2) / dy + 1;
-  int w = (surf_cpu.width+2) / dx + 1;
+  int h = (surf_cpu.size.y+2) / dy + 1;
+  int w = (surf_cpu.size.x+2) / dx + 1;
   int c = surf_cpu.channels;
 
   auto out_mem = memory::alloc_unique<uint8_t>(AllocType::GPU, w*h*c);
-  Surface2D<uint8_t> out_surf = { out_mem.get(), w, h, c, c, w*c, 1 };
+  Surface2D<uint8_t> out_surf = { out_mem.get(), { w, h }, c, { c, w*c }, 1 };
 
   std::vector<uint8_t> out_mem_cpu(w*h*c);
 
   dim3 block(32, 32);
   dim3 grid((w+31)/32, (h+31)/32);
   RunSampler<<<grid, block>>>(out_surf, sampler, border_value, dx, dy, x0, y0);
-  Surface2D<uint8_t> out_cpu = { out_mem_cpu.data(), w, h, c, c, w*c, 1 };
+  Surface2D<uint8_t> out_cpu = { out_mem_cpu.data(), { w, h }, c, { c, w*c }, 1 };
 
   cudaMemcpy(out_cpu.data, out_surf.data, w*h*c, cudaMemcpyDeviceToHost);
 
@@ -82,7 +82,7 @@ TEST(SamplerGPU, NN) {
       int ix = floorf(x);
 
       Pixel ref;
-      if (ix < 0 || iy < 0 || ix >= surf_cpu.width || iy >= surf_cpu.height) {
+      if (ix < 0 || iy < 0 || ix >= surf_cpu.size.x || iy >= surf_cpu.size.y) {
         ref = border;
       } else {
         for (int c = 0; c < surf_cpu.channels; c++)
@@ -114,19 +114,19 @@ TEST(SamplerGPU, Linear) {
   float x0 = -1;
   float y0 = -1;
 
-  int h = (surf_cpu.height+2) / dy + 1;
-  int w = (surf_cpu.width+2) / dx + 1;
+  int h = (surf_cpu.size.y+2) / dy + 1;
+  int w = (surf_cpu.size.x+2) / dx + 1;
   int c = surf_cpu.channels;
 
   auto out_mem = memory::alloc_unique<uint8_t>(AllocType::GPU, w*h*c);
-  Surface2D<uint8_t> out_surf = { out_mem.get(), w, h, c, c, w*c, 1 };
+  Surface2D<uint8_t> out_surf = { out_mem.get(), { w, h }, c, { c, w*c }, 1 };
 
   std::vector<uint8_t> out_mem_cpu(w*h*c);
 
   dim3 block(32, 32);
   dim3 grid((w+31)/32, (h+31)/32);
   RunSampler<<<grid, block>>>(out_surf, sampler, border_value, dx, dy, x0, y0);
-  Surface2D<uint8_t> out_cpu = { out_mem_cpu.data(), w, h, c, c, w*c, 1 };
+  Surface2D<uint8_t> out_cpu = { out_mem_cpu.data(), { w, h }, c, { c, w*c }, 1 };
 
   cudaMemcpy(out_cpu.data, out_surf.data, w*h*c, cudaMemcpyDeviceToHost);
 
