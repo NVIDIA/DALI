@@ -1,6 +1,11 @@
 ARG CUDA_IMAGE
+ARG TF_CUSTOM_OP_IMAGE
 FROM ${CUDA_IMAGE} as cuda
-FROM tensorflow/tensorflow:custom-op-gpu
+FROM ${TF_CUSTOM_OP_IMAGE}
+
+# TF_CUSTOM_OP_IMAGE=tensorflow/tensorflow:custom-op-gpu-ubuntu14 for manylinux1 tagged TF pip artifacts
+# TF_CUSTOM_OP_IMAGE=tensorflow/tensorflow:custom-op-gpu-ubuntu16 for manylinux2010 tagged TF pip artifacts
+# More info here: https://github.com/tensorflow/custom-op
 
 ARG PYVER=2.7
 ENV PYVER=${PYVER}
