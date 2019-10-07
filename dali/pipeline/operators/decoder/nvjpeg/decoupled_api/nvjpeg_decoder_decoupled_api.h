@@ -316,18 +316,23 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     const int jpeg_stream_idx = buff_idx;
     NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[sample_idx],
                                               pinned_buffers_[buff_idx]));
-    NVJPEG_CALL(nvjpegJpegStreamParse(handle_,
-                                      static_cast<const unsigned char*>(input_data),
-                                      in_size,
-                                      false,
-                                      false,
-                                      jpeg_streams_[jpeg_stream_idx]));
 
-    nvjpegStatus_t ret = nvjpegDecodeJpegHost(handle_,
-                                              image_decoders_[sample_idx],
-                                              image_states_[sample_idx],
-                                              decode_params_[sample_idx],
-                                              jpeg_streams_[jpeg_stream_idx]);
+    nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
+                                               static_cast<const unsigned char*>(input_data),
+                                               in_size,
+                                               false,
+                                               false,
+                                               jpeg_streams_[jpeg_stream_idx]);
+
+    // If nvjpegJpegStreamParse failed we can skip nvjpeg's host decode step and
+    // rely on the host decoder fallback
+    if (ret == NVJPEG_STATUS_SUCCESS) {
+      ret = nvjpegDecodeJpegHost(handle_,
+                                image_decoders_[sample_idx],
+                                image_states_[sample_idx],
+                                decode_params_[sample_idx],
+                                jpeg_streams_[jpeg_stream_idx]);
+    }
 
     // If image is somehow not supported try host decoder
     if (ret != NVJPEG_STATUS_SUCCESS) {
