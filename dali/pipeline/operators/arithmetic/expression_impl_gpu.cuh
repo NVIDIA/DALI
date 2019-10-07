@@ -81,7 +81,7 @@ template <ArithmeticOp op, typename Result,
           typename Right, bool RightIsTensor>
 class ExpressionImplBinGPU : public ExpressionImplBase, ExpressionImplParam<GPUBackend> {
  public:
-  explicit ExpressionImplBinGPU() {}
+  ExpressionImplBinGPU() {}
 
   void Execute(ArgumentWorkspace &workspace, const OpSpec &spec, ExpressionImplContext &ctx,
                const std::vector<TileDesc> &tiles, TileRange range) override {
