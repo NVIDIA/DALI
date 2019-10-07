@@ -20,6 +20,7 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "dali/core/cuda_utils.h"
 #include "dali/core/static_switch.h"
@@ -179,6 +180,14 @@ inline DALIDataType TypePromotion(DALIDataType left, DALIDataType right) {
     (DALI_FAIL("Left operand data type not supported, DALIDataType: " + std::to_string(left));)
   );  // NOLINT(whitespace/parens)
   return result;
+}
+
+inline DALIDataType TypePromotion(std::vector<DALIDataType> types) {
+  assert(types.size() == 1 || types.size() == 2);
+  if (types.size() == 1) {
+    return types[0];
+  }
+  return TypePromotion(types[0], types[1]);
 }
 
 /**

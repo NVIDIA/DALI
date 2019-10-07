@@ -24,7 +24,10 @@
 #define ALLOWED_TYPES \
   (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, double)
 
-#define ALLOWED_OPS \
+#define ALLOWED_UN_OPS \
+  (ArithmeticOp::plus, ArithmeticOp::minus)
+
+#define ALLOWED_BIN_OPS \
   (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod)
 
 namespace dali {
@@ -35,6 +38,25 @@ std::unique_ptr<ExpressionImplBase> ExprImplFactory(const DeviceWorkspace &ws,
   DALI_ENFORCE(expr.GetNodeType() == NodeType::Function, "Only function nodes can be executed.");
 
   switch (expr.GetSubexpressionCount()) {
+    case 1: {
+      auto op = NameToOp(expr.GetOp());
+      auto input_type = expr[0].GetTypeId();
+      TYPE_SWITCH(input_type, type2id, Input_t, ALLOWED_TYPES, (
+            VALUE_SWITCH(op, op_static, ALLOWED_UN_OPS, (
+              using Out_t = Input_t;
+              if (expr[0].GetNodeType() == NodeType::Tensor) {
+                using ExprImpl = ExpressionImplBinGPU<op_static,
+                    GPUUnTileDesc<Out_t, InputDescriptor<Input_t, true>>, GPUUnTileStorage>;
+                result.reset(new ExprImpl());
+              } else {
+                DALI_FAIL("Unary expression can have only tensor input, "
+                          "constant input encountered.");
+              }
+          ), DALI_FAIL("No suitable op value found"););  // NOLINT(whitespace/parens)
+      ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
+      return result;
+    }
+
     case 2: {
       auto op = NameToOp(expr.GetOp());
       auto left_type = expr[0].GetTypeId();
@@ -43,26 +65,26 @@ std::unique_ptr<ExpressionImplBase> ExprImplFactory(const DeviceWorkspace &ws,
       // 4-fold static switch
       TYPE_SWITCH(left_type, type2id, Left_t, ALLOWED_TYPES, (
         TYPE_SWITCH(right_type, type2id, Right_t, ALLOWED_TYPES, (
-            VALUE_SWITCH(op, op_static, ALLOWED_OPS, (
+            VALUE_SWITCH(op, op_static, ALLOWED_BIN_OPS, (
               using Out_t = binary_result_t<Left_t, Right_t>;
               if (expr[0].GetNodeType() == NodeType::Tensor &&
                   expr[1].GetNodeType() == NodeType::Tensor) {
-                result.reset(new ExpressionImplBinGPU<op_static, Out_t,
-                                                      Left_t, true,
-                                                      Right_t, true>());
+                result.reset(new ExpressionImplBinGPU<op_static, GPUBinTileDesc<Out_t,
+                    InputDescriptor<Left_t, true>,
+                    InputDescriptor<Right_t, true>>, GPUBinTileStorage>());
               } else if (expr[0].GetNodeType() == NodeType::Tensor &&
                          expr[1].GetNodeType() != NodeType::Tensor) {
-                result.reset(new ExpressionImplBinGPU<op_static, Out_t,
-                                                      Left_t, true,
-                                                      Right_t, false>());
+                result.reset(new ExpressionImplBinGPU<op_static, GPUBinTileDesc<Out_t,
+                    InputDescriptor<Left_t, true>,
+                    InputDescriptor<Right_t, false>>, GPUBinTileStorage>());
 
               } else if (expr[0].GetNodeType() != NodeType::Tensor &&
                          expr[1].GetNodeType() == NodeType::Tensor) {
-                result.reset(new ExpressionImplBinGPU<op_static, Out_t,
-                                                      Left_t, false,
-                                                      Right_t, true>());
+                result.reset(new ExpressionImplBinGPU<op_static, GPUBinTileDesc<Out_t,
+                    InputDescriptor<Left_t, false>,
+                    InputDescriptor<Right_t, true>>, GPUBinTileStorage>());
               } else {
-                DALI_FAIL("Expression cannot have two scalar operands");
+                DALI_FAIL("Expression cannot have two constant operands");
               }
           ), DALI_FAIL("No suitable op value found"););  // NOLINT(whitespace/parens)
         ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)

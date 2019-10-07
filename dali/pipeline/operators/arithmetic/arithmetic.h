@@ -115,13 +115,17 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
     expr.SetTypeId(ws.template InputRef<Backend>(e.GetMappedInput()).type().id());
     return expr.GetTypeId();
   }
-  if (expr.GetSubexpressionCount() == 2) {
-    auto left_type = PropagateTypes<Backend>(expr[0], ws);
-    auto right_type = PropagateTypes<Backend>(expr[1], ws);
-    expr.SetTypeId(TypePromotion(left_type, right_type));
-    return expr.GetTypeId();
+  int subexpressions_count = expr.GetSubexpressionCount();
+  DALI_ENFORCE(subexpressions_count == 1 || subexpressions_count == 2,
+               "Only unary and binary expressions are supported");
+
+  std::vector<DALIDataType> types;
+  types.resize(subexpressions_count);
+  for (int i = 0; i < subexpressions_count; i++) {
+    types[i] = PropagateTypes<Backend>(expr[i], ws);
   }
-  DALI_FAIL("Only binary expressions are supported");
+  expr.SetTypeId(TypePromotion(types));
+  return expr.GetTypeId();
 }
 
 
@@ -150,25 +154,28 @@ inline std::vector<ExpressionImplTask> CreateExecutionOrder(const ExprNode &expr
   return result;
 }
 
-inline kernels::TensorListShape<> ShapePromotion(std::string op,
-                                                 const kernels::TensorListShape<> &left,
-                                                 const kernels::TensorListShape<> &right) {
-  bool is_left_scalar = IsScalarLike(left);
-  bool is_right_scalar = IsScalarLike(right);
+inline kernels::TensorListShape<> ShapePromotion(
+    std::string op, const std::vector<kernels::TensorListShape<>> &shapes) {
+  assert(shapes.size() == 1 || shapes.size() == 2 && "Not implemented for other arity");
+  if (shapes.size() == 1) {
+    return shapes[0];
+  }
+  bool is_left_scalar = IsScalarLike(shapes[0]);
+  bool is_right_scalar = IsScalarLike(shapes[1]);
   if (is_left_scalar && is_right_scalar) {
     return kernels::TensorListShape<>{{1}};
   }
   if (is_left_scalar) {
-    return right;
+    return shapes[1];
   }
   if (is_right_scalar) {
-    return left;
+    return shapes[0];
   }
   using std::to_string;
-  DALI_ENFORCE(left == right, "Input shapes of elemenetwise arithemtic operator \"" + op +
+  DALI_ENFORCE(shapes[0] == shapes[1], "Input shapes of elemenetwise arithemtic operator \"" + op +
                                   "\" do not match. Expected equal shapes, got: " + op + "(" +
-                                  to_string(left) + ", " + to_string(right) + ").");
-  return left;
+                                  to_string(shapes[0]) + ", " + to_string(shapes[1]) + ").");
+  return shapes[0];
 }
 
 template <typename Backend>
@@ -183,13 +190,17 @@ DLL_PUBLIC kernels::TensorListShape<> PropagateShapes(ExprNode &expr,
     expr.SetShape(ws.template InputRef<Backend>(e.GetMappedInput()).shape());
     return expr.GetShape();
   }
-  if (expr.GetSubexpressionCount() == 2) {
-    auto left_shape = PropagateShapes<Backend>(expr[0], ws);
-    auto right_shape = PropagateShapes<Backend>(expr[1], ws);
-    expr.SetShape(ShapePromotion(expr.GetOp(), left_shape, right_shape));
-    return expr.GetShape();
+  int subexpressions_count = expr.GetSubexpressionCount();
+  DALI_ENFORCE(subexpressions_count == 1 || subexpressions_count == 2,
+               "Only unary and binary expressions are supported");
+
+  std::vector<kernels::TensorListShape<>> shapes;
+  shapes.resize(subexpressions_count);
+  for (int i = 0; i < subexpressions_count; i++) {
+    shapes[i] = PropagateShapes<Backend>(expr[i], ws);
   }
-  DALI_FAIL("Only binary expressions are supported");
+  expr.SetShape(ShapePromotion(expr.GetOp(), shapes));
+  return expr.GetShape();
 }
 
 /**
@@ -241,9 +252,10 @@ class ArithmeticGenericOp : public Operator<Backend> {
  private:
   void AllocateIntermediateNodes() {
     auto &expr = *expr_;
-    bool is_simple_expression = expr.GetSubexpressionCount() == 2 &&
-                                expr[0].GetNodeType() != NodeType::Function &&
-                                expr[1].GetNodeType() != NodeType::Function;
+    bool is_simple_expression =
+        (expr.GetSubexpressionCount() == 1 && expr[0].GetNodeType() != NodeType::Function) ||
+        (expr.GetSubexpressionCount() == 2 && expr[0].GetNodeType() != NodeType::Function &&
+         expr[1].GetNodeType() != NodeType::Function);
     DALI_ENFORCE(is_simple_expression, "Complex expression trees are not supported");
     // TODO(klecki): allocate memory for intermediate results and point the threads to them
   }

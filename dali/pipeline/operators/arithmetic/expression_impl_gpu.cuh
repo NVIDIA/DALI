@@ -26,22 +26,50 @@
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
 
-namespace dali {
-template <bool IsTensor, typename T>
-using in_desc_t = std::conditional_t<IsTensor, const T*, T>;
 
-// Using the distinction between the Tensors and Constant
-// Otherwise void* could be used.
-template <typename Result, typename Left, bool LeftIsTensor, typename Right, bool RightIsTensor>
-struct GPUTileDesc {
-  Result *result;
-  in_desc_t<LeftIsTensor, Left> left;
-  in_desc_t<RightIsTensor, Right> right;
+
+namespace dali {
+
+template <typename Result_, typename Input0Descriptor>
+struct GPUUnTileDesc {
+  using Result = Result_;
+  using Result_storage = Result_ *;
+  using Input0 = Input0Descriptor;
+};
+
+template <typename GPUUnTileDesc>
+struct GPUUnTileStorage {
+  typename GPUUnTileDesc::Result_storage result;
+  typename GPUUnTileDesc::Input0::storage_type input0;
   int64_t extent;
 };
 
+template <typename Result_, typename Input0Descriptor, typename Input1Descriptor>
+struct GPUBinTileDesc {
+  using Result = Result_;
+  using Result_storage = Result *;
+  using Input0 = Input0Descriptor;
+  using Input1 = Input1Descriptor;
+};
+
+template <typename GPUBinTileDesc>
+struct GPUBinTileStorage {
+  typename GPUBinTileDesc::Result_storage result;
+  typename GPUBinTileDesc::Input0::storage_type input0;
+  typename GPUBinTileDesc::Input1::storage_type input1;
+  int64_t extent;
+};
+
+template <ArithmeticOp op, typename Result, typename Input>
+__device__ void ExecuteUnOp(Result *result, const Input *in, int64_t extent) {
+  using meta = arithm_meta<op, GPUBackend>;
+  for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
+    result[i] = meta::impl(in[i]);
+  }
+}
+
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
-__device__ void ExecuteBin(Result *result, const Left *l, const Right *r, int64_t extent) {
+__device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
     result[i] = meta::impl(l[i], r[i]);
@@ -49,7 +77,7 @@ __device__ void ExecuteBin(Result *result, const Left *l, const Right *r, int64_
 }
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
-__device__ void ExecuteBin(Result *result, Left l, const Right *r, int64_t extent) {
+__device__ void ExecuteBinOp(Result *result, Left l, const Right *r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
     result[i] = meta::impl(l, r[i]);
@@ -57,7 +85,7 @@ __device__ void ExecuteBin(Result *result, Left l, const Right *r, int64_t exten
 }
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
-__device__ void ExecuteBin(Result *result, const Left *l, Right r, int64_t extent) {
+__device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
     result[i] = meta::impl(l[i], r);
@@ -65,9 +93,21 @@ __device__ void ExecuteBin(Result *result, const Left *l, Right r, int64_t exten
 }
 
 template <ArithmeticOp op, typename Tile>
+__device__ std::enable_if_t<GetOpArity(op) == 1>
+ExecuteOp(const Tile &tile) {
+  ExecuteUnOp<op>(tile.result, tile.input0, tile.extent);
+}
+
+template <ArithmeticOp op, typename Tile>
+__device__ std::enable_if_t<GetOpArity(op) == 2>
+ExecuteOp(const Tile &tile) {
+  ExecuteBinOp<op>(tile.result, tile.input0, tile.input1, tile.extent);
+}
+
+template <ArithmeticOp op, typename Tile>
 __global__ void ExecuteTiled(const Tile *tiles, int num_tiles) {
   const auto &tile = tiles[blockIdx.y];
-  ExecuteBin<op>(tile.result, tile.left, tile.right, tile.extent);
+  ExecuteOp<op>(tile);
 }
 
 dim3 GetGridLayout(int extent, int thread_num, int tiles) {
@@ -76,9 +116,7 @@ dim3 GetGridLayout(int extent, int thread_num, int tiles) {
 
 // Assumes that it will get a workspace for given Backend,
 // and the backend will store the inputs and outputs at given Backend.
-template <ArithmeticOp op, typename Result,
-          typename Left, bool LeftIsTensor,
-          typename Right, bool RightIsTensor>
+template <ArithmeticOp op, typename GPUTileDesc, template <typename> class GPUTileStorage>
 class ExpressionImplBinGPU : public ExpressionImplBase, ExpressionImplParam<GPUBackend> {
  public:
   ExpressionImplBinGPU() {}
@@ -91,9 +129,9 @@ class ExpressionImplBinGPU : public ExpressionImplBase, ExpressionImplParam<GPUB
     const auto &expr = *ctx.node;
     for (int i = range.begin; i < range.end; i++) {
       const auto &source_tile = tiles[i];
-      target_tiles[i].left = ObtainInput<LeftIsTensor, Left>(expr, ws, spec, source_tile, 0);
-      target_tiles[i].right = ObtainInput<RightIsTensor, Right>(expr, ws, spec, source_tile, 1);
-      target_tiles[i].result = ObtainOutput<Result>(expr, ws, spec, source_tile);
+      FillInputs<GetOpArity(op)>(target_tiles[i], expr, ws, spec, source_tile);
+      target_tiles[i].result = ObtainOutput<typename GPUTileDesc::Result>(
+          expr, ws, spec, source_tile);
       target_tiles[i].extent = source_tile.extent_size;
     }
     tiles_.Copy(target_tiles, ws.stream());
@@ -101,7 +139,28 @@ class ExpressionImplBinGPU : public ExpressionImplBase, ExpressionImplParam<GPUB
   }
 
  private:
-  using Tile = GPUTileDesc<Result, Left, LeftIsTensor, Right, RightIsTensor>;
+  using Tile = GPUTileStorage<GPUTileDesc>;
+
+  template <int Arity>
+  std::enable_if_t<Arity == 2> FillInputs(Tile& target_tile, const ExprNode &expr,
+                                          DeviceWorkspace &ws, const OpSpec &spec,
+                                          const TileDesc &source_tile) {
+    target_tile.input0 =
+        ObtainInput<GPUTileDesc::Input0::is_tensor, typename GPUTileDesc::Input0::type>(
+            expr, ws, spec, source_tile, 0);
+    target_tile.input1 =
+        ObtainInput<GPUTileDesc::Input1::is_tensor, typename GPUTileDesc::Input1::type>(
+            expr, ws, spec, source_tile, 1);
+  }
+
+  template <int Arity>
+  std::enable_if_t<Arity == 1> FillInputs(Tile& target_tile, const ExprNode &expr,
+                                          DeviceWorkspace &ws, const OpSpec &spec,
+                                          const TileDesc &source_tile) {
+    target_tile.input0 =
+        ObtainInput<GPUTileDesc::Input0::is_tensor, typename GPUTileDesc::Input0::type>(
+            expr, ws, spec, source_tile, 0);
+  }
 
   static void Invoke(const Tile *tiles, int num_tiles, cudaStream_t stream) {
     // TODO(klecki): TUNE THIS

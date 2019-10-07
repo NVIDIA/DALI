@@ -292,18 +292,26 @@ TEST(ArithmeticOps, GenericPipeline) {
                        .AddArg("expression_desc", "add(&0 &1)")
                        .AddInput("data0", "cpu")
                        .AddInput("data1", "cpu")
-                       .AddOutput("result", "cpu"),
-                   "arithm_cpu");
+                       .AddOutput("result0", "cpu"),
+                   "arithm_cpu_add");
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "gpu")
                        .AddArg("expression_desc", "mul(&0 &1)")
-                       .AddInput("result", "gpu")
+                       .AddInput("result0", "gpu")
                        .AddInput("data1", "gpu")
-                       .AddOutput("result2", "gpu"),
-                   "arithm_gpu");
+                       .AddOutput("result1", "gpu"),
+                   "arithm_gpu_mul");
 
-  vector<std::pair<string, string>> outputs = {{"result", "cpu"}, {"result2", "gpu"}};
+  pipe.AddOperator(OpSpec("ArithmeticGenericOp")
+                       .AddArg("device", "gpu")
+                       .AddArg("expression_desc", "minus(&0)")
+                       .AddInput("result1", "gpu")
+                       .AddOutput("result2", "gpu"),
+                   "arithm_gpu_neg");
+
+  vector<std::pair<string, string>> outputs = {
+      {"result0", "cpu"}, {"result1", "gpu"}, {"result2", "gpu"}};
 
   pipe.Build(outputs);
 
@@ -323,14 +331,18 @@ TEST(ArithmeticOps, GenericPipeline) {
   pipe.RunGPU();
   DeviceWorkspace ws;
   pipe.Outputs(&ws);
-  auto *result = ws.OutputRef<CPUBackend>(0).data<int32_t>();
-  auto *result2 = ws.OutputRef<GPUBackend>(1).data<int32_t>();
+  auto *result0 = ws.OutputRef<CPUBackend>(0).data<int32_t>();
+  auto *result1 = ws.OutputRef<GPUBackend>(1).data<int32_t>();
+  auto *result2 = ws.OutputRef<GPUBackend>(2).data<int32_t>();
+  vector<int32_t> result1_cpu(batch_size * tensor_elements);
   vector<int32_t> result2_cpu(batch_size * tensor_elements);
 
+  MemCopy(result1_cpu.data(), result1, batch_size * tensor_elements * sizeof(int));
   MemCopy(result2_cpu.data(), result2, batch_size * tensor_elements * sizeof(int));
   for (int i = 0; i < batch_size * tensor_elements; i++) {
-    EXPECT_EQ(result[i], i + i);
-    EXPECT_EQ(result2_cpu[i], i * (i + i));
+    EXPECT_EQ(result0[i], i + i);
+    EXPECT_EQ(result1_cpu[i], i * (i + i));
+    EXPECT_EQ(result2_cpu[i], -(i * (i + i)));
   }
 }
 

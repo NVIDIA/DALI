@@ -31,6 +31,16 @@
 
 namespace dali {
 
+template <bool IsTensor, typename T>
+using in_storage_type_t = std::conditional_t<IsTensor, const T*, T>;
+
+template <typename T, bool IsTensor>
+struct InputDescriptor {
+  using type = T;
+  using storage_type = in_storage_type_t<IsTensor, T>;
+  static constexpr bool is_tensor = IsTensor;
+};
+
 template <typename Backend>
 class ExpressionImplParam {
  protected:
