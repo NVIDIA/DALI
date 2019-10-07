@@ -74,8 +74,7 @@ struct Sampler<DALI_INTERP_NN, In> {
       int x, int y, int c,
       BorderClamp) const {
     ivec2 clamped = clamp(ivec2(x, y), ivec2(0, 0), surface.size);
-
-    return ConvertSat<T>(surface(x, y, c));
+    return ConvertSat<T>(surface(clamped, c));
   }
 
   template <typename T = In, typename BorderValue>

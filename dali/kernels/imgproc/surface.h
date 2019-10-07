@@ -137,34 +137,50 @@ using Surface2D = Surface<2, T>;
 template <typename T>
 using Surface3D = Surface<3, T>;
 
+template <int channel_dim = -1, int n, typename T, typename Storage>
+DALI_HOST_DEV
+constexpr Surface<(channel_dim < 0 ? n : n-1), T> as_surface(const TensorView<Storage, T, n> &t) {
+  const int spatial_ndim = (channel_dim < 0 ? n : n-1);
+  ivec<spatial_ndim> size = shape2vec(skip_dim<channel_dim>(t.shape));
+  ivec<spatial_ndim> strides = {};
+  int stride = 1;
+  int channel_stride = 0;
+  int channels = 1;
+  for (int d = n - 1, i = 0; d >=0; d--) {
+    if (d == channel_dim) {
+      channel_stride = stride;
+      channels = t.shape[d];
+    } else {
+      strides[i++] = stride;
+    }
+    stride *= t.shape[d];
+  }
+
+  return { t.data, size, channels, strides, channel_stride };
+}
+
+template <int n, typename T, typename Storage>
+DALI_HOST_DEV
+constexpr Surface<n-1, T> as_surface_channel_first(const TensorView<Storage, T, n> &t) {
+  return as_surface<0>(t);
+}
+
+template <int n, typename T, typename Storage>
+DALI_HOST_DEV
+constexpr Surface<n-1, T> as_surface_channel_last(const TensorView<Storage, T, n> &t) {
+  return as_surface<n-1>(t);
+}
+
 template <typename T, typename Storage>
+DALI_HOST_DEV
 constexpr Surface2D<T> as_surface_HWC(const TensorView<Storage, T, 3> &t) {
-  return { t.data,
-    ivec2(t.shape[1], t.shape[0]),                // width, height
-    static_cast<int>(t.shape[2]),                 // channels
-    ivec2(t.shape[2], t.shape[1] * t.shape[2]),   // pixel and row stride
-    1                                             // channel stride - contiguous
-  };
+  return as_surface_channel_last(t);
 }
 
 template <typename T, typename Storage>
+DALI_HOST_DEV
 constexpr Surface2D<T> as_surface_CHW(const TensorView<Storage, T, 3> &t) {
-  return { t.data,
-    ivec2(t.shape[2], t.shape[1]),                // width, height
-    static_cast<int>(t.shape[0]),                 // channels
-    ivec2(1, t.shape[2]),                         // pixel and row stride
-    static_cast<int>(t.shape[1] * t.shape[2])     // channel stride - planes
-  };
-}
-
-template <typename T, typename Storage>
-constexpr Surface2D<T> as_surface(const TensorView<Storage, T, 2> &t) {
-  return { t.data,
-    ivec2(t.shape[1], t.shape[0]),  // width, height
-    1,                              // channels
-    ivec2(1, t.shape[1]),           // pixel and row stride
-    0                               // channel stride - irrelevant
-  };
+  return as_surface_channel_first(t);
 }
 
 /**
