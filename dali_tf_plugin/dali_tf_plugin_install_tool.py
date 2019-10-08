@@ -46,14 +46,15 @@ class InstallerHelper:
         s += "\n TF path:                              {}".format(self.tf_path or "Not Installed")
         s += "\n DALI TF plugin destination directory: {}".format(self.plugin_dest_dir if self.dali_lib_path else "Not installed")
         s += "\n Is Conda environment?                 {}".format("Yes" if self.is_conda else "No")
-        s += "\n TF version installed:                 {}".format(self.tf_version or "Empty")
-        s += "\n g++ version used to compile TF:       {}".format(self.tf_compiler or "Empty")
         s += "\n Using compiler:                       \"{}\", version {}".format(self.cpp_compiler, self.default_cpp_version or "Empty")
-        s += "\n Prebuilt plugins available for g++:   \"{}\"", " ".join(self.prebuilt_compilers)
-        s += "\n Is {} present in the system?     {}".format(self.alt_compiler, "Yes" if self.has_alt_compiler else "No")
-        s += "\n Can install prebuilt plugin?          {}".format("Yes" if self.can_install_prebuilt else "No")
-        s += "\n Can compile with default compiler?    {}".format("Yes" if self.can_compile else "No")
-        s += "\n Can compile with alt compiler?        {}".format("Yes" if self.has_alt_compiler else "No")
+        s += "\n TF version installed:                 {}".format(self.tf_version or "Empty")
+        if self.tf_version:
+            s += "\n g++ version used to compile TF:       {}".format(self.tf_compiler or "Empty")
+            s += "\n Prebuilt plugins available for g++:   \"{}\"".format(" ".join(self.prebuilt_compilers))
+            s += "\n Is {} present in the system?     {}".format(self.alt_compiler, "Yes" if self.has_alt_compiler else "No")
+            s += "\n Can install prebuilt plugin?          {}".format("Yes" if self.can_install_prebuilt else "No")
+            s += "\n Can compile with default compiler?    {}".format("Yes" if self.can_compile else "No")
+            s += "\n Can compile with alt compiler?        {}".format("Yes" if self.has_alt_compiler else "No")
         s += "\n---------------------------------------------------------------------------------------------------------"
         return s
 
@@ -84,7 +85,7 @@ class InstallerHelper:
         print("Checking build environment for DALI TF plugin ...")
         print(self.debug_str())
 
-        if self.tf_version == "":
+        if not self.tf_version or not self.tf_path or not self.tf_compiler:
             error_msg = "Installation error:"
             error_msg += "\n Tensorflow installation not found. Install `tensorflow-gpu` and try again"
             error_msg += '\n' + self.debug_str()

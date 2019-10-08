@@ -15,6 +15,6 @@ cmake .. \
       -DTIMESTAMP=${DALI_TIMESTAMP} \
       -DGIT_SHA=${GIT_SHA}
 
-make -j
+make -j install
 python setup.py sdist
 cp dist/*.tar.gz /dali_tf_sdist
