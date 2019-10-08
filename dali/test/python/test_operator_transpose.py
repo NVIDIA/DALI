@@ -28,7 +28,8 @@ def transpose_func(image):
     return image.transpose((1, 0, 2))
 
 class TransposePipeline(Pipeline):
-    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0):
+    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0,
+                 permutation = (1, 0, 2), transpose_layout=False, out_layout_arg=None):
         super(TransposePipeline, self).__init__(batch_size,
                                                 num_threads,
                                                 device_id)
@@ -36,8 +37,15 @@ class TransposePipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.transpose = ops.Transpose(device = self.device,
-                                       perm = (1, 0, 2))
+        if out_layout_arg:
+            self.transpose = ops.Transpose(device = self.device,
+                                           perm = permutation,
+                                           transpose_layout = transpose_layout,
+                                           output_layout = out_layout_arg)
+        else:
+            self.transpose = ops.Transpose(device = self.device,
+                                           perm = permutation,
+                                           transpose_layout = transpose_layout)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -73,8 +81,8 @@ class PythonOpPipeline(Pipeline):
 def check_transpose_vs_numpy(device, batch_size, shape):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
-    compare_pipelines(TransposePipeline(device, batch_size, types.NHWC, iter(eii1)),
-                      PythonOpPipeline(transpose_func, batch_size, types.NHWC, iter(eii2)),
+    compare_pipelines(TransposePipeline(device, batch_size, "HWC", iter(eii1)),
+                      PythonOpPipeline(transpose_func, batch_size, "HWC", iter(eii2)),
                       batch_size=batch_size, N_iterations=10)
 
 def test_transpose_vs_numpy():
@@ -83,3 +91,38 @@ def test_transpose_vs_numpy():
         for batch_size in {1, 3}:
             for shape in {(2048, 512, 1), (2048, 512, 3), (2048, 512, 8)}:
                 yield check_transpose_vs_numpy, device, batch_size, shape
+
+def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
+                           transpose_layout, out_layout_arg):
+    eii = RandomDataIterator(batch_size, shape=shape)
+    pipe = TransposePipeline(device, batch_size, "HWC", iter(eii),
+                             permutation=permutation,
+                             transpose_layout=transpose_layout,
+                             out_layout_arg=out_layout_arg)
+    pipe.build()
+    out = pipe.run()
+
+    expected_out_layout = in_layout
+    if out_layout_arg:
+        expected_out_layout = out_layout_arg
+    elif transpose_layout:
+        expected_out_layout = "".join([list(in_layout)[d] for d in permutation])
+    else:
+        expected_out_layout = in_layout
+
+    assert(out[0].layout() == expected_out_layout)
+
+def test_transpose_layout():
+    batch_size = 3
+    shape = (600, 400, 3)
+    in_layout = "HWC"
+    for device in {'gpu'}:
+        for permutation, transpose_layout, out_layout_arg in \
+            [((2, 0, 1), True, None),
+             ((2, 0, 1), True, "CHW"),
+             ((2, 0, 1), False, "CHW"),
+             ((1, 0, 2), False, None),
+             ((1, 0, 2), True, None),
+             ((1, 0, 2), True, "HWC")]:
+            yield check_transpose_layout, device, batch_size, shape, \
+                in_layout, permutation, transpose_layout, out_layout_arg

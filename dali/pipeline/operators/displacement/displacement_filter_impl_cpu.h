@@ -165,6 +165,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     auto &input = ws.Input<CPUBackend>(0);
     auto &output = ws.Output<CPUBackend>(0);
     output.ResizeLike(input);
+    output.SetLayout(InputLayout(ws, 0));
   }
 
   void SetupSharedSampleParams(SampleWorkspace &ws) override {
@@ -183,7 +184,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   float fill_value_;
 
   bool has_mask_;
-  const Tensor<CPUBackend> *mask_;
+  const TensorList<CPUBackend> *mask_;
 };
 
 }  // namespace dali

@@ -56,7 +56,10 @@ class ImageDecoderSliceTest_GPU : public DecodeTestBase<ImgType> {
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return [this] (const kernels::TensorShape<>& shape) {
+    return [this] (const kernels::TensorShape<>& shape,
+                   const TensorLayout& shape_layout) {
+      DALI_ENFORCE(shape_layout == "HW",
+        make_string("Unexpected input shape layout:", shape_layout.c_str(), "vs HW"));
       CropWindow crop_window;
       crop_window.anchor[0] = crop_y * shape[0];
       crop_window.anchor[1] = crop_x * shape[1];
@@ -79,6 +82,10 @@ TYPED_TEST(ImageDecoderSliceTest_GPU, JpegDecode) {
 
 TYPED_TEST(ImageDecoderSliceTest_GPU, PngDecode) {
   this->Run(t_pngImgType);
+}
+
+TYPED_TEST(ImageDecoderSliceTest_GPU, BmpDecode) {
+  this->Run(t_bmpImgType);
 }
 
 TYPED_TEST(ImageDecoderSliceTest_GPU, TiffDecode) {

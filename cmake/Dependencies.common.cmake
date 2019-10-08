@@ -67,6 +67,18 @@ else()
 endif()
 
 ##################################################################
+# libtiff
+##################################################################
+if (BUILD_LIBTIFF)
+  find_package(TIFF REQUIRED)
+  include_directories(${TIFF_INCLUDE_DIR})
+  message("Using libtiff at ${TIFF_LIBRARY}")
+  list(APPEND DALI_LIBS ${TIFF_LIBRARY})
+else()
+  message(STATUS "Building WITHOUT libtiff")
+endif()
+
+##################################################################
 # PyBind
 ##################################################################
 if (BUILD_PYTHON)
@@ -106,11 +118,14 @@ if(BUILD_FFMPEG)
         pkg_check_modules(${m} REQUIRED lib${m})
         list(APPEND FFmpeg_LIBS ${m})
       else()
-        find_library(FFmpeg_Lib ${m}
+        # Set the name of the destination variable, it cannot be the same across
+        # consecutive find_library calls to avoid caching
+        set(FFmpeg_Lib "FFmpeg_Lib${m}")
+        find_library(${FFmpeg_Lib} ${m}
               PATHS ${FFMPEG_ROOT_DIR}
               PATH_SUFFIXES lib lib64
               NO_DEFAULT_PATH)
-        list(APPEND FFmpeg_LIBS ${FFmpeg_Lib})
+        list(APPEND FFmpeg_LIBS ${${FFmpeg_Lib}})
         message(STATUS ${m})
       endif()
   endforeach(m)

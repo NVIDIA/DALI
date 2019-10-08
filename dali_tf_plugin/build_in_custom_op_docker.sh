@@ -10,11 +10,11 @@ CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0
 LAST_CONFIG_INDEX=$(python ../qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION})
 for i in `seq 0 $LAST_CONFIG_INDEX`;
 do
-    INST=$(python ../qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${CUDA_VERSION})
-    echo "Building DALI TF plugin for TF version ${INST}"
-    pip install ${INST} -f /pip-packages
+    eval "PKG=(`python ../qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${CUDA_VERSION} | tr -d '[],'`)"
+    echo "Building DALI TF plugin for TF version ${PKG}"
+    pip install ${PKG} -f /pip-packages
 
-    SUFFIX=$(echo $INST | sed 's/.*=\([0-9]\+\)\.\([0-9]\+\).*/\1_\2/')
+    SUFFIX=$(echo $PKG | sed 's/.*=\([0-9]\+\)\.\([0-9]\+\).*/\1_\2/')
     LIB_NAME=libdali_tf_${SUFFIX}.so
 
     source ./build_dali_tf.sh "${LIB_NAME}"

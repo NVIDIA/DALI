@@ -12,7 +12,7 @@ CREATE_RUNNER=[default NO]
 BUILD_TF_PLUGIN=[default NO]
 DALI_BUILD_FLAVOR=[default is empty]
 CMAKE_BUILD_TYPE=[default is Release]
-BUILD_INHOST=[create build dir with object outside docker, just mount it as a volume]
+BUILD_INHOST=[create build dir with object outside docker, just mount it as a volume, default is YES]
 REBUILD_BUILDERS=[default is NO]
 REBUILD_MANYLINUX=[default is NO]
 DALI_BUILD_DIR=[default is build-docker-\${CMAKE_BUILD_TYPE}-\${PYV}-\${CUDA_VERSION}]
@@ -48,13 +48,14 @@ export REBUILD_MANYLINUX=${REBUILD_MANYLINUX:-NO}
 export BUILD_TF_PLUGIN=${BUILD_TF_PLUGIN:-NO}
 export DALI_BUILD_DIR=${DALI_BUILD_DIR:-build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}}
 #################################
-export DEPS_IMAGE=dali_cu${CUDA_VERSION}.deps
-export BUILDER=dali_${PYV}_cu${CUDA_VERSION}.build
-export BUILDER_WHL=dali_${PYV}_cu${CUDA_VERSION}.build_w_whl
-export BUILDER_DALI_TF_BASE=dali_${PYV}_cu${CUDA_VERSION}.build_dali_tf_base
-export BUILDER_DALI_TF_BASE_WITH_WHEEL=dali_${PYV}_cu${CUDA_VERSION}.build_dali_tf_base_with_wheel
-export BUILDER_DALI_TF=dali_${PYV}_cu${CUDA_VERSION}.build_dali_tf
-export RUN_IMG=dali_${PYV}_cu${CUDA_VERSION}.run
+export DEPS_IMAGE=nvidia/dali:cu${CUDA_VERSION}.deps
+export CUDA_DEPS_IMAGE=nvidia/dali:cuda${CUDA_VERSION}.toolkit
+export BUILDER=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build
+export BUILDER_WHL=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build_whl
+export BUILDER_DALI_TF_BASE=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build_tf_base
+export BUILDER_DALI_TF_BASE_WITH_WHEEL=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build_tf_base_with_whl
+export BUILDER_DALI_TF=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.build_tf
+export RUN_IMG=nvidia/dali:py${PYV}_cu${CUDA_VERSION}.run
 export GIT_SHA=$(git rev-parse HEAD)
 export DALI_TIMESTAMP=$(date +%Y%m%d)
 
@@ -79,9 +80,10 @@ fi
 
 pushd ../
 # build deps image if needed
-if [[ "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" || "$REBUILD_BUILDERS" != "NO" ]]; then
+if [[ "$(docker images -q ${DEPS_IMAGE} 2> /dev/null)" == "" || "$(docker images -q ${CUDA_DEPS_IMAGE} 2> /dev/null)" == "" || "$REBUILD_BUILDERS" != "NO" ]]; then
     echo "Build deps: " ${DEPS_IMAGE}
-    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=manylinux3_x86_64 --build-arg "USE_CUDA_VERSION=${CUDA_VERSION}" -f Dockerfile.deps .
+    docker build -t ${CUDA_DEPS_IMAGE} -f docker/Dockerfile.cuda${CUDA_VERSION}.deps .
+    docker build -t ${DEPS_IMAGE} --build-arg "FROM_IMAGE_NAME"=manylinux3_x86_64 --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" -f docker/Dockerfile.deps .
 fi
 
 # build builder image if needed
@@ -89,9 +91,9 @@ if [[ "$(docker images -q ${BUILDER} 2> /dev/null)" == "" || "$(docker images -q
     echo "Build light image:" ${BUILDER}
     docker build -t ${BUILDER} --build-arg "DEPS_IMAGE_NAME=${DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}" \
                                --build-arg "NVIDIA_DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}" --build-arg "GIT_SHA=${GIT_SHA}" --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}" \
-                               --build-arg "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" --target builder .
+                               --build-arg "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" --target builder -f docker/Dockerfile .
 
-    docker build -t ${BUILDER_DALI_TF_BASE} --build-arg "CUDA_IMAGE=${DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" -f docker/Dockerfile.customopbuilder.clean .
+    docker build -t ${BUILDER_DALI_TF_BASE} --build-arg "CUDA_IMAGE=${CUDA_DEPS_IMAGE}" --build-arg "PYVER=${PYVER}" --build-arg "PYV=${PYV}" -f docker/Dockerfile.customopbuilder.clean .
 fi
 
 if [ "$BUILD_INHOST" = "YES" ]; then
@@ -107,9 +109,11 @@ if [ "$BUILD_INHOST" = "YES" ]; then
                                         BUILD_LMDB=${BUILD_LMDB}                  \
                                         BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}      \
                                         BUILD_NVJPEG=${BUILD_NVJPEG}              \
+                                        BUILD_LIBTIFF=${BUILD_LIBTIFF}            \
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
                                         BUILD_NVML=${BUILD_NVML}                  \
+                                        VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
                                         BUILD_WITH_ASAN=${BUILD_WITH_ASAN}        \
                                         NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}        \

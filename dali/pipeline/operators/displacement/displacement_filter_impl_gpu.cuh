@@ -248,6 +248,7 @@ class DisplacementFilter<GPUBackend, Displacement,
     auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
     output.ResizeLike(input);
+    output.SetLayout(InputLayout(ws, 0));
   }
 
   template <typename U = Displacement>
@@ -403,7 +404,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   Tensor<GPUBackend> meta_gpu;
 
   bool has_mask_;
-  Tensor<GPUBackend> mask_gpu_;
+  TensorList<GPUBackend> mask_gpu_;
 
   Tensor<CPUBackend> params_;
   Tensor<GPUBackend> params_gpu_;

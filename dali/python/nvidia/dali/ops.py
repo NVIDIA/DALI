@@ -22,6 +22,7 @@ from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
+import nvidia.dali.libpython_function_plugin
 
 _cpu_ops = set({})
 _gpu_ops = set({})
@@ -79,10 +80,8 @@ Parameters
                 default_value = eval(default_value_string)
             else:
                 default_value = default_value_string
-            if dtype == DALIDataType.STRING:
-                default_value = "\'" + str(default_value) + "\'"
             ret += (", optional, default = " +
-                    str(_type_convert_value(dtype, default_value)))
+                    repr(_type_convert_value(dtype, default_value)))
         indent = '\n' + " " * len(arg_name_doc)
         ret += indent
         ret += schema.GetArgumentDox(arg).replace("\n", indent)
@@ -451,6 +450,10 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         return outputs
 
 
+def current_dali_stream():
+    return nvidia.dali.libpython_function_plugin.current_dali_stream()
+
+
 class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
     def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
         self._schema = b.GetSchema(impl_name)
@@ -483,6 +486,9 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
 
     def __call__(self, *inputs, **kwargs):
         pipeline = Pipeline.current()
+        if pipeline.exec_async or pipeline.exec_pipelined:
+            raise RuntimeError("PythonFunction can be used only in pipelines with `exec_async` and "
+                               "`exec_pipelined` set to False.")
         if (len(inputs) > self._schema.MaxNumInput() or
                 len(inputs) < self._schema.MinNumInput()):
             raise ValueError(

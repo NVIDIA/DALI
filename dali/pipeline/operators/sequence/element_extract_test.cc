@@ -48,7 +48,7 @@ class ElementExtractTest : public DaliOperatorTest {
             new TensorList<CPUBackend>);
         auto shape = kernels::uniform_list_shape(ntensors_, {F_, H_, W_, C_});
         data->set_type(TypeInfo::Create<T>());
-        data->SetLayout(DALITensorLayout::DALI_NFHWC);
+        data->SetLayout("FHWC");
         data->Resize(shape);
 
         const auto frame_size = W_*H_*C_;

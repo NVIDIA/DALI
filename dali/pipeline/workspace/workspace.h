@@ -50,17 +50,17 @@ class ArgumentWorkspace {
     argument_inputs_.clear();
   }
 
-  void AddArgumentInput(shared_ptr<Tensor<CPUBackend>> input, const std::string &arg_name) {
+  void AddArgumentInput(shared_ptr<TensorList<CPUBackend>> input, const std::string &arg_name) {
     argument_inputs_[arg_name] = std::move(input);
   }
 
-  void SetArgumentInput(shared_ptr<Tensor<CPUBackend>> input, const std::string &arg_name) {
+  void SetArgumentInput(shared_ptr<TensorList<CPUBackend>> input, const std::string &arg_name) {
     DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
         "Argument \"" + arg_name + "\" not found.");
     argument_inputs_[arg_name] = std::move(input);
   }
 
-  const Tensor<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
+  const TensorList<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
     DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
         "Argument \"" + arg_name + "\" not found.");
     return *(argument_inputs_.at(arg_name));
@@ -68,7 +68,7 @@ class ArgumentWorkspace {
 
  protected:
   // Argument inputs
-  std::unordered_map<std::string, shared_ptr<Tensor<CPUBackend>>> argument_inputs_;
+  std::unordered_map<std::string, shared_ptr<TensorList<CPUBackend>>> argument_inputs_;
 };
 
 /**
@@ -297,6 +297,21 @@ class WorkspaceBase : public ArgumentWorkspace {
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output with given "
         "index does not have the calling backend type (GPUBackend)");
     return gpu_outputs_[tensor_meta.index];
+  }
+
+  /**
+ * @brief Returns the index of the sample that this workspace stores
+ * in the input/output batch.
+ */
+  DLL_PUBLIC virtual inline int data_idx() const {
+    return 0;
+  }
+
+  /**
+ * @brief Returns the index of the thread that will process this data.
+ */
+  DLL_PUBLIC virtual inline int thread_idx() const {
+    return 0;
   }
 
  protected:

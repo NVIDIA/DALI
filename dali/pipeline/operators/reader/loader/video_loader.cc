@@ -23,6 +23,35 @@
 #include <fstream>
 #include <limits>
 
+inline int gcd(int a, int b) {
+  while (b) {
+    int tmp = b;
+    b = a % b;
+    a = tmp;
+  }
+  return a;
+}
+
+inline std::ostream &operator<<(std::ostream &os, AVRational r) {
+  if (!r.num) {
+    os << "0";
+  } else {
+    if (r.den < 0) {
+      r.den = -r.den;
+      r.num = -r.num;
+    }
+    int cd = gcd(r.num, r.den);
+    if (cd != 1) {
+      r.num /= cd;
+      r.den /= cd;
+    }
+    os << r.num;
+    if (r.den != 1)
+      os << "/" << r.den;
+  }
+  return os;
+}
+
 namespace dali {
 
 namespace {
@@ -111,7 +140,7 @@ vector<std::pair<string, int>> filesystem::get_file_label_pair(
   } else if (!file_list.empty()) {
     // load (path, label) pairs from list
     std::ifstream s(file_list);
-    DALI_ENFORCE(s.is_open());
+    DALI_ENFORCE(s.is_open(), file_list + " could not be opened.");
 
     string video_file;
     int label;
@@ -188,46 +217,48 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
 
 
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
+    int width = codecpar(stream)->width;
+    int height = codecpar(stream)->height;
     auto codec_id = codecpar(stream)->codec_id;
-    if (width_ == 0) {  // first file to open
-      width_ = codecpar(stream)->width;
-      height_ = codecpar(stream)->height;
+    if (max_width_ == 0) {  // first file to open
+      max_width_ = width;
+      max_height_ = height;
       codec_id_ = codec_id;
 
-      if (vid_decoder_) {
-        DALI_FAIL("Width and height not set, but we have a decoder?");
-      }
-      LOG_LINE << "Opened the first file, creating a video decoder" << std::endl;
-
-      vid_decoder_ = std::unique_ptr<NvDecoder>{
-          new NvDecoder(device_id_,
-                        codecpar(stream),
-                        stream->time_base,
-                        image_type_,
-                        dtype_,
-                        normalized_)};
     } else {  // already opened a file
-      if (!vid_decoder_) {
-          DALI_FAIL("width is already set but we don't have a vid_decoder_");
-      }
+      DALI_ENFORCE(codec_id_ == codec_id, "File " + filename +
+                   " is not the same codec as previous files");
 
-      if (width_ != codecpar(stream)->width ||
-          height_ != codecpar(stream)->height ||
-          codec_id_ != codec_id) {
-          std::stringstream err;
-          err << "File " << filename << " is not the same size and codec as previous files."
-              << " This is not yet supported. ("
-              << codecpar(stream)->width << "x" << codecpar(stream)->height
-              << " instead of "
-              << width_ << "x" << height_ << " or codec "
-              << codec_id << " != " << codec_id_ << ")";
-          DALI_FAIL(err.str());
+      if (NVCUVID_API_EXISTS(cuvidReconfigureDecoder)) {
+        if (max_width_ < width) max_width_ = width;
+        if (max_height_ < height) max_height_ = height;
+
+      } else {
+        if (max_width_ != width ||
+            max_height_ != height) {
+            std::stringstream err;
+            err << "File " << filename << " does not have the same resolution as previous files. ("
+                << width << "x" << height
+                << " instead of "
+                << max_width_ << "x" << max_height_ << "). "
+                << "Install Nvidia driver version >=396 (x86) or >=415 (Power PC) to decode"
+                   " multiple resolutions";
+            DALI_WARN(err.str());
+            throw unsupported_exception("Decoder reconfigure feature not supported");
+        }
       }
     }
     file.stream_base_ = stream->time_base;
     // 1/frame_rate is duration of each frame (or time base of frame_num)
     file.frame_base_ = AVRational{stream->avg_frame_rate.den,
                                   stream->avg_frame_rate.num};
+    file.start_time_ = stream->start_time;
+    if (file.start_time_ == AV_NOPTS_VALUE)
+      file.start_time_ = 0;
+    LOG_LINE
+      << "\nStart time is: " << file.start_time_
+      << "\nStream base: " << file.stream_base_
+      << "\nFrame base: " << file.frame_base_ << "\n";
 
     // This check is based on heuristic FFMPEG API
     AVPacket pkt = AVPacket{};
@@ -246,12 +277,17 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
                                      stream->time_base,
                                      file.frame_base_);
 
-    if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
+    if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC ||
+        codec_id == AV_CODEC_ID_MPEG4) {
       const char* filtername = nullptr;
       if (codec_id == AV_CODEC_ID_H264) {
         filtername = "h264_mp4toannexb";
-      } else {
+      } else if (codec_id == AV_CODEC_ID_MPEG4 && !strcmp(file.fmt_ctx_->iformat->name, "avi")) {
+        filtername = "mpeg4_unpack_bframes";
+      } else if (codec_id == AV_CODEC_ID_HEVC) {
         filtername = "hevc_mp4toannexb";
+      } else {
+        filtername = "null";
       }
 
 #if HAVE_AVBSFCONTEXT
@@ -288,14 +324,23 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
       DALI_FAIL(err.str());
     }
     file.open = true;
+  } else {
+    /* Flush the bitstream filter handle when using mpeg4_unpack_bframes filter.
+     * When mpeg4_unpack_bframe is used the filter handle stores information
+     * about packed B frames. When we seek in a stream this can confuse the filter
+     * and cause it to drop B-Frames.
+     */
+    auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
+    if (codecpar(stream)->codec_id ==  AV_CODEC_ID_MPEG4 &&
+        !strcmp(file.fmt_ctx_->iformat->name, "avi")) {
+      av_bsf_flush(file.bsf_ctx_.get());
+    }
   }
   return file;
 }
 
 void VideoLoader::seek(OpenFile& file, int frame) {
-    auto seek_time = av_rescale_q(frame,
-                                  file.frame_base_,
-                                  file.stream_base_);
+    auto seek_time = av_rescale_q(frame, file.frame_base_, file.stream_base_) + file.start_time_;
     LOG_LINE << "Seeking to frame " << frame << " timestamp " << seek_time << std::endl;
 
     auto ret = av_seek_frame(file.fmt_ctx_.get(), file.vid_stream_idx_,
@@ -315,8 +360,9 @@ void VideoLoader::seek(OpenFile& file, int frame) {
 void VideoLoader::read_file() {
   // av_packet_unref is unlike the other libav free functions
   using pkt_ptr = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
-  auto raw_pkt = AVPacket{};
-  auto seek_hack = 1;
+  AVPacket raw_pkt = {};
+  int seek_hack = 1;
+
   while (!stop_) {
     if (stop_) {
       break;
@@ -346,7 +392,14 @@ void VideoLoader::read_file() {
     seek(file, req.frame);
 
     auto nonkey_frame_count = 0;
-    while (req.count > 0 && av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
+    int frames_left = req.count;
+    std::vector<bool> frames_read(frames_left, false);
+
+    bool is_first_frame = true;
+    bool key = false;
+    bool seek_must_succeed = false;
+
+    while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
       auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
 
       stats_.bytes_read += pkt->size;
@@ -356,24 +409,30 @@ void VideoLoader::read_file() {
           continue;
       }
 
-      auto frame = av_rescale_q(pkt->pts,
+      auto frame = av_rescale_q(pkt->pts - file.start_time_,
                                 file.stream_base_,
                                 file.frame_base_);
       LOG_LINE << "Frame candidate " << frame << " (for " << req.frame  <<" )...\n";
 
       file.last_frame_ = frame;
-      auto key = pkt->flags & AV_PKT_FLAG_KEY;
+      key = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
+      int pkt_frames = 1;
+      if (pkt->duration) {
+        pkt_frames = av_rescale_q(pkt->duration, file.stream_base_, file.frame_base_);
+        LOG_LINE << "Duration: " << pkt->duration
+                 << "\nPacket contains " << pkt_frames << " frames\n";
+      }
 
-      if (frame >= req.frame) {
+      if (frame > req.frame) {
         if (key) {
-          static auto final_try = false;
-          if (frame > req.frame + nonkey_frame_count) {
+          if (frames_left <= 0)
+            break;
+          if (is_first_frame) {
             LOG_LINE << device_id_ << ": We got ahead of ourselves! "
                           << frame << " > " << req.frame << " + "
                           << nonkey_frame_count
                           << " seek_hack = " << seek_hack << std::endl;
-            seek_hack *= 2;
-            if (final_try) {
+            if (seek_must_succeed) {
               std::stringstream ss;
               ss << device_id_ << ": failed to seek frame "
                   << req.frame;
@@ -381,29 +440,36 @@ void VideoLoader::read_file() {
             }
             if (req.frame > seek_hack) {
               seek(file, req.frame - seek_hack);
+              seek_hack *= 2;
             } else {
-              final_try = true;
+              seek_must_succeed = true;
               seek(file, 0);
             }
             continue;
           } else {
-            req.frame += nonkey_frame_count + 1;
-            req.count -= nonkey_frame_count + 1;
             nonkey_frame_count = 0;
           }
-          final_try = false;
+          seek_must_succeed = false;
         } else {
-          nonkey_frame_count++;
+          nonkey_frame_count += pkt_frames;
           // A heuristic so we don't go way over... what should "20" be?
-          if (frame > req.frame + req.count + 20) {
-            // This should end the loop
-            req.frame += nonkey_frame_count;
-            req.count -= nonkey_frame_count;
-            nonkey_frame_count = 0;
+          if (frames_left <= 0 && frame > req.frame + req.count + 20) {
+            break;
           }
         }
       }
-      seek_hack = 1;
+
+      if (frame >= req.frame && frame < req.frame + req.count) {
+        if (frames_read[frame - req.frame]) {
+          ERROR_LOG << "Frame " << frame << " appeared twice\n";
+        } else {
+          frames_read[frame - req.frame] = true;
+          frames_left--;
+          LOG_LINE << "Frames left: " << frames_left << "\n";
+        }
+      } else {
+        LOG_LINE << "Frame " << frame << " not in the interesting range.\n";
+      }
 
       LOG_LINE << device_id_ << ": Sending " << (key ? "  key " : "nonkey")
                   << " frame " << frame << " to the decoder."
@@ -426,7 +492,7 @@ void VideoLoader::read_file() {
         }
         while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
           auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
-          vid_decoder_->decode_packet(fpkt.get());
+          vid_decoder_->decode_packet(fpkt.get(), file.start_time_);
         }
         if (ret != AVERROR(EAGAIN)) {
           DALI_FAIL(std::string("BSF receive packet failed:") + av_err2str(ret));
@@ -463,19 +529,21 @@ void VideoLoader::read_file() {
           }
           *pkt.get() = fpkt;
         }
-        vid_decoder_->decode_packet(pkt.get());
+        vid_decoder_->decode_packet(pkt.get(), file.start_time_);
 #endif
       } else {
-        vid_decoder_->decode_packet(pkt.get());
+        vid_decoder_->decode_packet(pkt.get(), file.start_time_);
       }
+      is_first_frame = false;
     }
+
     // flush the decoder
-    vid_decoder_->decode_packet(nullptr);
+    vid_decoder_->decode_packet(nullptr, 0);
   }  // while not done
 
   if (vid_decoder_) {
     // stop decoding
-    vid_decoder_->decode_packet(nullptr);
+    vid_decoder_->decode_packet(nullptr, 0);
   }
   LOG_LINE << "Leaving read_file" << std::endl;
 }
@@ -515,57 +583,20 @@ void VideoLoader::receive_frames(SequenceWrapper& sequence) {
                 << "smaller key frame interval (GOP length).";
   }
   // We have to wait for all kernel recorded in sequence's event are completed
+  LOG_LINE << "Waiting for sequence..";
   sequence.wait();
-}
-
-std::pair<int, int> VideoLoader::load_width_height() {
-  av_register_all();
-
-  AVFormatContext* raw_fmt_ctx = nullptr;
-
-  DALI_ENFORCE(!file_label_pair_.empty(), "Could not read any files.");
-  std::string filename =  file_label_pair_[0].first;
-
-  auto ret = avformat_open_input(&raw_fmt_ctx, filename.c_str(), NULL, NULL);
-  if (ret < 0) {
-    std::stringstream ss;
-    ss << "Could not open file " << filename
-        << ": " << av_err2str(ret);
-    DALI_FAIL(ss.str());
-  }
-
-  auto fmt_ctx = make_unique_av<AVFormatContext>(raw_fmt_ctx, avformat_close_input);
-
-  if (avformat_find_stream_info(fmt_ctx.get(), nullptr) < 0) {
-    std::stringstream ss;
-    ss << "Could not find stream information in " << filename;
-    DALI_FAIL(ss.str());
-  }
-
-  auto vid_stream_idx_ = av_find_best_stream(fmt_ctx.get(), AVMEDIA_TYPE_VIDEO,
-                                              -1, -1, nullptr, 0);
-  if (vid_stream_idx_ < 0) {
-    std::stringstream ss;
-    ss << "Could not find video stream in " << filename;
-    DALI_FAIL(ss.str());
-  }
-
-  auto stream = fmt_ctx->streams[vid_stream_idx_];
-
-  output_width_ = codecpar(stream)->width;
-  output_height_ = codecpar(stream)->height;
-
-  return std::make_pair(codecpar(stream)->width,
-                        codecpar(stream)->height);
+  LOG_LINE << ".got sequence\n";
 }
 
 void VideoLoader::PrepareEmpty(SequenceWrapper &tensor) {
-  tensor.initialize(count_, height_, width_, 3);
+  tensor.sequence.Resize({tensor_init_bytes_});
 }
 
 void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     // TODO(spanev) remove the async between the 2 following methods?
     auto& seq_meta = frame_starts_[current_frame_idx_];
+    tensor.initialize(count_, seq_meta.height, seq_meta.width, channels_);
+
     push_sequence_to_read(file_label_pair_[seq_meta.filename_idx].first,
                           seq_meta.frame_idx, count_);
     receive_frames(tensor);

@@ -32,6 +32,7 @@
 #include "dali/pipeline/operators/reader/nvdecoder/nvcuvid.h"
 
 #define NVCUVID_CALL(arg) CUDA_CALL(ptr_##arg)
+#define NVCUVID_API_EXISTS(arg) (ptr_##arg != NULL)
 
 typedef decltype(&cuvidCreateVideoSource) tcuvidCreateVideoSource;
 typedef decltype(&cuvidCreateVideoSourceW) tcuvidCreateVideoSourceW;

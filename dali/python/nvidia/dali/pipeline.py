@@ -134,6 +134,14 @@ class Pipeline(object):
         """Id of the GPU used by the pipeline."""
         return self._device_id
 
+    @property
+    def exec_pipelined(self):
+        return self._exec_pipelined
+
+    @property
+    def exec_async(self):
+        return self._exec_async
+
     def epoch_size(self, name = None):
         """Epoch size of a pipeline.
 
@@ -305,7 +313,7 @@ class Pipeline(object):
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, ref, data, layout=types.NHWC):
+    def feed_input(self, ref, data, layout=""):
         """Bind the NumPy array to a tensor produced by ExternalSource
         operator. It is worth mentioning that `ref` should not be overridden
         with other operator outputs."""

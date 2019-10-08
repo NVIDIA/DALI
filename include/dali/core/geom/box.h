@@ -19,7 +19,7 @@
 
 namespace dali {
 
-template<size_t ndims, typename CoordinateType>
+template<int ndims, typename CoordinateType>
 struct Box {
   using corner_t = vec<ndims, CoordinateType>;
   static_assert(std::is_pod<corner_t>::value, "Corner has to be POD");
@@ -53,7 +53,7 @@ struct Box {
    * @return true, if this box contains given point
    */
   constexpr DALI_HOST_DEV bool contains(const corner_t &point) const {
-    for (size_t i = 0; i < ndims; i++) {
+    for (int i = 0; i < ndims; i++) {
       if (!(point[i] >= lo[i] && point[i] < hi[i]))
         return false;
     }
@@ -65,7 +65,7 @@ struct Box {
    * @return true, if this box contains given box
    */
   constexpr DALI_HOST_DEV bool contains(const Box &other) const {
-    for (size_t i = 0; i < ndims; i++) {
+    for (int i = 0; i < ndims; i++) {
       if (!(other.lo[i] >= lo[i] && other.hi[i] <= hi[i]))
         return false;
     }
@@ -77,7 +77,7 @@ struct Box {
    * @return true, if this box overlaps another box
    */
   constexpr DALI_HOST_DEV bool overlaps(const Box &other) const {
-    for (size_t i = 0; i < ndims; i++) {
+    for (int i = 0; i < ndims; i++) {
       if (!(this->lo[i] < other.hi[i] && this->hi[i] > other.lo[i]))
         return false;
     }
@@ -97,7 +97,7 @@ struct Box {
 /**
  * @return volume of a given box
  */
-template<size_t ndims, typename CoordinateType>
+template<int ndims, typename CoordinateType>
 constexpr DALI_HOST_DEV CoordinateType volume(const Box<ndims, CoordinateType> &box) {
   return dali::volume(box.extent());
 }
@@ -106,7 +106,7 @@ constexpr DALI_HOST_DEV CoordinateType volume(const Box<ndims, CoordinateType> &
 /**
  * @return Intersection of two boxes or a default one when the arguments are disjoint.
  */
-template<size_t ndims, typename CoordinateType>
+template<int ndims, typename CoordinateType>
 constexpr DALI_HOST_DEV Box<ndims, CoordinateType>
 intersection(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
   Box<ndims, CoordinateType> tmp = {max(lhs.lo, rhs.lo), min(lhs.hi, rhs.hi)};
@@ -117,7 +117,7 @@ intersection(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateT
 /**
  * Two boxes are equal when their corners are identical
  */
-template<size_t ndims, typename CoordinateType>
+template<int ndims, typename CoordinateType>
 constexpr DALI_HOST_DEV bool
 operator==(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
   return lhs.lo == rhs.lo && lhs.hi == rhs.hi;
@@ -127,10 +127,26 @@ operator==(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateTyp
 /**
  * Two boxes are equal when their corners are identical
  */
-template<size_t ndims, typename CoordinateType>
+template<int ndims, typename CoordinateType>
 constexpr DALI_HOST_DEV bool
 operator!=(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
   return lhs.lo != rhs.lo || lhs.hi != rhs.hi;
+}
+
+
+template <int ndims, typename CoordinateType>
+std::ostream &operator<<(std::ostream &os, const Box<ndims, CoordinateType> &box) {
+  auto print_corner = [&os](const typename Box<ndims, CoordinateType>::corner_t &c) {
+      for (size_t i = 0; i < ndims; i++)
+        os << (i ? ", " : "(") << c[i];
+      os << ")";
+  };
+  os << "{";
+  print_corner(box.lo);
+  os << ", ";
+  print_corner(box.hi);
+  os << "}";
+  return os;
 }
 
 }  // namespace dali

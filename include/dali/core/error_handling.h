@@ -68,6 +68,13 @@ class DALIException : public std::runtime_error {
   explicit DALIException(const std::string &message) : std::runtime_error(message) {}
 };
 
+struct unsupported_exception : std::runtime_error {
+  explicit unsupported_exception(const std::string &str) : runtime_error(str), msg(str) {}
+
+  const char *what() const noexcept override { return msg.c_str(); }
+  std::string msg;
+};
+
 inline string BuildErrorString(string statement, string file, int line) {
   string line_str = std::to_string(line);
   string error = "[" + std::move(file) + ":" + std::move(line_str) +
@@ -224,12 +231,19 @@ inline dali::string GetStacktrace() {
 #define DALI_STR(x) DALI_STR2(x)
 #define FILE_AND_LINE __FILE__ ":" DALI_STR(__LINE__)
 
-#define DALI_MESSAGE(str)\
+#define DALI_MESSAGE_WITH_STACKTRACE(str)\
   (std::string("[" FILE_AND_LINE "] ") + str + dali::GetStacktrace())
 
-#define DALI_FAIL(str)                            \
-    throw dali::DALIException(DALI_MESSAGE(str)); \
+#define DALI_MESSAGE(str)\
+  (std::string("[" FILE_AND_LINE "] ") + str)
 
+#define DALI_FAIL(str)                            \
+    throw dali::DALIException(DALI_MESSAGE_WITH_STACKTRACE(str));
+
+#define DALI_ERROR(str)                                          \
+  do {                                                           \
+    std::cerr << DALI_MESSAGE_WITH_STACKTRACE(str) << std::endl; \
+  } while (0)
 
 #define DALI_WARN(str)                           \
   do {                                           \

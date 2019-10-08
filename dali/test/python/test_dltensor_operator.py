@@ -8,6 +8,8 @@ import random
 import numpy
 from mxnet import ndarray as mxnd
 import cupy
+import functools
+import ctypes
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -18,8 +20,8 @@ def random_seed():
 
 
 DEVICE_ID = 0
-BATCH_SIZE = 16
-ITERS = 1024
+BATCH_SIZE = 4
+ITERS = 64
 SEED = random_seed()
 NUM_WORKERS = 6
 
@@ -61,12 +63,18 @@ class DLTensorOpPipeline(CommonPipeline):
         return self.op(im, self.flip(im2))
 
 
+torch_stream = torch.cuda.Stream()
+
+
 def torch_adapter(fun, in1, in2):
-    tin1 = [torch_dlpack.from_dlpack(dltensor) for dltensor in in1]
-    tin2 = [torch_dlpack.from_dlpack(dltensor) for dltensor in in2]
-    tout1, tout2 = fun(tin1, tin2)
-    return [torch_dlpack.to_dlpack(tout) for tout in tout1], \
-           [torch_dlpack.to_dlpack(tout) for tout in tout2]
+    with torch.cuda.stream(torch_stream):
+        tin1 = [torch_dlpack.from_dlpack(dltensor) for dltensor in in1]
+        tin2 = [torch_dlpack.from_dlpack(dltensor) for dltensor in in2]
+        tout1, tout2 = fun(tin1, tin2)
+        out1, out2 = [torch_dlpack.to_dlpack(tout) for tout in tout1], \
+                     [torch_dlpack.to_dlpack(tout) for tout in tout2]
+    torch_stream.synchronize()
+    return out1, out2
 
 
 def torch_wrapper(fun):
@@ -194,12 +202,18 @@ def test_mxnet_cast():
     mxnet_case(mxnet_cast, device='cpu')
 
 
+cupy_stream = cupy.cuda.Stream()
+
+
 def cupy_adapter(fun, in1, in2):
-    tin1 = [cupy.fromDlpack(dltensor) for dltensor in in1]
-    tin2 = [cupy.fromDlpack(dltensor) for dltensor in in2]
-    tout1, tout2 = fun(tin1, tin2)
-    return [tout.toDlpack() for tout in tout1], \
-           [tout.toDlpack() for tout in tout2]
+    with cupy_stream:
+        tin1 = [cupy.fromDlpack(dltensor) for dltensor in in1]
+        tin2 = [cupy.fromDlpack(dltensor) for dltensor in in2]
+        tout1, tout2 = fun(tin1, tin2)
+        out1, out2 = [tout.toDlpack() for tout in tout1], \
+                     [tout.toDlpack() for tout in tout2]
+    cupy_stream.synchronize()
+    return out1, out2
 
 
 def cupy_wrapper(fun):
@@ -265,24 +279,65 @@ mix_channels_kernel = cupy.ElementwiseKernel(
     'mix_channels'
 )
 
+gray_scale_kernel = cupy.RawKernel(r'''
+extern "C" __global__
+void gray_scale(float *output, const unsigned char *input, long long height, long long width) {
+    int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+    int tidy = blockIdx.y * blockDim.y + threadIdx.y;
+    if (tidx < width && tidy < height) {
+        float r = input[tidy * width + tidx] / 255.;
+        float g = input[tidy * width + tidx + 1] / 255.;
+        float b = input[tidy * width + tidx + 2] / 255.;
+        output[tidy * width + tidx] = 0.299 * r + 0.59 * g + 0.11 * b;
+    }
+}
+''', 'gray_scale')
+
+
+class StreamWrapper:
+    def __init__(self, ptr):
+        self.ptr = ptr
+
+
+def gray_scale_call(input):
+    height = input.shape[0]
+    width = input.shape[1]
+    output = cupy.ndarray((height, width), dtype=cupy.float)
+    gray_scale_kernel(grid=((height + 31) // 32, (width + 31) // 32),
+                      block=(32, 32),
+                      stream=StreamWrapper(ops.current_dali_stream()),
+                      args=(output, input, height, width))
+    return output
+
 
 def cupy_kernel_square_diff(in1, in2):
     fin1 = [arr.astype(cupy.float32) for arr in in1]
     fin2 = [arr.astype(cupy.float32) for arr in in2]
-    return [square_diff_kernel(fin1[i], fin2[i]) for i in range(BATCH_SIZE)], in2
+    out1, out2 = [square_diff_kernel(fin1[i], fin2[i]) for i in range(BATCH_SIZE)], in2
+    return out1, out2
 
 
 def cupy_kernel_mix_channels(in1, in2):
     return [mix_channels_kernel(in1[i], in2[i]) for i in range(BATCH_SIZE)], in2
 
 
-def test_cupy_simple():
-    cupy_case(cupy_simple)
+def cupy_kernel_gray_scale(in1, in2):
+    out1 = [gray_scale_call(arr) for arr in in1]
+    out2 = [gray_scale_call(arr) for arr in in2]
+    return out1, out2
 
 
-def test_cupy_kernel_square_diff():
-    cupy_case(cupy_kernel_square_diff)
+# def test_cupy_simple():
+#     cupy_case(cupy_simple)
+#
+#
+# def test_cupy_kernel_square_diff():
+#     cupy_case(cupy_kernel_square_diff)
+#
+#
+# def test_cupy_kernel_mix_channels():
+#     cupy_case(cupy_kernel_mix_channels)
+#
 
-
-def test_cupy_kernel_mix_channels():
-    cupy_case(cupy_kernel_mix_channels)
+def test_cupy_kernel_gray_scale():
+    cupy_case(cupy_kernel_gray_scale)

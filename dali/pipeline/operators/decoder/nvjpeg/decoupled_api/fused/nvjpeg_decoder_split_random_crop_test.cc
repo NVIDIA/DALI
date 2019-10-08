@@ -53,6 +53,10 @@ TYPED_TEST(ImageDecoderSplitRandomCropTest_GPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
+TYPED_TEST(ImageDecoderSplitRandomCropTest_GPU, BmpDecode) {
+  this->Run(t_bmpImgType);
+}
+
 TYPED_TEST(ImageDecoderSplitRandomCropTest_GPU, TiffDecode) {
   this->Run(t_tiffImgType);
 }

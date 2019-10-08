@@ -43,10 +43,12 @@ NvDecoder::NvDecoder(int device_id,
                      AVRational time_base,
                      DALIImageType image_type,
                      DALIDataType dtype,
-                     bool normalized)
+                     bool normalized,
+                     int max_height,
+                     int max_width)
     : device_id_(device_id), stream_(device_id, false, 0), codecpar_(codecpar),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
-      device_(), parser_(), decoder_(),
+      device_(), parser_(), decoder_(max_height, max_width),
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
@@ -77,6 +79,10 @@ NvDecoder::NvDecoder(int device_id,
       codec = Codec::HEVC;
       break;
 
+    case AV_CODEC_ID_MPEG4:
+      codec = Codec::MPEG4;
+      break;
+
     default:
       DALI_FAIL("Invalid codec for NvDecoder");
       return;
@@ -95,8 +101,11 @@ bool NvDecoder::initialized() const {
 }
 NvDecoder::~NvDecoder() = default;
 
-int NvDecoder::decode_av_packet(AVPacket* avpkt) {
-  if (stop_) return 0;
+int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time) {
+  if (stop_) {
+    LOG_LINE << "NvDecoder::stop_ requested" << std::endl;
+    return 0;
+  }
 
   CUVIDSOURCEDATAPACKET cupkt = {0};
 
@@ -108,9 +117,9 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt) {
       if (avpkt->pts != AV_NOPTS_VALUE) {
         cupkt.flags = CUVID_PKT_TIMESTAMP;
         if (time_base_.num && time_base_.den) {
-          cupkt.timestamp = av_rescale_q(avpkt->pts, time_base_, nv_time_base_);
+          cupkt.timestamp = av_rescale_q(avpkt->pts - start_time, time_base_, nv_time_base_);
         } else {
-          cupkt.timestamp = avpkt->pts;
+          cupkt.timestamp = avpkt->pts - start_time;
         }
       }
   } else {
@@ -148,6 +157,7 @@ int NvDecoder::handle_sequence_(CUVIDEOFORMAT* format) {
   try {
     ret = decoder_.initialize(format);
   } catch (...) {
+    ERROR_LOG << "Unable to decode file " << recv_queue_.peek().filename << '\n';
     stop_ = true;
     captured_exception_ = std::current_exception();
     // Main thread is waiting on frame_queue_
@@ -273,7 +283,7 @@ NvDecoder::TextureObject::operator cudaTextureObject_t() const {
   }
 }
 
-// Callback called by the driver decoder one a frame has been decoded
+// Callback called by the driver decoder once a frame has been decoded
 int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   auto frame = av_rescale_q(disp_info->timestamp,
                             nv_time_base_, frame_base_);
@@ -319,11 +329,11 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   return kNvcuvid_success;
 }
 
-int NvDecoder::decode_packet(AVPacket* pkt) {
+int NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time) {
   switch (codecpar_->codec_type) {
     case AVMEDIA_TYPE_AUDIO:
     case AVMEDIA_TYPE_VIDEO:
-      return decode_av_packet(pkt);
+      return decode_av_packet(pkt, start_time);
 
     default:
       DALI_FAIL("Got to decode_packet in a decoder that is not "
@@ -342,8 +352,7 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
   DeviceGuard g(device_id_);
   for (int i = 0; i < sequence.count; ++i) {
       LOG_LINE << "popping frame (" << i << "/" << sequence.count << ") "
-               << frame_queue_.size() << " reqs left"
-               << std::endl;
+               << frame_queue_.size() << " reqs left" << std::endl;
 
       auto* frame_disp_info = frame_queue_.pop();
       if (stop_) break;
@@ -362,7 +371,7 @@ const NvDecoder::TextureObjects&
 NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
                         uint16_t input_width, uint16_t input_height,
                         ScaleMethod scale_method) {
-  auto tex_id = std::make_tuple(input, scale_method);
+  auto tex_id = std::make_tuple(input, scale_method, input_height, input_width, input_pitch);
   auto tex = textures_.find(tex_id);
   if (tex != textures_.end()) {
     return tex->second;
@@ -413,7 +422,7 @@ NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
 
 void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                               int index) {
-  auto input_width = decoder_.width();
+  auto input_width = ALIGN16(decoder_.width());
   auto input_height = decoder_.height();
 
   auto output_idx = index;

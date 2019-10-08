@@ -19,10 +19,10 @@
 
 namespace dali {
 
-TEST(Mat, Constructor) {
+TEST(MatTest, Constructor) {
   mat3x4 m = {{ { 1, 2, 3, 4 }, { 5, 6, 7, 8 }, { 9, 10, 11, 12 } }};
-  for (size_t i = 0; i < m.rows; i++)
-    for (size_t j = 0; j < m.cols; j++)
+  for (int i = 0; i < m.rows; i++)
+    for (int j = 0; j < m.cols; j++)
       EXPECT_EQ(m(i, j), i*m.cols+j+1);
 
   mat<3, 1> m31 = vec3(1, 2, 3);
@@ -31,13 +31,13 @@ TEST(Mat, Constructor) {
   EXPECT_EQ(m31(2, 0), 3);
 }
 
-TEST(Mat, Equality) {
+TEST(MatTest, Equality) {
   mat2x4 a = {{ { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }};
   imat2x4 b = {{ { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }};
   EXPECT_TRUE((a == b));
   EXPECT_FALSE((a != b));
-  for (size_t i = 0; i < a.rows; i++) {
-    for (size_t j = 0; j < a.cols; j++) {
+  for (int i = 0; i < a.rows; i++) {
+    for (int j = 0; j < a.cols; j++) {
       a(i, j)+=10;
       EXPECT_FALSE((a == b));
       EXPECT_TRUE((a != b));
@@ -48,31 +48,31 @@ TEST(Mat, Equality) {
   }
 }
 
-TEST(Mat, FromScalar) {
+TEST(MatTest, FromScalar) {
   mat3x4 m = 5;
   mat3x4 ref = {{
     { 5, 0, 0, 0 },
     { 0, 5, 0, 0 },
     { 0, 0, 5, 0 },
   }};
-  for (size_t i = 0; i < m.rows; i++)
-    for (size_t j = 0; j < m.cols; j++)
+  for (int i = 0; i < m.rows; i++)
+    for (int j = 0; j < m.cols; j++)
       EXPECT_EQ(m(i, j), ref(i, j));
 }
 
-TEST(Mat, Transpose) {
+TEST(MatTest, Transpose) {
   mat3x4 m = {{
     { 1, 2, 3, 4 },
     { 5, 6, 7, 8 },
     { 9, 10, 11, 12 },
   }};
   mat4x3 transposed = m.T();
-  for (size_t i = 0; i < m.rows; i++)
-    for (size_t j = 0; j < m.cols; j++)
+  for (int i = 0; i < m.rows; i++)
+    for (int j = 0; j < m.cols; j++)
       EXPECT_EQ(transposed(j, i), m(i, j));
 }
 
-TEST(Mat, Mul) {
+TEST(MatTest, Mul) {
   mat3x4 m1 = {{
     { 1, 10, 100, 1000 },
     { 2, 20, 200, 2000 },
@@ -90,12 +90,12 @@ TEST(Mat, Mul) {
     { 12+200+2800+36000, 4+80+1200+16000 }
   }};
   mat3x2 result = m1*m2;
-  for (size_t i = 0; i < 3; i++)
-    for (size_t j = 0; j < 2; j++)
+  for (int i = 0; i < 3; i++)
+    for (int j = 0; j < 2; j++)
       EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
 }
 
-TEST(Mat, Mul4x4) {
+TEST(MatTest, Mul4x4) {
   mat4 m1 = {{
     { 1, 10, 100, 1000 },
     { 2, 20, 200, 2000 },
@@ -116,18 +116,18 @@ TEST(Mat, Mul4x4) {
     { 55804, 60248, 64692, 69136 }
   }};
   mat4 result = m1 * m2;
-  for (size_t i = 0; i < 4; i++)
-    for (size_t j = 0; j < 4; j++)
+  for (int i = 0; i < 4; i++)
+    for (int j = 0; j < 4; j++)
       EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
 }
 
 
-TEST(Mat, CompoundAssignMatrix) {
+TEST(MatTest, CompoundAssignMatrix) {
   #define TEST_ASSIGN_OP(op)                          \
   {                                                   \
     m1 op##= m2;                                      \
-    for (size_t i = 0; i < 3; i++)                    \
-      for (size_t j = 0; j < 4; j++)                  \
+    for (int i = 0; i < 3; i++)                       \
+      for (int j = 0; j < 4; j++)                     \
         EXPECT_EQ(m1(i, j), orig(i, j) op m2(i, j));  \
     m1 = orig;                                        \
   }
@@ -184,12 +184,12 @@ TEST(Mat, CompoundAssignMatrix) {
   #undef TEST_ASSIGN_OP
 }
 
-TEST(Mat, CompoundAssignScalar) {
+TEST(MatTest, CompoundAssignScalar) {
 #define TEST_ASSIGN_OP(op)                    \
   {                                           \
     m1 op## = s;                              \
-    for (size_t i = 0; i < 3; i++)            \
-      for (size_t j = 0; j < 4; j++)          \
+    for (int i = 0; i < 3; i++)               \
+      for (int j = 0; j < 4; j++)             \
         EXPECT_EQ(m1(i, j), orig(i, j) op s); \
     m1 = orig;                                \
   }
@@ -235,32 +235,32 @@ struct cuda_rng {
   unsigned seed;
 };
 
-template <size_t rows, size_t cols, typename T, typename RNG>
+template <int rows, int cols, typename T, typename RNG>
 DALI_HOST_DEV
 void RandomFill(mat<rows, cols, T> &m, RNG &rng, int lo, int hi) {
-  for (size_t i = 0; i < rows; i++)
-    for (size_t j = 0; j < cols; j++)
+  for (int i = 0; i < rows; i++)
+    for (int j = 0; j < cols; j++)
       m(i, j) = rng()%(hi-lo) + lo;
 }
 
-TEST(Mat, BinOp) {
+TEST(MatTest, BinOp) {
 #define TEST_OPERATOR_SIZE(op, mat_type) {                    \
     mat_type m1, m2;                                          \
     int lo = 0, hi = 31;                                      \
     cuda_rng rng = { 12345 };                                 \
     RandomFill(m1, rng, lo, hi); RandomFill(m2, rng, lo, hi); \
     mat_type result = m1 op m2;                               \
-    for (size_t i = 0; i < result.rows; i++)                  \
-      for (size_t j = 0; j < result.cols; j++)                \
+    for (int i = 0; i < result.rows; i++)                     \
+      for (int j = 0; j < result.cols; j++)                   \
         EXPECT_EQ(result(i, j), m1(i, j) op m2(i, j));        \
     int scalar = rng()&31;                                    \
     result = m1 op scalar;                                    \
-    for (size_t i = 0; i < result.rows; i++)                  \
-      for (size_t j = 0; j < result.cols; j++)                \
+    for (int i = 0; i < result.rows; i++)                     \
+      for (int j = 0; j < result.cols; j++)                   \
         EXPECT_EQ(result(i, j), m1(i, j) op scalar);          \
     result = scalar op m2;                                    \
-    for (size_t i = 0; i < result.rows; i++)                  \
-      for (size_t j = 0; j < result.cols; j++)                \
+    for (int i = 0; i < result.rows; i++)                     \
+      for (int j = 0; j < result.cols; j++)                   \
         EXPECT_EQ(result(i, j), scalar op m2(i, j));          \
   }
 
@@ -304,7 +304,7 @@ DEVICE_TEST(Dev_Mat, NormalUsage, 1, 1) {
   DEV_EXPECT_EQ(v[3], 1);
 }
 
-TEST(Mat, VecTransform) {
+TEST(MatTest, VecTransform) {
   mat2x3 m = {{
     { 2, 3, 100 },
     { 5, 11, 1000 }
@@ -313,7 +313,7 @@ TEST(Mat, VecTransform) {
   EXPECT_EQ(v, vec2(180, 1270));
 }
 
-TEST(Mat, SelectCol) {
+TEST(MatTest, SelectCol) {
   mat3 m = {{
     { 1, 2, 3 },
     { 4, 5, 6 },
@@ -324,7 +324,7 @@ TEST(Mat, SelectCol) {
   EXPECT_EQ(v, vec3(2, 5, 8));
 }
 
-TEST(Mat, CatCols) {
+TEST(MatTest, CatCols) {
   mat3 a = {{
     { 1, 2, 3 },
     { 4, 5, 6 },
@@ -341,12 +341,12 @@ TEST(Mat, CatCols) {
     { 4, 5, 6, 30, 40 },
     { 7, 8, 9, 50, 60 }
   }};
-  for (size_t i = 0; i < 3; i++)
-    for (size_t j = 0; j < 5; j++)
+  for (int i = 0; i < 3; i++)
+    for (int j = 0; j < 5; j++)
       EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
 }
 
-TEST(Mat, CatColsVec) {
+TEST(MatTest, CatColsVec) {
   mat3 a = {{
     { 1, 2, 3 },
     { 4, 5, 6 },
@@ -360,8 +360,8 @@ TEST(Mat, CatColsVec) {
     { 4, 5, 6, 20 },
     { 7, 8, 9, 30 }
   }};
-  for (size_t i = 0; i < 3; i++)
-    for (size_t j = 0; j < 4; j++)
+  for (int i = 0; i < 3; i++)
+    for (int j = 0; j < 4; j++)
       EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
 
   result = cat_cols(b, a);
@@ -370,8 +370,8 @@ TEST(Mat, CatColsVec) {
     { 20, 4, 5, 6 },
     { 30, 7, 8, 9 }
   }};
-  for (size_t i = 0; i < 3; i++)
-    for (size_t j = 0; j < 4; j++)
+  for (int i = 0; i < 3; i++)
+    for (int j = 0; j < 4; j++)
       EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
 
   mat3x2 result2 = cat_cols(b, c);
@@ -380,12 +380,12 @@ TEST(Mat, CatColsVec) {
     { 20, 50 },
     { 30, 60 }
   }};
-  for (size_t i = 0; i < 3; i++)
-    for (size_t j = 0; j < 2; j++)
+  for (int i = 0; i < 3; i++)
+    for (int j = 0; j < 2; j++)
       EXPECT_EQ(result2(i, j), ref2(i, j)) << "@ " << i << ", " << j;
 }
 
-TEST(Mat, CatRows) {
+TEST(MatTest, CatRows) {
   mat3 a = {{
     { 1, 2, 3 },
     { 4, 5, 6 },
@@ -403,9 +403,32 @@ TEST(Mat, CatRows) {
     { 10, 20, 30 },
     { 40, 50, 60 }
   }};
-  for (size_t i = 0; i < 5; i++)
-    for (size_t j = 0; j < 3; j++)
+  for (int i = 0; i < 5; i++)
+    for (int j = 0; j < 3; j++)
       EXPECT_EQ(result(i, j), ref(i, j)) << "@ " << i << ", " << j;
+}
+
+
+TEST(MatTest, IdentityMatrix) {
+  mat3 three_by_three = {{
+         {1, 0, 0},
+         {0, 1, 0},
+         {0, 0, 1}
+  }};
+  mat3x1 three_by_one = {{
+         {1}, {0}, {0}
+  }};
+  mat3x2 three_by_two = {{
+         {1, 0},
+         {0, 1},
+         {0, 0},
+  }};
+  auto m1 = imat3::eye();
+  auto m2 = mat<3, 1, int>::eye();
+  auto m3 = mat<3, 2, int>::eye();
+  EXPECT_EQ(m1, three_by_three);
+  EXPECT_EQ(m2, three_by_one);
+  EXPECT_EQ(m3, three_by_two);
 }
 
 }  // namespace dali

@@ -48,7 +48,7 @@ class Slice : public SliceBase<Backend> {
   void DataDependentSetup(Workspace<Backend> &ws) override;
 
   void SetupSample(int data_idx,
-                   DALITensorLayout layout,
+                   TensorLayout layout,
                    const kernels::TensorShape<> &img_shape,
                    const int64_t args_ndims,
                    const float *anchor_norm,
@@ -62,27 +62,12 @@ class Slice : public SliceBase<Backend> {
     // we calculate the position of the dimensions based on
     // layout.
     if (args_ndims == 2 && img_shape.size() > 2) {
-      std::size_t i_h = 0, i_w = 0;
-      switch (layout) {
-        case DALI_NHWC:
-          i_h = 0;
-          i_w = 1;
-          break;
-        case DALI_NCHW:
-          i_h = 1;
-          i_w = 2;
-          break;
-        case DALI_NFHWC:
-          i_h = 1;
-          i_w = 2;
-          break;
-        case DALI_NFCHW:
-          i_h = 2;
-          i_w = 3;
-          break;
-        default:
-          DALI_FAIL("Unexpected layout: " + std::to_string(layout));
-      }
+      int i_h = layout.find('H');
+      int i_w = layout.find('W');
+      DALI_ENFORCE(i_h >= 0, "The layout \"" + layout.str() +
+                   "\" does not define height dimension (H)");
+      DALI_ENFORCE(i_w >= 0, "The layout \"" + layout.str() +
+                   "\" does not define width dimension (W)");
       for (int d = 0; d < img_shape.size(); d++) {
         anchor[d] = 0;
         slice_shape[d] = img_shape[d];

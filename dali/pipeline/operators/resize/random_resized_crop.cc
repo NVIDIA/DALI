@@ -33,7 +33,7 @@ DALI_SCHEMA(RandomResizedCrop)
       DALI_INT_VEC)
   .AddParent("RandomCropAttr")
   .AddParent("ResamplingFilterAttr")
-  .EnforceInputLayout(DALI_NHWC);
+  .InputLayout("HWC");
 
 template<>
 void RandomResizedCrop<CPUBackend>::BackendInit() {
@@ -56,6 +56,7 @@ void RandomResizedCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
 
   RunCPU(output, input, ws.thread_idx());
+  output.SetLayout(InputLayout(ws, 0));
 }
 
 template<>
@@ -69,7 +70,7 @@ void RandomResizedCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws)
   int W = input_shape[1];
   int id = ws.data_idx();
 
-  crops_[id] = GetCropWindowGenerator(id)({H, W});
+  crops_[id] = GetCropWindowGenerator(id)({H, W}, "HW");
   resample_params_[ws.thread_idx()] = CalcResamplingParams(id);
 }
 

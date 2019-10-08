@@ -52,6 +52,10 @@ TYPED_TEST(ImageDecoderRandomCropTest_CPU, PngDecode) {
   this->Run(t_pngImgType);
 }
 
+TYPED_TEST(ImageDecoderRandomCropTest_CPU, BmpDecode) {
+  this->Run(t_bmpImgType);
+}
+
 TYPED_TEST(ImageDecoderRandomCropTest_CPU, TiffDecode) {
   this->Run(t_tiffImgType);
 }

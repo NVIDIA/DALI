@@ -81,6 +81,7 @@ int DeviceDelete(void *ptr) {
 inline nvjpegOutputFormat_t GetFormat(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
       return NVJPEG_OUTPUT_RGBI;
     case DALI_BGR:
       return NVJPEG_OUTPUT_BGRI;
@@ -95,6 +96,7 @@ inline int GetOutputPitch(DALIImageType type) {
   switch (type) {
     case DALI_RGB:
     case DALI_BGR:
+    case DALI_ANY_DATA:  // doesn't matter (will fallback to host decoder)
       return 3;
     case DALI_GRAY:
       return 1;
@@ -220,6 +222,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       const auto *data = in.data<uint8_t>();
 
       EncodedImageInfo info;
+      int64_t nchannels = (output_type_ == DALI_GRAY) ? 1 : 3;
 
       // Get necessary image information
       nvjpegStatus_t ret = nvjpegGetImageInfo(handle_,
@@ -230,10 +233,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       if (ret == NVJPEG_STATUS_BAD_JPEG) {
         auto file_name = in.GetSourceInfo();
         try {
-          const auto image = ImageFactory::CreateImage(static_cast<const uint8 *>(data), in_size);
-          const auto dims = image->GetImageDims();
-          info.heights[0] = std::get<0>(dims);
-          info.widths[0] = std::get<1>(dims);
+          const auto image = ImageFactory::CreateImage(
+            static_cast<const uint8 *>(data), in_size, output_type_);
+          const auto shape = image->PeekShape();
+          info.heights[0] = shape[0];
+          info.widths[0] = shape[1];
+          if (output_type_ == DALI_ANY_DATA)
+            nchannels = shape[2];
           info.nvjpeg_support = false;
         } catch (const std::runtime_error &e) {
           DALI_FAIL(e.what() + "File: " + file_name);
@@ -254,8 +260,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
       // Store pertinent info for later
-      const int image_depth = (output_type_ == DALI_GRAY) ? 1 : 3;
-      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], image_depth});
+      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], nchannels});
       output_info_[i] = info;
       image_order[i] = std::make_pair(volume(output_shape_[i]), i);
     }
@@ -263,6 +268,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // Resize the output (contiguous)
     auto &output = ws.Output<GPUBackend>(0);
     output.Resize(output_shape_);
+    output.SetLayout("HWC");
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
 
@@ -340,8 +346,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         if (DeferCacheLoad(file_name, output.mutable_tensor<uint8_t>(j)))
           continue;
 
-        const auto dims = output_shape_[j];
-        const ImageCache::ImageShape output_shape{dims[0], dims[1], dims[2]};
+        const ImageCache::ImageShape output_shape = output_shape_[j].to_static<3>();
         auto info = output_info_[j];
 
         thread_pool_.DoWorkWithID(

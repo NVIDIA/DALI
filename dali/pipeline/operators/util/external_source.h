@@ -35,14 +35,14 @@ struct CudaEventWrapper {
   CudaEventWrapper() {
     auto res = cudaEventCreate(&event);
     if (res != cudaSuccess) {
-      DALI_WARN("Fatal error: " + to_string(res) + " in CudaEventWrapper()");
+      DALI_ERROR("Fatal error: " + to_string(res) + " in CudaEventWrapper()");
       std::terminate();
     }
   }
   ~CudaEventWrapper() {
     auto res = cudaEventDestroy(event);
     if (res != cudaSuccess) {
-      DALI_WARN("Fatal error:: " + to_string(res) + " in ~CudaEventWrapper()");
+      DALI_ERROR("Fatal error:: " + to_string(res) + " in ~CudaEventWrapper()");
       std::terminate();
     }
   }
@@ -196,6 +196,13 @@ class ExternalSource : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     return false;
   }
+
+  /*
+   * So that compiler wouldn't complain, that
+   * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
+   * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
+   */
+  using Operator<Backend>::RunImpl;
 
   void RunImpl(workspace_t<Backend> &ws) override;
 

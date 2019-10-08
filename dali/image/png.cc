@@ -13,14 +13,72 @@
 // limitations under the License.
 
 #include "dali/image/png.h"
+#include "dali/core/byte_io.h"
 
 namespace dali {
 
-// Assume chunk points to a 4-byte value
-int ReadIntFromPNG(const uint8 *chunk) {
-  // reverse the bytes, cast
-  return (unsigned int) (chunk[0] << 24 | chunk[1] << 16 | chunk[2] << 8 | chunk[3]);
+namespace {
+
+  // https://www.w3.org/TR/PNG-Chunks.html
+
+  // Layout:
+  // 4 bytes: chunk size (should be 13 bytes for IHDR)
+  // 4 bytes: Chunk Identifier (should be "IHDR")
+  // 4 bytes: Width
+  // 4 bytes: Height
+  // 1 byte : Bit Depth
+  // 1 byte : Color Type
+  // 1 byte : Compression method
+  // 1 byte : Filter method
+  // 1 byte : Interlace method
+
+constexpr int kOffsetChunkSize = 0;
+constexpr int kOffsetChunkId = kOffsetChunkSize + sizeof(uint32_t);
+constexpr int kOffsetWidth = kOffsetChunkId + sizeof(uint32_t);
+constexpr int kOffsetHeight = kOffsetWidth + sizeof(uint32_t);
+constexpr int kOffsetBitDepth = kOffsetHeight + sizeof(uint32_t);
+constexpr int kOffsetColorType = kOffsetBitDepth + sizeof(uint8_t);
+constexpr int kOffsetCompressionMethod = kOffsetColorType + sizeof(uint8_t);
+constexpr int kOffsetFilterMethod = kOffsetCompressionMethod + sizeof(uint8_t);
+constexpr int kOffsetInterlaceMethod = kOffsetFilterMethod + sizeof(uint8_t);
+
+uint32_t ReadHeight(const uint8_t *data) {
+  return ReadValueBE<uint32_t>(data + kOffsetHeight);
 }
+
+uint32_t ReadWidth(const uint8_t *data) {
+  return ReadValueBE<uint32_t>(data + kOffsetWidth);
+}
+
+enum : uint8_t {
+  PNG_COLOR_TYPE_GRAY       = 0,
+  PNG_COLOR_TYPE_RGB        = 2,
+  PNG_COLOR_TYPE_PALETTE    = 3,
+  PNG_COLOR_TYPE_GRAY_ALPHA = 4,
+  PNG_COLOR_TYPE_RGBA       = 6
+};
+
+uint8_t ReadColorType(const uint8_t *data) {
+  return ReadValueBE<uint8_t>(data + kOffsetColorType);
+}
+
+int ReadNumberOfChannels(const uint8_t *data) {
+  int color_type = ReadColorType(data);
+  switch (color_type) {
+    case PNG_COLOR_TYPE_GRAY:
+    case PNG_COLOR_TYPE_GRAY_ALPHA:
+      return 1;
+    case PNG_COLOR_TYPE_RGB:
+    case PNG_COLOR_TYPE_PALETTE:  // 1 byte but it's converted to 3-channel BGR by OpenCV
+    case PNG_COLOR_TYPE_RGBA:     // RGBA is converted to 3-channel BGR by OpenCV
+      return 3;
+    default:
+      DALI_FAIL("color type not supported: " + std::to_string(color_type));
+  }
+  return 0;
+}
+
+}  // namespace
 
 
 PngImage::PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type) :
@@ -28,7 +86,7 @@ PngImage::PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType i
 }
 
 
-Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length) const {
+Image::Shape PngImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const {
   DALI_ENFORCE(encoded_buffer);
   DALI_ENFORCE(length >= 16);
 
@@ -42,22 +100,10 @@ Image::ImageDims PngImage::PeekDims(const uint8_t *encoded_buffer, size_t length
 
   DALI_ENFORCE(static_cast<int>(length) >= png_dimens - encoded_buffer + 16u);
 
-  // Layout:
-  // 4 bytes: chunk size (should be 13 bytes for IHDR)
-  // 4 bytes: Chunk Identifier (should be "IHDR")
-  // 4 bytes: Width
-  // 4 bytes: Height
-  // 1 byte : Bit Depth
-  // 1 byte : Color Type
-  // 1 byte : Compression method
-  // 1 byte : Filter method
-  // 1 byte : Interlace method
-
-  const auto W = ReadIntFromPNG(png_dimens + 8);
-  const auto H = ReadIntFromPNG(png_dimens + 12);
-  // TODO(mszolucha): fill channels count
-  const auto C = 0;
-  return std::make_tuple(H, W, C);
+  const int64_t W = ReadWidth(png_dimens);
+  const int64_t H = ReadHeight(png_dimens);
+  const int64_t C = ReadNumberOfChannels(png_dimens);
+  return {H, W, C};
 }
 
 

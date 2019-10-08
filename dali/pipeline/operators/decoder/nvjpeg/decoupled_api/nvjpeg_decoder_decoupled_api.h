@@ -181,7 +181,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 
   void ParseImagesInfo(MixedWorkspace &ws) {
-    const auto c = static_cast<Index>(NumberOfChannels(output_image_type_));
     // Parsing and preparing metadata
     for (int i = 0; i < batch_size_; i++) {
       const auto &in = ws.Input<CPUBackend>(0, i);
@@ -200,19 +199,22 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                                      static_cast<const unsigned char*>(input_data), in_size,
                                      &info.c, &info.subsampling,
                                      info.widths, info.heights);
-
+      int64_t nchannels = NumberOfChannels(output_image_type_);
       info.nvjpeg_support = ret == NVJPEG_STATUS_SUCCESS;
       auto crop_generator = GetCropWindowGenerator(i);
       if (!info.nvjpeg_support) {
         try {
           const auto image = ImageFactory::CreateImage(
-            static_cast<const uint8 *>(input_data), in_size);
-          const auto dims = image->GetImageDims();
-          info.heights[0] = std::get<0>(dims);
-          info.widths[0] = std::get<1>(dims);
+            static_cast<const uint8 *>(input_data), in_size, output_image_type_);
+          const auto shape = image->PeekShape();
+          info.heights[0] = shape[0];
+          info.widths[0] = shape[1];
+          if (output_image_type_ == DALI_ANY_DATA)
+            nchannels = shape[2];
+
           if (crop_generator) {
             kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
-            info.crop_window = crop_generator(shape);
+            info.crop_window = crop_generator(shape, "HW");
             DALI_ENFORCE(info.crop_window.IsInRange(shape));
             info.heights[0] = info.crop_window.shape[0];
             info.widths[0] = info.crop_window.shape[1];
@@ -224,7 +226,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       } else {
         if (crop_generator) {
           kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
-          info.crop_window = crop_generator(shape);
+          info.crop_window = crop_generator(shape, "HW");
           auto &crop_window = info.crop_window;
           DALI_ENFORCE(crop_window.IsInRange(shape));
           nvjpegDecodeParamsSetROI(decode_params_[i],
@@ -242,7 +244,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           image_states_[i] = decoder_host_state_[i];
         }
       }
-      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], c});
+      output_shape_.set_tensor_shape(i, {info.heights[0], info.widths[0], nchannels});
       output_info_[i] = info;
     }
   }
@@ -261,7 +263,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     TypeInfo type = TypeInfo::Create<uint8_t>();
     output.set_type(type);
     output.Resize(output_shape_);
-    output.SetLayout(DALI_NHWC);
+    output.SetLayout("HWC");
 
     for (int idx = 0; idx < batch_size_; ++idx) {
       const int i = image_order[idx].second;
@@ -272,8 +274,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       if (DeferCacheLoad(file_name, output_data))
         continue;
 
-      auto dims = output_shape_[i];
-      ImageCache::ImageShape shape = {dims[0], dims[1], dims[2]};
+      ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
       thread_pool_.DoWorkWithID(
         [this, i, file_name, &in, output_data, shape](int tid) {
           SampleWorker(i, file_name, in.size(), tid,
@@ -315,18 +316,23 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     const int jpeg_stream_idx = buff_idx;
     NVJPEG_CALL(nvjpegStateAttachPinnedBuffer(image_states_[sample_idx],
                                               pinned_buffers_[buff_idx]));
-    NVJPEG_CALL(nvjpegJpegStreamParse(handle_,
-                                      static_cast<const unsigned char*>(input_data),
-                                      in_size,
-                                      false,
-                                      false,
-                                      jpeg_streams_[jpeg_stream_idx]));
 
-    nvjpegStatus_t ret = nvjpegDecodeJpegHost(handle_,
-                                              image_decoders_[sample_idx],
-                                              image_states_[sample_idx],
-                                              decode_params_[sample_idx],
-                                              jpeg_streams_[jpeg_stream_idx]);
+    nvjpegStatus_t ret = nvjpegJpegStreamParse(handle_,
+                                               static_cast<const unsigned char*>(input_data),
+                                               in_size,
+                                               false,
+                                               false,
+                                               jpeg_streams_[jpeg_stream_idx]);
+
+    // If nvjpegJpegStreamParse failed we can skip nvjpeg's host decode step and
+    // rely on the host decoder fallback
+    if (ret == NVJPEG_STATUS_SUCCESS) {
+      ret = nvjpegDecodeJpegHost(handle_,
+                                image_decoders_[sample_idx],
+                                image_states_[sample_idx],
+                                decode_params_[sample_idx],
+                                jpeg_streams_[jpeg_stream_idx]);
+    }
 
     // If image is somehow not supported try host decoder
     if (ret != NVJPEG_STATUS_SUCCESS) {

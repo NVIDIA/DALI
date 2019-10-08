@@ -38,23 +38,15 @@ namespace images {
 
 // TODO(janton): DALI-582 Using this order, breaks some tests
 // ImageList(testing::dali_extra_path() + "/db/single/jpeg/0/", {".jpg"})
-const vector<string> jpeg_test_images = {
-  testing::dali_extra_path() + "/db/single/jpeg/0/420.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/422.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/440.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/444.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/411.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/411-non-multiple-4-width.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/420-odd-height.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/420-odd-width.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/420-odd-both.jpg",
-  testing::dali_extra_path() + "/db/single/jpeg/0/422-odd-width.jpg"
-};
-
+const vector<string> jpeg_test_images =
+    ImageList(testing::dali_extra_path() + "/db/single/jpeg", {".jpg", ".jpeg"}, 10);
 const vector<string> png_test_images =
     ImageList(testing::dali_extra_path() + "/db/single/png", {".png"});
 const vector<string> tiff_test_images =
     ImageList(testing::dali_extra_path() + "/db/single/tiff", {".tiff", ".tif"});
+const vector<string> bmp_test_images =
+    ImageList(testing::dali_extra_path() + "/db/single/bmp", {".bmp"});
+
 
 }  // namespace images
 
@@ -72,15 +64,18 @@ typedef enum {
   t_jpegImgType,
   t_pngImgType,
   t_tiffImgType,
+  t_bmpImgType,
 } t_imgType;
 
 typedef enum {
-  t_loadJPEGs   = 1,
-  t_decodeJPEGs = 2,
-  t_loadPNGs    = 4,
-  t_decodePNGs  = 8,
-  t_loadTiffs   = 16,
-  t_decodeTiffs = 32,
+  t_loadJPEGs   = (1<<0),
+  t_decodeJPEGs = (1<<1),
+  t_loadPNGs    = (1<<2),
+  t_decodePNGs  = (1<<3),
+  t_loadTiffs   = (1<<4),
+  t_decodeTiffs = (1<<5),
+  t_loadBmps    = (1<<6),
+  t_decodeBmps  = (1<<7),
 } t_loadingFlags;
 
 typedef struct {
@@ -179,6 +174,14 @@ class DALISingleOpTest : public DALITest {
 
       if (flags & t_decodeTiffs) {
         DecodeImages(img_type_, tiff_, &tiff_decoded_, &tiff_dims_);
+      }
+    }
+
+    if (flags & t_loadBmps) {
+      LoadImages(images::bmp_test_images, &bmp_);
+
+      if (flags & t_decodeTiffs) {
+        DecodeImages(img_type_, bmp_, &bmp_decoded_, &bmp_dims_);
       }
     }
 
@@ -308,6 +311,10 @@ class DALISingleOpTest : public DALITest {
     DALITest::MakeEncodedBatch(t, batch_size_, tiff_);
   }
 
+  void EncodedBmpData(TensorList<CPUBackend>* t) {
+    DALITest::MakeEncodedBatch(t, batch_size_, bmp_);
+  }
+
 
   /**
    * Provide decoded (i.e. decoded JPEG) data
@@ -384,6 +391,9 @@ class DALISingleOpTest : public DALITest {
           spec->AddArg(name, b);
           break;
         }
+        case DALI_TENSOR_LAYOUT:
+          spec->AddArg(name, TensorLayout(val));
+          break;
         case DALI_FLOAT_VEC:
           StringToVector<float>(name, val.c_str(), spec, param.type);
           break;
@@ -678,6 +688,9 @@ class DALISingleOpTest : public DALITest {
     ASSERT_TRUE(t1);
     ASSERT_TRUE(t2);
     ASSERT_EQ(t1->ntensor(), t2->ntensor());
+    for (size_t i = 0; i < t1->ntensor(); i++) {
+      ASSERT_EQ(t1->tensor_shape(i), t2->tensor_shape(i));
+    }
     ASSERT_EQ(t1->size(), t2->size());
 
     const bool floatType = IsType<float>(t1->type());
@@ -747,8 +760,8 @@ class DALISingleOpTest : public DALITest {
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
 
-  vector<vector<uint8>> jpeg_decoded_, png_decoded_, tiff_decoded_;
-  vector<DimPair> jpeg_dims_, png_dims_, tiff_dims_;
+  vector<vector<uint8>> jpeg_decoded_, png_decoded_, tiff_decoded_, bmp_decoded_;
+  vector<DimPair> jpeg_dims_, png_dims_, tiff_dims_, bmp_dims_;
 
 
  protected:

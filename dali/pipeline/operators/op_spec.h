@@ -98,8 +98,9 @@ class DLL_PUBLIC OpSpec {
   /**
    * @brief Constructs a specification for an op with the given name.
    */
-  DLL_PUBLIC explicit inline OpSpec(const string &name)
-    : name_(name) {}
+  DLL_PUBLIC explicit inline OpSpec(const string &name) {
+    set_name(name);
+  }
 
   /**
    * @brief Getter for the name of the Operator.
@@ -111,6 +112,12 @@ class DLL_PUBLIC OpSpec {
    */
   DLL_PUBLIC inline void set_name(const string &name) {
     name_ = name;
+    schema_ = name.empty() ? nullptr : SchemaRegistry::TryGetSchema(name);
+  }
+
+  DLL_PUBLIC inline const OpSchema &GetSchema() const {
+    DALI_ENFORCE(schema_ != nullptr, "No schema found for operator \"" + name() + "\"");
+    return *schema_;
   }
 
   /**
@@ -401,20 +408,58 @@ class DLL_PUBLIC OpSpec {
     return ret;
   }
 
-  DLL_PUBLIC OpSpec& operator=(const OpSpec& other) {
-    this->name_ = other.name_;
-    this->arguments_ = other.arguments_;
-    this->argument_inputs_ = other.argument_inputs_;
-    this->argument_inputs_indexes_ = other.argument_inputs_indexes_;
-    this->output_name_idx_ = other.output_name_idx_;
-    this->inputs_ = other.inputs_;
-    this->outputs_ = other.outputs_;
-    return *this;
-  }
-
  private:
   template <typename T, typename S>
   inline T GetArgumentImpl(const string &name, const ArgumentWorkspace *ws, Index idx) const;
+
+  /**
+   * @brief Check if the ArgumentInput of given shape can be used with GetArgument(),
+   *        representing a batch of scalars
+   *
+   * @argument should_throw whether this function should throw an error if the shape doesn't match
+   * @return true iff the shape is allowed to be used as Argument
+   */
+  bool CheckArgumentShape(const kernels::TensorListShape<> &shape, int batch_size,
+                          const std::string &name, bool should_throw = false) const {
+    DALI_ENFORCE(kernels::is_uniform(shape),
+                 "Arguments should be passed as uniform TensorLists. Argument \"" + name +
+                     "\" is not uniform. To access non-uniform argument inputs use "
+                     "ArgumentWorkspace::ArgumentInput method directly.");
+    if (shape.num_samples() == 1) {
+      // TODO(klecki): 1 sample version will be of no use after the switch to CPU ops unless we
+      // generalize accepted batch sizes throughout the pipeline
+      bool is_one_sample_with_batch = shape[0] == kernels::TensorShape<>(batch_size);
+      if (should_throw) {
+        DALI_ENFORCE(is_one_sample_with_batch,
+            "Unexpected shape of argument \"" + name +
+                "\". If only one tensor is passed, it should have a shape equal to {" +
+                std::to_string(batch_size) +
+                "}.  When accessing arguments as scalars 1 tensor of shape {" +
+                std::to_string(batch_size) + "} or " + std::to_string(batch_size) +
+                " tensors of shape {1} are expected. To access argument inputs where samples are "
+                "not scalars use ArgumentWorkspace::ArgumentInput method directly.");
+      } else if (!is_one_sample_with_batch) {
+        return false;
+      }
+    } else {
+      bool is_batch_of_scalars =
+          shape.num_samples() == batch_size && shape.sample_dim() == 1 && shape[0][0] == 1;
+      if (should_throw) {
+        DALI_ENFORCE(
+            is_batch_of_scalars,
+            "Unexpected shape of argument \"" + name + "\". Expected batch of " +
+                std::to_string(batch_size) + " tensors of shape {1}, got " +
+                std::to_string(shape.num_samples()) + " samples of " +
+                std::to_string(shape.sample_dim()) +
+                "D tensors. Alternatively, a single 1D tensor with " + std::to_string(batch_size) +
+                " elements can be passed. To access argument inputs where samples are not scalars "
+                "use ArgumentWorkspace::ArgumentInput method directly.");
+      } else if (!is_batch_of_scalars) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   template <typename T, typename S>
   inline bool TryGetArgumentImpl(T &result,
@@ -429,6 +474,7 @@ class DLL_PUBLIC OpSpec {
   inline bool TryGetRepeatedArgumentImpl(std::vector<T> &result, const string &name) const;
 
   string name_;
+  const OpSchema *schema_ = nullptr;
   std::unordered_map<string, std::shared_ptr<Argument>> arguments_;
   std::unordered_map<string, Index> argument_inputs_;
   std::set<Index> argument_inputs_indexes_;
@@ -436,6 +482,7 @@ class DLL_PUBLIC OpSpec {
   std::map<InOutDeviceDesc, int> output_name_idx_;
   vector<InOutDeviceDesc> inputs_, outputs_;
 };
+
 
 template <typename T, typename S>
 inline T OpSpec::GetArgumentImpl(
@@ -445,7 +492,8 @@ inline T OpSpec::GetArgumentImpl(
   // Search for the argument in tensor arguments first
   if (this->HasTensorArgument(name)) {
     DALI_ENFORCE(ws != nullptr, "Tensor value is unexpected for argument \"" + name + "\".");
-    const auto& value = ws->ArgumentInput(name);
+    const auto &value = ws->ArgumentInput(name);
+    CheckArgumentShape(value.shape(), GetArgument<int>("batch_size"), name, true);
     DALI_ENFORCE(IsType<T>(value.type()),
         "Unexpected type of argument \"" + name + "\". Expected " +
         TypeTable::GetTypeName<T>() + " and got " + value.type().name());
@@ -458,7 +506,7 @@ inline T OpSpec::GetArgumentImpl(
     return static_cast<T>(arg_it->second->template Get<S>());
   } else {
     // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const OpSchema& schema = GetSchema();
     return static_cast<T>(schema.GetDefaultValueForOptionalArgument<S>(name));
   }
 }
@@ -474,6 +522,9 @@ inline bool OpSpec::TryGetArgumentImpl(
     if (ws == nullptr)
       return false;
     const auto& value = ws->ArgumentInput(name);
+    if (!CheckArgumentShape(value.shape(), GetArgument<int>("batch_size"), name, false)) {
+      return false;
+    }
     if (!IsType<T>(value.type()))
       return false;
     result = value.template data<T>()[idx];
@@ -489,7 +540,7 @@ inline bool OpSpec::TryGetArgumentImpl(
     }
   } else {
     // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const OpSchema& schema = GetSchema();
     auto schema_val = schema.FindDefaultValue(name);
     using VT = const ValueInst<S>;
     if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {
@@ -511,7 +562,7 @@ inline std::vector<T> OpSpec::GetRepeatedArgumentImpl(const string &name) const 
     return detail::convert_vector<T>(arg_it->second->template Get<V>());
   } else {
     // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const OpSchema& schema = GetSchema();
     return detail::convert_vector<T>(schema.GetDefaultValueForOptionalArgument<V>(name));
   }
 }
@@ -529,7 +580,7 @@ inline bool OpSpec::TryGetRepeatedArgumentImpl(std::vector<T> &result, const str
     }
   } else {
     // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = SchemaRegistry::GetSchema(this->name());
+    const OpSchema& schema = GetSchema();
     auto schema_val = schema.FindDefaultValue(name);
     using VT = const ValueInst<V>;
     if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {

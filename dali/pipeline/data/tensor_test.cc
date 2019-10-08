@@ -151,9 +151,6 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<int16>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  // Give the Tensor a size, type is smaller so it will throw
-  ASSERT_THROW(t.Resize(shape), std::runtime_error);
-
   // Kind of exception safety test
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
@@ -424,6 +421,47 @@ TYPED_TEST(TensorTest, TestResize) {
   for (int i = 0; i < shape.size(); ++i) {
     ASSERT_EQ(tensor.dim(i), shape[i]);
   }
+}
+
+template <typename Backend, typename T = float>
+std::vector<T> to_vec(Tensor<Backend> &tensor) {
+  std::vector<T> tmp(tensor.size());
+  if (std::is_same<Backend, GPUBackend>::value) {
+    CUDA_CALL(
+      cudaMemcpyAsync(tmp.data(), tensor.template data<T>(),
+                      tensor.size(), cudaMemcpyDeviceToHost, 0));
+    CUDA_CALL(cudaStreamSynchronize(0));
+  } else if (std::is_same<Backend, CPUBackend>::value) {
+    memcpy(tmp.data(), tensor.template data<float>(), tensor.size());
+  }
+  return tmp;
+}
+
+TYPED_TEST(TensorTest, TestCopyFromBuf) {
+  std::vector<float> vec(2056);
+  float num = 0.0f;
+  for (auto &x : vec) {
+    x = num;
+    num += 1.0f / 2056;
+  }
+
+  Tensor<TypeParam> tensor1;
+  tensor1.Copy(vec, 0);
+  ASSERT_NE(tensor1.template mutable_data<float>(), nullptr);
+  ASSERT_EQ(vec.size(), tensor1.size());
+  ASSERT_EQ(1, tensor1.ndim());
+
+  auto tensor1_data = to_vec(tensor1);
+  EXPECT_EQ(0, std::memcmp(vec.data(), tensor1_data.data(), vec.size()));
+
+  Tensor<TypeParam> tensor2;
+  tensor2.Copy(make_span(vec), 0);
+  ASSERT_NE(tensor2.template mutable_data<float>(), nullptr);
+  ASSERT_EQ(vec.size(), tensor2.size());
+  ASSERT_EQ(1, tensor2.ndim());
+
+  auto tensor2_data = to_vec(tensor2);
+  EXPECT_EQ(0, std::memcmp(vec.data(), tensor2_data.data(), vec.size()));
 }
 
 TYPED_TEST(TensorTest, TestMultipleResize) {

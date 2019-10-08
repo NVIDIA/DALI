@@ -95,6 +95,10 @@ class TensorVector {
     return tensors_.size();
   }
 
+  size_t ntensor() const noexcept {
+    return tensors_.size();
+  }
+
   kernels::TensorListShape<> shape() const {
     if (state_ == State::contiguous) {
       return tl_->shape();
@@ -148,7 +152,8 @@ class TensorVector {
     return type_;
   }
 
-  inline void SetLayout(DALITensorLayout layout) {
+  /** @brief Set uniform layout for all samples in the list */
+  inline void SetLayout(const TensorLayout &layout) {
     if (state_ == State::noncontiguous) {
       DALI_ENFORCE(!tensors_.empty(), "Layout cannot be set uniformly for empty batch");
     }
@@ -158,14 +163,22 @@ class TensorVector {
     }
   }
 
-  inline DALITensorLayout GetLayout() const {
+  inline TensorLayout GetLayout() const {
     if (state_ == State::contiguous) {
       return tl_->GetLayout();
     }
     if (tensors_.size() > 0) {
       return tensors_[0]->GetLayout();
     }
-    return DALITensorLayout::DALI_UNKNOWN;
+    return {};
+  }
+
+  inline const DALIMeta &GetMeta(int idx) const {
+    return tensors_[idx]->GetMeta();
+  }
+
+  inline void SetMeta(int idx, const DALIMeta &meta) {
+    tensors_[idx]->SetMeta(meta);
   }
 
   inline void set_pinned(bool pinned) {
@@ -233,6 +246,32 @@ class TensorVector {
     }
   }
 
+  void ShareData(TensorVector<Backend> *tv) {
+    state_ = tv->state_;
+    pinned_ = tv->pinned_;
+
+    if (tv->tl_->raw_data()) {
+      tl_->ShareData(tv->tl_.get());
+    } else {
+      tl_->Reset();
+      tl_->ResizeLike(*tv->tl_);
+    }
+    int N = tl_->ntensor();
+    tensors_.clear();
+    views_count_ = 0;
+    allocate_tensors(N);
+
+    for (int i = 0; i < N; i++) {
+      if (static_cast<int>(tv->tl_->ntensor()) > i &&
+          tv->tensors_[i]->raw_data() == tv->tl_->raw_tensor(i)) {
+        update_view(i);
+        ++views_count_;
+      } else {
+        tensors_[i]->ShareData(tv->tensors_[i].get());
+      }
+    }
+  }
+
  private:
   enum class State { contiguous, noncontiguous };
   void allocate_tensors(int batch_size) {
@@ -249,6 +288,17 @@ class TensorVector {
     }
   }
 
+  void update_view(int idx) {
+    // TODO(klecki): deleter that reduces views_count or just noop sharing?
+    // tensors_[i]->ShareData(tl_.get(), static_cast<int>(idx));
+    tensors_[idx]->ShareData(
+        std::shared_ptr<void>(tl_->raw_mutable_tensor(idx),
+                              [&views_count = views_count_](void *) { views_count--; }),
+        volume(tl_->tensor_shape(idx)) * tl_->type().size(), tl_->tensor_shape(idx));
+    tensors_[idx]->SetMeta(tl_->GetMeta(idx));
+    tensors_[idx]->set_type(tl_->type());
+  }
+
   void update_views() {
     // Return if we do not have a valid allocation
     if (!IsValidType(tl_->type())) return;
@@ -256,15 +306,10 @@ class TensorVector {
 
     views_count_ = tensors_.size();
     for (size_t i = 0; i < tensors_.size(); i++) {
-      // TODO(klecki): deleter that reduces views_count or just noop sharing?
-      // tensors_[i]->ShareData(tl_.get(), static_cast<int>(i));
-      tensors_[i]->ShareData(
-          std::shared_ptr<void>(tl_->raw_mutable_tensor(i),
-                                [&views_count = views_count_](void *) { views_count--; }),
-          volume(tl_->tensor_shape(i)) * tl_->type().size(), tl_->tensor_shape(i));
-      tensors_[i]->set_type(tl_->type());
+      update_view(i);
     }
   }
+
   std::atomic<int> views_count_;
   std::vector<std::shared_ptr<Tensor<Backend>>> tensors_;
   std::shared_ptr<TensorList<Backend>> tl_;

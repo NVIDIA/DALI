@@ -106,9 +106,11 @@ class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
     py::gil_scoped_acquire interpreter_guard{};
     py::object output_o;
     try {
-      if (std::is_same<Backend, GPUBackend>::value) cudaDeviceSynchronize();
-      output_o = python_function(*py::tuple(detail::PrepareDLTensorInputs<Backend>(ws)));
-      if (std::is_same<Backend, GPUBackend>::value) cudaDeviceSynchronize();
+      if (std::is_same<Backend, GPUBackend>::value) {
+        cudaStreamSynchronize(ws.stream());
+        SetCurrentStream(ws.stream());
+      }
+      output_o = python_function(*detail::PrepareDLTensorInputs<Backend>(ws));
     } catch(const py::error_already_set &e) {
       throw std::runtime_error(to_string("DLTensorPythonFunction error: ") + to_string(e.what()));
     }

@@ -41,6 +41,11 @@ struct argument_storage<bool> {
   using type = bool;
 };
 
+template <>
+struct argument_storage<TensorLayout> {
+  using type = std::string;
+};
+
 template <typename T>
 using argument_storage_t = typename argument_storage<T>::type;
 

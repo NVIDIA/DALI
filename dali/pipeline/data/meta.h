@@ -25,14 +25,14 @@ class DALIMeta {
   DALIMeta() {
   }
 
-  explicit DALIMeta(DALITensorLayout layout) : layout_(layout) {
+  explicit DALIMeta(const TensorLayout &layout) : layout_(layout) {
   }
 
-  inline DALITensorLayout GetLayout() const {
+  inline const TensorLayout &GetLayout() const {
     return layout_;
   }
 
-  inline void SetLayout(DALITensorLayout layout) {
+  inline void SetLayout(const TensorLayout &layout) {
     layout_ = layout;
   }
 
@@ -53,7 +53,7 @@ class DALIMeta {
   }
 
  private:
-  DALITensorLayout layout_ = DALITensorLayout::DALI_UNKNOWN;
+  TensorLayout layout_;
   std::string source_info_;
   bool skip_sample_ = false;
 };

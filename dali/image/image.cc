@@ -34,6 +34,15 @@ std::string ListSupportedExtensions() {
 bool HasKnownImageExtension(const std::string &image_path) {
   std::string path_low{image_path};
   std::transform(path_low.begin(), path_low.end(), path_low.begin(), ::tolower);
+
+  /** Skip but without any warning */
+  for (const auto &ext : kSkipImageExtensions) {
+    if (strlen(ext) == strlen(image_path.c_str()) &&
+        strncmp(ext, image_path.c_str(), strlen(ext)) == 0) {
+      return false;
+    }
+  }
+
   for (const auto &ext : kKnownImageExtensions) {
     size_t pos = path_low.rfind(ext);
     if (pos != std::string::npos && pos + strlen(ext) == path_low.size()) {
@@ -57,7 +66,7 @@ void Image::Decode() {
   DALI_ENFORCE(!decoded_, "Called decode for already decoded image");
   auto decoded = DecodeImpl(image_type_, encoded_image_, length_);
   decoded_image_ = decoded.first;
-  dims_ = decoded.second;
+  shape_ = decoded.second;
   decoded_ = true;
 }
 
@@ -67,13 +76,13 @@ std::shared_ptr<uint8_t> Image::GetImage() const {
   return decoded_image_;
 }
 
-
-std::tuple<size_t, size_t, size_t> Image::GetImageDims() const {
-  if (decoded_) {
-    return dims_;
-  }
-  return PeekDims(encoded_image_, length_);
+Image::Shape Image::PeekShape() const {
+  return PeekShapeImpl(encoded_image_, length_);
 }
 
+Image::Shape Image::GetShape() const {
+  DALI_ENFORCE(decoded_, "Image not decoded. Run Decode()");
+  return shape_;
+}
 
 }  // namespace dali

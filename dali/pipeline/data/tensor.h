@@ -25,6 +25,8 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/util.h"
+#include "dali/core/span.h"
+#include "dali/core/traits.h"
 #include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
@@ -84,6 +86,18 @@ class Tensor : public Buffer<Backend> {
   template <typename T>
   inline void Copy(const vector<T> &data, cudaStream_t stream) {
     this->template mutable_data<T>();
+    this->Resize({(Index)data.size()});
+    type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
+        data.data(), this->size(), stream);
+  }
+
+  /**
+   * Loads the Tensor with data from a span.
+   */
+  template <typename T>
+  inline void Copy(span<T> data, cudaStream_t stream) {
+    using U = remove_const_t<T>;
+    this->template mutable_data<U>();
     this->Resize({(Index)data.size()});
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), stream);
@@ -198,6 +212,7 @@ class Tensor : public Buffer<Backend> {
     num_bytes_ = type_.size() * size_;
     shares_data_ = true;
     device_ = tl->device_id();
+    meta_ = tl->GetMeta(idx);
   }
 
   /**
@@ -231,6 +246,7 @@ class Tensor : public Buffer<Backend> {
     num_bytes_ = t->num_bytes_;
     shares_data_ = num_bytes_ > 0 ? true : false;
     device_ = t->device_id();
+    meta_ = t->meta_;
   }
 
   /**
@@ -336,6 +352,7 @@ class Tensor : public Buffer<Backend> {
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
     shares_data_ = true;
+    meta_ = {};
   }
 
   /**
@@ -362,6 +379,10 @@ class Tensor : public Buffer<Backend> {
     num_bytes_ = type_.size() * size_;
     device_ = tl->device_id();
     shares_data_ = true;
+    if (!tl->GetLayout().empty())
+      SetLayout("N" + tl->GetLayout());
+    else
+      SetLayout({});
   }
 
   inline void Reset() {
@@ -479,11 +500,11 @@ class Tensor : public Buffer<Backend> {
     meta_ = meta;
   }
 
-  inline DALITensorLayout GetLayout() const {
+  inline TensorLayout GetLayout() const {
     return meta_.GetLayout();
   }
 
-  inline void SetLayout(DALITensorLayout layout) {
+  inline void SetLayout(const TensorLayout &layout) {
     meta_.SetLayout(layout);
   }
 
@@ -505,7 +526,7 @@ class Tensor : public Buffer<Backend> {
 
  protected:
   kernels::TensorShape<> shape_;
-  DALIMeta meta_{DALI_NHWC};
+  DALIMeta meta_;
   USE_BUFFER_MEMBERS();
 };
 

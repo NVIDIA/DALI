@@ -45,7 +45,6 @@ void RunHelper(Tensor<CPUBackend> &output,
     kernels::KernelRequirements req = kernel.Setup(ctx, in_view, slice_args);
 
     output.set_type(TypeInfo::Create<OutputType>());
-    output.SetLayout(input.GetLayout());
     output.Resize(req.output_shapes[0][0].shape.to_vector());
 
     auto out_view = view<OutputType, NumDims>(output);
@@ -78,6 +77,7 @@ void SliceBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
         output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
     )
   )
+  output.SetLayout(InputLayout(ws, 0));
 }
 
 }  // namespace dali

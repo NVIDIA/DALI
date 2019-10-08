@@ -85,10 +85,12 @@ void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
 }
 
 std::vector<std::string> ImageList(const std::string& image_folder,
-                                   const std::vector<std::string> &supported_extensions) {
+                                   const std::vector<std::string> &supported_extensions,
+                                   const int max_images) {
   std::vector<std::string> image_names;
   const string image_list = image_folder + "/image_list.txt";
   std::ifstream file(image_list);
+  int loaded_images = 0;
   if (file.is_open()) {
     std::string filename;
     while (file >> filename) {
@@ -96,6 +98,10 @@ std::vector<std::string> ImageList(const std::string& image_folder,
       std::string full_path = image_folder + "/" + filename;
       if (is_supported_extension(filename, supported_extensions) && !is_empty_file(full_path)) {
         image_names.push_back(full_path);
+        ++loaded_images;
+        if (loaded_images >= max_images) {
+          break;
+        }
       }
     }
     return image_names;
@@ -130,33 +136,34 @@ void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix, float bi
   const auto type = tl.type();
   const auto layout = tl.GetLayout();
 
+  bool is_channel_first = ImageLayoutInfo::IsChannelFirst(layout);
   if (IsType<uint8>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<uint8>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<uint8>(tl, bias, scale, suffix);
   } else if (IsType<int16>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<int16>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<int16>(tl, bias, scale, suffix);
   } else if (IsType<int32>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<int32>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<int32>(tl, bias, scale, suffix);
   } else if (IsType<int64>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<int64>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<int64>(tl, bias, scale, suffix);
   } else if (IsType<float16>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<float16>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<float16>(tl, bias, scale, suffix);
   } else if (IsType<float>(type)) {
-    if (layout == DALI_NCHW)
+    if (is_channel_first)
       WriteCHWBatch<float>(tl, bias, scale, suffix);
     else
       WriteHWCBatch<float>(tl, bias, scale, suffix);
