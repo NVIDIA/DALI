@@ -194,19 +194,6 @@ DALI_HOST_DEV constexpr Surface<n, T> crop(const Surface<n, T> &surface, const R
   return cropped;
 }
 
-
-/**
- * Crops Surface according to given Roi
- */
-template <typename T>
-DALI_HOST_DEV constexpr Surface2D<T> crop(const Surface2D<T> &surface, const Roi<2> &roi) {
-  auto cropped = surface;
-  cropped.data = &surface(roi.lo.x, roi.lo.y);
-  cropped.width = roi.extent().x;
-  cropped.height = roi.extent().y;
-  return cropped;
-}
-
 }  // namespace kernels
 }  // namespace dali
 
