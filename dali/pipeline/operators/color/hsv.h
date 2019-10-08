@@ -52,8 +52,7 @@ const mat3 Yiq2Rgb = {{
 
 
 inline mat3 compose_hue(float hue) {
-  const float pi = 3.14159265359f;
-  const auto h_rad = hue * pi / 180;
+  const auto h_rad = hue * M_PI / 180;
   mat3 ret = mat3::eye();
   ret(1, 1) = cos(h_rad);
   ret(2, 2) = cos(h_rad);
@@ -76,62 +75,17 @@ inline mat3 compose_value(float value) {
 }
 
 
-template <typename Backend, typename T>
-struct ArgumentType {
-  static_assert(
-          std::is_same<Backend, CPUBackend>::value || std::is_same<Backend, GPUBackend>::value,
-          "Unsupported Backend");
-  using type = T;
-};
-
-
-template <typename T>
-struct ArgumentType<GPUBackend, T> {
-  using type = std::vector<T>;
-};
-
-
 /**
- * Select proper type for argument (for either sample processing or batch processing cases)
+ * @brief In case the argument is provided as single-value, propagate it for entire batch
  */
-template <typename Backend, typename T = float>
-using argument_t = typename ArgumentType<Backend, T>::type;
-
-
-template <typename Backend>
-void
-assign_argument_value(const OpSpec &spec, const std::string &arg_name, argument_t<Backend> &arg) {
+inline void repeat_argument(std::vector<float> &arg, int batch_size) {
+  assert(!arg.empty());
+  if (batch_size > 1 && arg.size() == 1) {
+    auto val = arg[0];
+    arg = std::vector<float>(batch_size, val);
+  }
+  assert(arg.size() == batch_size);
 }
-
-
-template <>
-inline void assign_argument_value<CPUBackend>(const OpSpec &spec, const std::string &arg_name,
-                                              argument_t<CPUBackend> &arg) {
-  std::vector<float> tmp;
-  GetSingleOrRepeatedArg(spec, tmp, arg_name);
-  arg = tmp[0];
-}
-
-
-template <>
-inline void assign_argument_value<GPUBackend>(const OpSpec &spec, const std::string &arg_name,
-                                              argument_t<GPUBackend> &arg) {
-  GetSingleOrRepeatedArg(spec, arg, arg_name);
-}
-
-
-template <typename Backend>
-struct WorkspaceInputType {
-  using type = TensorVector<CPUBackend>;
-};
-
-template <>
-struct WorkspaceInputType<GPUBackend> {
-  using type = TensorList<GPUBackend>;
-};
-
-template <typename Backend>
-using workspace_input_t = typename WorkspaceInputType<Backend>::type;
 
 
 }  // namespace hsv
@@ -144,14 +98,21 @@ class Hsv : public Operator<Backend> {
   explicit Hsv(const OpSpec &spec) :
           Operator<Backend>(spec),
           output_type_(spec.GetArgument<DALIDataType>(hsv::kOutputType)) {
-    hsv::assign_argument_value<Backend>(spec, hsv::kHue, hue_);
-    hsv::assign_argument_value<Backend>(spec, hsv::kSaturation, saturation_);
-    hsv::assign_argument_value<Backend>(spec, hsv::kValue, value_);
+    GetSingleOrRepeatedArg(spec, hue_, hsv::kHue);
+    GetSingleOrRepeatedArg(spec, saturation_, hsv::kSaturation);
+    GetSingleOrRepeatedArg(spec, value_, hsv::kValue);
+    hsv::repeat_argument(hue_, batch_size_);
+    hsv::repeat_argument(saturation_, batch_size_);
+    hsv::repeat_argument(value_, batch_size_);
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
       kernel_manager_.Resize(num_threads_, batch_size_);
     }
+
+    assert(hue_.size() == batch_size_);
+    assert(saturation_.size() == batch_size_);
+    assert(value_.size() == batch_size_);
   }
 
   ~Hsv() override = default;
@@ -164,8 +125,31 @@ class Hsv : public Operator<Backend> {
   }
 
 
+  /**
+   * @brief Creates transformation matrices based on given args
+   */
+  std::vector<mat3>
+  determine_transformation(const std::vector<float> &hue, const std::vector<float> &saturation,
+                           const std::vector<float> &value) const {
+    using namespace hsv;  // NOLINT
+    std::vector<mat3> ret;
+
+    assert(hue.size() == saturation.size());
+    assert(saturation.size() == value.size());
+
+    auto size = hue.size();
+    ret.resize(size);
+    for (size_t i = 0; i < size; i++) {
+      ret[i] = Rgb2Yiq * compose_hue(hue[i]) * compose_saturation(saturation[i]) *
+               compose_value(value[i]) * Yiq2Rgb;
+    }
+    return ret;
+  }
+
+
   USE_OPERATOR_MEMBERS();
-  hsv::argument_t<Backend> hue_, saturation_, value_;
+  std::vector<float> hue_, saturation_, value_;
+  std::vector<mat3> tmatrices_;
   DALIDataType output_type_;
   kernels::KernelManager kernel_manager_;
 };
@@ -185,26 +169,15 @@ class HsvCpu : public Hsv<CPUBackend> {
 
   ~HsvCpu() override = default;
 
-
   DISABLE_COPY_MOVE_ASSIGN(HsvCpu);
-
 
  protected:
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                  const workspace_t<CPUBackend> &ws) override;
 
-
-  void RunImpl(Workspace<CPUBackend> &ws) override;
-
+  void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
-  mat3 transformation_matrix(float hue, float saturation, float value) const {
-    using namespace hsv;  // NOLINT
-    return Rgb2Yiq * compose_hue(hue) * compose_saturation(saturation) * compose_value(value) *
-           Yiq2Rgb;
-  }
-
-
   template <typename Kernel, typename InputType>
   kernels::TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input, int instance_idx) {
     kernels::KernelContext ctx;
@@ -213,8 +186,7 @@ class HsvCpu : public Hsv<CPUBackend> {
     shapes.resize(sh.num_samples());
     for (size_t i = 0; i < shapes.size(); i++) {
       const auto tvin = view<const InputType, 3>(input[i]);
-      const auto tmat = transformation_matrix(hue_, saturation_, value_);
-      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, tmat);
+      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, tmatrices_[i]);
       kernels::TensorListShape<> out_sh = reqs.output_shapes[0];
       shapes[i] = out_sh.tensor_shape(0);
     }
@@ -228,40 +200,17 @@ class HsvGpu : public Hsv<GPUBackend> {
  public:
   explicit HsvGpu(const OpSpec &spec) : Hsv(spec) {}
 
-
   ~HsvGpu() override = default;
 
-
   DISABLE_COPY_MOVE_ASSIGN(HsvGpu);
-
 
  protected:
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                  const workspace_t<GPUBackend> &ws) override;
 
-
-  void RunImpl(Workspace<GPUBackend> &ws) override;
-
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
 
  private:
-  /**
-   * @brief Creates transformation matrices based on given args
-   */
-  std::vector<mat3>
-  determine_transformation(const std::vector<float> &hue, const std::vector<float> &saturation,
-                           const std::vector<float> &value) const {
-    using namespace hsv;  // NOLINT
-    std::vector<mat3> ret;
-    DALI_ENFORCE(hue.size() == saturation.size());
-    DALI_ENFORCE(saturation.size() == value.size());
-    for (size_t i = 0; i < hue.size(); i++) {
-      ret.emplace_back(Rgb2Yiq * compose_hue(hue[i]) * compose_saturation(saturation[i]) *
-                       compose_value(value[i]) * Yiq2Rgb);
-    }
-    return ret;
-  }
-
-
   template <typename Kernel, typename InputType>
   kernels::TensorListShape<> CallSetup(const TensorList<GPUBackend> &tl, int instance_idx) {
     kernels::KernelContext ctx;
@@ -270,9 +219,6 @@ class HsvGpu : public Hsv<GPUBackend> {
                                                     make_cspan(tmatrices_));
     return reqs.output_shapes[0];
   }
-
-
-  std::vector<mat3> tmatrices_;
 };
 
 

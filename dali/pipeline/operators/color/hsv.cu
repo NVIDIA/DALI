@@ -33,7 +33,6 @@ HsvGpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc, const workspace_
   const auto &output = ws.template OutputRef<GPUBackend>(0);
   output_desc.resize(1);
   tmatrices_ = determine_transformation(hue_, saturation_, value_);
-  // @autoformat:off
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
@@ -46,15 +45,13 @@ HsvGpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc, const workspace_
           }
       ), DALI_FAIL(make_string("Unsupported output type:", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type:", input.type().id())))  // NOLINT
-  // @autoformat:on
   return true;
 }
 
 
-void HsvGpu::RunImpl(Workspace<GPUBackend> &ws) {
+void HsvGpu::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.template Input<GPUBackend>(0);
   auto &output = ws.template Output<GPUBackend>(0);
-  // @autoformat:off
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
@@ -67,7 +64,6 @@ void HsvGpu::RunImpl(Workspace<GPUBackend> &ws) {
           }
       ), DALI_FAIL("Unsupported output type"))  // NOLINT
   ), DALI_FAIL("Unsupported input type"))  // NOLINT
-  // @autoformat:on
 }
 
 
