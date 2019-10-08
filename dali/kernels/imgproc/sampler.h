@@ -73,7 +73,7 @@ struct Sampler<DALI_INTERP_NN, In> {
   DALI_HOST_DEV T at(
       int x, int y, int c,
       BorderClamp) const {
-    ivec2 clamped = clamp(ivec2(x, y), ivec2(0, 0), surface.size);
+    ivec2 clamped = clamp(ivec2(x, y), ivec2(0, 0), surface.size - 1);
     return ConvertSat<T>(surface(clamped, c));
   }
 
@@ -128,7 +128,7 @@ struct Sampler<DALI_INTERP_NN, In> {
       T *pixel,
       int x, int y,
       BorderClamp) const {
-    ivec2 clamped = clamp(ivec2(x, y), ivec2(0, 0), surface.size);
+    ivec2 clamped = clamp(ivec2(x, y), ivec2(0, 0), surface.size - 1);
     for (int c = 0; c < surface.channels; c++) {
       pixel[c] = ConvertSat<T>(surface(clamped, c));
     }
