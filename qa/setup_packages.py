@@ -27,12 +27,12 @@ package_data = {
         "90": ["1.12.0", "1.11", "1.7"],
         "100": ["1.13.1", "1.14.0"]},
     "torch" : {
-        "90": [("1.1.0", "http://download.pytorch.org/whl/cu90/torch_stable.html")],
-        "100": [("1.2.0", "http://download.pytorch.org/whl/cu100/torch_stable.html")]
+        "90": [("1.1.0", "http://download.pytorch.org/whl/90/torch_stable.html")],
+        "100": [("1.2.0", "http://download.pytorch.org/whl/100/torch_stable.html")]
     },
     "torchvision" : {
-        "90": [("0.3.0", "http://download.pytorch.org/whl/cu90/torch_stable.html")],
-        "100": [("0.4.0", "http://download.pytorch.org/whl/cu100/torch_stable.html")],
+        "90": [("0.3.0", "http://download.pytorch.org/whl/90/torch_stable.html")],
+        "100": [("0.4.0", "http://download.pytorch.org/whl/100/torch_stable.html")],
     }
 }
 

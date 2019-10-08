@@ -3,7 +3,8 @@
 mkdir -p /pip-packages
 gather_pip_packages=yes
 
-for folder in $(ls -d */ | grep -v TL3); do
+for folder in $(ls -d */ | grep -v TL3);
+do
     echo ${folder}
     pushd ${folder}
     source test.sh
@@ -13,7 +14,7 @@ for folder in $(ls -d */ | grep -v TL3); do
     for i in `seq 0 $last_config_index`; do
         eval "packages=(`./setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION} --include-link | tr -d '[],'`)"
         for pkg in "${packages[@]}"; do
-            pip download $pkg -d /pip-packages
+            pip download "$pkg" -d /pip-packages
         done
     done
 done
