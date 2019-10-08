@@ -34,8 +34,9 @@ def skip_for_incompatible_tf():
 
 
 class TestPipeline(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id = 0, seed = 0):
+    def __init__(self, batch_size, num_threads, device, device_id = 0, seed = 0):
         super(TestPipeline, self).__init__(batch_size, num_threads, device_id, seed)
+        self.device = device
         self.input = ops.COCOReader(
             file_root = file_root,
             annotations_file = annotations_file,
@@ -43,13 +44,15 @@ class TestPipeline(Pipeline):
             num_shards = 1, 
             ratio=False, 
             save_img_ids=True)
-        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.ImageDecoder(
+            device = 'mixed' if device is 'gpu' else 'cpu', 
+            output_type = types.RGB)
         self.resize = ops.Resize(
-            device = "cpu",
+            device = device,
             image_type = types.RGB,
             interp_type = types.INTERP_LINEAR)
         self.cmn = ops.CropMirrorNormalize(
-            device = "cpu",
+            device = device,
             output_dtype = types.FLOAT,
             crop = (224, 224),
             image_type = types.RGB,
@@ -58,8 +61,8 @@ class TestPipeline(Pipeline):
         self.res_uniform = ops.Uniform(range = (256.,480.))
         self.uniform = ops.Uniform(range = (0.0, 1.0))
         self.cast = ops.Cast(
-            device = "cpu",
-            dtype = types.FLOAT16)
+            device = device,
+            dtype = types.INT16)
 
     def define_graph(self):
         inputs, _, _, im_ids = self.input()
@@ -69,22 +72,24 @@ class TestPipeline(Pipeline):
             images, 
             crop_pos_x = self.uniform(),
             crop_pos_y = self.uniform())
-        im_ids_float = self.cast(im_ids)
+        if self.device is 'gpu':
+            im_ids = im_ids.gpu()
+        im_ids_16 = self.cast(im_ids)
 
         return (
             output, 
             im_ids,
-            im_ids_float)
+            im_ids_16)
 
 
-def test_tf_dataset():
+def _test_tf_dataset(device):
     skip_for_incompatible_tf()
 
     batch_size = 12
     num_threads = 4
     epochs = 10
 
-    dataset_pipeline = TestPipeline(batch_size, num_threads)
+    dataset_pipeline = TestPipeline(batch_size, num_threads, device)
     shapes = [
         (batch_size, 3, 224, 224), 
         (batch_size, 1),
@@ -92,33 +97,53 @@ def test_tf_dataset():
     dtypes = [
         tf.float32,
         tf.int32, 
-        tf.float16]
+        tf.int16]
 
     dataset_results = []
-    with tf.device('/cpu:0'):
+    with tf.device('/{0}:0'.format(device)):
         daliset = dali_tf.DALIDataset(
             pipeline=dataset_pipeline,
             batch_size=batch_size,
             shapes=shapes, 
             dtypes=dtypes,
             num_threads=num_threads)
+        options = tf.data.Options()
+        options.experimental_optimization.noop_elimination = False
+        options.experimental_optimization.map_vectorization.enabled = False
+        options.experimental_optimization.apply_default_optimizations = False
+        options.experimental_optimization.autotune = False
+        daliset = daliset.with_options(options)
+
+        iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
+        next_element = iterator.get_next()
 
         with tf.compat.v1.Session() as sess:
-            iterator = tf.compat.v1.data.make_one_shot_iterator(daliset)
-            next_element = iterator.get_next()
+            sess.run(tf.compat.v1.global_variables_initializer())
+            sess.run(iterator.initializer)
             for _ in range(epochs):
                 dataset_results.append(sess.run(next_element))
 
-    standalone_pipeline = TestPipeline(batch_size, num_threads)
+    standalone_pipeline = TestPipeline(batch_size, num_threads, device)
     standalone_pipeline.build()
     standalone_results = []
     for _ in range(epochs):
-        standalone_results.append(
-            tuple(result.as_array() for result in standalone_pipeline.run()))
+        if device is 'gpu':
+            standalone_results.append(
+                tuple(result.as_cpu().as_array() for result in standalone_pipeline.run()))
+        else:
+            standalone_results.append(
+                tuple(result.as_array() for result in standalone_pipeline.run()))
         
     for dataset_result, standalone_result in zip(dataset_results, standalone_results):
         for dataset_out, standalone_out in zip(dataset_result, standalone_result):
             assert np.array_equal(dataset_out, standalone_out)
+
+def test_tf_dataset_gpu():
+    _test_tf_dataset('gpu')
+
+
+def test_tf_dataset_cpu():
+    _test_tf_dataset('cpu')
 
 
 @raises(Exception)

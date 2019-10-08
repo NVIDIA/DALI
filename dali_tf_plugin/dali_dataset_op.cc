@@ -316,10 +316,16 @@ class DALIDatasetOp : public DatasetOpKernel {
 
 // Regestrations
 REGISTER_KERNEL_BUILDER(
-  Name("DaliDataset").Device(tensorflow::DEVICE_CPU),
+  Name("DALIDataset").Device(tensorflow::DEVICE_CPU),
   DALIDatasetOp);
 
-REGISTER_OP("DaliDataset")
+REGISTER_KERNEL_BUILDER(
+  Name("DALIDataset")
+    .Device(DEVICE_GPU)
+    .HostMemory("handle"),      
+  DALIDatasetOp);
+
+REGISTER_OP("DALIDataset")
   .Attr("pipeline: string")
   .Attr("batch_size: int")
   .Attr("num_threads: int")
