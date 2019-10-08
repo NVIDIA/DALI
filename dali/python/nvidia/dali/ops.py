@@ -19,7 +19,8 @@ from itertools import count
 import threading
 from nvidia.dali import backend as b
 from nvidia.dali.edge import EdgeReference
-from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType
+from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType, \
+                              CUDAStream
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
@@ -451,7 +452,8 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
 
 
 def current_dali_stream():
-    return nvidia.dali.libpython_function_plugin.current_dali_stream()
+    """Get DALI's current CUDA stream."""
+    return CUDAStream(nvidia.dali.libpython_function_plugin.current_dali_stream())
 
 
 class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):

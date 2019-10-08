@@ -53,7 +53,7 @@ class PythonFunctionImpl : public PythonFunctionImplBase<Backend> {
   using Operator<Backend>::RunImpl;
 };
 
-uint64_t GetCurrentStream();
+cudaStream_t GetCurrentStream();
 
 void SetCurrentStream(cudaStream_t stream);
 

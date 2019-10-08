@@ -20,8 +20,8 @@ def random_seed():
 
 
 DEVICE_ID = 0
-BATCH_SIZE = 4
-ITERS = 64
+BATCH_SIZE = 8
+ITERS = 128
 SEED = random_seed()
 NUM_WORKERS = 6
 
@@ -205,7 +205,7 @@ def test_mxnet_cast():
 cupy_stream = cupy.cuda.Stream()
 
 
-def cupy_adapter(fun, in1, in2):
+def cupy_adapter_sync(fun, in1, in2):
     with cupy_stream:
         tin1 = [cupy.fromDlpack(dltensor) for dltensor in in1]
         tin2 = [cupy.fromDlpack(dltensor) for dltensor in in2]
@@ -215,14 +215,23 @@ def cupy_adapter(fun, in1, in2):
     cupy_stream.synchronize()
     return out1, out2
 
+def cupy_adapter(fun, in1, in2):
+    tin1 = [cupy.fromDlpack(dltensor) for dltensor in in1]
+    tin2 = [cupy.fromDlpack(dltensor) for dltensor in in2]
+    tout1, tout2 = fun(tin1, tin2)
+    return [tout.toDlpack() for tout in tout1], \
+           [tout.toDlpack() for tout in tout2]
 
-def cupy_wrapper(fun):
-    return lambda in1, in2: cupy_adapter(fun, in1, in2)
+def cupy_wrapper(fun, synchronize):
+    if synchronize:
+        return lambda in1, in2: cupy_adapter_sync(fun, in1, in2)
+    else:
+        return lambda in1, in2: cupy_adapter(fun, in1, in2)
 
 
-def cupy_case(fun):
+def cupy_case(fun, synchronize=True):
     load_pipe = LoadingPipeline('gpu')
-    op_pipe = DLTensorOpPipeline(cupy_wrapper(fun), 'gpu')
+    op_pipe = DLTensorOpPipeline(cupy_wrapper(fun, synchronize), 'gpu')
 
     load_pipe.build()
     op_pipe.build()
@@ -237,21 +246,7 @@ def cupy_case(fun):
         cupy_pre1 = [cupy.asarray(pre1.at(i)) for i in range(BATCH_SIZE)]
         cupy_pre2 = [cupy.asarray(pre2.at(i)) for i in range(BATCH_SIZE)]
         cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2)
-        print("iter: " + str(iter))
         for i in range(BATCH_SIZE):
-            print("i: " + str(i))
-            print("pre1 : ")
-            print(pre1.at(i))
-            print("pre2 : ")
-            print(pre2.at(i))
-            print("post 1 data: ")
-            print(post1.at(i))
-            print("cupy 1 data: ")
-            print(cupy.asnumpy(cupy_post1[i]))
-            print("post 2 data: ")
-            print(post2.at(i))
-            print("cupy 2 data: ")
-            print(cupy.asnumpy(cupy_post2[i]))
             assert post1.at(i).shape == cupy_post1[i].shape
             assert post2.at(i).shape == cupy_post2[i].shape
             assert numpy.allclose(post1.at(i), cupy.asnumpy(cupy_post1[i]), atol=0.0001)
@@ -294,18 +289,13 @@ void gray_scale(float *output, const unsigned char *input, long long height, lon
 ''', 'gray_scale')
 
 
-class StreamWrapper:
-    def __init__(self, ptr):
-        self.ptr = ptr
-
-
 def gray_scale_call(input):
     height = input.shape[0]
     width = input.shape[1]
-    output = cupy.ndarray((height, width), dtype=cupy.float)
+    output = cupy.ndarray((height, width), dtype=cupy.float32)
     gray_scale_kernel(grid=((height + 31) // 32, (width + 31) // 32),
                       block=(32, 32),
-                      stream=StreamWrapper(ops.current_dali_stream()),
+                      stream=ops.current_dali_stream(),
                       args=(output, input, height, width))
     return output
 
@@ -327,17 +317,17 @@ def cupy_kernel_gray_scale(in1, in2):
     return out1, out2
 
 
-# def test_cupy_simple():
-#     cupy_case(cupy_simple)
-#
-#
-# def test_cupy_kernel_square_diff():
-#     cupy_case(cupy_kernel_square_diff)
-#
-#
-# def test_cupy_kernel_mix_channels():
-#     cupy_case(cupy_kernel_mix_channels)
-#
+def test_cupy_simple():
+    cupy_case(cupy_simple)
+
+
+def test_cupy_kernel_square_diff():
+    cupy_case(cupy_kernel_square_diff)
+
+
+def test_cupy_kernel_mix_channels():
+    cupy_case(cupy_kernel_mix_channels)
+
 
 def test_cupy_kernel_gray_scale():
-    cupy_case(cupy_kernel_gray_scale)
+    cupy_case(cupy_kernel_gray_scale, synchronize=False)

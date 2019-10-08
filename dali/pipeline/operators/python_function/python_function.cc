@@ -116,21 +116,20 @@ void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   }
 }
 
-static uint64_t current_cuda_stream = 0;
+static cudaStream_t current_cuda_stream = nullptr;
 
-uint64_t GetCurrentStream(){
+cudaStream_t GetCurrentStream() {
   return current_cuda_stream;
 }
 
 void SetCurrentStream(cudaStream_t stream) {
-  current_cuda_stream = reinterpret_cast<uint64_t>(stream);
+  current_cuda_stream = stream;
 }
-
 
 DALI_REGISTER_OPERATOR(PythonFunctionImpl, PythonFunctionImpl<CPUBackend>, CPU);
 
 PYBIND11_MODULE(libpython_function_plugin, m) {
-  m.def("current_dali_stream", &GetCurrentStream);
+  m.def("current_dali_stream", []() { return reinterpret_cast<uint64_t >(GetCurrentStream()); });
 }
 
 }  // namespace dali
