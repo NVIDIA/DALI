@@ -78,13 +78,13 @@ void ResampleHorz_Channels(
   const int channels = static_channels < 0 ? out.channels : static_channels;
 
   int first_regular_col = 0;
-  int last_regular_col = out.width - 1;
-  while (first_regular_col < out.width && in_columns[first_regular_col] < 0)
+  int last_regular_col = out.size.x - 1;
+  while (first_regular_col < out.size.x && in_columns[first_regular_col] < 0)
     first_regular_col++;
-  while (last_regular_col >= 0 && in_columns[last_regular_col] + support > in.width)
+  while (last_regular_col >= 0 && in_columns[last_regular_col] + support > in.size.x)
     last_regular_col--;
 
-  for (int y = 0; y < out.height; y++) {
+  for (int y = 0; y < out.size.y; y++) {
     Out *out_row = &out(0, y);
     const In *in_row = &in(0, y);
 
@@ -92,19 +92,19 @@ void ResampleHorz_Channels(
 
     for (; x < first_regular_col && x <= last_regular_col; x++) {
       ResampleCol<static_channels, true, false>(
-        out_row, in_row, x, in.width, in_columns, coeffs, support, channels);
+        out_row, in_row, x, in.size.x, in_columns, coeffs, support, channels);
     }
     for (; x < first_regular_col; x++) {
       ResampleCol<static_channels, true, true>(
-        out_row, in_row, x, in.width, in_columns, coeffs, support, channels);
+        out_row, in_row, x, in.size.x, in_columns, coeffs, support, channels);
     }
     for (; x <= last_regular_col; x++) {
       ResampleCol<static_channels, false, false>(
-        out_row, in_row, x, in.width, in_columns, coeffs, support, channels);
+        out_row, in_row, x, in.size.x, in_columns, coeffs, support, channels);
     }
-    for (; x < out.width; x++) {
+    for (; x < out.size.x; x++) {
       ResampleCol<static_channels, false, true>(
-        out_row, in_row, x, in.width, in_columns, coeffs, support, channels);
+        out_row, in_row, x, in.size.x, in_columns, coeffs, support, channels);
     }
   }
 }
@@ -117,18 +117,18 @@ void ResampleVert(
   constexpr int tile = 64;
   float tmp[tile];  // NOLINT
 
-  int flat_w = out.width * out.channels;
+  int flat_w = out.size.x * out.channels;
 
   assert(support > 0);
   const In **in_row_ptrs = static_cast<const In **>(alloca(support * sizeof(const In *)));
 
-  for (int y = 0; y < out.height; y++) {
+  for (int y = 0; y < out.size.y; y++) {
     Out *out_row = &out(0, y, 0);
 
     for (int k = 0; k < support; k++) {
       int sy = in_rows[y] + k;
       if (sy < 0) sy = 0;
-      else if (sy > in.height-1) sy = in.height-1;
+      else if (sy > in.size.y-1) sy = in.size.y-1;
       in_row_ptrs[k] = &in(0, sy);
     }
 
@@ -191,25 +191,25 @@ void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
   assert((in.channel_stride == 1 && out.channel_stride == 1) ||
          (in.channels == 1 && out.channels == 1));
   // assume HWC layout with contiguous pixels (not necessarily rows)
-  assert(out.pixel_stride == out.channels);
+  assert(out.strides.x == out.channels);
 
   if (scale_x == 1) {
     // FAST PATH - not scaling along X axis - just copy with repeated boundaries
     int sx0 = std::floor(src_x0 + 0.5f);
-    int dx1 = sx0 + in.width;
-    if (dx1 > out.width)
-      dx1 = out.width;
+    int dx1 = sx0 + in.size.x;
+    if (dx1 > out.size.x)
+      dx1 = out.size.x;
     int dx0 = 0;
     if (sx0 < 0) {
-      dx0 = std::min(-sx0, out.width);
+      dx0 = std::min(-sx0, out.size.x);
     }
 
     float sy = src_y0 + 0.5f * scale_y;
-    for (int y = 0; y < out.height; y++, sy += scale_y) {
+    for (int y = 0; y < out.size.y; y++, sy += scale_y) {
       int srcy = std::floor(sy);
 
       if (srcy < 0) srcy = 0;
-      else if (srcy > in.height-1) srcy = in.height-1;
+      else if (srcy > in.size.y-1) srcy = in.size.y-1;
 
       Out *out_ch = &out(0, y, 0);
 
@@ -225,8 +225,8 @@ void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
           *out_ch++ = clamp<Out>(*in_row++);
 
       x = dx1;
-      const In *last_px = &in(in.width-1, srcy, 0);
-      for (; x < out.width; x++) {
+      const In *last_px = &in(in.size.x-1, srcy, 0);
+      for (; x < out.size.x; x++) {
         for (int c = 0; c < out.channels; c++)
           *out_ch++ = last_px[c];
       }
@@ -237,25 +237,25 @@ void ResampleNN(Surface2D<Out> out, Surface2D<const In> in,
   constexpr int max_span_width = 256;
   int col_offsets[max_span_width];  // NOLINT (kOnstant)
 
-  for (int x0 = 0; x0 < out.width; x0 += max_span_width) {
+  for (int x0 = 0; x0 < out.size.x; x0 += max_span_width) {
     float sy = src_y0 + 0.5f * scale_y;
 
-    int span_width = x0 + max_span_width <= out.width ? max_span_width : out.width - x0;
+    int span_width = x0 + max_span_width <= out.size.x ? max_span_width : out.size.x - x0;
 
     for (int j = 0; j < span_width; j++) {
       int x = x0 + j;
       float sx = src_x0 + (x + 0.5f) * scale_x;
       int srcx = std::floor(sx);
       if (srcx < 0) srcx = 0;
-      else if (srcx > in.width-1) srcx += in.width - 1;
-      col_offsets[j] = srcx * in.pixel_stride;
+      else if (srcx > in.size.x-1) srcx += in.size.x - 1;
+      col_offsets[j] = srcx * in.strides.x;
     }
 
-    for (int y = 0; y < out.height; y++, sy += scale_y) {
+    for (int y = 0; y < out.size.y; y++, sy += scale_y) {
       int srcy = std::floor(sy);
 
       if (srcy < 0) srcy = 0;
-      else if (srcy > in.height-1) srcy = in.height-1;
+      else if (srcy > in.size.y-1) srcy = in.size.y-1;
 
       const In *in_row = &in(0, srcy);
       Out *out_ch = &out(x0, y, 0);

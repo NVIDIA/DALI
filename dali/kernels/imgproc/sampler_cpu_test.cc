@@ -30,13 +30,13 @@ TEST(SamplerCPU, NN) {
 
   Pixel border = { 50, 100, 200 };
 
-  for (float y = -1; y <= surf.height+1; y += 0.1f) {
+  for (float y = -1; y <= surf.size.y+1; y += 0.1f) {
     int iy = floorf(y);
-    for (float x = -1; x <= surf.width+1; x += 0.1f) {
+    for (float x = -1; x <= surf.size.x+1; x += 0.1f) {
       int ix = floorf(x);
 
       Pixel ref;
-      if (ix < 0 || iy < 0 || ix >= surf.width || iy >= surf.height) {
+      if (ix < 0 || iy < 0 || ix >= surf.size.x || iy >= surf.size.y) {
         ref = border;
       } else {
         for (int c = 0; c < surf.channels; c++)
@@ -63,7 +63,7 @@ TEST(SamplerCPU, Linear) {
   ASSERT_EQ(sampler.surface.channels, 3);
 
   auto fetch = [&surf, &border](int ix, int iy)->Pixel {
-    if (ix < 0 || iy < 0 || ix >= surf.width || iy >= surf.height) {
+    if (ix < 0 || iy < 0 || ix >= surf.size.x || iy >= surf.size.y) {
       return border;
     } else {
       Pixel px;
@@ -73,10 +73,10 @@ TEST(SamplerCPU, Linear) {
     }
   };
 
-  for (int iy = -1; iy <= surf.height; iy++) {
-    for (int ix = -1; ix <= surf.width; ix++) {
+  for (int iy = -1; iy <= surf.size.y; iy++) {
+    for (int ix = -1; ix <= surf.size.x; ix++) {
       Pixel ref;
-      if (ix < 0 || iy < 0 || ix >= surf.width || iy >= surf.height) {
+      if (ix < 0 || iy < 0 || ix >= surf.size.x || iy >= surf.size.y) {
         ref = border;
       } else {
         for (int c = 0; c < surf.channels; c++)
@@ -94,14 +94,14 @@ TEST(SamplerCPU, Linear) {
 
   const float epsF = 255.00006 - 255;  // 4 ULP in IEEE 32-bit float for 0-255 range
   const float eps = 0.50000025f;  // 0.5 + 4 ULP
-  for (float y = -1; y <= surf.height+2; y += 0.125f) {
+  for (float y = -1; y <= surf.size.y+2; y += 0.125f) {
     float fy = y - 0.5f;
     int iy0 = floorf(fy);
     int iy1 = iy0 + 1;
     float qy = fy - iy0;
     float py = 1 - qy;
 
-    for (float x = -1; x <= surf.width+2; x += 0.125f) {
+    for (float x = -1; x <= surf.size.x+2; x += 0.125f) {
       float fx = x - 0.5f;
       int ix0 = floorf(fx);
       int ix1 = ix0 + 1;
