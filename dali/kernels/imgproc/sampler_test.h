@@ -44,11 +44,11 @@ struct SamplerTestData {
     } else {
       surface.data = data;
     }
-    surface.width    = W;
-    surface.height   = H;
+    surface.size.x = W;
+    surface.size.y = H;
     surface.channels = C;
-    surface.pixel_stride   = C;
-    surface.row_stride     = W*C;
+    surface.strides.x = C;
+    surface.strides.y = W*C;
     surface.channel_stride = 1;
     return surface;
   }

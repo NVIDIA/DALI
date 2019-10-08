@@ -43,16 +43,46 @@ namespace kernels {
 template <int ndims>
 using Roi = Box<ndims, int>;
 
+template <int n>
+DALI_HOST_DEV
+ivec<n> shape2vec(const TensorShape<n> &shape) {
+  ivec<n> ret;
+  for (int i = 0; i < n; i++)
+    ret[n-1-i] = shape[i];
+  return ret;
+}
+
+template <int n>
+DALI_HOST_DEV
+TensorShape<n> vec2shape(const ivec<n> &shape_vec) {
+  TensorShape<n> ret;
+  for (int i = 0; i < n; i++)
+    ret[n-1-i] = shape_vec[i];
+  return ret;
+}
+
+template <int skip, int n>
+DALI_HOST_DEV
+std::enable_if_t<(skip < 0), TensorShape<n>> skip_dim(const TensorShape<n> &shape) {
+  return shape;
+}
+
+template <int skip, int n>
+DALI_HOST_DEV
+std::enable_if_t<(skip >= 0), TensorShape<n-1>> skip_dim(const TensorShape<n> &shape) {
+  static_assert(skip < n, "The dimension to be skipped must not exceed input ndim");
+  return shape_cat(shape.template first<skip>(), shape.template last<n-skip-1>());
+}
+
 namespace detail {
 
 /**
  * Create a Roi with size matching the whole image
  */
-template <int ndims, int spatial_dims = ndims - 1>
+template <int ndims, int channel_dim = ndims - 1,
+          int spatial_dims = (channel_dim >= 0 ? ndims - 1 : ndims)>
 Roi<spatial_dims> WholeImage(const TensorShape <ndims> &shape) {
-  ivec<spatial_dims> size;
-  for (size_t i = 0; i < spatial_dims; i++)
-    size[i] = shape[spatial_dims - 1 - i];
+  ivec<spatial_dims> size = shape2vec(skip_dim<channel_dim>(shape));
   return {0, size};
 }
 
