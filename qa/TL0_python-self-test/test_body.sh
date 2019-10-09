@@ -1,9 +1,7 @@
 #!/bin/bash -e
 
 test_nose() {
-    nosetests --verbose test_backend_impl.py
-    nosetests --verbose test_pipeline.py
-    for test_script in $(ls test_operator_*.py); do
+    for test_script in $(ls test_operator_*.py test_pipeline*.py test_backend_impl.py); do
         nosetests --verbose ${test_script}
     done
 }

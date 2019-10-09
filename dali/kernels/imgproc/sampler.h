@@ -61,8 +61,8 @@ struct Sampler<DALI_INTERP_NN, In> {
   DALI_HOST_DEV T at(
       int x, int y, int c,
       BorderValue border_value) const {
-    if (x < 0 || x >= surface.width ||
-        y < 0 || y >= surface.height) {
+    if (x < 0 || x >= surface.size.x ||
+        y < 0 || y >= surface.size.y) {
       return ConvertSat<T>(GetBorderChannel<In>(border_value, c));
     } else {
       return ConvertSat<T>(surface(x, y, c));
@@ -73,10 +73,8 @@ struct Sampler<DALI_INTERP_NN, In> {
   DALI_HOST_DEV T at(
       int x, int y, int c,
       BorderClamp) const {
-    x = clamp(x, 0, surface.width - 1);
-    y = clamp(y, 0, surface.height - 1);
-
-    return ConvertSat<T>(surface(x, y, c));
+    ivec2 clamped = clamp(ivec2(x, y), ivec2(0, 0), surface.size - 1);
+    return ConvertSat<T>(surface(clamped, c));
   }
 
   template <typename T = In, typename BorderValue>
@@ -113,8 +111,8 @@ struct Sampler<DALI_INTERP_NN, In> {
       T *pixel,
       int x, int y,
       BorderValue border_value) const {
-    if (x < 0 || x >= surface.width ||
-        y < 0 || y >= surface.height) {
+    if (x < 0 || x >= surface.size.x ||
+        y < 0 || y >= surface.size.y) {
       for (int c = 0; c < surface.channels; c++) {
         pixel[c] = GetBorderChannel(border_value, c);
       }
@@ -130,10 +128,9 @@ struct Sampler<DALI_INTERP_NN, In> {
       T *pixel,
       int x, int y,
       BorderClamp) const {
-    x = clamp(x, 0, surface.width - 1);
-    y = clamp(y, 0, surface.height - 1);
+    ivec2 clamped = clamp(ivec2(x, y), ivec2(0, 0), surface.size - 1);
     for (int c = 0; c < surface.channels; c++) {
-      pixel[c] = ConvertSat<T>(surface(x, y, c));
+      pixel[c] = ConvertSat<T>(surface(clamped, c));
     }
   }
 

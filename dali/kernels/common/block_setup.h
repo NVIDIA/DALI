@@ -19,7 +19,7 @@
 #include <vector>
 #include <utility>
 #include "dali/kernels/kernel.h"
-#include "dali/core/geom/vec.h"
+#include "dali/kernels/imgproc/roi.h"
 
 namespace dali {
 namespace kernels {
@@ -29,28 +29,6 @@ struct BlockDesc {
   int sample_idx;
   ivec<ndim> start, end;
 };
-
-template <int n>
-DALI_HOST_DEV
-ivec<n> shape2vec(const TensorShape<n> &shape) {
-  ivec<n> ret;
-  for (int i = 0; i < n; i++)
-    ret[n-1-i] = shape[i];
-  return ret;
-}
-
-template <int skip, int n>
-DALI_HOST_DEV
-std::enable_if_t<(skip < 0), TensorShape<n>> skip_dim(const TensorShape<n> &shape) {
-  return shape;
-}
-
-template <int skip, int n>
-DALI_HOST_DEV
-std::enable_if_t<(skip >= 0), TensorShape<n-1>> skip_dim(const TensorShape<n> &shape) {
-  static_assert(skip < n, "The dimension to be skipped must not exceed input ndim");
-  return shape_cat(shape.template first<skip>(), shape.template last<n-skip-1>());
-}
 
 /**
  * @brief A utility for calculating block layout for GPU kernels
