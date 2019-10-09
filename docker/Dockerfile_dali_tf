@@ -25,9 +25,7 @@ COPY Acknowledgements.txt .
 COPY COPYRIGHT .
 COPY LICENSE .
 COPY VERSION .
-COPY cmake cmake
-COPY dali_tf_plugin dali_tf_plugin
+COPY cmake ./cmake
+COPY dali_tf_plugin ./dali_tf_plugin
 
 WORKDIR /opt/dali/dali_tf_plugin
-
-ENTRYPOINT /bin/bash build_in_custom_op_docker.sh
