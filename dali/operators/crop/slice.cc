@@ -19,15 +19,16 @@ namespace dali {
 DALI_SCHEMA(Slice)
     .DocStr(
         R"code(Extract a subtensor or `slice` with a given shape and anchor.
- Inputs must be supplied as 3 separate tensors in a specific order: `data`
- containing input data, `anchor` containing normalize coordinates for the
- starting point of the slice (x0, x1, x2, ...), and `shape` containing the normalized
- dimensions of the slice (s0, s1, s2, ...). Both `anchor` and `shape` coordinates
- must be in the interval [0.0, 1.0] and should have as many dimensions as the input
- data. For compatibility with the previous implementation of Slice, `anchor` and
- `slice` can be specified in format (x, y) and (w, h) respectively for images.
- This way of specifying the slice arguments is deprecated and shall be removed in
- future versions of DALI.)code")
+Inputs must be supplied as 3 separate tensors in a specific order: `data`
+containing input data, `anchor` containing either normalized or absolute coordinates
+(depending on the value of `normalized_anchor`) for the starting point of the
+slice (x0, x1, x2, ...), and `shape` containing either normalized or absolute coordinates
+(depending on the value of `normalized_shape`) for the dimensions of the slice
+(s0, s1, s2, ...). Both `anchor` and `shape` coordinates must be within the interval
+[0.0, 1.0] for normalized coordinates, or within the image shape for absolute
+coordinates. Both `anchor` and `shape` inputs will provide as many dimensions as specified
+with arguments `dim_names` or `dims`. By default `Slice` operator uses normalized
+coordinates and `WH` order for the slice arguments.)code")
     .NumInput(3)
     .NumOutput(1)
     .AllowSequences()
