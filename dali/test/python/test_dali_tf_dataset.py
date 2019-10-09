@@ -89,6 +89,7 @@ def _dataset_options():
         options.experimental_optimization.autotune = False
     except:
         print('Could not set TF Dataset Options')
+        options.experimental_autotune = False
 
     return options
 
