@@ -2,4 +2,4 @@ include Acknowledgements.txt LICENSE COPYRIGHT
 include *.py
 include *.cc
 include *.h
-include *.so
+recursive-include prebuilt *.so
