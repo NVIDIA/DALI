@@ -168,7 +168,7 @@ class HsvCpu : public Hsv<CPUBackend> {
     kernels::KernelContext ctx;
     kernels::TensorListShape<> sh = input.shape();
     kernels::TensorListShape<> ret(sh.num_samples(), 3);
-    assert(sh.num_samples() == tmatrices_.size());
+    assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
     for (int i = 0; i < sh.num_samples(); i++) {
       const auto tvin = view<const InputType, 3>(input[i]);
       const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, tmatrices_[i]);
