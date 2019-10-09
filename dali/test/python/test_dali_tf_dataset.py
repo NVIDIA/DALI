@@ -82,6 +82,17 @@ class TestPipeline(Pipeline):
             im_ids_16)
 
 
+def _dataset_options():
+    options = tf.data.Options()
+    try:
+        options.experimental_optimization.apply_default_optimizations = False
+        options.experimental_optimization.autotune = False
+    except:
+        print('Could not set TF Dataset Options')
+
+    return options
+
+
 def _test_tf_dataset(device):
     skip_for_incompatible_tf()
 
@@ -107,12 +118,7 @@ def _test_tf_dataset(device):
             shapes=shapes, 
             dtypes=dtypes,
             num_threads=num_threads)
-        options = tf.data.Options()
-        options.experimental_optimization.noop_elimination = False
-        options.experimental_optimization.map_vectorization.enabled = False
-        options.experimental_optimization.apply_default_optimizations = False
-        options.experimental_optimization.autotune = False
-        daliset = daliset.with_options(options)
+        daliset = daliset.with_options(_dataset_options())
 
         iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
         next_element = iterator.get_next()
