@@ -22,27 +22,40 @@ template <typename Out, typename In>
 using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
 }  // namespace
 
+namespace hsv {
+
+const std::string kHue = "hue";                 // NOLINT
+const std::string kSaturation = "saturation";   // NOLINT
+const std::string kValue = "value";             // NOLINT
+const std::string kOutputType = "output_type";  // NOLINT
+
+}  // namespace hsv
+
 
 DALI_SCHEMA(Hsv)
-                .DocStr(R"code(This operator performs HSV manipulation.
-To change hue, saturation and/or value of the image, pass corresponding deltas.
+              .DocStr(R"code(This operator performs HSV manipulation.
+To change hue, saturation and/or value of the image, pass corresponding coefficients.
 Keep in mind, that `hue` has additive delta argument,
 while for `saturation` and `value` they are multiplicative.
 
 This operator accepts RGB color space as an input.
+
+HSV manipulation, for performance reasons, is conducted by transition
+to YIQ color space.
 )code")
-                .NumInput(1)
-                .NumOutput(1)
-                .AddOptionalArg(hsv::kHue,
-                                R"code(Set additive brightness delta. 0 denotes no-op)code", .0f,
-                                true)
-                .AddOptionalArg(hsv::kSaturation,
-                                R"code(Set multiplicative contrast delta. 1 denotes no-op)code",
-                                1.f, true)
-                .AddOptionalArg(hsv::kValue,
-                                R"code(Set multiplicative contrast delta. 1 denotes no-op)code",
-                                1.f, true)
-                .AddOptionalArg(hsv::kOutputType, R"code(Set output data type)code", DALI_UINT8);
+              .NumInput(1)
+              .NumOutput(1)
+              .AddOptionalArg(hsv::kHue,
+                              R"code(Set additive change of hue. 0 denotes no-op)code", .0f,
+                              true)
+              .AddOptionalArg(hsv::kSaturation,
+                              R"code(Set multiplicative change of saturation. 1 denotes no-op)code",
+                              1.f, true)
+              .AddOptionalArg(hsv::kValue,
+                              R"code(Set multiplicative change of value. 1 denotes no-op)code",
+                              1.f, true)
+              .AddOptionalArg(hsv::kOutputType, R"code(Set output data type)code", DALI_UINT8);
+
 
 DALI_REGISTER_OPERATOR(Hsv, HsvCpu, CPU)
 

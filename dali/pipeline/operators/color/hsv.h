@@ -31,12 +31,17 @@
 namespace dali {
 namespace hsv {
 
+/**
+ * Names of arguments
+ */
+extern const std::string kHue;
+extern const std::string kSaturation;
+extern const std::string kValue;
+extern const std::string kOutputType;
 
-const std::string kHue = "hue_delta";                // NOLINT
-const std::string kSaturation = "saturation_delta";  // NOLINT
-const std::string kValue = "value_delta";            // NOLINT
-const std::string kOutputType = "output_type";       // NOLINT
-
+/**
+ * Color space conversion
+ */
 const mat3 Rgb2Yiq = {{
                               {.299f, .587f, .114f},
                               {.596f, -.274f, -.321f},
@@ -53,7 +58,7 @@ const mat3 Yiq2Rgb = {{
 
 inline mat3 compose_hue(float hue) {
   const auto h_rad = hue * M_PI / 180;
-  mat3 ret = mat3::eye();
+  mat3 ret = mat3::eye();  // rotation matrix
   ret(1, 1) = cos(h_rad);
   ret(2, 2) = cos(h_rad);
   ret(1, 2) = -sin(h_rad);
@@ -71,22 +76,8 @@ inline mat3 compose_saturation(float saturation) {
 
 
 inline mat3 compose_value(float value) {
-  return mat3::eye() * value;
+  return mat3::diag(value);
 }
-
-
-/**
- * @brief In case the argument is provided as single-value, propagate it for entire batch
- */
-inline void repeat_argument(std::vector<float> &arg, int batch_size) {
-  assert(!arg.empty());
-  if (batch_size > 1 && arg.size() == 1) {
-    auto val = arg[0];
-    arg = std::vector<float>(batch_size, val);
-  }
-  assert(arg.size() == batch_size);
-}
-
 
 }  // namespace hsv
 
@@ -95,31 +86,28 @@ inline void repeat_argument(std::vector<float> &arg, int batch_size) {
 template <typename Backend>
 class Hsv : public Operator<Backend> {
  public:
-  explicit Hsv(const OpSpec &spec) :
-          Operator<Backend>(spec),
-          output_type_(spec.GetArgument<DALIDataType>(hsv::kOutputType)) {
-    GetSingleOrRepeatedArg(spec, hue_, hsv::kHue);
-    GetSingleOrRepeatedArg(spec, saturation_, hsv::kSaturation);
-    GetSingleOrRepeatedArg(spec, value_, hsv::kValue);
-    hsv::repeat_argument(hue_, batch_size_);
-    hsv::repeat_argument(saturation_, batch_size_);
-    hsv::repeat_argument(value_, batch_size_);
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1, 1);
-    } else {
-      kernel_manager_.Resize(num_threads_, batch_size_);
-    }
-
-    assert(hue_.size() == batch_size_);
-    assert(saturation_.size() == batch_size_);
-    assert(value_.size() == batch_size_);
-  }
-
   ~Hsv() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(Hsv);
 
  protected:
+  explicit Hsv(const OpSpec &spec) :
+          Operator<Backend>(spec),
+          output_type_(spec.GetArgument<DALIDataType>(hsv::kOutputType)) {
+    GetSingleOrRepeatedArg(spec, hue_, hsv::kHue, batch_size_);
+    GetSingleOrRepeatedArg(spec, saturation_, hsv::kSaturation, batch_size_);
+    GetSingleOrRepeatedArg(spec, value_, hsv::kValue, batch_size_);
+    if (std::is_same<Backend, GPUBackend>::value) {
+      kernel_manager_.Resize(1, 1);
+    } else {
+      kernel_manager_.Resize(num_threads_, batch_size_);
+    }
+    assert(hue_.size() == batch_size_);
+    assert(saturation_.size() == batch_size_);
+    assert(value_.size() == batch_size_);
+  }
+
+
   bool CanInferOutputs() const override {
     return true;
   }
@@ -134,14 +122,11 @@ class Hsv : public Operator<Backend> {
     using namespace hsv;  // NOLINT
     std::vector<mat3> ret;
 
-    assert(hue.size() == saturation.size());
-    assert(saturation.size() == value.size());
-
     auto size = hue.size();
     ret.resize(size);
     for (size_t i = 0; i < size; i++) {
-      ret[i] = Rgb2Yiq * compose_hue(hue[i]) * compose_saturation(saturation[i]) *
-               compose_value(value[i]) * Yiq2Rgb;
+      ret[i] = Yiq2Rgb * compose_hue(hue[i]) * compose_saturation(saturation[i]) *
+               compose_value(value[i]) * Rgb2Yiq;
     }
     return ret;
   }
@@ -182,15 +167,15 @@ class HsvCpu : public Hsv<CPUBackend> {
   kernels::TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input, int instance_idx) {
     kernels::KernelContext ctx;
     kernels::TensorListShape<> sh = input.shape();
-    std::vector<kernels::TensorShape<>> shapes;
-    shapes.resize(sh.num_samples());
-    for (size_t i = 0; i < shapes.size(); i++) {
+    kernels::TensorListShape<> ret(sh.num_samples(), 3);
+    assert(sh.num_samples() == tmatrices_.size());
+    for (int i = 0; i < sh.num_samples(); i++) {
       const auto tvin = view<const InputType, 3>(input[i]);
       const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, tmatrices_[i]);
-      kernels::TensorListShape<> out_sh = reqs.output_shapes[0];
-      shapes[i] = out_sh.tensor_shape(0);
+      const kernels::TensorListShape<> &out_sh = reqs.output_shapes[0];
+      ret.set_tensor_shape(i, out_sh.tensor_shape(0));
     }
-    return {shapes};
+    return ret;
   }
 };
 
