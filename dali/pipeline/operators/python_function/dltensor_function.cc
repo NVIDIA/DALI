@@ -19,13 +19,25 @@ namespace dali {
 
 DALI_SCHEMA(DLTensorPythonFunctionImpl)
     .AddParent("PythonFunctionImplBase")
+    .AddOptionalArg("synchronize_stream", "", true)
     .NumInput(0, 256)
     .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
     .MakeInternal();
 
 DALI_SCHEMA(DLTensorPythonFunction)
     .AddParent("PythonFunctionBase")
-    .DocStr("Execute a python function that operates on DLPack tensors.")
+    .AddOptionalArg("synchronize_stream",
+        R"code(Make DALI synchronize its CUDA stream before calling the python function.
+Should be set to false only if the called function schedules the device job
+to the stream used by DALI.)code", true)
+    .DocStr(R"code(Execute a python function that operates on DLPack tensors.
+In case of the GPU operator it is a user's responsibility to synchronize the device code with DALI.
+This can be accomplished by synchronizing DALI's work before the operator call
+with the `synchronize_stream` flag (true by default) and then making sure
+the scheduled device tasks are finished within the operator call.
+Alternatively, the gpu code can be done on the DALI's stream
+which may be determined by calling the `current_dali_stream()` function.
+In this case, the `synchronize_stream` flag can be set to false.')code")
     .NumInput(0, 256)
     .NoPrune();
 
@@ -69,36 +81,22 @@ kernels::TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>&
 }
 
 template <>
-void CopyDLTensorOutputs<CPUBackend>(HostWorkspace &ws, py::tuple &return_tuple, int batch_size) {
-  for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
-    py::list dl_list = py::cast<py::list>(return_tuple[idx]);
-    auto dl_tensors = CastToDLTensorList<CPUBackend>(dl_list, batch_size, idx);
-    if (dl_tensors.empty()) continue;
-    auto &tvec = ws.OutputRef<CPUBackend>(idx);
-    tvec.set_type(TypeTable::GetTypeInfo(DLToDALIType(dl_tensors[0]->dl_tensor.dtype)));
-    tvec.Resize(GetDLTensorListShape(dl_tensors));
-    auto &thread_pool = ws.GetThreadPool();
-    for (int i = 0; i < batch_size; ++i) {
-      thread_pool.DoWorkWithID([&, i](int) {
-        CopyDlTensor<CPUBackend>(tvec[i].raw_mutable_data(), dl_tensors[i]);
-      });
-    }
-    thread_pool.WaitForWork();
+void CopyOutputData(TensorVector<CPUBackend> &output, std::vector<DLMTensorPtr> &dl_tensors,
+                   int batch_size, HostWorkspace &workspace) {
+  auto &thread_pool = workspace.GetThreadPool();
+  for (int i = 0; i < batch_size; ++i) {
+    thread_pool.DoWorkWithID([&, i](int) {
+      CopyDlTensor<CPUBackend>(output[i].raw_mutable_data(), dl_tensors[i]);
+    });
   }
+  thread_pool.WaitForWork();
 }
 
 template <>
-void CopyDLTensorOutputs<GPUBackend>(DeviceWorkspace &ws, py::tuple &return_tuple, int batch_size) {
-  for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
-    py::list dl_list = py::cast<py::list>(return_tuple[idx]);
-    auto dl_tensors = CastToDLTensorList<GPUBackend>(dl_list, batch_size, idx);
-    if (dl_tensors.empty()) continue;
-    auto &tlist = ws.OutputRef<GPUBackend>(idx);
-    tlist.set_type(TypeTable::GetTypeInfo(DLToDALIType(dl_tensors[0]->dl_tensor.dtype)));
-    tlist.Resize(GetDLTensorListShape(dl_tensors));
-    for (int i = 0; i < batch_size; ++i) {
-      CopyDlTensor<GPUBackend>(tlist.raw_mutable_tensor(i), dl_tensors[i], ws.stream());
-    }
+void CopyOutputData(TensorList<GPUBackend>& output, std::vector<DLMTensorPtr> &dl_tensors,
+                    int batch_size, DeviceWorkspace &workspace) {
+  for (int i = 0; i < batch_size; ++i) {
+    CopyDlTensor<GPUBackend>(output.raw_mutable_tensor(i), dl_tensors[i], workspace.stream());
   }
 }
 

@@ -53,9 +53,10 @@ class LoadingPipeline(CommonPipeline):
 
 
 class DLTensorOpPipeline(CommonPipeline):
-    def __init__(self, function, device):
+    def __init__(self, function, device, synchronize=True):
         super(DLTensorOpPipeline, self).__init__(device)
-        self.op = ops.DLTensorPythonFunction(function=function, device=device, num_outputs=2)
+        self.op = ops.DLTensorPythonFunction(function=function, device=device, num_outputs=2,
+                                             synchronize_stream=synchronize)
 
     def define_graph(self):
         im = self.load()
@@ -215,12 +216,14 @@ def cupy_adapter_sync(fun, in1, in2):
     cupy_stream.synchronize()
     return out1, out2
 
+
 def cupy_adapter(fun, in1, in2):
     tin1 = [cupy.fromDlpack(dltensor) for dltensor in in1]
     tin2 = [cupy.fromDlpack(dltensor) for dltensor in in2]
     tout1, tout2 = fun(tin1, tin2)
     return [tout.toDlpack() for tout in tout1], \
            [tout.toDlpack() for tout in tout2]
+
 
 def cupy_wrapper(fun, synchronize):
     if synchronize:
@@ -231,7 +234,7 @@ def cupy_wrapper(fun, synchronize):
 
 def cupy_case(fun, synchronize=True):
     load_pipe = LoadingPipeline('gpu')
-    op_pipe = DLTensorOpPipeline(cupy_wrapper(fun, synchronize), 'gpu')
+    op_pipe = DLTensorOpPipeline(cupy_wrapper(fun, synchronize), 'gpu', synchronize)
 
     load_pipe.build()
     op_pipe.build()
@@ -249,8 +252,8 @@ def cupy_case(fun, synchronize=True):
         for i in range(BATCH_SIZE):
             assert post1.at(i).shape == cupy_post1[i].shape
             assert post2.at(i).shape == cupy_post2[i].shape
-            assert numpy.allclose(post1.at(i), cupy.asnumpy(cupy_post1[i]), atol=0.0001)
-            assert numpy.allclose(post2.at(i), cupy.asnumpy(cupy_post2[i]), atol=0.0001)
+            assert numpy.array_equal(post1.at(i), cupy.asnumpy(cupy_post1[i]))
+            assert numpy.array_equal(post2.at(i), cupy.asnumpy(cupy_post2[i]))
 
 
 def cupy_simple(in1, in2):

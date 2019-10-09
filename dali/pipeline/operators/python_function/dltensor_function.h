@@ -85,8 +85,45 @@ void CopyDlTensor(void *out_data, DLMTensorPtr &dlm_tensor_ptr, cudaStream_t str
 template <typename Backend>
 py::list PrepareDLTensorInputs(workspace_t<Backend> &ws);
 
+template <typename Workspace, typename Output>
+void CopyOutputData(Output& output, std::vector<DLMTensorPtr> &dl_tensors,
+                    int batch_size, Workspace &workspace);
+
 template <typename Backend>
-void CopyDLTensorOutputs(workspace_t<Backend> &ws, py::tuple &return_tuple, int batch_size);
+void PrepareOutputs(workspace_t<Backend> &ws, py::tuple &return_tuple, int batch_size) {
+  for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
+    py::list dl_list = py::cast<py::list>(return_tuple[idx]);
+    auto dl_tensors = CastToDLTensorList<Backend>(dl_list, batch_size, idx);
+    if (dl_tensors.empty()) continue;
+    auto &tlist = ws.template OutputRef<Backend>(idx);
+    tlist.set_type(TypeTable::GetTypeInfo(DLToDALIType(dl_tensors[0]->dl_tensor.dtype)));
+    tlist.Resize(GetDLTensorListShape(dl_tensors));
+    CopyOutputData(tlist, dl_tensors, batch_size, ws);
+  }
+}
+
+template <typename Backend>
+class StreamSynchronizer;
+
+template <>
+class StreamSynchronizer<GPUBackend> {
+ public:
+  StreamSynchronizer(cudaStream_t current, bool synchronize): previous_(GetCurrentStream()) {
+    SetCurrentStream(current);
+    if (synchronize) cudaStreamSynchronize(current);
+  }
+
+  ~StreamSynchronizer() {
+    SetCurrentStream(previous_);
+  }
+ private:
+  cudaStream_t previous_;
+};
+
+template <>
+class StreamSynchronizer<CPUBackend> {
+  StreamSynchronizer(cudaStream_t current, bool synchronize) {}
+};
 
 }  // namespace detail
 
@@ -94,7 +131,9 @@ template <typename Backend>
 class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
  public:
   inline explicit DLTensorPythonFunctionImpl(const OpSpec &spec)
-    : PythonFunctionImplBase<Backend>(spec) {}
+    : PythonFunctionImplBase<Backend>(spec) {
+    synchronize_stream_ = spec.GetArgument<bool>("synchronize_stream");
+  }
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
@@ -106,17 +145,14 @@ class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
     py::gil_scoped_acquire interpreter_guard{};
     py::object output_o;
     try {
-      if (std::is_same<Backend, GPUBackend>::value) {
-        cudaStreamSynchronize(ws.stream());
-        SetCurrentStream(ws.stream());
-      }
+      detail::StreamSynchronizer<Backend> sync(ws.stream(), synchronize_stream_);
       output_o = python_function(*detail::PrepareDLTensorInputs<Backend>(ws));
     } catch(const py::error_already_set &e) {
       throw std::runtime_error(to_string("DLTensorPythonFunction error: ") + to_string(e.what()));
     }
     if (!output_o.is_none()) {
       py::tuple output = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
-      detail::CopyDLTensorOutputs<Backend>(ws, output, batch_size_);
+      detail::PrepareOutputs<Backend>(ws, output, batch_size_);
     } else {
       DALI_ENFORCE(ws.NumOutput() == 0, "Python function returned 0 outputs and "
           + std::to_string(ws.NumOutput()) + " were expected.");
@@ -126,6 +162,8 @@ class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
   using PythonFunctionImplBase<Backend>::python_function;
+
+  bool synchronize_stream_;
 };
 
 }  // namespace dali

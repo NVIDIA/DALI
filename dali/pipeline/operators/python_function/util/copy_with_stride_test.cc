@@ -27,21 +27,33 @@ TEST(CopyWithStrideTest, OneDim) {
 }
 
 TEST(CopyWithStrideTest, TwoDims)  {
-  size_t data[] = {11, 12, 13, 14, 21, 22, 23, 24, 31, 32, 33, 34, 41, 42, 43, 44};
+  size_t data[] = {11, 12, 13, 14,
+                   21, 22, 23, 24,
+                   31, 32, 33, 34,
+                   41, 42, 43, 44};
   std::array<size_t, 8> out;
   Index stride[] = {8 * sizeof(size_t), sizeof(size_t)};
   Index shape[] = {2, 4};
   CopyWithStride<CPUBackend>(out.data(), data, stride, shape, 2, sizeof(size_t));
-  ASSERT_TRUE((out == std::array<size_t, 8>{11, 12, 13, 14, 31, 32, 33, 34}));
+  ASSERT_TRUE((out == std::array<size_t, 8>{11, 12, 13, 14,
+                                            31, 32, 33, 34}));
 }
 
 TEST(CopyWithStrideTest, SimpleCopy) {
-  uint8 data[] = {1, 2, 3, 4, 5, 6, 7, 8};
+  uint8 data[] = {1, 2,
+                  3, 4,
+
+                  5, 6,
+                  7, 8};
   std::array<uint8, 8> out;
   Index stride[] = {4, 2, 1};
   Index shape[] = {2, 2, 2};
   CopyWithStride<CPUBackend>(out.data(), data, stride, shape, 3, 1);
-  ASSERT_TRUE((out == std::array<uint8, 8>{1, 2, 3, 4, 5, 6, 7, 8}));
+  ASSERT_TRUE((out == std::array<uint8, 8>{1, 2,
+                                           3, 4,
+
+                                           5, 6,
+                                           7, 8}));
 }
 
 TEST(CopyWithStrideTest, OneDimGPU) {
@@ -60,7 +72,10 @@ TEST(CopyWithStrideTest, OneDimGPU) {
 }
 
 TEST(CopyWithStrideTest, TwoDimsGPU) {
-  size_t h_data[] = {11, 12, 13, 14, 21, 22, 23, 24, 31, 32, 33, 34, 41, 42, 43, 44};
+  size_t h_data[] = {11, 12, 13, 14,
+                     21, 22, 23, 24,
+                     31, 32, 33, 34,
+                     41, 42, 43, 44};
   Index stride[] = {8 * sizeof(size_t), sizeof(size_t)};
   Index shape[] = {2, 4};
   size_t *data;
@@ -71,11 +86,16 @@ TEST(CopyWithStrideTest, TwoDimsGPU) {
   CopyWithStride<GPUBackend>(out, data, stride, shape, 2, sizeof(size_t));
   std::array<size_t , 8> h_out;
   cudaMemcpy(h_out.data(), out, 8 * sizeof(size_t), cudaMemcpyDeviceToHost);
-  ASSERT_TRUE((h_out == std::array<size_t, 8>{11, 12, 13, 14, 31, 32, 33, 34}));
+  ASSERT_TRUE((h_out == std::array<size_t, 8>{11, 12, 13, 14,
+                                              31, 32, 33, 34}));
 }
 
 TEST(CopyWithStrideTest, SimpleCopyGPU) {
-  uint8 h_data[] = {1, 2, 3, 4, 5, 6, 7, 8};
+  uint8 h_data[] = {1, 2,
+                    3, 4,
+
+                    5, 6,
+                    7, 8};
   Index stride[] = {4, 2, 1};
   Index shape[] = {2, 2, 2};
   uint8 *data;
@@ -86,7 +106,11 @@ TEST(CopyWithStrideTest, SimpleCopyGPU) {
   CopyWithStride<GPUBackend>(out, data, stride, shape, 3, sizeof(uint8));
   std::array<uint8 , 8> h_out;
   cudaMemcpy(h_out.data(), out, 8 * sizeof(uint8), cudaMemcpyDeviceToHost);
-  ASSERT_TRUE((h_out == std::array<uint8, 8>{1, 2, 3, 4, 5, 6, 7, 8}));
+  ASSERT_TRUE((h_out == std::array<uint8, 8>{1, 2,
+                                             3, 4,
+
+                                             5, 6,
+                                             7, 8}));
 }
 
 }  // namespace dali

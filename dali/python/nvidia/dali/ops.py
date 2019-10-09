@@ -541,10 +541,12 @@ class DLTensorPythonFunction(PythonFunctionBase):
     global _gpu_ops
     _gpu_ops = _gpu_ops.union({'DLTensorPythonFunction'})
 
-    def __init__(self, function, num_outputs=1, device='cpu', **kwargs):
+    def __init__(self, function, num_outputs=1, device='cpu', synchronize_stream=True, **kwargs):
         super(DLTensorPythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
                                                      function=function, num_outputs=num_outputs,
-                                                     device=device, **kwargs)
+                                                     device=device,
+                                                     synchronize_stream=synchronize_stream,
+                                                     **kwargs)
 
 
 def cpu_ops():
