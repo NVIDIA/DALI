@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(arithmetic)
 add_subdirectory(color)
 add_subdirectory(color_space)
 add_subdirectory(crop)
 add_subdirectory(decoder)
 add_subdirectory(detection)
 add_subdirectory(displacement)
+add_subdirectory(expressions)
 add_subdirectory(fused)
 add_subdirectory(geometric)
 if (BUILD_NVOF)

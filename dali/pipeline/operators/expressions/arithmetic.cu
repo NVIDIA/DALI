@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/kernels/type_tag.h"
-#include "dali/pipeline/operators/arithmetic/arithmetic.h"
+#include "dali/pipeline/operators/expressions/arithmetic.h"
 
 namespace dali {
 

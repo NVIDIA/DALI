@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_ARITHMETIC_ARITHMETIC_H_
-#define DALI_PIPELINE_OPERATORS_ARITHMETIC_ARITHMETIC_H_
+#ifndef DALI_PIPELINE_OPERATORS_EXPRESSIONS_ARITHMETIC_H_
+#define DALI_PIPELINE_OPERATORS_EXPRESSIONS_ARITHMETIC_H_
 
 #include <limits>
 #include <memory>
@@ -26,8 +26,8 @@
 #include "dali/kernels/tensor_shape.h"
 #include "dali/kernels/tensor_shape_print.h"
 #include "dali/kernels/type_tag.h"
-#include "dali/pipeline/operators/arithmetic/arithmetic_meta.h"
-#include "dali/pipeline/operators/arithmetic/expression_impl_factory.h"
+#include "dali/pipeline/operators/expressions/arithmetic_meta.h"
+#include "dali/pipeline/operators/expressions/expression_impl_factory.h"
 #include "dali/pipeline/operators/operator.h"
 
 namespace dali {
@@ -277,4 +277,4 @@ class ArithmeticGenericOp : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_ARITHMETIC_ARITHMETIC_H_
+#endif  // DALI_PIPELINE_OPERATORS_EXPRESSIONS_ARITHMETIC_H_

@@ -14,11 +14,11 @@
 
 #include <memory>
 
-#include "dali/pipeline/operators/arithmetic/expression_tree.h"
-#include "dali/pipeline/operators/arithmetic/arithmetic_meta.h"
+#include "dali/pipeline/operators/expressions/expression_tree.h"
+#include "dali/pipeline/operators/expressions/arithmetic_meta.h"
 #include "dali/core/static_switch.h"
-#include "dali/pipeline/operators/arithmetic/expression_impl_gpu.cuh"
-#include "dali/pipeline/operators/arithmetic/expression_impl_factory.h"
+#include "dali/pipeline/operators/expressions/expression_impl_gpu.cuh"
+#include "dali/pipeline/operators/expressions/expression_impl_factory.h"
 
 // float16
 #define ALLOWED_TYPES \

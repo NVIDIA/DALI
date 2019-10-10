@@ -14,7 +14,7 @@
 
 #include <vector>
 
-#include "dali/pipeline/operators/arithmetic/arithmetic.h"
+#include "dali/pipeline/operators/expressions/arithmetic.h"
 #include "dali/kernels/type_tag.h"
 
 namespace dali {

@@ -20,8 +20,8 @@
 
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/operators/arithmetic/arithmetic.h"
-#include "dali/pipeline/operators/arithmetic/arithmetic_meta.h"
+#include "dali/pipeline/operators/expressions/arithmetic.h"
+#include "dali/pipeline/operators/expressions/arithmetic_meta.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_operator_test.h"
 

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_ARITHMETIC_EXPRESSION_TREE_H_
-#define DALI_PIPELINE_OPERATORS_ARITHMETIC_EXPRESSION_TREE_H_
+#ifndef DALI_PIPELINE_OPERATORS_EXPRESSIONS_EXPRESSION_TREE_H_
+#define DALI_PIPELINE_OPERATORS_EXPRESSIONS_EXPRESSION_TREE_H_
 
 #include <memory>
 #include <string>
@@ -23,7 +23,7 @@
 
 #include "dali/core/any.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/operators/arithmetic/arithmetic_meta.h"
+#include "dali/pipeline/operators/expressions/arithmetic_meta.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
 
@@ -248,4 +248,4 @@ DLL_PUBLIC std::unique_ptr<ExprNode> ParseExpressionString(const std::string &ex
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_ARITHMETIC_EXPRESSION_TREE_H_
+#endif  // DALI_PIPELINE_OPERATORS_EXPRESSIONS_EXPRESSION_TREE_H_

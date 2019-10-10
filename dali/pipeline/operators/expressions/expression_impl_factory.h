@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_ARITHMETIC_EXPRESSION_IMPL_FACTORY_H_
-#define DALI_PIPELINE_OPERATORS_ARITHMETIC_EXPRESSION_IMPL_FACTORY_H_
+#ifndef DALI_PIPELINE_OPERATORS_EXPRESSIONS_EXPRESSION_IMPL_FACTORY_H_
+#define DALI_PIPELINE_OPERATORS_EXPRESSIONS_EXPRESSION_IMPL_FACTORY_H_
 
 #include <map>
 #include <memory>
@@ -23,8 +23,8 @@
 
 #include "dali/core/any.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/operators/arithmetic/arithmetic_meta.h"
-#include "dali/pipeline/operators/arithmetic/expression_tree.h"
+#include "dali/pipeline/operators/expressions/arithmetic_meta.h"
+#include "dali/pipeline/operators/expressions/expression_tree.h"
 #include "dali/pipeline/operators/op_spec.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
@@ -116,4 +116,4 @@ struct ExprImplCache {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_ARITHMETIC_EXPRESSION_IMPL_FACTORY_H_
+#endif  // DALI_PIPELINE_OPERATORS_EXPRESSIONS_EXPRESSION_IMPL_FACTORY_H_

@@ -19,9 +19,9 @@
 
 #include "dali/core/format.h"
 #include "dali/core/static_switch.h"
-#include "dali/pipeline/operators/arithmetic/arithmetic_meta.h"
-#include "dali/pipeline/operators/arithmetic/expression_impl_cpu.h"
-#include "dali/pipeline/operators/arithmetic/expression_tree.h"
+#include "dali/pipeline/operators/expressions/arithmetic_meta.h"
+#include "dali/pipeline/operators/expressions/expression_impl_cpu.h"
+#include "dali/pipeline/operators/expressions/expression_tree.h"
 
 namespace dali {
 
