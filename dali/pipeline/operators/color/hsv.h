@@ -107,9 +107,9 @@ class Hsv : public Operator<Backend> {
     } else {
       kernel_manager_.Resize(num_threads_, batch_size_);
     }
-    assert(hue_.size() == batch_size_);
-    assert(saturation_.size() == batch_size_);
-    assert(value_.size() == batch_size_);
+    assert(hue_.size() == static_cast<size_t>(batch_size_));
+    assert(saturation_.size() == static_cast<size_t>(batch_size_));
+    assert(value_.size() == static_cast<size_t>(batch_size_));
   }
 
 
