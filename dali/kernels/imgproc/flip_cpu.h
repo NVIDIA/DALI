@@ -20,18 +20,18 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
-#include "dali/pipeline/data/types.h"
 
 namespace dali {
 namespace kernels {
 namespace detail {
 namespace cpu {
 
-inline int GetOcvType(const TypeInfo &type, size_t channels) {
-  if (channels * type.size() > CV_CN_MAX) {
+template <typename Type>
+inline int GetOcvType(size_t channels) {
+  if (channels * sizeof(Type) > CV_CN_MAX) {
     DALI_FAIL("Pixel size must not be greater than " + std::to_string(CV_CN_MAX) + " bytes.");
   }
-  return CV_8UC(type.size() * channels);
+  return CV_MAKE_TYPE(cv::DataType<Type>::type, channels);
 }
 
 template <typename Type>
@@ -44,7 +44,8 @@ void OcvFlip(Type *output, const Type *input,
     flip_flag = 1;
   else if (!flip_x)
     flip_flag = 0;
-  auto ocv_type = GetOcvType(TypeInfo::Create<Type>(), channels);
+  // coerce data to uint8_t - flip won't look at the type anyway
+  auto ocv_type = GetOcvType<uint8_t>(channels * sizeof(Type));
   size_t layer_size = height * width * channels;
   for (size_t layer = 0; layer < layers; ++layer) {
     auto output_layer = flip_z ? layers - layer - 1 : layer;
