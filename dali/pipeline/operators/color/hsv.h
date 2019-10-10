@@ -56,7 +56,10 @@ const mat3 Yiq2Rgb = {{
                       }};
 
 
-inline mat3 compose_hue(float hue /* hue hue hue */ ) {
+/**
+ * Composes transformation matrix for hue
+ */
+inline mat3 hue_mat(float hue /* hue hue hue */ ) {
   const auto h_rad = hue * M_PI / 180;
   mat3 ret = mat3::eye();  // rotation matrix
   // Hue change in YIQ color space is a rotation along the Y axis
@@ -67,7 +70,11 @@ inline mat3 compose_hue(float hue /* hue hue hue */ ) {
   return ret;
 }
 
-inline mat3 compose_saturation(float saturation) {
+
+/**
+ * Composes transformation matrix for saturation
+ */
+inline mat3 sat_mat(float saturation) {
   mat3 ret = mat3::eye();
   // In the YIQ color space, saturation change is a
   // uniform scaling in IQ dimensions
@@ -77,7 +84,10 @@ inline mat3 compose_saturation(float saturation) {
 }
 
 
-inline mat3 compose_value(float value) {
+/**
+ * Composes transformation matrix for value
+ */
+inline mat3 val_mat(float value) {
   // In the YIQ color space, value change is a
   // uniform scaling across all dimensions
   return mat3::diag(value);
@@ -88,28 +98,21 @@ inline mat3 compose_value(float value) {
 
 
 template <typename Backend>
-class Hsv : public Operator<Backend> {
+class HsvOp : public Operator<Backend> {
  public:
-  ~Hsv() override = default;
+  ~HsvOp() override = default;
 
-  DISABLE_COPY_MOVE_ASSIGN(Hsv);
+  DISABLE_COPY_MOVE_ASSIGN(HsvOp);
 
  protected:
-  explicit Hsv(const OpSpec &spec) :
+  explicit HsvOp(const OpSpec &spec) :
           Operator<Backend>(spec),
           output_type_(spec.GetArgument<DALIDataType>(hsv::kOutputType)) {
-    GetSingleOrRepeatedArg(spec, hue_, hsv::kHue, batch_size_);
-    GetSingleOrRepeatedArg(spec, saturation_, hsv::kSaturation, batch_size_);
-    GetSingleOrRepeatedArg(spec, value_, hsv::kValue, batch_size_);
-    tmatrices_ = determine_transformation(hue_, saturation_, value_);
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
       kernel_manager_.Resize(num_threads_, batch_size_);
     }
-    assert(hue_.size() == static_cast<size_t>(batch_size_));
-    assert(saturation_.size() == static_cast<size_t>(batch_size_));
-    assert(value_.size() == static_cast<size_t>(batch_size_));
   }
 
 
@@ -132,13 +135,13 @@ class Hsv : public Operator<Backend> {
   determine_transformation(const std::vector<float> &hue, const std::vector<float> &saturation,
                            const std::vector<float> &value) const {
     using namespace hsv;  // NOLINT
+    assert(hue.size() == saturation.size() && hue.size() == value.size());
     std::vector<mat3> ret;
 
     auto size = hue.size();
     ret.resize(size);
     for (size_t i = 0; i < size; i++) {
-      ret[i] = Yiq2Rgb * compose_hue(hue[i]) * compose_saturation(saturation[i]) *
-               compose_value(value[i]) * Rgb2Yiq;
+      ret[i] = Yiq2Rgb * hue_mat(hue[i]) * sat_mat(saturation[i]) * val_mat(value[i]) * Rgb2Yiq;
     }
     return ret;
   }
@@ -175,10 +178,9 @@ class Hsv : public Operator<Backend> {
 };
 
 
-
-class HsvCpu : public Hsv<CPUBackend> {
+class HsvCpu : public HsvOp<CPUBackend> {
  public:
-  explicit HsvCpu(const OpSpec &spec) : Hsv(spec) {}
+  explicit HsvCpu(const OpSpec &spec) : HsvOp(spec) {}
 
   /*
    * So that compiler wouldn't complain, that
@@ -215,10 +217,9 @@ class HsvCpu : public Hsv<CPUBackend> {
 };
 
 
-
-class HsvGpu : public Hsv<GPUBackend> {
+class HsvGpu : public HsvOp<GPUBackend> {
  public:
-  explicit HsvGpu(const OpSpec &spec) : Hsv(spec) {}
+  explicit HsvGpu(const OpSpec &spec) : HsvOp(spec) {}
 
   ~HsvGpu() override = default;
 
