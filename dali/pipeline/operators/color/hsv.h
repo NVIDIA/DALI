@@ -70,7 +70,7 @@ inline mat3 compose_hue(float hue /* hue hue hue */ ) {
 inline mat3 compose_saturation(float saturation) {
   mat3 ret = mat3::eye();
   // In the YIQ color space, saturation change is a
-  // homothetic transformation in IQ dimensions
+  // uniform scaling in IQ dimensions
   ret(1, 1) = saturation;
   ret(2, 2) = saturation;
   return ret;
@@ -79,7 +79,7 @@ inline mat3 compose_saturation(float saturation) {
 
 inline mat3 compose_value(float value) {
   // In the YIQ color space, value change is a
-  // homothetic transformation across all dimensions
+  // uniform scaling across all dimensions
   return mat3::diag(value);
 }
 

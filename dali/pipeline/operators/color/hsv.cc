@@ -40,8 +40,10 @@ while for `saturation` and `value` they are multiplicative.
 
 This operator accepts RGB color space as an input.
 
-HSV manipulation, for performance reasons, is conducted by transition
-to YIQ color space.
+For performance reasons, the operation is approximated by a linear transform in RGB space.
+The color vector is projected along the neutral (gray) axis,
+rotated (according to hue delta) and scaled according to value and saturation multiplers,
+and then restored to original color space.
 )code")
               .NumInput(1)
               .NumOutput(1)
@@ -60,8 +62,7 @@ to YIQ color space.
 DALI_REGISTER_OPERATOR(Hsv, HsvCpu, CPU)
 
 
-bool
-HsvCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
+bool HsvCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   const auto &output = ws.template OutputRef<CPUBackend>(0);
   output_desc.resize(1);
