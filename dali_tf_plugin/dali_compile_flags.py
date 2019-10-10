@@ -17,30 +17,36 @@ def get_module_path(module_name):
 def get_dali_build_flags():
     dali_cflags = ''
     dali_lflags = ''
+    dali_include_flags = ''
     try:
         import nvidia.dali.sysconfig as dali_sc
         dali_lib_path = dali_sc.get_lib_dir()
+        dali_include_flags=" ".join(dali_sc.get_include_flags())
         dali_cflags=" ".join(dali_sc.get_compile_flags())
         dali_lflags=" ".join(dali_sc.get_link_flags())
     except:
         dali_path = get_module_path('nvidia/dali')
         if dali_path is not '':
+            dali_include_flags=" ".join(["-I" + dali_path + "/include"])
             dali_cflags=" ".join(["-I" + dali_path + "/include", "-D_GLIBCXX_USE_CXX11_ABI=0"])
             dali_lflags=" ".join(["-L" + dali_path, "-ldali"])
-    if dali_cflags is '' and dali_lflags is '':
+    if dali_include_flags is '' and dali_cflags is '' and dali_lflags is '':
         raise ImportError('Could not find DALI.')
-    return (dali_cflags, dali_lflags)
-
+    return (dali_include_flags, dali_cflags, dali_lflags)
 
 
 parser = argparse.ArgumentParser(description='DALI TF plugin compile flags')
+parser.add_argument('--include_flags', dest='include_flags', action='store_true')
 parser.add_argument('--cflags', dest='cflags', action='store_true')
 parser.add_argument('--lflags', dest='lflags', action='store_true')
 args = parser.parse_args()
 
-cflags, lflags = get_dali_build_flags()
+include_flags, cflags, lflags = get_dali_build_flags()
 
 flags = []
+
+if args.include_flags:
+    flags = flags + [include_flags]
 
 if args.cflags:
     flags = flags + [cflags]

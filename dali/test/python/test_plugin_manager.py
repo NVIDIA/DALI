@@ -68,6 +68,7 @@ class CustomPipeline(Pipeline):
 class TestLoadedPlugin(unittest.TestCase):
     def test_sysconfig_provides_non_empty_flags(self):
         import nvidia.dali.sysconfig as dali_sysconfig
+        assert "" != dali_sysconfig.get_include_flags()
         assert "" != dali_sysconfig.get_compile_flags()
         assert "" != dali_sysconfig.get_link_flags()
         assert "" != dali_sysconfig.get_include_dir()
