@@ -101,6 +101,7 @@ class Hsv : public Operator<Backend> {
     GetSingleOrRepeatedArg(spec, hue_, hsv::kHue, batch_size_);
     GetSingleOrRepeatedArg(spec, saturation_, hsv::kSaturation, batch_size_);
     GetSingleOrRepeatedArg(spec, value_, hsv::kValue, batch_size_);
+    tmatrices_ = determine_transformation(hue_, saturation_, value_);
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
