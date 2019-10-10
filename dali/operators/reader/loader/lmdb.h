@@ -152,17 +152,17 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     }
   }
 
-  void MapIndexToFile(Index index, Index* file_index, Index* local_index) {
+  void MapIndexToFile(Index index, Index& file_index, Index& local_index) {
     DALI_ENFORCE(index >= 0 && index < offsets_[db_paths_.size()]);
-    *file_index = find_lower_bound(offsets_, index);
-    *local_index = index - offsets_[*file_index];
+    file_index = find_lower_bound(offsets_, index);
+    local_index = index - offsets_[file_index];
   }
 
   void ReadSample(Tensor<CPUBackend>& tensor) override {
     // assume cursor is valid, read next, loop to start if necessary
 
     Index file_index, local_index;
-    MapIndexToFile(current_index_, &file_index, &local_index);
+    MapIndexToFile(current_index_, file_index, local_index);
 
     MDB_val key, value;
     mdb_[file_index].SeekByIndex(local_index, &key, &value);
@@ -219,7 +219,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       current_index_ = 0;
     }
     Index file_index, local_index;
-    MapIndexToFile(current_index_, &file_index, &local_index);
+    MapIndexToFile(current_index_, file_index, local_index);
 
     mdb_[file_index].SeekByIndex(local_index);
   }
