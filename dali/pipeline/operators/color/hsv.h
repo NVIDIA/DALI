@@ -56,7 +56,7 @@ const mat3 Yiq2Rgb = {{
                       }};
 
 
-inline mat3 compose_hue(float hue) {
+inline mat3 compose_hue(float hue /* hue hue hue */ ) {
   const auto h_rad = hue * M_PI / 180;
   mat3 ret = mat3::eye();  // rotation matrix
   ret(1, 1) = cos(h_rad);
