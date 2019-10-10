@@ -17,7 +17,6 @@
 #include <random>
 #include <vector>
 #include "dali/kernels/imgproc/flip_test.h"
-#include "dali/pipeline/data/tensor.h"
 #include "dali/kernels/test/test_tensors.h"
 #include "dali/kernels/test/tensor_test_utils.h"
 
