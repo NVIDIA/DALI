@@ -28,8 +28,16 @@ test_data_root = os.environ['DALI_EXTRA_PATH']
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
+
+def tensorflow_minor_version():
+    return tf.__version__.split('.')[1]
+
+def compatible_tensorflow():
+    return tensorflow_minor_version() in {'13', '14'}
+
+
 def skip_for_incompatible_tf():
-    if tf.__version__.split('.')[1] not in {'13', '14'}:
+    if not compatible_tensorflow():
         raise SkipTest('This feature is enabled for TF 1.13 and 1.14 only')
 
 
@@ -64,6 +72,7 @@ class TestPipeline(Pipeline):
             device = device,
             dtype = types.INT16)
 
+
     def define_graph(self):
         inputs, _, _, im_ids = self.input()
         images = self.decode(inputs)
@@ -86,10 +95,13 @@ def _dataset_options():
     options = tf.data.Options()
     try:
         options.experimental_optimization.apply_default_optimizations = False
-        options.experimental_optimization.autotune = False
+
+        if tensorflow_minor_version() == '14':
+            options.experimental_optimization.autotune = False
+        elif tensorflow_minor_version() == '13':
+            options.experimental_autotune = False    
     except:
         print('Could not set TF Dataset Options')
-        options.experimental_autotune = False
 
     return options
 
@@ -125,8 +137,7 @@ def _test_tf_dataset(device):
         next_element = iterator.get_next()
 
         with tf.compat.v1.Session() as sess:
-            sess.run(tf.compat.v1.global_variables_initializer())
-            sess.run(iterator.initializer)
+            sess.run([tf.compat.v1.global_variables_initializer(), iterator.initializer])
             for _ in range(epochs):
                 dataset_results.append(sess.run(next_element))
 
@@ -145,6 +156,7 @@ def _test_tf_dataset(device):
         for dataset_out, standalone_out in zip(dataset_result, standalone_result):
             assert np.array_equal(dataset_out, standalone_out)
 
+
 def test_tf_dataset_gpu():
     _test_tf_dataset('gpu')
 
@@ -158,7 +170,7 @@ def test_differnt_num_shapes_dtypes():
     batch_size = 12
     num_threads = 4
 
-    dataset_pipeline = TestPipeline(batch_size, num_threads)
+    dataset_pipeline = TestPipeline(batch_size, num_threads, 'cpu')
     shapes = [
         (batch_size, 3, 224, 224), 
         (batch_size, 1),
