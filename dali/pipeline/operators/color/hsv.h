@@ -34,10 +34,10 @@ namespace hsv {
 /**
  * Names of arguments
  */
-extern const std::string kHue;
-extern const std::string kSaturation;
-extern const std::string kValue;
-extern const std::string kOutputType;
+const std::string kHue = "hue";                 // NOLINT
+const std::string kSaturation = "saturation";   // NOLINT
+const std::string kValue = "value";             // NOLINT
+const std::string kOutputType = "output_type";  // NOLINT
 
 /**
  * Color space conversion
@@ -118,6 +118,13 @@ class Hsv : public Operator<Backend> {
   }
 
 
+  void AcquireArguments(const OpSpec &spec, const ArgumentWorkspace &ws) {
+    FillArgument(hue_, hsv::kHue, spec, ws, batch_size_);
+    FillArgument(saturation_, hsv::kSaturation, spec, ws, batch_size_);
+    FillArgument(value_, hsv::kValue, spec, ws, batch_size_);
+  }
+
+
   /**
    * @brief Creates transformation matrices based on given args
    */
@@ -142,6 +149,29 @@ class Hsv : public Operator<Backend> {
   std::vector<mat3> tmatrices_;
   DALIDataType output_type_;
   kernels::KernelManager kernel_manager_;
+
+ private:
+  /**
+   * Fills argument vector with data from ArgumentWorkspace.
+   * @param n_samples Number of samples in batch
+   */
+  void FillArgument(std::vector<float> &arg_vals, const std::string &arg_name, const OpSpec &spec,
+                    const ArgumentWorkspace &ws, int n_samples) {
+    if (spec.HasTensorArgument(arg_name)) {
+      const auto &tl = ws.ArgumentInput(arg_name);
+      int n = tl.shape().num_samples();
+      DALI_ENFORCE(n == 1 || n == n_samples,
+                   "Provide arguments for either all or one sample in batch");
+      const auto *data = tl.template data<float>();
+      arg_vals.resize(n);
+      for (int i = 0; i < n; i++) {
+        arg_vals[i] = data[i];
+      }
+    } else {
+      arg_vals.resize(n_samples, spec.template GetArgument<float>(arg_name));
+    }
+    assert(arg_vals.size() == static_cast<size_t>(n_samples));
+  }
 };
 
 

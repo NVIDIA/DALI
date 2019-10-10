@@ -20,17 +20,8 @@ namespace {
 
 template <typename Out, typename In>
 using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
+
 }  // namespace
-
-namespace hsv {
-
-const std::string kHue = "hue";                 // NOLINT
-const std::string kSaturation = "saturation";   // NOLINT
-const std::string kValue = "value";             // NOLINT
-const std::string kOutputType = "output_type";  // NOLINT
-
-}  // namespace hsv
-
 
 DALI_SCHEMA(Hsv)
               .DocStr(R"code(This operator performs HSV manipulation.
@@ -66,6 +57,8 @@ bool HsvCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<C
   const auto &input = ws.template InputRef<CPUBackend>(0);
   const auto &output = ws.template OutputRef<CPUBackend>(0);
   output_desc.resize(1);
+  AcquireArguments(spec_, ws);
+  tmatrices_ = determine_transformation(hue_, saturation_, value_);
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
           {
