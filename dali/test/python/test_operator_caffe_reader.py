@@ -48,106 +48,36 @@ class CaffeReaderPipeline(Pipeline):
         images = self.decode(inputs)
         return images, labels
 
-# test 1: rewind
-def check_reader_vs_rewind(path):
-    # the db has 43 entries, 44 should trigger rewind
-    if isinstance(path, str):
-        num_paths = 1
-    else:
-        num_paths = len(path)
-    num = 43*num_paths + 1
-    pipe = CaffeReaderPipeline(path, 1)
-    pipe.build()
-    for i in range(num):
-        pipe_out = pipe.run()
-        if i == 0:
-            image0 = pipe_out[0].at(0)
-            label0 = pipe_out[1].at(0)
-        if i == num-1:
-            image0_rewind = pipe_out[0].at(0)
-            label0_rewind = pipe_out[1].at(0)
-        
-    assert_array_equal(image0, image0_rewind)
-    assert_array_equal(label0, label0_rewind)
+# test 1: compare caffe_db_folder with [caffe_db_folder] and [caffe_db_folder, caffe_db_folder]
+def check_reader_vs_paths(path, batch_size, num_threads):
+ 
+    pipe1 = CaffeReaderPipeline(caffe_db_folder, batch_size, num_threads)
+    pipe1.build()
 
-def test_reader_vs_rewind():
-    for path in [caffe_db_folder, [caffe_db_folder], [caffe_db_folder, caffe_db_folder]]:
-        yield check_reader_vs_rewind, path
+    pipe2 = CaffeReaderPipeline(path, batch_size, num_threads)
+    pipe2.build()
 
-# test 2: compare with previous CaffeReader
-# run the previous CaffeReader to get the db statistics [image.mean(), label], 
-# regarded as ground truth
-db_stat = [
-    [118.10, 1],
-    [95.21, 1],
-    [105.89, 1],
-    [135.78, 1],
-    [152.72, 1],
-    [93.08, 0],
-    [153.97, 0],
-    [177.89, 0],
-    [163.62, 1],
-    [82.04, 1],
-    [214.37, 1],
-    [77.89, 1],
-    [231.43, 0],
-    [100.98, 1],
-    [157.01, 1],
-    [167.31, 1],
-    [98.75, 0],
-    [101.37, 1],
-    [125.64, 1],
-    [120.80, 1],
-    [128.53, 1],
-    [95.86, 1],
-    [56.78, 0],
-    [89.86, 1],
-    [86.71, 1],
-    [118.33, 1],
-    [76.55, 1],
-    [108.08, 0],
-    [147.95, 0],
-    [188.69, 0],
-    [135.47, 1],
-    [164.58, 0],
-    [172.21, 1],
-    [111.00, 1],
-    [175.26, 0],
-    [99.32, 1],
-    [138.10, 1],
-    [97.69, 1],
-    [108.19, 0],
-    [60.03, 0],
-    [145.58, 1],
-    [135.89, 1],
-    [141.06, 0],
-]
-
-def check_reader_vs_db_stat(path, batch_size, num_threads, num_gpus):
-    pipelines = [CaffeReaderPipeline(path, batch_size, num_threads, device_id, num_gpus) for device_id in range(num_gpus)]
-    
     num_batches = 2
-    for pipe in pipelines:
-        pipe.build()
-        count = 0
-        for i in range(num_batches):
-            pipe_out = pipe.run()
-            for idx in range(len(pipe_out[0])):
-                image = pipe_out[0].at(idx)
-                label = pipe_out[1].at(idx)
-                dstid = count % len(db_stat)
-                assert_allclose(image.mean(), db_stat[dstid][0], rtol=1e-3)
-                assert_array_equal(label[0], db_stat[dstid][1])
-                count+=1
+    for i in range(num_batches):
+        pipe1_out = pipe1.run()
+        pipe2_out = pipe2.run()
+        for idx in range(len(pipe1_out[0])):
+            image1 = pipe1_out[0].at(idx)
+            label1 = pipe1_out[1].at(idx)
+            image2 = pipe2_out[0].at(idx)
+            label2 = pipe2_out[1].at(idx)
 
-def test_reader_vs_db_stat():
-    num_gpus = 1
-    for path in [caffe_db_folder, [caffe_db_folder], [caffe_db_folder, caffe_db_folder]]:
+            assert_array_equal(image1, image2)
+            assert_array_equal(label1, label2)
+
+def test_reader_vs_paths():
+    for path in [[caffe_db_folder], [caffe_db_folder, caffe_db_folder]]:
         for batch_size in {1, 32, 44}:
             for num_threads in {1, 2}:
-                yield check_reader_vs_db_stat, path, batch_size, num_threads, num_gpus
+                yield check_reader_vs_paths, path, batch_size, num_threads
 
-# test 3: compare with a simple CaffeReader with batch_size=1
+
+# test 2: compare with a simple CaffeReader with batch_size=1
 def check_reader_vs_simple(path, batch_size, num_threads, num_gpus, images, labels):
     pipelines = [CaffeReaderPipeline(path, batch_size, num_threads, device_id, num_gpus) for device_id in range(num_gpus)]
     num_paths = 1 if isinstance(path, str) else len(path)
