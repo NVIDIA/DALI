@@ -106,14 +106,14 @@ def _dataset_options():
     return options
 
 
-def _test_tf_dataset(device):
+def _test_tf_dataset(device, device_id = 0):
     skip_for_incompatible_tf()
 
     batch_size = 12
     num_threads = 4
     epochs = 10
 
-    dataset_pipeline = TestPipeline(batch_size, num_threads, device)
+    dataset_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
     shapes = [
         (batch_size, 3, 224, 224), 
         (batch_size, 1),
@@ -124,13 +124,14 @@ def _test_tf_dataset(device):
         tf.int16]
 
     dataset_results = []
-    with tf.device('/{0}:0'.format(device)):
+    with tf.device('/{0}:{1}'.format(device, device_id)):
         daliset = dali_tf.DALIDataset(
             pipeline=dataset_pipeline,
             batch_size=batch_size,
             shapes=shapes, 
             dtypes=dtypes,
-            num_threads=num_threads)
+            num_threads=num_threads,
+            device_id=device_id)
         daliset = daliset.with_options(_dataset_options())
 
         iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
@@ -141,7 +142,7 @@ def _test_tf_dataset(device):
             for _ in range(epochs):
                 dataset_results.append(sess.run(next_element))
 
-    standalone_pipeline = TestPipeline(batch_size, num_threads, device)
+    standalone_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
     standalone_pipeline.build()
     standalone_results = []
     for _ in range(epochs):
@@ -159,6 +160,10 @@ def _test_tf_dataset(device):
 
 def test_tf_dataset_gpu():
     _test_tf_dataset('gpu')
+
+
+def test_tf_dataset_other_gpu():
+    _test_tf_dataset('gpu', 1)
 
 
 def test_tf_dataset_cpu():

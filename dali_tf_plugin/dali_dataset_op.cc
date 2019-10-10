@@ -130,7 +130,8 @@ class DALIDatasetOp : public DatasetOpKernel {
         cpu_prefetch_queue_depth_(cpu_prefetch_queue_depth),
         gpu_prefetch_queue_depth_(gpu_prefetch_queue_depth),
         shapes_(shapes), 
-        dtypes_(dtypes) {
+        dtypes_(dtypes),
+        device_type_(is_gpu_device ? device_type_t::GPU : device_type_t::CPU) {
         OP_REQUIRES_OK(context, InitPipeline());
       if (is_gpu_device) {
         stream_ = context->eigen_gpu_device().stream();
@@ -173,6 +174,7 @@ class DALIDatasetOp : public DatasetOpKernel {
     const std::vector<PartialTensorShape> shapes_;
     const DataTypeVector dtypes_;
     cudaStream_t stream_ = 0;
+    const device_type_t device_type_;
     
     daliPipelineHandle pipeline_handle_;
 
@@ -305,7 +307,7 @@ class DALIDatasetOp : public DatasetOpKernel {
                   "for tensor " + std::to_string(out_id));
             }
 
-            DALI_CALL(daliCopyTensorNTo(&pipeline_handle_, dst, out_id, device_type_t::CPU, dataset()->stream_, false));
+            DALI_CALL(daliCopyTensorNTo(&pipeline_handle_, dst, out_id, dataset()->device_type_, dataset()->stream_, false));
           }
           
           *end_of_sequence = false;
