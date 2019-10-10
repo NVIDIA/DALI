@@ -33,9 +33,9 @@ namespace dali {
 template <ArithmeticOp op, typename Result,
           typename Left, bool LeftIsTensor,
           typename Right, bool RightIsTensor>
-class ExpressionImplBinCPU : public ExprImplBase, ExprImplParam<CPUBackend> {
+class ExprImplBinCPU : public ExprImplBase, ExprImplParam<CPUBackend> {
  public:
-  ExpressionImplBinCPU() {}
+  ExprImplBinCPU() {}
 
   void Execute(ArgumentWorkspace &workspace, const OpSpec &spec, ExprImplContext &ctx,
                const std::vector<TileDesc> &tiles, TileRange range) override {

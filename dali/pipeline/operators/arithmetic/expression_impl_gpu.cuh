@@ -79,9 +79,9 @@ dim3 GetGridLayout(int extent, int thread_num, int tiles) {
 template <ArithmeticOp op, typename Result,
           typename Left, bool LeftIsTensor,
           typename Right, bool RightIsTensor>
-class ExpressionImplBinGPU : public ExprImplBase, ExprImplParam<GPUBackend> {
+class ExprImplBinGPU : public ExprImplBase, ExprImplParam<GPUBackend> {
  public:
-  ExpressionImplBinGPU() {}
+  ExprImplBinGPU() {}
 
   void Execute(ArgumentWorkspace &workspace, const OpSpec &spec, ExprImplContext &ctx,
                const std::vector<TileDesc> &tiles, TileRange range) override {

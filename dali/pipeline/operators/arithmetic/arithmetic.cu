@@ -19,6 +19,7 @@ namespace dali {
 
 template <>
 void ArithmeticGenericOp<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+  ws.OutputRef<GPUBackend>(0).SetLayout(result_layout_);
   assert(tile_range_.size() == 1 && "Expected to cover whole GPU execution by 1 task");
   for (auto &expr_task : exec_order_) {
     // call impl for whole batch

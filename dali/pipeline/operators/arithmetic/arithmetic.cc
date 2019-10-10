@@ -22,6 +22,7 @@ namespace dali {
 template <>
 void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &pool = ws.GetThreadPool();
+  ws.OutputRef<CPUBackend>(0).SetLayout(result_layout_);
   for (size_t task_idx = 0; task_idx < tile_range_.size(); task_idx++) {
     // TODO(klecki): reduce lambda footprint
     pool.DoWorkWithID([this, &ws, task_idx](int thread_idx) {

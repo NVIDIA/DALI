@@ -61,6 +61,43 @@ inline TileCover GetTiledCover(const kernels::TensorListShape<> &shape, int tile
   return std::make_tuple(descs, ranges);
 }
 
+
+/**
+ * @brief Recurse over expression tree and return the only matching layout
+ */
+template <typename Backend>
+DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const workspace_t<Backend> &ws) {
+  if (expr.GetNodeType() == NodeType::Constant) {
+    return "";
+  }
+  if (expr.GetNodeType() == NodeType::Tensor) {
+    auto &e = dynamic_cast<ExprTensor &>(expr);
+    return ws.template InputRef<Backend>(e.GetInputIndex()).GetLayout();
+  }
+  if (expr.GetSubexpressionCount() == 0) {
+    return "";
+  }
+  auto &func = dynamic_cast<ExprFunc&>(expr);
+  auto result_layout = GetCommonLayout<Backend>(func[0], ws);
+  for (int i = 1; i < expr.GetSubexpressionCount(); i++) {
+    auto next_layout = GetCommonLayout<Backend>(func[i], ws);
+    if (result_layout.empty()) {
+      result_layout = next_layout;
+      continue;
+    }
+    if (next_layout.empty()) {
+      continue;
+    }
+    DALI_ENFORCE(
+        result_layout == next_layout,
+        make_string("Layouts of subexpressions", i - 1, "and", i, "for atihmetic operation",
+                    func.GetFuncName(), "do not match. Expected", result_layout.c_str(), "got",
+                    next_layout.c_str(), "."));
+  }
+  return result_layout;
+}
+
+
 /**
  * @brief Recurse over expression tree, fill the missing types of TensorInputs
  */
@@ -186,7 +223,11 @@ class ArithmeticGenericOp : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
 
-    result_type_id_ = PropagateTypes<Backend>(*expr_, ws);  // can be done once
+    if (!types_layout_inferenced_) {
+      result_type_id_ = PropagateTypes<Backend>(*expr_, ws);
+      result_layout_ = GetCommonLayout<Backend>(*expr_, ws);
+      types_layout_inferenced_ = true;
+    }
 
     result_shape_ = PropagateShapes<Backend>(*expr_, ws);
     AllocateIntermediateNodes();
@@ -218,7 +259,9 @@ class ArithmeticGenericOp : public Operator<Backend> {
 
   std::unique_ptr<ExprNode> expr_;
   kernels::TensorListShape<> result_shape_;
+  bool types_layout_inferenced_ = false;
   DALIDataType result_type_id_;
+  TensorLayout result_layout_;
   std::vector<TileDesc> tile_cover_;
   std::vector<TileRange> tile_range_;
   std::vector<ExprImplTask> exec_order_;

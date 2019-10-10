@@ -40,15 +40,18 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   in[0]->set_type(TypeInfo::Create<uint8_t>());
   in[1]->set_type(TypeInfo::Create<int16_t>());
   in[2]->set_type(TypeInfo::Create<int32_t>());
+  in[0]->SetLayout(TensorLayout());
+  in[1]->SetLayout(TensorLayout("HW"));
   ws.AddInput(in[0]);
   ws.AddInput(in[1]);
-  ws.AddInput(in[2]);
 
   auto result_type = PropagateTypes<CPUBackend>(expr_ref, ws);
   auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws);
+  auto result_layout = GetCommonLayout<CPUBackend>(expr_ref, ws);
   auto expected_shpe = kernels::TensorListShape<>{{1}, {2}};
   EXPECT_EQ(result_type, DALIDataType::DALI_INT32);
   EXPECT_EQ(result_shape, expected_shpe);
+  EXPECT_EQ(result_layout, "HW");
   EXPECT_EQ(expr_ref.GetNodeDesc(), "div:T:int32(FT:int16 CC:int32)");
   EXPECT_EQ(expr_ref.GetOutputDesc(), "FT:int32");
   EXPECT_EQ(expr_ref.GetNodeDesc(), "div:T:int32(FT:int16 CC:int32)");
@@ -59,6 +62,29 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   EXPECT_EQ(func[1].GetNodeDesc(), "CC:int32");
   EXPECT_EQ(func[1].GetOutputDesc(), "CC:int32");
 }
+
+TEST(ArithmeticOpsTest, TreePropagationError) {
+  std::string expr_str = "div(sub(&0 &1) &2)";
+  auto expr = ParseExpressionString(expr_str);
+  auto &expr_ref = *expr;
+  HostWorkspace ws;
+  std::shared_ptr<TensorVector<CPUBackend>> in[3];
+  for (auto &ptr : in) {
+    ptr = std::make_shared<TensorVector<CPUBackend>>();
+    ptr->Resize({{1}, {2}});
+  }
+  in[0]->SetLayout(TensorLayout());
+  in[1]->SetLayout(TensorLayout("HW"));
+  in[2]->SetLayout(TensorLayout("DHW"));
+  in[2]->Resize({{10}, {2}});
+  ws.AddInput(in[0]);
+  ws.AddInput(in[1]);
+  ws.AddInput(in[2]);
+
+  ASSERT_THROW(PropagateShapes<CPUBackend>(expr_ref, ws), std::runtime_error);
+  ASSERT_THROW(GetCommonLayout<CPUBackend>(expr_ref, ws), std::runtime_error);
+}
+
 
 // namespace {
 
