@@ -65,8 +65,8 @@ inline mat3 hue_mat(float hue /* hue hue hue */ ) {
   // Hue change in YIQ color space is a rotation along the Y axis
   ret(1, 1) = cos(h_rad);
   ret(2, 2) = cos(h_rad);
-  ret(1, 2) = -sin(h_rad);
-  ret(2, 1) = sin(h_rad);
+  ret(1, 2) = sin(h_rad);
+  ret(2, 1) = -sin(h_rad);
   return ret;
 }
 
