@@ -62,7 +62,7 @@ TEST(ExpressionTreeTest, ExpressionTreeComplex) {
   ASSERT_EQ(func_ref[0].GetNodeType(), NodeType::Function);
   ASSERT_EQ(func_ref[0].GetSubexpressionCount(), 2);
   EXPECT_EQ(func_ref[0].GetFuncName(), "sub");
-  auto &func0_ref = dynamic_cast<ExprFunc&>(result_ref);
+  auto &func0_ref = dynamic_cast<ExprFunc&>(func_ref[0]);
   ASSERT_EQ(func0_ref[0].GetNodeType(), NodeType::Tensor);
   EXPECT_EQ(dynamic_cast<ExprTensor &>(func0_ref[0]).GetInputIndex(), 42);
   ASSERT_EQ(func0_ref[1].GetNodeType(), NodeType::Tensor);
