@@ -269,7 +269,7 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
 
     DALI_ENFORCE(ret >=0, "Unable to read frame from file :" + filename);
 
-    DALI_ENFORCE(
+    DALI_ENFORCE(skip_vfr_check_ ||
       almost_equal(av_q2d(file.frame_base_), pkt.duration * av_q2d(file.stream_base_), 2),
       "Variable frame rate videos are unsupported. Check failed for file: " + filename);
 
