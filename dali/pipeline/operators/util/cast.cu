@@ -15,6 +15,7 @@
 #include "dali/pipeline/operators/util/cast.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_utils.h"
+#include "dali/core/convert.h"
 
 namespace dali {
 
@@ -23,11 +24,7 @@ __global__ void
 BatchedCastKernel(OType * output, const IType * in, size_t N) {
   size_t tid = threadIdx.x + blockDim.x * blockIdx.x;
   if (tid < N) {
-    if (std::is_same<IType, dali::float16>::value) {
-      output[tid] = static_cast<OType>(static_cast<float>(in[tid]));
-    } else {
-      output[tid] = static_cast<OType>(in[tid]);
-    }
+    output[tid] = ConvertSat<OType>(in[tid]);
   }
 }
 
@@ -51,10 +48,10 @@ void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 
   DALIDataType itype = input.type().id();
 
-  DALI_TYPE_SWITCH(output_type_, OType,
+  DALI_TYPE_SWITCH_WITH_FP16(output_type_, OType,
       output.mutable_data<OType>();
       output.ResizeLike(input);
-      DALI_TYPE_SWITCH(itype, IType,
+      DALI_TYPE_SWITCH_WITH_FP16(itype, IType,
         DALI_CALL(BatchedCast(
             output.mutable_data<OType>(),
             input.data<IType>(),

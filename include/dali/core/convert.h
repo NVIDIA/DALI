@@ -245,6 +245,34 @@ struct ConverterBase<Out, In, true, false> {
   static constexpr Out ConvertSatNorm(In value) { return value * (Out(1) / (max_value<In>())); }
 };
 
+/// Converts integral to float16 special case
+template <typename In>
+struct ConverterBase<float16, In, true, false> {
+  DALI_HOST_DEV
+  static constexpr float16 Convert(In value) {
+    auto out = ConverterBase<float, In, true, false>::Convert(value);
+    return static_cast<float16>(out);
+  }
+
+  DALI_HOST_DEV
+  static constexpr float16 ConvertSat(In value) {
+    auto out = ConverterBase<float, In, true, false>::ConvertSat(value);
+    return static_cast<float16>(out);
+  }
+
+  DALI_HOST_DEV
+  static constexpr float16 ConvertNorm(In value) {
+    auto out = ConverterBase<float, In, true, false>::ConvertNorm(value);
+    return static_cast<float16>(out);
+  }
+
+  DALI_HOST_DEV
+  static constexpr float16 ConvertSatNorm(In value) {
+    auto out = ConverterBase<float, In, true, false>::ConvertSatNorm(value);
+    return static_cast<float16>(out);
+  }
+};
+
 /// Converts FP to integral type
 template <typename Out, typename In>
 struct ConverterBase<Out, In, false, true> {
