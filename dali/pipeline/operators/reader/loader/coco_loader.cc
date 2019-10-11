@@ -282,6 +282,8 @@ void CocoLoader::ParseJsonAnnotations() {
 
   bool skip_empty = spec_.GetArgument<bool>("skip_empty");
   bool ratio = spec_.GetArgument<bool>("ratio");
+  bool clip = spec_.GetArgument<bool>("clip");
+  bool ltrb = spec_.GetArgument<bool>("ltrb");
 
   std::sort(image_infos.begin(), image_infos.end(), [](auto &left, auto &right) {
     return left.original_id_ < right.original_id_;});
@@ -301,16 +303,28 @@ void CocoLoader::ParseJsonAnnotations() {
     while (annotations[annotation_id].image_id_ == image_info.original_id_) {
       const auto &annotation = annotations[annotation_id];
       labels_.emplace_back(category_ids[annotation.category_id_]);
+      float b1 = annotation.box_[0];
+      float b2 = annotation.box_[1];
+      float b3 = annotation.box_[2];
+      float b4 = annotation.box_[3];
+      auto width_ = static_cast<float>(image_info.width_);
+      auto height_ = static_cast<float>(image_info.height_);
+      if (clip) {
+        b1 = std::max(std::min(b1, width_), 0.f);
+        b2 = std::max(std::min(b2, height_), 0.f);
+        b3 = std::max(std::min(b3, ltrb ? width_ : width_ - b1), 0.f);
+        b4 = std::max(std::min(b4, ltrb ? height_ : height_ - b2), 0.f);
+      }
       if (ratio) {
-        boxes_.push_back(annotation.box_[0] / image_info.width_);
-        boxes_.push_back(annotation.box_[1] / image_info.height_);
-        boxes_.push_back(annotation.box_[2] / image_info.width_);
-        boxes_.push_back(annotation.box_[3] / image_info.height_);
+        boxes_.push_back(b1 / width_);
+        boxes_.push_back(b2 / height_);
+        boxes_.push_back(b3 / width_);
+        boxes_.push_back(b4 / height_);
       } else {
-        boxes_.push_back(annotation.box_[0]);
-        boxes_.push_back(annotation.box_[1]);
-        boxes_.push_back(annotation.box_[2]);
-        boxes_.push_back(annotation.box_[3]);
+        boxes_.push_back(b1);
+        boxes_.push_back(b2);
+        boxes_.push_back(b3);
+        boxes_.push_back(b4);
       }
       ++annotation_id;
       ++objects_in_sample;
