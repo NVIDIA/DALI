@@ -162,7 +162,8 @@ def test_tf_dataset_gpu():
     _test_tf_dataset('gpu')
 
 
-def test_tf_dataset_other_gpu():
+# This test should be private (name starts with _) as it is called separately in L1
+def _test_tf_dataset_other_gpu():
     _test_tf_dataset('gpu', 1)
 
 
