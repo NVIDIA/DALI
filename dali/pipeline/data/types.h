@@ -131,6 +131,33 @@ enum DALIDataType : int {
   DALI_DATATYPE_END    = 1000
 };
 
+constexpr bool IsFloatingPoint(DALIDataType type) {
+  switch (type) {
+    case DALI_FLOAT16:
+    case DALI_FLOAT:
+    case DALI_FLOAT64:
+      return true;
+    default:
+      return false;
+  }
+}
+
+constexpr bool IsIntegral(DALIDataType type) {
+  switch (type) {
+    case DALI_UINT8:
+    case DALI_UINT16:
+    case DALI_UINT32:
+    case DALI_UINT64:
+    case DALI_INT8:
+    case DALI_INT16:
+    case DALI_INT32:
+    case DALI_INT64:
+      return true;
+    default:
+      return false;
+  }
+}
+
 template <DALIDataType id>
 struct id2type_helper;
 

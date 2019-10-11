@@ -355,7 +355,7 @@ T any_cast(any &&a) {
 }
 
 template <typename T>
-T &any_cast(const any &a) {
+T any_cast(const any &a) {
   return any_cast_helper<T>::get(a);
 }
 
