@@ -31,8 +31,7 @@ bool HsvGpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<G
   const auto &input = ws.template InputRef<GPUBackend>(0);
   const auto &output = ws.template OutputRef<GPUBackend>(0);
   output_desc.resize(1);
-  AcquireArguments(spec_, ws);
-  tmatrices_ = determine_transformation(hue_, saturation_, value_);
+  DetermineTransformation(ws);
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {

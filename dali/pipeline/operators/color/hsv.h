@@ -60,7 +60,7 @@ const mat3 Yiq2Rgb = {{
  * Composes transformation matrix for hue
  */
 inline mat3 hue_mat(float hue /* hue hue hue */ ) {
-  const auto h_rad = hue * M_PI / 180;
+  const float h_rad = hue * M_PI / 180;
   mat3 ret = mat3::eye();  // rotation matrix
   // Hue change in YIQ color space is a rotation along the Y axis
   ret(1, 1) = cos(h_rad);
@@ -131,19 +131,16 @@ class HsvOp : public Operator<Backend> {
   /**
    * @brief Creates transformation matrices based on given args
    */
-  std::vector<mat3>
-  determine_transformation(const std::vector<float> &hue, const std::vector<float> &saturation,
-                           const std::vector<float> &value) const {
+  void DetermineTransformation(const ArgumentWorkspace &ws) {
     using namespace hsv;  // NOLINT
-    assert(hue.size() == saturation.size() && hue.size() == value.size());
-    std::vector<mat3> ret;
-
-    auto size = hue.size();
-    ret.resize(size);
+    AcquireArguments(spec_, ws);
+    assert(hue_.size() == saturation_.size() && hue_.size() == value_.size());
+    auto size = hue_.size();
+    tmatrices_.resize(size);
     for (size_t i = 0; i < size; i++) {
-      ret[i] = Yiq2Rgb * hue_mat(hue[i]) * sat_mat(saturation[i]) * val_mat(value[i]) * Rgb2Yiq;
+      tmatrices_[i] =
+              Yiq2Rgb * hue_mat(hue_[i]) * sat_mat(saturation_[i]) * val_mat(value_[i]) * Rgb2Yiq;
     }
-    return ret;
   }
 
 
