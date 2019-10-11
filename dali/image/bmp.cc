@@ -27,28 +27,47 @@ enum BmpCompressionType {
   BMP_COMPRESSION_BITFIELDS = 3
 };
 
-// similar logic to what OpenCv does to determine the output number of channels
-int number_of_channels(int bpp, int compression_type) {
-  if (compression_type == BMP_COMPRESSION_RGB) {
-    if (bpp == 1 || bpp == 4 || bpp == 8 || bpp == 24)
+template <typename T>
+T ConsumeValue(const uint8_t*& ptr) {
+  auto value = ReadValueLE<T>(ptr);
+  ptr += sizeof(T);
+  return value;
+}
+
+bool is_color_palette(const uint8_t* palette_start, size_t ncolors, size_t palette_entry_size) {
+  const uint8_t* palette_end = palette_start + ncolors * palette_entry_size;
+  for (auto p = palette_start; p < palette_end; p += palette_entry_size) {
+    const auto b = p[0], g = p[1], r = p[2]; // a = p[3];
+    if (b!=g || b!=r)
+      return true;
+  }
+  return false;
+}
+
+int number_of_channels(int bpp, int compression_type,
+                       const uint8_t* palette_start = nullptr, size_t ncolors = 0,
+                       size_t palette_entry_size = 0) {
+  std::cout << "compression " << compression_type << " bpp " << bpp
+            << "ncolors " << ncolors << std::endl;
+  if (compression_type == BMP_COMPRESSION_RGB || compression_type == BMP_COMPRESSION_RLE8) {
+    if (bpp <= 8 && ncolors <= static_cast<size_t>((1<<bpp))) {
+      return is_color_palette(palette_start, ncolors, palette_entry_size) ? 3 : 1;
+    } else if (bpp == 24) {
       return 3;
-    else if (bpp == 32)
+    } else if (bpp == 32) {
       return 4;
+    }
   } else if (compression_type == BMP_COMPRESSION_BITFIELDS) {
-    if (bpp == 16)
+    if (bpp == 16) {
       return 3;
-    else if (bpp == 32)
+    } else if (bpp == 32) {
       return 4;
-    else
-      return 1;
-  } else if (compression_type == BMP_COMPRESSION_RLE8) {
-    return (bpp == 4) ? 3 : 1;
-  } else if (compression_type == BMP_COMPRESSION_RLE4) {
-    return (bpp == 8) ? 3 : 1;
+    }
   }
 
   DALI_WARN(make_string(
-    "configuration not supported. bpp:", bpp, "compression_type:", compression_type));
+    "configuration not supported. bpp:", bpp, "compression_type:", compression_type,
+    "ncolors:", ncolors));
   return 0;
 }
 
@@ -61,26 +80,44 @@ BmpImage::BmpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType i
 
 Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
   DALI_ENFORCE(bmp != nullptr);
-
-  uint32_t header_size = ReadValueLE<uint32_t>(bmp + 14);
+  auto ptr = bmp + 14;
+  uint32_t header_size = ConsumeValue<uint32_t>(ptr);
   int64_t h = 0, w = 0, c = 0;
   int bpp = 0, compression_type = BMP_COMPRESSION_RGB;
+  const uint8_t* palette_start = nullptr;
+  size_t ncolors = 0;
+  size_t palette_entry_size = 0;
   if (length >= 22 && header_size == 12) {
     // BITMAPCOREHEADER:
     // | 32u header | 16u width | 16u height | 16u number of color planes | 16u bits per pixel
-    w = ReadValueLE<uint16_t>(bmp + 18);
-    h = ReadValueLE<uint16_t>(bmp + 20);
-    bpp = ReadValueLE<uint16_t>(bmp + 24);
+    w = ConsumeValue<uint16_t>(ptr);
+    h = ConsumeValue<uint16_t>(ptr);
+    ptr += 2; // skip
+    bpp = ConsumeValue<uint16_t>(ptr);
+    if (bpp <= 8) {
+      palette_start = ptr;
+      palette_entry_size = 3;
+      ncolors = (1<<bpp);
+    }
   } else if (length >= 26 && header_size >= 40) {
     // BITMAPINFOHEADER and later:
     // | 32u header | 32s width | 32s height | 16u number of color planes | 16u bits per pixel
     // | 32u compression type
-    w = ReadValueLE<int32_t>(bmp + 18);
-    h = abs(ReadValueLE<int32_t>(bmp + 22));
-    bpp = ReadValueLE<uint16_t>(bmp + 28);
-    compression_type = ReadValueLE<uint32_t>(bmp + 30);
+    w = ConsumeValue<int32_t>(ptr);
+    h = abs(ConsumeValue<int32_t>(ptr));
+    ptr += 2;  // skip
+    bpp = ConsumeValue<uint16_t>(ptr);
+    compression_type = ConsumeValue<uint32_t>(ptr);
+    ptr += 12;  // skip
+    ncolors = ConsumeValue<uint32_t>(ptr);
+    ptr += header_size - 36;  // skip
+    if (bpp <= 8) {
+      palette_start = ptr;
+      palette_entry_size = 4;
+      ncolors = ncolors == 0 ? (1<<bpp) : ncolors;
+    }
+    c = number_of_channels(bpp, compression_type, palette_start, ncolors, palette_entry_size);
   }
-  c = number_of_channels(bpp, compression_type);
   return {h, w, c};
 }
 
