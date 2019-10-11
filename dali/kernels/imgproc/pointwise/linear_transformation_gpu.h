@@ -92,14 +92,18 @@ class LinearTransformationGpu {
 
   std::vector<SampleDescriptor> sample_descriptors_;
 
+  // Containers, that keep default values alive, in case they are needed
+  std::vector<Vec> default_vecs_;
+
  public:
   BlockSetup<spatial_ndims, spatial_ndims /* Assumed, that the channel dim is the last dim */>
           block_setup_;
 
 
   KernelRequirements
-  Setup(KernelContext &context, const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices,
-        span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois = {}) {
+  Setup(KernelContext &context, const InListGPU<InputType, ndims_> &in,
+        span<const Mat> tmatrices, span<const Vec> tvectors = {},
+        span<const Roi<spatial_ndims>> rois = {}) {
     DALI_ENFORCE(rois.empty() || rois.size() == in.num_samples(),
                  "Provide ROIs either for all or none input tensors");
     for (int i = 0; i < in.size(); i++) {
@@ -114,6 +118,10 @@ class LinearTransformationGpu {
                                "ROI doesn't follow {lo, hi} convention.", rois[i]));
     }
 
+    gen_default_values(in.num_samples());
+    if (tvectors.empty()) {
+      tvectors = make_cspan(default_vecs_);
+    }
     auto adjusted_rois = AdjustRoi(rois, in.shape);
     KernelRequirements req;
     ScratchpadEstimator se;
@@ -129,7 +137,7 @@ class LinearTransformationGpu {
 
   void Run(KernelContext &context, const OutListGPU<OutputType, ndims_> &out,
            const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices,
-           span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois = {}) {
+           span<const Vec> tvectors = {}, span<const Roi<spatial_ndims>> rois = {}) {
     CreateSampleDescriptors(out, in, tmatrices, tvectors, rois);
 
     SampleDescriptor *samples_gpu;
@@ -152,10 +160,12 @@ class LinearTransformationGpu {
   void CreateSampleDescriptors(const OutListGPU<OutputType, ndims_> &out,
                                const InListGPU<InputType, ndims_> &in, span<const Mat> tmatrices,
                                span<const Vec> tvectors, span<const Roi<spatial_ndims>> rois) {
+    if (tvectors.empty()) {
+      tvectors = make_cspan(default_vecs_);
+    }
     assert(tmatrices.size() == tvectors.size());
     auto adjusted_rois = AdjustRoi(rois, in.shape);
     sample_descriptors_.resize(in.num_samples());
-
     for (int i = 0; i < in.num_samples(); i++) {
       auto &sample = sample_descriptors_[i];
       sample.in = in[i].data;
@@ -177,6 +187,11 @@ class LinearTransformationGpu {
       sample.B = tvectors[i];
       sample.roi = adjusted_rois[i];
     }
+  }
+
+
+  void gen_default_values(size_t nsamples) {
+    default_vecs_ = std::vector<Vec>(nsamples, Vec(0));
   }
 };
 
