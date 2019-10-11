@@ -23,7 +23,6 @@
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/imgproc/roi.h"
-#include "dali/pipeline/data/types.h"
 
 namespace dali {
 namespace kernels {

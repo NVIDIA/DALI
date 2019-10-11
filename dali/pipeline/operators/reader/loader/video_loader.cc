@@ -185,8 +185,9 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
     LOG_LINE << "Opening file " << filename << std::endl;
 
     AVFormatContext* raw_fmt_ctx = nullptr;
-    if (avformat_open_input(&raw_fmt_ctx, filename.c_str(), NULL, NULL) < 0) {
-      DALI_FAIL(std::string("Could not open file ") + filename);
+    int ret = avformat_open_input(&raw_fmt_ctx, filename.c_str(), NULL, NULL);
+    if (ret < 0) {
+      DALI_FAIL(std::string("Could not open file ") + filename + " because of " + av_err2str(ret));
     }
     file.fmt_ctx_ = make_unique_av<AVFormatContext>(raw_fmt_ctx, avformat_close_input);
 
@@ -262,7 +263,6 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
 
     // This check is based on heuristic FFMPEG API
     AVPacket pkt = AVPacket{};
-    int ret;
     while ((ret = av_read_frame(file.fmt_ctx_.get(), &pkt)) >= 0) {
       if (pkt.stream_index == file.vid_stream_idx_) break;
     }

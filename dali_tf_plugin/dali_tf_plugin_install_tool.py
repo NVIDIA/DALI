@@ -19,6 +19,7 @@ import os
 
 class InstallerHelper:
     def __init__(self):
+        self.src_path = os.path.dirname(os.path.realpath(__file__))
         self.dali_lib_path = get_module_path('nvidia/dali')
         self.tf_path = get_module_path('tensorflow')
         self.plugin_dest_dir = self.dali_lib_path + '/plugin' if self.dali_lib_path else ''
@@ -32,10 +33,11 @@ class InstallerHelper:
         self.platform_system = platform.system()
         self.platform_machine = platform.machine()
         self.is_compatible_with_prebuilt_bin = self.platform_system == 'Linux' and self.platform_machine == 'x86_64'
-        self.prebuilt_compilers = {'4.8', '5.4'}
+        self.prebuilt_dir = self.src_path + '/prebuilt/'
+        self.prebuilt_compilers = [subdir for subdir in os.listdir(self.prebuilt_dir) \
+            if os.path.isdir(os.path.join(self.prebuilt_dir, subdir))]
         self.can_install_prebuilt = self.tf_compiler in self.prebuilt_compilers and self.is_compatible_with_prebuilt_bin
         self.can_compile = self.default_cpp_version == self.tf_compiler
-        self.src_path = os.path.dirname(os.path.realpath(__file__))
 
     def debug_str(self):
         s = "\n Environment:"

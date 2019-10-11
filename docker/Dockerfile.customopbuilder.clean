@@ -45,9 +45,11 @@ ENV PYTHONIOENCODING=utf-8
 ENV LC_ALL=C.UTF-8
 RUN rm -f /usr/bin/python && \
     rm -f /usr/bin/python`echo $PYVER | cut -c1-1` && \
+    rm -f /usr/local/bin/pip || true && \
     if [ "${PYVER}" = "3.7" ]; then \
         ln -s /usr/local/bin/python3.7 /usr/bin/python3.7 && \
         ln -s /usr/local/bin/python3.7 /usr/bin/python && \
+        ln -s /usr/local/bin/pip3.7 /usr/local/bin/pip && \
         ln -s /usr/local/bin/pip3.7 /usr/bin/pip3.7 && \
         ln -s /usr/local/bin/pip3.7 /usr/bin/pip; \
     else \
