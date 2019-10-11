@@ -72,5 +72,7 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
       DALI_UINT8)
   .AddOptionalArg("stride",
       R"code(Distance between consecutive frames in sequence.)code", 1u, false)
+  .AddOptionalArg("skip_vfr_check",
+      R"code(Skips check for variable frame rate on videos. This is useful when heuristic fails.)code", false)
   .AddParent("LoaderBase");
 }  // namespace dali

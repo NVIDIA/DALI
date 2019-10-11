@@ -135,6 +135,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       filenames_(filenames),
       device_id_(spec.GetArgument<int>("device_id")),
       codec_id_(0),
+      skip_vfr_check_(spec.GetArgument<bool>("skip_vfr_check")),
       stop_(false) {
     if (step_ < 0)
       step_ = count_ * stride_;
@@ -245,6 +246,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   int device_id_;
   int codec_id_;
+  bool skip_vfr_check_;
   VideoLoaderStats stats_;
 
   std::unordered_map<std::string, OpenFile> open_files_;
