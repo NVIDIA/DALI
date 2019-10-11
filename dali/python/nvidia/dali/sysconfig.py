@@ -33,6 +33,17 @@ def get_lib_dir():
     import nvidia.dali as dali
     return os.path.dirname(dali.__file__)
 
+def get_include_flags():
+    """Get the include flags for custom operators
+
+    Returns:
+        The compilation flags
+    """
+    import nvidia.dali.backend as b
+    flags = []
+    flags.append('-I%s' % get_include_dir())
+    return flags
+
 def get_compile_flags():
     """Get the compilation flags for custom operators
 
