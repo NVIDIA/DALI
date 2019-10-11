@@ -114,6 +114,11 @@ Image::Shape BmpImage::PeekShapeImpl(const uint8_t *bmp, size_t length) const {
       palette_entry_size = 4;
       ncolors = ncolors == 0 ? (1<<bpp) : ncolors;
     }
+    // sanity check
+    if (palette_start != nullptr) {
+      assert(palette_start + (ncolors * palette_entry_size) <= bmp + length);
+    }
+
     c = number_of_channels(bpp, compression_type, palette_start, ncolors, palette_entry_size);
   }
   return {h, w, c};
