@@ -22,7 +22,8 @@ message(STATUS "Adding dependencies to ${dali_python_lib}: '${dali_lib}'")
 add_dependencies(${dali_python_lib} ${dali_lib})
 
 # Link libdali.so, libprotobuf.a and libcudart_static.a into backend_impl (dali_python_lib)
-target_link_libraries(${dali_python_lib} PRIVATE ${CUDA_LIBRARIES} ${dali_lib})
+target_link_libraries(${dali_python_lib} PUBLIC ${dali_lib})
+target_link_libraries(${dali_python_lib} PRIVATE ${CUDA_LIBRARIES})
 
 # Set output directory for backend_impl
 set_target_properties(${dali_python_lib} PROPERTIES

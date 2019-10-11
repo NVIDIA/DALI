@@ -51,43 +51,27 @@ if (BUILD_PROTO3)
   list(APPEND DALI_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
 endif()
 
-set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
+set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
 if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
   # In cmake 3.8.0 or lower, CUDA_LINK_LIBRARIES_KEYWORD is not available
-  # So this is a workaround to append PRIVATE in front of it
+  # So this is a workaround to append PUBLIC in front of it
   set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
 endif()
-cuda_add_library(${dali_operator_lib} STATIC ${DALI_OPERATOR_SRCS})
-target_link_libraries(${dali_operator_lib} PRIVATE "${dali_kernel_lib}" "${dali_core_lib}")
+cuda_add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS})
+target_link_libraries(${dali_operator_lib} PUBLIC ${dali_kernel_lib} ${dali_core_lib})
+target_link_libraries(${dali_operator_lib} PRIVATE ${DALI_LIBS})
 
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
-
 # Options for using Dockerfile FFmpeg version
-target_compile_definitions(${dali_lib} PRIVATE HAVE_AVSTREAM_CODECPAR=1)
-target_compile_definitions(${dali_lib} PRIVATE HAVE_AVBSFCONTEXT=1)
+target_compile_definitions(${dali_lib} PUBLIC HAVE_AVSTREAM_CODECPAR=1)
+target_compile_definitions(${dali_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 
-target_compile_definitions(${dali_operator_lib} PRIVATE HAVE_AVSTREAM_CODECPAR=1)
-target_compile_definitions(${dali_operator_lib} PRIVATE HAVE_AVBSFCONTEXT=1)
-
-# Define symbol version script for libdali.so
-set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
-set(dali_lib_exports "lib${dali_lib}.map")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${exports_map_path}/${dali_lib_exports}")
-target_link_libraries(${dali_lib} PRIVATE ${dali_operator_lib})
-# link whole content of dali_operator_lib into dali_lib
-target_link_libraries(${dali_lib} PRIVATE "-Wl,--whole-archive $<TARGET_LINKER_FILE:${dali_operator_lib}> -Wl,--no-whole-archive")
-
-target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_lib_exports})
-add_custom_target(${dali_lib_exports} DEPENDS "${exports_map_path}/${dali_lib_exports}")
-add_dependencies(${dali_lib} ${dali_lib_exports})
-
-# Exclude (most) statically linked dali dependencies from the exports of libdali.so
-string(REPLACE ";" ":" exclude_libs "${DALI_EXCLUDES}")
-message(STATUS "Exclude libs '${exclude_libs}'")
-target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVSTREAM_CODECPAR=1)
+target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 
 # Link in dali's dependencies
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
+target_link_libraries(${dali_lib} PUBLIC ${dali_operator_lib} ${dali_kernel_lib} ${dali_core_lib})
 target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
 
 # install libdali to the wheel dir
@@ -111,18 +95,8 @@ if (BUILD_TEST)
   set(test_main_bin "dali_test.bin")
   cuda_add_executable(${test_main_bin} "${DALI_TEST_SRCS}")
 
-  # Link to the dali lib
-  message(STATUS "Adding dependencies to ${test_main_bin}: '${dali_lib}'")
-  add_dependencies(${test_main_bin} ${dali_lib} ${dali_kernel_test_lib} ${dali_kernel_lib} ${dali_core_lib})
-
-  # We'll have to add dependency libs
-  target_link_libraries(${test_main_bin} PRIVATE
-    "-Wl,--whole-archive $<TARGET_LINKER_FILE:${dali_kernel_test_lib}> -Wl,--no-whole-archive"
-    "${dali_kernel_test_lib}"
-    "${DALI_LIBS}"
-    "${dali_lib}"
-    "${dali_core_lib}"
-    "gtest")
+  target_link_libraries(${test_main_bin} PUBLIC ${dali_lib} gtest)
+  target_link_libraries(${test_main_bin} PRIVATE ${DALI_LIBS})
 
   set_target_properties(${test_main_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
@@ -151,11 +125,7 @@ if (BUILD_BENCHMARK)
   set(benchmark_bin "dali_benchmark.bin")
   cuda_add_executable(${benchmark_bin} "${DALI_BENCHMARK_SRCS}")
 
-  # Link to the dali lib
-  message(STATUS "Adding dependencies to ${benchmark_bin}: '${dali_lib}'")
-  add_dependencies(${benchmark_bin} ${dali_lib})
-
-  target_link_libraries(${benchmark_bin} PRIVATE ${DALI_LIBS} ${dali_lib} benchmark pthread)
+  target_link_libraries(${benchmark_bin} PUBLIC ${dali_lib} benchmark pthread)
 
   set_target_properties(${benchmark_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")

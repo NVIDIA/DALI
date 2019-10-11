@@ -20,5 +20,5 @@ collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
 
 cuda_add_library(dynlink_cuda STATIC dynlink_cuda.cc)
 
-cuda_add_library(${dali_core_lib} STATIC ${DALI_CORE_SRCS})
+cuda_add_library(${dali_core_lib} SHARED ${DALI_CORE_SRCS})
 target_link_libraries(${dali_core_lib} dynlink_cuda)
