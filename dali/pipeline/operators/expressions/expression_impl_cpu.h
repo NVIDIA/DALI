@@ -39,8 +39,8 @@ class ExprImplBinCPU : public ExprImplBase, ExprImplParam<CPUBackend> {
 
   void Execute(ArgumentWorkspace &workspace, const OpSpec &spec, ExprImplContext &ctx,
                const std::vector<TileDesc> &tiles, TileRange range) override {
-    DALI_ENFORCE(range.begin + 1 == range.end,
-                 "CPU Expression implementation can handle only one tile at a time");
+    assert(range.begin + 1 == range.end &&
+           "CPU Expression implementation can handle only one tile at a time");
     auto &ws = dynamic_cast<workspace_t<CPUBackend> &>(workspace);
     const auto &expr = dynamic_cast<const ExprFunc&>(*ctx.node);
     const auto &tile = tiles[range.begin];
