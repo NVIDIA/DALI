@@ -19,7 +19,7 @@
 
 namespace dali {
 
-template <typename IType, typename OType>
+template <typename OType, typename IType>
 __global__ void
 BatchedCastKernel(OType * output, const IType * in, size_t N) {
   size_t tid = threadIdx.x + blockDim.x * blockIdx.x;
@@ -28,7 +28,7 @@ BatchedCastKernel(OType * output, const IType * in, size_t N) {
   }
 }
 
-template <typename IType, typename OType>
+template <typename OType, typename IType>
 DALIError_t BatchedCast(OType * output,
                         const IType * input,
                         size_t N,

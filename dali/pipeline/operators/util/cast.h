@@ -42,10 +42,10 @@ class Cast : public Operator<Backend> {
   void RunImpl(Workspace<Backend> &ws) override;
 
  private:
-  template <typename IType, typename OType>
+  template <typename OType, typename IType>
   inline void CPUHelper(OType *out, const IType *in, size_t N) {
     for (size_t i = 0; i < N; ++i) {
-      out[i] = clamp<OType>(in[i]);
+      out[i] = ConvertSat<OType>(in[i]);
     }
   }
 
