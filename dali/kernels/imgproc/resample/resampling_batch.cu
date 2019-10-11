@@ -130,6 +130,14 @@ template DLL_PUBLIC void BatchedSeparableResample<spatial_ndim, Output, Input>( 
   const SampleDesc<spatial_ndim> *samples,                                      \
   const SampleBlockInfo *block2sample, int num_blocks,                          \
   int2 block_size, cudaStream_t stream)
+
+// Instantiate the resampling functions.
+// The resampling always goes through intermediate image of float type.
+// Currently limited to only uint8 <-> float and float <-> float
+// because the operator doesn't support anything else.
+// To be extended when we support more image types.
+
+INSTANTIATE_BATCHED_RESAMPLE(2, float, float);
 INSTANTIATE_BATCHED_RESAMPLE(2, float, uint8_t);
 INSTANTIATE_BATCHED_RESAMPLE(2, uint8_t, float);
 /*
@@ -139,7 +147,6 @@ INSTANTIATE_BATCHED_RESAMPLE(2, float, uint16_t);
 INSTANTIATE_BATCHED_RESAMPLE(2, float, int16_t);
 INSTANTIATE_BATCHED_RESAMPLE(2, float, uint32_t);
 INSTANTIATE_BATCHED_RESAMPLE(2, float, int32_t);*/
-INSTANTIATE_BATCHED_RESAMPLE(2, float, float);
 /*
 INSTANTIATE_BATCHED_RESAMPLE(2, uint8_t,  float);
 INSTANTIATE_BATCHED_RESAMPLE(2, int8_t,   float);
@@ -148,7 +155,10 @@ INSTANTIATE_BATCHED_RESAMPLE(2, int16_t,  float);
 INSTANTIATE_BATCHED_RESAMPLE(2, uint32_t, float);
 INSTANTIATE_BATCHED_RESAMPLE(2, int32_t,  float);*/
 
-/*INSTANTIATE_BATCHED_RESAMPLE(3, float, uint8_t);
+// 3D not available yet
+/*
+INSTANTIATE_BATCHED_RESAMPLE(3, float,    float);
+INSTANTIATE_BATCHED_RESAMPLE(3, float, uint8_t);
 INSTANTIATE_BATCHED_RESAMPLE(3, float, int8_t);
 INSTANTIATE_BATCHED_RESAMPLE(3, float, uint16_t);
 INSTANTIATE_BATCHED_RESAMPLE(3, float, int16_t);
@@ -162,7 +172,7 @@ INSTANTIATE_BATCHED_RESAMPLE(3, uint16_t, float);
 INSTANTIATE_BATCHED_RESAMPLE(3, int16_t,  float);
 INSTANTIATE_BATCHED_RESAMPLE(3, uint32_t, float);
 INSTANTIATE_BATCHED_RESAMPLE(3, int32_t,  float);
-INSTANTIATE_BATCHED_RESAMPLE(3, float,    float);*/
+*/
 
 }  // namespace resampling
 }  // namespace kernels
