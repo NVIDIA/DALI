@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <string>
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 namespace testing {

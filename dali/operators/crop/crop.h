@@ -22,10 +22,10 @@
 #include "dali/core/error_handling.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/tensor_shape.h"
-#include "dali/operators/common.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/operators/crop/crop_attr.h"
 #include "dali/operators/crop/slice_base.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

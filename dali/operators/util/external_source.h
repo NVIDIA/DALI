@@ -24,7 +24,7 @@
 #include <condition_variable>
 #include <utility>
 
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/worker_thread.h"
 
 namespace dali {

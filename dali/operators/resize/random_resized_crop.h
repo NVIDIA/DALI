@@ -20,9 +20,9 @@
 #include <memory>
 #include <utility>
 
-#include "dali/operators/operator.h"
-#include "dali/operators/op_spec.h"
-#include "dali/operators/common.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/operators/resize/resize_base.h"
 #include "dali/operators/crop/random_crop_attr.h"
 #include "dali/kernels/imgproc/resample/params.h"

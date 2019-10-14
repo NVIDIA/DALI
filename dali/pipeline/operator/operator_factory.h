@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_OPERATOR_FACTORY_H_
-#define DALI_OPERATORS_OPERATOR_FACTORY_H_
+#ifndef DALI_PIPELINE_OPERATOR_OPERATOR_FACTORY_H_
+#define DALI_PIPELINE_OPERATOR_OPERATOR_FACTORY_H_
 
 #include <memory>
 #include <mutex>
@@ -24,7 +24,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/op_schema.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
 
@@ -112,4 +112,4 @@ class Registerer {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_OPERATOR_FACTORY_H_
+#endif  // DALI_PIPELINE_OPERATOR_OPERATOR_FACTORY_H_

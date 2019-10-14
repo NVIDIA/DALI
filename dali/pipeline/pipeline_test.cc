@@ -21,7 +21,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/util/copy.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_decoder.h"

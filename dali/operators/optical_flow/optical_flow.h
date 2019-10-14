@@ -19,7 +19,7 @@
 #include <vector>
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/optical_flow/optical_flow_adapter/optical_flow_stub.h"
 #include "dali/operators/optical_flow/turing_of/optical_flow_turing.h"
 

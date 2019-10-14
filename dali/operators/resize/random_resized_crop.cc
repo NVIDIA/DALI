@@ -17,7 +17,7 @@
 #include <random>
 
 #include "dali/operators/resize/random_resized_crop.h"
-#include "dali/operators/common.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/util/ocv.h"
 
 namespace dali {

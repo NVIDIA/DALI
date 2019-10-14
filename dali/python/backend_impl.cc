@@ -14,9 +14,9 @@
 
 #include "dali/util/pybind.h"
 #include "dali/pipeline/init.h"
-#include "dali/operators/operator.h"
-#include "dali/operators/op_schema.h"
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/op_schema.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"

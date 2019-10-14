@@ -23,7 +23,7 @@
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/graph/op_graph_storage.h"
-#include "dali/operators/common.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {

@@ -17,7 +17,7 @@
 
 #include <vector>
 #include <sstream>
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/imgproc/warp/affine.h"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
 #include "dali/operators/displacement/warp_param_provider.h"

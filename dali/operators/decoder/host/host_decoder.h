@@ -19,7 +19,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/util/crop_window.h"
 
 namespace dali {

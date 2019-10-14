@@ -28,7 +28,7 @@
 #include "dali/pipeline/data/allocator.h"
 #include "dali/core/common.h"
 #include "dali/c_api/c_api.h"
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/data/backend.h"
 
 namespace tf = tensorflow;

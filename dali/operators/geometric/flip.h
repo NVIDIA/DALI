@@ -19,7 +19,7 @@
 #include <string>
 #include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

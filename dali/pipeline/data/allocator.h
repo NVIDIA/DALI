@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_DATA_ALLOCATOR_H_
 
 #include "dali/core/cuda_utils.h"
-#include "dali/operators/operator_factory.h"
+#include "dali/pipeline/operator/operator_factory.h"
 
 namespace dali {
 

@@ -20,8 +20,8 @@
 #include <string>
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/operators/common.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.h"
 #include "dali/kernels/kernel_manager.h"

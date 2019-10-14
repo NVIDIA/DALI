@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_OP_SPEC_H_
-#define DALI_OPERATORS_OP_SPEC_H_
+#ifndef DALI_PIPELINE_OPERATOR_OP_SPEC_H_
+#define DALI_PIPELINE_OPERATOR_OP_SPEC_H_
 
 #include <map>
 #include <utility>
@@ -26,9 +26,9 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/argument.h"
+#include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/operators/op_schema.h"
+#include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
@@ -593,4 +593,4 @@ inline bool OpSpec::TryGetRepeatedArgumentImpl(std::vector<T> &result, const str
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_OP_SPEC_H_
+#endif  // DALI_PIPELINE_OPERATOR_OP_SPEC_H_

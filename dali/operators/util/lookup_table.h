@@ -20,7 +20,7 @@
 #include <algorithm>
 #include <functional>
 #include <vector>
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/convert.h"
 #include "dali/kernels/type_tag.h"

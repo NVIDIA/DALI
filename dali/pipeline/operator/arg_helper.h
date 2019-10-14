@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_ARG_HELPER_H_
-#define DALI_OPERATORS_ARG_HELPER_H_
+#ifndef DALI_PIPELINE_OPERATOR_ARG_HELPER_H_
+#define DALI_PIPELINE_OPERATOR_ARG_HELPER_H_
 
-#include <dali/operators/argument.h>
-#include <dali/operators/op_spec.h>
+#include <dali/pipeline/operator/argument.h>
+#include <dali/pipeline/operator/op_spec.h>
 #include <dali/pipeline/data/tensor.h>
 #include <memory>
 #include <string>
@@ -78,4 +78,4 @@ class ArgValue {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_ARG_HELPER_H_
+#endif  // DALI_PIPELINE_OPERATOR_ARG_HELPER_H_

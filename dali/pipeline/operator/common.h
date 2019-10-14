@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_COMMON_H_
-#define DALI_OPERATORS_COMMON_H_
+#ifndef DALI_PIPELINE_OPERATOR_COMMON_H_
+#define DALI_PIPELINE_OPERATOR_COMMON_H_
 
 #include <vector>
 #include <string>
 
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
 template <typename T>
@@ -39,4 +39,4 @@ inline void GetSingleOrRepeatedArg(const OpSpec &spec, vector<T> &result,
 }
 
 }  // namespace dali
-#endif  // DALI_OPERATORS_COMMON_H_
+#endif  // DALI_PIPELINE_OPERATOR_COMMON_H_

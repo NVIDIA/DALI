@@ -21,9 +21,9 @@
 #include <memory>
 #include <utility>
 
-#include "dali/operators/operator.h"
-#include "dali/operators/op_spec.h"
-#include "dali/operators/common.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/util/batch_rng.h"
 
 namespace dali {

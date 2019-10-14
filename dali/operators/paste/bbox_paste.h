@@ -19,8 +19,8 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/common.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

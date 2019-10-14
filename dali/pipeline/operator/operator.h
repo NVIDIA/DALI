@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_OPERATOR_H_
-#define DALI_OPERATORS_OPERATOR_H_
+#ifndef DALI_PIPELINE_OPERATOR_OPERATOR_H_
+#define DALI_PIPELINE_OPERATOR_OPERATOR_H_
 
 #include <algorithm>
 #include <memory>
@@ -25,9 +25,9 @@
 #include "dali/core/error_handling.h"
 #include "dali/kernels/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/operators/op_schema.h"
-#include "dali/operators/op_spec.h"
-#include "dali/operators/operator_factory.h"
+#include "dali/pipeline/operator/op_schema.h"
+#include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/operator/operator_factory.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
@@ -390,4 +390,4 @@ DLL_PUBLIC std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec)
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_OPERATOR_H_
+#endif  // DALI_PIPELINE_OPERATOR_OPERATOR_H_

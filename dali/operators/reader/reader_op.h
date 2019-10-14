@@ -26,7 +26,7 @@
 
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/parser/parser.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

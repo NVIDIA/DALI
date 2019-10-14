@@ -19,7 +19,7 @@
 #include <algorithm>
 
 #include "dali/operators/detection/random_crop.h"
-#include "dali/operators/common.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/util/ocv.h"
 
 namespace dali {

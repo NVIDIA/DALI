@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_ARGUMENT_H_
-#define DALI_OPERATORS_ARGUMENT_H_
+#ifndef DALI_PIPELINE_OPERATOR_ARGUMENT_H_
+#define DALI_PIPELINE_OPERATOR_ARGUMENT_H_
 
 #include <map>
 #include <memory>
@@ -102,7 +102,7 @@ inline std::unique_ptr<Value> Value::construct(const T& val) {
  * In order to add a new type of argument, one needs to expose the type to Python
  * in python/dali_backend.cc file by using py::class_<new_type> and DALI_OPSPEC_ADDARG macro.
  * For integral types (like enums), one needs to use INSTANTIATE_ARGUMENT_AS_INT64 macro
- * in pipeline/operators/op_spec.h instead.
+ * in operators/op_spec.h instead.
  */
 class Argument {
  public:
@@ -244,4 +244,4 @@ Argument* Argument::Store(const std::string& s, const T& val) {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_ARGUMENT_H_
+#endif  // DALI_PIPELINE_OPERATOR_ARGUMENT_H_

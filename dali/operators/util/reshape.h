@@ -17,7 +17,7 @@
 
 #include <vector>
 
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/tensor_view.h"
 
 namespace dali {

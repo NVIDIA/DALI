@@ -21,7 +21,7 @@
 
 #include "dali/kernels/tensor_view.h"
 #include "dali/kernels/alloc.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/scratch.h"

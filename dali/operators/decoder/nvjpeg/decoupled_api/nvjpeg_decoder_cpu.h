@@ -28,7 +28,7 @@
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_allocator.h"
 
 #include "dali/image/image_factory.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 

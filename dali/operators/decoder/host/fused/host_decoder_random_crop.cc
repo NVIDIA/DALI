@@ -19,7 +19,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/image/image_factory.h"
 #include "dali/operators/decoder/host/fused/host_decoder_random_crop.h"
-#include "dali/operators/common.h"
+#include "dali/pipeline/operator/common.h"
 
 namespace dali {
 

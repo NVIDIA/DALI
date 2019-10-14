@@ -24,7 +24,7 @@
 #include <numeric>
 #include <atomic>
 
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/util/image.h"

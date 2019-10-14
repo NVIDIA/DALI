@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 
 #include "dali/pipeline/data/types.h"
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <dali/operators/geometric/bb_flip.cuh>
-#include <dali/operators/arg_helper.h>
+#include <dali/pipeline/operator/arg_helper.h>
 #include <vector>
 
 namespace dali {

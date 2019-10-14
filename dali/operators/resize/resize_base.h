@@ -24,7 +24,7 @@
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/imgproc/resample/params.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
 

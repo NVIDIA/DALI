@@ -17,7 +17,7 @@
 
 #include <vector>
 
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/core/convert.h"
 
 namespace dali {

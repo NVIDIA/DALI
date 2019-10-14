@@ -18,7 +18,7 @@
 
 #include <vector>
 #include <cmath>
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/displacement/warpaffine.h"
 
 namespace dali {

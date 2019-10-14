@@ -19,7 +19,7 @@
 #include <string>
 #include <memory>
 #include "dali/operators/decoder/cache/image_cache.h"
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
 namespace kernels {

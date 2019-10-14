@@ -15,18 +15,18 @@
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 
-set(DALI_SRCS ${DALI_SRCS}
+set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/file_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/coco_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader.cc")
 
 if (BUILD_NVDEC)
-  set(DALI_SRCS ${DALI_SRCS}
+  set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
     ${CMAKE_CURRENT_SOURCE_DIR}/video_loader.cc)
 endif()
 
-set(DALI_SRCS ${DALI_SRCS} PARENT_SCOPE)
+set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
 
 # we don't want to test Caffe2 reader if LMDB is not present
 if (BUILD_TEST AND BUILD_LMDB)

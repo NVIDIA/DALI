@@ -3,7 +3,7 @@
 
 #include <vector>
 
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace other_ns {
 

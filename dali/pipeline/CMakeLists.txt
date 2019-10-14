@@ -19,6 +19,7 @@ add_subdirectory(util)
 add_subdirectory(workspace)
 add_subdirectory(executor)
 add_subdirectory(proto)
+add_subdirectory(operator)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
@@ -34,4 +35,4 @@ endif()
 # Get the protobuf files for pipe serialization
 protobuf_generate_cpp(DALI_PROTO_SRCS DALI_PROTO_HEADERS proto/dali.proto)
 add_library(DALI_PROTO OBJECT ${DALI_PROTO_HEADERS} ${DALI_PROTO_SRCS})
-install(FILES ${DALI_PROTO_HEADERS} DESTINATION include/dali/pipeline)
+install(FILES ${DALI_PROTO_HEADERS} DESTINATION include/dali/operators)

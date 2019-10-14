@@ -18,7 +18,7 @@
 #include <memory>
 #include <vector>
 #include "dali/kernels/tensor_shape.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/core/static_switch.h"
 
 namespace dali {

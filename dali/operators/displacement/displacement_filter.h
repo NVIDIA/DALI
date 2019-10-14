@@ -17,7 +17,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/host_dev.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 /**
  * @brief Provides a framework for doing displacement filter operations

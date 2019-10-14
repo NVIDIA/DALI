@@ -28,7 +28,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/decoder/cache/image_cache_factory.h"
 

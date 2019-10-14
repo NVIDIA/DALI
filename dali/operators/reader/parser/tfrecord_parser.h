@@ -23,8 +23,8 @@
 #include <functional>
 
 #include "dali/core/common.h"
-#include "dali/operators/argument.h"
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/argument.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/operators/reader/parser/parser.h"
 #include "dali/operators/reader/parser/tf_feature.h"
 #include "dali/operators/reader/parser/example.pb.h"

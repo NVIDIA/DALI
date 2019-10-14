@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_OP_SCHEMA_H_
-#define DALI_OPERATORS_OP_SCHEMA_H_
+#ifndef DALI_PIPELINE_OPERATOR_OP_SCHEMA_H_
+#define DALI_PIPELINE_OPERATOR_OP_SCHEMA_H_
 
 #include <functional>
 #include <map>
@@ -26,7 +26,7 @@
 #include "dali/core/common.h"
 #include "dali/core/traits.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/argument.h"
+#include "dali/pipeline/operator/argument.h"
 
 namespace dali {
 
@@ -567,4 +567,4 @@ inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) cons
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_OP_SCHEMA_H_
+#endif  // DALI_PIPELINE_OPERATOR_OP_SCHEMA_H_

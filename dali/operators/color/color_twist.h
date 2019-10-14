@@ -19,7 +19,7 @@
 #include <vector>
 #include <memory>
 #include <cmath>
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

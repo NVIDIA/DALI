@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 #include "dali/pipeline/executor/pipelined_executor.h"
-#include "dali/operators/common.h"
+#include "dali/pipeline/operator/common.h"
 
 namespace dali {
 

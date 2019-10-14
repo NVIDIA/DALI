@@ -30,7 +30,7 @@
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
-#include "dali/operators/common.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
 #include "dali/pipeline/util/thread_pool.h"

@@ -16,7 +16,7 @@
 
 #include "dali/pipeline/graph/op_graph.h"
 
-#include "dali/operators/op_schema.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
 

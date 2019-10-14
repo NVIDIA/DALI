@@ -19,7 +19,7 @@
 #include "dali/core/common.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/test/dali_test.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/operators/reader/parser/parser.h"

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/op_schema.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 #include <string>
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/core/python_util.h"
 
 namespace dali {

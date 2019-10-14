@@ -18,7 +18,7 @@
 
 #include <ctgmath>
 #include <vector>
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/displacement/displacement_filter.h"
 
 namespace dali {

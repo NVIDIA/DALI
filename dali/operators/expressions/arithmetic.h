@@ -28,7 +28,7 @@
 #include "dali/kernels/type_tag.h"
 #include "dali/operators/expressions/arithmetic_meta.h"
 #include "dali/operators/expressions/expression_impl_factory.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

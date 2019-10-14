@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/operator_factory.h"
+#include "dali/pipeline/operator/operator_factory.h"
 
 #include <gtest/gtest.h>
 
 #include "dali/pipeline/data/backend.h"
-#include "dali/operators/op_spec.h"
-#include "dali/operators/op_schema.h"
+#include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/operator/op_schema.h"
 #include "dali/test/dali_test.h"
 
 namespace dali {

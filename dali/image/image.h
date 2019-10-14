@@ -25,7 +25,7 @@
 #include <functional>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/util/crop_window.h"
 #include "dali/kernels/tensor_shape.h"
 
@@ -56,7 +56,7 @@ class Image {
    * Returns pointer to decoded image. Decode(...) has to be called
    * prior to calling this function
    */
-  std::shared_ptr<uint8_t> GetImage() const;
+  DLL_PUBLIC std::shared_ptr<uint8_t> GetImage() const;
 
 
   /**

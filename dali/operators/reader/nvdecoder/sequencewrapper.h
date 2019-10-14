@@ -21,7 +21,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/argument.h"
+#include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/workspace/workspace.h"
 

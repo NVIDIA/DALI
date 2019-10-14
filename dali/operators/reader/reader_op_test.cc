@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "dali/pipeline/data/backend.h"
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/operators/reader/reader_op.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/workspace/sample_workspace.h"

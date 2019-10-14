@@ -18,7 +18,7 @@
 #include <dali/util/pybind.h>
 #include <pybind11/embed.h>
 #include <vector>
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

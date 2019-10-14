@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_helper.h"
 #include "dali/util/ocv.h"
 #include "dali/core/device_guard.h"

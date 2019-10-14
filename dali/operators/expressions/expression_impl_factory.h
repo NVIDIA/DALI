@@ -25,7 +25,7 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/operators/expressions/arithmetic_meta.h"
 #include "dali/operators/expressions/expression_tree.h"
-#include "dali/operators/op_spec.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
 

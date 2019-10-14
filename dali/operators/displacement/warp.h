@@ -28,7 +28,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/imgproc/warp_cpu.h"
 #include "dali/kernels/imgproc/warp_gpu.h"
-#include "dali/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/displacement/warp_param_provider.h"
 #include "dali/pipeline/data/views.h"
 

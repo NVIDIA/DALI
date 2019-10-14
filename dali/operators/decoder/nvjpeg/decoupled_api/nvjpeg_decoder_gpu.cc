@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_decoder_gpu.h"
-#include "dali/operators/op_schema.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
 
