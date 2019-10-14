@@ -27,11 +27,11 @@
 namespace dali {
 
 template <typename Backend>
-class Slice : public SliceBase<Backend>, protected SliceAttr {
+class Slice : public SliceBase<Backend> {
  public:
   explicit inline Slice(const OpSpec &spec)
     : SliceBase<Backend>(spec)
-    , SliceAttr(spec) {}
+    , slice_attr_(spec) {}
 
  protected:
   using SliceBase<Backend>::input_type_;
@@ -52,6 +52,8 @@ class Slice : public SliceBase<Backend>, protected SliceAttr {
   void DataDependentSetup(Workspace<Backend> &ws) override;
 
  private:
+  SliceAttr slice_attr_;
+
   static const int kImagesInId = 0;
   static const int kAnchorsInId = 1;
   static const int kSliceShapesInId = 2;

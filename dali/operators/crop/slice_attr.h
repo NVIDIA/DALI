@@ -28,7 +28,7 @@
 namespace dali {
 
 class SliceAttr {
- protected:
+ public:
   explicit inline SliceAttr(const OpSpec &spec)
       : batch_size__(spec.GetArgument<int>("batch_size"))
       , normalized_anchor_(spec.GetArgument<bool>("normalized_anchor"))
@@ -139,6 +139,7 @@ class SliceAttr {
       make_string("Unexpected number of arguments", args_size, "vs", dims_size));
   }
 
+ private:
   size_t batch_size__;
   bool normalized_anchor_, normalized_shape_;
   std::vector<CropWindowGenerator> crop_window_generators_;

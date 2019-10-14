@@ -22,7 +22,7 @@
 
 namespace dali {
 
-class HostDecoderSlice : public HostDecoder, public SliceAttr {
+class HostDecoderSlice : public HostDecoder {
  public:
   explicit HostDecoderSlice(const OpSpec &spec);
 
@@ -31,15 +31,16 @@ class HostDecoderSlice : public HostDecoder, public SliceAttr {
 
  protected:
   inline void RunImpl(SampleWorkspace &ws) override {
-    SliceAttr::ProcessArguments(ws);
+    slice_attr_.ProcessArguments(ws);
     HostDecoder::RunImpl(ws);
   }
 
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return SliceAttr::GetCropWindowGenerator(data_idx);
+    return slice_attr_.GetCropWindowGenerator(data_idx);
   }
 
  private:
+  SliceAttr slice_attr_;
   std::vector<CropWindowGenerator> per_sample_crop_window_generators_;
 };
 

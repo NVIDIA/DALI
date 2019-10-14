@@ -25,7 +25,7 @@ namespace dali {
 
 HostDecoderSlice::HostDecoderSlice(const OpSpec &spec)
   : HostDecoder(spec)
-  , SliceAttr(spec) {
+  , slice_attr_(spec) {
 }
 
 DALI_SCHEMA(HostDecoderSlice)
