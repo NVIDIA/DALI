@@ -65,7 +65,7 @@ cuda_add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS})
 set_target_properties(${dali_operator_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(${dali_operator_lib} PUBLIC ${dali_kernel_lib} ${dali_core_lib})
-target_link_libraries(${dali_operator_lib} PRIVATE ${DALI_LIBS})
+target_link_libraries(${dali_operator_lib} PRIVATE dynlink_cuda ${DALI_LIBS})
 # Exclude (most) statically linked dali dependencies from the exports of libdali_operators.so
 target_link_libraries(${dali_operator_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
@@ -91,7 +91,7 @@ add_dependencies(${dali_lib} ${dali_lib_exports})
 # Link in dali's dependencies
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
 target_link_libraries(${dali_lib} PUBLIC ${dali_operator_lib} ${dali_kernel_lib} ${dali_core_lib})
-target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
+target_link_libraries(${dali_lib} PRIVATE dynlink_cuda ${DALI_LIBS})
 # Exclude (most) statically linked dali dependencies from the exports of libdali.so
 target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
@@ -107,8 +107,8 @@ if (BUILD_TEST)
   set(test_main_bin "dali_test.bin")
   cuda_add_executable(${test_main_bin} "${DALI_TEST_SRCS}")
 
-  target_link_libraries(${test_main_bin} PUBLIC ${dali_lib} gtest)
-  target_link_libraries(${test_main_bin} PRIVATE ${DALI_LIBS})
+  target_link_libraries(${test_main_bin} PUBLIC ${dali_lib} ${dali_operators_lib} ${dali_core_lib} gtest)
+  target_link_libraries(${test_main_bin} PRIVATE dynlink_cuda ${DALI_LIBS})
 
   set_target_properties(${test_main_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
