@@ -51,7 +51,6 @@ class SliceAttr {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-      const auto &images = ws.Input<CPUBackend>(0, data_idx);
       const auto &crop_anchor = ws.Input<CPUBackend>(1, data_idx);
       const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
       VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
@@ -62,7 +61,6 @@ class SliceAttr {
   void ProcessArguments(DeviceWorkspace &ws) {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-    const auto &images = ws.Input<GPUBackend>(0);
     const auto &crop_anchor = ws.Input<CPUBackend>(1);
     const auto &crop_shape = ws.Input<CPUBackend>(2);
     for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
@@ -75,7 +73,6 @@ class SliceAttr {
   void ProcessArguments(const SampleWorkspace &ws) {
     DALI_ENFORCE(ws.NumInput() == 3,
       "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-    const auto &images = ws.Input<CPUBackend>(0);
     const auto &crop_anchor = ws.Input<CPUBackend>(1);
     const auto &crop_shape = ws.Input<CPUBackend>(2);
     VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
