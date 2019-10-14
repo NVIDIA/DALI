@@ -52,6 +52,9 @@ if (BUILD_PROTO3)
   list(APPEND DALI_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
 endif()
 
+string(REPLACE ";" ":" exclude_libs "${DALI_EXCLUDES}")
+message(STATUS "Exclude libs '${exclude_libs}'")
+
 set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
 if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
   # In cmake 3.8.0 or lower, CUDA_LINK_LIBRARIES_KEYWORD is not available
@@ -63,6 +66,8 @@ set_target_properties(${dali_operator_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(${dali_operator_lib} PUBLIC ${dali_kernel_lib} ${dali_core_lib})
 target_link_libraries(${dali_operator_lib} PRIVATE ${DALI_LIBS})
+# Exclude (most) statically linked dali dependencies from the exports of libdali_operators.so
+target_link_libraries(${dali_operator_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 set_target_properties(${dali_lib} PROPERTIES
@@ -75,10 +80,20 @@ target_compile_definitions(${dali_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVSTREAM_CODECPAR=1)
 target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 
+# Define symbol version script for libdali.so
+set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
+set(dali_lib_exports "lib${dali_lib}.map")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${exports_map_path}/${dali_lib_exports}")
+target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_lib_exports})
+add_custom_target(${dali_lib_exports} DEPENDS "${exports_map_path}/${dali_lib_exports}")
+add_dependencies(${dali_lib} ${dali_lib_exports})
+
 # Link in dali's dependencies
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
 target_link_libraries(${dali_lib} PUBLIC ${dali_operator_lib} ${dali_kernel_lib} ${dali_core_lib})
 target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
+# Exclude (most) statically linked dali dependencies from the exports of libdali.so
+target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
 ################################################
 # Build test suite
