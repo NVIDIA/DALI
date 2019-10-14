@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-project(kernels)
+project(${dali_kernel_lib})
 
 add_subdirectory(common)
 add_subdirectory(imgproc)
@@ -24,7 +24,10 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_KERNEL_SRCS)
 collect_test_sources(DALI_KERNEL_TEST_SRCS)
 
-cuda_add_library(${dali_kernel_lib} SHARED "${DALI_KERNEL_SRCS}")
+cuda_add_library(${dali_kernel_lib} SHARED ${DALI_KERNEL_SRCS})
+set_target_properties(${dali_kernel_lib} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
+target_link_libraries(${dali_kernel_lib} ${dali_core_lib})
 
 if (BUILD_TEST)
   cuda_add_library(${dali_kernel_test_lib} SHARED "${DALI_KERNEL_TEST_SRCS}")
