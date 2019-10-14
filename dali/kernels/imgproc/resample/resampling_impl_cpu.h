@@ -27,6 +27,7 @@ namespace kernels {
 struct FilterWindow;
 struct ResamplingFilter;
 
+DLL_PUBLIC
 void InitializeResamplingFilter(int32_t *out_indices, float *out_coeffs, int out_size,
                                 float srcx0, float scale, const ResamplingFilter &filter);
 

@@ -23,6 +23,7 @@
 #include <cmath>
 #include <algorithm>
 #endif
+#include "dali/core/api_helper.h"
 
 namespace dali {
 namespace kernels {
@@ -84,8 +85,8 @@ struct ResamplingFilters {
   }
 };
 
-std::shared_ptr<ResamplingFilters> GetResamplingFilters();
-std::shared_ptr<ResamplingFilters> GetResamplingFiltersCPU();
+DLL_PUBLIC std::shared_ptr<ResamplingFilters> GetResamplingFilters();
+DLL_PUBLIC std::shared_ptr<ResamplingFilters> GetResamplingFiltersCPU();
 
 }  // namespace kernels
 }  // namespace dali

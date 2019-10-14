@@ -33,7 +33,7 @@ struct Deleter {
   AllocType alloc_type;
   inline void operator()(void *p) noexcept { Deallocate(alloc_type, p, device); }
 };
-Deleter GetDeleter(AllocType type) noexcept;
+DLL_PUBLIC Deleter GetDeleter(AllocType type) noexcept;
 
 template <typename T>
 std::shared_ptr<T> alloc_shared(AllocType type, size_t count) {
