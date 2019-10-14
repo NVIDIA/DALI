@@ -30,15 +30,14 @@ __global__ void BatchedSeparableResampleKernel(
   // find which part of which sample this block will process
   SampleBlockInfo sbi = block2sample[blockIdx.x];
   const auto &sample = samples[sbi.sample];
-  int in_stride, out_stride;
   Output *__restrict__ sample_out;
   const Input *__restrict__ sample_in;
   int blocks;
 
-  DeviceArray<int, spatial_ndim> in_shape, out_shape;
+  ivec<spatial_ndim> in_shape, out_shape;
 
-  in_stride = sample.strides[which_pass];
-  out_stride = sample.strides[which_pass+1];
+  auto in_strides = sample.strides[which_pass];
+  auto out_strides = sample.strides[which_pass+1];
   sample_in = reinterpret_cast<const Input*>(sample.pointers[which_pass]);
   sample_out = reinterpret_cast<Output*>(sample.pointers[which_pass+1]);
   blocks = sample.block_count[which_pass];
@@ -47,7 +46,7 @@ __global__ void BatchedSeparableResampleKernel(
 
   int block = sbi.block_in_sample;
 
-  int axis = sample.order[which_pass];
+  int axis = sample.order[which_pass];  // vec-order: 0 = X, 1 = Y, 2 = Z
 
   ResamplingFilterType ftype = sample.filter_type[axis];
   ResamplingFilter filter = sample.filter[axis];
@@ -56,7 +55,12 @@ __global__ void BatchedSeparableResampleKernel(
   float origin = sample.origin[axis];
   float scale  = sample.scale[axis];
 
-  int block_size = axis == 1 ? blockDim.x : blockDim.y;
+  ivec3 blockDimV;
+  blockDimV.x = blockDim.x;
+  blockDimV.y = blockDim.y;
+  blockDimV.z = blockDim.z;
+
+  int block_size = blockDimV[axis];
   int size_in_blocks = (out_shape[axis] + block_size - 1) / block_size;
 
   int start = ::min(size_in_blocks *  block      / blocks * block_size, out_shape[axis]);
@@ -64,44 +68,44 @@ __global__ void BatchedSeparableResampleKernel(
 
   int x0, x1, y0, y1;
 
-  if (axis == spatial_ndim - 1) {
+  if (axis == 0) {  // horizontal pass
     x0 = start;
     x1 = end;
     y0 = 0;
-    y1 = out_shape[0];
-  } else {
+    y1 = out_shape.y;
+  } else if (axis == 1) {  // vertical pass
     x0 = 0;
-    x1 = out_shape[1];
+    x1 = out_shape.x;
     y0 = start;
     y1 = end;
-  }
+  }  // TODO(michalz): other axes
 
   switch (ftype) {
   case ResamplingFilterType::Nearest:
-    if (axis == spatial_ndim - 1) {
-      NNResample(x0, x1, y0, y1, origin, 0, scale, 1, sample_out, out_stride, sample_in, in_stride,
-        in_shape[1], in_shape[0], sample.channels);
+    if (axis == 0) {
+      NNResample(x0, x1, y0, y1, origin, 0, scale, 1, sample_out, out_strides[0], sample_in,
+        in_strides[0], in_shape.x, in_shape.y, sample.channels);
     } else {
-      NNResample(x0, x1, y0, y1, 0, origin, 1, scale, sample_out, out_stride, sample_in, in_stride,
-        in_shape[1], in_shape[0], sample.channels);
+      NNResample(x0, x1, y0, y1, 0, origin, 1, scale, sample_out, out_strides[0], sample_in,
+        in_strides[0], in_shape.x, in_shape.y, sample.channels);
     }
     break;
   case ResamplingFilterType::Linear:
-    if (axis == spatial_ndim - 1) {
-      LinearHorz(x0, x1, y0, y1, origin, scale, sample_out, out_stride, sample_in, in_stride,
-        in_shape[1], sample.channels);
+    if (axis == 0) {
+      LinearHorz(x0, x1, y0, y1, origin, scale, sample_out, out_strides[0], sample_in,
+        in_strides[0], in_shape.x, sample.channels);
     } else {
-      LinearVert(x0, x1, y0, y1, origin, scale, sample_out, out_stride, sample_in, in_stride,
-        in_shape[0], sample.channels);
+      LinearVert(x0, x1, y0, y1, origin, scale, sample_out, out_strides[0], sample_in,
+        in_strides[0], in_shape.y, sample.channels);
     }
     break;
   default:
-    if (axis == spatial_ndim - 1) {
-      ResampleHorz(x0, x1, y0, y1, origin, scale, sample_out, out_stride, sample_in, in_stride,
-        in_shape[1], sample.channels, filter, support);
+    if (axis == 0) {
+      ResampleHorz(x0, x1, y0, y1, origin, scale, sample_out, out_strides[0], sample_in,
+        in_strides[0], in_shape.x, sample.channels, filter, support);
     } else {
-      ResampleVert(x0, x1, y0, y1, origin, scale, sample_out, out_stride, sample_in, in_stride,
-        in_shape[0], sample.channels, filter, support);
+      ResampleVert(x0, x1, y0, y1, origin, scale, sample_out, out_strides[0], sample_in,
+        in_strides[0], in_shape.y, sample.channels, filter, support);
     }
     break;
   }

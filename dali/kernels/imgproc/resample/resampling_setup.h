@@ -22,6 +22,7 @@
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/core/dev_array.h"
 #include "dali/core/geom/vec.h"
+#include "dali/kernels/imgproc/roi.h"
 
 namespace dali {
 namespace kernels {
@@ -30,19 +31,20 @@ namespace resampling {
 template <int spatial_ndim>
 using ProcessingOrder = i8vec<spatial_ndim>;
 
-constexpr ProcessingOrder<2> VertHorz() { return { 0, 1 }; }
-constexpr ProcessingOrder<2> HorzVert() { return { 1, 0 }; }
+constexpr ProcessingOrder<2> VertHorz() { return { 1, 0 }; }
+constexpr ProcessingOrder<2> HorzVert() { return { 0, 1 }; }
 
 template <int spatial_ndim>
 struct SampleDesc {
-  using DevShape = DeviceArray<int, spatial_ndim>;
+  using Shape = ivec<spatial_ndim>;
+  using Strides = vec<spatial_ndim - 1, ptrdiff_t>;
   static constexpr int num_tmp_buffers = spatial_ndim - 1;
   static constexpr int num_buffers = num_tmp_buffers + 2;
 
   DeviceArray<uintptr_t, num_buffers> pointers;
   DeviceArray<ptrdiff_t, num_buffers> offsets;
-  DeviceArray<int, num_buffers>       strides;
-  DeviceArray<DevShape, num_buffers>  shapes;
+  DeviceArray<Strides, num_buffers>   strides;
+  DeviceArray<Shape, num_buffers>  shapes;
 
   template <typename Input, typename Tmp, typename Output, int D = spatial_ndim>
   void set_base_pointers(Input *in, Tmp *tmp, Output *out) {
@@ -61,26 +63,12 @@ struct SampleDesc {
     pointers[i] = reinterpret_cast<uintptr_t>(out + offsets[i]);
   }
 
-  DALI_HOST_DEV DevShape &in_shape()                   { return shapes[0]; }
-  DALI_HOST_DEV const DevShape &in_shape() const       { return shapes[0]; }
-  DALI_HOST_DEV DevShape &tmp_shape(int i)             { return shapes[i+1]; }
-  DALI_HOST_DEV const DevShape &tmp_shape(int i) const { return shapes[i+1]; }
-  DALI_HOST_DEV DevShape &out_shape()                  { return shapes[spatial_ndim]; }
-  DALI_HOST_DEV const DevShape &out_shape() const      { return shapes[spatial_ndim]; }
-
-  DALI_HOST_DEV int  &in_stride()            { return strides[0]; }
-  DALI_HOST_DEV int   in_stride() const      { return strides[0]; }
-  DALI_HOST_DEV int &tmp_stride(int i)       { return strides[i+1]; }
-  DALI_HOST_DEV int  tmp_stride(int i) const { return strides[i+1]; }
-  DALI_HOST_DEV int &out_stride()            { return strides[spatial_ndim]; }
-  DALI_HOST_DEV int  out_stride() const      { return strides[spatial_ndim]; }
-
-  DALI_HOST_DEV uintptr_t  &in_ptr()            { return pointers[0]; }
-  DALI_HOST_DEV uintptr_t   in_ptr() const      { return pointers[0]; }
-  DALI_HOST_DEV uintptr_t &tmp_ptr(int i)       { return pointers[i+1]; }
-  DALI_HOST_DEV uintptr_t  tmp_ptr(int i) const { return pointers[i+1]; }
-  DALI_HOST_DEV uintptr_t &out_ptr()            { return pointers[spatial_ndim]; }
-  DALI_HOST_DEV uintptr_t  out_ptr() const      { return pointers[spatial_ndim]; }
+  DALI_HOST_DEV Shape &in_shape()                   { return shapes[0]; }
+  DALI_HOST_DEV const Shape &in_shape() const       { return shapes[0]; }
+  DALI_HOST_DEV Shape &tmp_shape(int i)             { return shapes[i+1]; }
+  DALI_HOST_DEV const Shape &tmp_shape(int i) const { return shapes[i+1]; }
+  DALI_HOST_DEV Shape &out_shape()                  { return shapes[spatial_ndim]; }
+  DALI_HOST_DEV const Shape &out_shape() const      { return shapes[spatial_ndim]; }
 
   DALI_HOST_DEV ptrdiff_t  &in_offset()            { return offsets[0]; }
   DALI_HOST_DEV ptrdiff_t   in_offset() const      { return offsets[0]; }
@@ -96,14 +84,21 @@ struct SampleDesc {
   template <typename T>
   DALI_HOST_DEV T *out_ptr() const { return reinterpret_cast<T*>(pointers[spatial_ndim]); }
 
-  DeviceArray<float, spatial_ndim> origin, scale;
+  vec<spatial_ndim> origin, scale;
 
   ProcessingOrder<spatial_ndim> order;
   int channels;
   ResamplingFilterType filter_type[spatial_ndim];  // NOLINT
   ResamplingFilter filter[spatial_ndim];           // NOLINT
 
-  ivec<spatial_ndim> block_count;
+  /**
+   * @brief Number of blocks per pass
+   *
+   * This is kept as an array (instead of vector) to avoid indexing confusion;
+   * block_count[0] refers to number of blocks in first pass, regarless of actual processing
+   * order
+   */
+  DeviceArray<int, spatial_ndim> block_count;
 };
 
 /**
@@ -150,10 +145,7 @@ class SeparableResamplingSetup {
   int2 block_size = { 32, 24 };
 
  protected:
-  struct ROI {
-    int lo[spatial_ndim], hi[spatial_ndim];
-    int size(int dim) const { return hi[dim] - lo[dim]; }
-  };
+  using ROI = Roi<spatial_ndim>;
 
   void SetFilters(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params);
   ROI ComputeScaleAndROI(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params);

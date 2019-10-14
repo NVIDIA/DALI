@@ -41,16 +41,17 @@ template <int spatial_ndim>
 void SeparableResamplingSetup<spatial_ndim>::SetFilters(
     SampleDesc &desc,
     const ResamplingParamsND<spatial_ndim> &params) {
-  for (int axis = 0; axis < spatial_ndim; axis++) {
+  for (int dim = 0; dim < spatial_ndim; dim++) {
+    int axis = spatial_ndim - 1 - dim;
     float in_size;
-    if (params[axis].roi.use_roi) {
-      in_size = std::abs(params[axis].roi.end - params[axis].roi.start);
+    if (params[dim].roi.use_roi) {
+      in_size = std::abs(params[dim].roi.end - params[dim].roi.start);
     } else {
       in_size = desc.in_shape()[axis];
     }
 
-    auto fdesc = desc.out_shape()[axis] < in_size ? params[axis].min_filter
-                                                  : params[axis].mag_filter;
+    auto fdesc = desc.out_shape()[axis] < in_size ? params[dim].min_filter
+                                                  : params[dim].mag_filter;
     if (fdesc.radius == 0)
       fdesc.radius = DefaultFilterRadius(fdesc.type, in_size, desc.out_shape()[axis]);
     desc.filter_type[axis] = fdesc.type;
@@ -65,11 +66,12 @@ SeparableResamplingSetup<spatial_ndim>::ComputeScaleAndROI(
     SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params) {
   ROI roi;
 
-  for (int axis = 0; axis < spatial_ndim; axis++) {
+  for (int dim = 0; dim < spatial_ndim; dim++) {
+    int axis = spatial_ndim - 1 - dim;
     float roi_start, roi_end;
-    if (params[axis].roi.use_roi) {
-      roi_start = params[axis].roi.start;
-      roi_end = params[axis].roi.end;
+    if (params[dim].roi.use_roi) {
+      roi_start = params[dim].roi.start;
+      roi_end = params[dim].roi.end;
     } else {
       roi_start = 0;
       roi_end = desc.in_shape()[axis];
@@ -111,20 +113,21 @@ void SeparableResamplingSetup<2>::SetupSample(
   if (out_H == KeepOriginalSize) out_H = H;
   if (out_W == KeepOriginalSize) out_W = W;
 
-  desc.in_shape() = {{ H, W }};
-  desc.out_shape() = {{ out_H, out_W }};
+  desc.in_shape() = { W, H };
+  desc.out_shape() = { out_W, out_H };
   SetFilters(desc, params);
   ROI roi = ComputeScaleAndROI(desc, params);
 
-  int size_vert = roi.size(1) * out_H;
-  int size_horz = roi.size(0) * out_W;
-  int filter_support[2] = {
+  int64_t size_vert = volume({roi.extent().x, out_H});
+  int64_t size_horz = volume({out_W, roi.extent().y});
+  ivec2 filter_support = {
     std::max(1, desc.filter[0].support()),
     std::max(1, desc.filter[1].support())
   };
 
-  int compute_vh = size_vert * filter_support[0] + out_W * out_H * filter_support[1];
-  int compute_hv = size_horz * filter_support[1] + out_W * out_H * filter_support[0];
+  int64_t out_area = volume(desc.out_shape());
+  int64_t compute_vh = size_vert * filter_support.y + out_area * filter_support.x;
+  int64_t compute_hv = size_horz * filter_support.x + out_area * filter_support.y;
 
   // ...maybe fine tune the size/compute weights?
   const float size_weight = 3;
@@ -135,32 +138,32 @@ void SeparableResamplingSetup<2>::SetupSample(
   if (cost_vert < cost_horz) {
     desc.order = VertHorz();
     tmp_H = out_H;
-    tmp_W = roi.size(1);
-    desc.block_count[0] = (out_H + block_size.y - 1) / block_size.y;
-    desc.block_count[1] = (out_W + block_size.x - 1) / block_size.x;
+    tmp_W = roi.extent().x;
+    desc.block_count[0] = div_ceil(out_H, block_size.y);
+    desc.block_count[1] = div_ceil(out_W, block_size.x);
   } else {
     desc.order = HorzVert();
-    tmp_H = roi.size(0);
+    tmp_H = roi.extent().y;
     tmp_W = out_W;
-    desc.block_count[0] = (out_W + block_size.x - 1) / block_size.x;
-    desc.block_count[1] = (out_H + block_size.y - 1) / block_size.y;
+    desc.block_count[0] = div_ceil(out_W, block_size.x);
+    desc.block_count[1] = div_ceil(out_H, block_size.y);
   }
-  desc.tmp_shape(0) = {{ tmp_H, tmp_W }};
+  desc.tmp_shape(0) = { tmp_W, tmp_H };
 
   for (int stage = 0; stage < 3; stage++) {
-    desc.strides[stage] = desc.shapes[stage][1] * C;
+    desc.strides[stage][0] = desc.shapes[stage].x * C;
     desc.offsets[stage] = 0;
   }
   desc.channels = C;
 
   if (desc.order == VertHorz()) {
-    desc.origin[1] -= roi.lo[1];
-    desc.in_offset() += roi.lo[1] * desc.channels;
-    desc.in_shape()[1] = roi.size(1);
+    desc.origin.x -= roi.lo.x;
+    desc.in_offset() += roi.lo.x * desc.channels;
+    desc.in_shape().x = roi.extent().x;
   } else {
-    desc.origin[0] -= roi.lo[0];
-    desc.in_offset() += roi.lo[0] * desc.in_stride();
-    desc.in_shape()[0] = roi.size(0);
+    desc.origin.y -= roi.lo.y;
+    desc.in_offset() += roi.lo.y * desc.strides[0][0];
+    desc.in_shape().y = roi.extent().y;
   }
 }
 
@@ -189,20 +192,18 @@ void BatchResamplingSetup<2>::SetupBatch(
     SetupSample(desc, ts_in, params[i]);
 
     for (int t = 0; t < num_tmp_buffers; t++) {
-      auto ts_tmp = intermediate_shapes[t].tensor_shape_span(i);
-      for (int d = 0; d < spatial_ndim; d++) {
-        ts_tmp[d] = desc.tmp_shape(t)[d];
-      }
-      ts_tmp[channel_dim] = desc.channels;
+      TensorShape<tensor_ndim> ts_tmp = shape_cat(vec2shape(desc.tmp_shape(t)), desc.channels);
+      intermediate_shapes[t].set_tensor_shape(i, ts_tmp);
       intermediate_sizes[t] += volume(ts_tmp);
     }
 
     auto ts_out = output_shape.tensor_shape_span(i);
-    ts_out[0] = desc.out_shape()[0];
-    ts_out[1] = desc.out_shape()[1];
-    ts_out[channel_dim] = desc.channels;
+    static_assert(channel_dim == spatial_ndim, "Shape calculation requires channel-last layout");
+    auto sample_shape = shape_cat(vec2shape(desc.out_shape()), desc.channels);
+    output_shape.set_tensor_shape(i, sample_shape);
 
-    total_blocks += desc.block_count;
+    for (int d = 0; d < spatial_ndim; d++)
+      total_blocks[d] += desc.block_count[d];
   }
 }
 
@@ -211,7 +212,7 @@ void BatchResamplingSetup<spatial_ndim>::InitializeSampleLookup(
     const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup) {
   int blocks_in_all_passes = 0;
   for (int i = 0; i < spatial_ndim; i++)
-    blocks_in_all_passes = total_blocks[i];
+    blocks_in_all_passes += total_blocks[i];
 
   assert(sample_lookup.shape[0] >= blocks_in_all_passes);
   (void)blocks_in_all_passes;  // for non-debug builds

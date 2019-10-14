@@ -140,7 +140,7 @@ struct SeparableResampleCPU  {
     setup.Setup(input.shape, params);
 
     TensorShape<tensor_ndim> out_shape =
-        { setup.desc.out_shape()[0], setup.desc.out_shape()[1], setup.desc.channels };
+      shape_cat(vec2shape(setup.desc.out_shape()), setup.desc.channels);
 
     ScratchpadEstimator se;
     se.add<float>(AllocType::Host, setup.memory.tmp_size);
@@ -156,15 +156,6 @@ struct SeparableResampleCPU  {
     return req;
   }
 
-  template <typename T, size_t n>
-  static vec<n, T> arr2vec(const DeviceArray<T, n> &shape) {
-    vec<n, T> ret = {};
-    for (size_t i = 0; i < n; i++) {
-      ret[i] = shape[n - 1 - i];
-    }
-    return ret;
-  }
-
   void Run(KernelContext &context,
            const Output &output,
            const Input &input,
@@ -174,35 +165,48 @@ struct SeparableResampleCPU  {
     desc.set_base_pointers(input.data, static_cast<char*>(nullptr), output.data);
 
     auto in_ROI = as_surface_channel_last(input);
-    in_ROI.size = arr2vec(desc.in_shape());
+    in_ROI.size = desc.in_shape();
     in_ROI.data = desc.template in_ptr<InputElement>();
 
     auto out_ROI = as_surface_channel_last(output);
-    out_ROI.size = arr2vec(desc.out_shape());
+    out_ROI.size = desc.out_shape();
     out_ROI.data = desc.template out_ptr<OutputElement>();
 
     if (setup.IsPureNN(desc)) {
-      ResampleNN(out_ROI, in_ROI,
-                 arr2vec(desc.origin), arr2vec(desc.scale));
+      ResampleNN(out_ROI, in_ROI, desc.origin, desc.scale);
     } else {
       TensorShape<tensor_ndim> tmp_shapes[num_tmp_buffers];
       for (int i = 0; i < num_tmp_buffers; i++) {
-        tmp_shapes[i] = { desc.tmp_shape(i)[0], desc.tmp_shape(i)[1], desc.channels };
+        tmp_shapes[i] = shape_cat(vec2shape(desc.tmp_shape(i)), desc.channels);
       }
 
-      auto tmp = context.scratchpad->AllocTensor<AllocType::Host, float, 3>(tmp_shapes[0]);
-
-      auto tmp_surf = as_surface_HWC(tmp);
-
+      float *tmp_buf = context.scratchpad->Allocate<float>(AllocType::Host, setup.memory.tmp_size);
       void *filter_mem = context.scratchpad->Allocate<int32_t>(AllocType::Host,
-        setup.memory.coeffs_size + setup.memory.indices_size);
+          setup.memory.coeffs_size + setup.memory.indices_size);
 
-      if (desc.order == VertHorz()) {
-        ResamplePass<float, InputElement>(tmp_surf, in_ROI, filter_mem, 0);
-        ResamplePass<OutputElement, float>(out_ROI, tmp_surf, filter_mem, 1);
-      } else {
-        ResamplePass<float, InputElement>(tmp_surf, in_ROI, filter_mem, 1);
-        ResamplePass<OutputElement, float>(out_ROI, tmp_surf, filter_mem, 0);
+      Surface<spatial_ndim, float> tmp_surf = {}, tmp_prev = {};
+
+      for (int stage = 0; stage < spatial_ndim; stage++) {
+        if (stage < spatial_ndim - 1) {
+          tmp_surf.data = tmp_buf + (stage & 1 ? setup.memory.tmp_odd_offset : 0);
+          tmp_surf.size = setup.desc.tmp_shape(stage);
+          tmp_surf.channels = setup.desc.channels;
+
+          tmp_surf.channel_stride = 1;
+          tmp_surf.strides.x = tmp_surf.channels;
+          for (int i = 1; i < spatial_ndim; i++) {
+            tmp_surf.strides[i] = tmp_surf.strides[i-1] * tmp_surf.size[i-1];
+          }
+        }
+
+        if (stage == 0)  // in -> tmp(0)
+          ResamplePass<float, InputElement>(tmp_surf, in_ROI, filter_mem, desc.order[stage]);
+        else if (stage < spatial_ndim - 1)  // tmp(i) -> tmp(i+1)
+          ResamplePass<float, float>(tmp_surf, tmp_prev, filter_mem, desc.order[stage]);
+        else  // tmp(spatial_ndim-1) -> out
+          ResamplePass<OutputElement, float>(out_ROI, tmp_surf, filter_mem, desc.order[stage]);
+
+        tmp_prev = tmp_surf;
       }
     }
   }
@@ -217,15 +221,17 @@ struct SeparableResampleCPU  {
     if (desc.filter_type[axis] == ResamplingFilterType::Nearest) {
       // use specialized NN resampling pass - should be faster
       ResampleNN(out, in,
-        { desc.origin[1], desc.origin[0] },
-        { (axis == 1 ? desc.scale[1] : 1.0f), (axis == 0 ? desc.scale[0] : 1.0f) });
+        desc.origin,
+        { (axis == 0 ? desc.scale.x : 1.0f), (axis == 1 ? desc.scale.y : 1.0f) });
     } else {
       int32_t *indices = static_cast<int32_t*>(mem);
-      float *coeffs = static_cast<float*>(static_cast<void*>(indices + desc.out_shape()[axis]));
+      int out_size = desc.out_shape()[axis];
+      float *coeffs = static_cast<float*>(static_cast<void*>(indices + out_size));
       int support = desc.filter[axis].support();
 
-      InitializeResamplingFilter(indices, coeffs, desc.out_shape()[axis],
-                                 desc.origin[axis], desc.scale[axis], desc.filter[axis]);
+      InitializeResamplingFilter(indices, coeffs, out_size,
+                                 desc.origin[axis], desc.scale[axis],
+                                 desc.filter[axis]);
 
       ResampleAxis(out, in, indices, coeffs, support, axis);
     }

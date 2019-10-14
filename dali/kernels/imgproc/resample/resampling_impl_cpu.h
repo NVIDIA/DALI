@@ -167,9 +167,9 @@ inline void ResampleHorz(Surface2D<Out> out, Surface2D<In> in,
 template <typename Out, typename In>
 inline void ResampleAxis(Surface2D<Out> out, Surface2D<In> in,
                          const int *in_indices, const float *coeffs, int support, int axis) {
-  if (axis == 0)
+  if (axis == 1)
     ResampleVert(out, in, in_indices, coeffs, support);
-  else if (axis == 1)
+  else if (axis == 0)
     ResampleHorz(out, in, in_indices, coeffs, support);
   else
     assert(!"Invalid axis index");
