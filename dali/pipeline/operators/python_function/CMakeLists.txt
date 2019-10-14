@@ -14,9 +14,10 @@
 
 set(python_function_lib "python_function_plugin")
 set(SOURCES python_function.cc dltensor_function.cc util/copy_with_stride.cc)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
 add_library(${python_function_lib} SHARED ${SOURCES})
 target_link_libraries(${python_function_lib} PUBLIC ${dali_lib})
-target_include_directories(${python_function_lib} PUBLIC
+target_include_directories(${python_function_lib} PRIVATE
         ${PYBIND11_INCLUDE_DIR}  # from project CMakeLists.txt
         ${pybind11_INCLUDE_DIR}  # from pybind11Config
         ${PYTHON_INCLUDE_DIRS})
