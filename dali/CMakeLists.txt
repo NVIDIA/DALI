@@ -82,11 +82,17 @@ target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 
 # Define symbol version script for libdali.so
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
-set(dali_lib_exports "lib${dali_lib}.map")
+set(dali_lib_exports "libdali.map")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${exports_map_path}/${dali_lib_exports}")
-target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_lib_exports})
 add_custom_target(${dali_lib_exports} DEPENDS "${exports_map_path}/${dali_lib_exports}")
 add_dependencies(${dali_lib} ${dali_lib_exports})
+target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_lib_exports})
+
+set(dali_operator_lib_exports "libdali_operators.map")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_operator_lib_exports}.in" "${exports_map_path}/${dali_operator_lib_exports}")
+add_custom_target(${dali_operator_lib_exports} DEPENDS "${exports_map_path}/${dali_operator_lib_exports}")
+add_dependencies(${dali_operator_lib} ${dali_operator_lib_exports})
+target_link_libraries(${dali_operator_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_operator_lib_exports})
 
 # Link in dali's dependencies
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
