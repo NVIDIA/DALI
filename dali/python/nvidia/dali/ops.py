@@ -451,11 +451,6 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         return outputs
 
 
-def current_dali_stream():
-    """Get DALI's current CUDA stream."""
-    return CUDAStream(nvidia.dali.libpython_function_plugin.current_dali_stream())
-
-
 class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
     def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
         self._schema = b.GetSchema(impl_name)
@@ -529,6 +524,11 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
 class PythonFunction(PythonFunctionBase):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
+
+    @staticmethod
+    def current_stream():
+        """Get DALI's current CUDA stream."""
+        return CUDAStream(nvidia.dali.libpython_function_plugin.current_dali_stream())
 
     def __init__(self, function, num_outputs=1, device='cpu', **kwargs):
         super(PythonFunction, self).__init__(impl_name="PythonFunctionImpl", function=function,

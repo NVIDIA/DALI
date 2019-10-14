@@ -8,8 +8,7 @@ import random
 import numpy
 from mxnet import ndarray as mxnd
 import cupy
-import functools
-import ctypes
+
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -118,20 +117,10 @@ def torch_red_channel_op(in1, in2):
     return [t.narrow(2, 0, 1).squeeze() for t in in1], [t.narrow(2, 0, 1).squeeze() for t in in2]
 
 
-def test_torch_simple_cpu():
-    torch_case(simple_torch_op, 'cpu')
-
-
-def test_torch_red_channel_cpu():
-    torch_case(torch_red_channel_op, 'cpu')
-
-
-def test_torch_simple_gpu():
-    torch_case(simple_torch_op, 'gpu')
-
-
-def test_torch_red_channel_gpu():
-    torch_case(torch_red_channel_op, 'gpu')
+def test_torch():
+    for testcase in [simple_torch_op, torch_red_channel_op]:
+        for device in ['cpu', 'gpu']:
+            yield torch_case, testcase, device
 
 
 def mxnet_adapter(fun, in1, in2):
@@ -183,24 +172,10 @@ def mxnet_cast(in1, in2):
     return [mxnd.cast(t, dtype='float32') for t in in1], [mxnd.cast(t, dtype='int64') for t in in2]
 
 
-def test_mxnet_flatten_cpu():
-    mxnet_case(mxnet_flatten, device='cpu')
-
-
-def test_mxnet_flatten_gpu():
-    mxnet_case(mxnet_flatten, device='gpu')
-
-
-def test_mxnet_slice_cpu():
-    mxnet_case(mxnet_slice, device='cpu')
-
-
-def test_mxnet_slice_gpu():
-    mxnet_case(mxnet_slice, device='gpu')
-
-
-def test_mxnet_cast():
-    mxnet_case(mxnet_cast, device='cpu')
+def test_mxnet():
+    for testcase in [mxnet_flatten, mxnet_slice, mxnet_cast]:
+        for device in ['cpu', 'gpu']:
+            yield mxnet_case, testcase, device
 
 
 cupy_stream = cupy.cuda.Stream()
@@ -298,7 +273,7 @@ def gray_scale_call(input):
     output = cupy.ndarray((height, width), dtype=cupy.float32)
     gray_scale_kernel(grid=((height + 31) // 32, (width + 31) // 32),
                       block=(32, 32),
-                      stream=ops.current_dali_stream(),
+                      stream=ops.PythonFunction.current_stream(),
                       args=(output, input, height, width))
     return output
 
@@ -320,16 +295,9 @@ def cupy_kernel_gray_scale(in1, in2):
     return out1, out2
 
 
-def test_cupy_simple():
-    cupy_case(cupy_simple)
-
-
-def test_cupy_kernel_square_diff():
-    cupy_case(cupy_kernel_square_diff)
-
-
-def test_cupy_kernel_mix_channels():
-    cupy_case(cupy_kernel_mix_channels)
+def test_cupy():
+    for testcase in [cupy_simple,  cupy_kernel_square_diff, cupy_kernel_mix_channels]:
+        yield cupy_case, testcase
 
 
 def test_cupy_kernel_gray_scale():

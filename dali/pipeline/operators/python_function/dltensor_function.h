@@ -108,9 +108,9 @@ class StreamSynchronizer;
 template <>
 class StreamSynchronizer<GPUBackend> {
  public:
-  StreamSynchronizer(cudaStream_t current, bool synchronize): previous_(GetCurrentStream()) {
-    SetCurrentStream(current);
-    if (synchronize) cudaStreamSynchronize(current);
+  StreamSynchronizer(DeviceWorkspace &ws, bool synchronize): previous_(GetCurrentStream()) {
+    SetCurrentStream(ws.stream());
+    if (synchronize) cudaStreamSynchronize(ws.stream());
   }
 
   ~StreamSynchronizer() {
@@ -122,7 +122,8 @@ class StreamSynchronizer<GPUBackend> {
 
 template <>
 class StreamSynchronizer<CPUBackend> {
-  StreamSynchronizer(cudaStream_t current, bool synchronize) {}
+ public:
+  StreamSynchronizer(HostWorkspace &ws, bool synchronize) {}
 };
 
 }  // namespace detail
@@ -145,7 +146,7 @@ class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
     py::gil_scoped_acquire interpreter_guard{};
     py::object output_o;
     try {
-      detail::StreamSynchronizer<Backend> sync(ws.stream(), synchronize_stream_);
+      detail::StreamSynchronizer<Backend> sync(ws, synchronize_stream_);
       output_o = python_function(*detail::PrepareDLTensorInputs<Backend>(ws));
     } catch(const py::error_already_set &e) {
       throw std::runtime_error(to_string("DLTensorPythonFunction error: ") + to_string(e.what()));
