@@ -23,7 +23,7 @@ collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
 cuda_add_library(dynlink_cuda STATIC dynlink_cuda.cc)
 
 cuda_add_library(${dali_core_lib} SHARED ${DALI_CORE_SRCS})
-target_link_libraries(${dali_core_lib} dynlink_cuda)
+#target_link_libraries(${dali_core_lib} dynlink_cuda)
 target_link_libraries(${dali_core_lib} "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(${dali_core_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
