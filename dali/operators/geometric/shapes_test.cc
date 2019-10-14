@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/geometric/shapes.h"
 #include <gtest/gtest.h>
 #include <random>
-#include "dali/operators/geometric/shapes.h"
-#include "dali/test/dali_operator_test.h"
 #include "dali/kernels/tensor_shape_print.h"
+#include "dali/test/dali_operator_test.h"
 
 namespace dali {
 

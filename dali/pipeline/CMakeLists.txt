@@ -14,12 +14,12 @@
 
 # Add all subdirectories
 add_subdirectory(data)
+add_subdirectory(executor)
 add_subdirectory(graph)
+add_subdirectory(operator)
+add_subdirectory(proto)
 add_subdirectory(util)
 add_subdirectory(workspace)
-add_subdirectory(executor)
-add_subdirectory(proto)
-add_subdirectory(operator)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)

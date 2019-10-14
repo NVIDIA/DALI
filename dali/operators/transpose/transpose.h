@@ -19,8 +19,8 @@
 #include <memory>
 #include <vector>
 
-#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/transpose/cutt/cutt.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

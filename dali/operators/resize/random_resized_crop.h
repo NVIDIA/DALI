@@ -15,17 +15,17 @@
 #ifndef DALI_OPERATORS_RESIZE_RANDOM_RESIZED_CROP_H_
 #define DALI_OPERATORS_RESIZE_RANDOM_RESIZED_CROP_H_
 
-#include <vector>
-#include <random>
 #include <memory>
+#include <random>
 #include <utility>
+#include <vector>
 
-#include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/operator/op_spec.h"
-#include "dali/pipeline/operator/common.h"
-#include "dali/operators/resize/resize_base.h"
-#include "dali/operators/crop/random_crop_attr.h"
 #include "dali/kernels/imgproc/resample/params.h"
+#include "dali/operators/crop/random_crop_attr.h"
+#include "dali/operators/resize/resize_base.h"
+#include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

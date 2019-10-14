@@ -18,12 +18,12 @@
 #include <algorithm>
 #include <memory>
 #include <string>
-#include <vector>
 #include <utility>
+#include <vector>
 
-#include "dali/operators/reader/loader/file_loader.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/operators/reader/loader/file_loader.h"
 
 namespace dali {
 namespace detail {

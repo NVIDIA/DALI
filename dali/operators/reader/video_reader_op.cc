@@ -16,10 +16,10 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/operators/reader/video_reader_op.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/operators/reader/video_reader_op.h"
 
 namespace dali {
 

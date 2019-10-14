@@ -19,10 +19,10 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/util/crop_window.h"
-#include "dali/core/tensor_layout.h"
 
 namespace dali {
 

@@ -15,16 +15,16 @@
 #ifndef DALI_OPERATORS_CROP_CROP_H_
 #define DALI_OPERATORS_CROP_CROP_H_
 
+#include <tuple>
 #include <utility>
 #include <vector>
-#include <tuple>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/tensor_shape.h"
-#include "dali/pipeline/operator/common.h"
 #include "dali/operators/crop/crop_attr.h"
 #include "dali/operators/crop/slice_base.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {

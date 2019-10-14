@@ -19,8 +19,8 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/operator/common.h"
 #include "dali/operators/crop/slice_base.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {

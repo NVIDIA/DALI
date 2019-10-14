@@ -66,9 +66,6 @@ endif()
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 set_target_properties(${dali_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
-# Options for using Dockerfile FFmpeg version
-target_compile_definitions(${dali_lib} PUBLIC HAVE_AVSTREAM_CODECPAR=1)
-target_compile_definitions(${dali_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 
 # Define symbol version script for libdali.so
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
@@ -93,7 +90,7 @@ target_link_libraries(${dali_operator_lib} PUBLIC ${dali_lib} ${dali_kernel_lib}
 target_link_libraries(${dali_operator_lib} PRIVATE ${DALI_LIBS})
 # Exclude (most) statically linked dali dependencies from the exports of libdali_operators.so
 target_link_libraries(${dali_operator_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
-
+# Options for using Dockerfile FFmpeg version
 target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVSTREAM_CODECPAR=1)
 target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 
