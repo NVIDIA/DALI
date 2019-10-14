@@ -21,7 +21,7 @@
 
 #include "dali/core/common.h"
 #include "dali/pipeline/data/allocator.h"
-#include "dali/pipeline/operators/op_spec.h"
+#include "dali/operators/op_spec.h"
 
 namespace dali {
 

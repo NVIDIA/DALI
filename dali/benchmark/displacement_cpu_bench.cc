@@ -17,10 +17,10 @@
 #include "dali/benchmark/dali_bench.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
-#include "dali/pipeline/operators/displacement/displacement_filter_impl_cpu.h"
-#include "dali/pipeline/operators/displacement/rotate.h"
-#include "dali/pipeline/operators/displacement/sphere.h"
-#include "dali/pipeline/operators/displacement/water.h"
+#include "dali/operators/displacement/displacement_filter_impl_cpu.h"
+#include "dali/operators/displacement/rotate.h"
+#include "dali/operators/displacement/sphere.h"
+#include "dali/operators/displacement/water.h"
 #include "dali/pipeline/data/tensor.h"
 
 namespace dali {

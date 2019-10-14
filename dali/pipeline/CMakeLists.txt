@@ -15,7 +15,6 @@
 # Add all subdirectories
 add_subdirectory(data)
 add_subdirectory(graph)
-add_subdirectory(operators)
 add_subdirectory(util)
 add_subdirectory(workspace)
 add_subdirectory(executor)
@@ -31,8 +30,6 @@ if (BUILD_BENCHMARK)
   file(GLOB tmp *_bench.cc)
   set(DALI_BENCHMARK_SRCS ${DALI_BENCHMARK_SRCS} ${tmp} PARENT_SCOPE)
 endif()
-
-set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
 
 # Get the protobuf files for pipe serialization
 protobuf_generate_cpp(DALI_PROTO_SRCS DALI_PROTO_HEADERS proto/dali.proto)

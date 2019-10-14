@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "dali/core/util.h"
-#include "dali/pipeline/operators/op_spec.h"
+#include "dali/operators/op_spec.h"
 
 namespace dali {
 namespace testing {

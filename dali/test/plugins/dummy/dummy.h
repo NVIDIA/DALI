@@ -18,7 +18,7 @@
 #include <cstring>
 #include <vector>
 
-#include "dali/pipeline/operators/operator.h"
+#include "dali/operators/operator.h"
 
 namespace other_ns {
 

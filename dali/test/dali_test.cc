@@ -16,7 +16,7 @@
 
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/data/allocator.h"
-#include "dali/pipeline/operators/op_spec.h"
+#include "dali/operators/op_spec.h"
 #include "dali/test/dali_test_config.h"
 
 

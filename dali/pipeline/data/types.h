@@ -46,7 +46,7 @@
 #endif
 
 #ifdef DALI_BUILD_PROTO3
-#include "dali/pipeline/operators/reader/parser/tf_feature.h"
+#include "dali/operators/reader/parser/tf_feature.h"
 #endif  // DALI_BUILD_PROTO3
 
 #ifndef DALI_TYPENAME_REGISTERER
