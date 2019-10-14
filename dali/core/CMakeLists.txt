@@ -27,3 +27,10 @@ cuda_add_library(${dali_core_lib} SHARED ${DALI_CORE_SRCS})
 target_link_libraries(${dali_core_lib} "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(${dali_core_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
+
+set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
+set(lib_exports "libdali_core.map")
+configure_file("${CMAKE_SOURCE_DIR}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
+add_custom_target(${lib_exports} DEPENDS "${exports_map_path}/${lib_exports}")
+add_dependencies(${dali_core_lib} ${lib_exports})
+target_link_libraries(${dali_core_lib} -Wl,--version-script=${exports_map_path}/${lib_exports})
