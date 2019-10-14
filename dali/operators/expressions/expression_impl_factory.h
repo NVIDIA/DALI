@@ -33,6 +33,9 @@
 
 namespace dali {
 
+#define ALLOWED_UN_OPS \
+  (ArithmeticOp::plus, ArithmeticOp::minus)
+
 #define ALLOWED_BIN_OPS                                                                            \
   (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::fdiv, \
       ArithmeticOp::mod)
@@ -135,6 +138,25 @@ void PrepareTilesForTasks(std::vector<std::vector<ExtendedTileDesc>> &tiles_per_
     tiles_per_task[i].resize(0);
     TransformDescs<Backend>(tiles_per_task[i], tiles, expr_func, ws, constant_storage, spec);
   }
+}
+
+template <template <ArithmeticOp, typename...> class ImplTensor, typename Backend>
+std::unique_ptr<ExprImplBase> ExprImplFactoryUnOp(const workspace_t<Backend> &ws,
+                                                  const ExprFunc &expr) {
+  std::unique_ptr<ExprImplBase> result;
+  auto op = NameToOp(expr.GetFuncName());
+  auto input0_type = expr[0].GetTypeId();
+  TYPE_SWITCH(input0_type, type2id, Input0_t, ARITHMETIC_ALLOWED_TYPES, (
+    VALUE_SWITCH(op, op_static, ALLOWED_UN_OPS, (
+      using Out_t = Input0_t;
+      if (expr[0].GetNodeType() == NodeType::Tensor) {
+        result.reset(new ImplTensor<op_static, Out_t, Input0_t>());
+      } else {
+        DALI_FAIL("Expression cannot have a constant operand");
+      }
+    ), DALI_FAIL("No suitable op value found"););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
+  return result;
 }
 
 template <template <ArithmeticOp, typename...> class ImplTensorTensor,

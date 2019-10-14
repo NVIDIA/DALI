@@ -27,12 +27,14 @@ std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws,
   DALI_ENFORCE(expr.GetNodeType() == NodeType::Function, "Only function nodes can be executed.");
 
   switch (expr.GetSubexpressionCount()) {
+    case 1:
+      return ExprImplFactoryUnOp<ExprImplGpuT, GPUBackend>(ws, dynamic_cast<const ExprFunc&>(expr));
     case 2:
       return ExprImplFactoryBinOp<ExprImplGpuTT, ExprImplGpuTC, ExprImplGpuCT>(
           dynamic_cast<const ExprFunc&>(expr));
     default:
       DALI_FAIL("Expressions with " + std::to_string(expr.GetSubexpressionCount()) +
-                " subexpressions are not supported. No implemetation found.");
+                " subexpressions are not supported. No implementation found.");
   }
 }
 
