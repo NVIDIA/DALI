@@ -26,6 +26,7 @@ set(dali_kernel_test_lib "dali_kernel_test")
 set(dali_core_lib "dali_core")
 set(DALI_WHEEL_DIR "dali/python/nvidia/dali")
 set(DALI_INCLUDE_DIR "${DALI_WHEEL_DIR}/include/")
+set(DALI_LIBRARY_OUTPUT_DIR "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}")
 
 ################################################
 # Build libdali
@@ -58,10 +59,15 @@ if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
   set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
 endif()
 cuda_add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS})
+set_target_properties(${dali_operator_lib} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(${dali_operator_lib} PUBLIC ${dali_kernel_lib} ${dali_core_lib})
 target_link_libraries(${dali_operator_lib} PRIVATE ${DALI_LIBS})
 
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
+set_target_properties(${dali_lib} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
+
 # Options for using Dockerfile FFmpeg version
 target_compile_definitions(${dali_lib} PUBLIC HAVE_AVSTREAM_CODECPAR=1)
 target_compile_definitions(${dali_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
@@ -73,15 +79,6 @@ target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
 target_link_libraries(${dali_lib} PUBLIC ${dali_operator_lib} ${dali_kernel_lib} ${dali_core_lib})
 target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS})
-
-# install libdali to the wheel dir
-set_target_properties(${dali_lib} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}"
-)
-
-set_target_properties(${dali_operator_lib} PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-)
 
 ################################################
 # Build test suite
