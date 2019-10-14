@@ -35,6 +35,7 @@ const char* GetVideoCodecString(cudaVideoCodec eCodec) {
         { cudaVideoCodec_H264_SVC,  "H.264/SVC"    },
         { cudaVideoCodec_H264_MVC,  "H.264/MVC"    },
         { cudaVideoCodec_HEVC,      "H.265/HEVC"   },
+        { cudaVideoCodec_VP9,       "VP9"          },
         { cudaVideoCodec_NumCodecs, "Invalid"      },
         { cudaVideoCodec_YUV420,    "YUV  4:2:0"   },
         { cudaVideoCodec_YV12,      "YV12 4:2:0"   },
@@ -201,8 +202,11 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
         ss << "Unsupported Codec " << GetVideoCodecString(format->codec)
             << " with chroma format "
             << GetVideoChromaFormatString(format->chroma_format);
-        DALI_FAIL(ss.str());
+        DALI_WARN(ss.str());
+        throw unsupported_exception("Decoder hardware does not support this video codec"
+                                    " and/or chroma format");
     }
+
     caps_ = caps;
     LOG_LINE << "NVDEC Capabilities" << std::endl
         << "\tMax width : " << caps.nMaxWidth << std::endl

@@ -183,4 +183,69 @@ TEST_F(VideoReaderTest, PackedBFrames) {
   }
 }
 
+TEST_F(VideoReaderTest, Vp9Profile0) {
+  Pipeline pipe(1, 1, 0);
+  const int sequence_length = 60;
+
+  pipe.AddOperator(
+    OpSpec("VideoReader")
+    .AddArg("device", "gpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{testing::dali_extra_path() + "/db/video/vp9/vp9_0.mp4"})
+    .AddOutput("frames", "gpu"));
+
+  pipe.Build(this->Outputs());
+
+  DeviceWorkspace ws;
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
+
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
+
+  ASSERT_EQ(frames_shape.size(), 1);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
+TEST_F(VideoReaderTest, Vp9Profile2) {
+  Pipeline pipe(1, 1, 0);
+  const int sequence_length = 60;
+  const string unsupported_exception_msg = "Decoder hardware does not support this video codec"
+                                          " and/or chroma format";
+
+  pipe.AddOperator(
+    OpSpec("VideoReader")
+    .AddArg("device", "gpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg(
+      "filenames",
+      std::vector<std::string>{testing::dali_extra_path() + "/db/video/vp9/vp9_2.mp4"})
+    .AddOutput("frames", "gpu"));
+
+  DeviceWorkspace ws;
+  try {
+    pipe.Build(this->Outputs());
+
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+  } catch (std::exception &e) {
+    if (string(e.what()).find(unsupported_exception_msg) != std::string::npos) {
+      GTEST_SKIP() << "Test skipped because VP9 codec with 10/12 bit depth is not supported"
+                      "on this hardware";
+    } else {
+    FAIL();
+    }
+  }
+
+  const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+  const auto &frames_shape = frames_output.shape();
+
+  ASSERT_EQ(frames_shape.size(), 1);
+  ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
 }  // namespace dali

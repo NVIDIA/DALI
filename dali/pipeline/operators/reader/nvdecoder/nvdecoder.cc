@@ -83,6 +83,10 @@ NvDecoder::NvDecoder(int device_id,
       codec = Codec::MPEG4;
       break;
 
+    case AV_CODEC_ID_VP9:
+      codec = Codec::VP9;
+      break;
+
     default:
       DALI_FAIL("Invalid codec for NvDecoder");
       return;
@@ -151,8 +155,6 @@ int NvDecoder::handle_display(void* user_data,
 
 // Prepare params and calls cuvidCreateDecoder
 int NvDecoder::handle_sequence_(CUVIDEOFORMAT* format) {
-  frame_base_ = {static_cast<int>(format->frame_rate.denominator),
-                  static_cast<int>(format->frame_rate.numerator)};
   int ret = kNvcuvid_failure;
   try {
     ret = decoder_.initialize(format);
@@ -286,7 +288,7 @@ NvDecoder::TextureObject::operator cudaTextureObject_t() const {
 // Callback called by the driver decoder once a frame has been decoded
 int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   auto frame = av_rescale_q(disp_info->timestamp,
-                            nv_time_base_, frame_base_);
+                            nv_time_base_, current_recv_.frame_base);
 
   if (current_recv_.count <= 0) {
     if (recv_queue_.empty()) {
@@ -297,6 +299,8 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
     LOG_LINE << "Moving on to next request, " << recv_queue_.size()
                 << " reqs left" << std::endl;
     current_recv_ = recv_queue_.pop();
+    frame =  av_rescale_q(disp_info->timestamp,
+                          nv_time_base_, current_recv_.frame_base);
   }
 
   if (stop_) return kNvcuvid_failure;
