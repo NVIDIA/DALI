@@ -28,8 +28,10 @@ cuda_add_library(${dali_kernel_lib} SHARED ${DALI_KERNEL_SRCS})
 set_target_properties(${dali_kernel_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(${dali_kernel_lib} ${dali_core_lib})
+target_link_libraries(${dali_kernel_lib} "-Wl,--exclude-libs,${exclude_libs}")
 
 if (BUILD_TEST)
   cuda_add_library(${dali_kernel_test_lib} SHARED "${DALI_KERNEL_TEST_SRCS}")
   target_link_libraries(${dali_kernel_test_lib} ${dali_kernel_lib})
+  target_link_libraries(${dali_kernel_test_lib} "-Wl,--exclude-libs,${exclude_libs}")
 endif()
