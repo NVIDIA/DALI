@@ -16,10 +16,10 @@
 #ifndef DALI_OPERATORS_DISPLACEMENT_ROTATE_H_
 #define DALI_OPERATORS_DISPLACEMENT_ROTATE_H_
 
-#include <vector>
 #include <cmath>
-#include "dali/pipeline/operator/operator.h"
+#include <vector>
 #include "dali/operators/displacement/warpaffine.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

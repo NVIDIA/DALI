@@ -17,9 +17,9 @@
 #define DALI_OPERATORS_DISPLACEMENT_WARPAFFINE_H_
 
 #include <vector>
-#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/displacement/displacement_filter.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

@@ -14,11 +14,11 @@
 
 #include <memory>
 
-#include "dali/operators/expressions/expression_tree.h"
-#include "dali/operators/expressions/arithmetic_meta.h"
 #include "dali/core/static_switch.h"
+#include "dali/operators/expressions/arithmetic_meta.h"
 #include "dali/operators/expressions/expression_impl_cpu.h"
 #include "dali/operators/expressions/expression_impl_factory.h"
+#include "dali/operators/expressions/expression_tree.h"
 
 #define ALLOWED_TYPES \
   (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float16, float, double)

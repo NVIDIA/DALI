@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_READER_LOADER_LOADER_H_
 #define DALI_OPERATORS_READER_LOADER_LOADER_H_
 
+#include <deque>
 #include <list>
 #include <map>
 #include <memory>
@@ -24,13 +25,12 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <deque>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/operator/op_spec.h"
-#include "dali/pipeline/data/tensor.h"
 #include "dali/operators/decoder/cache/image_cache_factory.h"
+#include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
 

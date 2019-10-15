@@ -15,13 +15,13 @@
 #ifndef DALI_OPERATORS_DISPLACEMENT_WARP_AFFINE_PARAMS_H_
 #define DALI_OPERATORS_DISPLACEMENT_WARP_AFFINE_PARAMS_H_
 
-#include <vector>
 #include <sstream>
-#include "dali/pipeline/operator/operator.h"
+#include <vector>
 #include "dali/kernels/imgproc/warp/affine.h"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
-#include "dali/operators/displacement/warp_param_provider.h"
 #include "dali/kernels/tensor_shape_print.h"
+#include "dali/operators/displacement/warp_param_provider.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

@@ -22,8 +22,8 @@
 #include <vector>
 
 #include "dali/core/any.h"
-#include "dali/pipeline/data/types.h"
 #include "dali/operators/expressions/arithmetic_meta.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
 

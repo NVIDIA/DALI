@@ -25,12 +25,12 @@
 #include "dali/core/static_switch.h"
 #include "dali/core/tuple_helpers.h"
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/imgproc/warp_cpu.h"
 #include "dali/kernels/imgproc/warp_gpu.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/kernels/kernel_manager.h"
 #include "dali/operators/displacement/warp_param_provider.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 namespace detail {

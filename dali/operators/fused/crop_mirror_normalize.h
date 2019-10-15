@@ -26,8 +26,8 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_common.h"
-#include "dali/pipeline/operator/common.h"
 #include "dali/operators/crop/crop_attr.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
