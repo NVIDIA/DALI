@@ -29,7 +29,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/operators/util/external_source.h"
+#include "dali/operators/util/external_source.h"
 #include "dali/pipeline/graph/op_graph.h"
 
 
