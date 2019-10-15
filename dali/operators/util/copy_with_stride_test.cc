@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/operators/python_function/util/copy_with_stride.h"
+#include "dali/operators/util/copy_with_stride.h"
 
 namespace dali {
 

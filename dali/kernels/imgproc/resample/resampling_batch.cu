@@ -129,7 +129,7 @@ void BatchedSeparableResample(
 
 
 #define INSTANTIATE_BATCHED_RESAMPLE(which_pass, Output, Input) \
-template void BatchedSeparableResample<which_pass, Output, Input>( \
+template DLL_PUBLIC void BatchedSeparableResample<which_pass, Output, Input>( \
   const SeparableResamplingSetup::SampleDesc *samples, \
   const SampleBlockInfo *block2sample, int num_blocks, \
   int2 block_size, cudaStream_t stream)

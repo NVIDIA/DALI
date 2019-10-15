@@ -1,0 +1,4 @@
+DALI_CORE_@DALI_VERSION@ {
+     global:
+         *;
+};

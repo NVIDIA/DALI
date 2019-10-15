@@ -23,6 +23,7 @@
 #include <cmath>
 #include <algorithm>
 #endif
+#include "dali/core/api_helper.h"
 
 namespace dali {
 namespace kernels {
@@ -66,13 +67,13 @@ struct ResamplingFilter {
   }
 };
 
-struct ResamplingFilters {
+struct DLL_PUBLIC ResamplingFilters {
   std::unique_ptr<float, std::function<void(void*)>> filter_data;
 
-  ResamplingFilter Cubic() const noexcept;
-  ResamplingFilter Gaussian(float sigma) const noexcept;
-  ResamplingFilter Lanczos3() const noexcept;
-  ResamplingFilter Triangular(float radius) const noexcept;
+  DLL_PUBLIC ResamplingFilter Cubic() const noexcept;
+  DLL_PUBLIC ResamplingFilter Gaussian(float sigma) const noexcept;
+  DLL_PUBLIC ResamplingFilter Lanczos3() const noexcept;
+  DLL_PUBLIC ResamplingFilter Triangular(float radius) const noexcept;
 
   std::vector<ResamplingFilter> filters;
   ResamplingFilter &operator[](int index) noexcept {
@@ -84,8 +85,8 @@ struct ResamplingFilters {
   }
 };
 
-std::shared_ptr<ResamplingFilters> GetResamplingFilters();
-std::shared_ptr<ResamplingFilters> GetResamplingFiltersCPU();
+DLL_PUBLIC std::shared_ptr<ResamplingFilters> GetResamplingFilters();
+DLL_PUBLIC std::shared_ptr<ResamplingFilters> GetResamplingFiltersCPU();
 
 }  // namespace kernels
 }  // namespace dali

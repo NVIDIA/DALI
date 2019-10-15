@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/python_function/util/copy_with_stride.h"
+#include "dali/operators/util/copy_with_stride.h"
 #include <cstring>
 #include <cassert>
 #include "dali/core/static_switch.h"

@@ -13,8 +13,8 @@
 # limitations under the License.
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
-collect_sources(DALI_SRCS PARENT_SCOPE)
-collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
+collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 
 # caffe, C2
 protobuf_generate_cpp(CAFFE_PROTO_SRCS CAFFE_PROTO_HEADERS proto/caffe.proto)

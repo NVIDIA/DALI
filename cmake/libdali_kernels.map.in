@@ -1,0 +1,4 @@
+DALI_KERNELS_@DALI_VERSION@ {
+     global:
+         *;
+};

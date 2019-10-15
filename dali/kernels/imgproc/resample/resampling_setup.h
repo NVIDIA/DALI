@@ -112,9 +112,9 @@ class SeparableResamplingSetup {
     BlockCount block_count;
   };
 
-  void SetupSample(SampleDesc &desc,
-                   const TensorShape<3> &in_shape,
-                   const ResamplingParams2D &params);
+  DLL_PUBLIC void SetupSample(SampleDesc &desc,
+                              const TensorShape<3> &in_shape,
+                              const ResamplingParams2D &params);
 
   void Initialize() {
     filters = GetResamplingFilters();
@@ -149,13 +149,13 @@ class BatchResamplingSetup : public SeparableResamplingSetup {
   size_t intermediate_size;
   BlockCount total_blocks;
 
-  void SetupBatch(const TensorListShape<3> &in, const Params &params);
+  DLL_PUBLIC void SetupBatch(const TensorListShape<3> &in, const Params &params);
 
   template <typename Collection>
   void SetupBatch(const TensorListShape<3> &in, const Collection &params) {
     SetupBatch(in, make_span(params));
   }
-  void InitializeSampleLookup(const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup);
+  DLL_PUBLIC void InitializeSampleLookup(const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup);
 };
 
 }  // namespace kernels
