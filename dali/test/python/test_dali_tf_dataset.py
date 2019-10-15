@@ -45,7 +45,10 @@ def skip_for_incompatible_tf():
 
 def num_available_gpus():
     local_devices = device_lib.list_local_devices()
-    return sum(1 for device in local_devices if device.device_type == 'GPU')
+    num_gpus = sum(1 for device in local_devices if device.device_type == 'GPU')
+    if num_gpus not in [1, 2, 4, 8]:
+        raise RuntimeError('Unsoported number of GPUs. This test can run on: 1, 2, 4, 8 GPUs.')
+    return num_gpus
 
 
 class TestPipeline(Pipeline):
@@ -253,14 +256,15 @@ def _test_tf_dataset_multigpu():
     for it in range(iterations):
         assert len(dataset_results[it]) == num_devices
         for device_id in range(num_devices):
-            batch_id = (it + device_id * (iterations // num_devices)) % iterations
+            batch_id = iterations - ((it + device_id * (iterations // num_devices)) % iterations) - 1
+            it_id = iterations - it - 1
             assert np.array_equal(
-                standalone_results[it][0],
+                standalone_results[it_id][0],
                 dataset_results[batch_id][device_id][0])
             assert np.array_equal(
-                standalone_results[it][1],
+                standalone_results[it_id][1],
                 dataset_results[batch_id][device_id][1])
             assert np.array_equal(
-                standalone_results[it][2],
+                standalone_results[it_id][2],
                 dataset_results[batch_id][device_id][2])
 
