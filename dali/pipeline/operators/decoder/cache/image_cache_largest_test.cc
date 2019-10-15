@@ -142,7 +142,7 @@ TEST_F(ImageCacheLargestTest, GetWorks) {
 
   std::vector<uint8_t> dst(4, 0x00);
   auto dev = cache_->Get("4");
-  kernels::TensorView<kernels::StorageCPU, uint8_t, 3> host(dst.data(), dev.shape);
+  TensorView<StorageCPU, uint8_t, 3> host(dst.data(), dev.shape);
   kernels::copy(host, dev);
   cudaStreamSynchronize(0);
   EXPECT_EQ(data_[4].second, dst);

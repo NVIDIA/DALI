@@ -17,7 +17,7 @@
 
 #include <memory>
 #include <vector>
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/core/static_switch.h"
 
@@ -62,7 +62,7 @@ class Shapes : public Operator<Backend> {
   }
 
   template <typename type>
-  void ConvertShape(TensorList<CPUBackend> &out, const kernels::TensorListShape<> &shape) {
+  void ConvertShape(TensorList<CPUBackend> &out, const TensorListShape<> &shape) {
     int n = out.ntensor();
     assert(n == shape.num_samples());
     for (int i = 0; i < n; i++) {
@@ -74,7 +74,7 @@ class Shapes : public Operator<Backend> {
   }
 
   template <typename type>
-  void ConvertShape(TensorVector<CPUBackend> &out, const kernels::TensorListShape<> &shape) {
+  void ConvertShape(TensorVector<CPUBackend> &out, const TensorListShape<> &shape) {
     int n = out.size();
     assert(n == shape.num_samples());
     for (int i = 0; i < n; i++) {
@@ -86,7 +86,7 @@ class Shapes : public Operator<Backend> {
   }
 
   template <typename CPUTensorListOrVector>
-  void ConvertShape(CPUTensorListOrVector &out, const kernels::TensorListShape<> &shape) {
+  void ConvertShape(CPUTensorListOrVector &out, const TensorListShape<> &shape) {
     TYPE_SWITCH(output_type_, type2id, type,
                 (int32_t, uint32_t, int64_t, uint64_t, float, double),
       (ConvertShape<type>(out, shape);),
@@ -110,11 +110,11 @@ class Shapes : public Operator<Backend> {
     ConvertShape(ws.OutputRef<CPUBackend>(0), GetInputShape(ws));
   }
 
-  static kernels::TensorListShape<1> ShapeShape(const kernels::TensorListShape<> &shape) {
-    return kernels::uniform_list_shape<1>(shape.num_samples(), { shape.sample_dim() });
+  static TensorListShape<1> ShapeShape(const TensorListShape<> &shape) {
+    return uniform_list_shape<1>(shape.num_samples(), { shape.sample_dim() });
   }
 
-  static const kernels::TensorListShape<> &GetInputShape(const DeviceWorkspace &ws) {
+  static const TensorListShape<> &GetInputShape(const DeviceWorkspace &ws) {
     if (ws.InputIsType<GPUBackend>(0)) {
       return ws.InputRef<GPUBackend>(0).shape();
     } else {

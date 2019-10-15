@@ -20,9 +20,9 @@ namespace dali {
 
 namespace detail {
 
-kernels::TensorListShape<> GetOutputShape(const TensorList<GPUBackend> &input,
+TensorListShape<> GetOutputShape(const TensorList<GPUBackend> &input,
                                  const std::vector<int>& element_map) {
-    kernels::TensorListShape<> output_shape(input.ntensor(), input.shape().sample_dim() - 1);
+    TensorListShape<> output_shape(input.ntensor(), input.shape().sample_dim() - 1);
     for (unsigned int i = 0; i < input.ntensor(); ++i) {
         auto shape = input.tensor_shape(i);
         CheckInputShape(shape, element_map);

@@ -49,7 +49,7 @@ class Slice : public SliceBase<Backend> {
 
   void SetupSample(int data_idx,
                    TensorLayout layout,
-                   const kernels::TensorShape<> &img_shape,
+                   const TensorShape<> &img_shape,
                    const int64_t args_ndims,
                    const float *anchor_norm,
                    const float *slice_dims_norm) {

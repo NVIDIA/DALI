@@ -19,9 +19,9 @@
 #include <random>
 #include <vector>
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/test/test_tensors.h"
-#include "dali/kernels/tensor_shape_print.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/test_tensors.h"
+#include "dali/core/tensor_shape_print.h"
+#include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 
 namespace dali {

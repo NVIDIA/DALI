@@ -20,8 +20,8 @@
 #include <utility>
 #include "dali/core/traits.h"
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/backend_tags.h"
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/backend_tags.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 namespace kernels {
@@ -70,7 +70,7 @@ std::pair<
           >
 copy(const TensorView <SrcBackend, T, ndims> &src) {
   auto mem = kernels::memory::alloc_unique<dali::remove_const_t<T>>(DstAlloc, volume(src.shape));
-  auto tvgpu = kernels::make_tensor<AllocBackend<DstAlloc>, ndims>(mem.get(), src.shape);
+  auto tvgpu = make_tensor<AllocBackend<DstAlloc>, ndims>(mem.get(), src.shape);
   kernels::copy(tvgpu, src);
   return std::make_pair(tvgpu, std::move(mem));
 }

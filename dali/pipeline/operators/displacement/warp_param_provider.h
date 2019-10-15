@@ -19,7 +19,7 @@
 #include <vector>
 #include <string>
 
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_view.h"
 #include "dali/kernels/alloc.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/pipeline/data/views.h"
@@ -99,7 +99,7 @@ inline void BorderTypeProvider<kernels::BorderClamp>::SetBorder(const OpSpec &sp
 template <typename Backend, int spatial_ndim, typename MappingParams, typename BorderType>
 class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<BorderType> {
  public:
-  using SpatialShape = kernels::TensorShape<spatial_ndim>;
+  using SpatialShape = TensorShape<spatial_ndim>;
   using Workspace = workspace_t<Backend>;
 
   virtual ~WarpParamProvider() = default;
@@ -170,7 +170,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    *  If GPU tensor is empty, but CPU is not, an asyncrhonous copy is scheduled
    *  on the stream associated with current workspace.
    */
-  kernels::TensorView<kernels::StorageGPU, const MappingParams, 1> ParamsGPU() {
+  TensorView<StorageGPU, const MappingParams, 1> ParamsGPU() {
     if (!params_gpu_.data && params_cpu_.data) {
       auto *p = AllocParams(kernels::AllocType::GPU, params_cpu_.num_elements());
       auto tmp = make_tensor_gpu(p, params_cpu_.shape);
@@ -185,7 +185,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    *  on the stream associated with current workspace and the calling thread
    *  is synchronized with the stream.
    */
-  kernels::TensorView<kernels::StorageCPU, const MappingParams, 1> ParamsCPU() {
+  TensorView<StorageCPU, const MappingParams, 1> ParamsCPU() {
     if (!params_cpu_.data && params_gpu_.data) {
       auto *p = AllocParams(kernels::AllocType::Host, params_gpu_.num_elements());
       auto tmp = make_tensor_cpu(p, params_cpu_.shape);
@@ -236,9 +236,9 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
     DALI_ENFORCE(is_uniform(shape), "Output sizes must be passed as uniform Tensor List.");
     DALI_ENFORCE(
-        (shape.num_samples() == N && shape[0] == kernels::TensorShape<>(spatial_ndim)) ||
-            (shape.num_samples() == 1 && (shape[0] == kernels::TensorShape<>(N, spatial_ndim) ||
-                                          shape[0] == kernels::TensorShape<>(N * spatial_ndim))),
+        (shape.num_samples() == N && shape[0] == TensorShape<>(spatial_ndim)) ||
+            (shape.num_samples() == 1 && (shape[0] == TensorShape<>(N, spatial_ndim) ||
+                                          shape[0] == TensorShape<>(N * spatial_ndim))),
         "Output sizes must either be a batch of `dim`-sized tensors, flat array of size "
         "num_samples*dim or one 2D tensor of shape {num_samples, dim}.");
 
@@ -326,8 +326,8 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   std::vector<SpatialShape> out_sizes_;
   BorderType border_;
-  kernels::TensorView<kernels::StorageGPU, const MappingParams, 1> params_gpu_;
-  kernels::TensorView<kernels::StorageCPU, const MappingParams, 1> params_cpu_;
+  TensorView<StorageGPU, const MappingParams, 1> params_gpu_;
+  TensorView<StorageCPU, const MappingParams, 1> params_cpu_;
   kernels::ScratchpadAllocator param_mem_;
 };
 

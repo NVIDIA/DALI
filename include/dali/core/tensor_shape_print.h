@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_TENSOR_SHAPE_PRINT_H_
-#define DALI_KERNELS_TENSOR_SHAPE_PRINT_H_
+#ifndef DALI_CORE_TENSOR_SHAPE_PRINT_H_
+#define DALI_CORE_TENSOR_SHAPE_PRINT_H_
 
-#include <dali/kernels/tensor_shape.h>
 #include <sstream>
 #include <string>
+#include "dali/core/tensor_shape.h"
 
 namespace dali {
-namespace kernels {
 
 template <int ndim>
 std::ostream &operator<<(std::ostream &os, const TensorShape<ndim> &shape) {
@@ -42,27 +41,20 @@ std::ostream &operator<<(std::ostream &os, const TensorListShape<ndim> &shape) {
   return os;
 }
 
-}  // namespace kernels
+template <int ndim>
+inline string to_string(const TensorShape<ndim> &shape) {
+  std::stringstream ss;
+  ss << shape;
+  return ss.str();
+}
+
+template <int ndim>
+inline string to_string(const TensorListShape<ndim> &shape) {
+  std::stringstream ss;
+  ss << shape;
+  return ss.str();
+}
+
 }  // namespace dali
 
-namespace std {
-
-template <int ndim>
-inline string to_string(const dali::kernels::TensorShape<ndim> &shape) {
-  using dali::kernels::operator<<;
-  stringstream ss;
-  ss << shape;
-  return ss.str();
-}
-
-template <int ndim>
-inline string to_string(const dali::kernels::TensorListShape<ndim> &shape) {
-  using dali::kernels::operator<<;
-  stringstream ss;
-  ss << shape;
-  return ss.str();
-}
-
-}  // namespace std
-
-#endif  // DALI_KERNELS_TENSOR_SHAPE_PRINT_H_
+#endif  // DALI_CORE_TENSOR_SHAPE_PRINT_H_

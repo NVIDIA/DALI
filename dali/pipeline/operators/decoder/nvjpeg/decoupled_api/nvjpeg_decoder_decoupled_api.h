@@ -213,7 +213,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
             nchannels = shape[2];
 
           if (crop_generator) {
-            kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
+            TensorShape<> shape{info.heights[0], info.widths[0]};
             info.crop_window = crop_generator(shape, "HW");
             DALI_ENFORCE(info.crop_window.IsInRange(shape));
             info.heights[0] = info.crop_window.shape[0];
@@ -225,7 +225,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         }
       } else {
         if (crop_generator) {
-          kernels::TensorShape<> shape{info.heights[0], info.widths[0]};
+          TensorShape<> shape{info.heights[0], info.widths[0]};
           info.crop_window = crop_generator(shape, "HW");
           auto &crop_window = info.crop_window;
           DALI_ENFORCE(crop_window.IsInRange(shape));
@@ -307,7 +307,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     ImageInfo& info = output_info_[sample_idx];
 
     if (!info.nvjpeg_support) {
-      HostFallback<kernels::StorageGPU>(input_data, in_size, output_image_type_, output_data,
+      HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                         stream, file_name, info.crop_window, use_fast_idct_);
       return;
     }
@@ -368,7 +368,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(cudaEventRecord(decode_events_[thread_id], stream));
 
     } else {
-      HostFallback<kernels::StorageGPU>(input_data, in_size, output_image_type_, output_data,
+      HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                         stream, file_name, info.crop_window, use_fast_idct_);
     }
   }
@@ -396,7 +396,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   std::vector<nvjpegDecodeParams_t> decode_params_;
   std::vector<nvjpegJpegState_t> decoder_host_state_;
   std::vector<nvjpegJpegState_t> decoder_huff_hybrid_state_;
-  kernels::TensorListShape<> output_shape_;
+  TensorListShape<> output_shape_;
 
   // Per thread - double buffered
   std::vector<nvjpegBufferPinned_t> pinned_buffers_;

@@ -17,8 +17,8 @@
 #include <vector>
 #include "dali/kernels/imgproc/flip_test.h"
 #include "dali/kernels/imgproc/flip_cpu.h"
-#include "dali/kernels/test/test_tensors.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -45,7 +45,7 @@ class FlipCpuTest
   int flip_x_;
   int flip_y_;
   int flip_z_;
-  kernels::TensorShape<4> shape_;
+  TensorShape<4> shape_;
   std::vector<float> data_;
   OutTensorCPU<float, 4> in_view_;
 };

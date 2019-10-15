@@ -17,7 +17,7 @@
 
 #include <cuda_runtime.h>
 #include <type_traits>
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_view.h"
 #include "dali/kernels/imgproc/roi.h"
 
 namespace dali {

@@ -30,7 +30,7 @@
 #include "dali/core/common.h"
 #include "dali/core/device_guard.h"
 #include "dali/image/image_factory.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/util/image.h"
@@ -512,7 +512,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
  protected:
   // Storage for per-image info
-  kernels::TensorListShape<> output_shape_;
+  TensorListShape<> output_shape_;
   vector<EncodedImageInfo> output_info_;
 
   bool use_batched_decode_;

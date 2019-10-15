@@ -46,12 +46,12 @@ py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
   return input_tuple;
 }
 
-kernels::TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>& dl_tensors) {
-  kernels::TensorListShape<> list_shape{};
+TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>& dl_tensors) {
+  TensorListShape<> list_shape{};
   list_shape.resize(dl_tensors.size(), dl_tensors[0]->dl_tensor.ndim);
   for (size_t i = 0; i < dl_tensors.size(); ++i) {
     auto &dl_tensor = dl_tensors[i]->dl_tensor;
-    kernels::TensorShape<> shape(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim);
+    TensorShape<> shape(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim);
     list_shape.set_tensor_shape(i, shape);
   }
   return list_shape;

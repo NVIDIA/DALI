@@ -16,21 +16,18 @@
 #include <gtest/gtest.h>
 
 #include "dali/pipeline/data/tensor_vector.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 
 namespace dali {
-
-using kernels::TensorShape;
-using kernels::TensorListShape;
 
 template <typename T>
 class TensorVectorSuite : public ::testing::Test {
  protected:
   void validate(const TensorVector<T> &tv) {
     ASSERT_EQ(tv.size(), 2);
-    EXPECT_EQ(tv.shape(), kernels::TensorListShape<>({{2, 4}, {4, 2}}));
-    EXPECT_EQ(tv[0]->shape(), kernels::TensorShape<>(2, 4));
-    EXPECT_EQ(tv[1]->shape(), kernels::TensorShape<>(4, 2));
+    EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
+    EXPECT_EQ(tv[0]->shape(), TensorShape<>(2, 4));
+    EXPECT_EQ(tv[1]->shape(), TensorShape<>(4, 2));
     EXPECT_EQ(tv[0]->nbytes(), 4 * 2 * sizeof(int32_t));
     EXPECT_EQ(tv[1]->nbytes(), 4 * 2 * sizeof(int32_t));
     EXPECT_EQ(tv.is_pinned(), false);
@@ -70,9 +67,9 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   tv.Resize({{2, 4}, {4, 2}});
   tv.set_type(TypeInfo::Create<int32_t>());
   ASSERT_EQ(tv.size(), 2);
-  EXPECT_EQ(tv.shape(), kernels::TensorListShape<>({{2, 4}, {4, 2}}));
-  EXPECT_EQ(tv[0].shape(), kernels::TensorShape<>(2, 4));
-  EXPECT_EQ(tv[1].shape(), kernels::TensorShape<>(4, 2));
+  EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
+  EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
+  EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
   EXPECT_EQ(tv[0].nbytes(), 4 * 2 * sizeof(int32_t));
   EXPECT_EQ(tv[1].nbytes(), 4 * 2 * sizeof(int32_t));
   EXPECT_EQ(tv[0].capacity(), 4 * 2 * sizeof(int32_t));
@@ -87,9 +84,9 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   tv.Resize({{2, 4}, {4, 2}});
   tv.set_type(TypeInfo::Create<int32_t>());
   ASSERT_EQ(tv.size(), 2);
-  EXPECT_EQ(tv.shape(), kernels::TensorListShape<>({{2, 4}, {4, 2}}));
-  EXPECT_EQ(tv[0].shape(), kernels::TensorShape<>(2, 4));
-  EXPECT_EQ(tv[1].shape(), kernels::TensorShape<>(4, 2));
+  EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
+  EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
+  EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
   for (auto &t : tv) {
     EXPECT_EQ(t->nbytes(), 4 * 2 * sizeof(int32_t));
     EXPECT_EQ(t->capacity(), 4 * 2 * sizeof(int32_t));
@@ -104,9 +101,9 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
   tv.Resize({{2, 4}, {4, 2}});
   tv.set_type(TypeInfo::Create<int32_t>());
   ASSERT_EQ(tv.size(), 2);
-  EXPECT_EQ(tv.shape(), kernels::TensorListShape<>({{2, 4}, {4, 2}}));
-  EXPECT_EQ(tv[0].shape(), kernels::TensorShape<>(2, 4));
-  EXPECT_EQ(tv[1].shape(), kernels::TensorShape<>(4, 2));
+  EXPECT_EQ(tv.shape(), TensorListShape<>({{2, 4}, {4, 2}}));
+  EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
+  EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
   for (auto &t : tv) {
     EXPECT_EQ(t->nbytes(), 4 * 2 * sizeof(int32_t));
     EXPECT_EQ(t->capacity(), 50);
@@ -121,7 +118,7 @@ TYPED_TEST(TensorVectorSuite, BatchResize) {
   tv.reserve(200);
   ASSERT_THROW(tv.Resize({{1}}), std::runtime_error);
   ASSERT_THROW(tv.reserve(20, 4), std::runtime_error);
-  tv.Resize(kernels::uniform_list_shape(5, {10, 20}));
+  tv.Resize(uniform_list_shape(5, {10, 20}));
   tv.set_type(TypeInfo::Create<int32_t>());
   for (auto &t : tv) {
     EXPECT_TRUE(t->shares_data());

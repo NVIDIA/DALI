@@ -58,7 +58,7 @@ using detail::UnzipPairs;
 template <typename Backend>
 class OpImplInterface {
  public:
-  virtual void Setup(kernels::TensorListShape<> &shape, const workspace_t<Backend> &ws) = 0;
+  virtual void Setup(TensorListShape<> &shape, const workspace_t<Backend> &ws) = 0;
   virtual void Run(workspace_t<Backend> &ws) = 0;
   virtual ~OpImplInterface() = default;
 };
@@ -82,7 +82,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   : spec_(spec), param_provider_(std::move(pp)) {
   }
 
-  void Setup(kernels::TensorListShape<> &shape, const Workspace &ws) override {
+  void Setup(TensorListShape<> &shape, const Workspace &ws) override {
     param_provider_->SetContext(Spec(), ws);
 
     input_ = view<const InputType, tensor_ndim>(ws.template InputRef<Backend>(0));
@@ -101,7 +101,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   const OpSpec &spec_;
   kernels::KernelManager kmgr_;
 
-  kernels::TensorListView<Storage, const InputType, tensor_ndim> input_;
+  TensorListView<Storage, const InputType, tensor_ndim> input_;
 
   std::unique_ptr<ParamProvider> param_provider_;
 
@@ -111,7 +111,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     return context;
   }
 
-  void SetupBackend(kernels::TensorListShape<> &shape, const DeviceWorkspace &ws) {
+  void SetupBackend(TensorListShape<> &shape, const DeviceWorkspace &ws) {
     auto context = GetContext(ws);
     kmgr_.Resize<Kernel>(1, 1);
     auto &req = kmgr_.Setup<Kernel>(
@@ -124,7 +124,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     shape = req.output_shapes[0];
   }
 
-  void SetupBackend(kernels::TensorListShape<> &shape, const HostWorkspace &ws) {
+  void SetupBackend(TensorListShape<> &shape, const HostWorkspace &ws) {
     int threads = ws.HasThreadPool() ? ws.GetThreadPool().size() : 1;
     int N = input_.num_samples();
     kmgr_.Resize<Kernel>(threads, N);
@@ -294,7 +294,7 @@ class Warp : public Operator<Backend> {
   /** @brief May be shadowed by Derived, if necessary */
   using SupportedTypes = DefaultSupportedTypes;
 
-  void SetupWarp(kernels::TensorListShape<> &out_shape,
+  void SetupWarp(TensorListShape<> &out_shape,
                  DALIDataType &out_type,
                  const Workspace &ws) {
     auto &input = ws.template InputRef<Backend>(0);
@@ -338,7 +338,7 @@ class Warp : public Operator<Backend> {
   DALIDataType input_type_ = DALI_NO_TYPE;
   DALIDataType output_type_ = DALI_NO_TYPE;
   DALIDataType output_type_arg_ = DALI_NO_TYPE;
-  kernels::TensorListShape<> input_shape_;
+  TensorListShape<> input_shape_;
   std::unique_ptr<OpImplInterface<Backend>> impl_;
   bool border_clamp_;
 };

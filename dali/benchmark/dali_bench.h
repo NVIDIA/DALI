@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/util/image.h"
 
 namespace dali {
@@ -52,7 +52,7 @@ class DALIBenchmark : public benchmark::Fixture {
   inline void MakeJPEGBatch(TensorList<CPUBackend> *tl, int n) {
     const auto nImgs = jpegs_.nImages();
     DALI_ENFORCE(nImgs > 0, "jpegs must be loaded to create batches");
-    kernels::TensorListShape<> shape(n, 1);
+    TensorListShape<> shape(n, 1);
     for (int i = 0; i < n; ++i) {
       shape.set_tensor_shape(i, { jpegs_.sizes_[i % nImgs] });
     }

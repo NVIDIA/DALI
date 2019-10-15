@@ -419,16 +419,16 @@ class DLL_PUBLIC OpSpec {
    * @argument should_throw whether this function should throw an error if the shape doesn't match
    * @return true iff the shape is allowed to be used as Argument
    */
-  bool CheckArgumentShape(const kernels::TensorListShape<> &shape, int batch_size,
+  bool CheckArgumentShape(const TensorListShape<> &shape, int batch_size,
                           const std::string &name, bool should_throw = false) const {
-    DALI_ENFORCE(kernels::is_uniform(shape),
+    DALI_ENFORCE(is_uniform(shape),
                  "Arguments should be passed as uniform TensorLists. Argument \"" + name +
                      "\" is not uniform. To access non-uniform argument inputs use "
                      "ArgumentWorkspace::ArgumentInput method directly.");
     if (shape.num_samples() == 1) {
       // TODO(klecki): 1 sample version will be of no use after the switch to CPU ops unless we
       // generalize accepted batch sizes throughout the pipeline
-      bool is_one_sample_with_batch = shape[0] == kernels::TensorShape<>(batch_size);
+      bool is_one_sample_with_batch = shape[0] == TensorShape<>(batch_size);
       if (should_throw) {
         DALI_ENFORCE(is_one_sample_with_batch,
             "Unexpected shape of argument \"" + name +

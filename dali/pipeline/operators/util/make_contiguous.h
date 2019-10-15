@@ -48,7 +48,7 @@ class MakeContiguous : public Operator<MixedBackend> {
   void Run(MixedWorkspace &ws) override {
     const auto& input = ws.Input<CPUBackend>(0, 0);
     int sample_dim = input.shape().sample_dim();
-    kernels::TensorListShape<> output_shape(batch_size_, sample_dim);
+    TensorListShape<> output_shape(batch_size_, sample_dim);
     TensorLayout layout = input.GetLayout();
     TypeInfo type = input.type();
     size_t total_bytes = 0;

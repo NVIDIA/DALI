@@ -103,7 +103,7 @@ TEST_P(FlipTest, BasicTest) {
     tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size);
     tl.set_type(TypeInfo::Create<float>());
     tl.SetLayout("HWC");
-    auto shape = kernels::TensorListShape<>{{
+    auto shape = TensorListShape<>{{
         {kDataHeight, kDataWidth, kDataChannels},
         {kDataHeight, kDataWidth, kDataChannels}}};
     tl.Resize(shape);

@@ -18,7 +18,7 @@
 #include <vector>
 #include <functional>
 #include "dali/kernels/context.h"
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_view.h"
 #include "dali/kernels/kernel_params.h"
 #include "dali/kernels/kernel_req.h"
 #include "dali/kernels/kernel_traits.h"

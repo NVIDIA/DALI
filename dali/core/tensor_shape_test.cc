@@ -14,8 +14,8 @@
 
 #include <gtest/gtest.h>
 
-#include "dali/kernels/tensor_shape.h"
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 namespace kernels {
@@ -563,7 +563,7 @@ TEST(TensorListShapeTest, ConstructorInitializerList) {
   EXPECT_EQ(tls_2.shapes, vec_2);
 
   auto vec_3 = std::vector<int64_t>{1, 2, 3, 4};
-  TensorListShape<> tls_3 = {{kernels::TensorShape<>{1, 2}, kernels::TensorShape<>{3, 4}}};
+  TensorListShape<> tls_3 = {{TensorShape<>{1, 2}, TensorShape<>{3, 4}}};
   EXPECT_EQ(tls_3.size(), 2);
   EXPECT_EQ(tls_3.sample_dim(), 2);
   EXPECT_EQ(tls_3.shapes, vec_3);

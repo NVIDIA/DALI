@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_TENSOR_VIEW_H_
-#define DALI_KERNELS_TENSOR_VIEW_H_
+#ifndef DALI_CORE_TENSOR_VIEW_H_
+#define DALI_CORE_TENSOR_VIEW_H_
 
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 
 namespace dali {
-namespace kernels {
 
 namespace detail {
 
@@ -711,18 +710,17 @@ TensorListView<StorageBackend, DataType, output_ndim> sample_range(
   return out_slice;
 }
 
-}  // namespace kernels
 
 template <typename Backend, typename T, int ndim>
-struct element_type<kernels::TensorView<Backend, T, ndim>> {
+struct element_type<TensorView<Backend, T, ndim>> {
   using type = T;
 };
 
 template <typename Backend, typename T, int ndim>
-struct element_type<kernels::TensorListView<Backend, T, ndim>> {
+struct element_type<TensorListView<Backend, T, ndim>> {
   using type = T;
 };
 
 }  // namespace dali
 
-#endif  // DALI_KERNELS_TENSOR_VIEW_H_
+#endif  // DALI_CORE_TENSOR_VIEW_H_

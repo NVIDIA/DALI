@@ -16,13 +16,13 @@
 #include <random>
 #include "dali/pipeline/operators/geometric/shapes.h"
 #include "dali/test/dali_operator_test.h"
-#include "dali/kernels/tensor_shape_print.h"
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 
 template <typename Backend, typename RNG>
 void GenerateShapeTestInputs(TensorList<Backend> &out, RNG &rng, int num_samples, int sample_dim) {
-  kernels::TensorListShape<> shape;
+  TensorListShape<> shape;
   // this should give a distribution such that the batch is no bigger than 1e+8 elements
   int max = std::ceil(std::pow(1e+6 / num_samples, 1.0 / sample_dim));
   std::uniform_int_distribution<int> dist(1, max);
@@ -116,7 +116,7 @@ class ShapesOpTest<ShapesTestArgs<OutputBackend, InputBackend, OutputType>>
     const int N = shape.num_samples();
     const int D = shape.sample_dim();
     ASSERT_EQ(N, out_shape.num_samples());
-    ASSERT_TRUE(kernels::is_uniform(out_shape));
+    ASSERT_TRUE(is_uniform(out_shape));
     ASSERT_EQ(out_shape.sample_dim(), 1);
     ASSERT_EQ(out_shape[0][0], D);
 

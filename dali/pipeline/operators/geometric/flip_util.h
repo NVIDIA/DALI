@@ -16,23 +16,23 @@
 #define DALI_PIPELINE_OPERATORS_GEOMETRIC_FLIP_UTIL_H_
 
 #include <vector>
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
 
-inline kernels::TensorShape<4> TransformShapeNHWC(const kernels::TensorShape<> &shape) {
-  return kernels::TensorShape<4>(std::array<Index, 4>{1, shape[0], shape[1], shape[2]});
+inline TensorShape<4> TransformShapeNHWC(const TensorShape<> &shape) {
+  return TensorShape<4>(std::array<Index, 4>{1, shape[0], shape[1], shape[2]});
 }
 
 // In the NCHW layout every channel is treated as a separate plane in a volumetric image
-inline kernels::TensorShape<4> TransformShapeNCHW(const kernels::TensorShape<> &shape) {
-  return kernels::TensorShape<4>(std::array<Index, 4>{shape[0], shape[1], shape[2], 1});
+inline TensorShape<4> TransformShapeNCHW(const TensorShape<> &shape) {
+  return TensorShape<4>(std::array<Index, 4>{shape[0], shape[1], shape[2], 1});
 }
 
-inline kernels::TensorListShape<4> TransformShapes(const kernels::TensorListShape<> &shapes,
+inline TensorListShape<4> TransformShapes(const TensorListShape<> &shapes,
                                                    const TensorLayout &layout) {
-  kernels::TensorListShape<4> result(shapes.size());
+  TensorListShape<4> result(shapes.size());
   if (ImageLayoutInfo::IsChannelLast(layout)) {
     for (int i = 0; i < shapes.size(); i++) {
       result.set_tensor_shape(i, TransformShapeNHWC(shapes[i]));

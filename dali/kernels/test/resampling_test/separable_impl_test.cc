@@ -18,8 +18,8 @@
 #include <opencv2/imgproc.hpp>
 #include <random>
 #include "dali/kernels/imgproc/resample/separable.h"
-#include "dali/kernels/test/test_tensors.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/test_data.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample.h"
