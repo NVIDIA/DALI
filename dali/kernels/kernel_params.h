@@ -16,7 +16,7 @@
 #define DALI_KERNELS_KERNEL_PARAMS_H_
 
 #include <type_traits>
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 namespace kernels {

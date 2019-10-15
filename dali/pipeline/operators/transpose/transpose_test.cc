@@ -34,7 +34,7 @@ void Arrange(T* ptr, const std::vector<Index>& shape) {
   }
 }
 
-std::vector<int> GetStrides(const kernels::TensorShape<>& shape) {
+std::vector<int> GetStrides(const TensorShape<>& shape) {
   std::vector<int> strides(shape.size(), 1);
   for (int i = shape.size() - 2; i >= 0; --i) {
     strides[i] = shape[i + 1] * strides[i + 1];
@@ -59,7 +59,7 @@ class TransposeTest : public testing::DaliOperatorTest {
     if (rank > 4) {
       seq_shape.push_back(3);
     }
-    auto batch_shape = kernels::uniform_list_shape(batch_size, seq_shape);
+    auto batch_shape = uniform_list_shape(batch_size, seq_shape);
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
     tl->Resize(batch_shape);
@@ -108,7 +108,7 @@ template <typename T, int Rank, int CurrDim>
 inline std::enable_if_t<Rank == CurrDim>
 tensor_loop_impl(const T* in_tensor,
                  const T* out_tensor,
-                 const kernels::TensorShape<>& /*unused*/,
+                 const TensorShape<>& /*unused*/,
                  const std::vector<int>& /*unused*/, const std::vector<int>& /*unused*/,
                  const std::vector<int>& /*unused*/,
                  int in_idx, int out_idx) {
@@ -119,7 +119,7 @@ template <typename T, int Rank, int CurrDim>
 inline std::enable_if_t<Rank != CurrDim>
 tensor_loop_impl(const T* in_tensor,
                  const T* out_tensor,
-                 const kernels::TensorShape<>& shape,
+                 const TensorShape<>& shape,
                  const std::vector<int>& old_strides, const std::vector<int>& new_strides,
                  const std::vector<int>& perm,
                  int in_idx, int out_idx) {
@@ -135,7 +135,7 @@ tensor_loop_impl(const T* in_tensor,
 template <typename T, int Rank>
 inline void tensor_loop(const T* in_tensor,
                         const T* out_tensor,
-                        const kernels::TensorShape<>& shape,
+                        const TensorShape<>& shape,
                         const std::vector<int>& old_strides, const std::vector<int>& new_strides,
                         const std::vector<int>& perm) {
   detail::tensor_loop_impl<T, Rank, 0>(in_tensor, out_tensor,
@@ -147,8 +147,8 @@ inline void tensor_loop(const T* in_tensor,
 
 template <typename T>
 void CheckTransposition(const T* in_tensor, const T* out_tensor,
-                        const kernels::TensorShape<>& old_shape,
-                        const kernels::TensorShape<>& new_shape,
+                        const TensorShape<>& old_shape,
+                        const TensorShape<>& new_shape,
                         const std::vector<int>& perm) {
   auto old_volume = volume(old_shape);
   auto new_volume = volume(new_shape);

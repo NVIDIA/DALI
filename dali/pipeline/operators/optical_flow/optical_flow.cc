@@ -70,9 +70,9 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws.stream());
 
     auto out_shape = optical_flow_->GetOutputShape();
-    kernels::TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
+    TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
     for (int i = 0; i < nsequences_; i++) {
-      auto shape = kernels::shape_cat(sequence_sizes_[i] - 1, out_shape);
+      auto shape = shape_cat(sequence_sizes_[i] - 1, out_shape);
       new_sizes.set_tensor_shape(i, shape);
     }
     output.Resize(new_sizes);
@@ -90,10 +90,10 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
       auto hints_tv = tvlhints[sequence_idx];
 
       for (int i = 1; i < sequence_tv.shape[0]; i++) {
-        auto ref = kernels::subtensor(sequence_tv, i - 1);
-        auto in = kernels::subtensor(sequence_tv, i);
-        auto h = kernels::subtensor(hints_tv, i);
-        auto out = kernels::subtensor(output_tv, i - 1);
+        auto ref = subtensor(sequence_tv, i - 1);
+        auto in = subtensor(sequence_tv, i);
+        auto h = subtensor(hints_tv, i);
+        auto out = subtensor(output_tv, i - 1);
 
         optical_flow_->CalcOpticalFlow(ref, in, out, h);
       }
@@ -111,9 +111,9 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
     of_lazy_init(frames_width_, frames_height_, depth_, image_type_, device_id_, ws.stream());
 
     auto out_shape = optical_flow_->GetOutputShape();
-    kernels::TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
+    TensorListShape<> new_sizes(nsequences_, 1 + out_shape.sample_dim());
     for (int i = 0; i < nsequences_; i++) {
-      auto shape = kernels::shape_cat(sequence_sizes_[i] - 1, out_shape);
+      auto shape = shape_cat(sequence_sizes_[i] - 1, out_shape);
       new_sizes.set_tensor_shape(i, shape);
     }
     output.Resize(new_sizes);
@@ -127,9 +127,9 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
       auto output_tv = tvlout[sequence_idx];
 
       for (int i = 1; i < sequence_tv.shape[0]; i++) {
-        auto ref = kernels::subtensor(sequence_tv, i - 1);
-        auto in = kernels::subtensor(sequence_tv, i);
-        auto out = kernels::subtensor(output_tv, i - 1);
+        auto ref = subtensor(sequence_tv, i - 1);
+        auto in = subtensor(sequence_tv, i);
+        auto out = subtensor(output_tv, i - 1);
 
         optical_flow_->CalcOpticalFlow(ref, in, out);
       }

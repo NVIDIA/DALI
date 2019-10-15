@@ -23,8 +23,8 @@
 
 #include "dali/core/format.h"
 #include "dali/core/static_switch.h"
-#include "dali/kernels/tensor_shape.h"
-#include "dali/kernels/tensor_shape_print.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/type_tag.h"
 #include "dali/pipeline/operators/expressions/arithmetic_meta.h"
 #include "dali/pipeline/operators/expressions/expression_impl_factory.h"
@@ -37,7 +37,7 @@ using TileCover = std::tuple<std::vector<TileDesc>, std::vector<TileRange>>;
 /**
  * @brief Divide the shape into groups of linear tiles
  */
-inline TileCover GetTiledCover(const kernels::TensorListShape<> &shape, int tile_size,
+inline TileCover GetTiledCover(const TensorListShape<> &shape, int tile_size,
                                int num_tiles_in_task) {
   Index total_elements = shape.num_elements();
   std::vector<TileDesc> descs;
@@ -148,13 +148,13 @@ inline std::vector<ExprImplTask> CreateExecutionOrder(const ExprNode &expr,
   return result;
 }
 
-inline kernels::TensorListShape<> ShapePromotion(std::string op,
-                                                 const kernels::TensorListShape<> &left,
-                                                 const kernels::TensorListShape<> &right) {
+inline TensorListShape<> ShapePromotion(std::string op,
+                                                 const TensorListShape<> &left,
+                                                 const TensorListShape<> &right) {
   bool is_left_scalar = IsScalarLike(left);
   bool is_right_scalar = IsScalarLike(right);
   if (is_left_scalar && is_right_scalar) {
-    return kernels::TensorListShape<>{{1}};
+    return TensorListShape<>{{1}};
   }
   if (is_left_scalar) {
     return right;
@@ -170,10 +170,10 @@ inline kernels::TensorListShape<> ShapePromotion(std::string op,
 }
 
 template <typename Backend>
-DLL_PUBLIC kernels::TensorListShape<> PropagateShapes(ExprNode &expr,
+DLL_PUBLIC TensorListShape<> PropagateShapes(ExprNode &expr,
                                                       const workspace_t<Backend> &ws) {
   if (expr.GetNodeType() == NodeType::Constant) {
-    expr.SetShape(kernels::TensorListShape<>{{1}});
+    expr.SetShape(TensorListShape<>{{1}});
     return expr.GetShape();
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
@@ -258,7 +258,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
   }
 
   std::unique_ptr<ExprNode> expr_;
-  kernels::TensorListShape<> result_shape_;
+  TensorListShape<> result_shape_;
   bool types_layout_inferenced_ = false;
   DALIDataType result_type_id_;
   TensorLayout result_layout_;

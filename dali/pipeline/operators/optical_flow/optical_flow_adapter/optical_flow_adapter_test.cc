@@ -15,19 +15,12 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-#include "dali/kernels/backend_tags.h"
+#include "dali/core/backend_tags.h"
 #include "dali/pipeline/operators/optical_flow/optical_flow_adapter/optical_flow_stub.h"
 #include "dali/core/cuda_utils.h"
 
 namespace dali {
 namespace optical_flow {
-
-using kernels::TensorView;
-using kernels::TensorShape;
-using kernels::ComputeCPU;
-using kernels::StorageCPU;
-using kernels::ComputeGPU;
-using kernels::StorageGPU;
 
 static int kTestDataSize = 2;
 

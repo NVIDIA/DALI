@@ -108,7 +108,7 @@ class CropAttr {
     }
 
     crop_window_generators_[data_idx] =
-      [this, data_idx](kernels::TensorShape<> input_shape,
+      [this, data_idx](const TensorShape<>& input_shape,
                        const TensorLayout& shape_layout) {
         DALI_ENFORCE(shape_layout == "HW" || shape_layout == "DHW",
           make_string("Unexpected input shape layout:", shape_layout.c_str(),
@@ -119,7 +119,7 @@ class CropAttr {
             crop_depth_[data_idx] : input_shape[0];
           auto crop_h = crop_height_[data_idx] > 0 ? crop_height_[data_idx] : input_shape[1];
           auto crop_w = crop_width_[data_idx]  > 0 ? crop_width_[data_idx]  : input_shape[2];
-          kernels::TensorShape<> crop_shape = {crop_d, crop_h, crop_w};
+          TensorShape<> crop_shape = {crop_d, crop_h, crop_w};
           crop_window.SetShape(crop_shape);
 
           float anchor_norm[3] =
@@ -129,7 +129,7 @@ class CropAttr {
         } else if (input_shape.size() == 2) {
           auto crop_h = crop_height_[data_idx] > 0 ? crop_height_[data_idx] : input_shape[0];
           auto crop_w = crop_width_[data_idx]  > 0 ? crop_width_[data_idx]  : input_shape[1];
-          kernels::TensorShape<> crop_shape = {crop_h, crop_w};
+          TensorShape<> crop_shape = {crop_h, crop_w};
           crop_window.SetShape(crop_shape);
 
           float anchor_norm[2] = {crop_y_norm_[data_idx], crop_x_norm_[data_idx]};
@@ -144,13 +144,13 @@ class CropAttr {
     };
   }
 
-  kernels::TensorShape<> CalculateAnchor(const span<float>& anchor_norm,
-                                         const kernels::TensorShape<>& crop_shape,
-                                         const kernels::TensorShape<>& input_shape) {
+  TensorShape<> CalculateAnchor(const span<float>& anchor_norm,
+                                         const TensorShape<>& crop_shape,
+                                         const TensorShape<>& input_shape) {
     DALI_ENFORCE(anchor_norm.size() == crop_shape.size()
               && anchor_norm.size() == input_shape.size());
 
-    kernels::TensorShape<> anchor;
+    TensorShape<> anchor;
     anchor.resize(anchor_norm.size());
     for (int dim = 0; dim < anchor_norm.size(); dim++) {
       DALI_ENFORCE(anchor_norm[dim] >= 0.0f && anchor_norm[dim] <= 1.0f,

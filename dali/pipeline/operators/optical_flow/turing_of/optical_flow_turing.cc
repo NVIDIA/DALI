@@ -39,7 +39,7 @@ void VerifySupport(NV_OF_STATUS status) {
 OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams params, size_t width,
                                      size_t height, size_t channels, DALIImageType image_type,
                                      int device_id, cudaStream_t stream) :
-        OpticalFlowAdapter<kernels::ComputeGPU>(params), width_(width), height_(height),
+        OpticalFlowAdapter<ComputeGPU>(params), width_(width), height_(height),
         channels_(channels), device_id_(device_id), context_(), stream_(stream),
         image_type_(image_type) {
   DALI_ENFORCE(channels_ == 1 || channels_ == 3 || channels_ == 4);
@@ -94,8 +94,8 @@ OpticalFlowTuring::~OpticalFlowTuring() {
 }
 
 
-using dali::kernels::TensorView;
-using dali::kernels::StorageGPU;
+using dali::TensorView;
+using dali::StorageGPU;
 
 
 void OpticalFlowTuring::CalcOpticalFlow(
@@ -107,7 +107,7 @@ void OpticalFlowTuring::CalcOpticalFlow(
     DALI_ENFORCE(external_hints.shape == output_image.shape,
                  "If external hint are used, shape must match against output_image");
   } else {
-    DALI_ENFORCE(external_hints.shape == kernels::TensorShape<3>(),
+    DALI_ENFORCE(external_hints.shape == TensorShape<3>(),
                  "If external hints aren't used, shape must be empty");
   }
   switch (image_type_) {

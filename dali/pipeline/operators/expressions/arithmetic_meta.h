@@ -23,7 +23,7 @@
 
 #include "dali/core/cuda_utils.h"
 #include "dali/core/static_switch.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
 
@@ -336,7 +336,7 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
   return it->second;
 }
 
-inline bool IsScalarLike(const kernels::TensorListShape<> &shape) {
+inline bool IsScalarLike(const TensorListShape<> &shape) {
   return shape.num_samples() == 1 && shape.num_elements() == 1;
 }
 

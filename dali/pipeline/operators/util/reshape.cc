@@ -17,7 +17,7 @@
 #include <vector>
 #include "dali/pipeline/data/views.h"
 #include "dali/core/static_switch.h"
-#include "dali/kernels/tensor_shape_print.h"
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 
@@ -52,7 +52,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
       uniform_shape_.resize(shape_vec.size());
       for (int i = 0; i < uniform_shape_.sample_dim(); i++) {
         DALI_ENFORCE(shape_vec[i] > 0, "Reshape: all extents must be positive; got: " +
-            std::to_string(uniform_shape_));
+            to_string(uniform_shape_));
         uniform_shape_[i] = shape_vec[i];
       }
       shape_source_ = ShapeSource::Arg;
@@ -80,7 +80,7 @@ bool Reshape<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
 template <typename Backend>
 template <typename Integer>
 void Reshape<Backend>::ShapeFromInput(
-      const kernels::TensorListView<kernels::StorageCPU, Integer> &shape) {
+      const TensorListView<StorageCPU, Integer> &shape) {
   DALI_ENFORCE(shape.sample_dim() == 1 || (shape.sample_dim() == 2 && shape.num_samples() == 1),
     "Reshape: shape input must be a list of 1D tensors or a single 2D tensor");
   if (shape.sample_dim() == 2) {
@@ -131,7 +131,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
   switch (shape_source_) {
     case ShapeSource::Arg:
       if (output_shape_.num_samples() != N) {
-        output_shape_ = kernels::uniform_list_shape(N, uniform_shape_);
+        output_shape_ = uniform_list_shape(N, uniform_shape_);
       }
       break;
     case ShapeSource::ArgInput:

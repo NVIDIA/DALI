@@ -80,7 +80,6 @@ std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws,
     default:
       DALI_FAIL("Expressions with " + std::to_string(expr.GetSubexpressionCount()) +
                 " subexpressions are not supported. No implemetation found.");
-      break;
   }
 }
 

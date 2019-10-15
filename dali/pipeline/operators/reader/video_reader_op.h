@@ -62,7 +62,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
       enable_label_output_ = !file_root_.empty() || !file_list_.empty();
 
       if (enable_label_output_) {
-        label_shape_ = kernels::uniform_list_shape(batch_size_, {1});
+        label_shape_ = uniform_list_shape(batch_size_, {1});
       }
   }
 
@@ -124,8 +124,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
   float output_scale_;
 
-  kernels::TensorListShape<> tl_shape_;
-  kernels::TensorListShape<> label_shape_;
+  TensorListShape<> tl_shape_;
+  TensorListShape<> label_shape_;
 
   DALIDataType dtype_;
   bool enable_label_output_;

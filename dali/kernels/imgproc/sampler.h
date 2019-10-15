@@ -22,7 +22,7 @@
 #include "dali/core/math_util.h"
 #include "dali/core/geom/vec.h"
 #include "dali/core/host_dev.h"
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_view.h"
 #include "dali/kernels/imgproc/surface.h"
 
 namespace dali {

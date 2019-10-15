@@ -22,7 +22,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/util/crop_window.h"
-#include "dali/kernels/backend_tags.h"
+#include "dali/core/backend_tags.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/image/image_factory.h"
 
@@ -166,7 +166,7 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
   }
   const auto decoded = img->GetImage();
   const auto shape = img->GetShape();
-  kernels::copy<StorageType, kernels::StorageCPU>(
+  kernels::copy<StorageType, StorageCPU>(
     output_buffer, decoded.get(), volume(shape), stream);
 }
 

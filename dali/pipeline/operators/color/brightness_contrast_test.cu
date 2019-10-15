@@ -16,7 +16,7 @@
 #include <memory>
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/dali_operator_test_utils.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/tensor_test_utils.h"
 #include "dali/core/convert.h"
 
 namespace dali {
@@ -44,14 +44,14 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
   void Init(std::vector<InputDataType> &input, size_t n) {
     std::mt19937_64 rng;
     input.resize(n);
-    kernels::UniformRandomFill(input, rng, 0.f, 10.f);
+    UniformRandomFill(input, rng, 0.f, 10.f);
   }
 
 
   template <typename Backend>
   std::unique_ptr<TensorList<Backend>> ToTensorList(std::vector<InputDataType> data) {
     std::unique_ptr<TensorList<Backend>> tl(new TensorList<Backend>());
-    tl->Resize(kernels::TensorListShape<3>({shape_}));
+    tl->Resize(TensorListShape<3>({shape_}));
     auto ptr = tl->template mutable_data<InputDataType>();
     assert(data.size() == static_cast<size_t>(volume(shape_)));
     std::memcpy(ptr, data.data(), data.size() * sizeof(InputDataType));
@@ -60,7 +60,7 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
 
 
   std::vector<InputDataType> input_;
-  kernels::TensorShape<3> shape_ = {2, 4, 3};
+  TensorShape<3> shape_ = {2, 4, 3};
 };
 
 namespace {

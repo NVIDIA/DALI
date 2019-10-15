@@ -126,7 +126,7 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
 
-  std::vector<kernels::TensorShape<>> output_shape(batch_size_);
+  std::vector<TensorShape<>> output_shape(batch_size_);
 
   for (int i = 0; i < batch_size_; ++i) {
     auto input_shape = input.tensor_shape(i);

@@ -15,7 +15,7 @@
 #include <functional>
 #include <memory>
 
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/test/dali_operator_test.h"
 
@@ -48,8 +48,8 @@ class CropSequenceTest : public DaliOperatorTest {
     std::unique_ptr<TensorList<CPUBackend>>
     GetSequenceData() {
         auto data = std::make_unique<TensorList<CPUBackend>>();
-        auto shape = kernels::uniform_list_shape(TestArgs::N,
-            kernels::TensorShape<>{TestArgs::F, TestArgs::W, TestArgs::H, TestArgs::C});
+        auto shape = uniform_list_shape(TestArgs::N,
+            TensorShape<>{TestArgs::F, TestArgs::W, TestArgs::H, TestArgs::C});
         data->set_type(TypeInfo::Create<typename TestArgs::T>());
         data->SetLayout("FHWC");
         data->Resize(shape);

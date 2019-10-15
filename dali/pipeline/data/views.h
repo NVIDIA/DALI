@@ -17,8 +17,8 @@
 
 #include <string>
 #include <vector>
-#include "dali/kernels/tensor_view.h"
-#include "dali/kernels/backend_tags.h"
+#include "dali/core/tensor_view.h"
+#include "dali/core/backend_tags.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_vector.h"
@@ -34,12 +34,12 @@ struct storage_tag_map;
 
 template <>
 struct storage_tag_map<CPUBackend> {
-  using type = kernels::StorageCPU;
+  using type = StorageCPU;
 };
 
 template <>
 struct storage_tag_map<GPUBackend> {
-  using type = kernels::StorageGPU;
+  using type = StorageGPU;
 };
 
 template <typename Backend>
@@ -47,7 +47,7 @@ using storage_tag_map_t = typename storage_tag_map<Backend>::type;
 
 template <int ndim, typename ShapeType>
 void enforce_dim_in_view(const ShapeType &shape) {
-  if (ndim != kernels::DynamicDimensions) {
+  if (ndim != DynamicDimensions) {
     DALI_ENFORCE(shape.sample_dim() == ndim,
              "Input with dimension (" + to_string(shape.sample_dim())
              + ") cannot be converted to dimension (" + to_string(ndim) + ").");
@@ -62,31 +62,31 @@ void enforce_dim_in_view(const ShapeType &shape) {
  * @remarks If the argument is not a dense tensor, an error is raised.
  */
 template <int ndim, typename Backend>
-kernels::TensorShape<ndim> get_tensor_shape(const TensorList<Backend> &tl) {
+TensorShape<ndim> get_tensor_shape(const TensorList<Backend> &tl) {
   DALI_ENFORCE(tl.IsDenseTensor(), "Uniform, dense tensor expected");
-  if (ndim != kernels::DynamicDimensions) {
+  if (ndim != DynamicDimensions) {
     DALI_ENFORCE(tl.shape().sample_dim() + 1 == ndim,
     "Input has a wrong number of dimensions!\n"
     "Hint: Converting tensor list to a tensor adds extra dimension");
   }
-  int dim = (ndim != kernels::DynamicDimensions) ? ndim : tl.shape().sample_dim() + 1;
+  int dim = (ndim != DynamicDimensions) ? ndim : tl.shape().sample_dim() + 1;
   auto out = shape_cat(tl.ntensor(), tl.tensor_shape(0));
-  return kernels::convert_dim<ndim>(out);
+  return convert_dim<ndim>(out);
 }
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return { data.template mutable_data<U>(), kernels::convert_dim<ndim>(data.shape()) };
+  return { data.template mutable_data<U>(), convert_dim<ndim>(data.shape()) };
 }
 
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(const TensorList<Backend> &data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const TensorList<>`. "
@@ -95,27 +95,27 @@ view(const TensorList<Backend> &data) {
     return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return { data.template data<U>(), kernels::convert_dim<ndim>(data.shape()) };
+  return { data.template data<U>(), convert_dim<ndim>(data.shape()) };
 }
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(Tensor<Backend> &data) {
   if (data.shape().empty())
     return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return { data.template mutable_data<U>(),  kernels::convert_dim<ndim>(data.shape()) };
+  return { data.template mutable_data<U>(),  convert_dim<ndim>(data.shape()) };
 }
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(Tensor<Backend> &data) {
   return view<T, ndim>(data);
 }
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(TensorList<Backend> &data) {
   if (data.ntensor() == 0)
     return {};
@@ -123,8 +123,8 @@ view_as_tensor(TensorList<Backend> &data) {
   return { data.template mutable_data<U>(), get_tensor_shape<ndim>(data) };
 }
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(const Tensor<Backend> &data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const Tensor<>`. "
@@ -133,17 +133,17 @@ view(const Tensor<Backend> &data) {
     return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return { data.template data<U>(), kernels::convert_dim<ndim>(data.shape()) };
+  return { data.template data<U>(), convert_dim<ndim>(data.shape()) };
 }
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(const Tensor<Backend> &data) {
   return view<T, ndim>(data);
 }
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view_as_tensor(const TensorList<Backend> &data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const TensorList<>`. "
@@ -155,15 +155,15 @@ view_as_tensor(const TensorList<Backend> &data) {
 }
 
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(TensorVector<Backend> &data) {
   if (data.size() == 0)
     return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
-  kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
-  ret.shape = kernels::convert_dim<ndim>(data.shape());
+  TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
+  ret.shape = convert_dim<ndim>(data.shape());
   ret.data.resize(ret.shape.num_samples());
   for (int i = 0; i < ret.shape.num_samples(); i++) {
     ret.data[i] = data[i].template mutable_data<U>();
@@ -172,8 +172,8 @@ view(TensorVector<Backend> &data) {
 }
 
 
-template <typename T, int ndim = kernels::DynamicDimensions, typename Backend>
-kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(const TensorVector<Backend> &data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const TensorVector<>`. "
@@ -182,8 +182,8 @@ view(const TensorVector<Backend> &data) {
     return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
-  kernels::TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
-  ret.shape = kernels::convert_dim<ndim>(data.shape());
+  TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> ret;
+  ret.shape = convert_dim<ndim>(data.shape());
   ret.data.resize(ret.shape.num_samples());
   for (int i = 0; i < ret.shape.num_samples(); i++) {
     ret.data[i] = data[i].template data<U>();

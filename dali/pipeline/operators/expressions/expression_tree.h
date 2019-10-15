@@ -120,11 +120,11 @@ class ExprNode {
     return type_id_;
   }
 
-  void SetShape(const kernels::TensorListShape<> &shape) {
+  void SetShape(const TensorListShape<> &shape) {
     shape_ = shape;
   }
 
-  const kernels::TensorListShape<> &GetShape() const {
+  const TensorListShape<> &GetShape() const {
     return shape_;
   }
 
@@ -136,7 +136,7 @@ class ExprNode {
 
  private:
   DALIDataType type_id_ = DALI_NO_TYPE;
-  kernels::TensorListShape<> shape_ = {};
+  TensorListShape<> shape_ = {};
 };
 
 /**

@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <list>
 #include "dali/core/util.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 
 namespace dali {
 
@@ -29,8 +29,6 @@ static_assert(std::is_same<volume_t<float>, float>::value,
   "Floating-point volume should keep extent type");
 static_assert(std::is_same<volume_t<double>, double>::value,
   "Floating-point volume should keep extent type");
-
-using kernels::TensorShape;
 
 TEST(Volume, Scalar) {
   EXPECT_EQ(volume(5), 5);

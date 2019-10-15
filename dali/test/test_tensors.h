@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_TEST_TEST_TENSORS_H_
-#define DALI_KERNELS_TEST_TEST_TENSORS_H_
+#ifndef DALI_TEST_TEST_TENSORS_H_
+#define DALI_TEST_TEST_TENSORS_H_
 
 #include <cuda_runtime_api.h>
 #include <memory>
 #include <utility>
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 namespace kernels {
@@ -111,4 +111,4 @@ class TestTensorList {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_TEST_TEST_TENSORS_H_
+#endif  // DALI_TEST_TEST_TENSORS_H_

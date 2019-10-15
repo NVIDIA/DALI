@@ -110,7 +110,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   template<typename T>
   void FeedWithList(T *src_op) {
     tl_.set_type(TypeInfo::Create<int>());
-    kernels::TensorListShape<> shape = kernels::uniform_list_shape(this->batch_size_, {10, 10});
+    TensorListShape<> shape = uniform_list_shape(this->batch_size_, {10, 10});
     tl_.Resize(shape);
     for (int j = 0; j < this->batch_size_; ++j) {
       auto data = tl_.template mutable_tensor<int>(j);

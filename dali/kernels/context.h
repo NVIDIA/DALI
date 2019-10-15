@@ -21,7 +21,7 @@
 #include <vector>
 #include <algorithm>
 #include <type_traits>
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_view.h"
 #include "dali/kernels/alloc_type.h"
 
 namespace dali {

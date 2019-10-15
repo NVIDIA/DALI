@@ -136,7 +136,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
           nchannels = shape[2];
 
         if (crop_generator) {
-          kernels::TensorShape<> shape{info->heights[0], info->widths[0]};
+          TensorShape<> shape{info->heights[0], info->widths[0]};
           info->crop_window = crop_generator(shape, "HW");
           DALI_ENFORCE(info->crop_window.IsInRange(shape));
           info->heights[0] = info->crop_window.shape[0];
@@ -148,7 +148,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
         out.Resize({info->heights[0], info->widths[0], nchannels});
         auto *output_data = out.mutable_data<uint8_t>();
 
-        HostFallback<kernels::StorageCPU>(input_data, in_size, output_image_type_, output_data, 0,
+        HostFallback<StorageCPU>(input_data, in_size, output_image_type_, output_data, 0,
                                           file_name, info->crop_window, use_fast_idct_);
       } catch (const std::runtime_error& e) {
         DALI_FAIL(e.what() + "File: " + file_name);
@@ -161,7 +161,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
                                                    &info->c));
 
       if (crop_generator) {
-        kernels::TensorShape<> shape{info->heights[0], info->widths[0]};
+        TensorShape<> shape{info->heights[0], info->widths[0]};
         info->crop_window = crop_generator(shape, "HW");
         auto &crop_window = info->crop_window;
         DALI_ENFORCE(crop_window.IsInRange(shape));

@@ -27,7 +27,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operators/operator.h"
 #include "dali/util/crop_window.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 
 namespace dali {
 
@@ -44,7 +44,7 @@ DLL_PUBLIC bool HasKnownImageExtension(const std::string &image_path);
 
 class Image {
  public:
-  using Shape = kernels::TensorShape<3>;
+  using Shape = TensorShape<3>;
 
   /**
    * Perform image decoding. Actual implementation is defined
@@ -93,7 +93,7 @@ class Image {
   inline void SetCropWindow(const CropWindow& crop_window) {
     if (!crop_window)
       return;
-    crop_window_generator_ = [crop_window](const kernels::TensorShape<>& shape,
+    crop_window_generator_ = [crop_window](const TensorShape<>& shape,
                                            const TensorLayout& shape_layout) {
       DALI_ENFORCE(shape_layout == "HW",
         make_string("Unexpected input shape layout:", shape_layout.c_str(), "vs HW"));

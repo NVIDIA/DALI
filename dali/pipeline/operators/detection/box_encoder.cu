@@ -243,11 +243,11 @@ void BoxEncoder<GPUBackend>::ClearOutput(
       stream));
 }
 
-std::pair<kernels::TensorListShape<>, kernels::TensorListShape<>>
+std::pair<TensorListShape<>, TensorListShape<>>
 BoxEncoder<GPUBackend>::CalculateDims(
   const TensorList<GPUBackend> &boxes_input) {
-  kernels::TensorListShape<> boxes_output_shape(boxes_input.ntensor(), kBoxesOutputDim);
-  kernels::TensorListShape<> labels_output_shape(boxes_input.ntensor(), kLabelsOutputDim);
+  TensorListShape<> boxes_output_shape(boxes_input.ntensor(), kBoxesOutputDim);
+  TensorListShape<> labels_output_shape(boxes_input.ntensor(), kLabelsOutputDim);
 
   for (size_t i = 0; i < boxes_input.ntensor(); i++) {
     boxes_output_shape.set_tensor_shape(i,
