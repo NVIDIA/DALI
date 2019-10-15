@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operators/python_function/util/copy_with_stride.h"
+#include "dali/operators/python_function/util/copy_with_stride.h"
 #include <cuda_runtime.h>
 #include <dali/core/util.h>
 #include <dali/core/dev_array.h>
