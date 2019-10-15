@@ -149,7 +149,7 @@ def _test_tf_dataset(device, device_id = 0):
         for _ in range(iterations):
             dataset_results.append(sess.run(next_element))
 
-    standalone_pipeline = TestPipeline(batch_size, num_threads, device, 0)
+    standalone_pipeline = TestPipeline(batch_size, num_threads, device, device_id = 0)
     standalone_pipeline.build()
     standalone_results = []
     for _ in range(iterations):
@@ -245,7 +245,8 @@ def _test_tf_dataset_multigpu():
         for _ in range(iterations):
             dataset_results.append(sess.run(ops_to_run))
 
-    standalone_pipeline = TestPipeline(batch_size, num_threads, 'gpu', 0)
+    standalone_pipeline = TestPipeline(
+        batch_size, num_threads, device = 'gpu', device_id = 0)
     standalone_pipeline.build()
     standalone_results = []
     for _ in range(iterations):
