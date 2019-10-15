@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "dali/pipeline/graph/op_graph.h"
-#include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/host_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"

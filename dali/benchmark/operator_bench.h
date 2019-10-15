@@ -20,7 +20,7 @@
 #include <vector>
 #include "dali/benchmark/dali_bench.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/pipeline/operators/operator.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
