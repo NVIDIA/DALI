@@ -43,14 +43,14 @@ def skip_for_incompatible_tf():
 
 
 class TestPipeline(Pipeline):
-    def __init__(self, batch_size, num_threads, device, device_id = 0, seed = 0):
+    def __init__(self, batch_size, num_threads, device, device_id = 0, shard_id = 0, num_shards = 1, seed = 0):
         super(TestPipeline, self).__init__(batch_size, num_threads, device_id, seed)
         self.device = device
         self.input = ops.COCOReader(
             file_root = file_root,
             annotations_file = annotations_file,
-            shard_id = 0, 
-            num_shards = 1, 
+            shard_id = shard_id, 
+            num_shards = num_shards, 
             ratio=False, 
             save_img_ids=True)
         self.decode = ops.ImageDecoder(
@@ -59,16 +59,15 @@ class TestPipeline(Pipeline):
         self.resize = ops.Resize(
             device = device,
             image_type = types.RGB,
+            resize_x = 224,
+            resize_y = 224,
             interp_type = types.INTERP_LINEAR)
         self.cmn = ops.CropMirrorNormalize(
             device = device,
             output_dtype = types.FLOAT,
-            crop = (224, 224),
             image_type = types.RGB,
             mean = [128., 128., 128.],
             std = [1., 1., 1.])
-        self.res_uniform = ops.Uniform(range = (256.,480.))
-        self.uniform = ops.Uniform(range = (0.0, 1.0))
         self.cast = ops.Cast(
             device = device,
             dtype = types.INT16)
@@ -77,11 +76,9 @@ class TestPipeline(Pipeline):
     def define_graph(self):
         inputs, _, _, im_ids = self.input()
         images = self.decode(inputs)
-        images = self.resize(images, resize_shorter = self.res_uniform())
+        images = self.resize(images)
         output = self.cmn(
-            images, 
-            crop_pos_x = self.uniform(),
-            crop_pos_y = self.uniform())
+            images)
         if self.device is 'gpu':
             im_ids = im_ids.gpu()
         im_ids_16 = self.cast(im_ids)
@@ -143,7 +140,7 @@ def _test_tf_dataset(device, device_id = 0):
         for _ in range(iterations):
             dataset_results.append(sess.run(next_element))
 
-    standalone_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
+    standalone_pipeline = TestPipeline(batch_size, num_threads, device, 0)
     standalone_pipeline.build()
     standalone_results = []
     for _ in range(iterations):
@@ -198,12 +195,12 @@ def test_differnt_num_shapes_dtypes():
 def _test_tf_dataset_multigpu():
     skip_for_incompatible_tf()
 
-    num_devices = 2
-    batch_size = 12
+    num_devices = 8
+    dataset_size = 64
+    batch_size = 8
     num_threads = 4
-    iterations = 10
+    iterations = dataset_size // batch_size
 
-    dataset_pipeline = TestPipeline(batch_size, num_threads, 'gpu', 0)
     shapes = [
         (batch_size, 3, 224, 224), 
         (batch_size, 1),
@@ -219,6 +216,7 @@ def _test_tf_dataset_multigpu():
 
     for device_id in range(num_devices):
         with tf.device('/gpu:{0}'.format(device_id)):
+            dataset_pipeline = TestPipeline(batch_size, num_threads, 'gpu', device_id, device_id, num_devices)
             daliset = dali_tf.DALIDataset(
                 pipeline=dataset_pipeline,
                 batch_size=batch_size,
@@ -246,9 +244,17 @@ def _test_tf_dataset_multigpu():
             tuple(result.as_cpu().as_array() for result in standalone_pipeline.run()))
 
     assert len(dataset_results) == iterations
-    for sr, r in zip(standalone_results, dataset_results):
-        assert len(r) == num_devices
-        for dr in r:
-            assert np.array_equal(sr[0], dr[0])
-            assert np.array_equal(sr[1], dr[1])
-            assert np.array_equal(sr[2], dr[2])
+    for it in range(iterations):
+        assert len(dataset_results[it]) == num_devices
+        for device_id in range(num_devices):
+            batch_id = (it + device_id * (iterations // num_devices)) % iterations
+            assert np.array_equal(
+                standalone_results[it][0],
+                dataset_results[batch_id][device_id][0])
+            assert np.array_equal(
+                standalone_results[it][1],
+                dataset_results[batch_id][device_id][1])
+            assert np.array_equal(
+                standalone_results[it][2],
+                dataset_results[batch_id][device_id][2])
+
