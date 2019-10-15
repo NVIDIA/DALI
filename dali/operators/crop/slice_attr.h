@@ -89,7 +89,7 @@ class SliceAttr {
                               const float *slice_anchor_data,
                               const float *slice_shape_data) {
     crop_window_generators_[data_idx] =
-      [this, slice_anchor_data, slice_shape_data](const kernels::TensorShape<> &shape,
+      [this, slice_anchor_data, slice_shape_data](const TensorShape<> &shape,
                                                   const TensorLayout& shape_layout) {
         CropWindow slice;
         slice.anchor = std::vector<int64_t>(shape.size(), 0);
@@ -127,8 +127,8 @@ class SliceAttr {
       };
   }
 
-  void VerifyArgsShape(const kernels::TensorShape<>& crop_anchor_shape,
-                       const kernels::TensorShape<>& crop_shape_shape) {
+  void VerifyArgsShape(const TensorShape<>& crop_anchor_shape,
+                       const TensorShape<>& crop_shape_shape) {
     DALI_ENFORCE(crop_anchor_shape == crop_shape_shape);
     size_t args_size = volume(crop_anchor_shape);
     auto dims_size = !dim_names_.empty() ? dim_names_.size() : dims_.size();
