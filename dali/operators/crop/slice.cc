@@ -36,8 +36,7 @@ coordinates and `WH` order for the slice arguments.)code")
       R"code(The color space of input and output image)code",
       DALI_RGB, false)
     .AddParent("SliceBase")
-    .AddParent("SliceAttr")
-    .InputLayout(0, { "HW", "HWC", "DHWC" });
+    .AddParent("SliceAttr");
 
 template <>
 void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace &ws) {

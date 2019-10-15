@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <vector>
-#include "dali/pipeline/operators/crop/slice_attr.h"
+#include "dali/operators/crop/slice_attr.h"
 
 namespace dali {
 
