@@ -18,9 +18,9 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(WarpAffine, WarpAffine<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(OldWarpAffine, OldWarpAffine<CPUBackend>, CPU);
 
-DALI_SCHEMA(WarpAffine)
+DALI_SCHEMA(OldWarpAffine)
     .DocStr(R"code(Apply an affine transformation to the image.)code")
     .NumInput(1)
     .NumOutput(1)

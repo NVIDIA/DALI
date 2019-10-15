@@ -22,6 +22,7 @@
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/warp/map_coords.h"
+#include "dali/kernels/imgproc/warp/affine.h"
 
 namespace dali {
 namespace kernels {
@@ -85,13 +86,13 @@ class WarpCPU {
   }
 
  private:
-  template <DALIInterpType static_interp>
+  template <DALIInterpType static_interp, typename Mapping_>
   void RunImpl(
       KernelContext &context,
       const OutTensorCPU<OutputType, 3> &output,
       const InTensorCPU<InputType, 3> &input,
-      Mapping &mapping,
-      const BorderType &border = {}) {
+      Mapping_ &mapping,
+      BorderType border = {}) {
     // 2D HWC implementation.
     // 3D will be added as an overload for input/output ndim == 4.
     int out_w = output.shape[1];
@@ -100,23 +101,44 @@ class WarpCPU {
     int in_w  = input.shape[1];
     int in_h  = input.shape[0];
 
-    Surface2D<OutputType> out = {
-      output.data,
-      out_w, out_h, c,
-      c, out_w*c, 1
-    };
-    Surface2D<const InputType> in = {
-      input.data,
-      in_w, in_h, c,
-      c, in_w*c, 1
-    };
+    Surface2D<const InputType> in = as_surface_channel_last(input);
 
     Sampler<static_interp, InputType> sampler(in);
 
     for (int y = 0; y < out_h; y++) {
+      OutputType *out_row = output(y, 0);
       for (int x = 0; x < out_w; x++) {
         auto src = warp::map_coords(mapping, ivec2(x, y));
-        sampler(&out(x, y), src, border);
+        sampler(&out_row[c*x], src, border);
+      }
+    }
+  }
+
+  template <DALIInterpType static_interp>
+  void RunImpl(
+      KernelContext &context,
+      const OutTensorCPU<OutputType, 3> &output,
+      const InTensorCPU<InputType, 3> &input,
+      AffineMapping<2> &mapping,
+      BorderType border = {}) {
+    // 2D HWC implementation.
+    // 3D will be added as an overload for input/output ndim == 4.
+    int out_w = output.shape[1];
+    int out_h = output.shape[0];
+    int c     = output.shape[2];
+    int in_w  = input.shape[1];
+    int in_h  = input.shape[0];
+
+    Surface2D<const InputType> in = as_surface_channel_last(input);
+
+    Sampler<static_interp, InputType> sampler(in);
+
+    vec2 dsdx = mapping.transform.col(0);
+    for (int y = 0; y < out_h; y++) {
+      OutputType *out_row = output(y, 0);
+      auto src = warp::map_coords(mapping, ivec2(0, y));
+      for (int x = 0; x < out_w; x++, src += dsdx) {
+        sampler(&out_row[c*x], src, border);
       }
     }
   }

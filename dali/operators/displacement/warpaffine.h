@@ -71,12 +71,12 @@ class WarpAffineAugment {
 };
 
 template <typename Backend>
-class WarpAffine : public DisplacementFilter<Backend, WarpAffineAugment> {
+class OldWarpAffine : public DisplacementFilter<Backend, WarpAffineAugment> {
  public:
-    inline explicit WarpAffine(const OpSpec &spec)
+    inline explicit OldWarpAffine(const OpSpec &spec)
       : DisplacementFilter<Backend, WarpAffineAugment>(spec) {}
 
-    ~WarpAffine() override = default;
+    ~OldWarpAffine() override = default;
 };
 
 }  // namespace dali

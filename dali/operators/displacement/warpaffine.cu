@@ -18,6 +18,6 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(WarpAffine, WarpAffine<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(OldWarpAffine, OldWarpAffine<GPUBackend>, GPU);
 
 }  // namespace dali

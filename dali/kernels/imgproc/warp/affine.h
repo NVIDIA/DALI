@@ -28,7 +28,7 @@ struct AffineMapping {
   constexpr AffineMapping(const mat<dim, dim+1> &m) : transform(m) {}  // NOLINT
 
   DALI_HOST_DEV
-  vec<dim> operator()(const vec<dim> &v) const {
+  inline vec<dim> operator()(const vec<dim> &v) const {
     return transform.col(dim) + sub<dim, dim>(transform, 0, 0) * v;
   }
 };

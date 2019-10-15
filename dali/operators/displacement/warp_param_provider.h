@@ -72,9 +72,9 @@ class BorderTypeProvider {
   void SetBorder(const OpSpec &spec) {
     float fborder;
     int iborder;
-    if (spec.TryGetArgument(fborder, "border"))
+    if (spec.TryGetArgument(fborder, "fill_value"))
       border_ = ConvertSat<BorderType>(fborder);
-    else if (spec.TryGetArgument(iborder, "border"))
+    else if (spec.TryGetArgument(iborder, "fill_value"))
       border_ = ConvertSat<BorderType>(iborder);
   }
   BorderType border_ = {};

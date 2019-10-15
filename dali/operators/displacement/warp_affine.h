@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_H_
-#define DALI_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_H_
+#ifndef DALI_OPERATORS_DISPLACEMENT_WARP_AFFINE_H_
+#define DALI_OPERATORS_DISPLACEMENT_WARP_AFFINE_H_
 
 #include <memory>
 #include <vector>
@@ -26,9 +26,9 @@
 namespace dali {
 
 template <typename Backend>
-class NewWarpAffine : public Warp<Backend, NewWarpAffine<Backend>> {
+class WarpAffine : public Warp<Backend, WarpAffine<Backend>> {
  public:
-  using Base = Warp<Backend, NewWarpAffine<Backend>>;
+  using Base = Warp<Backend, WarpAffine<Backend>>;
   using Base::Base;
 
   template <int ndim>
@@ -45,4 +45,4 @@ class NewWarpAffine : public Warp<Backend, NewWarpAffine<Backend>> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DISPLACEMENT_NEW_WARP_AFFINE_H_
+#endif  // DALI_OPERATORS_DISPLACEMENT_WARP_AFFINE_H_

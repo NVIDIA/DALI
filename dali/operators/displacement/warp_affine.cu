@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include <vector>
-#include "dali/operators/displacement/new_warp_affine.h"
+#include "dali/operators/displacement/warp_affine.h"
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(NewWarpAffine, NewWarpAffine<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(WarpAffine, WarpAffine<GPUBackend>, GPU);
 
 }  // namespace dali

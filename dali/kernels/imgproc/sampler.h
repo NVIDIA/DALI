@@ -84,12 +84,12 @@ struct Sampler<DALI_INTERP_NN, In> {
     return at<T>(floor_int(x), floor_int(y), c, border_value);
   }
 
-  template <typename T = In, typename Coord, typename BorderValue>
+  template <typename T = In, typename BorderValue>
   DALI_HOST_DEV T at(ivec2 xy, int c, BorderValue border_value) {
     return at(xy.x, xy.y, c, border_value);
   }
 
-  template <typename T = In, typename Coord, typename BorderValue>
+  template <typename T = In, typename BorderValue>
   DALI_HOST_DEV T at(vec2 xy, int c, BorderValue border_value) {
     return at(xy.x, xy.y, c, border_value);
   }
