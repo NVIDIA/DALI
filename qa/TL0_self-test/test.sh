@@ -18,7 +18,7 @@ test_body() {
       exit 1
   fi
 
-  "$FULLPATH"
+  "$FULLPATH" --gtest_filter="*:-*Vp9*"
 }
 
 pushd ../..
