@@ -17,20 +17,39 @@ project(${dali_core_lib})
 # Get all the source files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_CORE_SRCS)
+collect_test_sources(DALI_CORE_TEST_SRCS)
 list(REMOVE_ITEM DALI_CORE_SRCS dynlink_cuda.cc)
-collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
 
 cuda_add_library(dynlink_cuda STATIC dynlink_cuda.cc)
 
 cuda_add_library(${dali_core_lib} SHARED ${DALI_CORE_SRCS})
-#target_link_libraries(${dali_core_lib} dynlink_cuda)
-target_link_libraries(${dali_core_lib} "-Wl,--exclude-libs,${exclude_libs}")
+target_link_libraries(${dali_core_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(${dali_core_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(lib_exports "libdali_core.map")
-configure_file("${CMAKE_SOURCE_DIR}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
+configure_file("${DALI_TOP_DIR}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
 add_custom_target(${lib_exports} DEPENDS "${exports_map_path}/${lib_exports}")
 add_dependencies(${dali_core_lib} ${lib_exports})
-target_link_libraries(${dali_core_lib} -Wl,--version-script=${exports_map_path}/${lib_exports})
+target_link_libraries(${dali_core_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${lib_exports})
+
+if (BUILD_TEST)
+  set(test_bin "dali_core_test.bin")
+  cuda_add_executable(${test_bin} "${DALI_CORE_TEST_SRCS}")
+  target_link_libraries(${test_bin} PUBLIC ${dali_core_lib})
+  target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
+  target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+
+  set_target_properties(${test_bin} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
+
+  set(CHECK_GTEST_TARGET "check-core-gtest")
+  add_custom_target("${CHECK_GTEST_TARGET}")
+  add_custom_command(
+    TARGET ${CHECK_GTEST_TARGET}
+    WORKING_DIRECTORY ${TEST_BINARY_DIR}
+    COMMAND ${test_bin}
+    DEPENDS ${test_bin})
+  add_dependencies(${CHECK_TARGET} ${CHECK_GTEST_TARGET})
+endif()

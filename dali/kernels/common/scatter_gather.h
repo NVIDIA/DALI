@@ -26,13 +26,13 @@ namespace dali {
 namespace kernels {
 
 namespace detail {
-struct CopyRange {
+struct DLL_PUBLIC CopyRange {
   const char *src;
   char *dst;
   size_t size;
 };
 
-size_t Coalesce(span<CopyRange> ranges);
+DLL_PUBLIC size_t Coalesce(span<CopyRange> ranges);
 }  // namespace detail
 
 /**

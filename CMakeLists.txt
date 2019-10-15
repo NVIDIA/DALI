@@ -21,6 +21,7 @@ if (POLICY CMP0075)
 endif()
 
 project(DALI CXX)
+set(DALI_TOP_DIR ${PROJECT_SOURCE_DIR})
 
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)

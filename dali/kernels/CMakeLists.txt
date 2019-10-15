@@ -27,18 +27,37 @@ collect_test_sources(DALI_KERNEL_TEST_SRCS)
 cuda_add_library(${dali_kernel_lib} SHARED ${DALI_KERNEL_SRCS})
 set_target_properties(${dali_kernel_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
-target_link_libraries(${dali_kernel_lib} ${dali_core_lib})
-target_link_libraries(${dali_kernel_lib} "-Wl,--exclude-libs,${exclude_libs}")
-
-if (BUILD_TEST)
-  cuda_add_library(${dali_kernel_test_lib} SHARED "${DALI_KERNEL_TEST_SRCS}")
-  target_link_libraries(${dali_kernel_test_lib} ${dali_kernel_lib})
-  target_link_libraries(${dali_kernel_test_lib} "-Wl,--exclude-libs,${exclude_libs}")
-endif()
+target_link_libraries(${dali_kernel_lib} PUBLIC ${dali_core_lib})
+target_link_libraries(${dali_kernel_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(lib_exports "libdali_kernels.map")
-configure_file("${CMAKE_SOURCE_DIR}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
+configure_file("${DALI_TOP_DIR}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
 add_custom_target(${lib_exports} DEPENDS "${exports_map_path}/${lib_exports}")
 add_dependencies(${dali_kernel_lib} ${lib_exports})
-target_link_libraries(${dali_kernel_lib} -Wl,--version-script=${exports_map_path}/${lib_exports})
+target_link_libraries(${dali_kernel_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${lib_exports})
+
+if (BUILD_TEST)
+  set(test_bin "dali_kernel_test.bin")
+  # TODO(janton): create a test_utils_lib with dali_test_config.cc and other common utilities
+  cuda_add_executable(${test_bin}
+    ${DALI_KERNEL_TEST_SRCS}
+    ${DALI_TOP_DIR}/dali/test/dali_test_config.cc)
+
+  # TODO(janton): Remove dependency with dali_lib
+  target_link_libraries(${test_bin} PUBLIC ${dali_kernel_lib} ${dali_lib})
+  target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
+  target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+
+  set_target_properties(${test_bin} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
+
+  set(CHECK_GTEST_TARGET "check-kernel-gtest")
+  add_custom_target("${CHECK_GTEST_TARGET}")
+  add_custom_command(
+    TARGET ${CHECK_GTEST_TARGET}
+    WORKING_DIRECTORY ${TEST_BINARY_DIR}
+    COMMAND ${test_bin}
+    DEPENDS ${test_bin})
+  add_dependencies(${CHECK_TARGET} ${CHECK_GTEST_TARGET})
+endif()

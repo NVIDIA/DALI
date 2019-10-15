@@ -22,11 +22,32 @@ set(DALI_TF_SRCS)
 set(dali_lib "dali")
 set(dali_operator_lib "dali_operators")
 set(dali_kernel_lib "dali_kernels")
-set(dali_kernel_test_lib "dali_kernel_test")
 set(dali_core_lib "dali_core")
 set(DALI_WHEEL_DIR "dali/python/nvidia/dali")
 set(DALI_INCLUDE_DIR "${DALI_WHEEL_DIR}/include/")
 set(DALI_LIBRARY_OUTPUT_DIR "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}")
+set(TEST_BINARY_DIR "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
+
+################################################
+# Common config for all subdirs
+################################################
+set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
+if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
+  # In cmake 3.8.0 or lower, CUDA_LINK_LIBRARIES_KEYWORD is not available
+  # So this is a workaround to append PRIVATE in front of it
+  set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
+endif()
+
+set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
+if (BUILD_LMDB)
+  list(APPEND DALI_PROTO_OBJ $<TARGET_OBJECTS:CAFFE_PROTO> $<TARGET_OBJECTS:CAFFE2_PROTO>)
+endif()
+if (BUILD_PROTO3)
+  list(APPEND DALI_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
+endif()
+
+string(REPLACE ";" ":" exclude_libs "${DALI_EXCLUDES}")
+message(STATUS "Exclude libs '${exclude_libs}'")
 
 ################################################
 # Build libdali
@@ -40,28 +61,9 @@ add_subdirectory(util)
 add_subdirectory(plugin)
 add_subdirectory(c_api)
 
-
 # Collect source files for dali
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
-
-set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
-if (BUILD_LMDB)
-  list(APPEND DALI_PROTO_OBJ $<TARGET_OBJECTS:CAFFE_PROTO> $<TARGET_OBJECTS:CAFFE2_PROTO>)
-endif()
-if (BUILD_PROTO3)
-  list(APPEND DALI_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
-endif()
-
-string(REPLACE ";" ":" exclude_libs "${DALI_EXCLUDES}")
-message(STATUS "Exclude libs '${exclude_libs}'")
-
-set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
-if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
-  # In cmake 3.8.0 or lower, CUDA_LINK_LIBRARIES_KEYWORD is not available
-  # So this is a workaround to append PUBLIC in front of it
-  set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
-endif()
 
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 set_target_properties(${dali_lib} PROPERTIES
@@ -82,54 +84,31 @@ target_link_libraries(${dali_lib} PRIVATE dynlink_cuda ${DALI_LIBS})
 # Exclude (most) statically linked dali dependencies from the exports of libdali.so
 target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
-
-cuda_add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS} ${DALI_PROTO_OBJ})
-set_target_properties(${dali_operator_lib} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
-target_link_libraries(${dali_operator_lib} PUBLIC ${dali_lib} ${dali_kernel_lib} ${dali_core_lib})
-target_link_libraries(${dali_operator_lib} PRIVATE dynlink_cuda ${DALI_LIBS})
-# Exclude (most) statically linked dali dependencies from the exports of libdali_operators.so
-target_link_libraries(${dali_operator_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
-# Options for using Dockerfile FFmpeg version
-target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVSTREAM_CODECPAR=1)
-target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
-
-set(dali_operator_lib_exports "libdali_operators.map")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_operator_lib_exports}.in" "${exports_map_path}/${dali_operator_lib_exports}")
-add_custom_target(${dali_operator_lib_exports} DEPENDS "${exports_map_path}/${dali_operator_lib_exports}")
-add_dependencies(${dali_operator_lib} ${dali_operator_lib_exports})
-target_link_libraries(${dali_operator_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_operator_lib_exports})
-
-
-
 ################################################
 # Build test suite
 ################################################
 if (BUILD_TEST)
-  set(TEST_BINARY_DIR "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
-
-  # get all test srcs
   add_subdirectory(test)
-
   set(test_main_bin "dali_test.bin")
   cuda_add_executable(${test_main_bin} "${DALI_TEST_SRCS}")
 
-  target_link_libraries(${test_main_bin} PUBLIC ${dali_operators_lib} ${dali_lib} ${dali_core_lib} gtest)
-  target_link_libraries(${test_main_bin} PRIVATE dynlink_cuda ${DALI_LIBS})
-
+  target_link_libraries(${test_main_bin} PUBLIC
+    ${dali_lib} ${dali_core_lib} ${dali_kernel_lib} ${dali_operator_lib}
+    ${dali_operator_test_lib}
+    gtest)
+  target_link_libraries(${test_main_bin} PRIVATE
+    dynlink_cuda ${DALI_LIBS})
   set_target_properties(${test_main_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 
   set(CHECK_GTEST_TARGET "check-gtest")
   add_custom_target("${CHECK_GTEST_TARGET}")
-
   add_custom_command(
     TARGET ${CHECK_GTEST_TARGET}
     WORKING_DIRECTORY ${TEST_BINARY_DIR}
     COMMAND ${test_main_bin}
     DEPENDS ${test_main_bin}
   )
-
   add_dependencies(${CHECK_TARGET} ${CHECK_GTEST_TARGET})
 endif()
 

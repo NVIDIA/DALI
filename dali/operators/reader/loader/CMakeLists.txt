@@ -32,5 +32,5 @@ set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
 if (BUILD_TEST AND BUILD_LMDB)
   # get all the test srcs
   file(GLOB tmp *_test.cc file_loader.cc)
-  set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
+  set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()
