@@ -8,7 +8,7 @@ import random
 import numpy
 from mxnet import ndarray as mxnd
 import cupy
-
+from functools import partial
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -81,9 +81,9 @@ def torch_wrapper(fun):
     return lambda in1, in2: torch_adapter(fun, in1, in2)
 
 
-def torch_case(fun, device):
+def common_case(wrapped_fun, device, compare, synchronize=True):
     load_pipe = LoadingPipeline(device)
-    op_pipe = DLTensorOpPipeline(torch_wrapper(fun), device)
+    op_pipe = DLTensorOpPipeline(wrapped_fun, device, synchronize)
 
     load_pipe.build()
     op_pipe.build()
@@ -98,12 +98,20 @@ def torch_case(fun, device):
             post1 = post1.as_cpu()
             post2 = post2.as_cpu()
 
-        torch_pre1 = [torch.from_numpy(pre1.at(i)) for i in range(BATCH_SIZE)]
-        torch_pre2 = [torch.from_numpy(pre2.at(i)) for i in range(BATCH_SIZE)]
-        torch_post1, torch_post2 = fun(torch_pre1, torch_pre2)
-        for i in range(BATCH_SIZE):
-            assert numpy.array_equal(post1.at(i), torch_post1[i].numpy())
-            assert numpy.array_equal(post2.at(i), torch_post2[i].numpy())
+        compare(pre1, pre2, post1, post2)
+
+
+def torch_compare(fun, pre1, pre2, post1, post2):
+    torch_pre1 = [torch.from_numpy(pre1.at(i)) for i in range(BATCH_SIZE)]
+    torch_pre2 = [torch.from_numpy(pre2.at(i)) for i in range(BATCH_SIZE)]
+    torch_post1, torch_post2 = fun(torch_pre1, torch_pre2)
+    for i in range(BATCH_SIZE):
+        assert numpy.array_equal(post1.at(i), torch_post1[i].numpy())
+        assert numpy.array_equal(post2.at(i), torch_post2[i].numpy())
+
+
+def torch_case(fun, device):
+    common_case(torch_wrapper(fun), device, partial(torch_compare, fun))
 
 
 def simple_torch_op(in1, in2):
@@ -135,29 +143,19 @@ def mxnet_wrapper(fun):
     return lambda in1, in2: mxnet_adapter(fun, in1, in2)
 
 
+def mxnet_compare(fun, pre1, pre2, post1, post2):
+    mxnet_pre1 = [mxnd.array(pre1.at(i)) for i in range(BATCH_SIZE)]
+    mxnet_pre2 = [mxnd.array(pre2.at(i)) for i in range(BATCH_SIZE)]
+    mxnet_post1, mxnet_post2 = fun(mxnet_pre1, mxnet_pre2)
+    for i in range(BATCH_SIZE):
+        assert numpy.array_equal(post1.at(i), mxnet_post1[i].asnumpy())
+        assert numpy.array_equal(post2.at(i), mxnet_post2[i].asnumpy())
+
+
 def mxnet_case(fun, device):
-    load_pipe = LoadingPipeline(device)
-    op_pipe = DLTensorOpPipeline(mxnet_wrapper(fun), device)
+    common_case(mxnet_wrapper(fun), device, partial(mxnet_compare, fun))
 
-    load_pipe.build()
-    op_pipe.build()
 
-    for iter in range(ITERS):
-        pre1, pre2 = load_pipe.run()
-        post1, post2 = op_pipe.run()
-
-        if device == 'gpu':
-            pre1 = pre1.as_cpu()
-            pre2 = pre2.as_cpu()
-            post1 = post1.as_cpu()
-            post2 = post2.as_cpu()
-
-        mxnet_pre1 = [mxnd.array(pre1.at(i)) for i in range(BATCH_SIZE)]
-        mxnet_pre2 = [mxnd.array(pre2.at(i)) for i in range(BATCH_SIZE)]
-        mxnet_post1, mxnet_post2 = fun(mxnet_pre1, mxnet_pre2)
-        for i in range(BATCH_SIZE):
-            assert numpy.array_equal(post1.at(i), mxnet_post1[i].asnumpy())
-            assert numpy.array_equal(post2.at(i), mxnet_post2[i].asnumpy())
 
 
 def mxnet_flatten(in1, in2):
@@ -207,28 +205,19 @@ def cupy_wrapper(fun, synchronize):
         return lambda in1, in2: cupy_adapter(fun, in1, in2)
 
 
+def cupy_compare(fun, pre1, pre2, post1, post2):
+    cupy_pre1 = [cupy.asarray(pre1.at(i)) for i in range(BATCH_SIZE)]
+    cupy_pre2 = [cupy.asarray(pre2.at(i)) for i in range(BATCH_SIZE)]
+    cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2)
+    for i in range(BATCH_SIZE):
+        assert post1.at(i).shape == cupy_post1[i].shape
+        assert post2.at(i).shape == cupy_post2[i].shape
+        assert numpy.array_equal(post1.at(i), cupy.asnumpy(cupy_post1[i]))
+        assert numpy.array_equal(post2.at(i), cupy.asnumpy(cupy_post2[i]))
+
+
 def cupy_case(fun, synchronize=True):
-    load_pipe = LoadingPipeline('gpu')
-    op_pipe = DLTensorOpPipeline(cupy_wrapper(fun, synchronize), 'gpu', synchronize)
-
-    load_pipe.build()
-    op_pipe.build()
-
-    for iter in range(ITERS):
-        pre1, pre2 = load_pipe.run()
-        post1, post2 = op_pipe.run()
-        pre1 = pre1.as_cpu()
-        pre2 = pre2.as_cpu()
-        post1 = post1.as_cpu()
-        post2 = post2.as_cpu()
-        cupy_pre1 = [cupy.asarray(pre1.at(i)) for i in range(BATCH_SIZE)]
-        cupy_pre2 = [cupy.asarray(pre2.at(i)) for i in range(BATCH_SIZE)]
-        cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2)
-        for i in range(BATCH_SIZE):
-            assert post1.at(i).shape == cupy_post1[i].shape
-            assert post2.at(i).shape == cupy_post2[i].shape
-            assert numpy.array_equal(post1.at(i), cupy.asnumpy(cupy_post1[i]))
-            assert numpy.array_equal(post2.at(i), cupy.asnumpy(cupy_post2[i]))
+    common_case(cupy_wrapper(fun, synchronize), 'gpu', partial(cupy_compare, fun), synchronize)
 
 
 def cupy_simple(in1, in2):
