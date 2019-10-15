@@ -20,7 +20,7 @@
 #include "dali/kernels/imgproc/warp_gpu.h"
 #include "dali/kernels/imgproc/warp/affine.h"
 #include "dali/test/tensor_test_utils.h"
-#include "dali/kernels/test/dump_diff.h"
+#include "dali/test/dump_diff.h"
 #include "dali/test/mat2tensor.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/scratch.h"

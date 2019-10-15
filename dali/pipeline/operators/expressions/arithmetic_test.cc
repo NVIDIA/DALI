@@ -290,7 +290,7 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
   pipe.Build(outputs);
 
   TensorList<CPUBackend> batch;
-  batch.Resize(kernels::uniform_list_shape(batch_size, {tensor_elements}));
+  batch.Resize(uniform_list_shape(batch_size, {tensor_elements}));
   batch.set_type(TypeInfo::Create<int32_t>());
   for (int i = 0; i < batch_size; i++) {
     auto *t = batch.mutable_tensor<int32_t>(i);
