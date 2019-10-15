@@ -14,7 +14,8 @@ ENV PYBIN=${PYTHONPATH}/bin \
     PYLIB=${PYTHONPATH}/lib
 
 ENV PATH=${PYBIN}:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:${PYLIB}:${LD_LIBRARY_PATH}
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:${PYLIB}:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/opt/dali/${DALI_BUILD_DIR}:${PYLIB}:${LIBRARY_PATH}
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 

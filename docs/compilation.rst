@@ -26,8 +26,8 @@ Building Python wheel and (optionally) Docker image
 
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed, set the following environment variables:
 
-* PYVER - Python version. Default is ``2.7``.
-* CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). Default is ``10``.
+* PYVER - Python version. Default is ``3.6``.
+* CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). Default is ``10``. If the version is prefixed with `.` then any value ``XX`` can be passed and the user needs to make sure that Dockerfile.cudaXX.deps is present in `docker/` directory.
 * NVIDIA_BUILD_ID - Custom ID of the build. Default is ``1234``.
 * CREATE_WHL - Create a standalone wheel. Default is ``YES``.
 * BUILD_TF_PLUGIN - Create a DALI TensorFlow plugin as well. Default is ``NO``.
@@ -284,7 +284,7 @@ Build the aarch64 Linux Build Container
 
 .. code-block:: bash
 
-    docker build -t dali_builder:aarch64-linux -f Dockerfile.build.aarch64-linux .
+    docker build -t nvidia/dali:builder_aarch64-linux -f docker/Dockerfile.build.aarch64-linux .
 
 Compile
 ^^^^^^^
@@ -292,7 +292,7 @@ From the root of the DALI source tree
 
 .. code-block:: bash
 
-    docker run -v $(pwd):/dali dali_builder:aarch64-linux
+    docker run -v $(pwd):/dali nvidia/dali:builder_aarch64-linux
 
 The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``
 
@@ -320,7 +320,7 @@ Build the aarch64 Build Container
 
 .. code-block:: bash
 
-    docker build -t dali_builder:aarch64-qnx -f Dockerfile.build.aarch64-qnx .
+    docker build -t nvidia/dali:builder_aarch64-qnx -f docker/Dockerfile.build.aarch64-qnx .
 
 Compile
 ^^^^^^^
@@ -328,6 +328,6 @@ From the root of the DALI source tree
 
 .. code-block:: bash
 
-    docker run -v $(pwd):/dali dali_builder:aarch64-qnx
+    docker run -v $(pwd):/dali nvidia/dali:builder_aarch64-qnx
 
 The relevant artifacts will be in ``build/install`` and ``build/dali/python/nvidia/dali``

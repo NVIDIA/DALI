@@ -4,7 +4,7 @@ usage="ENV1=VAL1 ENV2=VAL2 [...] $(basename "$0") [-h] -- this is simple, one cl
 a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
-PYVER=[default 3.7]
+PYVER=[default 3.6]
 CUDA_VERSION=[default 10, accepts also 9]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
@@ -34,14 +34,29 @@ done
 shift $((OPTIND - 1))
 
 #########Set Me###############
-export PYVER=${PYVER:-3.5}
+export PYVER=${PYVER:-3.6}
 export PYV=${PYVER/./}
 export CUDA_VERSION=${CUDA_VERSION:-10}
+
+if [ "${CUDA_VERSION%%\.*}" ]
+then
+  if [ $CUDA_VERSION != "9" ] && [ $CUDA_VERSION != "10" ]
+  then
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 9 and 10 are supported"
+      exit 1
+  fi
+else
+  export CUDA_VERSION=${CUDA_VERSION#*\.}
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  echo "Forcing $CUDA_VERSION. Make sure that Dockerfile.cuda$CUDA_VERSION.deps is provided"
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+fi
+
 export NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-12345}
 export CREATE_WHL=${CREATE_WHL:-YES}
 export CREATE_RUNNER=${CREATE_RUNNER:-NO}
 export DALI_BUILD_FLAVOR=${DALI_BUILD_FLAVOR}
-export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
 export BUILD_INHOST=${BUILD_INHOST:-YES}
 export REBUILD_BUILDERS=${REBUILD_BUILDERS:-NO}
 export REBUILD_MANYLINUX=${REBUILD_MANYLINUX:-NO}
@@ -63,12 +78,6 @@ export GIT_SHA=$(git rev-parse HEAD)
 export DALI_TIMESTAMP=$(date +%Y%m%d)
 
 set -o errexit
-
-if [ $CUDA_VERSION != "9" ] && [ $CUDA_VERSION != "10" ]
-then
-    echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only `9` and `10` are supported"
-    exit 1
-fi
 
 # build manylinux3 if needed
 if [[ "$(docker images -q manylinux3_x86_64 2> /dev/null)" == "" || "$REBUILD_MANYLINUX" != "NO" ]]; then
