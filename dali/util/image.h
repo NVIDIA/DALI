@@ -18,8 +18,8 @@
 #include <cuda_runtime_api.h>
 
 #include <fstream>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"

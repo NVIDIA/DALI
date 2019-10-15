@@ -19,7 +19,7 @@
 #include <utility>
 #include <memory>
 #include "dali/core/span.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/image/generic_image.h"
 
 namespace dali {
@@ -40,7 +40,7 @@ class TiffImage_Libtiff : public GenericImage {
   size_t buf_pos_;
   std::unique_ptr<TIFF, void (*)(TIFF *)> tif_ = {nullptr, &TIFFClose};
 
-  kernels::TensorShape<3> shape_ = {0, 0, 0};
+  TensorShape<3> shape_ = {0, 0, 0};
   bool is_tiled_ = false;
   uint16_t bit_depth_ = 8;
   uint16_t orientation_ = ORIENTATION_TOPLEFT;

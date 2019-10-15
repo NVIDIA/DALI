@@ -107,7 +107,7 @@ TEST(DLMTensorPtr, GPUList) {
 }
 
 struct TestDLTensorResource: public DLTensorResource {
-  TestDLTensorResource(kernels::TensorShape<> shape, bool &called)
+  TestDLTensorResource(TensorShape<> shape, bool &called)
   : DLTensorResource(std::move(shape))
   , called(called) {
     called = false;

@@ -16,15 +16,12 @@
 
 #include <gtest/gtest.h>
 
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/test/dali_test.h"
 
 namespace dali {
-
-using kernels::TensorShape;
-using kernels::TensorListShape;
 
 template <typename Backend>
 class TensorListTest : public DALITest {
@@ -257,7 +254,7 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
   TensorList<TypeParam> tensor_list;
 
   int num_tensor = this->RandInt(0, 128);
-  auto shape = kernels::uniform_list_shape(num_tensor, TensorShape<>{});
+  auto shape = uniform_list_shape(num_tensor, TensorShape<>{});
   tensor_list.Resize(shape);
 
   ASSERT_EQ(tensor_list.template mutable_data<float>(), nullptr);
@@ -277,7 +274,7 @@ TYPED_TEST(TensorListTest, TestScalarResize) {
   TensorList<TypeParam> tensor_list;
 
   int num_scalar = this->RandInt(1, 128);
-  auto shape = kernels::uniform_list_shape(num_scalar, {1});
+  auto shape = uniform_list_shape(num_scalar, {1});
   tensor_list.Resize(shape);
 
   ASSERT_NE(tensor_list.template mutable_data<float>(), nullptr);
@@ -500,7 +497,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   ASSERT_EQ(tensor_list2.size(), 0);
   ASSERT_EQ(tensor_list2.nbytes(), 0);
   ASSERT_EQ(tensor_list2.ntensor(), 0);
-  ASSERT_EQ(tensor_list2.shape(), kernels::TensorListShape<>());
+  ASSERT_EQ(tensor_list2.shape(), TensorListShape<>());
 }
 
 }  // namespace dali

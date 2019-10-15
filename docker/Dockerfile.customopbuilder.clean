@@ -1,13 +1,16 @@
 ARG CUDA_IMAGE
+ARG TF_CUSTOM_OP_IMAGE
 FROM ${CUDA_IMAGE} as cuda
-FROM tensorflow/tensorflow:custom-op-gpu
+FROM ${TF_CUSTOM_OP_IMAGE}
+
+# TF_CUSTOM_OP_IMAGE=tensorflow/tensorflow:custom-op-gpu-ubuntu14 for manylinux1 tagged TF pip artifacts
+# TF_CUSTOM_OP_IMAGE=tensorflow/tensorflow:custom-op-gpu-ubuntu16 for manylinux2010 tagged TF pip artifacts
+# More info here: https://github.com/tensorflow/custom-op
 
 ARG PYVER=2.7
 ENV PYVER=${PYVER}
 ARG PYV=27
 ENV PYV=${PYV}
-
-SHELL ["/bin/bash", "-c"]
 
 # Python 3.6 and 3.7 are not available in Ubuntu 14
 # Python 3.7 can't be installed with PPA method in this Ubuntu 14
@@ -42,9 +45,11 @@ ENV PYTHONIOENCODING=utf-8
 ENV LC_ALL=C.UTF-8
 RUN rm -f /usr/bin/python && \
     rm -f /usr/bin/python`echo $PYVER | cut -c1-1` && \
+    rm -f /usr/local/bin/pip || true && \
     if [ "${PYVER}" = "3.7" ]; then \
         ln -s /usr/local/bin/python3.7 /usr/bin/python3.7 && \
         ln -s /usr/local/bin/python3.7 /usr/bin/python && \
+        ln -s /usr/local/bin/pip3.7 /usr/local/bin/pip && \
         ln -s /usr/local/bin/pip3.7 /usr/bin/pip3.7 && \
         ln -s /usr/local/bin/pip3.7 /usr/bin/pip; \
     else \
@@ -68,6 +73,5 @@ COPY qa/setup_packages.py qa/setup_packages.py
 RUN export USE_CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/') && \
     export last_config_index=$(python qa/setup_packages.py -n -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}) && \
     for i in `seq 0 $last_config_index`; do \
-        eval "pkg=(`python qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${USE_CUDA_VERSION} | tr -d '[],'`)"; \
-        pip download ${pkg} -d /pip-packages; \
+        pip download $(python qa/setup_packages.py -i $i -u tensorflow-gpu --cuda ${USE_CUDA_VERSION}) -d /pip-packages; \
     done

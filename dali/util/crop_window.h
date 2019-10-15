@@ -17,16 +17,16 @@
 
 #include <functional>
 #include <utility>
-#include "dali/kernels/tensor_shape.h"
-#include "dali/kernels/tensor_shape_print.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/core/tensor_shape_print.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/core/format.h"
 
 namespace dali {
 
 struct CropWindow {
-  kernels::TensorShape<> anchor;
-  kernels::TensorShape<> shape;
+  TensorShape<> anchor;
+  TensorShape<> shape;
 
   CropWindow()
     : anchor{0, 0}, shape{0, 0}
@@ -47,7 +47,7 @@ struct CropWindow {
     return !operator==(oth);
   }
 
-  inline bool IsInRange(const kernels::TensorShape<>& input_shape) const {
+  inline bool IsInRange(const TensorShape<>& input_shape) const {
     DALI_ENFORCE(input_shape.size() == anchor.size()
               && input_shape.size() == shape.size(),
       make_string("Input shape, output shape and anchor must have the "
@@ -59,17 +59,17 @@ struct CropWindow {
     return true;
   }
 
-  void SetAnchor(kernels::TensorShape<> new_anchor) {
+  void SetAnchor(TensorShape<> new_anchor) {
     anchor = std::move(new_anchor);
   }
 
-  void SetShape(kernels::TensorShape<> new_shape) {
+  void SetShape(TensorShape<> new_shape) {
     shape = std::move(new_shape);
   }
 };
 
-  using CropWindowGenerator = std::function<CropWindow(const kernels::TensorShape<>& shape,
-                                                       const TensorLayout& shape_layout)>;
+using CropWindowGenerator = std::function<CropWindow(const TensorShape<>& shape,
+                                                     const TensorLayout& shape_layout)>;
 
 }  // namespace dali
 

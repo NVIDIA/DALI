@@ -17,6 +17,9 @@
 
 #include <cmath>
 #include <iosfwd>
+#include <ostream>
+#include <cstdint>
+#include <algorithm>
 #include "dali/core/host_dev.h"
 #include "dali/core/util.h"
 #include "dali/core/math_util.h"

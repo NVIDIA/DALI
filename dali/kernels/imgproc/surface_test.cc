@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include "dali/kernels/imgproc/surface.h"
-#include "dali/kernels/backend_tags.h"
+#include "dali/core/backend_tags.h"
 
 namespace dali {
 namespace kernels {

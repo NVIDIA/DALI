@@ -17,6 +17,7 @@
 
 #include <utility>
 #include "dali/core/convert.h"
+#include "dali/kernels/kernel.h"
 #include "dali/kernels/imgproc/roi.h"
 
 namespace dali {

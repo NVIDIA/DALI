@@ -19,6 +19,7 @@ import os
 
 class InstallerHelper:
     def __init__(self):
+        self.src_path = os.path.dirname(os.path.realpath(__file__))
         self.dali_lib_path = get_module_path('nvidia/dali')
         self.tf_path = get_module_path('tensorflow')
         self.plugin_dest_dir = self.dali_lib_path + '/plugin' if self.dali_lib_path else ''
@@ -27,15 +28,16 @@ class InstallerHelper:
         self.tf_compiler = get_tf_compiler_version()
         self.cpp_compiler = get_cpp_compiler()
         self.default_cpp_version = get_cpp_compiler_version()
-        self.is_tf_built_with_cpp_4_8 = self.tf_compiler == '4.8'
         self.alt_compiler = 'g++-{}'.format(self.tf_compiler)
         self.has_alt_compiler = which(self.alt_compiler) is not None
         self.platform_system = platform.system()
         self.platform_machine = platform.machine()
         self.is_compatible_with_prebuilt_bin = self.platform_system == 'Linux' and self.platform_machine == 'x86_64'
-        self.can_install_prebuilt = self.is_tf_built_with_cpp_4_8 and self.is_compatible_with_prebuilt_bin
+        self.prebuilt_dir = self.src_path + '/prebuilt/'
+        self.prebuilt_compilers = [subdir for subdir in os.listdir(self.prebuilt_dir) \
+            if os.path.isdir(os.path.join(self.prebuilt_dir, subdir))]
+        self.can_install_prebuilt = self.tf_compiler in self.prebuilt_compilers and self.is_compatible_with_prebuilt_bin
         self.can_compile = self.default_cpp_version == self.tf_compiler
-        self.src_path = os.path.dirname(os.path.realpath(__file__))
 
     def debug_str(self):
         s = "\n Environment:"
@@ -46,26 +48,27 @@ class InstallerHelper:
         s += "\n TF path:                              {}".format(self.tf_path or "Not Installed")
         s += "\n DALI TF plugin destination directory: {}".format(self.plugin_dest_dir if self.dali_lib_path else "Not installed")
         s += "\n Is Conda environment?                 {}".format("Yes" if self.is_conda else "No")
-        s += "\n TF version installed:                 {}".format(self.tf_version or "Empty")
-        s += "\n g++ version used to compile TF:       {}".format(self.tf_compiler or "Empty")
         s += "\n Using compiler:                       \"{}\", version {}".format(self.cpp_compiler, self.default_cpp_version or "Empty")
-        s += "\n Is TF compiled with g++ 4.8?          {}".format("Yes" if self.is_tf_built_with_cpp_4_8 else "No")
-        s += "\n Is {} present in the system?     {}".format(self.alt_compiler, "Yes" if self.has_alt_compiler else "No")
-        s += "\n Can install prebuilt plugin?          {}".format("Yes" if self.can_install_prebuilt else "No")
-        s += "\n Can compile with default compiler?    {}".format("Yes" if self.can_compile else "No")
-        s += "\n Can compile with alt compiler?        {}".format("Yes" if self.has_alt_compiler else "No")
+        s += "\n TF version installed:                 {}".format(self.tf_version or "Empty")
+        if self.tf_version:
+            s += "\n g++ version used to compile TF:       {}".format(self.tf_compiler or "Empty")
+            s += "\n Prebuilt plugins available for g++:   \"{}\"".format(" ".join(self.prebuilt_compilers))
+            s += "\n Is {} present in the system?     {}".format(self.alt_compiler, "Yes" if self.has_alt_compiler else "No")
+            s += "\n Can install prebuilt plugin?          {}".format("Yes" if self.can_install_prebuilt else "No")
+            s += "\n Can compile with default compiler?    {}".format("Yes" if self.can_compile else "No")
+            s += "\n Can compile with alt compiler?        {}".format("Yes" if self.has_alt_compiler else "No")
         s += "\n---------------------------------------------------------------------------------------------------------"
         return s
 
     def install_prebuilt(self):
-        assert(self.is_tf_built_with_cpp_4_8)
-        assert(self.is_compatible_with_prebuilt_bin)
+        assert(self.can_install_prebuilt)
         tf_version_underscore = self.tf_version.replace('.', '_')
         plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
-        prebuilt_plugin = self.src_path + '/' + plugin_name
-        print("Tensorflow was built with g++ 4.8, providing prebuilt plugin")
+        prebuilt_path = self.src_path + '/prebuilt/' + self.tf_compiler
+        prebuilt_plugin = prebuilt_path + '/' + plugin_name
+        print("Tensorflow was built with g++ {}, providing prebuilt plugin".format(self.tf_compiler))
         if not os.path.isfile(prebuilt_plugin):
-            available_files = find('libdali_tf_*.so', self.src_path)
+            available_files = find('libdali_tf_*.so', prebuilt_path)
             best_version = find_available_prebuilt_tf(self.tf_version, available_files)
             if best_version is None:
                 error_msg = "Installation error:"
@@ -75,7 +78,7 @@ class InstallerHelper:
             print("Prebuilt DALI TF plugin version {} is not present. Best match is {}".format(self.tf_version, best_version))
             tf_version_underscore = best_version.replace('.', '_')
             plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
-            prebuilt_plugin = self.src_path + '/' + plugin_name
+            prebuilt_plugin = prebuilt_path + '/' + plugin_name
         plugin_dest = self.plugin_dest_dir + '/' + plugin_name
         print("Copy {} to {}".format(prebuilt_plugin, self.plugin_dest_dir))
         copyfile(prebuilt_plugin, plugin_dest)
@@ -84,7 +87,7 @@ class InstallerHelper:
         print("Checking build environment for DALI TF plugin ...")
         print(self.debug_str())
 
-        if self.tf_version == "":
+        if not self.tf_version or not self.tf_path or not self.tf_compiler:
             error_msg = "Installation error:"
             error_msg += "\n Tensorflow installation not found. Install `tensorflow-gpu` and try again"
             error_msg += '\n' + self.debug_str()
@@ -103,7 +106,10 @@ class InstallerHelper:
         # To make anything that uses C++ APIs work, all custom ops need to be built
         # with the same compiler (and the version) we use to build the pip packages.
         # Anything not built with that may break due to compilers generating ABIs differently."
-        if self.is_tf_built_with_cpp_4_8 and self.is_compatible_with_prebuilt_bin:
+
+        # Note: https://github.com/tensorflow/custom-op
+        # Packages are also built for gcc 5.4 now, so we are also providing prebuilt plugins for 5.4
+        if self.can_install_prebuilt:
             self.install_prebuilt()
             return
 
@@ -135,7 +141,7 @@ class InstallerHelper:
             plugin_src = plugin_src + ' ' + self.src_path + '/' + filename
 
         lib_path = self.plugin_dest_dir + '/libdali_tf_current.so'
-        
+
         # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
         # https://github.com/tensorflow/tensorflow/issues/17316
         # Do not remove it.

@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <opencv2/imgcodecs.hpp>
 #include "dali/kernels/test/test_data.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/resampling_test/resampling_test_params.h"
 #include "dali/kernels/imgproc/resample/separable_cpu.h"
 #include "dali/kernels/imgproc/resample_cpu.h"

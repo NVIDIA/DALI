@@ -22,6 +22,9 @@
 #pragma GCC diagnostic ignored "-Wreorder"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-compare"
+
+#define EIGEN_USE_GPU
+
 #include "tensorflow/core/framework/dataset.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/op.h"
@@ -59,7 +62,8 @@ namespace {
 class DALIDatasetOp : public DatasetOpKernel {
  public:
   explicit DALIDatasetOp(OpKernelConstruction* context) 
-    : DatasetOpKernel(context) { 
+    : DatasetOpKernel(context),
+      is_gpu_device_(context->device_type() == "GPU") { 
       OP_REQUIRES_OK(context, context->GetAttr("pipeline", &pipeline_));
       OP_REQUIRES_OK(context, context->GetAttr("batch_size", &batch_size_));
       OP_REQUIRES_OK(context, context->GetAttr("num_threads", &num_threads_));
@@ -84,7 +88,8 @@ class DALIDatasetOp : public DatasetOpKernel {
       cpu_prefetch_queue_depth_,
       gpu_prefetch_queue_depth_,
       shapes_, 
-      dtypes_);
+      dtypes_,
+      is_gpu_device_);
   }
 
  private:
@@ -98,6 +103,7 @@ class DALIDatasetOp : public DatasetOpKernel {
   int gpu_prefetch_queue_depth_;
   std::vector<PartialTensorShape> shapes_;
   DataTypeVector dtypes_;
+  bool is_gpu_device_;
 
   class Dataset : public DatasetBase {
    public:
@@ -112,7 +118,8 @@ class DALIDatasetOp : public DatasetOpKernel {
       const int cpu_prefetch_queue_depth,
       const int gpu_prefetch_queue_depth,
       const std::vector<PartialTensorShape> &shapes,
-      const DataTypeVector &dtypes) 
+      const DataTypeVector &dtypes,
+      const bool is_gpu_device) 
         : DatasetBase(DatasetContext(context)), 
         pipeline_(pipeline),
         batch_size_(batch_size),
@@ -123,9 +130,13 @@ class DALIDatasetOp : public DatasetOpKernel {
         cpu_prefetch_queue_depth_(cpu_prefetch_queue_depth),
         gpu_prefetch_queue_depth_(gpu_prefetch_queue_depth),
         shapes_(shapes), 
-        dtypes_(dtypes) {
+        dtypes_(dtypes),
+        device_type_(is_gpu_device ? device_type_t::GPU : device_type_t::CPU) {
         OP_REQUIRES_OK(context, InitPipeline());
+      if (is_gpu_device) {
+        stream_ = context->eigen_gpu_device().stream();
       }
+    }
 
     std::unique_ptr<IteratorBase> MakeIteratorInternal(
       const string &prefix) const override {
@@ -162,6 +173,8 @@ class DALIDatasetOp : public DatasetOpKernel {
     const int gpu_prefetch_queue_depth_;
     const std::vector<PartialTensorShape> shapes_;
     const DataTypeVector dtypes_;
+    cudaStream_t stream_ = 0;
+    const device_type_t device_type_;
     
     daliPipelineHandle pipeline_handle_;
 
@@ -256,7 +269,6 @@ class DALIDatasetOp : public DatasetOpKernel {
         std::vector<Tensor> *out_tensors,
         bool *end_of_sequence) override {
           tensorflow::mutex_lock l(mu_);
-          cudaStream_t stream = 0;
 
           DALI_CALL(daliShareOutput(&pipeline_handle_));
           
@@ -295,7 +307,13 @@ class DALIDatasetOp : public DatasetOpKernel {
                   "for tensor " + std::to_string(out_id));
             }
 
-            DALI_CALL(daliCopyTensorNTo(&pipeline_handle_, dst, out_id, device_type_t::CPU, stream, false));
+            DALI_CALL(daliCopyTensorNTo(
+              &pipeline_handle_,
+              dst,
+              out_id,
+              dataset()->device_type_,
+              dataset()->stream_,
+              false));
           }
           
           *end_of_sequence = false;
@@ -316,10 +334,16 @@ class DALIDatasetOp : public DatasetOpKernel {
 
 // Regestrations
 REGISTER_KERNEL_BUILDER(
-  Name("DaliDataset").Device(tensorflow::DEVICE_CPU),
+  Name("DALIDataset").Device(tensorflow::DEVICE_CPU),
   DALIDatasetOp);
 
-REGISTER_OP("DaliDataset")
+REGISTER_KERNEL_BUILDER(
+  Name("DALIDataset")
+    .Device(DEVICE_GPU)
+    .HostMemory("handle"),      
+  DALIDatasetOp);
+
+REGISTER_OP("DALIDataset")
   .Attr("pipeline: string")
   .Attr("batch_size: int")
   .Attr("num_threads: int")

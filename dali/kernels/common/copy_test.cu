@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 namespace kernels {

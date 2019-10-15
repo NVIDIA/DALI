@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/kernels/test/tensor_test_utils.h"
-#include "dali/kernels/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
+#include "dali/test/test_tensors.h"
 
 using std::cout;
 
