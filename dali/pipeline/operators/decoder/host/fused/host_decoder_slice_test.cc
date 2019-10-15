@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/operators/decoder/decoder_test.h"
 
 namespace dali {
@@ -25,7 +25,7 @@ class ImageDecoderSliceTest_CPU : public DecodeTestBase<ImgType> {
 
   void AddAdditionalInputs(
     vector<std::pair<string, TensorList<CPUBackend>*>>& inputs) override {
-      auto shape = kernels::uniform_list_shape(this->batch_size_, {2});
+      auto shape = uniform_list_shape(this->batch_size_, {2});
 
       begin_data.set_type(TypeInfo::Create<float>());
       begin_data.Resize(shape);
@@ -52,7 +52,7 @@ class ImageDecoderSliceTest_CPU : public DecodeTestBase<ImgType> {
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return [this] (const kernels::TensorShape<>& shape,
+    return [this] (const TensorShape<>& shape,
                    const TensorLayout& shape_layout) {
       DALI_ENFORCE(shape_layout == "HW",
         make_string("Unexpected input shape layout:", shape_layout.c_str(), "vs HW"));

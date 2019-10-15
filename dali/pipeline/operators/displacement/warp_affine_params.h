@@ -21,7 +21,7 @@
 #include "dali/kernels/imgproc/warp/affine.h"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
 #include "dali/pipeline/operators/displacement/warp_param_provider.h"
-#include "dali/kernels/tensor_shape_print.h"
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 
@@ -78,14 +78,14 @@ class WarpAffineParamProvider
 
     decltype(auto) shape = input.shape();
 
-    const kernels::TensorShape<2> mat_shape = { spatial_ndim, spatial_ndim+1 };
+    const TensorShape<2> mat_shape = { spatial_ndim, spatial_ndim+1 };
     int N = shape.num_samples();
     auto error_message = [&]() {
       std::stringstream ss;
       ss << "\nAffine mapping parameters must be either\n"
             "  - a list of " << N << " " << mat_shape << " tensors, or\n"
          << "  - a list containing a single " << shape_cat(N, mat_shape) << " tensor.\n";
-      if (!kernels::is_uniform(shape)) {
+      if (!is_uniform(shape)) {
         ss << "\nThe actual input is a list with " << shape.num_samples() << " "
           << shape.sample_dim() << "-D elements with varying size.";
       } else {
@@ -101,7 +101,7 @@ class WarpAffineParamProvider
                    (N == 1 && shape[0] == mat_shape), error_message());
     } else {
       DALI_ENFORCE(shape.num_samples() == num_samples_ &&
-                   kernels::is_uniform(shape) &&
+                   is_uniform(shape) &&
                    shape[0] == mat_shape,
                    error_message());
     }

@@ -17,8 +17,8 @@
 
 #include <string>
 
-#include "dali/kernels/backend_tags.h"
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/backend_tags.h"
+#include "dali/core/tensor_view.h"
 #include "dali/pipeline/data/backend.h"
 
 namespace dali {
@@ -37,12 +37,12 @@ struct OpticalFlowParams {
   bool enable_external_hints;
 };
 
-using dali::kernels::TensorView;
+using dali::TensorView;
 
 template<typename ComputeBackend>
 class DLL_PUBLIC OpticalFlowAdapter {
  protected:
-  using StorageBackend = typename kernels::compute_to_storage<ComputeBackend>::type;
+  using StorageBackend = typename compute_to_storage<ComputeBackend>::type;
 
  public:
   explicit OpticalFlowAdapter(OpticalFlowParams params) : of_params_(params) {}
@@ -51,7 +51,7 @@ class DLL_PUBLIC OpticalFlowAdapter {
   /**
    * Return shape of output tensor for given OpticalFlow class
    */
-  virtual kernels::TensorShape<kernels::DynamicDimensions> GetOutputShape() = 0;
+  virtual TensorShape<DynamicDimensions> GetOutputShape() = 0;
 
 
   /**

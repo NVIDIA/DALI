@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_BACKEND_TAGS_H_
-#define DALI_KERNELS_BACKEND_TAGS_H_
+#ifndef DALI_CORE_BACKEND_TAGS_H_
+#define DALI_CORE_BACKEND_TAGS_H_
 
 #include <type_traits>
 
 namespace dali {
-namespace kernels {
 
 struct StorageGPU {};
 struct StorageCPU {};
@@ -44,18 +43,17 @@ struct is_cpu_accessible<StorageUnified> : std::true_type {};
 
 template<typename ComputeBackend>
 struct compute_to_storage {
-  using type = kernels::StorageCPU;
+  using type = StorageCPU;
 };
 
 template<>
-struct compute_to_storage<kernels::ComputeGPU> {
-  using type = kernels::StorageGPU;
+struct compute_to_storage<ComputeGPU> {
+  using type = StorageGPU;
 };
 
 template<class ComputeBackend>
 using compute_to_storage_t = typename compute_to_storage<ComputeBackend>::type;
 
-}  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_BACKEND_TAGS_H_
+#endif  // DALI_CORE_BACKEND_TAGS_H_

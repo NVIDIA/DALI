@@ -65,7 +65,7 @@ std::vector<DLMTensorPtr> CastToDLTensorList(py::list &list, Index exp_size, Ind
   return result;
 }
 
-kernels::TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr> &dl_tensors);
+TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr> &dl_tensors);
 
 template <typename Backend>
 void CopyDlTensor(void *out_data, DLMTensorPtr &dlm_tensor_ptr) {

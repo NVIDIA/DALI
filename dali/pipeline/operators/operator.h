@@ -23,7 +23,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operators/op_schema.h"
 #include "dali/pipeline/operators/op_spec.h"

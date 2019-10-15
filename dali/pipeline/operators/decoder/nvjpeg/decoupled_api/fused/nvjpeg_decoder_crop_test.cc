@@ -26,7 +26,7 @@ class ImageDecoderCropTest_GPU : public DecodeTestBase<ImgType> {
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return [this] (const kernels::TensorShape<>& shape,
+    return [this] (const TensorShape<>& shape,
                    const TensorLayout& shape_layout) {
       DALI_ENFORCE(shape_layout == "HW",
         make_string("Unexpected input shape layout:", shape_layout.c_str(), "vs HW"));

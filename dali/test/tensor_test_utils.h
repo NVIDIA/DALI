@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_TEST_TENSOR_TEST_UTILS_H_
-#define DALI_KERNELS_TEST_TENSOR_TEST_UTILS_H_
+#ifndef DALI_TEST_TENSOR_TEST_UTILS_H_
+#define DALI_TEST_TENSOR_TEST_UTILS_H_
 
 #include <gtest/gtest.h>
 #include <functional>
@@ -21,14 +21,13 @@
 #include <utility>
 #include <random>
 #include <string>
-#include "dali/kernels/tensor_view.h"
-#include "dali/kernels/tensor_shape_print.h"
-#include "dali/kernels/backend_tags.h"
+#include "dali/core/tensor_view.h"
+#include "dali/core/tensor_shape_print.h"
+#include "dali/core/backend_tags.h"
 #include "dali/core/util.h"
 #include "dali/core/convert.h"
 
 namespace dali {
-namespace kernels {
 
 namespace detail {
 static constexpr int DefaultMaxErrors = 100;
@@ -329,7 +328,6 @@ std::string BatchToStr(const TensorListView &batch, const std::string &sample_pr
   return ss.str();
 }
 
-}  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_TEST_TENSOR_TEST_UTILS_H_
+#endif  // DALI_TEST_TENSOR_TEST_UTILS_H_

@@ -23,7 +23,7 @@
 
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/common/copy.h"
-#include "dali/kernels/test/mat2tensor.h"
+#include "dali/test/mat2tensor.h"
 #include "dali/pipeline/operators/optical_flow/turing_of/optical_flow_turing.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/core/cuda_utils.h"
@@ -36,13 +36,13 @@ namespace {
 constexpr float kFlowVectorEpsilon = 1.f / 32;
 
 
-std::tuple<kernels::TensorView<kernels::StorageGPU, uint8_t, 3>,
+std::tuple<TensorView<StorageGPU, uint8_t, 3>,
         kernels::memory::KernelUniquePtr<uint8_t>>
 mat_to_tensor(cv::Mat &mat) {
   auto tvcpu = kernels::view_as_tensor<uint8_t, 3>(mat);
   auto mem = kernels::memory::alloc_unique<uint8_t>(kernels::AllocType::Unified,
                                                     mat.cols * mat.rows * mat.channels());
-  auto tvgpu = kernels::make_tensor_gpu<3>(mem.get(), {mat.rows, mat.cols, mat.channels()});
+  auto tvgpu = make_tensor_gpu<3>(mem.get(), {mat.rows, mat.cols, mat.channels()});
   kernels::copy(tvgpu, tvcpu);
   return std::forward_as_tuple(tvgpu, std::move(mem));
 }
@@ -269,7 +269,7 @@ TEST(OpticalFlowTuringTest, CalcOpticalFlowTest) {
     auto out_shape = of.GetOutputShape().to_static<3>();
     auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified,
                                                        volume(out_shape));
-    auto tvout = kernels::make_tensor_gpu(memout.get(), out_shape);
+    auto tvout = make_tensor_gpu(memout.get(), out_shape);
 
     of.CalcOpticalFlow(tvref, tvin, tvout);
     CUDA_CALL(cudaDeviceSynchronize());
@@ -331,7 +331,7 @@ TEST(OpticalFlowTuringTest, CalcOpticalFlowExternalHintsTest) {
   copy(istream_iterator<float>(reffile),
        istream_iterator<float>(),
        back_inserter(reference_data));
-  auto tvhints = kernels::make_tensor_gpu<3>(reference_data.data(), {
+  auto tvhints = make_tensor_gpu<3>(reference_data.data(), {
           (height + 3) / 4, (width + 3) / 4, 2  // Shape has 2 "channels": y and x components
   });
 
@@ -344,7 +344,7 @@ TEST(OpticalFlowTuringTest, CalcOpticalFlowExternalHintsTest) {
     auto out_shape = of.GetOutputShape().to_static<3>();
     auto memout = kernels::memory::alloc_unique<float>(kernels::AllocType::Unified,
                                                        volume(out_shape));
-    auto tvout = kernels::make_tensor_gpu(memout.get(), out_shape);
+    auto tvout = make_tensor_gpu(memout.get(), out_shape);
 
     of.CalcOpticalFlow(tvref, tvin, tvout, tvhints);
     CUDA_CALL(cudaDeviceSynchronize());

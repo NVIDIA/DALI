@@ -27,7 +27,7 @@
 #include "dali/core/util.h"
 #include "dali/core/span.h"
 #include "dali/core/traits.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/meta.h"
@@ -144,7 +144,7 @@ class Tensor : public Buffer<Backend> {
    * the current buffer is not large enough for the requested
    * number of elements.
    */
-  inline void Resize(const kernels::TensorShape<> &shape) {
+  inline void Resize(const TensorShape<> &shape) {
     Index new_size = volume(shape);
     ResizeHelper(new_size);
     shape_ = shape;
@@ -267,7 +267,7 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
-                        const kernels::TensorShape<> &shape) {
+                        const TensorShape<> &shape) {
     DALI_ENFORCE(ptr != nullptr, "Input pointer must not be nullptr.");
 
     // Save our new pointer and bytes. Reset our type, shape, and size
@@ -300,7 +300,7 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes, const kernels::TensorShape<> &shape) {
+  inline void ShareData(void *ptr, size_t bytes, const TensorShape<> &shape) {
     ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape);
   }
 
@@ -333,7 +333,7 @@ class Tensor : public Buffer<Backend> {
    * all tensors need to be stored without
    * any padding between them)
    */
-  inline void ShareDataReshape(TensorList<Backend> *tl, const kernels::TensorShape<> &new_shape) {
+  inline void ShareDataReshape(TensorList<Backend> *tl, const TensorShape<> &new_shape) {
     DALI_ENFORCE(tl != nullptr, "Input TensorList is nullptr");
     DALI_ENFORCE(tl->ntensor() > 0, "Input TensorList has 0 elements!");
     DALI_ENFORCE(IsValidType(tl->type()), "To share data, "
@@ -373,7 +373,7 @@ class Tensor : public Buffer<Backend> {
     data_.reset(tl->raw_mutable_tensor(0), [](void *) {});
 
     // Get the meta-data for the target tensor
-    shape_ = kernels::shape_cat(tl->ntensor(), tl->tensor_shape(0));
+    shape_ = shape_cat(tl->ntensor(), tl->tensor_shape(0));
     size_ = volume(shape_);
     type_ = tl->type();
     num_bytes_ = type_.size() * size_;
@@ -394,7 +394,7 @@ class Tensor : public Buffer<Backend> {
   /**
    * @brief Returns the shape of the Tensor
    */
-  inline const kernels::TensorShape<> &shape() const {
+  inline const TensorShape<> &shape() const {
     return shape_;
   }
 
@@ -458,7 +458,7 @@ class Tensor : public Buffer<Backend> {
     device_ = t.device_;
     meta_ = std::move(t.meta_);
 
-    t.shape_ = kernels::TensorShape<>();
+    t.shape_ = TensorShape<>();
     t.backend_ = Backend();
     t.type_ = TypeInfo::Create<NoType>();
     t.data_.reset();
@@ -480,7 +480,7 @@ class Tensor : public Buffer<Backend> {
       device_ = t.device_;
       meta_ = std::move(t.meta_);
 
-      t.shape_ = kernels::TensorShape<>();
+      t.shape_ = TensorShape<>();
       t.backend_ = Backend();
       t.type_ = TypeInfo::Create<NoType>();
       t.data_.reset();
@@ -525,7 +525,7 @@ class Tensor : public Buffer<Backend> {
   }
 
  protected:
-  kernels::TensorShape<> shape_;
+  TensorShape<> shape_;
   DALIMeta meta_;
   USE_BUFFER_MEMBERS();
 };

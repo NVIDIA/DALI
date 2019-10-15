@@ -32,7 +32,7 @@ RandomCropGenerator::RandomCropGenerator(
   , num_attempts_(num_attempts) {
 }
 
-CropWindow RandomCropGenerator::GenerateCropWindowImpl(const kernels::TensorShape<>& shape) {
+CropWindow RandomCropGenerator::GenerateCropWindowImpl(const TensorShape<>& shape) {
   assert(shape.size() == 2);
   CropWindow crop;
   int H = shape[0], W = shape[1];
@@ -100,12 +100,12 @@ CropWindow RandomCropGenerator::GenerateCropWindowImpl(const kernels::TensorShap
   return crop;
 }
 
-CropWindow RandomCropGenerator::GenerateCropWindow(const kernels::TensorShape<>& shape) {
+CropWindow RandomCropGenerator::GenerateCropWindow(const TensorShape<>& shape) {
     return GenerateCropWindowImpl(shape);
 }
 
 std::vector<CropWindow>
-RandomCropGenerator::GenerateCropWindows(const kernels::TensorShape<>& shape,
+RandomCropGenerator::GenerateCropWindows(const TensorShape<>& shape,
                                          std::size_t N) {
   std::seed_seq seq{seed_};
   std::vector<int64_t> seeds(N);

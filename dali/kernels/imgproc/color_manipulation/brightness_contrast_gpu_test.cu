@@ -16,9 +16,9 @@
 #include <vector>
 #include <tuple>
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/copy.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.h"
 

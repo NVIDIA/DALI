@@ -16,13 +16,13 @@
 #include <opencv2/opencv.hpp>
 #include <dali/test/dali_test_config.h>
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/test/mat2tensor.h"
+#include "dali/test/mat2tensor.h"
 #include "dali/util/image.h"
 
 namespace dali {
 namespace testing {
 
-using TensorShape = kernels::TensorShape<>;
+using TensorShape = TensorShape<>;
 using kernels::view_as_tensor;
 using kernels::tensor_shape;
 
@@ -31,7 +31,7 @@ TEST(Mat2Tensor, Shape) {
   mat.create(480, 640, CV_8UC3);
   EXPECT_EQ(tensor_shape<3>(mat), TensorShape(480, 640, 3));
   mat.create(123, 321, CV_32FC2);
-  EXPECT_EQ(tensor_shape<kernels::DynamicDimensions>(mat), TensorShape(123, 321, 2));
+  EXPECT_EQ(tensor_shape<DynamicDimensions>(mat), TensorShape(123, 321, 2));
   mat.create(123, 321, CV_32F);
   EXPECT_EQ(tensor_shape<3>(mat), TensorShape(123, 321, 1));
   EXPECT_EQ(tensor_shape<2>(mat), TensorShape(123, 321));

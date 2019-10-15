@@ -32,10 +32,10 @@ using DLMTensorPtr = std::unique_ptr<DLManagedTensor, void(*)(DLManagedTensor*)>
 DLL_PUBLIC DLDataType GetDLType(const TypeInfo &type);
 
 struct DLTensorResource {
-  explicit DLTensorResource(kernels::TensorShape<> shape)
+  explicit DLTensorResource(TensorShape<> shape)
   : shape(std::move(shape)) {}
 
-  kernels::TensorShape<> shape;
+  TensorShape<> shape;
   DLManagedTensor dlm_tensor{};
 
   virtual ~DLTensorResource() = default;

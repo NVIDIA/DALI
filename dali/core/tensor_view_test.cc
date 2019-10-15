@@ -15,8 +15,8 @@
 #include <gtest/gtest.h>
 #include <numeric>
 
-#include "dali/kernels/tensor_shape.h"
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 namespace kernels {

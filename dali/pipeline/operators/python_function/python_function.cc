@@ -66,7 +66,7 @@ void CopyNumpyArrayToTensor(Tensor<CPUBackend> &tensor, py::array &array) {
   auto buffer_info = array.request();
   TypeInfo type = TypeFromFormatStr(buffer_info.format);
   tensor.set_type(type);
-  tensor.Resize(kernels::TensorShape<>(array.shape(), array.shape() + array.ndim()));
+  tensor.Resize(TensorShape<>(array.shape(), array.shape() + array.ndim()));
   CopyWithStride<CPUBackend>(tensor.raw_mutable_data(), buffer_info.ptr,
                              buffer_info.strides.data(), array.shape(),
                              array.ndim(), buffer_info.itemsize);

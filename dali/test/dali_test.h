@@ -149,7 +149,7 @@ class DALITest : public ::testing::Test {
                                const vector<vector<uint8>> &images,
                                const vector<DimPair> &image_dims, const int c) {
     DALI_ENFORCE(!images.empty(), "Images must be populated to create batches");
-    kernels::TensorListShape<> shape(n, kImageDim);
+    TensorListShape<> shape(n, kImageDim);
     for (int i = 0; i < n; ++i) {
       shape.set_tensor_shape(i,
           {image_dims[i % images.size()].h, image_dims[i % images.size()].w, c});
@@ -176,7 +176,7 @@ class DALITest : public ::testing::Test {
     const auto &data_sizes = imgs.sizes_;
     const auto nImgs = imgs.nImages();
     DALI_ENFORCE(nImgs > 0, "data must be populated to create batches");
-    kernels::TensorListShape<> shape(n, 1);
+    TensorListShape<> shape(n, 1);
     for (int i = 0; i < n; ++i) {
       shape.set_tensor_shape(i, {data_sizes[i % nImgs]});
     }
@@ -250,7 +250,7 @@ class DALITest : public ::testing::Test {
                               bool ltrb = true) {
     static std::uniform_int_distribution<> rint(0, 10);
 
-    kernels::TensorListShape<> shape(n, kBBoxDim);
+    TensorListShape<> shape(n, kBBoxDim);
     for (int i = 0; i < n; ++i) {
       shape.set_tensor_shape(i, {rint(rd_), 4});
     }
@@ -267,7 +267,7 @@ class DALITest : public ::testing::Test {
                                        unsigned int n, bool ltrb = true) {
     static std::uniform_int_distribution<> rint(0, 10);
 
-    kernels::TensorListShape<> boxes_shape(n, kBBoxDim), labels_shape(n, kLabelDim);
+    TensorListShape<> boxes_shape(n, kBBoxDim), labels_shape(n, kLabelDim);
     for (size_t i = 0; i < n; ++i) {
       auto box_count = rint(rd_);
       boxes_shape.set_tensor_shape(i, {box_count, 4});

@@ -29,12 +29,12 @@ namespace detail {
 
 template<typename Backend>
 struct backend_to_compute {
-  using type = kernels::ComputeCPU;
+  using type = ComputeCPU;
 };
 
 template<>
 struct backend_to_compute<GPUBackend> {
-  using type = kernels::ComputeGPU;
+  using type = ComputeGPU;
 };
 
 const std::string kPresetArgName = "preset";                               // NOLINT
@@ -137,7 +137,7 @@ class OpticalFlow : public Operator<Backend> {
                                " for Optical Flow have at least 2 frames."));
     }
 
-    DALI_ENFORCE(kernels::is_uniform(shape),
+    DALI_ENFORCE(is_uniform(shape),
         "Width, height and depth for Optical Flow calculation must be equal for all sequences.");
   }
 
@@ -159,7 +159,7 @@ class OpticalFlow : public Operator<Backend> {
     DALI_ENFORCE(
             hints_height_ == (frames_height_ + 3) / 4 && hints_width_ == (frames_width_ + 3) / 4,
             "Hints resolution has to be 4 times smaller in each dimension (4x4 grid)");
-    DALI_ENFORCE(kernels::is_uniform(hints_shape),
+    DALI_ENFORCE(is_uniform(hints_shape),
                  "Width, height and depth must be equal for all hints");
   }
 

@@ -20,13 +20,13 @@
 #include <memory>
 #include <string>
 #include "dali/kernels/alloc.h"
-#include "dali/kernels/test/mat2tensor.h"
+#include "dali/test/mat2tensor.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/test/test_data.h"
-#include "dali/kernels/tensor_view.h"
-#include "dali/kernels/tensor_shape_print.h"
+#include "dali/core/tensor_view.h"
+#include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/imgproc/resample/resampling_impl.cuh"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 namespace kernels {

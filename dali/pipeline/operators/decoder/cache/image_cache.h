@@ -18,16 +18,16 @@
 #include <cuda_runtime.h>
 #include <string>
 #include "dali/core/api_helper.h"
-#include "dali/kernels/tensor_shape.h"
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 
 class DLL_PUBLIC ImageCache {
  public:
   using ImageKey = std::string;
-  using ImageShape = kernels::TensorShape<3>;
-  using DecodedImage = kernels::TensorView<kernels::StorageGPU, uint8_t, 3>;
+  using ImageShape = TensorShape<3>;
+  using DecodedImage = TensorView<StorageGPU, uint8_t, 3>;
 
   DLL_PUBLIC virtual ~ImageCache() = default;
 

@@ -13,13 +13,13 @@
 // limitations under the License.
 
 
-#ifndef DALI_KERNELS_TEST_MAT2TENSOR_H_
-#define DALI_KERNELS_TEST_MAT2TENSOR_H_
+#ifndef DALI_TEST_MAT2TENSOR_H_
+#define DALI_TEST_MAT2TENSOR_H_
 
 #include <opencv2/core.hpp>
 #include <stdexcept>
 #include <utility>
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_view.h"
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/common/copy.h"
 
@@ -80,4 +80,4 @@ copy_as_tensor(const cv::Mat &mat) {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_TEST_MAT2TENSOR_H_
+#endif  // DALI_TEST_MAT2TENSOR_H_

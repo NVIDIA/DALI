@@ -62,14 +62,14 @@ class DLL_PUBLIC ResizeBase : public ResamplingFilterAttr {
                          int thread_idx);
 
   std::vector<kernels::ResamplingParams2D> resample_params_;
-  kernels::TensorListShape<> out_shape_;
+  TensorListShape<> out_shape_;
 
  private:
   kernels::KernelManager kmgr_;
 
   struct MiniBatch {
     int start, count;
-    kernels::TensorListShape<> out_shape;
+    TensorListShape<> out_shape;
     kernels::InListGPU<uint8_t, 3> input;
     kernels::OutListGPU<uint8_t, 3> output;
   };

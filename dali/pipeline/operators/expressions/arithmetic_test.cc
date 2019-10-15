@@ -48,7 +48,7 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   auto result_type = PropagateTypes<CPUBackend>(expr_ref, ws);
   auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws);
   auto result_layout = GetCommonLayout<CPUBackend>(expr_ref, ws);
-  auto expected_shpe = kernels::TensorListShape<>{{1}, {2}};
+  auto expected_shpe = TensorListShape<>{{1}, {2}};
   EXPECT_EQ(result_type, DALIDataType::DALI_INT32);
   EXPECT_EQ(result_shape, expected_shpe);
   EXPECT_EQ(result_layout, "HW");
@@ -100,7 +100,7 @@ inline bool operator==(const TileRange &l, const TileRange &r) {
 // }  // namespace
 
 TEST(ArithmeticOpsTest, GetTiledCover) {
-  kernels::TensorListShape<> shape0({{150}, {50}, {150}, {30}});
+  TensorListShape<> shape0({{150}, {50}, {150}, {30}});
   auto result0 = GetTiledCover(shape0, 50, 4);
   std::vector<TileDesc> cover0 = {{0, 0, 50, 50}, {0, 1, 50, 50}, {0, 2, 50, 50},
                                   {1, 0, 50, 50}, {2, 0, 50, 50}, {2, 1, 50, 50},
@@ -109,7 +109,7 @@ TEST(ArithmeticOpsTest, GetTiledCover) {
   EXPECT_EQ(std::get<0>(result0), cover0);
   EXPECT_EQ(std::get<1>(result0), range0);
 
-  kernels::TensorListShape<> shape1({{42}, {75}, {42}, {121}});
+  TensorListShape<> shape1({{42}, {75}, {42}, {121}});
   auto result1 = GetTiledCover(shape1, 50, 4);
   std::vector<TileDesc> cover1 = {{0, 0, 42, 50}, {1, 0, 50, 50}, {1, 1, 25, 50},
                                   {2, 0, 42, 50}, {3, 0, 50, 50}, {3, 1, 50, 50},
@@ -128,7 +128,7 @@ class BinaryArithmeticOpsTest
  protected:
   static constexpr int num_threads = 4;
 
-  void TestFunction(const kernels::TensorListShape<> &shape) {
+  void TestFunction(const TensorListShape<> &shape) {
     auto backend = testing::detail::BackendStringName<Backend>();
 
     auto param = this->GetParam();
@@ -186,10 +186,10 @@ class BinaryArithmeticOpsTest
   }
 
   void TestFunction() {
-    kernels::TensorListShape<> shape0{{32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323},
+    TensorListShape<> shape0{{32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323},
                                       {32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323}};
 
-    kernels::TensorListShape<> shape1{{1024, 768}, {4096, 1440}, {2435, 33},
+    TensorListShape<> shape1{{1024, 768}, {4096, 1440}, {2435, 33},
                                       {17, 696},   {42, 42},     {1, 1}};
     TestFunction(shape0);
     TestFunction(shape1);

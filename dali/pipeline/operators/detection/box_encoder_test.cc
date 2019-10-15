@@ -255,8 +255,8 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
   };
 
   void CreateCocoObjects() {
-    kernels::TensorListShape<> boxes_shape(coco_object_count.size(), 2);
-    kernels::TensorListShape<> labels_shape(coco_object_count.size(), 1);
+    TensorListShape<> boxes_shape(coco_object_count.size(), 2);
+    TensorListShape<> labels_shape(coco_object_count.size(), 1);
     for (size_t i = 0; i < coco_object_count.size(); i++) {
       boxes_shape.set_tensor_shape(i, {coco_object_count[i], 4});
       labels_shape.set_tensor_shape(i, {coco_object_count[i]});

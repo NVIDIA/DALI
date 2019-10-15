@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "dali/pipeline/operators/operator.h"
-#include "dali/kernels/tensor_view.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 
@@ -41,8 +41,8 @@ class Reshape : public Operator<Backend> {
   void RunImpl(Workspace &ws) override;
 
  private:
-  kernels::TensorListShape<> input_shape_, output_shape_;
-  kernels::TensorShape<> uniform_shape_;
+  TensorListShape<> input_shape_, output_shape_;
+  TensorShape<> uniform_shape_;
   TensorLayout layout_;
 
   enum class ShapeSource {
@@ -60,7 +60,7 @@ class Reshape : public Operator<Backend> {
   void ShapeFromInput(const TensorListLike &tl);
 
   template <typename Integer>
-  void ShapeFromInput(const kernels::TensorListView<kernels::StorageCPU, Integer> &shape);
+  void ShapeFromInput(const TensorListView<StorageCPU, Integer> &shape);
 
   TensorLayout GetOutputLayout(const Workspace &ws) const;
 };

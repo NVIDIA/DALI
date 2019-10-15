@@ -35,11 +35,11 @@ class TestArgumentInput_Producer : public Operator<SupportBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
     output_desc.resize(4);
-    output_desc[0] = {kernels::uniform_list_shape(batch_size_, {1}), TypeInfo::Create<int>()};
-    output_desc[1] = {kernels::TensorListShape<>{{10}}, TypeInfo::Create<float>()};
+    output_desc[0] = {uniform_list_shape(batch_size_, {1}), TypeInfo::Create<int>()};
+    output_desc[1] = {TensorListShape<>{{10}}, TypeInfo::Create<float>()};
     // Non-matching shapes
-    output_desc[2] = {kernels::uniform_list_shape(batch_size_ + 5, {1}), TypeInfo::Create<int>()};
-    output_desc[3] = {kernels::uniform_list_shape(batch_size_, {1, 2}), TypeInfo::Create<int>()};
+    output_desc[2] = {uniform_list_shape(batch_size_ + 5, {1}), TypeInfo::Create<int>()};
+    output_desc[3] = {uniform_list_shape(batch_size_, {1, 2}), TypeInfo::Create<int>()};
     return true;
   }
 
@@ -86,7 +86,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
-    output_desc[0] = {kernels::uniform_list_shape(batch_size_, {1}), TypeInfo::Create<int>()};
+    output_desc[0] = {uniform_list_shape(batch_size_, {1}), TypeInfo::Create<int>()};
     return true;
   }
 
@@ -103,16 +103,16 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
     // They can be accessed as proper ArgumentInputs
     auto &ref_2 = ws.ArgumentInput("arg2");
     ASSERT_EQ(ref_2.shape().num_samples(), batch_size_ + 5);
-    ASSERT_TRUE(kernels::is_uniform(ref_2.shape()));
-    ASSERT_EQ(ref_2.shape()[0], kernels::TensorShape<>(1));
+    ASSERT_TRUE(is_uniform(ref_2.shape()));
+    ASSERT_EQ(ref_2.shape()[0], TensorShape<>(1));
     for (int i = 0; i < ref_2.shape().num_samples(); i++) {
       EXPECT_EQ(ref_2.tensor<int>(i)[0], i);
     }
 
     auto &ref_3 = ws.ArgumentInput("arg3");
     ASSERT_EQ(ref_3.shape().num_samples(), batch_size_);
-    ASSERT_TRUE(kernels::is_uniform(ref_3.shape()));
-    ASSERT_EQ(ref_3.shape()[0], kernels::TensorShape<>(1, 2));
+    ASSERT_TRUE(is_uniform(ref_3.shape()));
+    ASSERT_EQ(ref_3.shape()[0], TensorShape<>(1, 2));
     for (int i = 0; i < ref_3.shape().num_samples(); i++) {
       for (int j = 0; j < 2; j++) {
         EXPECT_EQ(ref_3.tensor<int>(i)[j], i);

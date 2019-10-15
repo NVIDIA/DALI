@@ -103,7 +103,7 @@ class SliceAttr {
       + std::to_string(crop_h) + "] must be <= 1.0f");
 
     crop_window_generators_[data_idx] =
-      [this, data_idx](const kernels::TensorShape<>& shape,
+      [this, data_idx](const TensorShape<>& shape,
                        const TensorLayout& layout) {
         CropWindow crop_window;
         crop_window.anchor[0] = crop_y_norm_[data_idx] * shape[0];

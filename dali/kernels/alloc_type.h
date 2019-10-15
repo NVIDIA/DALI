@@ -15,7 +15,7 @@
 #ifndef DALI_KERNELS_ALLOC_TYPE_H_
 #define DALI_KERNELS_ALLOC_TYPE_H_
 
-#include "dali/kernels/backend_tags.h"
+#include "dali/core/backend_tags.h"
 
 namespace dali {
 namespace kernels {

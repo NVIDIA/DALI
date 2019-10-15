@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/operators/detection/box_encoder.h"
 
 namespace dali {
@@ -99,7 +99,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   void ClearOutput(
     float4 *out_boxes, int *out_labels, const cudaStream_t &stream);
 
-  std::pair<kernels::TensorListShape<>, kernels::TensorListShape<>> CalculateDims(
+  std::pair<TensorListShape<>, TensorListShape<>> CalculateDims(
     const TensorList<GPUBackend> &boxes_input);
 
   int *CalculateBoxesOffsets(

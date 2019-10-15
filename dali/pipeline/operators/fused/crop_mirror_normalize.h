@@ -180,7 +180,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
   }
 
   // Calculate slice window and anchor for given data_idx
-  void SetupSample(int data_idx, TensorLayout layout, const kernels::TensorShape<> &shape) {
+  void SetupSample(int data_idx, TensorLayout layout, const TensorShape<> &shape) {
     Index F = 1, D = 1, H, W, C;
     DALI_ENFORCE(shape.size() >= 3 || shape.size() <= 5,
       "Unexpected number of dimensions: " + std::to_string(shape.size()));

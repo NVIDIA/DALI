@@ -48,7 +48,7 @@ static void* ctypes_void_ptr(const py::object& object) {
 }
 
 template <int ndim>
-py::list as_py_list(const kernels::TensorShape<ndim> &shape) {
+py::list as_py_list(const TensorShape<ndim> &shape) {
   py::list ret(shape.size());
   for (int i = 0; i < shape.size(); i++) {
     ret[i] = shape[i];
@@ -241,7 +241,7 @@ void ExposeTensorList(py::module &m) {
         for (size_t i = 1; i < info.shape.size(); ++i) {
           tensor_shape[i-1] = info.shape[i];
         }
-        auto i_shape = kernels::uniform_list_shape(info.shape[0], tensor_shape);
+        auto i_shape = uniform_list_shape(info.shape[0], tensor_shape);
         size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
         // Validate the stride

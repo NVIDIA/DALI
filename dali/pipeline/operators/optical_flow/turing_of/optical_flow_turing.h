@@ -107,7 +107,7 @@ inline __host__ __device__ int16_t encode_flow_component(float value) {
 
 }  // namespace kernel
 
-class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeGPU> {
+class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
  public:
   OpticalFlowTuring(OpticalFlowParams params, size_t width, size_t height, size_t channels,
                     DALIImageType image_type, int device_id_, cudaStream_t stream = 0);
@@ -116,7 +116,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<kernels::ComputeG
   virtual ~OpticalFlowTuring();
 
 
-  kernels::TensorShape<kernels::DynamicDimensions> GetOutputShape() override {
+  TensorShape<DynamicDimensions> GetOutputShape() override {
     auto sz = init_params_.outGridSize;
     // There are 2 flow vector components: (x, y)
     return {static_cast<int>(height_ + sz - 1) / sz, static_cast<int>(width_ + sz - 1) / sz, 2};

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_TENSOR_SHAPE_H_
-#define DALI_KERNELS_TENSOR_SHAPE_H_
+#ifndef DALI_CORE_TENSOR_SHAPE_H_
+#define DALI_CORE_TENSOR_SHAPE_H_
 
 #include <array>
 #include <cassert>
@@ -28,9 +28,6 @@
 #include "dali/core/cuda_utils.h"
 
 namespace dali {
-
-
-namespace kernels {
 
 constexpr int DynamicDimensions = -1;
 constexpr int InferDimensions = -2;
@@ -1046,7 +1043,6 @@ TensorListShape<ndim> uniform_list_shape(int num_samples, std::initializer_list<
   return TensorListShape<ndim>::make_uniform(num_samples, sample_shape);
 }
 
-}  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_TENSOR_SHAPE_H_
+#endif  // DALI_CORE_TENSOR_SHAPE_H_

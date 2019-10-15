@@ -43,7 +43,7 @@ class CoinFlip : public Operator<SupportBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
     output_desc.resize(1);
-    output_desc[0].shape = kernels::uniform_list_shape(batch_size_, {1});
+    output_desc[0].shape = uniform_list_shape(batch_size_, {1});
     output_desc[0].type = TypeInfo::Create<int>();
     return true;
   }

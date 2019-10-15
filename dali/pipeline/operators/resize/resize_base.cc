@@ -74,13 +74,13 @@ ResamplingFilterAttr::ResamplingFilterAttr(const OpSpec &spec) {
 }
 void ResizeBase::SubdivideInput(const kernels::InListGPU<uint8_t, 3> &in) {
   for (auto &mb : minibatches_) {
-    kernels::sample_range(mb.input, in, mb.start, mb.start + mb.count);
+    sample_range(mb.input, in, mb.start, mb.start + mb.count);
   }
 }
 
 void ResizeBase::SubdivideOutput(const kernels::OutListGPU<uint8_t, 3> &out) {
   for (auto &mb : minibatches_) {
-    kernels::sample_range(mb.output, out, mb.start, mb.start + mb.count);
+    sample_range(mb.output, out, mb.start, mb.start + mb.count);
   }
 }
 void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
@@ -93,7 +93,7 @@ void ResizeBase::RunGPU(TensorList<GPUBackend> &output,
   auto in_view = view<const uint8_t, 3>(input);
   SubdivideInput(in_view);
 
-  out_shape_ = kernels::TensorListShape<>();
+  out_shape_ = TensorListShape<>();
   out_shape_.resize(in_view.num_samples(), in_view.sample_dim());
   int sample_idx = 0;
 
