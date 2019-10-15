@@ -137,10 +137,10 @@ def _test_tf_dataset(device, device_id = 0):
         iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
         next_element = iterator.get_next()
 
-        with tf.compat.v1.Session() as sess:
-            sess.run([tf.compat.v1.global_variables_initializer(), iterator.initializer])
-            for _ in range(epochs):
-                dataset_results.append(sess.run(next_element))
+    with tf.compat.v1.Session() as sess:
+        sess.run([tf.compat.v1.global_variables_initializer(), iterator.initializer])
+        for _ in range(epochs):
+            dataset_results.append(sess.run(next_element))
 
     standalone_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
     standalone_pipeline.build()
@@ -192,3 +192,46 @@ def test_differnt_num_shapes_dtypes():
             shapes=shapes, 
             dtypes=dtypes,
             num_threads=num_threads)
+
+
+def _test_tf_dataset_multigpu():
+    skip_for_incompatible_tf()
+
+    batch_size = 12
+    num_threads = 4
+    epochs = 10
+
+    dataset_pipeline = TestPipeline(batch_size, num_threads, 'gpu', 0)
+    shapes = [
+        (batch_size, 3, 224, 224), 
+        (batch_size, 1),
+        (batch_size, 1)]
+    dtypes = [
+        tf.float32,
+        tf.int32, 
+        tf.int16]
+
+    dataset_results = []
+    initializers = [tf.compat.v1.global_variables_initializer()]
+    ops_to_run = []
+
+    for device_id in range(2):
+        with tf.device('/gpu:{0}'.format(device_id)):
+            daliset = dali_tf.DALIDataset(
+                pipeline=dataset_pipeline,
+                batch_size=batch_size,
+                shapes=shapes, 
+                dtypes=dtypes,
+                num_threads=num_threads,
+                device_id=device_id)
+            daliset = daliset.with_options(_dataset_options())
+
+            iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
+            initializers.append(iterator.initializer)
+
+            ops_to_run.append(iterator.get_next())
+
+    with tf.compat.v1.Session() as sess:
+        sess.run(initializers)
+        for _ in range(epochs):
+            dataset_results.append(sess.run(ops_to_run))
