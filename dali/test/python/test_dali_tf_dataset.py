@@ -47,7 +47,7 @@ def num_available_gpus():
     local_devices = device_lib.list_local_devices()
     num_gpus = sum(1 for device in local_devices if device.device_type == 'GPU')
     if num_gpus not in [1, 2, 4, 8]:
-        raise RuntimeError('Unsoported number of GPUs. This test can run on: 1, 2, 4, 8 GPUs.')
+        raise RuntimeError('Unsupported number of GPUs. This test can run on: 1, 2, 4, 8 GPUs.')
     return num_gpus
 
 
