@@ -14,6 +14,7 @@
 
 import nvidia.dali as dali
 import tensorflow as tf
+from tensorflow.python.client import device_lib
 import nvidia.dali.plugin.tf as dali_tf
 import os
 import numpy as np
@@ -40,6 +41,11 @@ def compatible_tensorflow():
 def skip_for_incompatible_tf():
     if not compatible_tensorflow():
         raise SkipTest('This feature is enabled for TF 1.13 and 1.14 only')
+
+
+def num_available_gpus():
+    local_devices = device_lib.list_local_devices()
+    return sum(1 for device in local_devices if device.device_type == 'GPU')
 
 
 class TestPipeline(Pipeline):
@@ -195,7 +201,7 @@ def test_differnt_num_shapes_dtypes():
 def _test_tf_dataset_multigpu():
     skip_for_incompatible_tf()
 
-    num_devices = 8
+    num_devices = num_available_gpus()
     dataset_size = 64
     batch_size = 8
     num_threads = 4
