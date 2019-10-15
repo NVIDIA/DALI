@@ -32,6 +32,7 @@ annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 def tensorflow_minor_version():
     return tf.__version__.split('.')[1]
 
+
 def compatible_tensorflow():
     return tensorflow_minor_version() in {'13', '14'}
 
@@ -111,7 +112,7 @@ def _test_tf_dataset(device, device_id = 0):
 
     batch_size = 12
     num_threads = 4
-    epochs = 10
+    iterations = 10
 
     dataset_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
     shapes = [
@@ -139,13 +140,13 @@ def _test_tf_dataset(device, device_id = 0):
 
     with tf.compat.v1.Session() as sess:
         sess.run([tf.compat.v1.global_variables_initializer(), iterator.initializer])
-        for _ in range(epochs):
+        for _ in range(iterations):
             dataset_results.append(sess.run(next_element))
 
     standalone_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
     standalone_pipeline.build()
     standalone_results = []
-    for _ in range(epochs):
+    for _ in range(iterations):
         if device is 'gpu':
             standalone_results.append(
                 tuple(result.as_cpu().as_array() for result in standalone_pipeline.run()))
@@ -197,9 +198,10 @@ def test_differnt_num_shapes_dtypes():
 def _test_tf_dataset_multigpu():
     skip_for_incompatible_tf()
 
+    num_devices = 2
     batch_size = 12
     num_threads = 4
-    epochs = 10
+    iterations = 10
 
     dataset_pipeline = TestPipeline(batch_size, num_threads, 'gpu', 0)
     shapes = [
@@ -215,7 +217,7 @@ def _test_tf_dataset_multigpu():
     initializers = [tf.compat.v1.global_variables_initializer()]
     ops_to_run = []
 
-    for device_id in range(2):
+    for device_id in range(num_devices):
         with tf.device('/gpu:{0}'.format(device_id)):
             daliset = dali_tf.DALIDataset(
                 pipeline=dataset_pipeline,
@@ -233,5 +235,20 @@ def _test_tf_dataset_multigpu():
 
     with tf.compat.v1.Session() as sess:
         sess.run(initializers)
-        for _ in range(epochs):
+        for _ in range(iterations):
             dataset_results.append(sess.run(ops_to_run))
+
+    standalone_pipeline = TestPipeline(batch_size, num_threads, 'gpu', 0)
+    standalone_pipeline.build()
+    standalone_results = []
+    for _ in range(iterations):
+        standalone_results.append(
+            tuple(result.as_cpu().as_array() for result in standalone_pipeline.run()))
+
+    assert len(dataset_results) == iterations
+    for sr, r in zip(standalone_results, dataset_results):
+        assert len(r) == num_devices
+        for dr in r:
+            assert np.array_equal(sr[0], dr[0])
+            assert np.array_equal(sr[1], dr[1])
+            assert np.array_equal(sr[2], dr[2])
