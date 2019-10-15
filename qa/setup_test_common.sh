@@ -28,7 +28,8 @@ echo "LD_LIBRARY_PATH is $LD_LIBRARY_PATH"
 put_optflow_libs() {
   # Docker v1 doesn't expose libnvidia-opticalflow.so from the host so we need to manually put it there
   # workaround for the CI
-  if [[ ! -f /usr/lib/x86_64-linux-gnu/libnvidia-opticalflow.so ]]; then
+  if [[ ! -f /usr/lib/x86_64-linux-gnu/libnvidia-opticalflow.so ]] &&
+     [[ ! -f /usr/lib/x86_64-linux-gnu/libnvidia-opticalflow.so.1 ]]; then
       NVIDIA_SMI_DRIVER_VERSION_LONG=$(nvidia-smi | grep -Po '(?<=Driver Version: )\d+.\d+.\d+')
 
       # Hack alert: This url doesn't work with 430.XX family
