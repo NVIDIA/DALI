@@ -28,18 +28,6 @@
 namespace dali {
 namespace kernels {
 
-namespace warp {
-
-
-DALI_HOST_DEV
-inline vec2 map_coords(const AffineMapping2D &m, ivec2 out_px) {
-  vec2 p = out_px + 0.5f;
-  return sub<2,2>(m.transform, 0,0) * p + m.transform.col(2);
-  //return affine(m.transform, out_px + 0.5f);
-}
-
-}  // namespace warp
-
 /**
  * @brief Performs generic warping of one tensor (on CPU)
  *
@@ -125,8 +113,7 @@ class WarpCPU {
     }
   }
 
-
-  /*template <DALIInterpType static_interp>
+  template <DALIInterpType static_interp>
   void RunImpl(
       KernelContext &context,
       const OutTensorCPU<OutputType, 3> &output,
@@ -144,6 +131,7 @@ class WarpCPU {
     Sampler<static_interp, InputType> sampler(in);
 
     vec2 dsdx = mapping.transform.col(0);
+
     for (int y = 0; y < out_h; y++) {
       OutputType *out_row = output(y, 0);
       auto src = warp::map_coords(mapping, ivec2(0, y));
@@ -151,7 +139,7 @@ class WarpCPU {
         sampler(&out_row[c*x], src, border);
       }
     }
-  }*/
+  }
 };
 
 }  // namespace kernels

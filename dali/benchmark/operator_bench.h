@@ -75,6 +75,23 @@ class OperatorBench : public DALIBenchmark {
     }
   }
 
+  template <typename OutputContainer, typename OperatorPtr, typename Workspace>
+  void Setup(OperatorPtr &op_ptr, const OpSpec &spec, Workspace &ws) {
+    std::vector<OutputDesc> outputs;
+    if (op_ptr->CanInferOutputs() && op_ptr->Setup(outputs, ws)) {
+      int num_out = outputs.size();
+      for (int i = 0; i < num_out; i++) {
+        auto data_out = std::make_shared<OutputContainer>();
+        data_out->Resize(outputs[i].shape);
+        data_out->set_type(outputs[i].type);
+        ws.AddOutput(data_out);
+      }
+    } else {
+      for (int i = 0; i < spec.GetSchema().NumOutput(); i++)
+        ws.AddOutput(std::make_shared<TensorList<GPUBackend>>());
+    }
+  }
+
   template <typename T>
   void RunGPU(benchmark::State& st, OpSpec op_spec,
               int batch_size = 128,
@@ -100,14 +117,12 @@ class OperatorBench : public DALIBenchmark {
     data_in_gpu->Copy(*data_in_cpu, (cudaStream_t)0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    auto data_out_gpu = std::make_shared<TensorList<GPUBackend>>();
-
     // Create workspace and set input and output
     DeviceWorkspace ws;
     ws.AddInput(data_in_gpu);
-    ws.AddOutput(data_out_gpu);
     ws.set_stream(0);
 
+    Setup<TensorList<GPUBackend>>(op_ptr, op_spec, ws);
     op_ptr->Run(ws);
     CUDA_CALL(cudaStreamSynchronize(0));
     for (auto _ : st) {
