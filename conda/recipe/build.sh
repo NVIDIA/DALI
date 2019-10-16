@@ -46,10 +46,27 @@ export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
 cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DCUDA_rt_LIBRARY=$BUILD_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \
       -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH}-linux/lib/stubs/libcuda.so \
-      -DNVJPEG_ROOT_DIR=/usr/local/cuda \
-      -DFFMPEG_ROOT_DIR=$PREFIX/lib \
+      -DNVJPEG_ROOT_DIR=/usr/local/cuda                   \
+      -DFFMPEG_ROOT_DIR=$PREFIX/lib                       \
       -DCMAKE_PREFIX_PATH="$PREFIX/libjpeg-turbo;$PREFIX" \
-      -DCMAKE_INSTALL_PREFIX=$PREFIX \
+      -DCMAKE_INSTALL_PREFIX=$PREFIX                      \
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}     \
+      -DBUILD_TEST=${BUILD_TEST:-ON}                      \
+      -DBUILD_BENCHMARK=${BUILD_BENCHMARK:-ON}            \
+      -DBUILD_NVTX=${BUILD_NVTX:-OFF}                     \
+      -DBUILD_PYTHON=${BUILD_PYTHON:-ON}                  \
+      -DBUILD_LMDB=${BUILD_LMDB:-ON}                      \
+      -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO:-ON}          \
+      -DBUILD_NVJPEG=${BUILD_NVJPEG:-ON}                  \
+      -DBUILD_LIBTIFF=${BUILD_LIBTIFF:-ON}                \
+      -DBUILD_NVOF=${BUILD_NVOF:-ON}                      \
+      -DBUILD_NVDEC=${BUILD_NVDEC:-ON}                    \
+      -DBUILD_NVML=${BUILD_NVML:-ON}                      \
+      -DVERBOSE_LOGS=${VERBOSE_LOGS:-OFF}                 \
+      -DWERROR=${WERROR:-ON}                              \
+      -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN:-OFF}           \
+      -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}     \
+      -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA-${GIT_FULL_HASH}} \
       ..
 make -j"$(nproc --all)"
 make install

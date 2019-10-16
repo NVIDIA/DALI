@@ -19,10 +19,12 @@ except ImportError:
 # put {0} in pacage link as a placeholder for python pip package version (i.e. cp27-cp27mu-linux_x86_64)
 # and cuda_v for cuXX version
 # NOTE: First version will be picked in case of one_config_only
+
 packages = {
             "opencv-python" : ["4.1.0.25"],
-            "mxnet-cu90" : ["1.5.0"],
-            "mxnet-cu100" : ["1.5.0"],
+            "mxnet-cu{cuda_v}" : {
+                        "90" : ["1.5.0"],
+                        "100" : ["1.5.0"]},
             "tensorflow-gpu" : {"90": ["1.12.0", "1.11", "1.7"], "100": ["1.13.1", "1.14.0"]},
             "torch" : {"90": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.1.0-{0}.whl"],
                        "100": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.2.0-{0}.whl"]},
@@ -40,10 +42,22 @@ parser.add_argument('--cuda', dest='cuda', default="90", help="CUDA version to u
 parser.add_argument('--use', '-u', dest='use', default=[], help="provide only packages from this list", nargs='*')
 args = parser.parse_args()
 
-def get_package(packages, key, cuda):
-    if key in packages.keys():
-        if isinstance(packages[key], dict):
-            return packages[key][cuda]
+def get_key_with_cuda(key, val_dict, cuda):
+    key_w_cuda = key
+    if isinstance(val_dict, dict):
+        for ver in sorted(val_dict.keys(), key=int):
+            if int(ver) <= int(cuda):
+                key_w_cuda = key.format(cuda_v=ver)
+    return key_w_cuda
+
+def get_package(package_data, key, cuda):
+    if key in package_data.keys():
+        if isinstance(package_data[key], dict):
+            data = None
+            for ver in sorted(package_data[key].keys(), key=int):
+                if int(ver) <= int(cuda):
+                   data = package_data[key][ver]
+            return data
         else:
             return packages[key]
     else:
@@ -64,7 +78,8 @@ def get_pyvers_name(name, cuda):
 
 def print_configs(cuda):
     for key in packages.keys():
-        print (key + ":")
+        key_w_cuda = get_key_with_cuda(key, packages[key], cuda)
+        print (key_w_cuda + ":")
         for val in get_package(packages, key, cuda):
             if val == None:
                 val = "Default"
@@ -77,14 +92,15 @@ def get_install_string(variant, use, cuda):
     for key in packages.keys():
         if key not in use:
             continue
+        key_w_cuda = get_key_with_cuda(key, packages[key], cuda)
         tmp = variant % len(get_package(packages, key, cuda))
         val = get_package(packages, key, cuda)[tmp]
         if val == None:
-            ret.append(key)
+            ret.append(key_w_cuda)
         elif val.startswith('http'):
             ret.append(get_pyvers_name(val, cuda))
         else:
-            ret.append(key + "==" + val)
+            ret.append(key_w_cuda + "==" + val)
         variant = variant // len(get_package(packages, key, cuda))
     # add all remaining used packages with default versions
     additional = [v for v in use if v not in packages.keys()]
@@ -96,8 +112,10 @@ def get_remove_string(use, cuda):
     for key in packages.keys():
         if key not in use:
             continue
-        if len(get_package(packages, key, cuda)) > 1:
-            to_remove.append(key)
+        key_w_cuda = get_key_with_cuda(key, packages[key], cuda)
+        pkg_list_len = len(get_package(packages, key, cuda))
+        if pkg_list_len > 1:
+            to_remove.append(key_w_cuda)
     return " ".join(to_remove)
 
 def cal_num_of_configs(use, cuda):
