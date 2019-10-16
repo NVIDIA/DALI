@@ -48,84 +48,38 @@ class CaffeReaderPipeline(Pipeline):
         images = self.decode(inputs)
         return images, labels
 
-# test 1: compare caffe_db_folder with [caffe_db_folder] and [caffe_db_folder, caffe_db_folder]
-def check_reader_vs_paths(path, batch_size, num_threads):
+# test: compare caffe_db_folder with [caffe_db_folder] and [caffe_db_folder, caffe_db_folder],
+# with different batch_size and num_threads
+def check_reader_path_vs_paths(paths, batch_size1, batch_size2, num_threads1, num_threads2):
  
-    pipe1 = CaffeReaderPipeline(caffe_db_folder, batch_size, num_threads)
+    pipe1 = CaffeReaderPipeline(caffe_db_folder, batch_size1, num_threads1)
     pipe1.build()
 
-    pipe2 = CaffeReaderPipeline(path, batch_size, num_threads)
+    pipe2 = CaffeReaderPipeline(paths, batch_size2, num_threads2)
     pipe2.build()
 
-    num_batches = 2
-    for i in range(num_batches):
-        pipe1_out = pipe1.run()
-        pipe2_out = pipe2.run()
-        for idx in range(len(pipe1_out[0])):
-            image1 = pipe1_out[0].at(idx)
-            label1 = pipe1_out[1].at(idx)
-            image2 = pipe2_out[0].at(idx)
-            label2 = pipe2_out[1].at(idx)
-
-            assert_array_equal(image1, image2)
-            assert_array_equal(label1, label2)
-
-def test_reader_vs_paths():
-    for path in [[caffe_db_folder], [caffe_db_folder, caffe_db_folder]]:
-        for batch_size in {1, 32, 44}:
-            for num_threads in {1, 2}:
-                yield check_reader_vs_paths, path, batch_size, num_threads
-
-
-# test 2: compare with a simple CaffeReader with batch_size=1
-def check_reader_vs_simple(path, batch_size, num_threads, num_gpus, images, labels):
-    pipelines = [CaffeReaderPipeline(path, batch_size, num_threads, device_id, num_gpus) for device_id in range(num_gpus)]
-    num_paths = 1 if isinstance(path, str) else len(path)
-
-    num_batches = 2
-    for pipe in pipelines:
-        pipe.build()
-        count = 0
-        for i in range(num_batches):
+    def Seq(pipe):
+        while True:
             pipe_out = pipe.run()
             for idx in range(len(pipe_out[0])):
-                image = pipe_out[0].at(idx)
-                label = pipe_out[1].at(idx)
-                dstid = count % len(images)
-                assert_array_equal(image, images[dstid])
-                assert_array_equal(label, labels[dstid])
-                count+=1
+                yield pipe_out[0].at(idx), pipe_out[1].at(idx)
 
-def test_reader_vs_simple():
-    pipe = CaffeReaderPipeline(caffe_db_folder, 1)
-    pipe.build()
-    images = []
-    labels = []
-    num = 43
-    for i in range(num):
-        pipe_out = pipe.run()
-        image = pipe_out[0].at(0)
-        label = pipe_out[1].at(0)
-        images.append(image)
-        labels.append(label)
+    seq1 = Seq(pipe1)
+    seq2 = Seq(pipe2)
 
-    num_gpus = 1
-    for path in [caffe_db_folder, [caffe_db_folder], [caffe_db_folder, caffe_db_folder]]:
-        for batch_size in {1, 32, 44}:
-            for num_threads in {1, 2}:
-                yield check_reader_vs_simple, path, batch_size, num_threads, num_gpus, images, labels
+    num_entries = 100
+    for i in range(num_entries):
+        image1, label1 = next(seq1)
+        image2, label2 = next(seq2)
+        assert_array_equal(image1, image2)
+        assert_array_equal(label1, label2)
 
-
-if __name__ == '__main__':
-    # run this using previous CaffeReader to get the db statistics
-    num = 43
-    pipe = CaffeReaderPipeline(caffe_db_folder, 1)
-    pipe.build()
-    db_stat = []
-    for i in range(num):
-        pipe_out = pipe.run()
-        image = pipe_out[0].at(0)
-        label = pipe_out[1].at(0)
-        print(['%.2f' % image.mean(), label[0]])
-
+def test_reader_path_vs_paths():
+    for paths in [[caffe_db_folder], [caffe_db_folder, caffe_db_folder]]:
+        for batch_size1 in {1}:
+            for batch_size2 in {1, 16, 31}:
+                for num_threads1 in {1}:
+                    for num_threads2 in {1, 2}:
+                        yield check_reader_path_vs_paths, paths, \
+                          batch_size1, batch_size2, num_threads1, num_threads2
 
