@@ -42,7 +42,15 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS)
 
-cuda_add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS} ${DALI_PROTO_OBJ})
+set(DALI_OPERATOR_PROTO_OBJ)
+if (BUILD_LMDB)
+  list(APPEND DALI_OPERATOR_PROTO_OBJ $<TARGET_OBJECTS:CAFFE_PROTO> $<TARGET_OBJECTS:CAFFE2_PROTO>)
+endif()
+if (BUILD_PROTO3)
+  list(APPEND DALI_OPERATOR_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
+endif()
+
+cuda_add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_PROTO_OBJ})
 set_target_properties(${dali_operator_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(${dali_operator_lib} PUBLIC ${dali_lib} ${dali_kernel_lib} ${dali_core_lib})
@@ -55,7 +63,7 @@ target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(lib_exports "libdali_operators.map")
-configure_file("${DALI_TOP_DIR}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
+configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
 add_custom_target(${lib_exports} DEPENDS "${exports_map_path}/${dali_operator_lib_exports}")
 add_dependencies(${dali_operator_lib} ${lib_exports})
 target_link_libraries(${dali_operator_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${lib_exports})
@@ -65,8 +73,8 @@ if (BUILD_TEST)
   # TODO(janton): create a test_utils_lib with dali_test_config.cc and other common utilities
   cuda_add_executable(${test_bin}
     ${DALI_OPERATOR_TEST_SRCS}
-    ${DALI_TOP_DIR}/dali/test/dali_test_config.cc
-    ${DALI_TOP_DIR}/dali/test/dali_operator_test_utils.cc)
+    ${DALI_ROOT}/dali/test/dali_test_config.cc
+    ${DALI_ROOT}/dali/test/dali_operator_test_utils.cc)
 
   target_link_libraries(${test_bin} PUBLIC ${dali_operator_lib})
   target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})

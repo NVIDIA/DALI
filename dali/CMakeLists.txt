@@ -34,20 +34,6 @@ set(TEST_BINARY_DIR "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 # Common config for all subdirs
 ################################################
 set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
-if(${CMAKE_VERSION} VERSION_LESS "3.9.0")
-  # In cmake 3.8.0 or lower, CUDA_LINK_LIBRARIES_KEYWORD is not available
-  # So this is a workaround to append PRIVATE in front of it
-  set(CUDA_LIBRARIES ${CUDA_LINK_LIBRARIES_KEYWORD} ${CUDA_LIBRARIES})
-endif()
-
-set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
-if (BUILD_LMDB)
-  list(APPEND DALI_PROTO_OBJ $<TARGET_OBJECTS:CAFFE_PROTO> $<TARGET_OBJECTS:CAFFE2_PROTO>)
-endif()
-if (BUILD_PROTO3)
-  list(APPEND DALI_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
-endif()
-
 string(REPLACE ";" ":" exclude_libs "${DALI_EXCLUDES}")
 message(STATUS "Exclude libs '${exclude_libs}'")
 
@@ -67,6 +53,7 @@ add_subdirectory(c_api)
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
 
+set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
 cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
 set_target_properties(${dali_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")

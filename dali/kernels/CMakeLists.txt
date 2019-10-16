@@ -32,7 +32,7 @@ target_link_libraries(${dali_kernel_lib} PRIVATE "-Wl,--exclude-libs,${exclude_l
 
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(lib_exports "libdali_kernels.map")
-configure_file("${DALI_TOP_DIR}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
+configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
 add_custom_target(${lib_exports} DEPENDS "${exports_map_path}/${lib_exports}")
 add_dependencies(${dali_kernel_lib} ${lib_exports})
 target_link_libraries(${dali_kernel_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${lib_exports})
@@ -42,7 +42,7 @@ if (BUILD_TEST)
   # TODO(janton): create a test_utils_lib with dali_test_config.cc and other common utilities
   cuda_add_executable(${test_bin}
     ${DALI_KERNEL_TEST_SRCS}
-    ${DALI_TOP_DIR}/dali/test/dali_test_config.cc)
+    ${DALI_ROOT}/dali/test/dali_test_config.cc)
 
   # TODO(janton): Remove dependency with dali_lib
   target_link_libraries(${test_bin} PUBLIC ${dali_kernel_lib} ${dali_lib})

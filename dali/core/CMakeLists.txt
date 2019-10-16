@@ -29,7 +29,7 @@ set_target_properties(${dali_core_lib} PROPERTIES
 
 set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(lib_exports "libdali_core.map")
-configure_file("${DALI_TOP_DIR}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
+configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
 add_custom_target(${lib_exports} DEPENDS "${exports_map_path}/${lib_exports}")
 add_dependencies(${dali_core_lib} ${lib_exports})
 target_link_libraries(${dali_core_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${lib_exports})
