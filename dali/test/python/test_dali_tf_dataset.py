@@ -14,6 +14,7 @@
 
 import nvidia.dali as dali
 import tensorflow as tf
+from tensorflow.python.client import device_lib
 import nvidia.dali.plugin.tf as dali_tf
 import os
 import numpy as np
@@ -32,6 +33,7 @@ annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 def tensorflow_minor_version():
     return tf.__version__.split('.')[1]
 
+
 def compatible_tensorflow():
     return tensorflow_minor_version() in {'13', '14'}
 
@@ -41,15 +43,23 @@ def skip_for_incompatible_tf():
         raise SkipTest('This feature is enabled for TF 1.13 and 1.14 only')
 
 
+def num_available_gpus():
+    local_devices = device_lib.list_local_devices()
+    num_gpus = sum(1 for device in local_devices if device.device_type == 'GPU')
+    if num_gpus not in [1, 2, 4, 8]:
+        raise RuntimeError('Unsupported number of GPUs. This test can run on: 1, 2, 4, 8 GPUs.')
+    return num_gpus
+
+
 class TestPipeline(Pipeline):
-    def __init__(self, batch_size, num_threads, device, device_id = 0, seed = 0):
+    def __init__(self, batch_size, num_threads, device, device_id = 0, shard_id = 0, num_shards = 1, seed = 0):
         super(TestPipeline, self).__init__(batch_size, num_threads, device_id, seed)
         self.device = device
         self.input = ops.COCOReader(
             file_root = file_root,
             annotations_file = annotations_file,
-            shard_id = 0, 
-            num_shards = 1, 
+            shard_id = shard_id, 
+            num_shards = num_shards, 
             ratio=False, 
             save_img_ids=True)
         self.decode = ops.ImageDecoder(
@@ -58,16 +68,15 @@ class TestPipeline(Pipeline):
         self.resize = ops.Resize(
             device = device,
             image_type = types.RGB,
+            resize_x = 224,
+            resize_y = 224,
             interp_type = types.INTERP_LINEAR)
         self.cmn = ops.CropMirrorNormalize(
             device = device,
             output_dtype = types.FLOAT,
-            crop = (224, 224),
             image_type = types.RGB,
             mean = [128., 128., 128.],
             std = [1., 1., 1.])
-        self.res_uniform = ops.Uniform(range = (256.,480.))
-        self.uniform = ops.Uniform(range = (0.0, 1.0))
         self.cast = ops.Cast(
             device = device,
             dtype = types.INT16)
@@ -76,11 +85,9 @@ class TestPipeline(Pipeline):
     def define_graph(self):
         inputs, _, _, im_ids = self.input()
         images = self.decode(inputs)
-        images = self.resize(images, resize_shorter = self.res_uniform())
+        images = self.resize(images)
         output = self.cmn(
-            images, 
-            crop_pos_x = self.uniform(),
-            crop_pos_y = self.uniform())
+            images)
         if self.device is 'gpu':
             im_ids = im_ids.gpu()
         im_ids_16 = self.cast(im_ids)
@@ -111,7 +118,7 @@ def _test_tf_dataset(device, device_id = 0):
 
     batch_size = 12
     num_threads = 4
-    epochs = 10
+    iterations = 10
 
     dataset_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
     shapes = [
@@ -137,15 +144,15 @@ def _test_tf_dataset(device, device_id = 0):
         iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
         next_element = iterator.get_next()
 
-        with tf.compat.v1.Session() as sess:
-            sess.run([tf.compat.v1.global_variables_initializer(), iterator.initializer])
-            for _ in range(epochs):
-                dataset_results.append(sess.run(next_element))
+    with tf.compat.v1.Session() as sess:
+        sess.run([tf.compat.v1.global_variables_initializer(), iterator.initializer])
+        for _ in range(iterations):
+            dataset_results.append(sess.run(next_element))
 
-    standalone_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
+    standalone_pipeline = TestPipeline(batch_size, num_threads, device, device_id = 0)
     standalone_pipeline.build()
     standalone_results = []
-    for _ in range(epochs):
+    for _ in range(iterations):
         if device is 'gpu':
             standalone_results.append(
                 tuple(result.as_cpu().as_array() for result in standalone_pipeline.run()))
@@ -192,3 +199,73 @@ def test_differnt_num_shapes_dtypes():
             shapes=shapes, 
             dtypes=dtypes,
             num_threads=num_threads)
+
+
+def _test_tf_dataset_multigpu():
+    skip_for_incompatible_tf()
+
+    num_devices = num_available_gpus()
+    dataset_size = 64
+    batch_size = 8
+    num_threads = 4
+    iterations = dataset_size // batch_size
+
+    shapes = [
+        (batch_size, 3, 224, 224), 
+        (batch_size, 1),
+        (batch_size, 1)]
+    dtypes = [
+        tf.float32,
+        tf.int32, 
+        tf.int16]
+
+    dataset_results = []
+    initializers = [tf.compat.v1.global_variables_initializer()]
+    ops_to_run = []
+
+    for device_id in range(num_devices):
+        with tf.device('/gpu:{0}'.format(device_id)):
+            dataset_pipeline = TestPipeline(batch_size, num_threads, 'gpu', device_id, device_id, num_devices)
+            daliset = dali_tf.DALIDataset(
+                pipeline=dataset_pipeline,
+                batch_size=batch_size,
+                shapes=shapes, 
+                dtypes=dtypes,
+                num_threads=num_threads,
+                device_id=device_id)
+            daliset = daliset.with_options(_dataset_options())
+
+            iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
+            initializers.append(iterator.initializer)
+
+            ops_to_run.append(iterator.get_next())
+
+    with tf.compat.v1.Session() as sess:
+        sess.run(initializers)
+        for _ in range(iterations):
+            dataset_results.append(sess.run(ops_to_run))
+
+    standalone_pipeline = TestPipeline(
+        batch_size, num_threads, device = 'gpu', device_id = 0)
+    standalone_pipeline.build()
+    standalone_results = []
+    for _ in range(iterations):
+        standalone_results.append(
+            tuple(result.as_cpu().as_array() for result in standalone_pipeline.run()))
+
+    assert len(dataset_results) == iterations
+    for it in range(iterations):
+        assert len(dataset_results[it]) == num_devices
+        for device_id in range(num_devices):
+            batch_id = iterations - ((it + device_id * (iterations // num_devices)) % iterations) - 1
+            it_id = iterations - it - 1
+            assert np.array_equal(
+                standalone_results[it_id][0],
+                dataset_results[batch_id][device_id][0])
+            assert np.array_equal(
+                standalone_results[it_id][1],
+                dataset_results[batch_id][device_id][1])
+            assert np.array_equal(
+                standalone_results[it_id][2],
+                dataset_results[batch_id][device_id][2])
+
