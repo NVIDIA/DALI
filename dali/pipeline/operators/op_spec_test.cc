@@ -106,7 +106,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
     ASSERT_TRUE(kernels::is_uniform(ref_2.shape()));
     ASSERT_EQ(ref_2.shape()[0], kernels::TensorShape<>(1));
     for (int i = 0; i < ref_2.shape().num_samples(); i++) {
-      EXPECT_EQ(ref_2.tensor<int>(i)[0], i);
+      EXPECT_EQ(ref_2[i].data<int>()[0], i);
     }
 
     auto &ref_3 = ws.ArgumentInput("arg3");
@@ -115,7 +115,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
     ASSERT_EQ(ref_3.shape()[0], kernels::TensorShape<>(1, 2));
     for (int i = 0; i < ref_3.shape().num_samples(); i++) {
       for (int j = 0; j < 2; j++) {
-        EXPECT_EQ(ref_3.tensor<int>(i)[j], i);
+        EXPECT_EQ(ref_3[i].data<int>()[j], i);
       }
     }
   }

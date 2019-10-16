@@ -91,8 +91,8 @@ void SetupInputOutput(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph,
     auto input_index = arg_pair.second;
     auto tid = node.parent_tensors[input_index];
     // Argument inputs are only CPU
-    auto &queue = get_queue<OpType::SUPPORT, StorageDevice::CPU>(tensor_to_store_queue[tid]);
-    auto tensor = queue[idxs[OpType::SUPPORT]];
+    auto &queue = get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue[tid]);
+    auto tensor = queue[idxs[OpType::CPU]];
     ws.AddArgumentInput(tensor, arg_pair.first);
   }
 

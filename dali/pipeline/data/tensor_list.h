@@ -77,20 +77,20 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
   template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const vector<Tensor<SrcBackend>> &other, cudaStream_t stream) {
-    auto type = other[0].type();
-    auto layout = other[0].GetLayout();
+  DLL_PUBLIC inline void Copy(const vector<std::shared_ptr<Tensor<SrcBackend>>> &other, cudaStream_t stream) {
+    auto type = other[0]->type();
+    auto layout = other[0]->GetLayout();
 
-    int dim = other[0].shape().sample_dim();
+    int dim = other[0]->shape().sample_dim();
     kernels::TensorListShape<> new_shape(other.size(), dim);
     for (size_t i = 0; i < other.size(); ++i) {
-      DALI_ENFORCE(other[i].shape().sample_dim() == dim,
+      DALI_ENFORCE(other[i]->shape().sample_dim() == dim,
          "TensorList can only have uniform dimensions across all samples, mismatch at index "
          + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
-         + " found Tensor with dim = " + to_string(other[i].shape().sample_dim()));
-      assert(type == other[i].type());
-      assert(layout == other[i].GetLayout());
-      new_shape.set_tensor_shape(i, other[i].shape());
+         + " found Tensor with dim = " + to_string(other[i]->shape().sample_dim()));
+      assert(type == other[i]->type());
+      assert(layout == other[i]->GetLayout());
+      new_shape.set_tensor_shape(i, other[i]->shape());
     }
 
     this->Resize(new_shape);
@@ -102,10 +102,10 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     for (size_t i = 0; i < other.size(); ++i) {
       type.template Copy<SrcBackend, Backend>(
           raw_mutable_tensor(i),
-          other[i].raw_data(),
-          other[i].size(), 0);
-      this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
-      this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
+          other[i]->raw_data(),
+          other[i]->size(), 0);
+      this->meta_[i].SetSourceInfo(other[i]->GetSourceInfo());
+      this->meta_[i].SetSkipSample(other[i]->ShouldSkipSample());
     }
   }
 

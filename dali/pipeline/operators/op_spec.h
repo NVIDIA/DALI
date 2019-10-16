@@ -497,7 +497,7 @@ inline T OpSpec::GetArgumentImpl(
     DALI_ENFORCE(IsType<T>(value.type()),
         "Unexpected type of argument \"" + name + "\". Expected " +
         TypeTable::GetTypeName<T>() + " and got " + value.type().name());
-    return static_cast<T>(value.template data<T>()[idx]);
+    return static_cast<T>(value[idx].data<T>()[0]);
   }
   // Search for the argument locally
   auto arg_it = arguments_.find(name);
@@ -527,7 +527,7 @@ inline bool OpSpec::TryGetArgumentImpl(
     }
     if (!IsType<T>(value.type()))
       return false;
-    result = value.template data<T>()[idx];
+    result = value[idx].data<T>()[0];
     return true;
   }
   // Search for the argument locally

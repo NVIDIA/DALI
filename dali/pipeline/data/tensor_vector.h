@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/tensor.h"
 
 #include "dali/kernels/tensor_shape.h"
@@ -57,6 +58,10 @@ class TensorVector {
 
   const Tensor<Backend>& operator[](size_t pos) const {
     return *(tensors_[pos]);
+  }
+
+  const std::vector<std::shared_ptr<Tensor<Backend>>> &tensors() const {
+    return tensors_;
   }
 
   auto tensor_handle(size_t pos) {

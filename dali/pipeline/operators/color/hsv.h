@@ -158,14 +158,12 @@ class HsvOp : public Operator<Backend> {
   void FillArgument(std::vector<float> &arg_vals, const std::string &arg_name, const OpSpec &spec,
                     const ArgumentWorkspace &ws, int n_samples) {
     if (spec.HasTensorArgument(arg_name)) {
-      const auto &tl = ws.ArgumentInput(arg_name);
-      int n = tl.shape().num_samples();
+      const auto &tv = ws.ArgumentInput(arg_name);
+      int n = tv.shape().num_samples();
       DALI_ENFORCE(n == 1 || n == n_samples,
                    "Provide arguments for either all or one sample in batch");
-      const auto *data = tl.template data<float>();
-      arg_vals.resize(n);
       for (int i = 0; i < n; i++) {
-        arg_vals[i] = data[i];
+        arg_vals[i] = tv[i].data<float>()[0];
       }
     } else {
       arg_vals.resize(n_samples, spec.template GetArgument<float>(arg_name));

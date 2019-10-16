@@ -270,9 +270,10 @@ class DisplacementFilter<GPUBackend, Displacement,
   void SetupSharedSampleParams(DeviceWorkspace &ws) override {
     if (has_mask_) {
       const auto &mask = ws.ArgumentInput("mask");
-      mask_gpu_.ResizeLike(mask);
+      mask_gpu_.set_type(mask.type());
+      mask_gpu_.Resize(mask.shape());
       mask_gpu_.template mutable_data<int>();
-      mask_gpu_.Copy(mask, ws.stream());
+      mask_gpu_.Copy(mask.tensors(), ws.stream());
     }
     PrepareDisplacement(&ws);
   }

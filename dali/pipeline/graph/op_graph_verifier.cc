@@ -116,20 +116,10 @@ void CheckArgumentInputConstraints(const OpGraph& op_graph, const OpNode& op) {
                  to_string(op.op_type) + " Ops do not support tensor arguments, found in " +
                      op.instance_name + " Op.");
   }
-  for (const auto& arg_pair : op.spec.ArgumentInputs()) {
-    auto input_idx = arg_pair.second;
-    auto in_tensor = op_graph.Tensor(op.parent_tensors[input_idx]);
-    // Parent node of this tensor is support op
-    DALI_ENFORCE(in_tensor.producer.is_support,
-                 "Argument input to " + op.instance_name + " produced by non-support Op.");
-  }
 }
 
 void CheckConsistentTensorEdges(const OpGraph& op_graph, const TensorNode& tensor) {
   for (auto consumer_edge : tensor.consumers) {
-    DALI_ENFORCE(tensor.producer.is_support == consumer_edge.is_support,
-                 "Use of tensor " + tensor.name +
-                     " as support is mismatched between producer Op and consumer Op.");
     DALI_ENFORCE(tensor.producer.storage_device == consumer_edge.storage_device,
                  "Storage device of tensor " + tensor.name +
                      " is mismatched between producer Op and consumer Op.");
