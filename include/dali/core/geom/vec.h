@@ -23,6 +23,7 @@
 #include "dali/core/host_dev.h"
 #include "dali/core/util.h"
 #include "dali/core/math_util.h"
+#include "dali/core/force_inline.h"
 
 namespace dali {
 
@@ -219,13 +220,13 @@ struct vec : vec_base<N, T> {
   DALI_HOST_DEV
   constexpr vec(mat<N, 1, U> &m) : vec(m.col(0).template cast<T>()) {}  // NOLINT
 
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr T &operator[](int i) { return v[i]; }
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr const T &operator[](int i) const { return v[i]; }
 
   template <typename U>
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr vec<N, U> cast() const {
     vec<N, U> ret = {};
     for (int i = 0; i < N; i++) {
@@ -234,7 +235,7 @@ struct vec : vec_base<N, T> {
     return ret;
   }
 
-  DALI_HOST_DEV constexpr int size() const { return N; }
+  DALI_HOST_DEV DALI_FORCEINLINE constexpr int size() const { return N; }
 
   DALI_HOST_DEV constexpr T *begin() { return &v[0]; }
   DALI_HOST_DEV constexpr const T *cbegin() const { return &v[0]; }
@@ -244,7 +245,7 @@ struct vec : vec_base<N, T> {
   DALI_HOST_DEV constexpr const T *end() const { return &v[N]; }
 
   /// @brief Calculates the sum of squares of components.
-  DALI_HOST_DEV constexpr auto length_square() const {
+  DALI_HOST_DEV DALI_FORCEINLINE constexpr auto length_square() const {
     decltype(v[0]*v[0] + v[0]*v[0]) ret = v[0]*v[0];
     for (int i = 1; i < N; i++)
       ret += v[i]*v[i];
@@ -265,11 +266,11 @@ struct vec : vec_base<N, T> {
   }
 
   /// @brief Returns a copy. Doesn't promote type to int.
-  DALI_HOST_DEV constexpr vec operator+() const { return *this; }
+  DALI_HOST_DEV DALI_FORCEINLINE constexpr vec operator+() const { return *this; }
 
   /// @brief Negates all components. Doesn't promote type to int.
   DALI_HOST_DEV
-  inline vec operator-() const {
+  DALI_FORCEINLINE vec operator-() const {
     vec<N, T> ret;
     for (int i = 0; i < N; i++) {
       ret.v[i] = -v[i];
@@ -277,7 +278,7 @@ struct vec : vec_base<N, T> {
     return ret;
   }
   DALI_HOST_DEV
-  inline vec operator~() const {
+  DALI_FORCEINLINE vec operator~() const {
     vec<N, T> ret;
     for (int i = 0; i < N; i++) {
       ret.v[i] = ~v[i];
@@ -285,16 +286,17 @@ struct vec : vec_base<N, T> {
     return ret;
   }
 
-#define DEFINE_ASSIGN_VEC_OP(op)                                                         \
-  template <typename U>                                                                  \
-  DALI_HOST_DEV vec &operator op(const vec<N, U> &rhs) {                                 \
-    for (int i = 0; i < N; i++) v[i] op rhs[i];                                       \
-    return *this;                                                                        \
-  }                                                                                      \
-  template <typename U>                                                                  \
-  DALI_HOST_DEV std::enable_if_t<is_scalar<U>::value, vec &> operator op(const U &rhs) { \
-    for (int i = 0; i < N; i++) v[i] op rhs;                                          \
-    return *this;                                                                        \
+#define DEFINE_ASSIGN_VEC_OP(op)                                            \
+  template <typename U>                                                     \
+  DALI_HOST_DEV DALI_FORCEINLINE vec &operator op(const vec<N, U> &rhs) {   \
+    for (int i = 0; i < N; i++) v[i] op rhs[i];                             \
+    return *this;                                                           \
+  }                                                                         \
+  template <typename U>                                                     \
+  DALI_HOST_DEV DALI_FORCEINLINE                                            \
+  std::enable_if_t<is_scalar<U>::value, vec &> operator op(const U &rhs) {  \
+    for (int i = 0; i < N; i++) v[i] op rhs;                                \
+    return *this;                                                           \
   }
 
   DEFINE_ASSIGN_VEC_OP(=)
@@ -314,7 +316,7 @@ struct vec : vec_base<N, T> {
 
 template <int N, typename T, typename U>
 DALI_HOST_DEV
-constexpr auto dot(const vec<N, T> &a, const vec<N, U> &b) {
+DALI_FORCEINLINE constexpr auto dot(const vec<N, T> &a, const vec<N, U> &b) {
   decltype(a[0]*b[0] + a[0]*b[0]) ret = a[0]*b[0];
   for (int i = 1; i < N; i++)
     ret += a[i]*b[i];
@@ -323,7 +325,7 @@ constexpr auto dot(const vec<N, T> &a, const vec<N, U> &b) {
 
 template <typename T, typename U>
 DALI_HOST_DEV
-constexpr auto cross(const vec<3, T> &a, const vec<3, U> &b) {
+DALI_FORCEINLINE constexpr auto cross(const vec<3, T> &a, const vec<3, U> &b) {
   using R = decltype(a[0]*b[0] + a[0]*b[0]);
   return vec<3, R>{
     a.y * b.z - b.y * a.z,
@@ -335,30 +337,30 @@ constexpr auto cross(const vec<3, T> &a, const vec<3, U> &b) {
 /// @brief Calculates `z` coordinate of a cross product of two 2D vectors
 template <typename T, typename U>
 DALI_HOST_DEV
-constexpr auto cross(const vec<2, T> &a, const vec<2, U> &b) {
+DALI_FORCEINLINE constexpr auto cross(const vec<2, T> &a, const vec<2, U> &b) {
   return a.x * b.y - b.x * a.y;
 }
 
-#define DEFINE_ELEMENTIWSE_VEC_BIN_OP(op)                                              \
-  template <int N, typename T, typename U>                                          \
-  DALI_HOST_DEV inline auto operator op(const vec<N, T> &a, const vec<N, U> &b) {      \
-    vec<N, promote_vec_t<T, U>> ret;                                                   \
-    for (int i = 0; i < N; i++) ret[i] = a[i] op b[i];                              \
-    return ret;                                                                        \
-  }                                                                                    \
-  template <int N, typename T, typename U, typename R = promote_vec_scalar_t<T, U>> \
-  DALI_HOST_DEV inline std::enable_if_t<is_scalar<U>::value, vec<N, R>> operator op(   \
-      const vec<N, T> &a, const U &b) {                                                \
-    vec<N, R> ret;                                                                     \
-    for (int i = 0; i < N; i++) ret[i] = a[i] op b;                                 \
-    return ret;                                                                        \
-  }                                                                                    \
-  template <int N, typename T, typename U, typename R = promote_vec_scalar_t<U, T>> \
-  DALI_HOST_DEV inline std::enable_if_t<is_scalar<T>::value, vec<N, R>> operator op(   \
-      const T &a, const vec<N, U> &b) {                                                \
-    vec<N, R> ret;                                                                     \
-    for (int i = 0; i < N; i++) ret[i] = a op b[i];                                 \
-    return ret;                                                                        \
+#define DEFINE_ELEMENTIWSE_VEC_BIN_OP(op)                                                       \
+  template <int N, typename T, typename U>                                                      \
+  DALI_HOST_DEV DALI_FORCEINLINE auto operator op(const vec<N, T> &a, const vec<N, U> &b) {     \
+    vec<N, promote_vec_t<T, U>> ret;                                                            \
+    for (int i = 0; i < N; i++) ret[i] = a[i] op b[i];                                          \
+    return ret;                                                                                 \
+  }                                                                                             \
+  template <int N, typename T, typename U, typename R = promote_vec_scalar_t<T, U>>             \
+  DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<is_scalar<U>::value, vec<N, R>> operator op(  \
+      const vec<N, T> &a, const U &b) {                                                         \
+    vec<N, R> ret;                                                                              \
+    for (int i = 0; i < N; i++) ret[i] = a[i] op b;                                             \
+    return ret;                                                                                 \
+  }                                                                                             \
+  template <int N, typename T, typename U, typename R = promote_vec_scalar_t<U, T>>             \
+  DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<is_scalar<T>::value, vec<N, R>> operator op(  \
+      const T &a, const vec<N, U> &b) {                                                         \
+    vec<N, R> ret;                                                                              \
+    for (int i = 0; i < N; i++) ret[i] = a op b[i];                                             \
+    return ret;                                                                                 \
   }
 
 DEFINE_ELEMENTIWSE_VEC_BIN_OP(+)
@@ -374,26 +376,27 @@ DEFINE_ELEMENTIWSE_VEC_BIN_OP(>)  // NOLINT
 DEFINE_ELEMENTIWSE_VEC_BIN_OP(<=)
 DEFINE_ELEMENTIWSE_VEC_BIN_OP(>=)
 
-#define DEFINE_SHIFT_VEC_BIN_OP(op)                                                                \
-  template <int N, typename T, typename U>                                                      \
-  DALI_HOST_DEV vec<N, T> operator op(const vec<N, T> &a, const vec<N, U> &b) {                    \
-    vec<N, T> ret;                                                                                 \
-    for (int i = 0; i < N; i++) ret[i] = a[i] op b[i];                                          \
-    return ret;                                                                                    \
-  }                                                                                                \
-  template <int N, typename T, typename U>                                                      \
-  DALI_HOST_DEV std::enable_if_t<is_scalar<U>::value, vec<N, T>> operator op(const vec<N, T> &a,   \
-                                                                             const U &b) {         \
-    vec<N, T> ret;                                                                                 \
-    for (int i = 0; i < N; i++) ret[i] = a[i] op b;                                             \
-    return ret;                                                                                    \
-  }                                                                                                \
-  template <int N, typename T, typename U>                                                      \
-  DALI_HOST_DEV std::enable_if_t<is_scalar<T>::value, vec<N, T>> operator op(const T &a,           \
-                                                                             const vec<N, U> &b) { \
-    vec<N, T> ret;                                                                                 \
-    for (int i = 0; i < N; i++) ret[i] = a op b[i];                                             \
-    return ret;                                                                                    \
+#define DEFINE_SHIFT_VEC_BIN_OP(op)                                               \
+  template <int N, typename T, typename U>                                        \
+  DALI_HOST_DEV DALI_FORCEINLINE vec<N, T> operator                               \
+  op(const vec<N, T> &a, const vec<N, U> &b) {                                    \
+    vec<N, T> ret;                                                                \
+    for (int i = 0; i < N; i++) ret[i] = a[i] op b[i];                            \
+    return ret;                                                                   \
+  }                                                                               \
+  template <int N, typename T, typename U>                                        \
+  DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<is_scalar<U>::value, vec<N, T>> \
+  operator op(const vec<N, T> &a, const U &b) {                                   \
+    vec<N, T> ret;                                                                \
+    for (int i = 0; i < N; i++) ret[i] = a[i] op b;                               \
+    return ret;                                                                   \
+  }                                                                               \
+  template <int N, typename T, typename U>                                        \
+  DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<is_scalar<T>::value, vec<N, T>> \
+  operator op(const T &a, const vec<N, U> &b) {                                   \
+    vec<N, T> ret;                                                                \
+    for (int i = 0; i < N; i++) ret[i] = a op b[i];                               \
+    return ret;                                                                   \
   }
 
 DEFINE_SHIFT_VEC_BIN_OP(<<)
@@ -451,7 +454,7 @@ DALI_HOST_DEV constexpr bool operator!=(const vec<N, T> &a, const vec<N, U> &b) 
   return result;
 
 template <typename To, int N, typename From>
-DALI_HOST_DEV inline vec<N, To> cast(const vec<N, From> &v) {
+DALI_HOST_DEV DALI_FORCEINLINE vec<N, To> cast(const vec<N, From> &v) {
   return v.template cast<To>();
 }
 
@@ -512,7 +515,7 @@ DALI_HOST_DEV ivec<N> round_int(const vec<N> &a) {
 }
 
 template <typename T, int size0, int size1>
-DALI_HOST_DEV
+DALI_HOST_DEV DALI_FORCEINLINE
 constexpr auto cat(const vec<size0, T> &v0, const vec<size1, T> &v1) {
   vec<size0 + size1, T> ret = {};
   for (int i = 0; i < size0; i ++) {
@@ -525,7 +528,7 @@ constexpr auto cat(const vec<size0, T> &v0, const vec<size1, T> &v1) {
 }
 
 template <typename T, int size0>
-DALI_HOST_DEV
+DALI_HOST_DEV DALI_FORCEINLINE
 constexpr auto cat(const vec<size0, T> &v0, T v1) {
   vec<size0 + 1, T> ret = {};
   for (int i = 0; i < size0; i ++) {
@@ -536,7 +539,7 @@ constexpr auto cat(const vec<size0, T> &v0, T v1) {
 }
 
 template <typename T, int size1>
-DALI_HOST_DEV
+DALI_HOST_DEV DALI_FORCEINLINE
 constexpr auto cat(T v0, const vec<size1, T> &v1) {
   vec<size1 + 1, T> ret = {};
   ret[0] = v0;
@@ -547,13 +550,13 @@ constexpr auto cat(T v0, const vec<size1, T> &v1) {
 }
 
 template <typename T, int size0, int... sizes>
-DALI_HOST_DEV
+DALI_HOST_DEV DALI_FORCEINLINE
 constexpr auto cat(const vec<size0, T> &v0, const vec<sizes, T> &...tail) {
   return cat(v0, cat(tail...));
 }
 
 template <int sub_n, int n, typename T>
-DALI_HOST_DEV
+DALI_HOST_DEV DALI_FORCEINLINE
 constexpr auto sub(const vec<n, T> &orig, int start = 0) {
   static_assert(sub_n <= n, "Cannot extend a vector using `sub` function.");
   vec<sub_n, T> ret = {};
@@ -563,6 +566,7 @@ constexpr auto sub(const vec<n, T> &orig, int start = 0) {
 }
 
 template <int... indices, int N, typename T>
+DALI_HOST_DEV DALI_FORCEINLINE
 constexpr vec<sizeof...(indices), T> shuffle(const vec<N, T> &v) {
   static_assert(all_of<(indices < N)...>::value, "Vector component index out of range");
   return { v[indices]... };

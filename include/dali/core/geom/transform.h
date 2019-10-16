@@ -92,6 +92,39 @@ constexpr mat4 shear(mat3x2 shear) {
   }};
 }
 
+template <int out_n, int in_n>
+DALI_HOST_DEV
+constexpr vec<out_n> affine(const mat<out_n, in_n + 1> &transform, const vec<in_n> &v) {
+  vec<out_n> out = {};
+  for (int i = 0; i < out_n; i++) {
+    float sum = transform(i, in_n);
+    for (int j = 0; j < in_n; j++) {
+      sum += transform(i, j) * v[j];
+    }
+    out[i] = sum;
+  }
+  return out;
+}
+
+template<>
+DALI_HOST_DEV
+constexpr vec2 affine<2, 2>(const mat<2, 3> &transform, const vec2 &v) {
+  return {
+    transform(0, 2) + transform(0, 0) * v.x + transform(0, 1) * v.y,
+    transform(1, 2) + transform(1, 0) * v.x + transform(1, 1) * v.y,
+  };
+}
+
+template<>
+DALI_HOST_DEV
+constexpr vec3 affine<3, 3>(const mat<3, 4> &transform, const vec3 &v) {
+  return {
+    transform(0, 3) + transform(0, 0) * v.x + transform(0, 1) * v.y + transform(0, 2) * v.z,
+    transform(1, 3) + transform(1, 0) * v.x + transform(1, 1) * v.y + transform(1, 2) * v.z,
+    transform(2, 3) + transform(2, 0) * v.x + transform(2, 1) * v.y + transform(2, 2) * v.z,
+  };
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_GEOM_TRANSFORM_H_

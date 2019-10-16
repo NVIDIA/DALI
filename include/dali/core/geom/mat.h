@@ -88,11 +88,11 @@ struct mat {
   }
 
   template <typename U>
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr mat(const mat<rows, cols, U> &rhs) : mat(rhs.template cast<Element>()) {  // NOLINT
   }
 
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr auto row(int r) const {
   #if MAT_LAYOUT_ROW_MAJOR
     return m[r];
@@ -104,7 +104,7 @@ struct mat {
   #endif
   }
 
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr auto col(int c) const {
   #if MAT_LAYOUT_ROW_MAJOR
     vec<rows, Element> ret = {};
@@ -116,7 +116,7 @@ struct mat {
   #endif
   }
 
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   void set_col(int c, const col_t &col) {
   #if MAT_LAYOUT_ROW_MAJOR
     for (int i = 0; i < rows; i++)
@@ -126,7 +126,7 @@ struct mat {
   #endif
   }
 
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   void set_row(int r, const row_t &row) {
   #if MAT_LAYOUT_ROW_MAJOR
     m[r] = row;
@@ -136,7 +136,7 @@ struct mat {
   #endif
   }
 
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Element &at(int r, int c) {
   #if MAT_LAYOUT_ROW_MAJOR
     return m[r][c];
@@ -144,7 +144,7 @@ struct mat {
     return m[c][r];
   #endif
   }
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr const Element &at(int r, int c) const {
   #if MAT_LAYOUT_ROW_MAJOR
     return m[r][c];
@@ -153,11 +153,11 @@ struct mat {
   #endif
   }
 
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Element &operator()(int r, int c) {
     return at(r, c);
   }
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr const Element &operator()(int r, int c) const {
     return at(r, c);
   }
@@ -181,7 +181,7 @@ struct mat {
     return result;
   }
 
-  DALI_HOST_DEV
+  DALI_HOST_DEV DALI_FORCEINLINE
   constexpr mat operator+() const {
     return *this;
   }
@@ -203,7 +203,8 @@ struct mat {
 
 #define DEFINE_ASSIGN_MAT_OP(op)                                    \
   template <typename U>                                             \
-  DALI_HOST_DEV mat &operator op(const mat<rows, cols, U> &other) { \
+  DALI_HOST_DEV DALI_FORCEINLINE                                    \
+  mat &operator op(const mat<rows, cols, U> &other) {               \
     MAT_STORAGE_LOOP(i)                                             \
       m[i] op other.m[i];                                           \
     return *this;                                                   \
@@ -211,7 +212,7 @@ struct mat {
 
 #define DEFINE_ASSIGN_MAT_SCALAR_OP(op)                             \
   template <typename U>                                             \
-  DALI_HOST_DEV                                                     \
+  DALI_HOST_DEV DALI_FORCEINLINE                                    \
   std::enable_if_t<is_scalar<U>::value, mat<rows, cols, Element> &> \
   operator op(const U &other) {                                     \
     MAT_STORAGE_LOOP(i)                                             \
@@ -277,8 +278,12 @@ struct mat {
     using R = promote_vec_t<Element, U>;
   #if MAT_LAYOUT_ROW_MAJOR
     vec<rows, R> result;
-    for (int i = 0; i < rows; i++)
-      result[i] = dot(v, m[i]);
+    for (int i = 0; i < rows; i++) {
+      R s = m[i][0] * v[0];
+      for (int j = 1; j < cols; j++)
+        s += m[i][j] * v[j];
+      result[i] = s;
+    }
   #else
     vec<rows, R> result = v[0] * m[0];
     for (int i = 1; i < cols; i++)
@@ -323,13 +328,12 @@ constexpr bool operator!=(const mat<rows, cols, T> &a, const mat<rows, cols, U> 
   return !(a == b);
 }
 
-template <int sub_r, int sub_c, int rows, int cols, typename Element>
-DALI_HOST_DEV
-constexpr auto sub(const mat<rows, cols, Element> &m, int r, int c) {
-  mat<sub_r, sub_c, Element> result = {};
-  for (int j = 0; j < sub_c; j++)
-    for (int i = 0; i < sub_r; i++)
-      result(i, j) = m(i+r, j+c);
+template <int rows, int cols, int in_rows, int in_cols, typename Element>
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr auto sub(const mat<in_rows, in_cols, Element> &m, int r = 0, int c = 0) {
+  mat<rows, cols, Element> result = {};
+  MAT_ELEMENT_LOOP(i, j)
+    result(i, j) = m(i+r, j+c);
   return result;
 }
 
@@ -427,7 +431,7 @@ DEFINE_MAT_ALIASES(4, 4)
 
 template <typename T, int rows, int c1, int c2>
 DALI_HOST_DEV
-mat<rows, c1+c2, T> cat_cols(const mat<rows, c1, T> &a, const mat<rows, c2, T> &b) {
+inline mat<rows, c1+c2, T> cat_cols(const mat<rows, c1, T> &a, const mat<rows, c2, T> &b) {
   mat<rows, c1+c2, T> ret;
 #if MAT_LAYOUT_ROW_MAJOR
   for (int i = 0; i < rows; i++)
