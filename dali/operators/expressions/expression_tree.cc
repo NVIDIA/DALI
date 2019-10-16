@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <map>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -26,6 +27,25 @@
 namespace dali {
 
 namespace {
+
+DALIDataType TypeNameToTypeId(const std::string &type_name) {
+  static std::map<std::string, DALIDataType> token_to_type_id = {
+    {"uint8",   DALIDataType::DALI_UINT8},
+    {"uint16",  DALIDataType::DALI_UINT16},
+    {"uint32",  DALIDataType::DALI_UINT32},
+    {"uint64",  DALIDataType::DALI_UINT64},
+    {"int8",    DALIDataType::DALI_INT8},
+    {"int16",   DALIDataType::DALI_INT16},
+    {"int32",   DALIDataType::DALI_INT32},
+    {"int64",   DALIDataType::DALI_INT64},
+    {"float16", DALIDataType::DALI_FLOAT16},
+    {"float32", DALIDataType::DALI_FLOAT},
+    {"float64", DALIDataType::DALI_FLOAT64}
+  };
+  auto it = token_to_type_id.find(type_name);
+  DALI_ENFORCE(it != token_to_type_id.end(), "No DALIDataType for type \"" + type_name + "\".");
+  return it->second;
+}
 
 using ParseResult = std::tuple<std::unique_ptr<ExprNode>, int>;
 
@@ -130,16 +150,22 @@ ParseResult ParseInput(const std::string &expr, int pos) {
   return std::make_tuple(std::move(node), pos);
 }
 
+std::tuple<DALIDataType, int> ParseDataType(const std::string &expr, int pos) {
+  EnforceNonEnd(expr, pos, "type name description");
+  int end_pos = pos + 1;
+  while (end_pos < static_cast<int>(expr.length()) && std::isalnum(expr[end_pos])) {
+    end_pos++;
+  }
+  auto type_name = std::string(&expr[pos], &expr[end_pos]);
+  return std::make_tuple(TypeNameToTypeId(type_name), end_pos);
+}
+
 ParseResult ParseConstant(const std::string &expr, int pos) {
-  // DALI_FAIL("Constant description in expressions is not supported.");
   int mapped_input;
   std::tie(mapped_input, pos) = ParseInt(expr, pos);
   pos = ExpectChar(expr, pos, ':');
-  // TODO(klecki): Parse the type encoding
   DALIDataType type = DALIDataType::DALI_INT32;
-  while (std::isalnum(expr[pos])) {
-    pos++;
-  }
+  std::tie(type, pos) = ParseDataType(expr, pos);
   auto node = std::make_unique<ExprConstant>(mapped_input, type);
   return std::make_tuple(std::move(node), pos);
 }

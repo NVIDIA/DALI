@@ -22,12 +22,15 @@
 #include <utility>
 
 #include "dali/core/cuda_utils.h"
+#include "dali/core/small_vector.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
+
+constexpr int kMaxArity = 2;
 
 enum class ArithmeticOp : int {
   plus,
@@ -181,6 +184,14 @@ inline DALIDataType TypePromotion(DALIDataType left, DALIDataType right) {
   return result;
 }
 
+inline DALIDataType TypePromotion(span<DALIDataType> types) {
+  assert(types.size() == 1 || types.size() == 2);
+  if (types.size() == 1) {
+    return types[0];
+  }
+  return TypePromotion(types[0], types[1]);
+}
+
 /**
  * @brief Struct intended as a mapping from ArithmeticOp enum to it's implemetation.
  * It should provide an `impl` static member function of required arity accepting scalar inputs
@@ -323,13 +334,13 @@ inline std::string to_string(ArithmeticOp op) {
 
 inline ArithmeticOp NameToOp(const std::string &op_name) {
   static std::map<std::string, ArithmeticOp> token_to_op = {
-      std::make_pair("plus",  ArithmeticOp::plus),
-      std::make_pair("minus", ArithmeticOp::minus),
-      std::make_pair("add",   ArithmeticOp::add),
-      std::make_pair("sub",   ArithmeticOp::sub),
-      std::make_pair("mul",   ArithmeticOp::mul),
-      std::make_pair("div",   ArithmeticOp::div),
-      std::make_pair("mod",   ArithmeticOp::mod),
+      {"plus",  ArithmeticOp::plus},
+      {"minus", ArithmeticOp::minus},
+      {"add",   ArithmeticOp::add},
+      {"sub",   ArithmeticOp::sub},
+      {"mul",   ArithmeticOp::mul},
+      {"div",   ArithmeticOp::div},
+      {"mod",   ArithmeticOp::mod}
   };
   auto it = token_to_op.find(op_name);
   DALI_ENFORCE(it != token_to_op.end(), "No implementation for op \"" + op_name + "\".");

@@ -58,6 +58,7 @@ inline std::ostream &operator<<(std::ostream &os, const TileRange &v) {
 class ExprNode;
 
 struct ExprImplContext {
+  cudaStream_t stream;
   const ExprNode *node;
 };
 
