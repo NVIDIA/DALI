@@ -77,7 +77,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
   template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const vector<std::shared_ptr<Tensor<SrcBackend>>> &other, cudaStream_t stream) {
+  DLL_PUBLIC inline void Copy(const vector<std::shared_ptr<Tensor<SrcBackend>>> &other,
+                              cudaStream_t stream) {
     auto type = other[0]->type();
     auto layout = other[0]->GetLayout();
 
