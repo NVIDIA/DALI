@@ -17,6 +17,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/geom/vec.h"
+#include "dali/core/geom/transform.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
@@ -26,6 +27,18 @@
 
 namespace dali {
 namespace kernels {
+
+namespace warp {
+
+
+DALI_HOST_DEV
+inline vec2 map_coords(const AffineMapping2D &m, ivec2 out_px) {
+  vec2 p = out_px + 0.5f;
+  return sub<2,2>(m.transform, 0,0) * p + m.transform.col(2);
+  //return affine(m.transform, out_px + 0.5f);
+}
+
+}  // namespace warp
 
 /**
  * @brief Performs generic warping of one tensor (on CPU)
@@ -98,8 +111,6 @@ class WarpCPU {
     int out_w = output.shape[1];
     int out_h = output.shape[0];
     int c     = output.shape[2];
-    int in_w  = input.shape[1];
-    int in_h  = input.shape[0];
 
     Surface2D<const InputType> in = as_surface_channel_last(input);
 
@@ -114,7 +125,8 @@ class WarpCPU {
     }
   }
 
-  template <DALIInterpType static_interp>
+
+  /*template <DALIInterpType static_interp>
   void RunImpl(
       KernelContext &context,
       const OutTensorCPU<OutputType, 3> &output,
@@ -126,8 +138,6 @@ class WarpCPU {
     int out_w = output.shape[1];
     int out_h = output.shape[0];
     int c     = output.shape[2];
-    int in_w  = input.shape[1];
-    int in_h  = input.shape[0];
 
     Surface2D<const InputType> in = as_surface_channel_last(input);
 
@@ -141,7 +151,7 @@ class WarpCPU {
         sampler(&out_row[c*x], src, border);
       }
     }
-  }
+  }*/
 };
 
 }  // namespace kernels

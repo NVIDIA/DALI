@@ -16,6 +16,7 @@
 #define DALI_KERNELS_IMGPROC_WARP_AFFINE_H_
 
 #include "dali/core/geom/mat.h"
+#include "dali/core/geom/transform.h"
 
 namespace dali {
 namespace kernels {
@@ -29,7 +30,7 @@ struct AffineMapping {
 
   DALI_HOST_DEV
   inline vec<dim> operator()(const vec<dim> &v) const {
-    return transform.col(dim) + sub<dim, dim>(transform, 0, 0) * v;
+    return affine(transform, v);
   }
 };
 
