@@ -18,8 +18,8 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <string>
-#include "dali/kernels/test/tensor_test_utils.h"
-#include "dali/kernels/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
+#include "dali/test/test_tensors.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
 
 namespace dali {

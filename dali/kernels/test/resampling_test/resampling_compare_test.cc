@@ -16,9 +16,9 @@
 #include <cuda_runtime.h>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
-#include "dali/kernels/backend_tags.h"
-#include "dali/kernels/test/test_tensors.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/core/backend_tags.h"
+#include "dali/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/test_data.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/imgproc/resample.h"

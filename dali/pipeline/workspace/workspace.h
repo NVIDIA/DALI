@@ -33,7 +33,7 @@ namespace dali {
  * that a Workspace can hold.
  */
 struct OutputDesc {
-  kernels::TensorListShape<> shape;
+  TensorListShape<> shape;
   TypeInfo type;
 };
 

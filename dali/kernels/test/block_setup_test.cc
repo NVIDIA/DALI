@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include "dali/kernels/common/block_setup.h"
-#include "dali/kernels/tensor_shape_print.h"
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 namespace kernels {

@@ -17,7 +17,7 @@
 
 #include <opencv2/core.hpp>
 #include "dali/core/span.h"
-#include "dali/kernels/test/mat2tensor.h"
+#include "dali/test/mat2tensor.h"
 
 namespace dali {
 namespace testing {

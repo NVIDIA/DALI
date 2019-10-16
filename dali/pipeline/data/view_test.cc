@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <random>
 #include "dali/pipeline/data/views.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/tensor_test_utils.h"
 
 #define EXPECT_ENFORCE_FAIL(statement) EXPECT_THROW(statement, DALIException)
 
@@ -23,7 +23,7 @@ namespace dali {
 
 TEST(TensorList, View) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<> shapes = { { {640, 480, 3}, {320, 240, 1} } };
+  TensorListShape<> shapes = { { {640, 480, 3}, {320, 240, 1} } };
   tl.Resize(shapes);
   auto tlv = view<float>(tl);
 
@@ -36,7 +36,7 @@ TEST(TensorList, View) {
 
 TEST(TensorList, View_StaticDim) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<>  shapes = { { {640, 480, 3}, {320, 240, 1} } };
+  TensorListShape<>  shapes = { { {640, 480, 3}, {320, 240, 1} } };
   tl.Resize(shapes);
   auto tlv = view<float, 3>(tl);
 
@@ -51,7 +51,7 @@ TEST(TensorList, View_StaticDim) {
 
 TEST(TensorList, ViewAsTensor_Fail_NonUniform) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<> shapes = { { {640, 480, 3}, {640, 360, 3} } };
+  TensorListShape<> shapes = { { {640, 480, 3}, {640, 360, 3} } };
   tl.Resize(shapes);
   EXPECT_ENFORCE_FAIL((view_as_tensor<float>(tl)))
     << "Non-uniform tensor list cannot be viewed as a tensor and view_as_tensor should throw";
@@ -59,11 +59,11 @@ TEST(TensorList, ViewAsTensor_Fail_NonUniform) {
 
 TEST(TensorList, ViewAsTensor_StaticDim) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<> shapes = { { {640, 480, 3}, {640, 480, 3} } };
+  TensorListShape<> shapes = { { {640, 480, 3}, {640, 480, 3} } };
   tl.Resize(shapes);
   EXPECT_ENFORCE_FAIL((view_as_tensor<float, 3>(tl)))
     << "List of 3D tensor should yield a 4D flattened tensor";
-  kernels::TensorView<kernels::StorageCPU, float, 4> tv;
+  TensorView<StorageCPU, float, 4> tv;
   EXPECT_NO_THROW((tv = view_as_tensor<float, 4>(tl)))
     << "List of 3D tensor should yield a 4D flattened tensor";
 
@@ -80,7 +80,7 @@ TEST(TensorList, ViewAsTensor_StaticDim) {
 
 TEST(TensorList, ViewAsTensor) {
   TensorList<CPUBackend> tl;
-  kernels::TensorListShape<> shapes = { { {640, 480, 3}, {640, 480, 3} } };
+  TensorListShape<> shapes = { { {640, 480, 3}, {640, 480, 3} } };
   tl.Resize(shapes);
   auto tv = view_as_tensor<float>(tl);
 
@@ -97,11 +97,11 @@ TEST(TensorList, ViewAsTensor) {
 
 TEST(Tensor, ViewAsTensor) {
   Tensor<CPUBackend> t;
-  kernels::TensorShape<> shape = { 320, 240, 3};
+  TensorShape<> shape = { 320, 240, 3};
   t.Resize(shape);
   auto tv = view<float>(t);
   ASSERT_EQ(tv.dim(), 3) << "Expected a 3D tensor as a result";
-  kernels::TensorView<kernels::StorageCPU, float, 3> tv3;
+  TensorView<StorageCPU, float, 3> tv3;
   EXPECT_NO_THROW((tv3 = view<float, 3>(t)));
   EXPECT_ENFORCE_FAIL((view<float, 4>(t)));
   EXPECT_EQ(tv.shape, shape);
@@ -114,7 +114,7 @@ TEST(TensorVector, View) {
   tvec.set_type(type);
   std::mt19937_64 rng;
   for (int i = 0; i < 10; i++) {
-    tvec[i].Resize(kernels::TensorShape<3>(100+i, 40+i, 3+i));
+    tvec[i].Resize(TensorShape<3>(100+i, 40+i, 3+i));
     tvec[i].set_type(type);
     UniformRandomFill(view<int>(tvec[i]), rng, 0, 10000);
   }

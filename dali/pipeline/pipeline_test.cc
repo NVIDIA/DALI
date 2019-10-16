@@ -21,8 +21,8 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/util/copy.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/operators/util/copy.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_decoder.h"
 #include "dali/util/image.h"
@@ -637,7 +637,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
 
   // Split the batch into 5
   std::array<TensorList<CPUBackend>, N> splited_tl;
-  std::array<std::vector<kernels::TensorShape<>>, N> shapes;
+  std::array<std::vector<TensorShape<>>, N> shapes;
   for (int i = 0; i < N; i++) {
     shapes[i].resize(batch_size);
     for (int j = 0; j < batch_size; j++) {

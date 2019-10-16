@@ -560,7 +560,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   // Split the batch into two
   TensorList<CPUBackend> tl2;
   TensorList<CPUBackend> tl1;
-  kernels::TensorListShape<> shape1(batch_size, tl.shape().sample_dim()),
+  TensorListShape<> shape1(batch_size, tl.shape().sample_dim()),
       shape2(batch_size, tl.shape().sample_dim());
   for (int i = 0; i < batch_size; ++i) {
     shape1.set_tensor_shape(i, tl.tensor_shape(i));

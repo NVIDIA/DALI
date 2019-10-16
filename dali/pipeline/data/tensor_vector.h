@@ -23,7 +23,7 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/tensor.h"
 
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 
 namespace dali {
 
@@ -104,21 +104,21 @@ class TensorVector {
     return tensors_.size();
   }
 
-  kernels::TensorListShape<> shape() const {
+  TensorListShape<> shape() const {
     if (state_ == State::contiguous) {
       return tl_->shape();
     }
     if (tensors_.empty()) {
       return {};
     }
-    kernels::TensorListShape<> result(tensors_.size(), tensors_[0]->ndim());
+    TensorListShape<> result(tensors_.size(), tensors_[0]->ndim());
     for (size_t i = 0; i < tensors_.size(); i++) {
       result.set_tensor_shape(i, tensors_[i]->shape());
     }
     return result;
   }
 
-  DLL_PUBLIC inline void Resize(const kernels::TensorListShape<> &new_shape) {
+  DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape) {
     // N.B. There probably is nothing wrong with adjusting batchsize for give TensorVector
     // (sparse tensor list), but the semantics of what type and pinned status should
     // the new elements have or having some of them allocated and the new ones not

@@ -41,10 +41,11 @@ def get_module_path(module_name):
 
 # Get compiler version used to build tensorflow
 def get_tf_compiler_version():
-    tensorflow_path = get_module_path('tensorflow')
-    tensorflow_libs = find('libtensorflow_framework*so*', tensorflow_path)
+    tensorflow_libs = find('libtensorflow_framework*so*', get_module_path('tensorflow'))
     if not tensorflow_libs:
-        return ''
+        tensorflow_libs = find('libtensorflow_framework*so*', get_module_path('tensorflow_core'))
+        if not tensorflow_libs:
+            return ''
     lib = tensorflow_libs[0]
     cmd = 'strings -a ' + lib + ' | grep "GCC: ("'
     s = str(subprocess.check_output(cmd, shell=True))

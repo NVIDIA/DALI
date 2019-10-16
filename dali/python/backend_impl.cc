@@ -14,15 +14,15 @@
 
 #include "dali/util/pybind.h"
 #include "dali/pipeline/init.h"
-#include "dali/pipeline/operators/operator.h"
-#include "dali/pipeline/operators/op_schema.h"
-#include "dali/pipeline/operators/op_spec.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/op_schema.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/python/python3_compat.h"
 #include "dali/util/user_stream.h"
-#include "dali/pipeline/operators/reader/parser/tfrecord_parser.h"
+#include "dali/operators/reader/parser/tfrecord_parser.h"
 #include "dali/plugin/copy.h"
 #include "dali/plugin/plugin_manager.h"
 #include "dali/util/half.hpp"
@@ -48,7 +48,7 @@ static void* ctypes_void_ptr(const py::object& object) {
 }
 
 template <int ndim>
-py::list as_py_list(const kernels::TensorShape<ndim> &shape) {
+py::list as_py_list(const TensorShape<ndim> &shape) {
   py::list ret(shape.size());
   for (int i = 0; i < shape.size(); i++) {
     ret[i] = shape[i];
@@ -241,7 +241,7 @@ void ExposeTensorList(py::module &m) {
         for (size_t i = 1; i < info.shape.size(); ++i) {
           tensor_shape[i-1] = info.shape[i];
         }
-        auto i_shape = kernels::uniform_list_shape(info.shape[0], tensor_shape);
+        auto i_shape = uniform_list_shape(info.shape[0], tensor_shape);
         size_t bytes = volume(tensor_shape)*i_shape.size()*info.itemsize;
 
         // Validate the stride

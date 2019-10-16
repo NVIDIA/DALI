@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 #include "dali/pipeline/executor/pipelined_executor.h"
-#include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/operator/common.h"
 
 namespace dali {
 
@@ -26,4 +26,3 @@ template class PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQ
 template class PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
 
 }  // namespace dali
-

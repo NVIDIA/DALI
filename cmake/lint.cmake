@@ -12,10 +12,10 @@ file(GLOB_RECURSE LINT_INC "${DALI_INC_DIR}/*.h" "${DALI_INC_DIR}/*.cuh" "${DALI
 # nvdecoder
 list(REMOVE_ITEM LINT_SRC
     ${DALI_SRC_DIR}/core/dynlink_cuda.cc
-    ${DALI_SRC_DIR}/pipeline/operators/reader/nvdecoder/nvcuvid.h
-    ${DALI_SRC_DIR}/pipeline/operators/reader/nvdecoder/cuviddec.h
-    ${DALI_SRC_DIR}/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.cc
-    ${DALI_SRC_DIR}/pipeline/operators/reader/nvdecoder/dynlink_nvcuvid.h
+    ${DALI_SRC_DIR}/operators/reader/nvdecoder/nvcuvid.h
+    ${DALI_SRC_DIR}/operators/reader/nvdecoder/cuviddec.h
+    ${DALI_SRC_DIR}/operators/reader/nvdecoder/dynlink_nvcuvid.cc
+    ${DALI_SRC_DIR}/operators/reader/nvdecoder/dynlink_nvcuvid.h
 )
 
 list(REMOVE_ITEM LINT_INC
@@ -24,24 +24,24 @@ list(REMOVE_ITEM LINT_INC
 
 # cuTT
 list(REMOVE_ITEM LINT_SRC
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cutt.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cutt.cc
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cuttplan.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cuttplan.cc
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cuttkernel.cu
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cuttkernel.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/calls.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cuttGpuModel.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cuttGpuModel.cc
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cuttGpuModelKernel.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cuttGpuModelKernel.cu
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/CudaMemcpy.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/CudaMemcpy.cu
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/CudaUtils.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/CudaUtils.cu
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/cuttTypes.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/int_vector.h
-    ${DALI_SRC_DIR}/pipeline/operators/transpose/cutt/LRUCache.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cutt.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cutt.cc
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttplan.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttplan.cc
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttkernel.cu
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttkernel.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/calls.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttGpuModel.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttGpuModel.cc
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttGpuModelKernel.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttGpuModelKernel.cu
+    ${DALI_SRC_DIR}/operators/transpose/cutt/CudaMemcpy.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/CudaMemcpy.cu
+    ${DALI_SRC_DIR}/operators/transpose/cutt/CudaUtils.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/CudaUtils.cu
+    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttTypes.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/int_vector.h
+    ${DALI_SRC_DIR}/operators/transpose/cutt/LRUCache.h
 )
 
 set(LINT_TARGET lint)

@@ -15,7 +15,7 @@
 #include <benchmark/benchmark.h>
 
 #include "dali/benchmark/dali_bench.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
 
@@ -272,7 +272,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_CPU)(benchmark::State& st) {
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
-  auto shape = kernels::uniform_list_shape(batch_size, {2});
+  auto shape = uniform_list_shape(batch_size, {2});
   TensorList<CPUBackend> begin_data;
   begin_data.set_type(TypeInfo::Create<float>());
   begin_data.Resize(shape);
@@ -357,7 +357,7 @@ BENCHMARK_DEFINE_F(DecoderBench, ImageDecoderSlice_GPU)(benchmark::State& st) {
   int num_thread = st.range(1);
   DALIImageType img_type = DALI_RGB;
 
-  auto shape = kernels::uniform_list_shape(batch_size, {2});
+  auto shape = uniform_list_shape(batch_size, {2});
   TensorList<CPUBackend> begin_data;
   begin_data.set_type(TypeInfo::Create<float>());
   begin_data.Resize(shape);

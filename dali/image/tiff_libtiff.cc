@@ -306,7 +306,7 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
       out_C = C;
   }
 
-  kernels::TensorShape<3> decoded_shape = {roi_h, roi_w, out_C};
+  TensorShape<3> decoded_shape = {roi_h, roi_w, out_C};
   const size_t decoded_size = volume(decoded_shape);
   std::shared_ptr<uint8_t> decoded_img_ptr{
     new uint8_t[decoded_size],

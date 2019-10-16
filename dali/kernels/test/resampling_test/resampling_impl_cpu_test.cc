@@ -15,11 +15,11 @@
 #include <gtest/gtest.h>
 #include <opencv2/imgcodecs.hpp>
 #include "dali/kernels/test/test_data.h"
-#include "dali/kernels/test/tensor_test_utils.h"
+#include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/kernels/imgproc/resample/resampling_impl_cpu.h"
-#include "dali/kernels/test/mat2tensor.h"
-#include "dali/kernels/tensor_shape_print.h"
+#include "dali/test/mat2tensor.h"
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 namespace kernels {

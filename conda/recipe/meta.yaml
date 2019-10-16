@@ -22,6 +22,26 @@ source:
   git_url: ../..
 
 build:
+  script_env:
+   - CMAKE_BUILD_TYPE
+   - BUILD_TEST
+   - BUILD_BENCHMARK
+   - BUILD_NVTX
+   - BUILD_PYTHON
+   - BUILD_LMDB
+   - BUILD_JPEG_TURBO
+   - BUILD_NVJPEG
+   - BUILD_LIBTIFF
+   - BUILD_NVOF
+   - BUILD_NVDEC
+   - BUILD_NVML
+   - VERBOSE_LOGS
+   - WERROR
+   - BUILD_WITH_ASAN
+   - NVIDIA_BUILD_ID
+   - GIT_SHA
+   - DALI_TIMESTAMP
+   - NVIDIA_DALI_BUILD_FLAVOR
   number: 0
   string: py{{ python | replace(".","") }}
 
@@ -42,6 +62,7 @@ requirements:
     - libopencv >=3.4.1
     - opencv >=3.4.1
     - boost >=1.67
+    - lmdb >=0.9.22
   run:
     - python
     - future >=0.17.1
@@ -51,3 +72,4 @@ requirements:
     - tensorflow-gpu
     - libopencv >=3.4.1
     - opencv >=3.4.1
+    - lmdb >=0.9.22

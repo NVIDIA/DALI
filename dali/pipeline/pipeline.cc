@@ -26,8 +26,8 @@
 #include "dali/pipeline/executor/executor_factory.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
 
-#include "dali/pipeline/operators/argument.h"
-#include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/operator/argument.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/core/device_guard.h"
 #include "dali/pipeline/dali.pb.h"
 
