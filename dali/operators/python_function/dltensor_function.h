@@ -18,7 +18,7 @@
 #include "dali/operators/python_function/python_function.h"
 // All python headers must be included before std headers due to macro redefinition error
 #include <vector>  // NOLINT
-#include "dali/operators/util/copy_with_stride.h"
+#include "dali/operators/python_function/util/copy_with_stride.h"
 
 namespace dali {
 

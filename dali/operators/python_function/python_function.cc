@@ -14,7 +14,7 @@
 
 #include "dali/operators/python_function/python_function.h"
 #include <vector>
-#include "dali/operators/util/copy_with_stride.h"
+#include "dali/operators/python_function/util/copy_with_stride.h"
 
 namespace dali {
 
