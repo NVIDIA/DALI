@@ -77,10 +77,10 @@ class WarpPipeline(Pipeline):
 
         if use_input:
           self.transform_source = ops.ExternalSource()
-          self.warp = ops.WarpAffine(device = device, size=(240,320), fill_value = 42, output_type = output_type)
+          self.warp = ops.WarpAffine(device = device, size=(240,320), fill_value = 42, output_dtype = output_type)
         else:
           warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
-          self.warp = ops.WarpAffine(device = device, size=(240,320), matrix = warp_matrix, fill_value = 42, output_type = output_type)
+          self.warp = ops.WarpAffine(device = device, size=(240,320), matrix = warp_matrix, fill_value = 42, output_dtype = output_type)
 
         self.iter = 0
 

@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_IMGPROC_WARP_CPU_H_
 #define DALI_KERNELS_IMGPROC_WARP_CPU_H_
 
+#include <algorithm>
 #include "dali/core/common.h"
 #include "dali/core/geom/vec.h"
 #include "dali/core/geom/transform.h"
@@ -130,13 +131,24 @@ class WarpCPU {
 
     Sampler<static_interp, InputType> sampler(in);
 
+    // Optimization: instead of naively calculating source coordinates for each destination pixel,
+    // we can exploit the linearity of the affine transform and just add ds/dx derivative
+    // for each x.
     vec2 dsdx = mapping.transform.col(0);
+
+    // use tiles to produce "checkpoints" to avoid excessive accumulation error
+    constexpr int tile_w = 256;
+    vec2 dsdx_tile = tile_w * dsdx;
 
     for (int y = 0; y < out_h; y++) {
       OutputType *out_row = output(y, 0);
-      auto src = warp::map_coords(mapping, ivec2(0, y));
-      for (int x = 0; x < out_w; x++, src += dsdx) {
-        sampler(&out_row[c*x], src, border);
+      auto src_tile = warp::map_coords(mapping, ivec2(0, y));
+      for (int x_tile = 0; x_tile < out_w; x_tile += tile_w, src_tile += dsdx_tile) {
+        int x_tile_end = std::min(x_tile + tile_w, out_w);
+        auto src = src_tile;
+        for (int x = x_tile; x < x_tile_end; x++, src += dsdx) {
+          sampler(&out_row[c*x], src, border);
+        }
       }
     }
   }

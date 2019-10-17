@@ -50,11 +50,6 @@ TYPED_TEST(DisplacementTest, WarpAffine) {
   this->RunTest("WarpAffine", params, 2, false, 0.1 /* 0.1 percent */);
 }
 
-TYPED_TEST(DisplacementTest, OldWarpAffine) {
-  const OpArg params = {"matrix", "1.0, 0.8, 0.0, 0.0, 1.2, 0.0", DALI_FLOAT_VEC};
-  this->RunTest("OldWarpAffine", &params, 1, false, 0.1 /* 0.1 percent */);
-}
-
 TYPED_TEST(DisplacementTest, Rotate) {
   this->RunTest({"Rotate", {"angle", "10", DALI_FLOAT}, 0.1});
 }

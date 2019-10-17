@@ -46,7 +46,7 @@ If not specified, source coordinates are clamped and the border pixel is repeate
       DALI_NO_TYPE)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
-      DALI_INTERP_NN);
+      DALI_INTERP_LINEAR);
 
 DALI_REGISTER_OPERATOR(WarpAffine, WarpAffine<CPUBackend>, CPU);
 
