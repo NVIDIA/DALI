@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(util)
-set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
-
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(PYTHON_FUNCTION_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 
 add_library(${dali_python_function_lib} SHARED ${PYTHON_FUNCTION_SRCS})
-target_link_libraries(${dali_python_function_lib} PUBLIC ${dali_lib} ${dali_operator_lib})
+target_link_libraries(${dali_python_function_lib} PUBLIC ${dali_lib})
 target_include_directories(${dali_python_function_lib} PRIVATE
         ${PYBIND11_INCLUDE_DIR}  # from project CMakeLists.txt
         ${pybind11_INCLUDE_DIR}  # from pybind11Config
