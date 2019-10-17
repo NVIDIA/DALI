@@ -22,6 +22,7 @@ import time
 import tensorflow as tf
 from nvidia.dali.plugin.mxnet import DALIClassificationIterator as MXNetIterator
 from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIterator
+from nvidia.dali.plugin.paddle import DALIClassificationIterator as PaddleIterator
 from nvidia.dali.plugin.tf import DALIIterator as TensorFlowIterator
 
 data_paths = ["/data/imagenet/train-jpeg"]
@@ -109,6 +110,7 @@ class AverageMeter(object):
 
 Iterators = [("mxnet.DALIClassificationIterator"   , MXNetIterator),
              ("pytorch.DALIClassificationIterator" , PyTorchIterator),
+             ("paddle.DALIClassificationIterator" , PaddleIterator),
              ("tf.DALIIterator" , TensorFlowIterator)]
 
 for iterator_name, IteratorClass in Iterators:

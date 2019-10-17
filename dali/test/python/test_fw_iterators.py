@@ -18,6 +18,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
 from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 import torch
 import mxnet
 import numpy as np
@@ -216,6 +217,80 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     dali_train_iter.reset()
     next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = \
         gather_ids(dali_train_iter, lambda x: x["data"].squeeze().numpy(), lambda x: 0, data_size)
+
+    # there is no mirroring as data in the output is just cut off,
+    # in the mirrored_data there is real data
+    assert len(next_img_ids_list) == data_size
+    assert len(next_img_ids_list_set) == data_size
+    assert len(set(next_mirrored_data)) != 1
+
+
+def test_paddle_iterator_last_batch_no_pad_last_batch():
+    num_gpus = 1
+    batch_size = 100
+    iters = 0
+
+    pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
+                                                                      data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
+                                                                      shuffle_after_epoch=False, pad_last_batch=False), batch_size, num_gpus)
+
+    dali_train_iter = PaddleIterator(pipes, output_map=["data"], size=pipes[0].epoch_size("Reader"), fill_last_batch=True)
+
+    img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
+        gather_ids(dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size)
+
+    assert len(img_ids_list) > data_size
+    assert len(img_ids_list_set) == data_size
+    assert len(set(mirrored_data)) != 1
+
+def test_paddle_iterator_last_batch_pad_last_batch():
+    num_gpus = 1
+    batch_size = 100
+    iters = 0
+
+    pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
+                                                                      data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
+                                                                      shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus)
+
+    dali_train_iter = PaddleIterator(pipes, output_map=["data"], size=pipes[0].epoch_size("Reader"), fill_last_batch=True)
+
+    img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
+        gather_ids(dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size)
+
+    assert len(img_ids_list) > data_size
+    assert len(img_ids_list_set) == data_size
+    assert len(set(mirrored_data)) == 1
+
+    dali_train_iter.reset()
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = \
+        gather_ids(dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size)
+
+    assert len(next_img_ids_list) > data_size
+    assert len(next_img_ids_list_set) == data_size
+    assert len(set(next_mirrored_data)) == 1
+
+
+def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
+    num_gpus = 1
+    batch_size = 100
+    iters = 0
+
+    pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
+                                                                      data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
+                                                                      shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus)
+
+    dali_train_iter = PaddleIterator(pipes, output_map=["data"], size=pipes[0].epoch_size("Reader"), fill_last_batch=False, last_batch_padded=True)
+
+    img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
+        gather_ids(dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size)
+
+    assert len(img_ids_list) == data_size
+    assert len(img_ids_list_set) == data_size
+    assert len(set(mirrored_data)) != 1
+
+    dali_train_iter.reset()
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = \
+        gather_ids(dali_train_iter, lambda x: np.array(x["data"]).squeeze(), lambda x: 0, data_size)
 
     # there is no mirroring as data in the output is just cut off,
     # in the mirrored_data there is real data
