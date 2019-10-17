@@ -20,6 +20,7 @@
 #include <initializer_list>
 
 #include "dali/core/host_dev.h"
+#include "dali/core/force_inline.h"
 
 namespace dali {
 
