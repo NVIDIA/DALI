@@ -13,8 +13,9 @@
 # limitations under the License.
 
 set(python_function_lib "python_function_plugin")
-set(SOURCES python_function.cc dltensor_function.cc util/copy_with_stride.cc)
-add_library(${python_function_lib} SHARED ${SOURCES})
+set(PYTHON_FUNCTION_SRCS python_function.cc dltensor_function.cc util/copy_with_stride.cc
+                         util/copy_with_stride.cu)
+add_library(${python_function_lib} SHARED ${PYTHON_FUNCTION_SRCS})
 target_link_libraries(${python_function_lib} ${dali_lib})
 target_include_directories(${python_function_lib}
         PRIVATE ${PYBIND11_INCLUDE_DIR}  # from project CMakeLists.txt

@@ -78,3 +78,14 @@ class PipelineAPIType(object):
     BASIC = 0
     ITERATOR = 1
     SCHEDULED = 2
+
+
+class CUDAStream:
+    """Wrapper class for a CUDA stream."""
+    def __init__(self, ptr=0):
+        self._ptr = ptr
+
+    @property
+    def ptr(self):
+        """Raw CUDA stream pointer, stored as uint64."""
+        return self._ptr

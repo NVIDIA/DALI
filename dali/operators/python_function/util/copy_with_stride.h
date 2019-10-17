@@ -26,8 +26,9 @@ DLL_PUBLIC void CopyWithStride(void *output, const void *input,
                                const Index *in_strides,
                                const Index *shape,
                                int ndim,
-                               size_t item_size);
+                               size_t item_size,
+                               cudaStream_t stream = 0);
 
-}
+}  // namespace dali
 
 #endif  // DALI_OPERATORS_PYTHON_FUNCTION_UTIL_COPY_WITH_STRIDE_H_
