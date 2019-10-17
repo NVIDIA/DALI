@@ -25,7 +25,10 @@ void Slice<GPUBackend>::DataDependentSetup(DeviceWorkspace &ws) {
     const auto img_shape = images.tensor_shape(data_idx);
     auto crop_window_generator = slice_attr_.GetCropWindowGenerator(data_idx);
     DALI_ENFORCE(crop_window_generator);
-    CropWindow win = crop_window_generator(img_shape, InputLayout(ws, 0));
+    auto layout = InputLayout(ws, 0);
+    if (layout.empty())
+      layout = GetDefaultLayout(img_shape.size());
+    CropWindow win = crop_window_generator(img_shape, layout);
     slice_shapes_[data_idx] = std::vector<int64_t>(win.shape.begin(), win.shape.end());
     slice_anchors_[data_idx] = std::vector<int64_t>(win.anchor.begin(), win.anchor.end());
   }

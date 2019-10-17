@@ -52,6 +52,19 @@ class Slice : public SliceBase<Backend> {
   void DataDependentSetup(Workspace<Backend> &ws) override;
 
  private:
+  inline TensorLayout GetDefaultLayout(int ndims) {
+    switch (ndims) {
+      case 2:
+        return "HW";
+      case 3:
+        return "HWC";
+      case 4:
+        return "DHWC";
+      default:
+        return "";
+    }
+  }
+
   SliceAttr slice_attr_;
 
   static const int kImagesInId = 0;

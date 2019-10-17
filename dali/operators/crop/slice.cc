@@ -27,7 +27,7 @@ slice (x0, x1, x2, ...), and `shape` containing either normalized or absolute co
 (s0, s1, s2, ...). Both `anchor` and `shape` coordinates must be within the interval
 [0.0, 1.0] for normalized coordinates, or within the image shape for absolute
 coordinates. Both `anchor` and `shape` inputs will provide as many dimensions as specified
-with arguments `dim_names` or `dims`. By default `Slice` operator uses normalized
+with arguments `axis_names` or `axes`. By default `Slice` operator uses normalized
 coordinates and `WH` order for the slice arguments.)code")
     .NumInput(3)
     .NumOutput(1)
@@ -45,7 +45,10 @@ void Slice<CPUBackend>::DataDependentSetup(SampleWorkspace &ws) {
   auto data_idx = ws.data_idx();
   auto crop_window_generator = slice_attr_.GetCropWindowGenerator(data_idx);
   DALI_ENFORCE(crop_window_generator);
-  CropWindow win = crop_window_generator(images.shape(), InputLayout(ws, 0));
+  auto layout = InputLayout(ws, 0);
+  if (layout.empty())
+    layout = GetDefaultLayout(images.shape().size());
+  CropWindow win = crop_window_generator(images.shape(), layout);
   slice_shapes_[data_idx] = std::vector<int64_t>(win.shape.begin(), win.shape.end());
   slice_anchors_[data_idx] = std::vector<int64_t>(win.anchor.begin(), win.anchor.end());
 }

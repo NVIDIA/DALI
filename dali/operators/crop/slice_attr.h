@@ -34,16 +34,16 @@ class SliceAttr {
       , normalized_anchor_(spec.GetArgument<bool>("normalized_anchor"))
       , normalized_shape_(spec.GetArgument<bool>("normalized_shape"))
       , crop_window_generators_(batch_size__) {
-    const bool has_dims_arg = spec.HasArgument("dims");
-    const bool has_dim_names_arg = spec.HasArgument("dim_names");
-    // Process `dim_names` if provided, or if neither `dir_names` nor `dims` are
-    if (has_dim_names_arg || !has_dims_arg) {
-      dim_names_ = spec.GetArgument<TensorLayout>("dim_names");
-      dims_ = {};
+    const bool has_axes_arg = spec.HasArgument("axes");
+    const bool has_axis_names_arg = spec.HasArgument("axis_names");
+    // Process `axis_names` if provided, or if neither `dir_names` nor `axes` are
+    if (has_axis_names_arg || !has_axes_arg) {
+      axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
+      axes_ = {};
     } else {
-      // Process `dims` only if provided and `dim_names` isn't
-      dims_ = spec.GetRepeatedArgument<int>("dims");
-      dim_names_ = TensorLayout{};
+      // Process `axes` only if provided and `axis_names` isn't
+      axes_ = spec.GetRepeatedArgument<int>("axes");
+      axis_names_ = TensorLayout{};
     }
   }
 
@@ -95,19 +95,20 @@ class SliceAttr {
         slice.anchor = std::vector<int64_t>(shape.size(), 0);
         slice.shape = shape;
 
-        if (!dim_names_.empty()) {
-          dims_ = {};
-          for (auto dim_name : dim_names_) {
-            auto dim_idx = shape_layout.find(dim_name);
+        auto axes = axes_;
+        if (!axis_names_.empty()) {
+          axes = {};
+          for (auto axis_name : axis_names_) {
+            auto dim_idx = shape_layout.find(axis_name);
             DALI_ENFORCE(dim_idx >= 0,
-              make_string("Requested to slice dimension", dim_name,
+              make_string("Requested to slice dimension", axis_name,
                 "which is not present in the shape layout", shape_layout.c_str()));
-            dims_.push_back(dim_idx);
+            axes.push_back(dim_idx);
           }
         }
 
-        for (size_t i = 0; i < dims_.size(); i++) {
-          auto dim = dims_[i];
+        for (size_t i = 0; i < axes.size(); i++) {
+          auto dim = axes[i];
           float anchor_val = slice_anchor_data[i];
           if (normalized_anchor_)
             anchor_val *= shape[dim];
@@ -131,17 +132,17 @@ class SliceAttr {
                        const TensorShape<>& crop_shape_shape) {
     DALI_ENFORCE(crop_anchor_shape == crop_shape_shape);
     size_t args_size = volume(crop_anchor_shape);
-    auto dims_size = !dim_names_.empty() ? dim_names_.size() : dims_.size();
-    DALI_ENFORCE(args_size == dims_size,
-      make_string("Unexpected number of arguments", args_size, "vs", dims_size));
+    auto axes_size = !axis_names_.empty() ? axis_names_.size() : axes_.size();
+    DALI_ENFORCE(args_size == axes_size,
+      make_string("Unexpected number of arguments", args_size, "vs", axes_size));
   }
 
  private:
   size_t batch_size__;
   bool normalized_anchor_, normalized_shape_;
   std::vector<CropWindowGenerator> crop_window_generators_;
-  std::vector<int> dims_;
-  TensorLayout dim_names_;
+  std::vector<int> axes_;
+  TensorLayout axis_names_;
 };
 
 }  // namespace dali

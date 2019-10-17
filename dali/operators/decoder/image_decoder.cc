@@ -94,7 +94,7 @@ slice (x0, x1, x2, ...), and `shape` containing either normalized or absolute co
 (s0, s1, s2, ...). Both `anchor` and `shape` coordinates must be within the interval
 [0.0, 1.0] for normalized coordinates, or within the image shape for absolute
 coordinates. Both `anchor` and `shape` inputs will provide as many dimensions as specified
-with arguments `dim_names` or `dims`. By default `ImageDecoderSlice` operator uses normalized
+with arguments `axis_names` or `axes`. By default `ImageDecoderSlice` operator uses normalized
 coordinates and `WH` order for the slice arguments.
 When possible, will make use of partial decoding (e.g. libjpeg-turbo, nvJPEG).
 When not supported, will decode the whole image and then crop.
