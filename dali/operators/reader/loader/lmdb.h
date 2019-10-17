@@ -147,13 +147,14 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
         db_paths_(options.GetRepeatedArgument<std::string>("path")) {}
 
   ~LMDBLoader() override {
-    for (size_t i = 0; i < db_paths_.size(); i++) {
+    for (size_t i = 0; i < mdb_.size(); i++) {
       mdb_[i].Close();
     }
   }
 
   void MapIndexToFile(Index index, Index& file_index, Index& local_index) {
-    DALI_ENFORCE(index >= 0 && index < offsets_[db_paths_.size()]);
+    DALI_ENFORCE(offsets_.size() > 0);
+    DALI_ENFORCE(index >= 0 && index < offsets_.back());
     file_index = find_lower_bound(offsets_, index);
     local_index = index - offsets_[file_index];
   }
@@ -197,7 +198,9 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
  protected:
-  Index SizeImpl() override { return offsets_[db_paths_.size()]; }
+  Index SizeImpl() override {
+    return offsets_.size() > 0 ? offsets_.back() : 0;
+  }
 
   void PrepareMetadataImpl() override {
     offsets_.resize(db_paths_.size() + 1);

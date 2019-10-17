@@ -43,7 +43,7 @@ TYPED_TEST(DataLoadStoreTest, LMDBTest) {
       new LMDBLoader(
           OpSpec("CaffeReader")
           .AddArg("batch_size", 32)
-          .AddArg("path", testing::dali_extra_path() + "/db/c2lmdb/")
+          .AddArg("path", std::vector<string>({testing::dali_extra_path() + "/db/c2lmdb/"}))
           .AddArg("device_id", 0)));
 
   reader->PrepareMetadata();
