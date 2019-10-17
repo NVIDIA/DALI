@@ -123,7 +123,7 @@ class DALIGenericIterator(object):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    stop_at_epoch : bool, optional, default = False
+    fill_last_batch : bool, optional, default = True
                  Whether to return a fraction of a full batch of data
                  such that the total entries returned by the
                  iterator == 'size'. Setting this flag to False will
@@ -135,14 +135,32 @@ class DALIGenericIterator(object):
                  resized accordingly if the shape of DALI returned tensors
                  changes during execution.
                  If False, the iterator will fail in case of change.
+    last_batch_padded : bool, optional, default = False
+                 Whether the last batch provided by DALI is padded with the last sample
+                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 if the iterator returning last batch with data only partially filled with
+                 data from the current epoch is dropping padding samples or samples from
+                 the next epoch. If set to False next epoch will end sooner as data from
+                 it was consumed but dropped. If set to True next epoch would be the
+                 same length as the first one. For this happen, the option `pad_last_batch`
+                 in the reader need to be set to `True` as well.
+
+    Example
+    -------
+    With the data set [1,2,3,4,5,6,7] and the batch size 2:
+    fill_last_batch = False, last_batch_padded = True  -> last batch = [7], next iteration will return [1, 2]
+    fill_last_batch = False, last_batch_padded = False -> last batch = [7], next iteration will return [2, 3]
+    fill_last_batch = True, last_batch_padded = True   -> last batch = [7, 7], next iteration will return [1, 2]
+    fill_last_batch = True, last_batch_padded = False  -> last batch = [7, 1], next iteration will return [2, 3]
     """
     def __init__(self,
                  pipelines,
                  output_map,
                  size,
                  auto_reset=False,
-                 stop_at_epoch=False,
-                 dynamic_shape=False):
+                 fill_last_batch=True,
+                 dynamic_shape=False,
+                 last_batch_padded=False):
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
         self._num_gpus = len(pipelines)
@@ -151,8 +169,9 @@ class DALIGenericIterator(object):
         self.batch_size = pipelines[0].batch_size
         self._size = int(size)
         self._auto_reset = auto_reset
-        self._stop_at_epoch = stop_at_epoch
         self._dynamic_shape = dynamic_shape
+        self._fill_last_batch = fill_last_batch
+        self._last_batch_padded = last_batch_padded
         self._pipes = pipelines
         # Build all pipelines
         for p in self._pipes:
@@ -279,7 +298,7 @@ class DALIGenericIterator(object):
         self._current_data_batch = (self._current_data_batch + 1) % 2
         self._counter += self._num_gpus * self.batch_size
 
-        if (self._stop_at_epoch) and (self._counter > self._size):
+        if (not self._fill_last_batch) and (self._counter > self._size):
             # First calculate how much data is required to
             # return exactly self._size entries.
             diff = self._num_gpus * self.batch_size - (self._counter
@@ -321,10 +340,10 @@ class DALIGenericIterator(object):
         and will ignore such request.
         """
         if self._counter >= self._size:
-            if self._stop_at_epoch:
-                self._counter = 0
+            if self._fill_last_batch and not self._last_batch_padded:
+                self._counter = self._counter % self._size
             else:
-               self._counter = self._counter % self._size
+               self._counter = 0
             for p in self._pipes:
                 p.reset()
                 if p.empty():
@@ -360,24 +379,42 @@ class DALIClassificationIterator(DALIGenericIterator):
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
-    stop_at_epoch : bool, optional, default = False
+    fill_last_batch : bool, optional, default = True
                  Whether to return a fraction of a full batch of data
                  such that the total entries returned by the
                  iterator == 'size'. Setting this flag to False will
                  cause the iterator to return the first integer multiple
-                 of self._num_gpus * self.batch_size which exceeds 'size'.
     dynamic_shape: bool, optional, default = False
                  Whether the shape of the output of the DALI pipeline can
                  change during execution. If True, the LoDtensor will be resized accordingly
                  if the shape of DALI returned tensors changes during execution.
                  If False, the iterator will fail in case of change.
+    last_batch_padded : bool, optional, default = False
+                 Whether the last batch provided by DALI is padded with the last sample
+                 or it just wraps up. In the conjunction with `fill_last_batch` it tells
+                 if the iterator returning last batch with data only partially filled with
+                 data from the current epoch is dropping padding samples or samples from
+                 the next epoch. If set to False next epoch will end sooner as data from
+                 it was consumed but dropped. If set to True next epoch would be the
+                 same length as the first one.
+
+    Example
+    -------
+    With the data set [1,2,3,4,5,6,7] and the batch size 2:
+    fill_last_batch = False, last_batch_padded = True  -> last batch = [7], next iteration will return [1, 2]
+    fill_last_batch = False, last_batch_padded = False -> last batch = [7], next iteration will return [2, 3]
+    fill_last_batch = True, last_batch_padded = True   -> last batch = [7, 7], next iteration will return [1, 2]
+    fill_last_batch = True, last_batch_padded = False  -> last batch = [7, 1], next iteration will return [2, 3]
     """
     def __init__(self,
                  pipelines,
                  size,
                  auto_reset=False,
-                 stop_at_epoch=False,
-                 dynamic_shape=False):
+                 fill_last_batch=True,
+                 dynamic_shape=False,
+                 last_batch_padded=False):
         super(DALIClassificationIterator, self).__init__(
             pipelines, ["data", "label"], size, auto_reset=auto_reset,
-            stop_at_epoch=stop_at_epoch, dynamic_shape=dynamic_shape)
+            fill_last_batch=fill_last_batch,
+            dynamic_shape=dynamic_shape,
+            last_batch_padded=last_batch_padded)
