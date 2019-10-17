@@ -23,7 +23,7 @@ namespace dali {
 class CUVideoDecoder {
  public:
   CUVideoDecoder();
-  CUVideoDecoder(int, int);
+  CUVideoDecoder(int, int, int);
   explicit CUVideoDecoder(CUvideodecoder);
   ~CUVideoDecoder();
 
@@ -51,6 +51,7 @@ class CUVideoDecoder {
   bool initialized_;
   int max_height_;
   int max_width_;
+  int additional_decode_surfaces_;
 };
 
 }  // namespace dali

@@ -83,9 +83,10 @@ CUVideoDecoder::CUVideoDecoder() : decoder_{0},
                                    max_height_{0}, max_width_{0} {
 }
 
-CUVideoDecoder::CUVideoDecoder(int max_height, int max_width)
+CUVideoDecoder::CUVideoDecoder(int max_height, int max_width, int additional_decode_surfaces)
                               : decoder_{0}, decoder_info_{}, initialized_{false},
-                                max_height_{max_height}, max_width_{max_width} {
+                                max_height_{max_height}, max_width_{max_width},
+                                additional_decode_surfaces_{additional_decode_surfaces} {
 }
 
 CUVideoDecoder::CUVideoDecoder(CUvideodecoder decoder)
@@ -229,7 +230,11 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
     decoder_info_.CodecType = format->codec;
     decoder_info_.ulWidth = format->coded_width;
     decoder_info_.ulHeight = format->coded_height;
-    decoder_info_.ulNumDecodeSurfaces = 20;
+    if (format->min_num_decode_surfaces == 0)
+      decoder_info_.ulNumDecodeSurfaces = 20;
+    else
+      decoder_info_.ulNumDecodeSurfaces = format->min_num_decode_surfaces
+                                          + additional_decode_surfaces_;
     decoder_info_.ChromaFormat = format->chroma_format;
     decoder_info_.OutputFormat = cudaVideoSurfaceFormat_NV12;
     decoder_info_.bitDepthMinus8 = format->bit_depth_luma_minus8;
@@ -252,7 +257,7 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
 
     NVCUVID_CALL(cuvidCreateDecoder(&decoder_, &decoder_info_));
     initialized_ = true;
-    return 1;
+    return decoder_info_.ulNumDecodeSurfaces;
 }
 
 bool CUVideoDecoder::initialized() const {

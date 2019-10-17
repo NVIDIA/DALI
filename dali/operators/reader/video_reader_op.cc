@@ -61,6 +61,12 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
   .AddOptionalArg("channels",
       R"code(Number of channels.)code",
       3)
+  .AddOptionalArg("additional_decode_surfaces",
+      R"code(Additional decode surfaces to use beyond minimum required.
+      This is ignored when decoder is not able to determine minimum
+      number of decode surfaces, which may happen when using an older driver.
+      This parameter can be used trade off memory usage with performance.)code",
+      2)
   .AddOptionalArg("normalized",
       R"code(Get output as normalized data.)code",
       false)
