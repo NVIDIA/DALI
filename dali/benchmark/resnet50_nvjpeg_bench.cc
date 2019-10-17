@@ -57,7 +57,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("range", vector<float>{256, 480})
       .AddOutput("resize", "cpu"));
 

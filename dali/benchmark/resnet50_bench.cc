@@ -55,26 +55,26 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform1", "cpu"));
 
   pipe.AddOperator(
       OpSpec("Uniform")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform2", "cpu"));
 
   pipe.AddOperator(
       OpSpec("Uniform")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("range", vector<float>{256, 480})
       .AddOutput("resize", "cpu"));
 
   // Add coin flip RNG for mirror mask
   pipe.AddOperator(
       OpSpec("CoinFlip")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("probability", 0.5f)
       .AddOutput("mirror", "cpu"));
 
@@ -185,7 +185,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("range", vector<float>{256, 480})
       .AddOutput("resize", "cpu"));
 
@@ -202,20 +202,20 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform1", "cpu"));
 
   pipe.AddOperator(
       OpSpec("Uniform")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("range", vector<float>{0, 1})
       .AddOutput("uniform2", "cpu"));
 
   // Add coin flip RNG for mirror mask
   pipe.AddOperator(
       OpSpec("CoinFlip")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("probability", 0.5f)
       .AddOutput("mirror", "cpu"));
 
@@ -320,7 +320,7 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
   // Add uniform RNG
   pipe.AddOperator(
       OpSpec("Uniform")
-      .AddArg("device", "support")
+      .AddArg("device", "cpu")
       .AddArg("range", vector<float>{256, 480})
       .AddOutput("resize", "cpu"));
 
