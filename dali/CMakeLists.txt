@@ -59,12 +59,11 @@ set_target_properties(${dali_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 
 # Define symbol version script for libdali.so
-set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(dali_lib_exports "libdali.map")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${exports_map_path}/${dali_lib_exports}")
-add_custom_target(${dali_lib_exports} DEPENDS "${exports_map_path}/${dali_lib_exports}")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${CMAKE_BINARY_DIR}/${dali_lib_exports}")
+add_custom_target(${dali_lib_exports} DEPENDS "${CMAKE_BINARY_DIR}/${dali_lib_exports}")
 add_dependencies(${dali_lib} ${dali_lib_exports})
-target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${dali_lib_exports})
+target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${dali_lib_exports})
 
 # Link in dali's dependencies
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
@@ -89,15 +88,7 @@ if (BUILD_TEST)
   set_target_properties(${test_main_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 
-  set(CHECK_GTEST_TARGET "check-gtest")
-  add_custom_target("${CHECK_GTEST_TARGET}")
-  add_custom_command(
-    TARGET ${CHECK_GTEST_TARGET}
-    WORKING_DIRECTORY ${TEST_BINARY_DIR}
-    COMMAND ${test_main_bin}
-    DEPENDS ${test_main_bin}
-  )
-  add_dependencies(${CHECK_TARGET} ${CHECK_GTEST_TARGET})
+  add_check_gtest_target("check-dali-gtest" ${test_main_bin} ${TEST_BINARY_DIR})
 endif()
 
 
@@ -127,6 +118,7 @@ if (BUILD_PYTHON)
   # prepare check-python target
   set(CHECK_PYTHON_TARGET "check-python")
   add_custom_target("${CHECK_PYTHON_TARGET}")
+  add_dependencies("check" ${CHECK_PYTHON_TARGET})
 
   set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
   if($ENV{PYTHONPATH})
@@ -140,7 +132,7 @@ if (BUILD_PYTHON)
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test/
     COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/qa/TL0_python-self-test/test_no_setup.sh
   )
-  add_dependencies(${CHECK_TARGET} ${CHECK_PYTHON_TARGET})
+
   add_dependencies(${CHECK_PYTHON_TARGET} ${dali_python_lib})
   add_dependencies(${CHECK_PYTHON_TARGET} ${dali_lib})
 endif()

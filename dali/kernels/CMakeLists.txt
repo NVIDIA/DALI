@@ -30,12 +30,11 @@ set_target_properties(${dali_kernel_lib} PROPERTIES
 target_link_libraries(${dali_kernel_lib} PUBLIC ${dali_core_lib})
 target_link_libraries(${dali_kernel_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
-set(exports_map_path "${PROJECT_BINARY_DIR}/stage")
 set(lib_exports "libdali_kernels.map")
-configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${exports_map_path}/${lib_exports}")
-add_custom_target(${lib_exports} DEPENDS "${exports_map_path}/${lib_exports}")
+configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib_exports}")
+add_custom_target(${lib_exports} DEPENDS "${CMAKE_BINARY_DIR}/${lib_exports}")
 add_dependencies(${dali_kernel_lib} ${lib_exports})
-target_link_libraries(${dali_kernel_lib} PRIVATE -Wl,--version-script=${exports_map_path}/${lib_exports})
+target_link_libraries(${dali_kernel_lib} PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
 
 if (BUILD_TEST)
   set(test_bin "dali_kernel_test.bin")
@@ -52,12 +51,5 @@ if (BUILD_TEST)
   set_target_properties(${test_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 
-  set(CHECK_GTEST_TARGET "check-kernel-gtest")
-  add_custom_target("${CHECK_GTEST_TARGET}")
-  add_custom_command(
-    TARGET ${CHECK_GTEST_TARGET}
-    WORKING_DIRECTORY ${TEST_BINARY_DIR}
-    COMMAND ${test_bin}
-    DEPENDS ${test_bin})
-  add_dependencies(${CHECK_TARGET} ${CHECK_GTEST_TARGET})
+  add_check_gtest_target("check-kernel-gtest" ${test_bin} ${TEST_BINARY_DIR})
 endif()

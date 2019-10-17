@@ -163,9 +163,9 @@ cuda_include_directories(
   "${PROJECT_SOURCE_DIR}"
   "${PROJECT_SOURCE_DIR}/include")
 
-
-set(CHECK_TARGET "check")
-add_custom_target(${CHECK_TARGET})
+add_custom_target("check")
+add_custom_target("check-gtest")
+add_dependencies("check" "check-gtest")
 
 # Project build
 add_subdirectory(dali)
