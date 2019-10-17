@@ -273,7 +273,7 @@ class DisplacementFilter<GPUBackend, Displacement,
       mask_gpu_.set_type(mask.type());
       mask_gpu_.Resize(mask.shape());
       mask_gpu_.template mutable_data<int>();
-      mask_gpu_.Copy(mask.tensors(), ws.stream());
+      mask_gpu_.Copy(mask, ws.stream());
     }
     PrepareDisplacement(&ws);
   }

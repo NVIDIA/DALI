@@ -34,7 +34,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
 
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;
     outputs.push_back(std::make_shared<TensorList<CPUBackend>>());
-    outputs[0]->Copy(out.tensors(), 0);
+    outputs[0]->Copy(out, 0);
     return outputs;
   }
 

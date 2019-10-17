@@ -376,7 +376,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
   }
 
   TensorList<TypeParam> tl;
-  tl.Copy(tensors.tensors(), 0);
+  tl.Copy(tensors, 0);
 
   int num_tensor = tl.ntensor();
   ASSERT_EQ(num_tensor, tensors.size());
@@ -394,7 +394,7 @@ TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
   // Empty tensors
   TensorList<TypeParam> tl;
   tl.template mutable_data<float>();
-  tl.Copy(tensors.tensors(), 0);
+  tl.Copy(tensors, 0);
 
   Tensor<TypeParam> tensor;
   int num_tensor = tl.ntensor();

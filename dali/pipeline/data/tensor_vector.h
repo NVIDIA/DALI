@@ -60,10 +60,6 @@ class TensorVector {
     return *(tensors_[pos]);
   }
 
-  const std::vector<std::shared_ptr<Tensor<Backend>>> &tensors() const {
-    return tensors_;
-  }
-
   auto tensor_handle(size_t pos) {
     return tensors_[pos];
   }

@@ -62,7 +62,7 @@ class ArgValue {
     DALI_ENFORCE(IsTensor());
     if (!gpu_) {
       gpu_.reset(new TensorList<GPUBackend>());
-      gpu_->Copy(tensor_vector_->tensors(), stream);
+      gpu_->Copy(*tensor_vector_, stream);
     }
     return gpu_.get();
   }

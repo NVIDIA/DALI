@@ -93,7 +93,7 @@ void SetupInputOutput(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph,
     // Argument inputs are only CPU
     auto &queue = get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue[tid]);
     auto tensor = queue[idxs[OpType::CPU]];
-    ws.AddArgumentInput(tensor, arg_pair.first);
+    ws.AddArgumentInput(arg_pair.first, tensor);
   }
 
   for (int j = 0; j < node.spec.NumOutput(); ++j) {
