@@ -12,17 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATORS_UTIL_PAD_H_
-#define DALI_PIPELINE_OPERATORS_UTIL_PAD_H_
+#ifndef DALI_OPERATORS_UTIL_PAD_H_
+#define DALI_OPERATORS_UTIL_PAD_H_
 
 #include <cstring>
 #include <utility>
 #include <vector>
 
-#include "dali/core/common.h"
-#include "dali/pipeline/operators/common.h"
+#include "dali/pipeline/operator/operator.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/operators/operator.h"
 #include "dali/kernels/common/pad.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/scratch.h"
@@ -34,8 +32,8 @@ class Pad : public Operator<Backend> {
  public:
   inline explicit Pad(const OpSpec &spec)
     : Operator<Backend>(spec),
-    padding_value_(spec.GetArgument<float>("padding_value")),
-    axis_(spec.GetArgument<int>("axis")) {
+    fill_value_(spec.GetArgument<float>("fill_value")),
+    axes_(spec.GetRepeatedArgument<int>("axes")) {
     if (std::is_same<Backend, GPUBackend>::value) {
       kmgr_.Resize(1, 1);
     } else {
@@ -52,8 +50,8 @@ class Pad : public Operator<Backend> {
     return true;
   }
 
-  float padding_value_;
-  int axis_;
+  float fill_value_;
+  std::vector<int> axes_;
   kernels::KernelManager kmgr_;
 
   USE_OPERATOR_MEMBERS();
@@ -62,4 +60,4 @@ class Pad : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATORS_UTIL_PAD_H_
+#endif  // DALI_OPERATORS_UTIL_PAD_H_

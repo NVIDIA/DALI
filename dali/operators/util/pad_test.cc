@@ -47,30 +47,30 @@ std::vector<std::vector<int> > batch3 = {{1, 2 , 3, 4,
                                           7, 8}};
 std::vector<std::vector<int> > padded_batch3 = {{1,  2,  3,  4,
                                                  5,  6,  7,  8,
-                                                 42, 42, 42, 42},
-                                                {1,  2,  42, 42,
-                                                 4,  5,  42, 42,
-                                                 7,  8,  42, 42}};
+                                                 0, 0, 0, 0},
+                                                {1,  2,  0, 0,
+                                                 4,  5,  0, 0,
+                                                 7,  8,  0, 0}};
 
 template <typename T>
-std::vector<std::vector<T> > GetPaddedBatchForAxis(int axis) {
+std::vector<std::vector<T> > GetPaddedBatchForaxes(std::vector<int> axes) {
   return {};
 }
 
 template <>
-std::vector<std::vector<float> > GetPaddedBatchForAxis(int axis) {
-  if (axis == 0) {
+std::vector<std::vector<float> > GetPaddedBatchForaxes(std::vector<int> axes) {
+  if (axes[0] == 0) {
     return padded_batch1;
   }
   return {};
 }
 
 template <>
-std::vector<std::vector<int> > GetPaddedBatchForAxis(int axis) {
-  if (axis == 1) {
-    return padded_batch2;
-  } else if (axis == -1) {
+std::vector<std::vector<int> > GetPaddedBatchForaxes(std::vector<int> axes) {
+  if (axes.empty()) {
     return padded_batch3;
+  } else if (axes[0] == 1) {
+    return padded_batch2;
   }
   return {};
 }
@@ -87,11 +87,11 @@ class Pad2DTest : public PadTest {};
 class PadAllAxesTest : public PadTest {};
 
 
-std::vector<Arguments> basic_args = {{{"padding_value", -1.0f}, {"axis", 0}}};
+std::vector<Arguments> basic_args = {{{"fill_value", -1.0f}, {"axes", std::vector<int>{0}}}};
 
-std::vector<Arguments> two_d_args = {{{"padding_value", 42.0f}, {"axis", 1}}};
+std::vector<Arguments> two_d_args = {{{"fill_value", 42.0f}, {"axes", std::vector<int>{1}}}};
 
-std::vector<Arguments> all_axes_args = {{{"padding_value", 42.0f}, {"axis", -1}}};
+std::vector<Arguments> all_axes_args = {{{"fill_value", 0.0f}, {"axes", std::vector<int>{}}}};
 
 
 
@@ -104,9 +104,9 @@ std::vector<Arguments> devices = {
 template <typename T>
 void PadVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
   auto output_d = output.CopyTo<CPUBackend>();
-  int axis = args["axis"].GetValue<int>();
+  std::vector<int> axes = args["axes"].GetValue<std::vector<int>>();
 
-  auto padded_batch = GetPaddedBatchForAxis<T>(axis);
+  auto padded_batch = GetPaddedBatchForaxes<T>(axes);
 
   for (size_t i = 0; i < output_d->ntensor(); ++i) {
     auto out_tensor = output_d->tensor<T>(i);

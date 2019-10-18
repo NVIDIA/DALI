@@ -24,7 +24,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/tensor_shape.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_common.h"
@@ -44,25 +44,21 @@ class DLL_PUBLIC PadGPU {
   DLL_PUBLIC PadGPU() = default;
 
   /**
-  * @brief Find the biggest dimension on a given `axis`.
+  * @brief Find the biggest dimension on a given `axes`.
   * This dimension `biggest_dim_size` will be the new dimension
-  * on the axis for all the samples of the batch.
+  * on the axes for all the samples of the batch.
   */
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InListGPU<Type, Dims> &in,
-                                      int axis) {
+                                      std::vector<int> axes) {
     auto sample_dim = in.tensor_shape(0).sample_dim();
     KernelRequirements req;
     if (in.num_elements() == 0) {
       req.output_shapes = {in.shape};
     } else {
-      // Keeping the code flexible to be able to extend for tuple of axes
-      std::vector<size_t> padding_axes;
-      if (axis < 0) {
-        padding_axes.resize(sample_dim);
-        std::iota(padding_axes.begin(), padding_axes.end(), 0);
-      } else {
-        padding_axes.push_back(axis);
+      if (axes.empty()) {
+        axes.resize(sample_dim);
+        std::iota(axes.begin(), axes.end(), 0);
       }
 
       using DimType =
@@ -71,7 +67,7 @@ class DLL_PUBLIC PadGPU {
       std::vector<DimType> biggest_dim_sizes(sample_dim, 0);
       auto num_samples = static_cast<size_t>(in.num_samples());
       for (size_t i = 0; i < num_samples; ++i) {
-        for (auto axis : padding_axes) {
+        for (auto axis : axes) {
           auto dim = in.tensor_shape(i)[axis];
           if (dim > biggest_dim_sizes[axis]) {
             biggest_dim_sizes[axis] = dim;
@@ -84,7 +80,7 @@ class DLL_PUBLIC PadGPU {
       tl_shape.reserve(num_samples);
       for (size_t i = 0; i < num_samples; ++i) {
         auto ts = in.tensor_shape(i);
-        for (auto axis : padding_axes) {
+        for (auto axis : axes) {
           ts[axis] = biggest_dim_sizes[axis];
         }
         block_count_ += std::ceil((volume(ts)) / static_cast<float>(kBlockSize));
