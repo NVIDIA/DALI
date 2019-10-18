@@ -21,6 +21,10 @@ else()
 endif()
 
 set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures")
+if ("${CUDA_TARGET_ARCHS}" STREQUAL "")
+  message("CUDA_TARGET_ARCHS cannot be empty, setting to the default")
+  set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures" FORCE)
+endif()
 
 # Find if passing `flags` to nvcc producess success or failure
 # Unix only
