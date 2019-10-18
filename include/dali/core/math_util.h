@@ -24,6 +24,7 @@
 #include <cmath>
 #endif
 #include "dali/core/host_dev.h"
+#include "dali/core/force_inline.h"
 
 namespace dali {
 
@@ -140,6 +141,30 @@ DALI_HOST_DEV inline double fast_rsqrt(double x) {
   y  = y * (1.5 - (x2 * y * y));
   return y;
 #endif
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr float deg2rad(float deg) {
+  const float d2r = M_PI/180;
+  return deg * d2r;
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr float rad2deg(float rad) {
+  const float r2d = 180/M_PI;
+  return rad * r2d;
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr double deg2rad(double deg) {
+  const double d2r = M_PI/180;
+  return deg * d2r;
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr double rad2deg(double rad) {
+  const double r2d = 180/M_PI;
+  return rad * r2d;
 }
 
 }  // namespace dali

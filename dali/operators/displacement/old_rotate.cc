@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,8 +13,20 @@
 // limitations under the License.
 
 
-#include "dali/operators/displacement/rotate.h"
+#include "dali/operators/displacement/old_rotate.h"
+#include "dali/operators/displacement/displacement_filter_impl_cpu.h"
 
 namespace dali {
-DALI_REGISTER_OPERATOR(Rotate, Rotate<GPUBackend>, GPU);
+
+DALI_REGISTER_OPERATOR(OldRotate, OldRotate<CPUBackend>, CPU);
+
+DALI_SCHEMA(OldRotate)
+    .DocStr("Rotate the image.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddArg("angle",
+        R"code(Counterclockwise rotation angle, in degrees.)code", DALI_FLOAT, true)
+    .InputLayout(0, "HWC")
+    .AddParent("DisplacementFilter");
+
 }  // namespace dali

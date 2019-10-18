@@ -656,9 +656,9 @@ def test_warpaffine():
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.affine = ops.WarpAffine(device = "gpu",
-                                            matrix = [1.0, 0.8, -0.8*112, 0.0, 1.2, -0.2*112],
-                                            fill_value = 128,
-                                            interp_type = types.INTERP_LINEAR)
+                                         matrix = [1.0, 0.8, -0.8*112, 0.0, 1.2, -0.2*112],
+                                         fill_value = 128,
+                                         interp_type = types.INTERP_LINEAR)
             self.iter = 0
 
         def define_graph(self):
