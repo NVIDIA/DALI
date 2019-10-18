@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="tensorflow-gpu torchvision mxnet-cu{cuda_v} torch"
+pip_packages="tensorflow-gpu torchvision mxnet-cu{cuda_v} torch paddle"
 target_dir=./dali/test/python
 one_config_only=true
 

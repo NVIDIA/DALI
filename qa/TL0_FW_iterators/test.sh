@@ -2,7 +2,7 @@
 # used pip packages
 
 
-pip_packages="nose numpy opencv-python tensorflow-gpu torch torchvision mxnet-cu{cuda_v}"
+pip_packages="nose numpy opencv-python tensorflow-gpu torch torchvision mxnet-cu{cuda_v} paddle"
 target_dir=./dali/test/python
 
 one_config_only=true
