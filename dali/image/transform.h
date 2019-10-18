@@ -41,7 +41,7 @@ namespace dali {
  * parameters from this function will make the API consistent across the CPU
  * & GPU versions.
  */
-DALIError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
+DLL_PUBLIC DALIError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, const std::pair<int, int> &crop, int crop_h, int crop_w,
     int mirror, uint8 *out_img, DALIInterpType type = DALI_INTERP_LINEAR,
     uint8 *workspace = nullptr);
@@ -63,15 +63,15 @@ DALIError_t ResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
  * this temporary workspace pointer to avoid extra memory allocation. The size
  * of the memory pointed to by 'workspace' should be crop_h*crop_w*C bytes
  */
-DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
+DLL_PUBLIC DALIError_t FastResizeCropMirrorHost(const uint8 *img, int H, int W, int C,
     int rsz_h, int rsz_w, const std::pair<int, int> &crop, int crop_h, int crop_w,
     int mirror, uint8 *out_img, DALIInterpType type = DALI_INTERP_LINEAR,
     uint8 *workspace = nullptr);
 
-void CheckParam(const Tensor<CPUBackend> &input, const std::string &pOperator);
+DLL_PUBLIC void CheckParam(const Tensor<CPUBackend> &input, const std::string &pOperator);
 
-DALIError_t MakeColorTransformation(const uint8 *img, int H, int W, int C,
-                                    const float *matrix, uint8 *out_img);
+DLL_PUBLIC DALIError_t MakeColorTransformation(const uint8 *img, int H, int W, int C,
+                                               const float *matrix, uint8 *out_img);
 
 }  // namespace dali
 

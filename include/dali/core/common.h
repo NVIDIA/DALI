@@ -243,7 +243,7 @@ std::string to_string(const std::vector<T>& v) {
   return ret;
 }
 
-std::vector<std::string> string_split(const std::string &s, const char delim);
+DLL_PUBLIC std::vector<std::string> string_split(const std::string &s, const char delim);
 
 
 }  // namespace dali

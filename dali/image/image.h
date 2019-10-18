@@ -56,7 +56,7 @@ class Image {
    * Returns pointer to decoded image. Decode(...) has to be called
    * prior to calling this function
    */
-  std::shared_ptr<uint8_t> GetImage() const;
+  DLL_PUBLIC std::shared_ptr<uint8_t> GetImage() const;
 
 
   /**

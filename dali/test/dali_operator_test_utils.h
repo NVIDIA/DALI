@@ -27,7 +27,8 @@ namespace testing {
 
 namespace utils {
 
-extern const std::vector<Arguments> kDevices;  /// List of all devices used in testing framework
+/// List of all devices used in testing framework
+DLL_PUBLIC extern const std::vector<Arguments> kDevices;
 
 /**
  * Remove const pointer: const T* -> T
