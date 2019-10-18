@@ -24,12 +24,12 @@ DALI_SCHEMA(PythonFunctionImplBase)
         .MakeInternal();
 
 DALI_SCHEMA(PythonFunctionImpl)
-        .AddParent("PythonFunctionImplBase")
         .DocStr(R"code(This is an auxiliary operator. Use PythonFunction instead.)code")
         .NumInput(0, 256)
         .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
         .MakeInternal()
-        .NoPrune();
+        .NoPrune()
+        .AddParent("PythonFunctionImplBase");
 
 DALI_SCHEMA(PythonFunctionBase)
         .AddArg("function",
@@ -39,16 +39,16 @@ DALI_SCHEMA(PythonFunctionBase)
         .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
-        .AddParent("PythonFunctionBase")
         .DocStr("Executes a python function")
         .NumInput(0, 256)
-        .NoPrune();
+        .NoPrune()
+        .AddParent("PythonFunctionBase");
 
 DALI_SCHEMA(TorchPythonFunction)
-        .AddParent("PythonFunctionBase")
         .DocStr("Executes a function operating on Torch tensors")
         .NumInput(0, 256)
-        .NoPrune();
+        .NoPrune()
+        .AddParent("PythonFunctionBase");
 
 struct PyBindInitializer {
   PyBindInitializer() {

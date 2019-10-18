@@ -18,11 +18,11 @@
 namespace dali {
 
 DALI_SCHEMA(DLTensorPythonFunctionImpl)
-    .AddParent("PythonFunctionImplBase")
     .AddOptionalArg("synchronize_stream", "Synchronize CUDA stream", true)
     .NumInput(0, 256)
     .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
-    .MakeInternal();
+    .MakeInternal()
+    .AddParent("PythonFunctionImplBase");
 
 DALI_SCHEMA(DLTensorPythonFunction)
     .DocStr(R"code(Execute a python function that operates on DLPack tensors.
@@ -33,13 +33,13 @@ the scheduled device tasks are finished within the operator call.
 Alternatively, the gpu code can be done on the DALI's stream
 which may be determined by calling the `current_dali_stream()` function.
 In this case, the `synchronize_stream` flag can be set to false.')code")
-    .AddParent("PythonFunctionBase")
     .AddOptionalArg("synchronize_stream",
         R"code(Make DALI synchronize its CUDA stream before calling the python function.
 Should be set to false only if the called function schedules the device job
 to the stream used by DALI.)code", true)
     .NumInput(0, 256)
-    .NoPrune();
+    .NoPrune()
+    .AddParent("PythonFunctionBase");
 
 namespace detail {
 
