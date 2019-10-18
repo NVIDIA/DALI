@@ -143,8 +143,13 @@ static int find_lower_bound(const std::vector<Index>& a, Index x) {
 class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit LMDBLoader(const OpSpec& options)
-      : Loader(options),
-        db_paths_(options.GetRepeatedArgument<std::string>("path")) {}
+      : Loader(options) {
+    bool ret = options.TryGetRepeatedArgument<std::string>(db_paths_, "path");
+    if (!ret) {
+      std::string path = options.GetArgument<std::string>("path");
+      db_paths_.push_back(path);
+    }
+  }
 
   ~LMDBLoader() override {
     for (size_t i = 0; i < mdb_.size(); i++) {
