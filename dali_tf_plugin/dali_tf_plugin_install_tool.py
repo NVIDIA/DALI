@@ -34,10 +34,21 @@ class InstallerHelper:
         self.platform_machine = platform.machine()
         self.is_compatible_with_prebuilt_bin = self.platform_system == 'Linux' and self.platform_machine == 'x86_64'
         self.prebuilt_dir = self.src_path + '/prebuilt/'
-        self.prebuilt_compilers = [subdir for subdir in os.listdir(self.prebuilt_dir) \
-            if os.path.isdir(os.path.join(self.prebuilt_dir, subdir))]
-        self.can_install_prebuilt = self.tf_compiler in self.prebuilt_compilers and self.is_compatible_with_prebuilt_bin
-        self.can_compile = self.default_cpp_version == self.tf_compiler
+        # List of prebuilt artifact compilers
+        self.prebuilt_compilers = []
+        if os.path.exists(self.prebuilt_dir) and os.path.isdir(self.prebuilt_dir):
+            self.prebuilt_compilers = [subdir for subdir in os.listdir(self.prebuilt_dir) \
+                if os.path.isdir(os.path.join(self.prebuilt_dir, subdir))]
+        # Can install prebuilt if both conditions apply:
+        # - we know the compiler used to build TF
+        # - we have prebuilt artifacts for that compiler version
+        self.can_install_prebuilt = bool(self.tf_compiler) and \
+            self.tf_compiler in self.prebuilt_compilers and \
+            self.is_compatible_with_prebuilt_bin
+        # Allow to compile if either condition apply
+        # - The default C++ compiler version matches the one used to build TF
+        # - The compiler used to build TF is unknown
+        self.can_default_compile = self.default_cpp_version == self.tf_compiler or not bool(self.tf_compiler)
 
     def debug_str(self):
         s = "\n Environment:"
@@ -55,7 +66,7 @@ class InstallerHelper:
             s += "\n Prebuilt plugins available for g++:   \"{}\"".format(" ".join(self.prebuilt_compilers))
             s += "\n Is {} present in the system?     {}".format(self.alt_compiler, "Yes" if self.has_alt_compiler else "No")
             s += "\n Can install prebuilt plugin?          {}".format("Yes" if self.can_install_prebuilt else "No")
-            s += "\n Can compile with default compiler?    {}".format("Yes" if self.can_compile else "No")
+            s += "\n Can compile with default compiler?    {}".format("Yes" if self.can_default_compile else "No")
             s += "\n Can compile with alt compiler?        {}".format("Yes" if self.has_alt_compiler else "No")
         s += "\n---------------------------------------------------------------------------------------------------------"
         return s
@@ -64,7 +75,7 @@ class InstallerHelper:
         assert(self.can_install_prebuilt)
         tf_version_underscore = self.tf_version.replace('.', '_')
         plugin_name = 'libdali_tf_' + tf_version_underscore + '.so'
-        prebuilt_path = self.src_path + '/prebuilt/' + self.tf_compiler
+        prebuilt_path = self.prebuilt_dir + self.tf_compiler
         prebuilt_plugin = prebuilt_path + '/' + plugin_name
         print("Tensorflow was built with g++ {}, providing prebuilt plugin".format(self.tf_compiler))
         if not os.path.isfile(prebuilt_plugin):
@@ -87,7 +98,7 @@ class InstallerHelper:
         print("Checking build environment for DALI TF plugin ...")
         print(self.debug_str())
 
-        if not self.tf_version or not self.tf_path or not self.tf_compiler:
+        if not self.tf_version or not self.tf_path:
             error_msg = "Installation error:"
             error_msg += "\n Tensorflow installation not found. Install `tensorflow-gpu` and try again"
             error_msg += '\n' + self.debug_str()
@@ -113,7 +124,7 @@ class InstallerHelper:
             self.install_prebuilt()
             return
 
-        if self.default_cpp_version != self.tf_compiler:
+        if not self.can_default_compile:
             if self.has_alt_compiler:
                 print("Will use alternative compiler {}".format(self.alt_compiler))
                 compiler = self.alt_compiler
