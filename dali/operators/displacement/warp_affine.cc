@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/displacement/new_warp_affine.h"
+#include "dali/operators/displacement/warp_affine.h"
 
 namespace dali {
 
-DALI_SCHEMA(NewWarpAffine)
+DALI_SCHEMA(WarpAffine)
   .DocStr(R"code(Apply an affine transformation to the image.)code")
   .NumInput(1, 2)
   .NumOutput(1)
+  .InputLayout(0, { "HWC", "DHWC" })
   .AddOptionalArg<float>("matrix",
       R"code(Transform matrix (dst -> src).
 Given list of values `(M11, M12, M13, M21, M22, M23)`
@@ -37,18 +38,16 @@ with a flag `WARP_INVERSE_MAP` set.)code",
 Non-integer sizes are rounded to nearest integer.
 Channel dimension should be excluded (e.g. for RGB images specify (480,640), not (480,640,3).)code",
       vector<float>(), true)
-  .AddOptionalArg("border", "Value used to fill areas that are outside source image",
+  .AddOptionalArg("fill_value", R"(Value used to fill areas that are outside source image.
+If not specified, source coordinates are clamped and the border pixel is repeated.)",
       0.0f)
-  .AddOptionalArg("output_type",
+  .AddOptionalArg("output_dtype",
       R"code(Output data type. By default, same as input type)code",
       DALI_NO_TYPE)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
-      DALI_INTERP_LINEAR)
-  .AddOptionalArg("fill_value",
-      R"code(Color value used for padding pixels.)code",
-      0.f);
+      DALI_INTERP_LINEAR);
 
-DALI_REGISTER_OPERATOR(NewWarpAffine, NewWarpAffine<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(WarpAffine, WarpAffine<CPUBackend>, CPU);
 
 }  // namespace dali

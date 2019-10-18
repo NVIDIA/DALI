@@ -63,9 +63,9 @@ def CVWarp(output_type, input_type, warp_matrix = None):
   return warp_fn
 
 
-class NewWarpPipeline(Pipeline):
+class WarpPipeline(Pipeline):
     def __init__(self, device, batch_size, output_type, input_type, use_input, num_threads=3, device_id=0, num_gpus=1):
-        super(NewWarpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
+        super(WarpPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
         self.use_input = use_input
         self.name = device
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
@@ -77,10 +77,10 @@ class NewWarpPipeline(Pipeline):
 
         if use_input:
           self.transform_source = ops.ExternalSource()
-          self.warp = ops.NewWarpAffine(device = device, size=(240,320), border = 42, output_type = output_type)
+          self.warp = ops.WarpAffine(device = device, size=(240,320), fill_value = 42, output_dtype = output_type)
         else:
           warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
-          self.warp = ops.NewWarpAffine(device = device, size=(240,320), matrix = warp_matrix, border = 42, output_type = output_type)
+          self.warp = ops.WarpAffine(device = device, size=(240,320), matrix = warp_matrix, fill_value = 42, output_dtype = output_type)
 
         self.iter = 0
 
@@ -159,7 +159,7 @@ def test_cpu_vs_cv():
         cv_pipeline = CVPipeline(batch_size, otype, itype, use_input);
         cv_pipeline.build();
 
-        cpu_pipeline = NewWarpPipeline("cpu", batch_size, otype, itype, use_input);
+        cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input);
         cpu_pipeline.build();
 
         compare(cv_pipeline, cpu_pipeline, 8)
@@ -176,7 +176,7 @@ def test_gpu_vs_cv():
         cv_pipeline = CVPipeline(batch_size, otype, itype, use_input);
         cv_pipeline.build();
 
-        gpu_pipeline = NewWarpPipeline("gpu", batch_size, otype, itype, use_input);
+        gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input);
         gpu_pipeline.build();
 
         compare(cv_pipeline, gpu_pipeline, 8)
@@ -190,10 +190,10 @@ def test_gpu_vs_cpu():
               " matrix as input: ", use_input,
               " input_type: ", itype,
               " output_type: ", otype)
-        cpu_pipeline = NewWarpPipeline("cpu", batch_size, otype, itype, use_input);
+        cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input);
         cpu_pipeline.build();
 
-        gpu_pipeline = NewWarpPipeline("gpu", batch_size, otype, itype, use_input);
+        gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input);
         gpu_pipeline.build();
 
         compare(cpu_pipeline, gpu_pipeline, 1)
