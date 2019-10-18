@@ -58,16 +58,9 @@ class CropAttr {
         "`crop` argument is not compatible with `crop_h`, `crop_w`, `crop_d`");
 
       auto cropArg = spec.GetRepeatedArgument<float>("crop");
-      if (cropArg.size() == 1) {
-          DALI_WARN("Warning: Single value argument for `crop` is now deprecated. "
-                    "To produce a squared cropping window, please provide both values "
-                    "explicitly `crop=(c, c)`."
-                    "Future releases will treat this as an error");
-          cropArg.push_back(cropArg[0]);
-      }
       crop_arg_ndims = cropArg.size();
-      DALI_ENFORCE(crop_arg_ndims <= 3,
-        "Cropping windows with more than 3 dimensions are not supported");
+      DALI_ENFORCE(crop_arg_ndims >= 2 && crop_arg_ndims <= 3,
+        "`crop` argument should have 2 or 3 elements depending on the input data shape");
 
       size_t idx = 0;
       if (crop_arg_ndims == 3) {
