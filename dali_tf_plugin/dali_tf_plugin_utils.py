@@ -18,6 +18,7 @@ import re
 import sys
 import platform
 import fnmatch
+from distutils.version import StrictVersion
 
 # Find file matching `pattern` in `path`
 def find(pattern, path):
@@ -49,8 +50,15 @@ def get_tf_compiler_version():
     lib = tensorflow_libs[0]
     cmd = 'strings -a ' + lib + ' | grep "GCC: ("'
     s = str(subprocess.check_output(cmd, shell=True))
-    version = re.search("GCC:\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
-    return version
+    lines = s.split('\\n')
+    ret_ver = ''
+    for line in lines:
+        res = re.search("GCC:\s*\(.*\)\s*(\d+.\d+).\d+", line)
+        if res:
+            ver = res.group(1)
+            if not ret_ver or StrictVersion(ret_ver) < StrictVersion(ver):
+                ret_ver = ver
+    return ret_ver
 
 # Get current tensorflow version
 def get_tf_version():

@@ -6,9 +6,9 @@ target_dir=./dali/test/python
 do_once() {
     USE_CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1/')
     if [[ "$USE_CUDA_VERSION" = "10" ]]; then
-        export TENSORFLOW_VERSIONS="1.13.1 1.14"
+        export TENSORFLOW_VERSIONS="1.13.1 1.14 1.15 2.0"
     else
-        export TENSORFLOW_VERSIONS="1.7 1.8 1.9 1.10 1.11 1.12"
+        export TENSORFLOW_VERSIONS="1.7 1.11 1.12"
     fi
 }
 
