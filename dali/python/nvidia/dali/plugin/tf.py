@@ -121,7 +121,7 @@ def _get_tf_minor_version():
   return tf.__version__.split('.')[1]
 
 
-if _get_tf_minor_version() in {'13', '14'}:
+if _get_tf_minor_version() in {'13', '14', '15'}:
   from tensorflow.python.framework import ops
   from tensorflow.python.data.ops import dataset_ops
   from tensorflow.python.data.util import structure
@@ -160,12 +160,19 @@ if _get_tf_minor_version() in {'13', '14'}:
       self._structure = structure.convert_legacy_structure(
         self._dtypes, self._shapes, output_classes)
 
-      if _get_tf_minor_version() == '14':
+      if _get_tf_minor_version() in ['14', '15']:
         super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
       elif _get_tf_minor_version() == '13':
         super(_DALIDatasetV2, self).__init__()
       else:
         raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14')
+
+
+    # This function should not be removed or refactored.
+    # It is needed for TF 1.15
+    @property
+    def element_spec(self):
+      return self._structure
 
 
     @property
@@ -211,7 +218,7 @@ else:
       dtypes = []):
       raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.')
 
-DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13 and 1.14
+DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13, 1.14 and 1.15
 
     Parameters
     ----------

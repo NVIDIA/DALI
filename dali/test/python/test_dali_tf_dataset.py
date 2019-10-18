@@ -35,7 +35,7 @@ def tensorflow_minor_version():
 
 
 def compatible_tensorflow():
-    return tensorflow_minor_version() in {'13', '14'}
+    return tensorflow_minor_version() in {'13', '14', '15'}
 
 
 def skip_for_incompatible_tf():
@@ -103,7 +103,7 @@ def _dataset_options():
     try:
         options.experimental_optimization.apply_default_optimizations = False
 
-        if tensorflow_minor_version() == '14':
+        if tensorflow_minor_version() in ['14', '15']:
             options.experimental_optimization.autotune = False
         elif tensorflow_minor_version() == '13':
             options.experimental_autotune = False    
