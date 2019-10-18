@@ -328,7 +328,8 @@ class DLL_PUBLIC OpSchema {
    */
   template <typename T>
   DLL_PUBLIC inline OpSchema& AddOptionalArg(const std::string &s, const std::string &doc,
-                                  std::vector<T> default_value, bool enable_tensor_input = false) {
+                                             std::vector<T> default_value,
+                                             bool enable_tensor_input = false) {
     CheckArgument(s);
     auto to_store = Value::construct(std::vector<T>(default_value));
     optional_arguments_[s] = std::make_pair(doc, to_store.get());
