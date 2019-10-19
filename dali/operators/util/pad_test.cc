@@ -20,37 +20,48 @@ namespace dali {
 
 namespace testing {
 
-// 1-d elements: {{5},{2},{3}} -> {{5}, {5}, {5}}
-std::vector<std::vector<float> > batch1 = {{3, 4, 2, 5, 4},
-                                           {2, 2},
-                                           {3, 199, 5}};
-std::vector<std::vector<float> > padded_batch1 = {{3, 4, 2, 5, 4},
-                                                  {2, 2, -1, -1, -1},
-                                                  {3, 199, 5, -1, -1}};
+// 1-d elements: ((5),(2),(3)) -> ((5), (5), (5)) - axes = [0]
+std::vector<std::vector<float> > batch_axes_0 = {{3, 4, 2, 5, 4},
+                                                 {2, 2},
+                                                 {3, 199, 5}};
+std::vector<std::vector<float> > padded_batch_axes_0 = {{3, 4, 2, 5, 4},
+                                                        {2, 2, -1, -1, -1},
+                                                        {3, 199, 5, -1, -1}};
 
-// 2-d elements: {{2, 4}, {2, 2}} -> {{2, 4}, {2, 4}}
-std::vector<std::vector<int> > batch2 = {{1, 2 , 3, 4,
-                                          5, 6, 7, 8},
-                                         {1, 2,
-                                          4, 5}};
-std::vector<std::vector<int> > padded_batch2 = {{1, 2 , 3, 4,
-                                                 5, 6, 7, 8},
-                                                {1, 2, 42, 42,
-                                                 4, 5, 42, 42}};
+// 2-d elements: ((2, 4), (2, 2)) -> ((2, 4), (2, 4)) - axes = [1]
+std::vector<std::vector<int> > batch_axes_1 = {{1, 2 , 3, 4,
+                                                5, 6, 7, 8},
+                                               {1, 2,
+                                                4, 5}};
+std::vector<std::vector<int> > padded_batch_axes_1 = {{1, 2 , 3, 4,
+                                                       5, 6, 7, 8},
+                                                      {1, 2, 42, 42,
+                                                       4, 5, 42, 42}};
 
+// 2-d elements: ((2, 4), (3, 2)) -> ((3, 4), (3, 4)) - axes = []
+std::vector<std::vector<int> > batch_axes_empty = {{1, 2 , 3, 4,
+                                                    5, 6, 7, 8},
+                                                   {1, 2,
+                                                    4, 5,
+                                                    7, 8}};
+std::vector<std::vector<int> > padded_batch_axes_empty = {{1,  2,  3,  4,
+                                                           5,  6,  7,  8,
+                                                           0, 0, 0, 0},
+                                                          {1,  2,  0, 0,
+                                                           4,  5,  0, 0,
+                                                           7,  8,  0, 0}};
 
-// 2-d elements: {{2, 4}, {3, 2}} -> {{3, 4}, {3, 4}}
-std::vector<std::vector<int> > batch3 = {{1, 2 , 3, 4,
-                                          5, 6, 7, 8},
-                                         {1, 2,
-                                          4, 5,
-                                          7, 8}};
-std::vector<std::vector<int> > padded_batch3 = {{1,  2,  3,  4,
-                                                 5,  6,  7,  8,
-                                                 0, 0, 0, 0},
-                                                {1,  2,  0, 0,
-                                                 4,  5,  0, 0,
-                                                 7,  8,  0, 0}};
+// 3-d elements: ((1, 2, 2), (2, 1, 1)) -> ((2, 2, 2), (2, 1, 2)) - axes = [0, 2]
+std::vector<std::vector<int> > batch_axes_02 = {{1, 2,
+                                                 3, 4},
+                                                {1,
+                                                 2}};
+std::vector<std::vector<int> > padded_batch_axes_02 = {{1,  2,
+                                                        3,  4,
+                                                        0, 0,
+                                                        0, 0},
+                                                       {1,  0,
+                                                        2,  0}};
 
 template <typename T>
 std::vector<std::vector<T> > GetPaddedBatchForaxes(std::vector<int> axes) {
@@ -60,7 +71,7 @@ std::vector<std::vector<T> > GetPaddedBatchForaxes(std::vector<int> axes) {
 template <>
 std::vector<std::vector<float> > GetPaddedBatchForaxes(std::vector<int> axes) {
   if (axes[0] == 0) {
-    return padded_batch1;
+    return padded_batch_axes_0;
   }
   return {};
 }
@@ -68,38 +79,14 @@ std::vector<std::vector<float> > GetPaddedBatchForaxes(std::vector<int> axes) {
 template <>
 std::vector<std::vector<int> > GetPaddedBatchForaxes(std::vector<int> axes) {
   if (axes.empty()) {
-    return padded_batch3;
+    return padded_batch_axes_empty;
+  } else if (axes.size() == 2) {
+    return padded_batch_axes_02;
   } else if (axes[0] == 1) {
-    return padded_batch2;
+    return padded_batch_axes_1;
   }
   return {};
 }
-
-class PadTest : public testing::DaliOperatorTest {
-  GraphDescr GenerateOperatorGraph() const override {
-    GraphDescr graph("Pad");
-    return graph;
-  }
-};
-
-class PadBasicTest : public PadTest {};
-class Pad2DTest : public PadTest {};
-class PadAllAxesTest : public PadTest {};
-
-
-std::vector<Arguments> basic_args = {{{"fill_value", -1.0f}, {"axes", std::vector<int>{0}}}};
-
-std::vector<Arguments> two_d_args = {{{"fill_value", 42.0f}, {"axes", std::vector<int>{1}}}};
-
-std::vector<Arguments> all_axes_args = {{{"fill_value", 0.0f}, {"axes", std::vector<int>{}}}};
-
-
-
-std::vector<Arguments> devices = {
-// CPU Pad not supported yet
-//  {{"device", std::string{"cpu"}}},
-    {{"device", std::string{"gpu"}}},
-};
 
 template <typename T>
 void PadVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
@@ -116,44 +103,64 @@ void PadVerify(TensorListWrapper input, TensorListWrapper output, Arguments args
   }
 }
 
-TEST_P(PadBasicTest, BasicTest) {
-  auto args = GetParam();
-  testing::TensorListWrapper tl_out;
-  TensorList<CPUBackend> tl_in;
-  tl_in.Resize({{5}, {2}, {3}});
-  tl_in.set_type(TypeInfo::Create<float>());
-  for (size_t i = 0; i < tl_in.ntensor(); ++i) {
-    auto t = tl_in.mutable_tensor<float>(i);
-    std::copy(batch1[i].begin(), batch1[i].end(), t);
+class PadTest : public testing::DaliOperatorTest {
+  GraphDescr GenerateOperatorGraph() const override {
+    GraphDescr graph("Pad");
+    return graph;
   }
-  this->RunTest(&tl_in, tl_out, args, PadVerify<float>);
+
+ protected:
+  template <typename T>
+  void RunPadTest(std::vector<std::vector<T> >& batch,
+                  const TensorListShape<> tl_shape) {
+    auto args = GetParam();
+    testing::TensorListWrapper tl_out;
+    TensorList<CPUBackend> tl_in;
+    tl_in.Resize(tl_shape);
+    tl_in.set_type(TypeInfo::Create<T>());
+    for (size_t i = 0; i < tl_in.ntensor(); ++i) {
+      auto t = tl_in.mutable_tensor<T>(i);
+      std::copy(batch[i].begin(), batch[i].end(), t);
+    }
+    this->RunTest(&tl_in, tl_out, args, PadVerify<T>);
+  }
+};
+
+class PadBasicTest : public PadTest {};
+class Pad2DTest : public PadTest {};
+class PadAllAxesTest : public PadTest {};
+class Pad3D2AxesTest : public PadTest {};
+
+
+std::vector<Arguments> basic_args = {{{"fill_value", -1.0f}, {"axes", std::vector<int>{0}}}};
+
+std::vector<Arguments> two_d_args = {{{"fill_value", 42.0f}, {"axes", std::vector<int>{1}}}};
+
+std::vector<Arguments> all_axes_args = {{{"fill_value", 0.0f}, {"axes", std::vector<int>{}}}};
+
+std::vector<Arguments> two_axes_args = {{{"fill_value", 0.0f}, {"axes", std::vector<int>{0, 2}}}};
+
+
+std::vector<Arguments> devices = {
+// CPU Pad not supported yet
+//  {{"device", std::string{"cpu"}}},
+    {{"device", std::string{"gpu"}}},
+};
+
+TEST_P(PadBasicTest, BasicTest) {
+  RunPadTest(batch_axes_0, {{5}, {2}, {3}});
 }
 
-
 TEST_P(Pad2DTest, Test2D) {
-  auto args = GetParam();
-  testing::TensorListWrapper tl_out;
-  TensorList<CPUBackend> tl_in;
-  tl_in.Resize({{2, 4}, {2, 2}});
-  tl_in.set_type(TypeInfo::Create<int>());
-  for (size_t i = 0; i < tl_in.ntensor(); ++i) {
-    auto t = tl_in.mutable_tensor<int>(i);
-    std::copy(batch2[i].begin(), batch2[i].end(), t);
-  }
-  this->RunTest(&tl_in, tl_out, args, PadVerify<int>);
+  RunPadTest(batch_axes_1, {{2, 4}, {2, 2}});
 }
 
 TEST_P(PadAllAxesTest, TestAllAxes) {
-  auto args = GetParam();
-  testing::TensorListWrapper tl_out;
-  TensorList<CPUBackend> tl_in;
-  tl_in.Resize({{2, 4}, {3, 2}});
-  tl_in.set_type(TypeInfo::Create<int>());
-  for (size_t i = 0; i < tl_in.ntensor(); ++i) {
-    auto t = tl_in.mutable_tensor<int>(i);
-    std::copy(batch3[i].begin(), batch3[i].end(), t);
-  }
-  this->RunTest(&tl_in, tl_out, args, PadVerify<int>);
+  RunPadTest(batch_axes_empty, {{2, 4}, {3, 2}});
+}
+
+TEST_P(Pad3D2AxesTest, Test3D2Axes) {
+  RunPadTest(batch_axes_02, {{1, 2, 2}, {2, 1, 1}});
 }
 
 INSTANTIATE_TEST_SUITE_P(PadBasicTest, PadBasicTest,
@@ -164,5 +171,8 @@ INSTANTIATE_TEST_SUITE_P(Pad2DTest, Pad2DTest,
 
 INSTANTIATE_TEST_SUITE_P(PadAllAxesTest, PadAllAxesTest,
                         ::testing::ValuesIn(cartesian(devices, all_axes_args)));
+
+INSTANTIATE_TEST_SUITE_P(Pad3D2AxesTest, Pad3D2AxesTest,
+                        ::testing::ValuesIn(cartesian(devices, two_axes_args)));
 }  // namespace testing
 }  // namespace dali
