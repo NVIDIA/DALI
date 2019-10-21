@@ -57,7 +57,7 @@ struct YCbCr {
 // Main testing fixture to provide common functionality across tests
 class DALITest : public ::testing::Test {
  public:
-  DALITest() {
+  DALITest() : c_(-1) {
     rand_gen_.seed(time(nullptr));
     jpeg_names_ = ImageList(testing::dali_extra_path() + "/db/single/jpeg", {".jpg"});
     LoadImages(jpeg_names_, &jpegs_);
@@ -101,6 +101,7 @@ class DALITest : public ::testing::Test {
       out->Resize({tmp.rows, tmp.cols, c});
     }
 
+    DALI_ENFORCE(out, "There's no output Tensor to write into");
     std::memcpy(out->mutable_data<unsigned char>(),
                 out_img.ptr(),
                 static_cast<size_t>(out_img.rows) * out_img.cols * c);

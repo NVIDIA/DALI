@@ -54,7 +54,7 @@ class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
   }
 
  private:
-  unsigned int hybrid_huffman_threshold_;
+  unsigned int hybrid_huffman_threshold_ = -1;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;

@@ -56,7 +56,7 @@ class ImageDecoderSplitTest_GPU : public GenericDecoderTest<ImgType> {
   }
 
  private:
-  unsigned int hybrid_huffman_threshold_;
+  unsigned int hybrid_huffman_threshold_ = -1;
   bool use_chunk_allocator_ = false;
 };
 

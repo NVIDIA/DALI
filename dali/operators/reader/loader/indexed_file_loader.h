@@ -33,7 +33,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     : Loader(options),
       uris_(options.GetRepeatedArgument<std::string>("path")),
       index_uris_(options.GetRepeatedArgument<std::string>("index_path")),
-      current_file_(nullptr) {
+      current_index_(0), current_file_index_(0), current_file_(nullptr) {
     }
 
   void ReadSample(Tensor<CPUBackend>& tensor) override {
