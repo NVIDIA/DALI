@@ -165,7 +165,7 @@ if _get_tf_minor_version() in {'13', '14', '15'}:
       elif _get_tf_minor_version() == '13':
         super(_DALIDatasetV2, self).__init__()
       else:
-        raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14')
+        raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14, 1.15')
 
 
     # This function should not be removed or refactored.
