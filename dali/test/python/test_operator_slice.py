@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.edge import EdgeReference
+from nvidia.dali.ops import _EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali

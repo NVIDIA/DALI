@@ -13,17 +13,60 @@
 # limitations under the License.
 
 #pylint: disable=no-member
+from __future__ import division
 import sys
 import copy
 from itertools import count
 import threading
 from nvidia.dali import backend as b
-from nvidia.dali.edge import EdgeReference
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, DALIDataType, \
                               CUDAStream
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
+
+
+class _EdgeReference(object):
+    def __init__(self, name, device="cpu", source=None):
+        self.name = name
+        self.device = device
+        self.source = source
+
+    # Note: Regardless of whether we want the cpu or gpu version
+    # of a tensor, we keep the source argument the same so that
+    # the pipeline can backtrack through the user-defined graph
+    def gpu(self):
+        return _EdgeReference(self.name, "gpu", self.source)
+
+    def __add__(self, other):
+        return _arithm_op("add", self, other)
+    def __radd__(self, other):
+        return _arithm_op("add", other, self)
+
+    def __sub__(self, other):
+        return _arithm_op("sub", self, other)
+    def __rsub__(self, other):
+        return _arithm_op("sub", other, self)
+
+    def __mul__(self, other):
+        return _arithm_op("mul", self, other)
+    def __rmul__(self, other):
+        return _arithm_op("mul", other, self)
+
+    def __truediv__(self, other):
+        return _arithm_op("fdiv", self, other)
+    def __rtruediv__(self, other):
+        return _arithm_op("fdiv", other, self)
+
+    def __floordiv__(self, other):
+        return _arithm_op("div", self, other)
+    def __rfloordiv__(self, other):
+        return _arithm_op("div", other, self)
+
+    # def __neg__(self):
+    #     return _arithm_op("minus", self)
+    # def __pos__(self):
+    #     return _arithm_op("plus", self)
 
 _cpu_ops = set({})
 _gpu_ops = set({})
@@ -116,18 +159,18 @@ class _OperatorInstance(object):
         # Add inputs
         if inputs:
             for inp in inputs:
-                if not isinstance(inp, EdgeReference):
+                if not isinstance(inp, _EdgeReference):
                     raise TypeError(
-                        "Expected inputs of type 'EdgeReference'. Received input of type '{}'."
+                        "Expected inputs of type '_EdgeReference'. Received input of type '{}'."
                         .format(type(inp).__name__))
                 self._spec.AddInput(inp.name, inp.device)
         # Argument inputs
         for k in sorted(kwargs.keys()):
             if k not in ["name"]:
-                if not isinstance(kwargs[k], EdgeReference):
+                if not isinstance(kwargs[k], _EdgeReference):
                     raise TypeError(
                             ("Expected inputs of type " +
-                            "'EdgeReference'. Received " +
+                            "'_EdgeReference'. Received " +
                             "input of type '{}'.")
                             .format(type(kwargs[k]).__name__))
                 self._spec.AddArgumentInput(k, kwargs[k].name)
@@ -155,12 +198,12 @@ class _OperatorInstance(object):
 
         if num_output == 0 and self._op.preserve:
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
-            pipeline.add_sink(EdgeReference(t_name, output_device, self))
+            pipeline.add_sink(_EdgeReference(t_name, output_device, self))
             return
 
         for i in range(num_output):
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
-            t = EdgeReference(t_name, output_device, self)
+            t = _EdgeReference(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
             if self._op.preserve:
                 pipeline.add_sink(t)
@@ -310,12 +353,12 @@ def python_op_factory(name, op_device = "cpu"):
             return arg_list_len
 
         def _safe_len(self, input):
-            if isinstance(input, EdgeReference):
+            if isinstance(input, _EdgeReference):
                 return 1
             else:
                 return len(input)
 
-        # Pack single EdgeReferences into lists, so they are treated as Multiple Input Sets
+        # Pack single _EdgeReferences into lists, so they are treated as Multiple Input Sets
         # consistently with the ones already present
         def _unify_lists(self, inputs, arg_list_len):
             result = ()
@@ -439,7 +482,7 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         features = []
         for i, (feature_name, feature) in enumerate(self._features.items()):
             t_name = "_TFRecordReader" + "_id_" + str(op_instance.id) + "_output_" + str(i)
-            t = EdgeReference(t_name, self._device, op_instance)
+            t = _EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
             outputs[feature_name] = t
@@ -496,9 +539,9 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
                         self._schema.MaxNumInput(),
                         len(inputs)))
         for inp in inputs:
-            if not isinstance(inp, EdgeReference):
+            if not isinstance(inp, _EdgeReference):
                 raise TypeError(
-                      ("Expected inputs of type 'EdgeReference'. Received input of type '{}'. " +
+                      ("Expected inputs of type '_EdgeReference'. Received input of type '{}'. " +
                        "Python Operators do not support Multiple Input Sets.")
                       .format(type(inp).__name__))
         op_instance = _OperatorInstance(inputs, self, **kwargs)
@@ -507,13 +550,13 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddArg("device", self.device)
         if self.num_outputs == 0:
             t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
-            t = EdgeReference(t_name, self._device, op_instance)
+            t = _EdgeReference(t_name, self._device, op_instance)
             pipeline.add_sink(t)
             return
         outputs = []
         for i in range(self.num_outputs):
             t_name = self._impl_name + "_id_" + str(op_instance.id) + "_output_" + str(i)
-            t = EdgeReference(t_name, self._device, op_instance)
+            t = _EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
             pipeline.add_sink(t)
@@ -547,6 +590,43 @@ class DLTensorPythonFunction(PythonFunctionBase):
                                                      device=device,
                                                      synchronize_stream=synchronize_stream,
                                                      **kwargs)
+
+def _load_arithm_ops():
+    arithm_op_names = ["ArithmeticGenericOp"]
+    for op_name in arithm_op_names:
+      if not hasattr(sys.modules[__name__], op_name):
+          setattr(sys.modules[__name__], op_name,
+                  python_op_factory(op_name, op_device = "cpu"))
+
+_load_arithm_ops()
+
+def _choose_device(inputs):
+    if any (input.device == "gpu" for input in inputs):
+        return "gpu"
+    return "cpu"
+
+def _target_uniform_dev(inputs, dev):
+    return inputs
+
+
+def _arithm_op(name, *inputs):
+        input_desc = ""
+        for i, input in enumerate(inputs):
+            input_desc += "&" + str(i)
+            if i < len(inputs) - 1:
+                input_desc += " "
+        expression_desc = "{}({})".format(name, input_desc)
+        dev = _choose_device(inputs)
+        # Create "instance" of operator
+        op = ArithmeticGenericOp(device = _choose_device(inputs), expression_desc = expression_desc)
+        # If we are on gpu, we must mark all inputs as gpu
+        if dev == "gpu":
+            dev_inputs = list(input.gpu() for input in inputs)
+        else:
+            dev_inputs = inputs
+        # Call it imediatelly
+        return op(*dev_inputs)
+
 
 
 def cpu_ops():

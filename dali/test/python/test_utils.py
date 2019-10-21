@@ -15,7 +15,6 @@
 from __future__ import print_function
 
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.edge import EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali

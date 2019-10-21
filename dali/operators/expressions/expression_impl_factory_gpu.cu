@@ -20,12 +20,13 @@
 #include "dali/operators/expressions/expression_impl_gpu.cuh"
 #include "dali/operators/expressions/expression_impl_factory.h"
 
-// float16
+// TODO(klecki): float16
 #define ALLOWED_TYPES \
   (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, double)
 
-#define ALLOWED_OPS \
-  (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod)
+#define ALLOWED_OPS                                                                                \
+  (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::fdiv, \
+      ArithmeticOp::mod)
 
 namespace dali {
 
@@ -42,7 +43,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactory2(const DeviceWorkspace &ws,
   TYPE_SWITCH(left_type, type2id, Left_t, ALLOWED_TYPES, (
     TYPE_SWITCH(right_type, type2id, Right_t, ALLOWED_TYPES, (
         VALUE_SWITCH(op, op_static, ALLOWED_OPS, (
-          using Out_t = binary_result_t<Left_t, Right_t>;
+          using Out_t = arithm_meta<op_static, GPUBackend>::result_t<Left_t, Right_t>;
           if (expr[0].GetNodeType() == NodeType::Tensor &&
               expr[1].GetNodeType() == NodeType::Tensor) {
             result.reset(new ExprImplBinGPU<op_static, Out_t,
