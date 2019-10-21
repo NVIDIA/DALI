@@ -43,8 +43,24 @@ inline TensorShape<2> RotatedCanvasSize(TensorShape<2> input_size, double angle)
   double eps = 1e-5;
   double abs_cos = std::abs(std::cos(angle));
   double abs_sin = std::abs(std::sin(angle));
-  out_size[0] = std::ceil(abs_cos * input_size[0] + abs_sin * input_size[1] - eps);
-  out_size[1] = std::ceil(abs_cos * input_size[1] + abs_sin * input_size[0] - eps);
+  int w = input_size[1];
+  int h = input_size[0];
+  int w_out = std::ceil(abs_cos * w + abs_sin * h - eps);
+  int h_out = std::ceil(abs_cos * h + abs_sin * w - eps);
+  if (abs_sin <= abs_cos) {
+    // if rotated by less than 45deg, maintain size parity to reduce blur
+    if (w_out % 2 != w % 2)
+      w_out++;
+    if (h_out % 2 != h % 2)
+      h_out++;
+  } else {
+    // if rotated by more than 45deg, swap size parity to reduce blur
+    if (h_out % 2 != w % 2)
+      h_out++;
+    if (w_out % 2 != h % 2)
+      w_out++;
+  }
+  out_size = { h_out, w_out };
   return out_size;
 }
 
