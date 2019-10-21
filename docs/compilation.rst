@@ -26,18 +26,21 @@ Building Python wheel and (optionally) Docker image
 
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed, set the following environment variables:
 
-* PYVER - Python version. Default is ``3.6``.
-* CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). Default is ``10``. If the version is prefixed with `.` then any value ``XX`` can be passed and the user needs to make sure that Dockerfile.cudaXX.deps is present in `docker/` directory.
-* NVIDIA_BUILD_ID - Custom ID of the build. Default is ``1234``.
-* CREATE_WHL - Create a standalone wheel. Default is ``YES``.
-* BUILD_TF_PLUGIN - Create a DALI TensorFlow plugin as well. Default is ``NO``.
+* PYVER - Python version. The default is ``3.6``.
+* CUDA_VERSION - CUDA toolkit version (9 for 9.0 or 10 for 10.0). The default is ``10``. If the version is prefixed with `.` then any value ``XX`` can be passed and the user needs to make sure that Dockerfile.cudaXX.deps is present in `docker/` directory.
+* NVIDIA_BUILD_ID - Custom ID of the build. The default is ``1234``.
+* CREATE_WHL - Create a standalone wheel. The default is ``YES``.
+* BUILD_TF_PLUGIN - Create a DALI TensorFlow plugin wheel as well. The default is ``NO``.
+* PREBUILD_TF_PLUGINS - If prebuild DALI TensorFlow plugin. It should be used together with BUILD_TF_PLUGIN option. If both options are set to ``YES`` then DALI TensorFlow plugin package is built with prebuild plugin binaries inside. If PREBUILD_TF_PLUGINS is set to ``NO`` then the wheel is still built but not prebuild binaries are placed inside and the user needs to make sure that he has proper compiler version present (aligned with the one used to build present TensorFlow) so the plugin can be built during the installation of DALI TensorFlow plugin package. If is BUILD_TF_PLUGIN is set to ``NO`` PREBUILD_TF_PLUGINS value is disregarded. The default is ``YES``.
 * CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside. It will create the ``Docker_run_cuda`` image, which needs to be run using ``nvidia-docker`` and DALI wheel in the ``wheelhouse`` directory under$
 * DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package description, i.e. `nightly` will result in the `nvidia-dali-nightly`
-* CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo. Default is ``Release``.
-* BUILD_INHOST - ask docker to mount source code instead of copying it. Thank to that consecutive builds are resuing existing object files and are faster for the development. Uses $DALI_BUILD_DIR as a directory for build objects. Default is ``YES``.
-* REBUILD_BUILDERS - if builder docker images need to be rebuild or can be reused from the previous build. Default is ``NO``.
-* REBUILD_MANYLINUX - if manylinux base image need to be rebuild. Default is ``NO``.
-* DALI_BUILD_DIR - where DALI build should happen. It matters only bit the in-tree build where user may provide different path for every python/CUDA version. Default is ``build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}``.
+* CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo. The default is ``Release``.
+* BUILD_INHOST - ask docker to mount source code instead of copying it. Thank to that consecutive builds are resuing existing object files and are faster for the development. Uses $DALI_BUILD_DIR as a directory for build objects. The default is ``YES``.
+* REBUILD_BUILDERS - if builder docker images need to be rebuild or can be reused from the previous build. The default is ``NO``.
+* REBUILD_MANYLINUX - if manylinux base image need to be rebuild. The default is ``NO``.
+* DALI_BUILD_DIR - where DALI build should happen. It matters only bit the in-tree build where user may provide different path for every python/CUDA version. The default is ``build-docker-${CMAKE_BUILD_TYPE}-${PYV}-${CUDA_VERSION}``.
+* ARCH - architecture that DALI is build for, currently only x86_64 is supported. The default is ``x86_64``.
+* WHL_PLATFORM_NAME - the name of the Python wheel platform tag. The default is ``manylinux1_x86_64``.
 
 It is worth to mention that build.sh should accept the same set of environment variables as the project CMake.
 

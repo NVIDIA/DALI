@@ -23,6 +23,7 @@ source:
 
 build:
   script_env:
+   - CUDA_TARGET_ARCHS
    - CMAKE_BUILD_TYPE
    - BUILD_TEST
    - BUILD_BENCHMARK

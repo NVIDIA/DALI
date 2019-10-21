@@ -1,14 +1,7 @@
 ARG TF_CUSTOM_OP_BUILDER_IMAGE
-FROM ${TF_CUSTOM_OP_BUILDER_IMAGE} as base
+FROM ${TF_CUSTOM_OP_BUILDER_IMAGE}
 
 WORKDIR /opt/dali
-
-FROM base as base_with_wheel
-
-COPY dali_tf_plugin/whl whl
-RUN pip install whl/*cp${PYV}*.whl && rm -rf whl
-
-FROM base_with_wheel
 
 ARG NVIDIA_DALI_BUILD_FLAVOR
 ENV NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}
@@ -27,5 +20,8 @@ COPY LICENSE .
 COPY VERSION .
 COPY cmake ./cmake
 COPY dali_tf_plugin ./dali_tf_plugin
+
+COPY dali_tf_plugin/whl whl
+RUN pip install whl/*cp${PYV}*.whl && rm -rf whl
 
 WORKDIR /opt/dali/dali_tf_plugin

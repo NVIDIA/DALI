@@ -41,20 +41,27 @@ export NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-0}
 export GIT_SHA=${GIT_SHA}
 export DALI_TIMESTAMP=${DALI_TIMESTAMP}
 export NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}
+export CUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}
+export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux1_x86_64}
 
 LD_LIBRARY_PATH="${PWD}:${LD_LIBRARY_PATH}" && \
-cmake ../ -DCMAKE_INSTALL_PREFIX=. -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
-      -DBUILD_TEST=${BUILD_TEST} -DBUILD_BENCHMARK=${BUILD_BENCHMARK} \
-      -DBUILD_NVTX=${BUILD_NVTX} -DBUILD_PYTHON=${BUILD_PYTHON} \
-      -DBUILD_LMDB=${BUILD_LMDB} \
-      -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO} \
-      -DBUILD_NVJPEG=${BUILD_NVJPEG} \
-      -DBUILD_LIBTIFF=${BUILD_LIBTIFF} \
-      -DBUILD_NVOF=${BUILD_NVOF} -DBUILD_NVDEC=${BUILD_NVDEC} \
-      -DBUILD_NVML=${BUILD_NVML} \
-      -DVERBOSE_LOGS=${VERBOSE_LOGS} \
-      -DWERROR=${WERROR} \
-      -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN} \
+cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
+      -DCUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}     \
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}       \
+      -DBUILD_TEST=${BUILD_TEST}                   \
+      -DBUILD_BENCHMARK=${BUILD_BENCHMARK}         \
+      -DBUILD_NVTX=${BUILD_NVTX}                   \
+      -DBUILD_PYTHON=${BUILD_PYTHON}               \
+      -DBUILD_LMDB=${BUILD_LMDB}                   \
+      -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}       \
+      -DBUILD_NVJPEG=${BUILD_NVJPEG}               \
+      -DBUILD_LIBTIFF=${BUILD_LIBTIFF}             \
+      -DBUILD_NVOF=${BUILD_NVOF}                   \
+      -DBUILD_NVDEC=${BUILD_NVDEC}                 \
+      -DBUILD_NVML=${BUILD_NVML}                   \
+      -DVERBOSE_LOGS=${VERBOSE_LOGS}               \
+      -DWERROR=${WERROR}                           \
+      -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN}         \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
       -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA}
 if [ "${WERROR}" = "ON" ]; then
@@ -65,7 +72,7 @@ make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 if [ "${BUILD_PYTHON}" = "ON" ]; then \
     pip wheel -v dali/python \
         --build-option --python-tag=$(basename /opt/python/cp${PYV}-*) \
-        --build-option --plat-name=manylinux1_x86_64 \
+        --build-option --plat-name=${WHL_PLATFORM_NAME} \
         --build-option --build-number=${NVIDIA_BUILD_ID}
     ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl
     export UNZIP_PATH="$(mktemp -d)"
