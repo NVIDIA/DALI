@@ -28,6 +28,7 @@
 #include "dali/util/half.hpp"
 #include "dali/core/device_guard.h"
 #include "dali/core/python_util.h"
+#include "dali/operators/operators.h"
 
 namespace dali {
 namespace python {
@@ -541,6 +542,7 @@ TFValue ConvertTFRecordDefaultValue(TFFeatureType type, py::object val) {
 #endif  // DALI_BUILD_PROTO3
 
 PYBIND11_MODULE(backend_impl, m) {
+  dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
 
   // DALI Init function

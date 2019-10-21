@@ -12,10 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/util/dummy_op.h"
+#include "dali/test/dummy_op.h"
+
+#include <cstdlib>
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(DummyOp, DummyOp<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(DummyOp, DummyOp<CPUBackend>, CPU);
+
+DALI_SCHEMA(DummyOp)
+  .DocStr("Dummy operator for testing")
+  .OutputFn([](const OpSpec &spec) { return spec.GetArgument<int>("num_outputs"); })
+  .NumInput(0, 10)
+  .AddOptionalArg("num_outputs",
+      R"code(Number of outputs.)code", 2);
 
 }  // namespace dali

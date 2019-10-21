@@ -12,29 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/util/copy.h"
+#include "dali/pipeline/operator/builtin/make_contiguous.h"
 
 namespace dali {
 
-template<>
-void Copy<CPUBackend>::RunImpl(SampleWorkspace &ws) {
-  auto &input = ws.Input<CPUBackend>(0);
-  auto &output = ws.Output<CPUBackend>(0);
-  output.set_type(input.type());
-  output.SetLayout(input.GetLayout());
-  output.ResizeLike(input);
+DALI_REGISTER_OPERATOR(MakeContiguous, MakeContiguous, Mixed);
 
-  TypeInfo type = input.type();
-  type.Copy<CPUBackend, CPUBackend>(
-      output.raw_mutable_data(),
-      input.raw_data(), input.size(), 0);
-}
-
-DALI_REGISTER_OPERATOR(Copy, Copy<CPUBackend>, CPU);
-
-DALI_SCHEMA(Copy)
-  .DocStr("Make a copy of the input tensor")
+DALI_SCHEMA(MakeContiguous)
+  .DocStr(R"code(Move input batch to a contiguous representation, more suitable for execution on the GPU)code")
   .NumInput(1)
-  .NumOutput(1);
+  .NumOutput(1)
+  .MakeInternal();
 
 }  // namespace dali
