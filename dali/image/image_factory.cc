@@ -65,10 +65,10 @@ constexpr std::array<int, 4> header_motorola = {73, 73, 42, 0};
 
 bool CheckIsTiff(const uint8_t *tiff, int size) {
   DALI_ENFORCE(tiff);
-  auto check_header = [](const unsigned char *tiff, const std::array<int, 4> &header) -> bool {
-      DALI_ENFORCE(tiff);
+  auto check_header = [](const unsigned char *tiff_buf, const std::array<int, 4> &header) -> bool {
+      DALI_ENFORCE(tiff_buf);
       for (unsigned int i = 0; i < header.size(); i++) {
-        if (tiff[i] != header[i]) {
+        if (tiff_buf[i] != header[i]) {
           return false;
         }
       }

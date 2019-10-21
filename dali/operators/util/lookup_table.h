@@ -44,6 +44,7 @@ class LookupTable : public Operator<Backend> {
 
   explicit inline LookupTable(const OpSpec &spec)
     : Operator<Backend>(spec)
+    , input_type_(DALI_NO_TYPE)
     , output_type_(spec.GetArgument<DALIDataType>("output_dtype"))
     , default_value_f_(spec.GetArgument<float>("default_value")) {
     std::vector<int> keys;

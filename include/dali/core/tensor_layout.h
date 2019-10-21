@@ -72,7 +72,7 @@ class TensorLayout {
   template <size_t N>
   DALI_HOST_DEV
   constexpr TensorLayout(const char (&s)[N])  // NOLINT
-  : TensorLayout(s, N && s[N-1] == '\0' ? N - 1 : N) {
+  : TensorLayout(s, N > 0 && s[N-1] == '\0' ? N - 1 : N) {
   }
 
   /** @brief Constructs a TensorLayout from std::string */
