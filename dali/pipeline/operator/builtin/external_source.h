@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_UTIL_EXTERNAL_SOURCE_H_
-#define DALI_OPERATORS_UTIL_EXTERNAL_SOURCE_H_
+#ifndef DALI_PIPELINE_OPERATOR_BUILTIN_EXTERNAL_SOURCE_H_
+#define DALI_PIPELINE_OPERATOR_BUILTIN_EXTERNAL_SOURCE_H_
 
 #include <atomic>
 #include <string>
@@ -244,4 +244,4 @@ class ExternalSource : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_UTIL_EXTERNAL_SOURCE_H_
+#endif  // DALI_PIPELINE_OPERATOR_BUILTIN_EXTERNAL_SOURCE_H_

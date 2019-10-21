@@ -16,7 +16,7 @@
 #include <memory>
 #include <list>
 
-#include "dali/operators/util/external_source.h"
+#include "dali/pipeline/operator/builtin/external_source.h"
 
 namespace dali {
 

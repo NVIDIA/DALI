@@ -513,30 +513,9 @@ class DLL_PUBLIC OpSchema {
 
 class SchemaRegistry {
  public:
-  static OpSchema& RegisterSchema(const std::string &name) {
-    auto &schema_map = registry();
-    DALI_ENFORCE(schema_map.count(name) == 0, "OpSchema already "
-        "registered for operator '" + name + "'. DALI_SCHEMA(op) "
-        "should only be called once per op.");
-
-    // Insert the op schema and return a reference to it
-    schema_map.emplace(std::make_pair(name, OpSchema(name)));
-    return schema_map.at(name);
-  }
-
-  static const OpSchema& GetSchema(const std::string &name) {
-    auto &schema_map = registry();
-    auto it = schema_map.find(name);
-    DALI_ENFORCE(it != schema_map.end(), "Schema for operator '" +
-        name + "' not registered");
-    return it->second;
-  }
-
-  static const OpSchema* TryGetSchema(const std::string &name) {
-    auto &schema_map = registry();
-    auto it = schema_map.find(name);
-    return it != schema_map.end() ? &it->second : nullptr;
-  }
+  DLL_PUBLIC static OpSchema& RegisterSchema(const std::string &name);
+  DLL_PUBLIC static const OpSchema& GetSchema(const std::string &name);
+  DLL_PUBLIC static const OpSchema* TryGetSchema(const std::string &name);
 
  private:
   inline SchemaRegistry() {}

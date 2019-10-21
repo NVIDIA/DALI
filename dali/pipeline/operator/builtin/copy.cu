@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
-#include "dali/operators/util/copy.h"
+#include "dali/pipeline/operator/builtin/copy.h"
 
 namespace dali {
 

@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_UTIL_COPY_H_
-#define DALI_OPERATORS_UTIL_COPY_H_
+#ifndef DALI_TEST_DUMMY_OP_H_
+#define DALI_TEST_DUMMY_OP_H_
 
-#include <cstring>
 #include <vector>
 
 #include "dali/pipeline/operator/operator.h"
@@ -23,23 +22,25 @@
 namespace dali {
 
 template <typename Backend>
-class Copy : public Operator<Backend> {
+class DummyOp : public Operator<Backend> {
  public:
-  inline explicit Copy(const OpSpec &spec) :
+  inline explicit DummyOp(const OpSpec &spec) :
     Operator<Backend>(spec) {}
 
-  inline ~Copy() override = default;
+  inline ~DummyOp() override = default;
 
-  DISABLE_COPY_MOVE_ASSIGN(Copy);
+  DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
+  void RunImpl(Workspace<Backend> &) override {
+    DALI_FAIL("I'm a dummy op don't run me");
+  }
 };
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_UTIL_COPY_H_
+#endif  // DALI_TEST_DUMMY_OP_H_
