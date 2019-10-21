@@ -57,6 +57,10 @@ class DALIGenericIterator(object):
     outputs from the DALI pipeline in the form of MXNet's DataBatch
     of NDArrays.
 
+    Please keep in mind that NDArrays returned by the iterator are
+    still owned by DALI. They are valid till the next iterator call.
+    If the content needs to be preserved please copy it to another NDArray.
+
     Parameters
     ----------
     pipelines : list of nvidia.dali.pipeline.Pipeline
@@ -325,6 +329,10 @@ class DALIClassificationIterator(DALIGenericIterator):
                             label_name, DALIClassificationIterator.LABEL_TAG],
                            size, data_name, label_name,
                            data_layout)
+
+    Please keep in mind that NDArrays returned by the iterator are
+    still owned by DALI. They are valid till the next iterator call.
+    If the content needs to be preserved please copy it to another NDArray.
 
     Parameters
     ----------
