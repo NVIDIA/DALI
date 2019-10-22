@@ -35,7 +35,7 @@ class Rotate : public Warp<Backend, Rotate<Backend>> {
   using Mapping = kernels::AffineMapping<ndim>;
 
   template <int spatial_ndim, typename BorderType>
-  using ParamProvider = rotate_impl::RotateParamProvider<Backend, spatial_ndim, BorderType>;
+  using ParamProvider = RotateParamProvider<Backend, spatial_ndim, BorderType>;
 
   template <int spatial_ndim, typename BorderType>
   auto CreateParamProvider() {

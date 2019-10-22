@@ -19,7 +19,7 @@ def get_output_size(angle, input_size):
     cosa = abs(math.cos(angle))
     sina = abs(math.sin(angle))
     (h, w) = input_size[0:2]
-    eps = 1e-5
+    eps = 1e-2
     out_w = int(math.ceil(w*cosa + h*sina - eps))
     out_h = int(math.ceil(h*cosa + w*sina - eps))
     if sina <= cosa:
@@ -90,6 +90,9 @@ class RotatePipeline(Pipeline):
         else:
           self.cast = None
 
+        # TODO(michalz): When we move from Support to CPU operators, replace hardcoded angle
+        #                with one taken from the distribution below
+        # self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42);
         self.rotate = ops.Rotate(device = device, size=fixed_size, angle = 30, fill_value = 42, output_dtype = output_type)
 
     def define_graph(self):
@@ -110,6 +113,8 @@ class CVPipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.rotate = ops.PythonFunction(function=CVRotate(output_type, input_type, 30, fixed_size))
+        # TODO(michalz): When we move from Support to CPU operators, replace hardcoded angle
+        #                with one taken from the distribution below
         # self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42);
         self.iter = 0
 
@@ -121,6 +126,8 @@ class CVPipeline(Pipeline):
 
 
 def compare(pipe1, pipe2, eps):
+  pipe1.build()
+  pipe2.build()
   epoch_size = pipe1.epoch_size("Reader")
   batch_size = pipe1.batch_size
   niter = 1 if batch_size >= epoch_size else 2
@@ -133,59 +140,33 @@ io_types = [
   (dali.types.FLOAT, dali.types.FLOAT)
 ]
 
+def create_pipeline(backend, *args):
+  if backend == "cv":
+    return CVPipeline(*args)
+  else:
+    return RotatePipeline(backend, *args)
 
-def test_cpu_vs_cv():
+def run_cases(backend1, backend2, epsilon):
   for batch_size in [1, 4, 19]:
     for output_size in [None, (160,240)]:
       for (itype, otype) in io_types:
-        print("Testing cpu vs cv",
-              "\nbatch size: ", batch_size,
-              " output size: ", output_size,
-              " input_type: ", itype,
-              " output_type: ", otype)
-        cv_pipeline = CVPipeline(batch_size, otype, itype, output_size);
-        cv_pipeline.build();
-
-        cpu_pipeline = RotatePipeline("cpu", batch_size, otype, itype, output_size);
-        cpu_pipeline.build();
-
-        compare(cv_pipeline, cpu_pipeline, 8)
+        def run_case(backend1, backend2, *args):
+          pipe1 = create_pipeline(backend1, *args)
+          pipe2 = create_pipeline(backend2, *args)
+          compare(pipe1, pipe2, epsilon)
+        yield run_case, backend1, backend2, batch_size, otype, itype, output_size
 
 def test_gpu_vs_cv():
-  for batch_size in [1, 4, 19]:
-    for output_size in [None, (160,240)]:
-      for (itype, otype) in io_types:
-        print("Testing gpu vs cv",
-              "\nbatch size: ", batch_size,
-              " output size: ", output_size,
-              " input type: ", itype,
-              " output type: ", otype)
-        cv_pipeline = CVPipeline(batch_size, otype, itype, output_size);
-        cv_pipeline.build();
+  for test in run_cases("gpu", "cv", 8):
+    yield test
 
-        gpu_pipeline = RotatePipeline("gpu", batch_size, otype, itype, output_size);
-        gpu_pipeline.build();
-
-        compare(cv_pipeline, gpu_pipeline, 8)
+def test_cpu_vs_cv():
+  for test in run_cases("cpu", "cv", 8):
+    yield test
 
 def test_gpu_vs_cpu():
-  for batch_size in [1, 4, 19]:
-    for output_size in [None, (160,240)]:
-      for (itype, otype) in io_types:
-        print("Testing gpu vs cpu",
-              "\nbatch size: ", batch_size,
-              " output size: ", output_size,
-              " input type: ", itype,
-              " output type: ", otype)
-        cpu_pipeline = RotatePipeline("cpu", batch_size, otype, itype, output_size);
-        cpu_pipeline.build();
-
-        gpu_pipeline = RotatePipeline("gpu", batch_size, otype, itype, output_size);
-        gpu_pipeline.build();
-
-        compare(cpu_pipeline, gpu_pipeline, 1)
-
-
+  for test in run_cases("gpu", "cpu", 1):
+    yield test
 
 def main():
   test_cpu_vs_cv()

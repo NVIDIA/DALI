@@ -27,10 +27,6 @@
 #include "dali/core/format.h"
 
 namespace dali {
-namespace rotate_impl {
-
-using kernels::shape2vec;
-using kernels::skip_dim;
 
 template <typename Backend, int spatial_ndim, typename BorderType>
 class RotateParamProvider;
@@ -40,7 +36,7 @@ using RotateParams = kernels::AffineMapping<spatial_ndim>;
 
 inline TensorShape<2> RotatedCanvasSize(TensorShape<2> input_size, double angle) {
   TensorShape<2> out_size;
-  double eps = 1e-5;
+  double eps = 1e-2;
   double abs_cos = std::abs(std::cos(angle));
   double abs_sin = std::abs(std::sin(angle));
   int w = input_size[1];
@@ -146,6 +142,8 @@ class RotateParamProvider<Backend, 2, BorderType>
 
 
   void AdjustParams() override {
+    using kernels::shape2vec;
+    using kernels::skip_dim;
     assert(input_shape_.num_samples() == num_samples_);
     assert(static_cast<int>(out_sizes_.size()) == num_samples_);
 
@@ -163,7 +161,7 @@ class RotateParamProvider<Backend, 2, BorderType>
   void InferSize() override {
     assert(static_cast<int>(out_sizes_.size()) == num_samples_);
     for (int i = 0; i < num_samples_; i++) {
-      auto in_shape = skip_dim<2>(input_shape_[i]);
+      auto in_shape = kernels::skip_dim<2>(input_shape_[i]);
       out_sizes_[i] = RotatedCanvasSize(in_shape, deg2rad(angles_[i]));
     }
   }
@@ -180,7 +178,6 @@ class RotateParamProvider<Backend, 2, BorderType>
   TensorListShape<spatial_ndim + 1> input_shape_;
 };
 
-}  // namespace rotate_impl
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_DISPLACEMENT_ROTATE_PARAMS_H_
