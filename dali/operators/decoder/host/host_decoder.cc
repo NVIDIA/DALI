@@ -48,14 +48,6 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
   std::memcpy(out_data, decoded.get(), volume(shape));
 }
 
-DALI_SCHEMA(HostDecoder)
-  .DocStr(R"code(Specific implementation of `ImageDecoder` for `cpu` backend)code")
-  .NumInput(1)
-  .NumOutput(1)
-  .AddParent("ImageDecoder")
-  .Deprecate("ImageDecoder");
-
-DALI_REGISTER_OPERATOR(HostDecoder, HostDecoder, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoder, HostDecoder, CPU);
 
 }  // namespace dali
