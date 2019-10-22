@@ -28,10 +28,6 @@ TYPED_TEST(CropTest, CropVector) {
   this->RunTest({"Crop", {"crop", "224, 256", DALI_FLOAT_VEC}}, addImageType);
 }
 
-TYPED_TEST(CropTest, CropSingleDim) {
-  this->RunTest({"Crop", {"crop", "224", DALI_FLOAT_VEC}}, addImageType);
-}
-
 TYPED_TEST(CropTest, CropWH) {
   const OpArg params[] = {{"crop_h", "224", DALI_FLOAT},
                           {"crop_w", "256", DALI_FLOAT}};
@@ -53,18 +49,12 @@ TYPED_TEST(CropTest, ErrorTooBigWindow2) {
 }
 
 TYPED_TEST(CropTest, ErrorTooBigWindow3) {
-  const OpArg params[] = {{"crop", "2240", DALI_FLOAT_VEC}};
-  EXPECT_ANY_THROW(
-    this->RunTest("Crop", params, 1, addImageType));
-}
-
-TYPED_TEST(CropTest, ErrorTooBigWindow4) {
   const OpArg params[] = {{"crop", "2240, 256", DALI_FLOAT_VEC}};
   EXPECT_ANY_THROW(
     this->RunTest("Crop", params, 1, addImageType));
 }
 
-TYPED_TEST(CropTest, ErrorTooBigWindow5) {
+TYPED_TEST(CropTest, ErrorTooBigWindow4) {
   const OpArg params[] = {{"crop", "224, 2560", DALI_FLOAT_VEC}};
   EXPECT_ANY_THROW(
     this->RunTest("Crop", params, 1, addImageType));
@@ -98,12 +88,5 @@ TYPED_TEST(CropTest, ErrorWrongArgs3_BothCropAndCropH) {
   EXPECT_ANY_THROW(
     this->RunTest("Crop", params, 2, addImageType));
 }
-
-TYPED_TEST(CropTest, ErrorWrongArgs_OnlyH) {
-  const OpArg params[] = {{"crop_h", "224", DALI_FLOAT}};
-  EXPECT_ANY_THROW(
-    this->RunTest("Crop", params, 1, addImageType));
-}
-
 
 }  // namespace dali
