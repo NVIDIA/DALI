@@ -211,7 +211,7 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
   auto operator_name = spec.name();
   bool split_stages = false;
   bool is_hybrid_decoder = device == "mixed" &&
-    (has_prefix(operator_name, "nvJPEGDecoder") || has_prefix(operator_name, "ImageDecoder"));
+    (has_prefix(operator_name, "ImageDecoder"));
 
   if (is_hybrid_decoder &&
       operator_name.find("CPUStage") == std::string::npos &&
@@ -345,7 +345,7 @@ inline void Pipeline::AddSplitHybridDecoder(OpSpec &spec, const std::string &ins
 
   std::string suffix = "";
   bool any_match = false;
-  for (const std::string& prefix : {"nvJPEGDecoder", "ImageDecoder"}) {
+  for (const std::string& prefix : {"ImageDecoder"}) {
     if (has_prefix(operator_name, prefix)) {
       suffix = operator_name.substr(prefix.size());
       any_match = true;

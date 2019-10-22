@@ -1,6 +1,6 @@
 from __future__ import print_function
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.edge import EdgeReference
+from nvidia.dali.ops import _EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy
@@ -56,7 +56,7 @@ class PythonOperatorPipeline(CommonPipeline):
     def define_graph(self):
         images, labels = self.load()
         processed = self.python_function(images)
-        assert isinstance(processed, EdgeReference)
+        assert isinstance(processed, _EdgeReference)
         return processed
 
 class PythonOperatorInvalidPipeline(PythonOperatorPipeline):
@@ -90,8 +90,8 @@ class TwoOutputsPythonOperatorPipeline(CommonPipeline):
     def define_graph(self):
         images, labels = self.load()
         out1, out2 = self.python_function(images)
-        assert isinstance(out1, EdgeReference)
-        assert isinstance(out2, EdgeReference)
+        assert isinstance(out1, _EdgeReference)
+        assert isinstance(out2, _EdgeReference)
         return out1, out2
 
 
@@ -105,9 +105,9 @@ class MultiInputMultiOutputPipeline(CommonPipeline):
         images1, labels1 = self.load()
         images2, labels2 = self.load()
         out1, out2, out3 = self.python_function(images1, images2)
-        assert isinstance(out1, EdgeReference)
-        assert isinstance(out2, EdgeReference)
-        assert isinstance(out3, EdgeReference)
+        assert isinstance(out1, _EdgeReference)
+        assert isinstance(out2, _EdgeReference)
+        assert isinstance(out3, _EdgeReference)
         return out1, out2, out3
 
 

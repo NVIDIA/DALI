@@ -21,11 +21,11 @@
 
 namespace dali {
 
-class nvJPEGDecoderCPUStageSlice : public nvJPEGDecoderCPUStage, public SliceAttr {
+class nvJPEGDecoderCPUStageSlice : public nvJPEGDecoderCPUStage {
  public:
   explicit nvJPEGDecoderCPUStageSlice(const OpSpec& spec)
     : nvJPEGDecoderCPUStage(spec)
-    , SliceAttr(spec)
+    , slice_attr_(spec)
   {}
 
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderCPUStageSlice);
@@ -33,13 +33,16 @@ class nvJPEGDecoderCPUStageSlice : public nvJPEGDecoderCPUStage, public SliceAtt
  protected:
   using Operator<CPUBackend>::RunImpl;
   void RunImpl(SampleWorkspace &ws) override {
-    SliceAttr::ProcessArguments(ws);
+    slice_attr_.ProcessArguments(ws);
     nvJPEGDecoderCPUStage::RunImpl(ws);
   }
 
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return SliceAttr::GetCropWindowGenerator(data_idx);
+    return slice_attr_.GetCropWindowGenerator(data_idx);
   }
+
+ private:
+  SliceAttr slice_attr_;
 };
 
 }  // namespace dali

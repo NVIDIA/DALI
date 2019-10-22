@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <random>
 #include "dali/core/geom/transform.h"
 
 namespace dali {
@@ -75,6 +76,38 @@ TEST(GeomTransform, Shear2D) {
   EXPECT_EQ(sheary * vec3(1, 0, 1), vec3(1, 0.5f, 1));
   EXPECT_EQ(sheary * vec3(0, 1, 1), vec3(0, 1, 1));
   EXPECT_EQ(sheary * vec3(1, 1, 1), vec3(1, 1.5f, 1));
+}
+
+template <int n_out, int n_in, typename RNG>
+void TestAffine(RNG &rng) {
+  std::uniform_real_distribution<float> dist(-1, 1);
+  mat<n_out, n_in + 1> m;
+  for (int i = 0; i < m.rows; i++)
+    for (int j = 0; j < m.cols; j++)
+      m(i, j) = dist(rng);
+
+  for (int iter = 0; iter < 100; iter++) {
+    vec<n_in> v;
+    for (int j = 0; j < n_in; j++)
+      v[j] = dist(rng);
+
+    vec<n_out> ref = m * cat(v, 1.0f);
+    vec<n_out> out = affine(m, v);
+    for (int i = 0; i < n_out; i++) {
+      // the result may differ slightly due to different order of evaluation,
+      // more suitable for contracting into FMA
+      EXPECT_NEAR(ref[i], out[i], 1e-6);
+    }
+  }
+}
+
+TEST(GeomTransform, Affine) {
+  std::mt19937_64 rng;
+  TestAffine<2, 2>(rng);
+  TestAffine<2, 2>(rng);
+  TestAffine<3, 3>(rng);
+  TestAffine<3, 4>(rng);
+  TestAffine<4, 4>(rng);
 }
 
 }  // namespace dali

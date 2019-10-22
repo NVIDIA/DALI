@@ -34,6 +34,12 @@ namespace dali {
 
 #define SAVE_TMP_IMAGES 0
 
+#if SAVE_TMP_IMAGES
+namespace {  // NOLINT
+  int tmp_img_idx = 0;
+}  // namespace
+#endif
+
 namespace images {
 
 // TODO(janton): DALI-582 Using this order, breaks some tests
@@ -452,17 +458,16 @@ class DALISingleOpTest : public DALITest {
                    double *pMean = nullptr, const TensorShape<> &shape = {}) const {
 #if SAVE_TMP_IMAGES
   if (!shape.empty()) {
-    static int i = 0;
     int H = shape[0];
     int W = shape[1];
     int C = shape[2];
     const int input_channel_flag = GetOpenCvChannelType(C);
     const cv::Mat cv_img1 = CreateMatFromPtr(H, W, input_channel_flag, img1);
     const cv::Mat cv_img2 = CreateMatFromPtr(H, W, input_channel_flag, img2);
-    std::cout << "Saving images #" << std::to_string(i) << std::endl;
-    cv::imwrite("tmp_img_" + std::to_string(i) + "_A.png", cv_img1);
-    cv::imwrite("tmp_img_" + std::to_string(i) + "_B.png", cv_img2);
-    i++;
+    std::cout << "Saving images #" << std::to_string(tmp_img_idx) << std::endl;
+    cv::imwrite("tmp_img_" + std::to_string(tmp_img_idx) + "_A.png", cv_img1);
+    cv::imwrite("tmp_img_" + std::to_string(tmp_img_idx) + "_B.png", cv_img2);
+    tmp_img_idx++;
   }
 #endif
 

@@ -26,6 +26,24 @@ namespace dali {
 
 class OperatorBench : public DALIBenchmark {
  public:
+  template <typename OutputContainer, typename OperatorPtr, typename Workspace>
+  void Setup(OperatorPtr &op_ptr, const OpSpec &spec, Workspace &ws, int batch_size) {
+    std::vector<OutputDesc> outputs;
+    if (op_ptr->CanInferOutputs() && op_ptr->Setup(outputs, ws)) {
+      int num_out = outputs.size();
+      for (int i = 0; i < num_out; i++) {
+        auto data_out = std::make_shared<OutputContainer>(batch_size);
+        data_out->Resize(outputs[i].shape);
+        data_out->set_type(outputs[i].type);
+        ws.AddOutput(data_out);
+      }
+    } else {
+      for (int i = 0; i < spec.GetSchema().NumOutput(); i++) {
+        ws.AddOutput(std::make_shared<OutputContainer>(batch_size));
+      }
+    }
+  }
+
   template <typename T>
   void RunCPU(benchmark::State& st, OpSpec op_spec,
               int batch_size = 128,
@@ -36,20 +54,11 @@ class OperatorBench : public DALIBenchmark {
     auto op_ptr = InstantiateOperator(op_spec);
 
     auto data_in = std::make_shared<TensorVector<CPUBackend>>(batch_size);
-    auto data_out = std::make_shared<TensorVector<CPUBackend>>(batch_size);
     for (auto &in_ptr : *data_in) {
       in_ptr = std::make_shared<Tensor<CPUBackend>>();
       in_ptr->set_type(TypeInfo::Create<T>());
       in_ptr->Resize({H, W, C});
       in_ptr->SetLayout("HWC");
-    }
-
-    for (auto &out_ptr : *data_out) {
-      out_ptr = std::make_shared<Tensor<CPUBackend>>();
-    }
-
-    for (auto &out_ptr : *data_out) {
-      out_ptr = std::make_shared<Tensor<CPUBackend>>();
     }
 
     if (fill_in_data) {
@@ -63,10 +72,10 @@ class OperatorBench : public DALIBenchmark {
     // Create workspace and set input and output
     HostWorkspace ws;
     ws.AddInput(data_in);
-    ws.AddOutput(data_out);
     ThreadPool tp(num_threads, 0, false);
     ws.SetThreadPool(&tp);
 
+    Setup<TensorVector<CPUBackend>>(op_ptr, op_spec, ws, batch_size);
     op_ptr->Run(ws);
     for (auto _ : st) {
       op_ptr->Run(ws);
@@ -100,14 +109,12 @@ class OperatorBench : public DALIBenchmark {
     data_in_gpu->Copy(*data_in_cpu, (cudaStream_t)0);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    auto data_out_gpu = std::make_shared<TensorList<GPUBackend>>();
-
     // Create workspace and set input and output
     DeviceWorkspace ws;
     ws.AddInput(data_in_gpu);
-    ws.AddOutput(data_out_gpu);
     ws.set_stream(0);
 
+    Setup<TensorList<GPUBackend>>(op_ptr, op_spec, ws, batch_size);
     op_ptr->Run(ws);
     CUDA_CALL(cudaStreamSynchronize(0));
     for (auto _ : st) {

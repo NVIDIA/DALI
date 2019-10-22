@@ -14,7 +14,7 @@
 
 #include "dali/operators/python_function/python_function.h"
 #include <vector>
-#include "dali/operators/python_function/util/copy_with_stride.h"
+#include "dali/pipeline/util/copy_with_stride.h"
 
 namespace dali {
 
@@ -24,12 +24,12 @@ DALI_SCHEMA(PythonFunctionImplBase)
         .MakeInternal();
 
 DALI_SCHEMA(PythonFunctionImpl)
-        .AddParent("PythonFunctionImplBase")
         .DocStr(R"code(This is an auxiliary operator. Use PythonFunction instead.)code")
         .NumInput(0, 256)
         .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
         .MakeInternal()
-        .NoPrune();
+        .NoPrune()
+        .AddParent("PythonFunctionImplBase");
 
 DALI_SCHEMA(PythonFunctionBase)
         .AddArg("function",
@@ -39,16 +39,16 @@ DALI_SCHEMA(PythonFunctionBase)
         .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
-        .AddParent("PythonFunctionBase")
         .DocStr("Executes a python function")
         .NumInput(0, 256)
-        .NoPrune();
+        .NoPrune()
+        .AddParent("PythonFunctionBase");
 
 DALI_SCHEMA(TorchPythonFunction)
-        .AddParent("PythonFunctionBase")
         .DocStr("Executes a function operating on Torch tensors")
         .NumInput(0, 256)
-        .NoPrune();
+        .NoPrune()
+        .AddParent("PythonFunctionBase");
 
 struct PyBindInitializer {
   PyBindInitializer() {
@@ -116,6 +116,20 @@ void PythonFunctionImpl<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   }
 }
 
+static cudaStream_t current_cuda_stream = nullptr;
+
+cudaStream_t GetCurrentStream() {
+  return current_cuda_stream;
+}
+
+void SetCurrentStream(cudaStream_t stream) {
+  current_cuda_stream = stream;
+}
+
 DALI_REGISTER_OPERATOR(PythonFunctionImpl, PythonFunctionImpl<CPUBackend>, CPU);
+
+PYBIND11_MODULE(libpython_function_plugin, m) {
+  m.def("current_dali_stream", []() { return reinterpret_cast<uint64_t>(GetCurrentStream()); });
+}
 
 }  // namespace dali

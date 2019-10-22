@@ -53,6 +53,10 @@ class PythonFunctionImpl : public PythonFunctionImplBase<Backend> {
   using Operator<Backend>::RunImpl;
 };
 
+cudaStream_t GetCurrentStream();
+
+void SetCurrentStream(cudaStream_t stream);
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_PYTHON_FUNCTION_PYTHON_FUNCTION_H_

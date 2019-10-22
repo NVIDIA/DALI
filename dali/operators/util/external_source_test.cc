@@ -17,7 +17,7 @@
 
 #include "dali/test/dali_test_decoder.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
-#include "dali/operators/util/external_source.h"
+#include "dali/pipeline/operator/builtin/external_source.h"
 
 namespace dali {
 

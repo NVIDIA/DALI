@@ -19,105 +19,130 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/core/tensor_layout.h"
+#include "dali/core/format.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/util/crop_window.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/util/crop_window.h"
 
 namespace dali {
 
-/**
- * @brief Crop parameter and input size handling.
- *
- * Responsible for accessing image type, starting points and size of crop area.
- */
 class SliceAttr {
- protected:
-    explicit inline SliceAttr(const OpSpec &spec)
-        : batch_size__(spec.GetArgument<int>("batch_size")) {
-        crop_height_.resize(batch_size__, 0.0f);
-        crop_width_.resize(batch_size__, 0.0f);
-        crop_x_norm_.resize(batch_size__, 0.0f);
-        crop_y_norm_.resize(batch_size__, 0.0f);
-        crop_window_generators_.resize(batch_size__, {});
+ public:
+  explicit inline SliceAttr(const OpSpec &spec)
+      : batch_size__(spec.GetArgument<int>("batch_size"))
+      , normalized_anchor_(spec.GetArgument<bool>("normalized_anchor"))
+      , normalized_shape_(spec.GetArgument<bool>("normalized_shape"))
+      , crop_window_generators_(batch_size__) {
+    const bool has_axes_arg = spec.HasArgument("axes");
+    const bool has_axis_names_arg = spec.HasArgument("axis_names");
+    // Process `axis_names` if provided, or if neither `dir_names` nor `axes` are
+    if (has_axis_names_arg || !has_axes_arg) {
+      axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
+      axes_ = {};
+    } else {
+      // Process `axes` only if provided and `axis_names` isn't
+      axes_ = spec.GetRepeatedArgument<int>("axes");
+      axis_names_ = TensorLayout{};
     }
+  }
 
-    void ProcessArguments(const SampleWorkspace &ws) {
-        DALI_ENFORCE(ws.NumInput() == 3,
-            "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-
-        const auto &images = ws.Input<CPUBackend>(0);
-        const auto &crop_begin = ws.Input<CPUBackend>(1);
-        const auto &crop_size = ws.Input<CPUBackend>(2);
-        int data_idx = ws.data_idx();
-        // Assumes xywh
-        ProcessArgumentsHelper(
-            data_idx,
-            crop_size.data<float>()[0],
-            crop_size.data<float>()[1],
-            crop_begin.data<float>()[0],
-            crop_begin.data<float>()[1]);
+  void ProcessArguments(MixedWorkspace &ws) {
+    DALI_ENFORCE(ws.NumInput() == 3,
+      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
+    for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
+      const auto &crop_anchor = ws.Input<CPUBackend>(1, data_idx);
+      const auto &crop_shape = ws.Input<CPUBackend>(2, data_idx);
+      VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
+      ProcessArgumentsHelper(data_idx, crop_anchor.data<float>(), crop_shape.data<float>());
     }
+  }
 
-    void ProcessArguments(MixedWorkspace &ws) {
-        DALI_ENFORCE(ws.NumInput() == 3,
-            "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
-        for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
-            const auto &images = ws.Input<CPUBackend>(0, data_idx);
-            const auto &crop_begin = ws.Input<CPUBackend>(1, data_idx);
-            const auto &crop_size = ws.Input<CPUBackend>(2, data_idx);
-            // Assumes xywh
-            ProcessArgumentsHelper(
-                data_idx,
-                crop_size.data<float>()[0],
-                crop_size.data<float>()[1],
-                crop_begin.data<float>()[0],
-                crop_begin.data<float>()[1]);
-        }
+  void ProcessArguments(DeviceWorkspace &ws) {
+    DALI_ENFORCE(ws.NumInput() == 3,
+      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
+    const auto &crop_anchor = ws.Input<CPUBackend>(1);
+    const auto &crop_shape = ws.Input<CPUBackend>(2);
+    for (std::size_t data_idx = 0; data_idx < batch_size__; data_idx++) {
+      VerifyArgsShape(crop_anchor.tensor_shape(data_idx), crop_shape.tensor_shape(data_idx));
+      ProcessArgumentsHelper(data_idx, crop_anchor.tensor<float>(data_idx),
+                             crop_shape.tensor<float>(data_idx));
     }
+  }
+
+  void ProcessArguments(const SampleWorkspace &ws) {
+    DALI_ENFORCE(ws.NumInput() == 3,
+      "Expected 3 inputs. Received: " + std::to_string(ws.NumInput()));
+    const auto &crop_anchor = ws.Input<CPUBackend>(1);
+    const auto &crop_shape = ws.Input<CPUBackend>(2);
+    VerifyArgsShape(crop_anchor.shape(), crop_shape.shape());
+    ProcessArgumentsHelper(ws.data_idx(), crop_anchor.data<float>(), crop_shape.data<float>());
+  }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
     DALI_ENFORCE(data_idx < crop_window_generators_.size());
     return crop_window_generators_[data_idx];
   }
 
-  std::vector<float> crop_height_;
-  std::vector<float> crop_width_;
-  std::vector<float> crop_x_norm_;
-  std::vector<float> crop_y_norm_;
-  std::vector<CropWindowGenerator> crop_window_generators_;
-
  private:
-  void ProcessArgumentsHelper(int data_idx, float crop_w, float crop_h,
-                              float crop_x_norm, float crop_y_norm) {
-    crop_width_[data_idx] = crop_w;
-    crop_height_[data_idx] = crop_h;
-    crop_x_norm_[data_idx] = crop_x_norm;
-    crop_y_norm_[data_idx] = crop_y_norm;
-
-    DALI_ENFORCE(crop_x_norm + crop_w <= 1.0f,
-      "crop_x[" + std::to_string(crop_x_norm) + "] + crop_width["
-      + std::to_string(crop_w) + "] must be <= 1.0f");
-    DALI_ENFORCE(crop_y_norm + crop_h <= 1.0f,
-      "crop_y[" + std::to_string(crop_y_norm) + "] + crop_height["
-      + std::to_string(crop_h) + "] must be <= 1.0f");
-
+  void ProcessArgumentsHelper(int data_idx,
+                              const float *slice_anchor_data,
+                              const float *slice_shape_data) {
     crop_window_generators_[data_idx] =
-      [this, data_idx](const TensorShape<>& shape,
-                       const TensorLayout& layout) {
-        CropWindow crop_window;
-        crop_window.anchor[0] = crop_y_norm_[data_idx] * shape[0];
-        crop_window.anchor[1] = crop_x_norm_[data_idx] * shape[1];
-        crop_window.shape[0] =
-          (crop_height_[data_idx] + crop_y_norm_[data_idx]) * shape[0] - crop_window.anchor[0];
-        crop_window.shape[1] =
-          (crop_width_[data_idx] + crop_x_norm_[data_idx]) * shape[1] - crop_window.anchor[1];
-        DALI_ENFORCE(crop_window.IsInRange(shape));
-        return crop_window;
-    };
+      [this, slice_anchor_data, slice_shape_data](const TensorShape<> &shape,
+                                                  const TensorLayout& shape_layout) {
+        CropWindow slice;
+        slice.anchor = std::vector<int64_t>(shape.size(), 0);
+        slice.shape = shape;
+
+        auto axes = axes_;
+        if (!axis_names_.empty()) {
+          axes = {};
+          for (auto axis_name : axis_names_) {
+            auto dim_idx = shape_layout.find(axis_name);
+            DALI_ENFORCE(dim_idx >= 0,
+              make_string("Requested to slice dimension", axis_name,
+                "which is not present in the shape layout", shape_layout.c_str()));
+            axes.push_back(dim_idx);
+          }
+        }
+
+        for (size_t i = 0; i < axes.size(); i++) {
+          auto dim = axes[i];
+          float anchor_val = slice_anchor_data[i];
+          if (normalized_anchor_)
+            anchor_val *= shape[dim];
+          float shape_val = slice_shape_data[i];
+          if (normalized_shape_)
+            shape_val *= shape[dim];
+          int64_t slice_end = static_cast<int64_t>(anchor_val + shape_val);
+          DALI_ENFORCE(slice_end <= shape[dim],
+            make_string("Slice end for dim", dim, "is out of bounds:",
+                        slice_end, ">", shape[dim]));
+          slice.anchor[dim] = static_cast<int64_t>(anchor_val);
+          slice.shape[dim] = slice_end - slice.anchor[dim];
+          assert(slice.anchor[dim] + slice.shape[dim] <= shape[dim]);
+        }
+        slice.IsInRange(shape);
+        return slice;
+      };
   }
 
-  std::size_t batch_size__;
+  void VerifyArgsShape(const TensorShape<>& crop_anchor_shape,
+                       const TensorShape<>& crop_shape_shape) {
+    DALI_ENFORCE(crop_anchor_shape == crop_shape_shape);
+    size_t args_size = volume(crop_anchor_shape);
+    auto axes_size = !axis_names_.empty() ? axis_names_.size() : axes_.size();
+    DALI_ENFORCE(args_size == axes_size,
+      make_string("Unexpected number of arguments", args_size, "vs", axes_size));
+  }
+
+ private:
+  size_t batch_size__;
+  bool normalized_anchor_, normalized_shape_;
+  std::vector<CropWindowGenerator> crop_window_generators_;
+  std::vector<int> axes_;
+  TensorLayout axis_names_;
 };
 
 }  // namespace dali

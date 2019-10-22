@@ -240,3 +240,13 @@ function(add_sources_to_lint LINT_TARGET LINT_EXTRA LIST_SRC)
     )
 endfunction(add_sources_to_lint)
 
+function(add_check_gtest_target TARGET_NAME BINARY BINARY_DIR)
+  add_custom_target(${TARGET_NAME})
+  add_custom_command(
+    TARGET ${TARGET_NAME}
+    WORKING_DIRECTORY ${BINARY_DIR}
+    COMMAND ${BINARY}
+    DEPENDS ${BINARY}
+  )
+  add_dependencies("check-gtest" ${TARGET_NAME})
+endfunction(add_check_gtest_target)

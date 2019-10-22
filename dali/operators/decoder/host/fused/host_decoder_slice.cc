@@ -25,24 +25,9 @@ namespace dali {
 
 HostDecoderSlice::HostDecoderSlice(const OpSpec &spec)
   : HostDecoder(spec)
-  , SliceAttr(spec) {
+  , slice_attr_(spec) {
 }
 
-DALI_SCHEMA(HostDecoderSlice)
-  .DocStr(R"code(Decode images on the host with a cropping window of given size and anchor.
-Inputs must be supplied as 3 tensors in a specific order: `encoded_data` containing encoded
-image data, `begin` containing the starting pixel coordinates for the `crop` in `(x,y)`
-format, and `size` containing the pixel dimensions of the `crop` in `(w,h)` format.
-For both `begin` and `size`, coordinates must be in the interval `[0.0, 1.0]`.
-When possible, will make use of partial decoding (e.g. libjpeg-turbo).
-When not supported, will decode the whole image and then crop.
-Output of the decoder is in `HWC` ordering)code")
-  .NumInput(3)
-  .NumOutput(1)
-  .AddParent("ImageDecoderSlice")
-  .Deprecate("ImageDecoderSlice");
-
-DALI_REGISTER_OPERATOR(HostDecoderSlice, HostDecoderSlice, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderSlice, HostDecoderSlice, CPU);
 
 }  // namespace dali

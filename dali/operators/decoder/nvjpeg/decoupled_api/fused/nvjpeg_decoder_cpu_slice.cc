@@ -32,6 +32,7 @@ Output of the decoder is in `HWC` ordering.)code")
     .NumInput(3)
     .NumOutput(3)
     .MakeInternal()
-    .AddParent("nvJPEGDecoderCPUStage");
+    .AddParent("nvJPEGDecoderCPUStage")
+    .AddParent("SliceAttr");
 
 }  // namespace dali

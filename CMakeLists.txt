@@ -21,6 +21,7 @@ if (POLICY CMP0075)
 endif()
 
 project(DALI CXX)
+set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
@@ -162,9 +163,9 @@ cuda_include_directories(
   "${PROJECT_SOURCE_DIR}"
   "${PROJECT_SOURCE_DIR}/include")
 
-
-set(CHECK_TARGET "check")
-add_custom_target(${CHECK_TARGET})
+add_custom_target("check")
+add_custom_target("check-gtest")
+add_dependencies("check" "check-gtest")
 
 # Project build
 add_subdirectory(dali)

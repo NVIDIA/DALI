@@ -57,7 +57,7 @@ class WaterPythonPipeline(Pipeline):
                                            exec_async=False,
                                            exec_pipelined=False)
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.HostDecoder(device = "cpu", output_type = types.RGB)
+        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         self.water = ops.PythonFunction(function=function)
 
 

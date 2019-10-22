@@ -60,6 +60,10 @@ class DALIGenericIterator(object):
     General DALI iterator for PyTorch. It can return any number of
     outputs from the DALI pipeline in the form of PyTorch's Tensors.
 
+    Please keep in mind that Tensors returned by the iterator are
+    still owned by DALI. They are valid till the next iterator call.
+    If the content needs to be preserved please copy it to another tensor.
+
     Parameters
     ----------
     pipelines : list of nvidia.dali.pipeline.Pipeline
@@ -128,9 +132,8 @@ class DALIGenericIterator(object):
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR) as check:
                 p.build()
         # Use double-buffering of data batches
-        self._data_batches = [[None, None] for i in range(self._num_gpus)]
+        self._data_batches = [None for i in range(self._num_gpus)]
         self._counter = 0
-        self._current_data_batch = 0
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
         self._output_categories = set(output_map)
         self.output_map = output_map
@@ -173,7 +176,7 @@ class DALIGenericIterator(object):
                 category_shapes[category] = category_tensors[category].shape()
 
             # If we did not yet allocate memory for that batch, do it now
-            if self._data_batches[i][self._current_data_batch] is None:
+            if self._data_batches[i] is None:
                 category_torch_type = dict()
                 category_device = dict()
                 torch_gpu_device = torch.device('cuda', dev_id)
@@ -193,9 +196,9 @@ class DALIGenericIterator(object):
                                                         dtype=category_torch_type[category],
                                                         device=category_device[category])
 
-                self._data_batches[i][self._current_data_batch] = pyt_tensors
+                self._data_batches[i] = pyt_tensors
             else:
-                pyt_tensors = self._data_batches[i][self._current_data_batch]
+                pyt_tensors = self._data_batches[i]
 
             # Copy data from DALI Tensors to torch tensors
             for category, tensor in category_tensors.items():
@@ -210,9 +213,6 @@ class DALIGenericIterator(object):
                 p.release_outputs()
                 p.schedule_run()
 
-        copy_db_index = self._current_data_batch
-        # Change index for double buffering
-        self._current_data_batch = (self._current_data_batch + 1) % 2
         self._counter += self._num_gpus * self.batch_size
 
         if (not self._fill_last_batch) and (self._counter > self._size):
@@ -229,13 +229,13 @@ class DALIGenericIterator(object):
             # 1) Grab everything from the relevant GPUs.
             # 2) Grab the right data from the last GPU.
             # 3) Append data together correctly and return.
-            output = [db[copy_db_index] for db in self._data_batches[0:numGPUs_tograb]]
+            output = self._data_batches[0:numGPUs_tograb]
             output[-1] = output[-1].copy()
             for category in self._output_categories:
                 output[-1][category] = output[-1][category][0:data_fromlastGPU]
             return output
 
-        return [db[copy_db_index] for db in self._data_batches]
+        return self._data_batches
 
     def next(self):
         """
@@ -281,6 +281,10 @@ class DALIClassificationIterator(DALIGenericIterator):
     .. code-block:: python
 
        DALIGenericIterator(pipelines, ["data", "label"], size)
+
+    Please keep in mind that Tensors returned by the iterator are
+    still owned by DALI. They are valid till the next iterator call.
+    If the content needs to be preserved please copy it to another tensor.
 
     Parameters
     ----------
