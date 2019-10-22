@@ -20,6 +20,7 @@
 #include "dali/core/geom/box.h"
 #include "dali/kernels/imgproc/roi.h"
 #include "dali/kernels/common/block_setup.h"
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 namespace kernels {
@@ -178,6 +179,7 @@ class BrightnessContrastGpu {
     se.add<SampleDescriptor<InputType, OutputType, ndims>>(AllocType::GPU, in.num_samples());
     se.add<BlockDesc>(AllocType::GPU, block_setup_.Blocks().size());
     req.output_shapes = {in.shape};
+    cout<<"ASDASD "<<in.shape[0]<<endl;
     req.scratch_sizes = se.sizes;
     return req;
   }
