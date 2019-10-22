@@ -38,7 +38,7 @@ void HostWorkspace::GetSample(SampleWorkspace* ws, int data_idx, int thread_idx)
     }
   }
   for (auto& arg_pair : argument_inputs_) {
-    ws->AddArgumentInput(arg_pair.second, arg_pair.first);
+    ws->AddArgumentInput(arg_pair.first, arg_pair.second);
   }
 }
 

@@ -59,9 +59,10 @@ class Flip: public Operator<Backend> {
     std::vector<int> result(this->batch_size_);
     if (this->spec_.HasTensorArgument(name)) {
       auto &arg = ws->ArgumentInput(name);
-      auto *ptr = arg.data<int>();
-      DALI_ENFORCE(arg.size() == this->batch_size_);
-      std::copy(ptr, ptr + arg.size(), result.begin());
+      DALI_ENFORCE(static_cast<int>(arg.size()) == this->batch_size_);
+      for (int i = 0; i < this->batch_size_; ++i) {
+        result[i] = arg[i].data<int>()[0];
+      }
     } else {
       auto value = this->spec_.template GetArgument<int>(name, ws, 0);
       std::fill(std::begin(result), std::end(result), value);

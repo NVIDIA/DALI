@@ -292,7 +292,6 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
 
     DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
         "only on GPU. " + error_str);
-    DALI_ENFORCE(it->second.is_support, "Argument input may only be produced by support op.");
   }
 
   // Verify and record the outputs of the op

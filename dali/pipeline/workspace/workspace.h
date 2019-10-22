@@ -24,6 +24,7 @@
 #include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_vector.h"
 
 namespace dali {
 
@@ -50,17 +51,11 @@ class ArgumentWorkspace {
     argument_inputs_.clear();
   }
 
-  void AddArgumentInput(shared_ptr<TensorList<CPUBackend>> input, const std::string &arg_name) {
+  void AddArgumentInput(const std::string &arg_name, shared_ptr<TensorVector<CPUBackend>> input) {
     argument_inputs_[arg_name] = std::move(input);
   }
 
-  void SetArgumentInput(shared_ptr<TensorList<CPUBackend>> input, const std::string &arg_name) {
-    DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
-        "Argument \"" + arg_name + "\" not found.");
-    argument_inputs_[arg_name] = std::move(input);
-  }
-
-  const TensorList<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
+  const TensorVector<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
     DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
         "Argument \"" + arg_name + "\" not found.");
     return *(argument_inputs_.at(arg_name));
@@ -68,7 +63,7 @@ class ArgumentWorkspace {
 
  protected:
   // Argument inputs
-  std::unordered_map<std::string, shared_ptr<TensorList<CPUBackend>>> argument_inputs_;
+  std::unordered_map<std::string, shared_ptr<TensorVector<CPUBackend>>> argument_inputs_;
 };
 
 /**

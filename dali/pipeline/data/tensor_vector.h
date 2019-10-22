@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/tensor.h"
 
 #include "dali/core/tensor_shape.h"
