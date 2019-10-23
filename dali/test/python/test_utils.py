@@ -23,7 +23,7 @@ from nvidia.dali.backend_impl import TensorListGPU
 import subprocess
 import os
 import sys
-
+import random
 
 def get_dali_extra_path():
   try:
@@ -128,6 +128,30 @@ class RandomDataIterator(object):
             np.random.seed(0)
             self.test_data.append(np.array(np.random.rand(*shape) * 255,
                                   dtype = np.uint8 ) )
+
+    def __iter__(self):
+        self.i = 0
+        self.n = self.batch_size
+        return self
+
+    def __next__(self):
+        batch = self.test_data
+        self.i = (self.i + 1) % self.n
+        return (batch)
+
+    next = __next__
+
+class RandomlyShapedDataIterator(object):
+    import_numpy()
+    def __init__(self, batch_size, max_shape=(10, 600, 800, 3)):
+        self.batch_size = batch_size
+        self.test_data = []
+        for _ in range(self.batch_size):
+            np.random.seed(0)
+            # Scale between 0.5 and 1.0
+            shape = [int(max_shape[dim] * (0.5 + random.random()*0.5)) for dim in range(len(max_shape))]
+            self.test_data.append(np.array(np.random.rand(*shape) * 255,
+                                  dtype = np.uint8))
 
     def __iter__(self):
         self.i = 0

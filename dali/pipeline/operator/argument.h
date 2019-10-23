@@ -205,9 +205,8 @@ class ArgumentInst<std::vector<T>> : public Argument {
 
   void SerializeToProtobuf(DaliProtoPriv* arg) override {
     const std::vector<T>& vec = val.Get();
-    DALI_ENFORCE(vec.size() > 0, "List arguments need to have at least 1 element.");
     arg->set_name(Argument::ToString());
-    arg->set_type(dali::serialize_type(vec[0]));
+    arg->set_type(dali::serialize_type(T()));
     arg->set_is_vector(true);
     for (size_t i = 0; i < vec.size(); ++i) {
       ArgumentInst<T> tmp("element " + to_string(i), vec[i]);

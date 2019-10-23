@@ -47,6 +47,13 @@ _known_types = {
         DALIDataType.TENSOR_LAYOUT : ("nvidia.dali.types.TensorLayout", lambda x: TensorLayout(str(x))),
         DALIDataType.PYTHON_OBJECT : ("object", lambda x: x)
         }
+_vector_types = {
+        DALIDataType._BOOL_VEC : DALIDataType.BOOL,
+        DALIDataType._INT32_VEC : DALIDataType.INT32,
+        DALIDataType._STRING_VEC : DALIDataType.STRING,
+        DALIDataType._FLOAT_VEC : DALIDataType.FLOAT,
+        }
+
 if _tfrecord_support:
     _known_types[DALIDataType.FEATURE] = ("nvidia.dali.tfrecord.Feature", tfrec.Feature)
     _known_types[DALIDataType._FEATURE_VEC] = ("nvidia.dali.tfrecord.Feature or " \
@@ -68,6 +75,11 @@ def _type_convert_value(dtype, val):
     if dtype not in _known_types:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")
     return _known_types[dtype][1](val)
+
+def _vector_element_type(dtype):
+    if dtype not in _vector_types:
+        raise RuntimeError(str(dtype) + " is not a vector type.")
+    return _vector_types[dtype]
 
 class PipelineAPIType(object):
     """Pipeline API type
