@@ -47,13 +47,13 @@ Examples:
     .NumOutput(1)
     .AddOptionalArg("fill_value",
         R"code(The value to pad the batch with)code",
-        0)
-    .AddOptionalArg("axes",
+        0.0f)
+    .AddOptionalArg<int>("axes",
         R"code(The axes on which the batch samples will be padded.
 Indexes are zero-based with 0 being the first axis or outermost dimension
 of the tensor. If `axes` is empty or not provided, the output will be padded
 on all the axes.
-)code", std::vector<int>{});
+)code", std::vector<int>());
 
 template <>
 bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,

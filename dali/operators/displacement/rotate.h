@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,42 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #ifndef DALI_OPERATORS_DISPLACEMENT_ROTATE_H_
 #define DALI_OPERATORS_DISPLACEMENT_ROTATE_H_
 
+#include <memory>
 #include <vector>
-#include <cmath>
-#include "dali/pipeline/operator/operator.h"
-#include "dali/operators/displacement/warpaffine.h"
+#include <sstream>
+#include "dali/kernels/imgproc/warp/affine.h"
+#include "dali/kernels/imgproc/warp/mapping_traits.h"
+#include "dali/operators/displacement/warp.h"
+#include "dali/operators/displacement/rotate_params.h"
 
 namespace dali {
 
-class RotateAugment : public WarpAffineAugment {
- public:
-  explicit RotateAugment(const OpSpec& spec) {
-    use_image_center = true;
-  }
-
-  void Prepare(Param* p, const OpSpec& spec, ArgumentWorkspace *ws, int index) {
-    float angle = spec.GetArgument<float>("angle", ws, index);
-    float angle_rad = angle * (M_PI / 180.0);
-    p->matrix[0] = std::cos(angle_rad);
-    p->matrix[1] = -std::sin(angle_rad);
-    p->matrix[2] = 0;
-    p->matrix[3] = std::sin(angle_rad);
-    p->matrix[4] = std::cos(angle_rad);
-    p->matrix[5] = 0;
-  }
-};
-
 template <typename Backend>
-class Rotate : public DisplacementFilter<Backend, RotateAugment> {
+class Rotate : public Warp<Backend, Rotate<Backend>> {
  public:
-  inline explicit Rotate(const OpSpec &spec)
-    : DisplacementFilter<Backend, RotateAugment>(spec) {}
+  using Base = Warp<Backend, Rotate<Backend>>;
+  using Base::Base;
 
-  ~Rotate() override = default;
+  template <int ndim>
+  using Mapping = kernels::AffineMapping<ndim>;
+
+  template <int spatial_ndim, typename BorderType>
+  using ParamProvider = RotateParamProvider<Backend, spatial_ndim, BorderType>;
+
+  template <int spatial_ndim, typename BorderType>
+  auto CreateParamProvider() {
+    return std::make_unique<ParamProvider<spatial_ndim, BorderType>>();
+  }
 };
 
 }  // namespace dali

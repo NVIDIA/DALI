@@ -12,29 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/displacement/warp_affine.h"
+#include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
 
-DALI_SCHEMA(WarpAffine)
+DALI_SCHEMA(WarpAttr)
   .DocStr(R"code(Apply an affine transformation to the image.)code")
-  .NumInput(1, 2)
-  .NumOutput(1)
-  .InputLayout(0, { "HWC", "DHWC" })
-  .AddOptionalArg<float>("matrix",
-      R"code(Transform matrix (dst -> src).
-Given list of values `(M11, M12, M13, M21, M22, M23)`
-this operation will produce a new image using the following formula
-
-..
-
-dst(x,y) = src(M11 * x + M12 * y + M13, M21 * x + M22 * y + M23)
-
-It is equivalent to OpenCV's `warpAffine` operation
-with a flag `WARP_INVERSE_MAP` set.)code",
+  .AddOptionalArg<float>("size",
+      R"code(Output size, in pixels/points.
+Non-integer sizes are rounded to nearest integer.
+Channel dimension should be excluded (e.g. for RGB images specify (480,640), not (480,640,3).)code",
       vector<float>(), true)
-  .AddParent("WarpAttr");
-
-DALI_REGISTER_OPERATOR(WarpAffine, WarpAffine<CPUBackend>, CPU);
+  .AddOptionalArg("fill_value", R"(Value used to fill areas that are outside source image.
+If not specified, source coordinates are clamped and the border pixel is repeated.)",
+      0.0f)
+  .AddOptionalArg("output_dtype",
+      R"code(Output data type. By default, same as input type)code",
+      DALI_NO_TYPE)
+  .AddOptionalArg("interp_type",
+      R"code(Type of interpolation used.)code",
+      DALI_INTERP_LINEAR);
 
 }  // namespace dali

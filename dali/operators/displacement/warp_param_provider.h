@@ -112,10 +112,11 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   /** @brief Prepares parameters and output sizes for a warp operator
    *
-   * This function sets sizes and shapes in three steps:
+   * This function sets sizes and shapes in four steps:
    * 1. Use explicitly provided sizes or copy from input
    * 2. Set transform parameters - may depend on sizes specified in 1
    * 3. Infer sizes based on params calculated in step 2, if not already set in 1
+   * 4. Adjust parameters, if required, after shape inference.
    * Steps 1 and 3 are mutually exclusive.
    *
    * If different scheme is required, the derived class must override this method.
@@ -131,13 +132,15 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     // from the input size. These sizes do not depend on the
     // transform params, so they should be used first.
     bool infer_size = !SetOutputSizes();
-    // Step 2: Set the parameters. which _may_ depend on explicitly set params
+    // Step 2: Set the parameters. which _may_ depend on explicitly set sizes
     SetParams();
     // Step 3: If the operator must infer the output size based
     // on the params, then this size inference must obviously
     // follow SetParams.
     if (infer_size)
       InferSize();
+    // Step 4: Adjust parameters after shape inference
+    AdjustParams();
 
     // Interpolation type and border can be set at any time
     this->SetInterp(*spec_, *ws_, num_samples_);
@@ -211,6 +214,9 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   }
 
   virtual void SetParams() {
+  }
+
+  virtual void AdjustParams() {
   }
 
   virtual void ValidateOutputSizes() {}

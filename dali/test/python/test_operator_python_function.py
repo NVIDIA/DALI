@@ -10,6 +10,7 @@ import os
 import glob
 import tempfile
 import time
+import cv2
 from nose.tools import raises
 from test_utils import get_dali_extra_path
 
@@ -210,7 +211,7 @@ def test_python_operator_flip():
 class RotatePipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
         super(RotatePipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
-        self.rotate=ops.Rotate(angle=90.0)
+        self.rotate=ops.Rotate(angle=90.0, interp_type=types.INTERP_NN)
 
     def define_graph(self):
         images, labels = self.load()
@@ -238,7 +239,10 @@ def test_python_operator_rotate():
         numpy_output, = numpy_rotate.run()
         dali_output, = dali_rotate.run()
         for i in range(len(numpy_output)):
-            assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
+            if not numpy.array_equal(numpy_output.at(i), dali_output.at(i)):
+                cv2.imwrite("numpy.png", numpy_output.at(i));
+                cv2.imwrite("dali.png", dali_output.at(i));
+                assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
 
 
 def test_python_operator_brightness():

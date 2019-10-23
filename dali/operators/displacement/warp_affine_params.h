@@ -50,6 +50,8 @@ class WarpAffineParamProvider
       } else {
         UseInputAsParams(ws_->template InputRef<CPUBackend>(1));
       }
+    } else if (spec_->HasTensorArgument("matrix")) {
+      UseInputAsParams(ws_->ArgumentInput("matrix"));
     } else {
       std::vector<float> matrix = spec_->template GetArgument<std::vector<float>>("matrix");
       DALI_ENFORCE(!matrix.empty(),

@@ -598,49 +598,6 @@ def test_make_continuous_serialize_and_use():
 
     compare_pipelines(pipe, new_pipe, batch_size, 50)
 
-def test_rotate():
-    class HybridPipe(Pipeline):
-        def __init__(self, batch_size, num_threads, device_id):
-            super(HybridPipe, self).__init__(batch_size, num_threads, device_id, seed = 12)
-            self.input = ops.CaffeReader(path = caffe_db_folder, random_shuffle = True)
-            self.decode = ops.ImageDecoder(device = "mixed", output_type = types.RGB)
-            self.cmnp = ops.CropMirrorNormalize(device = "gpu",
-                                                output_dtype = types.FLOAT,
-                                                output_layout = types.NHWC,
-                                                crop = (224, 224),
-                                                image_type = types.RGB,
-                                                mean = [128., 128., 128.],
-                                                std = [1., 1., 1.])
-            self.rotate = ops.Rotate(device = "gpu", angle = 45.0,
-                                     fill_value = 128,
-                                     interp_type=types.INTERP_LINEAR)
-            self.uniform = ops.Uniform(range = (0.0,1.0))
-            self.iter = 0
-
-        def define_graph(self):
-            self.jpegs, self.labels = self.input()
-            images = self.decode(self.jpegs)
-            outputs = self.cmnp([images, images],
-                                crop_pos_x = self.uniform(),
-                                crop_pos_y = self.uniform())
-            outputs[1] = self.rotate(outputs[1])
-            return [self.labels] + outputs
-
-    pipe = HybridPipe(batch_size=128, num_threads=2, device_id = 0)
-    pipe.build()
-    pipe_out = pipe.run()
-    import cv2
-    orig_cpu = pipe_out[1].as_cpu()
-    for i in range(128):
-        orig = orig_cpu.at(i)
-        M = cv2.getRotationMatrix2D(((224-1)*0.5, (224-1)*0.5), 45, 1)
-        out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_CONSTANT, borderValue = (128, 128, 128),
-                             flags = (cv2.INTER_LINEAR))
-        rotated_dali = pipe_out[2].as_cpu().at(i)
-        diff = out - rotated_dali
-        diff[rotated_dali==[128.,128.,128.]] = 0
-        assert(np.max(np.abs(diff)/255.0) < 0.025)
-
 def test_warpaffine():
     class HybridPipe(Pipeline):
         def __init__(self, batch_size, num_threads, device_id):
@@ -655,9 +612,9 @@ def test_warpaffine():
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.affine = ops.WarpAffine(device = "gpu",
-                                            matrix = [1.0, 0.8, -0.8*112, 0.0, 1.2, -0.2*112],
-                                            fill_value = 128,
-                                            interp_type = types.INTERP_LINEAR)
+                                         matrix = [1.0, 0.8, -0.8*112, 0.0, 1.2, -0.2*112],
+                                         fill_value = 128,
+                                         interp_type = types.INTERP_LINEAR)
             self.iter = 0
 
         def define_graph(self):

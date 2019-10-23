@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,21 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include "dali/operators/displacement/rotate.h"
-#include "dali/operators/displacement/displacement_filter_impl_cpu.h"
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(Rotate, Rotate<CPUBackend>, CPU);
-
 DALI_SCHEMA(Rotate)
-    .DocStr("Rotate the image.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddArg("angle",
-        R"code(Counterclockwise rotation angle, in degrees.)code", DALI_FLOAT, true)
-    .InputLayout(0, "HWC")
-    .AddParent("DisplacementFilter");
+  .DocStr(R"code(Rotate the image by given angle.)code")
+  .NumInput(1)
+  .NumOutput(1)
+  .InputLayout(0, { "HWC" })
+  .AddArg("angle",
+      R"code(Angle, in degrees, by which the image is rotated counter-clockwise,
+assuming top-left corner at (0,0))code", DALI_FLOAT, true)
+  .AddOptionalArg("keep_size", "If `True`, original canvas size is kept. If `False` (default) "
+"and `size` is not set, then the canvas size is adjusted to acommodate the rotated image with "
+"least padding possible", false, false)
+  .AddParent("WarpAttr");
+
+DALI_REGISTER_OPERATOR(Rotate, Rotate<CPUBackend>, CPU);
 
 }  // namespace dali
