@@ -168,6 +168,36 @@ class DLL_PUBLIC OperatorBase {
   DISABLE_COPY_MOVE_ASSIGN(OperatorBase);
 
  protected:
+  /**
+   * @brief Fill output vector with data, that's acquired from TensorArgument
+   *
+   * @remark On the event, that single value is provided (instead of tensor) as an argument,
+   *         propagate it for every sample in a batch
+   *
+   * @tparam T Type of the Argument
+   * @param output Container for the data. This function will reallocate it.
+   * @param argument_name name of the Argument
+   * @param ws
+   */
+  template<typename T>
+  void AcquireTensorArgument(std::vector<T> &output, const std::string &argument_name,
+                             const ArgumentWorkspace &ws) {
+    if (spec_.HasTensorArgument(argument_name)) {
+      const auto &tl = ws.ArgumentInput(argument_name);
+      int n = tl.shape().num_samples();
+      DALI_ENFORCE(n == 1 || n == batch_size_,
+                   "Provide arguments for either all or one sample in batch");
+      const auto *data = tl.template data<T>();
+      output.resize(n);
+      for (int i = 0; i < n; i++) {
+        output[i] = data[i];
+      }
+    } else {
+      output.resize(batch_size_, spec_.template GetArgument<T>(argument_name));
+    }
+    assert(output.size() == static_cast<size_t>(batch_size_));
+  }
+
   const OpSpec spec_;
   int num_threads_;
   int batch_size_;
