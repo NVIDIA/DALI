@@ -120,7 +120,7 @@ class HsvOp : public Operator<Backend> {
   }
 
 
-  void AcquireArguments(const OpSpec &spec, const ArgumentWorkspace &ws) {
+  void AcquireArguments(const ArgumentWorkspace &ws) {
     OperatorBase::AcquireTensorArgument(hue_, hsv::kHue, ws);
     OperatorBase::AcquireTensorArgument(saturation_, hsv::kSaturation, ws);
     OperatorBase::AcquireTensorArgument(value_, hsv::kValue, ws);
@@ -132,7 +132,7 @@ class HsvOp : public Operator<Backend> {
    */
   void DetermineTransformation(const ArgumentWorkspace &ws) {
     using namespace hsv;  // NOLINT
-    AcquireArguments(spec_, ws);
+    AcquireArguments(ws);
     assert(hue_.size() == saturation_.size() && hue_.size() == value_.size());
     auto size = hue_.size();
     tmatrices_.resize(size);

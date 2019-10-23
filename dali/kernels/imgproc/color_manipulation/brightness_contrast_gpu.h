@@ -20,7 +20,6 @@
 #include "dali/core/geom/box.h"
 #include "dali/kernels/imgproc/roi.h"
 #include "dali/kernels/common/block_setup.h"
-#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 namespace kernels {
