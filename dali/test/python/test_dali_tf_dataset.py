@@ -21,26 +21,28 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+from distutils.version import StrictVersion
 
 from nose import SkipTest
 from nose.tools import raises
+
+try:
+    tf.compat.v1.disable_eager_execution()
+except:
+    pass
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
 
-def tensorflow_minor_version():
-    return tf.__version__.split('.')[1]
-
-
 def compatible_tensorflow():
-    return tensorflow_minor_version() in {'13', '14', '15'}
+    return StrictVersion(tf.__version__) >= StrictVersion('1.13.1')
 
 
 def skip_for_incompatible_tf():
     if not compatible_tensorflow():
-        raise SkipTest('This feature is enabled for TF 1.13 and 1.14 only')
+        raise SkipTest('This feature is enabled for TF 1.13.1 and higher')
 
 
 def num_available_gpus():
@@ -103,10 +105,10 @@ def _dataset_options():
     try:
         options.experimental_optimization.apply_default_optimizations = False
 
-        if tensorflow_minor_version() in ['14', '15']:
-            options.experimental_optimization.autotune = False
-        elif tensorflow_minor_version() == '13':
-            options.experimental_autotune = False    
+        if StrictVersion(tf.__version__) == StrictVersion('1.13.1'):
+            options.experimental_autotune = False 
+        else:
+            options.experimental_optimization.autotune = False   
     except:
         print('Could not set TF Dataset Options')
 

@@ -17,6 +17,7 @@ import os
 import glob
 from collections import Iterable
 import re
+from distutils.version import StrictVersion
 
 
 _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
@@ -117,11 +118,11 @@ def DALIRawIterator():
     return _dali_tf
 
 
-def _get_tf_minor_version():
-  return tf.__version__.split('.')[1]
+def _get_tf_version():
+  return StrictVersion(tf.__version__)
 
 
-if _get_tf_minor_version() in {'13', '14', '15'}:
+if _get_tf_version() >= StrictVersion('1.13.1'):
   from tensorflow.python.framework import ops
   from tensorflow.python.data.ops import dataset_ops
   from tensorflow.python.data.util import structure
@@ -160,16 +161,16 @@ if _get_tf_minor_version() in {'13', '14', '15'}:
       self._structure = structure.convert_legacy_structure(
         self._dtypes, self._shapes, output_classes)
 
-      if _get_tf_minor_version() in ['14', '15']:
+      if _get_tf_version() > StrictVersion('1.13.1'):
         super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
-      elif _get_tf_minor_version() == '13':
+      elif _get_tf_version() == StrictVersion('1.13.1'):
         super(_DALIDatasetV2, self).__init__()
       else:
-        raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14, 1.15')
+        raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14, 1.15, 2.0')
 
 
     # This function should not be removed or refactored.
-    # It is needed for TF 1.15
+    # It is needed for TF 1.15 and 2.0
     @property
     def element_spec(self):
       return self._structure
@@ -196,11 +197,14 @@ if _get_tf_minor_version() in {'13', '14', '15'}:
         dtypes = self._dtypes)
 
 
-  class DALIDataset(dataset_ops.DatasetV1Adapter):
-    @functools.wraps(_DALIDatasetV2.__init__)
-    def __init__(self, **kwargs):
-      wrapped = _DALIDatasetV2(**kwargs)
-      super(DALIDataset, self).__init__(wrapped)
+  if _get_tf_version() < StrictVersion('2.0'):
+    class DALIDataset(dataset_ops.DatasetV1Adapter):
+      @functools.wraps(_DALIDatasetV2.__init__)
+      def __init__(self, **kwargs):
+        wrapped = _DALIDatasetV2(**kwargs)
+        super(DALIDataset, self).__init__(wrapped)
+  else:
+    DALIDataset = _DALIDatasetV2
 
 else:
   class DALIDataset:
@@ -218,7 +222,7 @@ else:
       dtypes = []):
       raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.')
 
-DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13, 1.14 and 1.15
+DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13, 1.14, 1.15 and 2.0
 
     Parameters
     ----------
