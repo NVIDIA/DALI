@@ -32,8 +32,6 @@ target_link_libraries(${dali_kernel_lib} PRIVATE "-Wl,--exclude-libs,${exclude_l
 
 set(lib_exports "libdali_kernels.map")
 configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib_exports}")
-add_custom_target(${lib_exports} DEPENDS "${CMAKE_BINARY_DIR}/${lib_exports}")
-add_dependencies(${dali_kernel_lib} ${lib_exports})
 target_link_libraries(${dali_kernel_lib} PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
 
 if (BUILD_TEST)
