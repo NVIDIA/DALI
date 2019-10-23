@@ -20,7 +20,7 @@ from itertools import count
 import threading
 from nvidia.dali import backend as b
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, \
-    _type_vector_element_type, DALIDataType, CUDAStream
+    _vector_element_type, DALIDataType, CUDAStream
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
@@ -282,9 +282,9 @@ def python_op_factory(name, op_device = "cpu"):
                   continue
 
                 dtype = self._schema.GetArgumentType(key)
-                if isinstance(value, list) or isinstance(value, tuple):
+                if isinstance(value, (list, tuple)):
                     if len(value) == 0:
-                        self._spec.AddArgEmptyList(key, _type_vector_element_type(dtype))
+                        self._spec.AddArgEmptyList(key, _vector_element_type(dtype))
                         continue
                 converted_value = _type_convert_value(dtype, value)
                 self._spec.AddArg(key, converted_value)

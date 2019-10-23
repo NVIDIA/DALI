@@ -76,7 +76,7 @@ def _type_convert_value(dtype, val):
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")
     return _known_types[dtype][1](val)
 
-def _type_vector_element_type(dtype):
+def _vector_element_type(dtype):
     if dtype not in _vector_types:
         raise RuntimeError(str(dtype) + " is not a vector type.")
     return _vector_types[dtype]
