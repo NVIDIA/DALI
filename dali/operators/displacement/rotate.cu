@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,7 @@
 
 
 #include "dali/operators/displacement/rotate.h"
-#include "dali/operators/displacement/displacement_filter_impl_gpu.cuh"
 
 namespace dali {
-
 DALI_REGISTER_OPERATOR(Rotate, Rotate<GPUBackend>, GPU);
-
 }  // namespace dali

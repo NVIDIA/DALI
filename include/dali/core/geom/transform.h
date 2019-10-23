@@ -97,7 +97,7 @@ DALI_HOST_DEV
 constexpr vec<out_n> affine(const mat<out_n, in_n + 1> &transform, const vec<in_n> &v) {
   vec<out_n> out = {};
   for (int i = 0; i < out_n; i++) {
-    // NOTE: accumulating directly in out[i] prodced noticeably slower code in GCC 7.4
+    // NOTE: accumulating directly in out[i] produced noticeably slower code in GCC 7.4
     float sum = transform(i, in_n);
     for (int j = 0; j < in_n; j++) {
       sum += transform(i, j) * v[j];

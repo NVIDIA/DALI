@@ -276,6 +276,11 @@ def python_op_factory(name, op_device = "cpu"):
 
             # Store the specified arguments
             for key, value in kwargs.items():
+                if value is None:
+                  # None is not a valid value for any argument type, so treat it
+                  # as if the argument was not supplied at all
+                  continue
+
                 if isinstance(value, list):
                     if not value:
                         raise RuntimeError("List arguments need to have at least 1 element.")
