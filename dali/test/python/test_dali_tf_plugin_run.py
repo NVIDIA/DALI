@@ -23,6 +23,11 @@ import tensorflow as tf
 import nvidia.dali.plugin.tf as dali_tf
 from test_utils import get_dali_extra_path
 
+try:
+    tf.compat.v1.disable_eager_execution()
+except:
+    pass
+
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -81,10 +86,19 @@ def get_batch_dali(batch_size, pipe_type, label_type, num_gpus=1):
 
 def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=32, iterations=32):
     test_batch = get_batch_dali(batch_size, pipe_type, tf.int32)
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
-    config = tf.ConfigProto(gpu_options=gpu_options)
+    try:
+        from tensorflow.compat.v1 import GPUOptions
+        from tensorflow.compat.v1 import ConfigProto
+        from tensorflow.compat.v1 import Session
+    except:
+        # Older TF versions don't have compat.v1 layer
+        from tensorflow import GPUOptions
+        from tensorflow import ConfigProto
+        from tensorflow import Session
 
-    with tf.Session(config=config) as sess:
+    gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.8)
+    config = ConfigProto(gpu_options=gpu_options)
+    with Session(config=config) as sess:
         for i in range(iterations):
             imgs, labels = sess.run(test_batch)
             # Testing correctness of labels

@@ -25,7 +25,9 @@ packages = {
             "mxnet-cu{cuda_v}" : {
                         "90" : ["1.5.0"],
                         "100" : ["1.5.0"]},
-            "tensorflow-gpu" : {"90": ["1.12.0", "1.11", "1.7"], "100": ["1.13.1", "1.14.0"]},
+            "tensorflow-gpu" : {
+                "90": ["1.12.0", "1.11", "1.7"],
+                "100": ["1.13.1", "1.14.0", "1.15.0", "2.0.0"]},
             "torch" : {"90": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.1.0-{0}.whl"],
                        "100": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.2.0-{0}.whl"]},
             "torchvision" : {"90": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.3.0-{0}.whl"],

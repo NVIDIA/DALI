@@ -16,6 +16,7 @@ import platform
 from shutil import copyfile
 from dali_tf_plugin_utils import *
 import os
+from distutils.version import StrictVersion
 
 class InstallerHelper:
     def __init__(self):
@@ -39,16 +40,26 @@ class InstallerHelper:
         if os.path.exists(self.prebuilt_dir) and os.path.isdir(self.prebuilt_dir):
             self.prebuilt_compilers = [subdir for subdir in os.listdir(self.prebuilt_dir) \
                 if os.path.isdir(os.path.join(self.prebuilt_dir, subdir))]
+
+        # If set, checking for prebuilt binaries or compiler version check is disabled
+        self.always_build = bool(int(os.getenv('DALI_TF_ALWAYS_BUILD', '0')))
+
         # Can install prebuilt if both conditions apply:
         # - we know the compiler used to build TF
         # - we have prebuilt artifacts for that compiler version
-        self.can_install_prebuilt = bool(self.tf_compiler) and \
+        self.can_install_prebuilt = not self.always_build and \
+            bool(self.tf_compiler) and \
             self.tf_compiler in self.prebuilt_compilers and \
             self.is_compatible_with_prebuilt_bin
         # Allow to compile if either condition apply
         # - The default C++ compiler version matches the one used to build TF
         # - The compiler used to build TF is unknown
-        self.can_default_compile = self.default_cpp_version == self.tf_compiler or not bool(self.tf_compiler)
+        # - Both TF and default compilers are >= 5.0
+        self.can_default_compile = self.always_build or \
+            self.default_cpp_version == self.tf_compiler or \
+            not bool(self.tf_compiler) or \
+            (StrictVersion(self.default_cpp_version) >= StrictVersion('5.0') and
+                StrictVersion(self.tf_compiler) >= StrictVersion('5.0'))
 
     def debug_str(self):
         s = "\n Environment:"
