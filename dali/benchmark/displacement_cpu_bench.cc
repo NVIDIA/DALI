@@ -136,8 +136,7 @@ DALI_BENCHMARK_DISPLACEMENT_CASE(Rotate<CPUBackend>, OpSpec("Rotate").AddArg("an
 namespace {
 std::vector<float> affine_mat = { 1.0f, 0.8f, 0.0f, 0.0f, 1.2f, 0.0f };
 }  // namespace
-DALI_BENCHMARK_DISPLACEMENT_CASE(WarpAffine<CPUBackend>,
-                                 OpSpec("WarpAffine").AddArg("matrix", affine_mat));
+
 DALI_BENCHMARK_DISPLACEMENT_CASE(Water<CPUBackend>, OpSpec("Water"));
 
 }  // namespace dali

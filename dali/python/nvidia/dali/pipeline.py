@@ -15,8 +15,9 @@
 #pylint: disable=no-member
 from collections import deque
 from nvidia.dali import backend as b
-from nvidia.dali import edge as Edge
+from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
+from nvidia.dali import check_edge as Edge
 from threading import local as tls
 pipeline_tls = tls()
 
@@ -244,13 +245,7 @@ class Pipeline(object):
             outputs = (outputs,)
 
         for output in outputs:
-            if not isinstance(output, Edge.EdgeReference):
-                raise TypeError(
-                    ("Expected outputs of type "
-                    "EdgeReference. Received "
-                    "output type {}")
-                    .format(type(output).__name__)
-                )
+            Edge._validate_edge_reference(output)
 
         # Backtrack to construct the graph
         op_ids = set()
@@ -319,22 +314,16 @@ class Pipeline(object):
         with other operator outputs."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        if not isinstance(ref, Edge.EdgeReference):
-            raise TypeError(
-                ("Expected argument one to "
-                "be EdgeReference. "
-                "Received output type {}")
-                .format(type(ref).__name__)
-            )
+        Edge._validate_edge_reference(ref)
         if isinstance(data, list):
             if self._batch_size != len(data):
                 raise RuntimeError("Data list provided to feed_input needs to have batch_size length")
             inputs = []
             for datum in data:
-                inputs.append(Edge.TensorCPU(datum, layout))
+                inputs.append(Tensors.TensorCPU(datum, layout))
             self._pipe.SetExternalTensorInput(ref.name, inputs)
         else:
-            inp = Edge.TensorListCPU(data, layout)
+            inp = Tensors.TensorListCPU(data, layout)
             self._pipe.SetExternalTLInput(ref.name, inp)
 
     def _run_cpu(self):
@@ -579,7 +568,7 @@ class Pipeline(object):
         """This function is defined by the user to construct the
         graph of operations for their pipeline.
 
-        It returns a list of output `EdgeReference`."""
+        It returns a list of outputs created by calling DALI Operators."""
         raise NotImplementedError
 
     def iter_setup(self):

@@ -15,18 +15,16 @@
 # Get all the srcs
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_PYTHON_BACKEND_SRCS)
-set(dali_python_lib "backend_impl")
-set(dali_python_lib ${dali_python_lib} PARENT_SCOPE)
 pybind11_add_module(${dali_python_lib} MODULE ${DALI_PYTHON_BACKEND_SRCS})
-message(STATUS "Adding dependencies to ${dali_python_lib}: '${dali_lib}'")
-add_dependencies(${dali_python_lib} ${dali_lib})
 
-# Link libdali.so, libprotobuf.a and libcudart_static.a into backend_impl (dali_python_lib)
-target_link_libraries(${dali_python_lib} PRIVATE ${CUDA_LIBRARIES} ${dali_lib})
+target_link_libraries(${dali_python_lib} PUBLIC
+  ${dali_lib} ${dali_operator_lib} ${dali_kernel_lib} ${dali_core_lib})
+target_link_libraries(${dali_python_lib} PRIVATE
+  ${CUDA_LIBRARIES})
 
 # Set output directory for backend_impl
 set_target_properties(${dali_python_lib} PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali)
+  LIBRARY_OUTPUT_DIRECTORY ${DALI_LIBRARY_OUTPUT_DIR})
 
 if (DALI_BUILD_FLAVOR)
   set(DALI_FLAVOR "${DALI_BUILD_FLAVOR} ")

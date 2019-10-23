@@ -122,7 +122,7 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
   for (int i = 0; i < subexpression_count; i++) {
     types[i] = PropagateTypes<Backend>(func[i], ws);
   }
-  expr.SetTypeId(TypePromotion(make_span(types)));
+  expr.SetTypeId(TypePromotion(NameToOp(func.GetFuncName()), make_span(types)));
   return expr.GetTypeId();
 }
 

@@ -46,6 +46,7 @@ export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
 cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DCUDA_rt_LIBRARY=$BUILD_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \
       -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH}-linux/lib/stubs/libcuda.so \
+      -DCUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}            \
       -DNVJPEG_ROOT_DIR=/usr/local/cuda                   \
       -DFFMPEG_ROOT_DIR=$PREFIX/lib                       \
       -DCMAKE_PREFIX_PATH="$PREFIX/libjpeg-turbo;$PREFIX" \

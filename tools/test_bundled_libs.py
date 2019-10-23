@@ -18,6 +18,10 @@ from __future__ import print_function
 from sys import argv
 import subprocess
 
+# Check if any element in the elms list matches the value
+def get_list_elm_match(value, elms):
+    return any(e in value for e in elms)
+
 def check_ldd_out(lib, linked_lib, bundled_lib_names, allowed_libs):
     # Gather all libs that may be linked with 'lib' and don't need to be bundled
     # Entries from 'lib' key in allowed_libs should cover all 'lib*' libs
@@ -27,14 +31,15 @@ def check_ldd_out(lib, linked_lib, bundled_lib_names, allowed_libs):
         if k in lib:
             allowed_libs_to_check += allowed_libs[k]
 
-    return linked_lib in bundled_lib_names or linked_lib in allowed_libs_to_check
+    return linked_lib in bundled_lib_names or get_list_elm_match(linked_lib, allowed_libs_to_check)
 
 def main():
     allowed_libs = {"": ["linux-vdso.so.1",
                         "libm.so.6",
                         "libpthread.so.0",
                         "libc.so.6",
-                        "/lib64/ld-linux-x86-64.so.2",
+                        "/lib64/ld-linux",
+                        "/lib/ld-linux",
                         "libdl.so.2",
                         "librt.so.1",
                         "libstdc++.so.6",

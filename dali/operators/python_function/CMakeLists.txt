@@ -12,16 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set(python_function_lib "python_function_plugin")
-set(PYTHON_FUNCTION_SRCS python_function.cc dltensor_function.cc util/copy_with_stride.cc
-                         util/copy_with_stride.cu)
-add_library(${python_function_lib} SHARED ${PYTHON_FUNCTION_SRCS})
-target_link_libraries(${python_function_lib} ${dali_lib})
-target_include_directories(${python_function_lib}
-        PRIVATE ${PYBIND11_INCLUDE_DIR}  # from project CMakeLists.txt
-        PRIVATE ${pybind11_INCLUDE_DIR}  # from pybind11Config
-        PRIVATE ${PYTHON_INCLUDE_DIRS})
+collect_headers(DALI_INST_HDRS PARENT_SCOPE)
+collect_sources(PYTHON_FUNCTION_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
+
+add_library(${dali_python_function_lib} SHARED ${PYTHON_FUNCTION_SRCS})
+target_link_libraries(${dali_python_function_lib} PUBLIC ${dali_lib})
+target_link_libraries(${dali_python_function_lib} PRIVATE ${DALI_LIBS})
+target_link_libraries(${dali_python_function_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+
+target_include_directories(${dali_python_function_lib} PRIVATE
+        ${PYBIND11_INCLUDE_DIR}  # from project CMakeLists.txt
+        ${pybind11_INCLUDE_DIR}  # from pybind11Config
+        ${PYTHON_INCLUDE_DIRS})
 
 # Install python operator plugin to the wheel directory
-set_target_properties(${python_function_lib} PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/")
+set_target_properties(${dali_python_function_lib} PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")

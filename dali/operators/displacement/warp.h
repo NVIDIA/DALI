@@ -250,8 +250,8 @@ class Warp : public Operator<Backend> {
   /// @}
  public:
   explicit Warp(const OpSpec &spec) : Operator<Backend>(spec) {
-    border_clamp_ = !spec.HasArgument("border");
-    spec.TryGetArgument(output_type_arg_, "output_type");
+    border_clamp_ = !spec.HasArgument("fill_value");
+    spec.TryGetArgument(output_type_arg_, "output_dtype");
   }
 
   int SpatialDim() const {
@@ -332,6 +332,7 @@ class Warp : public Operator<Backend> {
   void RunImpl(Workspace &ws) override {
     assert(impl_);
     impl_->Run(ws);
+    ws.template OutputRef<Backend>(0).SetLayout(this->InputLayout(ws, 0));
   }
 
  protected:

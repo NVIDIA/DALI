@@ -16,7 +16,8 @@ from __future__ import absolute_import
 
 from . import ops
 from . import pipeline
-from . import edge
+from . import tensors
+from . import check_edge
 from . import tfrecord
 from . import types
 from . import plugin_manager

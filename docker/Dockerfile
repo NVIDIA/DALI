@@ -19,7 +19,7 @@ ENV PATH=${PYBIN}:${PATH} \
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
-RUN pip install future numpy setuptools wheel && \
+RUN pip install future setuptools wheel && \
     rm -rf /root/.cache/pip/
 
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
@@ -33,6 +33,8 @@ ENV CC=${CC}
 ENV CXX=${CXX}
 # Optional build arguments
 
+ARG CUDA_TARGET_ARCHS
+ENV CUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}
 ARG CMAKE_BUILD_TYPE
 ENV CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 ARG BUILD_TEST
@@ -65,6 +67,8 @@ ARG GIT_SHA
 ENV GIT_SHA=${GIT_SHA}
 ARG DALI_TIMESTAMP
 ENV DALI_TIMESTAMP=${DALI_TIMESTAMP}
+ARG WHL_PLATFORM_NAME
+ENV WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME}
 
 ARG NVIDIA_BUILD_ID
 ENV NVIDIA_BUILD_ID ${NVIDIA_BUILD_ID:-0}

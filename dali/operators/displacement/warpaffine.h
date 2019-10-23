@@ -70,15 +70,6 @@ class WarpAffineAugment {
   bool use_image_center;
 };
 
-template <typename Backend>
-class WarpAffine : public DisplacementFilter<Backend, WarpAffineAugment> {
- public:
-    inline explicit WarpAffine(const OpSpec &spec)
-      : DisplacementFilter<Backend, WarpAffineAugment>(spec) {}
-
-    ~WarpAffine() override = default;
-};
-
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_DISPLACEMENT_WARPAFFINE_H_

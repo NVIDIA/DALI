@@ -120,7 +120,7 @@ TEST(Scratch, PreallocatedScratchpad) {
   ASSERT_EQ(pad.allocs.size(), num_allocs);
 
   const size_t alignment = 64;
-  alignas(alignment) char storage[num_allocs][size];
+  alignas(alignment) static char storage[num_allocs][size];
   for (size_t i = 0; i < num_allocs; i++)
     pad.allocs[i] = BumpAllocator(storage[i], sizeof(storage[i]));
 

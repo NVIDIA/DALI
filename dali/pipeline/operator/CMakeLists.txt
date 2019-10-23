@@ -13,8 +13,9 @@
 # limitations under the License.
 
 # Get all the source files and dump test files
+
+add_subdirectory(builtin)
+
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
-
-set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)

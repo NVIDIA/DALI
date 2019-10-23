@@ -14,7 +14,6 @@
 
 import glob
 from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.edge import EdgeReference
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
@@ -124,10 +123,10 @@ def test_multiple_input_sets():
             boxes = [boxes_ssd0, boxes_ssd1]
             labels = [labels_ssd0, labels_ssd1]
             enc_boxes0, enc_labels0 = self.box_encoder_cpu(boxes, labels)
-            # Test one list with one EdgeReference
+            # Test one list with one _EdgeReference
             enc_boxes1, enc_labels1 = self.box_encoder_cpu(boxes, labels_ssd0)
 
-            # Return everything (only EdgeReferences allowed)
+            # Return everything (only _EdgeReference allowed)
             return (encoded_boxes0, encoded_labels0, encoded_boxes1, encoded_labels1,
                     enc_boxes0[0], enc_labels0[0], enc_boxes0[1], enc_labels0[1],
                     enc_boxes1[0], enc_labels1[0], enc_boxes1[1], enc_labels1[1])
@@ -656,10 +655,9 @@ def test_warpaffine():
                                                 mean = [128., 128., 128.],
                                                 std = [1., 1., 1.])
             self.affine = ops.WarpAffine(device = "gpu",
-                                         matrix = [1.0, 0.8, 0.0, 0.0, 1.2, 0.0],
-                                         fill_value = 128,
-                                         interp_type = types.INTERP_LINEAR,
-                                         use_image_center = True)
+                                            matrix = [1.0, 0.8, -0.8*112, 0.0, 1.2, -0.2*112],
+                                            fill_value = 128,
+                                            interp_type = types.INTERP_LINEAR)
             self.iter = 0
 
         def define_graph(self):
@@ -676,13 +674,13 @@ def test_warpaffine():
     orig_cpu = pipe_out[1].as_cpu()
     for i in range(128):
         orig = orig_cpu.at(i)
-        M = np.array([1.0, 0.8, -0.8*111.5, 0.0, 1.2, -0.2*111.5]).reshape((2,3))
+        # apply 0.5 correction for opencv's not-so-good notion of pixel centers
+        M = np.array([1.0, 0.8, -0.8*(112 - 0.5), 0.0, 1.2, -0.2*(112 - 0.5)]).reshape((2,3))
         out = cv2.warpAffine(orig, M, (224,224), borderMode=cv2.BORDER_CONSTANT, borderValue = (128, 128, 128),
                              flags = (cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR))
         dali_output = pipe_out[2].as_cpu().at(i)
-        diff = out - dali_output
-        diff[dali_output==[128.,128.,128.]] = 0
-        assert(np.max(np.abs(diff)/255.0) < 0.025)
+        maxdif = np.max(cv2.absdiff(out, dali_output)/255.0)
+        assert(maxdif < 0.025)
 
 def test_type_conversion():
     class HybridPipe(Pipeline):
