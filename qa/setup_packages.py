@@ -30,8 +30,8 @@ packages = {
                        "100": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.2.0-{0}.whl"]},
             "torchvision" : {"90": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.3.0-{0}.whl"],
                              "100": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.4.0-{0}.whl"]},
-            "paddle" : {"90": ["https://paddle-wheel.bj.bcebos.com/latest-gpu-cuda9-cudnn7-mkl/paddlepaddle_gpu-latest-{0}.whl"],
-                        "100": ["https://paddle-wheel.bj.bcebos.com/latest-gpu-cuda10-cudnn7-mkl/paddlepaddle_gpu-latest-{0}.whl"]},
+            "paddle" : {"90": ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda9-cudnn7-openblas/paddlepaddle_gpu-latest-{0}.whl"],
+                        "100": ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda10-cudnn7-openblas/paddlepaddle_gpu-latest-{0}.whl"]},
             }
 
 parser = argparse.ArgumentParser(description='Env setup helper')
