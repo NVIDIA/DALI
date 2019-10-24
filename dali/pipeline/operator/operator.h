@@ -98,10 +98,6 @@ class DLL_PUBLIC OperatorBase {
     DALI_FAIL("Mixed execution is not implemented for this operator!");
   }
 
-  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) {
-    DALI_FAIL(name() + " is not a support operator!");
-  }
-
   /**
    * @brief If Operator can infer the output shapes it means that its output would use a single
    * underlying allocation, especailly for CPU TensorVector will use contiguous mode.
@@ -129,13 +125,6 @@ class DLL_PUBLIC OperatorBase {
    */
   DLL_PUBLIC virtual void Run(MixedWorkspace &ws) {
     DALI_FAIL("Mixed execution is not implemented for this operator!");
-  }
-
-  /**
-   * @brief Used by support operators (RNG etc.).
-   */
-  DLL_PUBLIC virtual void Run(SupportWorkspace &ws) {
-    DALI_FAIL(name() + " is not a support operator!");
   }
 
   /**
@@ -222,47 +211,6 @@ class DLL_PUBLIC OperatorBase {
  */
 template <typename Backend>
 class Operator : public OperatorBase {};
-
-template <>
-class Operator<SupportBackend> : public OperatorBase {
- public:
-  inline explicit Operator(const OpSpec &spec) : OperatorBase(spec) {}
-
-  inline ~Operator() override {}
-
-  using OperatorBase::Setup;
-  using OperatorBase::Run;
-
-  bool Setup(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
-    return SetupImpl(output_desc, ws);
-  }
-
-  void Run(SupportWorkspace &ws) override {
-    CheckInputLayouts(ws, spec_);
-    SetupSharedSampleParams(ws);
-    RunImpl(ws);
-  }
-
-  /**
-   * @brief Setup of the operator - to be implemented by derived op.
-   *
-   * @param output_desc describe the shape and type of the outputs (for the whole batch)
-   * @param ws
-   * @return true iff the operator specified the output shape and type
-   */
-  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) = 0;
-
-  /**
-   * @brief Implementation of the operator - to be
-   * implemented by derived ops.
-   */
-  virtual void RunImpl(SupportWorkspace &ws) = 0;
-
-  /**
-   * @brief Shared param setup
-   */
-  virtual void SetupSharedSampleParams(SupportWorkspace &ws) {}
-};
 
 template <>
 class Operator<CPUBackend> : public OperatorBase {
@@ -407,7 +355,6 @@ class Operator<MixedBackend> : public OperatorBase {
 DALI_DECLARE_OPTYPE_REGISTRY(CPUOperator, OperatorBase);
 DALI_DECLARE_OPTYPE_REGISTRY(GPUOperator, OperatorBase);
 DALI_DECLARE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
-DALI_DECLARE_OPTYPE_REGISTRY(SupportOperator, OperatorBase);
 
 // Must be called from .cc or .cu file
 #define DALI_REGISTER_OPERATOR(OpName, OpType, device)                                  \

@@ -130,7 +130,7 @@ DALI_SCHEMA(TestArgumentInput_Consumer)
  *
  * The EXPECT_* and ASSERT_* macros are actually placed in the RunImpl of operator
  * accessing the data (TestArgumentInput_Consumer), and the different (valid and invalid)
- * arguments inputs are provided by a SupportOp: TestArgumentInput_Producer.
+ * arguments inputs are provided by a Operator: TestArgumentInput_Producer.
  */
 TEST(ArgumentInputTest, OpSpecAccess) {
   Pipeline pipe(10, 4, 0);

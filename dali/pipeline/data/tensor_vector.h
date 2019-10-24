@@ -49,6 +49,16 @@ class TensorVector {
     }
   }
 
+  explicit TensorVector(std::shared_ptr<TensorList<Backend>> tl)
+  : views_count_(0)
+  , tl_(std::move(tl)) {
+    pinned_ = tl->is_pinned();
+    type_ = tl->type();
+    state_ = State::contiguous;
+    tensors_.resize(tl_->ntensor());
+    update_views();
+  }
+
   TensorVector(const TensorVector &) = delete;
   TensorVector &operator=(const TensorVector &) = delete;
 

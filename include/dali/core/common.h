@@ -60,8 +60,7 @@ enum class OpType {
   GPU = 0,
   CPU = 1,
   MIXED = 2,
-  SUPPORT = 3,
-  COUNT = 4
+  COUNT = 3
 };
 
 // What device is this tensor stored on
@@ -79,8 +78,6 @@ static std::string to_string(OpType op_type) {
       return "gpu";
     case OpType::MIXED:
       return "mixed";
-    case OpType::SUPPORT:
-      return "support";
     default:
       return "<invalid>";
   }

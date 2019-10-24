@@ -55,6 +55,10 @@ class ArgumentWorkspace {
     argument_inputs_[arg_name] = std::move(input);
   }
 
+  void AddArgumentInput(const std::string &arg_name, shared_ptr<TensorList<CPUBackend>> input) {
+    argument_inputs_[arg_name] = std::make_shared<TensorVector<CPUBackend>>(std::move(input));
+  }
+
   const TensorVector<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
     DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
         "Argument \"" + arg_name + "\" not found.");

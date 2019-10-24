@@ -68,12 +68,10 @@ void CheckOpConstraints(const OpSpec &spec) {
 OpType ParseOpType(const std::string &device) {
   if (device == "gpu") {
     return OpType::GPU;
-  } else if (device == "cpu") {
+  } else if (device == "cpu" || device == "support") {
     return OpType::CPU;
   } else if (device == "mixed") {
     return OpType::MIXED;
-  } else if (device == "support") {
-    return OpType::SUPPORT;
   }
   DALI_FAIL("Unsupported device type: " + device + ".");
 }
@@ -128,11 +126,6 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
       DALI_ENFORCE(AllInputsCPU(spec), "Mixed ops cannot receive GPU input data.");
       break;
     }
-    case OpType::SUPPORT: {
-      // Enforce graph constraints
-      DALI_ENFORCE(AllInputsCPU(spec), "Support ops cannot receive GPU input data.");
-      break;
-    }
     default:
       DALI_FAIL("Invalid device argument \"" + device +
           "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
@@ -185,7 +178,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     TensorMeta meta;
     meta.node = new_node.id;
     meta.index = i;
-    meta.is_support = spec.GetArgument<string>("device") == "support";
+    // meta.is_support = spec.GetArgument<string>("device") == "support";
     meta.storage_device = ParseStorageDevice(spec.OutputDevice(i));
 
     string name = spec.Output(i);
@@ -206,7 +199,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
 
 void OpGraph::InstantiateOperators() {
   // traverse devices by topological order (support, cpu, mixed, gpu)
-  OpType order[] = {OpType::SUPPORT, OpType::CPU, OpType::MIXED, OpType::GPU};
+  OpType order[] = {OpType::CPU, OpType::MIXED, OpType::GPU};
 
   for (auto op_type : order) {
     for (auto op_id : op_partitions_[static_cast<int>(op_type)]) {
@@ -475,8 +468,6 @@ namespace {
         return "#76b900";
       case OpType::MIXED:
         return "cyan";
-      case OpType::SUPPORT:
-        return "grey";
       default:
         return "black";
     }

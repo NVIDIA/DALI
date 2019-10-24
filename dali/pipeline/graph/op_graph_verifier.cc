@@ -42,15 +42,12 @@ std::string concatenate_alternatives(const std::set<OpType>& vec) {
 
 }  // namespace
 
-constexpr OpType parent_constraints<OpType::SUPPORT>::allowed_parents[];
 constexpr OpType parent_constraints<OpType::CPU>::allowed_parents[];
 constexpr OpType parent_constraints<OpType::MIXED>::allowed_parents[];
 constexpr OpType parent_constraints<OpType::GPU>::allowed_parents[];
-constexpr StorageDevice parent_constraints<OpType::SUPPORT>::allowed_input_tensors[];
 constexpr StorageDevice parent_constraints<OpType::CPU>::allowed_input_tensors[];
 constexpr StorageDevice parent_constraints<OpType::MIXED>::allowed_input_tensors[];
 constexpr StorageDevice parent_constraints<OpType::GPU>::allowed_input_tensors[];
-constexpr OpType parent_constraints<OpType::SUPPORT>::allowed_input_ops[];
 constexpr OpType parent_constraints<OpType::CPU>::allowed_input_ops[];
 constexpr OpType parent_constraints<OpType::MIXED>::allowed_input_ops[];
 constexpr OpType parent_constraints<OpType::GPU>::allowed_input_ops[];
@@ -70,7 +67,6 @@ std::vector<std::set<OpType>> ParentOpTypeConstraints() {
   allowed_parents[static_cast<int>(OpType::GPU)] = GetParentConstraints<OpType::GPU>();
   allowed_parents[static_cast<int>(OpType::CPU)] = GetParentConstraints<OpType::CPU>();
   allowed_parents[static_cast<int>(OpType::MIXED)] = GetParentConstraints<OpType::MIXED>();
-  allowed_parents[static_cast<int>(OpType::SUPPORT)] = GetParentConstraints<OpType::SUPPORT>();
   return allowed_parents;
 }
 
@@ -83,8 +79,6 @@ std::vector<int> ArgumentInputConstraints() {
       parent_constraints<OpType::CPU>::supports_argument_inputs;
   allows_argument_input[static_cast<int>(OpType::MIXED)] =
       parent_constraints<OpType::MIXED>::supports_argument_inputs;
-  allows_argument_input[static_cast<int>(OpType::SUPPORT)] =
-      parent_constraints<OpType::SUPPORT>::supports_argument_inputs;
   return allows_argument_input;
 }
 

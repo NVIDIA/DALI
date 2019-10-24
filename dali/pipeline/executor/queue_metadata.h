@@ -28,17 +28,16 @@ struct StageQueues {
   StageQueues() = default;
 
   explicit StageQueues(int uniform_idx)
-      : idxs{uniform_idx, uniform_idx, uniform_idx, uniform_idx} {}
+      : idxs{uniform_idx, uniform_idx, uniform_idx} {}
 
-  StageQueues(int support, int cpu, int mixed, int gpu) {
-    operator[](OpType::SUPPORT) = support;
+  StageQueues(int cpu, int mixed, int gpu) {
     operator[](OpType::CPU) = cpu;
     operator[](OpType::MIXED) = mixed;
     operator[](OpType::GPU) = gpu;
   }
 
  private:
-  std::array<int, static_cast<size_t>(OpType::COUNT)> idxs = {{0, 0, 0, 0}};
+  std::array<int, static_cast<size_t>(OpType::COUNT)> idxs = {{0, 0, 0}};
 };
 
 // Used for indexing into stage queues
@@ -79,16 +78,13 @@ struct OutputIdxs {
 };
 
 static std::ostream &operator<<(std::ostream &os, StageQueues idxs) {
-  os << "{" << idxs[OpType::SUPPORT] << ", " << idxs[OpType::CPU] << ", "
-     << idxs[OpType::MIXED] << ", " << idxs[OpType::GPU] << "}";
+  os << "{" << idxs[OpType::CPU] << ", " << idxs[OpType::MIXED] << ", " << idxs[OpType::GPU] << "}";
   return os;
 }
 
 
 static OpType PreviousStage(OpType op) {
   switch (op) {
-    case OpType::CPU:
-      return OpType::SUPPORT;
     case OpType::MIXED:
       return OpType::CPU;
     case OpType::GPU:
@@ -99,13 +95,11 @@ static OpType PreviousStage(OpType op) {
 }
 
 static bool HasPreviousStage(OpType op) {
-  return op != OpType::SUPPORT;
+  return op != OpType::CPU;
 }
 
 static OpType NextStage(OpType op) {
   switch (op) {
-    case OpType::SUPPORT:
-      return OpType::CPU;
     case OpType::CPU:
       return OpType::MIXED;
     case OpType::MIXED:

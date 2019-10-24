@@ -37,7 +37,6 @@
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/host_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"
-#include "dali/pipeline/workspace/support_workspace.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
@@ -314,33 +313,7 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   TimeRange tr("[Executor] RunCPU");
 
-  auto support_idxs = QueuePolicy::AcquireIdxs(OpType::SUPPORT);
-  if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(support_idxs)) {
-    QueuePolicy::ReleaseIdxs(OpType::SUPPORT, support_idxs);
-    return;
-  }
-
   DeviceGuard g(device_id_);
-
-  // Run the support ops
-  try {
-    for (int i = 0; i < graph_->NumOp(OpType::SUPPORT); ++i) {
-      OpNode &op_node = graph_->Node(OpType::SUPPORT, i);
-      OperatorBase &op = *op_node.op;
-      // SupportWorkspace &ws = GetWorkspace<OpType::SUPPORT>(queue_idx, i);
-      typename WorkspacePolicy::template ws_t<OpType::SUPPORT> ws =
-          WorkspacePolicy::template GetWorkspace<OpType::SUPPORT>(support_idxs, *graph_, i);
-      TimeRange tr("[Executor] Run Support op " + op_node.instance_name,
-          TimeRange::kCyan);
-      RunHelper(op_node, ws);
-    }
-  } catch (std::exception &e) {
-    HandleError(e.what());
-  } catch (...) {
-    HandleError();
-  }
-
-  QueuePolicy::ReleaseIdxs(OpType::SUPPORT, support_idxs);
 
   auto cpu_idxs = QueuePolicy::AcquireIdxs(OpType::CPU);
   if (exec_error_ || QueuePolicy::IsStopSignaled() || !QueuePolicy::AreValid(cpu_idxs)) {
@@ -617,9 +590,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &grap
   pipeline_outputs_ = graph.GetOutputs(output_names_);
   for (auto tid : pipeline_outputs_) {
     auto &tensor = graph.Tensor(tid);
-    DALI_ENFORCE(
-        !tensor.producer.is_support,
-        "Outputs of support ops cannot be outputs.");  // TODO(ptredak): lift this restriction
     if (tensor.producer.storage_device == StorageDevice::GPU) {
       auto parent_type = graph.Node(tensor.producer.node).op_type;
       gpu_output_events_.push_back(
@@ -694,7 +664,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
     auto &node = graph.Node(i);
     auto hints = GetMemoryHints(node);
     VALUE_SWITCH(node.op_type, op_type_static,
-        (OpType::SUPPORT, OpType::CPU, OpType::MIXED, OpType::GPU),
+        (OpType::CPU, OpType::MIXED, OpType::GPU),
     (
       // For all tensors we produce
       for (size_t j = 0; j < node.children_tensors.size(); j++) {

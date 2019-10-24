@@ -259,16 +259,6 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
           "inputs. CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE(!it->second.is_support,
-          "Argument input can only be used as regular input by support ops. "
-          "CPU op cannot follow GPU op. " + error_str);
-    } else if (device == "support") {
-      DALI_ENFORCE(input_device == "cpu", "Support ops can only take cpu inputs. "
-          "CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
-          "only on gpu. CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE(it->second.is_support,
-          "Support ops can only take inputs produced by other support ops." + error_str);
     } else if (input_device == "cpu") {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
@@ -281,7 +271,8 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
 
   // Verify the argument inputs to the op
   for (const auto& arg_pair : spec.ArgumentInputs()) {
-    std::string input_name = spec.InputName(arg_pair.second);
+    Index input_idx = arg_pair.second;
+    std::string input_name = spec.InputName(input_idx);
     auto it = edge_names_.find(input_name);
 
     DALI_ENFORCE(it != edge_names_.end(), "Input '" + input_name +
@@ -292,6 +283,9 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
 
     DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
         "only on GPU. " + error_str);
+
+    if (device == "gpu" /*&& separated_execution_ */)
+      SetupCPUInput(it, input_idx, &spec);
   }
 
   // Verify and record the outputs of the op
