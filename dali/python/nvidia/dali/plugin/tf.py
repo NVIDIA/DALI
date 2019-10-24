@@ -130,7 +130,7 @@ def _get_tf_version():
   return StrictVersion(tf.__version__)
 
 
-if _get_tf_version() >= StrictVersion('1.13.1'):
+if _get_tf_version() >= StrictVersion('1.13'):
   from tensorflow.python.framework import ops
   from tensorflow.python.data.ops import dataset_ops
   from tensorflow.python.data.util import structure
@@ -169,9 +169,9 @@ if _get_tf_version() >= StrictVersion('1.13.1'):
       self._structure = structure.convert_legacy_structure(
         self._dtypes, self._shapes, output_classes)
 
-      if _get_tf_version() > StrictVersion('1.13.1'):
+      if _get_tf_version() >= StrictVersion('1.14'):
         super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
-      elif _get_tf_version() == StrictVersion('1.13.1'):
+      elif _get_tf_version() >= StrictVersion('1.13') and _get_tf_version() < StrictVersion('1.14'):
         super(_DALIDatasetV2, self).__init__()
       else:
         raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14, 1.15, 2.0')

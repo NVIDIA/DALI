@@ -37,12 +37,12 @@ annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
 
 def compatible_tensorflow():
-    return StrictVersion(tf.__version__) >= StrictVersion('1.13.1')
+    return StrictVersion(tf.__version__) >= StrictVersion('1.13')
 
 
 def skip_for_incompatible_tf():
     if not compatible_tensorflow():
-        raise SkipTest('This feature is enabled for TF 1.13.1 and higher')
+        raise SkipTest('This feature is enabled for TF 1.13 and higher')
 
 
 def num_available_gpus():
@@ -105,7 +105,7 @@ def _dataset_options():
     try:
         options.experimental_optimization.apply_default_optimizations = False
 
-        if StrictVersion(tf.__version__) == StrictVersion('1.13.1'):
+        if StrictVersion(tf.__version__) >= StrictVersion('1.13') and StrictVersion(tf.__version__) < StrictVersion('1.13'):
             options.experimental_autotune = False 
         else:
             options.experimental_optimization.autotune = False   
