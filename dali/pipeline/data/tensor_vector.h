@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_DATA_TENSOR_VECTOR_H_
 
 #include <atomic>
+#include <cassert>
 #include <memory>
 #include <vector>
 
@@ -52,8 +53,9 @@ class TensorVector {
   explicit TensorVector(std::shared_ptr<TensorList<Backend>> tl)
   : views_count_(0)
   , tl_(std::move(tl)) {
-    pinned_ = tl->is_pinned();
-    type_ = tl->type();
+    assert(tl_ && "Construction with null TensorList is illegal");
+    pinned_ = tl_->is_pinned();
+    type_ = tl_->type();
     state_ = State::contiguous;
     tensors_.resize(tl_->ntensor());
     update_views();
