@@ -70,56 +70,6 @@ TYPED_TEST(CropMirrorNormalizeTest, Layout_DALI_SAME) {
                 addImageType, eps);
 }
 
-TYPED_TEST(CropMirrorNormalizeTest, Output_DALI_NO_TYPE) {
-  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
-                                 {"mean", "0.", DALI_FLOAT_VEC},
-                                 {"std", "1.", DALI_FLOAT_VEC},
-                                 {"output_dtype", EnumToString(DALI_NO_TYPE), DALI_INT32}};
-
-  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
-                addImageType, eps);
-}
-
-TYPED_TEST(CropMirrorNormalizeTest, Output_DALI_UINT8) {
-  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
-                                 {"mean", "0.", DALI_FLOAT_VEC},
-                                 {"std", "1.", DALI_FLOAT_VEC},
-                                 {"output_dtype", EnumToString(DALI_UINT8), DALI_INT32}};
-
-  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
-                addImageType, eps);
-}
-
-TYPED_TEST(CropMirrorNormalizeTest, Output_DALI_INT16) {
-  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
-                                 {"mean", "0.", DALI_FLOAT_VEC},
-                                 {"std", "1.", DALI_FLOAT_VEC},
-                                 {"output_dtype", EnumToString(DALI_INT16), DALI_INT32}};
-
-  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
-                addImageType, eps);
-}
-
-TYPED_TEST(CropMirrorNormalizeTest, Output_DALI_INT32) {
-  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
-                                 {"mean", "0.", DALI_FLOAT_VEC},
-                                 {"std", "1.", DALI_FLOAT_VEC},
-                                 {"output_dtype", EnumToString(DALI_INT32), DALI_INT32}};
-
-  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
-                addImageType, eps);
-}
-
-TYPED_TEST(CropMirrorNormalizeTest, Output_DALI_INT64) {
-  static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
-                                 {"mean", "0.", DALI_FLOAT_VEC},
-                                 {"std", "1.", DALI_FLOAT_VEC},
-                                 {"output_dtype", EnumToString(DALI_INT64), DALI_INT32}};
-
-  this->RunTest(opName, params, sizeof(params) / sizeof(params[0]),
-                addImageType, eps);
-}
-
 TYPED_TEST(CropMirrorNormalizeTest, Output_DALI_FLOAT16) {
   static const OpArg params[] = {{"crop", "224, 224", DALI_FLOAT_VEC},
                                  {"mean", "0.", DALI_FLOAT_VEC},

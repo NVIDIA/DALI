@@ -33,14 +33,14 @@ namespace kernels {
 
 namespace detail {
 
-template <size_t Dims>
+template <int Dims>
 struct SampleDesc {
   void *__restrict__ out;
   const void *__restrict__ in;
-  DeviceArray<int64_t, Dims> in_strides;
-  DeviceArray<int64_t, Dims> out_strides;
-  DeviceArray<int64_t, Dims> out_shape;
-  DeviceArray<int64_t, Dims> padded_out_shape;
+  TensorShape<Dims> in_strides;
+  TensorShape<Dims> out_strides;
+  TensorShape<Dims> out_shape;
+  TensorShape<Dims> padded_out_shape;
   float padding_val;
 };
 
@@ -122,7 +122,7 @@ __device__ inline void SliceFlipNormalizePermutePadFunc(OutputType *__restrict__
   }
 }
 
-template <typename OutputType, typename InputType, size_t Dims, bool should_normalize>
+template <typename OutputType, typename InputType, int Dims, bool should_normalize>
 __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *samples,
                                                    const BlockDesc *blocks,
                                                    const float *norm_add,
@@ -136,7 +136,7 @@ __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *sampl
   auto *in = static_cast<const InputType *>(sample.in);
 
   bool should_pad = false;
-  for (size_t d = 0; d < Dims; d++) {
+  for (int d = 0; d < Dims; d++) {
     if (should_pad = (sample.padded_out_shape[d] > sample.out_shape[d])) {
       break;
     }

@@ -30,6 +30,10 @@
 #include "dali/operators/crop/crop_attr.h"
 #include "dali/pipeline/operator/operator.h"
 
+#define CMN_IN_TYPES (uint8_t, int16_t, uint16_t, int32_t, float, float16)
+#define CMN_OUT_TYPES (float, float16)
+#define CMN_NDIMS (3, 4, 5)
+
 namespace dali {
 
 namespace detail {
@@ -44,7 +48,7 @@ T NextPowerOfTwo(T value) {
 
 // Rewrite Operator data as arguments for kernel
 // TODO(klecki): It probably could be written directly in that format
-template <size_t Dims>
+template <int Dims>
 kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
     TensorLayout input_layout, TensorLayout output_layout,
     const std::vector<int64_t> &slice_anchor, const std::vector<int64_t> &slice_shape,
@@ -52,7 +56,7 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> GetKernelArgs(
     const std::vector<float> &inv_std_dev) {
   kernels::SliceFlipNormalizePermutePadArgs<Dims> args(slice_shape);
 
-  for (size_t d = 0; d < Dims; d++) {
+  for (int d = 0; d < Dims; d++) {
     args.anchor[d] = slice_anchor[d];
   }
 
@@ -153,7 +157,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     CropAttr::ProcessArguments(ws);
 
     int number_of_dims = in_shape.sample_dim();
-    VALUE_SWITCH(number_of_dims, Dims, (3, 4, 5),
+    VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS,
     (
       using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
       // We won't change the underlying type after the first allocation

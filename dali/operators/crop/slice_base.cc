@@ -70,12 +70,19 @@ void SliceBase<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
   auto data_idx = ws.data_idx();
 
-  DALI_TYPE_SWITCH_WITH_FP16(input_type_, InputType,
-    DALI_TYPE_SWITCH_WITH_FP16(output_type_, OutputType,
-      detail::RunHelper<OutputType, InputType>(
+  TYPE_SWITCH(input_type_, type2id, InputType, SLICE_TYPES, (
+    if (input_type_ == output_type_) {
+      detail::RunHelper<InputType, InputType>(
         output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
-    )
-  )
+    } else {
+      TYPE_SWITCH(output_type_, type2id, OutputType, (float, float16, uint8_t), (
+        detail::RunHelper<OutputType, InputType>(
+          output, input, slice_anchors_[data_idx], slice_shapes_[data_idx]);
+      ), DALI_FAIL(make_string("Not supported output type:", output_type_));); // NOLINT
+    }
+  ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
+
+
   output.SetLayout(InputLayout(ws, 0));
 }
 
