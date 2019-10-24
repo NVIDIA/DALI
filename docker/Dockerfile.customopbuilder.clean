@@ -59,6 +59,7 @@ RUN rm -f /usr/bin/python && \
         python get-pip.py && \
         rm get-pip.py; \
     fi && \
+    pip install --upgrade pip && \
     python --version && \
     pip --version
 

@@ -815,7 +815,14 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("copy", [](OpSpec &o) -> OpSpec * {
         OpSpec * ret = new OpSpec(o);
         return ret;
-        }, py::return_value_policy::take_ownership);
+        }, py::return_value_policy::take_ownership)
+    .def("AddArgEmptyList",
+         [](OpSpec *spec, const string &name, DALIDataType data_type) -> OpSpec & {
+           TYPE_SWITCH(data_type, type2id, T, (std::string, bool, int32_t, int64_t, float),
+             (spec->AddArg(name, std::vector<T>());),
+             (DALI_FAIL("Unsupported data type: " + to_string(data_type))));
+           return *spec;
+         }, py::return_value_policy::reference_internal);
 
   // Registries for cpu, gpu & mixed operators
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps, py::arg("internal_ops") = false);

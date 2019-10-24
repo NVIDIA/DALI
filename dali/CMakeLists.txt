@@ -61,8 +61,6 @@ set_target_properties(${dali_lib} PROPERTIES
 # Define symbol version script for libdali.so
 set(dali_lib_exports "libdali.map")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/${dali_lib_exports}.in" "${CMAKE_BINARY_DIR}/${dali_lib_exports}")
-add_custom_target(${dali_lib_exports} DEPENDS "${CMAKE_BINARY_DIR}/${dali_lib_exports}")
-add_dependencies(${dali_lib} ${dali_lib_exports})
 target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${dali_lib_exports})
 
 # Link in dali's dependencies

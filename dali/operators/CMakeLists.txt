@@ -63,8 +63,6 @@ target_compile_definitions(${dali_operator_lib} PUBLIC HAVE_AVBSFCONTEXT=1)
 
 set(lib_exports "libdali_operators.map")
 configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib_exports}")
-add_custom_target(${lib_exports} DEPENDS "${CMAKE_BINARY_DIR}/${dali_operator_lib_exports}")
-add_dependencies(${dali_operator_lib} ${lib_exports})
 target_link_libraries(${dali_operator_lib} PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
 
 if (BUILD_TEST)
