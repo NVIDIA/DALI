@@ -101,10 +101,6 @@ DALI TensorFlow plugin
 Creates a Dali pipeline for classification tasks from serialized DALI pipeline (given in `serialized_pipeline` parameter).
 `shapes` must match the shape of the coresponding DALI Pipeline output tensor shape.
 `dtypes` must match the type of the coresponding DALI Pipeline output tensors type.
-
-WARNING: 
-  Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
-DALI due to insufficient memory.
  )doc");
 
 class DaliOp : public tf::OpKernel {

@@ -44,6 +44,14 @@ else:
 
 _dali_tf = _dali_tf_module.dali
 
+_dali_tf.__doc__ = _dali_tf.__doc__ + """
+
+    WARNING: 
+    -------
+    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
+    DALI due to insufficient memory.
+"""
+
 def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
                         shapes = [], dtypes = [], batch_size = -1, prefetch_queue_depth = 2, **kwargs):
   """
