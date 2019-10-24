@@ -71,11 +71,14 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernels::KernelContext ctx;
-              for (int i = 0; i < input.shape().num_samples(); i++) {
-                auto tvin = view<const InputType, 3>(input[i]);
-                auto tvout = view<OutputType, 3>(output[i]);
-                kernel_manager_.Run<Kernel>(ws.thread_idx(), ws.data_idx(), ctx, tvout, tvin,
-                                            brightness_[i], contrast_[i]);
+              auto& tp = ws.GetThreadPool();
+              for (int sample_id = 0; sample_id < input.shape().num_samples(); sample_id++) {
+                tp.DoWorkWithID([&, sample_id](int thread_id) {
+                    auto tvin = view<const InputType, 3>(input[sample_id]);
+                    auto tvout = view<OutputType, 3>(output[sample_id]);
+                    kernel_manager_.Run<Kernel>(thread_id, sample_id, ctx, tvout, tvin,
+                                                brightness_[sample_id], contrast_[sample_id]);
+                });
               }
           }
       ), DALI_FAIL("Unsupported output type"))  // NOLINT
