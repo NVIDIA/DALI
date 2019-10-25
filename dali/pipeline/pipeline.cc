@@ -284,7 +284,7 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
     DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
         "only on GPU. " + error_str);
 
-    if (device == "gpu" /*&& separated_execution_ */)
+    if (device == "gpu" && separated_execution_)
       SetupCPUInput(it, input_idx, &spec);
   }
 

@@ -65,19 +65,13 @@ add_input(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &
   DALI_ENFORCE(!queue.IsBuffered() || queue_idx < static_cast<int>(queue.size()),
                "Backing Tensor store queue has not enough elements.");
   auto tensor = queue[queue_idx];
-  cout
-    << "Adding input " << (void*)tensor.get() << " from queue " << queue_idx << " to workspace\n"
-    << "op is " << op_type << ", producer is " << producer_type << ", storage is " << device
-    << endl;
   ws.AddInput(tensor);
 }
 
 // If parent op_type or device is not allowed this is a no-op
 template <OpType op_type, OpType producer_type, StorageDevice device>
 enable_if_t<!allows_op_input<op_type>(producer_type) || !allows_tensor_input<op_type>(device)>
-add_input(op_type_to_workspace_t<op_type>, const tensor_data_store_queue_t &, int = 0) {
-  cout << "DAFFAQ!" << endl;
-}
+add_input(op_type_to_workspace_t<op_type>, const tensor_data_store_queue_t &, int = 0) {}
 
 template <OpType op_type, StorageDevice device>
 void add_output(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &storage,
@@ -86,10 +80,6 @@ void add_output(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_que
   DALI_ENFORCE(!queue.IsBuffered() || queue_idx < static_cast<int>(queue.size()),
                "Backing Tensor store queue has not enough elements.");
   auto tensor = queue[queue_idx];
-  cout
-    << "Adding output " << (void*)tensor.get() << " from queue " << queue_idx << " to workspace\n"
-    << "op is " << op_type << ", storage is " << device
-    << endl;
   ws.AddOutput(tensor);
 }
 
@@ -130,8 +120,7 @@ void SetupInputOutput(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph,
     DALI_ENFORCE(tensor_device == StorageDevice::CPU,
       "Argument Inputs must be stored in CPU memory");
 
-    auto add_arg_input = [&](auto &queue)
-    {
+    auto add_arg_input = [&](auto &queue) {
       auto tensor = queue[idxs[parent_op_type]];
       ws.AddArgumentInput(arg_pair.first, tensor);
     };

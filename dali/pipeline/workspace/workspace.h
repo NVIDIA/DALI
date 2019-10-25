@@ -52,22 +52,32 @@ class ArgumentWorkspace {
   }
 
   void AddArgumentInput(const std::string &arg_name, shared_ptr<TensorVector<CPUBackend>> input) {
-    argument_inputs_[arg_name] = std::move(input);
+    argument_inputs_[arg_name] = { std::move(input), false };
   }
 
   void AddArgumentInput(const std::string &arg_name, shared_ptr<TensorList<CPUBackend>> input) {
-    argument_inputs_[arg_name] = std::make_shared<TensorVector<CPUBackend>>(std::move(input));
+    argument_inputs_[arg_name] = {
+      std::make_shared<TensorVector<CPUBackend>>(std::move(input)),
+      true
+    };
   }
 
   const TensorVector<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
-    DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
-        "Argument \"" + arg_name + "\" not found.");
-    return *(argument_inputs_.at(arg_name));
+    auto it = argument_inputs_.find(arg_name);
+    DALI_ENFORCE(it != argument_inputs_.end(), "Argument \"" + arg_name + "\" not found.");
+    if (it->second.should_update)
+      it->second.tvec->UpdateViews();
+    return *it->second.tvec;
   }
 
  protected:
+  struct ArgumentInputDesc {
+    shared_ptr<TensorVector<CPUBackend>> tvec;
+    bool should_update = false;
+  };
+
   // Argument inputs
-  std::unordered_map<std::string, shared_ptr<TensorVector<CPUBackend>>> argument_inputs_;
+  std::unordered_map<std::string, ArgumentInputDesc> argument_inputs_;
 };
 
 /**
