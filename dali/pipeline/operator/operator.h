@@ -22,8 +22,10 @@
 #include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/format.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
@@ -158,10 +160,10 @@ class DLL_PUBLIC OperatorBase {
 
  protected:
   /**
-   * @brief Fill output vector with data, that's acquired from TensorArgument
+   * @brief Fill output vector with per-sample argument values.
    *
-   * @remark On the event, that single value is provided (instead of tensor) as an argument,
-   *         propagate it for every sample in a batch
+   * If there's a tensor argument, then the values are copied from it;
+   * otherwise scalar value is replicated.
    *
    * @tparam T Type of the Argument
    * @param output Container for the data. This function will reallocate it.
@@ -169,17 +171,37 @@ class DLL_PUBLIC OperatorBase {
    * @param ws
    */
   template<typename T>
-  void AcquireTensorArgument(std::vector<T> &output, const std::string &argument_name,
-                             const ArgumentWorkspace &ws) {
+  void GetPerSampleArgument(std::vector<T> &output, const std::string &argument_name,
+                            const ArgumentWorkspace &ws) {
     if (spec_.HasTensorArgument(argument_name)) {
-      const auto &tl = ws.ArgumentInput(argument_name);
-      int n = tl.shape().num_samples();
-      DALI_ENFORCE(n == 1 || n == batch_size_,
-                   "Provide arguments for either all or one sample in batch");
-      const auto *data = tl.template data<T>();
-      output.resize(n);
-      for (int i = 0; i < n; i++) {
-        output[i] = data[i];
+      const auto &arg = ws.ArgumentInput(argument_name);
+      decltype(auto) shape = arg.shape();
+      int N = shape.num_samples();
+      if (N == 1) {
+        bool is_valid_shape = shape.tensor_shape(0) == TensorShape<1>{batch_size_};
+
+        DALI_ENFORCE(is_valid_shape,
+          make_string("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size_,
+          ") tensor list. Got: ", shape));
+
+        output.resize(batch_size_);
+        auto *data = arg[0].template data<T>();
+
+        for (int i = 0; i < batch_size_; i++) {
+          output[i] = data[i];
+        }
+      } else {
+        bool is_valid_shape = N == batch_size_ &&
+                              is_uniform(shape) &&
+                              shape.tensor_shape(0) == TensorShape<1>{1};
+        DALI_ENFORCE(is_valid_shape,
+          make_string("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size_,
+          ") tensor list. Got: ", shape));
+
+        output.resize(batch_size_);
+        for (int i = 0; i < batch_size_; i++) {
+          output[i] = arg[i].template data<T>()[0];
+        }
       }
     } else {
       output.resize(batch_size_, spec_.template GetArgument<T>(argument_name));

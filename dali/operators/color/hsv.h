@@ -121,9 +121,9 @@ class HsvOp : public Operator<Backend> {
 
 
   void AcquireArguments(const ArgumentWorkspace &ws) {
-    OperatorBase::AcquireTensorArgument(hue_, hsv::kHue, ws);
-    OperatorBase::AcquireTensorArgument(saturation_, hsv::kSaturation, ws);
-    OperatorBase::AcquireTensorArgument(value_, hsv::kValue, ws);
+    this->GetPerSampleArgument(hue_, hsv::kHue, ws);
+    this->GetPerSampleArgument(saturation_, hsv::kSaturation, ws);
+    this->GetPerSampleArgument(value_, hsv::kValue, ws);
   }
 
 
