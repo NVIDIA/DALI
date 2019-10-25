@@ -78,7 +78,7 @@ class BrightnessContrastGpuTest : public ::testing::Test {
   Out *output_;
   std::vector<In> input_host_;
   std::vector<Out> ref_output_;
-  std::vector<TensorShape<kNdims>> shapes_ = {{2, 4, 3}};
+  std::vector<TensorShape<kNdims>> shapes_ = {{480, 640, 3}};
   std::vector<float> brightness_ = {4};
   std::vector<float> contrast_ = {3};
 
@@ -160,36 +160,23 @@ TYPED_TEST(BrightnessContrastGpuTest, run_test) {
   auto res = copy<AllocType::Host>(out[0]);
   ASSERT_EQ(static_cast<int>(this->ref_output_.size()), res.first.num_elements());
   for (size_t i = 0; i < this->ref_output_.size(); i++) {
-    EXPECT_EQ(this->ref_output_[i], res.second.get()[i]) << "Failed for index " << i;
+    EXPECT_FLOAT_EQ(this->ref_output_[i], res.second.get()[i]) << "Failed for index " << i;
   }
 }
 
 
 TYPED_TEST(BrightnessContrastGpuTest, sample_descriptors) {
-  {
-    InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
-    OutListGPU<typename TypeParam::Out, kNdims> out(this->output_,
-                                                    TensorListShape<3>(this->shapes_));
-    auto res = CreateSampleDescriptors(out, in, this->brightness_, this->contrast_);
-    EXPECT_EQ(this->input_device_, res[0].in);
-    EXPECT_EQ(this->output_, res[0].out);
-    ivec<kNdims - 1> ref_pitch = {2, 12};
-    EXPECT_EQ(ref_pitch, res[0].in_pitch);
-    EXPECT_EQ(ref_pitch, res[0].out_pitch);
-    EXPECT_EQ(this->brightness_[0], res[0].brightness);
-    EXPECT_EQ(this->contrast_[0], res[0].contrast);
-  }
-
-  {
-    constexpr int ndims = 7;
-    std::vector<TensorShape<ndims>> vts = {{7, 2, 4, 6, 1, 8, 4}};
-    TensorListShape<ndims> tls(vts);
-    InListGPU<typename TypeParam::In, ndims> in(this->input_device_, tls);
-    OutListGPU<typename TypeParam::Out, ndims> out(this->output_, tls);
-    auto res = CreateSampleDescriptors(out, in, this->brightness_, this->contrast_);
-    ivec<ndims - 1> ref = {7, 2, 4, 6, 1, 32};
-    EXPECT_EQ(ref, res[0].in_pitch);
-  }
+  InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
+  OutListGPU<typename TypeParam::Out, kNdims> out(this->output_,
+                                                  TensorListShape<3>(this->shapes_));
+  auto res = CreateSampleDescriptors(out, in, this->brightness_, this->contrast_);
+  EXPECT_EQ(this->input_device_, res[0].in);
+  EXPECT_EQ(this->output_, res[0].out);
+  ivec<kNdims - 2> ref_pitch = {1920};
+  EXPECT_EQ(ref_pitch, res[0].in_pitch);
+  EXPECT_EQ(ref_pitch, res[0].out_pitch);
+  EXPECT_EQ(this->brightness_[0], res[0].brightness);
+  EXPECT_EQ(this->contrast_[0], res[0].contrast);
 }
 
 

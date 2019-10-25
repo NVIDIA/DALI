@@ -19,104 +19,33 @@
 #include <string>
 #include <vector>
 #include "dali/core/static_switch.h"
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/core/format.h"
 
 namespace dali {
 namespace brightness_contrast {
-
-namespace spec {
 
 const std::string kBrightness = "brightness_delta";  // NOLINT
 const std::string kContrast = "contrast_delta";      // NOLINT
 const std::string kOutputType = "output_type";       // NOLINT
 
-}  // namespace spec
-
-
-namespace detail {
-
-template <typename Backend, typename Out, typename In, size_t ndims>
-struct Kernel {
-  using type = kernels::BrightnessContrastCpu<Out, In, ndims>;
-};
-
-
-template <typename Out, typename In, size_t ndims>
-struct Kernel<GPUBackend, Out, In, ndims> {
-  using type = kernels::brightness_contrast::BrightnessContrastGpu<Out, In, ndims>;
-};
+}  // namespace brightness_contrast
 
 
 template <typename Backend>
-struct ArgumentType {
-  static_assert(
-          std::is_same<Backend, CPUBackend>::value || std::is_same<Backend, GPUBackend>::value,
-          "Unsupported Backend");
-  using type = float;
-};
-
-
-template <>
-struct ArgumentType<GPUBackend> {
-  using type = std::vector<float>;
-};
-
-
-/**
- * Select proper type for argument (for either sample processing or batch processing cases)
- */
-template <typename Backend>
-using argument_t = typename ArgumentType<Backend>::type;
-
-
-/**
- * Chooses proper kernel (CPU or GPU) for given template parameters
- */
-template <typename Backend, typename OutputType, typename InputType, int ndims>
-using BrightnessContrastKernel = typename Kernel<Backend, OutputType, InputType, ndims>::type;
-
-
-/**
- * Assign argument, whether it is a single value (for sample-wise processing)
- * or vector of values (for batch processing, where every argument is defined per-sample)
- */
-template <typename Backend>
-void assign_argument_value(const OpSpec &, const std::string &, argument_t<Backend> &) {
-  DALI_FAIL("Unsupported Backend. You may want to write your own specialization.");
-}
-
-
-template <>
-void assign_argument_value<CPUBackend>(const OpSpec &spec, const std::string &arg_name,
-                                       argument_t<CPUBackend> &arg) {
-  std::vector<float> tmp;
-  GetSingleOrRepeatedArg(spec, tmp, arg_name);
-  arg = tmp[0];
-}
-
-
-template <>
-void assign_argument_value<GPUBackend>(const OpSpec &spec, const std::string &arg_name,
-                                       argument_t<GPUBackend> &arg) {
-  GetSingleOrRepeatedArg(spec, arg, arg_name);
-}
-
-}  // namespace detail
-
-
-template <typename Backend>
-class BrightnessContrast : public Operator<Backend> {
+class BrightnessContrastOp : public Operator<Backend> {
  public:
-  explicit BrightnessContrast(const OpSpec &spec) :
+  ~BrightnessContrastOp() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(BrightnessContrastOp);
+
+ protected:
+  explicit BrightnessContrastOp(const OpSpec &spec) :
           Operator<Backend>(spec),
-          output_type_(spec.GetArgument<DALIDataType>(spec::kOutputType)) {
-    detail::assign_argument_value<Backend>(spec, spec::kBrightness, brightness_);
-    detail::assign_argument_value<Backend>(spec, spec::kContrast, contrast_);
+          output_type_(spec.GetArgument<DALIDataType>(brightness_contrast::kOutputType)) {
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
@@ -125,73 +54,87 @@ class BrightnessContrast : public Operator<Backend> {
   }
 
 
-  ~BrightnessContrast() override = default;
-
-
-  DISABLE_COPY_MOVE_ASSIGN(BrightnessContrast);
-
-
- protected:
   bool CanInferOutputs() const override {
     return true;
   }
 
 
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const ::dali::workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<Backend>(0);
-    const auto &output = ws.template OutputRef<Backend>(0);
-    output_desc.resize(1);
-
-    TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-        {
-          TypeInfo type;
-          type.SetType<OutputType>(output_type_);
-          output_desc[0] = {input.shape(), type};
-        }
-    ), DALI_FAIL("Unsupported image type"))  // NOLINT
-    return true;
+  void AcquireArguments(const ArgumentWorkspace &ws) {
+    OperatorBase::AcquireTensorArgument(brightness_, brightness_contrast::kBrightness, ws);
+    OperatorBase::AcquireTensorArgument(contrast_, brightness_contrast::kContrast, ws);
   }
+
+
+  USE_OPERATOR_MEMBERS();
+  std::vector<float> brightness_, contrast_;
+  DALIDataType output_type_;
+  kernels::KernelManager kernel_manager_;
+};
+
+
+class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
+ public:
+  explicit BrightnessContrastCpu(const OpSpec &spec) : BrightnessContrastOp(spec) {}
 
   /*
    * So that compiler wouldn't complain, that
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
    * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
    */
-  using Operator<Backend>::RunImpl;
+  using Operator<CPUBackend>::RunImpl;
 
+  ~BrightnessContrastCpu() override = default;
 
-  void RunImpl(Workspace<Backend> &ws) {
-    const auto &input = ws.template Input<Backend>(0);
-    auto &output = ws.template Output<Backend>(0);
+  DISABLE_COPY_MOVE_ASSIGN(BrightnessContrastCpu);
 
-    TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
-        TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
-        {
-            using BrightnessContrastKernel =
-                    detail::BrightnessContrastKernel<Backend, OutputType, InputType, 3>;
-            auto tvin = view<const InputType, 3>(input);
-            auto tvout = view<OutputType, 3>(output);
-            kernel_manager_.Initialize<BrightnessContrastKernel>();
-            kernels::KernelContext ctx;
-            kernel_manager_.Setup<BrightnessContrastKernel>(ws.data_idx(),
-                    ctx, tvin, brightness_, contrast_);
-            kernel_manager_.Run<BrightnessContrastKernel>(ws.thread_idx(), ws.data_idx(),
-                    ctx, tvout, tvin, brightness_, contrast_);
-        }
-        ), DALI_FAIL("Unsupported output type"))  // NOLINT
-    ), DALI_FAIL("Unsupported input type"))  // NOLINT
-  }
+ protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
 
+  void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
-  USE_OPERATOR_MEMBERS();
-  detail::argument_t<Backend> brightness_, contrast_;
-  DALIDataType output_type_;
-  kernels::KernelManager kernel_manager_;
+  template <typename Kernel, typename InputType>
+  TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input, int instance_idx) {
+    kernels::KernelContext ctx;
+    TensorListShape<> sh = input.shape();
+    TensorListShape<> ret(sh.num_samples(), 3);
+    assert(static_cast<size_t>(sh.num_samples()) == brightness_.size());
+    for (int i = 0; i < sh.num_samples(); i++) {
+      const auto tvin = view<const InputType, 3>(input[i]);
+      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, brightness_[i],
+                                                      contrast_[i]);
+      const TensorListShape<> &out_sh = reqs.output_shapes[0];
+      ret.set_tensor_shape(i, out_sh.tensor_shape(0));
+    }
+    return ret;
+  }
 };
 
-}  // namespace brightness_contrast
+
+class BrightnessContrastGpu : public BrightnessContrastOp<GPUBackend> {
+ public:
+  explicit BrightnessContrastGpu(const OpSpec &spec) : BrightnessContrastOp(spec) {}
+
+  ~BrightnessContrastGpu() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(BrightnessContrastGpu);
+
+ protected:
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
+
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
+
+ private:
+  template <typename Kernel, typename InputType>
+  TensorListShape<> CallSetup(const TensorList<GPUBackend> &tl, int instance_idx) {
+    kernels::KernelContext ctx;
+    const auto tvin = view<const InputType, 3>(tl);
+    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, brightness_,
+                                                    contrast_);
+    return reqs.output_shapes[0];
+  }
+};
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_COLOR_BRIGHTNESS_CONTRAST_H_

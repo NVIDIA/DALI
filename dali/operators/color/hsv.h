@@ -120,10 +120,10 @@ class HsvOp : public Operator<Backend> {
   }
 
 
-  void AcquireArguments(const OpSpec &spec, const ArgumentWorkspace &ws) {
-    FillArgument(hue_, hsv::kHue, spec, ws, batch_size_);
-    FillArgument(saturation_, hsv::kSaturation, spec, ws, batch_size_);
-    FillArgument(value_, hsv::kValue, spec, ws, batch_size_);
+  void AcquireArguments(const ArgumentWorkspace &ws) {
+    OperatorBase::AcquireTensorArgument(hue_, hsv::kHue, ws);
+    OperatorBase::AcquireTensorArgument(saturation_, hsv::kSaturation, ws);
+    OperatorBase::AcquireTensorArgument(value_, hsv::kValue, ws);
   }
 
 
@@ -132,7 +132,7 @@ class HsvOp : public Operator<Backend> {
    */
   void DetermineTransformation(const ArgumentWorkspace &ws) {
     using namespace hsv;  // NOLINT
-    AcquireArguments(spec_, ws);
+    AcquireArguments(ws);
     assert(hue_.size() == saturation_.size() && hue_.size() == value_.size());
     auto size = hue_.size();
     tmatrices_.resize(size);
@@ -148,29 +148,6 @@ class HsvOp : public Operator<Backend> {
   std::vector<mat3> tmatrices_;
   DALIDataType output_type_;
   kernels::KernelManager kernel_manager_;
-
- private:
-  /**
-   * Fills argument vector with data from ArgumentWorkspace.
-   * @param n_samples Number of samples in batch
-   */
-  void FillArgument(std::vector<float> &arg_vals, const std::string &arg_name, const OpSpec &spec,
-                    const ArgumentWorkspace &ws, int n_samples) {
-    if (spec.HasTensorArgument(arg_name)) {
-      const auto &tl = ws.ArgumentInput(arg_name);
-      int n = tl.shape().num_samples();
-      DALI_ENFORCE(n == 1 || n == n_samples,
-                   "Provide arguments for either all or one sample in batch");
-      const auto *data = tl.template data<float>();
-      arg_vals.resize(n);
-      for (int i = 0; i < n; i++) {
-        arg_vals[i] = data[i];
-      }
-    } else {
-      arg_vals.resize(n_samples, spec.template GetArgument<float>(arg_name));
-    }
-    assert(arg_vals.size() == static_cast<size_t>(n_samples));
-  }
 };
 
 
