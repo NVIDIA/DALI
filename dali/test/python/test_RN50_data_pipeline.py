@@ -155,8 +155,15 @@ class TFRecordPipeline(CommonPipeline):
         return self.base_define_graph(images, labels)
 
 test_data = {
-            FileReadPipeline: [["/data/imagenet/val-jpeg"],
-                               ["/data/imagenet/val-jpeg"]]
+            FileReadPipeline: [["/data/imagenet/train-jpeg"],
+                               ["/data/imagenet/val-jpeg"]],
+            MXNetReaderPipeline: [["/data/imagenet/train-480-val-256-recordio/train.rec", "/data/imagenet/train-480-val-256-recordio/train.idx"],
+                                   ["/data/imagenet/train-480-val-256-recordio/val.rec", "/data/imagenet/train-480-val-256-recordio/val.idx"]],
+            CaffeReadPipeline: [["/data/imagenet/train-lmdb-256x256"],
+                                 ["/data/imagenet/val-lmdb-256x256"]],
+            Caffe2ReadPipeline: [["/data/imagenet/train-c2lmdb-480"],
+                                  ["/data/imagenet/val-c2lmdb-256"]],
+            TFRecordPipeline: [["/data/imagenet/train-val-tfrecord-480/train-*", "/data/imagenet/train-val-tfrecord-480.idx/train-*"]],
             }
 
 parser = argparse.ArgumentParser(description='Test nvJPEG based RN50 augmentation pipeline with different datasets')
