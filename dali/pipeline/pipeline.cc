@@ -207,6 +207,12 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
     "Invalid device argument \"" +  device +
     "\". Valid options are \"cpu\", \"gpu\", \"mixed\" or \"support\"");
 
+  if (device == "support") {
+    DALI_WARN("\"support\" device is deprecated; use \"cpu\" or leave blank instead");
+    device = "cpu";
+    spec.SetArg("device", "cpu");
+  }
+
   // If necessary, split ImageDecoder operator in two separated stages (CPU and Mixed-GPU)
   auto operator_name = spec.name();
   bool split_stages = false;
