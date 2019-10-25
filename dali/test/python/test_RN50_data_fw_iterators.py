@@ -24,6 +24,21 @@ from nvidia.dali.plugin.mxnet import DALIClassificationIterator as MXNetIterator
 from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIterator
 from nvidia.dali.plugin.tf import DALIIterator as TensorFlowIterator
 
+try:
+    from tensorflow.compat.v1 import GPUOptions
+    from tensorflow.compat.v1 import ConfigProto
+    from tensorflow.compat.v1 import Session
+except:
+    # Older TF versions don't have compat.v1 layer
+    from tensorflow import GPUOptions
+    from tensorflow import ConfigProto
+    from tensorflow import Session
+
+try:
+    tf.compat.v1.disable_eager_execution()
+except:
+    pass
+
 data_paths = ["/data/imagenet/train-jpeg"]
 
 class RN50Pipeline(Pipeline):
@@ -150,9 +165,9 @@ for iterator_name, IteratorClass in Iterators:
                     dtypes = [out_type, tf.int32])
                 images.append(image)
                 labels.append(label)
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
-        config = tf.ConfigProto(gpu_options=gpu_options)
-        sess = tf.Session(config=config)
+        gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.8)
+        config = ConfigProto(gpu_options=gpu_options)
+        sess = Session(config=config)
 
     end = time.time()
     for i in range(args.epochs):
