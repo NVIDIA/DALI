@@ -58,6 +58,15 @@ using OutputSamplePtr = void *;
 using InputSamplePtr = const void *;
 using ArgPack = SmallVector<InputSamplePtr, kMaxArity>;
 
+/**
+ * @brief Describe tile with pointers to output and input data for that tile.
+ *
+ * The pointers are intentionally stored as `void *` so we can use one tile type for all
+ * possible `ExprImpl` implementations.
+ * As we obtain pointers to Tensor/TensorList data, we cast them to `void *`
+ * and the ExprImpl is later aware to what type should it be casted back.
+ * This reduces the amount of types and compilation time significantly.
+ */
 struct ExtendedTileDesc {
   ExtendedTileDesc() = default;
   ExtendedTileDesc(const TileDesc &desc, const OutputSamplePtr &output, const ArgPack &args)

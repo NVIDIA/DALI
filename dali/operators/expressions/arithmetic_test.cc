@@ -317,6 +317,8 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
 }
 
 TEST(ArithmeticOpsTest, ConstantsPipeline) {
+  constexpr int magic_int = 42;
+  constexpr int magic_float = 42.f;
   constexpr int batch_size = 16;
   constexpr int num_threads = 4;
   constexpr int tensor_elements = 16;
@@ -327,7 +329,7 @@ TEST(ArithmeticOpsTest, ConstantsPipeline) {
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "add(&0 $0:int32)")
-                       .AddArg("integer_constants", std::vector<int>{42})
+                       .AddArg("integer_constants", std::vector<int>{magic_int})
                        .AddInput("data0", "cpu")
                        .AddOutput("result0", "cpu"),
                    "arithm_cpu_add");
@@ -335,7 +337,7 @@ TEST(ArithmeticOpsTest, ConstantsPipeline) {
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "mul(&0 $0:float32)")
-                       .AddArg("real_constants", std::vector<float>{42.f})
+                       .AddArg("real_constants", std::vector<float>{magic_float})
                        .AddInput("data0", "cpu")
                        .AddOutput("result1", "cpu"),
                    "arithm_cpu_mul");
@@ -363,8 +365,8 @@ TEST(ArithmeticOpsTest, ConstantsPipeline) {
   auto *result1 = ws.OutputRef<CPUBackend>(1).data<float>();
 
   for (int i = 0; i < batch_size * tensor_elements; i++) {
-    EXPECT_EQ(result0[i], i + 42);
-    EXPECT_EQ(result1[i], i * 42.f);
+    EXPECT_EQ(result0[i], i + magic_int);
+    EXPECT_EQ(result1[i], i * magic_float);
   }
 }
 

@@ -105,7 +105,7 @@ class ConstantStorage {
     }
   }
 
-  constexpr static int kPaddingSize = 8;
+  constexpr static int kPaddingSize = 8;  // max(sizeof(int64_t), sizeof(double))
 };
 
 }  // namespace dali
