@@ -368,7 +368,7 @@ TYPED_TEST(TensorTest, TestShareData) {
 }
 
 TYPED_TEST(TensorTest, TestCopyToTensorList) {
-  TensorVector<CPUBackend> tensors(16);
+  TensorVector<TypeParam> tensors(16);
   for (auto& t : tensors) {
     auto shape = this->GetRandShape(4, 4);
     t->Resize(shape);
@@ -390,7 +390,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
 }
 
 TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
-  TensorVector<CPUBackend> tensors(16);
+  TensorVector<TypeParam> tensors(16);
   // Empty tensors
   TensorList<TypeParam> tl;
   tl.template mutable_data<float>();

@@ -68,7 +68,7 @@ void CheckOpConstraints(const OpSpec &spec) {
 OpType ParseOpType(const std::string &device) {
   if (device == "gpu") {
     return OpType::GPU;
-  } else if (device == "cpu" || device == "support") {
+  } else if (device == "cpu") {
     return OpType::CPU;
   } else if (device == "mixed") {
     return OpType::MIXED;
@@ -178,7 +178,6 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
     TensorMeta meta;
     meta.node = new_node.id;
     meta.index = i;
-    // meta.is_support = spec.GetArgument<string>("device") == "support";
     meta.storage_device = ParseStorageDevice(spec.OutputDevice(i));
 
     string name = spec.Output(i);
