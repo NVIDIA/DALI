@@ -63,7 +63,7 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
     DeviceWorkspace *ws) override {
     // single input - encoded images
     // single output - decoded images
-    vector<Tensor<CPUBackend>> out(inputs[0]->ntensor());
+    TensorVector<CPUBackend> out(inputs[0]->ntensor());
     const TensorList<CPUBackend> &encoded_data = *inputs[0];
     const int c = this->GetNumColorComp();
 

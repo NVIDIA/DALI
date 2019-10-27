@@ -205,7 +205,13 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
   string device = spec.GetArgument<string>("device");
   DALI_ENFORCE(device == "cpu" || device == "gpu" || device == "mixed" || device == "support",
     "Invalid device argument \"" +  device +
-    "\". Valid options are \"cpu\", \"gpu\", \"mixed\" or \"support\"");
+    "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
+
+  if (device == "support") {
+    DALI_WARN("\"support\" device is deprecated; use \"cpu\" or leave blank instead");
+    device = "cpu";
+    spec.SetArg("device", "cpu");
+  }
 
   // If necessary, split ImageDecoder operator in two separated stages (CPU and Mixed-GPU)
   auto operator_name = spec.name();
@@ -259,16 +265,6 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
           "inputs. CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE(!it->second.is_support,
-          "Argument input can only be used as regular input by support ops. "
-          "CPU op cannot follow GPU op. " + error_str);
-    } else if (device == "support") {
-      DALI_ENFORCE(input_device == "cpu", "Support ops can only take cpu inputs. "
-          "CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
-          "only on gpu. CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE(it->second.is_support,
-          "Support ops can only take inputs produced by other support ops." + error_str);
     } else if (input_device == "cpu") {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
@@ -281,7 +277,8 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
 
   // Verify the argument inputs to the op
   for (const auto& arg_pair : spec.ArgumentInputs()) {
-    std::string input_name = spec.InputName(arg_pair.second);
+    Index input_idx = arg_pair.second;
+    std::string input_name = spec.InputName(input_idx);
     auto it = edge_names_.find(input_name);
 
     DALI_ENFORCE(it != edge_names_.end(), "Input '" + input_name +
@@ -292,7 +289,9 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
 
     DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
         "only on GPU. " + error_str);
-    DALI_ENFORCE(it->second.is_support, "Argument input may only be produced by support op.");
+
+    if (device == "gpu" && separated_execution_)
+      SetupCPUInput(it, input_idx, &spec);
   }
 
   // Verify and record the outputs of the op
@@ -309,9 +308,9 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
 
     // Validate output data conforms to graph constraints
     bool mark_explicitly_contiguous = false;
-    if (device == "cpu" || device == "support") {
-      DALI_ENFORCE(output_device == "cpu", "CPU and support ops can only produce "
-          "CPU outputs." + error_str);
+    if (device == "cpu") {
+      DALI_ENFORCE(output_device == "cpu", "Only CPU operators can produce CPU outputs." +
+                                            error_str);
     } else if (device == "gpu") {
       if (output_device == "cpu") {
         mark_explicitly_contiguous = true;
@@ -321,10 +320,6 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
     EdgeMeta meta = NewEdge(output_device);
     if (mark_explicitly_contiguous) {
       meta.has_contiguous = true;
-    }
-    if (device == "support") {
-      meta.has_contiguous = true;
-      meta.is_support = true;
     }
 
     DALI_ENFORCE(edge_names_.insert({output_name, meta}).second,

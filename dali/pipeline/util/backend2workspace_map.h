@@ -19,7 +19,6 @@
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"
-#include "dali/pipeline/workspace/support_workspace.h"
 
 namespace dali {
 
@@ -37,25 +36,18 @@ template <>
 struct Backend2WorkspaceMap<GPUBackend> { using type = DeviceWorkspace; };
 
 template <>
-struct Backend2WorkspaceMap<SupportBackend> { using type = SupportWorkspace; };
-
-template <>
 struct Backend2WorkspaceMap<MixedBackend> { using type = MixedWorkspace; };
 
 
 // Workspace<CPUBackend> maps to SampleWorkspace
 // Workspace<GPUBackend> maps to DeviceWorkspace
 // Workspace<MixedBackend> maps to MixedWorkspace
-// Workspace<SupportBackend> maps to SupportWorkspace
 template <typename Backend>
 using Workspace = typename Backend2WorkspaceMap<Backend>::type;
 
 // Actual trait-conventions used, maps as above with exception of CPUBackend -> HostWorkspace
 template <typename Backend>
 struct backend_to_ws {};
-
-template <>
-struct backend_to_ws<SupportBackend> { using type = SampleWorkspace; };
 
 template <>
 struct backend_to_ws<CPUBackend> { using type = HostWorkspace; };
@@ -73,9 +65,6 @@ template <OpType>
 struct op_to_workspace;
 
 template <>
-struct op_to_workspace<OpType::SUPPORT> { using type = SupportWorkspace; };
-
-template <>
 struct op_to_workspace<OpType::CPU> { using type = HostWorkspace; };
 
 template <>
@@ -90,9 +79,6 @@ using op_to_workspace_t = typename op_to_workspace<op_type>::type;
 
 template <typename T>
 struct workspace_to_op;
-
-template <>
-struct workspace_to_op<SupportWorkspace> { static constexpr OpType value = OpType::SUPPORT; };
 
 template <>
 struct workspace_to_op<HostWorkspace> { static constexpr OpType value = OpType::CPU; };

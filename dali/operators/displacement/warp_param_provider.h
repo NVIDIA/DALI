@@ -39,15 +39,13 @@ class InterpTypeProvider {
   void SetInterp(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples) {
     interp_types_.clear();
     if (spec.HasTensorArgument("interp_type")) {
-      auto &tensor_list = ws.ArgumentInput("interp_type");
-      int n = tensor_list.shape().num_samples();
+      auto &tensor_vector = ws.ArgumentInput("interp_type");
+      int n = tensor_vector.shape().num_samples();
       DALI_ENFORCE(n == 1 || n == num_samples,
         "interp_type must be a single value or contain one value per sample");
-      auto *data = tensor_list.template data<DALIInterpType>();
       interp_types_.resize(n);
-
       for (int i = 0; i < n; i++)
-        interp_types_[i] = data[i];
+        interp_types_[i] = tensor_vector[i].data<DALIInterpType>()[0];
     } else {
       interp_types_.resize(1, spec.template GetArgument<DALIInterpType>("interp_type"));
     }
@@ -235,9 +233,9 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   virtual void GetExplicitPerSampleSize(std::vector<SpatialShape> &out_sizes) const {
     assert(HasExplicitPerSampleSize());
-    const TensorList<CPUBackend> &tensor_list = ws_->ArgumentInput(size_arg_name_);
-    const auto &shape = tensor_list.shape();
-    auto tv = view<const int>(tensor_list);
+    const auto &tensor_vector = ws_->ArgumentInput(size_arg_name_);
+    const auto &shape = tensor_vector.shape();
+    auto tv = view<const int>(tensor_vector);
     const int N = num_samples_;
 
     DALI_ENFORCE(is_uniform(shape), "Output sizes must be passed as uniform Tensor List.");

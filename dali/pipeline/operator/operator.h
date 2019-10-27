@@ -22,8 +22,10 @@
 #include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/format.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
@@ -98,10 +100,6 @@ class DLL_PUBLIC OperatorBase {
     DALI_FAIL("Mixed execution is not implemented for this operator!");
   }
 
-  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) {
-    DALI_FAIL(name() + " is not a support operator!");
-  }
-
   /**
    * @brief If Operator can infer the output shapes it means that its output would use a single
    * underlying allocation, especailly for CPU TensorVector will use contiguous mode.
@@ -129,13 +127,6 @@ class DLL_PUBLIC OperatorBase {
    */
   DLL_PUBLIC virtual void Run(MixedWorkspace &ws) {
     DALI_FAIL("Mixed execution is not implemented for this operator!");
-  }
-
-  /**
-   * @brief Used by support operators (RNG etc.).
-   */
-  DLL_PUBLIC virtual void Run(SupportWorkspace &ws) {
-    DALI_FAIL(name() + " is not a support operator!");
   }
 
   /**
@@ -169,10 +160,10 @@ class DLL_PUBLIC OperatorBase {
 
  protected:
   /**
-   * @brief Fill output vector with data, that's acquired from TensorArgument
+   * @brief Fill output vector with per-sample argument values.
    *
-   * @remark On the event, that single value is provided (instead of tensor) as an argument,
-   *         propagate it for every sample in a batch
+   * If there's a tensor argument, then the values are copied from it;
+   * otherwise scalar value is replicated.
    *
    * @tparam T Type of the Argument
    * @param output Container for the data. This function will reallocate it.
@@ -180,17 +171,37 @@ class DLL_PUBLIC OperatorBase {
    * @param ws
    */
   template<typename T>
-  void AcquireTensorArgument(std::vector<T> &output, const std::string &argument_name,
-                             const ArgumentWorkspace &ws) {
+  void GetPerSampleArgument(std::vector<T> &output, const std::string &argument_name,
+                            const ArgumentWorkspace &ws) {
     if (spec_.HasTensorArgument(argument_name)) {
-      const auto &tl = ws.ArgumentInput(argument_name);
-      int n = tl.shape().num_samples();
-      DALI_ENFORCE(n == 1 || n == batch_size_,
-                   "Provide arguments for either all or one sample in batch");
-      const auto *data = tl.template data<T>();
-      output.resize(n);
-      for (int i = 0; i < n; i++) {
-        output[i] = data[i];
+      const auto &arg = ws.ArgumentInput(argument_name);
+      decltype(auto) shape = arg.shape();
+      int N = shape.num_samples();
+      if (N == 1) {
+        bool is_valid_shape = shape.tensor_shape(0) == TensorShape<1>{batch_size_};
+
+        DALI_ENFORCE(is_valid_shape,
+          make_string("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size_,
+          ") tensor list. Got: ", shape));
+
+        output.resize(batch_size_);
+        auto *data = arg[0].template data<T>();
+
+        for (int i = 0; i < batch_size_; i++) {
+          output[i] = data[i];
+        }
+      } else {
+        bool is_valid_shape = N == batch_size_ &&
+                              is_uniform(shape) &&
+                              shape.tensor_shape(0) == TensorShape<1>{1};
+        DALI_ENFORCE(is_valid_shape,
+          make_string("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size_,
+          ") tensor list. Got: ", shape));
+
+        output.resize(batch_size_);
+        for (int i = 0; i < batch_size_; i++) {
+          output[i] = arg[i].template data<T>()[0];
+        }
       }
     } else {
       output.resize(batch_size_, spec_.template GetArgument<T>(argument_name));
@@ -222,47 +233,6 @@ class DLL_PUBLIC OperatorBase {
  */
 template <typename Backend>
 class Operator : public OperatorBase {};
-
-template <>
-class Operator<SupportBackend> : public OperatorBase {
- public:
-  inline explicit Operator(const OpSpec &spec) : OperatorBase(spec) {}
-
-  inline ~Operator() override {}
-
-  using OperatorBase::Setup;
-  using OperatorBase::Run;
-
-  bool Setup(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
-    return SetupImpl(output_desc, ws);
-  }
-
-  void Run(SupportWorkspace &ws) override {
-    CheckInputLayouts(ws, spec_);
-    SetupSharedSampleParams(ws);
-    RunImpl(ws);
-  }
-
-  /**
-   * @brief Setup of the operator - to be implemented by derived op.
-   *
-   * @param output_desc describe the shape and type of the outputs (for the whole batch)
-   * @param ws
-   * @return true iff the operator specified the output shape and type
-   */
-  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) = 0;
-
-  /**
-   * @brief Implementation of the operator - to be
-   * implemented by derived ops.
-   */
-  virtual void RunImpl(SupportWorkspace &ws) = 0;
-
-  /**
-   * @brief Shared param setup
-   */
-  virtual void SetupSharedSampleParams(SupportWorkspace &ws) {}
-};
 
 template <>
 class Operator<CPUBackend> : public OperatorBase {
@@ -407,7 +377,6 @@ class Operator<MixedBackend> : public OperatorBase {
 DALI_DECLARE_OPTYPE_REGISTRY(CPUOperator, OperatorBase);
 DALI_DECLARE_OPTYPE_REGISTRY(GPUOperator, OperatorBase);
 DALI_DECLARE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
-DALI_DECLARE_OPTYPE_REGISTRY(SupportOperator, OperatorBase);
 
 // Must be called from .cc or .cu file
 #define DALI_REGISTER_OPERATOR(OpName, OpType, device)                                  \

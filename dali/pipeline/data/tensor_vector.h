@@ -16,10 +16,13 @@
 #define DALI_PIPELINE_DATA_TENSOR_VECTOR_H_
 
 #include <atomic>
+#include <cassert>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/tensor.h"
 
 #include "dali/core/tensor_shape.h"
@@ -46,6 +49,17 @@ class TensorVector {
     for (auto &t : tensors_) {
       t = std::make_shared<Tensor<Backend>>();
     }
+  }
+
+  explicit TensorVector(std::shared_ptr<TensorList<Backend>> tl)
+  : views_count_(0)
+  , tl_(std::move(tl)) {
+    assert(tl_ && "Construction with null TensorList is illegal");
+    pinned_ = tl_->is_pinned();
+    type_ = tl_->type();
+    state_ = State::contiguous;
+    tensors_.resize(tl_->ntensor());
+    UpdateViews();
   }
 
   TensorVector(const TensorVector &) = delete;
@@ -125,7 +139,7 @@ class TensorVector {
     }
     if (state_ == State::contiguous) {
       tl_->Resize(new_shape);
-      update_views();
+      UpdateViews();
       return;
     }
     for (int i = 0; i < new_shape.size(); i++) {
@@ -139,7 +153,7 @@ class TensorVector {
     for (auto t : tensors_) {
       t->set_type(new_type);
     }
-    update_views();
+    UpdateViews();
   }
 
   inline TypeInfo type() const {
@@ -272,42 +286,59 @@ class TensorVector {
     }
   }
 
+  void UpdateViews() {
+    // Return if we do not have a valid allocation
+    if (!IsValidType(tl_->type())) return;
+    if (!tl_->raw_data()) return;
+    type_ = tl_->type();
+
+    tensors_.resize(tl_->ntensor());
+
+    views_count_ = tensors_.size();
+    for (size_t i = 0; i < tensors_.size(); i++) {
+      update_view(i);
+    }
+  }
+
  private:
   enum class State { contiguous, noncontiguous };
+
+  shared_ptr<Tensor<Backend>> create_tensor() const {
+    auto t = std::make_shared<Tensor<Backend>>();
+    t->set_pinned(pinned_);
+    if (IsValidType(type_)) {
+      t->set_type(type_);
+    }
+    return t;
+  }
+
   void allocate_tensors(int batch_size) {
     DALI_ENFORCE(tensors_.empty(), "Changing the batch size is prohibited. It should be set once.");
     // If we didn't declare the batch size but tried to pin memory or set type
     // we need to apply it to tensors
     tensors_.resize(batch_size, nullptr);
     for (auto &t : tensors_) {
-      t = std::make_shared<Tensor<Backend>>();
-      t->set_pinned(pinned_);
-      if (IsValidType(type_)) {
-        t->set_type(type_);
-      }
+      t = create_tensor();
     }
   }
 
   void update_view(int idx) {
+    if (!tensors_[idx]) {
+      tensors_[idx] = create_tensor();
+    }
+    auto *ptr = tl_->raw_mutable_tensor(idx);
+
+    TensorShape<> shape = tl_->tensor_shape(idx);
+
     // TODO(klecki): deleter that reduces views_count or just noop sharing?
     // tensors_[i]->ShareData(tl_.get(), static_cast<int>(idx));
-    tensors_[idx]->ShareData(
-        std::shared_ptr<void>(tl_->raw_mutable_tensor(idx),
-                              [&views_count = views_count_](void *) { views_count--; }),
-        volume(tl_->tensor_shape(idx)) * tl_->type().size(), tl_->tensor_shape(idx));
+    if (tensors_[idx]->raw_data() != ptr || tensors_[idx]->shape() != shape) {
+      tensors_[idx]->ShareData(
+          std::shared_ptr<void>(ptr, [&views_count = views_count_](void *) { views_count--; }),
+          volume(tl_->tensor_shape(idx)) * tl_->type().size(), shape);
+    }
     tensors_[idx]->SetMeta(tl_->GetMeta(idx));
     tensors_[idx]->set_type(tl_->type());
-  }
-
-  void update_views() {
-    // Return if we do not have a valid allocation
-    if (!IsValidType(tl_->type())) return;
-    if (!tl_->raw_data()) return;
-
-    views_count_ = tensors_.size();
-    for (size_t i = 0; i < tensors_.size(); i++) {
-      update_view(i);
-    }
   }
 
   std::atomic<int> views_count_;

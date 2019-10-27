@@ -60,8 +60,8 @@ class BrightnessContrastOp : public Operator<Backend> {
 
 
   void AcquireArguments(const ArgumentWorkspace &ws) {
-    OperatorBase::AcquireTensorArgument(brightness_, brightness_contrast::kBrightness, ws);
-    OperatorBase::AcquireTensorArgument(contrast_, brightness_contrast::kContrast, ws);
+    this->GetPerSampleArgument(brightness_, brightness_contrast::kBrightness, ws);
+    this->GetPerSampleArgument(contrast_, brightness_contrast::kContrast, ws);
   }
 
 

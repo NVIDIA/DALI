@@ -71,7 +71,6 @@ class _EdgeReference(object):
 _cpu_ops = set({})
 _gpu_ops = set({})
 _mixed_ops = set({})
-_support_ops = set({})
 
 def _docstring_generator(cls):
     op_name = cls.__name__
@@ -82,8 +81,6 @@ def _docstring_generator(cls):
         op_dev.append("'GPU'")
     if op_name in _mixed_ops:
         op_dev.append("'mixed'")
-    if op_name in _support_ops:
-        op_dev.append("'support'")
     pre_doc = "This is a " + ", ".join(op_dev) + " operator\n\n"
 
     schema = b.GetSchema(op_name)
@@ -412,21 +409,14 @@ def _load_ops():
     global _cpu_ops
     global _gpu_ops
     global _mixed_ops
-    global _support_ops
     _cpu_ops = _cpu_ops.union(set(b.RegisteredCPUOps()))
     _gpu_ops = _gpu_ops.union(set(b.RegisteredGPUOps()))
     _mixed_ops = _mixed_ops.union(set(b.RegisteredMixedOps()))
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
-    _support_ops = _support_ops.union(set(b.RegisteredSupportOps()))
     for op_name in _cpu_gpu_ops:
         if not hasattr(sys.modules[__name__], op_name):
             setattr(sys.modules[__name__], op_name,
                     python_op_factory(op_name, op_device = "cpu"))
-    # add support ops
-    for op_name in _support_ops:
-        if not hasattr(sys.modules[__name__], op_name):
-            setattr(sys.modules[__name__], op_name,
-                    python_op_factory(op_name, op_device = "support"))
 _load_ops()
 
 def Reload():
@@ -640,9 +630,6 @@ def cpu_ops():
 
 def gpu_ops():
     return _gpu_ops
-
-def support_ops():
-    return _support_ops
 
 def mixed_ops():
     return _mixed_ops

@@ -17,17 +17,14 @@
 
 namespace dali {
 
-void CoinFlip::RunImpl(SupportWorkspace &ws) {
-  auto &output = ws.Output<CPUBackend>(0);
-
-  int *out_data = output.template mutable_data<int>();
-
+void CoinFlip::RunImpl(HostWorkspace &ws) {
+  auto &output = ws.OutputRef<CPUBackend>(0);
   for (int i = 0; i < batch_size_; ++i) {
-    out_data[i] = dis_(rng_) ? 1 : 0;
+    output[i].mutable_data<int>()[0] = dis_(rng_) ? 1 : 0;
   }
 }
 
-DALI_REGISTER_OPERATOR(CoinFlip, CoinFlip, Support);
+DALI_REGISTER_OPERATOR(CoinFlip, CoinFlip, CPU);
 
 DALI_SCHEMA(CoinFlip)
   .DocStr("Produce tensor filled with 0s and 1s - results of random coin flip,"

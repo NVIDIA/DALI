@@ -36,16 +36,8 @@ template <OpType op_type>
 struct parent_constraints;
 
 template <>
-struct parent_constraints<OpType::SUPPORT> {
-  static constexpr OpType allowed_parents[] = {OpType::SUPPORT};
-  static constexpr StorageDevice allowed_input_tensors[] = {StorageDevice::CPU};
-  static constexpr OpType allowed_input_ops[] = {OpType::SUPPORT};
-  static constexpr bool supports_argument_inputs = false;
-};
-
-template <>
 struct parent_constraints<OpType::CPU> {
-  static constexpr OpType allowed_parents[] = {OpType::CPU, OpType::SUPPORT};
+  static constexpr OpType allowed_parents[] = {OpType::CPU};
   static constexpr StorageDevice allowed_input_tensors[] = {StorageDevice::CPU};
   static constexpr OpType allowed_input_ops[] = {OpType::CPU};
   static constexpr bool supports_argument_inputs = true;
@@ -53,7 +45,7 @@ struct parent_constraints<OpType::CPU> {
 
 template <>
 struct parent_constraints<OpType::MIXED> {
-  static constexpr OpType allowed_parents[] = {OpType::CPU, OpType::SUPPORT};
+  static constexpr OpType allowed_parents[] = {OpType::CPU};
   static constexpr StorageDevice allowed_input_tensors[] = {StorageDevice::CPU};
   static constexpr OpType allowed_input_ops[] = {OpType::CPU};
   static constexpr bool supports_argument_inputs = true;
@@ -61,7 +53,7 @@ struct parent_constraints<OpType::MIXED> {
 
 template <>
 struct parent_constraints<OpType::GPU> {
-  static constexpr OpType allowed_parents[] = {OpType::GPU, OpType::MIXED, OpType::SUPPORT};
+  static constexpr OpType allowed_parents[] = {OpType::GPU, OpType::MIXED, OpType::CPU};
   static constexpr StorageDevice allowed_input_tensors[] = {StorageDevice::CPU, StorageDevice::GPU};
   static constexpr OpType allowed_input_ops[] = {OpType::MIXED, OpType::GPU};
   static constexpr bool supports_argument_inputs = true;

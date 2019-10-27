@@ -19,7 +19,6 @@ namespace dali {
 DALI_DEFINE_OPTYPE_REGISTRY(CPUOperator, OperatorBase);
 DALI_DEFINE_OPTYPE_REGISTRY(GPUOperator, OperatorBase);
 DALI_DEFINE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
-DALI_DEFINE_OPTYPE_REGISTRY(SupportOperator, OperatorBase);
 
 std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec) {
   string device = spec.GetArgument<string>("device");
@@ -30,8 +29,6 @@ std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec) {
     return CPUOperatorRegistry::Registry().Create(spec.name(), spec, &device);
   } else if (device == "mixed") {
     return MixedOperatorRegistry::Registry().Create(spec.name(), spec, &device);
-  } else if (device == "support") {
-    return SupportOperatorRegistry::Registry().Create(spec.name(), spec, &device);
   } else {
     DALI_FAIL("Unknown device: " + device);
   }

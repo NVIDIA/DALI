@@ -23,10 +23,10 @@
 
 namespace dali {
 
-class Uniform : public Operator<SupportBackend> {
+class Uniform : public Operator<CPUBackend> {
  public:
   inline explicit Uniform(const OpSpec &spec) :
-    Operator<SupportBackend>(spec),
+    Operator<CPUBackend>(spec),
     rng_(spec.GetArgument<int64_t>("seed")) {
     std::vector<float> range;
     GetSingleOrRepeatedArg(spec, range, "range", 2);
@@ -38,21 +38,21 @@ class Uniform : public Operator<SupportBackend> {
   DISABLE_COPY_MOVE_ASSIGN(Uniform);
 
   USE_OPERATOR_MEMBERS();
-  using Operator<SupportBackend>::RunImpl;
+  using Operator<CPUBackend>::RunImpl;
 
  protected:
   bool CanInferOutputs() const override {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
     output_desc[0].shape = uniform_list_shape(batch_size_, {1});
-    output_desc[0].type = TypeInfo::Create<float>();
+    output_desc[0].type = TypeTable::GetTypeInfo(DALI_FLOAT);
     return true;
   }
 
-  void RunImpl(Workspace<SupportBackend> &ws) override;
+  void RunImpl(HostWorkspace &ws) override;
 
  private:
   std::uniform_real_distribution<float> dis_;

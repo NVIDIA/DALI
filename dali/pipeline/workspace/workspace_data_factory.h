@@ -24,7 +24,6 @@
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/host_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"
-#include "dali/pipeline/workspace/support_workspace.h"
 
 #include "dali/core/static_switch.h"
 #include "dali/core/tuple_helpers.h"
@@ -155,7 +154,7 @@ struct BatchFactoryImpl {
     // Output batch from GPU, MIXED and SUPPORT Ops are shared_ptr<Something>
     using BatchType = typename tensor_store_elem_t<op_type, device>::element_type;
     auto output = std::make_shared<BatchType>(batch_size);
-    if (op_type == OpType::CPU || op_type == OpType::SUPPORT) {
+    if (op_type == OpType::CPU) {
       output->set_pinned(false);
     }
     return output;
@@ -192,7 +191,7 @@ template <template <OpType, StorageDevice> class ToExecute, typename Ret, typena
 Ret Switch_OpType_Device(OpType op_type, StorageDevice device, T &&... args) {
   Ret ret;
   VALUE_SWITCH(op_type, op_type_static,
-      (OpType::GPU, OpType::CPU, OpType::MIXED, OpType::SUPPORT),
+      (OpType::GPU, OpType::CPU, OpType::MIXED),
   (
     VALUE_SWITCH(device, device_static, (StorageDevice::CPU, StorageDevice::GPU),
     (
@@ -206,7 +205,7 @@ template <template <OpType> class ToExecute, typename Ret, typename... T>
 Ret Switch_OpType(OpType op_type, T &&... args) {
   Ret ret;
   VALUE_SWITCH(op_type, op_type_static,
-      (OpType::GPU, OpType::CPU, OpType::MIXED, OpType::SUPPORT),
+      (OpType::GPU, OpType::CPU, OpType::MIXED),
   (
     ret = ToExecute<op_type_static>{}(std::forward<T>(args)...);
   ), DALI_FAIL("Unexpected op_type"));  // NOLINT(whitespace/parens)
