@@ -23,9 +23,10 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from distutils.version import StrictVersion
 from test_utils_tensorflow import *
+from shutil import rmtree as remove_directory
 
 from nose import SkipTest
-from nose.tools import raises
+from nose.tools import raises, with_setup
 
 try:
     tf.compat.v1.disable_eager_execution()
@@ -133,9 +134,13 @@ def test_keras_single_cpu():
     _test_keras_single_device('cpu', 0)
 
 
+def clear_checkpoints():
+    remove_directory('/tmp/tensorflow-checkpoints', ignore_errors = True)
+
+
 def _test_estimators_single_device(device = 'cpu', device_id = 0, batch_size = 32):
     skip_for_incompatible_tf()
-
+    
     with tf.device('/{0}:{1}'.format(device, device_id)):
         def train_fn():
             return _get_train_dataset(batch_size, device, device_id).map(
@@ -148,6 +153,8 @@ def _test_estimators_single_device(device = 'cpu', device_id = 0, batch_size = 3
             hidden_units = [128],
             n_classes = 10,
             dropout = 0.2,
+            activation_fn=tf.nn.relu,
+            model_dir = '/tmp/tensorflow-checkpoints',
             optimizer='Adam')
 
         classifier.train(input_fn = train_fn, steps = 500)
@@ -156,17 +163,17 @@ def _test_estimators_single_device(device = 'cpu', device_id = 0, batch_size = 3
             return _get_test_dataset(batch_size, device, device_id).map(
                 lambda features, labels: ({'x':features}, labels))
 
-        assert classifier.evaluate(input_fn=test_fn)["accuracy"] > 0.9
+        assert classifier.evaluate(input_fn=test_fn)["accuracy"] > 0.8
 
-
+@with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_single_gpu():
     _test_estimators_single_device('gpu', 0)
 
-
+@with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_single_other_gpu():
     _test_estimators_single_device('gpu', 1)
 
-
+@with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_single_cpu():
     _test_estimators_single_device('cpu', 0)
 
