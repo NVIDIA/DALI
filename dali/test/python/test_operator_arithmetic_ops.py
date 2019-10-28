@@ -23,10 +23,10 @@ from nose.tools import assert_equals
 
 from test_utils import check_batch
 
-batch_size = 8
+batch_size = 4
 
 # Shape of the samples
-shape = (8, 8)
+shape = (256, 256)
 
 devices = ["cpu_cpu", "cpu_gpu", "gpu_gpu", "gpu_gpu"]
 
