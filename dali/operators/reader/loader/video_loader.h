@@ -129,6 +129,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       stride_(spec.GetArgument<int>("stride")),
       max_height_(0),
       max_width_(0),
+      additional_decode_surfaces_(spec.GetArgument<int>("additional_decode_surfaces")),
       image_type_(spec.GetArgument<DALIImageType>("image_type")),
       dtype_(spec.GetArgument<DALIDataType>("dtype")),
       normalized_(spec.GetArgument<bool>("normalized")),
@@ -206,7 +207,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                       dtype_,
                       normalized_,
                       ALIGN16(max_height_),
-                      ALIGN16(max_width_))};
+                      ALIGN16(max_width_),
+                      additional_decode_surfaces_)};
 
     if (shuffle_) {
       // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
@@ -237,6 +239,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int stride_;
   int max_height_;
   int max_width_;
+  int additional_decode_surfaces_;
   static constexpr int channels_ = 3;
   DALIImageType image_type_;
   DALIDataType dtype_;

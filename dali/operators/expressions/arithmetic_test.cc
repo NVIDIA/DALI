@@ -316,4 +316,58 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
   }
 }
 
+TEST(ArithmeticOpsTest, ConstantsPipeline) {
+  constexpr int magic_int = 42;
+  constexpr int magic_float = 42.f;
+  constexpr int batch_size = 16;
+  constexpr int num_threads = 4;
+  constexpr int tensor_elements = 16;
+  Pipeline pipe(batch_size, num_threads, 0);
+
+  pipe.AddExternalInput("data0");
+
+  pipe.AddOperator(OpSpec("ArithmeticGenericOp")
+                       .AddArg("device", "cpu")
+                       .AddArg("expression_desc", "add(&0 $0:int32)")
+                       .AddArg("integer_constants", std::vector<int>{magic_int})
+                       .AddInput("data0", "cpu")
+                       .AddOutput("result0", "cpu"),
+                   "arithm_cpu_add");
+
+  pipe.AddOperator(OpSpec("ArithmeticGenericOp")
+                       .AddArg("device", "cpu")
+                       .AddArg("expression_desc", "mul(&0 $0:float32)")
+                       .AddArg("real_constants", std::vector<float>{magic_float})
+                       .AddInput("data0", "cpu")
+                       .AddOutput("result1", "cpu"),
+                   "arithm_cpu_mul");
+
+  vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "cpu"}};
+
+  pipe.Build(outputs);
+
+  TensorList<CPUBackend> batch;
+  batch.Resize(uniform_list_shape(batch_size, {tensor_elements}));
+  batch.set_type(TypeInfo::Create<int32_t>());
+  for (int i = 0; i < batch_size; i++) {
+    auto *t = batch.mutable_tensor<int32_t>(i);
+    for (int j = 0; j < tensor_elements; j++) {
+      t[j] = i * tensor_elements + j;
+    }
+  }
+
+  pipe.SetExternalInput("data0", batch);
+  pipe.RunCPU();
+  pipe.RunGPU();
+  DeviceWorkspace ws;
+  pipe.Outputs(&ws);
+  auto *result0 = ws.OutputRef<CPUBackend>(0).data<int32_t>();
+  auto *result1 = ws.OutputRef<CPUBackend>(1).data<float>();
+
+  for (int i = 0; i < batch_size * tensor_elements; i++) {
+    EXPECT_EQ(result0[i], i + magic_int);
+    EXPECT_EQ(result1[i], i * magic_float);
+  }
+}
+
 }  // namespace dali

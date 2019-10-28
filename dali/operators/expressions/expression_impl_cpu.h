@@ -17,7 +17,6 @@
 
 #include <vector>
 
-#include "dali/core/any.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/operators/expressions/arithmetic_meta.h"
 #include "dali/operators/expressions/expression_impl_factory.h"
@@ -28,26 +27,18 @@
 
 namespace dali {
 
-// Assumes that it will get a workspace for given Backend,
-// and the backend will store the inputs and outputs at given Backend.
-template <ArithmeticOp op, typename Result,
-          typename Left, bool LeftIsTensor,
-          typename Right, bool RightIsTensor>
-class ExprImplBinCPU : public ExprImplBase, ExprImplParam<CPUBackend> {
+template <ArithmeticOp op, typename Result, typename Left, typename Right>
+class ExprImplCpuTT : public ExprImplBase {
  public:
-  ExprImplBinCPU() {}
-
-  void Execute(ArgumentWorkspace &workspace, const OpSpec &spec, ExprImplContext &ctx,
-               const std::vector<TileDesc> &tiles, TileRange range) override {
+  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
+               TileRange range) override {
     assert(range.begin + 1 == range.end &&
            "CPU Expression implementation can handle only one tile at a time");
-    auto &ws = dynamic_cast<workspace_t<CPUBackend> &>(workspace);
-    const auto &expr = dynamic_cast<const ExprFunc&>(*ctx.node);
     const auto &tile = tiles[range.begin];
-    auto left = ObtainInput<LeftIsTensor, Left>(expr, ws, spec, tile, 0);
-    auto right = ObtainInput<RightIsTensor, Right>(expr, ws, spec, tile, 1);
-    auto output = ObtainOutput<Result>(expr, ws, spec, tile);
-    Execute(output, left, right, tile.extent_size);
+    auto output = static_cast<Result *>(tile.output);
+    auto left = static_cast<const Left *>(tile.args[0]);
+    auto right = static_cast<const Right *>(tile.args[1]);
+    Execute(output, left, right, tile.desc.extent_size);
   }
 
  private:
@@ -58,12 +49,48 @@ class ExprImplBinCPU : public ExprImplBase, ExprImplParam<CPUBackend> {
       result[i] = meta::impl(l[i], r[i]);
     }
   }
+};
+
+template <ArithmeticOp op, typename Result, typename Left, typename Right>
+class ExprImplCpuCT : public ExprImplBase {
+ public:
+  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
+               TileRange range) override {
+    assert(range.begin + 1 == range.end &&
+           "CPU Expression implementation can handle only one tile at a time");
+    const auto &tile = tiles[range.begin];
+    auto output = static_cast<Result *>(tile.output);
+    auto left = static_cast<const Left *>(tile.args[0]);
+    auto right = static_cast<const Right *>(tile.args[1]);
+    Execute(output, *left, right, tile.desc.extent_size);
+  }
+
+ private:
+  using meta = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, Left l, const Right *r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
       result[i] = meta::impl(l, r[i]);
     }
   }
+};
+
+template <ArithmeticOp op, typename Result, typename Left, typename Right>
+class ExprImplCpuTC : public ExprImplBase {
+ public:
+  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
+               TileRange range) override {
+    assert(range.begin + 1 == range.end &&
+           "CPU Expression implementation can handle only one tile at a time");
+    const auto &tile = tiles[range.begin];
+    auto output = static_cast<Result *>(tile.output);
+    auto left = static_cast<const Left *>(tile.args[0]);
+    auto right = static_cast<const Right *>(tile.args[1]);
+    Execute(output, left, *right, tile.desc.extent_size);
+  }
+
+ private:
+  using meta = arithm_meta<op, CPUBackend>;
 
   static void Execute(Result *result, const Left *l, Right r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {

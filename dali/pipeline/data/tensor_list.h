@@ -32,6 +32,9 @@ namespace dali {
 template <typename Backend>
 class Tensor;
 
+template <typename Backend>
+class TensorVector;
+
 /**
  * @brief Stores a number of Tensors in a contiguous buffer.
  * Functions similar to a jagged tensor, i.e. a tensor
@@ -77,7 +80,8 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
   }
 
   template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const vector<Tensor<SrcBackend>> &other, cudaStream_t stream) {
+  DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other,
+                              cudaStream_t stream) {
     auto type = other[0].type();
     auto layout = other[0].GetLayout();
 

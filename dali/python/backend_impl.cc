@@ -495,7 +495,6 @@ static vector<string> GetRegistered##OPTYPE##Ops(bool internal_ops = false) { \
 GetRegisteredOpsFor(CPU)
 GetRegisteredOpsFor(GPU)
 GetRegisteredOpsFor(Mixed)
-GetRegisteredOpsFor(Support)
 #undef GetRegisteredOpsFor
 
 static const OpSchema &GetSchema(const string &name) {
@@ -828,7 +827,6 @@ PYBIND11_MODULE(backend_impl, m) {
   m.def("RegisteredCPUOps", &GetRegisteredCPUOps, py::arg("internal_ops") = false);
   m.def("RegisteredGPUOps", &GetRegisteredGPUOps, py::arg("internal_ops") = false);
   m.def("RegisteredMixedOps", &GetRegisteredMixedOps, py::arg("internal_ops") = false);
-  m.def("RegisteredSupportOps", &GetRegisteredSupportOps, py::arg("internal_ops") = false);
 
   // Registry for OpSchema
   m.def("GetSchema", &GetSchema, py::return_value_policy::reference);

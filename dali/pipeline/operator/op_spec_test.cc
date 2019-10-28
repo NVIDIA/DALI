@@ -25,56 +25,50 @@
 
 namespace dali {
 
-class TestArgumentInput_Producer : public Operator<SupportBackend> {
+class TestArgumentInput_Producer : public Operator<CPUBackend> {
  public:
-  explicit TestArgumentInput_Producer(const OpSpec &spec) : Operator<SupportBackend>(spec) {}
+  explicit TestArgumentInput_Producer(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
   bool CanInferOutputs() const override {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
-    output_desc.resize(4);
-    output_desc[0] = {uniform_list_shape(batch_size_, {1}), TypeInfo::Create<int>()};
-    output_desc[1] = {TensorListShape<>{{10}}, TypeInfo::Create<float>()};
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+    output_desc.resize(3);
+    output_desc[0] = {uniform_list_shape(batch_size_, {1}), TypeTable::GetTypeInfo(DALI_INT32)};
     // Non-matching shapes
-    output_desc[2] = {uniform_list_shape(batch_size_ + 5, {1}), TypeInfo::Create<int>()};
-    output_desc[3] = {uniform_list_shape(batch_size_, {1, 2}), TypeInfo::Create<int>()};
+    output_desc[1] = {uniform_list_shape(batch_size_, {1}), TypeTable::GetTypeInfo(DALI_FLOAT)};
+    output_desc[2] = {uniform_list_shape(batch_size_, {1, 2}), TypeTable::GetTypeInfo(DALI_INT32)};
     return true;
   }
 
-  void RunImpl(SupportWorkspace &ws) override {
+  void RunImpl(HostWorkspace &ws) override {
     // Initialize all the data with a 0, 1, 2 .... sequence
     auto &out0 = ws.OutputRef<CPUBackend>(0);
     for (int i = 0; i < out0.shape().num_samples(); i++) {
-      *out0.mutable_tensor<int>(i) = i;
+      *out0[i].mutable_data<int>() = i;
     }
 
     auto &out1 = ws.OutputRef<CPUBackend>(1);
-    for (int i = 0; i < out1.shape()[0][0]; i++) {
-      out1.mutable_data<float>()[i] = i;
+    for (int i = 0; i < out1.shape().num_samples(); i++) {
+      *out1[i].mutable_data<float>() = i;
     }
 
     auto &out2 = ws.OutputRef<CPUBackend>(2);
     for (int i = 0; i < out2.shape().num_samples(); i++) {
-      *out2.mutable_tensor<int>(i) = i;
-    }
-
-    auto &out3 = ws.OutputRef<CPUBackend>(3);
-    for (int i = 0; i < out3.shape().num_samples(); i++) {
       for (int j = 0; j < 2; j++) {
-        out3.mutable_tensor<int>(i)[j] = i;
+        out2[i].mutable_data<int>()[j] = i;
       }
     }
   }
 };
 
-DALI_REGISTER_OPERATOR(TestArgumentInput_Producer, TestArgumentInput_Producer, Support);
+DALI_REGISTER_OPERATOR(TestArgumentInput_Producer, TestArgumentInput_Producer, CPU);
 
 DALI_SCHEMA(TestArgumentInput_Producer)
     .DocStr("TestArgumentInput_Producer")
     .NumInput(0)
-    .NumOutput(4);
+    .NumOutput(3);
 
 class TestArgumentInput_Consumer : public Operator<CPUBackend> {
  public:
@@ -93,29 +87,27 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
   void RunImpl(HostWorkspace &ws) override {
     for (int i = 0; i < batch_size_; i++) {
       EXPECT_EQ(spec_.GetArgument<int>("arg0", &ws, i), i);
-      EXPECT_EQ(spec_.GetArgument<float>("arg1", &ws, i), i);
     }
     // Non-matching shapes (differnet than 1 scalar value per sample) should not work with
     // OpSpec::GetArgument()
     ASSERT_THROW(auto z = spec_.GetArgument<float>("arg2", &ws, 0), std::runtime_error);
-    ASSERT_THROW(auto z = spec_.GetArgument<float>("arg3", &ws, 0), std::runtime_error);
 
     // They can be accessed as proper ArgumentInputs
-    auto &ref_2 = ws.ArgumentInput("arg2");
-    ASSERT_EQ(ref_2.shape().num_samples(), batch_size_ + 5);
-    ASSERT_TRUE(is_uniform(ref_2.shape()));
-    ASSERT_EQ(ref_2.shape()[0], TensorShape<>(1));
-    for (int i = 0; i < ref_2.shape().num_samples(); i++) {
-      EXPECT_EQ(ref_2.tensor<int>(i)[0], i);
+    auto &ref_1 = ws.ArgumentInput("arg1");
+    ASSERT_EQ(ref_1.shape().num_samples(), batch_size_);
+    ASSERT_TRUE(is_uniform(ref_1.shape()));
+    ASSERT_EQ(ref_1.shape()[0], TensorShape<>(1));
+    for (int i = 0; i < ref_1.shape().num_samples(); i++) {
+      EXPECT_EQ(ref_1[i].data<float>()[0], i);
     }
 
-    auto &ref_3 = ws.ArgumentInput("arg3");
-    ASSERT_EQ(ref_3.shape().num_samples(), batch_size_);
-    ASSERT_TRUE(is_uniform(ref_3.shape()));
-    ASSERT_EQ(ref_3.shape()[0], TensorShape<>(1, 2));
-    for (int i = 0; i < ref_3.shape().num_samples(); i++) {
+    auto &ref_2 = ws.ArgumentInput("arg2");
+    ASSERT_EQ(ref_2.shape().num_samples(), batch_size_);
+    ASSERT_TRUE(is_uniform(ref_2.shape()));
+    ASSERT_EQ(ref_2.shape()[0], TensorShape<>(1, 2));
+    for (int i = 0; i < ref_2.shape().num_samples(); i++) {
       for (int j = 0; j < 2; j++) {
-        EXPECT_EQ(ref_3.tensor<int>(i)[j], i);
+        EXPECT_EQ(ref_2[i].data<int>()[j], i);
       }
     }
   }
@@ -138,23 +130,21 @@ DALI_SCHEMA(TestArgumentInput_Consumer)
  *
  * The EXPECT_* and ASSERT_* macros are actually placed in the RunImpl of operator
  * accessing the data (TestArgumentInput_Consumer), and the different (valid and invalid)
- * arguments inputs are provided by a SupportOp: TestArgumentInput_Producer.
+ * arguments inputs are provided by a Operator: TestArgumentInput_Producer.
  */
 TEST(ArgumentInputTest, OpSpecAccess) {
   Pipeline pipe(10, 4, 0);
   pipe.AddOperator(OpSpec("TestArgumentInput_Producer")
-                       .AddArg("device", "support")
+                       .AddArg("device", "cpu")
                        .AddOutput("support_arg0", "cpu")
                        .AddOutput("support_arg1", "cpu")
-                       .AddOutput("support_arg2", "cpu")
-                       .AddOutput("support_arg3", "cpu"));
+                       .AddOutput("support_arg2", "cpu"));
 
   pipe.AddOperator(OpSpec("TestArgumentInput_Consumer")
                        .AddArg("device", "cpu")
                        .AddArgumentInput("arg0", "support_arg0")
                        .AddArgumentInput("arg1", "support_arg1")
                        .AddArgumentInput("arg2", "support_arg2")
-                       .AddArgumentInput("arg3", "support_arg3")
                        .AddOutput("I need to specify something", "cpu")
                        .AddArg("preserve", true));
 

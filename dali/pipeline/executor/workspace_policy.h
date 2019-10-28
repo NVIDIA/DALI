@@ -26,10 +26,33 @@
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/host_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"
-#include "dali/pipeline/workspace/support_workspace.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
+
+inline std::ostream &operator<<(std::ostream &os, OpType op_type) {
+  switch (op_type) {
+  case OpType::CPU:
+    return os << "CPU";
+  case OpType::GPU:
+    return os << "GPU";
+  case OpType::MIXED:
+    return os << "MIXED";
+  default:
+    return os << static_cast<int>(op_type);
+  }
+}
+
+inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
+  switch (device) {
+  case StorageDevice::CPU:
+    return os << "CPU";
+  case StorageDevice::GPU:
+    return os << "GPU";
+  default:
+    return os << static_cast<int>(device);
+  }
+}
 
 // We instantiate the operation of adding the input only for parent op_type and device
 // that are specifically allowed
@@ -74,7 +97,7 @@ void SetupInputOutput(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph,
     auto tensor_device = graph.Tensor(tid).producer.storage_device;
 
     VALUE_SWITCH(parent_op_type, parent_op_static,
-        (OpType::GPU, OpType::CPU, OpType::MIXED, OpType::SUPPORT),
+        (OpType::GPU, OpType::CPU, OpType::MIXED),
     (
       VALUE_SWITCH(tensor_device, device_static, (StorageDevice::CPU, StorageDevice::GPU),
       (
@@ -90,10 +113,27 @@ void SetupInputOutput(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph,
     // Get each argument input and add them to this op's workspace.
     auto input_index = arg_pair.second;
     auto tid = node.parent_tensors[input_index];
-    // Argument inputs are only CPU
-    auto &queue = get_queue<OpType::SUPPORT, StorageDevice::CPU>(tensor_to_store_queue[tid]);
-    auto tensor = queue[idxs[OpType::SUPPORT]];
-    ws.AddArgumentInput(tensor, arg_pair.first);
+    auto &parent_node = graph.Node(graph.Tensor(tid).producer.node);
+    auto parent_op_type = parent_node.op_type;
+
+    auto tensor_device = graph.Tensor(tid).producer.storage_device;
+    DALI_ENFORCE(tensor_device == StorageDevice::CPU,
+      "Argument Inputs must be stored in CPU memory");
+
+    auto add_arg_input = [&](auto &queue) {
+      auto tensor = queue[idxs[parent_op_type]];
+      ws.AddArgumentInput(arg_pair.first, tensor);
+    };
+    switch (parent_op_type) {
+      case OpType::CPU:
+        add_arg_input(get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue[tid]));
+        break;
+      case OpType::MIXED:
+        add_arg_input(get_queue<OpType::MIXED, StorageDevice::CPU>(tensor_to_store_queue[tid]));
+        break;
+      default:
+        DALI_FAIL("Unexpected source backend for ArgumentInput");
+    }
   }
 
   for (int j = 0; j < node.spec.NumOutput(); ++j) {
@@ -277,7 +317,7 @@ struct JIT_WS_Policy {
 };
 
 inline int SequentialIndex(QueueIdxs idxs, StageQueues depth, OpType last_stage) {
-  constexpr static OpType order[] = {OpType::SUPPORT, OpType::CPU, OpType::MIXED, OpType::GPU};
+  constexpr static OpType order[] = {OpType::CPU, OpType::MIXED, OpType::GPU};
   // Horner's method
   int result = 0;
   for (auto op_type : order) {
@@ -319,58 +359,39 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
       const MixedOpEventMap &mixed_op_events, const QueueSizes idxs) {
     depths_ = SeparateQueuePolicy::GetQueueSizes(idxs);
 
-    support_workspaces_.resize(depths_[OpType::SUPPORT]);
-    cpu_workspaces_.resize(depths_[OpType::CPU] * depths_[OpType::SUPPORT]);
+    cpu_workspaces_.resize(depths_[OpType::CPU]);
     // Mixed and GPU are bound together due to being outputs
     // We do not create another layer of ws, as we process Mixed and GPU together
-    mixed_workspaces_.resize(depths_[OpType::MIXED] * depths_[OpType::CPU] *
-                             depths_[OpType::SUPPORT]);
-    gpu_workspaces_.resize(depths_[OpType::MIXED] * depths_[OpType::CPU] *
-                           depths_[OpType::SUPPORT]);
+    mixed_workspaces_.resize(depths_[OpType::MIXED] * depths_[OpType::CPU]);
+    gpu_workspaces_.resize(depths_[OpType::MIXED] * depths_[OpType::CPU]);
 
-    // now we do cover possible calls for GetWorkspace - for all possible QueueIdxs idxs that
-    // we may get in this call
-    for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
-      // Get sequential index and prepare space all Support Ops
-      auto queue_idxs = QueueIdxs{support_id, 0, 0, 0};
-      PlaceWorkspace<OpType::SUPPORT>(support_workspaces_, queue_idxs, graph,
+    for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
+      // Get sequential index and prepare space all CPU Ops
+      auto queue_idxs = QueueIdxs{cpu_id, 0, 0};
+      PlaceWorkspace<OpType::CPU>(cpu_workspaces_, queue_idxs, graph,
+                                  tensor_to_store_queue, thread_pool,
+                                  mixed_op_stream, gpu_op_stream, mixed_op_events);
+    }
+
+    for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
+      for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
+        // Get sequential index and prepare space all MIXED Ops
+        auto queue_idxs = QueueIdxs{cpu_id, mixed_id, 0};
+        PlaceWorkspace<OpType::MIXED>(mixed_workspaces_, queue_idxs, graph,
                                       tensor_to_store_queue, thread_pool,
                                       mixed_op_stream, gpu_op_stream, mixed_op_events);
-    }
-
-    for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
-      for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
-        // Get sequential index and prepare space all CPU Ops
-        auto queue_idxs = QueueIdxs{support_id, cpu_id, 0, 0};
-        PlaceWorkspace<OpType::CPU>(cpu_workspaces_, queue_idxs, graph,
-                                    tensor_to_store_queue, thread_pool,
-                                    mixed_op_stream, gpu_op_stream, mixed_op_events);
-      }
-    }
-
-    for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
-      for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
-        for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
-          // Get sequential index and prepare space all MIXED Ops
-          auto queue_idxs = QueueIdxs{support_id, cpu_id, mixed_id, 0};
-          PlaceWorkspace<OpType::MIXED>(mixed_workspaces_, queue_idxs, graph,
-                                        tensor_to_store_queue, thread_pool,
-                                        mixed_op_stream, gpu_op_stream, mixed_op_events);
-        }
       }
     }
 
     // we reuse the loop for Mixed with GPU as they are in sync
-    for (int support_id = 0; support_id < depths_[OpType::SUPPORT]; support_id++) {
-      for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
-        for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
-          // Get sequential index and prepare space all GPU Ops
-          auto queue_idxs = QueueIdxs{support_id, cpu_id, mixed_id, mixed_id};
-          PlaceWorkspace<OpType::GPU, OpType::MIXED>(gpu_workspaces_, queue_idxs, graph,
-                                                     tensor_to_store_queue, thread_pool,
-                                                     mixed_op_stream, gpu_op_stream,
-                                                     mixed_op_events);
-        }
+    for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
+      for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
+        // Get sequential index and prepare space all GPU Ops
+        auto queue_idxs = QueueIdxs{cpu_id, mixed_id, mixed_id};
+        PlaceWorkspace<OpType::GPU, OpType::MIXED>(gpu_workspaces_, queue_idxs, graph,
+                                                    tensor_to_store_queue, thread_pool,
+                                                    mixed_op_stream, gpu_op_stream,
+                                                    mixed_op_events);
       }
     }
   }
@@ -394,7 +415,6 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
  private:
   StageQueues depths_;
   // ws_id -> op_id -> workspace
-  std::vector<std::vector<SupportWorkspace>> support_workspaces_;
   std::vector<std::vector<HostWorkspace>> cpu_workspaces_;
   std::vector<std::vector<MixedWorkspace>> mixed_workspaces_;
   std::vector<std::vector<DeviceWorkspace>> gpu_workspaces_;
@@ -402,12 +422,12 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
   template <OpType op_type>
   using ws_collection_t = std::vector<std::vector<op_type_to_workspace_t<op_type>>>;
 
-  // Access one of `support_workspaces_`, `cpu_workspaces_`, `mixed_workspaces_`, `gpu_workspaces_`
+  // Access one of `cpu_workspaces_`, `mixed_workspaces_`, `gpu_workspaces_`
   // based on op_type. Below are specialization for the sake of simplicity
   template <OpType op_type>
   ws_collection_t<op_type> &GetWorkspacesCollection() {
     return detail::get<ws_collection_t<op_type>&>(
-        std::tie(support_workspaces_, cpu_workspaces_, mixed_workspaces_, gpu_workspaces_));
+        std::tie(cpu_workspaces_, mixed_workspaces_, gpu_workspaces_));
   }
 
   template <OpType op_type, OpType group_as = op_type, typename T>
@@ -428,12 +448,6 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
     }
   }
 };
-
-template <>
-inline std::vector<std::vector<SupportWorkspace>>&
-    AOT_WS_Policy<SeparateQueuePolicy>::GetWorkspacesCollection<OpType::SUPPORT>() {
-  return support_workspaces_;
-}
 
 template <>
 inline std::vector<std::vector<HostWorkspace>>&
@@ -500,13 +514,14 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
       const MixedOpEventMap &mixed_op_events) {
     // Clear any old data setup
     wss_[queue_idx].Clear();
-    wss_[queue_idx].Resize(graph.NumOp(OpType::SUPPORT), graph.NumOp(OpType::CPU),
-                           graph.NumOp(OpType::MIXED), graph.NumOp(OpType::GPU));
+    wss_[queue_idx].Resize(graph.NumOp(OpType::CPU),
+                           graph.NumOp(OpType::MIXED),
+                           graph.NumOp(OpType::GPU));
 
     for (int i = 0; i < graph.NumOp(); i++) {
       auto &node = graph.Node(i);
       VALUE_SWITCH(node.op_type, op_type_static,
-          (OpType::SUPPORT, OpType::CPU, OpType::MIXED, OpType::GPU),
+          (OpType::CPU, OpType::MIXED, OpType::GPU),
       (
         auto &ws = GetWorkspace<op_type_static>(QueueIdxs{queue_idx}, graph, node);
         ws = CreateWorkspace<op_type_static>(graph, node,
@@ -519,15 +534,13 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
   struct WorkspaceBlob {
     workspace_store_t op_data;
 
-    void Resize(int support, int cpu, int mixed, int gpu) {
-      std::get<static_cast<int>(OpType::SUPPORT)>(op_data).resize(support);
+    void Resize(int cpu, int mixed, int gpu) {
       std::get<static_cast<int>(OpType::CPU)>(op_data).resize(cpu);
       std::get<static_cast<int>(OpType::MIXED)>(op_data).resize(mixed);
       std::get<static_cast<int>(OpType::GPU)>(op_data).resize(gpu);
     }
 
     void Clear() {
-      std::get<static_cast<int>(OpType::SUPPORT)>(op_data).clear();
       std::get<static_cast<int>(OpType::CPU)>(op_data).clear();
       std::get<static_cast<int>(OpType::MIXED)>(op_data).clear();
       std::get<static_cast<int>(OpType::GPU)>(op_data).clear();

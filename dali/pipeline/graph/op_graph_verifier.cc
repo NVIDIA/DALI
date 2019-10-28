@@ -42,15 +42,12 @@ std::string concatenate_alternatives(const std::set<OpType>& vec) {
 
 }  // namespace
 
-constexpr OpType parent_constraints<OpType::SUPPORT>::allowed_parents[];
 constexpr OpType parent_constraints<OpType::CPU>::allowed_parents[];
 constexpr OpType parent_constraints<OpType::MIXED>::allowed_parents[];
 constexpr OpType parent_constraints<OpType::GPU>::allowed_parents[];
-constexpr StorageDevice parent_constraints<OpType::SUPPORT>::allowed_input_tensors[];
 constexpr StorageDevice parent_constraints<OpType::CPU>::allowed_input_tensors[];
 constexpr StorageDevice parent_constraints<OpType::MIXED>::allowed_input_tensors[];
 constexpr StorageDevice parent_constraints<OpType::GPU>::allowed_input_tensors[];
-constexpr OpType parent_constraints<OpType::SUPPORT>::allowed_input_ops[];
 constexpr OpType parent_constraints<OpType::CPU>::allowed_input_ops[];
 constexpr OpType parent_constraints<OpType::MIXED>::allowed_input_ops[];
 constexpr OpType parent_constraints<OpType::GPU>::allowed_input_ops[];
@@ -70,7 +67,6 @@ std::vector<std::set<OpType>> ParentOpTypeConstraints() {
   allowed_parents[static_cast<int>(OpType::GPU)] = GetParentConstraints<OpType::GPU>();
   allowed_parents[static_cast<int>(OpType::CPU)] = GetParentConstraints<OpType::CPU>();
   allowed_parents[static_cast<int>(OpType::MIXED)] = GetParentConstraints<OpType::MIXED>();
-  allowed_parents[static_cast<int>(OpType::SUPPORT)] = GetParentConstraints<OpType::SUPPORT>();
   return allowed_parents;
 }
 
@@ -83,8 +79,6 @@ std::vector<int> ArgumentInputConstraints() {
       parent_constraints<OpType::CPU>::supports_argument_inputs;
   allows_argument_input[static_cast<int>(OpType::MIXED)] =
       parent_constraints<OpType::MIXED>::supports_argument_inputs;
-  allows_argument_input[static_cast<int>(OpType::SUPPORT)] =
-      parent_constraints<OpType::SUPPORT>::supports_argument_inputs;
   return allows_argument_input;
 }
 
@@ -116,20 +110,10 @@ void CheckArgumentInputConstraints(const OpGraph& op_graph, const OpNode& op) {
                  to_string(op.op_type) + " Ops do not support tensor arguments, found in " +
                      op.instance_name + " Op.");
   }
-  for (const auto& arg_pair : op.spec.ArgumentInputs()) {
-    auto input_idx = arg_pair.second;
-    auto in_tensor = op_graph.Tensor(op.parent_tensors[input_idx]);
-    // Parent node of this tensor is support op
-    DALI_ENFORCE(in_tensor.producer.is_support,
-                 "Argument input to " + op.instance_name + " produced by non-support Op.");
-  }
 }
 
 void CheckConsistentTensorEdges(const OpGraph& op_graph, const TensorNode& tensor) {
   for (auto consumer_edge : tensor.consumers) {
-    DALI_ENFORCE(tensor.producer.is_support == consumer_edge.is_support,
-                 "Use of tensor " + tensor.name +
-                     " as support is mismatched between producer Op and consumer Op.");
     DALI_ENFORCE(tensor.producer.storage_device == consumer_edge.storage_device,
                  "Storage device of tensor " + tensor.name +
                      " is mismatched between producer Op and consumer Op.");

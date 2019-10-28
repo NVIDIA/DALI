@@ -34,10 +34,9 @@ template <class OutputType, class InputType, int ndims>
 struct SampleDescriptor {
   const InputType *in;
   OutputType *out;
-  ivec<ndims> in_pitch, out_pitch;
+  ivec<ndims - 1> in_pitch, out_pitch;
   float brightness, contrast;
 };
-
 
 /**
  * Flattens the TensorShape
@@ -52,7 +51,7 @@ struct SampleDescriptor {
  * (the same operation is applied for every channel), therefore BlockSetup
  * and SampleDescriptor don't need to know about channels.
  */
-template <size_t ndims>
+template <int ndims>
 TensorShape<ndims - 1> FlattenChannels(const TensorShape<ndims> &shape) {
   static_assert(ndims >= 2, "If there are less than 2 dims, there's nothing to flatten...");
   TensorShape<ndims - 1> ret;
@@ -67,7 +66,7 @@ TensorShape<ndims - 1> FlattenChannels(const TensorShape<ndims> &shape) {
 /**
  * Convenient overload for TensorListShape case
  */
-template <size_t ndims>
+template <int ndims>
 TensorListShape<ndims - 1> FlattenChannels(const TensorListShape<ndims> &shape) {
   static_assert(ndims >= 2, "If there are less than 2 dims, there's nothing to flatten...");
   TensorListShape<ndims - 1> ret(shape.size());
@@ -77,6 +76,17 @@ TensorListShape<ndims - 1> FlattenChannels(const TensorListShape<ndims> &shape) 
   return ret;
 }
 
+
+template <int ndim>
+ivec<ndim - 2> pitch_flatten_channels(const TensorShape<ndim> &shape) {
+  ivec<ndim - 2> ret;
+  int stride = shape[ndim - 1];  // channels
+  for (int i = ndim - 2; i > 0; i--) {
+    stride *= shape[i];
+    ret[ndim - 2 - i] = stride;  // x dimension is at ret[0] - use reverse indexing
+  }
+  return ret;
+}
 
 /**
  * Note: Since the brightness-contrast calculation is channel-agnostic (it is performed in the same
@@ -96,15 +106,8 @@ CreateSampleDescriptors(const OutListGPU<OutputType, ndims> &out,
     sample.in = in[i].data;
     sample.out = out[i].data;
 
-    auto fill_pitch_with_flattening = [](const auto &tv, auto &pitch) {
-        for (size_t i = 0; i < pitch.size(); i++) {
-          pitch[i] = tv.shape[i];
-        }
-        pitch[pitch.size() - 1] *= tv.shape[pitch.size()];
-    };
-
-    fill_pitch_with_flattening(in[i], sample.in_pitch);
-    fill_pitch_with_flattening(out[i], sample.out_pitch);
+    sample.in_pitch = pitch_flatten_channels(in[i].shape);
+    sample.out_pitch = pitch_flatten_channels(out[i].shape);
 
     sample.brightness = brightness[i];
     sample.contrast = contrast[i];
