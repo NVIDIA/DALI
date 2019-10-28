@@ -53,17 +53,17 @@ ParseResult ParseExpr(const std::string &expr, int pos);
 
 std::string ReportCharacter(char c) {
   if (!std::isprint(c)) {
-    return make_string_delim("", "\"<non-printable>\", character code: 0x", std::hex,
-                             static_cast<int>(c), std::dec);
+    return concat_str("\"<non-printable>\", character code: 0x", std::hex,
+                      static_cast<int>(c), std::dec);
   }
-  return make_string_delim("", "\"", c, "\", character code: 0x", std::hex, static_cast<int>(c),
-                           std::dec);
+  return concat_str("\"", c, "\", character code: 0x", std::hex, static_cast<int>(c),
+                    std::dec);
 }
 
 void EnforceNonEnd(const std::string &expr, int pos, const std::string &expected = "") {
   DALI_ENFORCE(pos < static_cast<int>(expr.length()),
-               make_string_delim("", "Unexpected end of expression description, expected: ",
-                                 expected, " at position [", pos, "] in: ", expr));
+               concat_str("Unexpected end of expression description, expected: ",
+                          expected, " at position [", pos, "] in: ", expr));
 }
 
 int ExpectChar(const std::string &expr, int pos, char c) {
@@ -72,8 +72,8 @@ int ExpectChar(const std::string &expr, int pos, char c) {
     return pos + 1;
   }
 
-  DALI_FAIL(make_string_delim(
-      "", "Unrecognized token for expression description: ", ReportCharacter(expr[pos]),
+  DALI_FAIL(concat_str(
+      "Unrecognized token for expression description: ", ReportCharacter(expr[pos]),
       " at position [", pos, "], expected ", ReportCharacter(c), " in: ", expr));
 }
 
@@ -106,7 +106,7 @@ std::tuple<int, int> ParseInt(const std::string &expr, int pos) {
   int parsed = atoi(&expr[pos]);
   int new_pos = SkipInt(expr, pos);
   DALI_ENFORCE(pos != new_pos,
-               make_string_delim("", "Expected integer value at position [", pos, "] in: ", expr));
+               concat_str("Expected integer value at position [", pos, "] in: ", expr));
   return std::make_tuple(parsed, new_pos);
 }
 
@@ -114,8 +114,8 @@ std::tuple<std::string, int> ParseName(const std::string &expr, int pos) {
   EnforceNonEnd(expr, pos, "function name or input description starting with \"&\" or \"$\"");
   DALI_ENFORCE(
       std::isalpha(expr[pos]),
-      make_string_delim(
-          "", "Unrecognized token for expression description: ", ReportCharacter(expr[pos]),
+      concat_str(
+          "Unrecognized token for expression description: ", ReportCharacter(expr[pos]),
           " at position [", pos, "] in: \"", expr,
           "\". Expected function name starting with alphabetic character or input description "
           "starting with \"&\" or \"$\"."));

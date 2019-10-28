@@ -44,13 +44,14 @@ inline TensorShape<2> RotatedCanvasSize(TensorShape<2> input_size, double angle)
   int w_out = std::ceil(abs_cos * w + abs_sin * h - eps);
   int h_out = std::ceil(abs_cos * h + abs_sin * w - eps);
   if (abs_sin <= abs_cos) {
-    // if rotated by less than 45deg, maintain size parity to reduce blur
+    // if rotated by less than +/-45deg (or more than +/-135deg),
+    // maintain size parity to reduce blur
     if (w_out % 2 != w % 2)
       w_out++;
     if (h_out % 2 != h % 2)
       h_out++;
   } else {
-    // if rotated by more than 45deg, swap size parity to reduce blur
+    // if rotated by +/-(45..135deg), swap size parity to reduce blur
     if (h_out % 2 != w % 2)
       h_out++;
     if (w_out % 2 != h % 2)
@@ -124,7 +125,7 @@ class RotateParamProvider<Backend, 2, BorderType>
       auto arg_view = dali::view<const T>(ws_->ArgumentInput(name));
       int n = arg_view.num_elements();
       // TODO(michalz): handle TensorListView when #1390 is merged
-      DALI_ENFORCE(n == num_samples_, make_string(
+      DALI_ENFORCE(n == num_samples_, concat_str(
         "Unexpected number of elements in argument `", name, "`: ", n,
         "; expected: ", num_samples_));
       CopyIgnoreShape(v, arg_view);

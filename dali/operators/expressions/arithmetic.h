@@ -161,9 +161,9 @@ inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListSha
       out_shape = shapes[i];
     } else {
       DALI_ENFORCE(*out_shape == *shapes[i],
-                   make_string_delim("", "Input shapes of elemenetwise arithemtic operator \"", op,
-                                     "\" do not match. Expected equal shapes, got: ", op, "(",
-                                     *out_shape, ", ", *shapes[i], ")."));
+                   concat_str("Input shapes of elemenetwise arithemtic operator \"", op,
+                              "\" do not match. Expected equal shapes, got: ", op, "(",
+                              *out_shape, ", ", *shapes[i], ")."));
     }
   }
   return out_shape ? *out_shape : TensorListShape<>{{1}};

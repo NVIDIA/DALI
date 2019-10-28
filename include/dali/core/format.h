@@ -20,6 +20,9 @@
 
 namespace dali {
 
+struct no_delimiter {};
+inline std::ostream &operator<<(std::ostream &os, no_delimiter) { return os; }
+
 template <typename Delimiter>
 void print_delim(std::ostream &os, const Delimiter &delimiter) {
   // No-op
@@ -76,6 +79,14 @@ std::string make_string_delim(const Delimiter &) {
 template <typename... Args>
 std::string make_string(const Args &... args) {
   return make_string_delim(" ", args...);
+}
+
+/**
+ * @brief Prints args to a string, seperated by spaces
+ */
+template <typename... Args>
+std::string concat_str(const Args &... args) {
+  return make_string_delim(no_delimiter(), args...);
 }
 
 }  // namespace dali

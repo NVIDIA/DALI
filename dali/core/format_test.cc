@@ -22,6 +22,11 @@ TEST(MakeStringTest, default_delimiter) {
   ASSERT_EQ(str, "jeden 2 3");
 }
 
+TEST(MakeStringTest, concat_str) {
+  auto str = concat_str("jeden", 2, 3);
+  ASSERT_EQ(str, "jeden23");
+}
+
 
 TEST(MakeStringTest, custom_delimiter) {
   auto str = make_string_delim("a custom delimiter", "jeden", 2, 3);

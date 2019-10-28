@@ -181,8 +181,8 @@ class DLL_PUBLIC OperatorBase {
         bool is_valid_shape = shape.tensor_shape(0) == TensorShape<1>{batch_size_};
 
         DALI_ENFORCE(is_valid_shape,
-          make_string("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size_,
-          ") tensor list. Got: ", shape));
+          concat_str("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size_,
+                     ") tensor list. Got: ", shape));
 
         output.resize(batch_size_);
         auto *data = arg[0].template data<T>();
@@ -195,8 +195,8 @@ class DLL_PUBLIC OperatorBase {
                               is_uniform(shape) &&
                               shape.tensor_shape(0) == TensorShape<1>{1};
         DALI_ENFORCE(is_valid_shape,
-          make_string("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size_,
-          ") tensor list. Got: ", shape));
+          concat_str("`", argument_name, "` must be a 1xN or Nx1 (N = ", batch_size_,
+                     ") tensor list. Got: ", shape));
 
         output.resize(batch_size_);
         for (int i = 0; i < batch_size_; i++) {
