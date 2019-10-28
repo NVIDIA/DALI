@@ -62,7 +62,6 @@ inline TileCover GetTiledCover(const TensorListShape<> &shape, int tile_size,
   return std::make_tuple(descs, ranges);
 }
 
-
 /**
  * @brief Recurse over expression tree and return the only matching layout
  */
@@ -98,7 +97,6 @@ DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const workspace_t<Backen
   return result_layout;
 }
 
-
 /**
  * @brief Recurse over expression tree, fill the missing types of TensorInputs
  */
@@ -125,11 +123,6 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
   expr.SetTypeId(TypePromotion(NameToOp(func.GetFuncName()), make_span(types)));
   return expr.GetTypeId();
 }
-
-struct ExprImplTask {
-  ExprImplBase *impl;
-  ExprImplContext ctx;
-};
 
 template <typename Backend>
 inline void CreateExecutionTasks(std::vector<ExprImplTask> &order, const ExprNode &expr,
@@ -195,6 +188,20 @@ DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
   return func.GetShape();
 }
 
+inline void GetConstantNodes(ExprNode &expr, std::vector<ExprConstant *> &nodes) {
+  if (expr.GetNodeType() == NodeType::Constant) {
+    nodes.push_back(dynamic_cast<ExprConstant *>(&expr));
+    return;
+  }
+  if (expr.GetNodeType() == NodeType::Tensor) {
+    return;
+  }
+  auto &func = dynamic_cast<ExprFunc &>(expr);
+  for (int i = 0; i < func.GetSubexpressionCount(); i++) {
+    GetConstantNodes(func[i], nodes);
+  }
+}
+
 /**
  * @brief Arithmetic operator capable of executing expression tree of element-wise
  *        arithmetic operations.
@@ -229,6 +236,9 @@ class ArithmeticGenericOp : public Operator<Backend> {
     if (!types_layout_inferred_) {
       result_type_id_ = PropagateTypes<Backend>(*expr_, ws);
       result_layout_ = GetCommonLayout<Backend>(*expr_, ws);
+      std::vector<ExprConstant *> constant_nodes;
+      GetConstantNodes(*expr_, constant_nodes);
+      constant_storage_.Initialize(spec_, ws.has_stream() ? ws.stream() : 0, constant_nodes);
       types_layout_inferred_ = true;
     }
 
@@ -269,6 +279,8 @@ class ArithmeticGenericOp : public Operator<Backend> {
   std::vector<TileDesc> tile_cover_;
   std::vector<TileRange> tile_range_;
   std::vector<ExprImplTask> exec_order_;
+  std::vector<std::vector<ExtendedTileDesc>> tiles_per_task_;
+  ConstantStorage<Backend> constant_storage_;
   ExprImplCache cache_;
   // For CPU we limit the tile size to limit the sizes of intermediate buffers
   // For GPU it's better to execute more at one time.
