@@ -46,10 +46,11 @@ _dali_tf = _dali_tf_module.dali
 
 _dali_tf.__doc__ = _dali_tf.__doc__ + """
 
-    WARNING: 
-    -------
+    .. warning::
+
     Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
-    DALI due to insufficient memory.
+    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
+    differ based on your use case.
 """
 
 def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
@@ -230,11 +231,6 @@ else:
 
 DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13, 1.14, 1.15 and 2.0
 
-    WARNING: 
-    -------
-    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
-    DALI due to insufficient memory.
-
     Parameters
     ----------
     `pipeline` : `nvidia.dali.Pipeline` 
@@ -268,6 +264,16 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
         expected output shapes
     `dtypes`: `List` of `tf.DType` 
         expected output types
+
+    Returns
+    -------
+    `DALIDataset` object based on DALI pipeline and compatible with `tf.data.Dataset` API.
+
+    .. warning::
+    
+    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
+    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
+    differ based on your use case.
     """
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
