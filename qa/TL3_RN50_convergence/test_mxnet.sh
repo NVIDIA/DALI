@@ -5,6 +5,9 @@ min_perf=10000
 
 NUM_GPUS=`nvidia-smi -L | wc -l`
 
+# Fix deprecations, we need to fix that for the older FW containers version
+sed -i "s/nvJPEGDecoder/ImageDecoder/" /opt/mxnet/example/image-classification/common/dali.py
+
 python /opt/mxnet/example/image-classification/train_imagenet_runner -b 208 -n $NUM_GPUS --seed 42 2>&1 | tee dali.log
 
 cat dali.log  | grep -o "Validation-accuracy=0\.[0-9]*" > tmp2.log
