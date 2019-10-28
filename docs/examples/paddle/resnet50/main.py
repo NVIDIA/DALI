@@ -196,7 +196,9 @@ def main():
 
     pipe = HybridValPipe()
     pipe.build()
-    val_loader = DALIClassificationIterator(pipe, size=len(pipe))
+    val_loader = DALIClassificationIterator(pipe, size=len(pipe),
+                                            fill_last_batch=False,
+                                            last_batch_padded=True)
 
     place = fluid.CUDAPlace(FLAGS.device_id)
     exe = fluid.Executor(place)
