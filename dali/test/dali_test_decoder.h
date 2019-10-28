@@ -20,7 +20,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     // single input - encoded images
     // single output - decoded images
 
-    vector<Tensor<CPUBackend>> out(inputs[0]->ntensor());
+     TensorVector<CPUBackend> out(inputs[0]->ntensor());
 
     const TensorList<CPUBackend> &encoded_data = *inputs[0];
 

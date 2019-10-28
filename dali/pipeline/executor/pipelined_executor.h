@@ -100,28 +100,8 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
   Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
   std::vector<int> result = Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
   for (int stage = 0; stage < static_cast<int>(OpType::COUNT); stage++) {
-    if (static_cast<OpType>(stage) == OpType::SUPPORT) {
-      for (auto tid : stage_outputs_[stage]) {
-        auto &tensor = graph.Tensor(tid);
-        int consumers = tensor.consumers.size();
-        int cpu_consumers = 0, gpu_consumers = 0;
-        for (auto cons_edge : tensor.consumers) {
-          if (graph.Node(cons_edge.node).op_type == OpType::CPU) {
-            cpu_consumers++;
-          } else {
-            gpu_consumers++;
-          }
-        }
-
-        // We do not buffer if we do not touch GPU (SUPPORT is synchronous with CPU)
-        // otherwise we buffer for a pair of CPU x GPU
-        result[tid] = gpu_consumers == 0 ? 1 : stage_queue_depths_[static_cast<OpType>(stage)];
-      }
-
-    } else {
-      for (auto id : stage_outputs_[stage]) {
-        result[id] = stage_queue_depths_[static_cast<OpType>(stage)];
-      }
+    for (auto id : stage_outputs_[stage]) {
+      result[id] = stage_queue_depths_[static_cast<OpType>(stage)];
     }
   }
   return result;

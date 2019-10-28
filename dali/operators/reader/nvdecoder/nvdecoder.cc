@@ -45,10 +45,11 @@ NvDecoder::NvDecoder(int device_id,
                      DALIDataType dtype,
                      bool normalized,
                      int max_height,
-                     int max_width)
+                     int max_width,
+                     int additional_decode_surfaces)
     : device_id_(device_id), stream_(device_id, false, 0), codecpar_(codecpar),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
-      device_(), parser_(), decoder_(max_height, max_width),
+      device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
       time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),

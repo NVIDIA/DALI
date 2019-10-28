@@ -391,10 +391,6 @@ class DLL_PUBLIC Pipeline {
     } else if (device == "mixed") {
       edge.has_gpu = true;
       edge.has_contiguous = true;
-    } else if (device == "support") {
-      edge.has_cpu = true;
-      edge.is_support = true;
-      edge.has_contiguous = true;
     } else {
       DALI_FAIL("Invalid device argument \"" + device + "\". "
           "Valid options are \"cpu\", \"gpu\", \"mixed\" or \"support\"");

@@ -28,6 +28,21 @@ import argparse
 import random
 import numpy as np
 
+try:
+    from tensorflow.compat.v1 import GPUOptions
+    from tensorflow.compat.v1 import ConfigProto
+    from tensorflow.compat.v1 import Session
+except:
+    # Older TF versions don't have compat.v1 layer
+    from tensorflow import GPUOptions
+    from tensorflow import ConfigProto
+    from tensorflow import Session
+
+try:
+    tf.compat.v1.disable_eager_execution()
+except:
+    pass
+
 class _PrefillStagingAreasHook(tf.train.SessionRunHook):
     def after_create_session(self, session, coord):
         pass
@@ -207,8 +222,8 @@ def train(infer_func, params):
     nstep_per_epoch = num_training_samples // global_batch_size
 
     # Horovod: pin GPU to be used to process local rank (one GPU per process)
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.7)
-    config = tf.ConfigProto(gpu_options=gpu_options)
+    gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.7)
+    config = ConfigProto(gpu_options=gpu_options)
     #config.gpu_options.allow_growth = True
     config.gpu_options.visible_device_list = str(hvd.local_rank())
     config.gpu_options.force_gpu_compatible = True # Force pinned memory

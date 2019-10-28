@@ -31,8 +31,7 @@ class ArgValue {
   inline ArgValue(const ArgValue &other) { *this = other; }
   inline ArgValue(const std::string &name, const OpSpec &spec, ArgumentWorkspace *ws) {
     if (spec.HasTensorArgument(name)) {
-      tensor_list_ = &ws->ArgumentInput(name);
-      data_ = tensor_list_->data<T>();
+      tensor_vector_ = &ws->ArgumentInput(name);
     } else {
       value_ = spec.GetArgument<T>(name, ws);
     }
@@ -42,19 +41,18 @@ class ArgValue {
   inline ArgValue &operator=(const ArgValue &other) {
     gpu_.reset();
     value_  = other.value_;
-    tensor_list_ = other.tensor_list_;
-    data_   = other.data_;
+    tensor_vector_ = other.tensor_vector_;
     return *this;
   }
 
-  inline bool IsTensor() const { return data_ != nullptr; }
+  inline bool IsTensor() const { return tensor_vector_ != nullptr; }
 
   inline const T &operator[](Index index) {
     if (IsTensor()) {
 #if DALI_DEBUG
-      DALI_ENFORCE(index < tensor_list_->size());
+      DALI_ENFORCE(index < static_cast<Index>(tensor_vector_->ntensor()));
 #endif
-      return data_[index];
+      return (*tensor_vector_)[index].data<T>()[0];
     } else {
       return  value_;
     }
@@ -64,15 +62,14 @@ class ArgValue {
     DALI_ENFORCE(IsTensor());
     if (!gpu_) {
       gpu_.reset(new TensorList<GPUBackend>());
-      gpu_->Copy(*tensor_list_, stream);
+      gpu_->Copy(*tensor_vector_, stream);
     }
     return gpu_.get();
   }
 
  private:
   T value_;
-  const T *data_ = nullptr;
-  const TensorList<CPUBackend> *tensor_list_ = nullptr;
+  const TensorVector<CPUBackend> *tensor_vector_ = nullptr;
   std::unique_ptr<TensorList<GPUBackend>> gpu_;
 };
 

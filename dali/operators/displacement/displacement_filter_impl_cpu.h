@@ -115,7 +115,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
 
     auto &input = ws.Input<CPUBackend>(0);
 
-    if (!has_mask_ || mask_->template data<bool>()[ws.data_idx()]) {
+    if (!has_mask_ || (*mask_)[ws.data_idx()].data<bool>()[0]) {
       switch (interp_type_) {
         case DALI_INTERP_NN:
           if (IsType<float>(input.type())) {
@@ -184,7 +184,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   float fill_value_;
 
   bool has_mask_;
-  const TensorList<CPUBackend> *mask_;
+  const TensorVector<CPUBackend> *mask_;
 };
 
 }  // namespace dali

@@ -368,11 +368,11 @@ TYPED_TEST(TensorTest, TestShareData) {
 }
 
 TYPED_TEST(TensorTest, TestCopyToTensorList) {
-  std::vector<Tensor<TypeParam>> tensors(16);
+  TensorVector<TypeParam> tensors(16);
   for (auto& t : tensors) {
     auto shape = this->GetRandShape(4, 4);
-    t.Resize(shape);
-    t.template mutable_data<float>();
+    t->Resize(shape);
+    t->template mutable_data<float>();
   }
 
   TensorList<TypeParam> tl;
@@ -390,7 +390,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
 }
 
 TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
-  std::vector<Tensor<TypeParam>> tensors(16);
+  TensorVector<TypeParam> tensors(16);
   // Empty tensors
   TensorList<TypeParam> tl;
   tl.template mutable_data<float>();

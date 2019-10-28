@@ -19,7 +19,6 @@
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/pipeline/workspace/mixed_workspace.h"
-#include "dali/pipeline/workspace/support_workspace.h"
 
 namespace dali {
 
@@ -42,11 +41,6 @@ struct op_type_to_workspace_type<OpType::GPU> {
 template <>
 struct op_type_to_workspace_type<OpType::MIXED> {
   using type = MixedWorkspace;
-};
-
-template <>
-struct op_type_to_workspace_type<OpType::SUPPORT> {
-  using type = SupportWorkspace;
 };
 
 template <OpType op_type>

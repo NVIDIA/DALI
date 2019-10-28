@@ -22,10 +22,10 @@
 
 namespace dali {
 
-class CoinFlip : public Operator<SupportBackend> {
+class CoinFlip : public Operator<CPUBackend> {
  public:
   inline explicit CoinFlip(const OpSpec &spec) :
-    Operator<SupportBackend>(spec),
+    Operator<CPUBackend>(spec),
     dis_(spec.GetArgument<float>("probability")),
     rng_(spec.GetArgument<int64_t>("seed")) {}
 
@@ -34,21 +34,21 @@ class CoinFlip : public Operator<SupportBackend> {
   DISABLE_COPY_MOVE_ASSIGN(CoinFlip);
 
   USE_OPERATOR_MEMBERS();
-  using Operator<SupportBackend>::RunImpl;
+  using Operator<CPUBackend>::RunImpl;
 
  protected:
   bool CanInferOutputs() const override {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const SupportWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
     output_desc[0].shape = uniform_list_shape(batch_size_, {1});
-    output_desc[0].type = TypeInfo::Create<int>();
+    output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT32);
     return true;
   }
 
-  void RunImpl(Workspace<SupportBackend> &ws) override;
+  void RunImpl(HostWorkspace &ws) override;
 
  private:
   std::bernoulli_distribution dis_;

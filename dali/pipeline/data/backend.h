@@ -51,12 +51,6 @@ class DLL_PUBLIC GPUBackend final {
 class DLL_PUBLIC MixedBackend final {};
 
 /**
- * @brief Dummy Backend class to differentiate
- * Support ops.
- */
-class DLL_PUBLIC SupportBackend final {};
-
-/**
  * @brief Provides access to CPU allocator and other cpu meta-data
  */
 class DLL_PUBLIC CPUBackend final {

@@ -80,7 +80,8 @@ class NvDecoder {
             DALIDataType dtype,
             bool normalized,
             int max_height,
-            int max_width);
+            int max_width,
+            int additional_decode_surfaces);
 
   NvDecoder(const NvDecoder&) = default;
   NvDecoder(NvDecoder&&) = default;

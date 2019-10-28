@@ -19,16 +19,15 @@
 
 namespace dali {
 
-void Uniform::RunImpl(SupportWorkspace &ws) {
-  auto &output = ws.Output<CPUBackend>(0);
-  float *out_data = output.template mutable_data<float>();
+void Uniform::RunImpl(HostWorkspace &ws) {
+  auto &output = ws.OutputRef<CPUBackend>(0);
 
   for (int i = 0; i < batch_size_; ++i) {
-    out_data[i] = dis_(rng_);
+    output[i].mutable_data<float>()[0] = dis_(rng_);
   }
 }
 
-DALI_REGISTER_OPERATOR(Uniform, Uniform, Support);
+DALI_REGISTER_OPERATOR(Uniform, Uniform, CPU);
 
 DALI_SCHEMA(Uniform)
   .DocStr("Produce tensor filled with uniformly distributed random numbers.")

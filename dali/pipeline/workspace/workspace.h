@@ -24,6 +24,7 @@
 #include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_vector.h"
 
 namespace dali {
 
@@ -50,25 +51,33 @@ class ArgumentWorkspace {
     argument_inputs_.clear();
   }
 
-  void AddArgumentInput(shared_ptr<TensorList<CPUBackend>> input, const std::string &arg_name) {
-    argument_inputs_[arg_name] = std::move(input);
+  void AddArgumentInput(const std::string &arg_name, shared_ptr<TensorVector<CPUBackend>> input) {
+    argument_inputs_[arg_name] = { std::move(input), false };
   }
 
-  void SetArgumentInput(shared_ptr<TensorList<CPUBackend>> input, const std::string &arg_name) {
-    DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
-        "Argument \"" + arg_name + "\" not found.");
-    argument_inputs_[arg_name] = std::move(input);
+  void AddArgumentInput(const std::string &arg_name, shared_ptr<TensorList<CPUBackend>> input) {
+    argument_inputs_[arg_name] = {
+      std::make_shared<TensorVector<CPUBackend>>(std::move(input)),
+      true
+    };
   }
 
-  const TensorList<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
-    DALI_ENFORCE(argument_inputs_.find(arg_name) != argument_inputs_.end(),
-        "Argument \"" + arg_name + "\" not found.");
-    return *(argument_inputs_.at(arg_name));
+  const TensorVector<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
+    auto it = argument_inputs_.find(arg_name);
+    DALI_ENFORCE(it != argument_inputs_.end(), "Argument \"" + arg_name + "\" not found.");
+    if (it->second.should_update)
+      it->second.tvec->UpdateViews();
+    return *it->second.tvec;
   }
 
  protected:
+  struct ArgumentInputDesc {
+    shared_ptr<TensorVector<CPUBackend>> tvec;
+    bool should_update = false;
+  };
+
   // Argument inputs
-  std::unordered_map<std::string, shared_ptr<TensorList<CPUBackend>>> argument_inputs_;
+  std::unordered_map<std::string, ArgumentInputDesc> argument_inputs_;
 };
 
 /**

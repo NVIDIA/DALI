@@ -17,6 +17,7 @@
 
 #include <cuda_runtime_api.h>
 #include <atomic>
+#include <cassert>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -74,7 +75,7 @@ struct UniformQueuePolicy {
   }
 
   QueueIdxs AcquireIdxs(OpType stage) {
-    if (stage == OpType::SUPPORT) {
+    if (!HasPreviousStage(stage)) {
       // Block until there is a free buffer to use
       std::unique_lock<std::mutex> lock(free_mutex_);
       free_cond_.wait(lock, [stage, this]() {
@@ -92,8 +93,10 @@ struct UniformQueuePolicy {
     if (stage_work_stop_[static_cast<int>(stage)]) {
       return QueueIdxs{-1};
     }
-    auto queue_idx = stage_work_queue_[static_cast<int>(stage)].front();
-    stage_work_queue_[static_cast<int>(stage)].pop();
+    auto &queue = stage_work_queue_[static_cast<int>(stage)];
+    assert(!queue.empty());
+    auto queue_idx = queue.front();
+    queue.pop();
     return QueueIdxs{queue_idx};
   }
 
@@ -109,8 +112,9 @@ struct UniformQueuePolicy {
   }
 
   bool AreValid(QueueIdxs idxs) {
-    return idxs[OpType::SUPPORT] != kInvalidIdx && idxs[OpType::CPU] != kInvalidIdx &&
-           idxs[OpType::MIXED] != kInvalidIdx && idxs[OpType::GPU] != kInvalidIdx;
+    return idxs[OpType::CPU] != kInvalidIdx &&
+           idxs[OpType::MIXED] != kInvalidIdx &&
+           idxs[OpType::GPU] != kInvalidIdx;
   }
 
   void QueueOutputIdxs(QueueIdxs idxs, cudaStream_t = 0) {
@@ -188,7 +192,7 @@ struct UniformQueuePolicy {
   // We use a dedicated stop flag for every mutex & condition_varialbe pair,
   // so when using them in cond_var predicate,
   // we know the changes are propagated properly and we won't miss a notify.
-  std::array<bool, kOpCount> stage_work_stop_ = {{false, false, false, false}};
+  std::array<bool, kOpCount> stage_work_stop_ = {{false, false, false}};
   // Used in IsStopSignaled with atomic access, an with mutex for ready_cond_
   std::atomic<bool> ready_stop_ = {false};
 };
@@ -215,7 +219,6 @@ struct SeparateQueuePolicy {
   static StageQueues GetQueueSizes(QueueSizes init_sizes) {
     StageQueues result;
      // For non-uniform case we buffer for CPU x GPU pair.
-    result[OpType::SUPPORT] = init_sizes.cpu_size * init_sizes.gpu_size;
     result[OpType::CPU] = init_sizes.cpu_size;
     // Mixed and GPU are bound together due to being outputs
     result[OpType::MIXED] = init_sizes.gpu_size;
@@ -229,7 +232,6 @@ struct SeparateQueuePolicy {
         stage_free_[stage].push(i);
       }
     }
-    support_release_commands_.resize(stage_queue_depths[OpType::SUPPORT]);
     cpu_release_commands_.resize(stage_queue_depths[OpType::CPU]);
   }
 
@@ -289,8 +291,9 @@ struct SeparateQueuePolicy {
   }
 
   bool AreValid(QueueIdxs idxs) {
-    return idxs[OpType::SUPPORT] != kInvalidIdx && idxs[OpType::CPU] != kInvalidIdx &&
-           idxs[OpType::MIXED] != kInvalidIdx && idxs[OpType::GPU] != kInvalidIdx;
+    return idxs[OpType::CPU] != kInvalidIdx &&
+           idxs[OpType::MIXED] != kInvalidIdx &&
+           idxs[OpType::GPU] != kInvalidIdx;
   }
 
 
@@ -300,11 +303,6 @@ struct SeparateQueuePolicy {
       ready_output_queue_.push({idxs[OpType::MIXED], idxs[OpType::GPU]});
     }
     ready_output_cv_.notify_all();
-
-    // In case of GPU we release also the Support Op
-    auto &command = support_release_commands_[idxs[OpType::SUPPORT]];
-    command = detail::ReleaseCommand{this, OpType::SUPPORT, idxs[OpType::SUPPORT]};
-    cudaStreamAddCallback(gpu_op_stream, &detail::release_callback, &command, 0);
   }
 
   OutputIdxs UseOutputIdxs() {
@@ -397,8 +395,8 @@ struct SeparateQueuePolicy {
   // We use a dedicated stop flag for every mutex & condition_varialbe pair,
   // so when using them in cond_var predicate,
   // we know the changes are propagated properly and we won't miss a notify.
-  std::array<bool, kOpCount> stage_free_stop_ = {{false, false, false, false}};
-  std::array<bool, kOpCount> stage_ready_stop_ = {{false, false, false, false}};
+  std::array<bool, kOpCount> stage_free_stop_ = {{false, false, false}};
+  std::array<bool, kOpCount> stage_ready_stop_ = {{false, false, false}};
   // Used in IsStopSignaled with atomic access, an with mutex for ready_output_cv_
   std::atomic<bool> ready_stop_ = {false};
   std::array<std::condition_variable, kOpCount> stage_free_cv_;
