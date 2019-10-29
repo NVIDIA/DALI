@@ -514,6 +514,11 @@ DALI_HOST_DEV ivec<N> round_int(const vec<N> &a) {
   IMPL_VEC_ELEMENTWISE(round_int(a[i]));
 }
 
+template <int N>
+DALI_HOST_DEV ivec<N> floor_int(const vec<N> &a) {
+  IMPL_VEC_ELEMENTWISE(floor_int(a[i]));
+}
+
 template <typename T, int size0, int size1>
 DALI_HOST_DEV DALI_FORCEINLINE
 constexpr auto cat(const vec<size0, T> &v0, const vec<size1, T> &v1) {

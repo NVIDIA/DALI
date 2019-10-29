@@ -32,7 +32,7 @@ class JitterAugment {
         nDegree_(spec.GetArgument<int>("nDegree")),
         rnd_(spec.GetArgument<int64_t>("seed"), 128*256) {}
 
-  DALI_HOST_DEV Point<int> operator()(int y, int x, int c, int H, int W, int C) {
+  DALI_HOST_DEV ivec2 operator()(int y, int x, int c, int H, int W, int C) {
     // JITTER_PREAMBLE
     const uint16_t degr = nDegree_;
     const uint16_t nHalf = degr/2;

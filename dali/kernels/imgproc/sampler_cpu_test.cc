@@ -26,7 +26,7 @@ TEST(SamplerCPU, NN) {
   SamplerTestData sd;
   auto surf = sd.GetSurface(false);
   ASSERT_EQ(surf.channels, 3);
-  Sampler<DALI_INTERP_NN, uint8_t> sampler(surf);
+  Sampler2D<DALI_INTERP_NN, uint8_t> sampler(surf);
 
   Pixel border = { 50, 100, 200 };
 
@@ -44,11 +44,11 @@ TEST(SamplerCPU, NN) {
       }
       Pixel pixel;
 
-      sampler(pixel.data(), x, y, border.data());
+      sampler(pixel.data(), vec2(x, y), border.data());
       EXPECT_EQ(pixel, ref) << " mismatch at (" << x << ",  " << y << ")";
       for (int c = 0; c < surf.channels; c++) {
-        EXPECT_EQ(sampler.at(ix, iy, c, border.data()), ref[c]);
-        EXPECT_EQ(sampler.at(x,  y,  c, border.data()), ref[c]);
+        EXPECT_EQ(sampler.at(ivec2(ix, iy), c, border.data()), ref[c]);
+        EXPECT_EQ(sampler.at(vec2(x,  y),  c, border.data()), ref[c]);
       }
     }
   }
@@ -57,7 +57,7 @@ TEST(SamplerCPU, NN) {
 TEST(SamplerCPU, Linear) {
   SamplerTestData sd;
   auto surf = sd.GetSurface(false);
-  Sampler<DALI_INTERP_LINEAR, uint8_t> sampler(surf);
+  Sampler2D<DALI_INTERP_LINEAR, uint8_t> sampler(surf);
 
   Pixel border = { 10, 10, 10 };
   ASSERT_EQ(sampler.surface.channels, 3);
@@ -87,7 +87,7 @@ TEST(SamplerCPU, Linear) {
       float y = iy + 0.5f;
 
       Pixel pixel = { 0, 0, 0 };
-      sampler(pixel.data(), x, y, border.data());
+      sampler(pixel.data(), vec2(x, y), border.data());
       EXPECT_EQ(pixel, ref) << " mismatch at (" << x << ",  " << y << ")";
     }
   }
@@ -123,25 +123,25 @@ TEST(SamplerCPU, Linear) {
 
       Pixel pixel = { 0, 0, 0 };
       PixelF pixelF = { 0, 0, 0 };
-      sampler(pixel.data(), x, y, border.data());
+      sampler(pixel.data(), vec2(x, y), border.data());
       for (int c = 0; c < surf.channels; c++) {
         EXPECT_NEAR(pixel[c], ref[c], eps)
           << " mismatch at (x" << x << ", " << y << ")[" << c << "] when sampling all channels";
       }
 
       for (int c = 0; c < surf.channels; c++) {
-        EXPECT_NEAR(sampler.at<uint8_t>(x, y, c, border.data()), ref[c], eps)
+        EXPECT_NEAR(sampler.at<uint8_t>(vec2(x, y), c, border.data()), ref[c], eps)
          << " mismatch at (" << x << ",  " << y << ")[" << c << "] when sampling single channel";
       }
 
-      sampler(pixelF.data(), x, y, border.data());
+      sampler(pixelF.data(), vec2(x, y), border.data());
       for (int c = 0; c < surf.channels; c++) {
         EXPECT_NEAR(pixelF[c], ref[c], epsF)
           << " mismatch at (x" << x << ", " << y << ")[" << c << "] when sampling all channels";
       }
 
       for (int c = 0; c < surf.channels; c++) {
-        EXPECT_NEAR(sampler.at<float>(x, y, c, border.data()), ref[c], epsF)
+        EXPECT_NEAR(sampler.at<float>(vec2(x, y), c, border.data()), ref[c], epsF)
          << " mismatch at (" << x << ",  " << y << ")[" << c << "] when sampling single channel";
       }
     }

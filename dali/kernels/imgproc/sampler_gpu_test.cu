@@ -24,7 +24,7 @@ using PixelF = std::array<float, 3>;
 
 template <typename Out, DALIInterpType interp, int MaxChannels = 8, typename In>
 __global__ void RunSampler(
-      Surface2D<Out> out, Sampler<interp, In> sampler, In border_value,
+      Surface2D<Out> out, Sampler2D<interp, In> sampler, In border_value,
       float dx, float dy, float x0, float y0) {
   int x = threadIdx.x + blockIdx.x * blockDim.x;
   int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -36,19 +36,19 @@ __global__ void RunSampler(
   float fx = x * dx + x0;
   float fy = y * dy + y0;
   Out tmp[MaxChannels];
-  sampler(tmp, fx, fy, border);
+  sampler(tmp, vec2(fx, fy), border);
   for (int c = 0; c < out.channels; c++)
     out(x, y, c) = tmp[c];
 }
 
-TEST(SamplerGPU, NN) {
+TEST(Sampler2DGPU, NN) {
   SamplerTestData sd;
   auto surf_cpu = sd.GetSurface(false);
   auto surf_gpu = sd.GetSurface(true);
 
   ASSERT_EQ(surf_cpu.channels, 3);
   ASSERT_EQ(surf_gpu.channels, 3);
-  Sampler<DALI_INTERP_NN, uint8_t> sampler(surf_gpu);
+  Sampler2D<DALI_INTERP_NN, uint8_t> sampler(surf_gpu);
 
   uint8_t border_value = 50;
   Pixel border = { border_value, border_value, border_value };
@@ -96,15 +96,15 @@ TEST(SamplerGPU, NN) {
   }
 }
 
-TEST(SamplerGPU, Linear) {
+TEST(Sampler2DGPU, Linear) {
   SamplerTestData sd;
   auto surf_cpu = sd.GetSurface(false);
   auto surf_gpu = sd.GetSurface(true);
 
   ASSERT_EQ(surf_cpu.channels, 3);
   ASSERT_EQ(surf_gpu.channels, 3);
-  Sampler<DALI_INTERP_LINEAR, uint8_t> sampler(surf_gpu);
-  Sampler<DALI_INTERP_LINEAR, uint8_t> sampler_cpu(surf_cpu);
+  Sampler2D<DALI_INTERP_LINEAR, uint8_t> sampler(surf_gpu);
+  Sampler2D<DALI_INTERP_LINEAR, uint8_t> sampler_cpu(surf_cpu);
 
   uint8_t border_value = 50;
   Pixel border = { border_value, border_value, border_value };
@@ -137,7 +137,7 @@ TEST(SamplerGPU, Linear) {
       float x = ox * dx + x0;
 
       PixelF ref;
-      sampler_cpu(ref.data(), x, y, border.data());
+      sampler_cpu(ref.data(), vec2(x, y), border.data());
 
       Pixel pixel;
       for (int c = 0; c< surf_cpu.channels; c++) {
