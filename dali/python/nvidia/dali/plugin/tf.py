@@ -17,6 +17,7 @@ import os
 import glob
 from collections import Iterable
 import re
+from distutils.version import StrictVersion
 
 
 _tf_plugins = glob.glob(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'libdali_tf*.so'))
@@ -42,6 +43,15 @@ else:
   raise first_error or Exception('No matching DALI plugin found for installed TensorFlow version')
 
 _dali_tf = _dali_tf_module.dali
+
+_dali_tf.__doc__ = _dali_tf.__doc__ + """
+
+    .. warning::
+
+    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
+    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
+    differ based on your use case.
+"""
 
 def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
                         shapes = [], dtypes = [], batch_size = -1, prefetch_queue_depth = 2, **kwargs):
@@ -117,11 +127,11 @@ def DALIRawIterator():
     return _dali_tf
 
 
-def _get_tf_minor_version():
-  return tf.__version__.split('.')[1]
+def _get_tf_version():
+  return StrictVersion(tf.__version__)
 
 
-if _get_tf_minor_version() in {'13', '14'}:
+if _get_tf_version() >= StrictVersion('1.13'):
   from tensorflow.python.framework import ops
   from tensorflow.python.data.ops import dataset_ops
   from tensorflow.python.data.util import structure
@@ -160,12 +170,17 @@ if _get_tf_minor_version() in {'13', '14'}:
       self._structure = structure.convert_legacy_structure(
         self._dtypes, self._shapes, output_classes)
 
-      if _get_tf_minor_version() == '14':
+      if _get_tf_version() >= StrictVersion('1.14'):
         super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
-      elif _get_tf_minor_version() == '13':
-        super(_DALIDatasetV2, self).__init__()
       else:
-        raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14')
+        super(_DALIDatasetV2, self).__init__()
+
+
+    # This function should not be removed or refactored.
+    # It is needed for TF 1.15 and 2.0
+    @property
+    def element_spec(self):
+      return self._structure
 
 
     @property
@@ -189,11 +204,14 @@ if _get_tf_minor_version() in {'13', '14'}:
         dtypes = self._dtypes)
 
 
-  class DALIDataset(dataset_ops.DatasetV1Adapter):
-    @functools.wraps(_DALIDatasetV2.__init__)
-    def __init__(self, **kwargs):
-      wrapped = _DALIDatasetV2(**kwargs)
-      super(DALIDataset, self).__init__(wrapped)
+  if _get_tf_version() < StrictVersion('2.0'):
+    class DALIDataset(dataset_ops.DatasetV1Adapter):
+      @functools.wraps(_DALIDatasetV2.__init__)
+      def __init__(self, **kwargs):
+        wrapped = _DALIDatasetV2(**kwargs)
+        super(DALIDataset, self).__init__(wrapped)
+  else:
+    DALIDataset = _DALIDatasetV2
 
 else:
   class DALIDataset:
@@ -209,9 +227,15 @@ else:
       gpu_prefetch_queue_depth = 2,
       shapes = [], 
       dtypes = []):
-      raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.')
+      raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.  DALIDataset supports versions: 1.13, 1.14, 1.15, 2.0')
 
-DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13 and 1.14
+DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13, 1.14, 1.15 and 2.0
+
+
+    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
+    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
+    differ based on your use case.
+
 
     Parameters
     ----------
@@ -246,6 +270,11 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
         expected output shapes
     `dtypes`: `List` of `tf.DType` 
         expected output types
+
+    Returns
+    -------
+    `DALIDataset` object based on DALI pipeline and compatible with `tf.data.Dataset` API.
+
     """
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
