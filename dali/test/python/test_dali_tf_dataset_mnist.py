@@ -228,21 +228,29 @@ def clear_checkpoints():
 def _test_estimators_single_device(model, device='cpu', device_id=0):
     skip_for_incompatible_tf()
 
-    with tf.device('/{0}:{1}'.format(device, device_id)):
-        def train_fn():
+    def train_fn():
+        with tf.device('/{0}:{1}'.format(device, device_id)):
             return _get_train_dataset(device, device_id).map(
                 lambda features, labels: ({'images': features}, labels))
 
-        model.train(input_fn=train_fn, steps=epochs * iterations)
+    model.train(input_fn=train_fn, steps=epochs * iterations)
 
-        evaluation = model.evaluate(
-            input_fn=train_fn,
-            steps=iterations)
-        final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
-        print('Final accuracy: ', final_accuracy)
+    def test_fn():
+        return _get_train_dataset(device, device_id).map(
+            lambda features, labels: ({'images': features}, labels))
 
-        assert final_accuracy > target
+    evaluation = model.evaluate(
+        input_fn=test_fn,
+        steps=iterations)
+    final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
+    print('Final accuracy: ', final_accuracy)
 
+    assert final_accuracy > target
+
+def _run_config(device='cpu', device_id=0):
+    return tf.estimator.RunConfig(
+        model_dir='/tmp/tensorflow-checkpoints',
+        device_fn=lambda op: '/{0}:{1}'.format(device, device_id))
 
 def _test_estimators_classifier_single_device(device='cpu', device_id=0):
     feature_columns = [tf.feature_column.numeric_column(
@@ -253,15 +261,14 @@ def _test_estimators_classifier_single_device(device='cpu', device_id=0):
         hidden_units=[hidden_size],
         n_classes=labels_size,
         dropout=dropout,
-        model_dir='/tmp/tensorflow-checkpoints',
-        optimizer=Adam())
+        config=_run_config(device, device_id),
+        optimizer=Adam)
 
     _test_estimators_single_device(model, device, device_id)
 
 
 @with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_single_gpu():
-
     _test_estimators_classifier_single_device('gpu', 0)
 
 
@@ -276,8 +283,13 @@ def test_estimators_single_cpu():
 
 
 def _test_estimators_wrapping_keras_single_device(device='cpu', device_id=0):
+    with tf.device('/{0}:{1}'.format(device, device_id)):
+        keras_model = _keras_model()
+    model = tf.keras.estimator.model_to_estimator(
+        keras_model=keras_model,
+        config=_run_config(device, device_id))
     _test_estimators_single_device(
-        tf.keras.estimator.model_to_estimator(keras_model=_keras_model()),
+        model,
         device,
         device_id)
 
@@ -295,3 +307,41 @@ def test_estimators_wrapping_keras_single_other_gpu():
 @with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_wrapping_keras_single_cpu():
     _test_estimators_wrapping_keras_single_device('cpu', 0)
+
+
+@with_setup(clear_checkpoints, clear_checkpoints)
+def test_estimators_multi_gpu():
+    skip_for_incompatible_tf()
+
+    mirrored_strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
+
+    def train_fn(input_context):
+        return _get_train_dataset('cpu', 0).map(
+            lambda features, labels: ({'images': features}, labels))
+
+    
+    config = tf.estimator.RunConfig(
+        model_dir='/tmp/tensorflow-checkpoints',
+        train_distribute=mirrored_strategy,
+        eval_distribute=mirrored_strategy)
+
+    feature_columns = [tf.feature_column.numeric_column(
+        "images", shape=[image_size, image_size])]
+
+    model = tf.estimator.DNNClassifier(
+        feature_columns=feature_columns,
+        hidden_units=[hidden_size],
+        n_classes=labels_size,
+        dropout=dropout,
+        optimizer=Adam,
+        config = config)
+
+    model.train(input_fn=train_fn, steps=epochs * iterations)
+
+    evaluation = model.evaluate(
+        input_fn=train_fn,
+        steps=iterations)
+    final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
+    print('Final accuracy: ', final_accuracy)
+
+    assert final_accuracy > target

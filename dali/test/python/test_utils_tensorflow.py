@@ -33,6 +33,12 @@ def num_available_gpus():
         raise RuntimeError('Unsupported number of GPUs. This test can run on: 1, 2, 4, 8 GPUs.')
     return num_gpus
 
+def available_gpus():
+    devices = []
+    for device_id in range(num_available_gpus()):
+        devices.append('/gpu:{0}'.format(device_id))
+    return devices
+
 
 def dataset_options():
     options = tf.data.Options()
