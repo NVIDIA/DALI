@@ -54,6 +54,7 @@ class HybridTrainPipe(Pipeline):
             mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
             std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
         self.coin = ops.CoinFlip(probability=0.5)
+        self.to_int64 = ops.Cast(dtype=types.INT64, device="gpu")
 
     def define_graph(self):
         rng = self.coin()
@@ -61,7 +62,7 @@ class HybridTrainPipe(Pipeline):
         images = self.decode(jpegs)
         images = self.res(images)
         output = self.cmnp(images.gpu(), mirror=rng)
-        return [output, labels]
+        return [output, self.to_int64(labels.gpu())]
 
     def __len__(self):
         return self.epoch_size("Reader")
@@ -90,13 +91,14 @@ class HybridValPipe(Pipeline):
             image_type=types.RGB,
             mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
             std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        self.to_int64 = ops.Cast(dtype=types.INT64, device="gpu")
 
     def define_graph(self):
         jpegs, labels = self.input(name="Reader")
         images = self.decode(jpegs)
         images = self.res(images)
         output = self.cmnp(images)
-        return [output, labels]
+        return [output, self.to_int64(labels.gpu())]
 
     def __len__(self):
         return self.epoch_size("Reader")
@@ -125,7 +127,6 @@ def build():
     label = fluid.layers.data(name='label', shape=[1], dtype='int32')
 
     logits = model(image)
-    label = fluid.layers.cast(label, 'int64')
     loss, pred = fluid.layers.softmax_with_cross_entropy(
         logits, label, return_softmax=True)
     avg_loss = fluid.layers.mean(x=loss)
@@ -151,7 +152,7 @@ def run(exe, prog, fetch_list, loader, epoch):
         data_time.update(time.time() - end)
 
         loss, prec1, prec5 = exe.run(
-            prog, feed=batch[0], fetch_list=fetch_list)
+            prog, feed=batch, fetch_list=fetch_list)
         prec5 = np.mean(prec5)
         loss = np.mean(loss)
         prec1 = np.mean(prec1)
@@ -194,11 +195,12 @@ def main():
     sample_per_shard = len(pipe) // FLAGS.world_size
     train_loader = DALIClassificationIterator(pipe, size=sample_per_shard)
 
-    pipe = HybridValPipe()
-    pipe.build()
-    val_loader = DALIClassificationIterator(pipe, size=len(pipe),
-                                            fill_last_batch=False,
-                                            last_batch_padded=True)
+    if FLAGS.local_rank == 0:
+        pipe = HybridValPipe()
+        pipe.build()
+        val_loader = DALIClassificationIterator(pipe, size=len(pipe),
+                                                fill_last_batch=False,
+                                                last_batch_padded=True)
 
     place = fluid.CUDAPlace(FLAGS.device_id)
     exe = fluid.Executor(place)
