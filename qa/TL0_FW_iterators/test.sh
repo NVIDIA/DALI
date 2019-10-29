@@ -12,7 +12,7 @@ do_once() {
 }
 
 test_body() {
-    for fw in "mxnet" "pytorch" "tf" "mxnet"; do
+    for fw in "mxnet" "pytorch" "tf" "paddle"; do
         python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
             --workers 3 --prefetch 2 -i 100 --epochs 2
         python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
