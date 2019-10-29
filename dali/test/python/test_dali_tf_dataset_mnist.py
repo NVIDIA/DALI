@@ -270,15 +270,14 @@ def _test_estimators_wrapping_keras_single_device(device='cpu', device_id=0):
 
 @with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_wrapping_keras_single_gpu():
-
-    _test_estimators_classifier_single_device('gpu', 0)
+    _test_estimators_wrapping_keras_single_device('gpu', 0)
 
 
 @with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_wrapping_keras_single_other_gpu():
-    _test_estimators_classifier_single_device('gpu', 1)
+    _test_estimators_wrapping_keras_single_device('gpu', 1)
 
 
 @with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_wrapping_keras_single_cpu():
-    _test_estimators_classifier_single_device('cpu', 0)
+    _test_estimators_wrapping_keras_single_device('cpu', 0)
