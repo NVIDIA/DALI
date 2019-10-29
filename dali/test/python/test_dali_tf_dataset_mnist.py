@@ -29,11 +29,28 @@ from nose import SkipTest
 from nose.tools import raises, with_setup
 
 try:
+    from tensorflow.compat.v1 import Session
+    from tensorflow.compat.v1 import placeholder
+    from tensorflow.compat.v1 import truncated_normal
+except:
+    # Older TF versions don't have compat.v1 layer
+    from tensorflow import Session
+    from tensorflow import placeholder
+    from tensorflow import truncated_normal
+
+try:
+    from tensorflow.train import AdamOptimizer as Adam
+    from tensorflow.train import AdamOptimizer as AdamOptimizer
+except:
+    from tensorflow.compat.v1.keras.optimizers import Adam
+    from tensorflow.compat.v1.train import AdamOptimizer
+
+try:
     tf.compat.v1.disable_eager_execution()
 except:
     pass
 
-target = 0.8
+target = 0.9
 batch_size = 32
 dropout = 0.2
 image_size = 28
@@ -104,19 +121,19 @@ def _test_graph_single_device(device='cpu', device_id=0):
 
         iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
         images, labels = iterator.get_next()
-        keep_prob = tf.placeholder(tf.float32)
+        keep_prob = placeholder(tf.float32)
 
         images = tf.reshape(images, [batch_size, image_size*image_size])
         labels = tf.reshape(
             tf.one_hot(labels, labels_size),
             [batch_size, labels_size])
-        W_h = tf.Variable(tf.truncated_normal(
+        W_h = tf.Variable(truncated_normal(
             [image_size*image_size, hidden_size], stddev=0.1))
         b_h = tf.Variable(tf.constant(0.1, shape=[hidden_size]))
 
         hidden = tf.nn.relu(tf.matmul(images, W_h) + b_h)
 
-        W = tf.Variable(tf.truncated_normal(
+        W = tf.Variable(truncated_normal(
             [hidden_size, labels_size], stddev=0.1))
         b = tf.Variable(tf.constant(0.1, shape=[labels_size]))
 
@@ -125,12 +142,12 @@ def _test_graph_single_device(device='cpu', device_id=0):
         loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
             labels=labels, logits=output))
 
-        train_step = tf.train.AdamOptimizer().minimize(loss)
+        train_step = AdamOptimizer().minimize(loss)
         correct_prediction = tf.equal(
             tf.argmax(output, 1), tf.argmax(labels, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-    with tf.compat.v1.Session() as sess:
+    with Session() as sess:
         sess.run(
             [tf.compat.v1.global_variables_initializer(), iterator.initializer])
         for i in range(epochs * iterations):
@@ -170,7 +187,7 @@ def _keras_model():
         tf.keras.layers.Dense(labels_size, activation='softmax')
     ])
     model.compile(
-        optimizer='adam',
+        optimizer=Adam(),
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy'])
 
@@ -240,7 +257,7 @@ def _test_estimators_classifier_single_device(device='cpu', device_id=0):
         n_classes=labels_size,
         dropout=dropout,
         model_dir='/tmp/tensorflow-checkpoints',
-        optimizer='Adam')
+        optimizer=Adam())
 
     _test_estimators_single_device(model, device, device_id)
 
