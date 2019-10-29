@@ -108,14 +108,14 @@ class LinearTransformationGpu {
                  "Provide ROIs either for all or none input tensors");
     for (int i = 0; i < in.size(); i++) {
       DALI_ENFORCE(in[i].shape.shape.back() == channels_in,
-                   make_string("Unexpected number of channels at index", i,
-                               "in InListGPU. Number of channels in every InListGPU has to match"
+                   make_string("Unexpected number of channels at index ", i,
+                               " in InListGPU. Number of channels in every InListGPU has to match"
                                " the number of channels, that the kernel is instantiated with"));
     }
     for (int i = 0; i < rois.size(); i++) {
       DALI_ENFORCE(all_coords(rois[i].hi >= rois[i].lo),
-                   make_string("Found invalid ROI at index", i,
-                               "ROI doesn't follow {lo, hi} convention.", rois[i]));
+                   make_string("Found invalid ROI at index ", i,
+                               "ROI doesn't follow {lo, hi} convention. ", rois[i]));
     }
 
     gen_default_values(in.num_samples());

@@ -125,7 +125,7 @@ class RotateParamProvider<Backend, 2, BorderType>
       auto arg_view = dali::view<const T>(ws_->ArgumentInput(name));
       int n = arg_view.num_elements();
       // TODO(michalz): handle TensorListView when #1390 is merged
-      DALI_ENFORCE(n == num_samples_, concat_str(
+      DALI_ENFORCE(n == num_samples_, make_string(
         "Unexpected number of elements in argument `", name, "`: ", n,
         "; expected: ", num_samples_));
       CopyIgnoreShape(v, arg_view);

@@ -21,6 +21,7 @@
 namespace dali {
 
 struct no_delimiter {};
+
 inline std::ostream &operator<<(std::ostream &os, no_delimiter) { return os; }
 
 template <typename Delimiter>
@@ -34,7 +35,6 @@ void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val) {
   os << val;
 }
 
-
 /**
  * @brief Populates stream with given arguments, as long as they have
  * `operator<<` defined for stream operation
@@ -46,6 +46,14 @@ void print_delim(std::ostream &os, const Delimiter &delimiter, const T &val,
   print_delim(os, delimiter, args...);
 }
 
+/**
+ * @brief Populates stream with given arguments, as long as they have
+ * `operator<<` defined for stream operation
+ */
+template <typename... Args>
+void print(std::ostream &os, const Args &... args) {
+  print_delim(os, no_delimiter(), args...);
+}
 
 /**
  * Creates std::string from arguments, as long as every element has `operator<<`
@@ -72,21 +80,14 @@ std::string make_string_delim(const Delimiter &) {
   return {};
 }
 
-
 /**
- * @brief Prints args to a string, seperated by spaces
+ * @brief Prints args to a string, without any delimiter
  */
 template <typename... Args>
 std::string make_string(const Args &... args) {
-  return make_string_delim(" ", args...);
-}
-
-/**
- * @brief Prints args to a string, seperated by spaces
- */
-template <typename... Args>
-std::string concat_str(const Args &... args) {
-  return make_string_delim(no_delimiter(), args...);
+  std::stringstream ss;
+  print(ss, args...);
+  return ss.str();
 }
 
 }  // namespace dali

@@ -290,7 +290,7 @@ class DLL_PUBLIC OpSchema {
         if (l == layout)
           return l;
       std::stringstream ss;
-      ss << "The layout \"" << layout.c_str() << "\" does not match any of the allowed"
+      ss << "The layout \"" << layout << "\" does not match any of the allowed"
         " layouts for input " << index << ". Valid layouts are:\n";
       for (auto &l : input_layouts_[index])
         ss << l.c_str() << "\n";

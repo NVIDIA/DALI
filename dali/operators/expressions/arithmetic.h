@@ -91,9 +91,9 @@ DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const workspace_t<Backen
     }
     DALI_ENFORCE(
         result_layout == next_layout,
-        make_string("Layouts of subexpressions", i - 1, "and", i, "for atihmetic operation",
-                    func.GetFuncName(), "do not match. Expected", result_layout.c_str(), "got",
-                    next_layout.c_str(), "."));
+        make_string("Layouts of subexpressions ", i - 1, " and ", i, " for atihmetic operation",
+                    func.GetFuncName(), " do not match. Expected ", result_layout, " got ",
+                    next_layout, "."));
   }
   return result_layout;
 }
@@ -161,7 +161,7 @@ inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListSha
       out_shape = shapes[i];
     } else {
       DALI_ENFORCE(*out_shape == *shapes[i],
-                   concat_str("Input shapes of elemenetwise arithemtic operator \"", op,
+                   make_string("Input shapes of elemenetwise arithemtic operator \"", op,
                               "\" do not match. Expected equal shapes, got: ", op, "(",
                               *out_shape, ", ", *shapes[i], ")."));
     }

@@ -101,8 +101,8 @@ class SliceAttr {
           for (auto axis_name : axis_names_) {
             auto dim_idx = shape_layout.find(axis_name);
             DALI_ENFORCE(dim_idx >= 0,
-              make_string("Requested to slice dimension", axis_name,
-                "which is not present in the shape layout", shape_layout.c_str()));
+              make_string("Requested to slice dimension ", axis_name,
+                " which is not present in the shape layout ", shape_layout));
             axes.push_back(dim_idx);
           }
         }
@@ -117,7 +117,7 @@ class SliceAttr {
             shape_val *= shape[dim];
           int64_t slice_end = static_cast<int64_t>(anchor_val + shape_val);
           DALI_ENFORCE(slice_end <= shape[dim],
-            make_string("Slice end for dim", dim, "is out of bounds:",
+            make_string("Slice end for dim ", dim, " is out of bounds:",
                         slice_end, ">", shape[dim]));
           slice.anchor[dim] = static_cast<int64_t>(anchor_val);
           slice.shape[dim] = slice_end - slice.anchor[dim];
@@ -134,7 +134,7 @@ class SliceAttr {
     size_t args_size = volume(crop_anchor_shape);
     auto axes_size = !axis_names_.empty() ? axis_names_.size() : axes_.size();
     DALI_ENFORCE(args_size == axes_size,
-      make_string("Unexpected number of arguments", args_size, "vs", axes_size));
+      make_string("Unexpected number of arguments ", args_size, " vs ", axes_size));
   }
 
  private:

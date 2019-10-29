@@ -53,16 +53,16 @@ ParseResult ParseExpr(const std::string &expr, int pos);
 
 std::string ReportCharacter(char c) {
   if (!std::isprint(c)) {
-    return concat_str("\"<non-printable>\", character code: 0x", std::hex,
+    return make_string("\"<non-printable>\", character code: 0x", std::hex,
                       static_cast<int>(c), std::dec);
   }
-  return concat_str("\"", c, "\", character code: 0x", std::hex, static_cast<int>(c),
+  return make_string("\"", c, "\", character code: 0x", std::hex, static_cast<int>(c),
                     std::dec);
 }
 
 void EnforceNonEnd(const std::string &expr, int pos, const std::string &expected = "") {
   DALI_ENFORCE(pos < static_cast<int>(expr.length()),
-               concat_str("Unexpected end of expression description, expected: ",
+               make_string("Unexpected end of expression description, expected: ",
                           expected, " at position [", pos, "] in: ", expr));
 }
 
@@ -72,7 +72,7 @@ int ExpectChar(const std::string &expr, int pos, char c) {
     return pos + 1;
   }
 
-  DALI_FAIL(concat_str(
+  DALI_FAIL(make_string(
       "Unrecognized token for expression description: ", ReportCharacter(expr[pos]),
       " at position [", pos, "], expected ", ReportCharacter(c), " in: ", expr));
 }
@@ -106,7 +106,7 @@ std::tuple<int, int> ParseInt(const std::string &expr, int pos) {
   int parsed = atoi(&expr[pos]);
   int new_pos = SkipInt(expr, pos);
   DALI_ENFORCE(pos != new_pos,
-               concat_str("Expected integer value at position [", pos, "] in: ", expr));
+               make_string("Expected integer value at position [", pos, "] in: ", expr));
   return std::make_tuple(parsed, new_pos);
 }
 
@@ -114,7 +114,7 @@ std::tuple<std::string, int> ParseName(const std::string &expr, int pos) {
   EnforceNonEnd(expr, pos, "function name or input description starting with \"&\" or \"$\"");
   DALI_ENFORCE(
       std::isalpha(expr[pos]),
-      concat_str(
+      make_string(
           "Unrecognized token for expression description: ", ReportCharacter(expr[pos]),
           " at position [", pos, "] in: \"", expr,
           "\". Expected function name starting with alphabetic character or input description "
