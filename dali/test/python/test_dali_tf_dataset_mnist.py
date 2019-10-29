@@ -14,19 +14,16 @@
 
 import nvidia.dali as dali
 import tensorflow as tf
-from tensorflow.python.client import device_lib
 import nvidia.dali.plugin.tf as dali_tf
 import os
 import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-from distutils.version import StrictVersion
 from test_utils_tensorflow import *
 from shutil import rmtree as remove_directory
 
-from nose import SkipTest
-from nose.tools import raises, with_setup
+from nose.tools import with_setup
 
 try:
     from tensorflow.compat.v1 import Session
