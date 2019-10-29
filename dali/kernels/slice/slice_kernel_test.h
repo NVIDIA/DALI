@@ -59,7 +59,7 @@ class SliceTest : public ::testing::Test {
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
 
   void PrepareData(TestTensorList<InputType, Dims>& test_data) {
-    std::vector<int> sample_dims(Dims, DimSize);
+    std::vector<int> sample_dims(Dims, static_cast<int>(DimSize));
     TensorListShape<Dims> shape = uniform_list_shape<Dims>(NumSamples, sample_dims);
     test_data.reshape(shape);
 
