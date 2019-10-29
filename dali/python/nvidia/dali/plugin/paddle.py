@@ -20,6 +20,8 @@ import ctypes
 import logging
 import math
 
+import numpy as np
+
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
 from paddle import fluid
@@ -101,6 +103,24 @@ def recursive_length(tensor, lod_level):
     seq_len = [[] for _ in range(lod_level)]
     _recurse(tensor, seq_len, lod_level)
     return seq_len
+
+
+def lod_tensor_clip(lod_tensor, size):
+    output = fluid.core.LoDTensor()
+    ndarray = np.array(lod_tensor)
+    seq_len = lod_tensor.recursive_sequence_lengths()
+    if not seq_len:
+        output.set(ndarray[0:size], fluid.CPUPlace())
+    else:
+        last_len = size
+        out_seq_len = []
+        for lengths in seq_len:
+            lengths = lengths[0:last_len]
+            out_seq_len.append(lengths)
+            last_len = sum(lengths)
+        output.set(ndarray[0:sum(out_seq_len[-1])], fluid.CPUPlace())
+        output.set_recursive_sequence_lengths(out_seq_len)
+    return output
 
 
 class DALIGenericIterator(object):
@@ -318,7 +338,9 @@ class DALIGenericIterator(object):
             output = self._data_batches[0:num_gpus_to_grab]
             output[-1] = output[-1].copy()
             for cat in self.output_map:
-                output[-1][cat] = output[-1][cat][0:data_from_last_gpu]
+                lod_tensor = output[-1][cat]
+                output[-1][cat] = lod_tensor_clip(lod_tensor,
+                                                  data_from_last_gpu)
             return output
 
         return self._data_batches
