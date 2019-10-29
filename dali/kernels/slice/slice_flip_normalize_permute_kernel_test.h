@@ -38,7 +38,7 @@ class SliceFlipNormalizePermuteTest : public ::testing::Test {
   using KernelArgs = SliceFlipNormalizePermutePadArgs<Dims>;
 
   void PrepareData(TestTensorList<InputType, Dims>& test_data) {
-    std::vector<int> sample_dims(Dims, DimSize);
+    std::vector<int> sample_dims(Dims, static_cast<int>(DimSize));
     sample_dims[0] = DimSize0;
     sample_dims[1] = DimSize1;
     TensorListShape<Dims> shape = uniform_list_shape<Dims>(NumSamples, sample_dims);
