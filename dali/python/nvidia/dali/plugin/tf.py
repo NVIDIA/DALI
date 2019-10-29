@@ -231,6 +231,12 @@ else:
 
 DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13, 1.14, 1.15 and 2.0
 
+
+    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
+    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
+    differ based on your use case.
+
+
     Parameters
     ----------
     `pipeline` : `nvidia.dali.Pipeline` 
@@ -269,11 +275,6 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
     -------
     `DALIDataset` object based on DALI pipeline and compatible with `tf.data.Dataset` API.
 
-    .. warning::
-    
-    Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
-    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
-    differ based on your use case.
     """
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__
