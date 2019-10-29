@@ -108,6 +108,10 @@ class DALIGenericIterator(object):
     General DALI iterator for Paddle. It can return any number of
     outputs from the DALI pipeline in the form of Paddle's Tensors.
 
+    Please keep in mind that Tensors returned by the iterator are
+    still owned by DALI. They are valid till the next iterator call.
+    If the content needs to be preserved please copy it to another tensor.
+
     Parameters
     ----------
     pipelines : list of nvidia.dali.pipeline.Pipeline
@@ -178,9 +182,8 @@ class DALIGenericIterator(object):
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
                 p.build()
         # Use double-buffering of data batches
-        self._data_batches = [[None, None] for i in range(self._num_gpus)]
+        self._data_batches = [None for i in range(self._num_gpus)]
         self._counter = 0
-        self._current_data_batch = 0
 
         normalized_map = {}
         for v in output_map:
@@ -261,15 +264,15 @@ class DALIGenericIterator(object):
                 else:
                     category_place[cat] = pd_cpu_place
 
-            if self._data_batches[i][self._current_data_batch] is None:
+            if self._data_batches[i] is None:
                 pd_tensors = {}
                 for cat, lod in self.normalized_map.items():
                     lod_tensor = fluid.core.LoDTensor()
                     lod_tensor._set_dims(category_shapes[cat])
                     pd_tensors[cat] = lod_tensor
-                self._data_batches[i][self._current_data_batch] = pd_tensors
+                self._data_batches[i] = pd_tensors
             else:
-                pd_tensors = self._data_batches[i][self._current_data_batch]
+                pd_tensors = self._data_batches[i]
 
             # Copy data from DALI Tensors to LoDTensors
             for cat, tensor in category_tensors.items():
@@ -293,9 +296,6 @@ class DALIGenericIterator(object):
                 p.release_outputs()
                 p.schedule_run()
 
-        copy_db_index = self._current_data_batch
-        # Change index for double buffering
-        self._current_data_batch = (self._current_data_batch + 1) % 2
         self._counter += self._num_gpus * self.batch_size
 
         if (not self._fill_last_batch) and (self._counter > self._size):
@@ -315,14 +315,13 @@ class DALIGenericIterator(object):
             # 1) Grab everything from the relevant GPUs.
             # 2) Grab the right data from the last GPU.
             # 3) Append data together correctly and return.
-            output = [db[copy_db_index] for db in
-                      self._data_batches[0:num_gpus_to_grab]]
+            output = self._data_batches[0:num_gpus_to_grab]
             output[-1] = output[-1].copy()
             for cat in self.output_map:
                 output[-1][cat] = output[-1][cat][0:data_from_last_gpu]
             return output
 
-        return [db[copy_db_index] for db in self._data_batches]
+        return self._data_batches
 
     def next(self):
         """
@@ -369,6 +368,10 @@ class DALIClassificationIterator(DALIGenericIterator):
     .. code-block:: python
 
        DALIGenericIterator(pipelines, ["data", "label"], size)
+
+    Please keep in mind that Tensors returned by the iterator are
+    still owned by DALI. They are valid till the next iterator call.
+    If the content needs to be preserved please copy it to another tensor.
 
     Parameters
     ----------
