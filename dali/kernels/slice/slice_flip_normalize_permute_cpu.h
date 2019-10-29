@@ -57,11 +57,11 @@ struct NormalizePolicy {
   }
 };
 
-template <typename OutputType, size_t Dims>
+template <typename OutputType, int Dims>
 inline void ZeroPad(OutputType *output,
-                    std::array<int64_t, Dims> out_strides,
-                    std::array<int64_t, Dims> padded_out_shape,
-                    std::integral_constant<size_t, 1>) {
+                    TensorShape<Dims> out_strides,
+                    TensorShape<Dims> padded_out_shape,
+                    std::integral_constant<int, 1>) {
   constexpr auto d = Dims - 1;
   // zero pad
   for (int64_t i = 0; i < padded_out_shape[d]; i++) {
@@ -70,34 +70,34 @@ inline void ZeroPad(OutputType *output,
   }
 }
 
-template <typename OutputType, size_t Dims, size_t DimsLeft>
+template <typename OutputType, int Dims, int DimsLeft>
 inline void ZeroPad(OutputType *output,
-                    std::array<int64_t, Dims> out_strides,
-                    std::array<int64_t, Dims> padded_out_shape,
-                    std::integral_constant<size_t, DimsLeft>) {
+                    TensorShape<Dims> out_strides,
+                    TensorShape<Dims> padded_out_shape,
+                    std::integral_constant<int, DimsLeft>) {
   constexpr auto d = Dims - DimsLeft;
   // zero pad
   for (int64_t i = 0; i < padded_out_shape[d]; i++) {
     ZeroPad(output, out_strides, padded_out_shape,
-            std::integral_constant<size_t, DimsLeft - 1>());
+            std::integral_constant<int, DimsLeft - 1>());
     output += out_strides[d];
   }
 }
 
 template <typename Policy, bool IsNormalizationDim, typename OutputType, typename InputType,
-          size_t Dims>
+          int Dims>
 inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *input,
-                                          std::array<int64_t, Dims> in_strides,
-                                          std::array<int64_t, Dims> out_strides,
-                                          std::array<int64_t, Dims> out_shape,
-                                          std::array<int64_t, Dims> padded_out_shape,
+                                          TensorShape<Dims> in_strides,
+                                          TensorShape<Dims> out_strides,
+                                          TensorShape<Dims> out_shape,
+                                          TensorShape<Dims> padded_out_shape,
                                           const float *mean, const float *inv_stddev,
-                                          size_t normalization_dim,
-                                          std::integral_constant<size_t, 1>) {
+                                          int normalization_dim,
+                                          std::integral_constant<int, 1>) {
   constexpr auto d = Dims - 1;
   int64_t i = 0;
   for (; i < out_shape[d]; i++) {
-    const size_t norm_idx = IsNormalizationDim ? i : 0;
+    const int norm_idx = IsNormalizationDim ? i : 0;
     Policy::Fill(*output, *input, mean + norm_idx, inv_stddev + norm_idx);
     input += in_strides[d];
     output += out_strides[d];
@@ -111,15 +111,15 @@ inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *i
 }
 
 template <typename Policy, bool IsNormalizationDim, typename OutputType, typename InputType,
-          size_t Dims, size_t DimsLeft>
+          int Dims, int DimsLeft>
 inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *input,
-                                          std::array<int64_t, Dims> in_strides,
-                                          std::array<int64_t, Dims> out_strides,
-                                          std::array<int64_t, Dims> out_shape,
-                                          std::array<int64_t, Dims> padded_out_shape,
+                                          TensorShape<Dims> in_strides,
+                                          TensorShape<Dims> out_strides,
+                                          TensorShape<Dims> out_shape,
+                                          TensorShape<Dims> padded_out_shape,
                                           const float *mean, const float *inv_stddev,
-                                          size_t normalization_dim,
-                                          std::integral_constant<size_t, DimsLeft>) {
+                                          int normalization_dim,
+                                          std::integral_constant<int, DimsLeft>) {
   constexpr auto d = Dims - DimsLeft;
   const bool IsNextNormalizationDim = (d + 1 == normalization_dim);
   int64_t i = 0;
@@ -127,16 +127,16 @@ inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *i
     for (; i < out_shape[d]; i++) {
       SliceFlipNormalizePermuteImpl<Policy, true>(
           output, input, in_strides, out_strides, out_shape, padded_out_shape, mean, inv_stddev,
-          normalization_dim, std::integral_constant<size_t, DimsLeft - 1>());
+          normalization_dim, std::integral_constant<int, DimsLeft - 1>());
       input += in_strides[d];
       output += out_strides[d];
     }
   } else {
     for (; i < out_shape[d]; i++) {
-      const size_t norm_idx = IsNormalizationDim ? i : 0;
+      const int norm_idx = IsNormalizationDim ? i : 0;
       SliceFlipNormalizePermuteImpl<Policy, false>(
           output, input, in_strides, out_strides, out_shape, padded_out_shape, mean + norm_idx,
-          inv_stddev + norm_idx, normalization_dim, std::integral_constant<size_t, DimsLeft - 1>());
+          inv_stddev + norm_idx, normalization_dim, std::integral_constant<int, DimsLeft - 1>());
       input += in_strides[d];
       output += out_strides[d];
     }
@@ -145,20 +145,20 @@ inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *i
   // zero pad
   for (; i < padded_out_shape[d]; i++) {
     ZeroPad(output, out_strides, padded_out_shape,
-            std::integral_constant<size_t, DimsLeft - 1>());
+            std::integral_constant<int, DimsLeft - 1>());
     output += out_strides[d];
   }
 }
 
-template <typename OutputType, typename InputType, size_t Dims>
+template <typename OutputType, typename InputType, int Dims>
 void SliceFlipNormalizePermute(OutputType *output, const InputType *input,
-                               const std::array<int64_t, Dims> &in_strides,
-                               const std::array<int64_t, Dims> &out_strides,
-                               const std::array<int64_t, Dims> &out_shape,
-                               const std::array<int64_t, Dims> &padded_out_shape,
+                               const TensorShape<Dims> &in_strides,
+                               const TensorShape<Dims> &out_strides,
+                               const TensorShape<Dims> &out_shape,
+                               const TensorShape<Dims> &padded_out_shape,
                                const std::vector<float> &mean,
                                const std::vector<float> &inv_stddev,
-                               size_t normalization_dim) {
+                               int normalization_dim) {
   DALI_ENFORCE(mean.size() == inv_stddev.size());
   DALI_ENFORCE(mean.size() <= 1 || normalization_dim < Dims);
   const bool should_normalize = !mean.empty();
@@ -168,24 +168,24 @@ void SliceFlipNormalizePermute(OutputType *output, const InputType *input,
       detail::SliceFlipNormalizePermuteImpl<NormalizePolicy, true>(
           output, input, in_strides, out_strides, out_shape, padded_out_shape,
           mean.data(), inv_stddev.data(), normalization_dim,
-          std::integral_constant<size_t, Dims>());
+          std::integral_constant<int, Dims>());
     } else {
       detail::SliceFlipNormalizePermuteImpl<NormalizePolicy, false>(
           output, input, in_strides, out_strides, out_shape, padded_out_shape,
           mean.data(), inv_stddev.data(), normalization_dim,
-          std::integral_constant<size_t, Dims>());
+          std::integral_constant<int, Dims>());
     }
   } else {
     detail::SliceFlipNormalizePermuteImpl<ClampPolicy, false>(
         output, input, in_strides, out_strides, out_shape, padded_out_shape,
         nullptr, nullptr, 0,
-        std::integral_constant<size_t, Dims>());
+        std::integral_constant<int, Dims>());
   }
 }
 
 }  // namespace detail
 
-template <typename OutputType, typename InputType, size_t Dims>
+template <typename OutputType, typename InputType, int Dims>
 class SliceFlipNormalizePermuteCPU {
  public:
   using Args = SliceFlipNormalizePermutePadArgs<Dims>;
@@ -195,8 +195,8 @@ class SliceFlipNormalizePermuteCPU {
                            const Args &args) {
     KernelRequirements req;
     TensorShape<Dims> out_shape(args.padded_shape);
-    CheckValidOutputShape<Dims>(in.shape, out_shape, args);
-    out_shape = detail::permute<Dims>(out_shape, args.permuted_dims);
+    CheckValidOutputShape(in.shape, out_shape, args);
+    out_shape = detail::permute(out_shape, args.permuted_dims);
     req.output_shapes.push_back(uniform_list_shape<Dims>(1, out_shape));
     return req;
   }
@@ -205,7 +205,7 @@ class SliceFlipNormalizePermuteCPU {
            OutTensorCPU<OutputType, Dims> &out,
            const InTensorCPU<InputType, Dims> &in,
            const Args &args) {
-    auto processed_args = detail::ProcessArgs<Dims>(args, in.shape);
+    auto processed_args = detail::ProcessArgs(args, in.shape);
     detail::SliceFlipNormalizePermute(
         out.data, in.data + processed_args.input_offset, processed_args.in_strides,
         processed_args.out_strides, processed_args.out_shape, processed_args.padded_out_shape,

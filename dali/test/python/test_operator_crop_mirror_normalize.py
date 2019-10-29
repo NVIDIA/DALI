@@ -64,27 +64,22 @@ class CropMirrorNormalizePipeline(Pipeline):
 
 def check_cmn_cpu_vs_gpu(batch_size, output_dtype, output_layout, mirror_probability, mean, std, pad_output):
     iterations = 8 if batch_size == 1 else 1
-    eps = 1e-07 if output_dtype != types.INT32 else 0.02
     compare_pipelines(CropMirrorNormalizePipeline('cpu', batch_size, output_dtype=output_dtype,
                                                   output_layout=output_layout, mirror_probability=mirror_probability,
                                                   mean=mean, std=std, pad_output=pad_output),
                       CropMirrorNormalizePipeline('gpu', batch_size, output_dtype=output_dtype,
                                                   output_layout=output_layout, mirror_probability=mirror_probability,
                                                   mean=mean, std=std, pad_output=pad_output),
-                      batch_size=batch_size, N_iterations=iterations, eps=eps)
+                      batch_size=batch_size, N_iterations=iterations)
 
 def test_cmn_cpu_vs_gpu():
     for batch_size in [1, 8]:
-        for output_dtype in [types.FLOAT, types.INT32, types.FLOAT16]:
+        for output_dtype in [types.FLOAT, types.FLOAT16]:
             for output_layout in ["HWC", "CHW"]:
                 for mirror_probability in [0.0, 0.5, 1.0]:
                     norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
                                   ([0.5 * 255], [0.225 * 255]),
-                                  ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ] \
-                                if output_dtype != types.INT32 else \
-                                [ ([0., 0., 0.], [1., 1., 1.]),
-                                  ([0.5 * 255], [0.225]),
-                                  ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229, 0.224, 0.225]) ]
+                                  ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]
                     for (mean, std) in norm_data:
                         for pad_output in [False, True]:
                             yield check_cmn_cpu_vs_gpu, batch_size, output_dtype, output_layout, mirror_probability, mean, std, pad_output
@@ -97,20 +92,21 @@ class NoCropPipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         if not self.decoder_only:
-            self.cmn = ops.CropMirrorNormalize(device = self.device,
+            self.cast = ops.CropMirrorNormalize(device = self.device,
                                                image_type = types.RGB,
-                                               output_dtype = types.UINT8,
+                                               output_dtype = types.FLOAT,
                                                output_layout = "HWC")
+        else:
+            self.cast = ops.Cast(device = self.device,
+                                 dtype = types.FLOAT)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
 
         images = self.decode(inputs)
-        if not self.decoder_only:
-            images = self.decode(inputs)
-            if self.device == 'gpu':
-                images = images.gpu()
-            images = self.cmn(images)
+        if self.device == 'gpu':
+            images = images.gpu()
+        images = self.cast(images)
         return images
 
 def check_cmn_no_crop_args_vs_decoder_only(device, batch_size):

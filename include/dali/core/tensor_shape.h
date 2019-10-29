@@ -90,6 +90,8 @@ struct TensorShapeBase {
   using size_type = int;
   using reference = value_type &;
   using const_reference = const value_type &;
+  using pointer = value_type *;
+  using const_pointer = const value_type *;
   using iterator = typename container_type::iterator;
   using const_iterator = typename container_type::const_iterator;
 
@@ -97,6 +99,10 @@ struct TensorShapeBase {
   DALI_HOST_DEV reference operator[](int d) { return shape[d]; }
   DALI_NO_EXEC_CHECK
   DALI_HOST_DEV const_reference operator[](int d) const { return shape[d]; }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV pointer data() noexcept { return shape.data(); }
+  DALI_NO_EXEC_CHECK
+  DALI_HOST_DEV constexpr const_pointer data() const noexcept { return shape.data(); }
 
   DALI_NO_EXEC_CHECK
   DALI_HOST_DEV iterator begin() noexcept { return shape.begin(); }

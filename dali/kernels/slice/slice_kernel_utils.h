@@ -24,15 +24,15 @@
 namespace dali {
 namespace kernels {
 
-template <size_t Dims>
+template <int Dims>
 struct SliceArgs {
-  std::array<int64_t, Dims> anchor;
-  std::array<int64_t, Dims> shape;
+  TensorShape<Dims> anchor;
+  TensorShape<Dims> shape;
 };
 
-template <size_t Dims, typename Shape>
-std::array<int64_t, Dims> GetStrides(const Shape& shape) {
-  std::array<int64_t, Dims> strides;
+template <int Dims>
+TensorShape<Dims> GetStrides(const TensorShape<Dims>& shape) {
+  TensorShape<Dims> strides;
   strides[Dims - 1] = 1;
   for (size_t d = Dims - 1; d > 0; d--) {
     strides[d - 1] = strides[d] * shape[d];
@@ -40,7 +40,7 @@ std::array<int64_t, Dims> GetStrides(const Shape& shape) {
   return strides;
 }
 
-template <size_t Dims, typename Args>
+template <int Dims, typename Args>
 void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,
                            const TensorShape<Dims>& out_sample_shape,
                            const Args& args) {
@@ -55,15 +55,15 @@ void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,
   }
 }
 
-template <size_t Dims, typename Args>
+template <int Dims, typename Args>
 TensorShape<Dims> GetOutputShape(const TensorShape<Dims>& in_sample_shape,
                                  const Args& args) {
   TensorShape<Dims> out_sample_shape(args.shape);
-  CheckValidOutputShape<Dims>(in_sample_shape, out_sample_shape, args);
+  CheckValidOutputShape(in_sample_shape, out_sample_shape, args);
   return out_sample_shape;
 }
 
-template <size_t Dims, typename Args>
+template <int Dims, typename Args>
 TensorListShape<Dims> GetOutputShapes(const TensorListShape<Dims>& in_shapes,
                                       const std::vector<Args> &args) {
     DALI_ENFORCE(args.size() == static_cast<size_t>(in_shapes.size()),
@@ -71,7 +71,7 @@ TensorListShape<Dims> GetOutputShapes(const TensorListShape<Dims>& in_shapes,
 
     TensorListShape<Dims> output_shapes(in_shapes.size(), Dims);
     for (int i = 0; i < in_shapes.size(); i++) {
-      auto out_sample_shape = GetOutputShape<Dims>(in_shapes[i], args[i]);
+      auto out_sample_shape = GetOutputShape(in_shapes[i], args[i]);
       output_shapes.set_tensor_shape(i, out_sample_shape);
     }
     return output_shapes;

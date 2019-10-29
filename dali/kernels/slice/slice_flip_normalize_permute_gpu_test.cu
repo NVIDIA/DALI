@@ -26,9 +26,9 @@ class SliceFlipNormalizePermuteGPUTest : public SliceFlipNormalizePermuteTest<Te
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
-  static constexpr size_t Dims = TestArgs::Dims;
-  static constexpr size_t NumSamples = TestArgs::NumSamples;
-  static constexpr size_t DimSize = TestArgs::DimSize;
+  static constexpr int Dims = TestArgs::Dims;
+  static constexpr int NumSamples = TestArgs::NumSamples;
+  static constexpr int DimSize = TestArgs::DimSize;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
   using KernelType = SliceFlipNormalizePermutePadGPU<OutputType, InputType, Dims>;
 
@@ -52,8 +52,8 @@ class SliceFlipNormalizePermuteGPUTest : public SliceFlipNormalizePermuteTest<Te
     for (int i = 0; i < output_shapes.size(); i++) {
       auto padded_out_shape = args[i].padded_shape;
       auto expected_shape = padded_out_shape;
-      for (size_t d = 0; d < Dims; d++) {
-        size_t perm_d = args[i].permuted_dims[d];
+      for (int d = 0; d < Dims; d++) {
+        int perm_d = args[i].permuted_dims[d];
         expected_shape[d] = padded_out_shape[perm_d];
       }
       AssertExpectedDimensions(output_shapes[i], expected_shape);

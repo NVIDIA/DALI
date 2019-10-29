@@ -28,29 +28,29 @@ namespace kernels {
 
 namespace detail {
 
-template <typename OutputType, typename InputType, std::size_t Dims>
+template <typename OutputType, typename InputType, int Dims>
 void SliceKernelImpl(OutputType *output,
                      const InputType *input,
-                     const std::array<int64_t, Dims> &in_strides,
-                     const std::array<int64_t, Dims> &out_strides,
-                     const TensorShape<static_cast<int>(Dims)> &out_shape,
-                     std::integral_constant<size_t, 1>) {
+                     const TensorShape<Dims> &in_strides,
+                     const TensorShape<Dims> &out_strides,
+                     const TensorShape<Dims> &out_shape,
+                     std::integral_constant<int, 1>) {
   for (int i = 0; i < out_shape[Dims - 1]; i++) {
     output[i] = clamp<OutputType>(input[i]);
   }
 }
 
-template <typename OutputType, typename InputType, std::size_t Dims, std::size_t DimsLeft>
+template <typename OutputType, typename InputType, int Dims, int DimsLeft>
 void SliceKernelImpl(OutputType *output,
                      const InputType *input,
-                     const std::array<int64_t, Dims> &in_strides,
-                     const std::array<int64_t, Dims> &out_strides,
-                     const TensorShape<static_cast<int>(Dims)> &out_shape,
-                     std::integral_constant<size_t, DimsLeft>) {
+                     const TensorShape<Dims> &in_strides,
+                     const TensorShape<Dims> &out_strides,
+                     const TensorShape<Dims> &out_shape,
+                     std::integral_constant<int, DimsLeft>) {
   constexpr auto d = Dims - DimsLeft;  // NOLINT
   for (int i = 0; i < out_shape[d]; i++) {
     SliceKernelImpl(output, input, in_strides, out_strides, out_shape,
-                    std::integral_constant<size_t, DimsLeft - 1>());
+                    std::integral_constant<int, DimsLeft - 1>());
     input += in_strides[d];
     output += out_strides[d];
   }
@@ -58,28 +58,29 @@ void SliceKernelImpl(OutputType *output,
 
 }  // namespace detail
 
-template <typename OutputType, typename InputType, std::size_t Dims>
+
+template <typename OutputType, typename InputType, int Dims>
 void SliceKernel(OutputType *output,
                  const InputType *input,
-                 const std::array<int64_t, Dims> &in_strides,
-                 const std::array<int64_t, Dims> &out_strides,
-                 const std::array<int64_t, Dims> &anchor,
-                 const TensorShape<static_cast<int>(Dims)> &out_shape) {
-  for (size_t d = 0; d < Dims; d++) {
+                 const TensorShape<Dims> &in_strides,
+                 const TensorShape<Dims> &out_strides,
+                 const TensorShape<Dims> &anchor,
+                 const TensorShape<Dims> &out_shape) {
+  for (int d = 0; d < Dims; d++) {
     input += in_strides[d] * anchor[d];
   }
   detail::SliceKernelImpl(output, input, in_strides, out_strides, out_shape,
-                          std::integral_constant<size_t, Dims>());
+                          std::integral_constant<int, Dims>());
 }
 
-template <typename OutputType, typename InputType, std::size_t Dims>
+template <typename OutputType, typename InputType, int Dims>
 class SliceCPU {
  public:
   KernelRequirements Setup(KernelContext &context,
                            const InTensorCPU<InputType, Dims> &in,
                            const SliceArgs<Dims> &slice_args) {
     KernelRequirements req;
-    auto shape = GetOutputShape<Dims>(in.shape, slice_args);
+    auto shape = GetOutputShape(in.shape, slice_args);
     req.output_shapes.push_back(uniform_list_shape<Dims>(1, shape));
     return req;
   }
@@ -91,8 +92,8 @@ class SliceCPU {
     const auto &in_shape = in.shape;
     const auto &out_shape = out.shape;
     const auto &anchor = slice_args.anchor;
-    auto in_strides = GetStrides<Dims>(in_shape);
-    auto out_strides = GetStrides<Dims>(out_shape);
+    auto in_strides = GetStrides(in_shape);
+    auto out_strides = GetStrides(out_shape);
     const InputType *in_ptr = in.data;
     OutputType *out_ptr = out.data;
 

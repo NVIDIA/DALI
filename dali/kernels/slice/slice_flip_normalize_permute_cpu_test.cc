@@ -25,9 +25,9 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
-  static constexpr size_t Dims = TestArgs::Dims;
-  static constexpr size_t NumSamples = TestArgs::NumSamples;
-  static constexpr size_t DimSize = TestArgs::DimSize;
+  static constexpr int Dims = TestArgs::Dims;
+  static constexpr int NumSamples = TestArgs::NumSamples;
+  static constexpr int DimSize = TestArgs::DimSize;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
   using KernelType = SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims>;
 
@@ -45,15 +45,15 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
 
     TensorListShape<> output_shapes(NumSamples, Dims);
     std::vector<KernelType> kernels(NumSamples);
-    for (size_t i = 0; i < NumSamples; i++) {
+    for (int i = 0; i < NumSamples; i++) {
       auto &kernel = kernels[i];
       KernelRequirements kernel_req = kernel.Setup(ctx, test_data_cpu[i], args[i]);
       TensorShape<Dims> output_shape = kernel_req.output_shapes[0][0].to_static<Dims>();
 
       auto padded_out_shape = args[i].padded_shape;
       auto expected_shape = padded_out_shape;
-      for (size_t d = 0; d < Dims; d++) {
-        size_t perm_d = args[i].permuted_dims[d];
+      for (int d = 0; d < Dims; d++) {
+        int perm_d = args[i].permuted_dims[d];
         expected_shape[d] = padded_out_shape[perm_d];
       }
       AssertExpectedDimensions(output_shape, expected_shape);
@@ -63,7 +63,7 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
     output_data.reshape(std::move(output_shapes).to_static<Dims>());
     OutListCPU<OutputType, Dims> out_tlv = output_data.cpu();
 
-    for (size_t i = 0; i < NumSamples; i++) {
+    for (int i = 0; i < NumSamples; i++) {
       auto &kernel = kernels[i];
       auto out_tv = out_tlv[i];
       auto in_tv = test_data_cpu[i];
