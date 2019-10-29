@@ -25,6 +25,21 @@ from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIter
 from nvidia.dali.plugin.paddle import DALIClassificationIterator as PaddleIterator
 from nvidia.dali.plugin.tf import DALIIterator as TensorFlowIterator
 
+try:
+    from tensorflow.compat.v1 import GPUOptions
+    from tensorflow.compat.v1 import ConfigProto
+    from tensorflow.compat.v1 import Session
+except:
+    # Older TF versions don't have compat.v1 layer
+    from tensorflow import GPUOptions
+    from tensorflow import ConfigProto
+    from tensorflow import Session
+
+try:
+    tf.compat.v1.disable_eager_execution()
+except:
+    pass
+
 data_paths = ["/data/imagenet/train-jpeg"]
 
 class RN50Pipeline(Pipeline):
@@ -79,10 +94,11 @@ parser.add_argument('-i', '--iters', default=-1, type=int, metavar='N',
                     help='Number of iterations to run (default: -1 - whole data set)')
 parser.add_argument('-e', '--epochs', default=1, type=int, metavar='N',
                     help='Number of epochs to run (default: 1)')
+parser.add_argument('--framework', type=str)
 args = parser.parse_args()
 
-print("GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, args.nhwc: {}"
-      .format(args.gpus, args.batch_size, args.workers, args.prefetch, args.print_freq, args.fp16, args.nhwc))
+print("Framework: {}, GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, args.nhwc: {}"
+      .format(args.framework, args.gpus, args.batch_size, args.workers, args.prefetch, args.print_freq, args.fp16, args.nhwc))
 
 PREFETCH = args.prefetch
 if args.separate_queue:
@@ -108,12 +124,8 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
-Iterators = [("mxnet.DALIClassificationIterator"   , MXNetIterator),
-             ("pytorch.DALIClassificationIterator" , PyTorchIterator),
-             ("paddle.DALIClassificationIterator" , PaddleIterator),
-             ("tf.DALIIterator" , TensorFlowIterator)]
-
-for iterator_name, IteratorClass in Iterators:
+def test_fw_iter(IteratorClass, args):
+    iterator_name = IteratorClass.__module__ + "." + IteratorClass.__name__
     print("Start testing {}".format(iterator_name))
     sess = None
     daliop = None
@@ -139,7 +151,7 @@ for iterator_name, IteratorClass in Iterators:
         if iters_tmp != iters * args.gpus:
             iters += 1
 
-    if iterator_name == "tf.DALIIterator":
+    if iterator_name == "nvidia.dali.plugin.tf.DALIIterator":
         daliop = IteratorClass()
         for dev in range(args.gpus):
             with tf.device('/gpu:%i' % dev):
@@ -152,9 +164,9 @@ for iterator_name, IteratorClass in Iterators:
                     dtypes = [out_type, tf.int32])
                 images.append(image)
                 labels.append(label)
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
-        config = tf.ConfigProto(gpu_options=gpu_options)
-        sess = tf.Session(config=config)
+        gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.8)
+        config = ConfigProto(gpu_options=gpu_options)
+        sess = Session(config=config)
 
     end = time.time()
     for i in range(args.epochs):
@@ -164,7 +176,7 @@ for iterator_name, IteratorClass in Iterators:
             print("Test run " + str(i))
         data_time = AverageMeter()
 
-        if iterator_name == "tf.DALIIterator":
+        if iterator_name == "nvidia.dali.plugin.tf.DALIIterator":
             assert sess != None
             for j in range(iters):
                 res = sess.run([images, labels])
@@ -185,3 +197,14 @@ for iterator_name, IteratorClass in Iterators:
                 j = j + 1
                 if j > iters:
                     break
+
+Iterators = {
+    "mxnet": [MXNetIterator],
+    "pytorch": [PyTorchIterator],
+    "tf": [TensorFlowIterator],
+    "paddle": [PaddleIterator]
+}
+
+assert(args.framework in Iterators, "Error, framework {} not supported".format(args.framework))
+for IteratorClass in Iterators[args.framework]:
+    test_fw_iter(IteratorClass, args)
