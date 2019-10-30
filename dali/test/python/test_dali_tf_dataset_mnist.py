@@ -29,12 +29,19 @@ try:
     from tensorflow.compat.v1 import Session
     from tensorflow.compat.v1 import placeholder
     from tensorflow.compat.v1 import truncated_normal
+    from tensorflow.compat.v1 import reset_default_graph
+    from tensorflow.compat.v1 import variable_scope
+    from tensorflow.compat.v1 import layers
+    from tensorflow.compat.v1 import global_variables_initializer
 except:
     # Older TF versions don't have compat.v1 layer
     from tensorflow import Session
     from tensorflow import placeholder
     from tensorflow import truncated_normal
-
+    from tensorflow import reset_default_graph
+    from tensorflow import variable_scope
+    from tensorflow import layers
+    from tensorflow import global_variables_initializer
 try:
     from tensorflow.train import AdamOptimizer as Adam
     from tensorflow.train import AdamOptimizer as AdamOptimizer
@@ -113,18 +120,18 @@ def _get_train_dataset(device='cpu', device_id=0, shard_id = 0, num_shards = 1):
 
 
 def _graph_model(images, reuse, is_training):
-    with tf.variable_scope('mnist_net', reuse=reuse):
-        images = tf.contrib.layers.flatten(images)
-        images = tf.layers.dense(images, hidden_size, activation=tf.nn.relu)
-        images = tf.layers.dropout(images, rate=dropout, training=is_training)
-        images = tf.layers.dense(images, labels_size, activation=tf.nn.softmax)
+    with variable_scope('mnist_net', reuse=reuse):
+        images = layers.flatten(images)
+        images = layers.dense(images, hidden_size, activation=tf.nn.relu)
+        images = layers.dropout(images, rate=dropout, training=is_training)
+        images = layers.dense(images, labels_size, activation=tf.nn.softmax)
 
     return images
 
 
 def _train_graph(iterator_initializers, train_op, accuracy):
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
+    with Session() as sess:
+        sess.run(global_variables_initializer())
         sess.run(iterator_initializers)
 
         for i in range(epochs * iterations):
@@ -169,17 +176,17 @@ def _test_graph_single_device(device='cpu', device_id=0):
     _train_graph([iterator.initializer], train_step, accuracy)
 
 
-@with_setup(tf.reset_default_graph)
+@with_setup(reset_default_graph)
 def test_graph_single_gpu():
     _test_graph_single_device('gpu', 0)
 
 
-@with_setup(tf.reset_default_graph)
+@with_setup(reset_default_graph)
 def test_graph_single_other_gpu():
     _test_graph_single_device('gpu', 1)
 
 
-@with_setup(tf.reset_default_graph)
+@with_setup(reset_default_graph)
 def test_graph_single_cpu():
     _test_graph_single_device('cpu', 0)
 
@@ -256,10 +263,12 @@ def _test_estimators_single_device(model, device='cpu', device_id=0):
 
     assert final_accuracy > target
 
+
 def _run_config(device='cpu', device_id=0):
     return tf.estimator.RunConfig(
         model_dir='/tmp/tensorflow-checkpoints',
         device_fn=lambda op: '/{0}:{1}'.format(device, device_id))
+
 
 def _test_estimators_classifier_single_device(device='cpu', device_id=0):
     feature_columns = [tf.feature_column.numeric_column(
@@ -345,7 +354,7 @@ def _average_gradients(tower_grads):
     return average_grads
 
 
-@with_setup(tf.reset_default_graph)
+@with_setup(reset_default_graph)
 def test_graph_multi_gpu():
     iterator_initializers = []
 
@@ -371,7 +380,7 @@ def test_graph_multi_gpu():
 
                 loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
                     logits=logits_train, labels=labels))
-                optimizer = tf.train.AdamOptimizer()
+                optimizer = AdamOptimizer()
                 grads = optimizer.compute_gradients(loss_op)
 
                 if i == 0:
