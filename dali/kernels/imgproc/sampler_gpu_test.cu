@@ -41,10 +41,10 @@ __global__ void RunSampler(
     out(x, y, c) = tmp[c];
 }
 
-TEST(Sampler2DGPU, NN) {
-  SamplerTestData sd;
-  auto surf_cpu = sd.GetSurface(false);
-  auto surf_gpu = sd.GetSurface(true);
+TEST(Sampler2D_GPU, NN) {
+  SamplerTestData<uint8_t> sd;
+  auto surf_cpu = sd.GetSurface2D(false);
+  auto surf_gpu = sd.GetSurface2D(true);
 
   ASSERT_EQ(surf_cpu.channels, 3);
   ASSERT_EQ(surf_gpu.channels, 3);
@@ -96,10 +96,10 @@ TEST(Sampler2DGPU, NN) {
   }
 }
 
-TEST(Sampler2DGPU, Linear) {
-  SamplerTestData sd;
-  auto surf_cpu = sd.GetSurface(false);
-  auto surf_gpu = sd.GetSurface(true);
+TEST(Sampler2D_GPU, Linear) {
+  SamplerTestData<uint8_t> sd;
+  auto surf_cpu = sd.GetSurface2D(false);
+  auto surf_gpu = sd.GetSurface2D(true);
 
   ASSERT_EQ(surf_cpu.channels, 3);
   ASSERT_EQ(surf_gpu.channels, 3);

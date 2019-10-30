@@ -57,9 +57,16 @@ enable_if_t<!std::is_pointer<T>::value, T> GetBorderChannel(const T &value, int)
   return value;
 }
 
+/**
+ * @brief Checks if all coordinates in `coords` are positive and below the respective
+ *        coordinate in `limit`.
+ *
+ * @remarks `limit` is expected to have non-negative coordinates - otherwise, the result
+ *          is undefined.
+ */
 template <int n>
 DALI_HOST_DEV DALI_FORCEINLINE
-constexpr bool all_below(ivec<n> coords, ivec<n> limit) {
+constexpr bool all_in_range(ivec<n> coords, ivec<n> limit) {
   for (int i = 0; i < n; i++) {
     if (static_cast<unsigned>(coords[i]) >= static_cast<unsigned>(limit[i]))
       return false;
@@ -67,17 +74,31 @@ constexpr bool all_below(ivec<n> coords, ivec<n> limit) {
   return true;
 }
 
+/**
+ * @brief Checks if all coordinates in `coords` are positive and below the respective
+ *        coordinate in `limit`.
+ *
+ * @remarks `limit` is expected to have non-negative coordinates - otherwise, the result
+ *          is undefined.
+ */
 DALI_HOST_DEV DALI_FORCEINLINE
-constexpr bool all_below(ivec2 coords, ivec2 limit) {
-  return static_cast<unsigned>(coords.x) <= static_cast<unsigned>(limit.x) &&
-         static_cast<unsigned>(coords.y) <= static_cast<unsigned>(limit.y);
+constexpr bool all_in_range(ivec2 coords, ivec2 limit) {
+  return static_cast<unsigned>(coords.x) < static_cast<unsigned>(limit.x) &&
+         static_cast<unsigned>(coords.y) < static_cast<unsigned>(limit.y);
 }
 
+/**
+ * @brief Checks if all coordinates in `coords` are positive and below the respective
+ *        coordinate in `limit`.
+ *
+ * @remarks `limit` is expected to have non-negative coordinates - otherwise, the result
+ *          is undefined.
+ */
 DALI_HOST_DEV DALI_FORCEINLINE
-constexpr bool all_below(ivec3 coords, ivec3 limit) {
-  return static_cast<unsigned>(coords.x) <= static_cast<unsigned>(limit.x) &&
-         static_cast<unsigned>(coords.y) <= static_cast<unsigned>(limit.y) &&
-         static_cast<unsigned>(coords.z) <= static_cast<unsigned>(limit.z);
+constexpr bool all_in_range(ivec3 coords, ivec3 limit) {
+  return static_cast<unsigned>(coords.x) < static_cast<unsigned>(limit.x) &&
+         static_cast<unsigned>(coords.y) < static_cast<unsigned>(limit.y) &&
+         static_cast<unsigned>(coords.z) < static_cast<unsigned>(limit.z);
 }
 
 template <int _spatial_ndim, typename In>
@@ -95,7 +116,7 @@ struct Sampler<DALI_INTERP_NN, _spatial_ndim, In> {
 
   template <typename T = In, typename BorderValue>
   DALI_HOST_DEV DALI_FORCEINLINE T at(icoords pos, int c, BorderValue border_value) const {
-    if (all_below(pos, surface.size)) {
+    if (all_in_range(pos, surface.size)) {
       return ConvertSat<T>(surface(pos, c));
     } else {
       return ConvertSat<T>(GetBorderChannel(border_value, c));
@@ -117,7 +138,7 @@ struct Sampler<DALI_INTERP_NN, _spatial_ndim, In> {
       T *pixel,
       icoords pos,
       BorderValue border_value) const {
-    if (all_below(pos, surface.size)) {
+    if (all_in_range(pos, surface.size)) {
       for (int c = 0; c < surface.channels; c++) {
         pixel[c] = ConvertSat<T>(surface(pos, c));
       }
