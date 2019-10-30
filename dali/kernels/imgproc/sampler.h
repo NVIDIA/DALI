@@ -341,11 +341,6 @@ struct Sampler<DALI_INTERP_LINEAR, 3, In> {
       In s101 = NN.at(ivec3(x0+1, y0,   z0+1), c, border_value);
       In s110 = NN.at(ivec3(x0,   y0+1, z0+1), c, border_value);
       In s111 = NN.at(ivec3(x0+1, y0+1, z0+1), c, border_value);
-      float qx = x - x0;
-      float px = 1 - qx;
-      float qy = y - y0;
-      float py = 1 - qy;
-      float qz = z - z0;
 
       float s00 = s000 * px + s001 * qx;
       float s01 = s010 * px + s011 * qx;

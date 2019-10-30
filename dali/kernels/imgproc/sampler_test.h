@@ -51,7 +51,7 @@ struct SamplerTestData {
     return surface;
   }
 
-private:
+ private:
   static const T *InitCPUData() {
     static T data[D*W*H*C];
     std::mt19937_64 rng;
@@ -65,7 +65,7 @@ private:
         x = T(dist(rng));
     }
     return data;
-  };
+  }
 
   static const T *GetCPUData() {
     static const T *data = InitCPUData();  // use magic static to run the InitCPUData() once
@@ -82,7 +82,6 @@ private:
   }
 
   memory::KernelUniquePtr<T> gpu_storage;
-
 };
 
 }  // namespace kernels

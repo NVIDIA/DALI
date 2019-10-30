@@ -38,13 +38,21 @@ using ivec = vec<N, int32_t>;
 template <int N>
 using uvec = vec<N, uint32_t>;
 template <int N>
+using i8vec = vec<N, int8_t>;
+template <int N>
+using u8vec = vec<N, uint8_t>;
+template <int N>
 using i16vec = vec<N, int16_t>;
 template <int N>
 using u16vec = vec<N, uint16_t>;
 template <int N>
-using i8vec = vec<N, int8_t>;
+using i32ec = vec<N, int32_t>;
 template <int N>
-using u8vec = vec<N, uint8_t>;
+using u32vec = vec<N, uint32_t>;
+template <int N>
+using i64vec = vec<N, int64_t>;
+template <int N>
+using u64vec = vec<N, uint64_t>;
 template <int N>
 using dvec = vec<N, double>;
 template <int N>
@@ -81,7 +89,7 @@ template <int rows, int cols, typename Element>
 struct is_mat<mat<rows, cols, Element>> : std::true_type {};
 
 template <typename T>
-struct is_scalar : std::integral_constant<bool, !is_mat<T>::value && !is_vec<T>::value> {};
+using is_scalar = std::is_arithmetic<T>;
 
 
 template <typename Arg1,
