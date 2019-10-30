@@ -111,6 +111,7 @@ def _get_train_dataset(device='cpu', device_id=0, shard_id = 0, num_shards = 1):
         shard_id,
         num_shards)
 
+
 def _graph_model(images, reuse, is_training):
     with tf.variable_scope('mnist_net', reuse=reuse):
         images = tf.contrib.layers.flatten(images)
@@ -119,6 +120,27 @@ def _graph_model(images, reuse, is_training):
         images = tf.layers.dense(images, labels_size, activation=tf.nn.softmax)
 
     return images
+
+
+def _train_graph(iterator_initializers, train_op, accuracy):
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        sess.run(iterator_initializers)
+
+        for i in range(epochs * iterations):
+            sess.run(train_op)
+            if i % iterations == 0:
+                train_accuracy = accuracy.eval()
+                print("Step %d, accuracy: %g" % (i, train_accuracy))
+
+        final_accuracy = 0
+        for _ in range(iterations):
+            final_accuracy = final_accuracy + \
+                accuracy.eval()
+        final_accuracy = final_accuracy / iterations
+
+        print('Final accuracy: ', final_accuracy)
+        assert final_accuracy > target
 
 def _test_graph_single_device(device='cpu', device_id=0):
     skip_for_incompatible_tf()
@@ -144,31 +166,18 @@ def _test_graph_single_device(device='cpu', device_id=0):
         correct_pred = tf.equal(tf.argmax(logits_test, 1), tf.argmax(labels, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
-    with Session() as sess:
-        sess.run([tf.compat.v1.global_variables_initializer(), iterator.initializer])
-        for i in range(epochs * iterations):
-            sess.run(train_step)
+    _train_graph([iterator.initializer], train_step, accuracy)
 
-            if i % iterations == 0:
-                train_accuracy = accuracy.eval()
-                print("Step %d, accuracy: %g" % (i, train_accuracy))
-
-        final_accuracy = 0
-        for _ in range(iterations):
-            final_accuracy = final_accuracy + \
-                accuracy.eval()
-        final_accuracy = final_accuracy / iterations
-
-        print('Final accuracy: ', final_accuracy)
-        assert final_accuracy > target
 
 @with_setup(tf.reset_default_graph)
 def test_graph_single_gpu():
     _test_graph_single_device('gpu', 0)
 
+
 @with_setup(tf.reset_default_graph)
 def test_graph_single_other_gpu():
     _test_graph_single_device('gpu', 1)
+
 
 @with_setup(tf.reset_default_graph)
 def test_graph_single_cpu():
@@ -335,6 +344,7 @@ def _average_gradients(tower_grads):
         average_grads.append(grad_and_var)
     return average_grads
 
+
 @with_setup(tf.reset_default_graph)
 def test_graph_multi_gpu():
     iterator_initializers = []
@@ -371,27 +381,9 @@ def test_graph_multi_gpu():
                 tower_grads.append(grads)
 
         tower_grads = _average_gradients(tower_grads)
-        train_op = optimizer.apply_gradients(tower_grads)
+        train_step = optimizer.apply_gradients(tower_grads)
 
-
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-            sess.run(iterator_initializers)
-
-            for i in range(epochs * iterations):
-                sess.run(train_op)
-                if i % iterations == 0:
-                    train_accuracy = accuracy.eval()
-                    print("Step %d, accuracy: %g" % (i, train_accuracy))
-
-            final_accuracy = 0
-            for _ in range(iterations):
-                final_accuracy = final_accuracy + \
-                    accuracy.eval()
-            final_accuracy = final_accuracy / iterations
-
-            print('Final accuracy: ', final_accuracy)
-            assert final_accuracy > target
+    _train_graph(iterator_initializers, train_step, accuracy)
 
 
 @with_setup(clear_checkpoints, clear_checkpoints)
