@@ -33,6 +33,7 @@ try:
     from tensorflow.compat.v1 import variable_scope
     from tensorflow.compat.v1 import layers
     from tensorflow.compat.v1 import global_variables_initializer
+    from tensorflow.compat.v1.data import make_initializable_iterator
 except:
     # Older TF versions don't have compat.v1 layer
     from tensorflow import Session
@@ -42,6 +43,7 @@ except:
     from tensorflow import variable_scope
     from tensorflow import layers
     from tensorflow import global_variables_initializer
+    from tensorflow.data import make_initializable_iterator
 try:
     from tensorflow.train import AdamOptimizer as Adam
     from tensorflow.train import AdamOptimizer as AdamOptimizer
@@ -93,8 +95,9 @@ class MnistPipeline(Pipeline):
         return (images, labels)
 
 
-def _get_mnist_dataset(device='cpu', device_id=0, shard_id = 0, num_shards = 1):
-    mnist_pipeline = MnistPipeline(4, data_path, device, device_id, shard_id, num_shards)
+def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
+    mnist_pipeline = MnistPipeline(
+        4, data_path, device, device_id, shard_id, num_shards)
     shapes = [
         (batch_size, image_size, image_size),
         (batch_size)]
@@ -112,7 +115,7 @@ def _get_mnist_dataset(device='cpu', device_id=0, shard_id = 0, num_shards = 1):
     return daliset.with_options(dataset_options())
 
 
-def _get_train_dataset(device='cpu', device_id=0, shard_id = 0, num_shards = 1):
+def _get_train_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
     return _get_mnist_dataset(
         device,
         device_id,
@@ -150,20 +153,21 @@ def _train_graph(iterator_initializers, train_op, accuracy):
         print('Final accuracy: ', final_accuracy)
         assert final_accuracy > target
 
+
 def _test_graph_single_device(device='cpu', device_id=0):
     skip_for_incompatible_tf()
 
     with tf.device('/{0}:{1}'.format(device, device_id)):
         daliset = _get_train_dataset(device, device_id)
 
-        iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
+        iterator = make_initializable_iterator(daliset)
         images, labels = iterator.get_next()
 
         images = tf.reshape(images, [batch_size, image_size*image_size])
         labels = tf.reshape(
             tf.one_hot(labels, labels_size),
             [batch_size, labels_size])
-        
+
         logits_train = _graph_model(images, reuse=False, is_training=True)
         logits_test = _graph_model(images, reuse=True, is_training=False)
 
@@ -171,7 +175,8 @@ def _test_graph_single_device(device='cpu', device_id=0):
             logits=logits_train, labels=labels))
         train_step = AdamOptimizer().minimize(loss_op)
 
-        correct_pred = tf.equal(tf.argmax(logits_test, 1), tf.argmax(labels, 1))
+        correct_pred = tf.equal(
+            tf.argmax(logits_test, 1), tf.argmax(labels, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
     _train_graph([iterator.initializer], train_step, accuracy)
@@ -367,17 +372,20 @@ def test_graph_multi_gpu():
                 daliset = _get_train_dataset(
                     'gpu', i, i, num_available_gpus())
 
-                iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
+                iterator = make_initializable_iterator(daliset)
                 iterator_initializers.append(iterator.initializer)
                 images, labels = iterator.get_next()
 
-                images = tf.reshape(images, [batch_size, image_size*image_size])
+                images = tf.reshape(
+                    images, [batch_size, image_size*image_size])
                 labels = tf.reshape(
                     tf.one_hot(labels, labels_size),
                     [batch_size, labels_size])
 
-                logits_train = _graph_model(images, reuse=(i != 0), is_training=True)
-                logits_test = _graph_model(images, reuse=True, is_training=False)
+                logits_train = _graph_model(
+                    images, reuse=(i != 0), is_training=True)
+                logits_test = _graph_model(
+                    images, reuse=True, is_training=False)
 
                 loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
                     logits=logits_train, labels=labels))
@@ -385,8 +393,10 @@ def test_graph_multi_gpu():
                 grads = optimizer.compute_gradients(loss_op)
 
                 if i == 0:
-                    correct_pred = tf.equal(tf.argmax(logits_test, 1), tf.argmax(labels, 1))
-                    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+                    correct_pred = tf.equal(
+                        tf.argmax(logits_test, 1), tf.argmax(labels, 1))
+                    accuracy = tf.reduce_mean(
+                        tf.cast(correct_pred, tf.float32))
 
                 tower_grads.append(grads)
 
@@ -400,13 +410,13 @@ def test_graph_multi_gpu():
 def test_estimators_multi_gpu():
     skip_for_incompatible_tf()
 
-    mirrored_strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
+    mirrored_strategy = tf.distribute.MirroredStrategy(
+        devices=available_gpus())
 
     def train_fn(input_context):
         return _get_train_dataset('cpu', 0).map(
             lambda features, labels: ({'images': features}, labels))
 
-    
     config = tf.estimator.RunConfig(
         model_dir='/tmp/tensorflow-checkpoints',
         train_distribute=mirrored_strategy,
@@ -421,7 +431,7 @@ def test_estimators_multi_gpu():
         n_classes=labels_size,
         dropout=dropout,
         optimizer=Adam,
-        config = config)
+        config=config)
 
     model.train(input_fn=train_fn, steps=epochs * iterations)
 
