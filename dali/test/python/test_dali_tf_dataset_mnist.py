@@ -408,6 +408,25 @@ def test_graph_multi_gpu():
     _train_graph(iterator_initializers, train_step, accuracy)
 
 
+def test_keras_multi_gpu():
+    skip_for_incompatible_tf()
+
+    train_dataset = _get_train_dataset('cpu', 0).unbatch().batch(batch_size * num_available_gpus())
+    mirrored_strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
+
+    with mirrored_strategy.scope():
+        model = _keras_model()
+
+    model.fit(
+        train_dataset,
+        epochs=epochs,
+        steps_per_epoch=iterations)
+
+    assert model.evaluate(
+        train_dataset,
+        steps=iterations)[1] > target
+
+
 def _test_estimators_multi_gpu(model):
     def train_fn(input_context):
         return _get_train_dataset('cpu', 0).map(
