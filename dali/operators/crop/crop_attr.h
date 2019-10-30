@@ -104,7 +104,7 @@ class CropAttr {
       [this, data_idx](const TensorShape<>& input_shape,
                        const TensorLayout& shape_layout) {
         DALI_ENFORCE(shape_layout == "HW" || shape_layout == "DHW",
-          make_string("Unexpected input shape layout:", shape_layout.c_str(),
+          make_string("Unexpected input shape layout: ", shape_layout,
             " (expected HW or DHW)"));
         CropWindow crop_window;
         if (input_shape.size() == 3) {

@@ -42,8 +42,8 @@ bool HsvGpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<G
               type.SetType<OutputType>(output_type_);
               output_desc[0] = {shapes, type};
           }
-      ), DALI_FAIL(make_string("Unsupported output type:", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type:", input.type().id())))  // NOLINT
+      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
   return true;
 }
 
