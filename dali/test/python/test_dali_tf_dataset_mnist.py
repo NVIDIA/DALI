@@ -365,7 +365,7 @@ def test_graph_multi_gpu():
     skip_for_incompatible_tf()
 
     iterator_initializers = []
-    
+
     with tf.device('/cpu:0'):
         tower_grads = []
 
@@ -408,16 +408,25 @@ def test_graph_multi_gpu():
     _train_graph(iterator_initializers, train_step, accuracy)
 
 
-@with_setup(clear_checkpoints, clear_checkpoints)
-def test_estimators_multi_gpu():
-    skip_for_incompatible_tf()
-
-    mirrored_strategy = tf.distribute.MirroredStrategy(
-        devices=available_gpus())
-
+def _test_estimators_multi_gpu(model):
     def train_fn(input_context):
         return _get_train_dataset('cpu', 0).map(
             lambda features, labels: ({'images': features}, labels))
+
+    model.train(input_fn=train_fn, steps=epochs * iterations)
+
+    evaluation = model.evaluate(
+        input_fn=train_fn,
+        steps=iterations)
+    final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
+    print('Final accuracy: ', final_accuracy)
+
+    assert final_accuracy > target
+
+
+def _multi_gpu_classifier():
+    mirrored_strategy = tf.distribute.MirroredStrategy(
+        devices=available_gpus())
 
     config = tf.estimator.RunConfig(
         model_dir='/tmp/tensorflow-checkpoints',
@@ -434,13 +443,35 @@ def test_estimators_multi_gpu():
         dropout=dropout,
         optimizer=Adam,
         config=config)
+    return model
 
-    model.train(input_fn=train_fn, steps=epochs * iterations)
 
-    evaluation = model.evaluate(
-        input_fn=train_fn,
-        steps=iterations)
-    final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
-    print('Final accuracy: ', final_accuracy)
+def _multi_gpu_keras_classifier():
+    mirrored_strategy = tf.distribute.MirroredStrategy(
+        devices=available_gpus())
 
-    assert final_accuracy > target
+    config = tf.estimator.RunConfig(
+        model_dir='/tmp/tensorflow-checkpoints',
+        train_distribute=mirrored_strategy,
+        eval_distribute=mirrored_strategy)
+
+    with mirrored_strategy.scope():
+        keras_model = _keras_model()
+    model = tf.keras.estimator.model_to_estimator(
+        keras_model=keras_model,
+        config=config)
+    return model
+
+
+@with_setup(clear_checkpoints, clear_checkpoints)
+def test_estimators_multi_gpu():
+    skip_for_incompatible_tf()
+    model = _multi_gpu_classifier()
+    _test_estimators_multi_gpu(model)
+
+
+@with_setup(clear_checkpoints, clear_checkpoints)
+def test_estimators_wrapping_keras_multi_gpu():
+    skip_for_incompatible_tf()
+    model = _multi_gpu_keras_classifier()
+    _test_estimators_multi_gpu(model)
