@@ -32,12 +32,12 @@ namespace kernels {
 
 namespace detail {
 
-template <size_t Dims>
+template <int Dims>
 struct SliceSampleDesc {
   void *__restrict__ out;
   const void *__restrict__ in;
-  DeviceArray<int64_t, Dims> in_strides;
-  DeviceArray<int64_t, Dims> out_strides;
+  TensorShape<Dims> in_strides;
+  TensorShape<Dims> out_strides;
 };
 
 struct BlockDesc {
@@ -46,12 +46,12 @@ struct BlockDesc {
   size_t size;
 };
 
-template <unsigned Dims, typename OutputType, typename InputType>
+template <int Dims, typename OutputType, typename InputType>
 __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
                           const int64_t *out_strides, const int64_t *in_strides,
                           size_t offset, size_t block_end) {
   if (Dims > 1 && out_strides[Dims-1] == in_strides[Dims-1]) {
-    const unsigned NextDims = Dims > 1 ? Dims-1 : 1;
+    const int NextDims = Dims > 1 ? Dims-1 : 1;
     SliceFunc<NextDims>(out, in, out_strides, in_strides, offset, block_end);
     return;
   }
@@ -60,8 +60,8 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
     size_t idx = offset;
     size_t out_idx = idx;
     size_t in_idx = 0;
-    for (unsigned d = 0; d < Dims; d++) {
-      unsigned i_d = idx / static_cast<size_t>(out_strides[d]);
+    for (int d = 0; d < Dims; d++) {
+      int i_d = idx / out_strides[d];
       idx %= static_cast<size_t>(out_strides[d]);
       in_idx += i_d * static_cast<size_t>(in_strides[d]);
     }
@@ -70,7 +70,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
   }
 }
 
-template <typename OutputType, typename InputType, size_t Dims>
+template <typename OutputType, typename InputType, int Dims>
 __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
   size_t offset = blocks[blockIdx.x].offset + threadIdx.x;
@@ -83,7 +83,7 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const BlockDes
 
 }  // namespace detail
 
-template <typename OutputType, typename InputType, size_t Dims>
+template <typename OutputType, typename InputType, int Dims>
 class SliceGPU {
  private:
   static constexpr size_t kBlockDim = 256;
@@ -136,11 +136,11 @@ class SliceGPU {
       const auto in_shape = in.tensor_shape(i);
       const auto out_shape = out.tensor_shape(i);
       auto &sample_desc = sample_descs_cpu[i];
-      sample_desc.in_strides = GetStrides<Dims>(in_shape);
-      sample_desc.out_strides = GetStrides<Dims>(out_shape);
+      sample_desc.in_strides = GetStrides(in_shape);
+      sample_desc.out_strides = GetStrides(out_shape);
       auto &anchor = slice_args[i].anchor;
       size_t in_offset = 0;
-      for (size_t d = 0; d < Dims; d++) {
+      for (int d = 0; d < Dims; d++) {
         in_offset += anchor[d] * sample_desc.in_strides[d];
       }
       sample_desc.in = in.tensor_data(i) + in_offset;

@@ -30,7 +30,7 @@
 namespace dali {
 namespace kernels {
 
-template <typename OutputType, typename InputType, size_t Dims>
+template <typename OutputType, typename InputType, int Dims>
 class SliceFlipNormalizePermutePadGPU {
  private:
   static constexpr size_t kBlockDim = 512;
@@ -70,8 +70,8 @@ class SliceFlipNormalizePermutePadGPU {
     TensorListShape<Dims> output_shapes(in_shapes.size(), Dims);
     for (int i = 0; i < in_shapes.size(); i++) {
       TensorShape<Dims> out_shape(args[i].padded_shape);
-      CheckValidOutputShape<Dims>(in_shapes[i], out_shape, args[i]);
-      out_shape = detail::permute<Dims>(out_shape, args[i].permuted_dims);
+      CheckValidOutputShape(in_shapes[i], out_shape, args[i]);
+      out_shape = detail::permute(out_shape, args[i].permuted_dims);
       output_shapes.set_tensor_shape(i, out_shape);
     }
     req.output_shapes = { output_shapes };
@@ -102,11 +102,11 @@ class SliceFlipNormalizePermutePadGPU {
       norm_add_cpu[i] = -mean_data[i] * inv_stddev_data[i];
       norm_mul_cpu[i] = inv_stddev_data[i];
     }
-    unsigned normalization_dim = Dims + 1;
+    int normalization_dim = Dims + 1;
     std::vector<size_t> sample_sizes(in.size());
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
-      auto processed_args = detail::ProcessArgs<Dims>(args[i], in_shape);
+      auto processed_args = detail::ProcessArgs(args[i], in_shape);
       if (i == 0) {
         normalization_dim = processed_args.normalization_dim;
       } else {

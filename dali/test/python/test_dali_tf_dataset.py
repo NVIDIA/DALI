@@ -44,12 +44,12 @@ class TestPipeline(Pipeline):
         self.input = ops.COCOReader(
             file_root = file_root,
             annotations_file = annotations_file,
-            shard_id = shard_id, 
-            num_shards = num_shards, 
-            ratio=False, 
+            shard_id = shard_id,
+            num_shards = num_shards,
+            ratio=False,
             save_img_ids=True)
         self.decode = ops.ImageDecoder(
-            device = 'mixed' if device is 'gpu' else 'cpu', 
+            device = 'mixed' if device is 'gpu' else 'cpu',
             output_type = types.RGB)
         self.resize = ops.Resize(
             device = device,
@@ -79,7 +79,7 @@ class TestPipeline(Pipeline):
         im_ids_16 = self.cast(im_ids)
 
         return (
-            output, 
+            output,
             im_ids,
             im_ids_16)
 

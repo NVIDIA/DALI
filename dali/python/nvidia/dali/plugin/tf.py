@@ -46,10 +46,9 @@ _dali_tf = _dali_tf_module.dali
 
 _dali_tf.__doc__ = _dali_tf.__doc__ + """
 
-    WARNING: 
-    -------
     Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
-    DALI due to insufficient memory.
+    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
+    differ based on your use case.
 """
 
 def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
@@ -171,10 +170,8 @@ if _get_tf_version() >= StrictVersion('1.13'):
 
       if _get_tf_version() >= StrictVersion('1.14'):
         super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
-      elif _get_tf_version() >= StrictVersion('1.13') and _get_tf_version() < StrictVersion('1.14'):
-        super(_DALIDatasetV2, self).__init__()
       else:
-        raise RuntimeError('Unsupported TensorFlow version detected at runtime. DALIDataset supports versions: 1.13, 1.14, 1.15, 2.0')
+        super(_DALIDatasetV2, self).__init__()
 
 
     # This function should not be removed or refactored.
@@ -228,14 +225,15 @@ else:
       gpu_prefetch_queue_depth = 2,
       shapes = [], 
       dtypes = []):
-      raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.')
+      raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.  DALIDataset supports versions: 1.13, 1.14, 1.15, 2.0')
 
 DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13, 1.14, 1.15 and 2.0
 
-    WARNING: 
-    -------
+
     Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
-    DALI due to insufficient memory.
+    DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
+    differ based on your use case.
+
 
     Parameters
     ----------
@@ -270,6 +268,11 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
         expected output shapes
     `dtypes`: `List` of `tf.DType` 
         expected output types
+
+    Returns
+    -------
+    `DALIDataset` object based on DALI pipeline and compatible with `tf.data.Dataset` API.
+
     """
 
 DALIIterator.__doc__ = DALIIteratorWrapper.__doc__

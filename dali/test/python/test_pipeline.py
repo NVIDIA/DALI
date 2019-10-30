@@ -381,53 +381,6 @@ def test_cropmirrornormalize_multiple_inputs():
             check_batch(outs[0], outs[2], batch_size)
             check_batch(outs[1], outs[3], batch_size)
 
-def test_cropmirrornormalize_cpu_vs_gpu():
-    batch_size = 13
-
-    class HybridPipe(Pipeline):
-        def __init__(self, batch_size, num_threads=1, device_id=0, num_gpus=1):
-            super(HybridPipe, self).__init__(batch_size,
-                                             num_threads,
-                                             device_id)
-            self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-            self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
-            self.cmnp_cpu = ops.CropMirrorNormalize(device = "cpu",
-                                                    output_dtype = types.UINT8,
-                                                    output_layout = types.NHWC,
-                                                    crop = (224, 224),
-                                                    image_type = types.RGB,
-                                                    mean = [0., 0., 0.],
-                                                    std = [1., 1., 1.])
-
-            self.cmnp_gpu = ops.CropMirrorNormalize(device = "gpu",
-                                                    output_dtype = types.UINT8,
-                                                    output_layout = types.NHWC,
-                                                    crop = (224, 224),
-                                                    image_type = types.RGB,
-                                                    mean = [0., 0., 0.],
-                                                    std = [1., 1., 1.])
-
-            self.crop_cpu = ops.Crop(device = "cpu", crop = (224, 224),
-                                                image_type = types.RGB,)
-            self.uniform = ops.Uniform(range = (0.0, 1.0))
-
-        def define_graph(self):
-            inputs, labels = self.input(name="Reader")
-            images = self.decode(inputs)
-            pos_x = self.uniform()
-            pos_y = self.uniform()
-            images_cmnp_cpu = self.cmnp_cpu(images, crop_pos_x = pos_x, crop_pos_y = pos_y)
-            images_cmnp_gpu = self.cmnp_gpu(images.gpu(), crop_pos_x = pos_x, crop_pos_y = pos_y)
-            images_ref_cpu = self.crop_cpu(images, crop_pos_x = pos_x, crop_pos_y = pos_y)
-            return (images_cmnp_cpu, images_cmnp_gpu, images_ref_cpu)
-
-    pipe = HybridPipe(batch_size=batch_size)
-    pipe.build()
-    for _ in range(10):
-        (images_cmnp_cpu, images_cmnp_gpu, images_ref_cpu) = pipe.run()
-        check_batch(images_cmnp_cpu, images_cmnp_gpu, batch_size)
-        check_batch(images_cmnp_cpu, images_ref_cpu, batch_size)
-
 def test_seed():
     batch_size = 64
     class HybridPipe(Pipeline):

@@ -25,6 +25,9 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
+#define SLICE_TYPES (uint8_t, int16_t, uint16_t, int32_t, float, float16)
+#define CMN_NDIMS (3, 4, 5)
+
 namespace dali {
 
 template <typename Backend>

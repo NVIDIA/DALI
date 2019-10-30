@@ -114,11 +114,11 @@ class DLL_PUBLIC PadGPU {
 
     for (int i = 0; i < in.size(); i++) {
       auto out_shape = out.tensor_shape(i);
-      auto out_strides = GetStrides<Dims>(out_shape);
+      auto out_strides = GetStrides(out_shape);
       auto out_vol = volume(out_shape);
       const auto in_shape = in.tensor_shape(i);
       auto &sample_desc = sample_descs_cpu[i];
-      sample_desc.in_strides = GetStrides<Dims>(in_shape);
+      sample_desc.in_strides = GetStrides(in_shape);
       sample_desc.out_strides = out_strides;
       sample_desc.out_shape = in_shape.shape;
       sample_desc.padded_out_shape = out_shape.shape;

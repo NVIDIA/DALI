@@ -163,8 +163,8 @@ def crop_NHWC_func(image):
     return crop_func_help(image, "HWC")
 
 def check_crop_NFHWC_vs_python_op_crop(device, batch_size):
-    eii1 = RandomDataIterator(batch_size, shape=(10, 600, 800, 3))
-    eii2 = RandomDataIterator(batch_size, shape=(10, 600, 800, 3))
+    eii1 = RandomDataIterator(batch_size, shape=(10, 300, 400, 3))
+    eii2 = RandomDataIterator(batch_size, shape=(10, 300, 400, 3))
     compare_pipelines(CropSequencePipeline(device, batch_size, "FHWC", iter(eii1)),
                       CropSequencePythonOpPipeline(crop_NFHWC_func, batch_size, "FHWC", iter(eii2)),
                       batch_size=batch_size, N_iterations=10)
@@ -175,8 +175,8 @@ def test_crop_NFHWC_vs_python_op_crop():
             yield check_crop_NFHWC_vs_python_op_crop, device, batch_size
 
 def check_crop_NHWC_vs_python_op_crop(device, batch_size):
-    eii1 = RandomDataIterator(batch_size, shape=(600, 800, 3))
-    eii2 = RandomDataIterator(batch_size, shape=(600, 800, 3))
+    eii1 = RandomDataIterator(batch_size, shape=(300, 400, 3))
+    eii2 = RandomDataIterator(batch_size, shape=(300, 400, 3))
     compare_pipelines(CropSequencePipeline(device, batch_size, "HWC", iter(eii1)),
                       CropSequencePythonOpPipeline(crop_NHWC_func, batch_size, "HWC", iter(eii2)),
                       batch_size=batch_size, N_iterations=10)

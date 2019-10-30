@@ -84,7 +84,7 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
       const auto *ptr =
           reinterpret_cast<const char *>(GetInputSamplePointer(ws, input_idx, tile.sample_idx));
       auto tile_offset =
-          tile.tile_size * tile.extent_idx * TypeTable::GetTypeInfo(func.GetTypeId()).size();
+          tile.tile_size * tile.extent_idx * TypeTable::GetTypeInfo(tensor.GetTypeId()).size();
       result[i] = ptr + tile_offset;
     }
   }

@@ -25,9 +25,9 @@ class SliceGPUTest : public SliceTest<TestArgs> {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
-  static constexpr std::size_t Dims = TestArgs::Dims;
-  static constexpr std::size_t NumSamples = TestArgs::NumSamples;
-  static constexpr std::size_t DimSize = TestArgs::DimSize;
+  static constexpr int Dims = TestArgs::Dims;
+  static constexpr int NumSamples = TestArgs::NumSamples;
+  static constexpr int DimSize = TestArgs::DimSize;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
   using KernelType = SliceGPU<OutputType, InputType, Dims>;
 

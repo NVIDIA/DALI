@@ -24,9 +24,9 @@ class SliceCPUTest : public SliceTest<TestArgs> {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
-  static constexpr std::size_t Dims = TestArgs::Dims;
-  static constexpr std::size_t NumSamples = TestArgs::NumSamples;
-  static constexpr std::size_t DimSize = TestArgs::DimSize;
+  static constexpr int Dims = TestArgs::Dims;
+  static constexpr int NumSamples = TestArgs::NumSamples;
+  static constexpr int DimSize = TestArgs::DimSize;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
   using KernelType = SliceCPU<OutputType, InputType, Dims>;
 
@@ -44,7 +44,7 @@ class SliceCPUTest : public SliceTest<TestArgs> {
 
     TensorListShape<> output_shapes(NumSamples, Dims);
     std::vector<KernelType> kernels(NumSamples);
-    for (std::size_t i = 0; i < NumSamples; i++) {
+    for (int i = 0; i < NumSamples; i++) {
       auto &kernel = kernels[i];
       KernelRequirements kernel_req = kernel.Setup(ctx, test_data_cpu[i], slice_args[i]);
       TensorShape<Dims> output_shape = kernel_req.output_shapes[0][0].to_static<Dims>();
@@ -55,7 +55,7 @@ class SliceCPUTest : public SliceTest<TestArgs> {
     output_data.reshape(std::move(output_shapes).to_static<Dims>());
     OutListCPU<OutputType, Dims> out_tlv = output_data.cpu();
 
-    for (std::size_t i = 0; i < NumSamples; i++) {
+    for (int i = 0; i < NumSamples; i++) {
       auto &kernel = kernels[i];
       auto out_tv = out_tlv[i];
       auto in_tv = test_data_cpu[i];

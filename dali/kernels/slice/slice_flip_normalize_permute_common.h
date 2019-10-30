@@ -24,13 +24,13 @@
 namespace dali {
 namespace kernels {
 
-template <size_t Dims>
+template <int Dims>
 struct SliceFlipNormalizePermutePadArgs {
   SliceFlipNormalizePermutePadArgs() = default;
 
   template <typename Shape>
   explicit SliceFlipNormalizePermutePadArgs(const Shape &_shape) {
-    for (size_t d = 0; d < Dims; d++) {
+    for (int d = 0; d < Dims; d++) {
       anchor[d] = 0;
       shape[d] = _shape[d];
       padded_shape[d] = _shape[d];
@@ -39,13 +39,13 @@ struct SliceFlipNormalizePermutePadArgs {
     }
   }
 
-  std::array<int64_t, Dims> anchor;
-  std::array<int64_t, Dims> shape;
-  std::array<int64_t, Dims> padded_shape;
+  TensorShape<Dims> anchor;
+  TensorShape<Dims> shape;
+  TensorShape<Dims> padded_shape;
   std::array<bool, Dims> flip;
   std::array<int, Dims> permuted_dims;
-  size_t normalization_dim = Dims-1;
-  size_t normalization_index = 0;
+  int normalization_dim = Dims-1;
+  int normalization_index = 0;
   std::vector<float> mean;
   std::vector<float> inv_stddev;
   float padding_val = 0.0f;
@@ -53,56 +53,56 @@ struct SliceFlipNormalizePermutePadArgs {
 
 namespace detail {
 
-template <size_t Dims>
+template <int Dims>
 struct SliceFlipNormalizePermutePadProcessedArgs {
   size_t input_offset;
-  std::array<int64_t, Dims> in_strides;
-  std::array<int64_t, Dims> out_shape;
-  std::array<int64_t, Dims> padded_out_shape;
-  std::array<int64_t, Dims> out_strides;
+  TensorShape<Dims> in_strides;
+  TensorShape<Dims> out_shape;
+  TensorShape<Dims> padded_out_shape;
+  TensorShape<Dims> out_strides;
   std::vector<float> mean;
   std::vector<float> inv_stddev;
-  size_t normalization_dim;
+  int normalization_dim;
   float padding_val = 0.0f;
 };
 
-template <size_t Dims, typename Container>
-Container permute(const Container &container, const std::array<int, Dims> &permuted_dims) {
+template <typename Container, typename Permutation>
+Container permute(const Container &container, const Permutation &source_indices) {
   auto permuted_container = container;
-  for (size_t d = 0; d < Dims; d++) {
-    permuted_container[d] = container[permuted_dims[d]];
+  for (int d = 0, n = size(source_indices); d < n; d++) {
+    permuted_container[d] = container[source_indices[d]];
   }
   return permuted_container;
 }
 
-template <size_t Dims>
-std::array<int, Dims> inverse_permutation(const std::array<int, Dims> &permutation) {
-  std::array<int, Dims> inv_perm = permutation;
-  for (size_t d = 0; d < Dims; d++) {
+template <typename Permutation>
+Permutation inverse_permutation(const Permutation &permutation) {
+  Permutation inv_perm = permutation;
+  for (int d = 0, n = size(permutation); d < n; d++) {
     auto perm_d = permutation[d];
     inv_perm[perm_d] = d;
   }
   return inv_perm;
 }
 
-template <size_t Dims, typename Shape>
+template <int Dims, typename Shape>
 SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
     const SliceFlipNormalizePermutePadArgs<Dims> &args,
     const Shape &in_shape) {
   SliceFlipNormalizePermutePadProcessedArgs<Dims> processed_args;
 
   processed_args.input_offset = 0;
-  processed_args.in_strides = GetStrides<Dims>(in_shape);
+  processed_args.in_strides = GetStrides(in_shape);
 
   auto slice_shape = args.shape;
-  processed_args.out_shape = detail::permute<Dims>(slice_shape, args.permuted_dims);
+  processed_args.out_shape = detail::permute(slice_shape, args.permuted_dims);
   processed_args.padded_out_shape =
-    detail::permute<Dims>(args.padded_shape, args.permuted_dims);
+    detail::permute(args.padded_shape, args.permuted_dims);
   processed_args.padding_val = args.padding_val;
-  processed_args.out_strides = GetStrides<Dims>(processed_args.padded_out_shape);
+  processed_args.out_strides = GetStrides(processed_args.padded_out_shape);
 
   // Flip operation is implemented by manipulating the anchor and the sign of the input strides
-  for (size_t d = 0; d < Dims; d++) {
+  for (int d = 0; d < Dims; d++) {
     if (args.flip[d]) {
       processed_args.input_offset +=
           (args.anchor[d] + slice_shape[d] - 1) * processed_args.in_strides[d];
