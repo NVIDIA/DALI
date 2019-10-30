@@ -63,6 +63,8 @@ hidden_size = 128
 epochs = 5
 iterations = 100
 
+data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/training/')
+
 
 class MnistPipeline(Pipeline):
     def __init__(self, num_threads, path, device, device_id=0, shard_id=0, num_shards=1, seed=0):
@@ -91,8 +93,8 @@ class MnistPipeline(Pipeline):
         return (images, labels)
 
 
-def _get_mnist_dataset(path, device='cpu', device_id=0, shard_id = 0, num_shards = 1):
-    mnist_pipeline = MnistPipeline(4, path, device, device_id, shard_id, num_shards)
+def _get_mnist_dataset(device='cpu', device_id=0, shard_id = 0, num_shards = 1):
+    mnist_pipeline = MnistPipeline(4, data_path, device, device_id, shard_id, num_shards)
     shapes = [
         (batch_size, image_size, image_size),
         (batch_size)]
@@ -112,7 +114,6 @@ def _get_mnist_dataset(path, device='cpu', device_id=0, shard_id = 0, num_shards
 
 def _get_train_dataset(device='cpu', device_id=0, shard_id = 0, num_shards = 1):
     return _get_mnist_dataset(
-        '/data/MNIST/training',
         device,
         device_id,
         shard_id,
