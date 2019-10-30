@@ -362,8 +362,10 @@ def _average_gradients(tower_grads):
 
 @with_setup(reset_default_graph)
 def test_graph_multi_gpu():
-    iterator_initializers = []
+    skip_for_incompatible_tf()
 
+    iterator_initializers = []
+    
     with tf.device('/cpu:0'):
         tower_grads = []
 
