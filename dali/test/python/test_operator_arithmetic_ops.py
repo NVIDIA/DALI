@@ -111,7 +111,7 @@ def div_promote(left_type, right_type):
     right_dtype = np.dtype(hack_builtin_types(right_type))
     if 'f' not in left_dtype.kind and 'f' not in right_dtype.kind:
         return np.float32
-    return float_bin_promote(left_dtype, right_dtype)
+    return float_bin_promote(left_dtype, right_dtype).type
 
 
 def int_generator(shape, type):
@@ -262,8 +262,8 @@ def check_arithm_div(kinds, types):
             rtol=1e-07 if target_type != np.float16 else 0.005)
     else:
         # Approximate validation, as np does something different than C
-        result = np.abs(l_np // r_np)
-        neg = ((l < 0) & (r > 0)) | ((l > 0) & (r < 0))
+        result = np.floor_divide(np.abs(l_np), np.abs(r_np))
+        neg = ((l_np < 0) & (r_np > 0)) | ((l_np > 0) & (r_np < 0))
         pos = ~neg
         result = result * (pos * 1 - neg * 1)
         np.testing.assert_array_equal(out, result)
