@@ -84,9 +84,11 @@ class TestPipeline(Pipeline):
             im_ids_16)
 
 
-def _test_tf_dataset(device, device_id = 0):
+def setup():
     skip_for_incompatible_tf()
 
+
+def _test_tf_dataset(device, device_id = 0):
     batch_size = 12
     num_threads = 4
     iterations = 10
@@ -173,8 +175,6 @@ def test_differnt_num_shapes_dtypes():
 
 
 def _test_tf_dataset_multigpu():
-    skip_for_incompatible_tf()
-
     num_devices = num_available_gpus()
     dataset_size = 64
     batch_size = 8

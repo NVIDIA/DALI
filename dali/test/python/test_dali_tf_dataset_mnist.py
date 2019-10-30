@@ -68,6 +68,10 @@ iterations = 100
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/training/')
 
 
+def setup():
+    skip_for_incompatible_tf()
+
+
 class MnistPipeline(Pipeline):
     def __init__(self, num_threads, path, device, device_id=0, shard_id=0, num_shards=1, seed=0):
         super(MnistPipeline, self).__init__(
@@ -155,8 +159,6 @@ def _train_graph(iterator_initializers, train_op, accuracy):
 
 
 def _test_graph_single_device(device='cpu', device_id=0):
-    skip_for_incompatible_tf()
-
     with tf.device('/{0}:{1}'.format(device, device_id)):
         daliset = _get_train_dataset(device, device_id)
 
@@ -214,8 +216,6 @@ def _keras_model():
 
 
 def _test_keras_single_device(device='cpu', device_id=0):
-    skip_for_incompatible_tf()
-
     with tf.device('/{0}:{1}'.format(device, device_id)):
         model = _keras_model()
 
@@ -248,8 +248,6 @@ def clear_checkpoints():
 
 
 def _test_estimators_single_device(model, device='cpu', device_id=0):
-    skip_for_incompatible_tf()
-
     def train_fn():
         with tf.device('/{0}:{1}'.format(device, device_id)):
             return _get_train_dataset(device, device_id).map(
@@ -362,8 +360,6 @@ def _average_gradients(tower_grads):
 
 @with_setup(reset_default_graph)
 def test_graph_multi_gpu():
-    skip_for_incompatible_tf()
-
     iterator_initializers = []
 
     with tf.device('/cpu:0'):
@@ -409,8 +405,6 @@ def test_graph_multi_gpu():
 
 
 def test_keras_multi_gpu():
-    skip_for_incompatible_tf()
-
     train_dataset = _get_train_dataset('cpu', 0).unbatch().batch(batch_size * num_available_gpus())
     mirrored_strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
 
@@ -484,13 +478,11 @@ def _multi_gpu_keras_classifier():
 
 @with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_multi_gpu():
-    skip_for_incompatible_tf()
     model = _multi_gpu_classifier()
     _test_estimators_multi_gpu(model)
 
 
 @with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_wrapping_keras_multi_gpu():
-    skip_for_incompatible_tf()
     model = _multi_gpu_keras_classifier()
     _test_estimators_multi_gpu(model)
