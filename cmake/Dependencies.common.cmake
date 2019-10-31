@@ -152,7 +152,7 @@ if(BUILD_FFMPEG)
 endif()
 
 ##################################################################
-# Boost prerocessor
+# Boost preprocessor
 ##################################################################
 include_directories(${PROJECT_SOURCE_DIR}/third_party/boost/preprocessor/include)
 
