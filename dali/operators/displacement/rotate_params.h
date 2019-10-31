@@ -179,6 +179,16 @@ class RotateParamProvider<Backend, 2, BorderType>
   TensorListShape<spatial_ndim + 1> input_shape_;
 };
 
+
+template <typename Backend, typename BorderType>
+class RotateParamProvider<Backend, 3, BorderType>
+: public WarpParamProvider<Backend, 3, RotateParams<3>, BorderType> {
+ public:
+  RotateParamProvider() {
+    DALI_FAIL("3D rotation not supported yet");
+  }
+};
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_DISPLACEMENT_ROTATE_PARAMS_H_

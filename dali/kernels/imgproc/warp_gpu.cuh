@@ -55,7 +55,7 @@ class WarpGPU {
 
   using SampleDesc = typename WarpSetup::SampleDesc;
   using BlockDesc = typename WarpSetup::BlockDesc;
-  static_assert(spatial_ndim == 2, "Not implemented for spatial_ndim != 2");
+  static_assert(spatial_ndim == 2 || spatial_ndim == 3, "WarpGPU only works for 2D and 3D data");
 
   KernelRequirements Setup(KernelContext &context,
                            const InListGPU<InputType, tensor_ndim> &in,

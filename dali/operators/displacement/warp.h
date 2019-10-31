@@ -302,7 +302,7 @@ class Warp : public Operator<Backend> {
     input_type_ = input.type().id();
     output_type_ = output_type_arg_ == DALI_NO_TYPE ? input_type_ : output_type_arg_;
 
-    VALUE_SWITCH(This().SpatialDim(), spatial_ndim, (2), (
+    VALUE_SWITCH(This().SpatialDim(), spatial_ndim, (2, 3), (
       VALUE_SWITCH(This().BorderClamp() ? 1 : 0, UseBorderClamp, (0, 1), (
           ToStaticType(
             [&](auto &&args) {
@@ -322,7 +322,7 @@ class Warp : public Operator<Backend> {
             }
           });),
           (assert(!"impossible")))),
-        (DALI_FAIL("Only 2D warping is supported")));
+        (DALI_FAIL("Only 2D and 3D warping is supported")));
 
 
     impl_->Setup(out_shape, ws);
