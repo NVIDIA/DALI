@@ -404,6 +404,8 @@ def test_graph_multi_gpu():
     _train_graph(iterator_initializers, train_step, accuracy)
 
 
+# Note: This picks up single Dataset instance on the CPU and distributes the data automatically.
+# TODO(awolant): Goal is to figure out how to have GPU instance per replica on one machine.
 def test_keras_multi_gpu():
     train_dataset = _get_train_dataset('cpu', 0).unbatch().batch(batch_size * num_available_gpus())
     mirrored_strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
@@ -476,12 +478,16 @@ def _multi_gpu_keras_classifier():
     return model
 
 
+# Note: This picks up single Dataset instance on the CPU and distributes the data automatically.
+# TODO(awolant): Goal is to figure out how to have GPU instance per replica on one machine.
 @with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_multi_gpu():
     model = _multi_gpu_classifier()
     _test_estimators_multi_gpu(model)
 
 
+# Note: This picks up single Dataset instance on the CPU and distributes the data automatically.
+# TODO(awolant): Goal is to figure out how to have GPU instance per replica on one machine.
 @with_setup(clear_checkpoints, clear_checkpoints)
 def test_estimators_wrapping_keras_multi_gpu():
     model = _multi_gpu_keras_classifier()
