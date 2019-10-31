@@ -26,34 +26,32 @@ namespace audio {
 namespace fft {
 namespace test {
 
-class FftCpuTest : public::testing::TestWithParam<
-  std::tuple<FftTransformType, FftOutputType, std::array<int64_t, 2>>> {
+class Fft1DCpuTest : public::testing::TestWithParam<
+  std::tuple<FftOutputType, std::array<int64_t, 2>>> {
  public:
-  FftCpuTest()
-    : transform_type_(std::get<0>(GetParam()))
-    , output_type_(std::get<1>(GetParam()))
-    , data_shape_(std::get<2>(GetParam()))
+  Fft1DCpuTest()
+    : output_type_(std::get<0>(GetParam()))
+    , data_shape_(std::get<1>(GetParam()))
     , data_(volume(data_shape_))
     , in_view_(data_.data(), data_shape_) {}
 
-  ~FftCpuTest() override = default;
+  ~Fft1DCpuTest() override = default;
 
  protected:
   void SetUp() final {
     std::mt19937_64 rng;
     UniformRandomFill(in_view_, rng, 0., 1.);
   }
-  FftTransformType transform_type_;
   FftOutputType output_type_;
   TensorShape<2> data_shape_;
   std::vector<float> data_;
   OutTensorCPU<float, 2> in_view_;
 };
 
-TEST_P(FftCpuTest, KernelTest) {
+TEST_P(Fft1DCpuTest, KernelTest) {
   KernelContext ctx;
-  FftCpu<float> kernel;
-  FftArgs args = {transform_type_, output_type_};
+  Fft1DCpu<float> kernel;
+  FftArgs args = {output_type_, 0, 1};
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
   ScratchpadAllocator scratch_alloc;
@@ -71,7 +69,7 @@ TEST_P(FftCpuTest, KernelTest) {
   auto in_nchannels = in_shape[in_shape.size()-1];
 
   auto expected_out_shape = in_shape;
-  ASSERT_TRUE(args.output_type == FFT_OUTPUT_TYPE_MAGNITUDE_ONLY ||
+  ASSERT_TRUE(args.output_type == FFT_OUTPUT_TYPE_MAGNITUDE ||
               args.output_type == FFT_OUTPUT_TYPE_COMPLEX);
   if (args.output_type == FFT_OUTPUT_TYPE_COMPLEX) {
     expected_out_shape[out_shape.size()-1] *= 2;
@@ -80,25 +78,22 @@ TEST_P(FftCpuTest, KernelTest) {
 
   auto n = in_shape[0];
 
-#if 1  // for debug purposes
-  std::cout << "FFT:" << std::endl;
+  LOG_LINE << "FFT:" << std::endl;
   for (int i = 0; i < n; i++) {
-    std::cout << "(" << out_view.data[2*i] << "," << out_view.data[2*i+1] << "i)" << std::endl;
+    LOG_LINE << "(" << out_view.data[2*i] << "," << out_view.data[2*i+1] << "i)" << std::endl;
   }
-#endif
 
   // Asserting that the right side of the spectrum is mirrored as expected
   for (int i = n/2+1; i < n; i++) {
-    ASSERT_EQ(out_view.data[2*i+0],  out_view.data[2*(n-i)+0]);
-    ASSERT_EQ(out_view.data[2*i+1], -out_view.data[2*(n-i)+1]);
+    ASSERT_NEAR(out_view.data[2*i+0],  out_view.data[2*(n-i)+0], 1e-5);
+    ASSERT_NEAR(out_view.data[2*i+1], -out_view.data[2*(n-i)+1], 1e-5);
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(FftCpuTest, FftCpuTest, testing::Combine(
-    testing::Values(FFT_TRANSFORM_FORWARD),
+INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, Fft1DCpuTest, testing::Combine(
     testing::Values(FFT_OUTPUT_TYPE_COMPLEX),
-    testing::Values(//std::array<int64_t, 2>{64, 1},
-                    //std::array<int64_t, 2>{4096, 1},
+    testing::Values(std::array<int64_t, 2>{64, 1},
+                    std::array<int64_t, 2>{4096, 1},
                     std::array<int64_t, 2>{100, 1})));
 
 }  // namespace test
