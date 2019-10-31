@@ -73,10 +73,9 @@ struct SamplerTestData {
   }
 
   const T *GetGPUData() {
-    static const T *data = GetCPUData();
     if (!gpu_storage) {
       gpu_storage = memory::alloc_unique<T>(AllocType::GPU, D*W*H*C);
-      cudaMemcpy(gpu_storage.get(), data, sizeof(T)*D*W*H*C, cudaMemcpyHostToDevice);
+      cudaMemcpy(gpu_storage.get(), GetCPUData(), sizeof(T)*D*W*H*C, cudaMemcpyHostToDevice);
     }
     return gpu_storage.get();
   }

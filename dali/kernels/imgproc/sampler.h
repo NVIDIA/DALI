@@ -68,6 +68,9 @@ template <int n>
 DALI_HOST_DEV DALI_FORCEINLINE
 constexpr bool all_in_range(ivec<n> coords, ivec<n> limit) {
   for (int i = 0; i < n; i++) {
+    // if limit is non-negative, then reintepreting to unsigned
+    // checks for negative coords as well, as they wrap around and become
+    // larger than any non-negative integer
     if (static_cast<unsigned>(coords[i]) >= static_cast<unsigned>(limit[i]))
       return false;
   }
@@ -83,6 +86,9 @@ constexpr bool all_in_range(ivec<n> coords, ivec<n> limit) {
  */
 DALI_HOST_DEV DALI_FORCEINLINE
 constexpr bool all_in_range(ivec2 coords, ivec2 limit) {
+  // if limit is non-negative, then reintepreting to unsigned
+  // checks for negative coords as well, as they wrap around and become
+  // larger than any non-negative integer
   return static_cast<unsigned>(coords.x) < static_cast<unsigned>(limit.x) &&
          static_cast<unsigned>(coords.y) < static_cast<unsigned>(limit.y);
 }
@@ -96,6 +102,9 @@ constexpr bool all_in_range(ivec2 coords, ivec2 limit) {
  */
 DALI_HOST_DEV DALI_FORCEINLINE
 constexpr bool all_in_range(ivec3 coords, ivec3 limit) {
+  // if limit is non-negative, then reintepreting to unsigned
+  // checks for negative coords as well, as they wrap around and become
+  // larger than any non-negative integer
   return static_cast<unsigned>(coords.x) < static_cast<unsigned>(limit.x) &&
          static_cast<unsigned>(coords.y) < static_cast<unsigned>(limit.y) &&
          static_cast<unsigned>(coords.z) < static_cast<unsigned>(limit.z);
@@ -125,7 +134,8 @@ struct Sampler<DALI_INTERP_NN, _spatial_ndim, In> {
 
   template <typename T = In>
   DALI_HOST_DEV DALI_FORCEINLINE T at(icoords pos, int c, BorderClamp) const {
-    return ConvertSat<T>(surface(clamp(pos, icoords(0), surface.size - 1), c));
+    icoords clamped = clamp(pos, icoords(0), surface.size - 1);
+    return ConvertSat<T>(surface(clamped, c));
   }
 
   template <typename T = In, typename BorderValue>
@@ -229,7 +239,6 @@ struct Sampler<DALI_INTERP_LINEAR, 2, In> {
     float qx = x - x0;
     float px = 1 - qx;
     float qy = y - y0;
-
     for (int c = 0; c < surface.channels; c++) {
       In s00 = NN.at(ivec2(x0,   y0),   c, border_value);
       In s01 = NN.at(ivec2(x0+1, y0),   c, border_value);
