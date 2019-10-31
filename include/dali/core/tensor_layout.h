@@ -18,6 +18,7 @@
 #include <cassert>
 #include <cstring>
 #include <array>
+#include <ostream>
 #include <string>
 #include <stdexcept>
 #include "dali/core/error_handling.h"
@@ -539,6 +540,10 @@ inline std::array<int, Dims> GetLayoutMapping(const TensorLayout &in_layout,
   }
 
   return dim_map;
+}
+
+inline std::ostream &operator<<(std::ostream &os, const TensorLayout &tl) {
+  return os << tl.c_str();
 }
 
 }  // namespace dali
