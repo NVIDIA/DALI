@@ -20,6 +20,7 @@ import nvidia.dali.types as types
 from nvidia.dali.tensors import TensorListGPU
 import numpy as np
 from nose.tools import assert_equals
+import itertools
 
 from test_utils import check_batch
 
@@ -28,12 +29,30 @@ batch_size = 4
 # Shape of the samples
 shape = (256, 256)
 
-devices = ["cpu_cpu", "cpu_gpu", "gpu_gpu", "gpu_gpu"]
+# A number used to test constant inputs
+magic_number = 42
+
+# We cannot have constant x constant operations with DALI op.
+input_kinds = list(itertools.product(["cpu", "gpu"], ["cpu", "gpu", "const"])) +  list(
+        itertools.product(["const"], ["cpu", "gpu"]))
 
 # float16 is marked as TODO in backend for gpu
-types = [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64,
-         np.float32, np.float64]
+input_types = [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64,
+        np.float32, np.float64]
 
+np_types_to_dali = {
+    np.int8:    types.INT8,
+    np.int16:   types.INT16,
+    np.int32:   types.INT32,
+    np.int64:   types.INT64,
+    np.uint8:   types.UINT8,
+    np.uint16:  types.UINT16,
+    np.uint32:  types.UINT32,
+    np.uint64:  types.UINT64,
+    np.float16: types.FLOAT16,
+    np.float32: types.FLOAT,
+    np.float64: types.FLOAT64,
+}
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*")]
@@ -73,19 +92,26 @@ def bin_promote_dtype(left_dtype, right_dtype):
         return signed_unsigned_bin_promote(left_dtype, right_dtype)
     return signed_unsigned_bin_promote(right_dtype, left_dtype)
 
+def hack_builtin_types(input_type):
+    if type(input_type) == int:
+        return np.int32
+    elif type(input_type) == float:
+        return np.float32
+    else:
+        return input_type
 
 def bin_promote(left_type, right_type):
-    left_dtype = np.dtype(left_type)
-    right_dtype = np.dtype(right_type)
+    left_dtype = np.dtype(hack_builtin_types(left_type))
+    right_dtype = np.dtype(hack_builtin_types(right_type))
     return bin_promote_dtype(left_dtype, right_dtype).type
 
 # For __truediv__ we promote integer results to float, otherwise proceed like with bin op
 def div_promote(left_type, right_type):
-    left_dtype = np.dtype(left_type)
-    right_dtype = np.dtype(right_type)
+    left_dtype = np.dtype(hack_builtin_types(left_type))
+    right_dtype = np.dtype(hack_builtin_types(right_type))
     if 'f' not in left_dtype.kind and 'f' not in right_dtype.kind:
         return np.float32
-    return float_bin_promote(left_dtype, right_dtype)
+    return float_bin_promote(left_dtype, right_dtype).type
 
 
 def int_generator(shape, type):
@@ -125,36 +151,50 @@ class ExternalInputIterator(object):
 
 
 class ExprOpPipeline(Pipeline):
-    def __init__(self, dev, iterator, op, batch_size, num_threads, device_id):
+    def __init__(self, kinds, types, iterator, op, batch_size, num_threads, device_id):
         super(ExprOpPipeline, self).__init__(batch_size, num_threads, device_id, seed=12)
         self.left_source = ops.ExternalSource()
         self.right_source = ops.ExternalSource()
-        self.dev = dev
+        self.kinds = kinds
+        self.types = types
         self.iterator = iterator
         self.op = op
 
     def define_graph(self):
         self.left = self.left_source()
         self.right = self.right_source()
-        if self.dev == "cpu_cpu":
-            return self.left, self.right, self.op(self.left, self.right)
-        elif self.dev == "gpu_cpu":
-            return self.left, self.right, self.op(self.left.gpu(), self.right)
-        elif self.dev == "cpu_gpu":
-            return self.left, self.right, self.op(self.left, self.right.gpu())
-        else:
-            return self.left, self.right, self.op(self.left.gpu(), self.right.gpu())
+        left_kind, right_kind = self.kinds
+        left_type, right_type = self.types
+        l = self.get_operand(self.left, left_kind, left_type)
+        r = self.get_operand(self.right, right_kind, right_type)
+        return self.left, self.right, self.op(l, r)
+
+    def get_operand(self, operand, kind, operand_type):
+        if kind == "const":
+            return types.Constant(magic_number, np_types_to_dali[operand_type])
+        elif kind == "cpu":
+            return operand
+        elif kind == "gpu":
+            return operand.gpu()
 
     def iter_setup(self):
         (l, r) = self.iterator.next()
         self.feed_input(self.left, l)
         self.feed_input(self.right, r)
 
+def get_numpy_input(input, kind, type):
+    if kind == "const":
+        return type(magic_number)
+    else:
+        return input.astype(type)
+
 # Regular arithmetic ops that can be validated as straight numpy
-def check_arithm_op(dev, left_type, right_type, op, op_desc):
+def check_arithm_op(kinds, types, op, _):
+    left_type, right_type = types
+    left_kind, right_kind = kinds
     target_type = bin_promote(left_type, right_type)
     iterator = iter(ExternalInputIterator(batch_size, left_type, right_type))
-    pipe = ExprOpPipeline(dev, iterator, op, batch_size = batch_size, num_threads = 2,
+    pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size = batch_size, num_threads = 2,
             device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -162,24 +202,28 @@ def check_arithm_op(dev, left_type, right_type, op, op_desc):
     r = as_cpu(pipe_out[1]).as_array()
     out = as_cpu(pipe_out[2]).as_array()
     assert_equals(out.dtype, target_type)
+    l_np = get_numpy_input(l, left_kind, target_type)
+    r_np = get_numpy_input(r, right_kind, target_type)
     if 'f' in np.dtype(target_type).kind:
-        np.testing.assert_allclose(out, op(l.astype(target_type), r.astype(target_type)),
+        np.testing.assert_allclose(out, op(l_np, r_np),
             rtol=1e-07 if target_type != np.float16 else 0.005)
     else:
-        np.testing.assert_array_equal(out, op(l.astype(target_type), r.astype(target_type)))
+        np.testing.assert_array_equal(out, op(l_np, r_np))
 
 def test_arithmetic_ops():
-    for dev in devices:
+    for kinds in input_kinds:
         for (op, op_desc) in sane_operations:
-            for left_type in types:
-                for right_type in types:
-                    yield check_arithm_op, dev, left_type, right_type, op, op_desc
+            for types_in in itertools.product(input_types, input_types):
+                yield check_arithm_op, kinds, types_in, op, op_desc
+
 
 # The div operator that always returns floating point values
-def check_arithm_fdiv(dev, left_type, right_type):
+def check_arithm_fdiv(kinds, types):
+    left_type, right_type = types
+    left_kind, right_kind = kinds
     target_type = div_promote(left_type, right_type)
     iterator = iter(ExternalInputIterator(batch_size, left_type, right_type))
-    pipe = ExprOpPipeline(dev, iterator, (lambda x, y : x / y), batch_size = batch_size,
+    pipe = ExprOpPipeline(kinds, types, iterator, (lambda x, y : x / y), batch_size = batch_size,
             num_threads = 2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -187,20 +231,23 @@ def check_arithm_fdiv(dev, left_type, right_type):
     r = as_cpu(pipe_out[1]).as_array()
     out = as_cpu(pipe_out[2]).as_array()
     assert_equals(out.dtype, target_type)
-    np.testing.assert_allclose(out, l.astype(target_type) / r.astype(target_type),
+    l_np = get_numpy_input(l, left_kind, target_type)
+    r_np = get_numpy_input(r, right_kind, target_type)
+    np.testing.assert_allclose(out, l_np / r_np,
         rtol=1e-07 if target_type != np.float16 else 0.005)
 
 def test_arithmetic_float_division():
-    for dev in devices:
-        for left_type in types:
-                for right_type in types:
-                    yield check_arithm_fdiv, dev, left_type, right_type
+    for kinds in input_kinds:
+        for types_in in itertools.product(input_types, input_types):
+            yield check_arithm_fdiv, kinds, types_in
 
 # The div operator behaves like C/C++ one
-def check_arithm_div(dev, left_type, right_type):
+def check_arithm_div(kinds, types):
+    left_type, right_type = types
+    left_kind, right_kind = kinds
     target_type = bin_promote(left_type, right_type)
     iterator = iter(ExternalInputIterator(batch_size, left_type, right_type))
-    pipe = ExprOpPipeline(dev, iterator, (lambda x, y : x // y), batch_size = batch_size,
+    pipe = ExprOpPipeline(kinds, types, iterator, (lambda x, y : x // y), batch_size = batch_size,
             num_threads = 2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -208,19 +255,20 @@ def check_arithm_div(dev, left_type, right_type):
     r = as_cpu(pipe_out[1]).as_array()
     out = as_cpu(pipe_out[2]).as_array()
     assert_equals(out.dtype, target_type)
+    l_np = get_numpy_input(l, left_kind, target_type)
+    r_np = get_numpy_input(r, right_kind, target_type)
     if 'f' in np.dtype(target_type).kind:
-        np.testing.assert_allclose(out, l.astype(target_type) / r.astype(target_type),
+        np.testing.assert_allclose(out, l_np / r_np,
             rtol=1e-07 if target_type != np.float16 else 0.005)
     else:
         # Approximate validation, as np does something different than C
-        result = np.abs(l.astype(target_type)) // np.abs(r.astype(target_type))
-        neg = ((l < 0) & (r > 0)) | ((l > 0) & (r < 0))
+        result = np.floor_divide(np.abs(l_np), np.abs(r_np))
+        neg = ((l_np < 0) & (r_np > 0)) | ((l_np > 0) & (r_np < 0))
         pos = ~neg
         result = result * (pos * 1 - neg * 1)
         np.testing.assert_array_equal(out, result)
 
 def test_arithmetic_division():
-    for dev in devices:
-        for left_type in types:
-                for right_type in types:
-                    yield check_arithm_div, dev, left_type, right_type
+    for kinds in input_kinds:
+        for types_in in itertools.product(input_types, input_types):
+            yield check_arithm_div, kinds, types_in
