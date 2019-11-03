@@ -19,6 +19,7 @@
 #include <ctgmath>
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
+#include "dali/core/geom/vec.h"
 #include "dali/operators/displacement/displacement_filter.h"
 
 namespace dali {
@@ -28,7 +29,7 @@ class SphereAugment {
   explicit SphereAugment(const OpSpec& spec) {}
 
   DALI_HOST_DEV
-  Point<float> operator()(int h, int w, int c, int H, int W, int C) {
+  vec2 operator()(int h, int w, int c, int H, int W, int C) {
     // SPHERE_PREAMBLE
     const float mid_x = W * 0.5f;
     const float mid_y = H * 0.5f;

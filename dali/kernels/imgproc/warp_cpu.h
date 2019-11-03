@@ -103,7 +103,7 @@ class WarpCPU {
 
     Surface2D<const InputType> in = as_surface_channel_last(input);
 
-    Sampler<static_interp, InputType> sampler(in);
+    Sampler2D<static_interp, InputType> sampler(in);
 
     for (int y = 0; y < out_h; y++) {
       OutputType *out_row = output(y, 0);
@@ -129,7 +129,7 @@ class WarpCPU {
 
     Surface2D<const InputType> in = as_surface_channel_last(input);
 
-    Sampler<static_interp, InputType> sampler(in);
+    Sampler2D<static_interp, InputType> sampler(in);
 
     // Optimization: instead of naively calculating source coordinates for each destination pixel,
     // we can exploit the linearity of the affine transform and just add ds/dx derivative

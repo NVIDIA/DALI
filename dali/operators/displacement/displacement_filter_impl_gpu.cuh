@@ -31,7 +31,7 @@ __device__ inline T GetPixelValueSingleC(int h, int w, int c,
   kernels::Surface2D<const T> in_surface = { input, W, H, C, C, C*W, 1 };
   auto sampler = kernels::make_sampler<interp_type>(in_surface);
   auto p = displace(h, w, c, H, W, C);
-  return sampler.template at<T>(p.x, p.y, c, fill_value);
+  return sampler.template at<T>(p, c, fill_value);
 }
 
 template <typename T, class Displacement, DALIInterpType interp_type>
@@ -42,7 +42,7 @@ __device__ inline void GetPixelValueMultiC(int h, int w,
   kernels::Surface2D<const T> in_surface = { input, W, H, C, C, C*W, 1 };
   auto sampler = kernels::make_sampler<interp_type>(in_surface);
   auto p = displace(h, w, 0, H, W, C);
-  sampler(output, p.x, p.y, fill_value);
+  sampler(output, p, fill_value);
 }
 
 template <class Displacement, bool has_param = HasParam<Displacement>::value>

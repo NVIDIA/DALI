@@ -431,4 +431,20 @@ TEST(MatTest, IdentityMatrix) {
   EXPECT_EQ(m3, three_by_two);
 }
 
+TEST(MatTest, Print) {
+  mat4x3 m = {{
+    { 1, 2, 3 },
+    { 1.5, 2.5, 3.5 },
+    { -2, -3, -4 },
+    { 0, 1e+30f, 1 }
+  }};
+  std::stringstream ss;
+  ss << m;
+  EXPECT_EQ(ss.str(),
+"|   1      2    3 |\n"
+"| 1.5    2.5  3.5 |\n"
+"|  -2     -3   -4 |\n"
+"|   0  1e+30    1 |");
+}
+
 }  // namespace dali
