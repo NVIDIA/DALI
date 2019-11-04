@@ -29,15 +29,9 @@ list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # NVIDIA NPPC library
 find_cuda_helper_libs(nppc_static)
-find_cuda_helper_libs(nppicom_static)
 find_cuda_helper_libs(nppicc_static)
-find_cuda_helper_libs(nppig_static)
-list(APPEND DALI_LIBS ${CUDA_nppicom_static_LIBRARY}
-  ${CUDA_nppicc_static_LIBRARY}
-  ${CUDA_nppig_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppicom_static.a
-  libnppicc_static.a
-  libnppig_static.a)
+list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
+list(APPEND DALI_EXCLUDES libnppicc_static.a)
 list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
