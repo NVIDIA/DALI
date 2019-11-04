@@ -19,18 +19,21 @@ namespace dali {
 namespace kernels {
 
 template <typename T>
-bool is_flipped(const T* lhs, const T* rhs, size_t layers, size_t height, size_t width,
+bool is_flipped(const T* lhs, const T* rhs,
+                size_t seq_length, size_t depth, size_t height, size_t width,
                 size_t channels, bool flip_z, bool flip_y, bool flip_x) {
-  for (size_t z = 0; z < layers; ++z) {
-    for (size_t y = 0; y < height; ++y) {
-      for (size_t x = 0; x < width; ++x) {
-        auto rhs_x = flip_x ? width - x - 1 : x;
-        auto rhs_y = flip_y ? height - y - 1 : y;
-        auto rhs_z = flip_z ? layers - z - 1 : z;
-        for (size_t c = 0; c < channels; ++c) {
-          if (lhs[channels * (width * (height * z + y) + x) + c] !=
-              rhs[channels * (width * (height * rhs_z + rhs_y) + rhs_x) + c]) {
-            return false;
+  for (size_t f = 0; f < seq_length; ++f) {
+    for (size_t z = 0; z < depth; ++z) {
+      for (size_t y = 0; y < height; ++y) {
+        for (size_t x = 0; x < width; ++x) {
+          auto rhs_x = flip_x ? width - x - 1 : x;
+          auto rhs_y = flip_y ? height - y - 1 : y;
+          auto rhs_z = flip_z ? depth - z - 1 : z;
+          for (size_t c = 0; c < channels; ++c) {
+            if (lhs[channels * (width * (height * (depth * f + z) + y) + x) + c] !=
+                rhs[channels * (width * (height * (depth * f + rhs_z) + rhs_y) + rhs_x) + c]) {
+              return false;
+            }
           }
         }
       }

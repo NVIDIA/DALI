@@ -70,10 +70,10 @@ class FlipPythonOpPipeline(Pipeline):
 def check_flip_cpu_vs_gpu(batch_size, vertical, horizontal):
     compare_pipelines(FlipPipeline('cpu', batch_size, is_vertical=vertical, is_horizontal=horizontal),
                       FlipPipeline('gpu', batch_size, is_vertical=vertical, is_horizontal=horizontal),
-                      batch_size=batch_size, N_iterations=10)
+                      batch_size=batch_size, N_iterations=5)
 
 def test_flip_cpu_vs_gpu():
-    for batch_size in {1, 32, 100}:
+    for batch_size in {1, 8, 32}:
         for vertical in [0,1]:
             for horizontal in [0,1]:
                 yield check_flip_cpu_vs_gpu, batch_size, vertical, horizontal
@@ -96,12 +96,92 @@ def check_flip_vs_numpy(device, batch_size, vertical, horizontal):
         python_func = flip_vertical if vertical else flip_horizontal
     compare_pipelines(FlipPipeline(device, batch_size, is_vertical=vertical, is_horizontal=horizontal),
                       FlipPythonOpPipeline(batch_size, python_func),
-                      batch_size=batch_size, N_iterations=10)
+                      batch_size=batch_size, N_iterations=5)
 
 def test_flip_vs_numpy():
     for device in ['cpu', 'gpu']:
-        for batch_size in [1, 32, 100]:
+        for batch_size in [1, 8, 32]:
             for vertical in [0, 1]:
                 for horizontal in [0, 1]:
                     if vertical or horizontal:
                         yield check_flip_vs_numpy, device, batch_size, vertical, horizontal
+
+
+test_data_root = get_dali_extra_path()
+images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
+
+class SynthFlipPipeline(Pipeline):
+    def __init__(self, batch_size, layout, data_iterator, device):
+        super(SynthFlipPipeline, self).__init__(batch_size, seed=1234, num_threads=4, device_id=0)
+        self.device = device
+        self.iterator = data_iterator
+        self.layout = layout
+        self.input = ops.ExternalSource()
+        self.coin = ops.CoinFlip(seed=1234)
+        self.flip = ops.Flip(device=device)
+
+    def define_graph(self):
+        self.data = self.input()
+        data = self.data.gpu() if self.device == 'gpu' else self.data
+        flipped = self.flip(data,
+                            horizontal=self.coin(), vertical=self.coin(), depthwise=self.coin())
+
+        return flipped
+
+    def iter_setup(self):
+        self.feed_input(self.data, self.iterator.next(), layout=self.layout)
+
+
+def numpy_flip(data, h_dim, v_dim, d_dim, hor, ver, depth):
+    if h_dim > 0 and hor[0]:
+        data = np.flip(data, h_dim)
+    if v_dim > 0 and ver[0]:
+        data = np.flip(data, v_dim)
+    if d_dim > 0 and depth[0]:
+        data = np.flip(data, d_dim)
+    return data
+
+
+def find_dims(layout):
+    return layout.find("W"), \
+           layout.find("H"), \
+           layout.find("D")
+
+
+class SynthPythonFlipPipeline(Pipeline):
+    def __init__(self, batch_size, layout, data_iterator):
+        super(SynthPythonFlipPipeline, self).__init__(batch_size, seed=1234, num_threads=4,
+                                                      device_id=0, exec_async=False, exec_pipelined=False)
+        self.iterator = data_iterator
+        self.layout = layout
+        self.input = ops.ExternalSource()
+        self.coin = ops.CoinFlip(seed=1234)
+        h_dim, v_dim, d_dim = find_dims(layout)
+        fun = lambda d, hor, ver, depth: numpy_flip(d, h_dim, v_dim, d_dim, hor, ver, depth)
+        self.python_flip = ops.PythonFunction(function=fun)
+
+    def define_graph(self):
+        self.data = self.input()
+        flipped = self.python_flip(self.data, self.coin(), self.coin(), self.coin())
+        return flipped
+
+    def iter_setup(self):
+        self.feed_input(self.data, self.iterator.next(), layout=self.layout)
+
+
+def check_flip(batch_size, layout, shape, device):
+    eiis = [RandomDataIterator(batch_size, shape=shape)
+            for k in range(2)]
+    compare_pipelines(SynthFlipPipeline(batch_size, layout, iter(eiis[0]), device),
+                      SynthPythonFlipPipeline(batch_size, layout, iter(eiis[1])),
+                      batch_size=batch_size, N_iterations=10)
+
+
+def test_flip_vs_numpy_seq():
+    for batch_size in [1, 8, 32]:
+        for device in ['cpu', 'gpu']:
+            for layout, shape in [("FHWC", (2, 2, 3, 1)),
+                                  ("FCHW", (4, 3, 100, 150)),
+                                  ("FDHWC", (4, 20, 50, 30, 3)),
+                                  ("FCDHW", (4, 3, 20, 50, 30))]:
+                yield check_flip, batch_size, layout, shape, device
