@@ -27,18 +27,48 @@ namespace kernels {
 namespace audio {
 namespace fft {
 
-enum FftOutputType {
-  FFT_OUTPUT_TYPE_COMPLEX = 0,    // separate interleaved real and img parts: (r0, i0, r1, i2, ...)
-  FFT_OUTPUT_TYPE_MAGNITUDE = 1,  // (only forward) sqrt( real^2 + img^2 )
-  FFT_OUTPUT_TYPE_POWER = 2,      // (only forward) real^2 + img^2
+enum FftSpectrumType {
+  FFT_SPECTRUM_COMPLEX = 0,    // separate interleaved real and img parts: (r0, i0, r1, i2, ...)
+  FFT_SPECTRUM_MAGNITUDE = 1,  // sqrt( real^2 + img^2 )
+  FFT_SPECTRUM_POWER = 2,      // real^2 + img^2
+  FFT_SPECTRUM_LOG_POWER = 3,  // real^2 + img^2
 };
 
 struct FftArgs {
-  FftOutputType output_type = FFT_OUTPUT_TYPE_COMPLEX;
+  FftSpectrumType spectrum_type = FFT_SPECTRUM_COMPLEX;
   int transform_axis = 0;
-  int channel_axis = 1;
+  int nfft = -1;
 };
 
+/**
+ * @brief Computes 1-D FFT related transformation from real data to either a complex spectrum
+ *   or a transformation of the complex spectrum (power, magnitude, log power)
+ *
+ * It can be typically used with a set of frames, i.e a 2D tensor where the first dimension
+ * represents the frame index and the second dimension represents the dimension to be transformed
+ * to the frequency domain.
+ *
+ * Input is typically a 2D tensor of dimensions FxN representing a set of F frames of length N
+ *
+ * @param args.spectrum_type defines the nature of the output
+ *   FFT_SPECTRUM_COMPLEX:
+ *     Output represents the complex spectrum with real and imaginary parts interleaved
+ *     Output is a 2D tensor of shape Fx(NFFT*2) where NFFT represents the FFT size
+ *   FFT_SPECTRUM_MAGNITUDE:
+ *     Output represents the magnitude of positive half of the spectrum,
+ *      as a 2D tensor of shape Fx(NFFT/2+1)
+ *   FFT_SPECTRUM_POWER:
+ *     Output represents the power of the spectrum, as a 2D tensor of shape Fx(NFFT/2+1)
+ *   FFT_SPECTRUM_LOG_POWER:
+ *     Output represents the log power spectrum, as a 2D tensor of shape Fx(NFFT/2+1)
+ * (where NFFT is the size of the FFT)
+ *
+ * @param args.nfft Number of samples in the FFT. If not provided, nfft will be calculated as the
+ *   next power of two of the size of the transform axis.
+ *
+ * @param args.transform_axis Axis along which the FFT transformation will be calculated
+ *     (note: current implementation only supports transform_axis to be the inner-most dimension
+ */
 template <typename OutputType, typename InputType = OutputType, int Dims = 2>
 class DLL_PUBLIC Fft1DCpu {
  public:
@@ -47,7 +77,8 @@ class DLL_PUBLIC Fft1DCpu {
     "Data types other than float are not yet supported");
 
   static_assert(Dims == 2,
-    "Expected 2D data where dim 0 represents the sample space and dim 1 the different channels");
+    "Expected 2D data where dim 0 represents the frame space and dim 1 the dimension to be "
+    " transformed to the frequency domain");
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InTensorCPU<InputType, Dims> &in,
@@ -63,6 +94,7 @@ class DLL_PUBLIC Fft1DCpu {
   using FftsPlanPtr = std::unique_ptr<ffts_plan_t, decltype(&ffts_free)>;
   FftsPlanPtr plan_{nullptr, ffts_free};
   int64_t plan_n_ = -1;
+  int64_t nfft_ = -1;
 };
 
 }  // namespace fft
