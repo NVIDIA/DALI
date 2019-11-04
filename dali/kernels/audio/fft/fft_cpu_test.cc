@@ -27,10 +27,10 @@ namespace fft {
 namespace test {
 
 class Fft1DCpuTest : public::testing::TestWithParam<
-  std::tuple<FftOutputType, std::array<int64_t, 2>>> {
+  std::tuple<FftSpectrumType, std::array<int64_t, 2>>> {
  public:
   Fft1DCpuTest()
-    : output_type_(std::get<0>(GetParam()))
+    : spectrum_type_(std::get<0>(GetParam()))
     , data_shape_(std::get<1>(GetParam()))
     , data_(volume(data_shape_))
     , in_view_(data_.data(), data_shape_) {}
@@ -42,7 +42,7 @@ class Fft1DCpuTest : public::testing::TestWithParam<
     std::mt19937_64 rng;
     UniformRandomFill(in_view_, rng, 0., 1.);
   }
-  FftOutputType output_type_;
+  FftSpectrumType spectrum_type_;
   TensorShape<2> data_shape_;
   std::vector<float> data_;
   OutTensorCPU<float, 2> in_view_;
@@ -51,7 +51,9 @@ class Fft1DCpuTest : public::testing::TestWithParam<
 TEST_P(Fft1DCpuTest, KernelTest) {
   KernelContext ctx;
   Fft1DCpu<float> kernel;
-  FftArgs args = {output_type_, 0, 1};
+  FftArgs args;
+  args.spectrum_type = spectrum_type_;
+  args.transform_axis = 1;
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
   ScratchpadAllocator scratch_alloc;
@@ -59,42 +61,44 @@ TEST_P(Fft1DCpuTest, KernelTest) {
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
 
+  auto in_shape = in_view_.shape;
+  auto n = in_shape[in_shape.size()-1];
+
+  auto expected_out_shape = in_shape;
+  int64_t nfft = 2;
+  while (nfft < n)
+    nfft *= 2;
+  expected_out_shape[1] = args.spectrum_type == FFT_SPECTRUM_COMPLEX ?
+    nfft * 2 : (nfft/2+1);
+
   auto out_shape = reqs.output_shapes[0][0].to_static<2>();
+  ASSERT_EQ(expected_out_shape, out_shape);
+
   std::vector<float> out_data(volume(out_shape));
 
   auto out_view = OutTensorCPU<float, 2>(out_data.data(), out_shape);
   kernel.Run(ctx, out_view, in_view_, args);
 
-  auto in_shape = in_view_.shape;
-  auto in_nchannels = in_shape[in_shape.size()-1];
-
-  auto expected_out_shape = in_shape;
-  ASSERT_TRUE(args.output_type == FFT_OUTPUT_TYPE_MAGNITUDE ||
-              args.output_type == FFT_OUTPUT_TYPE_COMPLEX);
-  if (args.output_type == FFT_OUTPUT_TYPE_COMPLEX) {
-    expected_out_shape[out_shape.size()-1] *= 2;
-  }
-  ASSERT_EQ(expected_out_shape, out_view.shape);
-
-  auto n = in_shape[0];
-
   LOG_LINE << "FFT:" << std::endl;
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; i < nfft; i++) {
     LOG_LINE << "(" << out_view.data[2*i] << "," << out_view.data[2*i+1] << "i)" << std::endl;
   }
 
   // Asserting that the right side of the spectrum is mirrored as expected
-  for (int i = n/2+1; i < n; i++) {
-    ASSERT_NEAR(out_view.data[2*i+0],  out_view.data[2*(n-i)+0], 1e-5);
-    ASSERT_NEAR(out_view.data[2*i+1], -out_view.data[2*(n-i)+1], 1e-5);
+  if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
+    for (int i = nfft / 2 + 1; i < nfft; i++) {
+      ASSERT_NEAR(out_view.data[2*i+0],  out_view.data[2*(nfft-i)+0], 1e-5);
+      ASSERT_NEAR(out_view.data[2*i+1], -out_view.data[2*(nfft-i)+1], 1e-5);
+    }
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, Fft1DCpuTest, testing::Combine(
-    testing::Values(FFT_OUTPUT_TYPE_COMPLEX),
-    testing::Values(std::array<int64_t, 2>{64, 1},
-                    std::array<int64_t, 2>{4096, 1},
-                    std::array<int64_t, 2>{100, 1})));
+    testing::Values(
+      FFT_SPECTRUM_COMPLEX, FFT_SPECTRUM_MAGNITUDE, FFT_SPECTRUM_POWER, FFT_SPECTRUM_LOG_POWER),
+    testing::Values(std::array<int64_t, 2>{1, 64},
+                    std::array<int64_t, 2>{1, 4096},
+                    std::array<int64_t, 2>{1, 100})));
 
 }  // namespace test
 }  // namespace fft
