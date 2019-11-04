@@ -35,15 +35,6 @@ class Flip: public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
     auto &input = ws.template InputRef<Backend>(0);
-    DALI_ENFORCE(input.shape().sample_dim() >= 3 && input.shape().sample_dim() <= 5,
-                 "Flip only accepts tensors with 3 to 5 dimensions.");
-    auto layout = input.GetLayout();
-    DALI_ENFORCE(layout == "FDHWC" || layout == "FHWC" || layout == "DHWC" ||
-                 layout == "HWC" || layout == "CHW" || layout == "CDHW" ||
-                 layout == "FCHW" || layout == "FCDHW",
-                 "Flip cannot handle the \""
-                 + layout.str() + "\" layout. Accepted layouts are: "
-                 "FDHWC, FHWC, DHWC, HWC, FCDHW, FCHW, CDHW, CHW");
     output_desc[0].type =  input.type();
     output_desc[0].shape = input.shape();
     return true;
