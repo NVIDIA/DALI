@@ -66,6 +66,69 @@ TEST(GeomTransform, Rotation2D) {
   EXPECT_NEAR(rotated4.y, 0,  1e-6f);
 }
 
+struct vec_near {
+  template <int N, typename T>
+  inline bool operator()(vec<N, T> a, vec<N, T> b, double eps) const
+  {
+    for (int i = 0; i < N; i++)
+      if (std::abs(a[i] - b[i]) > eps)
+        return false;
+    return true;
+  }
+};
+
+#define EXPECT_VEC_NEAR(v1, v2, eps) EXPECT_PRED3(vec_near(), v1, v2, eps)
+
+TEST(GeomTransform, Rotation3D_MainAxes) {
+  const float a = M_PI/2;
+  vec4 r4;
+  vec3 rotated;
+  r4 = rotation3D({0, 0, 1}, a) * vec4(1, 2, 3, 1);
+  EXPECT_EQ(r4.w, 1.0f);
+  rotated = sub<3>(r4);
+  EXPECT_VEC_NEAR(rotated, vec3(-2, 1, 3), 1e-5f);
+
+  r4 = rotation3D({0, 0, -2}, a) * vec4(1, 2, 3, 1);
+  EXPECT_EQ(r4.w, 1.0f);
+  rotated = sub<3>(r4);
+  EXPECT_VEC_NEAR(rotated, vec3(2, -1, 3), 1e-5f);
+
+  r4 = rotation3D({3, 0, 0}, a) * vec4(1, 2, 3, 1);
+  EXPECT_EQ(r4.w, 1.0f);
+  rotated = sub<3>(r4);
+  EXPECT_VEC_NEAR(rotated, vec3(1, -3, 2), 1e-5f);
+
+  r4 = rotation3D({-4, 0, 0}, a) * vec4(1, 2, 3, 1);
+  EXPECT_EQ(r4.w, 1.0f);
+  rotated = sub<3>(r4);
+  EXPECT_VEC_NEAR(rotated, vec3(1, 3, -2), 1e-5f);
+
+  r4 = rotation3D({0, 5, 0}, a) * vec4(1, 2, 3, 1);
+  EXPECT_EQ(r4.w, 1.0f);
+  rotated = sub<3>(r4);
+  EXPECT_VEC_NEAR(rotated, vec3(3, 2, -1), 1e-5f);
+
+  r4 = rotation3D({0, -6, 0}, a) * vec4(1, 2, 3, 1);
+  EXPECT_EQ(r4.w, 1.0f);
+  rotated = sub<3>(r4);
+  EXPECT_VEC_NEAR(rotated, vec3(-3, 2, 1), 1e-5f);
+}
+
+TEST(GeomTransform, Rotation3D_CubeDiag) {
+  // Rotate around a diagonal of a unit cube starting at origin.
+  vec3 axis(1, 1, 1);
+  // A cube projected along the diagonal is a hexagon.
+  // Rotating a cube vertex by 120 degrees (2*pi/3) should produce another vertex.
+  mat3x4 rot = sub<3, 4>(rotation3D(axis, 2*M_PI/3));
+  vec3 r;
+  r = rot * vec4(1, 1, 0, 1);
+  EXPECT_VEC_NEAR(r, vec3(0, 1, 1), 1e-5f);
+  r = rot * vec4(0, 1, 1, 1);
+  EXPECT_VEC_NEAR(r, vec3(1, 0, 1), 1e-5f);
+  r = rot * vec4(1, 0, 1, 1);
+  EXPECT_VEC_NEAR(r, vec3(1, 1, 0), 1e-5f);
+}
+
 TEST(GeomTransform, Shear2D) {
   auto shearx = shear(vec2(0.5f, 0));
   auto sheary = shear(vec2(0, 0.5f));

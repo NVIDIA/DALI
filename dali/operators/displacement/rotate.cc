@@ -20,7 +20,9 @@ DALI_SCHEMA(Rotate)
   .DocStr(R"code(Rotate the image by given angle.)code")
   .NumInput(1)
   .NumOutput(1)
-  .InputLayout(0, { "HWC" })
+  .InputLayout(0, { "HWC", "DHWC" })
+  .AddOptionalArg<float>("axis", "3D only: axis aroun which to rotate; alternatively, Euler angles "
+  "(yaw, pitch, roll) can be used", std::vector<float>(), true)
   .AddArg("angle",
       R"code(Angle, in degrees, by which the image is rotated counter-clockwise,
 assuming top-left corner at (0,0))code", DALI_FLOAT, true)
