@@ -69,7 +69,7 @@ inline TensorListShape<5> TransformShapes(const TensorListShape<> &shapes,
                                           const TensorLayout &layout) {
   TensorListShape<5> result(shapes.size());
   if (ImageLayoutInfo::IsChannelLast(layout)) {
-    if (layout.find('D') > 0) {
+    if (layout.find('D') >= 0) {
       for (int i = 0; i < shapes.size(); i++) {
         result.set_tensor_shape(i, TransformShapeDHWC(shapes[i]));
       }
@@ -79,7 +79,7 @@ inline TensorListShape<5> TransformShapes(const TensorListShape<> &shapes,
       }
     }
   } else {
-    if (layout.find('D') > 0) {
+    if (layout.find('D') >= 0) {
       for (int i = 0; i < shapes.size(); i++) {
         result.set_tensor_shape(i, TransformShapeCDHW(shapes[i]));
       }

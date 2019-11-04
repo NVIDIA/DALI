@@ -43,11 +43,13 @@ class CommonPipeline(Pipeline):
         self.input = ops.FileReader(file_root=image_dir)
         self.decode = ops.ImageDecoder(device = 'cpu', output_type=types.RGB)
         self.resize = ops.PythonFunction(function=resize)
+        self.set_layout = ops.Reshape(layout="HWC")
 
     def load(self):
         jpegs, labels = self.input()
         decoded = self.decode(jpegs)
         resized = self.resize(decoded)
+        resized = self.set_layout(resized)
         return resized, labels
 
     def define_graph(self):
