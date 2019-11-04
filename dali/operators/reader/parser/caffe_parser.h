@@ -23,26 +23,46 @@ namespace dali {
 class CaffeParser : public Parser<Tensor<CPUBackend>> {
  public:
   explicit CaffeParser(const OpSpec& spec) :
-    Parser(spec) {}
+    Parser(spec),
+    image_available_(spec.GetArgument<bool>("image_available")),
+    label_available_(spec.GetArgument<bool>("label_available")) {}
 
   void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
     caffe::Datum datum;
-    // DALI_ENFORCE(datum.ParseFromString(string(reinterpret_cast<const char*>(data), size)));
+    int out_tensors = 0;
     DALI_ENFORCE(datum.ParseFromArray(data.raw_data(), data.size()));
 
-    auto& image = ws->Output<CPUBackend>(0);
-    auto& label = ws->Output<CPUBackend>(1);
+    if (image_available_ && datum.has_data()) {
+      bool encoded_data = true;
+      auto& image = ws->Output<CPUBackend>(out_tensors);
+      if (datum.has_encoded() && !datum.encoded()) {
+        encoded_data = false;
+      }
+      // copy image
+      if (encoded_data) {
+        image.Resize({static_cast<Index>(datum.data().size())});
+      } else {
+        image.Resize({datum.height(), datum.width(), datum.channels()});
+      }
+      std::memcpy(image.mutable_data<uint8_t>(), datum.data().data(),
+                  datum.data().size()*sizeof(uint8_t));
+      image.SetSourceInfo(data.GetSourceInfo());
+      out_tensors++;
+    }
 
-    // copy label
-    label.Resize({1});
-    label.mutable_data<int>()[0] = datum.label();
+    if (label_available_ && datum.has_label()) {
+      auto& label = ws->Output<CPUBackend>(out_tensors);
 
-    // copy image
-    image.Resize({static_cast<Index>(datum.data().size())});
-    std::memcpy(image.mutable_data<uint8_t>(), datum.data().data(),
-                datum.data().size()*sizeof(uint8_t));
-    image.SetSourceInfo(data.GetSourceInfo());
+      // copy label
+      label.Resize({1});
+      label.mutable_data<int>()[0] = datum.label();
+      out_tensors++;
+    }
   }
+
+ private:
+  bool image_available_;
+  bool label_available_;
 };
 
 };  // namespace dali
