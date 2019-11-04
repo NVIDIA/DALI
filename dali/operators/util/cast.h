@@ -22,6 +22,10 @@
 
 namespace dali {
 
+
+#define CAST_ALLOWED_TYPES \
+  (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float16, float, double)
+
 template <typename Backend>
 class Cast : public Operator<Backend> {
  public:

@@ -17,5 +17,5 @@ Tutorials
    optical_flow/optical_flow_example.ipynb
    extend/create_a_custom_operator.ipynb
    python_operator/python_operator.ipynb
-   expressions.ipynb
+   expressions/index
    audio/index
