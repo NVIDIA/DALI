@@ -2,6 +2,7 @@ import argparse
 import os
 import shutil
 import time
+import math
 
 import torch
 from torch.autograd import Variable
@@ -306,7 +307,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     for i, data in enumerate(train_loader):
         input = data[0]["data"]
         target = data[0]["label"].squeeze().cuda().long()
-        train_loader_len = int(train_loader._size / args.batch_size)
+        train_loader_len = int(math.ceil(train_loader._size / args.batch_size))
 
         adjust_learning_rate(optimizer, epoch, i, train_loader_len)
 
