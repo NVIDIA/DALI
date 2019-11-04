@@ -8,6 +8,9 @@ function CLEAN_AND_EXIT {
     exit $1
 }
 
+export USE_CUDA_VERSION=$(cat /usr/local/cuda/version.txt | head -1 | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
+pip install $(python qa/setup_packages.py -i 0 -u paddle --cuda ${USE_CUDA_VERSION})
+
 cd /opt/dali/docs/examples/paddle/resnet50
 
 GPUS=$(nvidia-smi -L | sed "s/GPU \([0-9]\):.*/\1/g")
