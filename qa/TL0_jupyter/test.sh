@@ -13,7 +13,7 @@ test_body() {
     # dummy patern
     black_list_files="multigpu"
 
-    ls *.ipynb | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
+    ls *.ipynb expressions/*.ipynb | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
                     --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                     --ExecutePreprocessor.timeout=300 {}
