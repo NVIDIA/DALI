@@ -8,6 +8,7 @@ Tutorials
    serialization.ipynb
    detection_pipeline.ipynb
    augmentation_gallery.ipynb
+   warp.ipynb
    color_space_conversion.ipynb
    decoder_examples.ipynb
    multigpu.ipynb

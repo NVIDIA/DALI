@@ -64,7 +64,7 @@ int number_of_channels(int bpp, int compression_type,
   }
 
   DALI_WARN(make_string(
-    "configuration not supported. bpp:", bpp, "compression_type:", compression_type,
+    "configuration not supported. bpp: ", bpp, " compression_type:", compression_type,
     "ncolors:", ncolors));
   return 0;
 }

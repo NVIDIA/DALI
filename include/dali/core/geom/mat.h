@@ -16,6 +16,9 @@
 #define DALI_CORE_GEOM_MAT_H_
 
 #include <cmath>
+#include <cstdio>
+#include <ostream>
+#include <iomanip>
 #include "dali/core/host_dev.h"
 #include "dali/core/util.h"
 #include "dali/core/tuple_helpers.h"
@@ -508,9 +511,30 @@ mat<r1+r2, cols, T> cat_rows(const mat<r1, cols, T> &a, const mat<r2, cols, T> &
 
 template <int rows, int cols, typename T>
 std::ostream &operator<<(std::ostream &os, const dali::mat<rows, cols, T> &m) {
-  for (int i = 0; i < rows; i++) {
-    os << m.row(i) << std::endl;
+  constexpr size_t max_len = 32;
+  char buf[rows][cols][max_len];  // NOLINT(runtime/arrays)
+  int col_widths[cols];           // NOLINT(runtime/arrays)
+  for (int j = 0; j < cols; j++) {
+    int width = 0;
+    for (int i = 0; i < rows; i++) {
+      double v = m(i, j);
+      int l = std::snprintf(buf[i][j], max_len, "%g", v);
+      if (l > width)
+        width = l;
+    }
+    col_widths[j] = width;
   }
+
+  for (int i = 0; i < rows; i++) {
+    os << "|";
+    for (int j = 0; j < cols; j++) {
+      int w = col_widths[j] + (j == 0 ? 1 : 2);
+      os << std::setw(w) << buf[i][j];
+    }
+    os << " |";
+    if (i < rows-1) os << "\n";
+  }
+
   return os;
 }
 

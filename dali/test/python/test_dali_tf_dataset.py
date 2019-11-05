@@ -21,26 +21,28 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+from distutils.version import StrictVersion
 
 from nose import SkipTest
 from nose.tools import raises
+
+try:
+    tf.compat.v1.disable_eager_execution()
+except:
+    pass
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
 
-def tensorflow_minor_version():
-    return tf.__version__.split('.')[1]
-
-
 def compatible_tensorflow():
-    return tensorflow_minor_version() in {'13', '14'}
+    return StrictVersion(tf.__version__) >= StrictVersion('1.13')
 
 
 def skip_for_incompatible_tf():
     if not compatible_tensorflow():
-        raise SkipTest('This feature is enabled for TF 1.13 and 1.14 only')
+        raise SkipTest('This feature is enabled for TF 1.13 and higher')
 
 
 def num_available_gpus():
@@ -58,12 +60,12 @@ class TestPipeline(Pipeline):
         self.input = ops.COCOReader(
             file_root = file_root,
             annotations_file = annotations_file,
-            shard_id = shard_id, 
-            num_shards = num_shards, 
-            ratio=False, 
+            shard_id = shard_id,
+            num_shards = num_shards,
+            ratio=False,
             save_img_ids=True)
         self.decode = ops.ImageDecoder(
-            device = 'mixed' if device is 'gpu' else 'cpu', 
+            device = 'mixed' if device is 'gpu' else 'cpu',
             output_type = types.RGB)
         self.resize = ops.Resize(
             device = device,
@@ -93,7 +95,7 @@ class TestPipeline(Pipeline):
         im_ids_16 = self.cast(im_ids)
 
         return (
-            output, 
+            output,
             im_ids,
             im_ids_16)
 
@@ -103,10 +105,10 @@ def _dataset_options():
     try:
         options.experimental_optimization.apply_default_optimizations = False
 
-        if tensorflow_minor_version() == '14':
+        if StrictVersion(tf.__version__) >= StrictVersion('1.13') and StrictVersion(tf.__version__) < StrictVersion('1.14'):
+            options.experimental_autotune = False
+        else:
             options.experimental_optimization.autotune = False
-        elif tensorflow_minor_version() == '13':
-            options.experimental_autotune = False    
     except:
         print('Could not set TF Dataset Options')
 

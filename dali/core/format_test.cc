@@ -17,13 +17,18 @@
 
 namespace dali {
 
-TEST(MakeStringTest, default_delimiter) {
+TEST(MakeStringTest, no_delimiter) {
   auto str = make_string("jeden", 2, 3);
+  ASSERT_EQ(str, "jeden23");
+}
+
+TEST(MakeStringTest, char_delimiter) {
+  auto str = make_string_delim(' ', "jeden", 2, 3);
   ASSERT_EQ(str, "jeden 2 3");
 }
 
 
-TEST(MakeStringTest, custom_delimiter) {
+TEST(MakeStringTest, string_delimiter) {
   auto str = make_string_delim("a custom delimiter", "jeden", 2, 3);
   ASSERT_EQ(str, "jedena custom delimiter2a custom delimiter3");
 }

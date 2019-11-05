@@ -75,10 +75,10 @@ def ToCVMatrix(matrix):
   result[1][2] = offset[1] - 0.5
   return result
 
-def CVRotate(output_type, input_type, angle, fixed_size):
-  angle = math.radians(angle)
-  def warp_fn(img):
+def CVRotate(output_type, input_type, fixed_size):
+  def warp_fn(img, angle):
     in_size = img.shape[0:2]
+    angle = math.radians(angle[0])
     out_size = fixed_size if fixed_size is not None else get_output_size(angle, in_size)
     matrix = get_transform(angle, in_size, out_size)
     matrix = ToCVMatrix(matrix)
@@ -104,10 +104,8 @@ class RotatePipeline(Pipeline):
         else:
           self.cast = None
 
-        # TODO(michalz): When we move from Support to CPU operators, replace hardcoded angle
-        #                with one taken from the distribution below
-        # self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42);
-        self.rotate = ops.Rotate(device = device, size=fixed_size, angle = 30, fill_value = 42, output_dtype = output_type)
+        self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42);
+        self.rotate = ops.Rotate(device = device, size=fixed_size, fill_value = 42, output_dtype = output_type)
 
     def define_graph(self):
         self.jpegs, self.labels = self.input(name = "Reader")
@@ -117,7 +115,7 @@ class RotatePipeline(Pipeline):
         if self.cast:
           images = self.cast(images)
 
-        outputs = self.rotate(images)
+        outputs = self.rotate(images, angle = self.uniform())
         return outputs
 
 class CVPipeline(Pipeline):
@@ -126,16 +124,15 @@ class CVPipeline(Pipeline):
         self.name = "cv"
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
-        self.rotate = ops.PythonFunction(function=CVRotate(output_type, input_type, 30, fixed_size))
-        # TODO(michalz): When we move from Support to CPU operators, replace hardcoded angle
-        #                with one taken from the distribution below
-        # self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42);
+        self.rotate = ops.PythonFunction(function=CVRotate(output_type, input_type, fixed_size))
+        self.uniform = ops.Uniform(range = (-180.0, 180.0), seed = 42);
         self.iter = 0
 
     def define_graph(self):
         self.jpegs, self.labels = self.input(name = "Reader")
         images = self.decode(self.jpegs)
-        outputs = self.rotate(images);
+        angles = self.uniform()
+        outputs = self.rotate(images, angles);
         return outputs
 
 

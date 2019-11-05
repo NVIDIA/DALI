@@ -30,7 +30,7 @@ class ImageDecoderSplitCropTest_GPU : public DecodeTestBase<ImgType> {
     return [this] (const TensorShape<>& shape,
                    const TensorLayout& shape_layout) {
       DALI_ENFORCE(shape_layout == "HW",
-        make_string("Unexpected input shape layout:", shape_layout.c_str(), "vs HW"));
+        make_string("Unexpected input shape layout: ", shape_layout, " vs HW"));
       CropWindow crop_window;
       crop_window.shape[0] = crop_H;
       crop_window.shape[1] = crop_W;
