@@ -89,10 +89,11 @@ class WarpSetup : public BlockSetup<spatial_ndim, spatial_ndim> {
       sample.in_size = shape2size(in_shape);
 
       sample.out_strides.x = channels;
-      sample.out_strides.y = sample.out_size.x * sample.out_strides.x;
-
       sample.in_strides.x = channels;
-      sample.in_strides.y = sample.in_size.x * sample.in_strides.x;
+      for (int d = 0; d < spatial_ndim - 1; d++) {
+        sample.out_strides[d + 1] = sample.out_size[d] * sample.out_strides[d];
+        sample.in_strides[d + 1]  = sample.in_size[d]  * sample.in_strides[d];
+      }
 
       sample.interp = interp[interp.size() == 1 ? 0 : i];
     }

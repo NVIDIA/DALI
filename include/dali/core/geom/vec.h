@@ -226,7 +226,14 @@ struct vec : vec_base<N, T> {
 
   template <typename U>
   DALI_HOST_DEV
-  constexpr vec(mat<N, 1, U> &m) : vec(m.col(0).template cast<T>()) {}  // NOLINT
+  explicit constexpr vec(const mat<N, 1, U> &m) : vec(m.col(0).template cast<T>()) {}
+
+  DALI_HOST_DEV
+  constexpr vec(const mat<N, 1, T> &m) : vec(m.col(0).template cast<T>()) {}  // NOLINT
+
+  template <typename U>
+  DALI_HOST_DEV
+  explicit constexpr vec(const vec<N, U> &v) : vec(v.template cast<T>()) {}
 
   DALI_HOST_DEV DALI_FORCEINLINE
   constexpr T &operator[](int i) { return v[i]; }
@@ -525,6 +532,11 @@ DALI_HOST_DEV ivec<N> round_int(const vec<N> &a) {
 template <int N>
 DALI_HOST_DEV ivec<N> floor_int(const vec<N> &a) {
   IMPL_VEC_ELEMENTWISE(floor_int(a[i]));
+}
+
+template <int N>
+DALI_HOST_DEV ivec<N> ceil_int(const vec<N> &a) {
+  IMPL_VEC_ELEMENTWISE(ceil_int(a[i]));
 }
 
 template <typename T, int size0, int size1>

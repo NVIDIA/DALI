@@ -88,12 +88,15 @@ class WarpGPU {
       gpu_samples = context.scratchpad->ToGPU(context.gpu.stream, setup.Samples());
       CUDA_CALL(cudaGetLastError());
 
+      auto output_size = setup.UniformOutputSize();
+      auto block_size = setup.UniformBlockSize();
+
       warp::BatchWarpUniformSize
         <Mapping, spatial_ndim, OutputType, InputType, BorderType>
         <<<grid_dim, block_dim, 0, context.gpu.stream>>>(
           gpu_samples,
-          setup.UniformOutputSize(),
-          setup.UniformBlockSize(),
+          output_size,
+          block_size,
           mapping.data,
           border);
       CUDA_CALL(cudaGetLastError());

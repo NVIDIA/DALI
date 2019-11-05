@@ -68,8 +68,7 @@ TEST(GeomTransform, Rotation2D) {
 
 struct vec_near {
   template <int N, typename T>
-  inline bool operator()(vec<N, T> a, vec<N, T> b, double eps) const
-  {
+  inline bool operator()(vec<N, T> a, vec<N, T> b, double eps) const {
     for (int i = 0; i < N; i++)
       if (std::abs(a[i] - b[i]) > eps)
         return false;

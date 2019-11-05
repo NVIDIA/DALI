@@ -236,6 +236,24 @@ class BlockSetup {
     // Get the rough estimate of block size
     uniform_block_size_ = UniformBlockSize(uniform_output_size_);
 
+    auto sample_vol = volume(uniform_output_size_);
+
+    for (;;) {
+      auto block_vol = volume(uniform_block_size_);
+      if (block_vol <= 0x10000 || (sample_vol / block_vol) > 256)
+        break;
+      if (uniform_block_size_.x == 32 && uniform_block_size_.y == 1)
+        break;
+      if (uniform_block_size_.x > 32) {
+          uniform_block_size_.x >>= 1;
+          if (uniform_block_size_.x < 32)
+            uniform_block_size_.x = 32;
+      }
+      if (uniform_block_size_.y > 1) {
+          uniform_block_size_.y >>= 1;
+      }
+    }
+
     // Make the blocks as evenly distributed as possible over the target area,
     // but maintain alignment to CUDA block dim.
     for (int i = 0; i < 2; i++) {  // only XY dimensions
