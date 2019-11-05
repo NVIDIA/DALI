@@ -62,22 +62,30 @@ inline int64_t size_out_buf(int64_t n) {
 struct FftCalculator {
   template <typename Impl, typename OutputType, typename InputType>
   void Calculate(OutputType *out, const InputType *fft, int64_t nfft,
+                 int64_t out_stride = 1, int64_t in_stride = 1,
                  bool output_full_spectrum = false, bool input_full_spectrum = false) {
     Impl impl;
 
+    int out_idx = 0, in_idx = 0;
     for (int i = 0; i <= nfft / 2; i++) {
-      impl.Calculate(out[i], fft[i]);
+      impl.Calculate(out[out_idx], fft[in_idx]);
+      out_idx += out_stride;
+      in_idx += in_stride;
     }
 
     if (output_full_spectrum) {
       if (input_full_spectrum) {
         for (int i = nfft / 2 + 1; i < nfft; i++) {
           impl.Calculate(out[i], fft[i]);
+          out_idx += out_stride;
+          in_idx += in_stride;
         }
       } else {
         for (int i = nfft / 2 + 1; i < nfft; i++) {
-          InputType tmp = fft[nfft - i];
-          impl.Calculate(out[i], {tmp.real(), -tmp.imag()});
+          InputType tmp = fft[(nfft - i)*in_stride];
+          impl.Calculate(out[out_idx], {tmp.real(), -tmp.imag()});
+          out_idx += out_stride;
+          in_idx += in_stride;
         }
       }
     }
@@ -125,24 +133,25 @@ KernelRequirements Fft1DCpu<OutputType, InputType, Dims>::Setup(
     KernelContext &context,
     const InTensorCPU<InputType, Dims> &in,
     const FftArgs &args) {
-  ValidateArgs(args);
+  transform_axis_ = args.transform_axis >= 0 ? args.transform_axis : Dims-1;
+  DALI_ENFORCE(transform_axis_ >= 0 && transform_axis_ < Dims,
+    make_string("Transform axis ", transform_axis_, " is out of bounds [0, ", Dims, ")"));
+
+  const auto n = in.shape[transform_axis_];
+  nfft_ = args.nfft > 0 ? args.nfft : n;
+  DALI_ENFORCE(nfft_ >= n, "NFFT is too small");
 
   KernelRequirements req;
   auto out_shape = in.shape;
 
   ScratchpadEstimator se;
-  auto n = in.shape[args.transform_axis];
-  nfft_ = args.nfft > 0 ? args.nfft : next_pow2(n);
-  DALI_ENFORCE(nfft_ >= n, "NFFT is too small");
-
   se.add<float>(AllocType::Host, size_in_buf(nfft_),  32);
   se.add<float>(AllocType::Host, size_out_buf(nfft_), 32);
   req.scratch_sizes = se.sizes;
 
-  out_shape[args.transform_axis] = (args.spectrum_type == FFT_SPECTRUM_COMPLEX) ?
+  out_shape[transform_axis_] = (args.spectrum_type == FFT_SPECTRUM_COMPLEX) ?
     2 * nfft_ : (nfft_/2 + 1);
   req.output_shapes = {TensorListShape<DynamicDimensions>({out_shape})};
-
   return req;
 }
 
@@ -152,11 +161,14 @@ void Fft1DCpu<OutputType, InputType, Dims>::Run(
     OutTensorCPU<OutputType, Dims> &out,
     const InTensorCPU<InputType, Dims> &in,
     const FftArgs &args) {
-  ValidateArgs(args);
-  auto n = in.shape[args.transform_axis];
+  const auto n = in.shape[transform_axis_];
+
+  // Those should be already calculated
+  assert(transform_axis_ >= 0);
+  assert(nfft_ > 0);
+  assert(n <= nfft_);
 
   bool use_real_impl = can_use_real_impl(nfft_);
-
   if (!plan_ || plan_n_ != nfft_) {
     if (use_real_impl) {
       plan_ = {ffts_init_1d_real(nfft_, FFTS_FORWARD), ffts_free};
@@ -177,18 +189,32 @@ void Fft1DCpu<OutputType, InputType, Dims>::Run(
   float* out_buf = context.scratchpad->template Allocate<float>(AllocType::Host, out_buf_sz, 32);
   memset(out_buf, 0, out_buf_sz*sizeof(float));
 
+  TensorShape<Dims> in_strides, out_strides;
+  in_strides[Dims - 1] = 1;
+  out_strides[Dims - 1] = 1;
+  for (int d = Dims - 1; d > 0; d--) {
+    out_strides[d - 1] = out_strides[d] * out.shape[d];
+    in_strides[d - 1] = in_strides[d] * in.shape[d];
+  }
+  // Step in the transform axis
+  auto out_stride = out_strides[transform_axis_];
+  auto in_stride = in_strides[transform_axis_];
+
   const InputType* in_data = in.data;
   OutputType* out_data = out.data;
 
   assert(nfft_ > n);
+  int64_t in_idx = 0;
   if (use_real_impl) {
     for (int i = 0; i < n; i++) {
-      in_buf[i] = ConvertSat<float>(in_data[i]);
+      in_buf[i] = ConvertSat<float>(in_data[in_idx]);
+      in_idx += in_stride;
     }
   } else {
     for (int i = 0; i < n; i++) {
-      in_buf[2*i] = ConvertSat<float>(in_data[i]);
+      in_buf[2*i] = ConvertSat<float>(in_data[in_idx]);
       in_buf[2*i+1] = 0.0f;
+      in_idx += in_stride;
     }
   }
 
@@ -205,19 +231,19 @@ void Fft1DCpu<OutputType, InputType, Dims>::Run(
   switch (args.spectrum_type) {
     case FFT_SPECTRUM_COMPLEX:
       calc.Calculate<Spectrum>(
-        out_data_complex, fft_data_complex, nfft_, true, is_full_spectrum);
+        out_data_complex, fft_data_complex, nfft_, out_stride, 1, true, is_full_spectrum);
       break;
 
     case FFT_SPECTRUM_MAGNITUDE:
-      calc.Calculate<MagnitudeSpectrum>(out_data, fft_data_complex, nfft_);
+      calc.Calculate<MagnitudeSpectrum>(out_data, fft_data_complex, nfft_, out_stride, 1);
       break;
 
     case FFT_SPECTRUM_POWER:
-      calc.Calculate<PowerSpectrum>(out_data, fft_data_complex, nfft_);
+      calc.Calculate<PowerSpectrum>(out_data, fft_data_complex, nfft_, out_stride, 1);
       break;
 
     case FFT_SPECTRUM_LOG_POWER:
-      calc.Calculate<LogPowerSpectrum>(out_data, fft_data_complex, nfft_);
+      calc.Calculate<LogPowerSpectrum>(out_data, fft_data_complex, nfft_, out_stride, 1);
       break;
 
     default:
@@ -225,16 +251,7 @@ void Fft1DCpu<OutputType, InputType, Dims>::Run(
   }
 }
 
-template <typename OutputType, typename InputType, int Dims>
-void Fft1DCpu<OutputType, InputType, Dims>::ValidateArgs(const FftArgs& args) {
-  DALI_ENFORCE(args.transform_axis >= 0 && args.transform_axis < Dims,
-    make_string("Transform axis ", args.transform_axis, " is out of bounds [0, ", Dims, ")"));
-  DALI_ENFORCE(args.transform_axis == Dims-1,
-    make_string(
-      "Expected ", Dims, "D data with transform axis being the inner most dimension",
-      "Received transform_axis=", args.transform_axis));
-}
-
+// 2 Dims, typically input (channels, time), producing output (channels, frequency)
 template class Fft1DCpu<float, float, 2>;
 
 }  // namespace fft
