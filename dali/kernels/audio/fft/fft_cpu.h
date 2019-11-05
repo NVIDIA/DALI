@@ -31,12 +31,12 @@ enum FftSpectrumType {
   FFT_SPECTRUM_COMPLEX = 0,    // separate interleaved real and img parts: (r0, i0, r1, i2, ...)
   FFT_SPECTRUM_MAGNITUDE = 1,  // sqrt( real^2 + img^2 )
   FFT_SPECTRUM_POWER = 2,      // real^2 + img^2
-  FFT_SPECTRUM_LOG_POWER = 3,  // real^2 + img^2
+  FFT_SPECTRUM_LOG_POWER = 3,  // 10 * log10( real^2 + img^2 )
 };
 
 struct FftArgs {
   FftSpectrumType spectrum_type = FFT_SPECTRUM_COMPLEX;
-  int transform_axis = 0;
+  int transform_axis = -1;
   int nfft = -1;
 };
 
@@ -76,10 +76,6 @@ class DLL_PUBLIC Fft1DCpu {
              && std::is_same<InputType, float>::value,
     "Data types other than float are not yet supported");
 
-  static_assert(Dims == 2,
-    "Expected 2D data where dim 0 represents the frame space and dim 1 the dimension to be "
-    " transformed to the frequency domain");
-
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InTensorCPU<InputType, Dims> &in,
                                       const FftArgs &args);
@@ -89,12 +85,11 @@ class DLL_PUBLIC Fft1DCpu {
                       const InTensorCPU<InputType, Dims> &in,
                       const FftArgs &args);
  private:
-  void ValidateArgs(const FftArgs& args);
-
   using FftsPlanPtr = std::unique_ptr<ffts_plan_t, decltype(&ffts_free)>;
   FftsPlanPtr plan_{nullptr, ffts_free};
-  int64_t plan_n_ = -1;
-  int64_t nfft_ = -1;
+  int plan_n_ = -1;
+  int nfft_ = -1;
+  int transform_axis_ = -1;
 };
 
 }  // namespace fft
