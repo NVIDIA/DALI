@@ -21,40 +21,42 @@
 
 namespace dali {
 
-inline TensorShape<5> TransformShapeDHWC(const TensorShape<> &shape) {
-  std::array<Index, 5> result{1, 1, 1, 1, 1};
-  for (int i = 5 - shape.size(); i < 5; ++i) {
-    result[i] = shape[i + shape.size() - 5];
+constexpr int flip_ndim = 5;
+
+inline TensorShape<flip_ndim> TransformShapeDHWC(const TensorShape<> &shape) {
+  std::array<Index, flip_ndim> result{1, 1, 1, 1, 1};
+  for (int i = flip_ndim - shape.size(); i < flip_ndim; ++i) {
+    result[i] = shape[i + shape.size() - flip_ndim];
   }
-  return TensorShape<5>(result);
+  return TensorShape<flip_ndim>(result);
 }
 
-inline TensorShape<5> TransformShapeHWC(const TensorShape<> &shape) {
-  std::array<Index, 5> result{1, 1, 1, 1, 1};
-  for (int i = 2; i < 5; ++i) {
-    result[i] = shape[i + shape.size() - 5];
+inline TensorShape<flip_ndim> TransformShapeHWC(const TensorShape<> &shape) {
+  std::array<Index, flip_ndim> result{1, 1, 1, 1, 1};
+  for (int i = 2; i < flip_ndim; ++i) {
+    result[i] = shape[i + shape.size() - flip_ndim];
   }
   if (shape.size() > 3) {
     result[0] = shape[0];
   }
-  return TensorShape<5>(result);
+  return TensorShape<flip_ndim>(result);
 }
 
-inline TensorShape<5> TransformShapeCDHW(const TensorShape<> &shape) {
-  std::array<Index, 5> result{1, 1, 1, 1, 1};
+inline TensorShape<flip_ndim> TransformShapeCDHW(const TensorShape<> &shape) {
+  std::array<Index, flip_ndim> result{1, 1, 1, 1, 1};
   result[1] = shape[shape.size() - 3];
   result[2] = shape[shape.size() - 2];
   result[3] = shape[shape.size() - 1];
   result[0] = shape[shape.size() - 4];
   // merge channel and frame dimensions
-  if (shape.size() == 5) {
+  if (shape.size() == flip_ndim) {
     result[0] *= shape[0];
   }
-  return TensorShape<5>(result);
+  return TensorShape<flip_ndim>(result);
 }
 
-inline TensorShape<5> TransformShapeCHW(const TensorShape<> &shape) {
-  std::array<Index, 5> result{1, 1, 1, 1, 1};
+inline TensorShape<flip_ndim> TransformShapeCHW(const TensorShape<> &shape) {
+  std::array<Index, flip_ndim> result{1, 1, 1, 1, 1};
   result[2] = shape[shape.size() - 2];
   result[3] = shape[shape.size() - 1];
   result[0] = shape[shape.size() - 3];
@@ -62,12 +64,12 @@ inline TensorShape<5> TransformShapeCHW(const TensorShape<> &shape) {
   if (shape.size() == 4) {
     result[0] *= shape[0];
   }
-  return TensorShape<5>(result);
+  return TensorShape<flip_ndim>(result);
 }
 
-inline TensorListShape<5> TransformShapes(const TensorListShape<> &shapes,
+inline TensorListShape<flip_ndim> TransformShapes(const TensorListShape<> &shapes,
                                           const TensorLayout &layout) {
-  TensorListShape<5> result(shapes.size());
+  TensorListShape<flip_ndim> result(shapes.size());
   if (ImageLayoutInfo::IsChannelLast(layout)) {
     if (layout.find('D') >= 0) {
       for (int i = 0; i < shapes.size(); i++) {

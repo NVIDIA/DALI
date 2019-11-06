@@ -23,6 +23,9 @@
 
 namespace dali {
 namespace kernels {
+
+constexpr int sample_ndim = 5;
+
 namespace detail {
 namespace cpu {
 
@@ -99,14 +102,15 @@ class DLL_PUBLIC FlipCPU {
  public:
   DLL_PUBLIC FlipCPU() = default;
 
-  DLL_PUBLIC KernelRequirements Setup(KernelContext &context, const InTensorCPU<Type, 5> &in) {
+  DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
+                                      const InTensorCPU<Type, sample_ndim> &in) {
     KernelRequirements req;
     req.output_shapes = {TensorListShape<DynamicDimensions>({in.shape})};
     return req;
   }
 
-  DLL_PUBLIC void Run(KernelContext &Context, OutTensorCPU<Type, 5> &out,
-      const InTensorCPU<Type, 5> &in, bool flip_z, bool flip_y, bool flip_x) {
+  DLL_PUBLIC void Run(KernelContext &Context, OutTensorCPU<Type, sample_ndim> &out,
+      const InTensorCPU<Type, sample_ndim> &in, bool flip_z, bool flip_y, bool flip_x) {
     auto in_data = in.data;
     auto out_data = out.data;
     detail::cpu::FlipImpl(out_data, in_data,

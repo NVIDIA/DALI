@@ -47,10 +47,10 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
       kernels::KernelContext ctx;
       auto shape_dims = TensorListShape<>{{input.shape()}};
       auto shape = TransformShapes(shape_dims, layout)[0];
-      auto in_view = kernels::InTensorCPU<DType, 5>(input_ptr, shape);
+      auto in_view = kernels::InTensorCPU<DType, flip_ndim>(input_ptr, shape);
       auto reqs = kernel.Setup(ctx, in_view);
-      auto out_shape = reqs.output_shapes[0][0].to_static<5>();
-      auto out_view = kernels::OutTensorCPU<DType, 5>(output_ptr, out_shape);
+      auto out_shape = reqs.output_shapes[0][0].to_static<flip_ndim>();
+      auto out_view = kernels::OutTensorCPU<DType, flip_ndim>(output_ptr, out_shape);
       kernel.Run(ctx, out_view, in_view, depthwise, vertical, horizontal);
   )
 }

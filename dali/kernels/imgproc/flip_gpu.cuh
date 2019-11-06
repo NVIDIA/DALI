@@ -24,6 +24,9 @@
 
 namespace dali {
 namespace kernels {
+
+constexpr int sample_ndim = 5;
+
 namespace detail {
 namespace gpu {
 
@@ -84,14 +87,15 @@ void FlipImpl(T *__restrict__ output, const T *__restrict__ input,
 template <typename Type>
 class DLL_PUBLIC FlipGPU {
  public:
-  DLL_PUBLIC KernelRequirements Setup(KernelContext &context, const InListGPU<Type, 5> &in) {
+  DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
+                                      const InListGPU<Type, sample_ndim> &in) {
     KernelRequirements req;
     req.output_shapes = {in.shape};
     return req;
   }
 
-  DLL_PUBLIC void Run(KernelContext &context, OutListGPU<Type, 5> &out,
-                      const InListGPU<Type, 5> &in,
+  DLL_PUBLIC void Run(KernelContext &context, OutListGPU<Type, sample_ndim> &out,
+                      const InListGPU<Type, sample_ndim> &in,
                       const std::vector<int> &flip_z, const std::vector<int> &flip_y,
                       const std::vector<int> &flip_x) {
     auto num_samples = static_cast<size_t>(in.num_samples());

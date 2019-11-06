@@ -29,13 +29,13 @@ void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &inp
   DALI_TYPE_SWITCH(
       input.type().id(), DType,
       auto in_shape = TransformShapes(input.shape(), input.GetLayout());
-      kernels::InListGPU<DType, 5> in_view(input.data<DType>(), in_shape);
+      kernels::InListGPU<DType, flip_ndim> in_view(input.data<DType>(), in_shape);
       kernels::KernelContext ctx;
       ctx.gpu.stream = stream;
       kernels::FlipGPU<DType> kernel;
       auto reqs = kernel.Setup(ctx, in_view);
-      kernels::OutListGPU<DType, 5> out_view(output.mutable_data<DType>(),
-                                             reqs.output_shapes[0].to_static<5>());
+      kernels::OutListGPU<DType, flip_ndim> out_view(output.mutable_data<DType>(),
+                                             reqs.output_shapes[0].to_static<flip_ndim>());
       kernel.Run(ctx, out_view, in_view, depthwise, vertical, horizontal);
   )
 }
