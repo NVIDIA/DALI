@@ -54,7 +54,7 @@ class BlockSetup {
   BlockSetup() {
     for (int i = 0; i < ndim; i++)
       default_block_size_[i] = (i < 2) ? 256 : 1;
-    max_block_elements_ = volume(default_block_size_);
+    max_block_elements_ = 4 * volume(default_block_size_);
   }
 
   void SetupBlocks(const TensorListShape<tensor_ndim> &output_shape,
@@ -193,10 +193,10 @@ class BlockSetup {
       switch (i) {
       case 0:
       case 1:
-        ret[i] = default_block_size_[i];
+        ret[i] = std::min<int>(shape[i], default_block_size_[i]);
         break;
       case 2:
-        ret[i] = std::max<int>(1, volume(shape) / max_block_elements_);
+        ret[i] = std::max<int>(1, ret[0]*ret[1] / max_block_elements_);
         break;
       default:
         ret[i] = 1;
@@ -218,6 +218,25 @@ class BlockSetup {
         break;
       }
     }
+
+    auto sample_vol = volume(shape);
+
+    for (;;) {
+      auto block_vol = volume(ret);
+      if (block_vol <= 0x40000 || (sample_vol / block_vol) > 256)
+        break;
+      if (ret.x == 32 && ret.y == 1)
+        break;
+      if (ret.x > 32) {
+          ret.x >>= 1;
+          if (ret.x < 32)
+            ret.x = 32;
+      }
+      if (ret.y > 1) {
+          ret.y >>= 1;
+      }
+    }
+
     return min(shape, ret);
   }
 
@@ -235,24 +254,6 @@ class BlockSetup {
     uniform_output_size_ = shape2size(output_shape[0]);
     // Get the rough estimate of block size
     uniform_block_size_ = UniformBlockSize(uniform_output_size_);
-
-    auto sample_vol = volume(uniform_output_size_);
-
-    for (;;) {
-      auto block_vol = volume(uniform_block_size_);
-      if (block_vol <= 0x10000 || (sample_vol / block_vol) > 256)
-        break;
-      if (uniform_block_size_.x == 32 && uniform_block_size_.y == 1)
-        break;
-      if (uniform_block_size_.x > 32) {
-          uniform_block_size_.x >>= 1;
-          if (uniform_block_size_.x < 32)
-            uniform_block_size_.x = 32;
-      }
-      if (uniform_block_size_.y > 1) {
-          uniform_block_size_.y >>= 1;
-      }
-    }
 
     // Make the blocks as evenly distributed as possible over the target area,
     // but maintain alignment to CUDA block dim.
