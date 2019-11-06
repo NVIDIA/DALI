@@ -44,11 +44,11 @@ struct FftArgs {
  * @brief Computes 1-D FFT related transformation from real data to either a complex spectrum
  *   or a transformation of the complex spectrum (power, magnitude, log power)
  *
- * It can be typically used with a set of frames, i.e a 2D tensor where the first dimension
- * represents the frame index and the second dimension represents the dimension to be transformed
- * to the frequency domain.
- *
- * Input is typically a 2D tensor of dimensions FxN representing a set of F frames of length N
+ * Input data can be a 2D or 3D tensor representing an audio signal (e.g. [channels, time]) or
+ * a sequence of frames (e.g. [channels, frames, time]). The kernel can work with other data
+ * layouts by providing the transform_axis representing the dimension to be transformed to the
+ * frequency domain (e.g. for a layout of [channels, time, frames] we set transform_axis=2 to
+ * produce a [channels, frequency, frames] layout)
  *
  * @param args.spectrum_type defines the nature of the output
  *   FFT_SPECTRUM_COMPLEX:
