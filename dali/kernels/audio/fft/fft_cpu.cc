@@ -61,31 +61,34 @@ inline int64_t size_out_buf(int64_t n) {
 
 struct FftCalculator {
   template <typename Impl, typename OutputType, typename InputType>
-  void Calculate(OutputType *out, const InputType *fft, int64_t nfft,
+  void Calculate(OutputType *out, const InputType *in, int64_t nfft,
                  int64_t out_stride = 1, int64_t in_stride = 1,
                  bool output_full_spectrum = false, bool input_full_spectrum = false) {
     Impl impl;
 
-    int out_idx = 0, in_idx = 0;
+    OutputType *out_ptr = out;
+    const InputType *in_ptr = in;
     for (int i = 0; i <= nfft / 2; i++) {
-      impl.Calculate(out[out_idx], fft[in_idx]);
-      out_idx += out_stride;
-      in_idx += in_stride;
+      impl.Calculate(out_ptr, out_stride, in_ptr, in_stride);
     }
 
     if (output_full_spectrum) {
       if (input_full_spectrum) {
         for (int i = nfft / 2 + 1; i < nfft; i++) {
-          impl.Calculate(out[i], fft[i]);
-          out_idx += out_stride;
-          in_idx += in_stride;
+          impl.Calculate(out_ptr, out_stride, in_ptr, in_stride);
         }
       } else {
+
+        int64_t out_stride_complex = 2 * out_stride;
         for (int i = nfft / 2 + 1; i < nfft; i++) {
-          InputType tmp = fft[(nfft - i)*in_stride];
-          impl.Calculate(out[out_idx], {tmp.real(), -tmp.imag()});
-          out_idx += out_stride;
-          in_idx += in_stride;
+          // start mirroring nfft/2+1+k -> nfft/2-1-k
+          auto *mirror_out = out + (nfft-i) * out_stride_complex;
+          // real
+          *out_ptr = *mirror_out;
+          out_ptr += out_stride;
+          // imag
+          *out_ptr = -*(mirror_out+out_stride);
+          out_ptr += out_stride;
         }
       }
     }
@@ -93,38 +96,75 @@ struct FftCalculator {
 };
 
 struct Spectrum {
-  template <typename OutputType = std::complex<float>, typename InputType = std::complex<float>>
-  inline void Calculate(OutputType &out, InputType in) {
-    out = in;
+  template <typename OutputType = float, typename InputType = float>
+  inline void Calculate(OutputType*& out, int64_t out_stride, InputType*& in, int64_t in_stride) {
+    *out = *in;
+    out += out_stride;
+    in += in_stride;
+    *out = *in;
+    out += out_stride;
+    in += in_stride;
   }
 };
 
 struct PowerSpectrum {
-  template <typename OutputType = float, typename InputType = std::complex<float>>
-  inline void Calculate(OutputType &out, InputType in) {
-    out = in.real()*in.real() + in.imag()*in.imag();
+  template <typename OutputType = float, typename InputType = float>
+  inline void Calculate(OutputType*& out, int64_t out_stride, InputType*& in, int64_t in_stride) {
+    auto real = *in;
+    in += in_stride;
+    auto imag = *in;
+    in += in_stride;
+    *out = real*real + imag*imag;
+    out += out_stride;
   }
 };
 
 struct MagnitudeSpectrum {
-  template <typename OutputType = float, typename InputType = std::complex<float>>
-  inline void Calculate(OutputType &out, InputType in) {
-    PowerSpectrum().Calculate(out, in);
-    out = sqrt(out);
+  template <typename OutputType = float, typename InputType = float>
+  inline void Calculate(OutputType*& out, int64_t out_stride, InputType*& in, int64_t in_stride) {
+    auto* current_out = out;
+    PowerSpectrum().Calculate(out, out_stride, in, in_stride);
+    *current_out = sqrt(*current_out);
   }
 };
 
 struct LogPowerSpectrum {
-  template <typename OutputType = float, typename InputType = std::complex<float>>
-  inline void Calculate(OutputType &out, InputType in) {
-   PowerSpectrum().Calculate(out, in);
+  template <typename OutputType = float, typename InputType = float>
+  inline void Calculate(OutputType*& out, int64_t out_stride, InputType*& in, int64_t in_stride) {
+    auto* current_out = out;
+    PowerSpectrum().Calculate(out, out_stride, in, in_stride);
     const OutputType kEps = 1e-30;
-    if (out < kEps) {
-      out = kEps;
+    if (*current_out < kEps) {
+      *current_out = kEps;
     }
-    out = 10 * log10(out);
+    *current_out = 10 * log10(*current_out);
   }
 };
+
+template <typename OutputType, typename InputType>
+void Get1DSlices(std::vector<std::pair<OutputType*, const InputType*>>& slices,
+                 const int64_t *out_shape,
+                 const int64_t *out_strides,
+                 const int64_t *in_shape,
+                 const int64_t *in_strides,
+                 int axis,
+                 int ndim) {
+  for (int dim = 0; dim < ndim; dim++) {
+    if (axis != dim) {
+      std::vector<std::pair<OutputType *, const InputType *>> new_slices;
+      for (auto &slice : slices) {
+        auto *out_ptr = slice.first;
+        auto *in_ptr = slice.second;
+        for (int64_t i = 0; i < in_shape[dim]; i++) {
+          new_slices.push_back({out_ptr, in_ptr});
+          out_ptr += out_strides[dim];
+          in_ptr += in_strides[dim];
+        }
+      }
+      std::swap(slices, new_slices);
+    }
+  }
+}
 
 }  // namespace
 
@@ -200,59 +240,67 @@ void Fft1DCpu<OutputType, InputType, Dims>::Run(
   auto out_stride = out_strides[transform_axis_];
   auto in_stride = in_strides[transform_axis_];
 
-  const InputType* in_data = in.data;
-  OutputType* out_data = out.data;
-
   assert(nfft_ > n);
-  int64_t in_idx = 0;
-  if (use_real_impl) {
-    for (int i = 0; i < n; i++) {
-      in_buf[i] = ConvertSat<float>(in_data[in_idx]);
-      in_idx += in_stride;
+
+  std::vector<std::pair<OutputType*, const InputType*>> slices;
+  slices.push_back(std::make_pair(out.data, in.data));
+  Get1DSlices(slices, out.shape.data(), out_strides.data(),
+              in.shape.data(), in_strides.data(), args.transform_axis, Dims);
+  for (auto &slice: slices) {
+    OutputType* out_data = slice.first;
+    const InputType* in_data = slice.second;
+
+    int64_t in_idx = 0;
+    if (use_real_impl) {
+      for (int i = 0; i < n; i++) {
+        in_buf[i] = ConvertSat<float>(in_data[in_idx]);
+        in_idx += in_stride;
+      }
+    } else {
+      for (int i = 0; i < n; i++) {
+        in_buf[2*i] = ConvertSat<float>(in_data[in_idx]);
+        in_buf[2*i+1] = 0.0f;
+        in_idx += in_stride;
+      }
     }
-  } else {
-    for (int i = 0; i < n; i++) {
-      in_buf[2*i] = ConvertSat<float>(in_data[in_idx]);
-      in_buf[2*i+1] = 0.0f;
-      in_idx += in_stride;
+
+    ffts_execute(plan_.get(), in_buf, out_buf);
+
+    // For complex impl, out_buf_sz contains the whole spectrum,
+    // for real impl, the second half of the spectrum is ommited and should be constructed from the
+    // first half
+    const bool is_full_spectrum = !use_real_impl;
+
+    FftCalculator calc;
+    switch (args.spectrum_type) {
+      case FFT_SPECTRUM_COMPLEX:
+        calc.Calculate<Spectrum>(
+          out_data, out_buf, nfft_, out_stride, 1, true, is_full_spectrum);
+        break;
+
+      case FFT_SPECTRUM_MAGNITUDE:
+        calc.Calculate<MagnitudeSpectrum>(out_data, out_buf, nfft_, out_stride, 1);
+        break;
+
+      case FFT_SPECTRUM_POWER:
+        calc.Calculate<PowerSpectrum>(out_data, out_buf, nfft_, out_stride, 1);
+        break;
+
+      case FFT_SPECTRUM_LOG_POWER:
+        calc.Calculate<LogPowerSpectrum>(out_data, out_buf, nfft_, out_stride, 1);
+        break;
+
+      default:
+        DALI_FAIL(make_string("output type not supported: ", args.spectrum_type));
     }
   }
 
-  ffts_execute(plan_.get(), in_buf, out_buf);
-
-  // For complex impl, out_buf_sz contains the whole spectrum,
-  // for real impl, the second half of the spectrum is ommited and should be constructed from the
-  // first half
-  const bool is_full_spectrum = !use_real_impl;
-
-  FftCalculator calc;
-  const auto *fft_data_complex = reinterpret_cast<std::complex<float>*>(out_buf);
-  auto *out_data_complex = reinterpret_cast<std::complex<OutputType>*>(out_data);
-  switch (args.spectrum_type) {
-    case FFT_SPECTRUM_COMPLEX:
-      calc.Calculate<Spectrum>(
-        out_data_complex, fft_data_complex, nfft_, out_stride, 1, true, is_full_spectrum);
-      break;
-
-    case FFT_SPECTRUM_MAGNITUDE:
-      calc.Calculate<MagnitudeSpectrum>(out_data, fft_data_complex, nfft_, out_stride, 1);
-      break;
-
-    case FFT_SPECTRUM_POWER:
-      calc.Calculate<PowerSpectrum>(out_data, fft_data_complex, nfft_, out_stride, 1);
-      break;
-
-    case FFT_SPECTRUM_LOG_POWER:
-      calc.Calculate<LogPowerSpectrum>(out_data, fft_data_complex, nfft_, out_stride, 1);
-      break;
-
-    default:
-      DALI_FAIL(make_string("output type not supported: ", args.spectrum_type));
-  }
 }
 
 // 2 Dims, typically input (channels, time), producing output (channels, frequency)
 template class Fft1DCpu<float, float, 2>;
+// 3 Dims, typically input (channels, frames, time), producing output (channels, frames, frequency)
+template class Fft1DCpu<float, float, 3>;
 
 }  // namespace fft
 }  // namespace audio
