@@ -44,7 +44,8 @@ struct AllocatingDecoder {
 
 template<typename T>
 struct NonallocatingDecoder {
-  explicit NonallocatingDecoder(std::shared_ptr<T> destination) : destination_(destination) {}
+
+  void set_destination(std::shared_ptr<T> destination) { destination_ = destination; }
 
   /**
    * Peeks the encoded buffer and returns, how much memory (in bytes)
