@@ -14,7 +14,7 @@
 
 #include "dali/operators/audio/fft/fft.h"
 #include "dali/core/static_switch.h"
-#include "dali/kernels/audio/fft/fft_cpu.h"
+#include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/pipeline/data/views.h"
 
 #define FFT_SUPPORTED_NDIMS (2, 3)
@@ -63,7 +63,7 @@ bool Fft<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   using InputType = float;
   using OutputType = float;
   VALUE_SWITCH(in_shape.size(), Dims, FFT_SUPPORTED_NDIMS, (
-    using FftKernel = kernels::audio::fft::Fft1DCpu<OutputType, InputType, Dims>;
+    using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
     kmgr_.Initialize<FftKernel>();
 
     for (int i = 0; i < in_shape.num_samples(); i++) {
@@ -89,7 +89,7 @@ void Fft<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   using InputType = float;
   using OutputType = float;
   VALUE_SWITCH(in_shape.size(), Dims, FFT_SUPPORTED_NDIMS, (
-    using FftKernel = kernels::audio::fft::Fft1DCpu<OutputType, InputType, Dims>;
+    using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
     auto& thread_pool = ws.GetThreadPool();
     for (int i = 0; i < input.shape().num_samples(); i++) {
       auto in_view = view<const InputType, Dims>(input[i]);
