@@ -310,8 +310,9 @@ class Pipeline(object):
 
     def feed_input(self, ref, data, layout=""):
         """Bind the NumPy array to a tensor produced by ExternalSource
-        operator. It is worth mentioning that `ref` should not be overridden
-        with other operator outputs."""
+        operator. It is worth mentioning that `ref` **should not** be overridden
+        with other operator outputs and it should be called from the
+        inside of `iter_setup` method"""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         Edge._validate_edge_reference(ref)
