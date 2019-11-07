@@ -17,7 +17,7 @@
 
 #include "dali/core/common.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/audio/fft/fft_cpu.h"
+#include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -32,13 +32,13 @@ class Fft : public Operator<Backend> {
     fft_args_.transform_axis = spec.GetArgument<int>("axis");
     auto spectrum_type_str = spec.GetArgument<std::string>("spectrum_type");
     if (spectrum_type_str == "complex") {
-      fft_args_.spectrum_type = kernels::audio::fft::FFT_SPECTRUM_COMPLEX;
+      fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_COMPLEX;
     } else if (spectrum_type_str == "magnitude") {
-      fft_args_.spectrum_type = kernels::audio::fft::FFT_SPECTRUM_MAGNITUDE;
+      fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_MAGNITUDE;
     } else if (spectrum_type_str == "power") {
-      fft_args_.spectrum_type = kernels::audio::fft::FFT_SPECTRUM_POWER;
+      fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_POWER;
     } else if (spectrum_type_str == "log_power") {
-      fft_args_.spectrum_type = kernels::audio::fft::FFT_SPECTRUM_LOG_POWER;
+      fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_LOG_POWER;
     }
   }
 
@@ -50,7 +50,7 @@ class Fft : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
   kernels::KernelManager kmgr_;
-  kernels::audio::fft::FftArgs fft_args_;
+  kernels::signal::fft::FftArgs fft_args_;
 };
 
 }  // namespace dali
