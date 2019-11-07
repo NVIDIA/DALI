@@ -15,12 +15,12 @@
 #ifndef DALI_KERNELS_SIGNAL_FFT_FFT_CPU_H_
 #define DALI_KERNELS_SIGNAL_FFT_FFT_CPU_H_
 
-#include "dali/core/format.h"
+#include <memory>
 #include "dali/core/common.h"
-#include "dali/core/util.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/format.h"
+#include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
-#include <ffts/ffts.h>
 
 namespace dali {
 namespace kernels {
@@ -38,7 +38,40 @@ struct FftArgs {
   FftSpectrumType spectrum_type = FFT_SPECTRUM_COMPLEX;
   int transform_axis = -1;
   int nfft = -1;
+
+  inline bool operator==(const FftArgs& oth) const {
+    return spectrum_type == oth.spectrum_type &&
+           transform_axis == oth.transform_axis &&
+           nfft == oth.nfft;
+  }
+
+  inline bool operator!=(const FftArgs& oth) const {
+    return !operator==(oth);
+  }
 };
+
+namespace impl {
+
+template <typename OutputType, typename InputType = OutputType, int Dims = 2>
+class DLL_PUBLIC FftImpl {
+ public:
+  static_assert(std::is_same<InputType, OutputType>::value
+             && std::is_same<InputType, float>::value,
+    "Data types other than float are not yet supported");
+
+  DLL_PUBLIC virtual ~FftImpl() = default;
+
+  DLL_PUBLIC virtual KernelRequirements Setup(KernelContext &context,
+                                              const InTensorCPU<InputType, Dims> &in,
+                                              const FftArgs &args) = 0;
+
+  DLL_PUBLIC virtual void Run(KernelContext &context,
+                              const OutTensorCPU<OutputType, Dims> &out,
+                              const InTensorCPU<InputType, Dims> &in,
+                              const FftArgs &args) = 0;
+};
+
+}  // namespace impl
 
 /**
  * @brief Computes 1-D FFT related transformation from real data to either a complex spectrum
@@ -81,15 +114,13 @@ class DLL_PUBLIC Fft1DCpu {
                                       const FftArgs &args);
 
   DLL_PUBLIC void Run(KernelContext &context,
-                      OutTensorCPU<OutputType, Dims> &out,
+                      const OutTensorCPU<OutputType, Dims> &out,
                       const InTensorCPU<InputType, Dims> &in,
                       const FftArgs &args);
  private:
-  using FftsPlanPtr = std::unique_ptr<ffts_plan_t, decltype(&ffts_free)>;
-  FftsPlanPtr plan_{nullptr, ffts_free};
-  int plan_n_ = -1;
-  int nfft_ = -1;
-  int transform_axis_ = -1;
+  using Impl = impl::FftImpl<OutputType, InputType, Dims>;
+  std::unique_ptr<Impl> impl_;
+  FftArgs args_;
 };
 
 }  // namespace fft
@@ -97,4 +128,4 @@ class DLL_PUBLIC Fft1DCpu {
 }  // namespace kernels
 }  // namespace dali
 
-  #endif  // DALI_KERNELS_SIGNAL_FFT_FFT_CPU_H_
+#endif  // DALI_KERNELS_SIGNAL_FFT_FFT_CPU_H_
