@@ -151,17 +151,17 @@ void Get1DSlices(std::vector<std::pair<OutputType*, const InputType*>>& slices,
                  int ndim) {
   for (int dim = 0; dim < ndim; dim++) {
     if (axis != dim) {
-      std::vector<std::pair<OutputType *, const InputType *>> new_slices;
-      for (auto &slice : slices) {
+      int sz = slices.size();
+      for (int i = 0; i < sz; i++) {
+        auto &slice = slices[i];
         auto *out_ptr = slice.first;
         auto *in_ptr = slice.second;
-        for (int64_t i = 0; i < in_shape[dim]; i++) {
-          new_slices.push_back({out_ptr, in_ptr});
+        for (int i = 1; i < in_shape[dim]; i++) {
           out_ptr += out_strides[dim];
           in_ptr += in_strides[dim];
+          slices.push_back({out_ptr, in_ptr});
         }
       }
-      std::swap(slices, new_slices);
     }
   }
 }
