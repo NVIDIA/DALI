@@ -51,7 +51,7 @@ void NaiveDft(std::complex<float> *out,
 void CompareFfts(float *reference, int64_t reference_step,
                  float *data, int64_t data_step,
                  int64_t data_size,
-                 float eps=1e-3) {
+                 float eps = 1e-3) {
     int64_t ref_idx = 0;
     int64_t data_idx = 0;
     for (int i = 0; i < data_size; i++) {
@@ -284,7 +284,7 @@ TEST_P(Fft1DCpuOtherLayoutTest, LayoutTest) {
   int64_t out_stride = out_strides[args.transform_axis];
 
   std::vector<std::complex<float>> reference_fft(2*nfft);
-  auto *ref_data = (float*) reference_fft.data();
+  auto *ref_data = reinterpret_cast<float*>(reference_fft.data());
   int64_t total_ffts = volume(in_shape) / n;
 
   LOG_LINE << "in : \n[" << std::endl;;
@@ -364,13 +364,13 @@ TEST_P(Fft1DCpuOtherLayoutTest, LayoutTest) {
       NaiveDft(reference_fft.data(), 1, in_data_buf.data(), 1, n, nfft, true);
 
       LOG_LINE << "Reference data: ";
-      for (int k = 0; k<2*nfft; k+=1) {
+      for (int k = 0; k < 2 * nfft; k++) {
         LOG_LINE << " " << ref_data[k];
       }
       LOG_LINE << std::endl;
 
       LOG_LINE << "Actual data: ";
-      for (int k = 0; k<2*nfft; k+=1) {
+      for (int k = 0; k < 2 * nfft; k++) {
         LOG_LINE << " " << out_data_buf[k];
       }
       LOG_LINE << std::endl;
@@ -378,7 +378,6 @@ TEST_P(Fft1DCpuOtherLayoutTest, LayoutTest) {
       CompareFfts(ref_data, 1, out_data_buf.data(), 1, 2*nfft);
     }
   }
-
 }
 
 INSTANTIATE_TEST_SUITE_P(Fft1DCpuOtherLayoutTest, Fft1DCpuOtherLayoutTest, testing::Combine(
