@@ -119,5 +119,14 @@ RUN FFMPEG_VERSION=4.2.1 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
     cd /tmp && rm -rf ffmpeg-$FFMPEG_VERSION
 
+# libsnd
+RUN LIBSND_VERSION=1.0.28                                                              && \
+    cd /tmp && wget http://www.mega-nerd.com/libsndfile/files/libsndfile-1.0.28.tar.gz && \
+    tar -xf libsndfile-$LIBSND_VERSION.tar.gz                                          && \
+    rm libsndfile-$LIBSND_VERSION.tar.gz                                               && \
+    cd libsndfile-$LIBSND_VERSION.tar.gz                                               && \
+    ./autogen.sh && ./configure && make -j"$(grep ^processor /proc/cpuinfo | wc -l)"   && \
+    make install && cd /tmp && rm -rf libsnd-$LIBSND_VERSION
+
 # CUDA
 COPY --from=cuda /usr/local/cuda /usr/local/cuda
