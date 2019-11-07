@@ -14,7 +14,6 @@
 
 project(dali_operator)
 
-add_subdirectory(audio)
 add_subdirectory(color)
 add_subdirectory(color_space)
 add_subdirectory(crop)
@@ -54,7 +53,7 @@ endif()
 cuda_add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_PROTO_OBJ})
 set_target_properties(${dali_operator_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
-target_link_libraries(${dali_operator_lib} PUBLIC ${dali_lib} ${dali_kernel_lib} ${dali_core_lib})
+target_link_libraries(${dali_operator_lib} PUBLIC sndfile ${dali_lib} ${dali_kernel_lib} ${dali_core_lib})
 target_link_libraries(${dali_operator_lib} PRIVATE dynlink_cuda ${DALI_LIBS})
 # Exclude (most) statically linked dali dependencies from the exports of libdali_operators.so
 target_link_libraries(${dali_operator_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")

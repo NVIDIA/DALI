@@ -18,9 +18,10 @@
 #include <cstring>
 #include <cassert>
 #include <vector>
+#include <sndfile.h>
 #include "dali/core/format.h"
 #include "dali/core/error_handling.h"
-#include "dynlink_snd.h"
+//#include "dynlink_snd.h"
 #include "audio_decoder.h"
 
 
@@ -119,7 +120,7 @@ template<typename T>
 struct LibsndWavDecoder : public WavDecoder<T>, public AllocatingDecoder<T> {
   LibsndWavDecoder() {
 //    DALI_ENFORCE(LibsndInitChecked(), "Failed to open Libsnd");
-    snd::init_snd();
+//    snd::init_snd();
   }
 
 
@@ -140,11 +141,11 @@ struct LibsndWavDecoder : public WavDecoder<T>, public AllocatingDecoder<T> {
 
     detail::VirtualInputManager vim(encoded.data(), encoded.size() * sizeof(T));
 
-    auto sound = snd::sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info, &vim);
+    auto sound = sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info, &vim);
     ret.data = std::shared_ptr<T>(new T[sf_info.frames]);
 
-    DALI_ENFORCE(sound, make_string("Failed to open encoded data: ", snd::sf_strerror(sound)));
-    auto cnt = snd::sf_readf_short(sound, ret.data.get(), sf_info.frames);
+    DALI_ENFORCE(sound, make_string("Failed to open encoded data: ", sf_strerror(sound)));
+    auto cnt = sf_readf_short(sound, ret.data.get(), sf_info.frames);
 
     ret.length = sf_info.frames * sf_info.channels;
     ret.channels = sf_info.channels;
