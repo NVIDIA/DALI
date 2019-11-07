@@ -14,7 +14,6 @@
 
 project(dali_kernel)
 
-add_subdirectory(audio)
 add_subdirectory(common)
 add_subdirectory(imgproc)
 add_subdirectory(signal)
