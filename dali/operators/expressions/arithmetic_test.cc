@@ -144,7 +144,7 @@ template <typename T>
 T GenerateData(int sample, int element) {
   static std::mt19937 gen(42);
   auto result = uniform_distribution<T>(-1024, 1024)(gen);
-  return result == 0 ? 1 : result; // we do not want to divide by 0 so we discard those results
+  return result == 0 ? 1 : result;  // we do not want to divide by 0 so we discard those results
 }
 
 template <typename T>
