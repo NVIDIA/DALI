@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter numpy matplotlib pillow"
+pip_packages="jupyter numpy matplotlib pillow opencv-python"
 target_dir=./docs/examples
 
 do_once() {
