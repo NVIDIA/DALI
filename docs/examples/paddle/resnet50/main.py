@@ -259,7 +259,7 @@ def main():
 
     total_time = AverageMeter()
 
-    for epoch in range(90):
+    for epoch in range(FLAGS.epochs):
         if FLAGS.local_rank == 0:
             print("==== train epoch {:02d} ====".format(epoch + 1))
         avg_time, _, _ = run(
@@ -282,7 +282,7 @@ def main():
             fluid.io.save_persistables(exe, ckpt_path, train_prog)
 
             time_per_sample = FLAGS.whole_batch_size / total_time.avg
-            if epoch == 89:
+            if epoch == FLAGS.epochs-1:
                 print('##Top-1 {0}\n'
                       '##Top-5 {1}\n'
                       '##Perf  {2}'.format(
@@ -307,6 +307,8 @@ if __name__ == '__main__':
                         metavar='W', help='weight decay (default: 1e-4)')
     parser.add_argument('--print-freq', '-p', default=10, type=int,
                         metavar='N', help='print frequency (default: 10)')
+    parser.add_argument('-e', '--epochs', default=90, type=int,
+                        metavar='N', help='number of epochs to be run (default 90)')
     FLAGS = parser.parse_args()
     assert FLAGS.data, "error: must provide data path"
 
