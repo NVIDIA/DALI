@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/kernels/audio/fft/fft_cpu.h"
+#include "dali/kernels/signal/fft/fft_cpu.h"
 #include <ffts/ffts.h>
 #include <cmath>
 #include <complex>
@@ -25,7 +25,7 @@
 
 namespace dali {
 namespace kernels {
-namespace audio {
+namespace signal {
 namespace fft {
 
 namespace {
@@ -303,6 +303,6 @@ template class Fft1DCpu<float, float, 2>;
 template class Fft1DCpu<float, float, 3>;
 
 }  // namespace fft
-}  // namespace audio
+}  // namespace signal
 }  // namespace kernels
 }  // namespace dali

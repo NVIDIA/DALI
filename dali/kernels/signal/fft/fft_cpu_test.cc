@@ -18,13 +18,13 @@
 #include <complex>
 #include <cmath>
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/audio/fft/fft_cpu.h"
+#include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 namespace kernels {
-namespace audio {
+namespace signal {
 namespace fft {
 namespace test {
 
@@ -390,6 +390,6 @@ INSTANTIATE_TEST_SUITE_P(Fft1DCpuOtherLayoutTest, Fft1DCpuOtherLayoutTest, testi
 
 }  // namespace test
 }  // namespace fft
-}  // namespace audio
+}  // namespace signal
 }  // namespace kernels
 }  // namespace dali

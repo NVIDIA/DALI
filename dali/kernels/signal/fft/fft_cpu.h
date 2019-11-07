@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_AUDIO_FFT_FFT_CPU_H_
-#define DALI_KERNELS_AUDIO_FFT_FFT_CPU_H_
+#ifndef DALI_KERNELS_SIGNAL_FFT_FFT_CPU_H_
+#define DALI_KERNELS_SIGNAL_FFT_FFT_CPU_H_
 
 #include "dali/core/format.h"
 #include "dali/core/common.h"
@@ -24,7 +24,7 @@
 
 namespace dali {
 namespace kernels {
-namespace audio {
+namespace signal {
 namespace fft {
 
 enum FftSpectrumType {
@@ -44,7 +44,7 @@ struct FftArgs {
  * @brief Computes 1-D FFT related transformation from real data to either a complex spectrum
  *   or a transformation of the complex spectrum (power, magnitude, log power)
  *
- * Input data can be a 2D or 3D tensor representing an audio signal (e.g. [channels, time]) or
+ * Input data can be a 2D or 3D tensor representing an signal (e.g. [channels, time]) or
  * a sequence of frames (e.g. [channels, frames, time]). The kernel can work with other data
  * layouts by providing the transform_axis representing the dimension to be transformed to the
  * frequency domain (e.g. for a layout of [channels, time, frames] we set transform_axis=2 to
@@ -93,8 +93,8 @@ class DLL_PUBLIC Fft1DCpu {
 };
 
 }  // namespace fft
-}  // namespace audio
+}  // namespace signal
 }  // namespace kernels
 }  // namespace dali
 
-  #endif  // DALI_KERNELS_AUDIO_FFT_FFT_CPU_H_
+  #endif  // DALI_KERNELS_SIGNAL_FFT_FFT_CPU_H_
