@@ -28,63 +28,77 @@ namespace signal {
 namespace fft {
 namespace test {
 
-void NaiveDft(std::vector<std::complex<float>> &out,
-              const span<const float>& in,
+void NaiveDft(std::complex<float> *out,
+              int64_t out_stride,
+              float *in,
+              int64_t in_stride,
+              int64_t n,
               int64_t nfft,
-              bool full_spectrum = false) {
-  auto n = in.size();
-  auto out_size = full_spectrum ? nfft : nfft/2+1;
-  out.clear();
-  out.reserve(out_size);
+              bool full_spectrum = true) {
   // Loop through each sample in the frequency domain
-  for (int64_t k = 0; k < out_size; k++) {
+  for (int64_t k = 0; k < (full_spectrum ? nfft : (nfft/2+1)); k++) {
     float real = 0.0f, imag = 0.0f;
     // Loop through each sample in the time domain
     for (int64_t i = 0; i < n; i++) {
-      auto x = in[i];
+      auto x = in[i * in_stride];
       real += x * cos(2.0f * M_PI * k * i / n);
       imag += -x * sin(2.0f * M_PI * k * i / n);
     }
-    out.push_back({real, imag});
+    out[k * out_stride] = {real, imag};
   }
 }
 
-void CompareFfts(const span<const float>& reference,
-                 const span<const float>& fft,
-                 float eps = 1e-3) {
-  ASSERT_EQ(reference.size(), fft.size());
-  const auto *ref = reference.data(), *data = fft.data();
-  for (int i = 0; i < fft.size(); i++) {
-    auto diff = ref[i] - data[i];
-    auto diff_max = ref[i] * eps;
-    // Error tends to be big if the numbers are big
-    if (diff_max < eps)
-      diff_max = eps;
-    ASSERT_LE(diff, diff_max);
-  }
+void CompareFfts(float *reference, int64_t reference_step,
+                 float *data, int64_t data_step,
+                 int64_t data_size,
+                 float eps=1e-3) {
+    int64_t ref_idx = 0;
+    int64_t data_idx = 0;
+    for (int i = 0; i < data_size; i++) {
+      auto diff = reference[ref_idx] - data[data_idx];
+      auto diff_max = reference[ref_idx] * eps;
+      // Error tends to be big if the numbers are big
+      if (diff_max < eps)
+        diff_max = eps;
+      ASSERT_LE(diff, diff_max);
+      ref_idx += reference_step;
+      data_idx += data_step;
+    }
 }
 
-void CompareFfts(const span<const std::complex<float>>& reference,
-                 const span<const std::complex<float>>& fft,
-                 float eps = 1e-3) {
-  span<const float> ref_f = {reinterpret_cast<const float*>(reference.data()), reference.size()*2};
-  span<const float> fft_f = {reinterpret_cast<const float*>(fft.data()), fft.size()*2};
-  CompareFfts(ref_f, fft_f, eps);
-}
-
-void PowerSpectrum(span<float> out,
-                   span<std::complex<float>> in,
+void PowerSpectrum(float *out,
+                   int64_t out_stride,
+                   std::complex<float> *in,  // fft
+                   int64_t in_stride,
                    int64_t nfft) {
   for (int64_t k = 0; k <= nfft / 2; k++) {
-    out[k] = std::norm(in[k]);
+    auto real = in[k * in_stride].real();
+    auto imag = in[k * in_stride].imag();
+    out[k * out_stride] = real*real + imag*imag;
   }
 }
 
-void MagSpectrum(span<float> out,
-                 span<std::complex<float>> in,
+void MagSpectrum(float *out,
+                 int64_t out_stride,
+                 std::complex<float> *in,  // fft
+                 int64_t in_stride,
                  int64_t nfft) {
   for (int64_t k = 0; k <= nfft / 2; k++) {
-    out[k] = std::abs(in[k]);
+    auto real = in[k * in_stride].real();
+    auto imag = in[k * in_stride].imag();
+    out[k * out_stride] = sqrt(real*real + imag*imag);
+  }
+}
+
+void LogPowerSpectrum(float *out,
+                      int64_t out_stride,
+                      std::complex<float> *in,  // fft
+                      int64_t in_stride,
+                      int64_t nfft) {
+  for (int64_t k = 0; k <= nfft / 2; k++) {
+    auto real = in[k * in_stride].real();
+    auto imag = in[k * in_stride].imag();
+    out[k * out_stride] = 10 * log10(real*real + imag*imag);
   }
 }
 
@@ -110,20 +124,11 @@ class Fft1DCpuTest : public::testing::TestWithParam<
   OutTensorCPU<float, 2> in_view_;
 };
 
-class ComplexFft1DCpuTest : public Fft1DCpuTest {};
-
-TEST_P(ComplexFft1DCpuTest, FftTest) {
-  using OutputType = std::complex<float>;
-  using InputType = float;
-  constexpr int Dims = 2;
-  Fft1DCpu<OutputType, InputType, Dims> kernel;
-  check_kernel<decltype(kernel)>();
-
+TEST_P(Fft1DCpuTest, FftTest) {
   KernelContext ctx;
+  Fft1DCpu<float> kernel;
   FftArgs args;
   args.spectrum_type = spectrum_type_;
-  ASSERT_EQ(FFT_SPECTRUM_COMPLEX, args.spectrum_type);
-
   args.transform_axis = 1;
 
   auto in_shape = in_view_.shape;
@@ -141,105 +146,61 @@ TEST_P(ComplexFft1DCpuTest, FftTest) {
   auto scratchpad = scratch_alloc.GetScratchpad();
   ctx.scratchpad = &scratchpad;
 
-  TensorShape<> expected_out_shape = in_shape;
-  expected_out_shape[args.transform_axis] = nfft/2+1;
+  auto expected_out_shape = in_shape;
+  expected_out_shape[args.transform_axis] = args.spectrum_type == FFT_SPECTRUM_COMPLEX ?
+    nfft * 2 : (nfft/2+1);
 
-  auto out_shape = reqs.output_shapes[0][0];
+  auto out_shape = reqs.output_shapes[0][0].to_static<2>();
   ASSERT_EQ(expected_out_shape, out_shape);
 
   auto out_size = volume(out_shape);
-  std::vector<OutputType> out_data(out_size);
+  std::vector<float> out_data(out_size);
 
-  auto out_view = OutTensorCPU<OutputType, 2>(out_data.data(), out_shape.to_static<2>());
+  auto out_view = OutTensorCPU<float, 2>(out_data.data(), out_shape);
   kernel.Run(ctx, out_view, in_view_, args);
 
-  LOG_LINE << "FFT:" << std::endl;
-  for (int i = 0; i < nfft/2+1; i++) {
-    LOG_LINE << "(" << out_view.data[i].real() << "," << out_view.data[i].imag() << "i)\n";
+
+  if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
+    LOG_LINE << "FFT:" << std::endl;
+    for (int i = 0; i < nfft; i++) {
+      LOG_LINE << "(" << out_view.data[2*i] << "," << out_view.data[2*i+1] << "i)" << std::endl;
+    }
   }
 
-  std::vector<std::complex<float>> reference_fft(nfft/2+1);
-  NaiveDft(reference_fft, make_cspan(in_view_.data, n), nfft, true);
-  LOG_LINE << "Reference FFT:" << std::endl;
-  for (int i = 0; i < nfft/2+1; i++) {
-    LOG_LINE << "(" << reference_fft[i].real() << "," << reference_fft[i].imag() << "i)\n";
-  }
-  CompareFfts(make_cspan(reference_fft.data(), nfft/2+1), make_cspan(out_view.data, nfft/2+1));
-}
+  std::vector<std::complex<float>> reference_fft(2*nfft);
+  NaiveDft(reference_fft.data(), 1, in_view_.data, 1, n, nfft, true);
 
-INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, ComplexFft1DCpuTest, testing::Combine(
-    testing::Values(
-      FFT_SPECTRUM_COMPLEX),
-    testing::Values(std::array<int64_t, 2>{1, 4},
-                    std::array<int64_t, 2>{1, 10},
-                    std::array<int64_t, 2>{1, 64},
-                    std::array<int64_t, 2>{1, 100},
-                    std::array<int64_t, 2>{1, 4096})));
-
-class PowerSpectrum1DCpuTest : public Fft1DCpuTest {};
-
-TEST_P(PowerSpectrum1DCpuTest, FftTest) {
-  using OutputType = float;
-  using InputType = float;
-  constexpr int Dims = 2;
-  Fft1DCpu<OutputType, InputType, Dims> kernel;
-  check_kernel<decltype(kernel)>();
-
-  KernelContext ctx;
-  FftArgs args;
-  args.spectrum_type = spectrum_type_;
-  ASSERT_NE(FFT_SPECTRUM_COMPLEX, args.spectrum_type);
-
-  args.transform_axis = 1;
-
-  auto in_shape = in_view_.shape;
-  auto n = in_shape[args.transform_axis];
-  auto nfft = n;
-  args.nfft = nfft;
-
-  LOG_LINE << "Test n=" << n << " nfft=" << nfft << " axis=" << args.transform_axis
-           << " spectrum_type=" << args.spectrum_type << std::endl;
-
-  KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
-
-  ScratchpadAllocator scratch_alloc;
-  scratch_alloc.Reserve(reqs.scratch_sizes);
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
-
-  TensorShape<> expected_out_shape = in_shape;
-  expected_out_shape[args.transform_axis] = nfft/2+1;
-
-  auto out_shape = reqs.output_shapes[0][0];
-  ASSERT_EQ(expected_out_shape, out_shape);
-
-  auto out_size = volume(out_shape);
-  std::vector<OutputType> out_data(out_size);
-
-  auto out_view = OutTensorCPU<OutputType, 2>(out_data.data(), out_shape.to_static<2>());
-  kernel.Run(ctx, out_view, in_view_, args);
-
-  std::vector<std::complex<float>> reference_fft(nfft/2+1);
-  NaiveDft(reference_fft, make_cspan(in_view_.data, n), nfft);
-
-  std::vector<float> reference(nfft/2+1);
+  std::vector<float> reference(out_size);
   switch (args.spectrum_type) {
+    case FFT_SPECTRUM_COMPLEX:
+      memcpy(reference.data(), reference_fft.data(), reference_fft.size()*sizeof(float));
+      break;
     case FFT_SPECTRUM_POWER:
-      PowerSpectrum(make_span(reference), make_span(reference_fft), nfft);
+      PowerSpectrum(reference.data(), 1, reference_fft.data(), 1, nfft);
       break;
     case FFT_SPECTRUM_MAGNITUDE:
-      MagSpectrum(make_span(reference), make_span(reference_fft), nfft);
+      MagSpectrum(reference.data(), 1, reference_fft.data(), 1, nfft);
+      break;
+    case FFT_SPECTRUM_LOG_POWER:
+      LogPowerSpectrum(reference.data(), 1, reference_fft.data(), 1, nfft);
       break;
     default:
       ASSERT_TRUE(false);
   }
 
-  CompareFfts(make_cspan(reference), make_cspan(out_view.data, out_size));
+  if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
+    LOG_LINE << "Reference FFT:" << std::endl;
+    for (int i = 0; i < nfft; i++) {
+      LOG_LINE << "(" << reference[2*i] << "," << reference[2*i+1] << "i)" << std::endl;
+    }
+  }
+
+  CompareFfts(reference.data(), 1, out_view.data, 1, out_size);
 }
 
-INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, PowerSpectrum1DCpuTest, testing::Combine(
+INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, Fft1DCpuTest, testing::Combine(
     testing::Values(
-      FFT_SPECTRUM_MAGNITUDE, FFT_SPECTRUM_POWER),
+      FFT_SPECTRUM_COMPLEX, FFT_SPECTRUM_MAGNITUDE, FFT_SPECTRUM_POWER, FFT_SPECTRUM_LOG_POWER),
     testing::Values(std::array<int64_t, 2>{1, 4},
                     std::array<int64_t, 2>{1, 10},
                     std::array<int64_t, 2>{1, 64},
@@ -270,16 +231,9 @@ class Fft1DCpuOtherLayoutTest : public::testing::TestWithParam<
   OutTensorCPU<float, 3> in_view_;
 };
 
-class ComplexFft1DCpuOtherLayoutTest : public Fft1DCpuOtherLayoutTest {};
-
-TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
-  using OutputType = std::complex<float>;
-  using InputType = float;
-  constexpr int Dims = 3;
-  Fft1DCpu<OutputType, InputType, Dims> kernel;
-  check_kernel<decltype(kernel)>();
-
+TEST_P(Fft1DCpuOtherLayoutTest, LayoutTest) {
   KernelContext ctx;
+  Fft1DCpu<float, float, 3> kernel;
   FftArgs args;
   args.spectrum_type = spectrum_type_;
   args.transform_axis = transform_axis_;
@@ -301,38 +255,37 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
   ctx.scratchpad = &scratchpad;
 
   auto expected_out_shape = in_shape;
-  expected_out_shape[args.transform_axis] = nfft/2+1;
+  expected_out_shape[args.transform_axis] = args.spectrum_type == FFT_SPECTRUM_COMPLEX ?
+    nfft * 2 : (nfft/2+1);
 
   auto out_shape = reqs.output_shapes[0][0].to_static<3>();
   ASSERT_EQ(expected_out_shape, out_shape);
 
   auto out_size = volume(out_shape);
-  std::vector<OutputType> out(out_size);
-  auto out_view = OutTensorCPU<OutputType, 3>(out.data(), out_shape);
+  std::vector<float> out(out_size);
+  auto out_view = OutTensorCPU<float, 3>(out.data(), out_shape);
   auto *in_data = in_view_.data;
   auto *out_data = out_view.data;
   kernel.Run(ctx, out_view, in_view_, args);
 
-  TensorShape<> in_strides = in_shape;
-  in_strides[in_strides.size()-1] = 1;
-  for (int d = in_strides.size()-2; d >= 0; d--) {
-    in_strides[d] = in_strides[d+1] * in_shape[d+1];
-  }
+  TensorShape<3> in_strides;
+  in_strides[2] = 1;
+  in_strides[1] = in_shape[2];
+  in_strides[0] = in_shape[1] * in_strides[1];
+
   int64_t in_step = in_shape[args.transform_axis];
   int64_t in_stride = in_strides[args.transform_axis];
 
-  TensorShape<> out_strides = out_shape;
-  out_strides[out_strides.size()-1] = 1;
-  for (int d = out_strides.size()-2; d >= 0; d--) {
-    out_strides[d] = out_strides[d+1] * out_shape[d+1];
-  }
+  TensorShape<3> out_strides;
+  out_strides[2] = 1;
+  out_strides[1] = out_shape[2];
+  out_strides[0] = out_shape[1] * out_strides[1];
+
   int64_t out_stride = out_strides[args.transform_axis];
 
-  std::vector<std::complex<float>> reference_fft(nfft/2+1);
-
+  std::vector<std::complex<float>> reference_fft(2*nfft);
+  auto *ref_data = (float*) reference_fft.data();
   int64_t total_ffts = volume(in_shape) / n;
-  LOG_LINE << "in_shape " << in_shape << std::endl;
-  LOG_LINE << "in_strides " << in_strides << std::endl;
 
   LOG_LINE << "in : \n[" << std::endl;;
   for (int i0 = 0; i0 < in_shape[0]; i0++) {
@@ -388,7 +341,7 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
 
   std::vector<float> in_data_buf(n, 0);
   auto *in_data_ptr = in_view_.data;
-  std::vector<OutputType> out_data_buf(nfft/2+1, {0.0f, 0.0f});
+  std::vector<float> out_data_buf(2*nfft, 0);
   auto *out_data_ptr = out_view.data;
 
   for (int i = 0; i < in_shape[dims[0]]; i++) {
@@ -404,31 +357,31 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
       }
       LOG_LINE << " ]\n";
 
-      for (int k = 0; k < nfft/2+1; k++) {
+      for (int k = 0; k < 2*nfft; k++) {
         out_data_buf[k] = out_data_ptr1[k*out_stride];
       }
 
-      NaiveDft(reference_fft, make_cspan(in_data_buf), nfft);
+      NaiveDft(reference_fft.data(), 1, in_data_buf.data(), 1, n, nfft, true);
 
       LOG_LINE << "Reference data: ";
-      for (int k = 0; k < nfft/2+1; k++) {
-        LOG_LINE << " (" << reference_fft[k].real() << ", " << reference_fft[k].imag() << "),";
+      for (int k = 0; k<2*nfft; k+=1) {
+        LOG_LINE << " " << ref_data[k];
       }
       LOG_LINE << std::endl;
 
       LOG_LINE << "Actual data: ";
-      for (int k = 0; k < nfft/2+1; k++) {
-        LOG_LINE << " (" << out_data_buf[k].real() << ", " << out_data_buf[k].imag() << "),";
+      for (int k = 0; k<2*nfft; k+=1) {
+        LOG_LINE << " " << out_data_buf[k];
       }
       LOG_LINE << std::endl;
 
-      CompareFfts(make_cspan(reference_fft), make_cspan(out_data_buf));
+      CompareFfts(ref_data, 1, out_data_buf.data(), 1, 2*nfft);
     }
   }
+
 }
 
-INSTANTIATE_TEST_SUITE_P(ComplexFft1DCpuOtherLayoutTest, ComplexFft1DCpuOtherLayoutTest,
-  testing::Combine(
+INSTANTIATE_TEST_SUITE_P(Fft1DCpuOtherLayoutTest, Fft1DCpuOtherLayoutTest, testing::Combine(
     testing::Values(FFT_SPECTRUM_COMPLEX),
     testing::Values(std::array<int64_t, 3>{6, 8, 4}),
     testing::Values(0, 1, 2)));
