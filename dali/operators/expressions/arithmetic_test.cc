@@ -19,11 +19,12 @@
 #include <vector>
 
 #include "dali/core/static_switch.h"
-#include "dali/pipeline/data/types.h"
 #include "dali/operators/expressions/arithmetic.h"
 #include "dali/operators/expressions/arithmetic_meta.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_operator_test.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 
@@ -140,19 +141,10 @@ TEST(ArithmeticOpsTest, GetTiledCover) {
 namespace {
 
 template <typename T>
-std::enable_if_t<std::is_integral<T>::value, T> GenerateData(int sample, int element) {
+T GenerateData(int sample, int element) {
   static std::mt19937 gen(42);
-  std::uniform_int_distribution<> dis(-1024, 1024);
-  auto result = dis(gen);
-  return result == 0 ? 1 : result;
-}
-
-template <typename T>
-std::enable_if_t<!std::is_integral<T>::value, T> GenerateData(int sample, int element) {
-  static std::mt19937 gen(42);
-  std::uniform_real_distribution<float> dis(-1024, 1024);
-  auto result = dis(gen);
-  return result == 0.f ? 1.f : result;
+  auto result = uniform_distribution<T>(-1024, 1024)(gen);
+  return result == 0 ? 1 : result; // we do not want to divide by 0 so we discard those results
 }
 
 template <typename T>

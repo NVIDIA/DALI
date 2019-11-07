@@ -29,7 +29,8 @@ batch_size = 4
 # Shape of the samples, currently forces the sample to have be covered by more than 1 tile
 shape_big = [(256, 256)] * batch_size
 # For the coverage of all type combinations we use smaller batch
-shape_small = [(5, 7), (8, 4), (42, 1), (3, 2)]
+# TODO(klecki): revert to small batch
+shape_small = shape_big
 
 # A number used to test constant inputs
 magic_number = 42
@@ -204,6 +205,16 @@ def get_numpy_input(input, kind, type):
         else:
             return input.astype(type)
 
+def extract_data(pipe_out, sample_id, kinds, target_type):
+    left_kind, right_kind = kinds
+    l = as_cpu(pipe_out[0]).at(sample_id)
+    r = as_cpu(pipe_out[1]).at(sample_id)
+    out = as_cpu(pipe_out[2]).at(sample_id)
+    assert_equals(out.dtype, target_type)
+    l_np = get_numpy_input(l, left_kind, target_type)
+    r_np = get_numpy_input(r, right_kind, target_type)
+    return l_np, r_np, out
+
 # Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, _):
     left_type, right_type = types
@@ -215,12 +226,7 @@ def check_arithm_op(kinds, types, op, shape, _):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l = as_cpu(pipe_out[0]).at(sample)
-        r = as_cpu(pipe_out[1]).at(sample)
-        out = as_cpu(pipe_out[2]).at(sample)
-        assert_equals(out.dtype, target_type)
-        l_np = get_numpy_input(l, left_kind, target_type)
-        r_np = get_numpy_input(r, right_kind, target_type)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         if 'f' in np.dtype(target_type).kind:
             np.testing.assert_allclose(out, op(l_np, r_np),
                 rtol=1e-07 if target_type != np.float16 else 0.005)
@@ -251,12 +257,7 @@ def check_arithm_fdiv(kinds, types, shape):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l = as_cpu(pipe_out[0]).at(sample)
-        r = as_cpu(pipe_out[1]).at(sample)
-        out = as_cpu(pipe_out[2]).at(sample)
-        assert_equals(out.dtype, target_type)
-        l_np = get_numpy_input(l, left_kind, target_type)
-        r_np = get_numpy_input(r, right_kind, target_type)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         np.testing.assert_allclose(out, l_np / r_np,
             rtol=1e-07 if target_type != np.float16 else 0.005)
 
@@ -281,12 +282,7 @@ def check_arithm_div(kinds, types, shape):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l = as_cpu(pipe_out[0]).at(sample)
-        r = as_cpu(pipe_out[1]).at(sample)
-        out = as_cpu(pipe_out[2]).at(sample)
-        assert_equals(out.dtype, target_type)
-        l_np = get_numpy_input(l, left_kind, target_type)
-        r_np = get_numpy_input(r, right_kind, target_type)
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         if 'f' in np.dtype(target_type).kind:
             np.testing.assert_allclose(out, l_np / r_np,
                 rtol=1e-07 if target_type != np.float16 else 0.005)
