@@ -127,6 +127,7 @@ class Fft1DCpuTest : public::testing::TestWithParam<
 TEST_P(Fft1DCpuTest, FftTest) {
   KernelContext ctx;
   Fft1DCpu<float> kernel;
+  check_kernel<decltype(kernel)>();
   FftArgs args;
   args.spectrum_type = spectrum_type_;
   args.transform_axis = 1;

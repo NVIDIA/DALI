@@ -28,7 +28,7 @@ namespace signal {
 namespace fft {
 
 enum FftSpectrumType {
-  FFT_SPECTRUM_COMPLEX = 0,    // separate interleaved real and img parts: (r0, i0, r1, i2, ...)
+  FFT_SPECTRUM_COMPLEX = 0,    // separate interleaved real and img parts: (r0, i0, r1, i1, ...)
   FFT_SPECTRUM_MAGNITUDE = 1,  // sqrt( real^2 + img^2 )
   FFT_SPECTRUM_POWER = 2,      // real^2 + img^2
   FFT_SPECTRUM_LOG_POWER = 3,  // 10 * log10( real^2 + img^2 )
@@ -80,7 +80,7 @@ class DLL_PUBLIC FftImpl {
  * Input data can be a 2D or 3D tensor representing an signal (e.g. [channels, time]) or
  * a sequence of frames (e.g. [channels, frames, time]). The kernel can work with other data
  * layouts by providing the transform_axis representing the dimension to be transformed to the
- * frequency domain (e.g. for a layout of [channels, time, frames] we set transform_axis=2 to
+ * frequency domain (e.g. for a layout of [channels, time, frames] we set transform_axis=1 to
  * produce a [channels, frequency, frames] layout)
  *
  * @param args.spectrum_type defines the nature of the output
