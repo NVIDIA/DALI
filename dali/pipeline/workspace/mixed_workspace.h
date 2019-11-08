@@ -43,7 +43,7 @@ class DLL_PUBLIC MixedWorkspace : public WorkspaceBase<MixedInputType, MixedOutp
  public:
   using WorkspaceBase<MixedInputType, MixedOutputType>::input_t;
   using WorkspaceBase<MixedInputType, MixedOutputType>::output_t;
-  DLL_PUBLIC inline MixedWorkspace() : stream_(0) {}
+  DLL_PUBLIC inline MixedWorkspace() : stream_(0), event_(nullptr) {}
   DLL_PUBLIC inline ~MixedWorkspace() override = default;
 
 

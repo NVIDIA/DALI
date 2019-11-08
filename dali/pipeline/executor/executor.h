@@ -92,7 +92,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         event_pool_(max_num_stream),
         thread_pool_(num_thread, device_id, set_affinity),
         exec_error_(false),
-        queue_sizes_(prefetch_queue_depth) {
+        queue_sizes_(prefetch_queue_depth),
+        mixed_op_stream_(0),
+        gpu_op_stream_(0) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 

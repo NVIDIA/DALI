@@ -547,7 +547,7 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
     }
   };
   vector<WorkspaceBlob> wss_;
-  int queue_size_;
+  int queue_size_ = -1;
 };
 
 

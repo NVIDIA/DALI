@@ -64,8 +64,7 @@ class OpticalFlow : public Operator<Backend> {
                   detail::kEnableExternalHintsArgName)),
           optical_flow_(std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>>(
                   new optical_flow::OpticalFlowStub<ComputeBackend>(of_params_))),
-          image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)),
-          device_id_(spec.GetArgument<int>("device_id")) {
+          image_type_(spec.GetArgument<decltype(this->image_type_)>(detail::kImageTypeArgName)) {
     // In case external hints are enabled, we need 2 inputs
     DALI_ENFORCE((enable_external_hints_ && spec.NumInput() == 2) || !enable_external_hints_,
                  "Incorrect number of inputs. Expected: 2, Obtained: " +
@@ -171,11 +170,11 @@ class OpticalFlow : public Operator<Backend> {
   std::once_flag of_initialized_;
   optical_flow::OpticalFlowParams of_params_;
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
-  int frames_width_, frames_height_, depth_, nsequences_;
-  int hints_width_, hints_height_, hints_depth_;
-  std::vector<int> sequence_sizes_;
   DALIImageType image_type_;
   int device_id_;
+  int frames_width_ = -1, frames_height_ = -1, depth_ = -1, nsequences_ = -1;
+  int hints_width_ = -1, hints_height_ = -1, hints_depth_ = -1;
+  std::vector<int> sequence_sizes_;
 };
 
 }  // namespace dali

@@ -104,7 +104,8 @@ TensorNode& OpGraph::PlaceNewTensor() {
   return tensor_nodes_.back();
 }
 
-void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
+
+void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
   // Validate the op specification
   CheckOpConstraints(spec);
 
@@ -132,7 +133,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
       break;
   }
   // Add node meta-data and add to the list of nodes
-  auto &new_node = PlaceNewOp(op_type, spec, name);
+  auto &new_node = PlaceNewOp(op_type, spec, op_name);
 
   // Setup references between nodes. We require that the
   // ops are added to the graph in a topological ordering.
@@ -141,8 +142,8 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string& name) {
   for (int i = 0; i < spec.NumInput(); ++i) {
     // Get the tensor id we are consuming by its name
     auto it = tensor_name_to_id_.find(spec.Input(i));
-    DALI_ENFORCE(it != tensor_name_to_id_.end(), "Tensor with name \"" +
-        name + "\" has no known source.");
+    DALI_ENFORCE(it != tensor_name_to_id_.end(),
+                 "Tensor with name \"" + op_name + "\" has no known source.");
     auto consumed_tensor_id = it->second;
 
     // Add parent node id, checks if parent node exists in graph

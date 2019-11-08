@@ -66,7 +66,7 @@ static int get_max_vm_cnt() {
     if (!elements_read) {
       return vm_cnt;
     }
-    vm_cnt = std::stoi(buffer, nullptr);
+    vm_cnt = std::stoi(std::string(buffer), nullptr);
   }
 #endif
   return vm_cnt;

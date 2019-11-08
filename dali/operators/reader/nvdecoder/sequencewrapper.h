@@ -53,7 +53,12 @@ struct SequenceWrapper {
 
   ~SequenceWrapper() {
     if (started_) {
-      CUDA_CALL(cudaEventDestroy(event_));
+      try {
+        CUDA_CALL(cudaEventDestroy(event_));
+      } catch (const std::exception &) {
+        // Something went wrong with releasing resources. We'd better die now.
+        std::terminate();
+      }
     }
   }
 
