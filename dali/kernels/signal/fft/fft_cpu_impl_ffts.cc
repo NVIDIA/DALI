@@ -37,6 +37,12 @@ KernelRequirements Fft1DImplFfts<OutputType, InputType, Dims>::Setup(
     KernelContext &context,
     const InTensorCPU<InputType, Dims> &in,
     const FftArgs &args) {
+  constexpr bool is_complex_out = std::is_same<OutputType, std::complex<float>>::value;
+  constexpr bool is_real_out = std::is_same<OutputType, float>::value;
+  DALI_ENFORCE((is_complex_out && args.spectrum_type == FFT_SPECTRUM_COMPLEX)
+            || (is_real_out && args.spectrum_type != FFT_SPECTRUM_COMPLEX),
+    "Output type should be complex<float> or float depending on the requested spectrum type");
+
   transform_axis_ = args.transform_axis >= 0 ? args.transform_axis : Dims-1;
   DALI_ENFORCE(transform_axis_ >= 0 && transform_axis_ < Dims,
     make_string("Transform axis ", transform_axis_, " is out of bounds [0, ", Dims, ")"));
@@ -53,9 +59,23 @@ KernelRequirements Fft1DImplFfts<OutputType, InputType, Dims>::Setup(
   se.add<float>(AllocType::Host, size_out_buf(nfft_), 32);
   req.scratch_sizes = se.sizes;
 
-  out_shape[transform_axis_] = (args.spectrum_type == FFT_SPECTRUM_COMPLEX) ?
-    2 * nfft_ : (nfft_/2 + 1);
+  if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
+    out_shape[transform_axis_] = nfft_;
+  } else {
+    out_shape[transform_axis_] = nfft_/2 + 1;
+  }
   req.output_shapes = {TensorListShape<DynamicDimensions>({out_shape})};
+
+  if (!plan_ || plan_n_ != nfft_) {
+    if (can_use_real_impl(nfft_)) {
+      plan_ = {ffts_init_1d_real(nfft_, FFTS_FORWARD), ffts_free};
+    } else {
+      plan_ = {ffts_init_1d(nfft_, FFTS_FORWARD), ffts_free};
+    }
+    DALI_ENFORCE(plan_ != nullptr, "Could not initialize ffts plan");
+    plan_n_ = nfft_;
+  }
+
   return req;
 }
 
@@ -71,17 +91,7 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
   assert(transform_axis_ >= 0);
   assert(nfft_ > 0);
   assert(n <= nfft_);
-
   bool use_real_impl = can_use_real_impl(nfft_);
-  if (!plan_ || plan_n_ != nfft_) {
-    if (use_real_impl) {
-      plan_ = {ffts_init_1d_real(nfft_, FFTS_FORWARD), ffts_free};
-    } else {
-      plan_ = {ffts_init_1d(nfft_, FFTS_FORWARD), ffts_free};
-    }
-    DALI_ENFORCE(plan_ != nullptr, "Could not initialize ffts plan");
-    plan_n_ = nfft_;
-  }
 
   auto in_buf_sz = size_in_buf(nfft_);
   // ffts requires 32-byte aligned memory
@@ -93,18 +103,20 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
   float* out_buf = context.scratchpad->template Allocate<float>(AllocType::Host, out_buf_sz, 32);
   memset(out_buf, 0, out_buf_sz*sizeof(float));
 
-  TensorShape<Dims> in_strides, out_strides;
-  in_strides[Dims - 1] = 1;
-  out_strides[Dims - 1] = 1;
-  for (int d = Dims - 1; d > 0; d--) {
-    out_strides[d - 1] = out_strides[d] * out.shape[d];
-    in_strides[d - 1] = in_strides[d] * in.shape[d];
+  auto in_strides = in.shape;
+  in_strides[in_strides.size()-1] = 1;
+  for (int d = in_strides.size()-2; d >= 0; d--) {
+    in_strides[d] = in_strides[d+1] * in.shape[d+1];
   }
+  auto out_strides = out.shape;
+  out_strides[out_strides.size()-1] = 1;
+  for (int d = out_strides.size()-2; d >= 0; d--) {
+    out_strides[d] = out_strides[d+1] * out.shape[d+1];
+  }
+
   // Step in the transform axis
   auto out_stride = out_strides[transform_axis_];
   auto in_stride = in_strides[transform_axis_];
-
-  assert(nfft_ >= n);
 
   std::vector<std::pair<OutputType*, const InputType*>> slices;
   slices.push_back(std::make_pair(out.data, in.data));
@@ -135,34 +147,22 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
     // first half
     const bool is_full_spectrum = !use_real_impl;
 
-    FftCalculator calc;
-    switch (args.spectrum_type) {
-      case FFT_SPECTRUM_COMPLEX:
-        calc.Calculate<Spectrum>(
-          out_data, out_buf, nfft_, out_stride, 1, true, is_full_spectrum);
-        break;
-
-      case FFT_SPECTRUM_MAGNITUDE:
-        calc.Calculate<MagnitudeSpectrum>(out_data, out_buf, nfft_, out_stride, 1);
-        break;
-
-      case FFT_SPECTRUM_POWER:
-        calc.Calculate<PowerSpectrum>(out_data, out_buf, nfft_, out_stride, 1);
-        break;
-
-      case FFT_SPECTRUM_LOG_POWER:
-        calc.Calculate<LogPowerSpectrum>(out_data, out_buf, nfft_, out_stride, 1);
-        break;
-
-      default:
-        DALI_FAIL(make_string("output type not supported: ", args.spectrum_type));
+    auto* complex_fft = reinterpret_cast<std::complex<float>*>(out_buf);
+    if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
+      auto* complex_out = reinterpret_cast<std::complex<float>*>(out_data);
+      ComplexSpectrumCalculator().Calculate(complex_out, complex_fft, nfft_, out_stride, 1);
+    } else {
+      MagnitudeSpectrumCalculator().Calculate(
+          args.spectrum_type, out_data, complex_fft, nfft_, out_stride, 1);
     }
   }
 }
 
 // 2 Dims, typically input (channels, time), producing output (channels, frequency)
+template class Fft1DImplFfts<std::complex<float>, float, 2>;
 template class Fft1DImplFfts<float, float, 2>;
 // 3 Dims, typically input (channels, frames, time), producing output (channels, frames, frequency)
+template class Fft1DImplFfts<std::complex<float>, float, 3>;
 template class Fft1DImplFfts<float, float, 3>;
 
 }  // namespace impl

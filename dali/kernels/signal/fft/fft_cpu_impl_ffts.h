@@ -17,6 +17,7 @@
 
 #include <ffts/ffts.h>
 #include <memory>
+#include <complex>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
@@ -30,11 +31,14 @@ namespace signal {
 namespace fft {
 namespace impl {
 
-template <typename OutputType, typename InputType = OutputType, int Dims = 2>
+template <typename OutputType = std::complex<float>, typename InputType = float, int Dims = 2>
 class DLL_PUBLIC Fft1DImplFfts : public FftImpl<OutputType, InputType, Dims> {
  public:
-  static_assert(std::is_same<InputType, OutputType>::value
-             && std::is_same<InputType, float>::value,
+  static_assert(std::is_same<InputType, float>::value,
+    "Data types other than float are not yet supported");
+
+  static_assert(std::is_same<OutputType, float>::value
+             || std::is_same<OutputType, std::complex<float>>::value,
     "Data types other than float are not yet supported");
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,

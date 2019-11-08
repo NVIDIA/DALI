@@ -53,84 +53,50 @@ inline int64_t size_out_buf(int64_t n) {
   return can_use_real_impl(n) ? n+2 : 2*n;
 }
 
-struct FftCalculator {
-  template <typename Impl, typename OutputType, typename InputType>
-  void Calculate(OutputType *out, const InputType *in, int64_t nfft,
-                 int64_t out_stride = 1, int64_t in_stride = 1,
-                 bool output_full_spectrum = false, bool input_full_spectrum = false) {
-    Impl impl;
-
-    OutputType *out_ptr = out;
-    const InputType *in_ptr = in;
+struct ComplexSpectrumCalculator {
+  template <typename OutputType = std::complex<float>, typename InputType = std::complex<float>>
+  void Calculate(OutputType *out, const InputType *in,
+                 int64_t nfft, int64_t out_stride = 1, int64_t in_stride = 1) {
     for (int i = 0; i <= nfft / 2; i++) {
-      impl.Calculate(out_ptr, out_stride, in_ptr, in_stride);
+      out[i*out_stride] = in[i*in_stride];
     }
 
-    if (output_full_spectrum) {
-      if (input_full_spectrum) {
-        for (int i = nfft / 2 + 1; i < nfft; i++) {
-          impl.Calculate(out_ptr, out_stride, in_ptr, in_stride);
-        }
-      } else {
-        int64_t out_stride_complex = 2 * out_stride;
-        for (int i = nfft / 2 + 1; i < nfft; i++) {
-          // start mirroring nfft/2+1+k -> nfft/2-1-k
-          auto *mirror_out = out + (nfft-i) * out_stride_complex;
-          // real
-          *out_ptr = *mirror_out;
-          out_ptr += out_stride;
-          // imag
-          *out_ptr = -*(mirror_out+out_stride);
-          out_ptr += out_stride;
-        }
+    for (int i = nfft / 2 + 1; i < nfft; i++) {
+      // start mirroring nfft/2+1+i -> nfft/2-1-i
+      auto tmp = in[(nfft - i)*in_stride];
+      out[i*out_stride] = {tmp.real(), -tmp.imag()};
+    }
+  }
+};
+
+struct MagnitudeSpectrumCalculator {
+  template <typename OutputType = float, typename InputType = std::complex<float>>
+  void Calculate(FftSpectrumType spectrum_type, OutputType *out, const InputType *in,
+                 int64_t nfft, int64_t out_stride = 1, int64_t in_stride = 1) {
+    for (int i = 0; i <= nfft / 2; i++) {
+      auto &in_complex = in[i*in_stride];
+      auto real = in_complex.real();
+      auto imag = in_complex.imag();
+      auto power = real*real + imag*imag;
+      const float kEps = 1e-30;
+      if (power < kEps) {
+        power = kEps;
+      }
+      switch (spectrum_type) {
+        case FFT_SPECTRUM_LOG_POWER:
+          out[i] = 10 * log10(power);
+          break;
+        case FFT_SPECTRUM_MAGNITUDE:
+          out[i] = sqrt(power);
+          break;
+        case FFT_SPECTRUM_POWER:
+          out[i] = power;
+          break;
+        default:
+          DALI_FAIL(make_string("Not a magnitude spectrum type: ", spectrum_type));
+          break;
       }
     }
-  }
-};
-
-struct Spectrum {
-  template <typename OutputType = float, typename InputType = float>
-  inline void Calculate(OutputType*& out, int64_t out_stride, InputType*& in, int64_t in_stride) {
-    *out = *in;
-    out += out_stride;
-    in += in_stride;
-    *out = *in;
-    out += out_stride;
-    in += in_stride;
-  }
-};
-
-struct PowerSpectrum {
-  template <typename OutputType = float, typename InputType = float>
-  inline void Calculate(OutputType*& out, int64_t out_stride, InputType*& in, int64_t in_stride) {
-    auto real = *in;
-    in += in_stride;
-    auto imag = *in;
-    in += in_stride;
-    *out = real*real + imag*imag;
-    out += out_stride;
-  }
-};
-
-struct MagnitudeSpectrum {
-  template <typename OutputType = float, typename InputType = float>
-  inline void Calculate(OutputType*& out, int64_t out_stride, InputType*& in, int64_t in_stride) {
-    auto* current_out = out;
-    PowerSpectrum().Calculate(out, out_stride, in, in_stride);
-    *current_out = sqrt(*current_out);
-  }
-};
-
-struct LogPowerSpectrum {
-  template <typename OutputType = float, typename InputType = float>
-  inline void Calculate(OutputType*& out, int64_t out_stride, InputType*& in, int64_t in_stride) {
-    auto* current_out = out;
-    PowerSpectrum().Calculate(out, out_stride, in, in_stride);
-    const OutputType kEps = 1e-30;
-    if (*current_out < kEps) {
-      *current_out = kEps;
-    }
-    *current_out = 10 * log10(*current_out);
   }
 };
 
