@@ -133,22 +133,18 @@ template DLL_PUBLIC void BatchedSeparableResample<spatial_ndim, Output, Input>( 
 // To be extended when we support more image types.
 
 INSTANTIATE_BATCHED_RESAMPLE(2, float, float);
+
 INSTANTIATE_BATCHED_RESAMPLE(2, float, uint8_t);
 INSTANTIATE_BATCHED_RESAMPLE(2, uint8_t, float);
-/*
-INSTANTIATE_BATCHED_RESAMPLE(2, float, uint8_t);
-INSTANTIATE_BATCHED_RESAMPLE(2, float, int8_t);
-INSTANTIATE_BATCHED_RESAMPLE(2, float, uint16_t);
+
 INSTANTIATE_BATCHED_RESAMPLE(2, float, int16_t);
-INSTANTIATE_BATCHED_RESAMPLE(2, float, uint32_t);
-INSTANTIATE_BATCHED_RESAMPLE(2, float, int32_t);*/
-/*
-INSTANTIATE_BATCHED_RESAMPLE(2, uint8_t,  float);
-INSTANTIATE_BATCHED_RESAMPLE(2, int8_t,   float);
+INSTANTIATE_BATCHED_RESAMPLE(2, int16_t, float);
+
 INSTANTIATE_BATCHED_RESAMPLE(2, uint16_t, float);
-INSTANTIATE_BATCHED_RESAMPLE(2, int16_t,  float);
-INSTANTIATE_BATCHED_RESAMPLE(2, uint32_t, float);
-INSTANTIATE_BATCHED_RESAMPLE(2, int32_t,  float);*/
+INSTANTIATE_BATCHED_RESAMPLE(2, float, uint16_t);
+
+INSTANTIATE_BATCHED_RESAMPLE(2, int32_t, float);
+INSTANTIATE_BATCHED_RESAMPLE(2, float, int32_t);
 
 // 3D not available yet
 /*
