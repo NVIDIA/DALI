@@ -118,10 +118,7 @@ sf_count_t Tell(void *This) {
 
 template<typename T>
 struct LibsndWavDecoder : public WavDecoder<T>, public AllocatingDecoder<T> {
-  LibsndWavDecoder() {
-//    DALI_ENFORCE(LibsndInitChecked(), "Failed to open Libsnd");
-//    snd::init_snd();
-  }
+  LibsndWavDecoder() = default;
 
 
   AudioData<T> Decode(span<const char> encoded) override {
@@ -142,7 +139,7 @@ struct LibsndWavDecoder : public WavDecoder<T>, public AllocatingDecoder<T> {
     detail::VirtualInputManager vim(encoded.data(), encoded.size() * sizeof(T));
 
     auto sound = sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info, &vim);
-    ret.data = std::shared_ptr<T>(new T[sf_info.frames]);
+    ret.data = std::shared_ptr<T>(new T[sf_info.frames * sf_info.channels]);
 
     DALI_ENFORCE(sound, make_string("Failed to open encoded data: ", sf_strerror(sound)));
     auto cnt = sf_readf_short(sound, ret.data.get(), sf_info.frames);
