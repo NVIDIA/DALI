@@ -46,7 +46,7 @@ struct Annotation {
   }
 };
 
-template<typename T>
+template <typename T>
 void dump_meta_file(std::vector<T> &input, const std::string path) {
   std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
@@ -54,6 +54,20 @@ void dump_meta_file(std::vector<T> &input, const std::string path) {
   unsigned size = input.size();
   file.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
   file.write(reinterpret_cast<char*>(input.data()), size * sizeof(T));
+}
+
+template <typename T>
+void dump_meta_file(std::vector<std::vector<T> > &input, const std::string path) {
+  std::ofstream file(path, std::ios_base::binary | std::ios_base::out);
+  DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
+
+  unsigned size = input.size();
+  file.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
+  for (auto& v : input) {
+    size = v.size();
+    file.write(reinterpret_cast<char*>(&size), sizeof(unsigned));
+    file.write(reinterpret_cast<char*>(v.data()), size * sizeof(T));
+  }
 }
 
 void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) {
@@ -64,7 +78,7 @@ void dump_filenames(const ImageIdPairs &image_id_pairs, const std::string path) 
   }
 }
 
-template<typename T>
+template <typename T>
 void load_meta_file(std::vector<T> &output, const std::string path) {
   std::ifstream file(path);
   DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
@@ -75,6 +89,20 @@ void load_meta_file(std::vector<T> &output, const std::string path) {
   file.read(reinterpret_cast<char*>(output.data()), size * sizeof(T));
 }
 
+template <typename T>
+void load_meta_file(std::vector<std::vector<T> > &output, const std::string path) {
+  std::ifstream file(path);
+  DALI_ENFORCE(file, "CocoReader meta file error while loading for path: " + path);
+
+  unsigned size;
+  file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+  output.resize(size);
+  for (size_t i = 0; i < output.size(); ++i) {
+    file.read(reinterpret_cast<char*>(&size), sizeof(unsigned));
+    output[i].resize(size);
+    file.read(reinterpret_cast<char*>(output[i].data()), size * sizeof(T));
+  }
+}
 
 void load_filenames(ImageIdPairs &image_id_pairs, const std::string path) {
   std::ifstream file(path);
@@ -262,6 +290,15 @@ void CocoLoader::DumpMetaFiles(const std::string path, const ImageIdPairs &image
     image_id_pairs,
     path + "/filenames.dat");
 
+  if (read_masks_) {
+    detail::dump_meta_file(
+      masks_meta_,
+      path + "/masks_metas.dat");
+    detail::dump_meta_file(
+      masks_meta_,
+      path + "/masks_coords.dat");
+  }
+
   if (save_img_ids_) {
     detail::dump_meta_file(
       original_ids_,
@@ -283,15 +320,23 @@ void CocoLoader::ParseMetafiles() {
   detail::load_meta_file(
     counts_,
     meta_files_path + "/counts.dat");
+  detail::load_filenames(
+    image_label_pairs_,
+    meta_files_path + "/filenames.dat");
 
+  if (read_masks_) {
+    detail::load_meta_file(
+      masks_meta_,
+      meta_files_path + "/masks_metas.dat");
+    detail::load_meta_file(
+      masks_meta_,
+      meta_files_path + "/masks_coords.dat");
+  }
   if (save_img_ids_) {
     detail::load_meta_file(
       original_ids_,
       meta_files_path + "/original_ids.dat");
   }
-  detail::load_filenames(
-    image_label_pairs_,
-    meta_files_path + "/filenames.dat");
 }
 
 void CocoLoader::ParseJsonAnnotations() {
@@ -307,7 +352,6 @@ void CocoLoader::ParseJsonAnnotations() {
 
   bool skip_empty = spec_.GetArgument<bool>("skip_empty");
   bool ratio = spec_.GetArgument<bool>("ratio");
-  bool read_masks = spec_.GetArgument<bool>("masks");
 
   std::sort(image_infos.begin(), image_infos.end(), [](auto &left, auto &right) {
     return left.original_id_ < right.original_id_;});
@@ -340,7 +384,7 @@ void CocoLoader::ParseJsonAnnotations() {
         boxes_.push_back(annotation.box_[2]);
         boxes_.push_back(annotation.box_[3]);
       }
-      if (read_masks) {
+      if (read_masks_) {
         auto obj_coords_offset = sample_mask_coords.size();
         for (size_t i = 0; i < annotation.segm_meta_.size(); i += 2) {
           sample_mask_meta.push_back(objects_in_sample);
@@ -362,7 +406,7 @@ void CocoLoader::ParseJsonAnnotations() {
       if (save_img_ids_) {
         original_ids_.push_back(image_info.original_id_);
       }
-      if (read_masks) {
+      if (read_masks_) {
         masks_meta_.emplace_back(std::move(sample_mask_meta));
         masks_coords_.emplace_back(std::move(sample_mask_coords));
       }

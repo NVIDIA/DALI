@@ -44,6 +44,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
       counts_,
       masks_meta_,
       mask_coords_,
+      read_masks_,
       save_img_ids_,
       original_ids_,
       shuffle_after_epoch);

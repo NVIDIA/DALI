@@ -45,6 +45,7 @@ class CocoLoader : public FileLoader {
     std::vector<int> &counts,
     std::vector<std::vector<int> > &masks_meta,
     std::vector<std::vector<float> > &masks_coords,
+    bool read_masks,
     bool save_img_ids,
     std::vector<int> &original_ids,
     bool shuffle_after_epoch = false) :
@@ -57,6 +58,7 @@ class CocoLoader : public FileLoader {
       counts_(counts),
       masks_meta_(masks_meta),
       masks_coords_(masks_coords),
+      read_masks_(read_masks),
       save_img_ids_(save_img_ids),
       original_ids_(original_ids) {}
 
@@ -98,6 +100,7 @@ class CocoLoader : public FileLoader {
   std::vector<std::vector<int> > &masks_meta_;
   std::vector<std::vector<float> > &masks_coords_;
 
+  bool read_masks_;
   bool save_img_ids_;
   std::vector<int> &original_ids_;
 };
