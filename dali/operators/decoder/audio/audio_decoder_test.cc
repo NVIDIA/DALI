@@ -21,7 +21,7 @@
 
 namespace dali {
 namespace {
-std::string audio_data_root = make_string(testing::dali_extra_path(), "/db/audio/");  // NOLINT
+std::string audio_data_root = make_string(testing::dali_extra_path(), "/db/audio/wav/");  // NOLINT
 
 
 template<typename T>
@@ -57,12 +57,19 @@ bool check_buffers(const T *buf1, const T *buf2, int size) {
 TEST(AudioDecoderTest, WavDecoderTest) {
   using DataType = short;  // NOLINT
   LibsndWavDecoder<DataType> decoder;
-  std::string wav_path = make_string(audio_data_root, "three.wav");
-  std::string decoded_path = make_string(audio_data_root, "three.txt");
-  int frequency = 16000;
-  int channels = 1;
-  auto vec = file_to_vector<DataType>(decoded_path);
-  auto bytes = file_to_bytes(wav_path);
+  std::string wav_path = make_string(audio_data_root, "dziendobry.wav");
+  std::string decoded_path = make_string(audio_data_root, "dziendobry.txt");
+  int frequency = 44100;
+  int channels = 2;
+  std::vector<DataType> vec;
+  std::vector<char> bytes;
+  try {
+    vec = file_to_vector<DataType>(decoded_path);
+    bytes = file_to_bytes(wav_path);
+  } catch (const std::bad_alloc &e) {
+    FAIL() << "Test data hasn't been provided: Expected `" << wav_path << "` and `" << decoded_path
+           << "` to exist";
+  }
 
   auto decoded_data = decoder.Decode(make_cspan(bytes));
   EXPECT_EQ(decoded_data.channels, channels);

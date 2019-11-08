@@ -31,7 +31,9 @@ struct AudioData {
 
 template<typename T>
 struct AudioDecoder {
-  // assert proper size of memory
+  /**
+   * @return AudioData structure, that has shared ownership of the data.
+   */
   virtual AudioData<T> Decode(span<const char> encoded) = 0;
 
   virtual ~AudioDecoder() = default;
