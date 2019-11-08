@@ -53,9 +53,11 @@ void Fft1DCpu<OutputType, InputType, Dims>::Run(
 }
 
 // 2 Dims, typically input (channels, time), producing output (channels, frequency)
-template class Fft1DCpu<float, float, 2>;
+template class Fft1DCpu<std::complex<float>, float, 2>;  // complex fft
+template class Fft1DCpu<float, float, 2>;  // magnitude
 // 3 Dims, typically input (channels, frames, time), producing output (channels, frames, frequency)
-template class Fft1DCpu<float, float, 3>;
+template class Fft1DCpu<std::complex<float>, float, 3>;  // complex fft
+template class Fft1DCpu<float, float, 3>;  // magnitude
 
 }  // namespace fft
 }  // namespace signal
