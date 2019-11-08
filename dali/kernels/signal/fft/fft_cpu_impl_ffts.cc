@@ -104,7 +104,7 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
   auto out_stride = out_strides[transform_axis_];
   auto in_stride = in_strides[transform_axis_];
 
-  assert(nfft_ > n);
+  assert(nfft_ >= n);
 
   std::vector<std::pair<OutputType*, const InputType*>> slices;
   slices.push_back(std::make_pair(out.data, in.data));
