@@ -33,6 +33,8 @@ struct Annotation {
   int image_id_;
   int category_id_;
   std::array<float, 4> box_;
+  std::vector<int> segm_meta_;
+  std::vector<float> segm_coords_;
 
   void ToLtrb() {
     box_[2] += box_[0];
@@ -142,7 +144,8 @@ void parse_annotations(
   LookaheadParser &parser,
   std::vector<Annotation> &annotations,
   float min_size_threshold,
-  bool ltrb) {
+  bool ltrb,
+  bool read_masks) {
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
   parser.EnterArray();
   while (parser.NextArrayValue()) {
@@ -163,6 +166,27 @@ void parse_annotations(
         while (parser.NextArrayValue()) {
           annotation.box_[i] = parser.GetDouble();
           ++i;
+        }
+      } else if (read_masks && 0 == detail::safe_strcmp(internal_key, "segmentation")) {
+        // That means that the mask encoding is not polygons but RLE (iscrowd==1),
+        // which is not needed for instance segmentation
+        if (parser.PeekType() != kArrayType) {
+          while (parser.NextObjectKey()) {}
+          break;
+        }
+
+        int coord_offset = 0;
+        auto& segm_meta = annotation.segm_meta_;
+        auto& segm_coords = annotation.segm_coords_;
+        parser.EnterArray();
+        while (parser.NextArrayValue()) {
+          segm_meta.push_back(coord_offset);
+          parser.EnterArray();
+          while (parser.NextArrayValue()) {
+            segm_coords.push_back(parser.GetDouble());
+            coord_offset++;
+          }
+          segm_meta.push_back(coord_offset - segm_meta.back());
         }
       } else {
         parser.SkipValue();
@@ -211,7 +235,8 @@ void parse_json_file(
         parser,
         annotations,
         spec.GetArgument<float>("size_threshold"),
-        spec.GetArgument<bool>("ltrb"));
+        spec.GetArgument<bool>("ltrb"),
+        spec.GetArgument<bool>("masks"));
     } else {
       parser.SkipValue();
     }
@@ -282,6 +307,7 @@ void CocoLoader::ParseJsonAnnotations() {
 
   bool skip_empty = spec_.GetArgument<bool>("skip_empty");
   bool ratio = spec_.GetArgument<bool>("ratio");
+  bool read_masks = spec_.GetArgument<bool>("masks");
 
   std::sort(image_infos.begin(), image_infos.end(), [](auto &left, auto &right) {
     return left.original_id_ < right.original_id_;});
@@ -298,6 +324,8 @@ void CocoLoader::ParseJsonAnnotations() {
 
   for (auto &image_info : image_infos) {
     int objects_in_sample = 0;
+    std::vector<int> sample_mask_meta;
+    std::vector<float> sample_mask_coords;
     while (annotations[annotation_id].image_id_ == image_info.original_id_) {
       const auto &annotation = annotations[annotation_id];
       labels_.emplace_back(category_ids[annotation.category_id_]);
@@ -312,6 +340,17 @@ void CocoLoader::ParseJsonAnnotations() {
         boxes_.push_back(annotation.box_[2]);
         boxes_.push_back(annotation.box_[3]);
       }
+      if (read_masks) {
+        auto obj_coords_offset = sample_mask_coords.size();
+        for (size_t i = 0; i < annotation.segm_meta_.size(); i += 2) {
+          sample_mask_meta.push_back(objects_in_sample);
+          sample_mask_meta.push_back(obj_coords_offset + annotation.segm_meta_[i]);
+          sample_mask_meta.push_back(obj_coords_offset + annotation.segm_meta_[i + 1]);
+        }
+        sample_mask_coords.insert(sample_mask_coords.end(),
+                                  annotation.segm_coords_.begin(),
+                                  annotation.segm_coords_.end());
+      }
       ++annotation_id;
       ++objects_in_sample;
     }
@@ -323,7 +362,10 @@ void CocoLoader::ParseJsonAnnotations() {
       if (save_img_ids_) {
         original_ids_.push_back(image_info.original_id_);
       }
-
+      if (read_masks) {
+        masks_meta_.emplace_back(std::move(sample_mask_meta));
+        masks_coords_.emplace_back(std::move(sample_mask_coords));
+      }
       image_label_pairs_.emplace_back(std::move(image_info.filename_), new_image_id);
       new_image_id++;
     }

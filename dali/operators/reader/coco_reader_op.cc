@@ -39,6 +39,17 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
   .AddOptionalArg("ltrb",
       R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
       false)
+  .AddOptionalArg("masks",
+      R"code(If true, segmentation masks are read and returned as polygons.
+Each mask can be one or more polygons. A polygon is a list of points (2 floats).
+For a given sample, the polygons are represented by two tensors:
+  `masks_meta` -> list of tuples (mask_idx, start_idx, count)
+  `masks_coords`-> list of (x,y) coordinates
+One mask can have one or more `masks_meta` having the same `mask_idx`, which means that the mask for that given
+index consists of several polygons).
+`start_idx` indicates the index of the first coords in `masks_coords`.
+Skip `is_crowd=1` annotations.)code",
+      false)
   .AddOptionalArg("skip_empty",
       R"code(If true, reader will skip samples with no object instances in them)code",
       false)
@@ -65,7 +76,8 @@ object will be skipped during reading. It is represented as absolute value.)code
     "Path to directory for saving meta files containing preprocessed COCO annotations.",
     std::string())
   .AdditionalOutputsFn([](const OpSpec& spec) {
-    return static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
+    return static_cast<int>(spec.GetArgument<bool>("masks")) * 2
+           + static_cast<int>(spec.GetArgument<bool>("save_img_ids"));
   })
   .AddParent("LoaderBase");
 

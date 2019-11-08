@@ -32,6 +32,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit COCOReader(const OpSpec& spec):
     DataReader<CPUBackend, ImageLabelWrapper>(spec),
+    read_masks_(spec.GetArgument<bool>("masks")),
     save_img_ids_(spec.GetArgument<bool>("save_img_ids")) {
     ValidateOptions(spec);
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
@@ -41,6 +42,8 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
       boxes_,
       labels_,
       counts_,
+      masks_meta_,
+      mask_coords_,
       save_img_ids_,
       original_ids_,
       shuffle_after_epoch);
@@ -77,8 +80,31 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
       labels_.data() + offsets_[image_id],
       counts_[image_id] * sizeof(int));
 
+    if (read_masks_) {
+      auto &masks_meta_output = ws.Output<CPUBackend>(3);
+      auto &masks_coords_output = ws.Output<CPUBackend>(4);
+
+      const auto &meta = masks_meta_[image_id];
+      const auto &coords = mask_coords_[image_id];
+
+      masks_meta_output.Resize({static_cast<int>(meta.size()) / 3, 3});
+      masks_coords_output.Resize({static_cast<int>(coords.size()) / 2, 2});
+
+      auto masks_meta_data = masks_meta_output.mutable_data<int>();
+      auto masks_coords_out_data = masks_coords_output.mutable_data<float>();
+
+      std::memcpy(
+        masks_meta_data,
+        meta.data(),
+        meta.size() * sizeof(int));
+      std::memcpy(
+        masks_coords_out_data,
+        coords.data(),
+        coords.size() * sizeof(float));
+    }
+
     if (save_img_ids_) {
-      auto &id_output = ws.Output<CPUBackend>(3);
+      auto &id_output = ws.Output<CPUBackend>(3 + 2 * static_cast<int>(read_masks_));
       id_output.Resize({1});
       auto id_out_data = id_output.mutable_data<int>();
       memcpy(
@@ -96,6 +122,11 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   std::vector<float> boxes_;
   std::vector<int> labels_;
   std::vector<int> counts_;
+
+  std::vector<std::vector<int> > masks_meta_;
+  std::vector<std::vector<float> > mask_coords_;
+
+  bool read_masks_ = false;
 
   bool save_img_ids_;
   std::vector<int> original_ids_;
