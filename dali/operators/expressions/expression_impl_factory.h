@@ -75,9 +75,16 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
   for (int i = 0; i < func.GetSubexpressionCount(); i++) {
     DALI_ENFORCE(func[i].GetNodeType() != NodeType::Function,
                  "Function nodes are not supported as subexpressions");
-    if (func[i].GetNodeType() == NodeType::Constant) {
-      const auto &constant = dynamic_cast<const ExprConstant &>(func[i]);
-      result[i] = st.GetPointer(constant.GetConstIndex(), constant.GetTypeId());
+    if (IsScalarLike(func[i])) {
+      if (func[i].GetNodeType() == NodeType::Constant) {
+        const auto &constant = dynamic_cast<const ExprConstant &>(func[i]);
+        result[i] = st.GetPointer(constant.GetConstIndex(), constant.GetTypeId());
+      } else if (func[i].GetNodeType() == NodeType::Tensor) {
+        // No tile offset, just take the pointer for this element as this is a scalar
+        const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
+        auto input_idx = tensor.GetInputIndex();
+        result[i] = GetInputSamplePointer(ws, input_idx, tile.sample_idx);
+      }
     } else if (func[i].GetNodeType() == NodeType::Tensor) {
       const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
       auto input_idx = tensor.GetInputIndex();
@@ -132,7 +139,7 @@ void PrepareTilesForTasks(std::vector<std::vector<ExtendedTileDesc>> &tiles_per_
 
 template <template <ArithmeticOp, typename...> class ImplTensorTensor,
           template <ArithmeticOp, typename...> class ImplTensorConstant,
-          template <ArithmeticOp, typename...> class ImplConstatnTensor>
+          template <ArithmeticOp, typename...> class ImplConstantTensor>
 std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
   std::unique_ptr<ExprImplBase> result;
   auto op = NameToOp(expr.GetFuncName());
@@ -143,15 +150,14 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
     TYPE_SWITCH(right_type, type2id, Right_t, ARITHMETIC_ALLOWED_TYPES, (
         VALUE_SWITCH(op, op_static, ALLOWED_BIN_OPS, (
           using Out_t = arithm_meta<op_static, CPUBackend>::result_t<Left_t, Right_t>;
-          if (expr[0].GetNodeType() == NodeType::Tensor &&
-              expr[1].GetNodeType() == NodeType::Tensor) {
-            result.reset(new ImplTensorTensor<op_static, Out_t, Left_t, Right_t>());
-          } else if (expr[0].GetNodeType() == NodeType::Tensor &&
-                    expr[1].GetNodeType() == NodeType::Constant) {
+          if (expr[0].GetNodeType() == NodeType::Tensor && IsScalarLike(expr[1])) {
             result.reset(new ImplTensorConstant<op_static, Out_t, Left_t, Right_t>());
-          } else if (expr[0].GetNodeType() == NodeType::Constant &&
-                    expr[1].GetNodeType() == NodeType::Tensor) {
-            result.reset(new ImplConstatnTensor<op_static, Out_t, Left_t, Right_t>());
+          } else if (IsScalarLike(expr[0]) && expr[1].GetNodeType() == NodeType::Tensor) {
+            result.reset(new ImplConstantTensor<op_static, Out_t, Left_t, Right_t>());
+          } else if (expr[0].GetNodeType() == NodeType::Tensor &&
+                     expr[1].GetNodeType() == NodeType::Tensor) {
+            // Bot are non-scalar tensors
+            result.reset(new ImplTensorTensor<op_static, Out_t, Left_t, Right_t>());
           } else {
             DALI_FAIL("Expression cannot have two scalar operands");
           }
