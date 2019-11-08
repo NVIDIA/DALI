@@ -16,6 +16,7 @@
 #define DALI_KERNELS_SIGNAL_FFT_FFT_CPU_H_
 
 #include <memory>
+#include <complex>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
@@ -52,11 +53,14 @@ struct FftArgs {
 
 namespace impl {
 
-template <typename OutputType, typename InputType = OutputType, int Dims = 2>
+template <typename OutputType = std::complex<float>, typename InputType = float, int Dims = 2>
 class DLL_PUBLIC FftImpl {
  public:
-  static_assert(std::is_same<InputType, OutputType>::value
-             && std::is_same<InputType, float>::value,
+  static_assert(std::is_same<InputType, float>::value,
+    "Data types other than float are not yet supported");
+
+  static_assert(std::is_same<OutputType, float>::value
+             || std::is_same<OutputType, std::complex<float>>::value,
     "Data types other than float are not yet supported");
 
   DLL_PUBLIC virtual ~FftImpl() = default;
@@ -102,11 +106,14 @@ class DLL_PUBLIC FftImpl {
  * @param args.transform_axis Axis along which the FFT transformation will be calculated
  *     (note: current implementation only supports transform_axis to be the inner-most dimension
  */
-template <typename OutputType, typename InputType = OutputType, int Dims = 2>
+template <typename OutputType = std::complex<float>,  typename InputType = float, int Dims = 2>
 class DLL_PUBLIC Fft1DCpu {
  public:
-  static_assert(std::is_same<InputType, OutputType>::value
-             && std::is_same<InputType, float>::value,
+  static_assert(std::is_same<InputType, float>::value,
+    "Data types other than float are not yet supported");
+
+  static_assert(std::is_same<OutputType, float>::value
+             || std::is_same<OutputType, std::complex<float>>::value,
     "Data types other than float are not yet supported");
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
