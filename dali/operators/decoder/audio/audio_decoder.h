@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_AUDIO_DECODER_H
-#define DALI_AUDIO_DECODER_H
+#ifndef DALI_OPERATORS_DECODER_AUDIO_AUDIO_DECODER_H_
+#define DALI_OPERATORS_DECODER_AUDIO_AUDIO_DECODER_H_
 
 #include <memory>
-#include <dali/core/span.h>
+#include "dali/core/span.h"
 
 namespace dali {
 
@@ -31,7 +31,6 @@ struct AudioData {
 
 template<typename T>
 struct AudioDecoder {
-
   // assert proper size of memory
   virtual AudioData<T> Decode(span<const char> encoded) = 0;
 
@@ -44,7 +43,6 @@ struct AllocatingDecoder {
 
 template<typename T>
 struct NonallocatingDecoder {
-
   void set_destination(std::shared_ptr<T> destination) { destination_ = destination; }
 
   /**
@@ -64,6 +62,6 @@ struct WavDecoder : public AudioDecoder<T> {
   ~WavDecoder() override = default;
 };
 
-}
+}  // namespace dali
 
-#endif //DALI_AUDIO_DECODER_H
+#endif  // DALI_OPERATORS_DECODER_AUDIO_AUDIO_DECODER_H_

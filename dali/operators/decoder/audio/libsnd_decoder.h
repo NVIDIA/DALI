@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_LIBSND_DECODER_H
-#define DALI_LIBSND_DECODER_H
+#ifndef DALI_OPERATORS_DECODER_AUDIO_LIBSND_DECODER_H_
+#define DALI_OPERATORS_DECODER_AUDIO_LIBSND_DECODER_H_
 
-#include <cstring>
-#include <cassert>
-#include <vector>
 #include <sndfile.h>
+#include <cassert>
+#include <cstring>
+#include <memory>
+#include <vector>
 #include "dali/core/format.h"
 #include "dali/core/error_handling.h"
-//#include "dynlink_snd.h"
-#include "audio_decoder.h"
+#include "dali/operators/decoder/audio/audio_decoder.h"
 
 
 namespace dali {
@@ -135,7 +135,7 @@ struct LibsndWavDecoder : public WavDecoder<T>, public AllocatingDecoder<T> {
             &detail::GetFileLen,
             &detail::Seek,
             &detail::Read,
-            nullptr, // No writing
+            nullptr,  // No writing
             &detail::Tell
     };
 
@@ -154,6 +154,6 @@ struct LibsndWavDecoder : public WavDecoder<T>, public AllocatingDecoder<T> {
     return ret;
   }
 };
-}
+}  // namespace dali
 
-#endif //DALI_LIBSND_DECODER_H
+#endif  // DALI_OPERATORS_DECODER_AUDIO_LIBSND_DECODER_H_

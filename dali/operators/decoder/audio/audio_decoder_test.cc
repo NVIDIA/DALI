@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "audio_decoder.h"
-#include "libsnd_decoder.h"
 #include <gtest/gtest.h>
-#include <dali/test/dali_test_config.h>
-#include <dali/core/format.h>
 #include <fstream>
-
-using namespace std;
+#include <string>
+#include "dali/core/format.h"
+#include "dali/operators/decoder/audio/libsnd_decoder.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 namespace {
-std::string audio_data_root = make_string(testing::dali_extra_path(), "/db/audio/");
+std::string audio_data_root = make_string(testing::dali_extra_path(), "/db/audio/");  // NOLINT
 
 
 template<typename T>
@@ -54,10 +52,10 @@ bool check_buffers(const T *buf1, const T *buf2, int size) {
   }
   return true;
 }
-}
+}  // namespace
 
 TEST(AudioDecoderTest, WavDecoderTest) {
-  using DataType = short;
+  using DataType = short;  // NOLINT
   LibsndWavDecoder<DataType> decoder;
   std::string wav_path = make_string(audio_data_root, "three.wav");
   std::string decoded_path = make_string(audio_data_root, "three.txt");
@@ -72,7 +70,6 @@ TEST(AudioDecoderTest, WavDecoderTest) {
   EXPECT_EQ(decoded_data.sample_rate, frequency);
   EXPECT_PRED3(check_buffers<DataType>,
                decoded_data.data.get(), vec.data(), vec.size());
-
 }
 
-}
+}  // namespace dali
