@@ -66,45 +66,36 @@ __global__ void BatchedSeparableResampleKernel(
   int start = ::min(size_in_blocks *  block      / blocks * block_size, out_shape[axis]);
   int end   = ::min(size_in_blocks * (block + 1) / blocks * block_size, out_shape[axis]);
 
-  int x0, x1, y0, y1;
-
-  if (axis == 0) {  // horizontal pass
-    x0 = start;
-    x1 = end;
-    y0 = 0;
-    y1 = out_shape.y;
-  } else if (axis == 1) {  // vertical pass
-    x0 = 0;
-    x1 = out_shape.x;
-    y0 = start;
-    y1 = end;
-  }  // TODO(michalz): other axes
+  ivec<spatial_ndim> lo = 0, hi = out_shape;
+  lo[axis] = start;
+  hi[axis] = end;
 
   switch (ftype) {
   case ResamplingFilterType::Nearest:
-    if (axis == 0) {
-      NNResample(x0, x1, y0, y1, origin, 0, scale, 1, sample_out, out_strides[0], sample_in,
-        in_strides[0], in_shape.x, in_shape.y, sample.channels);
-    } else {
-      NNResample(x0, x1, y0, y1, 0, origin, 1, scale, sample_out, out_strides[0], sample_in,
-        in_strides[0], in_shape.x, in_shape.y, sample.channels);
+    {
+      vec<spatial_ndim> origin_v(0.0f), scale_v(1.0f);
+      origin_v[axis] = origin;
+      scale_v[axis] = scale;
+      NNResample({ lo, hi }, origin_v, scale_v,
+                 sample_out, out_strides,
+                 sample_in, in_strides, in_shape, sample.channels);
     }
     break;
   case ResamplingFilterType::Linear:
     if (axis == 0) {
-      LinearHorz(x0, x1, y0, y1, origin, scale, sample_out, out_strides[0], sample_in,
+      LinearHorz(lo.x, hi.x, lo.y, hi.y, origin, scale, sample_out, out_strides[0], sample_in,
         in_strides[0], in_shape.x, sample.channels);
     } else {
-      LinearVert(x0, x1, y0, y1, origin, scale, sample_out, out_strides[0], sample_in,
+      LinearVert(lo.x, hi.x, lo.y, hi.y, origin, scale, sample_out, out_strides[0], sample_in,
         in_strides[0], in_shape.y, sample.channels);
     }
     break;
   default:
     if (axis == 0) {
-      ResampleHorz(x0, x1, y0, y1, origin, scale, sample_out, out_strides[0], sample_in,
+      ResampleHorz(lo.x, hi.x, lo.y, hi.y, origin, scale, sample_out, out_strides[0], sample_in,
         in_strides[0], in_shape.x, sample.channels, filter, support);
     } else {
-      ResampleVert(x0, x1, y0, y1, origin, scale, sample_out, out_strides[0], sample_in,
+      ResampleVert(lo.x, hi.x, lo.y, hi.y, origin, scale, sample_out, out_strides[0], sample_in,
         in_strides[0], in_shape.y, sample.channels, filter, support);
     }
     break;
