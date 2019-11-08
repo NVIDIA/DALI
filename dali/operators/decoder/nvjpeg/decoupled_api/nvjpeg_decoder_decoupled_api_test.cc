@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <limits>
+
 #include "dali/test/dali_test_decoder.h"
 
 namespace dali {
@@ -54,7 +56,7 @@ class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
   }
 
  private:
-  unsigned int hybrid_huffman_threshold_ = -1;
+  unsigned int hybrid_huffman_threshold_ = std::numeric_limits<unsigned int>::max();
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;
