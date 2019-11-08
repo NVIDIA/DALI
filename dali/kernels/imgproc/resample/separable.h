@@ -26,14 +26,16 @@ namespace kernels {
 /**
  * @brief Defines an interface of a separable resampling filter
  */
-template <typename OutputElement, typename InputElement>
+template <typename OutputElement, typename InputElement, int _spatial_ndim = 2>
 struct SeparableResamplingFilter {
-  using Input = InListGPU<InputElement, 3>;
-  using Output = OutListGPU<OutputElement, 3>;
+  static constexpr int spatial_ndim = _spatial_ndim;
+  static constexpr int tensor_ndim = spatial_ndim + 1;
+  using Input = InListGPU<InputElement, tensor_ndim>;
+  using Output = OutListGPU<OutputElement, tensor_ndim>;
 
   virtual ~SeparableResamplingFilter() = default;
 
-  using Params = span<ResamplingParams2D>;
+  using Params = span<ResamplingParamsND<spatial_ndim> >;
 
   virtual KernelRequirements
   Setup(KernelContext &context, const Input &in, const Params &params) = 0;

@@ -21,6 +21,7 @@
 #endif
 #include "dali/core/static_switch.h"
 #include "dali/core/convert.h"
+#include "dali/core/math_util.h"
 
 namespace dali {
 namespace kernels {
@@ -48,8 +49,8 @@ __device__ void LinearHorz_Channels(
     const float sx0f = j * scale + src_x0;
     const int sx0i = __float2int_rd(sx0f);
     const float q = sx0f - sx0i;
-    const int sx0 = min(max(0, sx0i), in_w-1);
-    const int sx1 = min(max(0, sx0i+1), in_w-1);
+    const int sx0 = clamp(sx0i, 0, in_w-1);
+    const int sx1 = clamp(sx0i+1, 0, in_w-1);
 
     const Src *in_col1 = &in[sx0 * channels];
     const Src *in_col2 = &in[sx1 * channels];
@@ -119,8 +120,8 @@ __device__ void LinearVert(
     const float sy0f = i * scale + src_y0;
     const int sy0i = __float2int_rd(sy0f);
     const float q = sy0f - sy0i;
-    const int sy0 = min(max(0, sy0i), in_h-1);
-    const int sy1 = min(max(0, sy0i+1), in_h-1);
+    const int sy0 = clamp(sy0i,   0, in_h-1);
+    const int sy1 = clamp(sy0i+1, 0, in_h-1);
 
     Dst *out_row = &out[i * out_stride];
     const Src *in1 = &in[sy0 * in_stride];
