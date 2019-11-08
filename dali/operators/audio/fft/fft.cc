@@ -54,10 +54,13 @@ last dimension is selected.)code",
 template <>
 bool Fft<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                 const workspace_t<CPUBackend> &ws) {
+  output_desc.resize(1);
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
+  auto nsamples = in_shape.num_samples();
+  auto nthreads = ws.HasThreadPool() ? ws.GetThreadPool().size() : 1;
 
   // Other types not supported for  now
   using InputType = float;
@@ -65,8 +68,10 @@ bool Fft<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   VALUE_SWITCH(in_shape.size(), Dims, FFT_SUPPORTED_NDIMS, (
     using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
     kmgr_.Initialize<FftKernel>();
-
-    for (int i = 0; i < in_shape.num_samples(); i++) {
+    kmgr_.Resize<FftKernel>(nthreads, nsamples);
+    output_desc[0].type = TypeInfo::Create<OutputType>();
+    output_desc[0].shape.resize(nsamples, Dims);
+    for (int i = 0; i < nsamples; i++) {
       const auto in_view = view<const InputType, Dims>(input[i]);
       auto &req = kmgr_.Setup<FftKernel>(i, ctx, in_view, fft_args_);
       output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
@@ -84,19 +89,19 @@ void Fft<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
-
+  auto& thread_pool = ws.GetThreadPool();
   // Other types not supported for now
   using InputType = float;
   using OutputType = float;
   VALUE_SWITCH(in_shape.size(), Dims, FFT_SUPPORTED_NDIMS, (
     using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
-    auto& thread_pool = ws.GetThreadPool();
+
     for (int i = 0; i < input.shape().num_samples(); i++) {
-      auto in_view = view<const InputType, Dims>(input[i]);
-      auto out_view = view<OutputType, Dims>(output[i]);
-      ws.GetThreadPool().DoWorkWithID(
-        [this, in_view, out_view, i](int thread_id) {
+      thread_pool.DoWorkWithID(
+        [this, &input, &output, i](int thread_id) {
           kernels::KernelContext ctx;
+          auto in_view = view<const InputType, Dims>(input[i]);
+          auto out_view = view<OutputType, Dims>(output[i]);
           kmgr_.Run<FftKernel>(thread_id, i, ctx, out_view, in_view, fft_args_);
         });
     }
@@ -104,6 +109,8 @@ void Fft<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   (
     DALI_FAIL(make_string("Not supported number of dimensions: ", in_shape.size()))
   ));  // NOLINT
+
+  thread_pool.WaitForWork();
 }
 
 DALI_REGISTER_OPERATOR(Fft, Fft<CPUBackend>, CPU);

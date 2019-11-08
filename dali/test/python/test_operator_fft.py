@@ -42,8 +42,8 @@ class FftPipeline(Pipeline):
         self.feed_input(self.data, data)
 
 def check_operator_fft_complex_spectrum(device, batch_size, input_shape):
-    eii1 = RandomDataIterator(batch_size, shape=input_shape)
-    eii2 = RandomDataIterator(batch_size, shape=input_shape)
+    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
         FftPipeline(device, batch_size, iter(eii1)),
         FftPipeline(device, batch_size, iter(eii2)),
@@ -52,5 +52,8 @@ def check_operator_fft_complex_spectrum(device, batch_size, input_shape):
 def test_operator_fft_complex_spectrum():
     for device in ['cpu']:
         for batch_size in [3]:
-            for shape in [(2, 1024)]:
+            for shape in [(1, 2, 1024)]:
                 yield check_operator_fft_complex_spectrum, device, batch_size, shape
+
+if __name__ == "__main__":
+    check_operator_fft_complex_spectrum(device='cpu', batch_size=2, input_shape=(2, 1024))
