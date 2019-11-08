@@ -9,7 +9,7 @@ Tutorials
    detection_pipeline.ipynb
    augmentation_gallery.ipynb
    warp.ipynb
-   3D.ipynb
+   warp_3D.ipynb
    color_space_conversion.ipynb
    decoder_examples.ipynb
    multigpu.ipynb

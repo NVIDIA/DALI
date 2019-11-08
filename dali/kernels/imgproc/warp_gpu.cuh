@@ -91,12 +91,18 @@ class WarpGPU {
       auto output_size = setup.UniformOutputSize();
       auto block_size = setup.UniformBlockSize();
 
+      int z_blocks_per_sample = setup.UniformZBlocksPerSample();
+      int z_blocks_per_sample_shift = 0;
+      while (z_blocks_per_sample > (1 << z_blocks_per_sample_shift))
+        z_blocks_per_sample_shift++;
+
       warp::BatchWarpUniformSize
         <Mapping, spatial_ndim, OutputType, InputType, BorderType>
         <<<grid_dim, block_dim, 0, context.gpu.stream>>>(
           gpu_samples,
           output_size,
           block_size,
+          z_blocks_per_sample_shift,
           mapping.data,
           border);
       CUDA_CALL(cudaGetLastError());

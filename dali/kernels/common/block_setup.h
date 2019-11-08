@@ -16,6 +16,7 @@
 #define DALI_KERNELS_COMMON_BLOCK_SETUP_H_
 
 #include <cuda_runtime.h>
+#include <cassert>
 #include <vector>
 #include <utility>
 #include "dali/kernels/kernel.h"
@@ -52,9 +53,10 @@ class BlockSetup {
   using BlockDesc = kernels::BlockDesc<ndim>;
 
   BlockSetup() {
-    for (int i = 0; i < ndim; i++)
-      default_block_size_[i] = (i < 2) ? 256 : 1;
-    max_block_elements_ = 4 * volume(default_block_size_);
+    ivec<ndim> block_size(1);
+    for (int i = 0; i < ndim && i < 2; i++)
+      block_size[i] = 256;
+    SetDefaultBlockSize(block_size);
   }
 
   void SetupBlocks(const TensorListShape<tensor_ndim> &output_shape,
@@ -135,7 +137,7 @@ class BlockSetup {
 
   void SetDefaultBlockSize(ivec<ndim> block_size) {
     default_block_size_ = block_size;
-    max_block_elements_ = volume(block_size);
+    max_block_elements_ = 4*volume(block_size);
   }
 
   span<const BlockDesc> Blocks() const { return make_span(blocks_); }
@@ -150,6 +152,12 @@ class BlockSetup {
     return uniform_block_size_;
   }
 
+  int UniformZBlocksPerSample() const {
+    assert((z_blocks_per_sample_ & (z_blocks_per_sample_-1)) == 0 &&
+           "z_block_per_sample_ must be a power of 2");
+    return z_blocks_per_sample_;
+  }
+
   bool IsUniformSize() const { return is_uniform_; }
 
   static inline ivec<ndim> shape2size(const TensorShape<tensor_ndim> &shape) {
@@ -162,6 +170,7 @@ class BlockSetup {
   ivec3 grid_dim_{1, 1, 1};
   ivec<ndim> uniform_block_size_, uniform_output_size_;
   ivec<ndim> default_block_size_;
+  int z_blocks_per_sample_ = 1;
   int max_block_elements_;
   bool is_uniform_ = false;
 
@@ -205,7 +214,24 @@ class BlockSetup {
     return min(shape, ret);
   }
 
-  ivec<ndim> UniformBlockSize(const ivec<ndim> &shape) const {
+  template <int n>
+  std::enable_if_t<(n > 2), ivec<n>> SetZBlocksPerSample(ivec<n> block) {
+    z_blocks_per_sample_ = 1;
+    int depth = block[2];
+    while (volume(block) > max_block_elements_ && block[2] > 0) {
+      z_blocks_per_sample_ <<= 1;
+      block[2] = div_ceil(depth, z_blocks_per_sample_);
+    }
+    return block;
+  }
+
+  template <int n>
+  std::enable_if_t<(n <= 2), ivec<n>> SetZBlocksPerSample(ivec<n> block) {
+    z_blocks_per_sample_ = 1;
+    return block;  // no Z coordinate to adjust
+  }
+
+  ivec<ndim> SetUniformBlockSize(const ivec<ndim> &shape) {
     ivec<ndim> ret;
     for (int i = 0; i < ndim; i++) {
       switch (i) {
@@ -219,25 +245,9 @@ class BlockSetup {
       }
     }
 
-    auto sample_vol = volume(shape);
-
-    for (;;) {
-      auto block_vol = volume(ret);
-      if (block_vol <= 0x40000 || (sample_vol / block_vol) > 256)
-        break;
-      if (ret.x == 32 && ret.y == 1)
-        break;
-      if (ret.x > 32) {
-          ret.x >>= 1;
-          if (ret.x < 32)
-            ret.x = 32;
-      }
-      if (ret.y > 1) {
-          ret.y >>= 1;
-      }
-    }
-
-    return min(shape, ret);
+    ret = SetZBlocksPerSample(ret);
+    uniform_block_size_ = min(shape, ret);
+    return uniform_block_size_;
   }
 
   void VariableSizeSetup(const TensorListShape<tensor_ndim> &output_shape) {
@@ -253,7 +263,7 @@ class BlockSetup {
       return;
     uniform_output_size_ = shape2size(output_shape[0]);
     // Get the rough estimate of block size
-    uniform_block_size_ = UniformBlockSize(uniform_output_size_);
+    uniform_block_size_ = SetUniformBlockSize(uniform_output_size_);
 
     // Make the blocks as evenly distributed as possible over the target area,
     // but maintain alignment to CUDA block dim.
@@ -269,7 +279,7 @@ class BlockSetup {
     grid_dim_ = {
       div_ceil(uniform_output_size_.x, uniform_block_size_.x),
       div_ceil(uniform_output_size_.y, uniform_block_size_.y),
-      output_shape.num_samples()
+      output_shape.num_samples() * z_blocks_per_sample_
     };
   }
 };

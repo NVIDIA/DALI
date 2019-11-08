@@ -27,7 +27,7 @@ namespace warp {
 
 
 template <DALIInterpType interp_type, typename Mapping,
-          int ndim, typename OutputType, typename InputType,
+          typename OutputType, typename InputType,
           typename BorderType>
 __device__ void BlockWarp(
     SampleDesc<2, OutputType, InputType> sample, BlockDesc<2> block,
@@ -58,7 +58,7 @@ __device__ void BlockWarp(
 
 
 template <DALIInterpType interp_type, typename Mapping,
-          int ndim, typename OutputType, typename InputType,
+          typename OutputType, typename InputType,
           typename BorderType>
 __device__ void BlockWarp(
     SampleDesc<3, OutputType, InputType> sample, BlockDesc<3> block,

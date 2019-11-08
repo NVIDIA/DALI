@@ -306,10 +306,8 @@ TEST(BlockSetup, SetupBlocks_Uniform_CDHW) {
   ASSERT_TRUE(setup.IsUniformSize());
 
   while (volume(def_block_size) > 0x40000) {
-    if (def_block_size.x > 32)
-      def_block_size.x >>= 1;
-    if (def_block_size.y > 1)
-      def_block_size.y >>= 1;
+    if (def_block_size.z > 1)
+      def_block_size.z >>= 1;
   }
   ivec3 expected_grid = {
     div_ceil(W, def_block_size.x),
