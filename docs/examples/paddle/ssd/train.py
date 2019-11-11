@@ -151,6 +151,8 @@ def main():
 
     FLAGS.whole_batch_size = FLAGS.batch_size * world_size
     total_steps = 400000
+    if FLAGS.check_loss_steps > 0:
+        total_steps = FLAGS.check_loss_steps
     milestones = [280000, 360000]
     values = [FLAGS.lr * (0.1**i) for i in range(len(milestones) + 1)]
 
@@ -205,6 +207,12 @@ def main():
 
         losses.update(loss, FLAGS.whole_batch_size)
 
+        if FLAGS.check_loss_steps > 0:
+            if idx == 0:
+                loss_start = loss
+            else:
+                loss_end = loss
+
         if idx % FLAGS.print_freq == 0 and idx > 1:
             print('Epoch: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -228,6 +236,11 @@ def main():
         batch_time.update(time.time() - end)
         end = time.time()
 
+    if FLAGS.check_loss_steps > 0:
+        assert loss_start > loss_end, \
+            'loss should decrease after training for {} steps'.format(
+                FLAGS.check_loss_steps)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -248,6 +261,8 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt-freq', '-c', default=5000, type=int,
                         metavar='N',
                         help='checkpoint frequency (default: 5000)')
+    parser.add_argument('--check-loss-steps', '-t', default=-1, type=int,
+                        metavar='N', help='check N steps for loss convergence')
     FLAGS = parser.parse_args()
     assert FLAGS.data, "error: must provide data path"
 
