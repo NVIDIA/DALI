@@ -84,10 +84,10 @@ struct MagnitudeSpectrumCalculator {
       }
       switch (spectrum_type) {
         case FFT_SPECTRUM_MAGNITUDE:
-          out[i*in_stride] = sqrt(power);
+          out[i*out_stride] = sqrt(power);
           break;
         case FFT_SPECTRUM_POWER:
-          out[i*in_stride] = power;
+          out[i*out_stride] = power;
           break;
         default:
           DALI_FAIL(make_string("Not a magnitude spectrum type: ", spectrum_type));
