@@ -16,7 +16,7 @@
 #include <fstream>
 #include <string>
 #include "dali/core/format.h"
-#include "dali/operators/decoder/audio/libsnd_decoder.h"
+#include "dali/operators/decoder/audio/generic_decoder.h"
 #include "dali/test/dali_test_config.h"
 
 namespace dali {
@@ -56,7 +56,7 @@ bool check_buffers(const T *buf1, const T *buf2, int size) {
 
 TEST(AudioDecoderTest, WavDecoderTest) {
   using DataType = short;  // NOLINT
-  LibsndWavDecoder<DataType> decoder;
+  GenericDecoder<DataType> decoder;
   std::string wav_path = make_string(audio_data_root, "dziendobry.wav");
   std::string decoded_path = make_string(audio_data_root, "dziendobry.txt");
   int frequency = 44100;

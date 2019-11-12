@@ -59,10 +59,6 @@ struct NonallocatingDecoder {
   std::shared_ptr<T> destination_;
 };
 
-template<typename T>
-struct WavDecoder : public AudioDecoder<T> {
-  ~WavDecoder() override = default;
-};
 
 }  // namespace dali
 

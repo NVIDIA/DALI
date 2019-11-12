@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_DECODER_AUDIO_LIBSND_DECODER_H_
-#define DALI_OPERATORS_DECODER_AUDIO_LIBSND_DECODER_H_
+#ifndef DALI_OPERATORS_DECODER_AUDIO_GENERIC_DECODER_H_
+#define DALI_OPERATORS_DECODER_AUDIO_GENERIC_DECODER_H_
 
 #include <sndfile.h>
 #include <cassert>
@@ -116,9 +116,14 @@ sf_count_t Tell(void *This) {
 
 }  // namespace detail
 
+/**
+ * Generic decoder, that serves as a fallback to most of the formats we need.
+ * It uses `libsnd` for decoding.
+ * @tparam T
+ */
 template<typename T>
-struct LibsndWavDecoder : public WavDecoder<T>, public AllocatingDecoder<T> {
-  LibsndWavDecoder() = default;
+struct GenericDecoder : public AudioDecoder<T>, public AllocatingDecoder<T> {
+  GenericDecoder() = default;
 
 
   AudioData<T> Decode(span<const char> encoded) override {
@@ -153,4 +158,4 @@ struct LibsndWavDecoder : public WavDecoder<T>, public AllocatingDecoder<T> {
 };
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_AUDIO_LIBSND_DECODER_H_
+#endif  // DALI_OPERATORS_DECODER_AUDIO_GENERIC_DECODER_H_
