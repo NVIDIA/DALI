@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/audio/fft/fft.h"
+#include "dali/operators/audio/fft/power_spectrum.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/pipeline/data/views.h"
@@ -21,16 +21,14 @@
 
 namespace dali {
 
-DALI_SCHEMA(Fft)
-    .DocStr(R"code(Fast fourier transform. Returns spectrum of audio signal, or a transformation
-of the spectrum (e.g. power spectrum, complex magitude, log power spectrum).)code")
+DALI_SCHEMA(PowerSpectrum)
+    .DocStr(R"code(Power spectrum of signal.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("nfft",
       R"code(Size of the FFT. By default nfft is selected to match the lenght of the data in the
-transformation axis. The number of bins created in the output is either `nfft // 2 + 1` (positive
-part of the spectrum only) for real outputs (power, log power, magnitude) and `2*nfft` for complex
-spectrum (real and imaginary for both positive and negative parts of the spectrum).)code",
+transformation axis. The number of bins created in the output is `nfft // 2 + 1` (positive part
+of the spectrum only).)code",
       -1)
     .AddOptionalArg("axis",
       R"code(Index of the dimension to be transformed to the frequency domain. By default, the
@@ -38,34 +36,28 @@ last dimension is selected.)code",
       -1)
     .AddOptionalArg("spectrum_type",
       R"code(Determines the type of the spectrum in the output. Possible values are:\n
-      `complex`: Output represents interleaved real and imaginary parts of the FFT
-          (r0, i0, r1, i1,...) with a total size of 2*nfft real numbers.
-      `magnitude`: Output represents the complex magnitude of the FFT,
-          i.e sqrt(real*real + imag*imag)
-          with a total size of `nfft // 2 + 1` real numbers (positive part of the spectrum only
       `power`: Output represents the power of the complex spectrum,
           i.e. real*real + imag*imag
-          with a total size of `nfft // 2 + 1` real numbers
-      `log_power`: Output represents the logarithm of the power spectrum,
-          i.e. 10*log10(real*real + imag*imag)
-          with a total size of `nfft // 2 + 1` real numbers)code",
-      "complex");
+      `magnitude`: Output represents the energy (complex magnitude) of the FFT,
+          i.e sqrt(real*real + imag*imag)
+      n)code",
+      "power");
 
 template <>
-bool Fft<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                const workspace_t<CPUBackend> &ws) {
+bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                          const workspace_t<CPUBackend> &ws) {
   output_desc.resize(1);
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
-  auto nsamples = in_shape.num_samples();
+  int nsamples = input.size();
   auto nthreads = ws.HasThreadPool() ? ws.GetThreadPool().size() : 1;
 
   // Other types not supported for  now
   using InputType = float;
   using OutputType = float;
-  VALUE_SWITCH(in_shape.size(), Dims, FFT_SUPPORTED_NDIMS, (
+  VALUE_SWITCH(in_shape.sample_dim(), Dims, FFT_SUPPORTED_NDIMS, (
     using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
     kmgr_.Initialize<FftKernel>();
     kmgr_.Resize<FftKernel>(nthreads, nsamples);
@@ -74,7 +66,10 @@ bool Fft<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     for (int i = 0; i < nsamples; i++) {
       const auto in_view = view<const InputType, Dims>(input[i]);
       auto &req = kmgr_.Setup<FftKernel>(i, ctx, in_view, fft_args_);
+
       output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
+      //std::cout << "out shape " << i << " " << output_desc[0].shape.tensor_shape(i)[0] << "x"
+      //          << output_desc[0].shape.tensor_shape(i)[1] << std::endl;
     }
   ), // NOLINT
   (
@@ -85,15 +80,16 @@ bool Fft<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void Fft<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+void PowerSpectrum<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
   auto in_shape = input.shape();
+  int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
   // Other types not supported for now
   using InputType = float;
   using OutputType = float;
-  VALUE_SWITCH(in_shape.size(), Dims, FFT_SUPPORTED_NDIMS, (
+  VALUE_SWITCH(in_shape.sample_dim(), Dims, FFT_SUPPORTED_NDIMS, (
     using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
 
     for (int i = 0; i < input.shape().num_samples(); i++) {
@@ -113,6 +109,6 @@ void Fft<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   thread_pool.WaitForWork();
 }
 
-DALI_REGISTER_OPERATOR(Fft, Fft<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(PowerSpectrum, PowerSpectrum<CPUBackend>, CPU);
 
 }  // namespace dali

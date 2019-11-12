@@ -126,8 +126,9 @@ class RandomDataIterator(object):
         self.test_data = []
         for _ in range(self.batch_size):
             np.random.seed(0)
-            self.test_data.append(np.array(np.random.rand(*shape) * 255,
-                                  dtype=dtype ) )
+            self.test_data.append(
+                np.array(np.random.rand(*shape) * (1.0 if dtype == np.float32 else 255),
+                dtype=dtype ) )
 
     def __iter__(self):
         self.i = 0
