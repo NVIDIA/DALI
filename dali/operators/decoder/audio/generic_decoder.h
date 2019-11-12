@@ -27,25 +27,134 @@
 
 namespace dali {
 
-/**
- * Generic decoder, that serves as a fallback to most of the formats we need.
- */
-template<typename SampleType>
-class DLL_PUBLIC GenericAudioDecoder : public TypedAudioDecoderBase<SampleType> {
+namespace detail {
+
+class VirtualInputManager {
  public:
-  DLL_PUBLIC GenericAudioDecoder();
+  VirtualInputManager(const void *input, int length /* bytes */) :
+          length_(length), curr_(0), input_(static_cast<const char *>(input)) {}
 
-  DLL_PUBLIC void DecodeTyped(span<SampleType> output) override;
 
-  DLL_PUBLIC ~GenericAudioDecoder() override;
+  size_t length() {
+    return length_;
+  }
+
+
+  size_t seek(sf_count_t offset, int whence) {
+    switch (whence) {
+      case SEEK_SET:
+        curr_ = offset;
+        break;
+      case SEEK_CUR:
+        curr_ += offset;
+        break;
+      case SEEK_END:
+        curr_ = length_ + offset;
+        break;
+      default:
+        DALI_FAIL("Incorrect `whence` argument")
+    }
+    return curr_;
+  }
+
+
+  size_t read(void *dst, sf_count_t num) {
+    num = std::min<sf_count_t>(num, length_ - curr_);
+    memcpy(dst, input_ + curr_, num);
+    curr_ += num;
+    return num;
+  }
+
+
+  size_t tell() {
+    return curr_;
+  }
+
 
  private:
-  AudioMetadata OpenImpl(span<const char> encoded) override;
+  size_t length_, curr_;
+  const char *input_;
+};
 
-  void CloseImpl() override;
 
-  struct Impl;
-  std::unique_ptr<Impl> impl_;
+/**
+ * The virtual file context must return the length of the virtual file in bytes.
+ */
+sf_count_t GetFileLen(void *This) {
+  return static_cast<VirtualInputManager *>(This)->length();
+}
+
+
+/**
+ *  The virtual file context must seek to offset using the seek mode provided by whence
+ *  which is one of
+ *   SEEK_CUR
+ *   SEEK_SET
+ *   SEEK_END
+ * The return value must contain the new offset in the file.
+ */
+sf_count_t Seek(sf_count_t offset, int whence, void *This) {
+  return static_cast<VirtualInputManager *>(This)->seek(offset, whence);
+}
+
+
+/**
+ * The virtual file context must copy ("read") "num" bytes into the buffer provided by dst
+ * and return the count of actually copied bytes.
+ */
+sf_count_t Read(void *dst, sf_count_t num, void *This) {
+  return static_cast<VirtualInputManager *>(This)->read(dst, num);
+}
+
+
+/**
+ * Return the current position of the virtual file context.
+ */
+sf_count_t Tell(void *This) {
+  return static_cast<VirtualInputManager *>(This)->tell();
+}
+
+}  // namespace detail
+
+/**
+ * Generic decoder, that serves as a fallback to most of the formats we need.
+ * It uses `libsnd` for decoding.
+ * @tparam T
+ */
+template<typename T>
+struct GenericDecoder : public AudioDecoder<T>, public AllocatingDecoder<T> {
+  GenericDecoder() = default;
+
+
+  AudioData<T> Decode(span<const char> encoded) override {
+    assert(!encoded.empty());
+    assert(encoded.data());
+    AudioData<T> ret;
+    SF_INFO sf_info;
+    sf_info.format = 0;
+
+    SF_VIRTUAL_IO sf_virtual_io = {
+            &detail::GetFileLen,
+            &detail::Seek,
+            &detail::Read,
+            nullptr,  // No writing
+            &detail::Tell
+    };
+
+    detail::VirtualInputManager vim(encoded.data(), encoded.size() * sizeof(T));
+
+    auto sound = sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info, &vim);
+    ret.data = std::shared_ptr<T>(new T[sf_info.frames * sf_info.channels]);
+
+    DALI_ENFORCE(sound, make_string("Failed to open encoded data: ", sf_strerror(sound)));
+    auto cnt = sf_readf_short(sound, ret.data.get(), sf_info.frames);
+
+    ret.length = sf_info.frames * sf_info.channels;
+    ret.channels = sf_info.channels;
+    ret.sample_rate = sf_info.samplerate;
+    ret.channels_interleaved = false;
+    return ret;
+  }
 };
 }  // namespace dali
 
