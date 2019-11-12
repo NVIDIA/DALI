@@ -20,44 +20,50 @@
 
 namespace dali {
 
-template<typename T>
-struct AudioData {
-  std::shared_ptr<T> data;
+struct AudioMetadata {
   int length;
   int sample_rate;  /// [Hz]
   int channels;
   bool channels_interleaved;
 };
 
-template<typename T>
-struct AudioDecoder {
-  /**
-   * @return AudioData structure, that has shared ownership of the data.
-   */
-  virtual AudioData<T> Decode(span<const char> encoded) = 0;
+class AudioDecoderBase {
+ public:
+  AudioMetadata Open(span<const char> encoded) {
+    Close();
+    auto ret = OpenImpl(encoded);
+    return ret;
+  }
 
-  virtual ~AudioDecoder() = default;
-};
 
-template<typename T>
-struct AllocatingDecoder {
-};
+  void Close() {
+    CloseImpl();
+  }
 
-template<typename T>
-struct NonallocatingDecoder {
-  void set_destination(std::shared_ptr<T> destination) { destination_ = destination; }
 
-  /**
-   * Peeks the encoded buffer and returns, how much memory (in bytes)
-   * the decoder requires at `destination`
-   */
-  virtual size_t memsize(span<const char> encoded) const = 0;
+  virtual void Decode(span<char> raw_output) = 0;
 
-  virtual ~NonallocatingDecoder() = default;
+  virtual ~AudioDecoderBase() = default;
 
  private:
-  std::shared_ptr<T> destination_;
+  virtual AudioMetadata OpenImpl(span<const char> encoded) = 0;
+
+  virtual void CloseImpl() = 0;
 };
+
+template<typename SampleType>
+class TypedAudioDecoderBase : public AudioDecoderBase {
+ public:
+  void Decode(span<char> raw_output) override {
+    int max_samples = static_cast<int>(raw_output.size() / sizeof(SampleType));
+    DecodeTyped({reinterpret_cast<SampleType *>(raw_output.data()), max_samples});
+  }
+
+
+  virtual void DecodeTyped(span<SampleType> typed_output) = 0;
+};
+
+
 
 
 }  // namespace dali

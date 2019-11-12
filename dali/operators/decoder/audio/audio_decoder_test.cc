@@ -18,6 +18,7 @@
 #include "dali/core/format.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
 #include "dali/test/dali_test_config.h"
+#include "dali/core/span.h"
 
 namespace dali {
 namespace {
@@ -56,7 +57,7 @@ bool check_buffers(const T *buf1, const T *buf2, int size) {
 
 TEST(AudioDecoderTest, WavDecoderTest) {
   using DataType = short;  // NOLINT
-  GenericDecoder<DataType> decoder;
+  GenericAudioDecoder<DataType> decoder;
   std::string wav_path = make_string(audio_data_root, "dziendobry.wav");
   std::string decoded_path = make_string(audio_data_root, "dziendobry.txt");
   int frequency = 44100;
@@ -71,12 +72,14 @@ TEST(AudioDecoderTest, WavDecoderTest) {
            << "` to exist";
   }
 
-  auto decoded_data = decoder.Decode(make_cspan(bytes));
-  EXPECT_EQ(decoded_data.channels, channels);
-  EXPECT_EQ(decoded_data.channels_interleaved, false);
-  EXPECT_EQ(decoded_data.sample_rate, frequency);
-  EXPECT_PRED3(check_buffers<DataType>,
-               decoded_data.data.get(), vec.data(), vec.size());
+  auto meta = decoder.Open(make_cspan(bytes));
+  std::vector<DataType> output(meta.length * meta.channels);
+  decoder.DecodeTyped(make_span(output));
+
+  EXPECT_EQ(meta.channels, channels);
+  EXPECT_EQ(meta.channels_interleaved, false);
+  EXPECT_EQ(meta.sample_rate, frequency);
+  EXPECT_PRED3(check_buffers<DataType>, output.data(), vec.data(), vec.size());
 }
 
 }  // namespace dali
