@@ -48,7 +48,7 @@ For a given sample, the polygons are represented by two tensors:
 One mask can have one or more `masks_meta` having the same `mask_idx`, which means that the mask for that given
 index consists of several polygons).
 `start_idx` indicates the index of the first coords in `masks_coords`.
-Skip `is_crowd=1` annotations.)code",
+Currently skips objects with `iscrowd=1` annotations (RLE masks, not suitable for instance segmentation).)code",
       false)
   .AddOptionalArg("skip_empty",
       R"code(If true, reader will skip samples with no object instances in them)code",
