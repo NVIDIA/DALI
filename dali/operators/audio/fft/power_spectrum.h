@@ -24,21 +24,20 @@
 namespace dali {
 
 template <typename Backend>
-class Fft : public Operator<Backend> {
+class PowerSpectrum : public Operator<Backend> {
  public:
-  explicit inline Fft(const OpSpec &spec)
+  explicit inline PowerSpectrum(const OpSpec &spec)
       : Operator<Backend>(spec) {
     fft_args_.nfft = spec.GetArgument<int>("nfft");
     fft_args_.transform_axis = spec.GetArgument<int>("axis");
     auto spectrum_type_str = spec.GetArgument<std::string>("spectrum_type");
-    if (spectrum_type_str == "complex") {
-      fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_COMPLEX;
-    } else if (spectrum_type_str == "magnitude") {
+    if (spectrum_type_str == "magnitude") {
       fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_MAGNITUDE;
     } else if (spectrum_type_str == "power") {
       fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_POWER;
-    } else if (spectrum_type_str == "log_power") {
-      fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_LOG_POWER;
+    } else {
+      DALI_FAIL(make_string("Unexpected spectrum type: ", spectrum_type_str,
+        ". Supported values are : power, magnitude"));
     }
   }
 
