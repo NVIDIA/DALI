@@ -32,7 +32,6 @@ enum FftSpectrumType {
   FFT_SPECTRUM_COMPLEX = 0,    // separate interleaved real and img parts: (r0, i0, r1, i1, ...)
   FFT_SPECTRUM_MAGNITUDE = 1,  // sqrt( real^2 + img^2 )
   FFT_SPECTRUM_POWER = 2,      // real^2 + img^2
-  FFT_SPECTRUM_LOG_POWER = 3,  // 10 * log10( real^2 + img^2 )
 };
 
 struct FftArgs {
@@ -96,8 +95,6 @@ class DLL_PUBLIC FftImpl {
  *      as a 2D tensor of shape Fx(NFFT/2+1)
  *   FFT_SPECTRUM_POWER:
  *     Output represents the power of the spectrum, as a 2D tensor of shape Fx(NFFT/2+1)
- *   FFT_SPECTRUM_LOG_POWER:
- *     Output represents the log power spectrum, as a 2D tensor of shape Fx(NFFT/2+1)
  * (where NFFT is the size of the FFT)
  *
  * @param args.nfft Number of samples in the FFT. If not provided, nfft will be calculated as the
