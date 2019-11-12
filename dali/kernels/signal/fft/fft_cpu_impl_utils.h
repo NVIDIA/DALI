@@ -83,9 +83,6 @@ struct MagnitudeSpectrumCalculator {
         power = kEps;
       }
       switch (spectrum_type) {
-        case FFT_SPECTRUM_LOG_POWER:
-          out[i] = 10 * log10(power);
-          break;
         case FFT_SPECTRUM_MAGNITUDE:
           out[i] = sqrt(power);
           break;
