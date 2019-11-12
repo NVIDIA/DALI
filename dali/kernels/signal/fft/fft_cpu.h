@@ -116,6 +116,8 @@ class DLL_PUBLIC Fft1DCpu {
              || std::is_same<OutputType, std::complex<float>>::value,
     "Data types other than float are not yet supported");
 
+  DLL_PUBLIC ~Fft1DCpu();
+
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InTensorCPU<InputType, Dims> &in,
                                       const FftArgs &args);
