@@ -24,7 +24,9 @@ namespace dali {
 namespace {
 std::string audio_data_root = make_string(testing::dali_extra_path(), "/db/audio/wav/");  // NOLINT
 
-
+/**
+ * Reads file and saves it to vector. Saves the file as plain numbers.
+ */
 template<typename T>
 std::vector<T> file_to_vector(const std::string &filepath) {
   std::ifstream file(filepath.c_str());
@@ -33,7 +35,9 @@ std::vector<T> file_to_vector(const std::string &filepath) {
   return {begin, end};
 }
 
-
+/**
+ * Reads file as a byte stream and saves it to vector.
+ */
 std::vector<char> file_to_bytes(const std::string &filepath) {
   std::vector<char> ret;
   std::ifstream infile(filepath);
@@ -58,8 +62,12 @@ bool check_buffers(const T *buf1, const T *buf2, int size) {
 TEST(AudioDecoderTest, WavDecoderTest) {
   using DataType = short;  // NOLINT
   GenericAudioDecoder<DataType> decoder;
+
+  // Contains wav file to be decoded
   std::string wav_path = make_string(audio_data_root, "dziendobry.wav");
+  // Contains raw PCM data decoded offline
   std::string decoded_path = make_string(audio_data_root, "dziendobry.txt");
+
   int frequency = 44100;
   int channels = 2;
   std::vector<DataType> vec;
