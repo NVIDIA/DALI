@@ -52,7 +52,6 @@ class DLL_PUBLIC Fft1DImplFfts : public FftImpl<OutputType, InputType, Dims> {
  private:
   using FftsPlanPtr = std::unique_ptr<ffts_plan_t, decltype(&ffts_free)>;
   FftsPlanPtr plan_{nullptr, ffts_free};
-  int plan_n_ = -1;
   int nfft_ = -1;
   int transform_axis_ = -1;
 };

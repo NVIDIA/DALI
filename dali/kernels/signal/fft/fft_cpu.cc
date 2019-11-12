@@ -30,12 +30,15 @@ namespace signal {
 namespace fft {
 
 template <typename OutputType, typename InputType, int Dims>
+Fft1DCpu<OutputType, InputType, Dims>::~Fft1DCpu() = default;
+
+template <typename OutputType, typename InputType, int Dims>
 KernelRequirements Fft1DCpu<OutputType, InputType, Dims>::Setup(
     KernelContext &context,
     const InTensorCPU<InputType, Dims> &in,
     const FftArgs &args) {
   if (!impl_ || args != args_) {
-    impl_.reset(new impl::Fft1DImplFfts<OutputType, InputType, Dims>());
+    impl_ = std::make_unique<impl::Fft1DImplFfts<OutputType, InputType, Dims>>();
     args_ = args;
   }
   return impl_->Setup(context, in, args);

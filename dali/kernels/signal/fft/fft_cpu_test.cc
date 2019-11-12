@@ -28,87 +28,74 @@ namespace signal {
 namespace fft {
 namespace test {
 
-void NaiveDft(std::complex<float> *out,
-              int64_t out_stride,
-              float *in,
-              int64_t in_stride,
-              int64_t n,
+void NaiveDft(std::vector<std::complex<float>> &out,
+              const span<const float>& in,
               int64_t nfft,
               bool full_spectrum = true) {
+  auto n = in.size();
+  auto out_size = full_spectrum ? nfft : nfft/2+1;
+  out.clear();
+  out.reserve(out_size);
   // Loop through each sample in the frequency domain
-  for (int64_t k = 0; k < (full_spectrum ? nfft : (nfft/2+1)); k++) {
+  for (int64_t k = 0; k < out_size; k++) {
     float real = 0.0f, imag = 0.0f;
     // Loop through each sample in the time domain
     for (int64_t i = 0; i < n; i++) {
-      auto x = in[i * in_stride];
+      auto x = in[i];
       real += x * cos(2.0f * M_PI * k * i / n);
       imag += -x * sin(2.0f * M_PI * k * i / n);
     }
-    out[k * out_stride] = {real, imag};
+    out.push_back({real, imag});
   }
 }
 
-void CompareFfts(float *reference, int64_t reference_step,
-                 float *data, int64_t data_step,
-                 int64_t data_size,
+void CompareFfts(const span<const float>& reference,
+                 const span<const float>& fft,
                  float eps = 1e-3) {
-    int64_t ref_idx = 0;
-    int64_t data_idx = 0;
-    for (int i = 0; i < data_size; i++) {
-      auto diff = reference[ref_idx] - data[data_idx];
-      auto diff_max = reference[ref_idx] * eps;
-      // Error tends to be big if the numbers are big
-      if (diff_max < eps)
-        diff_max = eps;
-      ASSERT_LE(diff, diff_max);
-      ref_idx += reference_step;
-      data_idx += data_step;
-    }
+  ASSERT_EQ(reference.size(), fft.size());
+  const auto *ref = reference.data(), *data = fft.data();
+  for (int i = 0; i < fft.size(); i++) {
+    auto diff = ref[i] - data[i];
+    auto diff_max = ref[i] * eps;
+    // Error tends to be big if the numbers are big
+    if (diff_max < eps)
+      diff_max = eps;
+    ASSERT_LE(diff, diff_max);
+  }
 }
 
-void CompareFfts(std::complex<float> *reference, int64_t reference_step,
-                 std::complex<float> *data, int64_t data_step,
-                 int64_t data_size,
+void CompareFfts(const span<const std::complex<float>>& reference,
+                 const span<const std::complex<float>>& fft,
                  float eps = 1e-3) {
-    data_size *= 2;
-    CompareFfts(reinterpret_cast<float*>(reference), reference_step,
-                reinterpret_cast<float*>(data), data_step, data_size, eps);
+  span<const float> ref_f = {reinterpret_cast<const float*>(reference.data()), reference.size()*2};
+  span<const float> fft_f = {reinterpret_cast<const float*>(fft.data()), fft.size()*2};
+  CompareFfts(ref_f, fft_f, eps);
 }
 
-void PowerSpectrum(float *out,
-                   int64_t out_stride,
-                   std::complex<float> *in,  // fft
-                   int64_t in_stride,
-                   int64_t nfft) {
+void PowerSpectrum(span<float> out,
+                   span<std::complex<float>> in,
+                   int64_t nfft,
+                   float floor_pow = 1e-30) {
   for (int64_t k = 0; k <= nfft / 2; k++) {
-    auto real = in[k * in_stride].real();
-    auto imag = in[k * in_stride].imag();
-    out[k * out_stride] = real*real + imag*imag;
+    out[k] = std::max(norm(in[k]), floor_pow);
   }
 }
 
-void MagSpectrum(float *out,
-                 int64_t out_stride,
-                 std::complex<float> *in,  // fft
-                 int64_t in_stride,
-                 int64_t nfft) {
+void MagSpectrum(span<float> out,
+                 span<std::complex<float>> in,
+                 int64_t nfft,
+                 float floor_pow = 1e-30) {
   for (int64_t k = 0; k <= nfft / 2; k++) {
-    auto real = in[k * in_stride].real();
-    auto imag = in[k * in_stride].imag();
-    out[k * out_stride] = sqrt(real*real + imag*imag);
+    out[k] = std::max(abs(in[k]), floor_pow);
   }
 }
 
-void LogPowerSpectrum(float *out,
-                      int64_t out_stride,
-                      std::complex<float> *in,  // fft
-                      int64_t in_stride,
+void LogPowerSpectrum(span<float> out,
+                      span<std::complex<float>> in,
                       int64_t nfft) {
-  for (int64_t k = 0; k <= nfft / 2; k++) {
-    auto real = in[k * in_stride].real();
-    auto imag = in[k * in_stride].imag();
-    out[k * out_stride] = 10 * log10(real*real + imag*imag);
-  }
+  PowerSpectrum(out, in, nfft);
+  for (auto &x : out)
+    x = 10*log10(x);
 }
 
 class Fft1DCpuTest : public::testing::TestWithParam<
@@ -182,12 +169,12 @@ TEST_P(ComplexFft1DCpuTest, FftTest) {
   }
 
   std::vector<std::complex<float>> reference_fft(nfft);
-  NaiveDft(reference_fft.data(), 1, in_view_.data, 1, n, nfft, true);
+  NaiveDft(reference_fft, make_cspan(in_view_.data, n), nfft, true);
   LOG_LINE << "Reference FFT:" << std::endl;
   for (int i = 0; i < nfft; i++) {
     LOG_LINE << "(" << reference_fft[i].real() << "," << reference_fft[i].imag() << "i)\n";
   }
-  CompareFfts(reference_fft.data(), 1, out_view.data, 1, out_size);
+  CompareFfts(make_cspan(reference_fft.data(), nfft), make_cspan(out_view.data, nfft));
 }
 
 INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, ComplexFft1DCpuTest, testing::Combine(
@@ -243,24 +230,24 @@ TEST_P(MagnitudeFft1DCpuTest, FftTest) {
   kernel.Run(ctx, out_view, in_view_, args);
 
   std::vector<std::complex<float>> reference_fft(nfft);
-  NaiveDft(reference_fft.data(), 1, in_view_.data, 1, n, nfft, true);
+  NaiveDft(reference_fft, make_cspan(in_view_.data, n), nfft, true);
 
   std::vector<float> reference(out_size);
   switch (args.spectrum_type) {
     case FFT_SPECTRUM_POWER:
-      PowerSpectrum(reference.data(), 1, reference_fft.data(), 1, nfft);
+      PowerSpectrum(make_span(reference), make_span(reference_fft), nfft);
       break;
     case FFT_SPECTRUM_MAGNITUDE:
-      MagSpectrum(reference.data(), 1, reference_fft.data(), 1, nfft);
+      MagSpectrum(make_span(reference), make_span(reference_fft), nfft);
       break;
     case FFT_SPECTRUM_LOG_POWER:
-      LogPowerSpectrum(reference.data(), 1, reference_fft.data(), 1, nfft);
+      LogPowerSpectrum(make_span(reference), make_span(reference_fft), nfft);
       break;
     default:
       ASSERT_TRUE(false);
   }
 
-  CompareFfts(reference.data(), 1, out_view.data, 1, out_size);
+  CompareFfts(make_cspan(reference), make_cspan(out_view.data, out_size));
 }
 
 INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, MagnitudeFft1DCpuTest, testing::Combine(
@@ -434,7 +421,7 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
         out_data_buf[k] = out_data_ptr1[k*out_stride];
       }
 
-      NaiveDft(reference_fft.data(), 1, in_data_buf.data(), 1, n, nfft, true);
+      NaiveDft(reference_fft, make_cspan(in_data_buf), nfft, true);
 
       LOG_LINE << "Reference data: ";
       for (int k = 0; k < nfft; k++) {
@@ -448,7 +435,7 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
       }
       LOG_LINE << std::endl;
 
-      CompareFfts(reference_fft.data(), 1, out_data_buf.data(), 1, nfft);
+      CompareFfts(make_cspan(reference_fft), make_cspan(out_data_buf));
     }
   }
 }

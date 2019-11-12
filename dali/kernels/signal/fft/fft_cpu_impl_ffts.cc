@@ -48,32 +48,31 @@ KernelRequirements Fft1DImplFfts<OutputType, InputType, Dims>::Setup(
     make_string("Transform axis ", transform_axis_, " is out of bounds [0, ", Dims, ")"));
 
   const auto n = in.shape[transform_axis_];
-  nfft_ = args.nfft > 0 ? args.nfft : n;
-  DALI_ENFORCE(nfft_ >= n, "NFFT is too small");
+  auto nfft = args.nfft > 0 ? args.nfft : n;
 
   KernelRequirements req;
   auto out_shape = in.shape;
 
   ScratchpadEstimator se;
-  se.add<float>(AllocType::Host, size_in_buf(nfft_),  32);
-  se.add<float>(AllocType::Host, size_out_buf(nfft_), 32);
+  se.add<float>(AllocType::Host, size_in_buf(nfft),  32);
+  se.add<float>(AllocType::Host, size_out_buf(nfft), 32);
   req.scratch_sizes = se.sizes;
 
   if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
-    out_shape[transform_axis_] = nfft_;
+    out_shape[transform_axis_] = nfft;
   } else {
-    out_shape[transform_axis_] = nfft_/2 + 1;
+    out_shape[transform_axis_] = nfft / 2 + 1;
   }
   req.output_shapes = {TensorListShape<DynamicDimensions>({out_shape})};
 
-  if (!plan_ || plan_n_ != nfft_) {
-    if (can_use_real_impl(nfft_)) {
-      plan_ = {ffts_init_1d_real(nfft_, FFTS_FORWARD), ffts_free};
+  if (!plan_ || nfft != nfft_) {
+    if (can_use_real_impl(nfft)) {
+      plan_ = {ffts_init_1d_real(nfft, FFTS_FORWARD), ffts_free};
     } else {
-      plan_ = {ffts_init_1d(nfft_, FFTS_FORWARD), ffts_free};
+      plan_ = {ffts_init_1d(nfft, FFTS_FORWARD), ffts_free};
     }
     DALI_ENFORCE(plan_ != nullptr, "Could not initialize ffts plan");
-    plan_n_ = nfft_;
+    nfft_ = nfft;
   }
 
   return req;
