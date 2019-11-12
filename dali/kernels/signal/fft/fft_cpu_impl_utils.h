@@ -74,7 +74,7 @@ struct MagnitudeSpectrumCalculator {
   void Calculate(FftSpectrumType spectrum_type, OutputType *out, const InputType *in,
                  int64_t nfft, int64_t out_stride = 1, int64_t in_stride = 1) {
     for (int i = 0; i <= nfft / 2; i++) {
-      auto &in_complex = in[i*in_stride];
+      const auto &in_complex = in[i*in_stride];
       auto real = in_complex.real();
       auto imag = in_complex.imag();
       auto power = real*real + imag*imag;
@@ -84,10 +84,10 @@ struct MagnitudeSpectrumCalculator {
       }
       switch (spectrum_type) {
         case FFT_SPECTRUM_MAGNITUDE:
-          out[i] = sqrt(power);
+          out[i*in_stride] = sqrt(power);
           break;
         case FFT_SPECTRUM_POWER:
-          out[i] = power;
+          out[i*in_stride] = power;
           break;
         default:
           DALI_FAIL(make_string("Not a magnitude spectrum type: ", spectrum_type));

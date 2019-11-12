@@ -120,7 +120,7 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
   std::vector<std::pair<OutputType*, const InputType*>> slices;
   slices.push_back(std::make_pair(out.data, in.data));
   Get1DSlices(slices, out.shape.data(), out_strides.data(),
-              in.shape.data(), in_strides.data(), args.transform_axis, Dims);
+              in.shape.data(), in_strides.data(), transform_axis_, Dims);
   for (auto &slice : slices) {
     OutputType* out_data = slice.first;
     const InputType* in_data = slice.second;
