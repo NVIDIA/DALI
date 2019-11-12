@@ -90,14 +90,6 @@ void MagSpectrum(span<float> out,
   }
 }
 
-void LogPowerSpectrum(span<float> out,
-                      span<std::complex<float>> in,
-                      int64_t nfft) {
-  PowerSpectrum(out, in, nfft);
-  for (auto &x : out)
-    x = 10*log10(x);
-}
-
 class Fft1DCpuTest : public::testing::TestWithParam<
   std::tuple<FftSpectrumType, std::array<int64_t, 2>>> {
  public:
@@ -186,9 +178,9 @@ INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, ComplexFft1DCpuTest, testing::Combine(
                     std::array<int64_t, 2>{1, 100},
                     std::array<int64_t, 2>{1, 4096})));
 
-class MagnitudeFft1DCpuTest : public Fft1DCpuTest {};
+class PowerSpectrum1DCpuTest : public Fft1DCpuTest {};
 
-TEST_P(MagnitudeFft1DCpuTest, FftTest) {
+TEST_P(PowerSpectrum1DCpuTest, FftTest) {
   using OutputType = float;
   using InputType = float;
   constexpr int Dims = 2;
@@ -240,9 +232,6 @@ TEST_P(MagnitudeFft1DCpuTest, FftTest) {
     case FFT_SPECTRUM_MAGNITUDE:
       MagSpectrum(make_span(reference), make_span(reference_fft), nfft);
       break;
-    case FFT_SPECTRUM_LOG_POWER:
-      LogPowerSpectrum(make_span(reference), make_span(reference_fft), nfft);
-      break;
     default:
       ASSERT_TRUE(false);
   }
@@ -250,9 +239,9 @@ TEST_P(MagnitudeFft1DCpuTest, FftTest) {
   CompareFfts(make_cspan(reference), make_cspan(out_view.data, out_size));
 }
 
-INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, MagnitudeFft1DCpuTest, testing::Combine(
+INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, PowerSpectrum1DCpuTest, testing::Combine(
     testing::Values(
-      FFT_SPECTRUM_MAGNITUDE, FFT_SPECTRUM_POWER, FFT_SPECTRUM_LOG_POWER),
+      FFT_SPECTRUM_MAGNITUDE, FFT_SPECTRUM_POWER),
     testing::Values(std::array<int64_t, 2>{1, 4},
                     std::array<int64_t, 2>{1, 10},
                     std::array<int64_t, 2>{1, 64},
