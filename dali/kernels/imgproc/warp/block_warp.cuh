@@ -27,7 +27,7 @@ namespace warp {
 
 
 template <DALIInterpType interp_type, typename Mapping,
-          int ndim, typename OutputType, typename InputType,
+          typename OutputType, typename InputType,
           typename BorderType>
 __device__ void BlockWarp(
     SampleDesc<2, OutputType, InputType> sample, BlockDesc<2> block,
@@ -37,12 +37,12 @@ __device__ void BlockWarp(
   const InputType *__restrict__ input_data = sample.input;
   // Create input and output surfaces
   const Surface2D<OutputType> out = {
-      output_data, sample.out_size.x, sample.out_size.y, sample.channels,
-      sample.out_strides.x, sample.out_strides.y, 1
+      output_data, sample.out_size, sample.channels,
+      sample.out_strides, 1
   };
   const Surface2D<const InputType> in = {
-      input_data, sample.in_size.x, sample.in_size.y, sample.channels,
-      sample.in_strides.x, sample.in_strides.y, 1
+      input_data, sample.in_size, sample.channels,
+      sample.in_strides, 1
   };
   // ...and a sampler
   const auto sampler = make_sampler<interp_type>(in);
@@ -55,6 +55,40 @@ __device__ void BlockWarp(
     }
   }
 }
+
+
+template <DALIInterpType interp_type, typename Mapping,
+          typename OutputType, typename InputType,
+          typename BorderType>
+__device__ void BlockWarp(
+    SampleDesc<3, OutputType, InputType> sample, BlockDesc<3> block,
+    Mapping mapping, BorderType border) {
+  // Get the data pointers - un-erase type
+  OutputType *__restrict__ output_data = sample.output;
+  const InputType *__restrict__ input_data = sample.input;
+  // Create input and output surfaces
+  const Surface3D<OutputType> out = {
+      output_data, sample.out_size, sample.channels,
+      sample.out_strides, 1
+  };
+  const Surface3D<const InputType> in = {
+      input_data, sample.in_size, sample.channels,
+      sample.in_strides, 1
+  };
+  // ...and a sampler
+  const auto sampler = make_sampler<interp_type>(in);
+
+  // Run this HW block of threads over the logical block
+  for (int z = block.start.z + threadIdx.z; z < block.end.z; z += blockDim.z) {
+    for (int y = block.start.y + threadIdx.y; y < block.end.y; y += blockDim.y) {
+      for (int x = block.start.x + threadIdx.x; x < block.end.x; x += blockDim.x) {
+        auto src = map_coords(mapping, ivec3(x, y, z));
+        sampler(&out(x, y, z), src, border);
+      }
+    }
+  }
+}
+
 
 }  // namespace warp
 }  // namespace kernels

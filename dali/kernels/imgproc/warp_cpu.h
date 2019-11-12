@@ -48,7 +48,7 @@ class WarpCPU {
   static constexpr int tensor_ndim = spatial_ndim + 1;
   static constexpr int channel_dim = spatial_ndim;
 
-  static_assert(spatial_ndim == 2, "Not implemented for spatial_ndim != 2");
+  static_assert(spatial_ndim == 2 || spatial_ndim == 3, "WarpCPU only works for 2D and 3D");
 
   using Mapping = _Mapping;
   using OutputType = _OutputType;
@@ -95,8 +95,6 @@ class WarpCPU {
       const InTensorCPU<InputType, 3> &input,
       Mapping_ &mapping,
       BorderType border = {}) {
-    // 2D HWC implementation.
-    // 3D will be added as an overload for input/output ndim == 4.
     int out_w = output.shape[1];
     int out_h = output.shape[0];
     int c     = output.shape[2];
@@ -114,6 +112,34 @@ class WarpCPU {
     }
   }
 
+  template <DALIInterpType static_interp, typename Mapping_>
+  void RunImpl(
+      KernelContext &context,
+      const OutTensorCPU<OutputType, 4> &output,
+      const InTensorCPU<InputType, 4> &input,
+      Mapping_ &mapping,
+      BorderType border = {}) {
+    int out_w = output.shape[2];
+    int out_h = output.shape[1];
+    int out_d = output.shape[0];
+    int c     = output.shape[3];
+
+    Surface2D<const InputType> in = as_surface_channel_last(input);
+
+    Sampler2D<static_interp, InputType> sampler(in);
+
+    for (int z = 0; z < out_d; z++) {
+      for (int y = 0; y < out_h; y++) {
+        OutputType *out_row = output(z, y, 0);
+        for (int x = 0; x < out_w; x++) {
+          auto src = warp::map_coords(mapping, ivec3(x, y, z));
+          sampler(&out_row[c*x], src, border);
+        }
+      }
+    }
+  }
+
+
   template <DALIInterpType static_interp>
   void RunImpl(
       KernelContext &context,
@@ -121,8 +147,6 @@ class WarpCPU {
       const InTensorCPU<InputType, 3> &input,
       AffineMapping<2> &mapping,
       BorderType border = {}) {
-    // 2D HWC implementation.
-    // 3D will be added as an overload for input/output ndim == 4.
     int out_w = output.shape[1];
     int out_h = output.shape[0];
     int c     = output.shape[2];
@@ -148,6 +172,47 @@ class WarpCPU {
         auto src = src_tile;
         for (int x = x_tile; x < x_tile_end; x++, src += dsdx) {
           sampler(&out_row[c*x], src, border);
+        }
+      }
+    }
+  }
+
+
+  template <DALIInterpType static_interp>
+  void RunImpl(
+      KernelContext &context,
+      const OutTensorCPU<OutputType, 4> &output,
+      const InTensorCPU<InputType, 4> &input,
+      AffineMapping<3> &mapping,
+      BorderType border = {}) {
+    int out_w = output.shape[2];
+    int out_h = output.shape[1];
+    int out_d = output.shape[0];
+    int c     = output.shape[3];
+
+    Surface3D<const InputType> in = as_surface_channel_last(input);
+
+    Sampler3D<static_interp, InputType> sampler(in);
+
+    // Optimization: instead of naively calculating source coordinates for each destination pixel,
+    // we can exploit the linearity of the affine transform and just add ds/dx derivative
+    // for each x.
+    vec3 dsdx = mapping.transform.col(0);
+
+    // use tiles to produce "checkpoints" to avoid excessive accumulation error
+    constexpr int tile_w = 256;
+    vec3 dsdx_tile = tile_w * dsdx;
+
+    for (int z = 0; z < out_d; z++) {
+      for (int y = 0; y < out_h; y++) {
+        OutputType *out_row = output(z, y, 0);
+        auto src_tile = warp::map_coords(mapping, ivec3(0, y, z));
+        for (int x_tile = 0; x_tile < out_w; x_tile += tile_w, src_tile += dsdx_tile) {
+          int x_tile_end = std::min(x_tile + tile_w, out_w);
+          auto src = src_tile;
+          for (int x = x_tile; x < x_tile_end; x++, src += dsdx) {
+            sampler(&out_row[c*x], src, border);
+          }
         }
       }
     }
