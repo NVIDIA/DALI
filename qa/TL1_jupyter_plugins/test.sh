@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages="jupyter matplotlib mxnet-cu{cuda_v} tensorflow-gpu torchvision torch opencv-python"
+pip_packages="jupyter matplotlib mxnet-cu{cuda_v} tensorflow-gpu torchvision torch"
 target_dir=./docs/examples
 
 do_once() {
