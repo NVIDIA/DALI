@@ -157,7 +157,13 @@ sf_count_t Tell(void *This) {
 template<typename SampleType>
 class GenericAudioDecoder : public TypedAudioDecoderBase<SampleType> {
  public:
-  AudioMetadata OpenImpl(span<const char> encoded) {
+  void DecodeTyped(span <SampleType> output) override {
+    detail::read_samples(snd_file, output);
+  }
+
+
+ private:
+  AudioMetadata OpenImpl(span<const char> encoded) override {
     assert(!encoded.empty());
     assert(encoded.data());
     AudioMetadata ret;
@@ -189,11 +195,6 @@ class GenericAudioDecoder : public TypedAudioDecoderBase<SampleType> {
       snd_file = nullptr;
     }
     mem_stream = {};
-  }
-
-
-  void DecodeTyped(span<SampleType> output) {
-    detail::read_samples(snd_file, output);
   }
 
 
