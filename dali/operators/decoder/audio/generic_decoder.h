@@ -29,9 +29,42 @@ namespace dali {
 
 namespace detail {
 
-class VirtualInputManager {
+template<typename SampleType>
+size_t read_samples(SNDFILE *snd_file, span<SampleType> output) {
+  DALI_FAIL("Can't find function for given type. You may want to write your own specialization.")
+}
+
+
+template<>
+size_t read_samples<short>(SNDFILE *snd_file, span<short> output) {  // NOLINT
+  return sf_read_short(snd_file, output.data(), output.size());
+}
+
+
+template<>
+size_t read_samples<int>(SNDFILE *snd_file, span<int> output) {
+  return sf_read_int(snd_file, output.data(), output.size());
+}
+
+
+template<>
+size_t read_samples<float>(SNDFILE *snd_file, span<float> output) {
+  return sf_read_float(snd_file, output.data(), output.size());
+}
+
+
+template<>
+size_t read_samples<double>(SNDFILE *snd_file, span<double> output) {
+  return sf_read_double(snd_file, output.data(), output.size());
+}
+
+
+class MemoryStream {
  public:
-  VirtualInputManager(const void *input, int length /* bytes */) :
+  MemoryStream() : length_(0), curr_(0), input_(nullptr) {}
+
+
+  MemoryStream(const void *input, int length /* bytes */) :
           length_(length), curr_(0), input_(static_cast<const char *>(input)) {}
 
 
@@ -81,7 +114,7 @@ class VirtualInputManager {
  * The virtual file context must return the length of the virtual file in bytes.
  */
 sf_count_t GetFileLen(void *This) {
-  return static_cast<VirtualInputManager *>(This)->length();
+  return static_cast<MemoryStream *>(This)->length();
 }
 
 
@@ -94,7 +127,7 @@ sf_count_t GetFileLen(void *This) {
  * The return value must contain the new offset in the file.
  */
 sf_count_t Seek(sf_count_t offset, int whence, void *This) {
-  return static_cast<VirtualInputManager *>(This)->seek(offset, whence);
+  return static_cast<MemoryStream *>(This)->seek(offset, whence);
 }
 
 
@@ -103,7 +136,7 @@ sf_count_t Seek(sf_count_t offset, int whence, void *This) {
  * and return the count of actually copied bytes.
  */
 sf_count_t Read(void *dst, sf_count_t num, void *This) {
-  return static_cast<VirtualInputManager *>(This)->read(dst, num);
+  return static_cast<MemoryStream *>(This)->read(dst, num);
 }
 
 
@@ -111,7 +144,7 @@ sf_count_t Read(void *dst, sf_count_t num, void *This) {
  * Return the current position of the virtual file context.
  */
 sf_count_t Tell(void *This) {
-  return static_cast<VirtualInputManager *>(This)->tell();
+  return static_cast<MemoryStream *>(This)->tell();
 }
 
 }  // namespace detail
@@ -119,20 +152,18 @@ sf_count_t Tell(void *This) {
 /**
  * Generic decoder, that serves as a fallback to most of the formats we need.
  * It uses `libsnd` for decoding.
- * @tparam T
+ * @tparam SampleType
  */
-template<typename T>
-struct GenericDecoder : public AudioDecoder<T>, public AllocatingDecoder<T> {
-  GenericDecoder() = default;
-
-
-  AudioData<T> Decode(span<const char> encoded) override {
+template<typename SampleType>
+class GenericAudioDecoder : public TypedAudioDecoderBase<SampleType> {
+ public:
+  AudioMetadata OpenImpl(span<const char> encoded) {
     assert(!encoded.empty());
     assert(encoded.data());
-    AudioData<T> ret;
-    SF_INFO sf_info;
+    AudioMetadata ret;
+    sf_info = {};
     sf_info.format = 0;
-
+    mem_stream = detail::MemoryStream(encoded.data(), encoded.size());
     SF_VIRTUAL_IO sf_virtual_io = {
             &detail::GetFileLen,
             &detail::Seek,
@@ -140,14 +171,8 @@ struct GenericDecoder : public AudioDecoder<T>, public AllocatingDecoder<T> {
             nullptr,  // No writing
             &detail::Tell
     };
-
-    detail::VirtualInputManager vim(encoded.data(), encoded.size() * sizeof(T));
-
-    auto sound = sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info, &vim);
-    ret.data = std::shared_ptr<T>(new T[sf_info.frames * sf_info.channels]);
-
-    DALI_ENFORCE(sound, make_string("Failed to open encoded data: ", sf_strerror(sound)));
-    auto cnt = sf_readf_short(sound, ret.data.get(), sf_info.frames);
+    snd_file = sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info, &mem_stream);
+    DALI_ENFORCE(snd_file, make_string("Failed to open encoded data: ", sf_strerror(snd_file)));
 
     ret.length = sf_info.frames * sf_info.channels;
     ret.channels = sf_info.channels;
@@ -155,6 +180,26 @@ struct GenericDecoder : public AudioDecoder<T>, public AllocatingDecoder<T> {
     ret.channels_interleaved = false;
     return ret;
   }
+
+
+  void CloseImpl() override {
+    if (snd_file) {
+      auto err = sf_close(snd_file);
+      DALI_ENFORCE(err == 0, make_string("Failed to close SNDFILE: ", sf_error_number(err)));
+      snd_file = nullptr;
+    }
+    mem_stream = {};
+  }
+
+
+  void DecodeTyped(span<SampleType> output) {
+    detail::read_samples(snd_file, output);
+  }
+
+
+  SNDFILE *snd_file = nullptr;
+  SF_INFO sf_info = {};
+  detail::MemoryStream mem_stream = {};
 };
 }  // namespace dali
 
