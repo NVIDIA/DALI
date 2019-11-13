@@ -52,10 +52,7 @@ std::vector<char> file_to_bytes(const std::string &filepath) {
 
 template<typename T>
 bool check_buffers(const T *buf1, const T *buf2, int size) {
-  for (int i = 0; i < size; i++) {
-    if (buf1[i] != buf2[i]) return false;
-  }
-  return true;
+  return !std::memcmp(buf1, buf2, sizeof(T) * size);
 }
 }  // namespace
 
