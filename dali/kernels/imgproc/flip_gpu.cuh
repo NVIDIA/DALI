@@ -32,12 +32,13 @@ namespace gpu {
 
 template <size_t C, bool Single, typename T>
 __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
-                           size_t seq_length, size_t depth, size_t height, size_t width,
-                           size_t channels,
+                           TensorShape<sample_ndim> shape,
                            bool flip_z, bool flip_y, bool flip_x) {
   size_t xc = blockIdx.x * blockDim.x + threadIdx.x;
   size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   size_t fz = blockIdx.z * blockDim.z + threadIdx.z;
+  const Index seq_length = shape[0], depth = shape[1], height = shape[2],
+                           width = shape[3], channels = shape[4];
   if (xc >= width * channels || y >= height || fz >= depth * seq_length) {
     return;
   }
@@ -57,27 +58,27 @@ __global__ void FlipKernel(T *__restrict__ output, const T *__restrict__ input,
 
 template <typename T>
 void FlipImpl(T *__restrict__ output, const T *__restrict__ input,
-              size_t seq_length, size_t depth, size_t height, size_t width, size_t channels,
+              const TensorShape<sample_ndim> &shape,
               bool flip_z, bool flip_y, bool flip_x, cudaStream_t stream) {
-  auto plane_width = width * channels;
+  auto plane_width = shape[3] * shape[4];
   unsigned int block_x = plane_width < 32 ? plane_width : 32;
-  unsigned int block_y = height < 32 ? height : 32;
+  unsigned int block_y = shape[2] < 32 ? shape[2] : 32;
   dim3 block(block_x, block_y, 1);
   dim3 grid((plane_width + block_x - 1) / block_x,
-            (height + block_y - 1) / block_y,
-            depth * seq_length);
-  if (seq_length == 1) {
-    VALUE_SWITCH(channels, c_channels, (1, 2, 3, 4, 5, 6, 7, 8), (
+            (shape[2] + block_y - 1) / block_y,
+            shape[0] * shape[1]);
+  if (shape[0] == 1) {
+    VALUE_SWITCH(shape[4], c_channels, (1, 2, 3, 4, 5, 6, 7, 8), (
         detail::gpu::FlipKernel<c_channels, true><<<grid, block, 0, stream>>>
-          (output, input, seq_length, depth, height, width, channels, flip_z, flip_y, flip_x);), (
+          (output, input, shape, flip_z, flip_y, flip_x);), (
         detail::gpu::FlipKernel<0, true><<<grid, block, 0, stream>>>
-          (output, input, seq_length, depth, height, width, channels, flip_z, flip_y, flip_x);));
+          (output, input, shape, flip_z, flip_y, flip_x);));
   } else {
-    VALUE_SWITCH(channels, c_channels, (1, 2, 3, 4, 5, 6, 7, 8), (
+    VALUE_SWITCH(shape[4], c_channels, (1, 2, 3, 4, 5, 6, 7, 8), (
         detail::gpu::FlipKernel<c_channels, false><<<grid, block, 0, stream>>>
-          (output, input, seq_length, depth, height, width, channels, flip_z, flip_y, flip_x);), (
+          (output, input, shape, flip_z, flip_y, flip_x);), (
         detail::gpu::FlipKernel<0, false><<<grid, block, 0, stream>>>
-          (output, input, seq_length, depth, height, width, channels, flip_z, flip_y, flip_x);));
+          (output, input, shape, flip_z, flip_y, flip_x);));
   }
 }
 
@@ -101,15 +102,16 @@ class DLL_PUBLIC FlipGPU {
     auto num_samples = static_cast<size_t>(in.num_samples());
     DALI_ENFORCE(flip_x.size() == num_samples && flip_y.size() == num_samples);
     for (size_t i = 0; i < num_samples; ++i) {
-      auto seq_length = in.tensor_shape(i)[0];
-      auto depth = in.tensor_shape(i)[1];
-      auto height = in.tensor_shape(i)[2];
-      auto width = in.tensor_shape(i)[3];
-      auto channels = in.tensor_shape(i)[4];
+      const auto &shape = in.tensor_shape(i);
+      auto seq_length = shape[0];
+      auto depth = shape[1];
+      auto height = shape[2];
+      auto width = shape[3];
+      auto channels = shape[4];
       auto in_data = in[i].data;
       auto out_data = out[i].data;
-      detail::gpu::FlipImpl(out_data, in_data, seq_length, depth, height, width, channels,
-          flip_z[i], flip_y[i], flip_x[i], context.gpu.stream);
+      detail::gpu::FlipImpl(out_data, in_data, shape, flip_z[i], flip_y[i], flip_x[i],
+                            context.gpu.stream);
     }
   }
 };

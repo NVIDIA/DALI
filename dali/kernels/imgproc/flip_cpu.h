@@ -76,18 +76,17 @@ void FlipZAxis(Type *output, const Type *input, size_t depth, size_t height, siz
 
 template <typename Type>
 void FlipImpl(Type *output, const Type *input,
-              size_t seq_length, size_t depth, size_t height, size_t width,
-              size_t channels, bool flip_z, bool flip_y, bool flip_x) {
-  auto frame_size = depth * height * width * channels;
+              TensorShape<sample_ndim> shape, bool flip_z, bool flip_y, bool flip_x) {
+  auto frame_size = volume(&shape[1], &shape[sample_ndim]);
   if (flip_x || flip_y) {
-    for (size_t f = 0; f < seq_length; ++f) {
-      OcvFlip(output, input, depth, height, width, channels, flip_z, flip_y, flip_x);
+    for (Index f = 0; f < shape[0]; ++f) {
+      OcvFlip(output, input, shape[1], shape[2], shape[3], shape[4], flip_z, flip_y, flip_x);
       output += frame_size;
       input += frame_size;
     }
   } else {
-    for (size_t f = 0; f < seq_length; ++f) {
-      FlipZAxis(output, input, depth, height, width, channels, flip_z);
+    for (Index f = 0; f < shape[0]; ++f) {
+      FlipZAxis(output, input, shape[1], shape[2], shape[3], shape[4], flip_z);
       output += frame_size;
       input += frame_size;
     }
@@ -113,9 +112,7 @@ class DLL_PUBLIC FlipCPU {
       const InTensorCPU<Type, sample_ndim> &in, bool flip_z, bool flip_y, bool flip_x) {
     auto in_data = in.data;
     auto out_data = out.data;
-    detail::cpu::FlipImpl(out_data, in_data,
-                          in.shape[0], in.shape[1], in.shape[2], in.shape[3], in.shape[4],
-                          flip_z, flip_y, flip_x);
+    detail::cpu::FlipImpl(out_data, in_data, in.shape, flip_z, flip_y, flip_x);
   }
 };
 
