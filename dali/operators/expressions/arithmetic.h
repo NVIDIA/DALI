@@ -145,7 +145,8 @@ inline std::vector<ExprImplTask> CreateExecutionTasks(const ExprNode &expr, Expr
   return result;
 }
 
-inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListShape<> *> shapes) {
+inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListShape<> *> shapes,
+                                        int batch_size) {
   const TensorListShape<> *out_shape = nullptr;
   for (int i = 0; i < shapes.size(); i++) {
     if (IsScalarLike(*shapes[i]))
@@ -159,14 +160,15 @@ inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListSha
                               *out_shape, ", ", *shapes[i], ")."));
     }
   }
-  return out_shape ? *out_shape : TensorListShape<>{{1}};
+  return out_shape ? *out_shape : uniform_list_shape(batch_size, {1});
 }
 
 template <typename Backend>
 DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
-                                                    const workspace_t<Backend> &ws) {
+                                                           const workspace_t<Backend> &ws,
+                                                           int batch_size) {
   if (expr.GetNodeType() == NodeType::Constant) {
-    expr.SetShape(TensorListShape<>{{1}});
+    expr.SetShape(uniform_list_shape(batch_size, {1}));
     return expr.GetShape();
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
@@ -182,9 +184,9 @@ DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
   SmallVector<const TensorListShape<> *, kMaxArity> shapes;
   shapes.resize(subexpression_count);
   for (int i = 0; i < subexpression_count; i++) {
-    shapes[i] = &PropagateShapes<Backend>(func[i], ws);
+    shapes[i] = &PropagateShapes<Backend>(func[i], ws, batch_size);
   }
-  func.SetShape(ShapePromotion(func.GetFuncName(), make_span(shapes)));
+  func.SetShape(ShapePromotion(func.GetFuncName(), make_span(shapes), batch_size));
   return func.GetShape();
 }
 
@@ -242,7 +244,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
       types_layout_inferred_ = true;
     }
 
-    result_shape_ = PropagateShapes<Backend>(*expr_, ws);
+    result_shape_ = PropagateShapes<Backend>(*expr_, ws, batch_size_);
     AllocateIntermediateNodes();
     exec_order_ = CreateExecutionTasks<Backend>(*expr_, cache_, ws.has_stream() ? ws.stream() : 0);
 

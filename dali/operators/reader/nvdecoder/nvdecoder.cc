@@ -235,7 +235,12 @@ NvDecoder::MappedFrame::MappedFrame(MappedFrame&& other)
 
 NvDecoder::MappedFrame::~MappedFrame() {
   if (valid_) {
-    NVCUVID_CALL(cuvidUnmapVideoFrame(decoder_, ptr_));
+    try {
+      NVCUVID_CALL(cuvidUnmapVideoFrame(decoder_, ptr_));
+    } catch (const std::exception &) {
+      // Something went terribly wrong while releasing resources. We'd better die right now.
+      std::terminate();
+    }
   }
 }
 

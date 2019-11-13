@@ -90,7 +90,9 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
         file_root_(spec.GetArgument<string>("file_root")),
         sequence_length_(spec.GetArgument<int32_t>("sequence_length")),
         step_(spec.GetArgument<int32_t>("step")),
-        stride_(spec.GetArgument<int32_t>("stride")) {
+        stride_(spec.GetArgument<int32_t>("stride")),
+        total_size_(0),
+        current_sequence_(0) {
   }
 
   void PrepareEmpty(TensorSequence &tensor) override;

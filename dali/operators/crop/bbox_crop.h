@@ -117,16 +117,16 @@ class RandomBBoxCrop : public Operator<Backend> {
     return sample_options_[sampler(rngs_[sample])];
   }
 
-  const float SampleCandidateDimension(int sample) {
+  float SampleCandidateDimension(int sample) {
     std::uniform_real_distribution<float> sampler(scaling_bounds_.min, scaling_bounds_.max);
     return sampler(rngs_[sample]);
   }
 
-  const bool ValidAspectRatio(float width, float height) const {
+  bool ValidAspectRatio(float width, float height) const {
     return aspect_ratio_bounds_.Contains(width / height);
   }
 
-  const bool ValidOverlap(const Crop &crop, const BoundingBoxes &boxes, float threshold) const {
+  bool ValidOverlap(const Crop &crop, const BoundingBoxes &boxes, float threshold) const {
     return std::all_of(boxes.begin(), boxes.end(),
                        [&crop, threshold](const BoundingBox &box) {
                          return crop.IntersectionOverUnion(box) >= threshold;

@@ -36,7 +36,7 @@ __global__ void BatchWarpVariableSize(
   auto block = blocks[blockIdx.x];
   auto sample = samples[block.sample_idx];
   VALUE_SWITCH(sample.interp, interp_const, (DALI_INTERP_NN, DALI_INTERP_LINEAR), (
-    BlockWarp<interp_const, Mapping, ndim, OutputType, InputType, BorderType>(
+    BlockWarp<interp_const, Mapping, OutputType, InputType, BorderType>(
       sample, block, Mapping(mapping[block.sample_idx]), border)),
     (assert(!"Interpolation type not supported")));
 }

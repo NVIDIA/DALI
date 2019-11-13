@@ -429,7 +429,7 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
 }
 
 inline bool IsScalarLike(const TensorListShape<> &shape) {
-  return shape.num_samples() == 1 && shape.num_elements() == 1;
+  return is_uniform(shape) && shape.sample_dim() == 1 && shape.tensor_shape_span(0)[0] == 1;
 }
 
 }  // namespace dali

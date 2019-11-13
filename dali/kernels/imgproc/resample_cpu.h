@@ -22,8 +22,8 @@
 namespace dali {
 namespace kernels {
 
-template <typename OutputElement, typename InputElement>
-using ResampleCPU = SeparableResampleCPU<OutputElement, InputElement>;
+template <typename OutputElement, typename InputElement, int spatial_ndim = 2>
+using ResampleCPU = resampling::SeparableResampleCPU<OutputElement, InputElement, spatial_ndim>;
 
 }  // namespace kernels
 }  // namespace dali

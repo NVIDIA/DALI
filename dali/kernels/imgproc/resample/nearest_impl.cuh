@@ -20,28 +20,29 @@
 #include <algorithm>
 #endif
 #include "dali/core/convert.h"
+#include "dali/core/math_util.h"
+#include "dali/core/geom/box.h"
 
 namespace dali {
 namespace kernels {
 
 template <typename Dst, typename Src>
 __device__ void NNResample(
-    int x0, int x1, int y0, int y1,
-    float src_x0, float src_y0, float scale_x, float scale_y,
-    Dst *__restrict__ out, int out_stride,
-    const Src *__restrict__ in, int in_stride, int in_w, int in_h, int channels) {
-  src_y0 += 0.5f * scale_y;
-  src_x0 += 0.5f * scale_x;
-  for (int i = y0 + threadIdx.y; i < y1; i += blockDim.y) {
-    int ysrc = i * scale_y + src_y0;
-    ysrc = min(max(0, ysrc), in_h-1);
+    Box<2, int> out_roi,
+    vec2 origin, vec2 scale,
+    Dst *__restrict__ out,  vec<1, ptrdiff_t> out_stride,
+    const Src *__restrict__ in, vec<1, ptrdiff_t> in_stride, ivec2 in_size, int channels) {
+  origin += 0.5f * scale;
+  for (int i = out_roi.lo.y + threadIdx.y; i < out_roi.hi.y; i += blockDim.y) {
+    int ysrc = floor_int(i * scale.y + origin.y);
+    ysrc = clamp(ysrc, 0, in_size.y-1);
 
-    Dst *out_row = &out[i * out_stride];
-    const Src *in_row = &in[ysrc * in_stride];
+    Dst *out_row = &out[i * out_stride.x];
+    const Src *in_row = &in[ysrc * in_stride.x];
 
-    for (int j = x0 + threadIdx.x; j < x1; j += blockDim.x) {
-      int xsrc = j * scale_x + src_x0;
-      xsrc = min(max(0, xsrc), in_w-1);
+    for (int j = out_roi.lo.x + threadIdx.x; j < out_roi.hi.x; j += blockDim.x) {
+      int xsrc = floor_int(j * scale.x + origin.x);
+      xsrc = clamp(xsrc, 0, in_size.x-1);
       const Src *src_px = &in_row[xsrc * channels];
       for (int c = 0; c < channels; c++)
         out_row[j*channels + c] = __ldg(&src_px[c]);

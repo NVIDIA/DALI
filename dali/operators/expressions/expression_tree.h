@@ -221,6 +221,15 @@ class ExprConstant : public ExprNode {
  */
 DLL_PUBLIC std::unique_ptr<ExprNode> ParseExpressionString(const std::string &expr);
 
+/**
+ * @brief Scalar-like nodes are the Constant nodes and Tensor nodes that consist of batch of
+ * scalars.
+ */
+inline bool IsScalarLike(const ExprNode &node) {
+  return node.GetNodeType() == NodeType::Constant ||
+         (node.GetNodeType() == NodeType::Tensor && IsScalarLike(node.GetShape()));
+}
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_EXPRESSIONS_EXPRESSION_TREE_H_
