@@ -80,7 +80,7 @@ class DLL_PUBLIC FftImpl {
  * @brief Computes 1-D FFT related transformation from real data to either a complex spectrum
  *   or a transformation of the complex spectrum (power, magnitude)
  *
- * Input data can be a 2D or 3D tensor representing an signal (e.g. [channels, time]) or
+ * Input data can be a 2D or 3D tensor representing a signal (e.g. [channels, time]) or
  * a sequence of frames (e.g. [channels, frames, time]). The kernel can work with other data
  * layouts by providing the transform_axis representing the dimension to be transformed to the
  * frequency domain (e.g. for a layout of [channels, time, frames] we set transform_axis=1 to
