@@ -24,7 +24,7 @@ namespace dali {
 namespace kernels {
 
 class FlipCpuTest
-    : public::testing::TestWithParam<std::tuple<int, int, int, std::array<Index, 4>>> {
+    : public::testing::TestWithParam<std::tuple<int, int, int, std::array<Index, sample_ndim>>> {
  public:
   FlipCpuTest()
   : flip_x_(std::get<0>(GetParam()))
@@ -45,38 +45,40 @@ class FlipCpuTest
   int flip_x_;
   int flip_y_;
   int flip_z_;
-  TensorShape<4> shape_;
+  TensorShape<sample_ndim> shape_;
   std::vector<float> data_;
-  OutTensorCPU<float, 4> in_view_;
+  OutTensorCPU<float, sample_ndim> in_view_;
 };
 
 TEST_P(FlipCpuTest, ImplTest) {
   std::vector<float> out_data(volume(shape_));
   detail::cpu::FlipImpl(
       out_data.data(), in_view_.data,
-      shape_[0], shape_[1], shape_[2], shape_[3],
-      flip_z_, flip_y_, flip_x_);
+      shape_, flip_z_, flip_y_, flip_x_);
   ASSERT_TRUE(is_flipped(out_data.data(), in_view_.data,
-                         shape_[0], shape_[1], shape_[2], shape_[3], flip_z_, flip_y_, flip_x_));
+                         shape_[0], shape_[1], shape_[2], shape_[3], shape_[4],
+                         flip_z_, flip_y_, flip_x_));
 }
 
 TEST_P(FlipCpuTest, KernelTest) {
   KernelContext ctx;
   FlipCPU<float> kernel;
   KernelRequirements reqs = kernel.Setup(ctx, in_view_);
-  auto out_shape = reqs.output_shapes[0][0].to_static<4>();
+  auto out_shape = reqs.output_shapes[0][0].to_static<sample_ndim>();
   std::vector<float> out_data(volume(out_shape));
-  auto out_view = OutTensorCPU<float, 4>(out_data.data(), out_shape);
+  auto out_view = OutTensorCPU<float, sample_ndim>(out_data.data(), out_shape);
   kernel.Run(ctx, out_view, in_view_, flip_z_, flip_y_, flip_x_);
   ASSERT_TRUE(is_flipped(out_view.data, in_view_.data,
-      shape_[0], shape_[1], shape_[2], shape_[3], flip_z_, flip_y_, flip_x_));
+                         shape_[0], shape_[1], shape_[2], shape_[3], shape_[4],
+                         flip_z_, flip_y_, flip_x_));
 }
 
 INSTANTIATE_TEST_SUITE_P(FlipCpuTest, FlipCpuTest, testing::Combine(
     testing::Values(0, 1),
     testing::Values(0, 1),
     testing::Values(0, 1),
-    testing::Values(std::array<Index, 4>{8, 9, 9, 3}, std::array<Index, 4>{3, 18, 18, 2})));
+    testing::Values(std::array<Index, sample_ndim>{1, 8, 9, 9, 3},
+                    std::array<Index, sample_ndim>{2, 3, 18, 18, 2})));
 
 }  // namespace kernels
 }  // namespace dali
