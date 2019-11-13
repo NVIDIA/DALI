@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="numpy paddle"
+pip_packages="numpy Cython paddle"
 target_dir=./docs/examples/paddle/ssd/
 
 test_body() {
