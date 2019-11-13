@@ -109,6 +109,11 @@ class MemoryStream {
   const char *input_;
 };
 
+/*
+ * Functions: `GetFileLen`, `Seek`, `Read`, `Tell` are the callbacks required
+ * by `sf_open_fd` interface. Descriptions of these functions are copy-pasted
+ * from `libsnd` docs.
+ */
 
 /**
  * The virtual file context must return the length of the virtual file in bytes.
