@@ -31,11 +31,14 @@ namespace window {
 struct ExtractFramesArgs {
   int64_t window_length = -1;
   int64_t window_step = -1;
-  int64_t axis = -1;
+  int64_t in_time_axis = -1;
+  int64_t out_frame_axis = -1;
 
   inline bool operator==(const ExtractFramesArgs& oth) const {
     return window_length == oth.window_length &&
-           window_step == oth.window_step;
+           window_step == oth.window_step &&
+           in_time_axis == oth.in_time_axis &&
+           out_frame_axis == oth.out_frame_axis;
   }
 
   inline bool operator!=(const ExtractFramesArgs& oth) const {
@@ -75,7 +78,8 @@ class DLL_PUBLIC ExtractFramesCpu {
   int64_t window_length_ = -1;
   int64_t window_step_ = -1;
   int64_t nwindows_ = -1;
-  int axis_ = -1;
+  int64_t in_time_axis_ = -1;
+  int64_t out_frame_axis_ = -1;
 };
 
 }  // namespace window
