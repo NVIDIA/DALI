@@ -76,18 +76,19 @@ struct MagnitudeSpectrumCalculator {
   template <typename OutputType = float, typename InputType = std::complex<float>>
   void Calculate(FftSpectrumType spectrum_type, OutputType *out, const InputType *in,
                  int64_t length, int64_t out_stride = 1, int64_t in_stride = 1) {
-    for (int i = 0; i < length; i++) {
-      const auto &in_complex = in[i*in_stride];
-      switch (spectrum_type) {
-        case FFT_SPECTRUM_MAGNITUDE:
-          out[i*out_stride] = std::abs(in_complex);
-          break;
-        case FFT_SPECTRUM_POWER:
-          out[i*out_stride] = std::norm(in_complex);
-          break;
-        default:
-          DALI_FAIL(make_string("Not a magnitude spectrum type: ", spectrum_type));
-      }
+    switch (spectrum_type) {
+      case FFT_SPECTRUM_MAGNITUDE:
+        for (int i = 0; i < length; i++) {
+          out[i*out_stride] = std::abs(in[i*in_stride]);
+        }
+        break;
+      case FFT_SPECTRUM_POWER:
+        for (int i = 0; i < length; i++) {
+          out[i*out_stride] = std::norm(in[i*in_stride]);
+        }
+        break;
+      default:
+        DALI_FAIL(make_string("Not a magnitude spectrum type: ", spectrum_type));
     }
   }
 };
