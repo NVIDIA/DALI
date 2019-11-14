@@ -87,7 +87,6 @@ KernelRequirements ExtractFramesCpu<OutputType, InputType, Dims>::Setup(
       out_shape[out_idx++] = in.shape[in_idx++];
     }
   }
-  std::cout << out_shape[0] << "x" << out_shape[1] << "x" << out_shape[2] << "\n";
   req.output_shapes = {TensorListShape<DynamicDimensions>({out_shape})};
   return req;
 }
@@ -119,33 +118,24 @@ void ExtractFramesCpu<OutputType, InputType, Dims>::Run(
   const auto in_stride = in_strides[in_time_axis_];
   const auto in_t_size = in.shape[in_time_axis_];
 
-  std::cout << "nwindows " << nwindows_
-            << " window_length " << window_length_
-            << " window step " << window_step_ << "\n"
-            << " out shape (" << flat_out_shape.size()<<") " << flat_out_shape[0] << "x" <<flat_out_shape[1] << "\n"
-            << " in shape (" << in_shape.size()<<") " << in_shape[0] << "x" << in_shape[1] << "\n";
-
-  for (auto &slice : slices) {
-    OutputType *out_data = slice.first;
-    const InputType *in_data = slice.second;
-
-    std::cout << "start out slice at " << (int) (slice.first - out.data)
-              << " with stride " << out_stride << "\n";
-    std::cout << "start in slice at " << (int) (slice.second - in.data)
-              << " with stride " << in_stride << "\n";
-
-    for (int window_idx = 0; window_idx < nwindows_; window_idx++) {
-      for (int t = 0; t < window_length_; t++) {
-        int out_idx = window_idx * window_length_ + t;
-        int in_idx = window_idx * window_step_ + t;
-        if (in_idx < in_t_size) {
-          out_data[out_idx * out_stride] = in_data[in_idx * in_stride];
-        } else {
-          out_data[out_idx * out_stride] = 0;
+  ForAxis(
+    out.data, in.data, flat_out_shape.data(), out_strides.data(),
+    in_shape.data(), in_strides.data(), in_time_axis_, InputDims,
+    [this](
+      OutputType *out_data, const InputType *in_data,
+      int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
+        for (int window_idx = 0; window_idx < nwindows_; window_idx++) {
+          for (int t = 0; t < window_length_; t++) {
+            int out_idx = window_idx * window_length_ + t;
+            int in_idx = window_idx * window_step_ + t;
+            if (in_idx < in_size) {
+              out_data[out_idx * out_stride] = in_data[in_idx * in_stride];
+            } else {
+              out_data[out_idx * out_stride] = 0;
+            }
+          }
         }
-      }
-    }
-  }
+    });
 }
 
 template class ExtractFramesCpu<float, float, 1>;  // 1-channel

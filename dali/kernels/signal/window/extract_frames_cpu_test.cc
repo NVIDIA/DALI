@@ -119,10 +119,11 @@ TEST_P(ExtractFramesCpuTest, ExtractFramesTest) {
 
 
   LOG_LINE << "out:\n";
-  for (int i0 = 0; i0 < expected_out_view.shape[0]; i0++) {
-    for (int i1 = 0; i1 < expected_out_view.shape[1]; i1++) {
-      for (int i2 = 0; i2 < expected_out_view.shape[2]; i2++) {
-        int k = i0*expected_out_view.shape[1]*expected_out_view.shape[2]+ i1*expected_out_view.shape[2] + i2;
+  auto sh = expected_out_view.shape;
+  for (int i0 = 0; i0 < sh[0]; i0++) {
+    for (int i1 = 0; i1 < sh[1]; i1++) {
+      for (int i2 = 0; i2 < sh[2]; i2++) {
+        int k = i0 * sh[1] * sh[2] + i1 * sh[2] + i2;
         LOG_LINE << " " << expected_out_view.data[k];
       }
       LOG_LINE << "\n";
