@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_SIGNAL_FFT_FFT_CPU_IMPL_UTILS_H_
 #define DALI_KERNELS_SIGNAL_FFT_FFT_CPU_IMPL_UTILS_H_
 
+#include "dali/core/util.h"
 #include <utility>
 #include <vector>
 #include "dali/core/util.h"
