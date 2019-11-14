@@ -58,11 +58,7 @@ KernelRequirements Fft1DImplFfts<OutputType, InputType, Dims>::Setup(
   se.add<float>(AllocType::Host, size_out_buf(nfft), 32);
   req.scratch_sizes = se.sizes;
 
-  if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
-    out_shape[transform_axis_] = nfft;
-  } else {
-    out_shape[transform_axis_] = nfft / 2 + 1;
-  }
+  out_shape[transform_axis_] = nfft / 2 + 1;
   req.output_shapes = {TensorListShape<DynamicDimensions>({out_shape})};
 
   if (!plan_ || nfft != nfft_) {
@@ -142,17 +138,15 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
     ffts_execute(plan_.get(), in_buf, out_buf);
 
     // For complex impl, out_buf_sz contains the whole spectrum,
-    // for real impl, the second half of the spectrum is ommited and should be constructed from the
-    // first half
-    const bool is_full_spectrum = !use_real_impl;
-
+    // for real impl, the second half of the spectrum is ommited
+    // In any case, we are interested in the first half of the spectrum only
     auto* complex_fft = reinterpret_cast<std::complex<float>*>(out_buf);
     if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
       auto* complex_out = reinterpret_cast<std::complex<float>*>(out_data);
       ComplexSpectrumCalculator().Calculate(complex_out, complex_fft, nfft_, out_stride, 1);
     } else {
       MagnitudeSpectrumCalculator().Calculate(
-          args.spectrum_type, out_data, complex_fft, nfft_, out_stride, 1);
+          args.spectrum_type, out_data, complex_fft, nfft_/2+1, out_stride, 1);
     }
   }
 }

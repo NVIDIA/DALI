@@ -56,15 +56,18 @@ inline int64_t size_out_buf(int64_t n) {
 struct ComplexSpectrumCalculator {
   template <typename OutputType = std::complex<float>, typename InputType = std::complex<float>>
   void Calculate(OutputType *out, const InputType *in,
-                 int64_t nfft, int64_t out_stride = 1, int64_t in_stride = 1) {
+                 int64_t nfft, int64_t out_stride = 1, int64_t in_stride = 1,
+                 bool reconstruct_second_half = false) {
     for (int i = 0; i <= nfft / 2; i++) {
       out[i*out_stride] = in[i*in_stride];
     }
 
-    for (int i = nfft / 2 + 1; i < nfft; i++) {
-      // start mirroring nfft/2+1+i -> nfft/2-1-i
-      auto tmp = in[(nfft - i)*in_stride];
-      out[i*out_stride] = {tmp.real(), -tmp.imag()};
+    if (reconstruct_second_half) {
+      for (int i = nfft / 2 + 1; i < nfft; i++) {
+        // start mirroring nfft/2+1+i -> nfft/2-1-i
+        auto tmp = in[(nfft - i)*in_stride];
+        out[i*out_stride] = {tmp.real(), -tmp.imag()};
+      }
     }
   }
 };
@@ -72,26 +75,18 @@ struct ComplexSpectrumCalculator {
 struct MagnitudeSpectrumCalculator {
   template <typename OutputType = float, typename InputType = std::complex<float>>
   void Calculate(FftSpectrumType spectrum_type, OutputType *out, const InputType *in,
-                 int64_t nfft, int64_t out_stride = 1, int64_t in_stride = 1) {
-    for (int i = 0; i <= nfft / 2; i++) {
+                 int64_t length, int64_t out_stride = 1, int64_t in_stride = 1) {
+    for (int i = 0; i < length; i++) {
       const auto &in_complex = in[i*in_stride];
-      auto real = in_complex.real();
-      auto imag = in_complex.imag();
-      auto power = real*real + imag*imag;
-      const float kEps = 1e-30;
-      if (power < kEps) {
-        power = kEps;
-      }
       switch (spectrum_type) {
         case FFT_SPECTRUM_MAGNITUDE:
-          out[i*out_stride] = sqrt(power);
+          out[i*out_stride] = std::abs(in_complex);
           break;
         case FFT_SPECTRUM_POWER:
-          out[i*out_stride] = power;
+          out[i*out_stride] = std::norm(in_complex);
           break;
         default:
           DALI_FAIL(make_string("Not a magnitude spectrum type: ", spectrum_type));
-          break;
       }
     }
   }
