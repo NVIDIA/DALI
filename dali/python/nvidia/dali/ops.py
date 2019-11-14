@@ -20,7 +20,7 @@ from itertools import count
 import threading
 from nvidia.dali import backend as b
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, \
-    _vector_element_type, DALIDataType, CUDAStream
+        _vector_element_type, _int_types, _float_types, DALIDataType, CUDAStream, Constant
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
@@ -601,29 +601,108 @@ def _choose_device(inputs):
         return "gpu"
     return "cpu"
 
-def _target_uniform_dev(inputs, dev):
-    return inputs
+def _is_integer_like(input):
+    if type(input) == int:
+        return True
+    if isinstance(input, Constant):
+        if input.dtype in _int_types:
+            return True
+    return False
+
+def _is_real_like(input):
+    if type(input) == float:
+        return True
+    if isinstance(input, Constant):
+        if input.dtype in _float_types:
+            return True
+    return False
+
+# <type> description required by ArithmeticGenericOp
+def _to_type_desc(input):
+    if  type(input) == int:
+        return "int32"
+    if type(input) == float:
+        return "float32" # TODO(klecki): current DALI limitation
+    if isinstance(input, Constant):
+        dtype_to_desc = {
+            DALIDataType.INT8: "int8",
+            DALIDataType.INT16: "int16",
+            DALIDataType.INT32: "int32",
+            DALIDataType.INT64: "int64",
+            DALIDataType.UINT8: "uint8",
+            DALIDataType.UINT16: "uint16",
+            DALIDataType.UINT32: "uint32",
+            DALIDataType.UINT64: "uint64",
+            DALIDataType.FLOAT16: "float16",
+            DALIDataType.FLOAT: "float32",
+            DALIDataType.FLOAT64: "float64",
+        }
+        return dtype_to_desc[input.dtype]
+    raise TypeError(("Constant argument to arithmetic operation not supported. Got {}, expected "
+            "a constant value of type 'int', 'float' or 'nvidia.dali.types.Constant'.")
+            .format(str(type(input))))
 
 
-def _arithm_op(name, *inputs):
-        input_desc = ""
-        for i, input in enumerate(inputs):
-            input_desc += "&" + str(i)
-            if i < len(inputs) - 1:
-                input_desc += " "
-        expression_desc = "{}({})".format(name, input_desc)
-        dev = _choose_device(inputs)
-        # Create "instance" of operator
-        op = ArithmeticGenericOp(device = _choose_device(inputs), expression_desc = expression_desc)
-        # If we are on gpu, we must mark all inputs as gpu
-        if dev == "gpu":
-            dev_inputs = list(input.gpu() for input in inputs)
+# Group inputs into categories_idxs, _EdgeReferences, integer constants and real constants
+# The categories_idxs is a list that for an input `i` contains a tuple:
+# (category of ith input, index of ith input in appropriate category)
+def _group_inputs(inputs):
+    categories_idxs = []
+    edges = []
+    integers = []
+    reals = []
+    for input in inputs:
+        if isinstance(input, _EdgeReference):
+            categories_idxs.append(("edge", len(edges)))
+            edges.append(input)
+        elif _is_integer_like(input):
+            categories_idxs.append(("integer", len(integers)))
+            integers.append(input)
+        elif _is_real_like(input):
+            categories_idxs.append(("real", len(reals)))
+            reals.append(input)
         else:
-            dev_inputs = inputs
-        # Call it imediatelly
-        return op(*dev_inputs)
+            raise TypeError(("Argument to arithmetic operation not supported. Got {}, expected "
+                    "a return value from other DALI Operator  or a constant value of type 'int', "
+                    "'float' or 'nvidia.dali.types.Constant'.").format(str(type(input))))
+    if len(integers) == 0:
+        integers = None
+    if len(reals) == 0:
+        reals = None
+    return (categories_idxs, edges, integers, reals)
 
+# Generate the list of <input> subexpression as specified
+# by grammar for ArithmeticGenericOp
+def _generate_input_desc(categories_idx, integers, reals):
+    input_desc = ""
+    for i, (category, idx) in enumerate(categories_idx):
+        if category == "edge":
+            input_desc += "&{}".format(idx)
+        elif category == "integer":
+            input_desc += "${}:{}".format(idx, _to_type_desc(integers[idx]))
+        elif category == "real":
+            input_desc += "${}:{}".format(idx, _to_type_desc(reals[idx]))
+        if i < len(categories_idx) - 1:
+            input_desc += " "
+    return input_desc
 
+# Create arguments for ArithmeticGenericOp andd call it with supplied inputs.
+# Select the `gpu` device if at least one of the inputs is `gpu`, otherwise `cpu`.
+def _arithm_op(name, *inputs):
+    categories_idxs, edges, integers, reals = _group_inputs(inputs)
+    input_desc = _generate_input_desc(categories_idxs, integers, reals)
+    expression_desc = "{}({})".format(name, input_desc)
+    dev = _choose_device(edges)
+    # Create "instance" of operator
+    op = ArithmeticGenericOp(device = dev, expression_desc = expression_desc,
+                             integer_constants = integers, real_constants = reals)
+    # If we are on gpu, we must mark all inputs as gpu
+    if dev == "gpu":
+        dev_inputs = list(edge.gpu() for edge in edges)
+    else:
+        dev_inputs = edges
+    # Call it imediatelly
+    return op(*dev_inputs)
 
 def cpu_ops():
     return _cpu_ops

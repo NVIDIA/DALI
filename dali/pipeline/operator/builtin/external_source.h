@@ -129,8 +129,13 @@ class ExternalSource : public Operator<Backend> {
   }
 
   inline ~ExternalSource() {
-    sync_worker_.ForceStop();
-    sync_worker_.Shutdown();
+    try {
+      sync_worker_.ForceStop();
+      sync_worker_.Shutdown();
+    } catch (const std::exception &) {
+      // Something went terribly wrong while releasing resources. We'd better die right now.
+      std::terminate();
+    }
   }
 
   inline string name() const override {

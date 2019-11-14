@@ -20,6 +20,7 @@
 #include <vector>
 #include <string>
 #include "dali/core/host_dev.h"
+#include "dali/core/geom/vec.h"
 #include "dali/operators/displacement/displacement_filter.h"
 
 namespace dali {
@@ -45,7 +46,7 @@ class WaterAugment {
   void Cleanup() {}
 
   DALI_HOST_DEV
-  Point<float> operator()(float h, float w, int c, int H, int W, int C) {
+  vec2 operator()(float h, float w, int c, int H, int W, int C) {
     const WaveDescr &wX = x_desc_;
     const WaveDescr &wY = y_desc_;
 

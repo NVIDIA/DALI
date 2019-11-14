@@ -151,7 +151,7 @@ class NvDecoder {
     operator cudaTextureObject_t() const;
    private:
     bool valid_;
-    cudaTextureObject_t object_;
+    cudaTextureObject_t object_ = 0;
   };
 
   struct TextureObjects {

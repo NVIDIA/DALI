@@ -31,17 +31,25 @@ __global__ void BatchWarpUniformSize(
     const SampleDesc<ndim, OutputType, InputType> *samples,
     ivec<ndim> output_size,
     ivec<ndim> block_size,
+    int z_blocks_per_sample_shift,
     const mapping_params_t<Mapping> *mapping,
     BorderType border) {
   BlockDesc<ndim> block;
-  block.sample_idx = blockIdx.z;
-  block.start = 0;
-  block.start.x = blockIdx.x * block_size.x;
-  block.start.y = blockIdx.y * block_size.y;
+  ivec<ndim> block_idx(0);
+  block_idx.x = blockIdx.x;
+  block_idx.y = blockIdx.y;
+  if (z_blocks_per_sample_shift) {
+    block.sample_idx = blockIdx.z >> z_blocks_per_sample_shift;
+    int block_in_sample = blockIdx.z & ((1 << z_blocks_per_sample_shift) - 1);
+    block_idx[2] = block_in_sample;
+  } else {
+    block.sample_idx = blockIdx.z;
+  }
+  block.start = block_size * block_idx;
   block.end = min(block.start + block_size, output_size);
   auto sample = samples[block.sample_idx];
   VALUE_SWITCH(sample.interp, interp_const, (DALI_INTERP_NN, DALI_INTERP_LINEAR), (
-    BlockWarp<interp_const, Mapping, ndim, OutputType, InputType, BorderType>(
+    BlockWarp<interp_const, Mapping, OutputType, InputType, BorderType>(
       sample, block, Mapping(mapping[block.sample_idx]), border)),
     (assert(!"Interpolation type not supported")));
 }

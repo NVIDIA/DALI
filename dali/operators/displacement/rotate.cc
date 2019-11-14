@@ -20,10 +20,15 @@ DALI_SCHEMA(Rotate)
   .DocStr(R"code(Rotate the image by given angle.)code")
   .NumInput(1)
   .NumOutput(1)
-  .InputLayout(0, { "HWC" })
+  .InputLayout(0, { "HWC", "DHWC" })
+  .AddOptionalArg<float>("axis", "3D only: axis around which to rotate.\n"
+  "The vector does not need to be normalized, but must have non-zero length.\n"
+  "Reversing the vector is equivalent to changing the sign of `angle`.\n",
+  std::vector<float>(), true)
   .AddArg("angle",
-      R"code(Angle, in degrees, by which the image is rotated counter-clockwise,
-assuming top-left corner at (0,0))code", DALI_FLOAT, true)
+      "Angle, in degrees, by which the image is rotated.\n"
+      "For 2D data, the rotation is counter-clockwise, assuming top-left corner at (0,0)\n"
+      "For 3D data, the angle is a positive rotation around given axis", DALI_FLOAT, true)
   .AddOptionalArg("keep_size", "If `True`, original canvas size is kept. If `False` (default) "
 "and `size` is not set, then the canvas size is adjusted to acommodate the rotated image with "
 "least padding possible", false, false)

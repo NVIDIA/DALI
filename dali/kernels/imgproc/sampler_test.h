@@ -16,6 +16,7 @@
 #define DALI_KERNELS_IMGPROC_SAMPLER_TEST_H_
 
 #include <gtest/gtest.h>
+#include <random>
 #include "dali/kernels/alloc.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/surface.h"
@@ -23,37 +24,63 @@
 namespace dali {
 namespace kernels {
 
+template <typename T>
 struct SamplerTestData {
-  Surface2D<const uint8_t> GetSurface(bool gpu) {
-    constexpr int W = 4;
-    constexpr int H = 5;
-    constexpr int C = 3;
-    static const uint8_t data[W*H*C] = {
-      0x00, 0x00, 0x00,  0xff, 0xff, 0xff,  0x00, 0x00, 0xff,  0xff, 0xff, 0xff,
-      0xff, 0xff, 0xff,  0xff, 0x00, 0x00,  0xff, 0xff, 0xff,  0xff, 0xff, 0x00,
-      0x00, 0xff, 0x00,  0xff, 0xff, 0xff,  0x00, 0x00, 0x00,  0xff, 0x00, 0xff,
-      0xff, 0xff, 0xff,  0x00, 0xff, 0xff,  0xff, 0xff, 0xff,  0xff, 0x00, 0xff,
-      0x00, 0x00, 0xff,  0xff, 0xff, 0xff,  0xff, 0xff, 0x00,  0xff, 0xff, 0xff,
-    };
+  static constexpr int D = 3;
+  static constexpr int W = 4;
+  static constexpr int H = 5;
+  static constexpr int C = 3;
 
-    Surface2D<const uint8_t> surface;
-    if (gpu) {
-      storage = memory::alloc_unique<uint8_t>(AllocType::GPU, W*H*C);
-      cudaMemcpy(storage.get(), data, sizeof(data), cudaMemcpyHostToDevice);
-      surface.data = storage.get();
-    } else {
-      surface.data = data;
-    }
-    surface.size.x = W;
-    surface.size.y = H;
+  Surface2D<const T> GetSurface2D(bool gpu) {
+    Surface2D<const T> surface;
+    surface.data = gpu ? GetGPUData() : GetCPUData();
+    surface.size = { W, H };
     surface.channels = C;
-    surface.strides.x = C;
-    surface.strides.y = W*C;
+    surface.strides = { C, W*C };
     surface.channel_stride = 1;
     return surface;
   }
 
-  memory::KernelUniquePtr<uint8_t> storage;
+  Surface3D<const T> GetSurface3D(bool gpu) {
+    Surface3D<const T> surface;
+    surface.data = gpu ? GetGPUData() : GetCPUData();
+    surface.size = { W, H, D };
+    surface.channels = C;
+    surface.strides = { C, W*C, H*W*C };
+    surface.channel_stride = 1;
+    return surface;
+  }
+
+ private:
+  static const T *InitCPUData() {
+    static T data[D*W*H*C];
+    std::mt19937_64 rng;
+    if (std::is_integral<T>::value) {
+      std::uniform_int_distribution<int> dist(0, 0x7fffffff);
+      for (T &x : data)
+        x = T(dist(rng));
+    } else {
+      std::uniform_real_distribution<double> dist(-1, 1);
+      for (T &x : data)
+        x = T(dist(rng));
+    }
+    return data;
+  }
+
+  static const T *GetCPUData() {
+    static const T *data = InitCPUData();  // use magic static to run the InitCPUData() once
+    return data;
+  }
+
+  const T *GetGPUData() {
+    if (!gpu_storage) {
+      gpu_storage = memory::alloc_unique<T>(AllocType::GPU, D*W*H*C);
+      cudaMemcpy(gpu_storage.get(), GetCPUData(), sizeof(T)*D*W*H*C, cudaMemcpyHostToDevice);
+    }
+    return gpu_storage.get();
+  }
+
+  memory::KernelUniquePtr<T> gpu_storage;
 };
 
 }  // namespace kernels

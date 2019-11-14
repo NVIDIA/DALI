@@ -43,7 +43,7 @@ void Warp(
   int inH = in.shape[0];
   int inW = in.shape[1];
 
-  kernels::Sampler<interp_type, In> sampler(kernels::as_surface_HWC(in));
+  kernels::Sampler2D<interp_type, In> sampler(kernels::as_surface_HWC(in));
 
   for (int y = 0; y < outH; y++) {
     Out *out_row = out(y, 0);
@@ -51,11 +51,11 @@ void Warp(
       if (per_channel) {
         for (int c = 0; c < C; c++) {
           auto p = displacement(y, x, c, inH, inW, C);
-          sampler(&out_row[C*x], p.x, p.y, c, border);
+          sampler(&out_row[C*x], p, c, border);
         }
       } else {
         auto p = displacement(y, x, 0, inH, inW, C);
-        sampler(&out_row[C*x], p.x, p.y, border);
+        sampler(&out_row[C*x], p, border);
       }
     }
   }

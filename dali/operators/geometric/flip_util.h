@@ -21,25 +21,74 @@
 
 namespace dali {
 
-inline TensorShape<4> TransformShapeNHWC(const TensorShape<> &shape) {
-  return TensorShape<4>(std::array<Index, 4>{1, shape[0], shape[1], shape[2]});
+constexpr int flip_ndim = 5;
+
+inline TensorShape<flip_ndim> TransformShapeDHWC(const TensorShape<> &shape) {
+  std::array<Index, flip_ndim> result{1, 1, 1, 1, 1};
+  for (int i = flip_ndim - shape.size(); i < flip_ndim; ++i) {
+    result[i] = shape[i + shape.size() - flip_ndim];
+  }
+  return TensorShape<flip_ndim>(result);
 }
 
-// In the NCHW layout every channel is treated as a separate plane in a volumetric image
-inline TensorShape<4> TransformShapeNCHW(const TensorShape<> &shape) {
-  return TensorShape<4>(std::array<Index, 4>{shape[0], shape[1], shape[2], 1});
+inline TensorShape<flip_ndim> TransformShapeHWC(const TensorShape<> &shape) {
+  std::array<Index, flip_ndim> result{1, 1, 1, 1, 1};
+  for (int i = 2; i < flip_ndim; ++i) {
+    result[i] = shape[i + shape.size() - flip_ndim];
+  }
+  if (shape.size() > 3) {
+    result[0] = shape[0];
+  }
+  return TensorShape<flip_ndim>(result);
 }
 
-inline TensorListShape<4> TransformShapes(const TensorListShape<> &shapes,
-                                                   const TensorLayout &layout) {
-  TensorListShape<4> result(shapes.size());
+inline TensorShape<flip_ndim> TransformShapeCDHW(const TensorShape<> &shape) {
+  std::array<Index, flip_ndim> result{1, 1, 1, 1, 1};
+  result[1] = shape[shape.size() - 3];
+  result[2] = shape[shape.size() - 2];
+  result[3] = shape[shape.size() - 1];
+  result[0] = shape[shape.size() - 4];
+  // merge channel and frame dimensions
+  if (shape.size() == flip_ndim) {
+    result[0] *= shape[0];
+  }
+  return TensorShape<flip_ndim>(result);
+}
+
+inline TensorShape<flip_ndim> TransformShapeCHW(const TensorShape<> &shape) {
+  std::array<Index, flip_ndim> result{1, 1, 1, 1, 1};
+  result[2] = shape[shape.size() - 2];
+  result[3] = shape[shape.size() - 1];
+  result[0] = shape[shape.size() - 3];
+  // merge channel and frame dimensions
+  if (shape.size() == 4) {
+    result[0] *= shape[0];
+  }
+  return TensorShape<flip_ndim>(result);
+}
+
+inline TensorListShape<flip_ndim> TransformShapes(const TensorListShape<> &shapes,
+                                          const TensorLayout &layout) {
+  TensorListShape<flip_ndim> result(shapes.size());
   if (ImageLayoutInfo::IsChannelLast(layout)) {
-    for (int i = 0; i < shapes.size(); i++) {
-      result.set_tensor_shape(i, TransformShapeNHWC(shapes[i]));
+    if (layout.find('D') >= 0) {
+      for (int i = 0; i < shapes.size(); i++) {
+        result.set_tensor_shape(i, TransformShapeDHWC(shapes[i]));
+      }
+    } else {
+      for (int i = 0; i < shapes.size(); i++) {
+        result.set_tensor_shape(i, TransformShapeHWC(shapes[i]));
+      }
     }
   } else {
-    for (int i = 0; i < shapes.size(); i++) {
-      result.set_tensor_shape(i, TransformShapeNCHW(shapes[i]));
+    if (layout.find('D') >= 0) {
+      for (int i = 0; i < shapes.size(); i++) {
+        result.set_tensor_shape(i, TransformShapeCDHW(shapes[i]));
+      }
+    } else {
+      for (int i = 0; i < shapes.size(); i++) {
+        result.set_tensor_shape(i, TransformShapeCHW(shapes[i]));
+      }
     }
   }
   return result;

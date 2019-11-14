@@ -139,6 +139,12 @@ html_theme_options = {
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+# Download favicon and set it (the variable `html_favicon`) for this project.
+# It must be relative path.
+favicon_rel_path = "nvidia.ico"
+subprocess.call(["wget", "-O", favicon_rel_path, "https://docs.nvidia.com/images/nvidia.ico"])
+html_favicon = favicon_rel_path
+
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
 #

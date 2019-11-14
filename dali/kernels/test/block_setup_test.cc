@@ -299,11 +299,16 @@ TEST(BlockSetup, SetupBlocks_Uniform_CDHW) {
   });
 
   BlockSetup<3, 0> setup;
-  ivec3 def_block_size = { 256, 256, 1 };
+  ivec3 def_block_size = { 256, 256, D };
   setup.SetDefaultBlockSize(def_block_size);
   static_assert(setup.tensor_ndim == 4, "Incorrectly inferred tensor_ndim");
   setup.SetupBlocks(TLS);
   ASSERT_TRUE(setup.IsUniformSize());
+
+  while (volume(def_block_size) > 0x40000) {
+    if (def_block_size.z > 1)
+      def_block_size.z >>= 1;
+  }
   ivec3 expected_grid = {
     div_ceil(W, def_block_size.x),
     div_ceil(H, def_block_size.y),

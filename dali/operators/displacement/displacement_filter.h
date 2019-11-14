@@ -16,7 +16,7 @@
 #define DALI_OPERATORS_DISPLACEMENT_DISPLACEMENT_FILTER_H_
 
 #include "dali/core/common.h"
-#include "dali/core/host_dev.h"
+#include "dali/core/geom/vec.h"
 #include "dali/pipeline/operator/operator.h"
 
 /**
@@ -32,35 +32,13 @@ struct HasParam : std::false_type { };
 template <typename T>
 struct HasParam <T, decltype((void) (typename T::Param()), 0)> : std::true_type {};
 
-template <typename T>
-struct Point {
-  const T x, y;
-  Point() = delete;
-
-  template <typename U>
-  Point<U> Cast() {
-    return {static_cast<U>(x), static_cast<U>(y)};
-  }
-};
-
-template <typename T>
-DALI_HOST_DEV
-T ToValidCoord(T coord, Index limit) {
-  return coord >= 0 && coord < limit ? coord : -1;
-}
-template <typename T>
-DALI_HOST_DEV
-Point<T> CreatePointLimited(T x, T y, Index W, Index H) {
-  return {ToValidCoord(x, W), ToValidCoord(y, H)};
-}
-
 class DisplacementIdentity {
  public:
   explicit DisplacementIdentity(const OpSpec& spec) {}
 
   DALI_HOST_DEV
-  Point<int> operator()(const int h, const int w, const int c,
-                        const int H, const int W, const int C) {
+  ivec2 operator()(const int h, const int w, const int c,
+                   const int H, const int W, const int C) {
     // identity
     return { w, h };
   }

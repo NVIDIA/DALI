@@ -55,7 +55,7 @@ class WarpGPU {
 
   using SampleDesc = typename WarpSetup::SampleDesc;
   using BlockDesc = typename WarpSetup::BlockDesc;
-  static_assert(spatial_ndim == 2, "Not implemented for spatial_ndim != 2");
+  static_assert(spatial_ndim == 2 || spatial_ndim == 3, "WarpGPU only works for 2D and 3D data");
 
   KernelRequirements Setup(KernelContext &context,
                            const InListGPU<InputType, tensor_ndim> &in,
@@ -88,12 +88,21 @@ class WarpGPU {
       gpu_samples = context.scratchpad->ToGPU(context.gpu.stream, setup.Samples());
       CUDA_CALL(cudaGetLastError());
 
+      auto output_size = setup.UniformOutputSize();
+      auto block_size = setup.UniformBlockSize();
+
+      int z_blocks_per_sample = setup.UniformZBlocksPerSample();
+      int z_blocks_per_sample_shift = 0;
+      while (z_blocks_per_sample > (1 << z_blocks_per_sample_shift))
+        z_blocks_per_sample_shift++;
+
       warp::BatchWarpUniformSize
         <Mapping, spatial_ndim, OutputType, InputType, BorderType>
         <<<grid_dim, block_dim, 0, context.gpu.stream>>>(
           gpu_samples,
-          setup.UniformOutputSize(),
-          setup.UniformBlockSize(),
+          output_size,
+          block_size,
+          z_blocks_per_sample_shift,
           mapping.data,
           border);
       CUDA_CALL(cudaGetLastError());

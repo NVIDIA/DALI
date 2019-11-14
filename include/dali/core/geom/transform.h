@@ -74,6 +74,35 @@ inline mat3 rotation2D(float angle) {
 }
 
 DALI_HOST_DEV
+inline mat4 rotation3D(vec3 axis, float angle) {
+  if (!angle)
+    return mat4::identity();
+#ifdef __CUDA_ARCH__
+  float c = cosf(angle);
+  float s = sinf(angle);
+#else
+  float c = std::cos(angle);
+  float s = std::sin(angle);
+#endif
+  axis = axis.normalized();
+  float u = axis.x;
+  float v = axis.y;
+  float w = axis.z;
+  float uu = u*u;
+  float vv = v*v;
+  float ww = w*w;
+  float uv = u*v;
+  float uw = u*w;
+  float vw = v*w;
+  return {{
+    { uu + (vv+ww)*c, uv*(1-c) - w*s, uw*(1-c) + v*s, 0 },
+    { uv*(1-c) + w*s, vv + (uu+ww)*c, vw*(1-c) - u*s, 0 },
+    { uw*(1-c) - v*s, vw*(1-c) + u*s, ww + (uu+vv)*c, 0 },
+    { 0, 0, 0, 1 }
+  }};
+}
+
+DALI_HOST_DEV
 constexpr mat3 shear(vec2 shear) {
   return {{
     { 1, shear.x, 0 },

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <limits>
+
 #include "dali/test/dali_test_decoder.h"
 
 namespace dali {
@@ -56,7 +58,7 @@ class ImageDecoderSplitTest_GPU : public GenericDecoderTest<ImgType> {
   }
 
  private:
-  unsigned int hybrid_huffman_threshold_;
+  unsigned int hybrid_huffman_threshold_ = std::numeric_limits<unsigned int>::max();
   bool use_chunk_allocator_ = false;
 };
 

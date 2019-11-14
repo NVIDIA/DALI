@@ -43,7 +43,7 @@ class DLL_PUBLIC DeviceWorkspace : public WorkspaceBase<DeviceInputType, DeviceO
  public:
   using WorkspaceBase<DeviceInputType, DeviceOutputType>::input_t;
   using WorkspaceBase<DeviceInputType, DeviceOutputType>::output_t;
-  DLL_PUBLIC DeviceWorkspace() : stream_(0) {}
+  DLL_PUBLIC DeviceWorkspace() : stream_(0), event_(nullptr) {}
   DLL_PUBLIC ~DeviceWorkspace() override = default;
 
   /**

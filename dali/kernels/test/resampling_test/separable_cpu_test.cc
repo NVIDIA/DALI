@@ -25,6 +25,9 @@ namespace dali {
 namespace kernels {
 namespace resample_test {
 
+using namespace resampling;  // NOLINT
+
+
 template <typename ElementType>
 cv::Mat MatWithShape(TensorShape<3> shape) {
   using U = std::remove_const_t<ElementType>;
@@ -43,7 +46,7 @@ TEST_P(ResamplingTestCPU, Impl) {
   auto in_tensor = view_as_tensor<const uint8_t, 3>(img);
   auto ref_tensor = view_as_tensor<const uint8_t, 3>(ref);
 
-  SeparableResampleCPU<uint8_t, uint8_t> resample;
+  SeparableResampleCPU<uint8_t, uint8_t, 2> resample;
   KernelContext context;
   ScratchpadAllocator scratch_alloc;
 
@@ -147,11 +150,8 @@ static std::vector<ResamplingTestEntry> CropResampleTests = {
   },
 };
 
-
-
 INSTANTIATE_TEST_SUITE_P(Basic, ResamplingTestCPU, ::testing::ValuesIn(ResampleTests));
 INSTANTIATE_TEST_SUITE_P(Crop , ResamplingTestCPU, ::testing::ValuesIn(CropResampleTests));
-
 
 }  // namespace resample_test
 }  // namespace kernels

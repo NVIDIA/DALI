@@ -63,7 +63,12 @@ class DLL_PUBLIC FileStream {
     }
     ~FileStreamMappinReserver() {
       if (reserved) {
-        FileStream::FreeFileMappings(reserved);
+        try {
+          FileStream::FreeFileMappings(reserved);
+        } catch (const std::exception &) {
+          // Something went wrong with releasing resources. We'd better die now.
+          std::terminate();
+        }
       }
     }
 

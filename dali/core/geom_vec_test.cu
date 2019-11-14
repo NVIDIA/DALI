@@ -124,6 +124,11 @@ TEST(Vec, Cast) {
   EXPECT_EQ(a.cast<int>(), (vec<4, int>(1, 2, 3, -5)));
 }
 
+TEST(Vec, Convert) {
+  vec4 a = { 1.2f, 2.4f, 3.4f, -5.3f };
+  EXPECT_EQ(ivec4(a), (vec<4, int>(1, 2, 3, -5)));
+}
+
 TEST(Vec, Iteration) {
   const int N = 3;
   vec<N> v;
@@ -159,23 +164,35 @@ TEST(Vec, Normalized) {
 }
 
 TEST(Vec, Func) {
-  vec3 f = { -0.6f, 0.1f, 1.7f };
-  auto a = floor(f);
-  auto b = ceil(f);
-  auto c = clamp(f, vec3(0, 0, 0), vec3(1, 1, 1));
+  vec3 in = { -0.6f, 0.1f, 1.7f };
+  vec3 a = floor(in);
+  vec3 b = ceil(in);
+  vec3 c = clamp(in, vec3(0, 0, 0), vec3(1, 1, 1));
+  ivec3 d = floor_int(in);
+  ivec3 e = ceil_int(in);
+  ivec3 f = round_int(in);
   EXPECT_EQ(a, vec3(-1, 0, 1));
   EXPECT_EQ(b, vec3(0, 1, 2));
   EXPECT_EQ(c, vec3(0, 0.1f, 1.0f));
+  EXPECT_EQ(d, ivec3(-1, 0, 1));
+  EXPECT_EQ(e, ivec3(0, 1, 2));
+  EXPECT_EQ(f, ivec3(-1, 0, 2));
 }
 
 DEVICE_TEST(Dev_Vec, Func, 1, 1) {
-  vec3 f = { -0.6f, 0.1f, 1.7f };
-  auto a = floor(f);
-  auto b = ceil(f);
-  auto c = clamp(f, vec3(0, 0, 0), vec3(1, 1, 1));
+  vec3 in = { -0.6f, 0.1f, 1.7f };
+  vec3 a = floor(in);
+  vec3 b = ceil(in);
+  vec3 c = clamp(in, vec3(0, 0, 0), vec3(1, 1, 1));
+  ivec3 d = floor_int(in);
+  ivec3 e = ceil_int(in);
+  ivec3 f = round_int(in);
   DEV_EXPECT_EQ(a, vec3(-1, 0, 1));
   DEV_EXPECT_EQ(b, vec3(0, 1, 2));
   DEV_EXPECT_EQ(c, vec3(0, 0.1f, 1.0f));
+  DEV_EXPECT_EQ(d, ivec3(-1, 0, 1));
+  DEV_EXPECT_EQ(e, ivec3(0, 1, 2));
+  DEV_EXPECT_EQ(f, ivec3(-1, 0, 2));
 }
 
 TEST(Vec, MinMax) {

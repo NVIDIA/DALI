@@ -171,11 +171,11 @@ class OpticalFlow : public Operator<Backend> {
   std::once_flag of_initialized_;
   optical_flow::OpticalFlowParams of_params_;
   std::unique_ptr<optical_flow::OpticalFlowAdapter<ComputeBackend>> optical_flow_;
-  int frames_width_, frames_height_, depth_, nsequences_;
-  int hints_width_, hints_height_, hints_depth_;
-  std::vector<int> sequence_sizes_;
   DALIImageType image_type_;
   int device_id_;
+  int frames_width_ = -1, frames_height_ = -1, depth_ = -1, nsequences_ = -1;
+  int hints_width_ = -1, hints_height_ = -1, hints_depth_ = -1;
+  std::vector<int> sequence_sizes_;
 };
 
 }  // namespace dali

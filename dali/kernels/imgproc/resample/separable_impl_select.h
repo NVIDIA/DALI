@@ -21,11 +21,15 @@
 namespace dali {
 namespace kernels {
 
-template <typename OutputElement, typename InputElement>
-typename SeparableResamplingFilter<OutputElement, InputElement>::Ptr
-SeparableResamplingFilter<OutputElement, InputElement>::Create(const Params &params) {
+using namespace resampling;  // NOLINT
+
+template <typename OutputElement, typename InputElement, int spatial_ndim>
+typename SeparableResamplingFilter<OutputElement, InputElement, spatial_ndim>::Ptr
+SeparableResamplingFilter<OutputElement, InputElement, spatial_ndim>::Create(
+    const Params &params) {
   (void)params;
-  using ImplType = SeparableResamplingGPUImpl<OutputElement, InputElement>;
+  using ImplType =
+    resampling::SeparableResamplingGPUImpl<OutputElement, InputElement, spatial_ndim>;
   return Ptr(new ImplType());
 }
 

@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include "dali/util/image.h"
+#include "dali/core/format.h"
 
 namespace dali {
 
@@ -62,6 +63,7 @@ std::vector<std::string> list_files(
 
     image_list.push_back(full_path);
   }
+  DALI_ENFORCE(closedir(d) == 0, make_string("Error closing directory: ", errno));
   return image_list;
 }
 
