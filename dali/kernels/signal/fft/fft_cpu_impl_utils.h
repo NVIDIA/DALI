@@ -36,9 +36,8 @@ struct ComplexSpectrumCalculator {
 
     if (reconstruct_second_half) {
       for (int i = nfft / 2 + 1; i < nfft; i++) {
-        // start mirroring nfft/2+1+i -> nfft/2-1-i
-        auto tmp = in[(nfft - i)*in_stride];
-        out[i*out_stride] = {tmp.real(), -tmp.imag()};
+        // mirroring nfft/2+1+i -> nfft/2-1-i
+        out[i*out_stride] = in[(nfft - i)*in_stride].conj();
       }
     }
   }
