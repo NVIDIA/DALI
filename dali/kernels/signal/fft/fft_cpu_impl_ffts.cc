@@ -120,7 +120,7 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
   float* out_buf = context.scratchpad->template Allocate<float>(AllocType::Host, out_buf_sz, 32);
   memset(out_buf, 0, out_buf_sz*sizeof(float));
 
-  auto in_shape = in.shape;  
+  auto in_shape = in.shape;
   auto in_strides = GetStrides(in_shape);
   auto out_shape = out.shape;
   auto out_strides = GetStrides(out_shape);
