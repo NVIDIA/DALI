@@ -74,19 +74,17 @@ void CompareFfts(const span<const std::complex<float>>& reference,
 
 void PowerSpectrum(span<float> out,
                    span<std::complex<float>> in,
-                   int64_t nfft,
-                   float floor_pow = 1e-30) {
+                   int64_t nfft) {
   for (int64_t k = 0; k <= nfft / 2; k++) {
-    out[k] = std::max(norm(in[k]), floor_pow);
+    out[k] = std::norm(in[k]);
   }
 }
 
 void MagSpectrum(span<float> out,
                  span<std::complex<float>> in,
-                 int64_t nfft,
-                 float floor_pow = 1e-30) {
+                 int64_t nfft) {
   for (int64_t k = 0; k <= nfft / 2; k++) {
-    out[k] = std::max(abs(in[k]), floor_pow);
+    out[k] = std::abs(in[k]);
   }
 }
 
