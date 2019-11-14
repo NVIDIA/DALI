@@ -81,27 +81,33 @@ class DLL_PUBLIC FftImpl {
  *   or a transformation of the complex spectrum (power, magnitude)
  *
  * Input data can be a 2D or 3D tensor representing a signal (e.g. [channels, time]) or
- * a sequence of frames (e.g. [channels, frames, time]). The kernel can work with other data
- * layouts by providing the transform_axis representing the dimension to be transformed to the
- * frequency domain (e.g. for a layout of [channels, time, frames] we set transform_axis=1 to
- * produce a [channels, frequency, frames] layout)
+ * a sequence of frames (e.g. [channels, frames, time]).
+ *
+ * Output is a tensor of same dimensionality as the input, with `nfft/2+1` samples (real or complex
+ * depending on the spectrum type argument) in the `transform_axis` dimension, where `nfft`
+ * represents the size of the FFT.
+ *
+ * The kernel can work with different data layouts by providing the `transform_axis`
+ * representing the dimension to be transformed to the frequency domain (e.g. for a layout of
+ * [channels, time, frames] we set transform_axis=1 to produce a [channels, frequency, frames]
+ * layout)
  *
  * @param args.spectrum_type defines the nature of the output
  *   FFT_SPECTRUM_COMPLEX:
- *     Output represents the complex spectrum with real and imaginary parts interleaved
- *     Output is a 2D tensor of shape Fx(NFFT*2) where NFFT represents the FFT size
+ *     Output represents the complex positive half of the spectrum with real and imaginary parts
+ *     interleaved
  *   FFT_SPECTRUM_MAGNITUDE:
- *     Output represents the magnitude of positive half of the spectrum,
- *      as a 2D tensor of shape Fx(NFFT/2+1)
+ *     Output represents the magnitude of the positive half of the spectrum,
+ *      i.e. `sqrt(real*real + imag*imag)`
  *   FFT_SPECTRUM_POWER:
- *     Output represents the power of the spectrum, as a 2D tensor of shape Fx(NFFT/2+1)
- * (where NFFT is the size of the FFT)
+ *     Output represents the power of the positive half of the spectrum,
+ *     i.e. `real*real + imag*imag`
  *
- * @param args.nfft Number of samples in the FFT. If not provided, nfft will be calculated as the
- *   next power of two of the size of the transform axis.
+ * @param args.nfft Number of samples in the FFT. If not provided, `nfft` will be set to match the
+ *        lenght of the input in the `transform_axis` dimension.
  *
  * @param args.transform_axis Axis along which the FFT transformation will be calculated
- *     (note: current implementation only supports transform_axis to be the inner-most dimension
+ *
  */
 template <typename OutputType = std::complex<float>,  typename InputType = float, int Dims = 2>
 class DLL_PUBLIC Fft1DCpu {
