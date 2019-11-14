@@ -56,6 +56,11 @@ class TypedAudioDecoderBase : public AudioDecoderBase {
   void Decode(span<char> raw_output) override {
     int max_samples = static_cast<int>(raw_output.size() / sizeof(SampleType));
     DecodeTyped({reinterpret_cast<SampleType *>(raw_output.data()), max_samples});
+    auto*ptr = (int16_t*)raw_output.data();
+    cout<<"Decode abstract\n";
+    for (int i=0;i<10;i++) {
+      cout<<(int)ptr[i]<<"\t"<<(int)ptr[raw_output.size()/sizeof(int16_t)-i]<<endl;
+    }
   }
 
 
