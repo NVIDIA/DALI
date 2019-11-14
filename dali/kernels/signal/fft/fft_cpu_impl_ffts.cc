@@ -98,57 +98,55 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
   float* out_buf = context.scratchpad->template Allocate<float>(AllocType::Host, out_buf_sz, 32);
   memset(out_buf, 0, out_buf_sz*sizeof(float));
 
-  auto in_strides = in.shape;
+  auto in_shape = in.shape;
+  auto in_strides = in_shape;
   in_strides[in_strides.size()-1] = 1;
   for (int d = in_strides.size()-2; d >= 0; d--) {
     in_strides[d] = in_strides[d+1] * in.shape[d+1];
   }
-  auto out_strides = out.shape;
+  auto out_shape = out.shape;
+  auto out_strides = out_shape;
   out_strides[out_strides.size()-1] = 1;
   for (int d = out_strides.size()-2; d >= 0; d--) {
     out_strides[d] = out_strides[d+1] * out.shape[d+1];
   }
 
-  // Step in the transform axis
-  auto out_stride = out_strides[transform_axis_];
-  auto in_stride = in_strides[transform_axis_];
+  ForAxis(
+    out.data, in.data, out_shape.data(), out_strides.data(), in_shape.data(), in_strides.data(),
+    transform_axis_, out.dim(),
+    [this, &args, use_real_impl, out_buf, in_buf](
+      OutputType *out_data, const InputType *in_data,
+      int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
+        int64_t in_idx = 0;
+        if (use_real_impl) {
+          for (int i = 0; i < in_size; i++) {
+            in_buf[i] = ConvertSat<float>(in_data[in_idx]);
+            in_idx += in_stride;
+          }
+        } else {
+          for (int i = 0; i < in_size; i++) {
+            in_buf[2 * i] = ConvertSat<float>(in_data[in_idx]);
+            in_buf[2 * i + 1] = 0.0f;
+            in_idx += in_stride;
+          }
+        }
 
-  std::vector<std::pair<OutputType*, const InputType*>> slices;
-  slices.push_back(std::make_pair(out.data, in.data));
-  Get1DSlices(slices, out.shape.data(), out_strides.data(),
-              in.shape.data(), in_strides.data(), transform_axis_, Dims);
-  for (auto &slice : slices) {
-    OutputType* out_data = slice.first;
-    const InputType* in_data = slice.second;
+        ffts_execute(plan_.get(), in_buf, out_buf);
 
-    int64_t in_idx = 0;
-    if (use_real_impl) {
-      for (int i = 0; i < n; i++) {
-        in_buf[i] = ConvertSat<float>(in_data[in_idx]);
-        in_idx += in_stride;
-      }
-    } else {
-      for (int i = 0; i < n; i++) {
-        in_buf[2*i] = ConvertSat<float>(in_data[in_idx]);
-        in_buf[2*i+1] = 0.0f;
-        in_idx += in_stride;
-      }
-    }
-
-    ffts_execute(plan_.get(), in_buf, out_buf);
-
-    // For complex impl, out_buf_sz contains the whole spectrum,
-    // for real impl, the second half of the spectrum is ommited
-    // In any case, we are interested in the first half of the spectrum only
-    auto* complex_fft = reinterpret_cast<std::complex<float>*>(out_buf);
-    if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
-      auto* complex_out = reinterpret_cast<std::complex<float>*>(out_data);
-      ComplexSpectrumCalculator().Calculate(complex_out, complex_fft, nfft_, out_stride, 1);
-    } else {
-      MagnitudeSpectrumCalculator().Calculate(
-          args.spectrum_type, out_data, complex_fft, nfft_/2+1, out_stride, 1);
-    }
-  }
+        // For complex impl, out_buf_sz contains the whole spectrum,
+        // for real impl, the second half of the spectrum is ommited
+        // In any case, we are interested in the first half of the spectrum only
+        auto *complex_fft = reinterpret_cast<std::complex<float> *>(out_buf);
+        if (args.spectrum_type == FFT_SPECTRUM_COMPLEX) {
+          auto *complex_out = reinterpret_cast<std::complex<float> *>(out_data);
+          for (int i = 0; i < nfft_/2+1; i++) {
+            complex_out[i*out_stride] = complex_fft[i];
+          }
+        } else {
+          MagnitudeSpectrumCalculator().Calculate(
+            args.spectrum_type, out_data, complex_fft, out_size, out_stride, 1);
+        }
+    });
 }
 
 // 2 Dims, typically input (channels, time), producing output (channels, frequency)
