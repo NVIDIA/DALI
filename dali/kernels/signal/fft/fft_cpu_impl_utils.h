@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_SIGNAL_FFT_FFT_CPU_IMPL_UTILS_H_
 #define DALI_KERNELS_SIGNAL_FFT_FFT_CPU_IMPL_UTILS_H_
 
+#include "dali/core/util.h"
 #include <utility>
 #include <vector>
 
@@ -23,35 +24,6 @@ namespace kernels {
 namespace signal {
 namespace fft {
 namespace impl {
-
-inline int64_t next_pow2(int64_t n) {
-  int64_t pow2 = 2;
-  while (n > pow2) {
-    pow2 *= 2;
-  }
-  return pow2;
-}
-
-inline bool is_pow2(int64_t n) {
-  return (n & (n-1)) == 0;
-}
-
-inline bool can_use_real_impl(int64_t n) {
-  // Real impl can be selected when doing forward transform and n is a power of 2
-  return is_pow2(n);
-}
-
-inline int64_t size_in_buf(int64_t n) {
-  // Real impl input needs:    N real numbers    -> N floats
-  // Complex impl input needs: N complex numbers -> 2*N floats
-  return can_use_real_impl(n) ? n : 2*n;
-}
-
-inline int64_t size_out_buf(int64_t n) {
-  // Real impl output needs:    (N/2)+1 complex numbers -> N+2 floats
-  // Complex impl output needs: N complex numbers       -> 2*N floats
-  return can_use_real_impl(n) ? n+2 : 2*n;
-}
 
 struct ComplexSpectrumCalculator {
   template <typename OutputType = std::complex<float>, typename InputType = std::complex<float>>

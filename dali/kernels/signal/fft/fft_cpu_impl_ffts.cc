@@ -32,6 +32,27 @@ namespace signal {
 namespace fft {
 namespace impl {
 
+namespace  {
+
+inline bool can_use_real_impl(int64_t n) {
+  // Real impl can be selected when doing forward transform and n is a power of 2
+  return is_pow2(n);
+}
+
+inline int64_t size_in_buf(int64_t n) {
+  // Real impl input needs:    N real numbers    -> N floats
+  // Complex impl input needs: N complex numbers -> 2*N floats
+  return can_use_real_impl(n) ? n : 2*n;
+}
+
+inline int64_t size_out_buf(int64_t n) {
+  // Real impl output needs:    (N/2)+1 complex numbers -> N+2 floats
+  // Complex impl output needs: N complex numbers       -> 2*N floats
+  return can_use_real_impl(n) ? n+2 : 2*n;
+}
+
+}  // namespace
+
 template <typename OutputType, typename InputType, int Dims>
 KernelRequirements Fft1DImplFfts<OutputType, InputType, Dims>::Setup(
     KernelContext &context,
