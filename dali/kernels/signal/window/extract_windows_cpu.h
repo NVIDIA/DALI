@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_H_
-#define DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_H_
+#ifndef DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_CPU_H_
+#define DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_CPU_H_
 
 #include <memory>
 #include <complex>
@@ -67,16 +67,20 @@ class DLL_PUBLIC ExtractWindowsCpu {
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InTensorCPU<InputType, InputDims> &in,
+                                      const InTensorCPU<float, 1> &window_fn,
                                       const ExtractWindowsArgs &args);
 
   DLL_PUBLIC void Run(KernelContext &context,
                       const OutTensorCPU<OutputType, OutputDims> &out,
                       const InTensorCPU<InputType, InputDims> &in,
+                      const InTensorCPU<float, 1> &window_fn,
                       const ExtractWindowsArgs &args);
+
  private:
   ExtractWindowsArgs args_;
   int64_t window_length_ = -1;
   int64_t window_step_ = -1;
+  int64_t window_fn_length_ = -1;
   int64_t nwindows_ = -1;
   int64_t in_time_axis_ = -1;
   int64_t out_frame_axis_ = -1;
@@ -87,4 +91,4 @@ class DLL_PUBLIC ExtractWindowsCpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_H_
+#endif  // DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_CPU_H_

@@ -39,11 +39,17 @@ template <typename OutputType, typename InputType, int Dims>
 KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
     KernelContext &context,
     const InTensorCPU<InputType, InputDims> &in,
+    const InTensorCPU<float, 1> &window_fn,
     const ExtractWindowsArgs &args) {
   KernelRequirements req;
 
   window_length_ = args.window_length > 0 ? args.window_length : 1;
   window_step_ = args.window_step > 0 ? args.window_step : 1;
+
+  window_fn_length_ = volume(window_fn.shape);
+  DALI_ENFORCE(window_fn_length_ > 0, "Window function should not be empty");
+  DALI_ENFORCE(window_fn_length_ <= window_length_,
+    "Window function size should be equal or less than the specified window length");
 
   // input data temporal axis (last in input shape by default)
   in_time_axis_ = args.in_time_axis >= 0 ? args.in_time_axis : InputDims - 1;
@@ -96,6 +102,7 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
     KernelContext &context,
     const OutTensorCPU<OutputType, OutputDims> &out,
     const InTensorCPU<InputType, InputDims> &in,
+    const InTensorCPU<float, 1> &window_fn,
     const ExtractWindowsArgs &args) {
 
   auto in_shape = in.shape;
@@ -110,15 +117,15 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
   ForAxis(
     out.data, in.data, flat_out_shape.data(), out_strides.data(),
     in_shape.data(), in_strides.data(), in_time_axis_, InputDims,
-    [this](
+    [this, &window_fn](
       OutputType *out_data, const InputType *in_data,
       int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
-        for (int window_idx = 0; window_idx < nwindows_; window_idx++) {
-          for (int t = 0; t < window_length_; t++) {
-            int out_idx = window_idx * window_length_ + t;
-            int in_idx = window_idx * window_step_ + t;
-            if (in_idx < in_size) {
-              out_data[out_idx * out_stride] = in_data[in_idx * in_stride];
+        for (int64_t window_idx = 0; window_idx < nwindows_; window_idx++) {
+          for (int64_t t = 0; t < window_length_; t++) {
+            int64_t out_idx = window_idx * window_length_ + t;
+            int64_t in_idx = window_idx * window_step_ + t;
+            if (in_idx >= 0 && in_idx < in_size) {
+              out_data[out_idx * out_stride] = window_fn.data[t] * in_data[in_idx * in_stride];
             } else {
               out_data[out_idx * out_stride] = 0;
             }

@@ -71,7 +71,16 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   args.in_time_axis = in_time_axis_;
   args.out_frame_axis = out_frame_axis_;
 
-  KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
+  // Hamming window
+  float a0 = 0.54;
+  float a1 = 1.0f - a0;
+  std::vector<float> window_fn_data(window_length_);
+  for (int t = 0; t < window_length_; t++) {
+    window_fn_data[t] = a0 - a1 * cos(2.0f * M_PI * t / window_length_);
+  }
+  auto window_fn_view = OutTensorCPU<float, 1>(window_fn_data.data(), {1});
+
+  KernelRequirements reqs = kernel.Setup(ctx, in_view_, window_fn_view, args);
   auto shape = reqs.output_shapes[0];
 
   auto n = in_view_.shape[in_time_axis_];
@@ -102,7 +111,7 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
       for (int t = 0; t < window_length_; t++) {
         auto out_k = w * window_length_ + t;
         auto in_k = w * window_step_ + t;
-        out_slice[out_k] = (in_k < n) ? in_slice[in_k] : 0;
+        out_slice[out_k] = (in_k < n) ? window_fn_data[t] * in_slice[in_k] : 0;
       }
     }
   }
@@ -110,7 +119,7 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   LOG_LINE << "in:\n";
   for (int i0 = 0; i0 < in_view_.shape[0]; i0++) {
     for (int i1 = 0; i1 < in_view_.shape[1]; i1++) {
-      int k = i0*in_shape[1] + i1;
+      int k = i0 * in_shape[1] + i1;
       LOG_LINE << " " << in_view_.data[k];
     }
     LOG_LINE << "\n";
@@ -136,7 +145,7 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   std::vector<OutputType> out(out_size);
   auto out_view = OutTensorCPU<OutputType, OutputDims>(
     out.data(), out_shape.to_static<OutputDims>());
-  kernel.Run(ctx, out_view, in_view_, args);
+  kernel.Run(ctx, out_view, in_view_, window_fn_view, args);
 
   for (int idx = 0; idx < volume(out_view.shape); idx++) {
     EXPECT_EQ(expected_out[idx], out_view.data[idx]);
@@ -145,10 +154,10 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
 
 INSTANTIATE_TEST_SUITE_P(ExtractWindowsCpuTest, ExtractWindowsCpuTest, testing::Combine(
     testing::Values(std::array<int64_t, 2>{3, 4}),
-                    //std::array<int64_t, 2>{1, 10}),
-                    //std::array<int64_t, 2>{1, 64},
-                    //std::array<int64_t, 2>{1, 100},
-                    //std::array<int64_t, 2>{1, 4096}),
+                    // std::array<int64_t, 2>{1, 10}),
+                    // std::array<int64_t, 2>{1, 64},
+                    // std::array<int64_t, 2>{1, 100},
+                    // std::array<int64_t, 2>{1, 4096}),
     testing::Values(4, 2),
     testing::Values(2, 4),
     testing::Values(1),
