@@ -31,7 +31,7 @@ namespace test {
 void NaiveDft(std::vector<std::complex<float>> &out,
               const span<const float>& in,
               int64_t nfft,
-              bool full_spectrum = true) {
+              bool full_spectrum = false) {
   auto n = in.size();
   auto out_size = full_spectrum ? nfft : nfft/2+1;
   out.clear();
@@ -144,7 +144,7 @@ TEST_P(ComplexFft1DCpuTest, FftTest) {
   ctx.scratchpad = &scratchpad;
 
   TensorShape<> expected_out_shape = in_shape;
-  expected_out_shape[args.transform_axis] = nfft;
+  expected_out_shape[args.transform_axis] = nfft/2+1;
 
   auto out_shape = reqs.output_shapes[0][0];
   ASSERT_EQ(expected_out_shape, out_shape);
@@ -156,17 +156,17 @@ TEST_P(ComplexFft1DCpuTest, FftTest) {
   kernel.Run(ctx, out_view, in_view_, args);
 
   LOG_LINE << "FFT:" << std::endl;
-  for (int i = 0; i < nfft; i++) {
+  for (int i = 0; i < nfft/2+1; i++) {
     LOG_LINE << "(" << out_view.data[i].real() << "," << out_view.data[i].imag() << "i)\n";
   }
 
-  std::vector<std::complex<float>> reference_fft(nfft);
+  std::vector<std::complex<float>> reference_fft(nfft/2+1);
   NaiveDft(reference_fft, make_cspan(in_view_.data, n), nfft, true);
   LOG_LINE << "Reference FFT:" << std::endl;
-  for (int i = 0; i < nfft; i++) {
+  for (int i = 0; i < nfft/2+1; i++) {
     LOG_LINE << "(" << reference_fft[i].real() << "," << reference_fft[i].imag() << "i)\n";
   }
-  CompareFfts(make_cspan(reference_fft.data(), nfft), make_cspan(out_view.data, nfft));
+  CompareFfts(make_cspan(reference_fft.data(), nfft/2+1), make_cspan(out_view.data, nfft/2+1));
 }
 
 INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, ComplexFft1DCpuTest, testing::Combine(
@@ -221,10 +221,10 @@ TEST_P(PowerSpectrum1DCpuTest, FftTest) {
   auto out_view = OutTensorCPU<OutputType, 2>(out_data.data(), out_shape.to_static<2>());
   kernel.Run(ctx, out_view, in_view_, args);
 
-  std::vector<std::complex<float>> reference_fft(nfft);
-  NaiveDft(reference_fft, make_cspan(in_view_.data, n), nfft, true);
+  std::vector<std::complex<float>> reference_fft(nfft/2+1);
+  NaiveDft(reference_fft, make_cspan(in_view_.data, n), nfft);
 
-  std::vector<float> reference(out_size);
+  std::vector<float> reference(nfft/2+1);
   switch (args.spectrum_type) {
     case FFT_SPECTRUM_POWER:
       PowerSpectrum(make_span(reference), make_span(reference_fft), nfft);
@@ -303,7 +303,7 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
   ctx.scratchpad = &scratchpad;
 
   auto expected_out_shape = in_shape;
-  expected_out_shape[args.transform_axis] = nfft;
+  expected_out_shape[args.transform_axis] = nfft/2+1;
 
   auto out_shape = reqs.output_shapes[0][0].to_static<3>();
   ASSERT_EQ(expected_out_shape, out_shape);
@@ -330,7 +330,7 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
   }
   int64_t out_stride = out_strides[args.transform_axis];
 
-  std::vector<std::complex<float>> reference_fft(nfft);
+  std::vector<std::complex<float>> reference_fft(nfft/2+1);
 
   int64_t total_ffts = volume(in_shape) / n;
   LOG_LINE << "in_shape " << in_shape << std::endl;
@@ -390,7 +390,7 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
 
   std::vector<float> in_data_buf(n, 0);
   auto *in_data_ptr = in_view_.data;
-  std::vector<OutputType> out_data_buf(nfft, {0.0f, 0.0f});
+  std::vector<OutputType> out_data_buf(nfft/2+1, {0.0f, 0.0f});
   auto *out_data_ptr = out_view.data;
 
   for (int i = 0; i < in_shape[dims[0]]; i++) {
@@ -406,20 +406,20 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
       }
       LOG_LINE << " ]\n";
 
-      for (int k = 0; k < nfft; k++) {
+      for (int k = 0; k < nfft/2+1; k++) {
         out_data_buf[k] = out_data_ptr1[k*out_stride];
       }
 
-      NaiveDft(reference_fft, make_cspan(in_data_buf), nfft, true);
+      NaiveDft(reference_fft, make_cspan(in_data_buf), nfft);
 
       LOG_LINE << "Reference data: ";
-      for (int k = 0; k < nfft; k++) {
+      for (int k = 0; k < nfft/2+1; k++) {
         LOG_LINE << " (" << reference_fft[k].real() << ", " << reference_fft[k].imag() << "),";
       }
       LOG_LINE << std::endl;
 
       LOG_LINE << "Actual data: ";
-      for (int k = 0; k < nfft; k++) {
+      for (int k = 0; k < nfft/2+1; k++) {
         LOG_LINE << " (" << out_data_buf[k].real() << ", " << out_data_buf[k].imag() << "),";
       }
       LOG_LINE << std::endl;
