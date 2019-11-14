@@ -34,31 +34,6 @@ inline bool is_pow2(int64_t n) {
   return (n & (n-1)) == 0;
 }
 
-template <typename OutputType, typename InputType>
-void Get1DSlices(std::vector<std::pair<OutputType*, const InputType*>>& slices,
-                 const int64_t *out_shape,
-                 const int64_t *out_strides,
-                 const int64_t *in_shape,
-                 const int64_t *in_strides,
-                 int axis,
-                 int ndim) {
-  for (int dim = 0; dim < ndim; dim++) {
-    if (axis != dim) {
-      int sz = slices.size();
-      for (int i = 0; i < sz; i++) {
-        auto &slice = slices[i];
-        auto *out_ptr = slice.first;
-        auto *in_ptr = slice.second;
-        for (int i = 1; i < in_shape[dim]; i++) {
-          out_ptr += out_strides[dim];
-          in_ptr += in_strides[dim];
-          slices.push_back({out_ptr, in_ptr});
-        }
-      }
-    }
-  }
-}
-
 /**
  * @brief iterator through all the 1-dimensional slices on a given axis
  */

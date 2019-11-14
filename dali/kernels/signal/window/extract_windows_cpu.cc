@@ -107,17 +107,6 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
   flat_out_shape[in_time_axis_] = nwindows_ * window_length_;
   auto out_strides = GetStrides(flat_out_shape);
 
-  std::vector<std::pair<OutputType*, const InputType*>> slices;
-  slices.push_back(std::make_pair(out.data, in.data));
-  Get1DSlices(slices,
-              flat_out_shape.data(), out_strides.data(),
-              in_shape.data(), in_strides.data(),
-              in_time_axis_, InputDims);
-
-  const auto out_stride = out_strides[in_time_axis_];
-  const auto in_stride = in_strides[in_time_axis_];
-  const auto in_t_size = in.shape[in_time_axis_];
-
   ForAxis(
     out.data, in.data, flat_out_shape.data(), out_strides.data(),
     in_shape.data(), in_strides.data(), in_time_axis_, InputDims,
