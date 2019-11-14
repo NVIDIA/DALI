@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_FRAMES_H_
-#define DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_FRAMES_H_
+#ifndef DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_H_
+#define DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_H_
 
 #include <memory>
 #include <complex>
@@ -28,20 +28,20 @@ namespace kernels {
 namespace signal {
 namespace window {
 
-struct ExtractFramesArgs {
+struct ExtractWindowsArgs {
   int64_t window_length = -1;
   int64_t window_step = -1;
   int64_t in_time_axis = -1;
   int64_t out_frame_axis = -1;
 
-  inline bool operator==(const ExtractFramesArgs& oth) const {
+  inline bool operator==(const ExtractWindowsArgs& oth) const {
     return window_length == oth.window_length &&
            window_step == oth.window_step &&
            in_time_axis == oth.in_time_axis &&
            out_frame_axis == oth.out_frame_axis;
   }
 
-  inline bool operator!=(const ExtractFramesArgs& oth) const {
+  inline bool operator!=(const ExtractWindowsArgs& oth) const {
     return !operator==(oth);
   }
 };
@@ -55,7 +55,7 @@ struct ExtractFramesArgs {
  *        will be choosen (no overlap)
  */
 template <typename OutputType = float, typename InputType = float, int Dims = 1>
-class DLL_PUBLIC ExtractFramesCpu {
+class DLL_PUBLIC ExtractWindowsCpu {
  public:
   static constexpr int InputDims = Dims;
   static constexpr int OutputDims = Dims + 1;
@@ -63,18 +63,18 @@ class DLL_PUBLIC ExtractFramesCpu {
   static_assert(std::is_same<OutputType, InputType>::value,
     "Type conversion is not allowed in this kernel");
 
-  DLL_PUBLIC ~ExtractFramesCpu();
+  DLL_PUBLIC ~ExtractWindowsCpu();
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InTensorCPU<InputType, InputDims> &in,
-                                      const ExtractFramesArgs &args);
+                                      const ExtractWindowsArgs &args);
 
   DLL_PUBLIC void Run(KernelContext &context,
                       const OutTensorCPU<OutputType, OutputDims> &out,
                       const InTensorCPU<InputType, InputDims> &in,
-                      const ExtractFramesArgs &args);
+                      const ExtractWindowsArgs &args);
  private:
-  ExtractFramesArgs args_;
+  ExtractWindowsArgs args_;
   int64_t window_length_ = -1;
   int64_t window_step_ = -1;
   int64_t nwindows_ = -1;
@@ -87,4 +87,4 @@ class DLL_PUBLIC ExtractFramesCpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_FRAMES_H_
+#endif  // DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_H_

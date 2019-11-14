@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/kernels/signal/window/extract_frames_cpu.h"
+#include "dali/kernels/signal/window/extract_windows_cpu.h"
 #include <algorithm>
 #include "dali/kernels/signal/signal_kernel_utils.h"
 #include "dali/core/common.h"
@@ -27,19 +27,19 @@ namespace signal {
 namespace window {
 
 template <typename OutputType, typename InputType, int Dims>
-constexpr int ExtractFramesCpu<OutputType, InputType, Dims>::InputDims;
+constexpr int ExtractWindowsCpu<OutputType, InputType, Dims>::InputDims;
 
 template <typename OutputType, typename InputType, int Dims>
-constexpr int ExtractFramesCpu<OutputType, InputType, Dims>::OutputDims;
+constexpr int ExtractWindowsCpu<OutputType, InputType, Dims>::OutputDims;
 
 template <typename OutputType, typename InputType, int Dims>
-ExtractFramesCpu<OutputType, InputType, Dims>::~ExtractFramesCpu() = default;
+ExtractWindowsCpu<OutputType, InputType, Dims>::~ExtractWindowsCpu() = default;
 
 template <typename OutputType, typename InputType, int Dims>
-KernelRequirements ExtractFramesCpu<OutputType, InputType, Dims>::Setup(
+KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
     KernelContext &context,
     const InTensorCPU<InputType, InputDims> &in,
-    const ExtractFramesArgs &args) {
+    const ExtractWindowsArgs &args) {
   KernelRequirements req;
 
   window_length_ = args.window_length > 0 ? args.window_length : 1;
@@ -92,11 +92,11 @@ KernelRequirements ExtractFramesCpu<OutputType, InputType, Dims>::Setup(
 }
 
 template <typename OutputType, typename InputType, int Dims>
-void ExtractFramesCpu<OutputType, InputType, Dims>::Run(
+void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
     KernelContext &context,
     const OutTensorCPU<OutputType, OutputDims> &out,
     const InTensorCPU<InputType, InputDims> &in,
-    const ExtractFramesArgs &args) {
+    const ExtractWindowsArgs &args) {
 
   auto in_shape = in.shape;
   auto in_strides = GetStrides(in_shape);
@@ -138,11 +138,11 @@ void ExtractFramesCpu<OutputType, InputType, Dims>::Run(
     });
 }
 
-template class ExtractFramesCpu<float, float, 1>;  // 1-channel
-template class ExtractFramesCpu<uint8_t, uint8_t, 1>;  // 1-channel
+template class ExtractWindowsCpu<float, float, 1>;  // 1-channel
+template class ExtractWindowsCpu<uint8_t, uint8_t, 1>;  // 1-channel
 
-template class ExtractFramesCpu<float, float, 2>;  // n-channel
-template class ExtractFramesCpu<uint8_t, uint8_t, 2>;  // n-channel
+template class ExtractWindowsCpu<float, float, 2>;  // n-channel
+template class ExtractWindowsCpu<uint8_t, uint8_t, 2>;  // n-channel
 
 
 }  // namespace window

@@ -19,7 +19,7 @@
 #include <cmath>
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/signal/signal_kernel_utils.h"
-#include "dali/kernels/signal/window/extract_frames_cpu.h"
+#include "dali/kernels/signal/window/extract_windows_cpu.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 
@@ -29,10 +29,10 @@ namespace signal {
 namespace window {
 namespace test {
 
-class ExtractFramesCpuTest : public::testing::TestWithParam<
+class ExtractWindowsCpuTest : public::testing::TestWithParam<
   std::tuple<std::array<int64_t, 2>, int64_t, int64_t, int64_t, int64_t>> {
  public:
-  ExtractFramesCpuTest()
+  ExtractWindowsCpuTest()
     : data_shape_(std::get<0>(GetParam()))
     , window_length_(std::get<1>(GetParam()))
     , window_step_(std::get<2>(GetParam()))
@@ -41,7 +41,7 @@ class ExtractFramesCpuTest : public::testing::TestWithParam<
     , data_(volume(data_shape_))
     , in_view_(data_.data(), data_shape_) {}
 
-  ~ExtractFramesCpuTest() override = default;
+  ~ExtractWindowsCpuTest() override = default;
 
  protected:
   void SetUp() final {
@@ -54,18 +54,18 @@ class ExtractFramesCpuTest : public::testing::TestWithParam<
   OutTensorCPU<float, 2> in_view_;
 };
 
-TEST_P(ExtractFramesCpuTest, ExtractFramesTest) {
+TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   using OutputType = float;
   using InputType = float;
   constexpr int Dims = 2;
   constexpr int InputDims = Dims;
   constexpr int OutputDims = Dims + 1;
 
-  ExtractFramesCpu<OutputType, InputType, Dims> kernel;
+  ExtractWindowsCpu<OutputType, InputType, Dims> kernel;
   check_kernel<decltype(kernel)>();
 
   KernelContext ctx;
-  ExtractFramesArgs args;
+  ExtractWindowsArgs args;
   args.window_length = window_length_;
   args.window_step = window_step_;
   args.in_time_axis = in_time_axis_;
@@ -143,7 +143,7 @@ TEST_P(ExtractFramesCpuTest, ExtractFramesTest) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(ExtractFramesCpuTest, ExtractFramesCpuTest, testing::Combine(
+INSTANTIATE_TEST_SUITE_P(ExtractWindowsCpuTest, ExtractWindowsCpuTest, testing::Combine(
     testing::Values(std::array<int64_t, 2>{3, 4}),
                     //std::array<int64_t, 2>{1, 10}),
                     //std::array<int64_t, 2>{1, 64},
