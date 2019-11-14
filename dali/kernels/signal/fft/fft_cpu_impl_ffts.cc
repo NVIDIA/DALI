@@ -25,6 +25,7 @@
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/signal/fft/fft_cpu_impl_utils.h"
+#include "dali/kernels/signal/signal_kernel_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -119,18 +120,10 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
   float* out_buf = context.scratchpad->template Allocate<float>(AllocType::Host, out_buf_sz, 32);
   memset(out_buf, 0, out_buf_sz*sizeof(float));
 
-  auto in_shape = in.shape;
-  auto in_strides = in_shape;
-  in_strides[in_strides.size()-1] = 1;
-  for (int d = in_strides.size()-2; d >= 0; d--) {
-    in_strides[d] = in_strides[d+1] * in.shape[d+1];
-  }
+  auto in_shape = in.shape;  
+  auto in_strides = GetStrides(in_shape);
   auto out_shape = out.shape;
-  auto out_strides = out_shape;
-  out_strides[out_strides.size()-1] = 1;
-  for (int d = out_strides.size()-2; d >= 0; d--) {
-    out_strides[d] = out_strides[d+1] * out.shape[d+1];
-  }
+  auto out_strides = GetStrides(out_shape);
 
   ForAxis(
     out.data, in.data, out_shape.data(), out_strides.data(), in_shape.data(), in_strides.data(),

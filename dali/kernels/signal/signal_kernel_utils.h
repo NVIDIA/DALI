@@ -12,57 +12,52 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_FFT_FFT_CPU_IMPL_UTILS_H_
-#define DALI_KERNELS_SIGNAL_FFT_FFT_CPU_IMPL_UTILS_H_
+#ifndef DALI_KERNELS_SIGNAL_SIGNAL_KERNEL_UTILS_H_
+#define DALI_KERNELS_SIGNAL_SIGNAL_KERNEL_UTILS_H_
 
 #include <utility>
 #include <vector>
-#include "dali/core/util.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
-namespace fft {
-namespace impl {
 
-struct ComplexSpectrumCalculator {
-  template <typename OutputType = std::complex<float>, typename InputType = std::complex<float>>
-  void Calculate(OutputType *out, const InputType *in,
-                 int64_t nfft, int64_t out_stride = 1, int64_t in_stride = 1,
-                 bool reconstruct_second_half = false) {
-    for (int i = 0; i <= nfft / 2; i++) {
-      out[i*out_stride] = in[i*in_stride];
-    }
+inline int64_t next_pow2(int64_t n) {
+  int64_t pow2 = 2;
+  while (n > pow2) {
+    pow2 *= 2;
+  }
+  return pow2;
+}
 
-    if (reconstruct_second_half) {
-      for (int i = nfft / 2 + 1; i < nfft; i++) {
-        // mirroring nfft/2+1+i -> nfft/2-1-i
-        out[i*out_stride] = in[(nfft - i)*in_stride].conj();
+inline bool is_pow2(int64_t n) {
+  return (n & (n-1)) == 0;
+}
+
+template <typename OutputType, typename InputType>
+void Get1DSlices(std::vector<std::pair<OutputType*, const InputType*>>& slices,
+                 const int64_t *out_shape,
+                 const int64_t *out_strides,
+                 const int64_t *in_shape,
+                 const int64_t *in_strides,
+                 int axis,
+                 int ndim) {
+  for (int dim = 0; dim < ndim; dim++) {
+    if (axis != dim) {
+      int sz = slices.size();
+      for (int i = 0; i < sz; i++) {
+        auto &slice = slices[i];
+        auto *out_ptr = slice.first;
+        auto *in_ptr = slice.second;
+        for (int i = 1; i < in_shape[dim]; i++) {
+          out_ptr += out_strides[dim];
+          in_ptr += in_strides[dim];
+          slices.push_back({out_ptr, in_ptr});
+        }
       }
     }
   }
-};
-
-struct MagnitudeSpectrumCalculator {
-  template <typename OutputType = float, typename InputType = std::complex<float>>
-  void Calculate(FftSpectrumType spectrum_type, OutputType *out, const InputType *in,
-                 int64_t length, int64_t out_stride = 1, int64_t in_stride = 1) {
-    switch (spectrum_type) {
-      case FFT_SPECTRUM_MAGNITUDE:
-        for (int i = 0; i < length; i++) {
-          out[i*out_stride] = std::abs(in[i*in_stride]);
-        }
-        break;
-      case FFT_SPECTRUM_POWER:
-        for (int i = 0; i < length; i++) {
-          out[i*out_stride] = std::norm(in[i*in_stride]);
-        }
-        break;
-      default:
-        DALI_FAIL(make_string("Not a magnitude spectrum type: ", spectrum_type));
-    }
-  }
-};
+}
 
 /**
  * @brief iterator through all the 1-dimensional slices on a given axis
@@ -97,10 +92,18 @@ void ForAxis(OutputType *out_ptr,
   }
 }
 
-}  // namespace impl
-}  // namespace fft
+template <typename Shape>
+Shape GetStrides(const Shape& shape) {
+  Shape strides = shape;
+  strides[strides.size()-1] = 1;
+  for (int d = strides.size()-2; d >= 0; d--) {
+    strides[d] = strides[d+1] * shape[d+1];
+  }
+  return strides;
+}
+
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_FFT_FFT_CPU_IMPL_UTILS_H_
+#endif  // DALI_KERNELS_SIGNAL_SIGNAL_KERNEL_UTILS_H_
