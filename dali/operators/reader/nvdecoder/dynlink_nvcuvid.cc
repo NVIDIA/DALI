@@ -58,109 +58,106 @@ tcuvidCtxUnlock                       ptr_cuvidCtxUnlock;
 
 static char __DriverLibName[] = "libnvcuvid.so";
 static char __DriverLibName1[] = "libnvcuvid.so.1";
-
-typedef void *DLLDRIVER;
+static std::mutex m;
 
 static CUresult LOAD_LIBRARY(DLLDRIVER *pInstance)
 {
-    *pInstance = dlopen(__DriverLibName, RTLD_NOW);
+  *pInstance = dlopen(__DriverLibName, RTLD_NOW);
+
+  if (*pInstance == NULL)
+  {
+    *pInstance = dlopen(__DriverLibName1, RTLD_NOW);
 
     if (*pInstance == NULL)
     {
-        *pInstance = dlopen(__DriverLibName1, RTLD_NOW);
-
-        if (*pInstance == NULL)
-        {
-            printf("dlopen \"%s\" failed!\n", __DriverLibName);
-            return CUDA_ERROR_UNKNOWN;
-        }
+      printf("dlopen \"%s\" failed!\n", __DriverLibName);
+      return CUDA_ERROR_UNKNOWN;
     }
-
-    return CUDA_SUCCESS;
 }
 
-#define GET_PROC_EX(name, alias, required)                              \
-    ptr_##alias = (t##name )dlsym(DriverLib, #name);                    \
-    if (ptr_##alias == NULL && required) {                              \
-        printf("Failed to find required function \"%s\" in %s\n",       \
-               #name, __DriverLibName);                                 \
-        return CUDA_ERROR_UNKNOWN;                                      \
-    }
+  return CUDA_SUCCESS;
+}
 
-#define GET_PROC_EX_V2(name, alias, required)                           \
-    alias = (t##name *)dlsym(DriverLib, STRINGIFY(name##_v2));          \
-    if (alias == NULL && required) {                                    \
-        printf("Failed to find required function \"%s\" in %s\n",       \
-               STRINGIFY(name##_v2), __DriverLibName);                  \
-        return CUDA_ERROR_UNKNOWN;                                      \
-    }
+#define GET_PROC_EX(name, alias, required)                          \
+  ptr_##alias = (t##name )dlsym(driver_lib, #name);                  \
+  if (ptr_##alias == NULL && required) {                            \
+    printf("Failed to find required function \"%s\" in %s\n",       \
+            #name, __DriverLibName);                                \
+    return CUDA_ERROR_UNKNOWN;                                      \
+  }
 
-#define CHECKED_CALL(call)              \
-    do {                                \
-        CUresult result = (call);       \
-        if (CUDA_SUCCESS != result) {   \
-            return result;              \
-        }                               \
-    } while(0)
+#define GET_PROC_EX_V2(name, alias, required)                       \
+  alias = (t##name *)dlsym(driver_lib, STRINGIFY(name##_v2));        \
+  if (alias == NULL && required) {                                  \
+    printf("Failed to find required function \"%s\" in %s\n",       \
+            STRINGIFY(name##_v2), __DriverLibName);                 \
+    return CUDA_ERROR_UNKNOWN;                                      \
+  }
+
+#define CHECKED_CALL(call)          \
+  do {                              \
+    CUresult result = (call);       \
+    if (CUDA_SUCCESS != result) {   \
+      return result;                \
+    }                               \
+  } while(0)
 
 #define GET_PROC_REQUIRED(name) GET_PROC_EX(name,name,1)
 #define GET_PROC_OPTIONAL(name) GET_PROC_EX(name,name,0)
 #define GET_PROC(name)          GET_PROC_REQUIRED(name)
 #define GET_PROC_V2(name)       GET_PROC_EX_V2(name,name,1)
 
-CUresult cuvidInit(unsigned int Flags)
+CUresult cuvidInit(unsigned int Flags, DLLDRIVER &driver_lib)
 {
-    DLLDRIVER DriverLib;
+  driver_lib = NULL;
+  CHECKED_CALL(LOAD_LIBRARY(&driver_lib));
 
-    CHECKED_CALL(LOAD_LIBRARY(&DriverLib));
+  // fetch all function pointers
+  GET_PROC(cuvidCreateVideoSource);
+  GET_PROC(cuvidCreateVideoSourceW);
+  GET_PROC(cuvidDestroyVideoSource);
+  GET_PROC(cuvidSetVideoSourceState);
+  GET_PROC(cuvidGetVideoSourceState);
+  GET_PROC(cuvidGetSourceVideoFormat);
+  GET_PROC(cuvidGetSourceAudioFormat);
 
-    // fetch all function pointers
-    GET_PROC(cuvidCreateVideoSource);
-    GET_PROC(cuvidCreateVideoSourceW);
-    GET_PROC(cuvidDestroyVideoSource);
-    GET_PROC(cuvidSetVideoSourceState);
-    GET_PROC(cuvidGetVideoSourceState);
-    GET_PROC(cuvidGetSourceVideoFormat);
-    GET_PROC(cuvidGetSourceAudioFormat);
-
-    GET_PROC(cuvidCreateVideoParser);
-    GET_PROC(cuvidParseVideoData);
-    GET_PROC(cuvidDestroyVideoParser);
+  GET_PROC(cuvidCreateVideoParser);
+  GET_PROC(cuvidParseVideoData);
+  GET_PROC(cuvidDestroyVideoParser);
 
 
-    GET_PROC(cuvidGetDecoderCaps);
-    GET_PROC(cuvidCreateDecoder);
-    GET_PROC(cuvidDestroyDecoder);
-    GET_PROC(cuvidDecodePicture);
-    GET_PROC_OPTIONAL(cuvidGetDecodeStatus);
-    GET_PROC_OPTIONAL(cuvidReconfigureDecoder);
+  GET_PROC(cuvidGetDecoderCaps);
+  GET_PROC(cuvidCreateDecoder);
+  GET_PROC(cuvidDestroyDecoder);
+  GET_PROC(cuvidDecodePicture);
+  GET_PROC_OPTIONAL(cuvidGetDecodeStatus);
+  GET_PROC_OPTIONAL(cuvidReconfigureDecoder);
 
 #if !defined(__CUVID_DEVPTR64) || defined(__CUVID_INTERNAL)
-    GET_PROC(cuvidMapVideoFrame);
-    GET_PROC(cuvidUnmapVideoFrame);
+  GET_PROC(cuvidMapVideoFrame);
+  GET_PROC(cuvidUnmapVideoFrame);
 #endif
 
 #if defined(_WIN64) || defined(__LP64__) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
-    GET_PROC(cuvidMapVideoFrame64);
-    GET_PROC(cuvidUnmapVideoFrame64);
+  GET_PROC(cuvidMapVideoFrame64);
+  GET_PROC(cuvidUnmapVideoFrame64);
 #endif
-    GET_PROC(cuvidCtxLockCreate);
-    GET_PROC(cuvidCtxLockDestroy);
-    GET_PROC(cuvidCtxLock);
-    GET_PROC(cuvidCtxUnlock);
+  GET_PROC(cuvidCtxLockCreate);
+  GET_PROC(cuvidCtxLockDestroy);
+  GET_PROC(cuvidCtxLock);
+  GET_PROC(cuvidCtxUnlock);
 
-    return CUDA_SUCCESS;
+  return CUDA_SUCCESS;
 }
 
-bool cuvidInitChecked(unsigned int Flags) {
-    static std::mutex m;
-    static bool initialized = false;
+DLLDRIVER cuvidInitChecked(unsigned int Flags) {
+  DLLDRIVER driver_lib;
+  std::lock_guard<std::mutex> lock(m);
+  cuvidInit(Flags, driver_lib);
+  return driver_lib;
+}
 
-    if (initialized)
-        return true;
-
-    std::lock_guard<std::mutex> lock(m);
-    static CUresult res = cuvidInit(Flags);
-    initialized = (res == CUDA_SUCCESS);
-    return initialized;
+void cuvidDeinit(DLLDRIVER driver_lib) {
+  std::lock_guard<std::mutex> lock(m);
+  dlclose(driver_lib);
 }

@@ -68,8 +68,7 @@ const char* GetVideoChromaFormatString(cudaVideoChromaFormat eChromaFormat) {
         { cudaVideoChromaFormat_444,        "YUV 444"              },
     };
 
-    if (static_cast<size_t>(eChromaFormat) >= 0
-        && static_cast<size_t>(eChromaFormat)
+    if (static_cast<size_t>(eChromaFormat)
            < sizeof(aChromaFormatName) / sizeof(aChromaFormatName[0])) {
         return aChromaFormatName[eChromaFormat].name;
     }
@@ -78,47 +77,48 @@ const char* GetVideoChromaFormatString(cudaVideoChromaFormat eChromaFormat) {
 
 }  // namespace
 
-CUVideoDecoder::CUVideoDecoder() : decoder_{0},
-                                   decoder_info_{}, initialized_{false},
-                                   max_height_{0}, max_width_{0} {
-}
-
 CUVideoDecoder::CUVideoDecoder(int max_height, int max_width, int additional_decode_surfaces)
-                              : decoder_{0}, decoder_info_{}, initialized_{false},
+                              : decoder_{0}, decoder_info_{}, caps_{},
                                 max_height_{max_height}, max_width_{max_width},
                                 additional_decode_surfaces_{additional_decode_surfaces} {
 }
 
+CUVideoDecoder::CUVideoDecoder() : CUVideoDecoder(0, 0, 0) {
+}
+
 CUVideoDecoder::CUVideoDecoder(CUvideodecoder decoder)
-    : decoder_{decoder}, decoder_info_{}, initialized_{true},
-      max_height_{0}, max_width_{0} {
+    : CUVideoDecoder(0, 0, 0) {
+  decoder_ = decoder;
 }
 
 CUVideoDecoder::~CUVideoDecoder() {
-    if (initialized_) {
-        NVCUVID_CALL(cuvidDestroyDecoder(decoder_));
+    if (decoder_) {
+        try {
+          NVCUVID_CALL(cuvidDestroyDecoder(decoder_));
+        } catch (...) {
+          // something went totally wrong, terminate
+          std::terminate();
+        }
     }
 }
 
 CUVideoDecoder::CUVideoDecoder(CUVideoDecoder&& other)
-    : decoder_{other.decoder_}, initialized_{other.initialized_},
-      max_height_{other.max_height_}, max_width_{other.max_width_} {
+    : decoder_{other.decoder_}, decoder_info_{other.decoder_info_},
+      caps_{other.caps_}, max_height_{other.max_height_}, max_width_{other.max_width_},
+      additional_decode_surfaces_{other.additional_decode_surfaces_} {
     other.decoder_ = 0;
-    other.initialized_ = false;
     other.max_height_ = 0;
     other.max_width_ = 0;
 }
 
 CUVideoDecoder& CUVideoDecoder::operator=(CUVideoDecoder&& other) {
-    if (initialized_) {
+    if (decoder_) {
         NVCUVID_CALL(cuvidDestroyDecoder(decoder_));
     }
     decoder_ = other.decoder_;
-    initialized_ = other.initialized_;
     max_height_ = other.max_height_;
     max_width_ = other.max_width_;
     other.decoder_ = 0;
-    other.initialized_ = false;
     other.max_height_ = 0;
     other.max_width_ = 0;
     return *this;
@@ -130,7 +130,7 @@ void CUVideoDecoder::reconfigure(unsigned int height, unsigned int width) {
 
     CUVIDRECONFIGUREDECODERINFO reconfigParams = { 0 };
 
-    DALI_ENFORCE(initialized_, "Trying to reconfigure uninitialized decoder");
+    DALI_ENFORCE(decoder_, "Trying to reconfigure uninitialized decoder");
 
     DALI_ENFORCE(width >= caps_.nMinWidth && height >= caps_.nMinHeight,
                  "Video is too small in at least one dimension.");
@@ -159,7 +159,7 @@ void CUVideoDecoder::reconfigure(unsigned int height, unsigned int width) {
 }
 
 int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
-    if (initialized_) {
+    if (decoder_) {
         if ((format->codec != decoder_info_.CodecType) ||
             (format->chroma_format != decoder_info_.ChromaFormat)) {
             DALI_FAIL("Encountered a dynamic video format change.");
@@ -256,12 +256,11 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
     decoder_info_.vidLock = nullptr;
 
     NVCUVID_CALL(cuvidCreateDecoder(&decoder_, &decoder_info_));
-    initialized_ = true;
     return decoder_info_.ulNumDecodeSurfaces;
 }
 
 bool CUVideoDecoder::initialized() const {
-    return initialized_;
+    return decoder_;
 }
 
 CUVideoDecoder::operator CUvideodecoder() const {

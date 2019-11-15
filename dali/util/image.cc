@@ -112,24 +112,6 @@ std::vector<std::string> ImageList(const std::string& image_folder,
   return list_files(image_folder, supported_extensions);
 }
 
-void LoadFromFile(const string &file_name, uint8 **image, int *h, int *w, int *c) {
-  std::ifstream file(file_name + ".txt");
-  DALI_ENFORCE(file.is_open());
-
-  file >> *h;
-  file >> *w;
-  file >> *c;
-
-  // lol at this multiplication
-  int size = (*h)*(*w)*(*c);
-  *image = new uint8[size];
-  int tmp = 0;
-  for (int i = 0; i < size; ++i) {
-    file >> tmp;
-    (*image)[i] = (uint8)tmp;
-  }
-}
-
 void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_name) {
   WriteImageScaleBias(img, h, w, c, 0.f, 1.0f, file_name, outHWCImage);
 }

@@ -53,17 +53,17 @@ typedef decltype(&cuvidGetDecodeStatus) tcuvidGetDecodeStatus;
 typedef decltype(&cuvidReconfigureDecoder) tcuvidReconfigureDecoder;
 
 #if !defined(__CUVID_DEVPTR64) || defined(__CUVID_INTERNAL)
-typedef decltype(&cuvidMapVideoFrame) tcuvidMapVideoFrame;
-typedef decltype(&cuvidUnmapVideoFrame) tcuvidUnmapVideoFrame;
+  typedef decltype(&cuvidMapVideoFrame) tcuvidMapVideoFrame;
+  typedef decltype(&cuvidUnmapVideoFrame) tcuvidUnmapVideoFrame;
 #endif
 
 #if defined(_WIN64) || defined(__LP64__) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
-typedef decltype(&cuvidMapVideoFrame64) tcuvidMapVideoFrame64;
-typedef decltype(&cuvidUnmapVideoFrame64) tcuvidUnmapVideoFrame64;
-#if defined(__CUVID_DEVPTR64) && !defined(__CUVID_INTERNAL)
-#define tcuvidMapVideoFrame      tcuvidMapVideoFrame64
-#define tcuvidUnmapVideoFrame    tcuvidUnmapVideoFrame64
-#endif
+  typedef decltype(&cuvidMapVideoFrame64) tcuvidMapVideoFrame64;
+  typedef decltype(&cuvidUnmapVideoFrame64) tcuvidUnmapVideoFrame64;
+  #if defined(__CUVID_DEVPTR64) && !defined(__CUVID_INTERNAL)
+    #define tcuvidMapVideoFrame      tcuvidMapVideoFrame64
+    #define tcuvidUnmapVideoFrame    tcuvidUnmapVideoFrame64
+  #endif
 #endif
 typedef decltype(&cuvidCtxLockCreate) tcuvidCtxLockCreate;
 typedef decltype(&cuvidCtxLockDestroy) tcuvidCtxLockDestroy;
@@ -93,12 +93,12 @@ extern tcuvidMapVideoFrame                   ptr_cuvidMapVideoFrame;
 extern tcuvidUnmapVideoFrame                 ptr_cuvidUnmapVideoFrame;
 
 #if defined(_WIN64) || defined(__LP64__) || defined(__x86_64) || defined(AMD64) || defined(_M_AMD64)
-extern tcuvidMapVideoFrame64                 ptr_cuvidMapVideoFrame64;
-extern tcuvidUnmapVideoFrame64               ptr_cuvidUnmapVideoFrame64;
-#if defined(__CUVID_DEVPTR64) && !defined(__CUVID_INTERNAL)
-#define ptr_cuvidMapVideoFrame               ptr_cuvidMapVideoFrame64
-#define ptr_cuvidUnmapVideoFrame             ptr_cuvidUnmapVideoFrame64
-#endif
+  extern tcuvidMapVideoFrame64                 ptr_cuvidMapVideoFrame64;
+  extern tcuvidUnmapVideoFrame64               ptr_cuvidUnmapVideoFrame64;
+  #if defined(__CUVID_DEVPTR64) && !defined(__CUVID_INTERNAL)
+    #define ptr_cuvidMapVideoFrame               ptr_cuvidMapVideoFrame64
+    #define ptr_cuvidUnmapVideoFrame             ptr_cuvidUnmapVideoFrame64
+  #endif
 #endif
 extern tcuvidCtxLockCreate                   ptr_cuvidCtxLockCreate;
 extern tcuvidCtxLockDestroy                  ptr_cuvidCtxLockDestroy;
@@ -107,6 +107,9 @@ extern tcuvidCtxUnlock                       ptr_cuvidCtxUnlock;
 
 /**********************************************************************************************/
 
-bool cuvidInitChecked(unsigned int Flags);
+using DLLDRIVER = void *;
+
+DLLDRIVER cuvidInitChecked(unsigned int Flags);
+void cuvidDeinit(DLLDRIVER driver_lib);
 
 #endif // DALI_OPERATORS_READER_NVDECODER_DYNLINK_NVCUVID_H_

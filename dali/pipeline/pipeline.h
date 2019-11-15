@@ -187,24 +187,24 @@ class DLL_PUBLIC Pipeline {
    *
    * @return logical_id of added operator, so it can be used for further calls
    */
-  DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name, int logical_id);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec, const std::string& inst_name, int logical_id);
 
   /**
    * @brief Adds an Operator with the input specification to the pipeline. It will be assigned
    * a separate logical_id based on internal state of the pipeline.
    */
-  DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec, const std::string& inst_name);
 
   /**
    * @brief Adds an unnamed Operator with the input specification to the pipeline.
    */
-  DLL_PUBLIC int AddOperator(OpSpec spec, int logical_id);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec, int logical_id);
 
   /**
    * @brief Adds an unnamed Operator with the input specification to the pipeline.  It will be
    * assigned a separate logical_id based on internal state of the pipeline.
    */
-  DLL_PUBLIC int AddOperator(OpSpec spec);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec);
 
   /**
    * @brief Returns true if there exists operator with given logical_id
