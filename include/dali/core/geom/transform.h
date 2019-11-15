@@ -84,7 +84,15 @@ inline mat4 rotation3D(vec3 axis, float angle) {
   float c = std::cos(angle);
   float s = std::sin(angle);
 #endif
-  axis = axis.normalized();
+  if ((axis.x != 0) + (axis.y != 0) + (axis.z != 0) == 1) {
+    // if there's just one non-zero axis, force it to 1 or -1 and keep others at zero
+    for (int i = 0; i < 3; i++)
+      axis[i] = axis[i] < 0 ? -1 : axis[i] > 0 ? 1 : 0;
+  } else {
+    // axis = axis.normalized();
+    // vec::normalized() is faster, but less accurate; use division by length instead
+    axis /= axis.length();
+  }
   float u = axis.x;
   float v = axis.y;
   float w = axis.z;
