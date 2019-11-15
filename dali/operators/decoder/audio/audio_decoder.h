@@ -31,8 +31,7 @@ class AudioDecoderBase {
  public:
   AudioMetadata Open(span<const char> encoded) {
     Close();
-    auto ret = OpenImpl(encoded);
-    return ret;
+    return OpenImpl(encoded);
   }
 
 

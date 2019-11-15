@@ -101,6 +101,18 @@ else()
 endif()
 
 ##################################################################
+# libsnd
+##################################################################
+find_library(libsnd_LIBS
+        NAMES sndfile libsndfile
+        PATHS ${LIBSND_ROOT_DIR} "/usr/local"
+        PATH_SUFFIXES lib lib64)
+if(${libsnd_LIBS} STREQUAL libsnd_LIBS-NOTFOUND)
+  message(FATAL_ERROR "libsnd (sndfile) could not be found. Try to specify it's location with `-DLIBSND_ROOT_DIR`.")
+endif()
+list(APPEND DALI_LIBS ${libsnd_LIBS})
+
+##################################################################
 # FFmpeg
 ##################################################################
 if(BUILD_FFMPEG)
@@ -126,7 +138,6 @@ if(BUILD_FFMPEG)
               PATH_SUFFIXES lib lib64
               NO_DEFAULT_PATH)
         list(APPEND FFmpeg_LIBS ${${FFmpeg_Lib}})
-        message(STATUS ${m})
       endif()
   endforeach(m)
 
