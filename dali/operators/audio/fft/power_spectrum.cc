@@ -66,10 +66,7 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     for (int i = 0; i < nsamples; i++) {
       const auto in_view = view<const InputType, Dims>(input[i]);
       auto &req = kmgr_.Setup<FftKernel>(i, ctx, in_view, fft_args_);
-
       output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
-      //std::cout << "out shape " << i << " " << output_desc[0].shape.tensor_shape(i)[0] << "x"
-      //          << output_desc[0].shape.tensor_shape(i)[1] << std::endl;
     }
   ), // NOLINT
   (
