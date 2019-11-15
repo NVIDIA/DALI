@@ -89,7 +89,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         bytes_per_sample_hint_(bytes_per_sample_hint),
         callback_(nullptr),
         stream_pool_(max_num_stream, true, default_cuda_stream_priority),
-        event_pool_(max_num_stream),
+        event_pool_(),
         thread_pool_(num_thread, device_id, set_affinity),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
@@ -159,7 +159,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
-  int previous_gpu_queue_idx_ = -1;
+  cudaEvent_t mixed_stage_event_, gpu_stage_event_;
 
   vector<string> output_names_;
 
@@ -290,6 +290,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
     gpu_op_stream_ = stream_pool_.GetStream();
     mixed_op_events_ =
         CreateEventsForMixedOps(event_pool_, *graph_, stage_queue_depths_[OpType::MIXED]);
+
+    // Create events used to synchronize stages using gpu with themselves
+    mixed_stage_event_ = event_pool_.GetEvent();
+    gpu_stage_event_ = event_pool_.GetEvent();
   }
 
   PrepinData(tensor_to_store_queue_, *graph_);
@@ -355,6 +359,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
     return;
   }
 
+  // Enforce our assumed dependency between consecutive
+  // iterations of a stage of the pipeline.
+  CUDA_CALL(cudaEventSynchronize(mixed_stage_event_));
+
   try {
     for (int i = 0; i < graph_->NumOp(OpType::MIXED); ++i) {
       OpNode &op_node = graph_->Node(OpType::MIXED, i);
@@ -378,6 +386,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
     // finished.
     CUDA_CALL(cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
   }
+
+  // We know that this is the proper stream, we do not need to look it up in any workspace
+  CUDA_CALL(cudaEventRecord(mixed_stage_event_, mixed_op_stream_));
+
   // Pass the work to the gpu stage
   QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
 }
@@ -395,13 +407,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
 
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
-  if (previous_gpu_queue_idx_ != -1) {
-    for (size_t i = 0; i < output_names_.size(); ++i) {
-      if (graph_->TensorIsType<CPUBackend>(output_names_[i])) continue;
-      CUDA_CALL(cudaEventSynchronize(
-              gpu_output_events_[i].GetEvent(previous_gpu_queue_idx_)));
-    }
-  }
+  CUDA_CALL(cudaEventSynchronize(gpu_stage_event_));
 
   try {
     for (int i = 0; i < graph_->NumOp(OpType::GPU); ++i) {
@@ -460,13 +466,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
                                     static_cast<void *>(&callback_), 0));
   }
 
+  // We know that this is the proper stream, we do not need to look it up in any workspace
+  CUDA_CALL(cudaEventRecord(gpu_stage_event_, gpu_op_stream_));
+
   // We do not release, but handle to used outputs
   QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
-
-  // Save the gpu_idxs so we can enforce the
-  // dependency between consecutive iterations
-  // of the gpu stage of the pipeline.
-  previous_gpu_queue_idx_ = gpu_idxs[OpType::GPU];
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
