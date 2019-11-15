@@ -94,13 +94,14 @@ namespace {
     args.window_length = window_length;
     args.window_step = window_step;
     args.in_time_axis = ndim - 1;
-    args.out_frame_axis = ndim;  // one extra dimension is created by this kernel
+    args.out_frame_axis = ndim - 1;  // one extra dimension is created by this kernel
   }
 
   void FillFftArgs(kernels::signal::fft::FftArgs& args,
                    int power, int window_length, int nfft, int ndims) {
     args.nfft = nfft;
-    DALI_ENFORCE(window_length <= nfft);
+    DALI_ENFORCE(window_length <= nfft, make_string(
+      "Window length (", window_length, ") can't be bigger than the FFFT size (", nfft, ")"));
     switch (power) {
       case 1:
         args.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_MAGNITUDE;
@@ -112,8 +113,8 @@ namespace {
         DALI_FAIL(make_string("`power` can be only 1 (energy) or 2 (power), received ", power));
     }
 
-    // FFT is calculated in the outermost dimension
-    args.transform_axis = ndims - 1;
+    // layout (.., freq, time)
+    args.transform_axis = ndims - 2;
   }
 
 }  // namespace
@@ -219,7 +220,7 @@ bool Spectrogram<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                         const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
-  VALUE_SWITCH(in_shape.size(), Dims, SPECTROGRAM_SUPPORTED_NDIMS,
+  VALUE_SWITCH(in_shape.sample_dim(), Dims, SPECTROGRAM_SUPPORTED_NDIMS,
     (impl_ = std::make_unique<SpectrogramImplCpu<Dims>>(spec__);),
     (DALI_FAIL(make_string("Not supported number of dimensions: ", in_shape.size()))));
 

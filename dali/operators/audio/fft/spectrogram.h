@@ -42,7 +42,7 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
     virtual ~ImplBase() = default;
     virtual bool SetupImpl(std::vector<OutputDesc> &output_desc,
                            const workspace_t<Backend> &ws) = 0;
-    virtual void RunImpl(workspace_t<Backend> &ws) = 0;;
+    virtual void RunImpl(workspace_t<Backend> &ws) = 0;
   };
   std::unique_ptr<ImplBase> impl_;
 };
