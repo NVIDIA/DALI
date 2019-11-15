@@ -29,8 +29,6 @@ namespace dali {
 
 /**
  * Generic decoder, that serves as a fallback to most of the formats we need.
- * It uses `libsnd` for decoding.
- * @tparam SampleType
  */
 template<typename SampleType>
 class DLL_PUBLIC GenericAudioDecoder : public TypedAudioDecoderBase<SampleType> {
@@ -39,7 +37,7 @@ class DLL_PUBLIC GenericAudioDecoder : public TypedAudioDecoderBase<SampleType> 
 
   DLL_PUBLIC void DecodeTyped(span<SampleType> output) override;
 
-  DLL_PUBLIC virtual ~GenericAudioDecoder();
+  DLL_PUBLIC ~GenericAudioDecoder() override;
 
  private:
   AudioMetadata OpenImpl(span<const char> encoded) override;

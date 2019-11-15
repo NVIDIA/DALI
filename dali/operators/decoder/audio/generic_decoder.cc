@@ -19,9 +19,9 @@ namespace dali {
 namespace {
 
 template<typename SampleType>
-size_t read_samples(SNDFILE *snd_file, span<SampleType> output) {
-  DALI_FAIL("Can't find function for given type. You may want to write your own specialization.")
-}
+size_t read_samples(SNDFILE *snd_file, span<SampleType> output);
+//  DALI_FAIL("Can't find function for given type. You may want to write your own specialization.")
+//}
 
 
 template<>
@@ -107,8 +107,8 @@ class MemoryStream {
 /**
  * The virtual file context must return the length of the virtual file in bytes.
  */
-sf_count_t GetFileLen(void *This) {
-  return static_cast<MemoryStream *>(This)->length();
+sf_count_t GetFileLen(void *self) {
+  return static_cast<MemoryStream *>(self)->length();
 }
 
 
@@ -120,8 +120,8 @@ sf_count_t GetFileLen(void *This) {
  *   SEEK_END
  * The return value must contain the new offset in the file.
  */
-sf_count_t Seek(sf_count_t offset, int whence, void *This) {
-  return static_cast<MemoryStream *>(This)->seek(offset, whence);
+sf_count_t Seek(sf_count_t offset, int whence, void *self) {
+  return static_cast<MemoryStream *>(self)->seek(offset, whence);
 }
 
 
@@ -129,16 +129,16 @@ sf_count_t Seek(sf_count_t offset, int whence, void *This) {
  * The virtual file context must copy ("read") "num" bytes into the buffer provided by dst
  * and return the count of actually copied bytes.
  */
-sf_count_t Read(void *dst, sf_count_t num, void *This) {
-  return static_cast<MemoryStream *>(This)->read(dst, num);
+sf_count_t Read(void *dst, sf_count_t num, void *self) {
+  return static_cast<MemoryStream *>(self)->read(dst, num);
 }
 
 
 /**
  * Return the current position of the virtual file context.
  */
-sf_count_t Tell(void *This) {
-  return static_cast<MemoryStream *>(This)->tell();
+sf_count_t Tell(void *self) {
+  return static_cast<MemoryStream *>(self)->tell();
 }
 
 }  // namespace
