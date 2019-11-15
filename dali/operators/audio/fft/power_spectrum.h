@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_AUDIO_FFT_FFT_H_
-#define DALI_OPERATORS_AUDIO_FFT_FFT_H_
+#ifndef DALI_OPERATORS_AUDIO_FFT_POWER_SPECTRUM_H_
+#define DALI_OPERATORS_AUDIO_FFT_POWER_SPECTRUM_H_
 
+#include <string>
+#include <vector>
 #include "dali/core/common.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/signal/fft/fft_cpu.h"
@@ -55,4 +57,4 @@ class PowerSpectrum : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_AUDIO_FFT_FFT_H_
+#endif  // DALI_OPERATORS_AUDIO_FFT_POWER_SPECTRUM_H_
