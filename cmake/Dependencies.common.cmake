@@ -105,7 +105,7 @@ endif()
 ##################################################################
 find_library(libsnd_LIBS
         NAMES sndfile libsndfile
-        PATHS ${LIBSND_ROOT_DIR} "/usr/local"
+        PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBSND_ROOT_DIR} "/usr/local"
         PATH_SUFFIXES lib lib64)
 if(${libsnd_LIBS} STREQUAL libsnd_LIBS-NOTFOUND)
   message(FATAL_ERROR "libsnd (sndfile) could not be found. Try to specify it's location with `-DLIBSND_ROOT_DIR`.")
