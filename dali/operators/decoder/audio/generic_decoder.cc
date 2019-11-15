@@ -222,9 +222,9 @@ struct GenericAudioDecoder<SampleType>::Impl {
 /*
  * Force instantiation only for given types
  */
-template class GenericAudioDecoder<short>;  // NOLINT
-template class GenericAudioDecoder<int>;    // NOLINT
-template class GenericAudioDecoder<float>;  // NOLINT
+template class GenericAudioDecoder<int16_t>;
+template class GenericAudioDecoder<int32_t>;
+template class GenericAudioDecoder<float>;
 
 
 }  // namespace dali
