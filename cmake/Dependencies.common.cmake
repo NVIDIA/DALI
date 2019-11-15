@@ -164,6 +164,7 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/rapidjson/include)
 ##################################################################
 # FFTS
 ##################################################################
+<<<<<<< 7bdc78ded6015f585fc2270a7f04579f002507fd
 if (BUILD_FFTS)
   set(GENERATE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "-fPIC")
   set(ENABLE_SHARED OFF CACHE BOOL "shared library target")
@@ -181,3 +182,7 @@ if (BUILD_FFTS)
   list(APPEND DALI_LIBS ffts)
   list(APPEND DALI_EXCLUDES libffts.a)
 endif()
+=======
+list(APPEND DALI_LIBS ffts)
+list(APPEND DALI_EXCLUDES ffts)
+>>>>>>> Avoid leaking ffts symbols
