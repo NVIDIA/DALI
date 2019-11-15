@@ -191,7 +191,10 @@ struct GenericAudioDecoder<SampleType>::Impl {
             &Tell
     };
     sound_ = sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info_, &mem_stream_);
-    DALI_ENFORCE(sound_, make_string("Failed to open encoded data: ", sf_strerror(sound_)));
+    if (!sound_) {
+      throw decoder_runtime_error(
+              make_string("Failed to open encoded data: ", sf_strerror(sound_)));
+    }
 
     ret.length = sf_info_.frames * sf_info_.channels;
     ret.channels = sf_info_.channels;
