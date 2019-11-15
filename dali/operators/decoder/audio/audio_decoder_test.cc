@@ -29,7 +29,7 @@ std::string audio_data_root = make_string(testing::dali_extra_path(), "/db/audio
  * Reads file and saves it to vector. Saves the file as plain numbers.
  */
 template<typename T>
-std::vector<T> read_txt(const std::string &filepath) {
+std::vector<T> ReadTxt(const std::string &filepath) {
   std::ifstream file(filepath.c_str());
   std::istream_iterator<T> begin(file);
   std::istream_iterator<T> end;
@@ -39,7 +39,7 @@ std::vector<T> read_txt(const std::string &filepath) {
 /**
  * Reads file as a byte stream and saves it to vector.
  */
-std::vector<char> read_bytes(const std::string &filepath) {
+std::vector<char> ReadBytes(const std::string &filepath) {
   std::vector<char> ret;
   std::ifstream infile(filepath);
   infile.seekg(0, std::ios::end);
@@ -52,7 +52,7 @@ std::vector<char> read_bytes(const std::string &filepath) {
 
 
 template<typename T>
-bool check_buffers(const T *buf1, const T *buf2, int size) {
+bool CheckBuffers(const T *buf1, const T *buf2, int size) {
   return !std::memcmp(buf1, buf2, sizeof(T) * size);
 }
 
@@ -67,13 +67,13 @@ TEST(AudioDecoderTest, WavDecoderTest) {
   // Contains raw PCM data decoded offline
   std::string decoded_path = make_string(audio_data_root, "dziendobry.txt");
 
-  int expected_frequency = 44100;
-  int expected_nchannels = 2;
+  constexpr int expected_frequency = 44100;
+  constexpr int expected_nchannels = 2;
   std::vector<DataType> vec;
   std::vector<char> bytes;
   try {
-    vec = read_txt<DataType>(decoded_path);
-    bytes = read_bytes(wav_path);
+    vec = ReadTxt<DataType>(decoded_path);
+    bytes = ReadBytes(wav_path);
   } catch (const std::bad_alloc &e) {
     FAIL() << "Test data hasn't been provided: Expected `" << wav_path << "` and `" << decoded_path
            << "` to exist";
@@ -86,7 +86,7 @@ TEST(AudioDecoderTest, WavDecoderTest) {
   EXPECT_EQ(meta.channels, expected_nchannels);
   EXPECT_EQ(meta.channels_interleaved, false);
   EXPECT_EQ(meta.sample_rate, expected_frequency);
-  EXPECT_PRED3(check_buffers<DataType>, output.data(), vec.data(), vec.size());
+  EXPECT_PRED3(CheckBuffers<DataType>, output.data(), vec.data(), vec.size());
 }
 
 }  // namespace dali

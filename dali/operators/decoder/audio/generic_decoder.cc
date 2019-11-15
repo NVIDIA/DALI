@@ -19,50 +19,48 @@ namespace dali {
 namespace {
 
 template<typename SampleType>
-size_t read_samples(SNDFILE *snd_file, span<SampleType> output);
-//  DALI_FAIL("Can't find function for given type. You may want to write your own specialization.")
-//}
+size_t ReadSamples(SNDFILE *snd_file, span<SampleType> output);
 
 
 template<>
-size_t read_samples<short>(SNDFILE *snd_file, span<short> output) {  // NOLINT
+size_t ReadSamples<short>(SNDFILE *snd_file, span<short> output) {  // NOLINT
   return sf_read_short(snd_file, output.data(), output.size());
 }
 
 
 template<>
-size_t read_samples<int>(SNDFILE *snd_file, span<int> output) {
+size_t ReadSamples<int>(SNDFILE *snd_file, span<int> output) {
   return sf_read_int(snd_file, output.data(), output.size());
 }
 
 
 template<>
-size_t read_samples<float>(SNDFILE *snd_file, span<float> output) {
+size_t ReadSamples<float>(SNDFILE *snd_file, span<float> output) {
   return sf_read_float(snd_file, output.data(), output.size());
 }
 
 
 template<>
-size_t read_samples<double>(SNDFILE *snd_file, span<double> output) {
+size_t ReadSamples<double>(SNDFILE *snd_file, span<double> output) {
   return sf_read_double(snd_file, output.data(), output.size());
 }
 
 
 class MemoryStream {
  public:
-  MemoryStream() : length_(0), curr_(0), input_(nullptr) {}
-
-
   MemoryStream(const void *input, int length /* bytes */) :
           length_(length), curr_(0), input_(static_cast<const char *>(input)) {}
 
 
-  size_t length() {
+  MemoryStream() : MemoryStream(nullptr, 0) {}
+
+
+  size_t Length() {
     return length_;
   }
 
 
-  size_t seek(sf_count_t offset, int whence) {
+  size_t Seek(sf_count_t offset, int whence) {
     switch (whence) {
       case SEEK_SET:
         curr_ = offset;
@@ -80,7 +78,7 @@ class MemoryStream {
   }
 
 
-  size_t read(void *dst, sf_count_t num) {
+  size_t Read(void *dst, sf_count_t num) {
     num = std::min<sf_count_t>(num, length_ - curr_);
     memcpy(dst, input_ + curr_, num);
     curr_ += num;
@@ -88,7 +86,7 @@ class MemoryStream {
   }
 
 
-  size_t tell() {
+  size_t Tell() {
     return curr_;
   }
 
@@ -108,7 +106,7 @@ class MemoryStream {
  * The virtual file context must return the length of the virtual file in bytes.
  */
 sf_count_t GetFileLen(void *self) {
-  return static_cast<MemoryStream *>(self)->length();
+  return static_cast<MemoryStream *>(self)->Length();
 }
 
 
@@ -121,7 +119,7 @@ sf_count_t GetFileLen(void *self) {
  * The return value must contain the new offset in the file.
  */
 sf_count_t Seek(sf_count_t offset, int whence, void *self) {
-  return static_cast<MemoryStream *>(self)->seek(offset, whence);
+  return static_cast<MemoryStream *>(self)->Seek(offset, whence);
 }
 
 
@@ -130,7 +128,7 @@ sf_count_t Seek(sf_count_t offset, int whence, void *self) {
  * and return the count of actually copied bytes.
  */
 sf_count_t Read(void *dst, sf_count_t num, void *self) {
-  return static_cast<MemoryStream *>(self)->read(dst, num);
+  return static_cast<MemoryStream *>(self)->Read(dst, num);
 }
 
 
@@ -138,7 +136,7 @@ sf_count_t Read(void *dst, sf_count_t num, void *self) {
  * Return the current position of the virtual file context.
  */
 sf_count_t Tell(void *self) {
-  return static_cast<MemoryStream *>(self)->tell();
+  return static_cast<MemoryStream *>(self)->Tell();
 }
 
 }  // namespace
@@ -175,13 +173,12 @@ GenericAudioDecoder<SampleType>::GenericAudioDecoder() :
 template<typename SampleType>
 struct GenericAudioDecoder<SampleType>::Impl {
   void DecodeTyped(span<SampleType> output) {
-    read_samples(snd_file_, output);
+    ReadSamples(sound_, output);
   }
 
 
   AudioMetadata OpenImpl(span<const char> encoded) {
     assert(!encoded.empty());
-    assert(encoded.data());
     AudioMetadata ret;
     sf_info_ = {};
     sf_info_.format = 0;
@@ -193,8 +190,8 @@ struct GenericAudioDecoder<SampleType>::Impl {
             nullptr,  // No writing
             &Tell
     };
-    snd_file_ = sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info_, &mem_stream_);
-    DALI_ENFORCE(snd_file_, make_string("Failed to open encoded data: ", sf_strerror(snd_file_)));
+    sound_ = sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info_, &mem_stream_);
+    DALI_ENFORCE(sound_, make_string("Failed to open encoded data: ", sf_strerror(sound_)));
 
     ret.length = sf_info_.frames * sf_info_.channels;
     ret.channels = sf_info_.channels;
@@ -205,16 +202,16 @@ struct GenericAudioDecoder<SampleType>::Impl {
 
 
   void CloseImpl() {
-    if (snd_file_) {
-      auto err = sf_close(snd_file_);
+    if (sound_) {
+      auto err = sf_close(sound_);
       DALI_ENFORCE(err == 0, make_string("Failed to close SNDFILE: ", sf_error_number(err)));
-      snd_file_ = nullptr;
+      sound_ = nullptr;
     }
     mem_stream_ = {};
   }
 
 
-  SNDFILE *snd_file_ = nullptr;
+  SNDFILE *sound_ = nullptr;
   SF_INFO sf_info_ = {};
   MemoryStream mem_stream_ = {};
 };
