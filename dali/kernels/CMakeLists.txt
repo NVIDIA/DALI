@@ -29,7 +29,7 @@ cuda_add_library(${dali_kernel_lib} SHARED ${DALI_KERNEL_SRCS})
 set_target_properties(${dali_kernel_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(${dali_kernel_lib} PUBLIC ${dali_core_lib})
-target_link_libraries(${dali_kernel_lib} PRIVATE ffts)
+target_link_libraries(${dali_kernel_lib} PRIVATE ${DALI_LIBS})
 target_link_libraries(${dali_kernel_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
 set(lib_exports "libdali_kernels.map")

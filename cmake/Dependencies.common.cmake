@@ -160,3 +160,9 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/boost/preprocessor/include
 # RapidJSON
 ##################################################################
 include_directories(${PROJECT_SOURCE_DIR}/third_party/rapidjson/include)
+
+##################################################################
+# FFTS
+##################################################################
+list(APPEND DALI_LIBS ffts)
+list(APPEND DALI_EXCLUDES ffts)
