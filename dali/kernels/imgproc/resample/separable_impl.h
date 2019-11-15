@@ -123,7 +123,7 @@ struct SeparableResamplingGPUImpl : Interface {
     BatchedSeparableResample<spatial_ndim, PassOutputElement, PassInputElement>(
         which_pass,
         descs_gpu, block2sample.data, block2sample.shape[0],
-        setup.block_size,
+        setup.block_dim,
         stream);
   }
 

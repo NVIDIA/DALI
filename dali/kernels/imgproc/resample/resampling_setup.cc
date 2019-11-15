@@ -33,7 +33,7 @@ ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const Fil
     case ResamplingFilterType::Lanczos3:
       return filters->Lanczos3(params.radius);
     default:
-      return { nullptr, 0, 0, 0 };
+      return { nullptr, 0, 0, 1 };
   }
 }
 
@@ -98,33 +98,37 @@ SeparableResamplingSetup<spatial_ndim>::ComputeScaleAndROI(
   return roi;
 }
 
-template <>
-void SeparableResamplingSetup<2>::SetupSample(
-    SampleDesc &desc,
-    const TensorShape<tensor_ndim> &in_shape,
-    const ResamplingParams2D &params) {
+ProcessingOrder<2> GetProcessingOrder(ivec2 in_size, ivec2 out_size, ivec2 filter_support) {
+  int64_t size_vert = volume({in_size.x, out_size.y});
+  int64_t size_horz = volume({out_size.x, in_size.y});
+  int64_t out_area = volume(out_size);
+  int64_t compute_vh = size_vert * filter_support.y + out_area * filter_support.x;
+  int64_t compute_hv = size_horz * filter_support.x + out_area * filter_support.y;
 
-  int H = in_shape[0];
-  int W = in_shape[1];
-  int C = in_shape[2];
-  int out_H = params[0].output_size;
-  int out_W = params[1].output_size;
+  // ...maybe fine tune the size/compute weights?
+  const float size_weight = 3;
+  float cost_vert = size_weight*size_vert + compute_vh;
+  float cost_horz = size_weight*size_horz + compute_hv;
+  return cost_vert < cost_horz ? VertHorz() : HorzVert();
+}
 
-  if (out_H == KeepOriginalSize) out_H = H;
-  if (out_W == KeepOriginalSize) out_W = W;
+ProcessingOrder<3> GetProcessingOrder(ivec3 in_size, ivec3 out_size, ivec3 filter_support) {
+  for (int a0 = 0; a0 < 3; a0++) {
+    for (int a1 = 0; a1 < 3; a1++) {
+      if (a1 == a0)
+        continue;
+      for (int a2 = 0; a2 < 3; a2++)
+        if (a2 == a0 || a2 == a1) {
+          continue;
+        }
 
-  desc.in_shape() = { W, H };
-  desc.out_shape() = { out_W, out_H };
-  SetFilters(desc, params);
-  ROI roi = ComputeScaleAndROI(desc, params);
 
-  int64_t size_vert = volume({roi.extent().x, out_H});
+    }
+  }
+  return { 0, 1, 2 };
+
+  /*int64_t size_vert = volume({roi.extent().x, out_H});
   int64_t size_horz = volume({out_W, roi.extent().y});
-  ivec2 filter_support = {
-    std::max(1, desc.filter[0].support()),
-    std::max(1, desc.filter[1].support())
-  };
-
   int64_t out_area = volume(desc.out_shape());
   int64_t compute_vh = size_vert * filter_support.y + out_area * filter_support.x;
   int64_t compute_hv = size_horz * filter_support.x + out_area * filter_support.y;
@@ -133,30 +137,99 @@ void SeparableResamplingSetup<2>::SetupSample(
   const float size_weight = 3;
   float cost_vert = size_weight*size_vert + compute_vh;
   float cost_horz = size_weight*size_horz + compute_hv;
+  return cost_vert < cost_horz ? VertHorz() : HorzVert();*/
+}
 
-  int tmp_H, tmp_W;
-  if (cost_vert < cost_horz) {
-    desc.order = VertHorz();
-    tmp_H = out_H;
-    tmp_W = roi.extent().x;
-    desc.block_count[0] = div_ceil(out_H, block_size.y);
-    desc.block_count[1] = div_ceil(out_W, block_size.x);
-  } else {
-    desc.order = HorzVert();
-    tmp_H = roi.extent().y;
-    tmp_W = out_W;
-    desc.block_count[0] = div_ceil(out_W, block_size.x);
-    desc.block_count[1] = div_ceil(out_H, block_size.y);
+template <>
+void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) {
+  for (int pass = 0; pass < 2; pass++) {
+    int axis = sample.order[pass];
+    sample.block_count[pass] = div_ceil(sample.out_shape()[axis], block_dim[axis]);
   }
-  desc.tmp_shape(0) = { tmp_W, tmp_H };
+}
 
-  for (int stage = 0; stage < 3; stage++) {
-    desc.strides[stage][0] = desc.shapes[stage].x * C;
+template <>
+void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) {
+  for (int pass = 0; pass < 3; pass++) {
+    int axis = sample.order[pass];
+    if (axis == 2) {
+      sample.block_count[pass] = div_ceil(sample.out_shape()[axis], block_dim[axis]);
+    } else {
+      sample.block_count[pass] = div_ceil(sample.out_shape()[axis], block_dim[axis]) *
+                                 div_ceil(sample.out_shape().z, block_dim.z);
+    }
+  }
+}
+
+template <int spatial_ndim>
+void SeparableResamplingSetup<spatial_ndim>::SetupSample(
+    SampleDesc &desc,
+    const TensorShape<tensor_ndim> &in_shape,
+    const ResamplingParamsND<spatial_ndim> &params) {
+  int channels = in_shape[channel_dim];
+  auto in_size = shape2vec(skip_dim<channel_dim>(in_shape));
+  ivec<spatial_ndim> out_size;
+  for (int i = 0, d = spatial_ndim - 1; i < spatial_ndim; i++, d--) {
+    out_size[i] = params[d].output_size;
+    if (out_size[i] == KeepOriginalSize)
+      out_size[i] = in_size[i];
+  }
+
+  desc.in_shape() = in_size;
+  desc.out_shape() = out_size;
+  desc.channels = channels;
+
+  SetFilters(desc, params);
+  ROI roi = ComputeScaleAndROI(desc, params);
+
+  ivec<spatial_ndim> filter_support;
+  for (int i = 0, d = spatial_ndim - 1; i < spatial_ndim; i++, d--) {
+    int support = desc.filter[d].support();
+    // NN filter has support -1, so we need the max() below
+    filter_support[i] = std::max(1, support);
+  }
+
+  desc.order = GetProcessingOrder(roi.extent(), out_size, filter_support);;
+
+  {
+    ivec<spatial_ndim> pass_size = roi.extent();
+    for (int pass = 0; pass < spatial_ndim; pass++) {
+      int axis = desc.order[pass];
+
+      if (pass < spatial_ndim - 1) {
+        // for the last pass, the shape is out_size and is already set
+        pass_size[axis] = out_size[axis];
+        desc.tmp_shape(pass) = pass_size;
+      }
+    }
+  }
+
+  ComputeBlockLayout(desc);
+
+  // this sets strides and offsets for all stages, including input and output
+  for (int stage = 0; stage <= spatial_ndim; stage++) {
+    ptrdiff_t stride = desc.channels;
+    // There're fewer strides than dimensions.
+    for (int d = 0; d < spatial_ndim - 1; d++) {
+      stride *= desc.shapes[stage][d];
+      desc.strides[stage][d] = stride;
+    }
     desc.offsets[stage] = 0;
   }
-  desc.channels = C;
 
-  if (desc.order == VertHorz()) {
+  {
+    int first_pass_axis = desc.order[0];
+    auto strides = cat<ptrdiff_t>(channels, desc.strides[0]);
+    for (int a = 0; a < spatial_ndim; a++) {
+      if (a != first_pass_axis) {
+        desc.origin[a] -= roi.lo[a];
+        desc.in_offset() += roi.lo[a] * strides[a];
+        desc.in_shape()[a] = roi.extent()[a];
+      }
+    }
+  }
+
+  /*if (desc.order == VertHorz()) {
     desc.origin.x -= roi.lo.x;
     desc.in_offset() += roi.lo.x * desc.channels;
     desc.in_shape().x = roi.extent().x;
@@ -164,7 +237,7 @@ void SeparableResamplingSetup<2>::SetupSample(
     desc.origin.y -= roi.lo.y;
     desc.in_offset() += roi.lo.y * desc.strides[0][0];
     desc.in_shape().y = roi.extent().y;
-  }
+  }*/
 }
 
 template <>

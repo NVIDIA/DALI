@@ -107,12 +107,12 @@ void BatchedSeparableResample(
     int which_pass,
     const SampleDesc<spatial_ndim> *samples,
     const SampleBlockInfo *block2sample, int num_blocks,
-    int2 block_size,
+    ivec3 block_size,
     cudaStream_t stream) {
   if (num_blocks <= 0)
     return;
 
-  dim3 block(block_size.x, block_size.y);
+  dim3 block(block_size.x, block_size.y, block_size.z);
 
   BatchedSeparableResampleKernel<spatial_ndim, Output, Input>
   <<<num_blocks, block, ResampleSharedMemSize, stream>>>(which_pass, samples, block2sample);
@@ -124,7 +124,7 @@ template DLL_PUBLIC void BatchedSeparableResample<spatial_ndim, Output, Input>( 
   int which_pass,                                                               \
   const SampleDesc<spatial_ndim> *samples,                                      \
   const SampleBlockInfo *block2sample, int num_blocks,                          \
-  int2 block_size, cudaStream_t stream)
+  ivec3 block_size, cudaStream_t stream)
 
 // Instantiate the resampling functions.
 // The resampling always goes through intermediate image of float type.

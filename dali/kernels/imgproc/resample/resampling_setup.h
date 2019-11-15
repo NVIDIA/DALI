@@ -142,13 +142,14 @@ class SeparableResamplingSetup {
     filters = GetResamplingFiltersCPU();
   }
 
-  int2 block_size = { 32, 24 };
+  ivec3 block_dim = { 32, 24, 1 };
 
  protected:
   using ROI = Roi<spatial_ndim>;
 
   void SetFilters(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params);
   ROI ComputeScaleAndROI(SampleDesc &desc, const ResamplingParamsND<spatial_ndim> &params);
+  void ComputeBlockLayout(SampleDesc &sample);
 
   std::shared_ptr<ResamplingFilters> filters;
 
