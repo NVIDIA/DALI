@@ -46,6 +46,9 @@ is encountered and internal buffer needs to be reallocated to decode it.)code",
 This parameter helps to avoid reallocation in nvJPEG whenever a bigger image
 is encountered and internal buffer needs to be reallocated to decode it.)code",
       8*1024*1024)  // based on ImageNet heuristics (8MB)
+  .AddOptionalArg("affine",
+      R"code(**`mixed` backend only** If internal threads should be affined to CPU cores)code",
+      true)
   .AddOptionalArg("split_stages",
       R"code(**`mixed` backend only** Split into separated CPU stage and GPU stage operators)code",
       false)
