@@ -15,7 +15,11 @@ do_once() {
 }
 
 test_body() {
-  python infer.py -k 1 -s 15 demo
+  out=`python infer.py -k 1 -s 15 demo`
+  if echo $out | grep -E "(paragliding|sticking_tongue_out)"; then
+    exit 0
+  fi
+  exit 3
 }
 
 pushd ../..
