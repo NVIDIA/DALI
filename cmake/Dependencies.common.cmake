@@ -103,6 +103,8 @@ endif()
 ##################################################################
 # libsnd
 ##################################################################
+message(STATUS "DUPDUP")
+message(STATUS ${CMAKE_SYSTEM_PREFIX_PATH})
 find_library(libsnd_LIBS
         NAMES sndfile libsndfile
         PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBSND_ROOT_DIR} "/usr/local"
