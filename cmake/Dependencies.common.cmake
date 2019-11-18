@@ -110,6 +110,7 @@ find_library(libsnd_LIBS
 if(${libsnd_LIBS} STREQUAL libsnd_LIBS-NOTFOUND)
   message(FATAL_ERROR "libsnd (sndfile) could not be found. Try to specify it's location with `-DLIBSND_ROOT_DIR`.")
 endif()
+message(STATUS "Found libsnd: ${libsnd_LIBS}")
 list(APPEND DALI_LIBS ${libsnd_LIBS})
 
 ##################################################################
