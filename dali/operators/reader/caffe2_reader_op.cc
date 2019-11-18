@@ -23,13 +23,15 @@ DALI_SCHEMA(Caffe2Reader)
   .DocStr("Read sample data from a Caffe2 Lightning Memory-Mapped Database (LMDB).")
   .NumInput(0)
   .OutputFn([](const OpSpec& spec) {
+      int img_idx = spec.GetArgument<bool>("image_available") ? 1 : 0;
       auto label_type = static_cast<LabelType>(spec.GetArgument<int>("label_type"));
 
-      int num_label_outputs = (label_type == MULTI_LABEL_SPARSE ||
-                               label_type == MULTI_LABEL_WEIGHTED_SPARSE) ? 2 : 1;
+      int num_label_outputs = (label_type == NO_LABEL) ? 0 : 1;
+      num_label_outputs += (label_type == MULTI_LABEL_SPARSE ||
+                            label_type == MULTI_LABEL_WEIGHTED_SPARSE) ? 1 : 0;
       int additional_inputs = spec.GetArgument<int>("additional_inputs");
       int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox"));
-    return 1 + num_label_outputs + additional_inputs + has_bbox;
+    return img_idx + num_label_outputs + additional_inputs + has_bbox;
   })
   .AddArg("path",
       R"code(List of paths to Caffe2 LMDB directories.)code",
@@ -43,7 +45,10 @@ DALI_SCHEMA(Caffe2Reader)
 * 1 = MULTI_LABEL_SPARSE : sparse active label indices for multi-label classification
 * 2 = MULTI_LABEL_DENSE : dense label embedding vector for label embedding regression
 * 3 = MULTI_LABEL_WEIGHTED_SPARSE : sparse active label indices with per-label weights for multi-label classification.
+* 4 = NO_LABEL : no label is available.
 )code", 0)
+  .AddOptionalArg("image_available",
+      R"code(If image is available at all in this LMDB.)code", true)
   .AddOptionalArg("additional_inputs",
       R"code(Additional auxiliary data tensors provided for each sample.)code", 0)
   .AddOptionalArg("bbox",
