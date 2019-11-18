@@ -20,10 +20,6 @@
 
 namespace dali {
 
-struct decoder_runtime_error : public DALIException {
-  decoder_runtime_error(const std::string &err) : DALIException(err) {}  // NOLINT
-};
-
 struct AudioMetadata {
   int length;
   int sample_rate;  /// [Hz]
