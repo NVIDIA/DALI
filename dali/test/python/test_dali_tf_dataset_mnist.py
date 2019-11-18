@@ -77,8 +77,7 @@ class MnistPipeline(Pipeline):
         super(MnistPipeline, self).__init__(
             batch_size, num_threads, device_id, seed)
         self.device = device
-        self.reader = ops.FileReader(
-            file_root=path, random_shuffle=True, shard_id=shard_id, num_shards=num_shards)
+        self.reader = ops.Caffe2Reader(path=path, random_shuffle=True, shard_id=shard_id, num_shards=num_shards)
         self.decode = ops.ImageDecoder(
             device='mixed' if device is 'gpu' else 'cpu',
             output_type=types.GRAY)
