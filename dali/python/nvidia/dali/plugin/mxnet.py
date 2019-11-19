@@ -78,7 +78,7 @@ class DALIGenericIterator(object):
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     fill_last_batch : bool, optional, default = True
-                 Whether to fill the last batch with data from next epoch.
+                 Whether to fill the last batch with data up to 'self.batch_size'.
                  The iterator would return the first integer multiple
                  of self._num_gpus * self.batch_size entries which exceeds 'size'.
                  Setting this flag to False will cause the iterator to return
@@ -347,7 +347,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     fill_last_batch : bool, optional, default = True
-                 Whether to fill the last batch with data from next epoch.
+                 Whether to fill the last batch with data up to 'self.batch_size'.
                  The iterator would return the first integer multiple
                  of self._num_gpus * self.batch_size entries which exceeds 'size'.
                  Setting this flag to False will cause the iterator to return
