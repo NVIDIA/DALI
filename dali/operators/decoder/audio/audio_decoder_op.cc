@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/pipeline/operator/op_schema.h>
-#include "audio_decoder_op.h"
+#include "dali/operators/decoder/audio/audio_decoder_op.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
 
-//TODO in docs:
+// TODO(mszolucha): in docs:
 // 1. Supported output: int16, int32, float
 
 DALI_SCHEMA(AudioDecoder)
@@ -29,4 +29,4 @@ Output: (Metadata, AudioData))code")
 
 DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
 
-}
+}  // namespace dali

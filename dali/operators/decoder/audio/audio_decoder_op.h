@@ -20,13 +20,13 @@
 
 #include <memory>
 #include <vector>
+#include "dali/core/static_switch.h"
+#include "dali/operators/decoder/audio/audio_decoder.h"
+#include "dali/operators/decoder/audio/generic_decoder.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/host_workspace.h"
-#include "dali/operators/decoder/audio/audio_decoder.h"
-#include "dali/operators/decoder/audio/generic_decoder.h"
-#include "dali/core/static_switch.h"
 
 namespace dali {
 

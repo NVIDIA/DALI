@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <sstream>
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 #include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
@@ -67,4 +67,4 @@ bool HasKnownExtension(const std::string &filepath) {
   return HasKnownExtension(filepath, extensions);
 }
 
-}
+}  // namespace dali
