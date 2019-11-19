@@ -32,13 +32,13 @@ struct ExtractWindowsArgs {
   int64_t window_length = -1;
   int64_t window_step = -1;
   int64_t in_time_axis = -1;
-  int64_t out_frame_axis = -1;
+  bool    center_windows = true;
 
   inline bool operator==(const ExtractWindowsArgs& oth) const {
     return window_length == oth.window_length &&
            window_step == oth.window_step &&
            in_time_axis == oth.in_time_axis &&
-           out_frame_axis == oth.out_frame_axis;
+           center_windows == oth.center_windows;
   }
 
   inline bool operator!=(const ExtractWindowsArgs& oth) const {
@@ -77,13 +77,12 @@ class DLL_PUBLIC ExtractWindowsCpu {
                       const ExtractWindowsArgs &args);
 
  private:
-  ExtractWindowsArgs args_;
   int64_t window_length_ = -1;
   int64_t window_step_ = -1;
   int64_t window_fn_length_ = -1;
   int64_t nwindows_ = -1;
   int64_t in_time_axis_ = -1;
-  int64_t out_frame_axis_ = -1;
+  int64_t window_center_offset_ = true;
 };
 
 }  // namespace window
