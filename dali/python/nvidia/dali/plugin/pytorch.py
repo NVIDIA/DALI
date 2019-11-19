@@ -80,7 +80,7 @@ class DALIGenericIterator(object):
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
     fill_last_batch : bool, optional, default = True
-                 Whether to fill the last batch with data from next epoch.
+                 Whether to fill the last batch with data up to 'self.batch_size'.
                  The iterator would return the first integer multiple
                  of self._num_gpus * self.batch_size entries which exceeds 'size'.
                  Setting this flag to False will cause the iterator to return
@@ -296,7 +296,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
     fill_last_batch : bool, optional, default = True
-                 Whether to fill the last batch with data from next epoch.
+                 Whether to fill the last batch with data up to 'self.batch_size'.
                  The iterator would return the first integer multiple
                  of self._num_gpus * self.batch_size entries which exceeds 'size'.
                  Setting this flag to False will cause the iterator to return
