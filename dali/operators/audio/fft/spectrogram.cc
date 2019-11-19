@@ -94,7 +94,6 @@ namespace {
     args.window_length = window_length;
     args.window_step = window_step;
     args.in_time_axis = ndim - 1;
-    args.out_frame_axis = ndim - 1;  // one extra dimension is created by this kernel
   }
 
   void FillFftArgs(kernels::signal::fft::FftArgs& args,
