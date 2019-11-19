@@ -17,15 +17,23 @@
 
 namespace dali {
 
-// TODO(mszolucha): in docs:
-// 1. Supported output: int16, int32, float
-
 DALI_SCHEMA(AudioDecoder)
                 .DocStr(R"code(Decode audio data.
-Output: (Metadata, AudioData))code")
+This operator is a generic way of handling encoded data in DALI.
+It supports most of well-known audio formats (wav, flac, ogg).
+
+This operator produces two outputs:
+output[0]: batch of decoded data
+output[1]: batch of sampling rates [Hz]
+
+Data in the output correspond to each other.
+On the event more metadata will appear, we reserve a right to change this behaviour.)code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg(detail::kOutputTypeName, "output_type", DALI_INT16);
+                .AddOptionalArg(
+                        detail::kOutputTypeName,
+                        "Type of the output data. Supports types: `INT16`, `INT32`, `FLOAT`",
+                        DALI_INT16);
 
 DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
 

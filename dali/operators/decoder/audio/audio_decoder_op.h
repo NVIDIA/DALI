@@ -32,7 +32,7 @@ namespace dali {
 
 namespace detail {
 
-const std::string kOutputTypeName = "output_type";  // NOLINT
+const std::string kOutputTypeName = "dtype";  // NOLINT
 const int kNumOutputs = 2;
 
 }  // namespace detail
