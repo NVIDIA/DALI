@@ -45,6 +45,7 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
 
   window_length_ = args.window_length > 0 ? args.window_length : 1;
   window_step_ = args.window_step > 0 ? args.window_step : 1;
+  window_center_offset_ = args.center_windows ? window_length_ / 2 : 0;
 
   window_fn_length_ = volume(window_fn.shape);
   DALI_ENFORCE(window_fn_length_ > 0, "Window function should not be empty");
@@ -58,35 +59,21 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
   DALI_ENFORCE(in_time_axis_ == InputDims - 1,
     "Current implementation expects time dimension to be the inner-most dimension");
 
-  // frame temporal axis (last in output shape by default)
-  out_frame_axis_ = args.out_frame_axis >= 0 ? args.out_frame_axis : OutputDims - 1;
-  DALI_ENFORCE(out_frame_axis_ >= 0 && out_frame_axis_ < OutputDims,
-    make_string("Output frame temporal axis (", out_frame_axis_, ") is out of range [0, ",
-      OutputDims, ")"));
-  DALI_ENFORCE(out_frame_axis_ == OutputDims - 1,
-    "Current implementation expects window time dimension to be the inner-most dimension");
-
-
   const auto n = in.shape[in_time_axis_];
 
-  nwindows_ = (n + window_step_ - 1) / window_step_;
+  nwindows_ =  n / window_step_ + 1;
   assert(nwindows_ > 0);
 
   TensorShape<DynamicDimensions> out_shape;
   out_shape.resize(OutputDims);
 
   for (int d = 0, out_idx = 0, in_idx = 0; out_idx < OutputDims; d++) {
-    if (d == out_frame_axis_ || d == in_time_axis_) {
-      if (d == out_frame_axis_) {
-        assert(out_idx < OutputDims);
-        out_shape[out_idx++] = window_length_;
-      }
-      if (d == in_time_axis_) {
-        assert(out_idx < OutputDims);
-        assert(in_idx < InputDims);
-        out_shape[out_idx++] = nwindows_;
-        in_idx++;
-      }
+    if (d == in_time_axis_) {
+      assert(out_idx + 1 < OutputDims);
+      assert(in_idx < InputDims);
+      out_shape[out_idx++] = window_length_;
+      out_shape[out_idx++] = nwindows_;
+      in_idx++;
     } else {
       assert(out_idx < OutputDims);
       assert(in_idx < InputDims);
@@ -122,13 +109,10 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
       int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
         for (int64_t window_idx = 0; window_idx < nwindows_; window_idx++) {
           for (int64_t t = 0; t < window_length_; t++) {
-            int64_t out_idx = window_idx * window_length_ + t;
-            int64_t in_idx = window_idx * window_step_ + t;
-            if (in_idx >= 0 && in_idx < in_size) {
-              out_data[out_idx * out_stride] = window_fn.data[t] * in_data[in_idx * in_stride];
-            } else {
-              out_data[out_idx * out_stride] = 0;
-            }
+            int64_t out_idx = t * nwindows_ + window_idx;
+            int64_t in_idx = window_idx * window_step_ - window_center_offset_ + t;
+            out_data[out_idx * out_stride] = (in_idx >= 0 && in_idx < in_size) ?
+              window_fn.data[t] * in_data[in_idx * in_stride] : 0;
           }
         }
     });
