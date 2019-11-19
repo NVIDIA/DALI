@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if(BUILD_AUDIO)
+if(BUILD_LIBSND)
   add_subdirectory(audio)
 endif()
 add_subdirectory(cache)

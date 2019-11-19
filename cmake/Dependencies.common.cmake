@@ -94,7 +94,7 @@ endif()
 ##################################################################
 # libsnd
 ##################################################################
-if(BUILD_AUDIO)
+if(BUILD_LIBSND)
   find_library(libsnd_LIBS
           NAMES sndfile libsndfile
           PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBSND_ROOT_DIR} "/usr/local"
