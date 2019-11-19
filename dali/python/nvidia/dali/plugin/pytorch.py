@@ -296,11 +296,11 @@ class DALIClassificationIterator(DALIGenericIterator):
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
     fill_last_batch : bool, optional, default = True
-                 Whether to return a fraction of a full batch of data
-                 such that the total entries returned by the
-                 iterator == 'size'. Setting this flag to False will
-                 cause the iterator to return the first integer multiple
-                 of self._num_gpus * self.batch_size which exceeds 'size'.
+                 Whether to fill the last batch with data from next epoch.
+                 The iterator would return the first integer multiple
+                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
+                 Setting this flag to False will cause the iterator to return
+                 exactly 'size' entries.
     dynamic_shape: bool, optional, default = False
                  Whether the shape of the output of the DALI pipeline can
                  change during execution. If True, the pytorch tensor will be resized accordingly
