@@ -61,9 +61,6 @@ if (BUILD_JPEG_TURBO)
   message("Using libjpeg-turbo at ${JPEG_LIBRARY}")
   list(APPEND DALI_LIBS ${JPEG_LIBRARY})
   add_definitions(-DDALI_USE_JPEG_TURBO)
-else()
-  # Note: Support for disabling libjpeg-turbo is unofficial
-  message(STATUS "Building WITHOUT JpegTurbo")
 endif()
 
 ##################################################################
@@ -74,8 +71,6 @@ if (BUILD_LIBTIFF)
   include_directories(${TIFF_INCLUDE_DIR})
   message("Using libtiff at ${TIFF_LIBRARY}")
   list(APPEND DALI_LIBS ${TIFF_LIBRARY})
-else()
-  message(STATUS "Building WITHOUT libtiff")
 endif()
 
 ##################################################################
@@ -84,8 +79,6 @@ endif()
 if (BUILD_PYTHON)
   set(PYBIND11_CPP_STANDARD -std=c++14)
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/pybind11)
-else()
-  message(STATUS "Building WITHOUT Python bindings")
 endif()
 
 ##################################################################
@@ -96,22 +89,22 @@ if (BUILD_LMDB)
   include_directories(SYSTEM ${LMDB_INCLUDE_DIR})
   list(APPEND DALI_LIBS ${LMDB_LIBRARIES})
   list(APPEND DALI_EXCLUDES liblmdb.a)
-else()
-  message(STATUS "Building WITHOUT LMDB support")
 endif()
 
 ##################################################################
 # libsnd
 ##################################################################
-find_library(libsnd_LIBS
-        NAMES sndfile libsndfile
-        PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBSND_ROOT_DIR} "/usr/local"
-        PATH_SUFFIXES lib lib64)
-if(${libsnd_LIBS} STREQUAL libsnd_LIBS-NOTFOUND)
-  message(FATAL_ERROR "libsnd (sndfile) could not be found. Try to specify it's location with `-DLIBSND_ROOT_DIR`.")
+if(BUILD_AUDIO)
+  find_library(libsnd_LIBS
+          NAMES sndfile libsndfile
+          PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBSND_ROOT_DIR} "/usr/local"
+          PATH_SUFFIXES lib lib64)
+  if(${libsnd_LIBS} STREQUAL libsnd_LIBS-NOTFOUND)
+    message(FATAL_ERROR "libsnd (sndfile) could not be found. Try to specify it's location with `-DLIBSND_ROOT_DIR`.")
+  endif()
+  message(STATUS "Found libsnd: ${libsnd_LIBS}")
+  list(APPEND DALI_LIBS ${libsnd_LIBS})
 endif()
-message(STATUS "Found libsnd: ${libsnd_LIBS}")
-list(APPEND DALI_LIBS ${libsnd_LIBS})
 
 ##################################################################
 # FFmpeg
