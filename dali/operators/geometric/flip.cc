@@ -28,7 +28,9 @@ DALI_SCHEMA(Flip)
     .NumOutput(1)
     .AddOptionalArg("horizontal", R"code(Perform a horizontal flip.)code", 1, true)
     .AddOptionalArg("vertical", R"code(Perform a vertical flip.)code", 0, true)
-    .InputLayout({"HWC", "CHW"});
+    .AddOptionalArg("depthwise", R"code(Perform a depthwise flip.)code", 0, true)
+    .InputLayout({"FDHWC", "FHWC", "DHWC", "HWC", "FCDHW", "FCHW", "CDHW", "CHW"})
+    .AllowSequences();
 
 
 template <>
@@ -37,7 +39,7 @@ Flip<CPUBackend>::Flip(const OpSpec &spec)
 
 void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
              const TensorLayout &layout,
-             bool horizontal, bool vertical) {
+             bool horizontal, bool vertical, bool depthwise) {
   DALI_TYPE_SWITCH(input.type().id(), DType,
       auto output_ptr = output.mutable_data<DType>();
       auto input_ptr = input.data<DType>();
@@ -45,11 +47,11 @@ void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
       kernels::KernelContext ctx;
       auto shape_dims = TensorListShape<>{{input.shape()}};
       auto shape = TransformShapes(shape_dims, layout)[0];
-      auto in_view = kernels::InTensorCPU<DType, 4>(input_ptr, shape);
+      auto in_view = kernels::InTensorCPU<DType, flip_ndim>(input_ptr, shape);
       auto reqs = kernel.Setup(ctx, in_view);
-      auto out_shape = reqs.output_shapes[0][0].to_static<4>();
-      auto out_view = kernels::OutTensorCPU<DType, 4>(output_ptr, out_shape);
-      kernel.Run(ctx, out_view, in_view, false, vertical, horizontal);
+      auto out_shape = reqs.output_shapes[0][0].to_static<flip_ndim>();
+      auto out_view = kernels::OutTensorCPU<DType, flip_ndim>(output_ptr, out_shape);
+      kernel.Run(ctx, out_view, in_view, depthwise, vertical, horizontal);
   )
 }
 
@@ -57,16 +59,16 @@ template <>
 void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
-  DALI_ENFORCE(input.ndim() == 3);
   output.SetLayout(input.GetLayout());
   output.set_type(input.type());
   output.ResizeLike(input);
   auto _horizontal = GetHorizontal(ws, ws.data_idx());
   auto _vertical = GetVertical(ws, ws.data_idx());
+  auto _depthwise = GetDepthwise(ws, ws.data_idx());
   if (!_horizontal && !_vertical) {
     output.Copy(input, nullptr);
   } else {
-    RunFlip(output, input, InputLayout(ws, 0), _horizontal, _vertical);
+    RunFlip(output, input, InputLayout(ws, 0), _horizontal, _vertical, _depthwise);
   }
 }
 

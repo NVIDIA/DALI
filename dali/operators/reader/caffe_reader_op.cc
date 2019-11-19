@@ -21,10 +21,18 @@ DALI_REGISTER_OPERATOR(CaffeReader, CaffeReader, CPU);
 DALI_SCHEMA(CaffeReader)
   .DocStr("Read (Image, label) pairs from a Caffe LMDB")
   .NumInput(0)
-  .NumOutput(2)  // (Images, Labels)
+  .OutputFn([](const OpSpec& spec) {
+    auto image_available = spec.GetArgument<bool>("image_available");
+    auto label_available = spec.GetArgument<bool>("label_available");
+    return image_available + label_available;
+  })
   .AddArg("path",
       R"code(List of paths to Caffe LMDB directories.)code",
       DALI_STRING_VEC)
+  .AddOptionalArg("image_available",
+      R"code(If image is available at all in this LMDB.)code", true)
+  .AddOptionalArg("label_available",
+      R"code(If label is available at all.)code", true)
   .AddParent("LoaderBase");
 
 }  // namespace dali

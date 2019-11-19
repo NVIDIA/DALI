@@ -61,7 +61,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     device_id_(spec.GetArgument<int>("device_id")),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
-                 true /* pin threads */) {
+                 spec.GetArgument<bool>("affine") /* pin threads */) {
     NVJPEG_CALL(nvjpegCreateSimple(&handle_));
 
     size_t device_memory_padding = spec.GetArgument<Index>("device_memory_padding");

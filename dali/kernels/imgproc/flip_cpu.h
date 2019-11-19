@@ -23,6 +23,9 @@
 
 namespace dali {
 namespace kernels {
+
+constexpr int sample_ndim = 5;
+
 namespace detail {
 namespace cpu {
 
@@ -36,7 +39,7 @@ inline int GetOcvType(size_t channels) {
 
 template <typename Type>
 void OcvFlip(Type *output, const Type *input,
-                    size_t layers, size_t height, size_t width, size_t channels,
+                    size_t depth, size_t height, size_t width, size_t channels,
                     bool flip_z, bool flip_y, bool flip_x) {
   assert(flip_x || flip_y);
   int flip_flag = -1;
@@ -46,39 +49,47 @@ void OcvFlip(Type *output, const Type *input,
     flip_flag = 0;
   // coerce data to uint8_t - flip won't look at the type anyway
   auto ocv_type = GetOcvType<uint8_t>(channels * sizeof(Type));
-  size_t layer_size = height * width * channels;
-  for (size_t layer = 0; layer < layers; ++layer) {
-    auto output_layer = flip_z ? layers - layer - 1 : layer;
-    auto input_mat = CreateMatFromPtr(height, width, ocv_type, input + layer * layer_size);
+  size_t plane_size = height * width * channels;
+  for (size_t plane = 0; plane < depth; ++plane) {
+    auto output_plane = flip_z ? depth - plane - 1 : plane;
+    auto input_mat = CreateMatFromPtr(height, width, ocv_type, input + plane * plane_size);
     auto output_mat = CreateMatFromPtr(height, width, ocv_type,
-                                       output + output_layer * layer_size);
+                                       output + output_plane * plane_size);
     cv::flip(input_mat, output_mat, flip_flag);
   }
 }
 
 template <typename Type>
-void FlipZAxis(Type *output, const Type *input, size_t layers, size_t height, size_t width,
+void FlipZAxis(Type *output, const Type *input, size_t depth, size_t height, size_t width,
                       size_t channels, bool flip_z) {
   if (!flip_z) {
-    std::copy(input, input + layers * height * width * channels, output);
+    std::copy(input, input + depth * height * width * channels, output);
     return;
   }
-  size_t layer_size = height * width * channels;
-  for (size_t layer = 0; layer < layers; ++layer) {
-    auto out_layer = layers - layer - 1;
-    std::copy(input + layer * layer_size, input + (layer + 1) * layer_size,
-              output + out_layer * layer_size);
+  size_t plane_size = height * width * channels;
+  for (size_t plane = 0; plane < depth; ++plane) {
+    auto out_plane = depth - plane - 1;
+    std::copy(input + plane * plane_size, input + (plane + 1) * plane_size,
+              output + out_plane * plane_size);
   }
 }
 
 template <typename Type>
 void FlipImpl(Type *output, const Type *input,
-                       size_t layers, size_t height, size_t width,
-                       size_t channels, bool flip_z, bool flip_y, bool flip_x) {
+              TensorShape<sample_ndim> shape, bool flip_z, bool flip_y, bool flip_x) {
+  auto frame_size = volume(&shape[1], &shape[sample_ndim]);
   if (flip_x || flip_y) {
-    OcvFlip(output, input, layers, height, width, channels, flip_z, flip_y, flip_x);
+    for (Index f = 0; f < shape[0]; ++f) {
+      OcvFlip(output, input, shape[1], shape[2], shape[3], shape[4], flip_z, flip_y, flip_x);
+      output += frame_size;
+      input += frame_size;
+    }
   } else {
-    FlipZAxis(output, input, layers, height, width, channels, flip_z);
+    for (Index f = 0; f < shape[0]; ++f) {
+      FlipZAxis(output, input, shape[1], shape[2], shape[3], shape[4], flip_z);
+      output += frame_size;
+      input += frame_size;
+    }
   }
 }
 
@@ -90,18 +101,18 @@ class DLL_PUBLIC FlipCPU {
  public:
   DLL_PUBLIC FlipCPU() = default;
 
-  DLL_PUBLIC KernelRequirements Setup(KernelContext &context, const InTensorCPU<Type, 4> &in) {
+  DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
+                                      const InTensorCPU<Type, sample_ndim> &in) {
     KernelRequirements req;
     req.output_shapes = {TensorListShape<DynamicDimensions>({in.shape})};
     return req;
   }
 
-  DLL_PUBLIC void Run(KernelContext &Context, OutTensorCPU<Type, 4> &out,
-      const InTensorCPU<Type, 4> &in, bool flip_z, bool flip_y, bool flip_x) {
+  DLL_PUBLIC void Run(KernelContext &Context, OutTensorCPU<Type, sample_ndim> &out,
+      const InTensorCPU<Type, sample_ndim> &in, bool flip_z, bool flip_y, bool flip_x) {
     auto in_data = in.data;
     auto out_data = out.data;
-    detail::cpu::FlipImpl(out_data, in_data, in.shape[0], in.shape[1], in.shape[2], in.shape[3],
-        flip_z, flip_y, flip_x);
+    detail::cpu::FlipImpl(out_data, in_data, in.shape, flip_z, flip_y, flip_x);
   }
 };
 

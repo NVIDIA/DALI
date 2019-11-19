@@ -32,7 +32,9 @@ from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+caffe_no_label_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 c2lmdb_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb')
+c2lmdb_no_label_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb_no_label')
 recordio_db_folder = os.path.join(test_data_root, 'db', 'recordio')
 tfrecord_db_folder = os.path.join(test_data_root, 'db', 'tfrecord')
 jpeg_folder = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -1394,6 +1396,62 @@ def test_skip_cached_images():
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
                           batch_size=batch_size, N_iterations=100)
+
+def test_caffe_no_label():
+    class CaffePipeline(Pipeline):
+        def __init__(self, batch_size, path_to_data, labels, seed=123456, skip_cached_images=False, num_shards=1):
+            super(CaffePipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1, seed=seed)
+            self.input = ops.CaffeReader(path = path_to_data,
+                                          shard_id = 0,
+                                          num_shards = num_shards,
+                                          stick_to_shard = True,
+                                          prefetch_queue_depth = 1,
+                                          label_available = labels)
+            self.decode = ops.ImageDecoder(output_type = types.RGB)
+            self.labels = labels
+
+        def define_graph(self):
+            if not self.labels:
+                jpegs = self.input()
+            else:
+                jpegs,_ = self.input()
+            images = self.decode(jpegs)
+            return (images)
+
+    pipe = CaffePipeline(2, caffe_db_folder, True)
+    pipe.build()
+    pipe.run()
+    pipe = CaffePipeline(2, caffe_no_label_db_folder, False)
+    pipe.build()
+    pipe.run()
+
+def test_caffe2_no_label():
+    class Caffe2Pipeline(Pipeline):
+        def __init__(self, batch_size, path_to_data, label_type, seed=123456, skip_cached_images=False, num_shards=1):
+            super(Caffe2Pipeline, self).__init__(batch_size, num_threads=1, device_id=0, prefetch_queue_depth=1, seed=seed)
+            self.input = ops.Caffe2Reader(path = path_to_data,
+                                          shard_id = 0,
+                                          num_shards = num_shards,
+                                          stick_to_shard = True,
+                                          prefetch_queue_depth = 1,
+                                          label_type = label_type)
+            self.decode = ops.ImageDecoder(output_type = types.RGB)
+            self.label_type = label_type
+
+        def define_graph(self):
+            if self.label_type == 4:
+                jpegs = self.input()
+            else:
+                jpegs,_ = self.input()
+            images = self.decode(jpegs)
+            return (images)
+
+    pipe = Caffe2Pipeline(2, c2lmdb_db_folder, 0)
+    pipe.build()
+    pipe.run()
+    pipe = Caffe2Pipeline(2, c2lmdb_no_label_db_folder, 4)
+    pipe.build()
+    pipe.run()
 
 def test_as_tensor():
     class HybridPipe(Pipeline):

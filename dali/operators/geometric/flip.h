@@ -33,7 +33,15 @@ class Flip: public Operator<Backend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    return false;
+    output_desc.resize(1);
+    auto &input = ws.template InputRef<Backend>(0);
+    output_desc[0].type =  input.type();
+    output_desc[0].shape = input.shape();
+    return true;
+  }
+
+  bool CanInferOutputs() const override {
+    return true;
   }
 
   void RunImpl(Workspace<Backend> &ws) override;
@@ -46,27 +54,25 @@ class Flip: public Operator<Backend> {
     return this->spec_.template GetArgument<int>("vertical", &ws, idx);
   }
 
+  int GetDepthwise(const ArgumentWorkspace &ws, int idx) {
+    return this->spec_.template GetArgument<int>("depthwise", &ws, idx);
+  }
+
   std::vector<int> GetHorizontal(const ArgumentWorkspace &ws) {
-    return GetTensorArgument(&ws, "horizontal");
+    std::vector<int> result;
+    OperatorBase::GetPerSampleArgument(result, "horizontal", ws);
+    return result;
   }
 
   std::vector<int> GetVertical(const ArgumentWorkspace &ws) {
-    return GetTensorArgument(&ws, "vertical");
+    std::vector<int> result;
+    OperatorBase::GetPerSampleArgument(result, "vertical", ws);
+    return result;
   }
 
- private:
-  std::vector<int> GetTensorArgument(const ArgumentWorkspace *ws, const std::string &name) {
-    std::vector<int> result(this->batch_size_);
-    if (this->spec_.HasTensorArgument(name)) {
-      auto &arg = ws->ArgumentInput(name);
-      DALI_ENFORCE(static_cast<int>(arg.size()) == this->batch_size_);
-      for (int i = 0; i < this->batch_size_; ++i) {
-        result[i] = arg[i].data<int>()[0];
-      }
-    } else {
-      auto value = this->spec_.template GetArgument<int>(name, ws, 0);
-      std::fill(std::begin(result), std::end(result), value);
-    }
+  std::vector<int> GetDepthwise(const ArgumentWorkspace &ws) {
+    std::vector<int> result;
+    OperatorBase::GetPerSampleArgument(result, "depthwise", ws);
     return result;
   }
 };

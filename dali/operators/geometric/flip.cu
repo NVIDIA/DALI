@@ -24,20 +24,19 @@ template <>
 Flip<GPUBackend>::Flip(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
 
 void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &input,
-               const std::vector<int32> &horizontal,
+               const std::vector<int32> &depthwise, const std::vector<int32> &horizontal,
                const std::vector<int32> &vertical, cudaStream_t stream) {
   DALI_TYPE_SWITCH(
       input.type().id(), DType,
       auto in_shape = TransformShapes(input.shape(), input.GetLayout());
-      kernels::InListGPU<DType, 4> in_view(input.data<DType>(), in_shape);
+      kernels::InListGPU<DType, flip_ndim> in_view(input.data<DType>(), in_shape);
       kernels::KernelContext ctx;
       ctx.gpu.stream = stream;
       kernels::FlipGPU<DType> kernel;
       auto reqs = kernel.Setup(ctx, in_view);
-      kernels::OutListGPU<DType, 4> out_view(output.mutable_data<DType>(),
-          reqs.output_shapes[0].to_static<4>());
-      std::vector<int32> flip_z(horizontal.size());
-      kernel.Run(ctx, out_view, in_view, flip_z, vertical, horizontal);
+      kernels::OutListGPU<DType, flip_ndim> out_view(output.mutable_data<DType>(),
+                                             reqs.output_shapes[0].to_static<flip_ndim>());
+      kernel.Run(ctx, out_view, in_view, depthwise, vertical, horizontal);
   )
 }
 
@@ -50,7 +49,8 @@ void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   output.ResizeLike(input);
   auto horizontal = GetHorizontal(ws);
   auto vertical = GetVertical(ws);
-  RunKernel(output, input, horizontal, vertical, ws.stream());
+  auto depthwise = GetDepthwise(ws);
+  RunKernel(output, input, depthwise, horizontal, vertical, ws.stream());
 }
 
 DALI_REGISTER_OPERATOR(Flip, Flip<GPUBackend>, GPU);
