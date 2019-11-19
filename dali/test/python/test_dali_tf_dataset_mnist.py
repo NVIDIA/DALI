@@ -45,15 +45,14 @@ except:
     from tensorflow import global_variables_initializer
     from tensorflow.data import make_initializable_iterator
 try:
+    from tensorflow.train import AdamOptimizer as Adam
+    from tensorflow.train import AdamOptimizer as AdamOptimizer
+except:
     try:
-        from tensorflow.train import AdamOptimizer as Adam
-        from tensorflow.train import AdamOptimizer as AdamOptimizer
+        from tensorflow.compat.v1.keras.optimizers import Adam
+        from tensorflow.compat.v1.train import AdamOptimizer
     except:
         pass
-except:
-    from tensorflow.compat.v1.keras.optimizers import Adam
-    from tensorflow.compat.v1.train import AdamOptimizer
-
 try:
     tf.compat.v1.disable_eager_execution()
 except:
