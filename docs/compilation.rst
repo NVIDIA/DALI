@@ -80,6 +80,8 @@ Prerequisites
 .. _libtiff link: http://libtiff.org/
 .. |ffmpeg link| replace:: **FFmpeg 4.2.1**
 .. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2
+.. |libsnd link| replace:: **libsnd 1.0.28**
+.. _libsnd link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
 .. |opencv link| replace:: **OpenCV 3**
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
@@ -124,6 +126,8 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |ffmpeg link|_ or later                | We recommend using version 4.2.1 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
+   | |libsnd link|_ or later                | We recommend using version 1.0.28 compiled following the *instructions below*.              |
+   +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |opencv link|_ or later                | Supported version: 3.4                                                                      |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |lmdb link|_ or later       |                                                                                             |
@@ -166,6 +170,15 @@ Prerequisites
      --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes  && \
      make
 
+.. note::
+
+   This software uses the libsnd licensed under the LGPLv2.1. Its source can be downloaded `from here. <https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz>`_
+
+   libsnd was compiled using the following command line:
+
+.. code-block:: bash
+
+    ./configure && make
 
 
 Get the DALI source

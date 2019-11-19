@@ -154,6 +154,17 @@ RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | 
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /opencv-${OPENCV_VERSION}
 
+# libsnd
+RUN LIBSND_VERSION=1.0.28 && cd /tmp                                                                           && \
+    wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-${LIBSND_VERSION}.tar.gz  && \
+    tar -xf libsndfile-$LIBSND_VERSION.tar.gz                                                                  && \
+    rm libsndfile-$LIBSND_VERSION.tar.gz                                                                       && \
+    cd libsndfile-$LIBSND_VERSION                                                                              && \
+    ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
+           CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
+           --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                                                     && \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install
+
 VOLUME /dali
 
 WORKDIR /dali
