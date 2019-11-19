@@ -78,11 +78,11 @@ class DALIGenericIterator(object):
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     fill_last_batch : bool, optional, default = True
-                 Whether to return a fraction of a full batch of data
-                 such that the total entries returned by the
-                 iterator == 'size'. Setting this flag to False will
-                 cause the iterator to return the first integer multiple
-                 of self._num_gpus * self.batch_size which exceeds 'size'.
+                 Whether to fill the last batch with data from next epoch.
+                 The iterator would return the first integer multiple
+                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
+                 Setting this flag to False will cause the iterator to return
+                 exactly 'size' entries.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -347,11 +347,11 @@ class DALIClassificationIterator(DALIGenericIterator):
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     fill_last_batch : bool, optional, default = True
-                 Whether to return a fraction of a full batch of data
-                 such that the total entries returned by the
-                 iterator == 'size'. Setting this flag to False will
-                 cause the iterator to return the first integer multiple
-                 of self._num_gpus * self.batch_size which exceeds 'size'.
+                 Whether to fill the last batch with data from next epoch.
+                 The iterator would return the first integer multiple
+                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
+                 Setting this flag to False will cause the iterator to return
+                 exactly 'size' entries.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
