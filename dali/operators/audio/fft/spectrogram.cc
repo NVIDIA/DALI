@@ -40,12 +40,18 @@ float tensor)code")
   .AddOptionalArg("window_step",
     R"code(Step betweeen the STFT windows)code",
     256)
-  .AddOptionalArg("window_type",
-    R"code(Window function type that is applied to the extracted windows)code",
-    "rectangular")
+  .AddOptionalArg("window_fn",
+    R"code(Samples of the window function that will be multiplied to each extracted window when
+  calculating the STFT. If provided it should be a list of floating point numbers of size
+  `window_length`. If not provided a Hann window will be used)code",
+    std::vector<float>{})
   .AddOptionalArg("power",
     "Exponent of the magnitude of the spectrum. Supported values are 1 for energy and 2 for power)",
-    2);
+    2)
+  .AddOptionalArg("center_windows",
+    R"code(Indicates whether extracted windows should be padded so that window function is centered
+at multiples of `window_step`)code",
+    true);
 
 template <int Dims>
 struct SpectrogramImplCpu : Spectrogram<CPUBackend>::ImplBase {
@@ -59,13 +65,7 @@ struct SpectrogramImplCpu : Spectrogram<CPUBackend>::ImplBase {
   static constexpr int WindowsDims = Dims+1;
   using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, WindowsDims>;
 
-  SpectrogramImplCpu(const OpSpec & spec)
-    : nfft_(spec.GetArgument<int>("nfft"))
-    , window_length_(spec.GetArgument<int>("window_length"))
-    , window_step_(spec.GetArgument<int>("window_step"))
-    , power_(spec.GetArgument<int>("power"))
-    , window_type_(spec.GetArgument<std::string>("window_type")) {}
-
+  SpectrogramImplCpu(const OpSpec & spec);
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
@@ -74,9 +74,8 @@ struct SpectrogramImplCpu : Spectrogram<CPUBackend>::ImplBase {
   int window_length_ = -1;
   int window_step_ = -1;
   int power_ = -1;
-  std::string window_type_;
-
-  Tensor<CPUBackend> window_fn_;
+  bool center_windows_ = true;
+  std::vector<float> window_fn_;
 
   kernels::KernelManager kmgr_window_;
   kernels::signal::window::ExtractWindowsArgs window_args_;
@@ -90,10 +89,11 @@ struct SpectrogramImplCpu : Spectrogram<CPUBackend>::ImplBase {
 
 namespace {
   void FillExtractWindowsArgs(kernels::signal::window::ExtractWindowsArgs& args,
-                              int window_length, int window_step, int ndim) {
+                              int window_length, int window_step, bool center_windows, int ndim) {
     args.window_length = window_length;
     args.window_step = window_step;
     args.in_time_axis = ndim - 1;
+    args.center_windows = center_windows;
   }
 
   void FillFftArgs(kernels::signal::fft::FftArgs& args,
@@ -116,7 +116,33 @@ namespace {
     args.transform_axis = ndims - 2;
   }
 
+  void CreateWindowHann(span<float> window_fn_data) {
+    int N = window_fn_data.size();
+    double a = (2*M_PI/N);
+    for (int t = 0; t < N; t++) {
+      double phase = a * (t+0.5);
+      window_fn_data.data()[t] = static_cast<float>(0.5 * (1.0 - std::cos(phase)));
+    }
+  }
+
 }  // namespace
+
+template <int Dims>
+SpectrogramImplCpu<Dims>::SpectrogramImplCpu(const OpSpec & spec)
+    : nfft_(spec.GetArgument<int>("nfft"))
+    , window_length_(spec.GetArgument<int>("window_length"))
+    , window_step_(spec.GetArgument<int>("window_step"))
+    , power_(spec.GetArgument<int>("power"))
+    , center_windows_(spec.GetArgument<bool>("center_windows"))
+    , window_fn_(spec.GetRepeatedArgument<float>("window_fn")) {
+  if (window_fn_.empty()) {
+    window_fn_.resize(window_length_);
+    CreateWindowHann(make_span(window_fn_));
+  }
+  DALI_ENFORCE(window_fn_.size() == static_cast<size_t>(window_length_),
+    "Window function should match the specified `window_length`");
+}
+
 
 template <int Dims>
 bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
@@ -131,16 +157,9 @@ bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
   // Intermediate output buffers
   window_out_.resize(nthreads);
 
-  // rectangular (TODO: extend and do only once)
-  window_fn_.set_type(TypeInfo::Create<float>());
-  window_fn_.Resize({window_length_});
-  for (int t = 0; t < window_length_; t++) {
-    window_fn_.mutable_data<float>()[t] = 1.0f;
-  }
-
   kmgr_window_.Initialize<WindowKernel>();
   kmgr_window_.Resize<WindowKernel>(nthreads, nsamples);
-  FillExtractWindowsArgs(window_args_, window_length_, window_step_, InputDims);
+  FillExtractWindowsArgs(window_args_, window_length_, window_step_, center_windows_, InputDims);
 
   kmgr_fft_.Initialize<FftKernel>();
   kmgr_fft_.Resize<FftKernel>(nthreads, nsamples);
@@ -154,17 +173,18 @@ bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
   out_desc[0].type = TypeInfo::Create<OutputType>();
   out_desc[0].shape.resize(nsamples, WindowsDims);
 
+  auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
   for (int i = 0; i < nsamples; i++) {
     auto &windows_req =
       kmgr_window_.Setup<WindowKernel>(
         i, ctx,
         view<const InputType, Dims>(input[i]),
-        view<const float, 1>(window_fn_),
+        view_window_fn,
         window_args_);
     window_out_desc_[0].shape.set_tensor_shape(i, windows_req.output_shapes[0][0].shape);
 
     auto windows_shape = windows_req.output_shapes[0][0].template to_static<WindowsDims>();
-    kernels::InTensorCPU<InputType, WindowsDims> dummy_win_view(nullptr, windows_shape);
+    auto dummy_win_view = make_tensor_cpu<WindowsDims, InputType>(nullptr, windows_shape);
     auto &out_req =
       kmgr_fft_.Setup<FftKernel>(
         i, ctx,
@@ -181,10 +201,11 @@ void SpectrogramImplCpu<Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
+  auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
 
   for (int i = 0; i < nsamples; i++) {
     thread_pool.DoWorkWithID(
-      [this, &input, &output, i](int thread_id) {
+      [this, &input, &output, view_window_fn, i](int thread_id) {
         kernels::KernelContext ctx;
 
         auto &win_out = window_out_[thread_id];
@@ -195,7 +216,7 @@ void SpectrogramImplCpu<Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
           thread_id, i, ctx,
           view<InputType, WindowsDims>(win_out),
           view<const InputType, InputDims>(input[i]),
-          view<const float, 1>(window_fn_),
+          view_window_fn,
           window_args_);
 
         kmgr_fft_.Run<FftKernel>(
