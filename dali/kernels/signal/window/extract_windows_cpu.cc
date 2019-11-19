@@ -108,11 +108,21 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
       OutputType *out_data, const InputType *in_data,
       int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
         for (int64_t window_idx = 0; window_idx < nwindows_; window_idx++) {
-          for (int64_t t = 0; t < window_length_; t++) {
-            int64_t out_idx = t * nwindows_ + window_idx;
-            int64_t in_idx = window_idx * window_step_ - window_center_offset_ + t;
-            out_data[out_idx * out_stride] = (in_idx >= 0 && in_idx < in_size) ?
-              window_fn.data[t] * in_data[in_idx * in_stride] : 0;
+          int64_t window_start = window_idx * window_step_ - window_center_offset_;
+          // Window needs special treatment (falls outside of the signal)
+          if (window_start < 0 || window_start + window_length_ > in_size) {
+            for (int64_t t = 0; t < window_length_; t++) {
+              int64_t out_idx = t * nwindows_ + window_idx;
+              int64_t in_idx = window_start + t;
+              out_data[out_idx * out_stride] = (in_idx >= 0 && in_idx < in_size) ?
+                window_fn.data[t] * in_data[in_idx * in_stride] : 0;
+            }
+          } else {  // no special treatment for this window (just copy)
+            for (int64_t t = 0; t < window_length_; t++) {
+              int64_t out_idx = t * nwindows_ + window_idx;
+              int64_t in_idx = window_start + t;
+              out_data[out_idx * out_stride] = window_fn.data[t] * in_data[in_idx * in_stride];
+            }
           }
         }
     });
