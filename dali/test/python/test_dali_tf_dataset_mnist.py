@@ -56,14 +56,14 @@ try:
 except:
     pass
 
-target = 0.85
-batch_size = 32
-dropout = 0.2
-image_size = 28
-labels_size = 10
-hidden_size = 128
-epochs = 5
-iterations = 100
+TARGET = 0.8
+BATCH_SIZE = 32
+DROPOUT = 0.2
+IMAGE_SIZE = 28
+NUM_CLASSES = 10
+HIDDEN_SIZE = 128
+EPOCHS = 4
+ITERATIONS = 100
 
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/training/')
 
@@ -75,7 +75,7 @@ def setup():
 class MnistPipeline(Pipeline):
     def __init__(self, num_threads, path, device, device_id=0, shard_id=0, num_shards=1, seed=0):
         super(MnistPipeline, self).__init__(
-            batch_size, num_threads, device_id, seed)
+            BATCH_SIZE, num_threads, device_id, seed)
         self.device = device
         self.reader = ops.Caffe2Reader(path=path, random_shuffle=True, shard_id=shard_id, num_shards=num_shards)
         self.decode = ops.ImageDecoder(
@@ -103,15 +103,15 @@ def _get_mnist_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
     mnist_pipeline = MnistPipeline(
         4, data_path, device, device_id, shard_id, num_shards)
     shapes = [
-        (batch_size, image_size, image_size),
-        (batch_size)]
+        (BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE),
+        (BATCH_SIZE)]
     dtypes = [
         tf.float32,
         tf.int32]
 
     daliset = dali_tf.DALIDataset(
         pipeline=mnist_pipeline,
-        batch_size=batch_size,
+        batch_size=BATCH_SIZE,
         shapes=shapes,
         dtypes=dtypes,
         num_threads=4,
@@ -130,9 +130,9 @@ def _get_train_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
 def _graph_model(images, reuse, is_training):
     with variable_scope('mnist_net', reuse=reuse):
         images = layers.flatten(images)
-        images = layers.dense(images, hidden_size, activation=tf.nn.relu)
-        images = layers.dropout(images, rate=dropout, training=is_training)
-        images = layers.dense(images, labels_size, activation=tf.nn.softmax)
+        images = layers.dense(images, HIDDEN_SIZE, activation=tf.nn.relu)
+        images = layers.dropout(images, rate=DROPOUT, training=is_training)
+        images = layers.dense(images, NUM_CLASSES, activation=tf.nn.softmax)
 
     return images
 
@@ -142,20 +142,20 @@ def _train_graph(iterator_initializers, train_op, accuracy):
         sess.run(global_variables_initializer())
         sess.run(iterator_initializers)
 
-        for i in range(epochs * iterations):
+        for i in range(EPOCHS * ITERATIONS):
             sess.run(train_op)
-            if i % iterations == 0:
+            if i % ITERATIONS == 0:
                 train_accuracy = accuracy.eval()
                 print("Step %d, accuracy: %g" % (i, train_accuracy))
 
         final_accuracy = 0
-        for _ in range(iterations):
+        for _ in range(ITERATIONS):
             final_accuracy = final_accuracy + \
                 accuracy.eval()
-        final_accuracy = final_accuracy / iterations
+        final_accuracy = final_accuracy / ITERATIONS
 
         print('Final accuracy: ', final_accuracy)
-        assert final_accuracy > target
+        assert final_accuracy > TARGET
 
 
 def _test_graph_single_device(device='cpu', device_id=0):
@@ -165,10 +165,10 @@ def _test_graph_single_device(device='cpu', device_id=0):
         iterator = make_initializable_iterator(daliset)
         images, labels = iterator.get_next()
 
-        images = tf.reshape(images, [batch_size, image_size*image_size])
+        images = tf.reshape(images, [BATCH_SIZE, IMAGE_SIZE*IMAGE_SIZE])
         labels = tf.reshape(
-            tf.one_hot(labels, labels_size),
-            [batch_size, labels_size])
+            tf.one_hot(labels, NUM_CLASSES),
+            [BATCH_SIZE, NUM_CLASSES])
 
         logits_train = _graph_model(images, reuse=False, is_training=True)
         logits_test = _graph_model(images, reuse=True, is_training=False)
@@ -201,11 +201,11 @@ def test_graph_single_cpu():
 
 def _keras_model():
     model = tf.keras.models.Sequential([
-        tf.keras.layers.Input(shape=(image_size, image_size), name='images'),
-        tf.keras.layers.Flatten(input_shape=(image_size, image_size)),
-        tf.keras.layers.Dense(hidden_size, activation='relu'),
-        tf.keras.layers.Dropout(dropout),
-        tf.keras.layers.Dense(labels_size, activation='softmax')
+        tf.keras.layers.Input(shape=(IMAGE_SIZE, IMAGE_SIZE), name='images'),
+        tf.keras.layers.Flatten(input_shape=(IMAGE_SIZE, IMAGE_SIZE)),
+        tf.keras.layers.Dense(HIDDEN_SIZE, activation='relu'),
+        tf.keras.layers.Dropout(DROPOUT),
+        tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
     ])
     model.compile(
         optimizer=Adam(),
@@ -223,12 +223,12 @@ def _test_keras_single_device(device='cpu', device_id=0):
 
         model.fit(
             train_dataset,
-            epochs=epochs,
-            steps_per_epoch=iterations)
+            epochs=EPOCHS,
+            steps_per_epoch=ITERATIONS)
 
         assert model.evaluate(
             train_dataset,
-            steps=iterations)[1] > target
+            steps=ITERATIONS)[1] > TARGET
 
 
 def test_keras_single_gpu():
@@ -253,7 +253,7 @@ def _test_estimators_single_device(model, device='cpu', device_id=0):
             return _get_train_dataset(device, device_id).map(
                 lambda features, labels: ({'images': features}, labels))
 
-    model.train(input_fn=train_fn, steps=epochs * iterations)
+    model.train(input_fn=train_fn, steps=EPOCHS * ITERATIONS)
 
     def test_fn():
         return _get_train_dataset(device, device_id).map(
@@ -261,11 +261,11 @@ def _test_estimators_single_device(model, device='cpu', device_id=0):
 
     evaluation = model.evaluate(
         input_fn=test_fn,
-        steps=iterations)
+        steps=ITERATIONS)
     final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
     print('Final accuracy: ', final_accuracy)
 
-    assert final_accuracy > target
+    assert final_accuracy > TARGET
 
 
 def _run_config(device='cpu', device_id=0):
@@ -276,13 +276,13 @@ def _run_config(device='cpu', device_id=0):
 
 def _test_estimators_classifier_single_device(device='cpu', device_id=0):
     feature_columns = [tf.feature_column.numeric_column(
-        "images", shape=[image_size, image_size])]
+        "images", shape=[IMAGE_SIZE, IMAGE_SIZE])]
 
     model = tf.estimator.DNNClassifier(
         feature_columns=feature_columns,
-        hidden_units=[hidden_size],
-        n_classes=labels_size,
-        dropout=dropout,
+        hidden_units=[HIDDEN_SIZE],
+        n_classes=NUM_CLASSES,
+        dropout=DROPOUT,
         config=_run_config(device, device_id),
         optimizer=Adam)
 
@@ -375,10 +375,10 @@ def test_graph_multi_gpu():
                 images, labels = iterator.get_next()
 
                 images = tf.reshape(
-                    images, [batch_size, image_size*image_size])
+                    images, [BATCH_SIZE, IMAGE_SIZE*IMAGE_SIZE])
                 labels = tf.reshape(
-                    tf.one_hot(labels, labels_size),
-                    [batch_size, labels_size])
+                    tf.one_hot(labels, NUM_CLASSES),
+                    [BATCH_SIZE, NUM_CLASSES])
 
                 logits_train = _graph_model(
                     images, reuse=(i != 0), is_training=True)
@@ -407,7 +407,7 @@ def test_graph_multi_gpu():
 # Note: This picks up single Dataset instance on the CPU and distributes the data automatically.
 # TODO(awolant): Goal is to figure out how to have GPU instance per replica on one machine.
 def test_keras_multi_gpu():
-    train_dataset = _get_train_dataset('cpu', 0).unbatch().batch(batch_size * num_available_gpus())
+    train_dataset = _get_train_dataset('cpu', 0).unbatch().batch(BATCH_SIZE * num_available_gpus())
     mirrored_strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
 
     with mirrored_strategy.scope():
@@ -415,12 +415,12 @@ def test_keras_multi_gpu():
 
     model.fit(
         train_dataset,
-        epochs=epochs,
-        steps_per_epoch=iterations)
+        epochs=EPOCHS,
+        steps_per_epoch=ITERATIONS)
 
     assert model.evaluate(
         train_dataset,
-        steps=iterations)[1] > target
+        steps=ITERATIONS)[1] > TARGET
 
 
 def _test_estimators_multi_gpu(model):
@@ -428,15 +428,15 @@ def _test_estimators_multi_gpu(model):
         return _get_train_dataset('cpu', 0).map(
             lambda features, labels: ({'images': features}, labels))
 
-    model.train(input_fn=train_fn, steps=epochs * iterations)
+    model.train(input_fn=train_fn, steps=EPOCHS * ITERATIONS)
 
     evaluation = model.evaluate(
         input_fn=train_fn,
-        steps=iterations)
+        steps=ITERATIONS)
     final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
     print('Final accuracy: ', final_accuracy)
 
-    assert final_accuracy > target
+    assert final_accuracy > TARGET
 
 
 def _multi_gpu_classifier():
@@ -449,13 +449,13 @@ def _multi_gpu_classifier():
         eval_distribute=mirrored_strategy)
 
     feature_columns = [tf.feature_column.numeric_column(
-        "images", shape=[image_size, image_size])]
+        "images", shape=[IMAGE_SIZE, IMAGE_SIZE])]
 
     model = tf.estimator.DNNClassifier(
         feature_columns=feature_columns,
-        hidden_units=[hidden_size],
-        n_classes=labels_size,
-        dropout=dropout,
+        hidden_units=[HIDDEN_SIZE],
+        n_classes=NUM_CLASSES,
+        dropout=DROPOUT,
         optimizer=Adam,
         config=config)
     return model
