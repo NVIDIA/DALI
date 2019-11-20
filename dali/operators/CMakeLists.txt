@@ -14,7 +14,6 @@
 
 project(dali_operator)
 
-add_subdirectory(audio)
 add_subdirectory(color)
 add_subdirectory(color_space)
 add_subdirectory(crop)
@@ -31,6 +30,7 @@ add_subdirectory(paste)
 add_subdirectory(reader)
 add_subdirectory(resize)
 add_subdirectory(sequence)
+add_subdirectory(signal)
 add_subdirectory(support)
 add_subdirectory(transpose)
 add_subdirectory(util)
