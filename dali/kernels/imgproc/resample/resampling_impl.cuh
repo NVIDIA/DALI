@@ -27,16 +27,17 @@ constexpr int ResampleSharedMemSize = 32<<10;
 
 namespace {
 
+template <int n>
+using ptrdiff_vec = vec<n, ptrdiff_t>;
+
 namespace resample_shared {
   extern __shared__ float coeffs[];
 };
 
 /**
  * @brief Implements horizontal resampling for a custom ROI
- * @param x0 - start column, in output coordinates
- * @param x1 - end column (exclusive), in output coordinates
- * @param y0 - start row
- * @param y1 - end row (exclusive)
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
  * @tparam static_channels - number of channels, if known at compile time
  *
  * The function fills the output in block-sized vertical spans.
@@ -54,12 +55,16 @@ namespace resample_shared {
  */
 template <int static_channels = -1, typename Dst, typename Src>
 __device__ void ResampleHorz_Channels(
-    int x0, int x1, int y0, int y1,
+    ivec2 lo, ivec2 hi,
     float src_x0, float scale,
-    Dst *__restrict__ out, int out_stride,
-    const Src *__restrict__ in, int in_stride, int in_w, int dynamic_channels,
+    Dst *__restrict__ out, ptrdiff_vec<1> out_strides,
+    const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int dynamic_channels,
     ResamplingFilter filter, int support) {
   using resample_shared::coeffs;
+
+  int out_stride = out_strides.x;
+  int in_stride = in_strides.x;
+  int in_w = in_shape.x;
 
   src_x0 += 0.5f * scale - 0.5f - filter.anchor;
 
@@ -73,7 +78,7 @@ __device__ void ResampleHorz_Channels(
 
   const float bias = std::is_integral<Dst>::value ? 0.5f : 0;
 
-  for (int j = x0; j < x1; j += blockDim.x) {
+  for (int j = lo.x; j < hi.x; j += blockDim.x) {
     int dx = j + threadIdx.x;
     const float sx0f = dx * scale + src_x0;
     const int sx0 = huge_kernel ? __float2int_rn(sx0f) : __float2int_ru(sx0f);
@@ -92,7 +97,7 @@ __device__ void ResampleHorz_Channels(
     }
     __syncthreads();
 
-    if (dx >= x1)
+    if (dx >= hi.x)
       continue;
 
     float norm = 0;
@@ -101,7 +106,7 @@ __device__ void ResampleHorz_Channels(
     }
     norm = 1.0f / norm;
 
-    for (int i = threadIdx.y + y0; i < y1; i+=blockDim.y) {
+    for (int i = threadIdx.y + lo.y; i < hi.y; i+=blockDim.y) {
       const Src *in_row = &in[i * in_stride];
       Dst *out_row = &out[i * out_stride];
 
@@ -144,10 +149,8 @@ __device__ void ResampleHorz_Channels(
 
 /**
  * @brief Implements vertical resampling for a custom ROI
- * @param x0 - start column, in output coordinates
- * @param x1 - end column (exclusive), in output coordinates
- * @param y0 - start row
- * @param y1 - end row (exclusive)
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
  * @tparam static_channels - number of channels, if known at compile time
  *
  * The function fills the output in block-sized horizontal spans.
@@ -156,12 +159,16 @@ __device__ void ResampleHorz_Channels(
  */
 template <int static_channels = -1, typename Dst, typename Src>
 __device__ void ResampleVert_Channels(
-    int x0, int x1, int y0, int y1,
+    ivec2 lo, ivec2 hi,
     float src_y0, float scale,
-    Dst *__restrict__ out, int out_stride,
-    const Src *__restrict__ in, int in_stride, int in_h, int dynamic_channels,
+    Dst *__restrict__ out, ptrdiff_vec<1> out_strides,
+    const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int dynamic_channels,
     ResamplingFilter filter, int support) {
   using resample_shared::coeffs;
+
+  int out_stride = out_strides.x;
+  int in_stride = in_strides.x;
+  int in_h = in_shape.y;
 
   src_y0 += 0.5f * scale - 0.5f - filter.anchor;
 
@@ -173,7 +180,7 @@ __device__ void ResampleVert_Channels(
 
   const float bias = std::is_integral<Dst>::value ? 0.5f : 0;
 
-  for (int i = y0; i < y1; i+=blockDim.y) {
+  for (int i = lo.y; i < hi.y; i+=blockDim.y) {
     int dy = i + threadIdx.y;
     const float sy0f = dy * scale + src_y0;
     const int sy0 = huge_kernel ? __float2int_rn(sy0f) : __float2int_ru(sy0f);
@@ -192,7 +199,7 @@ __device__ void ResampleVert_Channels(
     }
     __syncthreads();
 
-    if (dy >= y1)
+    if (dy >= hi.y)
       continue;
 
     Dst *out_row = &out[dy * out_stride];
@@ -203,7 +210,7 @@ __device__ void ResampleVert_Channels(
     }
     norm = 1.0f / norm;
 
-    for (int j = x0 + threadIdx.x; j < x1; j += blockDim.x) {
+    for (int j = lo.x + threadIdx.x; j < hi.x; j += blockDim.x) {
       Dst *out_col = &out_row[j * channels];
       const Src *in_col = &in[j * channels];
 
@@ -243,14 +250,132 @@ __device__ void ResampleVert_Channels(
   }
 }
 
+
+template <int static_channels = -1, typename Dst, typename Src>
+__device__ void ResampleDepth_Channels(
+    ivec2 lo, ivec2 hi,
+    float src_z0, float scale,
+    Dst *__restrict__ out, ptrdiff_vec<1> out_strides,
+    const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int dynamic_channels,
+    ResamplingFilter filter, int support) {
+}
+
+/**
+ * @brief Implements depthwise resampling for a custom ROI
+ * @param lo - inclusive lower bound output coordinates
+ * @param hi - exclusive upper bound output coordinates
+ * @param src_z0 - start source coordinate in Z axis
+ * @param scale - dest-to-source scale in Z axis
+ * @tparam static_channels - number of channels, if known at compile time
+ */
+template <int static_channels = -1, typename Dst, typename Src>
+__device__ void ResampleDepth_Channels(
+    ivec3 lo, ivec3 hi,
+    float src_z0, float scale,
+    Dst *__restrict__ out, ptrdiff_vec<2> out_strides,
+    const Src *__restrict__ in, ptrdiff_vec<2> in_strides, ivec3 in_shape, int dynamic_channels,
+    ResamplingFilter filter, int support) {
+  using resample_shared::coeffs;
+
+  ptrdiff_t out_stride_y = out_strides[0];
+  ptrdiff_t out_stride_z = out_strides[1];
+  ptrdiff_t in_stride_y = in_strides[0];
+  ptrdiff_t in_stride_z = in_strides[1];
+  int in_d = in_shape.z;
+
+  src_z0 += 0.5f * scale - 0.5f - filter.anchor;
+
+  const float filter_step = filter.scale;
+
+  const bool huge_kernel = support > 256;
+  const int coeff_base = huge_kernel ? 0 : support*threadIdx.y;
+  const int channels = static_channels < 0 ? dynamic_channels : static_channels;
+
+  const float bias = std::is_integral<Dst>::value ? 0.5f : 0;
+
+  for (int i = lo.z; i < hi.z; i+=blockDim.y) {
+    int dz = i + threadIdx.z;
+    const float sz0f = dz * scale + src_z0;
+    const int sz0 = huge_kernel ? __float2int_rn(sz0f) : __float2int_ru(sz0f);
+    float f = (sz0 - sz0f) * filter_step;
+    __syncthreads();
+    if (huge_kernel) {
+      for (int k = threadIdx.x + blockDim.x*threadIdx.y; k < support; k += blockDim.x*blockDim.y) {
+        float flt = filter(f + k*filter_step);
+        coeffs[k] = flt;
+      }
+    } else {
+      for (int k = threadIdx.x; k < support; k += blockDim.x) {
+        float flt = filter(f + k*filter_step);
+        coeffs[coeff_base + k] = flt;
+      }
+    }
+    __syncthreads();
+
+    if (dz >= hi.z)
+      continue;
+
+    Dst *out_slice = &out[dz * out_stride_z];
+
+    float norm = 0;
+    for (int k = 0; k < support; k++) {
+      norm += coeffs[coeff_base + k];
+    }
+    norm = 1.0f / norm;
+
+    for (int j = lo.y + threadIdx.z; j < hi.y; j += blockDim.z) {
+      Dst *out_row = &out_slice[j * out_stride_y];
+      const Src *in_row = &in[j * in_stride_y];
+      for (int k = lo.x + threadIdx.x; k < hi.x; k += blockDim.x) {
+        Dst *out_col = &out_row[k * channels];
+        const Src *in_col = &in[k * channels];
+
+        if (static_channels < 0) {
+          for (int c = 0; c < channels; c++) {
+            float tmp = bias;
+
+            for (int l = 0; l < support; l++) {
+              int z = sz0 + l;
+              int zsample = z < 0 ? 0 : z >= in_d-1 ? in_d-1 : z;
+              float flt = coeffs[coeff_base + l];
+              Src px = __ldg(in_col + in_stride_z * zsample + c);
+              tmp += px * flt;
+            }
+
+            out_col[c] = clamp<Dst>(tmp * norm);
+          }
+        } else {
+          float tmp[static_channels < 0 ? 1 : static_channels];  // NOLINT - not a variable length array
+          for (int c = 0; c < channels; c++)
+            tmp[c] = bias;
+
+          for (int l = 0; l < support; l++) {
+            int z = sz0 + l;
+            int zsample = z < 0 ? 0 : z >= in_d-1 ? in_d-1 : z;
+            float flt = coeffs[coeff_base + l];
+            for (int c = 0; c < channels; c++) {
+              Src px = __ldg(in_col + in_stride_z * zsample + c);
+              tmp[c] += px * flt;
+            }
+          }
+
+          for (int c = 0; c < channels; c++)
+            out_col[c] = clamp<Dst>(tmp[c] * norm);
+        }
+      }
+    }
+  }
+}
+
+
 }  // namespace
 
 template <typename Dst, typename Src>
 __device__ void ResampleHorz(
-    int x0, int x1, int y0, int y1,
+    ivec2 lo, ivec2 hi,
     float src_x0, float scale,
-    Dst *__restrict__ out, int out_stride,
-    const Src *__restrict__ in, int in_stride, int in_w, int channels,
+    Dst *__restrict__ out, ptrdiff_vec<1> out_strides,
+    const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int channels,
     ResamplingFilter filter, int support) {
   // Specialize over common numbers of channels.
   // Ca. 20% speedup compared to generic code path for
@@ -258,24 +383,25 @@ __device__ void ResampleHorz(
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),
   (
     ResampleHorz_Channels<static_channels>(
-      x0, x1, y0, y1, src_x0, scale,
-      out, out_stride, in, in_stride, in_w,
+      lo, hi, src_x0, scale,
+      out, out_strides, in, in_strides, in_shape,
       static_channels, filter, support);
   ),  // NOLINT
   (
     ResampleHorz_Channels<-1>(
-      x0, x1, y0, y1, src_x0, scale,
-      out, out_stride, in, in_stride, in_w,
+      lo, hi, src_x0, scale,
+      out, out_strides, in, in_strides, in_shape,
       channels, filter, support);
   ));  // NOLINT
 }
 
-template <typename Dst, typename Src>
+template <int spatial_ndim, typename Dst, typename Src>
 __device__ void ResampleVert(
-    int x0, int x1, int y0, int y1,
+    ivec<spatial_ndim> lo, ivec<spatial_ndim> hi,
     float src_y0, float scale,
-    Dst *__restrict__ out, int out_stride,
-    const Src *__restrict__ in, int in_stride, int in_h, int channels,
+    Dst *__restrict__ out, ptrdiff_vec<spatial_ndim-1> out_strides,
+    const Src *__restrict__ in, ptrdiff_vec<spatial_ndim-1> in_strides,
+    ivec<spatial_ndim> in_shape, int channels,
     ResamplingFilter filter, int support) {
   // Specialize over common numbers of channels.
   // Ca. 20% speedup compared to generic code path for
@@ -283,14 +409,40 @@ __device__ void ResampleVert(
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),
   (
     ResampleVert_Channels<static_channels>(
-      x0, x1, y0, y1, src_y0, scale,
-      out, out_stride, in, in_stride, in_h,
+      lo, hi, src_y0, scale,
+      out, out_strides, in, in_strides, in_shape,
       static_channels, filter, support);
   ),  // NOLINT
   (
     ResampleVert_Channels<-1>(
-      x0, x1, y0, y1, src_y0, scale,
-      out, out_stride, in, in_stride, in_h,
+      lo, hi, src_y0, scale,
+      out, out_strides, in, in_strides, in_shape,
+      channels, filter, support);
+  ));  // NOLINT
+}
+
+template <int spatial_ndim, typename Dst, typename Src>
+__device__ void ResampleDepth(
+    ivec<spatial_ndim> lo, ivec<spatial_ndim> hi,
+    float src_y0, float scale,
+    Dst *__restrict__ out, ptrdiff_vec<spatial_ndim-1> out_strides,
+    const Src *__restrict__ in, ptrdiff_vec<spatial_ndim-1> in_strides,
+    ivec<spatial_ndim> in_shape, int channels,
+    ResamplingFilter filter, int support) {
+  // Specialize over common numbers of channels.
+  // Ca. 20% speedup compared to generic code path for
+  // three channel image with large kernel.
+  VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4),
+  (
+    ResampleDepth_Channels<static_channels>(
+      lo, hi, src_y0, scale,
+      out, out_strides, in, in_strides, in_shape,
+      static_channels, filter, support);
+  ),  // NOLINT
+  (
+    ResampleDepth_Channels<-1>(
+      lo, hi, src_y0, scale,
+      out, out_strides, in, in_strides, in_shape,
       channels, filter, support);
   ));  // NOLINT
 }

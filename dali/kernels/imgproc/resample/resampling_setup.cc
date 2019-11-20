@@ -144,7 +144,14 @@ template <>
 void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) {
   for (int pass = 0; pass < 2; pass++) {
     int axis = sample.order[pass];
-    sample.block_count[pass] = div_ceil(sample.out_shape()[axis], block_dim[axis]);
+    // Horizontal pass (axis == 0) is processed in vertical slices
+    // the width of block_dim and extending down the entire image.
+    // Vertical pass is processed in horizontal slices spanning
+    // the whole width of the image.
+
+    ivec2 blk = sample.shapes[pass+1];
+    blk[axis] = block_dim[axis];
+    sample.logical_block_shape[pass] = blk;
   }
 }
 
@@ -152,12 +159,28 @@ template <>
 void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) {
   for (int pass = 0; pass < 3; pass++) {
     int axis = sample.order[pass];
-    if (axis == 2) {
-      sample.block_count[pass] = div_ceil(sample.out_shape()[axis], block_dim[axis]);
+
+    const int MaxElementsPerBlock = 1<<18; // 256k elements, incl. channels
+
+    // Horizontal pass (axis == 0) is processed in vertical slices
+    // the width of block_dim and extending down the entire image.
+    // Depth of the slice is calculated so that it contains no more than
+    // MaxElementsPerBlock items.
+    // Vertical pass is processed in horizontal slices spanning
+    // the whole width of the image. Depth is handled like for horizontal pass.
+    // Depth pass is calculated by taking up to 32 Z slices
+
+    ivec3 pass_output_shape = sample.shapes[pass+1];
+    ivec3 blk = pass_output_shape;
+    if (axis < 2) {
+      blk[axis] = block_dim[axis];
+      blk.z = MaxElementsPerBlock / (blk[0] * blk[1] * sample.channels);
     } else {
-      sample.block_count[pass] = div_ceil(sample.out_shape()[axis], block_dim[axis]) *
-                                 div_ceil(sample.out_shape().z, block_dim.z);
+      blk.z = block_dim.y;
+      blk.y = MaxElementsPerBlock / (blk[0] * blk[2] * sample.channels);
     }
+    blk = clamp(blk, ivec3(1, 1, 1), pass_output_shape);
+    sample.logical_block_shape[pass] = blk;
   }
 }
 
@@ -275,14 +298,37 @@ void BatchResamplingSetup<2>::SetupBatch(
     auto sample_shape = shape_cat(vec2shape(desc.out_shape()), desc.channels);
     output_shape.set_tensor_shape(i, sample_shape);
 
-    for (int d = 0; d < spatial_ndim; d++)
-      total_blocks[d] += desc.block_count[d];
+    for (int pass = 0; pass < spatial_ndim; pass++)
+      ivec<spatial_ndim> blocks;
+      for (int d = 0; d < spatial_ndim; d++) {
+        blocks[d] = div_ceil(desc.shape[pass+1][d] / desc.logical_block_shape[pass][d]);
+      }
+      total_blocks[pass] += volume(blocks);
+  }
+}
+
+template <int n>
+int AddBlocks(BlockDesc<n> *blocks, int sample_idx,
+              ivec<n> block_size, ivec<n> extent,
+              ivec<n> current_block = {}, int current_dim = 0) {
+  if (current_dim == n) {
+    blocks[0].sample_idx = sample_idx;
+    blocks[0].start = current_block * block_dim;
+    blocks[0].end = dali::min(current_block + 1) * block_dim, extent);
+    return 1;
+  } else {
+    int n = 0;
+    for (int pos = 0; pos < extent[current_dim]; pos += block_size[current_dim]) {
+      n += AddBlocks(blocks + n, sample_idx, block_size, extent, current_block, current_dim + 1);
+      current_block[current_dim]++;
+    }
+    return n;
   }
 }
 
 template <int spatial_ndim>
 void BatchResamplingSetup<spatial_ndim>::InitializeSampleLookup(
-    const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup) {
+    const OutTensorCPU<BlockDesc, 1> &sample_lookup) {
   int blocks_in_all_passes = 0;
   for (int i = 0; i < spatial_ndim; i++)
     blocks_in_all_passes += total_blocks[i];
@@ -292,18 +338,16 @@ void BatchResamplingSetup<spatial_ndim>::InitializeSampleLookup(
 
   int block = 0;
   int N = sample_descs.size();
-  for (int i = 0; i < N; i++) {
-    for (int b = 0; b < sample_descs[i].block_count[0]; b++) {
-      sample_lookup.data[block++] = { i, b };
+  for (int pass = 0; pass < spatial_ndim; pass++) {
+    for (int i = 0; i < N; i++) {
+      block += AddBlocks(sample_lookup.data + block, i, sample_descs[i].logical_block_shape[pass]);
+
+      for (int b = 0; b < sample_descs[i].block_count[0]; b++) {
+        sample_lookup.data[block++] = { i, b };
+      }
     }
   }
-  assert(block == total_blocks[0]);
-  for (int i = 0; i < N; i++) {
-    for (int b = 0; b < sample_descs[i].block_count[1]; b++) {
-      sample_lookup.data[block++] = { i, b };
-    }
-  }
-  assert(block == total_blocks[0] + total_blocks[1]);
+  assert(block == blocks_in_all_passes);
 }
 
 template class BatchResamplingSetup<2>;

@@ -18,6 +18,7 @@
 #include <cuda_runtime.h>
 #include <memory>
 #include <vector>
+#include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/resample/params.h"
 #include "dali/kernels/imgproc/resample/resampling_filters.cuh"
 #include "dali/core/dev_array.h"
@@ -91,21 +92,7 @@ struct SampleDesc {
   ResamplingFilterType filter_type[spatial_ndim];  // NOLINT
   ResamplingFilter filter[spatial_ndim];           // NOLINT
 
-  /**
-   * @brief Number of blocks per pass
-   *
-   * This is kept as an array (instead of vector) to avoid indexing confusion;
-   * block_count[0] refers to number of blocks in first pass, regarless of actual processing
-   * order
-   */
-  DeviceArray<int, spatial_ndim> block_count;
-};
-
-/**
- * @brief Maps a block (by blockIdx) to a sample.
- */
-struct SampleBlockInfo {
-  int sample, block_in_sample;
+  DeviceArray<ivec<spatial_ndim>, spatial_ndim> logical_block_shape;
 };
 
 ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params);
@@ -166,6 +153,7 @@ class BatchResamplingSetup : public SeparableResamplingSetup<_spatial_ndim> {
   using Base::num_tmp_buffers;
   using Params = span<const ResamplingParamsND<spatial_ndim>>;
   using SampleDesc = resampling::SampleDesc<spatial_ndim>;
+  using BlockDesc = kernels::BlockDesc<spatial_ndim>;
 
   std::vector<SampleDesc> sample_descs;
   TensorListShape<3> output_shape, intermediate_shapes[num_tmp_buffers]; // NOLINT
@@ -178,7 +166,7 @@ class BatchResamplingSetup : public SeparableResamplingSetup<_spatial_ndim> {
   void SetupBatch(const TensorListShape<tensor_ndim> &in, const Collection &params) {
     SetupBatch(in, make_cspan(params));
   }
-  DLL_PUBLIC void InitializeSampleLookup(const OutTensorCPU<SampleBlockInfo, 1> &sample_lookup);
+  DLL_PUBLIC void InitializeSampleLookup(const OutTensorCPU<BlockDesc, 1> &sample_lookup);
 };
 
 }  // namespace resampling

@@ -46,6 +46,7 @@ struct SeparableResamplingGPUImpl : Interface {
 
   using ResamplingSetup = BatchResamplingSetup<spatial_ndim>;
   using SampleDesc = typename ResamplingSetup::SampleDesc;
+  using BlockDesc = typename ResamplingSetup::BlockDesc;
   static constexpr int num_tmp_buffers = ResamplingSetup::num_tmp_buffers;
   /**
    * Generates and stores resampling setup
@@ -103,8 +104,8 @@ struct SeparableResamplingGPUImpl : Interface {
     // CPU block2sample lookup may change in size and is large enough
     // to mandate declaring it as a requirement for external allocator.
     size_t num_blocks = setup.total_blocks[0] + setup.total_blocks[1];
-    se.add<SampleBlockInfo>(AllocType::GPU, num_blocks);
-    se.add<SampleBlockInfo>(AllocType::Host, num_blocks);
+    se.add<BlockDesc>(AllocType::GPU, num_blocks);
+    se.add<BlockDesc>(AllocType::Host, num_blocks);
 
     // Request memory for intermediate storage.
     se.add<IntermediateElement>(AllocType::GPU, GetTmpMemSize());
@@ -118,7 +119,7 @@ struct SeparableResamplingGPUImpl : Interface {
   void RunPass(
       int which_pass,
       const SampleDesc *descs_gpu,
-      const InTensorGPU<SampleBlockInfo, 1> &block2sample,
+      const InTensorGPU<BlockDesc, 1> &block2sample,
       cudaStream_t stream) {
     BatchedSeparableResample<spatial_ndim, PassOutputElement, PassInputElement>(
         which_pass,

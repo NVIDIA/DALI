@@ -25,7 +25,7 @@ template <int spatial_ndim, typename Output, typename Input>
 void BatchedSeparableResample(
   int which_pass,
   const SampleDesc<spatial_ndim> *samples,
-  const SampleBlockInfo *block2sample, int num_blocks,
+  const BlockDesc<spatial_ndim> *block2sample, int num_blocks,
   ivec3 block_size,
   cudaStream_t stream);
 
