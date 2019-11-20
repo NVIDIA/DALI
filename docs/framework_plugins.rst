@@ -8,3 +8,4 @@ Framework integration
    plugins/mxnet_tutorials
    plugins/pytorch_tutorials
    plugins/tensorflow_tutorials
+   plugins/paddle_tutorials
