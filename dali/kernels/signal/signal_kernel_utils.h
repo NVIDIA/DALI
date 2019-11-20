@@ -22,18 +22,6 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-inline int64_t next_pow2(int64_t n) {
-  int64_t pow2 = 2;
-  while (n > pow2) {
-    pow2 *= 2;
-  }
-  return pow2;
-}
-
-inline bool is_pow2(int64_t n) {
-  return (n & (n-1)) == 0;
-}
-
 /**
  * @brief iterator through all the 1-dimensional slices on a given axis
  */
