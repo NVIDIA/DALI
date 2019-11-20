@@ -14,7 +14,6 @@
 
 #include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/kernels/signal/fft/fft_cpu_impl_ffts.h"
-#include <ffts/ffts.h>
 #include <cmath>
 #include <complex>
 #include "dali/core/common.h"
