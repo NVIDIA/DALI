@@ -20,6 +20,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
 from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 from test_utils import get_dali_extra_path
 
 
@@ -75,12 +76,24 @@ def test_pytorch_pipeline_dynamic_shape():
     for data in train_loader:
         assert data is not None
 
+
+def test_paddle_pipeline_dynamic_shape():
+    root, annotations = data_paths()
+    pipeline = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
+    train_loader = PaddleIterator([pipeline], ['data', 'bboxes', 'label'],
+                                  EPOCH_SIZE, auto_reset=False,
+                                  dynamic_shape=True)
+    for data in train_loader:
+        assert data is not None
+
+
 def test_api_fw_check1():
     root, annotations = data_paths()
     for iter_type, data_definition in [(MXNetIterator, [('data', MXNetIterator.DATA_TAG),
                                         ('bboxes', MXNetIterator.LABEL_TAG),
                                         ('label', MXNetIterator.LABEL_TAG)]),
-                                       (PyTorchIterator, ['data', 'bboxes', 'label'])]:
+                                       (PyTorchIterator, ['data', 'bboxes', 'label']),
+                                       (PaddleIterator, ['data', 'bboxes', 'label'])]:
         pipe = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
         train_loader = iter_type([pipe], data_definition, EPOCH_SIZE, auto_reset=False, dynamic_shape=True)
         train_loader.__next__()
@@ -100,12 +113,14 @@ def test_api_fw_check1():
                 assert(False)
         yield check, iter_type
 
+
 def test_api_fw_check2():
     root, annotations = data_paths()
     for iter_type, data_definition in [(MXNetIterator, [('data', MXNetIterator.DATA_TAG),
                                         ('bboxes', MXNetIterator.LABEL_TAG),
                                         ('label', MXNetIterator.LABEL_TAG)]),
-                                       (PyTorchIterator, ['data', 'bboxes', 'label'])]:
+                                       (PyTorchIterator, ['data', 'bboxes', 'label']),
+                                       (PaddleIterator, ['data', 'bboxes', 'label'])]:
         pipe = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
         pipe.build()
         pipe.schedule_run()
