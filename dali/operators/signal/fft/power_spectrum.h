@@ -32,14 +32,17 @@ class PowerSpectrum : public Operator<Backend> {
       : Operator<Backend>(spec) {
     fft_args_.nfft = spec.GetArgument<int>("nfft");
     fft_args_.transform_axis = spec.GetArgument<int>("axis");
-    auto spectrum_type_str = spec.GetArgument<std::string>("spectrum_type");
-    if (spectrum_type_str == "magnitude") {
-      fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_MAGNITUDE;
-    } else if (spectrum_type_str == "power") {
-      fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_POWER;
-    } else {
-      DALI_FAIL(make_string("Unexpected spectrum type: ", spectrum_type_str,
-        ". Supported values are : power, magnitude"));
+    int power = spec.GetArgument<int>("power");
+    switch (power) {
+      case 1:
+        fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_MAGNITUDE;
+        break;
+      case 2:
+        fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_POWER;
+        break;
+      default:
+        DALI_FAIL(make_string( "Power argument should be either `2` for power spectrum or `1` "
+          "for complex magnitude. Received: ", power));
     }
   }
 

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/audio/fft/power_spectrum.h"
+#include "dali/operators/signal/fft/power_spectrum.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/pipeline/data/views.h"
 
-#define FFT_SUPPORTED_NDIMS (2, 3)
+#define FFT_SUPPORTED_NDIMS (1, 2)
 
 namespace dali {
 
@@ -34,14 +34,10 @@ of the spectrum only).)code",
       R"code(Index of the dimension to be transformed to the frequency domain. By default, the
 last dimension is selected.)code",
       -1)
-    .AddOptionalArg("spectrum_type",
-      R"code(Determines the type of the spectrum in the output. Possible values are:\n
-      `power`: Output represents the power of the complex spectrum,
-          i.e. real*real + imag*imag
-      `magnitude`: Output represents the energy (complex magnitude) of the FFT,
-          i.e sqrt(real*real + imag*imag)
-      n)code",
-      "power");
+    .AddOptionalArg("power",
+      R"code(Exponent of the fft magnitude: Supported values are `2` for power spectrum
+(`real*real + imag*imag`) and `1` for complex magnitude (`sqrt(real*real + imag*imag)`).)code",
+      2);
 
 template <>
 bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -54,7 +50,7 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   int nsamples = input.size();
   auto nthreads = ws.HasThreadPool() ? ws.GetThreadPool().size() : 1;
 
-  // Other types not supported for  now
+  // Other types not supported for now
   using InputType = float;
   using OutputType = float;
   VALUE_SWITCH(in_shape.sample_dim(), Dims, FFT_SUPPORTED_NDIMS, (

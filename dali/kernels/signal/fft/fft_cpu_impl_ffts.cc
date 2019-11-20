@@ -170,9 +170,14 @@ void Fft1DImplFfts<OutputType, InputType, Dims>::Run(
     });
 }
 
+// 1 Dim, typically input (time), producing output (frequency)
+template class Fft1DImplFfts<std::complex<float>, float, 1>;  // complex fft
+template class Fft1DImplFfts<float, float, 1>;  // magnitude
+
 // 2 Dims, typically input (channels, time), producing output (channels, frequency)
 template class Fft1DImplFfts<std::complex<float>, float, 2>;
 template class Fft1DImplFfts<float, float, 2>;
+
 // 3 Dims, typically input (channels, frames, time), producing output (channels, frames, frequency)
 template class Fft1DImplFfts<std::complex<float>, float, 3>;
 template class Fft1DImplFfts<float, float, 3>;
