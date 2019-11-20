@@ -33,12 +33,14 @@ struct ExtractWindowsArgs {
   int64_t window_step = -1;
   int64_t in_time_axis = -1;
   bool    center_windows = true;
+  bool    reflect_pad = false;
 
   inline bool operator==(const ExtractWindowsArgs& oth) const {
     return window_length == oth.window_length &&
            window_step == oth.window_step &&
            in_time_axis == oth.in_time_axis &&
-           center_windows == oth.center_windows;
+           center_windows == oth.center_windows &&
+           reflect_pad == oth.reflect_pad;
   }
 
   inline bool operator!=(const ExtractWindowsArgs& oth) const {
@@ -53,6 +55,18 @@ struct ExtractWindowsArgs {
  *
  * @param args.window_step Length of the step between windows. If not provided, win_length
  *        will be choosen (no overlap)
+ *
+ * @param args.in_time_axis Index of the axis representing the temporal dimension. If not provided,
+ *        the last dimension will be used
+ *
+ * @param args.center_windows If true, window centers will be placed at multiples of `window_step`.
+ *        If false, window starts will be placed at multiples of `window_step` instead.
+ *
+ * @param args.reflect_pad Determines the padding policie when sampling out of bounds.
+ *        If true, the signal will be padded with its own reflection.
+ *        If false, the signal will be padded with zeros.
+ *        This option is only relevant when `center_windows` is set to true
+ *
  */
 template <typename OutputType = float, typename InputType = float, int Dims = 1>
 class DLL_PUBLIC ExtractWindowsCpu {
@@ -82,7 +96,8 @@ class DLL_PUBLIC ExtractWindowsCpu {
   int64_t window_fn_length_ = -1;
   int64_t nwindows_ = -1;
   int64_t in_time_axis_ = -1;
-  int64_t window_center_offset_ = true;
+  int64_t window_center_offset_ = 0;
+  bool    reflect_pad_ = false;
 };
 
 }  // namespace window
