@@ -110,6 +110,21 @@ static_assert(align_up(17, 16) == 32, "Should align up");
 static_assert(align_up(8, 8) == 8, "Should be already aligned");
 static_assert(align_up(5, 8) == 8, "Should align");
 
+template <typename T>
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr std::enable_if_t<std::is_integral<T>::value, T> next_pow2(T n) {
+  T pow2 = 1;
+  while (n > pow2) {
+    pow2 *= 2;
+  }
+  return pow2;
+}
+
+template <typename T>
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr std::enable_if_t<std::is_integral<T>::value, bool> is_pow2(T n) {
+  return (n & (n-1)) == 0;
+}
 
 template <typename DependentName, typename Result>
 using if_istype = std::conditional_t<false, DependentName, Result>;

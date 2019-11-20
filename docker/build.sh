@@ -151,6 +151,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
                                         BUILD_NVML=${BUILD_NVML}                  \
+                                        BUILD_FFTS=${BUILD_FFTS}                  \
                                         VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
                                         BUILD_WITH_ASAN=${BUILD_WITH_ASAN}        \
@@ -181,6 +182,7 @@ else
                                    --build-arg "BUILD_NVOF=${BUILD_NVOF}"                  \
                                    --build-arg "BUILD_NVDEC=${BUILD_NVDEC}"                \
                                    --build-arg "BUILD_NVML=${BUILD_NVML}"                  \
+                                   --build-arg "BUILD_FFTS=${BUILD_FFTS}"                  \
                                    --build-arg "VERBOSE_LOGS=${VERBOSE_LOGS}"              \
                                    --build-arg "WERROR=${WERROR}"                          \
                                    --build-arg "BUILD_WITH_ASAN=${BUILD_WITH_ASAN}"        \

@@ -152,7 +152,7 @@ if(BUILD_FFMPEG)
 endif()
 
 ##################################################################
-# Boost prerocessor
+# Boost preprocessor
 ##################################################################
 include_directories(${PROJECT_SOURCE_DIR}/third_party/boost/preprocessor/include)
 
@@ -160,3 +160,24 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/boost/preprocessor/include
 # RapidJSON
 ##################################################################
 include_directories(${PROJECT_SOURCE_DIR}/third_party/rapidjson/include)
+
+##################################################################
+# FFTS
+##################################################################
+if (BUILD_FFTS)
+  set(GENERATE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "-fPIC")
+  set(ENABLE_SHARED OFF CACHE BOOL "shared library target")
+  set(ENABLE_STATIC ON CACHE BOOL "static library target")
+
+  # Workaround for Clang as msse3 is only enabled if GCC is detected
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options("-msse")
+    add_compile_options("-msse2")
+    add_compile_options("-msse3")
+  endif()
+
+  check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/ffts EXCLUDE_FROM_ALL)
+  include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/ffts/include)
+  list(APPEND DALI_LIBS ffts)
+  list(APPEND DALI_EXCLUDES libffts.a)
+endif()
