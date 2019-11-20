@@ -762,10 +762,11 @@ PYBIND11_MODULE(backend_impl, m) {
           string s = p->SerializeToProtobuf();
           return s;
           }, py::return_value_policy::take_ownership)
-    .def("SaveGraphToDotFile",
-        [](Pipeline *p, const string &filename) {
-          p->SaveGraphToDotFile(filename);
-        })
+    .def("SaveGraphToDotFile", &Pipeline::SaveGraphToDotFile,
+        "path"_a,
+        "show_tensors"_a = false,
+        "show_ids"_a = false,
+        "use_colors"_a = false)
     .def("epoch_size", &Pipeline::EpochSize)
     .def("epoch_size",
         [](Pipeline* p, const std::string& op_name) {

@@ -743,8 +743,9 @@ std::map<std::string, Index> Pipeline::EpochSize() {
   return ret;
 }
 
-void Pipeline::SaveGraphToDotFile(const std::string &filename) {
-  graph_.SaveToDotFile(filename);
+void Pipeline::SaveGraphToDotFile(const std::string &filename, bool show_tensors, bool show_ids,
+                                  bool use_colors) {
+  graph_.SaveToDotFile(filename, show_tensors, show_ids, use_colors);
 }
 
 int Pipeline::GetNextLogicalId() {

@@ -324,7 +324,8 @@ class DLL_PUBLIC Pipeline {
    * @brief Save graph in DOT direct graph format
    * in filename.
    */
-  DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename);
+  DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename, bool show_tensors = false,
+                                     bool show_ids = false, bool use_colors = false);
 
   /**
    * @brief Returns the batch size that will be produced by the pipeline.
