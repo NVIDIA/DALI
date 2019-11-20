@@ -46,6 +46,7 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
   window_length_ = args.window_length > 0 ? args.window_length : 1;
   window_step_ = args.window_step > 0 ? args.window_step : 1;
   window_center_offset_ = args.center_windows ? window_length_ / 2 : 0;
+  reflect_pad_ = args.reflect_pad;
 
   window_fn_length_ = volume(window_fn.shape);
   DALI_ENFORCE(window_fn_length_ > 0, "Window function should not be empty");
@@ -114,6 +115,18 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
             for (int64_t t = 0; t < window_length_; t++) {
               int64_t out_idx = t * nwindows_ + window_idx;
               int64_t in_idx = window_start + t;
+              if (reflect_pad_) {
+                // find the mirrored position if the index is out of bounds
+                while (in_idx < 0 || in_idx >= in_size) {
+                  if (in_idx < 0) {
+                    // left side
+                    in_idx = -in_idx;
+                  } else {
+                    // right side
+                    in_idx = 2 * in_size - 2 - in_idx;
+                  }
+                }
+              }
               out_data[out_idx * out_stride] = (in_idx >= 0 && in_idx < in_size) ?
                 window_fn.data[t] * in_data[in_idx * in_stride] : 0;
             }

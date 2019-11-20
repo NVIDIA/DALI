@@ -30,7 +30,7 @@ namespace window {
 namespace test {
 
 class ExtractWindowsCpuTest : public::testing::TestWithParam<
-  std::tuple<std::array<int64_t, 2>, int64_t, int64_t, int64_t, bool>> {
+  std::tuple<std::array<int64_t, 2>, int64_t, int64_t, int64_t, bool, bool>> {
  public:
   ExtractWindowsCpuTest()
     : data_shape_(std::get<0>(GetParam()))
@@ -38,6 +38,7 @@ class ExtractWindowsCpuTest : public::testing::TestWithParam<
     , window_step_(std::get<2>(GetParam()))
     , in_time_axis_(std::get<3>(GetParam()))
     , center_windows_(std::get<4>(GetParam()))
+    , reflect_pad_(std::get<5>(GetParam()))
     , data_(volume(data_shape_))
     , in_view_(data_.data(), data_shape_) {}
 
@@ -49,7 +50,7 @@ class ExtractWindowsCpuTest : public::testing::TestWithParam<
   }
   TensorShape<2> data_shape_;
   int64_t window_length_ = -1, window_step_ = -1, in_time_axis_ = -1;
-  bool center_windows_ = true;
+  bool center_windows_ = true, reflect_pad_ = false;
   std::vector<float> data_;
   OutTensorCPU<float, 2> in_view_;
 };
@@ -98,6 +99,7 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   args.window_step = window_step_;
   args.in_time_axis = in_time_axis_;
   args.center_windows = center_windows_;
+  args.reflect_pad = reflect_pad_;
 
   // Hamming window
   //  float a0 = 0.54;
@@ -142,10 +144,17 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
       for (int t = 0; t < window_length_; t++) {
         auto out_k = w + t * nwindows;
         auto in_k = w * window_step_ + t - window_center_offset;
-        out_slice[out_k] = (in_k >= 0 && in_k < n) ? window_fn_data[t] * in_slice[in_k] : 0;
+        if (reflect_pad_) {
+          while (in_k < 0 || in_k >= n) {
+              in_k = (in_k < 0) ? -in_k : 2*n-2-in_k;
+          }
+        }
+        out_slice[out_k] = (in_k >= 0 && in_k < n) ?
+          window_fn_data[t] * in_slice[in_k] : 0;
       }
     }
   }
+
 
   LOG_LINE << "in:\n";
   print_data(in_view_);
@@ -173,6 +182,7 @@ INSTANTIATE_TEST_SUITE_P(ExtractWindowsCpuTest, ExtractWindowsCpuTest, testing::
     testing::Values(4),
     testing::Values(2),
     testing::Values(1),
+    testing::Values(true, false),
     testing::Values(true, false)));
 
 }  // namespace test
