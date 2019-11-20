@@ -17,7 +17,7 @@
 #include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/pipeline/data/views.h"
 
-#define FFT_SUPPORTED_NDIMS (1, 2)
+#define FFT_SUPPORTED_NDIMS (1, 2, 3)
 
 namespace dali {
 
@@ -66,7 +66,7 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     }
   ), // NOLINT
   (
-    DALI_FAIL(make_string("Unsupported number of dimensions", in_shape.size()))
+    DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size()))
   )); // NOLINT
 
   return true;

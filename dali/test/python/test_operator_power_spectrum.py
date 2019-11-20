@@ -50,16 +50,18 @@ def power_spectrum_numpy(nfft, axis, waveform):
     out_shape[axis] = nfft/2+1
     out_shape = tuple(out_shape)
 
-    if len(out_shape) == 2:
+    if len(out_shape) == 1:
+        out = power_spectrum[0:out_shape[0]]
+    elif len(out_shape) == 2:
         out = power_spectrum[0:out_shape[0], 0:out_shape[1]]
     elif len(out_shape) == 3:
         out = power_spectrum[0:out_shape[0], 0:out_shape[1], 0:out_shape[2]]
     return out
 
-class FftNumpyPipeline(Pipeline):
+class PowerSpectrumNumpyPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, axis, nfft,
                  num_threads=1, device_id=0):
-        super(FftNumpyPipeline, self).__init__(
+        super(PowerSpectrumNumpyPipeline, self).__init__(
               batch_size, num_threads, device_id,
               seed=12345, exec_async=False, exec_pipelined=False)
         self.device = "cpu"
@@ -67,11 +69,11 @@ class FftNumpyPipeline(Pipeline):
         self.inputs = ops.ExternalSource()
 
         function = partial(power_spectrum_numpy, nfft, axis)
-        self.fft = ops.PythonFunction(function=function)
+        self.power_spectrum = ops.PythonFunction(function=function)
 
     def define_graph(self):
         self.data = self.inputs()
-        out = self.fft(self.data)
+        out = self.power_spectrum(self.data)
         return out
 
     def iter_setup(self):
@@ -83,7 +85,7 @@ def check_operator_power_spectrum(device, batch_size, input_shape, nfft, axis):
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
         PowerSpectrumPipeline(device, batch_size, iter(eii1), axis=axis, nfft=nfft),
-        FftNumpyPipeline(device, batch_size, iter(eii2), axis=axis, nfft=nfft),
+        PowerSpectrumNumpyPipeline(device, batch_size, iter(eii2), axis=axis, nfft=nfft),
         batch_size=batch_size, N_iterations=5, eps=1e-04)
 
 def test_operator_power_spectrum():
@@ -91,7 +93,9 @@ def test_operator_power_spectrum():
         for batch_size in [3]:
             for nfft, axis, shape in [(16, 1, (2, 16)),
                                       (1024, 1, (1, 1024)),
+                                      (1024, 0, (1024,)),
                                       (128, 1, (1, 100)),
+                                      (128, 0, (100,)),
                                       (16, 0, (16, 2)),
                                       (8, 1, (2, 8, 2))]:
                 yield check_operator_power_spectrum, device, batch_size, shape, nfft, axis

@@ -41,7 +41,7 @@ class PowerSpectrum : public Operator<Backend> {
         fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_POWER;
         break;
       default:
-        DALI_FAIL(make_string( "Power argument should be either `2` for power spectrum or `1` "
+        DALI_FAIL(make_string("Power argument should be either `2` for power spectrum or `1` "
           "for complex magnitude. Received: ", power));
     }
   }
