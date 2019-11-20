@@ -176,6 +176,7 @@ CMD cmake \
   -DBUILD_NVOF=OFF \
   -DBUILD_NVDEC=OFF \
   -DBUILD_NVML=OFF \
+  -DBUILD_FFTS=ON \
   -DVERBOSE_LOGS=OFF \
   ..  && \
   make -j"$(grep ^processor /proc/cpuinfo | wc -l)"

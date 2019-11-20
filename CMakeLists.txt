@@ -53,6 +53,7 @@ propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVOF)
 propagate_option(BUILD_NVDEC)
 propagate_option(BUILD_NVML)
+propagate_option(BUILD_FFTS)
 propagate_option(BUILD_FFMPEG)
 
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
