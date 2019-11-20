@@ -5,5 +5,6 @@ DALI expressions and arithmetic operations
    :maxdepth: 2
    :glob:
 
+   expr_examples.ipynb
    expr_type_promotions.ipynb
    expr_blend_image.ipynb
