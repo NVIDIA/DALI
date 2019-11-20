@@ -30,8 +30,6 @@ Requirements
 
   - `Nvidia DALI <https://github.com/NVIDIA/DALI>`_
 
-  - `Pycocotools <https://github.com/cocodataset/cocoapi>`_
-
 Usage
 -----
 
