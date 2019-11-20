@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/kernels/signal/fft/fft_cpu_impl_ffts.h"
-#include <ffts/ffts.h>
+#include <ffts.h>
 #include <cmath>
 #include <complex>
 #include <utility>

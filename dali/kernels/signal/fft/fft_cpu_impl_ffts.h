@@ -15,7 +15,7 @@
 #ifndef DALI_KERNELS_SIGNAL_FFT_FFT_CPU_IMPL_FFTS_H_
 #define DALI_KERNELS_SIGNAL_FFT_FFT_CPU_IMPL_FFTS_H_
 
-#include <ffts/ffts.h>
+#include <ffts.h>
 #include <memory>
 #include <complex>
 #include "dali/core/common.h"

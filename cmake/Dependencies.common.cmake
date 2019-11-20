@@ -164,5 +164,12 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/rapidjson/include)
 ##################################################################
 # FFTS
 ##################################################################
-list(APPEND DALI_LIBS ffts)
-list(APPEND DALI_EXCLUDES ffts)
+if (BUILD_FFTS)
+  set(GENERATE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "-fPIC")
+  set(ENABLE_SHARED OFF CACHE BOOL "shared library target")
+  set(ENABLE_STATIC ON CACHE BOOL "static library target")
+  check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/ffts EXCLUDE_FROM_ALL)
+  include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/ffts/include)
+  list(APPEND DALI_LIBS ffts)
+  list(APPEND DALI_EXCLUDES libffts.a)
+endif()
