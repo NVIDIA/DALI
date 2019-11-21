@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import nvidia.dali as dali
-import tensorflow as tf
 import nvidia.dali.plugin.tf as dali_tf
 import os
 import numpy as np
@@ -22,41 +21,14 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from test_utils_tensorflow import *
 from shutil import rmtree as remove_directory
-
 from nose.tools import with_setup
 
 try:
-    from tensorflow.compat.v1 import Session
-    from tensorflow.compat.v1 import placeholder
-    from tensorflow.compat.v1 import truncated_normal
-    from tensorflow.compat.v1 import reset_default_graph
-    from tensorflow.compat.v1 import variable_scope
-    from tensorflow.compat.v1 import layers
-    from tensorflow.compat.v1 import global_variables_initializer
-    from tensorflow.compat.v1.data import make_initializable_iterator
-except:
-    # Older TF versions don't have compat.v1 layer
-    from tensorflow import Session
-    from tensorflow import placeholder
-    from tensorflow import truncated_normal
-    from tensorflow import reset_default_graph
-    from tensorflow import variable_scope
-    from tensorflow import layers
-    from tensorflow import global_variables_initializer
-    from tensorflow.data import make_initializable_iterator
-try:
-    from tensorflow.train import AdamOptimizer as Adam
-    from tensorflow.train import AdamOptimizer as AdamOptimizer
-except:
-    try:
-        from tensorflow.compat.v1.keras.optimizers import Adam
-        from tensorflow.compat.v1.train import AdamOptimizer
-    except:
-        pass
-try:
-    tf.compat.v1.disable_eager_execution()
+    import tensorflow.compat.v1 as tf
+    tf.disable_eager_execution()
 except:
     pass
+
 
 TARGET = 0.8
 BATCH_SIZE = 32
@@ -130,18 +102,18 @@ def _get_train_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1):
 
 
 def _graph_model(images, reuse, is_training):
-    with variable_scope('mnist_net', reuse=reuse):
-        images = layers.flatten(images)
-        images = layers.dense(images, HIDDEN_SIZE, activation=tf.nn.relu)
-        images = layers.dropout(images, rate=DROPOUT, training=is_training)
-        images = layers.dense(images, NUM_CLASSES, activation=tf.nn.softmax)
+    with tf.variable_scope('mnist_net', reuse=reuse):
+        images = tf.layers.flatten(images)
+        images = tf.layers.dense(images, HIDDEN_SIZE, activation=tf.nn.relu)
+        images = tf.layers.dropout(images, rate=DROPOUT, training=is_training)
+        images = tf.layers.dense(images, NUM_CLASSES, activation=tf.nn.softmax)
 
     return images
 
 
 def _train_graph(iterator_initializers, train_op, accuracy):
-    with Session() as sess:
-        sess.run(global_variables_initializer())
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
         sess.run(iterator_initializers)
 
         for i in range(EPOCHS * ITERATIONS):
@@ -164,7 +136,7 @@ def _test_graph_single_device(device='cpu', device_id=0):
     with tf.device('/{0}:{1}'.format(device, device_id)):
         daliset = _get_train_dataset(device, device_id)
 
-        iterator = make_initializable_iterator(daliset)
+        iterator = tf.data.make_initializable_iterator(daliset)
         images, labels = iterator.get_next()
 
         images = tf.reshape(images, [BATCH_SIZE, IMAGE_SIZE*IMAGE_SIZE])
@@ -177,7 +149,7 @@ def _test_graph_single_device(device='cpu', device_id=0):
 
         loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
             logits=logits_train, labels=labels))
-        train_step = AdamOptimizer().minimize(loss_op)
+        train_step = tf.train.AdamOptimizer().minimize(loss_op)
 
         correct_pred = tf.equal(
             tf.argmax(logits_test, 1), tf.argmax(labels, 1))
@@ -186,17 +158,17 @@ def _test_graph_single_device(device='cpu', device_id=0):
     _train_graph([iterator.initializer], train_step, accuracy)
 
 
-@with_setup(reset_default_graph)
+@with_setup(tf.reset_default_graph)
 def test_graph_single_gpu():
     _test_graph_single_device('gpu', 0)
 
 
-@with_setup(reset_default_graph)
+@with_setup(tf.reset_default_graph)
 def test_graph_single_other_gpu():
     _test_graph_single_device('gpu', 1)
 
 
-@with_setup(reset_default_graph)
+@with_setup(tf.reset_default_graph)
 def test_graph_single_cpu():
     _test_graph_single_device('cpu', 0)
 
@@ -210,7 +182,7 @@ def _keras_model():
         tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
     ])
     model.compile(
-        optimizer=Adam(),
+        optimizer=tf.train.AdamOptimizer(),
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy'])
 
@@ -286,7 +258,7 @@ def _test_estimators_classifier_single_device(device='cpu', device_id=0):
         n_classes=NUM_CLASSES,
         dropout=DROPOUT,
         config=_run_config(device, device_id),
-        optimizer=Adam)
+        optimizer=tf.train.AdamOptimizer)
 
     _test_estimators_single_device(model, device, device_id)
 
@@ -360,7 +332,7 @@ def _average_gradients(tower_grads):
     return average_grads
 
 
-@with_setup(reset_default_graph)
+@with_setup(tf.reset_default_graph)
 def test_graph_multi_gpu():
     iterator_initializers = []
 
@@ -372,7 +344,7 @@ def test_graph_multi_gpu():
                 daliset = _get_train_dataset(
                     'gpu', i, i, num_available_gpus())
 
-                iterator = make_initializable_iterator(daliset)
+                iterator = tf.data.make_initializable_iterator(daliset)
                 iterator_initializers.append(iterator.initializer)
                 images, labels = iterator.get_next()
 
@@ -389,7 +361,7 @@ def test_graph_multi_gpu():
 
                 loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
                     logits=logits_train, labels=labels))
-                optimizer = AdamOptimizer()
+                optimizer = tf.train.AdamOptimizer()
                 grads = optimizer.compute_gradients(loss_op)
 
                 if i == 0:
@@ -458,7 +430,7 @@ def _multi_gpu_classifier():
         hidden_units=[HIDDEN_SIZE],
         n_classes=NUM_CLASSES,
         dropout=DROPOUT,
-        optimizer=Adam,
+        optimizer=tf.train.AdamOptimizer,
         config=config)
     return model
 
