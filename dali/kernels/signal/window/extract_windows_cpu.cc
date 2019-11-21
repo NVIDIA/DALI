@@ -45,8 +45,11 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
 
   window_length_ = args.window_length > 0 ? args.window_length : 1;
   window_step_ = args.window_step > 0 ? args.window_step : 1;
-  window_center_offset_ = args.center_windows ? window_length_ / 2 : 0;
+  window_center_offset_ = args.window_center < 0 ? window_length_ / 2 : args.window_center;
   reflect_pad_ = args.reflect_pad;
+
+  DALI_ENFORCE(window_center_offset_ >= 0 && window_center_offset_ <= window_length_,
+    make_string("Window center offset must be in the range [0, ", window_length_, "]"));
 
   window_fn_length_ = volume(window_fn.shape);
   DALI_ENFORCE(window_fn_length_ > 0, "Window function should not be empty");
@@ -54,13 +57,13 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
     "Window function size should be equal or less than the specified window length");
 
   // input data temporal axis (last in input shape by default)
-  in_time_axis_ = args.in_time_axis >= 0 ? args.in_time_axis : InputDims - 1;
-  DALI_ENFORCE(in_time_axis_ >= 0 && in_time_axis_ < InputDims,
-    make_string("Input temporal axis (", in_time_axis_, ") is out of range [0, ", InputDims, ")"));
-  DALI_ENFORCE(in_time_axis_ == InputDims - 1,
+  axis_ = args.axis >= 0 ? args.axis : InputDims - 1;
+  DALI_ENFORCE(axis_ >= 0 && axis_ < InputDims,
+    make_string("Input temporal axis (", axis_, ") is out of range [0, ", InputDims, ")"));
+  DALI_ENFORCE(axis_ == InputDims - 1,
     "Current implementation expects time dimension to be the inner-most dimension");
 
-  const auto n = in.shape[in_time_axis_];
+  const auto n = in.shape[axis_];
 
   nwindows_ =  n / window_step_ + 1;
   assert(nwindows_ > 0);
@@ -69,7 +72,7 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
   out_shape.resize(OutputDims);
 
   for (int d = 0, out_idx = 0, in_idx = 0; out_idx < OutputDims; d++) {
-    if (d == in_time_axis_) {
+    if (d == axis_) {
       assert(out_idx + 1 < OutputDims);
       assert(in_idx < InputDims);
       out_shape[out_idx++] = window_length_;
@@ -99,12 +102,12 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
   // flat_out_shape is the output shape with both window index and time dimensions combined into
   // one dimension
   auto flat_out_shape = in_shape;
-  flat_out_shape[in_time_axis_] = nwindows_ * window_length_;
+  flat_out_shape[axis_] = nwindows_ * window_length_;
   auto out_strides = GetStrides(flat_out_shape);
 
   ForAxis(
     out.data, in.data, flat_out_shape.data(), out_strides.data(),
-    in_shape.data(), in_strides.data(), in_time_axis_, InputDims,
+    in_shape.data(), in_strides.data(), axis_, InputDims,
     [this, &window_fn](
       OutputType *out_data, const InputType *in_data,
       int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
@@ -142,11 +145,7 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
 }
 
 template class ExtractWindowsCpu<float, float, 1>;  // 1-channel
-template class ExtractWindowsCpu<uint8_t, uint8_t, 1>;  // 1-channel
-
 template class ExtractWindowsCpu<float, float, 2>;  // n-channel
-template class ExtractWindowsCpu<uint8_t, uint8_t, 2>;  // n-channel
-
 
 }  // namespace window
 }  // namespace signal
