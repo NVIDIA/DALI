@@ -16,7 +16,7 @@
 
 #include "tensorflow/core/public/version.h"
 
-#if TF_MAJOR_VERSION == 2 || (TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 13)
+#if TF_MAJOR_VERSION == 2 || (TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 15)
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wreorder"
@@ -382,4 +382,4 @@ Creates a DALI dataset compatible with tf.data.Dataset from a DALI pipeline.
 
 }  // namespace
 
-#endif  // TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 13
+#endif  // TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 15

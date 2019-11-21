@@ -552,17 +552,24 @@ class Pipeline(object):
         self._pipe.Build()
         self._built = True
 
-    def save_graph_to_dot_file(self, filename):
+    def save_graph_to_dot_file(self, filename, show_tensors = False, show_ids = False,
+                               use_colors = False):
         """Saves the pipeline graph to a file.
 
         Parameters
         ----------
         filename : str
                    Name of the file to which the graph is written.
+        show_tensors : bool
+                   Show the Tensor nodes in the graph (by default only Operator nodes are shown)
+        show_ids : bool
+                   Add the node id to the graph representation
+        use_colors : bool
+                   Whether use color to distinguish stages
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        self._pipe.SaveGraphToDotFile(filename)
+        self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
 
     def define_graph(self):
         """This function is defined by the user to construct the

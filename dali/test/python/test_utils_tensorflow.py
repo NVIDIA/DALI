@@ -18,12 +18,12 @@ from distutils.version import StrictVersion
 from nose import SkipTest
 
 def compatible_tensorflow():
-    return StrictVersion(tf.__version__) >= StrictVersion('1.13')
+    return StrictVersion(tf.__version__) >= StrictVersion('1.15')
 
 
 def skip_for_incompatible_tf():
     if not compatible_tensorflow():
-        raise SkipTest('This feature is enabled for TF 1.13 and higher')
+        raise SkipTest('This feature is enabled for TF 1.15 and higher')
 
 
 def num_available_gpus():
@@ -44,11 +44,7 @@ def dataset_options():
     options = tf.data.Options()
     try:
         options.experimental_optimization.apply_default_optimizations = False
-
-        if StrictVersion(tf.__version__) >= StrictVersion('1.13') and StrictVersion(tf.__version__) < StrictVersion('1.14'):
-            options.experimental_autotune = False 
-        else:
-            options.experimental_optimization.autotune = False   
+        options.experimental_optimization.autotune = False   
     except:
         print('Could not set TF Dataset Options')
 
