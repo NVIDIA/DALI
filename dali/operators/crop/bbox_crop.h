@@ -122,7 +122,7 @@ class RandomBBoxCrop : public Operator<Backend> {
     return sampler(rngs_[sample]);
   }
 
-  bool ValidAspectRatio(float width, float height) const {
+  bool ValidAspectRatio(float height, float width) const {
     return aspect_ratio_bounds_.Contains(width / height);
   }
 

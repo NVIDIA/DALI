@@ -34,15 +34,7 @@ enum class Codec {
 
 class CUVideoParser {
  public:
-  CUVideoParser() : parser_{0}, initialized_{false} {}
-
-  template <typename Decoder>
-  CUVideoParser(Codec codec, Decoder* decoder, int decode_surfaces)
-    : CUVideoParser{codec, decoder, decode_surfaces, nullptr, 0} {}
-
-  template <typename Decoder>
-  CUVideoParser(Codec codec, Decoder* decoder, int decode_surfaces,
-                uint8_t* extradata, int extradata_size)
+  CUVideoParser()
     : parser_{0}, parser_info_{}, parser_extinfo_{}, initialized_{false}
   {
   }

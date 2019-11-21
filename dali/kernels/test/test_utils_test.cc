@@ -25,8 +25,8 @@ TEST(TestUtil, RandomFillTensor) {
   const int W = 100;
   const int H = 100;
   const int N = W*H;
-  float memory[N];
-  TensorView<StorageCPU, float, 3> view(memory, { 1, W, H });
+  std::vector<float> memory(N);
+  TensorView<StorageCPU, float, 3> view(memory.data(), { 1, W, H });
 
   std::mt19937_64 rng;
   UniformRandomFill(view, rng, 0, 1);
@@ -48,8 +48,8 @@ TEST(TestUtil, RandomFillList) {
   const int W2 = 40;
   const int H2 = 33;
   const int N = D1*W1*H1 + D2*W2*H2;
-  float memory[N];
-  TensorListView<StorageCPU, float, 3> view(memory, { { D1, W1, H1 }, { D2, W2, H2 } });
+  std::vector<float> memory(N);
+  TensorListView<StorageCPU, float, 3> view(memory.data(), { { D1, W1, H1 }, { D2, W2, H2 } });
 
   std::mt19937_64 rng;
   UniformRandomFill(view, rng, 0, 1);

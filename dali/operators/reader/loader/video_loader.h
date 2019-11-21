@@ -36,7 +36,6 @@ extern "C" {
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/operators/reader/nvdecoder/sequencewrapper.h"
-#include "dali/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 
 template<typename T>
 using av_unique_ptr = std::unique_ptr<T, std::function<void(T*)>>;
@@ -145,14 +144,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     file_label_pair_ = filesystem::get_file_label_pair(file_root_, filenames_,
                                                        file_list_);
     DALI_ENFORCE(!file_label_pair_.empty(), "No files were read.");
-
-    DALI_ENFORCE(cuvidInitChecked(0),
-     "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
-     "If you are running in a Docker container, please refer "
-     "to https://github.com/NVIDIA/nvidia-docker/wiki/Usage");
-    /* Required to use libavformat: Initialize libavformat and register all
-     * the muxers, demuxers and protocols.
-     */
   }
 
   ~VideoLoader() noexcept override {
@@ -200,16 +191,15 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     const auto& file = get_or_open_file(file_label_pair_[0].first);
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
 
-    vid_decoder_ = std::unique_ptr<NvDecoder>{
-        new NvDecoder(device_id_,
-                      codecpar(stream),
-                      stream->time_base,
-                      image_type_,
-                      dtype_,
-                      normalized_,
-                      ALIGN16(max_height_),
-                      ALIGN16(max_width_),
-                      additional_decode_surfaces_)};
+    vid_decoder_ = std::make_unique<NvDecoder>(device_id_,
+                                               codecpar(stream),
+                                               stream->time_base,
+                                               image_type_,
+                                               dtype_,
+                                               normalized_,
+                                               ALIGN16(max_height_),
+                                               ALIGN16(max_width_),
+                                               additional_decode_surfaces_);
 
     if (shuffle_) {
       // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader

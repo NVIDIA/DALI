@@ -38,7 +38,12 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity)
 
 ThreadPool::~ThreadPool() {
   // Wait for work to find errors
-  WaitForWork(false);
+  // terminate explicitly as we are finishing the program anyway
+  try {
+    WaitForWork(false);
+  } catch (...) {
+    std::terminate();
+  }
 
   std::unique_lock<std::mutex> lock(mutex_);
   running_ = false;
@@ -73,7 +78,7 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
     // Check for errors
     for (size_t i = 0; i < threads_.size(); ++i) {
       if (!tl_errors_[i].empty()) {
-        // Throw the first error that occured
+        // Throw the first error that occurred
         string error = "Error in thread " + std::to_string(i) + ": " + tl_errors_[i].front();
         tl_errors_[i].pop();
         throw std::runtime_error(error);

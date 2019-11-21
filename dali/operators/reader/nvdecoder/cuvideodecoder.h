@@ -48,7 +48,6 @@ class CUVideoDecoder {
   CUVIDDECODECREATEINFO decoder_info_;
   CUVIDDECODECAPS caps_;
 
-  bool initialized_;
   int max_height_;
   int max_width_;
   int additional_decode_surfaces_;
