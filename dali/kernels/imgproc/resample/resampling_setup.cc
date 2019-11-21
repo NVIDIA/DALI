@@ -122,8 +122,6 @@ ProcessingOrder<3> GetProcessingOrder(ivec3 in_size, ivec3 out_size, ivec3 filte
         if (a2 == a0 || a2 == a1) {
           continue;
         }
-
-
     }
   }
   return { 0, 1, 2 };
@@ -161,7 +159,7 @@ void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) {
   for (int pass = 0; pass < 3; pass++) {
     int axis = sample.order[pass];
 
-    const int MaxElementsPerBlock = 1<<18; // 256k elements, incl. channels
+    const int MaxElementsPerBlock = 1<<18;  // 256k elements, incl. channels
 
     // Horizontal pass (axis == 0) is processed in vertical slices
     // the width of block_dim and extending down the entire image.
@@ -252,16 +250,6 @@ void SeparableResamplingSetup<spatial_ndim>::SetupSample(
       }
     }
   }
-
-  /*if (desc.order == VertHorz()) {
-    desc.origin.x -= roi.lo.x;
-    desc.in_offset() += roi.lo.x * desc.channels;
-    desc.in_shape().x = roi.extent().x;
-  } else {
-    desc.origin.y -= roi.lo.y;
-    desc.in_offset() += roi.lo.y * desc.strides[0][0];
-    desc.in_shape().y = roi.extent().y;
-  }*/
 }
 
 template <>
