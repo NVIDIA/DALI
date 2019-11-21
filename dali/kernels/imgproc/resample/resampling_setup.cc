@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cuda_runtime.h>
+#include "dali/core/util.h"
 #include "dali/kernels/imgproc/resample/resampling_setup.h"
 #include "dali/kernels/common/block_setup.h"
 
@@ -298,12 +299,13 @@ void BatchResamplingSetup<2>::SetupBatch(
     auto sample_shape = shape_cat(vec2shape(desc.out_shape()), desc.channels);
     output_shape.set_tensor_shape(i, sample_shape);
 
-    for (int pass = 0; pass < spatial_ndim; pass++)
+    for (int pass = 0; pass < spatial_ndim; pass++) {
       ivec<spatial_ndim> blocks;
       for (int d = 0; d < spatial_ndim; d++) {
-        blocks[d] = div_ceil(desc.shape[pass+1][d] / desc.logical_block_shape[pass][d]);
+        blocks[d] = div_ceil(desc.shapes[pass+1][d], desc.logical_block_shape[pass][d]);
       }
       total_blocks[pass] += volume(blocks);
+    }
   }
 }
 
@@ -313,16 +315,17 @@ int AddBlocks(BlockDesc<n> *blocks, int sample_idx,
               ivec<n> current_block = {}, int current_dim = 0) {
   if (current_dim == n) {
     blocks[0].sample_idx = sample_idx;
-    blocks[0].start = current_block * block_dim;
-    blocks[0].end = dali::min(current_block + 1) * block_dim, extent);
+    blocks[0].start = current_block * block_size;
+    blocks[0].end = dali::min((current_block + 1) * block_size, extent);
     return 1;
   } else {
-    int n = 0;
+    int nblocks = 0;
     for (int pos = 0; pos < extent[current_dim]; pos += block_size[current_dim]) {
-      n += AddBlocks(blocks + n, sample_idx, block_size, extent, current_block, current_dim + 1);
+      nblocks += AddBlocks(blocks + nblocks, sample_idx,
+                           block_size, extent, current_block, current_dim + 1);
       current_block[current_dim]++;
     }
-    return n;
+    return nblocks;
   }
 }
 
@@ -340,11 +343,10 @@ void BatchResamplingSetup<spatial_ndim>::InitializeSampleLookup(
   int N = sample_descs.size();
   for (int pass = 0; pass < spatial_ndim; pass++) {
     for (int i = 0; i < N; i++) {
-      block += AddBlocks(sample_lookup.data + block, i, sample_descs[i].logical_block_shape[pass]);
-
-      for (int b = 0; b < sample_descs[i].block_count[0]; b++) {
-        sample_lookup.data[block++] = { i, b };
-      }
+      auto &desc = sample_descs[i];
+      int sample_block_count = AddBlocks(sample_lookup.data + block, i,
+                                         desc.logical_block_shape[pass], desc.shapes[pass+1]);
+      block += sample_block_count;
     }
   }
   assert(block == blocks_in_all_passes);

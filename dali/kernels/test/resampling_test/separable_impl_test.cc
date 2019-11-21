@@ -91,8 +91,10 @@ TEST(SeparableImpl, Setup) {
     };
     EXPECT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
 
-    EXPECT_GE(resampling.setup.sample_descs[i].block_count[0], 1);
-    EXPECT_GE(resampling.setup.sample_descs[i].block_count[1], 1);
+    for (int d = 0; d < 2; d++) {
+      EXPECT_GE(resampling.setup.sample_descs[i].logical_block_shape[0][d], 1);
+      EXPECT_GE(resampling.setup.sample_descs[i].logical_block_shape[1][d], 1);
+    }
   }
   EXPECT_GT(resampling.setup.total_blocks[0], N);
   EXPECT_GT(resampling.setup.total_blocks[1], N);
@@ -208,9 +210,6 @@ TEST_P(BatchResamplingTest, ResamplingImpl) {
       in_tlv.shape.tensor_shape_span(i)[2]
     };
     ASSERT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
-
-    EXPECT_GE(resampling.setup.sample_descs[i].block_count[0], 1);
-    EXPECT_GE(resampling.setup.sample_descs[i].block_count[1], 1);
   }
 
   auto scratchpad = scratch_alloc.GetScratchpad();

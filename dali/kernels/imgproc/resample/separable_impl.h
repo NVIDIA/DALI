@@ -141,23 +141,23 @@ struct SeparableResamplingGPUImpl : Interface {
 
     int total_blocks = setup.total_blocks[0] + setup.total_blocks[1];
 
-    OutTensorCPU<SampleBlockInfo, 1> sample_lookup_cpu = {
-      context.scratchpad->Allocate<SampleBlockInfo>(AllocType::Host, total_blocks),
+    OutTensorCPU<BlockDesc, 1> sample_lookup_cpu = {
+      context.scratchpad->Allocate<BlockDesc>(AllocType::Host, total_blocks),
       { total_blocks }
     };
-    OutTensorGPU<SampleBlockInfo, 1> sample_lookup_gpu = {
-      context.scratchpad->Allocate<SampleBlockInfo>(AllocType::GPU, total_blocks),
+    OutTensorGPU<BlockDesc, 1> sample_lookup_gpu = {
+      context.scratchpad->Allocate<BlockDesc>(AllocType::GPU, total_blocks),
       { total_blocks }
     };
     setup.InitializeSampleLookup(sample_lookup_cpu);
     copy(sample_lookup_gpu, sample_lookup_cpu, stream);  // NOLINT (it thinks it's std::copy)
 
 
-    InTensorGPU<SampleBlockInfo, 1> first_pass_lookup = make_tensor_gpu<1>(
+    InTensorGPU<BlockDesc, 1> first_pass_lookup = make_tensor_gpu<1>(
         sample_lookup_gpu.data,
         { setup.total_blocks[0] });
 
-    InTensorGPU<SampleBlockInfo, 1> second_pass_lookup = make_tensor_gpu<1>(
+    InTensorGPU<BlockDesc, 1> second_pass_lookup = make_tensor_gpu<1>(
         sample_lookup_gpu.data + setup.total_blocks[0],
         { setup.total_blocks[1] });
 

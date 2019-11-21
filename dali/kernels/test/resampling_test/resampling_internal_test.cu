@@ -42,9 +42,11 @@ __global__ void ResampleHorzTestKernel(
   int x1 = (blockIdx.x + 1) * out_w / gridDim.x;
   int y0 = blockIdx.y * in_h / gridDim.y;
   int y1 = (blockIdx.y + 1) * in_h / gridDim.y;
+  vec<1, ptrdiff_t> out_strides(out_stride);
+  vec<1, ptrdiff_t> in_strides(in_stride);
   ResampleHorz(
-    x0, x1, y0, y1, 0, scale,
-    out, out_stride, in, in_stride, in_w,
+    ivec2(x0, y0), ivec2(x1, y1), 0, scale,
+    out, out_strides, in, in_strides, ivec2(in_w, in_h),
     channels, filter, support);
 }
 
@@ -59,9 +61,11 @@ __global__ void ResampleVertTestKernel(
   int x1 = (blockIdx.x + 1) * in_w / gridDim.x;
   int y0 = blockIdx.y * out_h / gridDim.y;
   int y1 = (blockIdx.y + 1) * out_h / gridDim.y;
+  vec<1, ptrdiff_t> out_strides(out_stride);
+  vec<1, ptrdiff_t> in_strides(in_stride);
   ResampleVert(
-    x0, x1, y0, y1, 0, scale,
-    out, out_stride, in, in_stride, in_h,
+    ivec2(x0, y0), ivec2(x1, y1), 0, scale,
+    out, out_strides, in, in_strides, ivec2(in_w, in_h),
     channels, filter, support);
 }
 
