@@ -19,6 +19,7 @@
 #define DALI_OPERATORS_DECODER_AUDIO_AUDIO_DECODER_OP_H_
 
 #include <memory>
+#include <string>
 #include <vector>
 #include "dali/core/static_switch.h"
 #include "dali/operators/decoder/audio/audio_decoder.h"
@@ -82,6 +83,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
       samples_meta_.emplace_back(meta);
       shape_data.set_tensor_shape(i, {meta.channels, meta.length});
       shape_rate.set_tensor_shape(i, {1});
+      files_names_.emplace_back(input[i].GetSourceInfo());
     }
     output_desc[0] = {shape_data, type};
     output_desc[1] = {shape_rate, type_i32};
@@ -94,12 +96,17 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
     auto &sample_rate_output = ws.template OutputRef<Backend>(1);
 
     for (int i = 0; i < decoded_output.shape().num_samples(); i++) {
-      decoders_[i]->Decode({reinterpret_cast<char *>(decoded_output[i].raw_mutable_data()),
-                            static_cast<int>(decoded_output[i].type().size() *
-                                             decoded_output[i].shape().num_elements())});
-      auto sample_rate_ptr =
-              reinterpret_cast<sample_rate_t *>(sample_rate_output[i].raw_mutable_data());
-      *sample_rate_ptr = samples_meta_[i].sample_rate;
+      try {
+        decoders_[i]->Decode({reinterpret_cast<char *>(decoded_output[i].raw_mutable_data()),
+                              static_cast<int>(decoded_output[i].type().size() *
+                                               decoded_output[i].shape().num_elements())});
+        auto sample_rate_ptr =
+                reinterpret_cast<sample_rate_t *>(sample_rate_output[i].raw_mutable_data());
+        *sample_rate_ptr = samples_meta_[i].sample_rate;
+      } catch (const DALIException &e) {
+        DALI_FAIL(make_string("Error decoding file.\nError: ", e.what(),
+                              "\nFile: ", files_names_[i], "\n"));
+      }
     }
   }
 
@@ -111,6 +118,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
 
  private:
   DALIDataType output_type_;
+  std::vector<std::string> files_names_;
   std::vector<AudioMetadata> samples_meta_;
   using sample_rate_t = decltype(decltype(samples_meta_)::value_type::sample_rate);
   std::vector<std::unique_ptr<AudioDecoderBase>> decoders_;
