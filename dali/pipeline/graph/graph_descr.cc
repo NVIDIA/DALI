@@ -179,6 +179,7 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
     TensorMeta meta;
     meta.node = new_node.id;
     meta.index = i;
+    meta.is_support = false;
     meta.storage_device = ParseStorageDevice(spec.OutputDevice(i));
 
     string name = spec.Output(i);

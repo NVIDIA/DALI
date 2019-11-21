@@ -63,6 +63,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_NVOF=${BUILD_NVOF:-ON}                      \
       -DBUILD_NVDEC=${BUILD_NVDEC:-ON}                    \
       -DBUILD_NVML=${BUILD_NVML:-ON}                      \
+      -DBUILD_FFTS=${BUILD_FFTS:-ON}                      \
       -DVERBOSE_LOGS=${VERBOSE_LOGS:-OFF}                 \
       -DWERROR=${WERROR:-ON}                              \
       -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN:-OFF}           \

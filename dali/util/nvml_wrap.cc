@@ -54,7 +54,6 @@ DALIError_t wrapSymbols(void) {
     nvmlhandle = dlopen("libnvidia-ml.so.1", RTLD_NOW);
     if (!nvmlhandle) {
       DALI_FAIL("Failed to open libnvidia-ml.so[.1]");
-      goto teardown;
     }
   }
 
@@ -63,7 +62,6 @@ DALIError_t wrapSymbols(void) {
     tmp = dlsym(handle, symbol);                                     \
     if (tmp == NULL) {                                               \
       DALI_FAIL("dlsym failed on " + symbol + " - " + dlerror());    \
-      goto teardown;                                                 \
     }                                                                \
     *cast = tmp;                                                     \
   } while (0)
@@ -80,17 +78,6 @@ DALIError_t wrapSymbols(void) {
 
   symbolsLoaded = 1;
   return DALISuccess;
-
-  teardown:
-  nvmlInternalInit = NULL;
-  nvmlInternalShutdown = NULL;
-  nvmlInternalDeviceGetHandleByPciBusId = NULL;
-  nvmlInternalDeviceGetIndex = NULL;
-  nvmlInternalDeviceSetCpuAffinity = NULL;
-  nvmlInternalDeviceClearCpuAffinity = NULL;
-
-  if (nvmlhandle != NULL) dlclose(nvmlhandle);
-  return DALIError;
 }
 
 

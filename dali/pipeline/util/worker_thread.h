@@ -47,10 +47,14 @@ class Barrier {
         }
     }
     void Break() {
-      count_ = 0;
-      current_ = count_;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        count_ = 0;
+        current_ = count_;
+      }
       cv_.notify_all();
     }
+
  private:
     std::mutex mutex_;
     std::condition_variable cv_;

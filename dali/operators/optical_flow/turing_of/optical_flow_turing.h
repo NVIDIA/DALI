@@ -141,9 +141,11 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
 
   NV_OF_EXECUTE_OUTPUT_PARAMS GenerateExecuteOutParams(NvOFGPUBufferHandle out_handle);
 
+  using DLLDRIVER = void *;
+  using ofDriverHandle = std::unique_ptr<std::remove_pointer<DLLDRIVER>::type,
+                                         std::function< void(DLLDRIVER) >>;
 
-  void LoadTuringOpticalFlow(const std::string &library_path);
-
+  DLLDRIVER LoadTuringOpticalFlow(const std::string &library_path);
 
   const std::string kInitSymbol = "NvOFAPICreateInstanceCuda";
 
@@ -156,6 +158,7 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
   NV_OF_INIT_PARAMS init_params_;
   std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_, hintsbuf_;
   DALIImageType image_type_;
+  ofDriverHandle lib_handle_;
 };
 
 }  // namespace optical_flow

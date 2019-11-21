@@ -45,7 +45,7 @@ const std::string &dali_extra_path() {
       }
       auto check_hash = "cd " + *_dali_extra_path + " ; git rev-parse HEAD";
       constexpr int kHashLen = 40;
-      char hash[kHashLen];
+      char hash[kHashLen + 1] = {0, };
       auto pipe = popen(check_hash.c_str(), "r");
       if (pipe == NULL) {
         std::cerr << "WARNING: Could not read the sha of DALI_extra at " << *_dali_extra_path

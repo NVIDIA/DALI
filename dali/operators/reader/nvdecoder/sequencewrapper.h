@@ -44,6 +44,7 @@ struct SequenceWrapper {
 
     int dev;
     CUDA_CALL(cudaGetDevice(&dev));
+    std::unique_lock<std::mutex> lock{started_lock_};
     if (started_) {
       CUDA_CALL(cudaEventDestroy(event_));
     }
@@ -52,6 +53,7 @@ struct SequenceWrapper {
   }
 
   ~SequenceWrapper() {
+    std::unique_lock<std::mutex> lock{started_lock_};
     if (started_) {
       try {
         CUDA_CALL(cudaEventDestroy(event_));

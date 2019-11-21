@@ -57,12 +57,13 @@ static int get_max_vm_cnt() {
     // fallback to reading /proc
     FILE * fp;
     int constexpr MAX_BUFF_SIZE = 256;
-    char buffer[MAX_BUFF_SIZE] = {0, };
+    char buffer[MAX_BUFF_SIZE + 1] = {0, };
     fp = std::fopen("/proc/sys/vm/max_map_count", "r");
     if (fp == nullptr) {
       return vm_cnt;
     }
     auto elements_read = std::fread(buffer, 1, MAX_BUFF_SIZE, fp);
+    std::fclose(fp);
     if (!elements_read) {
       return vm_cnt;
     }

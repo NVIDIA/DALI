@@ -68,7 +68,7 @@ struct OpNode {
   }
 
   std::unique_ptr<OperatorBase> op;
-  OpNodeId id;
+  OpNodeId id = -1;
   OpSpec spec;
   std::set<OpNodeId> parents, children;
 
@@ -78,8 +78,8 @@ struct OpNode {
   std::vector<OutputDesc> output_desc;
 
   std::string instance_name;
-  OpType op_type;
-  OpPartitionId partition_index;
+  OpType op_type = OpType::COUNT;
+  OpPartitionId partition_index = -1;
 };
 
 // Stores meta-data about a tensor and how it

@@ -70,6 +70,13 @@ NvDecoder::NvDecoder(int device_id,
   LOG_LINE << "Using device: " << device_name << std::endl;
   DeviceGuard g(device_id_);
 
+  lib_handle_ = nvdecDriverHandle(cuvidInitChecked(0), cuvidDeinit);
+
+  DALI_ENFORCE(lib_handle_,
+    "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
+    "If you are running in a Docker container, please refer "
+    "to https://github.com/NVIDIA/nvidia-docker/wiki/Usage");
+
   auto codec = Codec::H264;
   switch (codecpar->codec_id) {
     case AV_CODEC_ID_H264:
@@ -204,7 +211,7 @@ int NvDecoder::handle_decode_(CUVIDPICPARAMS* pic_params) {
 }
 
 NvDecoder::MappedFrame::MappedFrame()
-    : disp_info{nullptr}, valid_{false} {
+    : MappedFrame(nullptr, nullptr, 0) {
 }
 
 NvDecoder::MappedFrame::MappedFrame(CUVIDPARSERDISPINFO* disp_info,

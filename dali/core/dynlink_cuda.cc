@@ -626,6 +626,8 @@ bool cuInitChecked() {
 
     std::lock_guard<std::mutex> lock(m);
 
+    if (initialized)
+        return true;
     static CUresult res = cuInit(0, __CUDA_API_VERSION);
     initialized = (res == CUDA_SUCCESS);
     return initialized;
