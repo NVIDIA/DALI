@@ -153,6 +153,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
     inline cudaEvent_t GetEvent(int idx) { return events_[idx]; }
 
+    inline bool empty() const {
+      return events_.empty();
+    }
+
    private:
     vector<cudaEvent_t> events_;
   };
@@ -165,7 +169,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   // Meta-data about our stage outputs for fast lookup
   std::vector<TensorNodeId> pipeline_outputs_;
-  std::vector<EventList> gpu_output_events_;
+
+  // If there are GPU outputs from given stages, we have to wait for them to finish.
+  // Those EventList will contain the number of events matching the size of prefetch queue
+  // for given stage only if there are GPU events. Otherwise they should be empty,
+  // so we can skip recording and waiting for synchronous CPU buffers.
+  EventList mixed_output_events_, gpu_output_events_;
 
   // Work is passed between the stages through queues. This
   // is needed for potentially asynchronous work issue, which
@@ -387,6 +396,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
     CUDA_CALL(cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
   }
 
+  if (!mixed_output_events_.empty()) {
+    int queue_id = mixed_idxs[OpType::MIXED];
+    CUDA_CALL(cudaEventRecord(mixed_output_events_.GetEvent(queue_id), mixed_op_stream_));
+  }
+
   // We know that this is the proper stream, we do not need to look it up in any workspace
   CUDA_CALL(cudaEventRecord(mixed_stage_event_, mixed_op_stream_));
 
@@ -427,27 +441,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
     }
-
-    // TODO(klecki): do not go over string names, please
-    for (size_t i = 0; i < output_names_.size(); ++i) {
-      if (graph_->TensorIsType<CPUBackend>(output_names_[i])) continue;
-      OpNodeId src_id = graph_->TensorSourceID(output_names_[i]);
-      int src_idx = graph_->NodeIdx(src_id);
-
-      // Record events for each output requested by the user
-      cudaEvent_t event = gpu_output_events_[i].GetEvent(gpu_idxs[OpType::GPU]);
-      if (graph_->NodeType(src_id) == OpType::MIXED) {
-        typename WorkspacePolicy::template ws_t<OpType::MIXED> ws =
-            WorkspacePolicy::template GetWorkspace<OpType::MIXED>(gpu_idxs, *graph_, src_idx);
-        CUDA_CALL(cudaEventRecord(event, ws.stream()));
-      } else if (graph_->NodeType(src_id) == OpType::GPU) {
-        typename WorkspacePolicy::template ws_t<OpType::GPU> ws =
-            WorkspacePolicy::template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, src_idx);
-        CUDA_CALL(cudaEventRecord(event, ws.stream()));
-      } else {
-        DALI_FAIL("Internal error. Output node is not gpu/mixed");
-      }
-    }
   } catch (std::exception &e) {
     HandleError(e.what());
   } catch (...) {
@@ -457,6 +450,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   // Update the ready queue to signal that all the work
   // in the `gpu_idxs` set of output buffers has been
   // issued. Notify any waiting threads.
+
+  // If we have GPU outputs than
+  if (!gpu_output_events_.empty()) {
+    int queue_id = gpu_idxs[OpType::GPU];
+    CUDA_CALL(cudaEventRecord(gpu_output_events_.GetEvent(queue_id), gpu_op_stream_));
+  }
 
   // Schedule the call to any callback registered previously
   if (callback_) {
@@ -504,30 +503,33 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
     throw std::runtime_error(error);
   }
 
-  // We already gathered info about outputs, so we only have to wait on respective
-  // events to make sure that the computation has completed
+  // We need to fill the output workspace with pointers to appropriate output buffers.
   for (size_t i = 0; i < pipeline_outputs_.size(); i++) {
     auto out_tensor_id = pipeline_outputs_[i];
     auto &out_tensor = graph_->Tensor(out_tensor_id);
     auto op_type = graph_->Node(out_tensor.producer.node).op_type;
-    if (out_tensor.producer.storage_device == StorageDevice::GPU) {
+    auto storage_dev = out_tensor.producer.storage_device;
+    VALUE_SWITCH(storage_dev, storage_dev_static, (StorageDevice::GPU, StorageDevice::CPU),
+    (
       VALUE_SWITCH(op_type, op_type_static, (OpType::MIXED, OpType::GPU),
       (
-        auto &queue = get_queue<op_type_static, StorageDevice::GPU>(
-            tensor_to_store_queue_[out_tensor_id]);
-        auto stage_output_idx = output_idx[op_type_static];
-        ws->AddOutput(queue[stage_output_idx]);
-        CUDA_CALL(cudaEventSynchronize(gpu_output_events_[i].GetEvent(stage_output_idx)));
-      ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
-    } else {
-      VALUE_SWITCH(op_type, op_type_static, (OpType::MIXED, OpType::GPU),
-      (
-        auto &queue = get_queue<op_type_static, StorageDevice::CPU>(
+        auto &queue = get_queue<op_type_static, storage_dev_static>(
             tensor_to_store_queue_[out_tensor_id]);
         auto stage_output_idx = output_idx[op_type_static];
         ws->AddOutput(queue[stage_output_idx]);
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
-    }
+    ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
+  }
+  // We than need to wait for GPU outputs from Mixed & GPU stages that are computed asynchronously.
+  // If the output event list is not empty, it means that there are outputs on GPU that we
+  // have to wait for.
+  if (!mixed_output_events_.empty()) {
+    auto queue_idx = output_idx[OpType::MIXED];
+    CUDA_CALL(cudaEventSynchronize(mixed_output_events_.GetEvent(queue_idx)));
+  }
+  if (!gpu_output_events_.empty()) {
+    auto queue_idx = output_idx[OpType::GPU];
+    CUDA_CALL(cudaEventSynchronize(gpu_output_events_.GetEvent(queue_idx)));
   }
 }
 
@@ -594,15 +596,26 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
   DeviceGuard g(device_id_);
   pipeline_outputs_ = graph.GetOutputs(output_names_);
-  for (auto tid : pipeline_outputs_) {
-    auto &tensor = graph.Tensor(tid);
-    if (tensor.producer.storage_device == StorageDevice::GPU) {
-      auto parent_type = graph.Node(tensor.producer.node).op_type;
-      gpu_output_events_.push_back(
-          EventList(stage_queue_depths_[parent_type], &event_pool_));
-    } else {
-      gpu_output_events_.push_back(EventList());
+
+  // If there are GPU outputs from given stages, we have to wait for them
+  auto has_gpu_output = [] (OpType stage_type, const auto &pipeline_outputs, const OpGraph &graph) {
+    for (auto tid : pipeline_outputs) {
+      const auto &tensor = graph.Tensor(tid);
+      const auto &producer_node = graph.Node(tensor.producer.node);
+      if (producer_node.op_type == stage_type) {
+        if (tensor.producer.storage_device == StorageDevice::GPU) {
+          return true;
+        }
+      }
     }
+    return false;
+  };
+
+  if (has_gpu_output(OpType::MIXED, pipeline_outputs_, graph)) {
+    mixed_output_events_ = EventList(stage_queue_depths_[OpType::MIXED], &event_pool_);
+  }
+  if (has_gpu_output(OpType::GPU, pipeline_outputs_, graph)) {
+    gpu_output_events_ = EventList(stage_queue_depths_[OpType::GPU], &event_pool_);
   }
 }
 
