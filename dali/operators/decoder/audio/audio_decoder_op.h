@@ -63,10 +63,10 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
     type_i32.SetType<int>(DALI_INT32);
 
     TYPE_SWITCH(output_type_, type2id, OutputType, (int16_t, int32_t, float), (
-            for (int i=0; i < input.shape().num_samples(); i++) {
-            decoders_.emplace_back(new GenericAudioDecoder<OutputType>());
-    }
-            type.SetType<OutputType>(output_type_);
+        for (int i=0; i < input.shape().num_samples(); i++) {
+          decoders_.emplace_back(std::make_unique<GenericAudioDecoder<OutputType>>());
+        }
+        type.SetType<OutputType>(output_type_);
     ), DALI_FAIL("Unsupported output type"))  // NOLINT
 
     output_desc.resize(detail::kNumOutputs);
