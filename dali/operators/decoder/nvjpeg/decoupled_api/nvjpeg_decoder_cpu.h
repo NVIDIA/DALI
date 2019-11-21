@@ -271,7 +271,7 @@ class nvJPEGDecoderCPUStage : public Operator<CPUBackend> {
   std::vector<nvjpegDecodeParams_t> decode_params_;
 
   bool use_chunk_allocator_;
-  nvjpegPinnedAllocator_t pinned_allocator_;
+  nvjpegPinnedAllocator_t pinned_allocator_ = {};
 };
 
 }  // namespace dali

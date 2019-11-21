@@ -4,7 +4,7 @@ pip_packages="nose"
 target_dir=./dali/test/python
 
 do_once() {
-    USE_CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1/')
+    USE_CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1/')
     if [[ "$USE_CUDA_VERSION" = "10" ]]; then
         export TENSORFLOW_VERSIONS="1.13.1 1.14 1.15 2.0"
     else

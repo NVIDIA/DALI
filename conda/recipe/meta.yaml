@@ -36,6 +36,7 @@ build:
    - BUILD_NVOF
    - BUILD_NVDEC
    - BUILD_NVML
+   - BUILD_FFTS
    - VERBOSE_LOGS
    - WERROR
    - BUILD_WITH_ASAN

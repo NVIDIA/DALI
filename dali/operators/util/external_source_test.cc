@@ -44,7 +44,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
 
   inline void set_batch_size(int size) { batch_size_ = size; }
 
-  inline OpSpec PrepareSpec(OpSpec spec) const {
+  inline OpSpec& PrepareSpec(OpSpec &spec) const {
     spec.AddArg("batch_size", batch_size_)
       .AddArg("num_threads", num_threads_);
     return spec;

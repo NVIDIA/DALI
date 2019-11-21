@@ -45,7 +45,7 @@ class OperatorBench : public DALIBenchmark {
   }
 
   template <typename T>
-  void RunCPU(benchmark::State& st, OpSpec op_spec,
+  void RunCPU(benchmark::State& st, const OpSpec &op_spec,
               int batch_size = 128,
               int H = 1080, int W = 1920, int C = 3,
               bool fill_in_data = false, int num_threads = 4) {
@@ -85,7 +85,7 @@ class OperatorBench : public DALIBenchmark {
   }
 
   template <typename T>
-  void RunGPU(benchmark::State& st, OpSpec op_spec,
+  void RunGPU(benchmark::State& st, const OpSpec &op_spec,
               int batch_size = 128,
               int H = 1080, int W = 1920, int C = 3,
               bool fill_in_data = false) {

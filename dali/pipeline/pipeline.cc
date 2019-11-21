@@ -175,20 +175,20 @@ static bool has_prefix(const std::string &operator_name, const std::string& pref
                     prefix.begin());
 }
 
-int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name) {
+int Pipeline::AddOperator(const OpSpec &spec, const std::string& inst_name) {
   return AddOperator(spec, inst_name, GetNextLogicalId());
 }
 
-int Pipeline::AddOperator(OpSpec spec, int logical_id) {
+int Pipeline::AddOperator(const OpSpec &spec, int logical_id) {
   return AddOperator(spec, "<no name>", logical_id);
 }
 
-int Pipeline::AddOperator(OpSpec spec) {
+int Pipeline::AddOperator(const OpSpec &spec) {
   return AddOperator(spec, "<no name>", GetNextLogicalId());
 }
 
 
-int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical_id) {
+int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name, int logical_id) {
   DALI_ENFORCE(!built_, "Alterations to the pipeline after "
       "\"Build()\" has been called are not allowed");
   DALI_ENFORCE(0 <= logical_id,
@@ -198,6 +198,8 @@ int Pipeline::AddOperator(OpSpec spec, const std::string& inst_name, int logical
     next_logical_id_ = logical_id + 1;
   }
 
+  // we modify spec so copy it
+  OpSpec spec = const_spec;
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
 
