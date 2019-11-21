@@ -54,12 +54,7 @@ with the shard size.)code", false);
 size_t start_index(const size_t shard_id,
                    const size_t shard_num,
                    const size_t size) {
-  const size_t remainder = size % shard_num;
-  if (shard_id < remainder) {
-    return (size / shard_num) * shard_id + shard_id;
-  } else {
-    return (size / shard_num) * shard_id + remainder;
-  }
+  return size * shard_id / shard_num;
 }
 
 }  // namespace dali
