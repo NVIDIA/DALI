@@ -83,7 +83,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
       auto meta = decoders_[i]->Open({reinterpret_cast<const char *>(input[i].raw_mutable_data()),
                                       input[i].shape().num_elements()});
       samples_meta_.emplace_back(meta);
-      shape_data.set_tensor_shape(i, {meta.channels, meta.length});
+      shape_data.set_tensor_shape(i, {meta.length, meta.channels});
       shape_rate.set_tensor_shape(i, {1});
       files_names_.emplace_back(input[i].GetSourceInfo());
     }
