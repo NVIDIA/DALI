@@ -20,6 +20,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/common/utils.h"
 
 namespace dali {
 namespace kernels {
@@ -29,16 +30,6 @@ struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
 };
-
-template <int Dims>
-TensorShape<Dims> GetStrides(const TensorShape<Dims>& shape) {
-  TensorShape<Dims> strides;
-  strides[Dims - 1] = 1;
-  for (size_t d = Dims - 1; d > 0; d--) {
-    strides[d - 1] = strides[d] * shape[d];
-  }
-  return strides;
-}
 
 template <int Dims, typename Args>
 void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,
