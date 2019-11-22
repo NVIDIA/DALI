@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 #include "dali/core/util.h"
-#include "dali/kernels/signal/signal_kernel_utils.h"
 
 namespace dali {
 namespace kernels {

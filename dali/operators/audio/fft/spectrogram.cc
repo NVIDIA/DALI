@@ -55,7 +55,7 @@ at multiples of `window_step`)code",
     true);
 
 template <int Dims>
-struct SpectrogramImplCpu : Spectrogram<CPUBackend>::ImplBase {
+struct SpectrogramImplCpu : detail::OpImplBase<CPUBackend> {
   using OutputType = float;
   using InputType = float;
 
