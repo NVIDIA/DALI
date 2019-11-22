@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_AUDIO_FFT_SPECTROGRAM_H_
 
 #include <memory>
+#include <vector>
 #include "dali/core/common.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
@@ -26,7 +27,7 @@ template <typename Backend>
 class DLL_PUBLIC Spectrogram : public Operator<Backend> {
  public:
   DLL_PUBLIC Spectrogram(const OpSpec &spec);
-  DLL_PUBLIC virtual ~Spectrogram() override = default;
+  DLL_PUBLIC ~Spectrogram() override = default;
 
  protected:
   bool CanInferOutputs() const override { return true; }

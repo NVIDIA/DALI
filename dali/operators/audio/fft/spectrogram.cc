@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <memory>
+#include <vector>
 #include "dali/operators/audio/fft/spectrogram.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/signal/window/extract_windows_cpu.h"
@@ -65,17 +66,17 @@ struct SpectrogramImplCpu : Spectrogram<CPUBackend>::ImplBase {
   static constexpr int WindowsDims = Dims+1;
   using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, WindowsDims>;
 
-  SpectrogramImplCpu(const OpSpec & spec);
+  explicit SpectrogramImplCpu(const OpSpec & spec);
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
   int nfft_ = -1;
-  int window_length_ = -1;
-  int window_step_ = -1;
+  int64_t window_length_ = -1;
+  int64_t window_step_ = -1;
   int power_ = -1;
-  bool center_windows_ = true;
   std::vector<float> window_fn_;
+  int64_t window_center_ = -1;
 
   kernels::KernelManager kmgr_window_;
   kernels::signal::window::ExtractWindowsArgs window_args_;
@@ -89,11 +90,12 @@ struct SpectrogramImplCpu : Spectrogram<CPUBackend>::ImplBase {
 
 namespace {
   void FillExtractWindowsArgs(kernels::signal::window::ExtractWindowsArgs& args,
-                              int window_length, int window_step, bool center_windows, int ndim) {
+                              int64_t window_length, int64_t window_step,
+                              int64_t window_center, int ndim) {
     args.window_length = window_length;
     args.window_step = window_step;
-    args.in_time_axis = ndim - 1;
-    args.center_windows = center_windows;
+    args.axis = ndim - 1;
+    args.window_center = window_center;
   }
 
   void FillFftArgs(kernels::signal::fft::FftArgs& args,
@@ -133,14 +135,18 @@ SpectrogramImplCpu<Dims>::SpectrogramImplCpu(const OpSpec & spec)
     , window_length_(spec.GetArgument<int>("window_length"))
     , window_step_(spec.GetArgument<int>("window_step"))
     , power_(spec.GetArgument<int>("power"))
-    , center_windows_(spec.GetArgument<bool>("center_windows"))
     , window_fn_(spec.GetRepeatedArgument<float>("window_fn")) {
+  DALI_ENFORCE(window_length_ > 0, make_string("Invalid window length: ", window_length_));
+  DALI_ENFORCE(window_step_ > 0, make_string("Invalid window step: ", window_step_));
+
   if (window_fn_.empty()) {
     window_fn_.resize(window_length_);
     CreateWindowHann(make_span(window_fn_));
   }
   DALI_ENFORCE(window_fn_.size() == static_cast<size_t>(window_length_),
     "Window function should match the specified `window_length`");
+
+  window_center_ = spec.GetArgument<bool>("center_windows") ? window_length_ / 2 : 0;
 }
 
 
@@ -159,7 +165,7 @@ bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
 
   kmgr_window_.Initialize<WindowKernel>();
   kmgr_window_.Resize<WindowKernel>(nthreads, nsamples);
-  FillExtractWindowsArgs(window_args_, window_length_, window_step_, center_windows_, InputDims);
+  FillExtractWindowsArgs(window_args_, window_length_, window_step_, window_center_, InputDims);
 
   kmgr_fft_.Initialize<FftKernel>();
   kmgr_fft_.Resize<FftKernel>(nthreads, nsamples);

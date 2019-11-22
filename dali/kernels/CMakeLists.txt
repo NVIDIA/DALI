@@ -47,7 +47,7 @@ if (BUILD_TEST)
 
   # TODO(janton): Remove dependency with dali_lib
   target_link_libraries(${test_bin} PUBLIC ${dali_kernel_lib} ${dali_lib})
-  target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS} ffts)
+  target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
   set_target_properties(${test_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
