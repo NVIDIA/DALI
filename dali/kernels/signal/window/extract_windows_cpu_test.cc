@@ -18,8 +18,8 @@
 #include <complex>
 #include <cmath>
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/signal/signal_kernel_utils.h"
 #include "dali/kernels/signal/window/extract_windows_cpu.h"
+#include "dali/kernels/common/utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 
@@ -106,7 +106,7 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   // Hamming window
   std::vector<float> window_fn_data(window_length_);
   for (int t = 0; t < window_length_; t++) {
-    window_fn_data[t] = 1.0f; // 0.54f - 0.46f * cos(2.0f * M_PI * (t+0.5f) / window_length_);
+    window_fn_data[t] = 0.54f - 0.46f * cos(2.0f * M_PI * (t+0.5f) / window_length_);
   }
   auto window_fn_view = OutTensorCPU<float, 1>(window_fn_data.data(), {1});
 
