@@ -14,6 +14,7 @@
 
 #include "dali/kernels/signal/window/extract_windows_cpu.h"
 #include <algorithm>
+#include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
@@ -85,7 +86,8 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
       out_shape[out_idx++] = in.shape[in_idx++];
     }
   }
-  req.output_shapes = {TensorListShape<DynamicDimensions>({out_shape})};
+  std::vector<TensorShape<DynamicDimensions>> tmp = {out_shape};  // workaround for clang-6 bug
+  req.output_shapes = {TensorListShape<DynamicDimensions>(tmp)};
   return req;
 }
 
