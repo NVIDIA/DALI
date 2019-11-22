@@ -150,6 +150,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_LIBTIFF=${BUILD_LIBTIFF}            \
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
+                                        BUILD_LIBSND=${BUILD_LIBSND}              \
                                         BUILD_NVML=${BUILD_NVML}                  \
                                         BUILD_FFTS=${BUILD_FFTS}                  \
                                         VERBOSE_LOGS=${VERBOSE_LOGS}              \
@@ -181,6 +182,7 @@ else
                                    --build-arg "BUILD_LIBTIFF=${BUILD_LIBTIFF}"            \
                                    --build-arg "BUILD_NVOF=${BUILD_NVOF}"                  \
                                    --build-arg "BUILD_NVDEC=${BUILD_NVDEC}"                \
+                                   --build-arg "BUILD_LIBSND=${BUILD_LIBSND}"              \
                                    --build-arg "BUILD_NVML=${BUILD_NVML}"                  \
                                    --build-arg "BUILD_FFTS=${BUILD_FFTS}"                  \
                                    --build-arg "VERBOSE_LOGS=${VERBOSE_LOGS}"              \
