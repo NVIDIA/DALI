@@ -39,7 +39,11 @@ ImageCacheBlob::ImageCacheBlob(std::size_t cache_size,
 }
 
 ImageCacheBlob::~ImageCacheBlob() {
-  if (stats_enabled_ && images_seen() > 0) print_stats();
+  try {
+    if (stats_enabled_ && images_seen() > 0) print_stats();
+  } catch (...) {
+    std::terminate();
+  }
 }
 
 bool ImageCacheBlob::IsCached(const ImageKey& image_key) const {

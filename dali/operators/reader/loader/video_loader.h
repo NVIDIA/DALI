@@ -137,6 +137,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       codec_id_(0),
       skip_vfr_check_(spec.GetArgument<bool>("skip_vfr_check")),
       stats_({0, 0, 0, 0, 0}),
+      current_frame_idx_(-1),
       stop_(false) {
     if (step_ < 0)
       step_ = count_ * stride_;
