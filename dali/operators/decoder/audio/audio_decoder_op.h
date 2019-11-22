@@ -63,6 +63,8 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
     TypeInfo type_i32;
     type_i32.SetType<int>(DALI_INT32);
     decoders_.resize(batch_size);
+    samples_meta_.resize(batch_size);
+    files_names_.resize(batch_size);
 
     TYPE_SWITCH(output_type_, type2id, OutputType, (int16_t, int32_t, float), (
             for (int i=0; i < batch_size; i++) {
@@ -82,10 +84,10 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
     for (int i = 0; i < batch_size; i++) {
       auto meta = decoders_[i]->Open({reinterpret_cast<const char *>(input[i].raw_mutable_data()),
                                       input[i].shape().num_elements()});
-      samples_meta_.emplace_back(meta);
+      samples_meta_[i] = meta;
       shape_data.set_tensor_shape(i, {meta.length, meta.channels});
       shape_rate.set_tensor_shape(i, {1});
-      files_names_.emplace_back(input[i].GetSourceInfo());
+      files_names_[i] = input[i].GetSourceInfo();
     }
     output_desc[0] = {shape_data, type};
     output_desc[1] = {shape_rate, type_i32};
@@ -125,7 +127,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   DALIDataType output_type_;
   std::vector<std::string> files_names_;
   std::vector<AudioMetadata> samples_meta_;
-  using sample_rate_t = decltype(decltype(samples_meta_)::value_type::sample_rate);
+  using sample_rate_t = decltype(AudioMetadata::sample_rate);
   std::vector<std::unique_ptr<AudioDecoderBase>> decoders_;
 };
 
