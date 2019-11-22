@@ -61,7 +61,7 @@ class MnistPipeline(Pipeline):
             image_type=types.GRAY,
             mean=[0.],
             std=[255.],
-            output_layout=types.NCHW)
+            output_layout="CHW")
 
     def define_graph(self):
         inputs, labels = self.reader(name="Reader")
