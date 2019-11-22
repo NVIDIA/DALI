@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cuda_runtime.h>
+#include <algorithm>
 #include "dali/core/util.h"
 #include "dali/kernels/imgproc/resample/resampling_setup.h"
 #include "dali/kernels/common/block_setup.h"
@@ -99,44 +100,79 @@ SeparableResamplingSetup<spatial_ndim>::ComputeScaleAndROI(
   return roi;
 }
 
-ProcessingOrder<2> GetProcessingOrder(ivec2 in_size, ivec2 out_size, ivec2 filter_support) {
-  int64_t size_vert = volume({in_size.x, out_size.y});
-  int64_t size_horz = volume({out_size.x, in_size.y});
-  int64_t out_area = volume(out_size);
-  int64_t compute_vh = size_vert * filter_support.y + out_area * filter_support.x;
-  int64_t compute_hv = size_horz * filter_support.x + out_area * filter_support.y;
+template <int ndim>
+struct ProcessingOrderCalculator {
+  ProcessingOrderCalculator(ivec<ndim> in_size, ivec<ndim> out_size, ivec<ndim> filter_support)
+  : in_size(in_size), out_size(out_size), filter_support(filter_support) {
+  }
 
-  // ...maybe fine tune the size/compute weights?
-  const float size_weight = 3;
-  float cost_vert = size_weight*size_vert + compute_vh;
-  float cost_horz = size_weight*size_horz + compute_hv;
-  return cost_vert < cost_horz ? VertHorz() : HorzVert();
-}
+  ProcessingOrder<ndim> operator()() {
+    for (int i = 0; i < ndim; i++)
+      best_order[i] = i;
+    min_cost = 1e+30f;
+    axis_mask = {};
+    curr_size = in_size;
+    run(0);
+    return best_order;
+  }
 
-ProcessingOrder<3> GetProcessingOrder(ivec3 in_size, ivec3 out_size, ivec3 filter_support) {
-  for (int a0 = 0; a0 < 3; a0++) {
-    for (int a1 = 0; a1 < 3; a1++) {
-      if (a1 == a0)
-        continue;
-      for (int a2 = 0; a2 < 3; a2++)
-        if (a2 == a0 || a2 == a1) {
+ private:
+  float compute_cost_mul(int axis) {
+    // y-axis is likely to be the cheapest
+    return axis == 0 ? 1.4f : axis > 1 ? 1.2f : 1.0f;
+  }
+
+  void calculate_cost(int pass, int axis) {
+    sizes[pass] = volume(curr_size);
+    float base_cost = filter_support[axis] * sizes[pass];
+    compute_costs[pass] = compute_cost_mul(axis) * base_cost;
+  }
+
+  static constexpr float size_bias = 3;
+
+  void run(int pass) {
+    if (pass == ndim) {
+      float total_cost = 0;
+      for (int i = 0; i < ndim; i++) {
+        total_cost += compute_costs[i] + sizes[i] * size_bias;
+      }
+      if (total_cost < min_cost) {
+        min_cost = total_cost;
+        best_order = curr_order;
+      }
+    } else {
+      for (int a = 0; a < ndim; a++) {
+        if (axis_mask[a])
           continue;
-        }
+        axis_mask[a] = true;
+        auto prev_size = curr_size[a];
+        curr_size[a] = out_size[a];
+        curr_order[pass] = a;
+
+        calculate_cost(pass, a);
+        run(pass + 1);
+
+        curr_size[a] = prev_size;
+        axis_mask[a] = false;
+      }
     }
   }
-  return { 0, 1, 2 };
 
-  /*int64_t size_vert = volume({roi.extent().x, out_H});
-  int64_t size_horz = volume({out_W, roi.extent().y});
-  int64_t out_area = volume(desc.out_shape());
-  int64_t compute_vh = size_vert * filter_support.y + out_area * filter_support.x;
-  int64_t compute_hv = size_horz * filter_support.x + out_area * filter_support.y;
+  int64_t sizes[ndim];        // NOLINT
+  float compute_costs[ndim];  // NOLINT
+  float min_cost;
+  ivec<ndim> in_size, out_size, curr_size, filter_support;
+  ProcessingOrder<ndim> best_order, curr_order;
+  bvec<ndim> axis_mask;
+};
 
-  // ...maybe fine tune the size/compute weights?
-  const float size_weight = 3;
-  float cost_vert = size_weight*size_vert + compute_vh;
-  float cost_horz = size_weight*size_horz + compute_hv;
-  return cost_vert < cost_horz ? VertHorz() : HorzVert();*/
+template <int ndim>
+ProcessingOrder<ndim> GetProcessingOrder(
+    ivec<ndim> in_size,
+    ivec<ndim> out_size,
+    ivec<ndim> filter_support) {
+  ProcessingOrderCalculator<ndim> poc(in_size, out_size, filter_support);
+  return poc();
 }
 
 template <>
@@ -175,7 +211,7 @@ void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) {
       blk[axis] = block_dim[axis];
       blk.z = MaxElementsPerBlock / (blk[0] * blk[1] * sample.channels);
     } else {
-      blk.z = block_dim.y;
+      blk.z = block_dim.y;  // (yes, .y)
       blk.y = MaxElementsPerBlock / (blk[0] * blk[2] * sample.channels);
     }
     blk = clamp(blk, ivec3(1, 1, 1), pass_output_shape);
@@ -252,11 +288,12 @@ void SeparableResamplingSetup<spatial_ndim>::SetupSample(
   }
 }
 
-template <>
-void BatchResamplingSetup<2>::SetupBatch(
-    const TensorListShape<3> &in, const Params &params) {
-  if (!filters)
-    Initialize();
+template <int spatial_ndim>
+void BatchResamplingSetup<spatial_ndim>::SetupBatch(
+    const TensorListShape<tensor_ndim> &in, const Params &params) {
+  constexpr int channel_dim =  BatchResamplingSetup<spatial_ndim>::channel_dim;
+  if (!this->filters)
+    this->Initialize();
 
   int N = in.num_samples();
   assert(params.size() == static_cast<span_extent_t>(N));
@@ -269,12 +306,12 @@ void BatchResamplingSetup<2>::SetupBatch(
   for (auto &size : intermediate_sizes)
     size = 0;
 
-  total_blocks = { 0, 0 };
+  total_blocks = 0;
 
   for (int i = 0; i < N; i++) {
     SampleDesc &desc = sample_descs[i];
     auto ts_in = in.tensor_shape(i);
-    SetupSample(desc, ts_in, params[i]);
+    this->SetupSample(desc, ts_in, params[i]);
 
     for (int t = 0; t < num_tmp_buffers; t++) {
       TensorShape<tensor_ndim> ts_tmp = shape_cat(vec2shape(desc.tmp_shape(t)), desc.channels);

@@ -33,12 +33,15 @@ namespace kernels {
 namespace resample_test {
 
 namespace {
+template <int spatial_ndim>
 void RandomParams(
-    TensorListShape<3> &tls,
-    std::vector<ResamplingParams2D> &params,
+    TensorListShape<spatial_ndim+1> &tls,
+    std::vector<ResamplingParamsND<spatial_ndim>> &params,
     int num_samples) {
   std::mt19937_64 rng;
-  auto size_dist    = uniform_distribution(128, 2048);
+  auto size_dist    = uniform_distribution(
+                        powf(1e+4f, 1.0f/spatial_ndim),
+                        powf(1e+7f, 1.0f/spatial_ndim));
   auto channel_dist = uniform_distribution(1, 4);
   auto aspect_dist  = uniform_distribution(0.5f, 2.0f);
 
@@ -46,58 +49,80 @@ void RandomParams(
   params.resize(num_samples);
   for (int i = 0; i < num_samples; i++) {
     auto ts = tls.tensor_shape_span(i);
-    float aspect = sqrt(aspect_dist(rng));
-    ts[0] = size_dist(rng) * aspect;
-    ts[1] = size_dist(rng) / aspect;
-    ts[2] = channel_dist(rng);
-    aspect = sqrt(aspect_dist(rng));
-    params[i][0].output_size = size_dist(rng) * aspect;
-    params[i][1].output_size = size_dist(rng) / aspect;
-    params[i][0].min_filter.type = ResamplingFilterType::Triangular;
-    params[i][0].mag_filter.type = ResamplingFilterType::Linear;
-    params[i][1].min_filter.type = ResamplingFilterType::Triangular;
-    params[i][1].mag_filter.type = ResamplingFilterType::Linear;
+    float avg_in_size = size_dist(rng);
+    float avg_out_size = size_dist(rng);
+    vec<spatial_ndim> in_aspect, out_aspect;
+    float in_aspect_norm = 1, out_aspect_norm = 1;
+    for (int i = 0; i < spatial_ndim; i++) {
+      in_aspect[i] = sqrt(aspect_dist(rng));
+      out_aspect[i] = sqrt(aspect_dist(rng));
+      in_aspect_norm *= in_aspect[i];
+      out_aspect_norm *= out_aspect[i];
+    }
+    in_aspect /= in_aspect_norm;
+    out_aspect /= out_aspect_norm;
+    for (int i = 0; i < spatial_ndim; i++)
+      ts[i] = avg_in_size * in_aspect[i];
+    ts[spatial_ndim] = channel_dist(rng);
+    for (int d = 0; d < spatial_ndim; d++) {
+      params[i][d].output_size = avg_out_size * out_aspect[d];
+      params[i][d].min_filter.type = ResamplingFilterType::Triangular;
+      params[i][d].mag_filter.type = ResamplingFilterType::Linear;
+    }
   }
 }
 }  // namespace
 
-TEST(SeparableImpl, Setup) {
+template <int spatial_ndim>
+void TestSetup() {
+  constexpr int tensor_ndim = spatial_ndim + 1;
   int N = 32;
   KernelContext ctx;
   ctx.gpu.stream = 0;
-  SeparableResamplingGPUImpl<uint8_t, uint8_t, 2> resampling;
-  TestTensorList<uint8_t, 3> input, output;
+  SeparableResamplingGPUImpl<uint8_t, uint8_t, spatial_ndim> resampling;
+  TestTensorList<uint8_t, tensor_ndim> input, output;
 
-  TensorListShape<3> tls;
-  std::vector<ResamplingParams2D> params;
-  RandomParams(tls, params, N);
+  TensorListShape<tensor_ndim> tls;
+  std::vector<ResamplingParamsND<spatial_ndim>> params;
+  RandomParams<spatial_ndim>(tls, params, N);
 
   input.reshape(tls);
 
-  InListGPU<uint8_t, 3> in_tv = input.gpu();
+  InListGPU<uint8_t, tensor_ndim> in_tv = input.gpu();
 
   auto req = resampling.Setup(ctx, in_tv, make_span(params));
   ASSERT_EQ(req.output_shapes.size(), 1);
   ASSERT_EQ(req.output_shapes[0].num_samples(), N);
 
-  output.reshape(req.output_shapes[0].to_static<3>());
-  OutListGPU<uint8_t, 3> out_tv = output.gpu();
+  output.reshape(req.output_shapes[0].template to_static<tensor_ndim>());
+  OutListGPU<uint8_t, tensor_ndim> out_tv = output.gpu();
 
   for (int i = 0; i < N; i++) {
-    TensorShape<3> expected_shape = {
-      params[i][0].output_size,
-      params[i][1].output_size,
-      tls.tensor_shape_span(i)[2]
-    };
+    TensorShape<tensor_ndim> expected_shape;
+    for (int d = 0; d < spatial_ndim; d++)
+      expected_shape[d] = params[i][d].output_size;
+
+    expected_shape[spatial_ndim] = tls.tensor_shape_span(i)[spatial_ndim];
+
     EXPECT_EQ(req.output_shapes[0].tensor_shape(i), expected_shape);
 
-    for (int d = 0; d < 2; d++) {
-      EXPECT_GE(resampling.setup.sample_descs[i].logical_block_shape[0][d], 1);
-      EXPECT_GE(resampling.setup.sample_descs[i].logical_block_shape[1][d], 1);
+    for (int d = 0; d < spatial_ndim; d++) {
+      for (int pass = 0; pass < spatial_ndim; pass++) {
+        EXPECT_GE(resampling.setup.sample_descs[i].logical_block_shape[pass][d], 1);
+      }
     }
   }
-  EXPECT_GT(resampling.setup.total_blocks[0], N);
-  EXPECT_GT(resampling.setup.total_blocks[1], N);
+  for (int pass = 0; pass < spatial_ndim; pass++) {
+    EXPECT_GE(resampling.setup.total_blocks[pass], N);
+  }
+}
+
+TEST(SeparableImpl, Setup2D) {
+  TestSetup<2>();
+}
+
+TEST(SeparableImpl, Setup3D) {
+  TestSetup<3>();
 }
 
 ResamplingTestBatch SingleImageBatch = {

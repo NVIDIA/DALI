@@ -156,7 +156,7 @@ class BatchResamplingSetup : public SeparableResamplingSetup<_spatial_ndim> {
   using BlockDesc = kernels::BlockDesc<spatial_ndim>;
 
   std::vector<SampleDesc> sample_descs;
-  TensorListShape<3> output_shape, intermediate_shapes[num_tmp_buffers]; // NOLINT
+  TensorListShape<tensor_ndim> output_shape, intermediate_shapes[num_tmp_buffers]; // NOLINT
   size_t intermediate_sizes[num_tmp_buffers];  // NOLINT
   ivec<spatial_ndim> total_blocks;
 

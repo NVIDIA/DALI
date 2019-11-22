@@ -59,7 +59,7 @@ __global__ void BatchedSeparableResampleKernel(
       vec<spatial_ndim> origin_v(0.0f), scale_v(1.0f);
       origin_v[axis] = origin;
       scale_v[axis] = scale;
-      NNResample({ lo, hi }, origin_v, scale_v,
+      NNResample(lo, hi, origin_v, scale_v,
                  sample_out, out_strides,
                  sample_in, in_strides, in_shape, sample.channels);
     }
@@ -135,23 +135,22 @@ INSTANTIATE_BATCHED_RESAMPLE(2, float, uint16_t);
 INSTANTIATE_BATCHED_RESAMPLE(2, int32_t, float);
 INSTANTIATE_BATCHED_RESAMPLE(2, float, int32_t);
 
-// 3D not available yet
-/*
-INSTANTIATE_BATCHED_RESAMPLE(3, float,    float);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, uint8_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, int8_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, uint16_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, int16_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, uint32_t);
-INSTANTIATE_BATCHED_RESAMPLE(3, float, int32_t);
+
 INSTANTIATE_BATCHED_RESAMPLE(3, float, float);
 
-INSTANTIATE_BATCHED_RESAMPLE(3, uint8_t,  float);
-INSTANTIATE_BATCHED_RESAMPLE(3, int8_t,   float);
-INSTANTIATE_BATCHED_RESAMPLE(3, uint16_t, float);
-INSTANTIATE_BATCHED_RESAMPLE(3, int16_t,  float);
-INSTANTIATE_BATCHED_RESAMPLE(3, uint32_t, float);
-INSTANTIATE_BATCHED_RESAMPLE(3, int32_t,  float);
+INSTANTIATE_BATCHED_RESAMPLE(3, float, uint8_t);
+INSTANTIATE_BATCHED_RESAMPLE(3, uint8_t, float);
+
+/*
+INSTANTIATE_BATCHED_RESAMPLE(2, float, int16_t);
+INSTANTIATE_BATCHED_RESAMPLE(2, int16_t, float);
+
+INSTANTIATE_BATCHED_RESAMPLE(2, uint16_t, float);
+INSTANTIATE_BATCHED_RESAMPLE(2, float, uint16_t);
+
+INSTANTIATE_BATCHED_RESAMPLE(2, int32_t, float);
+INSTANTIATE_BATCHED_RESAMPLE(2, float, int32_t);
+
 */
 
 }  // namespace resampling

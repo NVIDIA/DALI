@@ -111,6 +111,47 @@ void ResampleHorz_Channels(
   }
 }
 
+
+template <int static_channels = -1, typename Out, typename In>
+void ResampleHorz_Channels(
+    Surface3D<Out> out, Surface3D<In> in, const int *in_columns,
+    const float *coeffs, int support) {
+  const int channels = static_channels < 0 ? out.channels : static_channels;
+
+  int first_regular_col = 0;
+  int last_regular_col = out.size.x - 1;
+  while (first_regular_col < out.size.x && in_columns[first_regular_col] < 0)
+    first_regular_col++;
+  while (last_regular_col >= 0 && in_columns[last_regular_col] + support > in.size.x)
+    last_regular_col--;
+
+  for (int z = 0; z < out.size.z; z++) {
+    for (int y = 0; y < out.size.y; y++) {
+      Out *out_row = &out(0, y, z);
+      const In *in_row = &in(0, y, z);
+
+      int x = 0;
+
+      for (; x < first_regular_col && x <= last_regular_col; x++) {
+        ResampleCol<static_channels, true, false>(
+          out_row, in_row, x, in.size.x, in_columns, coeffs, support, channels);
+      }
+      for (; x < first_regular_col; x++) {
+        ResampleCol<static_channels, true, true>(
+          out_row, in_row, x, in.size.x, in_columns, coeffs, support, channels);
+      }
+      for (; x <= last_regular_col; x++) {
+        ResampleCol<static_channels, false, false>(
+          out_row, in_row, x, in.size.x, in_columns, coeffs, support, channels);
+      }
+      for (; x < out.size.x; x++) {
+        ResampleCol<static_channels, false, true>(
+          out_row, in_row, x, in.size.x, in_columns, coeffs, support, channels);
+      }
+    }
+  }
+}
+
 template <typename Out, typename In>
 void ResampleVert(
     Surface2D<Out> out, Surface2D<In> in, const int32_t *in_rows,
@@ -154,8 +195,26 @@ void ResampleVert(
   }
 }
 
+
 template <typename Out, typename In>
-inline void ResampleHorz(Surface2D<Out> out, Surface2D<In> in,
+void ResampleVert(
+    Surface3D<Out> out, Surface3D<In> in, const int32_t *in_rows,
+    const float *row_coeffs, int support) {
+
+  for (int z = 0; z < out.size.z; z++) {
+    int in_z = std::min(z, in.size.z-1);
+    ResampleVert(out.slice(z), in.size(in.z), in_rows, row_coeffs, support);
+  }
+}
+
+template <typename Out, typename In>
+inline void ResampleDepth(Surface2D<Out> out, Surface2D<In> in,
+                         const int *in_columns, const float *col_coeffs, int support) {
+  assert(!"Unreachable code");
+}
+
+template <int spatial_ndim, typename Out, typename In>
+inline void ResampleHorz(Surface<spatial_ndim, Out> out, Surface<spatial_ndim, In> in,
                          const int *in_columns, const float *col_coeffs, int support) {
   VALUE_SWITCH(out.channels, static_channels, (1, 2, 3, 4), (
     ResampleHorz_Channels<static_channels>(out, in, in_columns, col_coeffs, support);
@@ -164,8 +223,8 @@ inline void ResampleHorz(Surface2D<Out> out, Surface2D<In> in,
   ));   // NOLINT
 }
 
-template <typename Out, typename In>
-inline void ResampleAxis(Surface2D<Out> out, Surface2D<In> in,
+template <int spatial_ndim, typename Out, typename In>
+inline void ResampleAxis(Surface<spatial_ndim, Out> out, Surface<spatial_ndim, In> in,
                          const int *in_indices, const float *coeffs, int support, int axis) {
   if (axis == 1)
     ResampleVert(out, in, in_indices, coeffs, support);

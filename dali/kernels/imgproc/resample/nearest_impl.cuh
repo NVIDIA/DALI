@@ -21,34 +21,68 @@
 #endif
 #include "dali/core/convert.h"
 #include "dali/core/math_util.h"
-#include "dali/core/geom/box.h"
 
 namespace dali {
 namespace kernels {
 
 template <typename Dst, typename Src>
 __device__ void NNResample(
-    Box<2, int> out_roi,
+    ivec2 lo, ivec2 hi,
     vec2 origin, vec2 scale,
     Dst *__restrict__ out,  vec<1, ptrdiff_t> out_stride,
     const Src *__restrict__ in, vec<1, ptrdiff_t> in_stride, ivec2 in_size, int channels) {
   origin += 0.5f * scale;
-  for (int i = out_roi.lo.y + threadIdx.y; i < out_roi.hi.y; i += blockDim.y) {
-    int ysrc = floor_int(i * scale.y + origin.y);
+  for (int y = lo.y + threadIdx.y; y < hi.y; y += blockDim.y) {
+    int ysrc = floor_int(y * scale.y + origin.y);
     ysrc = clamp(ysrc, 0, in_size.y-1);
 
-    Dst *out_row = &out[i * out_stride.x];
+    Dst *out_row = &out[y * out_stride.x];
     const Src *in_row = &in[ysrc * in_stride.x];
 
-    for (int j = out_roi.lo.x + threadIdx.x; j < out_roi.hi.x; j += blockDim.x) {
-      int xsrc = floor_int(j * scale.x + origin.x);
+    for (int x = lo.x + threadIdx.x; x < hi.x; x += blockDim.x) {
+      int xsrc = floor_int(x * scale.x + origin.x);
       xsrc = clamp(xsrc, 0, in_size.x-1);
       const Src *src_px = &in_row[xsrc * channels];
       for (int c = 0; c < channels; c++)
-        out_row[j*channels + c] = __ldg(&src_px[c]);
+        out_row[x*channels + c] = __ldg(&src_px[c]);
     }
   }
 }
+
+
+template <typename Dst, typename Src>
+__device__ void NNResample(
+    ivec3 lo, ivec3 hi,
+    vec3 origin, vec3 scale,
+    Dst *__restrict__ out,  vec<2, ptrdiff_t> out_stride,
+    const Src *__restrict__ in, vec<2, ptrdiff_t> in_stride, ivec3 in_size, int channels) {
+  origin += 0.5f * scale;
+
+  for (int z = lo.z + threadIdx.z; z < hi.z; z += blockDim.z) {
+    int zsrc = floor_int(z * scale.z + origin.z);
+    zsrc = clamp(zsrc, 0, in_size.z-1);
+
+    Dst *out_plane = &out[z * out_stride.y];
+    const Src *in_plane = &in[zsrc * in_stride.y];
+
+    for (int y = lo.y + threadIdx.y; y < hi.y; y += blockDim.y) {
+      int ysrc = floor_int(y * scale.y + origin.y);
+      ysrc = clamp(ysrc, 0, in_size.y-1);
+
+      Dst *out_row = &out_plane[y * out_stride.x];
+      const Src *in_row = &in_plane[ysrc * in_stride.x];
+
+      for (int x = lo.x + threadIdx.x; x < hi.x; x += blockDim.x) {
+        int xsrc = floor_int(x * scale.x + origin.x);
+        xsrc = clamp(xsrc, 0, in_size.x-1);
+        const Src *src_px = &in_row[xsrc * channels];
+        for (int c = 0; c < channels; c++)
+          out_row[x*channels + c] = __ldg(&src_px[c]);
+      }
+    }
+  }
+}
+
 
 }  // namespace kernels
 }  // namespace dali
