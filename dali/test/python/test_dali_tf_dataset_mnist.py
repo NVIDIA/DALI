@@ -31,12 +31,12 @@ except:
 
 
 TARGET = 0.8
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 DROPOUT = 0.2
 IMAGE_SIZE = 28
 NUM_CLASSES = 10
 HIDDEN_SIZE = 128
-EPOCHS = 4
+EPOCHS = 5
 ITERATIONS = 100
 
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/training/')
