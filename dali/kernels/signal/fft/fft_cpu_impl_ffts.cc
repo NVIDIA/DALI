@@ -25,7 +25,8 @@
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/signal/fft/fft_cpu_impl_utils.h"
-#include "dali/kernels/signal/signal_kernel_utils.h"
+#include "dali/kernels/common/for_axis.h"
+#include "dali/kernels/common/utils.h"
 
 namespace dali {
 namespace kernels {

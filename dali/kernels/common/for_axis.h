@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_SIGNAL_KERNEL_UTILS_H_
-#define DALI_KERNELS_SIGNAL_SIGNAL_KERNEL_UTILS_H_
+#ifndef DALI_KERNELS_COMMON_FOR_AXIS_H_
+#define DALI_KERNELS_COMMON_FOR_AXIS_H_
 
 #include <utility>
-#include <vector>
 
 namespace dali {
 namespace kernels {
-namespace signal {
 
 /**
  * @brief iterator through all the 1-dimensional slices on a given axis
@@ -55,18 +53,7 @@ void ForAxis(OutputType *out_ptr,
   }
 }
 
-template <typename Shape>
-Shape GetStrides(const Shape& shape) {
-  Shape strides = shape;
-  strides[strides.size()-1] = 1;
-  for (int d = strides.size()-2; d >= 0; d--) {
-    strides[d] = strides[d+1] * shape[d+1];
-  }
-  return strides;
-}
-
-}  // namespace signal
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_SIGNAL_KERNEL_UTILS_H_
+#endif  // DALI_KERNELS_COMMON_FOR_AXIS_H_

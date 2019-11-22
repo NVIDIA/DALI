@@ -14,12 +14,13 @@
 
 #include "dali/kernels/signal/window/extract_windows_cpu.h"
 #include <algorithm>
-#include "dali/kernels/signal/signal_kernel_utils.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/common/for_axis.h"
+#include "dali/kernels/common/utils.h"
 
 namespace dali {
 namespace kernels {
