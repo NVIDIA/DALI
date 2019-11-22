@@ -53,6 +53,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     auto &input = ws.template InputRef<Backend>(0);
+    const auto batch_size = input.shape().num_samples();
 
     for (int i = 0; i < input.shape().num_samples(); i++) {
       DALI_ENFORCE(input.shape()[i].size() == 1, "Input must be 1D encoded byte data");
@@ -61,10 +62,11 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
     TypeInfo type;
     TypeInfo type_i32;
     type_i32.SetType<int>(DALI_INT32);
+    decoders_.resize(batch_size);
 
     TYPE_SWITCH(output_type_, type2id, OutputType, (int16_t, int32_t, float), (
-        for (int i=0; i < input.shape().num_samples(); i++) {
-          decoders_.emplace_back(std::make_unique<GenericAudioDecoder<OutputType>>());
+            for (int i=0; i < batch_size; i++) {
+            decoders_[i] = std::make_unique<GenericAudioDecoder<OutputType>>();
         }
         type.SetType<OutputType>(output_type_);
     ), DALI_FAIL("Unsupported output type"))  // NOLINT
@@ -74,12 +76,12 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
     // Currently, metadata is only the sampling rate.
     // On the event something else would emerge,
     // this approach should be completely redefined
-    TensorListShape<> shape_rate(input.shape().num_samples(), 1);
-    TensorListShape<> shape_data(input.shape().num_samples(), 2);
+    TensorListShape<> shape_rate(batch_size, 1);
+    TensorListShape<> shape_data(batch_size, 2);
 
-    for (int i = 0; i < input.shape().num_samples(); i++) {
-      auto meta = decoders_[i]->Open(
-              {(const char *) input[i].raw_mutable_data(), input[i].shape().num_elements()});
+    for (int i = 0; i < batch_size; i++) {
+      auto meta = decoders_[i]->Open({reinterpret_cast<const char *>(input[i].raw_mutable_data()),
+                                      input[i].shape().num_elements()});
       samples_meta_.emplace_back(meta);
       shape_data.set_tensor_shape(i, {meta.channels, meta.length});
       shape_rate.set_tensor_shape(i, {1});
@@ -94,19 +96,22 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   void RunImpl(workspace_t<Backend> &ws) override {
     auto &decoded_output = ws.template OutputRef<Backend>(0);
     auto &sample_rate_output = ws.template OutputRef<Backend>(1);
+    auto &tp = ws.GetThreadPool();
 
     for (int i = 0; i < decoded_output.shape().num_samples(); i++) {
-      try {
-        decoders_[i]->Decode({reinterpret_cast<char *>(decoded_output[i].raw_mutable_data()),
-                              static_cast<int>(decoded_output[i].type().size() *
-                                               decoded_output[i].shape().num_elements())});
-        auto sample_rate_ptr =
-                reinterpret_cast<sample_rate_t *>(sample_rate_output[i].raw_mutable_data());
-        *sample_rate_ptr = samples_meta_[i].sample_rate;
-      } catch (const DALIException &e) {
-        DALI_FAIL(make_string("Error decoding file.\nError: ", e.what(),
-                              "\nFile: ", files_names_[i], "\n"));
-      }
+      tp.DoWorkWithID([&, i](int thread_id) {
+          try {
+            decoders_[i]->Decode({reinterpret_cast<char *>(decoded_output[i].raw_mutable_data()),
+                                  static_cast<int>(decoded_output[i].type().size() *
+                                                   decoded_output[i].shape().num_elements())});
+            auto sample_rate_ptr =
+                    reinterpret_cast<sample_rate_t *>(sample_rate_output[i].raw_mutable_data());
+            *sample_rate_ptr = samples_meta_[i].sample_rate;
+          } catch (const DALIException &e) {
+            DALI_FAIL(make_string("Error decoding file.\nError: ", e.what(),
+                                  "\nFile: ", files_names_[i], "\n"));
+          }
+      });
     }
   }
 

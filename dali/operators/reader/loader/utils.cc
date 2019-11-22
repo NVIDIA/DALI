@@ -34,7 +34,7 @@ inline std::string ListExtensions(const std::vector<std::string> &extensions) {
 
 }  // namespace
 
-bool HasKnownExtension(std::string filepath, const std::vector<std::string> &extensions) {
+bool HasExtension(std::string filepath, const std::vector<std::string> &extensions) {
   std::transform(filepath.begin(), filepath.end(), filepath.begin(),
                  [](unsigned char c) { return std::tolower(c); });
 
@@ -58,13 +58,13 @@ bool HasKnownExtension(std::string filepath, const std::vector<std::string> &ext
 }
 
 
-bool HasKnownExtension(const std::string &filepath) {
+bool HasExtension(const std::string &filepath) {
   std::vector<std::string> extensions;
 
   extensions.insert(extensions.end(), kKnownAudioExtensions.begin(), kKnownAudioExtensions.end());
   extensions.insert(extensions.end(), kKnownImageExtensions.begin(), kKnownImageExtensions.end());
 
-  return HasKnownExtension(filepath, extensions);
+  return HasExtension(filepath, extensions);
 }
 
 }  // namespace dali

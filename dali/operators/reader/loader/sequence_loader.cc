@@ -43,7 +43,7 @@ std::vector<Stream> GatherExtractedStreams(const string &file_root) {
   std::vector<std::string> files;
   for (size_t i = 0; i < glob_buff.gl_pathc; i++) {
     std::string file = glob_buff.gl_pathv[i];
-    if (HasKnownExtension(file, kKnownImageExtensions)) {
+    if (HasExtension(file, kKnownImageExtensions)) {
       files.push_back(std::move(file));
     }
   }

@@ -44,7 +44,7 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
     }
 #endif
     std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
-    if (HasKnownExtension(std::string(entry->d_name))) {
+    if (HasExtension(std::string(entry->d_name))) {
       file_label_pairs->push_back(std::make_pair(rel_path, label));
     }
   }

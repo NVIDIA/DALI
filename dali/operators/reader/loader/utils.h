@@ -33,12 +33,12 @@ static const std::vector<std::string> kKnownAudioExtensions = {".wav"};
 /**
  * Checks, if the name of the file provided in the argument ends with image extension, that is known.
  */
-bool HasKnownExtension(std::string filepath, const std::vector<std::string> &extensions);
+bool HasExtension(std::string filepath, const std::vector<std::string> &extensions);
 
 /**
  * Convenient overload to verify against all known extensions
  */
-bool HasKnownExtension(const std::string &filepath);
+bool HasExtension(const std::string &filepath);
 
 }  // namespace dali
 
