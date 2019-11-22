@@ -30,34 +30,44 @@ class CocoReaderTest : public ::testing::Test {
     std::remove("/tmp/original_ids.txt");
   }
 
-  std::vector<std::pair<std::string, std::string>> Outputs() {
-    return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"}, {"image_ids", "cpu"}};
+  std::vector<std::pair<std::string, std::string>> Outputs(bool masks = false) {
+    if (masks)
+      return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"},
+              {"masks_meta", "cpu"}, {"masks_coord", "cpu"}, {"image_ids", "cpu"}};
+    else
+      return {{"images", "cpu"}, {"boxes", "cpu"}, {"labels", "cpu"}, {"image_ids", "cpu"}};
   }
 
-  OpSpec BasicCocoReaderOpSpec() {
-    return OpSpec("COCOReader")
+  OpSpec BasicCocoReaderOpSpec(bool masks = false) {
+    OpSpec spec =  OpSpec("COCOReader")
       .AddArg("device", "cpu")
       .AddArg("file_root", file_root_)
       .AddArg("save_img_ids", true)
       .AddOutput("images", "cpu")
       .AddOutput("boxes", "cpu")
-      .AddOutput("labels", "cpu")
-      .AddOutput("image_ids", "cpu");
+      .AddOutput("labels", "cpu");
+      if (masks) {
+        spec = spec.AddOutput("masks_meta", "cpu")
+                   .AddOutput("masks_coord", "cpu");
+      }
+      spec = spec.AddOutput("image_ids", "cpu");
+      return spec;
   }
 
-  OpSpec CocoReaderOpSpec() {
-    return BasicCocoReaderOpSpec()
+  OpSpec CocoReaderOpSpec(bool masks = false) {
+    auto spec = BasicCocoReaderOpSpec(masks)
       .AddArg("annotations_file", annotations_filename_);
+    return spec;
   }
 
-  int SmallCocoSize() { return 64; }
+  int SmallCocoSize(bool masks) { return masks ? 4 : 64; }
   int EmptyImages() { return 2; }
-  int NonEmptyImages() { return SmallCocoSize() - EmptyImages(); }
+  int NonEmptyImages(bool masks) { return SmallCocoSize(masks) - EmptyImages(); }
   int ImagesWithBigObjects() { return 2; }
-  int ObjectCount() { return 194; }
+  int ObjectCount(bool masks) { return masks ? 7 : 194; }
 
-  std::vector<int> CopyIds(DeviceWorkspace &ws) {
-    auto &output = ws.Output<dali::CPUBackend>(3);
+  std::vector<int> CopyIds(DeviceWorkspace &ws, bool masks = false) {
+    auto &output = ws.Output<dali::CPUBackend>(3 + static_cast<int>(masks) * 2);
     const auto &shape = output.shape();
 
     vector<int> ids(shape.size());
@@ -70,52 +80,57 @@ class CocoReaderTest : public ::testing::Test {
   }
 
   void RunTestForPipeline(
-    Pipeline &pipe, bool ltrb, bool ratio, bool skip_empty, int expected_size) {
-    pipe.Build(Outputs());
+    Pipeline &pipe, bool ltrb, bool ratio, bool skip_empty, int expected_size, bool masks = false) {
+    pipe.Build(Outputs(masks));
 
-    ASSERT_EQ(pipe.EpochSize()["coco_reader"], expected_size);
+    if (!masks) {
+      ASSERT_EQ(pipe.EpochSize()["coco_reader"], expected_size);
+    }
 
     DeviceWorkspace ws;
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-
-    auto ids = CopyIds(ws);
+    auto ids = CopyIds(ws, masks);
 
     for (int id = 0; id < expected_size; ++id) {
       ASSERT_EQ(ids[id], id);
     }
 
-    CheckInstances(ws, ltrb, ratio, skip_empty, expected_size);
+    CheckInstances(ws, ltrb, ratio, skip_empty, expected_size, masks);
   }
 
-  void RunTest(bool ltrb, bool ratio, bool skip_empty) {
-    const auto expected_size = skip_empty ? NonEmptyImages() : SmallCocoSize();
+  void RunTest(bool ltrb, bool ratio, bool skip_empty, bool masks = false) {
+    const auto expected_size = skip_empty ? NonEmptyImages(masks) : SmallCocoSize(masks);
     Pipeline pipe(expected_size, 1, 0);
 
     pipe.AddOperator(
-      CocoReaderOpSpec()
+      CocoReaderOpSpec(masks)
       .AddArg("skip_empty", skip_empty)
       .AddArg("ltrb", ltrb)
       .AddArg("ratio", ratio)
+      .AddArg("masks", masks)
       .AddArg("dump_meta_files", true)
       .AddArg("dump_meta_files_path", "/tmp/"),
       "coco_reader");
 
-    RunTestForPipeline(pipe, ltrb, ratio, skip_empty, expected_size);
+    RunTestForPipeline(pipe, ltrb, ratio, skip_empty, expected_size, masks);
 
-    Pipeline meta_pipe(expected_size, 1, 0);
+    if (!masks) {
+      Pipeline meta_pipe(expected_size, 1, 0);
 
-    meta_pipe.AddOperator(
-      BasicCocoReaderOpSpec()
-      .AddArg("meta_files_path", "/tmp"),
-      "coco_reader");
+      meta_pipe.AddOperator(
+        BasicCocoReaderOpSpec()
+        .AddArg("meta_files_path", "/tmp"),
+        "coco_reader");
 
-    RunTestForPipeline(meta_pipe, ltrb, ratio, skip_empty, expected_size);
+      RunTestForPipeline(meta_pipe, ltrb, ratio, skip_empty, expected_size);
+    }
   }
 
   void CheckInstances(
-    DeviceWorkspace & ws, bool ltrb, bool ratio, bool skip_empty, int expected_size) {
+    DeviceWorkspace & ws, bool ltrb, bool ratio,
+    bool skip_empty, int expected_size, bool read_masks) {
     const auto &boxes_output = ws.Output<dali::CPUBackend>(1);
     const auto &labels_output = ws.Output<dali::CPUBackend>(2);
 
@@ -128,19 +143,21 @@ class CocoReaderTest : public ::testing::Test {
     for (int idx = 0; idx < expected_size; ++idx) {
       ASSERT_EQ(boxes_shape[idx][0], objects_in_image_[idx]);
       ASSERT_EQ(labels_shape[idx][0], objects_in_image_[idx]);
-      ASSERT_EQ(boxes_shape[idx][1], bbox_size);
-      ASSERT_EQ(boxes_shape[idx][1], bbox_size);
+      ASSERT_EQ(boxes_shape[idx][1], bbox_size_);
+      ASSERT_EQ(boxes_shape[idx][1], bbox_size_);
     }
 
-    vector<float> boxes(ObjectCount() * bbox_size);
-    vector<int> labels(ObjectCount());
+    vector<float> boxes(ObjectCount(read_masks) * bbox_size_);
+    vector<int> labels(ObjectCount(read_masks));
 
     MemCopy(
       boxes.data(),
       boxes_output.data<float>(),
-      ObjectCount() * bbox_size * sizeof(float));
+      ObjectCount(read_masks) * bbox_size_ * sizeof(float));
 
-    for (int box_coord = 0, idx = 0; box_coord < ObjectCount() * bbox_size; box_coord += 4, idx++) {
+    for (int box_coord = 0, idx = 0;
+         box_coord < ObjectCount(read_masks) * bbox_size_;
+         box_coord += 4, idx++) {
       float v1 = boxes[box_coord];
       float v2 = boxes[box_coord + 1];
       float v3 = boxes[box_coord + 2];
@@ -168,10 +185,48 @@ class CocoReaderTest : public ::testing::Test {
     MemCopy(
       labels.data(),
       labels_output.data<int>(),
-      ObjectCount() * sizeof(int));
+      ObjectCount(read_masks) * sizeof(int));
 
-    for (int obj = 0; obj < ObjectCount(); ++obj) {
+    for (int obj = 0; obj < ObjectCount(read_masks); ++obj) {
       ASSERT_EQ(labels[obj], categories_[obj]);
+    }
+
+    if (read_masks) {
+      const auto &masks_meta_output = ws.Output<dali::CPUBackend>(3);
+      const auto &masks_coords_output = ws.Output<dali::CPUBackend>(4);
+
+      const auto &masks_meta_shape = masks_meta_output.shape();
+      const auto &masks_coords_shape = labels_output.shape();
+
+      ASSERT_EQ(masks_meta_shape.size(), expected_size);
+      ASSERT_EQ(masks_coords_shape.size(), expected_size);
+
+      int n_poly = 0;
+      for (int idx = 0; idx < expected_size; ++idx) {
+        n_poly += masks_meta_shape[idx][0];
+      }
+      ASSERT_EQ(n_poly, number_of_polygons_);
+
+      vector<int> masks_meta(masks_meta_gt_.size());
+      vector<float> masks_coords(masks_coords_gt_.size());
+
+      MemCopy(
+        masks_meta.data(),
+        masks_meta_output.data<int>(),
+        masks_meta_gt_.size() * sizeof(int));
+
+      MemCopy(
+        masks_coords.data(),
+        masks_coords_output.data<float>(),
+        masks_coords_gt_.size() * sizeof(float));
+
+      for (size_t i = 0; i < masks_meta.size(); ++i) {
+        ASSERT_EQ(masks_meta[i], masks_meta_gt_[i]);
+      }
+
+      for (size_t i = 0; i < masks_coords.size(); ++i) {
+        ASSERT_FLOAT_EQ(masks_coords[i], masks_coords_gt_[i]);
+      }
     }
   }
 
@@ -179,7 +234,7 @@ class CocoReaderTest : public ::testing::Test {
   std::string file_root_ = dali::testing::dali_extra_path() + "/db/coco/images";
   std::string annotations_filename_ = dali::testing::dali_extra_path() + "/db/coco/instances.json";
 
-  const int bbox_size = 4;
+  const int bbox_size_ = 4;
 
   std::vector<int> objects_in_image_ = {
     1, 1, 1, 4, 1, 3, 3, 4, 5, 2, 3, 2, 5, 1, 5, 3,
@@ -298,6 +353,40 @@ class CocoReaderTest : public ::testing::Test {
     526, 526, 526, 481, 481, 481, 381, 381, 381, 381, 417, 417,
     417, 417
   };
+
+  const int number_of_polygons_ = 9;
+
+  std::vector<int> masks_meta_gt_ {
+    0, 0, 10,
+    0, 0, 6,
+    0, 6, 6,
+    0, 0, 12,
+    0, 0, 6,
+    1, 6, 20,
+    2, 20, 28,
+    3, 28, 38,
+    3, 38, 34,
+  };
+
+  std::vector<float> masks_coords_gt_ {
+    // 1
+    363.51, 278.77, 348.39, 378.6, 266.49, 288.67, 140.12, 184.81, 164.16, 313.07,
+    // 2
+    380.64, 447.57, 354.81, 476.05, 251.71, 146.86,
+    138.6, 281.01, 391.44, 499.4, 218.37, 484.74,
+    // 3
+    427.52, 135.91, 131.18, 414.8, 221.47, 495.56, 107.92, 154.94, 486.7, 322.39, 389.64, 276.52,
+    // 4
+    452.11, 276.25, 343.76, 361.14, 391.68, 322.95,
+    // 5
+    312.17, 286.2, 197.92, 318.73, 304.82, 220.41, 218.68, 475.61, 420.28, 410.53,
+    332.12, 438.03, 146.57, 252.33,
+    // 6
+    158.29, 130.46, 257.22, 140.59, 140.71, 129.21, 106.66, 197.4,
+    // 7
+    480.31, 277.87, 203.99, 147.71, 257.94, 115.94, 264.69, 111.48, 311.21, 329.63,
+    158.43, 277.21, 384.77, 314.0, 241.69, 281.34,
+  };
 };
 
 TEST_F(CocoReaderTest, NoDataSource) {
@@ -399,6 +488,10 @@ TEST_F(CocoReaderTest, LtrbRatioSkipEmpty) {
   this->RunTest(true, true, true);
 }
 
+TEST_F(CocoReaderTest, Masks) {
+  this->RunTest(false, false, false, true);
+}
+
 TEST_F(CocoReaderTest, BigSizeThreshold) {
   Pipeline pipe(this->ImagesWithBigObjects(), 1, 0);
 
@@ -424,7 +517,7 @@ TEST_F(CocoReaderTest, BigSizeThreshold) {
 }
 
 TEST_F(CocoReaderTest, ShuffleAfterEpoch) {
-  Pipeline pipe(this->SmallCocoSize(), 1, 0);
+  Pipeline pipe(this->SmallCocoSize(false), 1, 0);
 
   pipe.AddOperator(
     this->CocoReaderOpSpec()
@@ -447,7 +540,7 @@ TEST_F(CocoReaderTest, ShuffleAfterEpoch) {
   auto ids_epoch_2 = this->CopyIds(ws);
 
   bool difference = false;
-  for (int id = 0; id < this->SmallCocoSize(); ++id) {
+  for (int id = 0; id < this->SmallCocoSize(false); ++id) {
     difference = ids_epoch_1[id] != ids_epoch_2[id];
     if (difference) {
       break;

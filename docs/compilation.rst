@@ -245,6 +245,7 @@ Building DALI using Clang (experimental):
 -  ``BUILD_LIBTIFF`` - build with ``libtiff`` support (default: ON)
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
+-  ``BUILD_LIBSND`` - build with libsnd support (default: ON)
 -  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
 -  ``BUILD_FFTS`` - build with ``ffts`` support (default: ON)
 -  ``VERBOSE_LOGS`` - enables verbose loging in DALI. (default: OFF)
