@@ -106,9 +106,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
             decoders_[i]->Decode({reinterpret_cast<char *>(decoded_output[i].raw_mutable_data()),
                                   static_cast<int>(decoded_output[i].type().size() *
                                                    decoded_output[i].shape().num_elements())});
-            auto sample_rate_ptr =
-//                    reinterpret_cast<sample_rate_t *>(sample_rate_output[i].raw_mutable_data());
-            sample_rate_output[i].mutable_data<sample_rate_t>();
+            auto sample_rate_ptr = sample_rate_output[i].mutable_data<sample_rate_t>();
             *sample_rate_ptr = sample_meta_[i].sample_rate;
           } catch (const DALIException &e) {
             DALI_FAIL(make_string("Error decoding file.\nError: ", e.what(),
