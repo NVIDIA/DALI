@@ -36,9 +36,15 @@ class MakeContiguous : public Operator<MixedBackend> {
     GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
     if (!hints.empty())
       bytes_per_sample_hint = hints[0];
+    CUDA_CALL(cudaGetDevice(&event_dev_));
+    CUDA_CALL(cudaEventCreateWithFlags(&coalesce_event_, cudaEventDisableTiming));
   }
 
-  virtual inline ~MakeContiguous() = default;
+  virtual inline ~MakeContiguous() {
+    DeviceGuard g(event_dev_);
+    CUDA_CALL(cudaEventSynchronize(coalesce_event_));
+    CUDA_CALL(cudaEventDestroy(coalesce_event_));
+  }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
     return false;
@@ -88,6 +94,9 @@ class MakeContiguous : public Operator<MixedBackend> {
 
       if (coalesced) {
         TimeRange tm("coalesced", TimeRange::kBlue);
+        // We need to wait for the async memcpy on the cpu_output_buff to finish
+        // before we can start manipulating it again
+        CUDA_CALL(cudaEventSynchronize(coalesce_event_));
 
         if (!cpu_output_buff.capacity()) {
           size_t alloc_size = std::max<size_t>(total_bytes, batch_size_*bytes_per_sample_hint);
@@ -108,6 +117,9 @@ class MakeContiguous : public Operator<MixedBackend> {
               cpu_output_buff.nbytes(),
               cudaMemcpyHostToDevice,
               ws.stream()));
+        // In case we will want to modify the coalesced buffer, we will wait for this event
+        // for async work to finish.
+        CUDA_CALL(cudaEventRecord(coalesce_event_, ws.stream()));
       } else {
         TimeRange tm("non coalesced", TimeRange::kGreen);
         for (int i = 0; i < batch_size_; ++i) {
@@ -131,6 +143,8 @@ class MakeContiguous : public Operator<MixedBackend> {
   TensorList<CPUBackend> cpu_output_buff;
   bool coalesced;
   int bytes_per_sample_hint;
+  int event_dev_;
+  cudaEvent_t coalesce_event_;
 };
 
 }  // namespace dali
