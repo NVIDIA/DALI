@@ -17,8 +17,9 @@ test_body() {
     pip install ../../../nvidia-dali-tf-plugin*.tar.gz
 
     # DALI TF DATASET run
-    nosetests --verbose test_dali_tf_dataset.py:_test_tf_dataset_other_gpu
-    nosetests --verbose test_dali_tf_dataset.py:_test_tf_dataset_multigpu
+    nosetests --verbose -s test_dali_tf_dataset.py:_test_tf_dataset_other_gpu
+    nosetests --verbose -s test_dali_tf_dataset.py:_test_tf_dataset_multigpu
+    nosetests --verbose -s test_dali_tf_dataset_mnist.py
 }
 
 pushd ../..
