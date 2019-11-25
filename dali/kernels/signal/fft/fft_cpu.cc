@@ -54,6 +54,10 @@ void Fft1DCpu<OutputType, InputType, Dims>::Run(
   impl_->Run(context, out, in, args);
 }
 
+// 1 Dim, typically input (time), producing output (frequency)
+template class Fft1DCpu<std::complex<float>, float, 1>;  // complex fft
+template class Fft1DCpu<float, float, 1>;  // magnitude
+
 // 2 Dims, typically input (channels, time), producing output (channels, frequency)
 template class Fft1DCpu<std::complex<float>, float, 2>;  // complex fft
 template class Fft1DCpu<float, float, 2>;  // magnitude
