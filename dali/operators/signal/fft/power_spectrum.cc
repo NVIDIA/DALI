@@ -48,7 +48,7 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.size();
-  auto nthreads = ws.HasThreadPool() ? ws.GetThreadPool().size() : 1;
+  auto nthreads = ws.GetThreadPool().size();
 
   // Other types not supported for now
   using InputType = float;

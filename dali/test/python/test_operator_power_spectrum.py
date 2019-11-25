@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import division
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -47,7 +48,7 @@ def power_spectrum_numpy(nfft, axis, waveform):
     shape = waveform.shape
 
     out_shape = list(shape)
-    out_shape[axis] = nfft/2+1
+    out_shape[axis] = nfft//2+1
     out_shape = tuple(out_shape)
 
     if len(out_shape) == 1:
