@@ -571,6 +571,21 @@ void Pipeline::ShareOutputs(DeviceWorkspace *ws) {
     }
 }
 
+void Pipeline::AsyncShareOutputs(DeviceWorkspace *ws){
+  DALI_ENFORCE(built_,
+               "\"Build()\" must be called prior to executing the pipeline.");
+  try {
+    executor_->ShareOutputs(ws);
+  } catch (std::exception &e) {
+    throw std::runtime_error("Critical error in pipeline: "
+                                 + std::string(e.what())
+                                 + "\nCurrent pipeline object is no longer valid.");
+  } catch (...) {
+    throw std::runtime_error("Unknown Critical error in pipeline");
+  }
+}
+
+
 void Pipeline::ReleaseOutputs() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
@@ -583,6 +598,20 @@ void Pipeline::ReleaseOutputs() {
     } catch (...) {
       throw std::runtime_error("Unknown Critical error in pipeline");
     }
+}
+
+void Pipeline::AsyncReleaseOutputs(cudaStream_t stream) {
+  DALI_ENFORCE(built_,
+               "\"Build()\" must be called prior to executing the pipeline.");
+  try {
+    executor_->AsyncReleaseOutputs(stream);
+  } catch (std::exception &e) {
+    throw std::runtime_error("Critical error in pipeline: "
+                                 + std::string(e.what())
+                                 + "\nCurrent pipeline object is no longer valid.");
+  } catch (...) {
+    throw std::runtime_error("Unknown Critical error in pipeline");
+  }
 }
 
 void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec) {

@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <stack>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -60,7 +61,9 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void RunGPU() = 0;
   DLL_PUBLIC virtual void Outputs(DeviceWorkspace *ws) = 0;
   DLL_PUBLIC virtual void ShareOutputs(DeviceWorkspace *ws) = 0;
+  DLL_PUBLIC virtual void AsyncShareOutputs(DeviceWorkspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
+  DLL_PUBLIC virtual void AsyncReleaseOutputs(cudaStream_t stream) = 0;
   DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb) = 0;
 
  protected:
@@ -94,7 +97,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
         mixed_op_stream_(0),
-        gpu_op_stream_(0) {
+        gpu_op_stream_(0),
+        releaser_(*this, event_pool_) {
     DALI_ENFORCE(batch_size_ > 0, "Batch size must be greater than 0.");
     DALI_ENFORCE(device_id >= 0, "Device id must be non-negative.");
 
@@ -108,7 +112,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   DLL_PUBLIC void RunGPU() override;
   DLL_PUBLIC void Outputs(DeviceWorkspace *ws) override;
   DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws) override;
+  DLL_PUBLIC void AsyncShareOutputs(DeviceWorkspace *ws) override;
   DLL_PUBLIC void ReleaseOutputs() override;
+  DLL_PUBLIC void AsyncReleaseOutputs(cudaStream_t stream) override;
   DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
 
   DLL_PUBLIC void ShutdownQueue() {
@@ -157,6 +163,73 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
     vector<cudaEvent_t> events_;
   };
 
+  class OutputReleaser {
+    using ExecutorType = Executor<WorkspacePolicy, QueuePolicy>;
+
+   public:
+    void record(cudaStream_t stream) {
+      std::unique_lock<std::mutex> lock(mutex_);
+      cudaEvent_t event;
+      if (events_.empty()) {
+        event = event_pool_.GetEvent();
+      } else {
+        event = events_.top();
+        events_.pop();
+      }
+      cudaEventRecord(event, stream);
+      event_queue_.push(event);
+      lock.unlock();
+      cv.notify_one();
+    }
+
+    OutputReleaser(ExecutorType& executor, EventPool &event_pool)
+     : executor_(executor)
+     , event_pool_(event_pool)
+     , worker_([&](){ releaser(); }) {}
+
+    ~OutputReleaser() {
+      signal();
+      worker_.join();
+    }
+
+   private:
+    void releaser() {
+      while (!signaled) {
+        cudaEvent_t event;
+        {
+          std::unique_lock<std::mutex> lock(mutex_);
+          cv.wait(lock, [&](){ return !event_queue_.empty() || signaled; });
+          if (signaled) return;
+          event = event_queue_.front();
+          event_queue_.pop();
+        }
+        CUDA_CALL(cudaEventSynchronize(event));
+        executor_.ReleaseOutputs();
+        {
+          std::lock_guard<std::mutex> lock(mutex_);
+          events_.push(event);
+        }
+      }
+    }
+
+    void signal() {
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        signaled = true;
+      }
+      cv.notify_one();
+    }
+
+    std::stack<cudaEvent_t> events_;
+    std::queue<cudaEvent_t> event_queue_;
+    ExecutorType &executor_;
+    EventPool &event_pool_;
+    std::mutex mutex_;
+    std::condition_variable cv;
+    bool signaled = false;
+    std::thread worker_;
+  };
+
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
   int previous_gpu_queue_idx_ = -1;
@@ -201,7 +274,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   bool exec_error_;
   QueueSizes queue_sizes_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
-  cudaStream_t mixed_op_stream_, gpu_op_stream_;
+  cudaStream_t mixed_op_stream_, gpu_op_stream_, output_stream_;
   // MixedOpId -> queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED to GPU Ops
   MixedOpEventMap mixed_op_events_;
@@ -209,6 +282,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
   // To introduce dependency from MIXED stage to GPU stage for callback only
   // in some edge cases where there are no operators
   std::vector<cudaEvent_t> mixed_callback_events_;
+  OutputReleaser releaser_;
 
  private:
   template <typename Workspace>
@@ -288,6 +362,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
     DeviceGuard g(device_id_);
     mixed_op_stream_ = stream_pool_.GetStream();
     gpu_op_stream_ = stream_pool_.GetStream();
+    output_stream_ = stream_pool_.GetStream();
     mixed_op_events_ =
         CreateEventsForMixedOps(event_pool_, *graph_, stage_queue_depths_[OpType::MIXED]);
   }
@@ -475,6 +550,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::ReleaseOutputs() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::AsyncReleaseOutputs(cudaStream_t stream) {
+  releaser_.record(stream);
+}
+
+
+template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::Outputs(DeviceWorkspace *ws) {
   ReleaseOutputs();
   ShareOutputs(ws);
@@ -482,6 +563,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::Outputs(DeviceWorkspace *ws) {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
+  AsyncShareOutputs(ws);
+  CUDA_CALL(cudaEventSynchronize(ws->event()));
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::AsyncShareOutputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
   DeviceGuard g(device_id_);
   ws->Clear();
@@ -500,6 +587,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
     throw std::runtime_error(error);
   }
 
+  if (!ws->has_stream()) {
+    ws->set_stream(output_stream_);
+  }
+  if (!ws->has_event()) {
+    ws->set_event(event_pool_.GetEvent());
+  }
+
   // We already gathered info about outputs, so we only have to wait on respective
   // events to make sure that the computation has completed
   for (size_t i = 0; i < pipeline_outputs_.size(); i++) {
@@ -508,24 +602,29 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
     auto op_type = graph_->Node(out_tensor.producer.node).op_type;
     if (out_tensor.producer.storage_device == StorageDevice::GPU) {
       VALUE_SWITCH(op_type, op_type_static, (OpType::MIXED, OpType::GPU),
-      (
-        auto &queue = get_queue<op_type_static, StorageDevice::GPU>(
-            tensor_to_store_queue_[out_tensor_id]);
-        auto stage_output_idx = output_idx[op_type_static];
-        ws->AddOutput(queue[stage_output_idx]);
-        CUDA_CALL(cudaEventSynchronize(gpu_output_events_[i].GetEvent(stage_output_idx)));
+                   (
+                       auto &queue = get_queue<op_type_static, StorageDevice::GPU>(
+                           tensor_to_store_queue_[out_tensor_id]);
+                       auto stage_output_idx = output_idx[op_type_static];
+                       ws->AddOutput(queue[stage_output_idx]);
+                       auto event = gpu_output_events_[i].GetEvent(stage_output_idx);
+//        cudaEventSynchronize(event);
+          CUDA_CALL(cudaStreamWaitEvent(ws->stream(), event, 0));
+
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     } else {
       VALUE_SWITCH(op_type, op_type_static, (OpType::MIXED, OpType::GPU),
-      (
-        auto &queue = get_queue<op_type_static, StorageDevice::CPU>(
-            tensor_to_store_queue_[out_tensor_id]);
-        auto stage_output_idx = output_idx[op_type_static];
-        ws->AddOutput(queue[stage_output_idx]);
-      ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
+                   (
+                       auto &queue = get_queue<op_type_static, StorageDevice::CPU>(
+                           tensor_to_store_queue_[out_tensor_id]);
+                       auto stage_output_idx = output_idx[op_type_static];
+                       ws->AddOutput(queue[stage_output_idx]);
+                   ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     }
   }
+  CUDA_CALL(cudaEventRecord(ws->event(), ws->stream()));
 }
+
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {

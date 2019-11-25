@@ -14,6 +14,7 @@
 
 #pylint: disable=no-name-in-module,unused-import
 from nvidia.dali.backend_impl.types import *
+from nvidia.dali.backend_impl import CUDAEvent
 try:
     from nvidia.dali import tfrecord as tfrec
     _tfrecord_support = True
@@ -101,6 +102,8 @@ class CUDAStream:
     def ptr(self):
         """Raw CUDA stream pointer, stored as uint64."""
         return self._ptr
+
+
 
 _float_types = [DALIDataType.FLOAT16, DALIDataType.FLOAT, DALIDataType.FLOAT64]
 _int_types = [DALIDataType.INT8, DALIDataType.INT16, DALIDataType.INT32, DALIDataType.INT64,

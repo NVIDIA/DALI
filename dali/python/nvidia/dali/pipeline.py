@@ -398,6 +398,14 @@ class Pipeline(object):
             self._gpu_batches_to_consume -= 1
             return self._pipe.ShareOutputs()
 
+    def async_outputs(self):
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
+            if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+                raise StopIteration
+            self._batches_to_consume -= 1
+            self._gpu_batches_to_consume -= 1
+            return self._pipe.AsyncOutputs()
+
     # for the backward compatibility
     def _share_outputs(self):
         """Deprecated. Use :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` instead"""
@@ -418,6 +426,12 @@ class Pipeline(object):
             if not self._built:
                 raise RuntimeError("Pipeline must be built first.")
             return self._pipe.ReleaseOutputs()
+
+    def async_release_outputs(self, stream):
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
+            if not self._built:
+                raise RuntimeError("Pipeline must be built first.")
+            return self._pipe.AsyncReleaseOutputs(stream.cuda_stream)
 
     # for the backward compatibility
     def _release_outputs(self):

@@ -31,6 +31,11 @@
 #include "dali/operators/operators.h"
 
 namespace dali {
+
+struct CUDAEvent {
+  cudaEvent_t event_;
+};
+
 namespace python {
 
 using namespace pybind11::literals; // NOLINT
@@ -485,7 +490,9 @@ void ExposeTensorList(py::module &m) {
 
       This function can only be called if `is_dense_tensor` returns `True`.
       )code",
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal)
+    .def("as_dlpack", &TensorListToDLPackView<GPUBackend>,
+         py::return_value_policy::reference_internal);
 }
 
 #define GetRegisteredOpsFor(OPTYPE)                                           \
@@ -617,6 +624,18 @@ PYBIND11_MODULE(backend_impl, m) {
           return node->spec.name();
         });
 
+  py::class_<CUDAEvent>(m, "CUDAEvent")
+      .def_property("cuda_event", [](const CUDAEvent *self) { return size_t(self->event_); },
+                    [](CUDAEvent *self, size_t id) {
+                      self->event_ = reinterpret_cast<cudaEvent_t>(id);
+                    })
+      .def("wait", [](CUDAEvent &self, py::object stream_obj) {
+        size_t stream_id = py::cast<size_t>(stream_obj.attr("cuda_stream"));
+        auto stream = reinterpret_cast<cudaStream_t>(stream_id);
+        cudaStreamWaitEvent(stream, self.event_, 0);
+      })
+      .def("synchronize", [](CUDAEvent &self) { cudaEventSynchronize(self.event_); });
+
   // Pipeline class
   py::class_<Pipeline>(m, "Pipeline")
     .def(py::init(
@@ -702,7 +721,6 @@ PYBIND11_MODULE(backend_impl, m) {
         [](Pipeline *p) {
           DeviceWorkspace ws;
           p->Outputs(&ws);
-
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
@@ -711,13 +729,13 @@ PYBIND11_MODULE(backend_impl, m) {
               list.append(&ws.Output<GPUBackend>(i));
             }
           }
+
           return py::cast<py::tuple>(list);
         }, py::return_value_policy::take_ownership)
     .def("ShareOutputs",
         [](Pipeline *p) {
           DeviceWorkspace ws;
           p->ShareOutputs(&ws);
-
           py::list list;
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
@@ -728,6 +746,26 @@ PYBIND11_MODULE(backend_impl, m) {
           }
           return py::cast<py::tuple>(list);
         }, py::return_value_policy::take_ownership)
+    .def("AsyncOutputs",
+        [](Pipeline *p) {
+          DeviceWorkspace ws;
+          p->AsyncShareOutputs(&ws);
+
+          py::list list;
+          for (int i = 0; i < ws.NumOutput(); ++i) {
+            if (ws.OutputIsType<CPUBackend>(i)) {
+              list.append(&ws.Output<CPUBackend>(i));
+            } else {
+              list.append(&ws.Output<GPUBackend>(i));
+            }
+          }
+          return py::make_tuple(list, CUDAEvent{ws.event()});
+        }, py::return_value_policy::take_ownership)
+    .def("AsyncReleaseOutputs",
+        [](Pipeline *p, size_t stream_id) {
+          auto stream = reinterpret_cast<cudaStream_t>(stream_id);
+          p->AsyncReleaseOutputs(stream);
+        })
     .def("ReleaseOutputs",
         [](Pipeline *p) {
           p->ReleaseOutputs();

@@ -315,6 +315,10 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC void ReleaseOutputs();
 
+  DLL_PUBLIC void AsyncShareOutputs(DeviceWorkspace *ws);
+
+  DLL_PUBLIC void AsyncReleaseOutputs(cudaStream_t stream);
+
   /**
    * @brief serializes the pipe to a protobuf
    */
