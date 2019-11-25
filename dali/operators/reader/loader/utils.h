@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <string>
+#include "dali/core/api_helper.h"
 
 namespace dali {
 
@@ -33,12 +34,12 @@ static const std::vector<std::string> kKnownAudioExtensions = {".wav"};
 /**
  * Checks, if the name of the file provided in the argument ends with image extension, that is known.
  */
-bool HasExtension(std::string filepath, const std::vector<std::string> &extensions);
+DLL_PUBLIC bool HasExtension(std::string filepath, const std::vector<std::string> &extensions);
 
 /**
  * Convenient overload to verify against all known extensions
  */
-bool HasExtension(const std::string &filepath);
+DLL_PUBLIC bool HasExtension(const std::string &filepath);
 
 }  // namespace dali
 
