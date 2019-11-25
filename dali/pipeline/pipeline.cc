@@ -571,7 +571,7 @@ void Pipeline::ShareOutputs(DeviceWorkspace *ws) {
     }
 }
 
-void Pipeline::AsyncShareOutputs(DeviceWorkspace *ws){
+void Pipeline::AsyncShareOutputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(built_,
                "\"Build()\" must be called prior to executing the pipeline.");
   try {
