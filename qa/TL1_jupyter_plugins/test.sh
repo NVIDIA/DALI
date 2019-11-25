@@ -13,16 +13,17 @@ do_once() {
 
 test_body() {
   # attempt to run jupyter on all example notebooks
-    black_list_files="optical_flow_example.ipynb\|#" # optical flow requires TU102 architecture
-                                                     # whilst currently L1_jupyter_plugins test
-                                                     # can be run only on V100
+  black_list_files="optical_flow_example.ipynb\|tensorflow-dataset-*\|#" 
+  # optical flow requires TU102 architecture whilst currently L1_jupyter_plugins test can be run only on V100
+  # tensorflow-datset requires TF >= 1.15
 
-    # test code
-    find */* -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
-                   --to notebook --inplace --execute \
-                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                   --ExecutePreprocessor.timeout=600 {}
-    python${PYVER:0:1} pytorch/resnet50/main.py -t
+
+  # test code
+  find */* -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
+                  --to notebook --inplace --execute \
+                  --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                  --ExecutePreprocessor.timeout=600 {}
+  python${PYVER:0:1} pytorch/resnet50/main.py -t
 }
 
 pushd ../..
