@@ -22,6 +22,7 @@
 #include <utility>
 #include <fstream>
 #include <limits>
+#include <sstream>
 
 inline int gcd(int a, int b) {
   while (b) {
@@ -74,7 +75,7 @@ auto codecpar(AVStream* stream) -> decltype(stream->codec) {
 #endif
 
 inline void assemble_video_list(const std::string& path, const std::string& curr_entry, int label,
-                        std::vector<std::pair<std::string, int>> &file_label_pairs) {
+                        std::vector<dali::file_meta> &file_info) {
   std::string curr_dir_path = path + "/" + curr_entry;
   DIR *dir = opendir(curr_dir_path.c_str());
   DALI_ENFORCE(dir != nullptr, "Directory " + curr_dir_path + " could not be opened");
@@ -93,17 +94,17 @@ inline void assemble_video_list(const std::string& path, const std::string& curr
       continue;
     }
 #endif
-    file_label_pairs.push_back(std::make_pair(full_path, label));
+    file_info.push_back(file_meta{full_path, label, -1, -1});
   }
   closedir(dir);
 }
 
-vector<std::pair<string, int>> filesystem::get_file_label_pair(
+std::vector<dali::file_meta> filesystem::get_file_label_pair(
     const std::string& file_root,
     const std::vector<std::string>& filenames,
     const std::string& file_list) {
   // open the root
-  std::vector<std::pair<std::string, int>> file_label_pairs;
+  std::vector<dali::file_meta> file_info;
   std::vector<std::string> entry_name_list;
 
   if (!file_root.empty()) {
@@ -132,33 +133,65 @@ vector<std::pair<string, int>> filesystem::get_file_label_pair(
     // could return directories with the same names in completely different order
     std::sort(entry_name_list.begin(), entry_name_list.end());
     for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
-        assemble_video_list(file_root, entry_name_list[dir_count], dir_count, file_label_pairs);
+        assemble_video_list(file_root, entry_name_list[dir_count], dir_count, file_info);
     }
 
     // sort file names as well
-    std::sort(file_label_pairs.begin(), file_label_pairs.end());
+    std::sort(file_info.begin(), file_info.end());
   } else if (!file_list.empty()) {
     // load (path, label) pairs from list
     std::ifstream s(file_list);
     DALI_ENFORCE(s.is_open(), file_list + " could not be opened.");
 
+    string line;
     string video_file;
     int label;
-    while (s >> video_file >> label) {
-      file_label_pairs.push_back(std::make_pair(video_file, label));
+    float start_time;
+    float end_time;
+    int line_num = 0;
+    while (std::getline(s, line)) {
+      line_num++;
+      video_file.clear();
+      label = start_time = end_time = -1;
+      std::istringstream file_line(line);
+      file_line >> video_file >> label;
+      if (video_file.empty()) continue;
+      DALI_ENFORCE(label >= 0, "Label value should be >= 0 in file_list at line number: "
+                   + to_string(line_num) + ", filename: "+ video_file);
+      if (file_line >> start_time) {
+        DALI_ENFORCE(start_time >= 0, "Start time/frame should be >=0 at line number: "
+                     + to_string(line_num) + ", filename: "+ video_file);
+        if (file_line >> end_time) {
+          DALI_ENFORCE(start_time <= end_time, "Start time/frame should be <= end time/frame "
+                       "at line number: " + to_string(line_num) + ", filename: "+ video_file);
+        } else {
+          DALI_FAIL("The allowed file list format is:\n"
+                    "file_name label(int) start_time(float) end_time(float)\n"
+                    "or\n"
+                    "file_name label(int)\n"
+                    "Example:\n"
+                    "/home/nvidia/salvador.mp4 0 5.2 10.5\n"
+                    "/home/nvidia/dali.mp4 1\n"
+                    "Error at line number: " + to_string(line_num)
+                    + ", filename: " + video_file);
+        }
+      }
+      file_info.push_back(file_meta{video_file, label, start_time, end_time});
     }
 
     DALI_ENFORCE(s.eof(), "Wrong format of file_list.");
     s.close();
   } else {
-    for (unsigned file_count = 0; file_count < filenames.size(); ++file_count)
-        file_label_pairs.push_back(std::make_pair(filenames[file_count], 0));
+    file_info.reserve(filenames.size());
+    for (const auto & f : filenames) {
+      file_info.push_back(file_meta{f, 0, -1, -1});
+    }
   }
 
-  LOG_LINE << "read " << file_label_pairs.size() << " files from "
+  LOG_LINE << "read " << file_info.size() << " files from "
               << entry_name_list.size() << " directories\n";
 
-  return file_label_pairs;
+  return file_info;
 }
 
 // Are these good numbers? Allow them to be set?
@@ -598,7 +631,7 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     auto& seq_meta = frame_starts_[current_frame_idx_];
     tensor.initialize(count_, seq_meta.height, seq_meta.width, channels_);
 
-    push_sequence_to_read(file_label_pair_[seq_meta.filename_idx].first,
+    push_sequence_to_read(file_info_[seq_meta.filename_idx].video_file,
                           seq_meta.frame_idx, count_);
     receive_frames(tensor);
     ++current_frame_idx_;
