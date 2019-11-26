@@ -28,7 +28,7 @@ namespace dali {
 DALI_SCHEMA(Spectrogram)
   .DocStr(R"code(Produces a spectrogram from a 1D signal (e.g. audio). Input data is expected
 to be single channel (1D shape `(time)`) or multi channel in planar layout (channel, time) 32 bit
-float tensor)code")
+float tensor.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("nfft",
@@ -44,19 +44,20 @@ float tensor)code")
   .AddOptionalArg("window_fn",
     R"code(Samples of the window function that will be multiplied to each extracted window when
   calculating the STFT. If provided it should be a list of floating point numbers of size
-  `window_length`. If not provided, a Hann window will be used)code",
+  `window_length`. If not provided, a Hann window will be used.)code",
     std::vector<float>{})
   .AddOptionalArg("power",
-    "Exponent of the magnitude of the spectrum. Supported values are 1 for energy and 2 for power)",
+    R"code(Exponent of the magnitude of the spectrum. Supported values are 1 for energy and 2 for
+power.)code",
     2)
   .AddOptionalArg("center_windows",
     R"code(Indicates whether extracted windows should be padded so that window function is centered
-at multiples of `window_step`)code",
+at multiples of `window_step`.)code",
     true)
   .AddOptionalArg("reflect_padding",
     R"code(Indicates the padding policy when sampling outside the bounds of the signal. If set to
 true, the signal is mirrored with respecto to the boundary, otherwise the signal is padded with
-zeros)code",
+zeros.)code",
     true);
 
 template <int Dims>
