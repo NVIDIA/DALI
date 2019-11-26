@@ -24,10 +24,16 @@ test_body() {
         nosetests --verbose -s test_dali_tf_dataset_mnist.py
 
         # DALI TF Notebooks run
-        find ../../../docs/examples/tensorflow/* -name "tensorflow-dataset*.ipynb" | xargs -i jupyter nbconvert \
+        pushd ../../../docs/examples/tensorflow/
+        jupyter nbconvert tensorflow-dataset.ipynb
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600 {}
+        jupyter nbconvert tensorflow-dataset-multigpu.ipynb
+                  --to notebook --inplace --execute \
+                  --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                  --ExecutePreprocessor.timeout=600 {}
+        popd
     fi
 }
 
