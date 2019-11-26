@@ -42,9 +42,6 @@ if (BUILD_NVJPEG)
   if (${NVJPEG_DECOUPLED_API})
     add_definitions(-DNVJPEG_DECOUPLED_API)
   endif()
-else()
-  # Note: Support for disabling nvJPEG is unofficial
-  message(STATUS "Building WITHOUT nvJPEG")
 endif()
 
 # NVIDIA NPPC library

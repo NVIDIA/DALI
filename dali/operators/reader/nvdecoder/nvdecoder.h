@@ -21,6 +21,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -113,6 +114,10 @@ class NvDecoder {
   int handle_sequence_(CUVIDEOFORMAT* format);
   int handle_decode_(CUVIDPICPARAMS* pic_params);
   int handle_display_(CUVIDPARSERDISPINFO* disp_info);
+
+  using nvdecDriverHandle = std::unique_ptr<std::remove_pointer<DLLDRIVER>::type,
+                                         std::function< void(DLLDRIVER) >>;
+  nvdecDriverHandle lib_handle_;
 
   class MappedFrame {
    public:

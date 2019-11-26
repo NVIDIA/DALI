@@ -95,6 +95,10 @@ DEPS_LIST=(
     "/usr/local/lib/libavutil.so.56"
     "/usr/local/lib/libtiff.so.5"
     "/usr/local/lib/libsndfile.so.1"
+    "/usr/local/lib/libFLAC.so.8"
+    "/usr/local/lib/libogg.so.0"
+    "/usr/local/lib/libvorbis.so.0"
+    "/usr/local/lib/libvorbisenc.so.2"
 )
 
 DEPS_SONAME=(
@@ -105,6 +109,10 @@ DEPS_SONAME=(
     "libavutil.so.56"
     "libtiff.so.5"
     "libsndfile.so.1"
+    "libFLAC.so.8"
+    "libogg.so.0"
+    "libvorbis.so.0"
+    "libvorbisenc.so.2"
 )
 
 TMPDIR=$(mktemp -d)

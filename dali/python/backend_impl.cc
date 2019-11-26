@@ -71,8 +71,8 @@ static string TensorLayoutRepr(const TensorLayout &tl) {
 }
 
 void ExposeTensorLayout(py::module &m) {
-  auto &tl = py::class_<TensorLayout>(m, "TensorLayout")
-  .def(py::init([](string s) {
+  py::class_<TensorLayout> tl(m, "TensorLayout");
+  tl.def(py::init([](string s) {
     return new TensorLayout(s);
   }))
   .def("__str__", &TensorLayout::str)
@@ -516,7 +516,7 @@ typedef TFFeature::Value TFValue;
 
 TFValue ConvertTFRecordDefaultValue(TFFeatureType type, py::object val) {
   PyObject *ptr = val.ptr();
-  TFValue ret;
+  TFValue ret = {};
   switch (type) {
     case TFFeatureType::int64:
       DALI_ENFORCE(PyInt_Check(ptr) || PyLong_Check(ptr),
@@ -669,9 +669,11 @@ PYBIND11_MODULE(backend_impl, m) {
         "default_cuda_stream_priority"_a = 0
         )
     .def("AddOperator",
-         static_cast<int (Pipeline::*)(OpSpec, const std::string &)>(&Pipeline::AddOperator))
+         static_cast<int (Pipeline::*)(const OpSpec &, const std::string &)>
+                                      (&Pipeline::AddOperator))
     .def("AddOperator",
-         static_cast<int (Pipeline::*)(OpSpec, const std::string &, int)>(&Pipeline::AddOperator))
+         static_cast<int (Pipeline::*)(const OpSpec &, const std::string &, int)>
+                                      (&Pipeline::AddOperator))
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",
         [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
@@ -762,10 +764,11 @@ PYBIND11_MODULE(backend_impl, m) {
           string s = p->SerializeToProtobuf();
           return s;
           }, py::return_value_policy::take_ownership)
-    .def("SaveGraphToDotFile",
-        [](Pipeline *p, const string &filename) {
-          p->SaveGraphToDotFile(filename);
-        })
+    .def("SaveGraphToDotFile", &Pipeline::SaveGraphToDotFile,
+        "path"_a,
+        "show_tensors"_a = false,
+        "show_ids"_a = false,
+        "use_colors"_a = false)
     .def("epoch_size", &Pipeline::EpochSize)
     .def("epoch_size",
         [](Pipeline* p, const std::string& op_name) {

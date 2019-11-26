@@ -12,9 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TEST_DALI_TEST_INFO_H_
-#define DALI_TEST_DALI_TEST_INFO_H_
+#ifndef DALI_KERNELS_COMMON_UTILS_H_
+#define DALI_KERNELS_COMMON_UTILS_H_
 
-#cmakedefine DALI_EXTRA_VERSION "@DALI_EXTRA_VERSION@\0"
+namespace dali {
+namespace kernels {
 
-#endif  // DALI_TEST_DALI_TEST_INFO_H_
+template <typename Shape>
+Shape GetStrides(const Shape& shape) {
+  Shape strides = shape;
+  strides[strides.size()-1] = 1;
+  for (int d = strides.size()-2; d >= 0; d--) {
+    strides[d] = strides[d+1] * shape[d+1];
+  }
+  return strides;
+}
+
+}  // namespace kernels
+}  // namespace dali
+
+#endif  // DALI_KERNELS_COMMON_UTILS_H_

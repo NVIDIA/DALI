@@ -46,8 +46,6 @@ _dali_tf = _dali_tf_module.dali
 
 _dali_tf.__doc__ = _dali_tf.__doc__ + """
 
-    .. warning::
-
     Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 
     DALI due to insufficient memory. On how to change this behaviour please look into the TensorFlow documentation, as it may
     differ based on your use case.
@@ -131,11 +129,12 @@ def _get_tf_version():
   return StrictVersion(tf.__version__)
 
 
-if _get_tf_version() >= StrictVersion('1.13'):
+if _get_tf_version() >= StrictVersion('1.15'):
   from tensorflow.python.framework import ops
   from tensorflow.python.data.ops import dataset_ops
   from tensorflow.python.data.util import structure
   import functools
+
 
   class _DALIDatasetV2(dataset_ops.DatasetSource):
     def __init__(
@@ -170,14 +169,9 @@ if _get_tf_version() >= StrictVersion('1.13'):
       self._structure = structure.convert_legacy_structure(
         self._dtypes, self._shapes, output_classes)
 
-      if _get_tf_version() >= StrictVersion('1.14'):
-        super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
-      else:
-        super(_DALIDatasetV2, self).__init__()
+      super(_DALIDatasetV2, self).__init__(self._as_variant_tensor())
 
 
-    # This function should not be removed or refactored.
-    # It is needed for TF 1.15 and 2.0
     @property
     def element_spec(self):
       return self._structure
@@ -188,8 +182,6 @@ if _get_tf_version() >= StrictVersion('1.13'):
       return self._structure
 
 
-    # This function should not be removed or refactored.
-    # It is needed for TF 1.13.1
     def _as_variant_tensor(self):
       return _dali_tf_module.dali_dataset(
         pipeline = self._pipeline,
@@ -227,9 +219,9 @@ else:
       gpu_prefetch_queue_depth = 2,
       shapes = [], 
       dtypes = []):
-      raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.  DALIDataset supports versions: 1.13, 1.14, 1.15, 2.0')
+      raise RuntimeError('DALIDataset is not supported for detected version of TensorFlow.  DALIDataset supports versions: 1.15, 2.0')
 
-DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.13, 1.14, 1.15 and 2.0
+DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Dataset from a DALI pipeline. It supports TensorFlow 1.15 and 2.0
 
 
     Please keep in mind that TensorFlow allocates almost all available device memory by default. This might cause errors in 

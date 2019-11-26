@@ -27,7 +27,7 @@ class DecoderBench : public DALIBenchmark {
                            int batch_size,
                            int num_thread,
                            std::string output_device,
-                           OpSpec decoder_operator,
+                           const OpSpec &decoder_operator,
                            std::function<void(Pipeline&)> add_other_inputs = {}) {
     DALIImageType img_type = DALI_RGB;
 

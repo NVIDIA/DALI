@@ -316,6 +316,33 @@ void ConstantFill(const TensorListView<StorageBackend, DataType, dim> &tlv,
     ConstantFill(tlv[i], value);
 }
 
+template <typename C>
+if_iterable<C, void> SequentialFill(C &&c, const element_t<C> &start_value = {}) {
+  auto value = start_value;
+  for (auto &x : c)
+    x = value++;
+}
+
+
+template <typename StorageBackend, typename DataType, int dim>
+void
+SequentialFill(const TensorView<StorageBackend, DataType, dim> &tv,
+               same_as_t<DataType> start_value = {}) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorView backend");
+  SequentialFill(make_span(tv.data, tv.num_elements()), start_value);
+}
+
+
+template <typename StorageBackend, typename DataType, int dim>
+void SequentialFill(const TensorListView<StorageBackend, DataType, dim> &tlv,
+                  same_as_t<DataType> start_value = {}) {
+  static_assert(is_cpu_accessible<StorageBackend>::value,
+                "Function available only for CPU-accessible TensorListView backend");
+  for (int i = 0; i < tlv.num_samples(); i++)
+    SequentialFill(tlv[i], start_value);
+}
+
 
 template <typename TensorListView>
 std::string BatchToStr(const TensorListView &batch, const std::string &sample_prefix = "Sample ") {

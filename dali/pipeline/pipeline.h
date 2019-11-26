@@ -187,24 +187,24 @@ class DLL_PUBLIC Pipeline {
    *
    * @return logical_id of added operator, so it can be used for further calls
    */
-  DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name, int logical_id);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec, const std::string& inst_name, int logical_id);
 
   /**
    * @brief Adds an Operator with the input specification to the pipeline. It will be assigned
    * a separate logical_id based on internal state of the pipeline.
    */
-  DLL_PUBLIC int AddOperator(OpSpec spec, const std::string& inst_name);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec, const std::string& inst_name);
 
   /**
    * @brief Adds an unnamed Operator with the input specification to the pipeline.
    */
-  DLL_PUBLIC int AddOperator(OpSpec spec, int logical_id);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec, int logical_id);
 
   /**
    * @brief Adds an unnamed Operator with the input specification to the pipeline.  It will be
    * assigned a separate logical_id based on internal state of the pipeline.
    */
-  DLL_PUBLIC int AddOperator(OpSpec spec);
+  DLL_PUBLIC int AddOperator(const OpSpec &spec);
 
   /**
    * @brief Returns true if there exists operator with given logical_id
@@ -324,7 +324,8 @@ class DLL_PUBLIC Pipeline {
    * @brief Save graph in DOT direct graph format
    * in filename.
    */
-  DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename);
+  DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename, bool show_tensors = false,
+                                     bool show_ids = false, bool use_colors = false);
 
   /**
    * @brief Returns the batch size that will be produced by the pipeline.

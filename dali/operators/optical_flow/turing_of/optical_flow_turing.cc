@@ -45,7 +45,10 @@ OpticalFlowTuring::OpticalFlowTuring(dali::optical_flow::OpticalFlowParams param
   DALI_ENFORCE(channels_ == 1 || channels_ == 3 || channels_ == 4);
   DALI_ENFORCE(cuInitChecked(), "Failed to initialize driver");
 
-  LoadTuringOpticalFlow("libnvidia-opticalflow.so");
+  lib_handle_ = ofDriverHandle(LoadTuringOpticalFlow("libnvidia-opticalflow.so"),
+                               [](DLLDRIVER lib_handle) {
+                                 dlclose(lib_handle);
+                               });
 
   SetInitParams(params);
   DeviceGuard g(device_id_);
@@ -85,6 +88,7 @@ OpticalFlowTuring::~OpticalFlowTuring() {
     hintsbuf_.reset(nullptr);
   }
   auto err = turing_of_.nvOFDestroy(of_handle_);
+  // unload lib no matter if it was successful
   if (err != NV_OF_SUCCESS) {
     // Failing to destroy OF leads to significant GPU resource leak,
     // so we'd rather terminate than live with this
@@ -201,12 +205,13 @@ NV_OF_EXECUTE_OUTPUT_PARAMS OpticalFlowTuring::GenerateExecuteOutParams
 }
 
 
-void OpticalFlowTuring::LoadTuringOpticalFlow(const std::string &library_path) {
+OpticalFlowTuring::DLLDRIVER OpticalFlowTuring::LoadTuringOpticalFlow
+        (const std::string &library_path) {
   const std::string library_path_1 = library_path + ".1";
-  auto handle = dlopen(library_path_1.c_str(), RTLD_LOCAL | RTLD_LAZY);
-  if (!handle) {
-    handle = dlopen(library_path.c_str(), RTLD_LOCAL | RTLD_LAZY);
-    if (!handle) {
+  DLLDRIVER lib_handle = dlopen(library_path_1.c_str(), RTLD_LOCAL | RTLD_LAZY);
+  if (!lib_handle) {
+    lib_handle = dlopen(library_path.c_str(), RTLD_LOCAL | RTLD_LAZY);
+    if (!lib_handle) {
       throw unsupported_exception("Failed to load TuringOF library: " + std::string(dlerror()));
     }
   }
@@ -214,10 +219,11 @@ void OpticalFlowTuring::LoadTuringOpticalFlow(const std::string &library_path) {
   // Pointer to initialization function
   NV_OF_STATUS (*init)(uint32_t, NV_OF_CUDA_API_FUNCTION_LIST *);
 
-  init = (decltype(init)) dlsym(handle, kInitSymbol.c_str());
+  init = (decltype(init)) dlsym(lib_handle, kInitSymbol.c_str());
   DALI_ENFORCE(init, "Failed to find symbol " + kInitSymbol + ": " + std::string(dlerror()));
 
   TURING_OF_API_CALL((*init)(NV_OF_API_VERSION, &turing_of_));
+  return lib_handle;
 }
 
 }  // namespace optical_flow

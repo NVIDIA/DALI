@@ -7,7 +7,7 @@ do_once() {
 
     NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-    CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
+    CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/')
     # from 1.13.1 CUDA 10 is supported but not CUDA 9
     if [ "${CUDA_VERSION}" -ge "100" ]; then
         pip install tensorflow-gpu==1.13.1

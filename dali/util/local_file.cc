@@ -44,7 +44,7 @@ static int get_max_vm_cnt() {
 #if !defined(__aarch64__)
   size_t vm_cnt_sz = sizeof(vm_cnt);
   int name[] = { CTL_VM, VM_MAX_MAP_COUNT };
-  struct __sysctl_args args = {0, };
+  struct __sysctl_args args = {};
 
   args.name = name;
   args.nlen = sizeof(name)/sizeof(name[0]);
@@ -57,12 +57,14 @@ static int get_max_vm_cnt() {
     // fallback to reading /proc
     FILE * fp;
     int constexpr MAX_BUFF_SIZE = 256;
-    char buffer[MAX_BUFF_SIZE] = {0, };
+    char buffer[MAX_BUFF_SIZE + 1];
     fp = std::fopen("/proc/sys/vm/max_map_count", "r");
     if (fp == nullptr) {
       return vm_cnt;
     }
     auto elements_read = std::fread(buffer, 1, MAX_BUFF_SIZE, fp);
+    buffer[elements_read] = '\0';
+    std::fclose(fp);
     if (!elements_read) {
       return vm_cnt;
     }

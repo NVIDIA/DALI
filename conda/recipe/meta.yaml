@@ -35,6 +35,7 @@ build:
    - BUILD_LIBTIFF
    - BUILD_NVOF
    - BUILD_NVDEC
+   - BUILD_LIBSND
    - BUILD_NVML
    - BUILD_FFTS
    - VERBOSE_LOGS
@@ -66,6 +67,8 @@ requirements:
     - opencv >=3.4.1
     - boost >=1.67
     - lmdb >=0.9.22
+    - libtiff >=4.0
+    - libsndfile >=1.0.28
   run:
     - python
     - future >=0.17.1
@@ -76,3 +79,5 @@ requirements:
     - libopencv >=3.4.1
     - opencv >=3.4.1
     - lmdb >=0.9.22
+    - libtiff >=4.0
+    - libsndfile >=1.0.28

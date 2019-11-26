@@ -22,6 +22,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from distutils.version import StrictVersion
+from test_utils_tensorflow import *
 
 from nose import SkipTest
 from nose.tools import raises
@@ -34,23 +35,6 @@ except:
 test_data_root = os.environ['DALI_EXTRA_PATH']
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
-
-
-def compatible_tensorflow():
-    return StrictVersion(tf.__version__) >= StrictVersion('1.13')
-
-
-def skip_for_incompatible_tf():
-    if not compatible_tensorflow():
-        raise SkipTest('This feature is enabled for TF 1.13 and higher')
-
-
-def num_available_gpus():
-    local_devices = device_lib.list_local_devices()
-    num_gpus = sum(1 for device in local_devices if device.device_type == 'GPU')
-    if num_gpus not in [1, 2, 4, 8]:
-        raise RuntimeError('Unsupported number of GPUs. This test can run on: 1, 2, 4, 8 GPUs.')
-    return num_gpus
 
 
 class TestPipeline(Pipeline):
@@ -100,24 +84,11 @@ class TestPipeline(Pipeline):
             im_ids_16)
 
 
-def _dataset_options():
-    options = tf.data.Options()
-    try:
-        options.experimental_optimization.apply_default_optimizations = False
-
-        if StrictVersion(tf.__version__) >= StrictVersion('1.13') and StrictVersion(tf.__version__) < StrictVersion('1.14'):
-            options.experimental_autotune = False
-        else:
-            options.experimental_optimization.autotune = False
-    except:
-        print('Could not set TF Dataset Options')
-
-    return options
+def setup():
+    skip_for_incompatible_tf()
 
 
 def _test_tf_dataset(device, device_id = 0):
-    skip_for_incompatible_tf()
-
     batch_size = 12
     num_threads = 4
     iterations = 10
@@ -141,7 +112,7 @@ def _test_tf_dataset(device, device_id = 0):
             dtypes=dtypes,
             num_threads=num_threads,
             device_id=device_id)
-        daliset = daliset.with_options(_dataset_options())
+        daliset = daliset.with_options(dataset_options())
 
         iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
         next_element = iterator.get_next()
@@ -204,8 +175,6 @@ def test_differnt_num_shapes_dtypes():
 
 
 def _test_tf_dataset_multigpu():
-    skip_for_incompatible_tf()
-
     num_devices = num_available_gpus()
     dataset_size = 64
     batch_size = 8
@@ -235,7 +204,7 @@ def _test_tf_dataset_multigpu():
                 dtypes=dtypes,
                 num_threads=num_threads,
                 device_id=device_id)
-            daliset = daliset.with_options(_dataset_options())
+            daliset = daliset.with_options(dataset_options())
 
             iterator = tf.compat.v1.data.make_initializable_iterator(daliset)
             initializers.append(iterator.initializer)

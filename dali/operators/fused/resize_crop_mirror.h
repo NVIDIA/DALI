@@ -73,7 +73,7 @@ class ResizeCropMirrorAttr : protected CropAttr {
                                               const TensorShape<> &input_shape,
                                               const ArgumentWorkspace *ws, const Index index,
                                               const uint32_t flag = 0) {
-    TransformMeta meta;
+    TransformMeta meta = {};
     meta.H = input_shape[0];
     meta.W = input_shape[1];
     meta.C = input_shape[2];
