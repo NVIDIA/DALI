@@ -25,11 +25,11 @@ test_body() {
 
         # DALI TF Notebooks run
         pushd ../../../docs/examples/tensorflow/
-        jupyter nbconvert tensorflow-dataset.ipynb
+        jupyter nbconvert tensorflow-dataset.ipynb \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600 {}
-        jupyter nbconvert tensorflow-dataset-multigpu.ipynb
+        jupyter nbconvert tensorflow-dataset-multigpu.ipynb \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600 {}
