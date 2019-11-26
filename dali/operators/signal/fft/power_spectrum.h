@@ -28,7 +28,7 @@ namespace dali {
 template <typename Backend>
 class PowerSpectrum : public Operator<Backend> {
  public:
-  explicit inline PowerSpectrum(const OpSpec &spec)
+  explicit PowerSpectrum(const OpSpec &spec)
       : Operator<Backend>(spec) {
     fft_args_.nfft = spec.GetArgument<int>("nfft");
     fft_args_.transform_axis = spec.GetArgument<int>("axis");

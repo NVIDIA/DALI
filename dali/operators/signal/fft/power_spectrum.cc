@@ -19,12 +19,15 @@
 
 #define FFT_SUPPORTED_NDIMS (1, 2, 3)
 
+static constexpr int kNumInputs = 1;
+static constexpr int kNumOutputs = 1;
+
 namespace dali {
 
 DALI_SCHEMA(PowerSpectrum)
     .DocStr(R"code(Power spectrum of signal.)code")
-    .NumInput(1)
-    .NumOutput(1)
+    .NumInput(kNumInputs)
+    .NumOutput(kNumOutputs)
     .AddOptionalArg("nfft",
       R"code(Size of the FFT. By default nfft is selected to match the lenght of the data in the
 transformation axis. The number of bins created in the output is `nfft // 2 + 1` (positive part
@@ -42,7 +45,7 @@ last dimension is selected.)code",
 template <>
 bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                           const workspace_t<CPUBackend> &ws) {
-  output_desc.resize(1);
+  output_desc.resize(kNumOutputs);
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   kernels::KernelContext ctx;
@@ -64,10 +67,7 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       auto &req = kmgr_.Setup<FftKernel>(i, ctx, in_view, fft_args_);
       output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
     }
-  ), // NOLINT
-  (
-    DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size()))
-  )); // NOLINT
+  ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
 
   return true;
 }
@@ -94,10 +94,7 @@ void PowerSpectrum<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
           kmgr_.Run<FftKernel>(thread_id, i, ctx, out_view, in_view, fft_args_);
         });
     }
-  ) ,  // NOLINT
-  (
-    DALI_FAIL(make_string("Not supported number of dimensions: ", in_shape.size()))
-  ));  // NOLINT
+  ), DALI_FAIL(make_string("Not supported number of dimensions: ", in_shape.size())));  // NOLINT
 
   thread_pool.WaitForWork();
 }
