@@ -575,7 +575,7 @@ void Pipeline::AsyncShareOutputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(built_,
                "\"Build()\" must be called prior to executing the pipeline.");
   try {
-    executor_->ShareOutputs(ws);
+    executor_->AsyncShareOutputs(ws);
   } catch (std::exception &e) {
     throw std::runtime_error("Critical error in pipeline: "
                                  + std::string(e.what())

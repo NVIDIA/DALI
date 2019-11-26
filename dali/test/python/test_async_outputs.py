@@ -20,7 +20,6 @@ import torch
 import os
 import random
 import numpy
-from PIL import Image
 
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
@@ -43,7 +42,7 @@ class TestPipeline(Pipeline):
         super(TestPipeline, self).__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED)
         self.input = ops.FileReader(file_root=images_dir)
         self.decode = ops.ImageDecoder(device='mixed', output_type=types.RGB)
-        self.resize = ops.Resize(resize_x=1000, resize_y=1000, device='gpu')
+        self.resize = ops.Resize(resize_x=5000, resize_y=1000, device='gpu')
         self.flip = ops.Flip(device='gpu')
 
     def define_graph(self):
@@ -81,7 +80,4 @@ def test_async_output():
         print(i)
         for s in range(BATCH_SIZE):
             print("s " + str(s))
-            if not numpy.array_equal(results[i][s], data.at(s)):
-                Image.fromarray(results[i][s]).save('ver.jpg')
-                Image.fromarray(data.at(s)).save('ref.jpg')
-                assert False
+            assert numpy.array_equal(results[i][s], data.at(s))
