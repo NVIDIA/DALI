@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_AUDIO_FFT_SPECTROGRAM_H_
-#define DALI_OPERATORS_AUDIO_FFT_SPECTROGRAM_H_
+#ifndef DALI_OPERATORS_SIGNAL_FFT_SPECTROGRAM_H_
+#define DALI_OPERATORS_SIGNAL_FFT_SPECTROGRAM_H_
 
 #include <memory>
 #include <vector>
@@ -57,4 +57,4 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_AUDIO_FFT_SPECTROGRAM_H_
+#endif  // DALI_OPERATORS_SIGNAL_FFT_SPECTROGRAM_H_

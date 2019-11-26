@@ -14,7 +14,7 @@
 
 #include <memory>
 #include <vector>
-#include "dali/operators/audio/fft/spectrogram.h"
+#include "dali/operators/signal/fft/spectrogram.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/signal/window/extract_windows_cpu.h"
 #include "dali/kernels/signal/fft/fft_cpu.h"
@@ -39,12 +39,12 @@ float tensor)code")
     R"code(Window size (in number of samples))code",
     512)
   .AddOptionalArg("window_step",
-    R"code(Step betweeen the STFT windows)code",
+    R"code(Step betweeen the STFT windows (in number of samples))code",
     256)
   .AddOptionalArg("window_fn",
     R"code(Samples of the window function that will be multiplied to each extracted window when
   calculating the STFT. If provided it should be a list of floating point numbers of size
-  `window_length`. If not provided a Hann window will be used)code",
+  `window_length`. If not provided, a Hann window will be used)code",
     std::vector<float>{})
   .AddOptionalArg("power",
     "Exponent of the magnitude of the spectrum. Supported values are 1 for energy and 2 for power)",
@@ -52,6 +52,11 @@ float tensor)code")
   .AddOptionalArg("center_windows",
     R"code(Indicates whether extracted windows should be padded so that window function is centered
 at multiples of `window_step`)code",
+    true)
+  .AddOptionalArg("reflect_padding",
+    R"code(Indicates the padding policy when sampling outside the bounds of the signal. If set to
+true, the signal is mirrored with respecto to the boundary, otherwise the signal is padded with
+zeros)code",
     true);
 
 template <int Dims>
@@ -75,6 +80,7 @@ struct SpectrogramImplCpu : detail::OpImplBase<CPUBackend> {
   int64_t window_length_ = -1;
   int64_t window_step_ = -1;
   int power_ = -1;
+  bool reflect_padding_ = true;
   std::vector<float> window_fn_;
   int64_t window_center_ = -1;
 
@@ -91,11 +97,13 @@ struct SpectrogramImplCpu : detail::OpImplBase<CPUBackend> {
 namespace {
   void FillExtractWindowsArgs(kernels::signal::window::ExtractWindowsArgs& args,
                               int64_t window_length, int64_t window_step,
-                              int64_t window_center, int ndim) {
+                              int64_t window_center, int ndim,
+                              bool reflect_padding) {
     args.window_length = window_length;
     args.window_step = window_step;
     args.axis = ndim - 1;
     args.window_center = window_center;
+    args.reflect_pad = reflect_padding;
   }
 
   void FillFftArgs(kernels::signal::fft::FftArgs& args,
@@ -135,6 +143,7 @@ SpectrogramImplCpu<Dims>::SpectrogramImplCpu(const OpSpec & spec)
     , window_length_(spec.GetArgument<int>("window_length"))
     , window_step_(spec.GetArgument<int>("window_step"))
     , power_(spec.GetArgument<int>("power"))
+    , reflect_padding_(spec.GetArgument<bool>("reflect_padding"))
     , window_fn_(spec.GetRepeatedArgument<float>("window_fn")) {
   DALI_ENFORCE(window_length_ > 0, make_string("Invalid window length: ", window_length_));
   DALI_ENFORCE(window_step_ > 0, make_string("Invalid window step: ", window_step_));
@@ -158,14 +167,15 @@ bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.size();
-  auto nthreads = ws.HasThreadPool() ? ws.GetThreadPool().size() : 1;
+  auto nthreads = ws.GetThreadPool().size();
 
   // Intermediate output buffers
   window_out_.resize(nthreads);
 
   kmgr_window_.Initialize<WindowKernel>();
   kmgr_window_.Resize<WindowKernel>(nthreads, nsamples);
-  FillExtractWindowsArgs(window_args_, window_length_, window_step_, window_center_, InputDims);
+  FillExtractWindowsArgs(window_args_, window_length_, window_step_, window_center_,
+                         InputDims, reflect_padding_);
 
   kmgr_fft_.Initialize<FftKernel>();
   kmgr_fft_.Resize<FftKernel>(nthreads, nsamples);
