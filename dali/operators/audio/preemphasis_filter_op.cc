@@ -29,7 +29,7 @@ This filter in simple form can be expressed by the formula:
 
 DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterCpu, CPU);
 
-// TODO uncomment when Convert is fixed
+// TODO(mszolucha) uncomment when Convert is fixed
 #define PREEMPH_TYPES (/*uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t,*/ float, double)  // NOLINT
 
 
