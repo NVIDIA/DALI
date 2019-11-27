@@ -44,7 +44,7 @@ class PreemphasisFilter : public Operator<Backend> {
           Operator<Backend>(spec),
           preemph_coeff_(spec.GetArgument<std::remove_const_t<decltype(this->preemph_coeff_)>>(
                   detail::kCoeff)),
-          dtype_(spec.GetArgument<std::remove_const_t<decltype(this->dtype_)>>(detail::kDtype)) {}
+          output_type_(spec.GetArgument<std::remove_const_t<decltype(this->output_type_)>>(detail::kDtype)) {}
 
 
   bool CanInferOutputs() const override {
@@ -54,14 +54,13 @@ class PreemphasisFilter : public Operator<Backend> {
 
   USE_OPERATOR_MEMBERS();
   const float preemph_coeff_;
-  const DALIDataType dtype_;
+  const DALIDataType output_type_;
 };
 
 
 class PreemphasisFilterCpu : public PreemphasisFilter<CPUBackend> {
  public:
   explicit PreemphasisFilterCpu(const OpSpec &spec) : PreemphasisFilter(spec) {}
-
 
   ~PreemphasisFilterCpu() override = default;
 

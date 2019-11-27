@@ -17,7 +17,9 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
+import math
 
+eps = 1e-5
 sample_size = 100
 premade_batch = [np.random.rand(sample_size)]
 
@@ -50,7 +52,11 @@ def perform_test(preemph_coeff):
     pipeline = PreemphasisPipeline(preemph_coeff=preemph_coeff)
     pipeline.build()
     outputs = pipeline.run()
-    assert np.all(outputs[0].at(0) == preemph(premade_batch[0], preemph_coeff))
+    reference_signal = preemph(premade_batch[0], preemph_coeff)
+    for i in range(sample_size):
+        a = outputs[0].at(0)[i]
+        b = reference_signal[i]
+        assert math.isclose(a, b, abs_tol=eps)
 
 
 def test_normal_distribution():

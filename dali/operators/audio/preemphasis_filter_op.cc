@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ This filter in simple form can be expressed by the formula:
 
 DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterCpu, CPU);
 
-
-#define PREEMPH_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
+// TODO uncomment when Convert is fixed
+#define PREEMPH_TYPES (/*uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t,*/ float, double)  // NOLINT
 
 
 bool PreemphasisFilterCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
@@ -38,13 +38,13 @@ bool PreemphasisFilterCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_des
   const auto &input = ws.template InputRef<CPUBackend>(0);
   output_desc.resize(detail::kNumOutputs);
   output_desc[0].shape = input.shape();
-  TYPE_SWITCH(dtype_, type2id, DType, PREEMPH_TYPES, (
+  TYPE_SWITCH(output_type_, type2id, DType, PREEMPH_TYPES, (
           {
             TypeInfo type;
-            type.SetType<DType>(dtype_);
+            type.SetType<DType>(output_type_);
             output_desc[0].type = type;
           }
-  ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   return true;
 }
 
@@ -53,28 +53,30 @@ void PreemphasisFilterCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   for (int i = 0; i < batch_size_; ++i) {
-    TYPE_SWITCH(dtype_, type2id, DType, PREEMPH_TYPES, (
-            {
-              const auto in_ptr = input[i].data<DType>();
-              auto out_ptr = output[i].mutable_data<DType>();
-              auto num_samples = volume(output[i].shape());
-              DALI_ENFORCE(input[i].shape() == output[i].shape(),
-                           "Input and output shapes don't match");
-              if (preemph_coeff_ == 0.f) {
-                for (int j = 0; j < num_samples; j++) {
-                  out_ptr[j] = ConvertSat<DType>(in_ptr[j]);
-                }
-              } else {
-                for (auto j = num_samples - 1; j > 0; j--) {
-                  out_ptr[j] = ConvertSat<DType>(in_ptr[j] - in_ptr[j - 1] * preemph_coeff_);
-                }
-                out_ptr[0] = ConvertSat<DType>(in_ptr[0] * preemph_coeff_);
+    TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
+      TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
+          {
+            const auto in_ptr = input[i].data<InputType>();
+            auto out_ptr = output[i].mutable_data<OutputType>();
+            auto num_samples = volume(output[i].shape());
+            DALI_ENFORCE(input[i].shape() == output[i].shape(),
+                         "Input and output shapes don't match");
+            if (preemph_coeff_ == 0.f) {
+              for (long j = 0; j < num_samples; j++) {  // NOLINT (long)
+                out_ptr[j] = ConvertSat<OutputType>(in_ptr[j]);
               }
+            } else {
+              for (auto j = num_samples - 1; j > 0; j--) {
+                out_ptr[j] = ConvertSat<OutputType>(
+                        in_ptr[j] - in_ptr[j - 1] * preemph_coeff_);
+              }
+              out_ptr[0] = ConvertSat<OutputType>(in_ptr[0] * preemph_coeff_);
             }
-    ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
+          }
+      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
   }
 }
-
 
 #undef PREEMPH_TYPES
 
