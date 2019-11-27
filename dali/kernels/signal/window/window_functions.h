@@ -28,7 +28,7 @@ void HannWindow(span<T> output) {
   double a = (2 * M_PI / N);
   for (int t = 0; t < N; t++) {
     double phase = a * (t + 0.5);
-    output.data()[t] = static_cast<T>(0.5 * (1.0 - std::cos(phase)));
+    output[t] = static_cast<T>(0.5 * (1.0 - std::cos(phase)));
   }
 }
 
@@ -38,7 +38,7 @@ void HammingWindow(span<T> output, double a0, double a1) {
   double a = (2 * M_PI / N);
   for (int t = 0; t < N; t++) {
     double phase = a * (t + 0.5);
-    output.data()[t] = static_cast<T>(a0 - a1 * std::cos(phase));
+    output[t] = static_cast<T>(a0 - a1 * std::cos(phase));
   }
 }
 

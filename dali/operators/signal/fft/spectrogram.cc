@@ -68,7 +68,7 @@ struct SpectrogramImplCpu : detail::OpImplBase<CPUBackend> {
 
   static constexpr int InputDims = Dims;
   using WindowKernel =
-    kernels::signal::window::ExtractWindowsCpu<InputType, InputType, InputDims>;
+    kernels::signal::ExtractWindowsCpu<InputType, InputType, InputDims>;
 
   static constexpr int WindowsDims = Dims+1;
   using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, WindowsDims>;
@@ -87,7 +87,7 @@ struct SpectrogramImplCpu : detail::OpImplBase<CPUBackend> {
   int window_center_ = -1;
 
   kernels::KernelManager kmgr_window_;
-  kernels::signal::window::ExtractWindowsArgs window_args_;
+  kernels::signal::ExtractWindowsArgs window_args_;
 
   std::vector<OutputDesc> window_out_desc_;
   std::vector<Tensor<CPUBackend>> window_out_;
@@ -157,7 +157,9 @@ bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
   kmgr_window_.Initialize<WindowKernel>();
   kmgr_window_.Resize<WindowKernel>(nthreads, nsamples);
   constexpr int axis = InputDims - 1;
-  window_args_ = {window_length_, window_step_, window_center_, axis, reflect_padding_};
+  using kernels::signal::Padding;
+  Padding padding = reflect_padding_ ? Padding::Reflect : Padding::Zero;
+  window_args_ = {window_length_, window_center_, window_step_, axis, padding};
 
   kmgr_fft_.Initialize<FftKernel>();
   kmgr_fft_.Resize<FftKernel>(nthreads, nsamples);
