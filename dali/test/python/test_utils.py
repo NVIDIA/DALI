@@ -121,13 +121,14 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
 
 class RandomDataIterator(object):
     import_numpy()
-    def __init__(self, batch_size, shape=(10, 600, 800, 3)):
+    def __init__(self, batch_size, shape=(10, 600, 800, 3), dtype=np.uint8):
         self.batch_size = batch_size
         self.test_data = []
         for _ in range(self.batch_size):
             np.random.seed(0)
-            self.test_data.append(np.array(np.random.rand(*shape) * 255,
-                                  dtype = np.uint8 ) )
+            self.test_data.append(
+                np.array(np.random.rand(*shape) * (1.0 if dtype == np.float32 else 255),
+                dtype=dtype ) )
 
     def __iter__(self):
         self.i = 0
