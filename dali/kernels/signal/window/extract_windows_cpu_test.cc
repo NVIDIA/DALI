@@ -30,7 +30,7 @@ namespace window {
 namespace test {
 
 class ExtractWindowsCpuTest : public::testing::TestWithParam<
-  std::tuple<std::array<int64_t, 2>, int64_t, int64_t, int64_t, int64_t, bool>> {
+  std::tuple<std::array<int64_t, 2>, int64_t, int64_t, int64_t, int64_t, Padding>> {
  public:
   ExtractWindowsCpuTest()
     : data_shape_(std::get<0>(GetParam()))
@@ -38,7 +38,7 @@ class ExtractWindowsCpuTest : public::testing::TestWithParam<
     , window_step_(std::get<2>(GetParam()))
     , axis_(std::get<3>(GetParam()))
     , window_center_(std::get<4>(GetParam()))
-    , reflect_pad_(std::get<5>(GetParam()))
+    , padding_(std::get<5>(GetParam()))
     , data_(volume(data_shape_))
     , in_view_(data_.data(), data_shape_) {}
 
@@ -52,7 +52,7 @@ class ExtractWindowsCpuTest : public::testing::TestWithParam<
   int64_t window_length_ = -1, window_step_ = -1;
   int axis_ = -1;
   int64_t window_center_ = -1;
-  bool reflect_pad_ = false;
+  Padding padding_ = Padding::Zero;
   std::vector<float> data_;
   OutTensorCPU<float, 2> in_view_;
 };
@@ -101,7 +101,7 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   args.window_step = window_step_;
   args.axis = axis_;
   args.window_center = window_center_;
-  args.reflect_pad = reflect_pad_;
+  args.padding = padding_;
 
   // Hamming window
   std::vector<float> window_fn_data(window_length_);
@@ -114,7 +114,9 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   auto out_shape = reqs.output_shapes[0][0];
 
   auto n = in_view_.shape[axis_];
-  auto nwindows = n / window_step_ + 1;
+  auto nwindows = padding_ == Padding::None
+    ? (n - window_length_) / window_step_ + 1
+    : n / window_step_ + 1;
   auto expected_out_shape = TensorShape<DynamicDimensions>{
     in_view_.shape[0], window_length_, nwindows};
   ASSERT_EQ(expected_out_shape, out_shape);
@@ -136,7 +138,9 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   auto in_stride = in_strides[axis_];
   auto out_stride = out_strides[axis_];
 
-  int64_t window_center_offset = window_center_ < 0 ? window_length_ / 2 : window_center_;
+  int64_t window_center_offset = 0;
+  if (padding_ != Padding::None)
+    window_center_offset = window_center_ < 0 ? window_length_ / 2 : window_center_;
   for (int i = 0; i < in_view_.shape[0]; i++) {
     auto *out_slice = expected_out_view.data + i * out_strides[0];
     auto *in_slice = in_view_.data + i * in_strides[0];
@@ -144,7 +148,7 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
       for (int t = 0; t < window_length_; t++) {
         auto out_k = w + t * nwindows;
         auto in_k = w * window_step_ + t - window_center_offset;
-        if (reflect_pad_) {
+        if (padding_ == Padding::Reflect) {
           while (in_k < 0 || in_k >= n) {
               in_k = (in_k < 0) ? -in_k : 2*n-2-in_k;
           }
@@ -183,7 +187,7 @@ INSTANTIATE_TEST_SUITE_P(ExtractWindowsCpuTest, ExtractWindowsCpuTest, testing::
     testing::Values(2),  // step
     testing::Values(1),  // axis
     testing::Values(0, 2, 4),  // window offsets
-    testing::Values(true, false)));  // reflect padding
+    testing::Values(Padding::None, Padding::Zero, Padding::Reflect)));  // reflect padding
 
 }  // namespace test
 }  // namespace window

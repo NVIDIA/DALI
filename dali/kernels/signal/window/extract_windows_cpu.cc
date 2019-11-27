@@ -26,7 +26,6 @@
 namespace dali {
 namespace kernels {
 namespace signal {
-namespace window {
 
 template <typename OutputType, typename InputType, int Dims>
 constexpr int ExtractWindowsCpu<OutputType, InputType, Dims>::InputDims;
@@ -47,8 +46,11 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
 
   window_length_ = args.window_length > 0 ? args.window_length : 1;
   window_step_ = args.window_step > 0 ? args.window_step : 1;
-  window_center_offset_ = args.window_center < 0 ? window_length_ / 2 : args.window_center;
-  reflect_pad_ = args.reflect_pad;
+  padding_ = args.padding;
+  if (padding_ != Padding::None)
+    window_center_offset_ = args.window_center < 0 ? window_length_ / 2 : args.window_center;
+  else
+    window_center_offset_ = 0;
 
   DALI_ENFORCE(window_center_offset_ >= 0 && window_center_offset_ <= window_length_,
     make_string("Window center offset must be in the range [0, ", window_length_, "]"));
@@ -67,7 +69,7 @@ KernelRequirements ExtractWindowsCpu<OutputType, InputType, Dims>::Setup(
 
   const auto n = in.shape[axis_];
 
-  nwindows_ =  n / window_step_ + 1;
+  nwindows_ =  num_windows(n, window_length_, window_step_, padding_ != Padding::None);
   assert(nwindows_ > 0);
 
   TensorShape<DynamicDimensions> out_shape;
@@ -121,7 +123,7 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
             for (int64_t t = 0; t < window_length_; t++) {
               int64_t out_idx = t * nwindows_ + window_idx;
               int64_t in_idx = window_start + t;
-              if (reflect_pad_) {
+              if (padding_ == Padding::Reflect) {
                 // find the mirrored position if the index is out of bounds
                 while (in_idx < 0 || in_idx >= in_size) {
                   if (in_idx < 0) {
@@ -132,9 +134,13 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
                     in_idx = 2 * in_size - 2 - in_idx;
                   }
                 }
+                // at this point we know that in_idx is in valid range
+                out_data[out_idx * out_stride] = window_fn.data[t] * in_data[in_idx * in_stride];
+              } else {
+                // force out-of-range values to 0 (and avoid multiplication)
+                out_data[out_idx * out_stride] = (in_idx >= 0 && in_idx < in_size) ?
+                  window_fn.data[t] * in_data[in_idx * in_stride] : 0;
               }
-              out_data[out_idx * out_stride] = (in_idx >= 0 && in_idx < in_size) ?
-                window_fn.data[t] * in_data[in_idx * in_stride] : 0;
             }
           } else {  // no special treatment for this window (just copy)
             for (int64_t t = 0; t < window_length_; t++) {
@@ -150,7 +156,6 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
 template class ExtractWindowsCpu<float, float, 1>;  // 1-channel
 template class ExtractWindowsCpu<float, float, 2>;  // n-channel
 
-}  // namespace window
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
