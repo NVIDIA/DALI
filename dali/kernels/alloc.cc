@@ -39,7 +39,11 @@ struct Allocator<AllocType::Host> {
 template <>
 struct Allocator<AllocType::Pinned> {
   static void Deallocate(void *ptr, int device) noexcept {
-    DeviceGuard guard(device);
+    try {
+      DeviceGuard guard(device);
+    } catch (...) {
+      std::terminate();
+    }
     cudaFreeHost(ptr);
   }
 
@@ -53,7 +57,11 @@ struct Allocator<AllocType::Pinned> {
 template <>
 struct Allocator<AllocType::GPU> {
   static void Deallocate(void *ptr, int device) noexcept {
-    DeviceGuard guard(device);
+    try {
+      DeviceGuard guard(device);
+    } catch (...) {
+      std::terminate();
+    }
     cudaFree(ptr);
   }
 
@@ -68,7 +76,11 @@ struct Allocator<AllocType::GPU> {
 template <>
 struct Allocator<AllocType::Unified> {
   static void Deallocate(void *ptr, int device) noexcept {
-    DeviceGuard guard(device);
+    try {
+      DeviceGuard guard(device);
+    } catch (...) {
+      std::terminate();
+    }
     cudaFree(ptr);
   }
 

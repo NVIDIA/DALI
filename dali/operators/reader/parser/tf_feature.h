@@ -41,7 +41,7 @@ class Feature {
     float float32;
   };
 
-  Feature() {}
+  Feature() : has_shape_(false), type_(int64) {}
 
   Feature(std::vector<Index> shape, FeatureType type, Value val) {
     has_shape_ = true;
@@ -181,7 +181,7 @@ class Feature {
 
     // default value
     DaliProtoPriv value_arg = arg.extra_args(3);
-    TFUtil::Feature::Value val;
+    TFUtil::Feature::Value val = {};
     switch (type) {
       case TFUtil::FeatureType::int64:
         val.int64 = value_arg.ints(0);

@@ -168,22 +168,3 @@ class RandomlyShapedDataIterator(object):
         return (batch)
 
     next = __next__
-
-class DataIterator(object):
-    def __init__(self, batch_size, y_data, dtype):
-        self.batch_size = batch_size
-        self.test_data = []
-        for _ in range(self.batch_size):
-            self.test_data.append(np.array(y_data, dtype=dtype))
-
-    def __iter__(self):
-        self.i = 0
-        self.n = self.batch_size
-        return self
-
-    def __next__(self):
-        batch = self.test_data
-        self.i = (self.i + 1) % self.n
-        return (batch)
-
-    next = __next__
