@@ -49,9 +49,7 @@ class ExtractWindowsCpuTest : public::testing::TestWithParam<
     SequentialFill(in_view_, 0);
   }
   TensorShape<2> data_shape_;
-  int64_t window_length_ = -1, window_step_ = -1;
-  int axis_ = -1;
-  int64_t window_center_ = -1;
+  int window_length_ = -1, window_step_ = -1, axis_ = -1, window_center_ = -1;
   bool reflect_pad_ = false;
   std::vector<float> data_;
   OutTensorCPU<float, 2> in_view_;
@@ -136,7 +134,7 @@ TEST_P(ExtractWindowsCpuTest, ExtractWindowsTest) {
   auto in_stride = in_strides[axis_];
   auto out_stride = out_strides[axis_];
 
-  int64_t window_center_offset = window_center_ < 0 ? window_length_ / 2 : window_center_;
+  int window_center_offset = window_center_ < 0 ? window_length_ / 2 : window_center_;
   for (int i = 0; i < in_view_.shape[0]; i++) {
     auto *out_slice = expected_out_view.data + i * out_strides[0];
     auto *in_slice = in_view_.data + i * in_strides[0];

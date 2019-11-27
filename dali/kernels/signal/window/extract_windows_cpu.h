@@ -29,11 +29,11 @@ namespace signal {
 namespace window {
 
 struct ExtractWindowsArgs {
-  int64_t window_length = -1;
-  int64_t window_step = -1;
-  int64_t window_center = -1;
-  int     axis = -1;
-  bool    reflect_pad = false;
+  int window_length = -1;
+  int window_step = -1;
+  int window_center = -1;
+  int axis = -1;
+  bool reflect_pad = false;
 
   inline bool operator==(const ExtractWindowsArgs& oth) const {
     return window_length == oth.window_length &&
@@ -98,12 +98,12 @@ class DLL_PUBLIC ExtractWindowsCpu {
                       const ExtractWindowsArgs &args);
 
  private:
-  int64_t window_length_ = -1;
-  int64_t window_step_ = -1;
-  int64_t window_fn_length_ = -1;
-  int64_t nwindows_ = -1;
+  int window_length_ = -1;
+  int window_step_ = -1;
+  int window_fn_length_ = -1;
+  int nwindows_ = -1;
   int axis_ = -1;
-  int64_t window_center_offset_ = 0;
+  int window_center_offset_ = 0;
   bool    reflect_pad_ = false;
 };
 
