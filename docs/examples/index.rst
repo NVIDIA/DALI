@@ -18,3 +18,4 @@ Tutorials
    extend/create_a_custom_operator.ipynb
    python_operator/python_operator.ipynb
    expressions.ipynb
+   audio/index

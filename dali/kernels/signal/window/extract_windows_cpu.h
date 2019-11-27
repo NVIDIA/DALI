@@ -22,31 +22,11 @@
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/signal/window/extract_windows_args.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
-namespace window {
-
-struct ExtractWindowsArgs {
-  int64_t window_length = -1;
-  int64_t window_step = -1;
-  int64_t window_center = -1;
-  int     axis = -1;
-  bool    reflect_pad = false;
-
-  inline bool operator==(const ExtractWindowsArgs& oth) const {
-    return window_length == oth.window_length &&
-           window_step == oth.window_step &&
-           window_center == oth.window_center &&
-           axis == oth.axis &&
-           reflect_pad == oth.reflect_pad;
-  }
-
-  inline bool operator!=(const ExtractWindowsArgs& oth) const {
-    return !operator==(oth);
-  }
-};
 
 /**
  * @brief Extracts windows from 1D signal applying a custom window function
@@ -98,16 +78,15 @@ class DLL_PUBLIC ExtractWindowsCpu {
                       const ExtractWindowsArgs &args);
 
  private:
-  int64_t window_length_ = -1;
-  int64_t window_step_ = -1;
-  int64_t window_fn_length_ = -1;
-  int64_t nwindows_ = -1;
+  int window_length_ = -1;
+  int window_step_ = -1;
+  int window_fn_length_ = -1;
   int axis_ = -1;
-  int64_t window_center_offset_ = 0;
-  bool    reflect_pad_ = false;
+  int window_center_offset_ = 0;
+  int64_t nwindows_ = -1;
+  Padding padding_ = Padding::Zero;
 };
 
-}  // namespace window
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
