@@ -17,6 +17,7 @@
 #include "dali/operators/signal/fft/spectrogram.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/signal/window/extract_windows_cpu.h"
+#include "dali/kernels/signal/window/window_functions.h"
 #include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
@@ -116,15 +117,6 @@ namespace {
     args.transform_axis = ndims - 2;
   }
 
-  void CreateWindowHann(span<float> window_fn_data) {
-    int N = window_fn_data.size();
-    double a = (2*M_PI/N);
-    for (int t = 0; t < N; t++) {
-      double phase = a * (t+0.5);
-      window_fn_data.data()[t] = static_cast<float>(0.5 * (1.0 - std::cos(phase)));
-    }
-  }
-
 }  // namespace
 
 template <int Dims>
@@ -140,7 +132,7 @@ SpectrogramImplCpu<Dims>::SpectrogramImplCpu(const OpSpec & spec)
 
   if (window_fn_.empty()) {
     window_fn_.resize(window_length_);
-    CreateWindowHann(make_span(window_fn_));
+    kernels::signal::HannWindow(make_span(window_fn_));
   }
   DALI_ENFORCE(window_fn_.size() == static_cast<size_t>(window_length_),
     "Window function should match the specified `window_length`");
