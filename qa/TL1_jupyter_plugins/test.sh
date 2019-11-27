@@ -15,7 +15,7 @@ test_body() {
   # attempt to run jupyter on all example notebooks
   black_list_files="optical_flow_example.ipynb\|tensorflow-dataset-*\|#" 
   # optical flow requires TU102 architecture whilst currently L1_jupyter_plugins test can be run only on V100
-  # tensorflow-datset requires TF >= 1.15
+  # tensorflow-dataset requires TF >= 1.15, they are run in TL1_tensorflow_dataset
 
 
   # test code
