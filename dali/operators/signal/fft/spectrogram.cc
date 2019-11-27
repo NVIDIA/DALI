@@ -53,12 +53,13 @@ power.)code",
     2)
   .AddOptionalArg("center_windows",
     R"code(Indicates whether extracted windows should be padded so that window function is centered
-at multiples of `window_step`.)code",
+at multiples of `window_step`. If set to false, the signal will not be padded, that is only windows 
+within the input range will be extracted.)code",
     true)
   .AddOptionalArg("reflect_padding",
     R"code(Indicates the padding policy when sampling outside the bounds of the signal. If set to
-true, the signal is mirrored with respecto to the boundary, otherwise the signal is padded with
-zeros.)code",
+true, the signal is mirrored with respect to the boundary, otherwise the signal is padded with
+zeros. Note: This option is ignored when `center_windows` is set to false.)code",
     true);
 
 template <int Dims>
@@ -82,9 +83,11 @@ struct SpectrogramImplCpu : detail::OpImplBase<CPUBackend> {
   int window_length_ = -1;
   int window_step_ = -1;
   int power_ = -1;
-  bool reflect_padding_ = true;
   std::vector<float> window_fn_;
   int window_center_ = -1;
+
+  using Padding = kernels::signal::Padding;
+  Padding padding_;
 
   kernels::KernelManager kmgr_window_;
   kernels::signal::ExtractWindowsArgs window_args_;
@@ -101,7 +104,7 @@ namespace {
                    int power, int window_length, int nfft, int ndims) {
     args.nfft = nfft;
     DALI_ENFORCE(window_length <= nfft, make_string(
-      "Window length (", window_length, ") can't be bigger than the FFFT size (", nfft, ")"));
+      "Window length (", window_length, ") can't be bigger than the FFT size (", nfft, ")"));
     switch (power) {
       case 1:
         args.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_MAGNITUDE;
@@ -125,7 +128,6 @@ SpectrogramImplCpu<Dims>::SpectrogramImplCpu(const OpSpec & spec)
     , window_length_(spec.GetArgument<int>("window_length"))
     , window_step_(spec.GetArgument<int>("window_step"))
     , power_(spec.GetArgument<int>("power"))
-    , reflect_padding_(spec.GetArgument<bool>("reflect_padding"))
     , window_fn_(spec.GetRepeatedArgument<float>("window_fn")) {
   DALI_ENFORCE(window_length_ > 0, make_string("Invalid window length: ", window_length_));
   DALI_ENFORCE(window_step_ > 0, make_string("Invalid window step: ", window_step_));
@@ -137,7 +139,13 @@ SpectrogramImplCpu<Dims>::SpectrogramImplCpu(const OpSpec & spec)
   DALI_ENFORCE(window_fn_.size() == static_cast<size_t>(window_length_),
     "Window function should match the specified `window_length`");
 
-  window_center_ = spec.GetArgument<bool>("center_windows") ? window_length_ / 2 : 0;
+  if (spec.GetArgument<bool>("center_windows")) {
+    window_center_ = window_length_ / 2;
+    padding_ = spec.GetArgument<bool>("reflect_padding") ? Padding::Reflect : Padding::Zero;
+  } else {
+    padding_ = Padding::None;
+    window_center_ = 0;
+  }
 }
 
 
@@ -157,9 +165,13 @@ bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
   kmgr_window_.Initialize<WindowKernel>();
   kmgr_window_.Resize<WindowKernel>(nthreads, nsamples);
   constexpr int axis = InputDims - 1;
-  using kernels::signal::Padding;
-  Padding padding = reflect_padding_ ? Padding::Reflect : Padding::Zero;
-  window_args_ = {window_length_, window_center_, window_step_, axis, padding};
+  window_args_ = {window_length_, window_center_, window_step_, axis, padding_};
+
+  for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
+    int64_t signal_length = in_shape.tensor_shape(sample_id)[axis];
+    DALI_ENFORCE(window_args_.num_windows(signal_length) > 0,
+      make_string("Signal is too short (", signal_length, ") for sample ", sample_id));
+  }
 
   kmgr_fft_.Initialize<FftKernel>();
   kmgr_fft_.Resize<FftKernel>(nthreads, nsamples);
