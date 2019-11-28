@@ -22,8 +22,6 @@ from functools import partial
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
-from test_utils import ConstantDataIterator
-import librosa as librosa
 import math
 
 class ToDecibelsPipeline(Pipeline):
