@@ -14,6 +14,7 @@
 
 project(dali_operator)
 
+add_subdirectory(audio)
 add_subdirectory(color)
 add_subdirectory(color_space)
 add_subdirectory(crop)

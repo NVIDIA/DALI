@@ -52,26 +52,31 @@ bool PreemphasisFilterCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_des
 void PreemphasisFilterCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
-  for (int i = 0; i < batch_size_; ++i) {
+  auto &tp = ws.GetThreadPool();
+
+  for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
     TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
       TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
           {
-            const auto in_ptr = input[i].data<InputType>();
-            auto out_ptr = output[i].mutable_data<OutputType>();
-            auto num_samples = volume(output[i].shape());
-            DALI_ENFORCE(input[i].shape() == output[i].shape(),
-                         "Input and output shapes don't match");
-            if (preemph_coeff_ == 0.f) {
-              for (long j = 0; j < num_samples; j++) {  // NOLINT (long)
-                out_ptr[j] = ConvertSat<OutputType>(in_ptr[j]);
-              }
-            } else {
-              for (auto j = num_samples - 1; j > 0; j--) {
-                out_ptr[j] = ConvertSat<OutputType>(
-                        in_ptr[j] - in_ptr[j - 1] * preemph_coeff_);
-              }
-              out_ptr[0] = ConvertSat<OutputType>(in_ptr[0] * preemph_coeff_);
-            }
+            auto work = [&, sample_id](int thread_id) {
+                    const auto in_ptr = input[sample_id].data<InputType>();
+                    auto out_ptr = output[sample_id].mutable_data<OutputType>();
+                    auto num_samples = volume(output[sample_id].shape());
+                    DALI_ENFORCE(input[sample_id].shape() == output[sample_id].shape(),
+                             "Input and output shapes don't match");
+                if (preemph_coeff_ == 0.f) {
+                  for (long j = 0; j < num_samples; j++) {  // NOLINT (long)
+                    out_ptr[j] = ConvertSat<OutputType>(in_ptr[j]);
+                  }
+                } else {
+                  for (auto j = num_samples - 1; j > 0; j--) {
+                    out_ptr[j] = ConvertSat<OutputType>(
+                            in_ptr[j] - in_ptr[j - 1] * preemph_coeff_);
+                  }
+                  out_ptr[0] = ConvertSat<OutputType>(in_ptr[0] * preemph_coeff_);
+                }
+            };
+            tp.DoWorkWithID(work);
           }
       ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
     ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
