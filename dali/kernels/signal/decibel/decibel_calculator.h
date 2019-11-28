@@ -40,7 +40,7 @@ struct DecibelCalculator {
   }
 
  private:
-  static constexpr  T kLog2Factor = 0.3010299956639812; // std::log10(2.0);
+  static constexpr  T kLog2Factor = 0.3010299956639812;  // std::log10(2.0);
 
   // equivalent multiplier in terms of log2
   T mul_log2_;

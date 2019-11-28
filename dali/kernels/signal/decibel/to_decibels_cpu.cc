@@ -58,6 +58,9 @@ void ToDecibelsCpu<T, Dims>::Run(
       if (in.data[i] > s_ref)
         s_ref = in.data[i];
     }
+    // avoid division by 0
+    if (s_ref == 0.0)
+      s_ref = 1.0;
   }
 
   DecibelCalculator<T> dB(args.multiplier, s_ref, args.min_ratio);
