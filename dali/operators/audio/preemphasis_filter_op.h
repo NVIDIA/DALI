@@ -42,8 +42,6 @@ class PreemphasisFilter : public Operator<Backend> {
  protected:
   explicit PreemphasisFilter(const OpSpec &spec) :
           Operator<Backend>(spec),
-          preemph_coeff_(spec.GetArgument<std::remove_const_t<decltype(this->preemph_coeff_)>>(
-                  detail::kCoeff)),
           output_type_(spec.GetArgument<std::remove_const_t<decltype(this->output_type_)>>(
                   detail::kDtype)) {}
 
@@ -52,9 +50,12 @@ class PreemphasisFilter : public Operator<Backend> {
     return true;
   }
 
+  void AcquireArguments(const ArgumentWorkspace &ws) {
+    this->GetPerSampleArgument(preemph_coeff_, detail::kCoeff, ws);
+  }
 
   USE_OPERATOR_MEMBERS();
-  const float preemph_coeff_;
+  std::vector<float> preemph_coeff_;
   const DALIDataType output_type_;
 };
 

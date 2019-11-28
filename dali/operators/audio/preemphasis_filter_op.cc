@@ -34,6 +34,7 @@ DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterCpu, CPU);
 bool PreemphasisFilterCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                                      const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
+  AcquireArguments(ws);
   output_desc.resize(detail::kNumOutputs);
   output_desc[0].shape = input.shape();
   TYPE_SWITCH(output_type_, type2id, DType, PREEMPH_TYPES, (
@@ -62,16 +63,16 @@ void PreemphasisFilterCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                     auto num_samples = volume(output[sample_id].shape());
                     DALI_ENFORCE(input[sample_id].shape() == output[sample_id].shape(),
                              "Input and output shapes don't match");
-                if (preemph_coeff_ == 0.f) {
+                if (preemph_coeff_[sample_id] == 0.f) {
                   for (long j = 0; j < num_samples; j++) {  // NOLINT (long)
                     out_ptr[j] = ConvertSat<OutputType>(in_ptr[j]);
                   }
                 } else {
                   for (auto j = num_samples - 1; j > 0; j--) {
                     out_ptr[j] = ConvertSat<OutputType>(
-                            in_ptr[j] - in_ptr[j - 1] * preemph_coeff_);
+                            in_ptr[j] - in_ptr[j - 1] * preemph_coeff_[sample_id]);
                   }
-                  out_ptr[0] = ConvertSat<OutputType>(in_ptr[0] * preemph_coeff_);
+                  out_ptr[0] = ConvertSat<OutputType>(in_ptr[0] * preemph_coeff_[sample_id]);
                 }
             };
             tp.DoWorkWithID(work);
