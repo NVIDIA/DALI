@@ -17,10 +17,16 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
-import math
 
 sample_size = 100
 premade_batch = [np.random.rand(sample_size)]
+
+
+def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
+    """
+    Python2.7 doesn't have math.isclose()
+    """
+    return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
 
 def preemph(signal, coeff=0.0):
@@ -56,7 +62,7 @@ def perform_test(preemph_coeff):
     for i in range(sample_size):
         a = outputs[0].at(0)[i]
         b = reference_signal[i]
-        assert math.isclose(a, b, abs_tol=eps)
+        assert isclose(a, b, abs_tol=eps)
 
 
 def test_normal_distribution():
