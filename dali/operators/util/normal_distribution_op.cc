@@ -38,8 +38,9 @@ DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);
 bool NormalDistributionCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
+  AcquireArguments(ws);
   output_desc.resize(detail::kNumOutputs);
-  output_desc[0].shape = input.shape();
+  output_desc[0].shape = GetOutputShape(ws);
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
           {
             TypeInfo type;
@@ -51,17 +52,38 @@ bool NormalDistributionCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_de
 }
 
 
-void NormalDistributionCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
-  for (int i = 0; i < batch_size_; ++i) {
-    TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
-            {
-              auto ptr = output[i].mutable_data<DType>();
-              for (long j = 0; j < volume(output[i].shape()); j++) {  // NOLINT (long)
-                ptr[j] = ConvertSat<DType>(distribution_(rng_));
-              }
+  TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
+          distribution_t distribution(mean_[0], stddev_[0]);
+          for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+              auto ptr = output[0].mutable_data<DType>();
+              *ptr = ConvertSat<DType>(distribution(rng_));
+          }
+  ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
+}
+
+
+void NormalDistributionCpu::AssignTensorToOutput(workspace_t<CPUBackend> &ws) {
+  auto &output = ws.OutputRef<CPUBackend>(0);
+  auto &tp = ws.GetThreadPool();
+  TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
+            for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+                distribution_t distribution(mean_[sample_id], stddev_[sample_id]);
+                auto ptr = output[sample_id].mutable_data<DType>();
+                for (long j = 0; j < volume(output[sample_id].shape()); j++) {  // NOLINT (long)
+                    ptr[j] = ConvertSat<DType>(distribution(rng_));
+                }
             }
-    ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
+}
+
+
+void NormalDistributionCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+  if (this->single_value_in_output_) {
+    AssignSingleValueToOutput(ws);
+  } else {
+    AssignTensorToOutput(ws);
   }
 }
 

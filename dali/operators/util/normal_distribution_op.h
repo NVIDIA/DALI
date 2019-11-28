@@ -28,6 +28,7 @@ namespace detail {
  */
 const std::string kMean = "mean";      // NOLINT
 const std::string kStddev = "stddev";  // NOLINT
+const std::string kShape = "shape";    // NOLINT
 const std::string kDtype = "dtype";    // NOLINT
 const int kNumOutputs = 1;
 
@@ -43,8 +44,6 @@ class NormalDistribution : public Operator<Backend> {
  protected:
   explicit NormalDistribution(const OpSpec &spec) :
           Operator<Backend>(spec),
-          mean_(spec.GetArgument<std::remove_const_t<decltype(this->mean_)>>(detail::kMean)),
-          stddev_(spec.GetArgument<std::remove_const_t<decltype(this->stddev_)>>(detail::kStddev)),
           seed_(spec.GetArgument<std::remove_const_t<decltype(this->seed_)>>("seed")),
           dtype_(spec.GetArgument<std::remove_const_t<decltype(this->dtype_)>>(detail::kDtype)) {}
 
@@ -54,18 +53,54 @@ class NormalDistribution : public Operator<Backend> {
   }
 
 
+  void AcquireArguments(const workspace_t<CPUBackend> &ws) {
+    this->GetPerSampleArgument(mean_, detail::kMean, ws);
+    this->GetPerSampleArgument(stddev_, detail::kStddev, ws);
+  }
+
+
+  TensorListShape<> GetOutputShape(const workspace_t<CPUBackend> &ws) {
+    if (spec_.NumRegularInput() == 1) {
+      single_value_in_output_ = false;
+      return ws.template InputRef<CPUBackend>(0).shape();
+    } else if (spec_.NumArgumentInput() == 1) {
+      single_value_in_output_ = false;
+      std::vector<int> shape;
+      this->GetPerSampleArgument(shape, detail::kShape, ws);
+      TensorListShape<> ret(batch_size_);
+      for (int i = 0; i < batch_size_; i++) {
+        ret.set_tensor_shape(i, shape);
+      }
+      return ret;
+    } else if (spec_.NumRegularInput() == 0 && spec_.NumArgumentInput() == 0) {
+      single_value_in_output_ = true;
+      TensorListShape<> ret(batch_size_);
+      for (int i = 0; i < batch_size_; i++) {
+        ret.set_tensor_shape(i, {1});
+      }
+      return ret;
+    } else {
+      DALI_FAIL(make_string(
+              "Operator called with wrong arguments. This operator can be called with: one Input, "
+              "one ArgumentInput or no inputs. Detected: [", spec_.NumRegularInput(),
+              " Inputs] and [", spec_.NumArgumentInput(), " ArgumentInputs]."));
+    }
+  }
+
+
   USE_OPERATOR_MEMBERS();
-  const float mean_, stddev_;
+  std::vector<float> mean_, stddev_;
   const int64_t seed_;
   const DALIDataType dtype_;
+
+  /// When this is true it means, that neither Input or ArgumentInput have been provided
+  bool single_value_in_output_ = false;
 };
 
 
 class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
  public:
-  explicit NormalDistributionCpu(const OpSpec &spec) : NormalDistribution(spec), rng_(seed_),
-                                                       distribution_(mean_, stddev_) {}
-
+  explicit NormalDistributionCpu(const OpSpec &spec) : NormalDistribution(spec), rng_(seed_) {}
 
   ~NormalDistributionCpu() override = default;
 
@@ -77,9 +112,16 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
 
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
+ private:
+  void AssignTensorToOutput(workspace_t<CPUBackend> &ws);
+
+  void AssignSingleValueToOutput(workspace_t<CPUBackend> &ws);
+
   std::mt19937_64 rng_;
   static_assert(std::is_same<decltype(mean_), decltype(stddev_)>::value, "");
-  std::normal_distribution<std::remove_const_t<decltype(mean_)>> distribution_;
+  static_assert(is_vector<decltype(mean_)>::value,
+                "It's assumed, that both `mean` and `stddev` are vectors (for ArgumentInput)");
+  using distribution_t = std::normal_distribution<decltype(mean_)::value_type>;
 };
 
 

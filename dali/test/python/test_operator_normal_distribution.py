@@ -17,7 +17,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
-from scipy.stats import normaltest
+import scipy.stats as st
 
 
 class NormalDistributionPipeline(Pipeline):
@@ -46,8 +46,9 @@ def test_normal_distribution():
         outputs = pipeline.run()
         for i in range(bsize):
             possibly_normal_distribution = outputs[0].at(i).flatten()
-            _, pvalue = normaltest(possibly_normal_distribution)
-            assert pvalue > 0.2  # It's not 100% mathematically correct, but makes do in case of this test
+            _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
+            # It's not 100% mathematically correct, but makes do in case of this test
+            assert pvalues_anderson[2] > 0.5 
 
 
 if __name__ == '__main__':
