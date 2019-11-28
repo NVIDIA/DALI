@@ -38,7 +38,8 @@ namespace dali {
 
 #define ALLOWED_BIN_OPS                                                                            \
   (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::fdiv, \
-      ArithmeticOp::mod)
+      ArithmeticOp::mod, ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq, \
+      ArithmeticOp::gt, ArithmeticOp::geq)
 
 struct ExprImplTask {
   ExprImplBase *impl;
@@ -215,7 +216,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
             result.reset(new ImplConstantTensor<op_static, Out_t, Left_t, Right_t>());
           } else if (expr[0].GetNodeType() == NodeType::Tensor &&
                      expr[1].GetNodeType() == NodeType::Tensor) {
-            // Bot are non-scalar tensors
+            // Both are non-scalar tensors
             result.reset(new ImplTensorTensor<op_static, Out_t, Left_t, Right_t>());
           } else {
             DALI_FAIL("Expression cannot have two scalar operands");

@@ -220,6 +220,48 @@ inline void GetConstantNodes(ExprNode &expr, std::vector<ExprConstant *> &nodes)
 }
 
 /**
+ * @brief Provide an error when the node is an arithmetic operator (other than `*`)
+ *        that has only boolean inputs.
+ */
+inline void CheckArithmeticOnBooleans(ExprFunc &func) {
+  auto op = NameToOp(func.GetFuncName());
+  if (IsArithmetic(op) && op != ArithmeticOp::mul) {
+    bool inputs_are_bool = true;
+    for (int i = 0; i < func.GetSubexpressionCount(); i++) {
+      inputs_are_bool = inputs_are_bool && func[i].GetTypeId() == DALIDataType::DALI_BOOL;
+    }
+    if (func.GetSubexpressionCount() == 1) {
+      DALI_ENFORCE(
+          !inputs_are_bool,
+          make_string(
+              "Input to unary arithmetic operator `", to_string(op),
+              "` cannot be a boolean. Consider using bitwise operator `~` or an numeric type."));
+    } else {
+      DALI_ENFORCE(
+          !inputs_are_bool,
+          make_string("All inputs to arithmetic operator `", to_string(op),
+                      "` cannot be booleans. Consider using bitwise operators `|`, `&`, `^` or use "
+                      "numeric type as one of the inputs to force type promotions of the booleans. "
+                      "Note: using `*` (multiplication) is still allowed for boolean inputs."));
+    }
+  }
+}
+
+inline void CheckAllowedOperations(ExprNode &expr) {
+  if (expr.GetNodeType() == NodeType::Constant) {
+    return;
+  }
+  if (expr.GetNodeType() == NodeType::Tensor) {
+    return;
+  }
+  auto &func = dynamic_cast<ExprFunc &>(expr);
+  CheckArithmeticOnBooleans(func);
+  for (int i = 0; i < func.GetSubexpressionCount(); i++) {
+    CheckAllowedOperations(func[i]);
+  }
+}
+
+/**
  * @brief Arithmetic operator capable of executing expression tree of element-wise
  *        arithmetic operations.
  *
@@ -256,6 +298,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
       std::vector<ExprConstant *> constant_nodes;
       GetConstantNodes(*expr_, constant_nodes);
       constant_storage_.Initialize(spec_, ws.has_stream() ? ws.stream() : 0, constant_nodes);
+      CheckAllowedOperations(*expr_);
       types_layout_inferred_ = true;
     }
 

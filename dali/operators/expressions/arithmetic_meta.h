@@ -40,14 +40,23 @@ constexpr int kMaxArity = 2;
  *
  */
 enum class ArithmeticOp : int {
+  // Unary arithmetic ops
   plus,
   minus,
+  // Binary arithmetic ops
   add,
   sub,
   mul,
   div,
   fdiv,
   mod,
+  // Binary comparisons
+  eq,   // ==
+  neq,  // !=
+  lt,   // <
+  leq,  // <=
+  gt,   // >
+  geq   // >=
 };
 
 DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
@@ -61,15 +70,52 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::div:
     case ArithmeticOp::fdiv:
     case ArithmeticOp::mod:
+    case ArithmeticOp::eq:
+    case ArithmeticOp::neq:
+    case ArithmeticOp::lt:
+    case ArithmeticOp::leq:
+    case ArithmeticOp::gt:
+    case ArithmeticOp::geq:
       return 2;
     default:
       return -1;
   }
 }
 
+DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
+  switch (op) {
+    case ArithmeticOp::plus:
+    case ArithmeticOp::minus:
+    case ArithmeticOp::add:
+    case ArithmeticOp::sub:
+    case ArithmeticOp::mul:
+    case ArithmeticOp::div:
+    case ArithmeticOp::fdiv:
+    case ArithmeticOp::mod:
+      return true;
+    default:
+      return false;
+  }
+}
+
+DALI_HOST_DEV constexpr bool IsComparison(ArithmeticOp op) {
+  switch (op) {
+    case ArithmeticOp::eq:
+    case ArithmeticOp::neq:
+    case ArithmeticOp::lt:
+    case ArithmeticOp::leq:
+    case ArithmeticOp::gt:
+    case ArithmeticOp::geq:
+      return true;
+    default:
+      return false;
+  }
+}
+
+
 // TODO(klecki): float16
 #define ARITHMETIC_ALLOWED_TYPES \
-  (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, double)
+  (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, double)
 
 /**
  * @brief Type promotion rules
@@ -105,11 +151,12 @@ template <>                                                      \
 struct binary_op_promotion<Arg2, Arg1> { using type = Result; }
 
 
-REGISTER_TYPE_PROMOTION(float,   float16, float);
-REGISTER_TYPE_PROMOTION(double,  float16, double);
+REGISTER_TYPE_PROMOTION(float,    float16, float);
+REGISTER_TYPE_PROMOTION(double,   float16, double);
 
-REGISTER_TYPE_PROMOTION(double,  float, double);
+REGISTER_TYPE_PROMOTION(double,   float, double);
 
+REGISTER_TYPE_PROMOTION(bool,     float16, float16);
 REGISTER_TYPE_PROMOTION(int8_t,   float16, float16);
 REGISTER_TYPE_PROMOTION(uint8_t,  float16, float16);
 REGISTER_TYPE_PROMOTION(int16_t,  float16, float16);
@@ -119,6 +166,7 @@ REGISTER_TYPE_PROMOTION(uint32_t, float16, float16);
 REGISTER_TYPE_PROMOTION(int64_t,  float16, float16);
 REGISTER_TYPE_PROMOTION(uint64_t, float16, float16);
 
+REGISTER_TYPE_PROMOTION(bool,     float, float);
 REGISTER_TYPE_PROMOTION(int8_t,   float, float);
 REGISTER_TYPE_PROMOTION(uint8_t,  float, float);
 REGISTER_TYPE_PROMOTION(int16_t,  float, float);
@@ -128,6 +176,7 @@ REGISTER_TYPE_PROMOTION(uint32_t, float, float);
 REGISTER_TYPE_PROMOTION(int64_t,  float, float);
 REGISTER_TYPE_PROMOTION(uint64_t, float, float);
 
+REGISTER_TYPE_PROMOTION(bool,     double, double);
 REGISTER_TYPE_PROMOTION(int8_t,   double, double);
 REGISTER_TYPE_PROMOTION(uint8_t,  double, double);
 REGISTER_TYPE_PROMOTION(int16_t,  double, double);
@@ -136,6 +185,15 @@ REGISTER_TYPE_PROMOTION(int32_t,  double, double);
 REGISTER_TYPE_PROMOTION(uint32_t, double, double);
 REGISTER_TYPE_PROMOTION(int64_t,  double, double);
 REGISTER_TYPE_PROMOTION(uint64_t, double, double);
+
+REGISTER_TYPE_PROMOTION(int8_t,   bool, int8_t);
+REGISTER_TYPE_PROMOTION(uint8_t,  bool, uint8_t);
+REGISTER_TYPE_PROMOTION(int16_t,  bool, int16_t);
+REGISTER_TYPE_PROMOTION(uint16_t, bool, uint16_t);
+REGISTER_TYPE_PROMOTION(int32_t,  bool, int32_t);
+REGISTER_TYPE_PROMOTION(uint32_t, bool, uint32_t);
+REGISTER_TYPE_PROMOTION(int64_t,  bool, int64_t);
+REGISTER_TYPE_PROMOTION(uint64_t, bool, uint64_t);
 
 REGISTER_TYPE_PROMOTION(uint8_t,  int8_t, int16_t);
 REGISTER_TYPE_PROMOTION(int16_t,  int8_t, int16_t);
@@ -293,6 +351,127 @@ REGISTER_BINARY_IMPL(ArithmeticOp::sub, -);
 REGISTER_BINARY_IMPL(ArithmeticOp::mul, *);
 REGISTER_BINARY_IMPL(ArithmeticOp::div, /);
 
+// @TODO(klecki): move it somewhere appropriate
+
+template <typename T>
+struct type_wrapper {
+  using type = T;
+};
+
+template <typename T>
+struct to_unsigned;
+
+template <>
+struct to_unsigned<int8_t> : type_wrapper<uint8_t>{};
+template <>
+struct to_unsigned<int16_t> : type_wrapper<uint16_t>{};
+template <>
+struct to_unsigned<int32_t> : type_wrapper<uint32_t>{};
+template <>
+struct to_unsigned<int64_t> : type_wrapper<uint64_t>{};
+
+template <typename T>
+using to_unsigned_t = typename to_unsigned<T>::type;
+
+
+template <typename T>
+struct to_signed;
+
+template <>
+struct to_signed<uint8_t> : type_wrapper<int8_t>{};
+template <>
+struct to_signed<uint16_t> : type_wrapper<int16_t>{};
+template <>
+struct to_signed<uint32_t> : type_wrapper<int32_t>{};
+template <>
+struct to_signed<uint64_t> : type_wrapper<int64_t>{};
+
+template <typename T>
+using to_signed_t = typename to_signed<T>::type;
+
+/**
+ * @brief Create a template class with cmp static member function for safe comparisons
+ *
+ * @param EXPR the comparison expression, for example `==` or `<=`
+ * @param NAME the name of the operation added as suffix to `safe_compare_` class name
+ * @param LEFT_NEGATIVE what should be returned if the left operand is negative
+ *                      and it is compared with unsigned operand.
+ * @param RIGHT_NEGATIVE as above but for right negative operand compared with left unsigned type
+ *
+ * For example if we have `<=`, when comparing negative value on the left with unsigedn value on the
+ * right, the result is always true, like `-1 <= 1u`.
+ *
+ * The result of cmp is direct use of the provided EXPR or special case for comparing signed
+ * and unsigned integers that handles the negative case
+ */
+#define REGISTER_SAFE_COMPARE(EXPR, NAME, LEFT_NEGATIVE, RIGHT_NEGATIVE)                      \
+  template <typename Left, typename Right,                                                    \
+            bool LeftSigned = std::is_integral<Left>::value &&std::is_signed<Left>::value,    \
+            bool RightSigned = std::is_integral<Right>::value &&std::is_signed<Right>::value> \
+  struct safe_compare_##NAME {                                                                \
+    DALI_HOST_DEV static constexpr bool cmp(Left l, Right r) {                                \
+      return l EXPR r;                                                                        \
+    }                                                                                         \
+  };                                                                                          \
+  template <typename Left, typename Right>                                                    \
+  struct safe_compare_##NAME<Left, Right, true, false> {                                      \
+    DALI_HOST_DEV static constexpr bool cmp(Left l, Right r) {                                \
+      if (l < 0) {                                                                            \
+        return LEFT_NEGATIVE;                                                                 \
+      }                                                                                       \
+      return static_cast<to_unsigned_t<Left>>(l) EXPR r;                                      \
+    }                                                                                         \
+  };                                                                                          \
+  template <typename Left, typename Right>                                                    \
+  struct safe_compare_##NAME<Left, Right, false, true> {                                      \
+    DALI_HOST_DEV static constexpr bool cmp(Left l, Right r) {                                \
+      if (r < 0) {                                                                            \
+        return RIGHT_NEGATIVE;                                                                \
+      }                                                                                       \
+      return l EXPR static_cast<to_unsigned_t<Right>>(r);                                     \
+    }                                                                                         \
+  };
+
+REGISTER_SAFE_COMPARE(==, eq,  false, false);
+REGISTER_SAFE_COMPARE(!=, neq, true,  true);
+REGISTER_SAFE_COMPARE(<,  lt,  true,  false);
+REGISTER_SAFE_COMPARE(<=, leq, true,  false);
+REGISTER_SAFE_COMPARE(>,  gt,  false, true);
+REGISTER_SAFE_COMPARE(>=, geq, false, true);
+
+#define REGISTER_COMPARISON_IMPL_BACKEND(OP, EXPRESSION, NAME, BACKEND)             \
+  template <>                                                                       \
+  struct arithm_meta<OP, BACKEND> {                                                 \
+    template <typename L, typename R>                                               \
+    using result_t = bool;                                                          \
+                                                                                    \
+    template <typename L, typename R>                                               \
+    DALI_HOST_DEV static constexpr result_t<L, R> impl(L l, R r) {                  \
+      static_assert(GetOpArity(OP) == 2,                                            \
+                    "Registered operation arity does not match the requirements."); \
+      return safe_compare_##NAME<L, R>::cmp(l, r);                                  \
+    }                                                                               \
+                                                                                    \
+    static inline std::string to_string() {                                         \
+      return #EXPRESSION;                                                           \
+    }                                                                               \
+                                                                                    \
+    static constexpr int num_inputs = 2;                                            \
+    static constexpr int num_outputs = 1;                                           \
+  }
+
+#define REGISTER_COMPARISON_IMPL(OP, EXPRESSION, NAME)          \
+  REGISTER_COMPARISON_IMPL_BACKEND(OP, EXPRESSION, NAME, CPUBackend); \
+  REGISTER_COMPARISON_IMPL_BACKEND(OP, EXPRESSION, NAME, GPUBackend)
+
+REGISTER_COMPARISON_IMPL(ArithmeticOp::eq,  ==, eq);
+REGISTER_COMPARISON_IMPL(ArithmeticOp::neq, !=, neq);
+REGISTER_COMPARISON_IMPL(ArithmeticOp::lt,  <,  lt);
+REGISTER_COMPARISON_IMPL(ArithmeticOp::leq, <=, leq);
+REGISTER_COMPARISON_IMPL(ArithmeticOp::gt,  >,  gt);
+REGISTER_COMPARISON_IMPL(ArithmeticOp::geq, >=, geq);
+
+
 template <typename Backend>
 struct arithm_meta<ArithmeticOp::fdiv, Backend> {
   template <typename L, typename R>
@@ -381,10 +560,13 @@ struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
   static constexpr int num_outputs = 1;
 };
 
+
 inline std::string to_string(ArithmeticOp op) {
   std::string result;
-  VALUE_SWITCH(op, op_static,
-    (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod),
+  VALUE_SWITCH(op, op_static, (ArithmeticOp::plus, ArithmeticOp::minus,
+      ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod,
+      ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq, ArithmeticOp::gt,
+      ArithmeticOp::geq),
       (result = arithm_meta<op_static, CPUBackend>::to_string();),
       (result = "InvalidOp";)
   );  // NOLINT(whitespace/parens)
@@ -396,13 +578,9 @@ inline std::string to_string(ArithmeticOp op) {
  */
 inline DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right) {
   DALIDataType result = DALIDataType::DALI_NO_TYPE;
-  TYPE_SWITCH(left, type2id, Left_t,
-    (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t,
-        int64_t, uint64_t, float16, float, double),
+  TYPE_SWITCH(left, type2id, Left_t, ARITHMETIC_ALLOWED_TYPES,
     (
-      TYPE_SWITCH(right, type2id, Right_t,
-        (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t,
-            int64_t, uint64_t, float16, float, double),
+      TYPE_SWITCH(right, type2id, Right_t, ARITHMETIC_ALLOWED_TYPES,
         (
           using Result_t = binary_result_t<Left_t, Right_t>;
           result = TypeInfo::Create<Result_t>().id();
@@ -424,6 +602,9 @@ inline DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types) {
   if (types.size() == 1) {
     return types[0];
   }
+  if (IsComparison(op)) {
+    return DALIDataType::DALI_BOOL;
+  }
   if (op == ArithmeticOp::fdiv) {
     if (!IsFloatingPoint(types[0]) && !IsFloatingPoint(types[1])) {
       return DALIDataType::DALI_FLOAT;
@@ -442,7 +623,13 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"mul",   ArithmeticOp::mul},
       {"div",   ArithmeticOp::div},
       {"fdiv",  ArithmeticOp::fdiv},
-      {"mod",   ArithmeticOp::mod}
+      {"mod",   ArithmeticOp::mod},
+      {"eq",    ArithmeticOp::eq},
+      {"neq",   ArithmeticOp::neq},
+      {"lt",    ArithmeticOp::lt},
+      {"leq",   ArithmeticOp::leq},
+      {"gt",    ArithmeticOp::gt},
+      {"geq",   ArithmeticOp::geq}
   };
   auto it = token_to_op.find(op_name);
   DALI_ENFORCE(it != token_to_op.end(), "No implementation for op \"" + op_name + "\".");
