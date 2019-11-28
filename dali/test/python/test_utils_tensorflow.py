@@ -14,15 +14,12 @@
 
 import tensorflow as tf
 from tensorflow.python.client import device_lib
-from distutils.version import StrictVersion
+import nvidia.dali.plugin.tf as dali_tf
 from nose import SkipTest
-
-def compatible_tensorflow():
-    return StrictVersion(tf.__version__) >= StrictVersion('1.15')
 
 
 def skip_for_incompatible_tf():
-    if not compatible_tensorflow():
+    if not dali_tf.dataset_compatible_tensorflow():
         raise SkipTest('This feature is enabled for TF 1.15 and higher')
 
 
@@ -32,6 +29,7 @@ def num_available_gpus():
     if num_gpus not in [1, 2, 4, 8]:
         raise RuntimeError('Unsupported number of GPUs. This test can run on: 1, 2, 4, 8 GPUs.')
     return num_gpus
+
 
 def available_gpus():
     devices = []

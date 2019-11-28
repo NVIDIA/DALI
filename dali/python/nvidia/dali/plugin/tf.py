@@ -129,7 +129,12 @@ def _get_tf_version():
   return StrictVersion(tf.__version__)
 
 
-if _get_tf_version() >= StrictVersion('1.15'):
+MIN_TENSORFLOW_VERSION = StrictVersion('1.15')
+def dataset_compatible_tensorflow():
+    return StrictVersion(tf.__version__) >= MIN_TENSORFLOW_VERSION
+
+
+if dataset_compatible_tensorflow():
   from tensorflow.python.framework import ops
   from tensorflow.python.data.ops import dataset_ops
   from tensorflow.python.data.util import structure
