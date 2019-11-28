@@ -19,7 +19,6 @@ import nvidia.dali.types as types
 import numpy as np
 import math
 
-eps = 1e-5
 sample_size = 100
 premade_batch = [np.random.rand(sample_size)]
 
@@ -49,6 +48,7 @@ class PreemphasisPipeline(Pipeline):
 
 
 def perform_test(preemph_coeff):
+    eps = 1e-5
     pipeline = PreemphasisPipeline(preemph_coeff=preemph_coeff)
     pipeline.build()
     outputs = pipeline.run()

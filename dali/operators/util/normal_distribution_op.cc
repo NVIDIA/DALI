@@ -19,7 +19,7 @@ namespace dali {
 
 
 DALI_SCHEMA(NormalDistribution)
-                .DocStr(R"code(Creates a tensor is data distributed normally.
+                .DocStr(R"code(Creates a tensor that consists of data distributed normally.
 The shape of the provided tensor is implied by the tensor provided as an input.
 No data from the input tensor is taken into account, only the shape of it.)code")
                 .NumInput(1)

@@ -63,7 +63,7 @@ class NormalDistribution : public Operator<Backend> {
 
 class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
  public:
-  explicit NormalDistributionCpu(const OpSpec &spec) : NormalDistribution(spec), rng_(),
+  explicit NormalDistributionCpu(const OpSpec &spec) : NormalDistribution(spec), rng_(seed_),
                                                        distribution_(mean_, stddev_) {}
 
 
