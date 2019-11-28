@@ -134,27 +134,44 @@ class DLL_PUBLIC Pipeline {
     return logical_id;
   }
 
+  template <typename T, typename Backend>
+  void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr) {
+    ExternalSource<Backend> *source = dynamic_cast<ExternalSource<Backend>*>(op_ptr);
+    DALI_ENFORCE(source != nullptr, "Input name '" +
+                 name + "' is not marked as an external input.");
+    source->SetDataSource(tl);
+  }
+
   /**
    * @brief Helper function for the SetExternalInput.
    */
   template <typename T>
   inline void SetExternalInputHelper(const string &name,
       const T &tl) {
-    if (!graph_.TensorExists(name + "_cpu")) {
-      // Trying to set data for non existing node is a noop
-      return;
+    bool is_cpu_node = true;
+    OpNodeId node_id;
+
+    if (graph_.TensorExists(name + "_cpu")) {
+      node_id = graph_.TensorSourceID(name + "_cpu");
+      DALI_ENFORCE(graph_.NodeType(node_id) == OpType::CPU,
+                   "Internal error setting external input data.");
+    } else if (graph_.TensorExists(name + "_gpu")) {
+      is_cpu_node = false;
+      node_id = graph_.TensorSourceID(name + "_gpu");
+      DALI_ENFORCE(graph_.NodeType(node_id) == OpType::GPU,
+                   "Internal error setting external input data.");
+    } else {
+      DALI_FAIL("Cannot find " + name + " tensor, it doesn't exists or was pruned as unused one.");
     }
-    OpNodeId node_id = graph_.TensorSourceID(name + "_cpu");
-    DALI_ENFORCE(graph_.NodeType(node_id) == OpType::CPU,
-        "Internal error setting external input data.");
 
     auto &node = graph_.Node(node_id);
-    auto *op_ptr = &node.InstantiateOperator();
-    ExternalSource<CPUBackend> *source =
-      dynamic_cast<ExternalSource<CPUBackend>*>(op_ptr);
-    DALI_ENFORCE(source != nullptr, "Input name '" +
-        name + "' is not marked as an external input.");
-    source->SetDataSource(tl);
+    OperatorBase *op_ptr = &node.InstantiateOperator();
+
+    if (is_cpu_node) {
+      SetDataSourceHelper<T, CPUBackend>(name, tl, op_ptr);
+    } else {
+      SetDataSourceHelper<T, GPUBackend>(name, tl, op_ptr);
+    }
   }
 
   /**
