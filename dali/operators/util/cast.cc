@@ -13,6 +13,7 @@
 // limitations under the License.
 
 
+#include "dali/core/static_switch.h"
 #include "dali/operators/util/cast.h"
 
 namespace dali {
@@ -24,14 +25,13 @@ void Cast<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
   DALIDataType itype = input.type().id();
 
-  DALI_TYPE_SWITCH_WITH_FP16(output_type_, OType,
-      output.mutable_data<OType>();
-      output.ResizeLike(input);
-      DALI_TYPE_SWITCH_WITH_FP16(itype, IType,
-        CPUHelper<OType, IType>(
-          output.mutable_data<OType>(),
-          input.data<IType>(),
-          input.size());););
+  TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
+    output.mutable_data<OType>();
+    output.ResizeLike(input);
+    TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
+      CPUHelper<OType, IType>(output.mutable_data<OType>(), input.data<IType>(), input.size());
+    ), DALI_FAIL("Invalid input type"););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL("Invalid output type"););  // NOLINT(whitespace/parens)
 }
 
 DALI_REGISTER_OPERATOR(Cast, Cast<CPUBackend>, CPU);
