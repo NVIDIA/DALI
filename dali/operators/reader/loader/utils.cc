@@ -58,7 +58,7 @@ bool HasExtension(std::string filepath, const std::vector<std::string> &extensio
 }
 
 
-bool HasExtension(const std::string &filepath) {
+bool HasKnownExtension(const std::string &filepath) {
   std::vector<std::string> extensions;
 
   extensions.insert(extensions.end(), kKnownAudioExtensions.begin(), kKnownAudioExtensions.end());

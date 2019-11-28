@@ -39,7 +39,7 @@ DLL_PUBLIC bool HasExtension(std::string filepath, const std::vector<std::string
 /**
  * Convenient overload to verify against all known extensions
  */
-DLL_PUBLIC bool HasExtension(const std::string &filepath);
+DLL_PUBLIC bool HasKnownExtension(const std::string &filepath);
 
 }  // namespace dali
 
