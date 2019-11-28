@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_DECIBEL_AMPLITUDE_TO_DB_CPU_H_
-#define DALI_KERNELS_SIGNAL_DECIBEL_AMPLITUDE_TO_DB_CPU_H_
+#ifndef DALI_KERNELS_SIGNAL_DECIBEL_TO_DECIBELS_CPU_H_
+#define DALI_KERNELS_SIGNAL_DECIBEL_TO_DECIBELS_CPU_H_
 
 #include <memory>
 #include "dali/core/common.h"
@@ -21,30 +21,30 @@
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/signal/decibel/amplitude_to_db_args.h"
+#include "dali/kernels/signal/decibel/to_decibels_args.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
 
 template <typename T = float, int Dims = 1>
-class DLL_PUBLIC AmplitudeToDbCpu {
+class DLL_PUBLIC ToDecibelsCpu {
  public:
   static_assert(std::is_floating_point<T>::value,
     "Only floating point types are supported");
 
-  DLL_PUBLIC ~AmplitudeToDbCpu();
+  DLL_PUBLIC ~ToDecibelsCpu();
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
                                       const InTensorCPU<T, Dims> &in,
-                                      const AmplitudeToDbArgs<T> &args);
+                                      const ToDecibelsArgs<T> &args);
 
   DLL_PUBLIC void Run(KernelContext &context,
                       const OutTensorCPU<T, Dims> &out,
                       const InTensorCPU<T, Dims> &in,
-                      const AmplitudeToDbArgs<T> &args);
+                      const ToDecibelsArgs<T> &args);
  private:
-  AmplitudeToDbArgs<T> args_;
+  ToDecibelsArgs<T> args_;
   T s_ref_ = 0.0;
 };
 
@@ -52,4 +52,4 @@ class DLL_PUBLIC AmplitudeToDbCpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_DECIBEL_AMPLITUDE_TO_DB_CPU_H_
+#endif  // DALI_KERNELS_SIGNAL_DECIBEL_TO_DECIBELS_CPU_H_

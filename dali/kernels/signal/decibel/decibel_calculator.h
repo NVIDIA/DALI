@@ -24,7 +24,7 @@ namespace signal {
 template <typename T>
 struct DecibelCalculator {
  public:
-  DecibelCalculator(T mul = 10.0, T s_ref = 1.0, T min_ratio = 1e-8)
+  explicit DecibelCalculator(T mul = 10.0, T s_ref = 1.0, T min_ratio = 1e-8)
       : mul_log2_(mul / std::log2(10.0))
       , inv_s_ref_(s_ref == 1.0 ? 1.0 : 1.0 / s_ref)
       , min_ratio_(min_ratio) {

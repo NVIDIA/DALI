@@ -18,7 +18,7 @@
 #include <complex>
 #include <cmath>
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/signal/decibel/amplitude_to_db_cpu.h"
+#include "dali/kernels/signal/decibel/to_decibels_cpu.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
@@ -28,7 +28,7 @@ namespace kernels {
 namespace signal {
 namespace test {
 
-class AmplitudeToDbCpuTest : public::testing::TestWithParam<
+class ToDecibelsCpuTest : public::testing::TestWithParam<
   std::tuple<std::array<int64_t, 2> /* data_shape */,
              float /* mul */,
              float /* s_ref */,
@@ -36,7 +36,7 @@ class AmplitudeToDbCpuTest : public::testing::TestWithParam<
              float /* data_max */,
              bool  /* ref_max */>> {
  public:
-  AmplitudeToDbCpuTest()
+  ToDecibelsCpuTest()
     : data_shape_(std::get<0>(GetParam()))
     , mul_(std::get<1>(GetParam()))
     , s_ref_(std::get<2>(GetParam()))
@@ -46,7 +46,7 @@ class AmplitudeToDbCpuTest : public::testing::TestWithParam<
     , data_(volume(data_shape_))
     , in_view_(data_.data(), data_shape_) {}
 
-  ~AmplitudeToDbCpuTest() override = default;
+  ~ToDecibelsCpuTest() override = default;
 
  protected:
   void SetUp() final {
@@ -75,14 +75,14 @@ void print_data(const OutTensorCPU<T, 2>& data_view) {
   }
 }
 
-TEST_P(AmplitudeToDbCpuTest, AmplitudeToDbCpuTest) {
+TEST_P(ToDecibelsCpuTest, ToDecibelsCpuTest) {
   using T = float;
   constexpr int Dims = 2;
-  AmplitudeToDbCpu<T, Dims> kernel;
+  ToDecibelsCpu<T, Dims> kernel;
   check_kernel<decltype(kernel)>();
 
   KernelContext ctx;
-  AmplitudeToDbArgs<T> args;
+  ToDecibelsArgs<T> args;
   args.multiplier = mul_;
   args.s_ref = s_ref_;
   args.min_ratio = min_ratio_;
@@ -131,7 +131,7 @@ TEST_P(AmplitudeToDbCpuTest, AmplitudeToDbCpuTest) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(AmplitudeToDbCpuTest, AmplitudeToDbCpuTest, testing::Combine(
+INSTANTIATE_TEST_SUITE_P(ToDecibelsCpuTest, ToDecibelsCpuTest, testing::Combine(
     testing::Values(std::array<int64_t, 2>{1, 100},
                     std::array<int64_t, 2>{2, 12}),
     testing::Values(10.0, 20.0),     // mul

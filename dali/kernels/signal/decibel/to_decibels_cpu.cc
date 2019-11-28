@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/kernels/signal/decibel/amplitude_to_db_cpu.h"
+#include "dali/kernels/signal/decibel/to_decibels_cpu.h"
 #include <cmath>
 #include <complex>
+#include <vector>
 #include "dali/core/common.h"
-#include "dali/core/convert.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
-#include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/signal/decibel/decibel_calculator.h"
 
@@ -28,13 +27,13 @@ namespace kernels {
 namespace signal {
 
 template <typename T, int Dims>
-AmplitudeToDbCpu<T, Dims>::~AmplitudeToDbCpu() = default;
+ToDecibelsCpu<T, Dims>::~ToDecibelsCpu() = default;
 
 template <typename T, int Dims>
-KernelRequirements AmplitudeToDbCpu<T, Dims>::Setup(
+KernelRequirements ToDecibelsCpu<T, Dims>::Setup(
     KernelContext &context,
     const InTensorCPU<T, Dims> &in,
-    const AmplitudeToDbArgs<T> &args) {
+    const ToDecibelsArgs<T> &args) {
   auto out_shape = in.shape;
   auto data_size = volume(in.shape);
   std::vector<TensorShape<DynamicDimensions>> tmp = {out_shape};  // workaround for clang-6 bug
@@ -53,11 +52,11 @@ KernelRequirements AmplitudeToDbCpu<T, Dims>::Setup(
 }
 
 template <typename T, int Dims>
-void AmplitudeToDbCpu<T, Dims>::Run(
+void ToDecibelsCpu<T, Dims>::Run(
     KernelContext &context,
     const OutTensorCPU<T, Dims> &out,
     const InTensorCPU<T, Dims> &in,
-    const AmplitudeToDbArgs<T> &args) {
+    const ToDecibelsArgs<T> &args) {
   auto in_size = volume(in.shape);
   auto out_size = volume(out.shape);
   assert(out_size == in_size);
@@ -68,15 +67,15 @@ void AmplitudeToDbCpu<T, Dims>::Run(
   }
 }
 
-template class AmplitudeToDbCpu<float, 1>;
-template class AmplitudeToDbCpu<float, 2>;
-template class AmplitudeToDbCpu<float, 3>;
-template class AmplitudeToDbCpu<float, 4>;
+template class ToDecibelsCpu<float, 1>;
+template class ToDecibelsCpu<float, 2>;
+template class ToDecibelsCpu<float, 3>;
+template class ToDecibelsCpu<float, 4>;
 
-template class AmplitudeToDbCpu<double, 1>;
-template class AmplitudeToDbCpu<double, 2>;
-template class AmplitudeToDbCpu<double, 3>;
-template class AmplitudeToDbCpu<double, 4>;
+template class ToDecibelsCpu<double, 1>;
+template class ToDecibelsCpu<double, 2>;
+template class ToDecibelsCpu<double, 3>;
+template class ToDecibelsCpu<double, 4>;
 
 }  // namespace signal
 }  // namespace kernels

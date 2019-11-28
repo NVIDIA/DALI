@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_DECIBEL_AMPLITUDE_TO_DB_ARGS_H_
-#define DALI_KERNELS_SIGNAL_DECIBEL_AMPLITUDE_TO_DB_ARGS_H_
+#ifndef DALI_KERNELS_SIGNAL_DECIBEL_TO_DECIBELS_ARGS_H_
+#define DALI_KERNELS_SIGNAL_DECIBEL_TO_DECIBELS_ARGS_H_
 
 namespace dali {
 namespace kernels {
 namespace signal {
 
 template <typename T = float>
-struct AmplitudeToDbArgs {
+struct ToDecibelsArgs {
   // multiplier to the log10 (i.e. `dB = multiplier * log10(s_ratio)`)
   T multiplier = 10.0;
 
@@ -40,4 +40,4 @@ struct AmplitudeToDbArgs {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_DECIBEL_AMPLITUDE_TO_DB_ARGS_H_
+#endif  // DALI_KERNELS_SIGNAL_DECIBEL_TO_DECIBELS_ARGS_H_
