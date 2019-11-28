@@ -35,19 +35,9 @@ KernelRequirements ToDecibelsCpu<T, Dims>::Setup(
     const InTensorCPU<T, Dims> &in,
     const ToDecibelsArgs<T> &args) {
   auto out_shape = in.shape;
-  auto data_size = volume(in.shape);
   std::vector<TensorShape<DynamicDimensions>> tmp = {out_shape};  // workaround for clang-6 bug
   KernelRequirements req;
   req.output_shapes = {TensorListShape<DynamicDimensions>(tmp)};
-
-  s_ref_ = args.s_ref;
-  if (args.ref_max) {
-    s_ref_ = 0.0;
-    for (int64_t i = 0; i < data_size; i++) {
-      if (in.data[i] > s_ref_)
-        s_ref_ = in.data[i];
-    }
-  }
   return req;
 }
 
@@ -61,7 +51,16 @@ void ToDecibelsCpu<T, Dims>::Run(
   auto out_size = volume(out.shape);
   assert(out_size == in_size);
 
-  DecibelCalculator<T> dB(args.multiplier, s_ref_, args.min_ratio);
+  auto s_ref = args.s_ref;
+  if (args.ref_max) {
+    s_ref = 0.0;
+    for (int64_t i = 0; i < in_size; i++) {
+      if (in.data[i] > s_ref)
+        s_ref = in.data[i];
+    }
+  }
+
+  DecibelCalculator<T> dB(args.multiplier, s_ref, args.min_ratio);
   for (int64_t i = 0; i < in_size; i++) {
     out.data[i] = dB(in.data[i]);
   }

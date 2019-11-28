@@ -43,9 +43,6 @@ class DLL_PUBLIC ToDecibelsCpu {
                       const OutTensorCPU<T, Dims> &out,
                       const InTensorCPU<T, Dims> &in,
                       const ToDecibelsArgs<T> &args);
- private:
-  ToDecibelsArgs<T> args_;
-  T s_ref_ = 0.0;
 };
 
 }  // namespace signal
