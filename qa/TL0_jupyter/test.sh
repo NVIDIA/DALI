@@ -4,6 +4,8 @@ pip_packages="jupyter numpy matplotlib pillow opencv-python simpleaudio"
 target_dir=./docs/examples
 
 do_once() {
+    apt update
+    apt install -y libasound2-dev
     # attempt to run jupyter on all example notebooks
     mkdir -p idx_files
 }
