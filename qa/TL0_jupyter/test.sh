@@ -1,6 +1,9 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter numpy matplotlib pillow opencv-python simpleaudio"
+pip_packages="jupyter numpy matplotlib pillow opencv-python"
+if [ "$PYVER" != "2.7" ]; then
+    pip_packages="${pip_packages} simpleaudio" 
+fi
 target_dir=./docs/examples
 
 do_once() {
@@ -19,7 +22,7 @@ test_body() {
     # Blacklist for python2. Can be removed after dropping python2
     if [ "$PYVER" == "2.7" ]; then
         black_list_files="multigpu\|audiodecoder"
-    fi
+    fi    
 
     ls *.ipynb | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
