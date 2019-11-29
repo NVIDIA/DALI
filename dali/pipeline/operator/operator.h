@@ -37,6 +37,13 @@
 namespace dali {
 
 /**
+ * Names for most commonly used arguments, to keep consistency between arg naming amongst operators.
+ */
+namespace arg_names {
+const std::string kDtype = "dtype";          // NOLINT
+}  // namespace arg_names
+
+/**
  * @brief Gets a data layout for the input at given index
  *
  * If the layout is explicitly defined, it's verified against the schema.

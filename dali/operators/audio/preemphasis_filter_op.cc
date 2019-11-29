@@ -25,7 +25,8 @@ This filter in simple form can be expressed by the formula:
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
                 .AddOptionalArg(detail::kCoeff, R"code(Preemphasis coefficient `coeff`)code", 0.f)
-                .AddOptionalArg(detail::kDtype, R"code(Data type for the output)code", DALI_FLOAT);
+                .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
+                                DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterCpu, CPU);
 

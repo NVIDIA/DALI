@@ -23,11 +23,7 @@
 namespace dali {
 namespace detail {
 
-/**
- * Names of arguments
- */
 const std::string kCoeff = "preemph_coeff";  // NOLINT
-const std::string kDtype = "dtype";          // NOLINT
 const int kNumOutputs = 1;
 
 }  // namespace detail
@@ -43,7 +39,7 @@ class PreemphasisFilter : public Operator<Backend> {
   explicit PreemphasisFilter(const OpSpec &spec) :
           Operator<Backend>(spec),
           output_type_(spec.GetArgument<std::remove_const_t<decltype(this->output_type_)>>(
-                  detail::kDtype)) {}
+                  arg_names::kDtype)) {}
 
 
   bool CanInferOutputs() const override {
