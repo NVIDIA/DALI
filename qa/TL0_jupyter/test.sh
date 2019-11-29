@@ -11,9 +11,15 @@ do_once() {
 }
 
 test_body() {
+
     # test code
     # dummy patern
-    black_list_files="multigpu\|audiodecoder"
+    black_list_files="multigpu"
+
+    # Blacklist for python2. Can be removed after dropping python2
+    if [ "$PYVER" == "2.7" ]; then
+        black_list_files="multigpu\|audiodecoder"
+    fi
 
     ls *.ipynb | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
