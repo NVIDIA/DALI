@@ -23,14 +23,35 @@ namespace kernels {
 namespace audio {
 
 template <typename T>
-T hz_to_mel(T hz) {
-  return 2595.0 * std::log10(1 + hz / 700.0);
+T hz_to_mel(T hz) {}
+
+template <>
+float hz_to_mel(float hz) {
+  // equivalent to `2595.0 * std::log10(1 + hz / 700.0)`
+  return 1127.0f * std::log(1.0f + hz / 700.0f);
+}
+
+template <>
+double hz_to_mel(double hz) {
+  // equivalent to `2595.0 * std::log10(1 + hz / 700.0)`
+  return 1127.0 * std::log(1.0 + hz / 700.0);
 }
 
 template <typename T>
-T mel_to_hz(T mel) {
-  return 700.0 * (std::pow(10, mel / 2595.0) - 1.0);
+T mel_to_hz(T mel);
+
+template <>
+float mel_to_hz(float mel) {
+  // equivalent to `700.0 * (std::pow(10, mel / 2595.0) - 1.0)`
+  return 700.0f * (std::exp(mel / 1127.0f) - 1.0f);
 }
+
+template <>
+double mel_to_hz(double mel) {
+  // equivalent to `700.0 * (std::pow(10, mel / 2595.0) - 1.0)`
+  return 700.0 * (std::exp(mel / 1127.0) - 1.0);
+}
+
 
 template <typename T>
 class MelFilterBankImpl {

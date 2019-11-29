@@ -83,7 +83,7 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   auto expected_out_view = OutTensorCPU<T, Dims>(expected_out.data(), out_shape.to_static<Dims>());
 
   T sample_rate = 16000;
-  T mel_low = hz_to_mel(0);
+  T mel_low = hz_to_mel(0.0f);
   T mel_high = hz_to_mel(sample_rate / 2);
 
   T mel_delta = (mel_high - mel_low) / (nfilters + 1);
