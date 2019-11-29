@@ -49,7 +49,3 @@ def test_normal_distribution():
             _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
             # It's not 100% mathematically correct, but makes do in case of this test
             assert pvalues_anderson[2] > 0.5 
-
-
-if __name__ == '__main__':
-    test_normal_distribution()
