@@ -53,7 +53,7 @@ class PreemphasisPipeline(Pipeline):
         self.feed_input(self.data, premade_batch)
 
 
-def perform_test(preemph_coeff):
+def perform(preemph_coeff):
     eps = 1e-5
     pipeline = PreemphasisPipeline(preemph_coeff=preemph_coeff)
     pipeline.build()
@@ -65,10 +65,5 @@ def perform_test(preemph_coeff):
         assert isclose(a, b, abs_tol=eps)
 
 
-def test_normal_distribution():
-    perform_test(0.)
-    perform_test(0.5)
-
-
-if __name__ == '__main__':
-    test_normal_distribution()
+perform(0.)
+perform(0.5)
