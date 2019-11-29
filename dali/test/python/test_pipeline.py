@@ -723,8 +723,8 @@ def test_transpose():
 
     for _ in range(iterations):
         pipe_out = pipe.run()
-        images = pipe_out[0].asCPU().as_array()
-        images_transposed = pipe_out[1].asCPU().as_array()
+        images = pipe_out[0].as_cpu().as_array()
+        images_transposed = pipe_out[1].as_cpu().as_array()
 
         for b in range(batch_size):
             np_transposed = images[b].transpose((2, 0, 1))
