@@ -21,7 +21,7 @@ test_body() {
 
     # Blacklist for python2. Can be removed after dropping python2
     if [ "$PYVER" == "2.7" ]; then
-        black_list_files="multigpu\|audiodecoder"
+        black_list_files="multigpu\|audio_decoder"
     fi    
 
     ls *.ipynb | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
