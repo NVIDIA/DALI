@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/util/cast.h"
-#include "dali/core/error_handling.h"
-#include "dali/core/cuda_utils.h"
 #include "dali/core/convert.h"
+#include "dali/core/cuda_utils.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/static_switch.h"
+#include "dali/operators/util/cast.h"
 
 namespace dali {
 
@@ -47,16 +48,13 @@ void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
 
   DALIDataType itype = input.type().id();
-
-  DALI_TYPE_SWITCH_WITH_FP16(output_type_, OType,
-      output.mutable_data<OType>();
-      output.ResizeLike(input);
-      DALI_TYPE_SWITCH_WITH_FP16(itype, IType,
-        DALI_CALL(BatchedCast(
-            output.mutable_data<OType>(),
-            input.data<IType>(),
-            input.size(),
-            ws.stream()));););
+  TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
+    output.mutable_data<OType>();
+    output.ResizeLike(input);
+    TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
+      BatchedCast(output.mutable_data<OType>(), input.data<IType>(), input.size(), ws.stream());
+    ), DALI_FAIL("Invalid input type"););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL("Invalid output type"););  // NOLINT(whitespace/parens)
 }
 
 DALI_REGISTER_OPERATOR(Cast, Cast<GPUBackend>, GPU);

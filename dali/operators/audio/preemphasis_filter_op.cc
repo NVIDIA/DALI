@@ -25,14 +25,16 @@ This filter in simple form can be expressed by the formula:
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
                 .AddOptionalArg(detail::kCoeff, R"code(Preemphasis coefficient `coeff`)code", 0.f)
-                .AddOptionalArg(detail::kDtype, R"code(Data type for the output)code", DALI_FLOAT);
+                .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
+                                DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterCpu, CPU);
 
 #define PREEMPH_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
 
-bool PreemphasisFilterCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                                     const workspace_t<CPUBackend> &ws) {
+
+bool PreemphasisFilterCpu::SetupImpl(std::vector <OutputDesc> &output_desc,
+                                     const workspace_t <CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   AcquireArguments(ws);
   output_desc.resize(detail::kNumOutputs);
@@ -52,11 +54,9 @@ void PreemphasisFilterCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
-
-  for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-    TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
-      TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
-          {
+  TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
+    TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
+          for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
             auto work = [&, sample_id](int thread_id) {
                     const auto in_ptr = input[sample_id].data<InputType>();
                     auto out_ptr = output[sample_id].mutable_data<OutputType>();
@@ -77,9 +77,8 @@ void PreemphasisFilterCpu::RunImpl(workspace_t<CPUBackend> &ws) {
             };
             tp.DoWorkWithID(work);
           }
-      ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-    ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
-  }
+    ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
 }
 
 #undef PREEMPH_TYPES

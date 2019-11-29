@@ -34,43 +34,40 @@ class EventPool {
    * @brief Creates a pool with the given max size. If the input
    * size is < 0, the pool has no size limit.
    */
-  explicit inline EventPool(int max_size) : max_size_(max_size) {
-    DALI_ENFORCE(max_size != 0, "Event pool must have non-zero size.");
-  }
+  inline EventPool() = default;
 
   inline ~EventPool() noexcept(false) {
-    for (auto &event : events_) {
-      DeviceGuard g(event_devices_[event]);
-      CUDA_CALL(cudaEventSynchronize(event));
-      CUDA_CALL(cudaEventDestroy(event));
+    for (auto &event_info : events_) {
+      DeviceGuard g(event_info.device);
+      CUDA_CALL(cudaEventSynchronize(event_info.event));
+      CUDA_CALL(cudaEventDestroy(event_info.event));
     }
   }
 
   /**
-   * @brief Returns a event from the pool. If max_size has been exceeded,
-   * we hand out previously allocated events round-robin.
+   * @brief Returns a event from the pool.
    */
   cudaEvent_t GetEvent() {
-    if (max_size_ < 0 || (Index)events_.size() < max_size_) {
-      cudaEvent_t new_event;
-      CUDA_CALL(cudaEventCreateWithFlags(&new_event, cudaEventDisableTiming));
-      events_.push_back(new_event);
+    int dev;
+    CUDA_CALL(cudaGetDevice(&dev));
 
-      int dev;
-      CUDA_CALL(cudaGetDevice(&dev));
-      event_devices_[new_event] = dev;
+    cudaEvent_t new_event;
+    CUDA_CALL(cudaEventCreateWithFlags(&new_event, cudaEventDisableTiming));
+    events_.push_back({new_event, dev});
 
-      return new_event;
-    }
-    cudaEvent_t event = events_[idx_];
-    idx_ = (idx_+1) % events_.size();
-    return event;
+    return new_event;
   }
 
  private:
-  vector<cudaEvent_t> events_;
-  std::map<cudaEvent_t, int> event_devices_;
-  int max_size_, idx_ = 0;
+  /**
+   * @brief Stores information about created event - the event and the device it is created on.
+   */
+  struct event_device_info {
+    cudaEvent_t event;
+    int device;
+  };
+
+  std::vector<event_device_info> events_;
 };
 
 }  // namespace dali

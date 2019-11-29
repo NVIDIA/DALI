@@ -77,13 +77,36 @@ struct ret_type {  // a placeholder for return type
 
 template <typename T, typename U>
 DALI_HOST_DEV constexpr std::enable_if_t<
-    needs_clamp<U, T>::value && std::is_signed<U>::value,
+    needs_clamp<U, T>::value && std::is_signed<U>::value && std::is_signed<T>::value,
     T>
 clamp(U value, ret_type<T>) {
   return value <= min_value<T>() ? min_value<T>() :
          value >= max_value<T>() ? max_value<T>() :
          static_cast<T>(value);
 }
+
+template <typename T, typename U>
+DALI_HOST_DEV constexpr std::enable_if_t<
+    needs_clamp<U, T>::value && std::is_signed<U>::value && is_fp_or_half<U>::value
+        && std::is_unsigned<T>::value,
+    T>
+clamp(U value, ret_type<T>) {
+  return value <= min_value<T>() ? min_value<T>() :
+         value >= max_value<T>() ? max_value<T>() :
+         static_cast<T>(value);
+}
+
+template <typename T, typename U>
+DALI_HOST_DEV constexpr std::enable_if_t<
+    needs_clamp<U, T>::value && std::is_signed<U>::value && std::is_integral<U>::value
+        && std::is_unsigned<T>::value,
+    T>
+clamp(U value, ret_type<T>) {
+  return value <= 0 ? 0 :
+         static_cast<std::make_unsigned_t<U>>(value) >= max_value<T>() ? max_value<T>() :
+         static_cast<T>(value);
+}
+
 
 template <typename T, typename U>
 DALI_HOST_DEV constexpr std::enable_if_t<
