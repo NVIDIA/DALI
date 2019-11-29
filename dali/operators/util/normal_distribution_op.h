@@ -23,13 +23,9 @@
 namespace dali {
 namespace detail {
 
-/**
- * Names of arguments
- */
 const std::string kMean = "mean";      // NOLINT
 const std::string kStddev = "stddev";  // NOLINT
 const std::string kShape = "shape";    // NOLINT
-const std::string kDtype = "dtype";    // NOLINT
 const int kNumOutputs = 1;
 
 }  // namespace detail
@@ -45,7 +41,8 @@ class NormalDistribution : public Operator<Backend> {
   explicit NormalDistribution(const OpSpec &spec) :
           Operator<Backend>(spec),
           seed_(spec.GetArgument<std::remove_const_t<decltype(this->seed_)>>("seed")),
-          dtype_(spec.GetArgument<std::remove_const_t<decltype(this->dtype_)>>(detail::kDtype)) {}
+          dtype_(spec.GetArgument<std::remove_const_t<decltype(this->dtype_)>>(
+                  arg_names::kDtype)) {}
 
 
   bool CanInferOutputs() const override {

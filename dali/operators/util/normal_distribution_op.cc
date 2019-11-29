@@ -27,7 +27,8 @@ No data from the input tensor is taken into account, only the shape of it.)code"
                 .AddOptionalArg(detail::kMean, R"code(Mean value of the distribution)code", 0.f)
                 .AddOptionalArg(detail::kStddev,
                                 R"code(Standard deviation of the distribution)code", 1.f)
-                .AddOptionalArg(detail::kDtype, R"code(Data type for the output)code", DALI_FLOAT);
+                .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
+                                DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);
 
