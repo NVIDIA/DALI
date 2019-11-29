@@ -29,6 +29,7 @@ from PIL import Image
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
+from nose.tools import assert_raises
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -1083,7 +1084,7 @@ def test_external_source():
         def define_graph(self):
             self.batch_1 = self.input_1()
             self.batch_2 = self.input_2()
-            return [self.batch_1 ]
+            return [self.batch_1, self.batch_2]
 
         def iter_setup(self):
             batch_1, batch_2 = next(self.iterator)
@@ -1123,12 +1124,31 @@ def test_external_source_fail():
     batch_size = 3
     pipe = ExternalSourcePipeline(batch_size, batch_size - 1, 3, 0)
     pipe.build()
-    try:
-        pipe.run()
-    except RuntimeError:
-        pass
-    else:
-        assert False, "ExternalSource should throw"
+    assert_raises(RuntimeError, pipe.run)
+  
+def test_external_source_fail_missing_output():
+    class ExternalSourcePipeline(Pipeline):
+        def __init__(self, batch_size, external_s_size, num_threads, device_id):
+            super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.ExternalSource()
+            self.input_2 = ops.ExternalSource()
+            self.batch_size_ = batch_size
+            self.external_s_size_ = external_s_size
+
+        def define_graph(self):
+            self.batch = self.input()
+            self.batch_2 = self.input_2()
+            return [self.batch]
+
+        def iter_setup(self):
+            batch = np.zeros([self.external_s_size_,4,5])
+            self.feed_input(self.batch, batch)
+            self.feed_input(self.batch_2, batch)
+
+    batch_size = 3
+    pipe = ExternalSourcePipeline(batch_size, batch_size, 3, 0)
+    pipe.build()
+    assert_raises(RuntimeError, pipe.run)
 
 def test_external_source_fail_list():
     class ExternalSourcePipeline(Pipeline):
@@ -1151,12 +1171,7 @@ def test_external_source_fail_list():
     batch_size = 3
     pipe = ExternalSourcePipeline(batch_size, batch_size - 1, 3, 0)
     pipe.build()
-    try:
-        pipe.run()
-    except RuntimeError:
-        pass
-    else:
-        assert False, "ExternalSource should throw"
+    assert_raises(RuntimeError, pipe.run)
 
 def test_external_source_scalar_list():
     class ExternalSourcePipeline(Pipeline):
@@ -1193,6 +1208,36 @@ def test_external_source_scalar_list():
             for i in range(batch_size):
                 assert out[0].as_array()[i] == external_data[i]
         yield external_data_veri, external_data
+
+def test_external_source_gpu():
+    class ExternalSourcePipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, use_list):
+            super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
+            self.input = ops.ExternalSource(device="gpu")
+            self.crop = ops.Crop(device="gpu", crop_h=32, crop_w=32, crop_pos_x=0.2, crop_pos_y=0.2)
+            self.use_list = use_list
+
+        def define_graph(self):
+            self.batch = self.input()
+            output = self.crop(self.batch)
+            return output
+
+        def iter_setup(self):
+            if use_list:
+                batch_data = [np.random.rand(100, 100, 3) for _ in range(self.batch_size)]
+            else:
+                batch_data = np.random.rand(self.batch_size, 100, 100, 3)
+            self.feed_input(self.batch, batch_data)
+
+    for batch_size in [1, 10]:
+        for use_list in (True, False):
+            pipe = ExternalSourcePipeline(batch_size, 3, 0, use_list)
+            pipe.build()
+            try: 
+                pipe.run()
+            except RuntimeError as e:
+                if not use_list:
+                    assert(1), "For tensor list GPU external source should fail"
 
 def external_data_veri(external_data):
     pass
