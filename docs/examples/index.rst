@@ -4,6 +4,9 @@ Tutorials
 .. toctree::
    :maxdepth: 2
 
+   audio_decoder.ipynb
+   hsv_example.ipynb
+   brightness_contrast_example.ipynb
    dataloading
    serialization.ipynb
    detection_pipeline.ipynb
