@@ -178,6 +178,16 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
+   * Notes if the operator can process 3D data.
+   * @param support
+   * @return
+   */
+  DLL_PUBLIC inline OpSchema& SupportVolumetric(bool support = true) {
+    support_volumetric_ = support;
+    return *this;
+  }
+
+  /**
    * @brief Notes that this operator is internal to DALI backend (and shouldn't be exposed in Python API)
    */
   DLL_PUBLIC inline OpSchema& MakeInternal() {
@@ -239,6 +249,12 @@ class DLL_PUBLIC OpSchema {
                  " already specified");
     for (auto &l : layouts) {
       DALI_ENFORCE(!l.empty(), "Cannot specify an empty layout for an input");
+    }
+    for (auto &l : layouts) {
+      if (l.contains('D')) {
+        support_volumetric_ = true;
+        break;
+      }
     }
     input_layouts_[index] = layouts;
     return *this;
@@ -403,6 +419,10 @@ class DLL_PUBLIC OpSchema {
     return allow_sequences_;
   }
 
+  DLL_PUBLIC inline bool SupportsVolumetric() const {
+    return support_volumetric_;
+  }
+
   DLL_PUBLIC inline bool IsInternal() const {
     return is_internal_;
   }
@@ -490,6 +510,8 @@ class DLL_PUBLIC OpSchema {
 
   bool allow_instance_grouping_ = true;
   vector<string> parents_;
+
+  bool support_volumetric_ = false;
 
   bool allow_sequences_ = false;
   bool is_sequence_operator_ = false;

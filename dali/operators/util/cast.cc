@@ -40,6 +40,8 @@ DALI_SCHEMA(Cast)
   .DocStr("Cast tensor to a different type")
   .NumInput(1)
   .NumOutput(1)
+  .AllowSequences()
+  .SupportVolumetric()
   .AddArg("dtype",
       R"code(Output data type.)code",
       DALI_DATA_TYPE);

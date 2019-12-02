@@ -27,6 +27,7 @@ DALI_SCHEMA(Crop)
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()
+    .SupportVolumetric()
     .AddOptionalArg(
         "image_type",
         R"code(The color space of input and output image)code",
