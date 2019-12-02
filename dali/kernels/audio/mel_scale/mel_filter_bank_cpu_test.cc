@@ -64,6 +64,70 @@ void print_data(const OutTensorCPU<T, 2>& data_view) {
   }
 }
 
+float hz_to_mel(float hz) {
+  return 2595.0f * std::log10(1.0f + hz / 700.0f);
+}
+
+float mel_to_hz(float mel) {
+  return 700.0f * (std::pow(10.0f, mel / 2595.0f) - 1.0f);
+}
+
+std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, float sample_rate,
+                                                     float low_freq, float high_freq) {
+  std::vector<std::vector<float>> fbanks(nfilter);
+  auto low_mel = hz_to_mel(low_freq);
+  auto high_mel = hz_to_mel(high_freq);
+
+  float delta_mel = (high_mel - low_mel) / (nfilter + 1);
+  std::vector<float> mel_points(nfilter+2, 0.0f);
+  for (int i = 0; i < static_cast<int>(mel_points.size()); i++) {
+    mel_points[i] = i * delta_mel;
+  }
+
+  std::vector<float> fftfreqs(nfft/2+1, 0.0f);
+  for (int i = 0; i < nfft/2+1; i++) {
+    fftfreqs[i] = i * sample_rate / nfft;
+  }
+
+  std::vector<float> freq_grid(mel_points.size(), 0.0f);
+  for (int i = 0; i < static_cast<int>(mel_points.size()); i++) {
+    freq_grid[i] = mel_to_hz(mel_points[i]);
+  }
+
+  for (int j = 0; j < nfilter; j++) {
+    auto &fbank = fbanks[j];
+    fbank.resize(nfft/2+1, 0.0f);
+    for (int i = 0; i < nfft/2+1; i++) {
+      auto f = fftfreqs[i];
+      auto upper = (f - freq_grid[j]) / (freq_grid[j+1] - freq_grid[j]);
+      auto lower = (freq_grid[j+2] - f) / (freq_grid[j+2] - freq_grid[j+1]);
+      fbank[i] = std::max(0.0f, std::min(upper, lower));
+    }
+
+    /*for (i = std::floor(bins[j]); i < std::ceil(bins[j+1]); i++) {
+      std::cout << "A Visit " << i << "\n";
+      auto ii = i + 0.5f;
+      fbank[i] = std::max(0.0f, (ii - bins[j]) / (bins[j+1] - bins[j]));
+    }
+
+    for (i = std::floor(bins[j+1]); i < std::ceil(bins[j+2]); i++) {
+      std::cout << "B Visit " << i << "\n";
+      auto ii = i + 0.5f;
+      fbank[i] = std::max(0.0f, (bins[j+2] - ii) / (bins[j+2] - bins[j+1]));
+    }*/
+  }
+
+  for (int j = 0; j < nfilter; j++) {
+    LOG_LINE << "Filter " << j << " :";
+    auto &fbank = fbanks[j];
+    for (int i = 0; i < static_cast<int>(fbank.size()); i++) {
+      LOG_LINE << " " << fbank[i];
+    }
+    LOG_LINE << std::endl;
+  }
+  return fbanks;
+}
+
 TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   using T = float;
   constexpr int Dims = 2;
@@ -99,7 +163,17 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   }
   LOG_LINE << "\n";
 
-
+  auto fbanks = ReferenceFilterBanks(nfilters, nfft, sample_rate, 0.0f, sample_rate/2.0f);
+  std::vector<T> expected_out2(out_size, 0.0f);
+  auto expected_out_view2 = OutTensorCPU<T, Dims>(expected_out2.data(), out_shape.to_static<Dims>());
+  for (int j = 0; j < nfilters; j++) {
+    for (int t = 0; t < nwin; t++) {
+      auto &out_val = expected_out_view2.data[j*nwin+t];
+      for (int i = 0; i < nfft/2+1; i++) {
+        out_val += fbanks[j][i] * in_view_.data[i*nwin+t];
+      }
+    }
+  }
 
   // In the outer loop we travel at a linearly spaced frequency grid in the mel scale
   // Each triangular filter is defined by three points in this grid (left, center, right)
@@ -173,10 +247,13 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
 
   LOG_LINE << "expected out:\n";
   print_data(expected_out_view);
+
+  LOG_LINE << "expected out 2:\n";
+  print_data(expected_out_view2);
 }
 
 INSTANTIATE_TEST_SUITE_P(MelScaleCpuTest, MelScaleCpuTest, testing::Combine(
-    testing::Values(std::array<int64_t, 2>{32, 10})));  // shape
+    testing::Values(std::array<int64_t, 2>{33, 10})));  // shape
 
 }  // namespace test
 }  // namespace audio

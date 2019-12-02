@@ -87,30 +87,27 @@ class MelFilterBankImpl {
     T mel0 = mel_low_;
     T mel1 = mel_low_ + mel_delta_;
     int fftbin = 0;
-    T hz = 0.5 * hz_step_;  // centered
+    bool centered = false;
+    T f = centered ? 0.5f * hz_step_ : 0.0f;
     for (int interval = 0, filter_up = 0, filter_down = -1;
          interval <= last_interval;
          interval++, mel0 = mel1, mel1 += mel_delta_, filter_up++, filter_down++) {
-      T slope = 1.0 / (mel1 - mel0);
       if (interval == last_interval)
         mel1 = mel_high_;
-
-      for (; fftbin < nfft_/2+1; fftbin++, hz += hz_step_) {
-        auto mel = hz_to_mel(hz);
-        if (mel > mel1)
-          break;
-
+      T f0 = mel_to_hz(mel0), f1 = mel_to_hz(mel1);
+      T slope = 1.0f / (f1 - f0);
+      for (; fftbin < nfft_/2+1 && f < f1; fftbin++, f += hz_step_) {
         auto *in_row_start = in + fftbin * in_stride;
         T weight_up = 0.0, weight_down = 0.0;
         if (filter_down >= 0) {
-          weight_down = (mel1 - mel) * slope;
+          weight_down = (f1 - f) * slope;
           auto *out_row_start = out + filter_down * out_stride;
           for (int t = 0; t < nwindows; t++)
             out_row_start[t] += weight_down * in_row_start[t];
         }
 
         if (filter_up < nfilter_) {
-          weight_up = (mel - mel0) * slope;
+          weight_up = (f - f0) * slope;
           auto *out_row_start = out + filter_up * out_stride;
           for (int t = 0; t < nwindows; t++)
             out_row_start[t] += weight_up * in_row_start[t];
