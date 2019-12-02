@@ -238,7 +238,7 @@ class RotatePipeline(CommonPipeline):
 class BrightnessPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
         super(BrightnessPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
-        self.brightness=ops.Brightness(device = "gpu", brightness = 0.5)
+        self.brightness=ops.BrightnessContrast(device = "gpu", brightness_delta = 0.5)
 
     def define_graph(self):
         images, labels = self.load()

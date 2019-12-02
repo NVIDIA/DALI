@@ -168,8 +168,11 @@ class DetectionPipeline(Pipeline):
             mirror=0,
             output_dtype=types.FLOAT)
 
-        self.twist_cpu = ops.ColorTwist(device="cpu")
-        self.twist_gpu = ops.ColorTwist(device="gpu")
+        self.bc_cpu = ops.BrightnessContrast(device="cpu")
+        self.bc_gpu = ops.BrightnessContrast(device="gpu")
+
+        self.hsv_cpu = ops.Hsv(device="cpu")
+        self.hsv_gpu = ops.Hsv(device="gpu")
 
         self.flip_cpu = ops.Flip(device="cpu")
         self.bbox_flip_cpu = ops.BbFlip(device="cpu", ltrb=True)
@@ -232,18 +235,10 @@ class DetectionPipeline(Pipeline):
         image_normalized_cpu = self.normalize_cpu(image_resized_cpu)
         image_normalized_gpu = self.normalize_gpu(image_resized_cpu.gpu())
 
-        image_twisted_cpu = self.twist_cpu(
-            image_ssd_crop,
-            saturation=saturation,
-            contrast=contrast,
-            brightness=brightness,
-            hue=hue)
-        image_twisted_gpu = self.twist_gpu(
-            image_ssd_crop.gpu(),
-            saturation=saturation,
-            contrast=contrast,
-            brightness=brightness,
-            hue=hue)
+        image_twisted_cpu = self.bc_cpu(image_ssd_crop, brightness_delta=brightness, contrast_delta=contrast)
+        image_twisted_cpu = self.hsv_cpu(image_twisted_cpu, saturation=saturation, hue=hue)
+        image_twisted_gpu = self.bc_gpu(image_ssd_crop.gpu(), brightness_delta=brightness, contrast_delta=contrast)
+        image_twisted_gpu = self.hsv_gpu(image_twisted_gpu, saturation=saturation, hue=hue)
 
         image_flipped_cpu = self.flip_cpu(image_resized_cpu)
         boxes_flipped_cpu = self.bbox_flip_cpu(boxes_ssd_crop)
