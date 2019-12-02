@@ -16,11 +16,6 @@ from __future__ import print_function, division
 import math
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
-from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
-from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
-import torch
-import mxnet
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
@@ -75,6 +70,7 @@ def create_pipeline(creator, batch_size, num_gpus):
 
 
 def test_mxnet_iterator_last_batch_no_pad_last_batch():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     num_gpus = 1
     batch_size = 100
 
@@ -94,9 +90,9 @@ def test_mxnet_iterator_last_batch_no_pad_last_batch():
 
 
 def test_mxnet_iterator_last_batch_pad_last_batch():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     num_gpus = 1
     batch_size = 100
-    iters = 0
 
     pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
                                                                       data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
@@ -122,9 +118,9 @@ def test_mxnet_iterator_last_batch_pad_last_batch():
 
 
 def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     num_gpus = 1
     batch_size = 100
-    iters = 0
 
     pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
                                                                       data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
@@ -152,9 +148,9 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
 
 
 def test_pytorch_iterator_last_batch_no_pad_last_batch():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     num_gpus = 1
     batch_size = 100
-    iters = 0
 
     pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
                                                                       data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
@@ -170,9 +166,9 @@ def test_pytorch_iterator_last_batch_no_pad_last_batch():
     assert len(set(mirrored_data)) != 1
 
 def test_pytorch_iterator_last_batch_pad_last_batch():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     num_gpus = 1
     batch_size = 100
-    iters = 0
 
     pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
                                                                       data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
@@ -197,9 +193,9 @@ def test_pytorch_iterator_last_batch_pad_last_batch():
 
 
 def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     num_gpus = 1
     batch_size = 100
-    iters = 0
 
     pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
                                                                      data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
@@ -226,9 +222,9 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
 
 
 def test_paddle_iterator_last_batch_no_pad_last_batch():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     num_gpus = 1
     batch_size = 100
-    iters = 0
 
     pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
                                                                       data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
@@ -244,9 +240,9 @@ def test_paddle_iterator_last_batch_no_pad_last_batch():
     assert len(set(mirrored_data)) != 1
 
 def test_paddle_iterator_last_batch_pad_last_batch():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     num_gpus = 1
     batch_size = 100
-    iters = 0
 
     pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
                                                                       data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
@@ -271,6 +267,7 @@ def test_paddle_iterator_last_batch_pad_last_batch():
 
 
 def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     num_gpus = 1
     batch_size = 100
     iters = 0
@@ -357,11 +354,17 @@ def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num, auto_r
             loader.reset()
     assert(count == iter_num * epochs)
 
-def test_stop_iteration():
-    for fw_iter, iter_name in [(lambda pipe, size, auto_reset : PyTorchIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset), "PyTorchIterator"),
-                  (lambda pipe, size, auto_reset : MXNetIterator(pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset), "MXNetIterator")]:
-        for epochs in [1, 3 ,6]:
-            for iter_num in [2, 5, 9]:
-                for batch_size in [1, 10 ,100]:
-                    for auto_reset in [True, False]:
-                        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset
+def test_stop_iteration_mxnet():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    test_stop_iteration(lambda pipe, size, auto_reset : MXNetIterator(pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset), "MXNetIterator")
+
+def test_stop_iteration_pytorch():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    test_stop_iteration(lambda pipe, size, auto_reset : PyTorchIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset), "PyTorchIterator")
+
+def test_stop_iteration(fw_iter, iter_name):
+    for epochs in [1, 3 ,6]:
+        for iter_num in [2, 5, 9]:
+            for batch_size in [1, 10 ,100]:
+                for auto_reset in [True, False]:
+                    yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset

@@ -19,26 +19,6 @@ import nvidia.dali.types as types
 import glob
 import argparse
 import time
-import tensorflow as tf
-from nvidia.dali.plugin.mxnet import DALIClassificationIterator as MXNetIterator
-from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIterator
-from nvidia.dali.plugin.paddle import DALIClassificationIterator as PaddleIterator
-from nvidia.dali.plugin.tf import DALIIterator as TensorFlowIterator
-
-try:
-    from tensorflow.compat.v1 import GPUOptions
-    from tensorflow.compat.v1 import ConfigProto
-    from tensorflow.compat.v1 import Session
-except:
-    # Older TF versions don't have compat.v1 layer
-    from tensorflow import GPUOptions
-    from tensorflow import ConfigProto
-    from tensorflow import Session
-
-try:
-    tf.compat.v1.disable_eager_execution()
-except:
-    pass
 
 data_paths = ["/data/imagenet/train-jpeg"]
 
@@ -99,6 +79,7 @@ args = parser.parse_args()
 
 print("Framework: {}, GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, args.nhwc: {}"
       .format(args.framework, args.gpus, args.batch_size, args.workers, args.prefetch, args.print_freq, args.fp16, args.nhwc))
+
 
 PREFETCH = args.prefetch
 if args.separate_queue:
@@ -198,13 +179,49 @@ def test_fw_iter(IteratorClass, args):
                 if j > iters:
                     break
 
+def import_mxnet():
+    from nvidia.dali.plugin.mxnet import DALIClassificationIterator as MXNetIterator
+    return MXNetIterator
+
+def import_pytorch():
+    from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIterator
+    return PyTorchIterator
+
+def import_paddle():
+    from nvidia.dali.plugin.paddle import DALIClassificationIterator as PaddleIterator
+    return PaddleIterator
+
+def import_tf():
+    global tf
+    global GPUOptions
+    global ConfigProto
+    global Session
+    from nvidia.dali.plugin.tf import DALIIterator as TensorFlowIterator
+    import tensorflow as tf
+    try:
+        from tensorflow.compat.v1 import GPUOptions
+        from tensorflow.compat.v1 import ConfigProto
+        from tensorflow.compat.v1 import Session
+    except:
+        # Older TF versions don't have compat.v1 layer
+        from tensorflow import GPUOptions
+        from tensorflow import ConfigProto
+        from tensorflow import Session
+
+    try:
+        tf.compat.v1.disable_eager_execution()
+    except:
+        pass
+    return TensorFlowIterator
+
 Iterators = {
-    "mxnet": [MXNetIterator],
-    "pytorch": [PyTorchIterator],
-    "tf": [TensorFlowIterator],
-    "paddle": [PaddleIterator]
+    "mxnet": [import_mxnet],
+    "pytorch": [import_pytorch],
+    "tf": [import_tf],
+    "paddle": [import_paddle]
 }
 
 assert(args.framework in Iterators, "Error, framework {} not supported".format(args.framework))
-for IteratorClass in Iterators[args.framework]:
+for imports in Iterators[args.framework]:
+    IteratorClass = imports()
     test_fw_iter(IteratorClass, args)
