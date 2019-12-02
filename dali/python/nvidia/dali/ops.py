@@ -94,6 +94,9 @@ def _docstring_generator(cls):
     elif schema.AllowsSequences():
         ret += "\nThis operator allows sequence inputs\n"
 
+    if schema.SupportsVolumetric():
+        ret += "\nThis operator supports volumetric data\n"
+
     if schema.IsDeprecated():
         use_instead = schema.DeprecatedInFavorOf()
         ret += "\n.. warning::\n\n   This operator is now deprecated"
