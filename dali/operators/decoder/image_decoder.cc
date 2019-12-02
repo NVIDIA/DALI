@@ -17,10 +17,10 @@
 
 namespace dali {
 
-DALI_SCHEMA(ImageDecoder)
-  .DocStr(R"code(Decode images. Implementation will be based on nvJPEG library or libjpeg-turbo
-depending on the selected backend (`mixed` and `cpu` respectively). Non-jpeg images are decoded
-with OpenCV. The Output of the decoder is in `HWC` ordering.)code")
+// ImageDecoder common attributes (does not include Cached decoder attributes which are present in
+// ImageDecoder but not on the fused variants)
+DALI_SCHEMA(ImageDecoderAttr)
+  .DocStr(R"code(Image decoder common attributes)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("output_type",
@@ -61,7 +61,16 @@ in runtime. Ignored when `split_stages` is false.)code",
       R"code(Enables fast IDCT in CPU based decompressor when GPU implementation cannot handle given image.
 According to libjpeg-turbo documentation, decompression performance is improved by 4-14% with very little
 loss in quality.)code",
-      false)
+      false);
+
+DALI_SCHEMA(ImageDecoder)
+  .DocStr(R"code(Decode images. For jpeg images, the implementation will be based on nvJPEG
+library or libjpeg-turbo depending on the selected backend (`mixed` and `cpu` respectively).
+Other image formats are decoded with OpenCV or other specific libraries (e.g. libtiff).
+The Output of the decoder is in `HWC` ordering.)code")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("ImageDecoderAttr")
   .AddParent("CachedDecoderAttr");
 
 // Fused
@@ -73,7 +82,7 @@ When not supported, will decode the whole image and then crop.
 Output of the decoder is in `HWC` ordering.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ImageDecoder")
+  .AddParent("ImageDecoderAttr")
   .AddParent("CropAttr");
 
 DALI_SCHEMA(ImageDecoderRandomCrop)
@@ -83,7 +92,7 @@ When not supported, will decode the whole image and then crop.
 Output of the decoder is in `HWC` ordering.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("ImageDecoder")
+  .AddParent("ImageDecoderAttr")
   .AddParent("RandomCropAttr");
 
 
@@ -104,7 +113,7 @@ When not supported, will decode the whole image and then crop.
 Output of the decoder is in `HWC` ordering.)code")
   .NumInput(3)
   .NumOutput(1)
-  .AddParent("ImageDecoder")
+  .AddParent("ImageDecoderAttr")
   .AddParent("SliceAttr");
 
 }  // namespace dali
