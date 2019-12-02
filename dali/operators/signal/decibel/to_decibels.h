@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_SIGNAL_DECIBEL_TO_DECIBELS_H_
 #define DALI_OPERATORS_SIGNAL_DECIBEL_TO_DECIBELS_H_
 
+#include <cmath>
 #include <string>
 #include <vector>
 #include "dali/core/common.h"
@@ -34,7 +35,8 @@ class ToDecibels : public Operator<Backend> {
     args_.ref_max = !spec.HasArgument("reference");
     if (!args_.ref_max)
       args_.s_ref = spec.GetArgument<float>("reference");
-    args_.min_ratio = spec.GetArgument<float>("min_ratio");
+    auto cutoff_db = spec.GetArgument<float>("cutoff_db");
+    args_.min_ratio = std::pow(10.0f, cutoff_db / args_.multiplier);
   }
 
  protected:

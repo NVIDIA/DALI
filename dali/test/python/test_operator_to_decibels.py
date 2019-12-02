@@ -25,7 +25,7 @@ from test_utils import RandomDataIterator
 import math
 
 class ToDecibelsPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, multiplier, reference, min_ratio,
+    def __init__(self, device, batch_size, iterator, multiplier, reference, cutoff_db,
                  num_threads=1, device_id=0):
         super(ToDecibelsPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
@@ -34,7 +34,7 @@ class ToDecibelsPipeline(Pipeline):
         self.dB = ops.ToDecibels(device = self.device,
                                  multiplier=multiplier,
                                  reference=reference,
-                                 min_ratio=min_ratio)
+                                 cutoff_db=cutoff_db)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -46,14 +46,15 @@ class ToDecibelsPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data)
 
-def to_db_func(multiplier, reference, min_ratio, input_data):
+def to_db_func(multiplier, reference, cutoff_db, input_data):
     if not reference:
         reference = np.amax(input_data)
+    min_ratio = 10 ** (cutoff_db / multiplier)
     out = multiplier * np.log10(np.maximum(min_ratio, input_data / reference))
     return out
 
 class ToDecibelsPythonPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, multiplier, reference, min_ratio,
+    def __init__(self, device, batch_size, iterator, multiplier, reference, cutoff_db,
                  num_threads=1, device_id=0, func=to_db_func):
         super(ToDecibelsPythonPipeline, self).__init__(
               batch_size, num_threads, device_id,
@@ -62,7 +63,7 @@ class ToDecibelsPythonPipeline(Pipeline):
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
 
-        function = partial(func, multiplier, reference, min_ratio)
+        function = partial(func, multiplier, reference, cutoff_db)
         self.dB = ops.PythonFunction(function=function)
 
     def define_graph(self):
@@ -75,21 +76,21 @@ class ToDecibelsPythonPipeline(Pipeline):
         self.feed_input(self.data, data)
 
 def check_operator_to_decibels_vs_python(device, batch_size, input_shape,
-                                         multiplier, reference, min_ratio):
+                                         multiplier, reference, cutoff_db):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
         ToDecibelsPipeline(device, batch_size, iter(eii1),
-                          multiplier=multiplier, reference=reference, min_ratio=min_ratio),
+                          multiplier=multiplier, reference=reference, cutoff_db=cutoff_db),
         ToDecibelsPythonPipeline(device, batch_size, iter(eii2),
-                          multiplier=multiplier, reference=reference, min_ratio=min_ratio),
+                          multiplier=multiplier, reference=reference, cutoff_db=cutoff_db),
         batch_size=batch_size, N_iterations=5, eps=1e-04)
 
 def test_operator_to_decibels_vs_python():
     for device in ['cpu']:
         for batch_size in [3]:
-            for multiplier, reference, min_ratio, shape in [(10.0, None, 1e-8, (1, 4096)),
-                                                            (20.0, 1.0, 1e-20, (2, 1000)),
-                                                            (20.0, 1e-6, 1e-12, (2, 3, 40))]:
+            for multiplier, reference, cutoff_db, shape in [(10.0, None, -80.0, (1, 4096)),
+                                                            (20.0, 1.0, -200.0, (2, 1000)),
+                                                            (20.0, 1e-6, -120.0, (2, 3, 40))]:
                 yield check_operator_to_decibels_vs_python, device, batch_size, shape, \
-                    multiplier, reference, min_ratio
+                    multiplier, reference, cutoff_db

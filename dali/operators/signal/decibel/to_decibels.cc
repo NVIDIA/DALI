@@ -29,6 +29,7 @@ DALI_SCHEMA(ToDecibels)
     .DocStr(R"code(Converts a magnitude (real, positive) to the decibel scale, according to the
 formula:
 ```
+    min_ratio = pow(10, cutoff_db / multiplier)
     out[i] = multiplier * log10( max(min_ratio, input[i] / reference) )
 ```)code")
     .NumInput(kNumInputs)
@@ -41,10 +42,10 @@ are dealing with a squared magnitude or not).)code",
       R"code(Reference magnitude. If not provided, the maximum of the input will be used as
 reference. Note: The maximum of the input will be calculated on a per-sample basis.)code",
       1.0f)
-    .AddOptionalArg("min_ratio",
-      R"code(Minimum or cut-off ratio. Any ratio below this value will saturate. Example:
-A value `min_ratio=1e-8` corresponds to a dB cut-off of -80 dBs (assuming `multiplier=10.0`).)code",
-      1e-8f);
+    .AddOptionalArg("cutoff_db",
+      R"code(Minimum or cut-off ratio in dB. Any value below this value will saturate. Example:
+A value of `cutoff_db=-80` corresponds to a minimum ratio of `1e-8`.)code",
+      -200.0f);
 
 template <>
 bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
