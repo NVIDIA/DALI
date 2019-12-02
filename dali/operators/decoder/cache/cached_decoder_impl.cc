@@ -25,21 +25,25 @@ CachedDecoderImpl::~CachedDecoderImpl() = default;
 
 CachedDecoderImpl::CachedDecoderImpl(const OpSpec& spec)
     : device_id_(spec.GetArgument<int>("device_id")) {
-  const std::size_t cache_size_mb = static_cast<std::size_t>(spec.GetArgument<int>("cache_size"));
-  const std::size_t cache_size = cache_size_mb * 1024 * 1024;
-  const std::size_t cache_threshold =
-      static_cast<std::size_t>(spec.GetArgument<int>("cache_threshold"));
-  if (cache_size > 0 && cache_size >= cache_threshold) {
-    const std::string cache_type = spec.GetArgument<std::string>("cache_type");
-    const bool cache_debug = spec.GetArgument<bool>("cache_debug");
-    cache_ = ImageCacheFactory::Instance().Get(
-      device_id_, cache_type, cache_size, cache_debug, cache_threshold);
+  // Fused operators don't have cache options
+  if (spec.HasArgument("cache_size")) {
+    const std::size_t cache_size_mb =
+      static_cast<std::size_t>(spec.GetArgument<int>("cache_size"));
+    const std::size_t cache_size = cache_size_mb * 1024 * 1024;
+    const std::size_t cache_threshold =
+        static_cast<std::size_t>(spec.GetArgument<int>("cache_threshold"));
+    if (cache_size > 0 && cache_size >= cache_threshold) {
+      const std::string cache_type = spec.GetArgument<std::string>("cache_type");
+      const bool cache_debug = spec.GetArgument<bool>("cache_debug");
+      cache_ = ImageCacheFactory::Instance().Get(
+        device_id_, cache_type, cache_size, cache_debug, cache_threshold);
 
-    use_batch_copy_kernel_ = spec.GetArgument<bool>("cache_batch_copy");
-    auto batch_size = spec.GetArgument<int>("batch_size");
-    const size_t kMaxSizePerBlock = 1<<18;  // 256 kB per block
-    scatter_gather_.reset(new kernels::ScatterGatherGPU(
-      kMaxSizePerBlock, cache_size, batch_size));
+      use_batch_copy_kernel_ = spec.GetArgument<bool>("cache_batch_copy");
+      auto batch_size = spec.GetArgument<int>("batch_size");
+      const size_t kMaxSizePerBlock = 1<<18;  // 256 kB per block
+      scatter_gather_.reset(new kernels::ScatterGatherGPU(
+        kMaxSizePerBlock, cache_size, batch_size));
+    }
   }
 }
 
