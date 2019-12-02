@@ -37,8 +37,8 @@ if [[ $RET -ne 0 ]]; then
     CLEAN_AND_EXIT 2
 fi
 
-MIN_TOP1=50.0  # would be 75.0 if we run 90 epochs (TODO: fine-tune the value for 25 epochs)
-MIN_TOP5=70.0  # would be 92.0 if we run 90 epochs (TODO: fine-tune the value for 25 epochs)
+MIN_TOP1=45.0  # would be 75.0 if we run 90 epochs
+MIN_TOP5=70.0  # would be 92.0 if we run 90 epochs
 MIN_PERF=2000
 
 TOP1=$(grep "^##Top-1" $LOG | awk '{print $2}')
