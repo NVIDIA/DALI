@@ -123,6 +123,7 @@ Prerequisites
    | |jpegturbo link|_ or later             | *This can be unofficially disabled. See below.*                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |libtiff link|_ or later               | *This can be unofficially disabled. See below.*                                             |
+   |                                        | Note: libtiff should be built with zlib support                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |ffmpeg link|_ or later                | We recommend using version 4.2.1 compiled following the *instructions below*.               |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
