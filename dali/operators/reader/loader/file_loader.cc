@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,11 +17,12 @@
 #include <memory>
 
 #include "dali/core/common.h"
-#include "dali/image/image.h"
 #include "dali/operators/reader/loader/file_loader.h"
 #include "dali/util/file.h"
+#include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
+
 
 inline void assemble_file_list(const std::string& path, const std::string& curr_entry, int label,
                         std::vector<std::pair<std::string, int>> *file_label_pairs) {
@@ -43,7 +44,7 @@ inline void assemble_file_list(const std::string& path, const std::string& curr_
     }
 #endif
     std::string rel_path = curr_entry + "/" + std::string{entry->d_name};
-    if (HasKnownImageExtension(std::string(entry->d_name))) {
+    if (HasKnownExtension(std::string(entry->d_name))) {
       file_label_pairs->push_back(std::make_pair(rel_path, label));
     }
   }

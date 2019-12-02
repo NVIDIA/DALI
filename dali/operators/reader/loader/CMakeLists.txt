@@ -19,7 +19,8 @@ set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/file_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/coco_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/loader.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader.cc")
+  "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/utils.cc")
 
 if (BUILD_NVDEC)
   set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}

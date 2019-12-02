@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,11 +15,9 @@
 #include <glob.h>
 #include <algorithm>
 #include <map>
-#include <memory>
-
 #include "dali/image/image.h"
 #include "dali/operators/reader/loader/sequence_loader.h"
-
+#include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
 
@@ -45,7 +43,7 @@ std::vector<Stream> GatherExtractedStreams(const string &file_root) {
   std::vector<std::string> files;
   for (size_t i = 0; i < glob_buff.gl_pathc; i++) {
     std::string file = glob_buff.gl_pathv[i];
-    if (HasKnownImageExtension(file)) {
+    if (HasExtension(file, kKnownImageExtensions)) {
       files.push_back(std::move(file));
     }
   }

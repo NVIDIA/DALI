@@ -53,7 +53,7 @@ class PreemphasisPipeline(Pipeline):
         self.feed_input(self.data, premade_batch)
 
 
-def perform(preemph_coeff):
+def check_preemphasis_operator(preemph_coeff):
     eps = 1e-5
     pipeline = PreemphasisPipeline(preemph_coeff=preemph_coeff)
     pipeline.build()
@@ -65,5 +65,6 @@ def perform(preemph_coeff):
         assert isclose(a, b, abs_tol=eps)
 
 
-perform(0.)
-perform(0.5)
+def test_preemphasis_operator():
+    for coef in [0.5, 0.0]:
+       yield check_preemphasis_operator, coef

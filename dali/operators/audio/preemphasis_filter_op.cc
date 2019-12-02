@@ -24,7 +24,7 @@ This filter in simple form can be expressed by the formula:
 `Y(t) = X(t) - X(t-1)*coeff`)code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg(detail::kCoeff, R"code(Preemphasis coefficient `coeff`)code", 0.f)
+                .AddOptionalArg(detail::kCoeff, R"code(Preemphasis coefficient `coeff`)code", 0.97f)
                 .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
                                 DALI_FLOAT);
 
@@ -79,6 +79,7 @@ void PreemphasisFilterCpu::RunImpl(workspace_t<CPUBackend> &ws) {
           }
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  tp.WaitForWork();
 }
 
 #undef PREEMPH_TYPES

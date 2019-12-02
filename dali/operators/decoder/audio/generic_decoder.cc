@@ -198,7 +198,7 @@ struct GenericAudioDecoder<SampleType>::Impl {
     ret.length = sf_info_.frames * sf_info_.channels;
     ret.channels = sf_info_.channels;
     ret.sample_rate = sf_info_.samplerate;
-    ret.channels_interleaved = false;
+    ret.channels_interleaved = true;
     return ret;
   }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,17 +30,6 @@
 #include "dali/core/tensor_shape.h"
 
 namespace dali {
-
-static const char *kKnownImageExtensions[] = {".jpg", ".jpeg", ".png", ".gif",
-                                              ".bmp", ".tif",  ".tiff",
-                                              ".pnm", ".ppm", ".pgm", ".pbm"};
-
-/**
- * Some file systems returns `.` and `..` as entries in the directory. DALI should just skip them
- */
-static const char *kSkipImageExtensions[] = {"..", ".", };
-
-DLL_PUBLIC bool HasKnownImageExtension(const std::string &image_path);
 
 class Image {
  public:

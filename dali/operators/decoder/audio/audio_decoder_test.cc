@@ -84,7 +84,7 @@ TEST(AudioDecoderTest, WavDecoderTest) {
   decoder.DecodeTyped(make_span(output));
 
   EXPECT_EQ(meta.channels, expected_nchannels);
-  EXPECT_EQ(meta.channels_interleaved, false);
+  EXPECT_EQ(meta.channels_interleaved, true);
   EXPECT_EQ(meta.sample_rate, expected_frequency);
   EXPECT_PRED3(CheckBuffers<DataType>, output.data(), vec.data(), vec.size());
 }
