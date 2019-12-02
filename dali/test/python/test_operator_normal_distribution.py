@@ -45,6 +45,7 @@ def test_normal_distribution():
         pipeline.build()
         outputs = pipeline.run()
         for i in range(bsize):
+            print(outputs[0].at(i))
             possibly_normal_distribution = outputs[0].at(i).flatten()
             _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
             # It's not 100% mathematically correct, but makes do in case of this test

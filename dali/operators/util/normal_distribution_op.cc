@@ -20,13 +20,23 @@ namespace dali {
 
 DALI_SCHEMA(NormalDistribution)
                 .DocStr(R"code(Creates a tensor that consists of data distributed normally.
-The shape of the provided tensor is implied by the tensor provided as an input.
-No data from the input tensor is taken into account, only the shape of it.)code")
-                .NumInput(1)
+This operator can be ran in 3 modes, which determine the shape of the output tensor:
+1. Providing an input batch to this operator resolves in a batch of output tensors,
+where the shapes correspond to the shapes of tensors in the input batch.
+2. Providing a custom shape as an argument resolves in a batch of output tensors,
+where every output tensor has the same shape.
+3. Providing no input arguments resolves in a batch of output scalars,
+distributed normally (similar to `CoinFlip` operator).)code")
+                .NumInput(0, 1)
                 .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg(detail::kMean, R"code(Mean value of the distribution)code", 0.f)
+                .AddOptionalArg(detail::kMean, R"code(Mean value of the distribution)code",
+                                0.f, true)
                 .AddOptionalArg(detail::kStddev,
-                                R"code(Standard deviation of the distribution)code", 1.f)
+                                R"code(Standard deviation of the distribution)code",
+                                1.f, true)
+                .AddOptionalArg(detail::kShape,
+                                R"code(Shape of single output tensor in a batch)code",
+                                detail::kShapeDefaultValue, true)
                 .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
                                 DALI_FLOAT);
 
@@ -36,9 +46,8 @@ DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);
 #define NORM_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
 
 
-bool NormalDistributionCpu::SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
+bool NormalDistributionCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
   AcquireArguments(ws);
   output_desc.resize(detail::kNumOutputs);
   output_desc[0].shape = GetOutputShape(ws);

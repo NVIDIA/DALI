@@ -26,7 +26,9 @@ namespace detail {
 const std::string kMean = "mean";      // NOLINT
 const std::string kStddev = "stddev";  // NOLINT
 const std::string kShape = "shape";    // NOLINT
+
 const int kNumOutputs = 1;
+auto kShapeDefaultValue = std::vector<int>{-1};
 
 }  // namespace detail
 
@@ -40,6 +42,7 @@ class NormalDistribution : public Operator<Backend> {
  protected:
   explicit NormalDistribution(const OpSpec &spec) :
           Operator<Backend>(spec),
+          shape_(spec.GetArgument<std::remove_const_t<decltype(this->shape_)>>(detail::kShape)),
           seed_(spec.GetArgument<std::remove_const_t<decltype(this->seed_)>>("seed")),
           dtype_(spec.GetArgument<std::remove_const_t<decltype(this->dtype_)>>(
                   arg_names::kDtype)) {}
@@ -57,41 +60,63 @@ class NormalDistribution : public Operator<Backend> {
 
 
   TensorListShape<> GetOutputShape(const workspace_t<CPUBackend> &ws) {
+    DALI_ENFORCE(!(spec_.NumRegularInput() == 1 && IsShapeArgumentProvided(spec_)),
+                 make_string("Incorrect operator invocation. "
+                             "The operator cannot be called with both Input and `shape` argument"));
     if (spec_.NumRegularInput() == 1) {
       single_value_in_output_ = false;
-      return ws.template InputRef<CPUBackend>(0).shape();
-    } else if (spec_.NumArgumentInput() == 1) {
+      return ShapesFromInputTensorList(ws);
+    } else if (IsShapeArgumentProvided(spec_)) {
       single_value_in_output_ = false;
-      std::vector<int> shape;
-      this->GetPerSampleArgument(shape, detail::kShape, ws);
-      TensorListShape<> ret(batch_size_);
-      for (int i = 0; i < batch_size_; i++) {
-        ret.set_tensor_shape(i, shape);
-      }
-      return ret;
-    } else if (spec_.NumRegularInput() == 0 && spec_.NumArgumentInput() == 0) {
-      single_value_in_output_ = true;
-      TensorListShape<> ret(batch_size_);
-      for (int i = 0; i < batch_size_; i++) {
-        ret.set_tensor_shape(i, {1});
-      }
-      return ret;
+      return ShapesFromArgument(ws);
     } else {
-      DALI_FAIL(make_string(
-              "Operator called with wrong arguments. This operator can be called with: one Input, "
-              "one ArgumentInput or no inputs. Detected: [", spec_.NumRegularInput(),
-              " Inputs] and [", spec_.NumArgumentInput(), " ArgumentInputs]."));
+      single_value_in_output_ = true;
+      return ShapeForDefaultConfig(ws);
     }
   }
 
 
   USE_OPERATOR_MEMBERS();
   std::vector<float> mean_, stddev_;
+  decltype(detail::kShapeDefaultValue) shape_;
   const int64_t seed_;
   const DALIDataType dtype_;
 
-  /// When this is true it means, that neither Input or ArgumentInput have been provided
+  /**
+   * When this is true it means, that neither Input or Argument have been provided
+   * and the operator should generate one scalar per tensor in a batch (aka `CoinFlip` mode)
+   */
   bool single_value_in_output_ = false;
+
+ private:
+  TensorListShape<> ShapesFromInputTensorList(const workspace_t<CPUBackend> &ws) {
+    return ws.template InputRef<CPUBackend>(0).shape();
+  }
+
+
+  TensorListShape<> ShapesFromArgument(const workspace_t<CPUBackend> &ws) {
+    std::vector<int> shape;
+    this->GetPerSampleArgument(shape, detail::kShape, ws);
+    TensorListShape<> ret(batch_size_);
+    for (int i = 0; i < batch_size_; i++) {
+      ret.set_tensor_shape(i, shape);
+    }
+    return ret;
+  }
+
+
+  TensorListShape<> ShapeForDefaultConfig(const workspace_t<CPUBackend> &ws) {
+    TensorListShape<> ret(batch_size_);
+    for (int i = 0; i < batch_size_; i++) {
+      ret.set_tensor_shape(i, {1});
+    }
+    return ret;
+  }
+
+
+  bool IsShapeArgumentProvided(const OpSpec &spec) {
+    return spec_.HasArgument(detail::kShape);
+  }
 };
 
 
@@ -115,9 +140,9 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
   void AssignSingleValueToOutput(workspace_t<CPUBackend> &ws);
 
   std::mt19937_64 rng_;
-  static_assert(std::is_same<decltype(mean_), decltype(stddev_)>::value, "");
-  static_assert(is_vector<decltype(mean_)>::value,
-                "It's assumed, that both `mean` and `stddev` are vectors (for ArgumentInput)");
+  static_assert(std::is_same<decltype(mean_), decltype(stddev_)>::value &&
+                is_vector<decltype(mean_)>::value,
+                "It's assumed, that both `mean` and `stddev` are vectors");
   using distribution_t = std::normal_distribution<decltype(mean_)::value_type>;
 };
 
