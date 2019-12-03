@@ -28,7 +28,7 @@ const std::string kStddev = "stddev";  // NOLINT
 const std::string kShape = "shape";    // NOLINT
 
 const int kNumOutputs = 1;
-auto kShapeDefaultValue = std::vector<int>{};
+std::vector<int> kShapeDefaultValue {};
 
 }  // namespace detail
 
@@ -42,11 +42,10 @@ class NormalDistribution : public Operator<Backend> {
  protected:
   explicit NormalDistribution(const OpSpec &spec) :
           Operator<Backend>(spec),
-          seed_(spec.GetArgument<std::remove_const_t<decltype(this->seed_)>>("seed")),
-          dtype_(spec.GetArgument<std::remove_const_t<decltype(this->dtype_)>>(arg_names::kDtype)) {
-    shape_ = IsShapeArgumentProvided(spec)
-             ? spec.GetRepeatedArgument<decltype(detail::kShapeDefaultValue)::value_type>(
-                    detail::kShape) : detail::kShapeDefaultValue;
+          seed_(spec.GetArgument<int64_t>(arg_names::kSeed)),
+          dtype_(spec.GetArgument<DALIDataType>(arg_names::kDtype)) {
+    shape_ = IsShapeArgumentProvided(spec) ? spec.GetRepeatedArgument<int>(detail::kShape)
+                                           : detail::kShapeDefaultValue;
   }
 
 
@@ -80,13 +79,13 @@ class NormalDistribution : public Operator<Backend> {
   using Operator<Backend>::spec_;
   using Operator<Backend>::batch_size_;
   std::vector<float> mean_, stddev_;
-  decltype(detail::kShapeDefaultValue) shape_;
+  std::vector<int> shape_;
   const int64_t seed_;
   const DALIDataType dtype_;
 
   /**
    * When this is true it means, that neither Input or Argument have been provided
-   * and the operator should generate one scalar per tensor in a batch (aka `CoinFlip` mode)
+   * and the operator should generate one scalar per tensor in a batch
    */
   bool single_value_in_output_ = false;
 

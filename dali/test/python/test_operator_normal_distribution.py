@@ -26,11 +26,11 @@ class NormalDistributionPipeline(Pipeline):
 
 
 class NormalDistributionPipelineWithInput(NormalDistributionPipeline):
-    def __init__(self, premade_batch):
+    def __init__(self, premade_batch, dtype):
         super(NormalDistributionPipelineWithInput, self).__init__(len(premade_batch))
         self.premade_batch = premade_batch
         self.ext_src = ops.ExternalSource()
-        self.norm = ops.NormalDistribution(device="cpu", dtype=types.FLOAT)
+        self.norm = ops.NormalDistribution(device="cpu", dtype=dtype)
 
     def define_graph(self):
         self.data = self.ext_src()
@@ -41,31 +41,35 @@ class NormalDistributionPipelineWithInput(NormalDistributionPipeline):
 
 
 class NormalDistributionPipelineWithArgument(NormalDistributionPipeline):
-    def __init__(self, shape):
+    def __init__(self, shape, dtype):
         super(NormalDistributionPipelineWithArgument, self).__init__(1)
-        # self.norm = ops.NormalDistribution(device="cpu", dtype=types.FLOAT)
-        self.norm = ops.NormalDistribution(device="cpu", shape=shape, dtype=types.FLOAT)
+        self.norm = ops.NormalDistribution(device="cpu", shape=shape, dtype=dtype)
 
     def define_graph(self):
         return self.norm()
 
 
 class NormalDistributionPipelineDefault(NormalDistributionPipeline):
-    def __init__(self, batch_size=1):
+    def __init__(self, batch_size, dtype):
         super(NormalDistributionPipelineDefault, self).__init__(batch_size)
-        self.norm = ops.NormalDistribution(device="cpu", dtype=types.FLOAT)
+        self.norm = ops.NormalDistribution(device="cpu", dtype=dtype)
 
     def define_graph(self):
         return self.norm()
 
 
-def test_normal_distribution_with_input():
-    premade_batches = [[np.random.rand(1000), np.random.rand(10000)],
-                       [np.random.rand(100, 100), np.random.rand(100, 100)],
-                       [np.random.rand(100, 10, 10), np.random.rand(100, 10, 10)]]
-    for batch in premade_batches:
+test_types = [types.INT8, types.INT16, types.INT32, types.INT16, types.FLOAT, types.FLOAT64, types.FLOAT16]
+
+
+def check_normal_distribution_with_input(dtype):
+    input_data = [
+        [np.ones((1000)), np.ones((1000))],
+        [np.ones((100, 100)), np.ones((100, 100))],
+        [np.ones((100, 10, 10)), np.ones((100, 10, 10))]
+    ]
+    for batch in input_data:
         bsize = len(batch)
-        pipeline = NormalDistributionPipelineWithInput(premade_batch=batch)
+        pipeline = NormalDistributionPipelineWithInput(premade_batch=batch, dtype=dtype)
         pipeline.build()
         outputs = pipeline.run()
         for i in range(bsize):
@@ -78,8 +82,30 @@ def test_normal_distribution_with_input():
             assert pvalues_anderson[2] > 0.5
 
 
+def test_normal_distribution_with_input():
+    for t in test_types:
+        yield check_normal_distribution_with_input, t
+
+
+def check_normal_distribution_with_argument(shape, dtype):
+    pipeline = NormalDistributionPipelineWithArgument(shape, dtype=dtype)
+    pipeline.build()
+    outputs = pipeline.run()
+    possibly_normal_distribution = outputs[0].as_array().flatten()
+    _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
+    # It's not 100% mathematically correct, but makes do in case of this test
+    assert pvalues_anderson[2] > 0.5
+
+
 def test_normal_distribution_with_argument():
-    pipeline = NormalDistributionPipelineWithArgument([30,20])
+    shapes = [[100], [10, 20, 30], [1, 2, 3, 4, 5, 6]]
+    for shape in shapes:
+        for t in test_types:
+            yield check_normal_distribution_with_argument, shape, t
+
+
+def check_normal_distribution_default(dtype):
+    pipeline = NormalDistributionPipelineDefault(batch_size=100, dtype=dtype)
     pipeline.build()
     outputs = pipeline.run()
     possibly_normal_distribution = outputs[0].as_array().flatten()
@@ -89,11 +115,5 @@ def test_normal_distribution_with_argument():
 
 
 def test_normal_distribution_default():
-    pipeline = NormalDistributionPipelineDefault(100)
-    pipeline.build()
-    outputs = pipeline.run()
-    possibly_normal_distribution = outputs[0].as_array().flatten()
-    _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
-    # It's not 100% mathematically correct, but makes do in case of this test
-    assert pvalues_anderson[2] > 0.5
-
+    for t in test_types:
+        yield check_normal_distribution_default, t

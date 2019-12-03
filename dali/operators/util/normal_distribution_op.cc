@@ -33,7 +33,7 @@ This operator can be ran in 3 modes, which determine the shape of the output ten
                                 1.f, true)
                 .AddOptionalArg(detail::kShape,
                                 R"code(Shape of single output tensor in a batch)code",
-                                       detail::kShapeDefaultValue)
+                                detail::kShapeDefaultValue)
                 .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
                                 DALI_FLOAT);
 
@@ -65,11 +65,12 @@ void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &w
   distribution_t distribution(mean_[0], stddev_[0]);
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
           for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-          tp.DoWorkWithID([&, sample_id](int thread_id){
-              auto ptr = output[sample_id].mutable_data<DType>();
-            *ptr = ConvertSat<DType>(distribution(rng_));
-          });
-  }
+            tp.DoWorkWithID(
+                [&, sample_id](int thread_id) {
+                  auto ptr = output[sample_id].mutable_data<DType>();
+                  *ptr = ConvertSat<DType>(distribution(rng_));
+                });
+          }
   ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
   tp.WaitForWork();
 }
@@ -82,7 +83,7 @@ void NormalDistributionCpu::AssignTensorToOutput(workspace_t<CPUBackend> &ws) {
             for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
                 distribution_t distribution(mean_[sample_id], stddev_[sample_id]);
                 auto ptr = output[sample_id].mutable_data<DType>();
-                for (long j = 0; j < volume(output[sample_id].shape()); j++) {  // NOLINT (long)
+                for (int64_t j = 0; j < volume(output[sample_id].shape()); j++) {
                     ptr[j] = ConvertSat<DType>(distribution(rng_));
                 }
             }
