@@ -193,9 +193,9 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
 }
 
 INSTANTIATE_TEST_SUITE_P(MelScaleCpuTest, MelScaleCpuTest, testing::Combine(
-    testing::Values(std::array<int64_t, 2>{33, 10},
-                    std::array<int64_t, 2>{100, 20}),  // shape
-    testing::Values(2, 4, 16)));  // nfilter
+    testing::Values(std::array<int64_t, 2>{17, 1},
+                    std::array<int64_t, 2>{513, 111}), // shape
+    testing::Values(4, 8)));  // nfilter
 
 }  // namespace test
 }  // namespace audio

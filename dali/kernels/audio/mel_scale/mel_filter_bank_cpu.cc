@@ -20,7 +20,8 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu_impl.h"
+#include "dali/kernels/common/for_axis.h"
+#include "dali/kernels/common/utils.h"
 
 namespace dali {
 namespace kernels {
@@ -34,15 +35,23 @@ KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
     KernelContext &context,
     const InTensorCPU<T, Dims> &in,
     const MelFilterBankArgs &args) {
-  DALI_ENFORCE(args.axis == Dims - 2,
+  auto axis = args.axis >= 0 ? args.axis : Dims - 2;
+  auto nfft = args.nfft > 0 ? args.nfft : 2 * (in.shape[axis] - 1);
+  DALI_ENFORCE(axis == Dims - 2,
     "Input is expected to be a spectrogram with the last two dimensions being FFT bin index and "
     "window index respectively");
 
   auto out_shape = in.shape;
-  out_shape[args.axis] = args.nfilter;
+  out_shape[axis] = args.nfilter;
   std::vector<TensorShape<DynamicDimensions>> tmp = {out_shape};  // workaround for clang-6 bug
   KernelRequirements req;
   req.output_shapes = {TensorListShape<DynamicDimensions>(tmp)};
+
+  if (!impl_ || args_ != args) {
+    args_ = args;
+    impl_.reset(new MelFilterBankCpuImpl<T>(args.nfilter, nfft, args.sample_rate));
+  }
+
   return req;
 }
 
@@ -52,9 +61,23 @@ void MelFilterBankCpu<T, Dims>::Run(
     const OutTensorCPU<T, Dims> &out,
     const InTensorCPU<T, Dims> &in,
     const MelFilterBankArgs &args) {
-  MelFilterBankImpl<T> fbank(args.nfilter, args.nfft, args.sample_rate);
-  auto nwin = in.shape[Dims-1];
-  fbank.Compute(out.data, in.data, nwin);
+  DALI_ENFORCE(impl_ != nullptr);
+  auto in_shape = in.shape;
+  auto nwin = in_shape[Dims - 1];
+  auto in_strides = GetStrides(in_shape);
+  auto out_shape = out.shape;
+  auto out_strides = GetStrides(out_shape);
+
+  auto axis = args.axis >= 0 ? args.axis : Dims - 2;  // vertical dim represents FFT space
+  auto for_axis_ndim = out.dim() - 1;  // squeeze last dim
+  ForAxis(
+    out.data, in.data, out_shape.data(), out_strides.data(), in_shape.data(), in_strides.data(),
+    axis, for_axis_ndim,
+    [this, nwin](
+        T *out_data, const T *in_data,
+        int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
+      impl_->Compute(out_data, in_data, nwin);
+    });
 }
 
 template class MelFilterBankCpu<float, 2>;

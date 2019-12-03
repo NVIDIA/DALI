@@ -54,15 +54,34 @@ double mel_to_hz(double mel) {
 
 
 template <typename T>
-class MelFilterBankImpl {
+class MelFilterBankCpuImpl {
  public:
-  MelFilterBankImpl(int nfilter, int nfft, T sample_rate, T freq_low = 0, T freq_high = 0)
+  MelFilterBankCpuImpl(int nfilter, int nfft, T sample_rate, T freq_low = 0, T freq_high = 0)
       : nfilter_(nfilter), nfft_(nfft), sample_rate_(sample_rate)
       , freq_low_(freq_low), freq_high_(freq_high > 0 ? freq_high : sample_rate / 2) {
     mel_low_ = hz_to_mel(freq_low_);
     mel_high_ = hz_to_mel(freq_high_);
     hz_step_ = sample_rate_ / nfft_;
     mel_delta_ = (mel_high_ - mel_low_) / (nfilter_ + 1);
+
+    int64_t fftbin = 0;
+    int64_t fftbin_size = nfft_ / 2 + 1;
+    weights_down_.resize(fftbin_size);
+    intervals_.resize(fftbin_size);
+    T mel0 = mel_low_, mel1 = mel_low_ + mel_delta_;
+    T f = centered_ ? T(0.5) * hz_step_ : T(0);
+    int last_interval = nfilter_;
+    for (int64_t interval = 0; interval <= last_interval;
+         interval++, mel0 = mel1, mel1 += mel_delta_) {
+      if (interval == last_interval)
+        mel1 = mel_high_;
+      T f0 = mel_to_hz(mel0), f1 = mel_to_hz(mel1);
+      T slope = T(1) / (f1 - f0);
+      for (; fftbin < fftbin_size && f < f1; fftbin++, f += hz_step_) {
+        weights_down_[fftbin] = (f1 - f) * slope;;
+        intervals_[fftbin] = interval;
+      }
+    }
   }
 
   // In the outer loop we travel at a linearly spaced frequency grid in the mel scale
@@ -83,35 +102,26 @@ class MelFilterBankImpl {
     if (in_stride <= 0)
       in_stride = nwindows;
 
-    int last_interval = nfilter_;
-    T mel0 = mel_low_;
-    T mel1 = mel_low_ + mel_delta_;
-    int fftbin = 0;
+    std::memset(out, 0, sizeof(T) * nfilter_ * nwindows);
     int fftbin_size = nfft_ / 2 + 1;
-    bool centered = false;
-    T f = centered ? 0.5f * hz_step_ : 0.0f;
-    for (int interval = 0, filter_up = 0, filter_down = -1;
-         interval <= last_interval;
-         interval++, mel0 = mel1, mel1 += mel_delta_, filter_up++, filter_down++) {
-      if (interval == last_interval)
-        mel1 = mel_high_;
-      T f0 = mel_to_hz(mel0), f1 = mel_to_hz(mel1);
-      T slope = 1.0f / (f1 - f0);
-      for (; fftbin < fftbin_size && f < f1; fftbin++, f += hz_step_) {
-        auto *in_row_start = in + fftbin * in_stride;
-        T weight_up = 0.0, weight_down = 0.0;
-        if (filter_down >= 0) {
-          weight_down = (f1 - f) * slope;
-          auto *out_row_start = out + filter_down * out_stride;
-          for (int t = 0; t < nwindows; t++)
-            out_row_start[t] += weight_down * in_row_start[t];
-        }
+    for (int64_t fftbin = 0; fftbin < fftbin_size; fftbin++) {
+      auto *in_row_start = in + fftbin * in_stride;
+      auto filter_up = intervals_[fftbin];
+      auto weight_up = T(1) - weights_down_[fftbin];
+      auto filter_down = filter_up - 1;
+      auto weight_down = weights_down_[fftbin];
 
-        if (filter_up < nfilter_) {
-          weight_up = (f - f0) * slope;
-          auto *out_row_start = out + filter_up * out_stride;
-          for (int t = 0; t < nwindows; t++)
-            out_row_start[t] += weight_up * in_row_start[t];
+      if (filter_down >= 0) {
+        auto *out_row_start = out + filter_down * out_stride;
+        for (int t = 0; t < nwindows; t++) {
+          out_row_start[t] += weight_down * in_row_start[t];
+        }
+      }
+
+      if (filter_up < nfilter_) {
+        auto *out_row_start = out + filter_up * out_stride;
+        for (int t = 0; t < nwindows; t++) {
+          out_row_start[t] += weight_up * in_row_start[t];
         }
       }
     }
@@ -127,6 +137,9 @@ class MelFilterBankImpl {
   T mel_high_;
   T hz_step_;
   T mel_delta_;
+  std::vector<T> weights_down_;
+  std::vector<int> intervals_;
+  bool centered_ = false;
 };
 
 }  // namespace audio

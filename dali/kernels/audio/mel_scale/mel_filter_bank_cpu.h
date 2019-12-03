@@ -22,19 +22,13 @@
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_args.h"
+#include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu_impl.h"
 
 namespace dali {
 namespace kernels {
 namespace audio {
 
-namespace detail {
-
-template <typename T>
-struct MelFilterBankCpuImpl;
-
-}  // namespace detail
-
-template <typename T = float, int Dims = 1>
+template <typename T = float, int Dims = 2>
 class DLL_PUBLIC MelFilterBankCpu {
  public:
   static_assert(std::is_floating_point<T>::value, "Only floating point types are supported");
@@ -52,7 +46,9 @@ class DLL_PUBLIC MelFilterBankCpu {
                       const MelFilterBankArgs &args);
 
  private:
-  // std::unique_ptr<detail::MelFilterBankCpuImpl<T>> impl_;
+  using Impl = MelFilterBankCpuImpl<T>;
+  std::unique_ptr<Impl> impl_;
+  MelFilterBankArgs args_;
 };
 
 }  // namespace audio
