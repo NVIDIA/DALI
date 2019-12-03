@@ -21,13 +21,13 @@ namespace audio {
 
 struct MelFilterBankArgs {
   // Signal's sampling rate
-  float sampling_rate = 44100.0f;
+  float sample_rate = 44100.0f;
 
   // Minimum frequency
   float fmin = 0.0f;
 
   // Maximum frequency (default is Nyquist frequency)
-  float fmax = sampling_rate / 2;
+  float fmax = sample_rate / 2;
 
   // Number of mel filter banks
   int nfilter = 128;
@@ -40,7 +40,7 @@ struct MelFilterBankArgs {
   int nfft = -1;
 
   bool operator==(const MelFilterBankArgs &oth) const {
-    return sampling_rate == oth.sampling_rate
+    return sample_rate == oth.sample_rate
         && fmin  == oth.fmin
         && fmax  == oth.fmax
         && nfilter == oth.nfilter

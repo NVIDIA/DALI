@@ -24,19 +24,17 @@
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 
-#undef LOG_LINE
-#define LOG_LINE std::cout
-
 namespace dali {
 namespace kernels {
 namespace audio {
 namespace test {
 
 class MelScaleCpuTest : public::testing::TestWithParam<
-  std::tuple<std::array<int64_t, 2> /* data_shape */>> {
+  std::tuple<std::array<int64_t, 2> /* data_shape */, int /* nfilter */>> {
  public:
   MelScaleCpuTest()
     : data_shape_(std::get<0>(GetParam()))
+    , nfilter_(std::get<1>(GetParam()))
     , data_(volume(data_shape_))
     , in_view_(data_.data(), data_shape_) {}
 
@@ -48,6 +46,7 @@ class MelScaleCpuTest : public::testing::TestWithParam<
     UniformRandomFill(in_view_, rng, 0.0, 1.0);
   }
   TensorShape<2> data_shape_;
+  int nfilter_ = 4;
   std::vector<float> data_;
   OutTensorCPU<float, 2> in_view_;
 };
@@ -103,18 +102,6 @@ std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, floa
       auto lower = (freq_grid[j+2] - f) / (freq_grid[j+2] - freq_grid[j+1]);
       fbank[i] = std::max(0.0f, std::min(upper, lower));
     }
-
-    /*for (i = std::floor(bins[j]); i < std::ceil(bins[j+1]); i++) {
-      std::cout << "A Visit " << i << "\n";
-      auto ii = i + 0.5f;
-      fbank[i] = std::max(0.0f, (ii - bins[j]) / (bins[j+1] - bins[j]));
-    }
-
-    for (i = std::floor(bins[j+1]); i < std::ceil(bins[j+2]); i++) {
-      std::cout << "B Visit " << i << "\n";
-      auto ii = i + 0.5f;
-      fbank[i] = std::max(0.0f, (bins[j+2] - ii) / (bins[j+2] - bins[j+1]));
-    }*/
   }
 
   for (int j = 0; j < nfilter; j++) {
@@ -135,112 +122,60 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   auto shape = in_view_.shape;
 
   int axis = 0;
-  int nfilters = 4;
   int nfft = (shape[axis]-1)*2;
   int nwin = shape[axis+1];
 
   auto out_shape = in_view_.shape;
-  out_shape[axis] = nfilters;
+  out_shape[axis] = nfilter_;
   auto out_size = volume(out_shape);
-
-  std::vector<T> expected_out(out_size);
-  auto expected_out_view = OutTensorCPU<T, Dims>(expected_out.data(), out_shape.to_static<Dims>());
 
   T sample_rate = 16000;
   T mel_low = hz_to_mel(0.0f);
   T mel_high = hz_to_mel(sample_rate / 2);
 
-  T mel_delta = (mel_high - mel_low) / (nfilters + 1);
+  T mel_delta = (mel_high - mel_low) / (nfilter_ + 1);
   T mel = mel_low;
-  for (int i = 0; i < nfilters+1; i++, mel += mel_delta) {
-    LOG_LINE << "Mel freq " << i << " : " << mel << " \n";
+  LOG_LINE << "Mel frequency grid (Hz):";
+  for (int i = 0; i < nfilter_+1; i++, mel += mel_delta) {
+    LOG_LINE << " " << mel_to_hz(mel);
   }
-  LOG_LINE << "Mel freq " << nfilters+1 << " : " << mel_high << " \n";
+  LOG_LINE << " " << mel_to_hz(mel_high) << "\n";
 
-  LOG_LINE << "FFT bin to Mels:";
+  LOG_LINE << "FFT bin frequencies (Hz):";
   for (int k = 0; k < nfft / 2 + 1; k++) {
-    LOG_LINE << "\n k " << k << " : " << (k * sample_rate / nfft);
+    LOG_LINE << " " << (k * sample_rate / nfft);
   }
   LOG_LINE << "\n";
 
-  auto fbanks = ReferenceFilterBanks(nfilters, nfft, sample_rate, 0.0f, sample_rate/2.0f);
-  std::vector<T> expected_out2(out_size, 0.0f);
-  auto expected_out_view2 = OutTensorCPU<T, Dims>(expected_out2.data(), out_shape.to_static<Dims>());
-  for (int j = 0; j < nfilters; j++) {
+  auto fbanks = ReferenceFilterBanks(nfilter_, nfft, sample_rate, 0.0f, sample_rate/2.0f);
+  std::vector<T> expected_out(out_size, 0.0f);
+  auto expected_out_view = OutTensorCPU<T, Dims>(expected_out.data(), out_shape.to_static<Dims>());
+  for (int j = 0; j < nfilter_; j++) {
     for (int t = 0; t < nwin; t++) {
-      auto &out_val = expected_out_view2.data[j*nwin+t];
+      auto &out_val = expected_out_view.data[j*nwin+t];
       for (int i = 0; i < nfft/2+1; i++) {
         out_val += fbanks[j][i] * in_view_.data[i*nwin+t];
       }
     }
   }
 
-  // In the outer loop we travel at a linearly spaced frequency grid in the mel scale
-  // Each triangular filter is defined by three points in this grid (left, center, right)
-  // For each iteration we process a range between two mel frequencies in the grid, calculating
-  // the contribution of each FFT bin to 2 triangular filter (one is in the negative slope region
-  // and the other in the positive slope region), except for the first and last iteration.
-  // In total, we do a single pass on every FFT bin column
-  //
-  // For every FFT bin we compute the weight for each filter and travel through the row, computing
-  // the contributions on every window of the spectrogram (horizontal axis)
-  //
+  KernelContext ctx;
+  kernels::audio::MelFilterBankArgs args;
+  args.axis = Dims - 2;
+  args.nfft = nfft;
+  args.nfilter = nfilter_;
+  args.sample_rate = sample_rate;
+  args.fmin = 0;
+  args.fmax = 0.5f * sample_rate;
 
-  T mel0 = mel_low;
-  T mel1 = mel_low + mel_delta;
-  T *out_ = &expected_out_view.data[0];
+  kernels::audio::MelFilterBankCpu<T, Dims> kernel;
+  auto req = kernel.Setup(ctx, in_view_, args);
 
-  // Index of fft bins [0, nfft/2+1)
-  int k = 0;
-  // Frequency increment in Hz between FFT bins
-  auto hz_step = sample_rate / nfft;
-  // Frequency start in Hz
-  auto hz = 0.5 * hz_step;  // centered bins
-/*
-  int last_interval = nfilters;
-  for (int interval = 0, filter_up = 0, filter_down = -1;
-       interval <= last_interval;
-       interval++, mel0 = mel1, mel1 += mel_delta, filter_up++, filter_down++) {
-    T slope = 1.0 / (mel1 - mel0);
-    if (interval == last_interval)
-      mel1 = mel_high;
-    LOG_LINE << "Enter interval " << interval << " from mel " << mel0 << " up to mel " << mel1 << "\n";
+  ASSERT_EQ(out_shape, req.output_shapes[0][0]);
+  std::vector<T> out(out_size, 0.0f);
+  auto out_view = OutTensorCPU<T, Dims>(out.data(), out_shape.to_static<Dims>());
 
-    for (; k < nfft/2+1; k++, hz += hz_step) {
-      auto mel = hz_to_mel(hz);
-      LOG_LINE << "k " << k << " current mel " << mel << " ";
-      if (mel > mel1) {
-        LOG_LINE << "... Moving on to next filter\n";
-        break;
-      }
-      auto *in_row_start = &in_view_.data[k*nwin];
-      T weight_up = 0.0, weight_down = 0.0;
-      if (filter_down >= 0) {
-        LOG_LINE << "... filter down! ";
-        weight_down = (mel1-mel) * slope;
-        auto *out_row_start = &expected_out_view.data[filter_down*nwin];
-        LOG_LINE << "(" << mel << " - " << mel0 << ") / " << (mel1 - mel0)
-                  << " = " << weight_down << std::endl;
-        for (int t = 0; t < nwin; t++)
-          out_row_start[t] += weight_down * in_row_start[t];
-      }
-
-      if (filter_up < nfilters) {
-        LOG_LINE << "... filter up! ";
-        weight_up = (mel-mel0) * slope;
-        auto *out_row_start = &expected_out_view.data[filter_up*nwin];
-        LOG_LINE << "(" << mel << " - " << mel0 << ") / " << (mel1 - mel0)
-                  << " = " << weight_up << std::endl;
-        for (int t = 0; t < nwin; t++)
-          out_row_start[t] += weight_up * in_row_start[t];
-      }
-
-      LOG_LINE << "Sum is " << weight_down + weight_up << "\n";
-    }
-  }*/
-
-  MelFilterBankImpl<T> fbank(nfilters, nfft, sample_rate);
-  fbank.Compute(expected_out_view.data, in_view_.data, nwin);
+  kernel.Run(ctx, out_view, in_view_, args);
 
   LOG_LINE << "in:\n";
   print_data(in_view_);
@@ -248,12 +183,19 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   LOG_LINE << "expected out:\n";
   print_data(expected_out_view);
 
-  LOG_LINE << "expected out 2:\n";
-  print_data(expected_out_view2);
+  LOG_LINE << "out:\n";
+  print_data(out_view);
+
+  for (int idx = 0; idx < volume(out_view.shape); idx++) {
+    ASSERT_NEAR(expected_out_view.data[idx], out_view.data[idx], 1e-4) <<
+      "Output data doesn't match reference (idx=" << idx << ")";
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(MelScaleCpuTest, MelScaleCpuTest, testing::Combine(
-    testing::Values(std::array<int64_t, 2>{33, 10})));  // shape
+    testing::Values(std::array<int64_t, 2>{33, 10},
+                    std::array<int64_t, 2>{100, 20}),  // shape
+    testing::Values(2, 4, 16)));  // nfilter
 
 }  // namespace test
 }  // namespace audio

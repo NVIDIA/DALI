@@ -37,8 +37,8 @@ struct MelFilterBankCpuImpl;
 template <typename T = float, int Dims = 1>
 class DLL_PUBLIC MelFilterBankCpu {
  public:
-  static_assert(std::is_floating_point<T>::value,
-    "Only floating point types are supported");
+  static_assert(std::is_floating_point<T>::value, "Only floating point types are supported");
+  static_assert(Dims >= 2, "At least 2 dimensions are expected");
 
   DLL_PUBLIC ~MelFilterBankCpu();
 

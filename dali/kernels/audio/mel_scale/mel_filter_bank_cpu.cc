@@ -34,7 +34,12 @@ KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
     KernelContext &context,
     const InTensorCPU<T, Dims> &in,
     const MelFilterBankArgs &args) {
+  DALI_ENFORCE(args.axis == Dims - 2,
+    "Input is expected to be a spectrogram with the last two dimensions being FFT bin index and "
+    "window index respectively");
+
   auto out_shape = in.shape;
+  out_shape[args.axis] = args.nfilter;
   std::vector<TensorShape<DynamicDimensions>> tmp = {out_shape};  // workaround for clang-6 bug
   KernelRequirements req;
   req.output_shapes = {TensorListShape<DynamicDimensions>(tmp)};
@@ -47,12 +52,19 @@ void MelFilterBankCpu<T, Dims>::Run(
     const OutTensorCPU<T, Dims> &out,
     const InTensorCPU<T, Dims> &in,
     const MelFilterBankArgs &args) {
-
-      // TODO
+  MelFilterBankImpl<T> fbank(args.nfilter, args.nfft, args.sample_rate);
+  auto nwin = in.shape[Dims-1];
+  fbank.Compute(out.data, in.data, nwin);
 }
 
 template class MelFilterBankCpu<float, 2>;
 template class MelFilterBankCpu<double, 2>;
+
+template class MelFilterBankCpu<float, 3>;
+template class MelFilterBankCpu<double, 3>;
+
+template class MelFilterBankCpu<float, 4>;
+template class MelFilterBankCpu<double, 4>;
 
 }  // namespace audio
 }  // namespace kernels

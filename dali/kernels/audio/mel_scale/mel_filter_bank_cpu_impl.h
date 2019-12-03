@@ -68,7 +68,7 @@ class MelFilterBankImpl {
   // In the outer loop we travel at a linearly spaced frequency grid in the mel scale
   // Each triangular filter is defined by three points in this grid (left, center, right)
   // For each iteration we process a range between two mel frequencies in the grid, calculating
-  // the contribution of each FFT bin to 2 triangular filter (one is in the negative slope region
+  // the contribution of each FFT bin to 2 triangular filters (one is in the negative slope region
   // and the other in the positive slope region), except for the first and last iteration.
   // In total, we do a single pass on every FFT bin column
   //
@@ -87,6 +87,7 @@ class MelFilterBankImpl {
     T mel0 = mel_low_;
     T mel1 = mel_low_ + mel_delta_;
     int fftbin = 0;
+    int fftbin_size = nfft_ / 2 + 1;
     bool centered = false;
     T f = centered ? 0.5f * hz_step_ : 0.0f;
     for (int interval = 0, filter_up = 0, filter_down = -1;
@@ -96,7 +97,7 @@ class MelFilterBankImpl {
         mel1 = mel_high_;
       T f0 = mel_to_hz(mel0), f1 = mel_to_hz(mel1);
       T slope = 1.0f / (f1 - f0);
-      for (; fftbin < nfft_/2+1 && f < f1; fftbin++, f += hz_step_) {
+      for (; fftbin < fftbin_size && f < f1; fftbin++, f += hz_step_) {
         auto *in_row_start = in + fftbin * in_stride;
         T weight_up = 0.0, weight_down = 0.0;
         if (filter_down >= 0) {
