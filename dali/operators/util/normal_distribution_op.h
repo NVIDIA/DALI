@@ -28,7 +28,7 @@ const std::string kStddev = "stddev";  // NOLINT
 const std::string kShape = "shape";    // NOLINT
 
 const int kNumOutputs = 1;
-auto kShapeDefaultValue = std::vector<int>{-1};
+auto kShapeDefaultValue = std::vector<float>{-1};
 
 }  // namespace detail
 
@@ -42,10 +42,12 @@ class NormalDistribution : public Operator<Backend> {
  protected:
   explicit NormalDistribution(const OpSpec &spec) :
           Operator<Backend>(spec),
-          shape_(spec.GetArgument<std::remove_const_t<decltype(this->shape_)>>(detail::kShape)),
+
           seed_(spec.GetArgument<std::remove_const_t<decltype(this->seed_)>>("seed")),
           dtype_(spec.GetArgument<std::remove_const_t<decltype(this->dtype_)>>(
-                  arg_names::kDtype)) {}
+                  arg_names::kDtype)) {
+    shape_=spec.GetArgument<decltype(shape_)>(detail::kShape);
+  }
 
 
   bool CanInferOutputs() const override {
@@ -54,12 +56,14 @@ class NormalDistribution : public Operator<Backend> {
 
 
   void AcquireArguments(const workspace_t<CPUBackend> &ws) {
+    cout<<__PRETTY_FUNCTION__<<endl<<endl;
     this->GetPerSampleArgument(mean_, detail::kMean, ws);
     this->GetPerSampleArgument(stddev_, detail::kStddev, ws);
   }
 
 
   TensorListShape<> GetOutputShape(const workspace_t<CPUBackend> &ws) {
+    cout<<__PRETTY_FUNCTION__<<endl<<endl;
     DALI_ENFORCE(!(spec_.NumRegularInput() == 1 && IsShapeArgumentProvided(spec_)),
                  make_string("Incorrect operator invocation. "
                              "The operator cannot be called with both Input and `shape` argument"));
@@ -79,6 +83,7 @@ class NormalDistribution : public Operator<Backend> {
   using Operator<Backend>::batch_size_;
   std::vector<float> mean_, stddev_;
   decltype(detail::kShapeDefaultValue) shape_;
+//  std::vector<float> shape_;
   const int64_t seed_;
   const DALIDataType dtype_;
 
@@ -90,11 +95,13 @@ class NormalDistribution : public Operator<Backend> {
 
  private:
   TensorListShape<> ShapesFromInputTensorList(const workspace_t<CPUBackend> &ws) {
+    cout<<__PRETTY_FUNCTION__<<endl<<endl;
     return ws.template InputRef<CPUBackend>(0).shape();
   }
 
 
   TensorListShape<> ShapesFromArgument(const workspace_t<CPUBackend> &ws) {
+    cout<<__PRETTY_FUNCTION__<<endl<<endl;
     std::vector<int> shape;
     this->GetPerSampleArgument(shape, detail::kShape, ws);
     TensorListShape<> ret(batch_size_);
@@ -106,15 +113,21 @@ class NormalDistribution : public Operator<Backend> {
 
 
   TensorListShape<> ShapeForDefaultConfig(const workspace_t<CPUBackend> &ws) {
+    cout<<__PRETTY_FUNCTION__<<endl<<endl;
     TensorListShape<> ret(batch_size_);
     for (int i = 0; i < batch_size_; i++) {
       ret.set_tensor_shape(i, {1});
     }
-    return ret;
+    cout<<"batch size "<<batch_size_<<endl;
+    cout<<"DEFAULT SHAPE "<<ret<<endl;
+    cout<<uniform_list_shape(batch_size_, {1})<<endl;
+//    return ret;
+    return uniform_list_shape(batch_size_, {1});
   }
 
 
   bool IsShapeArgumentProvided(const OpSpec &spec) {
+    cout<<__PRETTY_FUNCTION__<<endl<<endl;
     return spec_.HasArgument(detail::kShape);
   }
 };
@@ -143,6 +156,8 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
   static_assert(std::is_same<decltype(mean_), decltype(stddev_)>::value &&
                 is_vector<decltype(mean_)>::value,
                 "It's assumed, that both `mean` and `stddev` are vectors");
+  static_assert(std::is_floating_point<decltype(mean_)::value_type>::value,
+                "Normal distribution is undefined for given type of mean");
   using distribution_t = std::normal_distribution<decltype(mean_)::value_type>;
 };
 
