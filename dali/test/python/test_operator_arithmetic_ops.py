@@ -29,8 +29,7 @@ batch_size = 4
 # Shape of the samples, currently forces the sample to have be covered by more than 1 tile
 shape_big = [(256, 256)] * batch_size
 # For the coverage of all type combinations we use smaller batch
-# TODO(klecki): revert to small batch
-shape_small = shape_big
+shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
 
 # A number used to test constant inputs
 magic_number = 42
@@ -139,11 +138,16 @@ def float_generator(shape, type):
 
 class ExternalInputIterator(object):
     def __init__(self, batch_size, shape, types, kinds):
+        try:
+            self.length = len(types)
+        except TypeError:
+            types = (types,)
+            kinds = (kinds,)
+            self.length = 1
         self.batch_size = batch_size
         self.types = types
         self.gens = []
         self.shapes = []
-        self.length = len(types)
         for i in range(self.length):
             self.gens.append(self.get_generator(self.types[i]))
             self.shapes.append(shape if ("scalar" not in kinds[i]) else [(1,)] * batch_size )
@@ -173,21 +177,27 @@ class ExternalInputIterator(object):
 class ExprOpPipeline(Pipeline):
     def __init__(self, kinds, types, iterator, op, batch_size, num_threads, device_id):
         super(ExprOpPipeline, self).__init__(batch_size, num_threads, device_id, seed=12)
-        self.left_source = ops.ExternalSource()
-        self.right_source = ops.ExternalSource()
+        try:
+            self.length = len(types)
+        except TypeError:
+            types = (types,)
+            kinds = (kinds,)
+            self.length = 1
+        self.external_source = []
+        for i in range(self.length):
+            self.external_source.append(ops.ExternalSource())
         self.kinds = kinds
         self.types = types
         self.iterator = iterator
         self.op = op
 
     def define_graph(self):
-        self.left = self.left_source()
-        self.right = self.right_source()
-        left_kind, right_kind = self.kinds
-        left_type, right_type = self.types
-        l = self.get_operand(self.left, left_kind, left_type)
-        r = self.get_operand(self.right, right_kind, right_type)
-        return self.left, self.right, self.op(l, r)
+        self.source = []
+        inputs = []
+        for i in range(self.length):
+            self.source.append(self.external_source[i]())
+            inputs.append(self.get_operand(self.source[i], self.kinds[i], self.types[i]))
+        return tuple(self.source) + (self.op(*inputs), )
 
     def get_operand(self, operand, kind, operand_type):
         if kind == "const":
@@ -198,9 +208,9 @@ class ExprOpPipeline(Pipeline):
             return operand.gpu()
 
     def iter_setup(self):
-        (l, r) = self.iterator.next()
-        self.feed_input(self.left, l)
-        self.feed_input(self.right, r)
+        inputs = self.iterator.next()
+        for i in range(len(inputs)):
+            self.feed_input(self.source[i], inputs[i])
 
 def get_numpy_input(input, kind, type):
     if kind == "const":
@@ -211,7 +221,14 @@ def get_numpy_input(input, kind, type):
         else:
             return input.astype(type)
 
-def extract_data(pipe_out, sample_id, kinds, target_type):
+def extract_un_data(pipe_out, sample_id, kind, target_type):
+    input = as_cpu(pipe_out[0]).at(sample_id)
+    out = as_cpu(pipe_out[1]).at(sample_id)
+    assert_equals(out.dtype, target_type)
+    in_np = get_numpy_input(input, input, target_type)
+    return in_np, out
+
+def extract_bin_data(pipe_out, sample_id, kinds, target_type):
     left_kind, right_kind = kinds
     l = as_cpu(pipe_out[0]).at(sample_id)
     r = as_cpu(pipe_out[1]).at(sample_id)
@@ -220,6 +237,28 @@ def extract_data(pipe_out, sample_id, kinds, target_type):
     l_np = get_numpy_input(l, left_kind, target_type)
     r_np = get_numpy_input(r, right_kind, target_type)
     return l_np, r_np, out
+
+# Regular arithmetic ops that can be validated as straight numpy
+def check_unary_op(kind, type, op, shape, _):
+    iterator = iter(ExternalInputIterator(batch_size, shape, type, kind))
+    pipe = ExprOpPipeline(kind, type, iterator, op, batch_size = batch_size, num_threads = 2,
+            device_id = 0)
+    pipe.build()
+    pipe_out = pipe.run()
+    for sample in range(batch_size):
+        in_np, out = extract_un_data(pipe_out, sample, kind, type)
+        if 'f' in np.dtype(type).kind:
+            np.testing.assert_allclose(out, op(in_np),
+                rtol=1e-07 if type != np.float16 else 0.005)
+        else:
+            np.testing.assert_array_equal(out, op(in_np))
+
+def test_unary_arithmetic_ops():
+    for kinds in unary_inputs_kinds:
+        for (op, op_desc) in unary_operations:
+            for types_in in input_types:
+                yield check_unary_op, kinds, types_in, op, shape_small, op_desc
+
 
 # Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, _):
@@ -231,7 +270,7 @@ def check_arithm_op(kinds, types, op, shape, _):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
         if 'f' in np.dtype(target_type).kind:
             np.testing.assert_allclose(out, op(l_np, r_np),
                 rtol=1e-07 if target_type != np.float16 else 0.005)
@@ -261,7 +300,7 @@ def check_arithm_fdiv(kinds, types, shape):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
         np.testing.assert_allclose(out, l_np / r_np,
             rtol=1e-07 if target_type != np.float16 else 0.005)
 
@@ -285,7 +324,7 @@ def check_arithm_div(kinds, types, shape):
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
         if 'f' in np.dtype(target_type).kind:
             np.testing.assert_allclose(out, l_np / r_np,
                 rtol=1e-07 if target_type != np.float16 else 0.005)
