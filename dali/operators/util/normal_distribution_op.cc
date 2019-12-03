@@ -34,7 +34,7 @@ distributed normally (similar to `CoinFlip` operator).)code")
                 .AddOptionalArg(detail::kStddev,
                                 R"code(Standard deviation of the distribution)code",
                                 1.f, true)
-                .AddOptionalArg<float>(detail::kShape,
+                .AddOptionalArg(detail::kShape,
                                 R"code(Shape of single output tensor in a batch)code",
                                        detail::kShapeDefaultValue)
                 .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
@@ -48,11 +48,9 @@ DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);
 
 bool NormalDistributionCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
-  cout<<__PRETTY_FUNCTION__<<endl<<endl;
   AcquireArguments(ws);
   output_desc.resize(detail::kNumOutputs);
   output_desc[0].shape = GetOutputShape(ws);
-  cout<<"SHAPE "<<output_desc[0].shape<<endl;
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
           {
             TypeInfo type;
@@ -65,18 +63,14 @@ bool NormalDistributionCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 
 void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &ws) {
-  cout<<__PRETTY_FUNCTION__<<endl<<endl;
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   distribution_t distribution(mean_[0], stddev_[0]);
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
           for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
           tp.DoWorkWithID([&, sample_id](int thread_id){
-//            cout<<"DUPA "<<sample_id<<endl;
               auto ptr = output[sample_id].mutable_data<DType>();
-//            cout<<"DUPA "<<sample_id<<endl;
             *ptr = ConvertSat<DType>(distribution(rng_));
-            cout<<"DUPA "<<sample_id<<" "<<*ptr<<endl;
           });
   }
   ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
@@ -85,7 +79,6 @@ void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &w
 
 
 void NormalDistributionCpu::AssignTensorToOutput(workspace_t<CPUBackend> &ws) {
-  cout<<__PRETTY_FUNCTION__<<endl<<endl;
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
@@ -101,7 +94,6 @@ void NormalDistributionCpu::AssignTensorToOutput(workspace_t<CPUBackend> &ws) {
 
 
 void NormalDistributionCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  cout<<__PRETTY_FUNCTION__<<endl<<endl;
   if (this->single_value_in_output_) {
     AssignSingleValueToOutput(ws);
   } else {

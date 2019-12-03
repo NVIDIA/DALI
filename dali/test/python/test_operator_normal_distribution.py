@@ -79,15 +79,13 @@ def test_normal_distribution_with_input():
 
 
 def test_normal_distribution_with_argument():
-    pipeline = NormalDistributionPipelineWithArgument(shape=[1])
+    pipeline = NormalDistributionPipelineWithArgument([30,20])
     pipeline.build()
-    # outputs = pipeline.run()
-    # print(outputs[0].at(0))
-    # print(outputs[0].at(0).shape)
-    # possibly_normal_distribution = outputs[0].at(0).flatten()
-    # _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
+    outputs = pipeline.run()
+    possibly_normal_distribution = outputs[0].as_array().flatten()
+    _, pvalues_anderson, _ = st.anderson(possibly_normal_distribution, dist='norm')
     # It's not 100% mathematically correct, but makes do in case of this test
-    # assert pvalues_anderson[2] > 0.5
+    assert pvalues_anderson[2] > 0.5
 
 
 def test_normal_distribution_default():
@@ -99,7 +97,3 @@ def test_normal_distribution_default():
     # It's not 100% mathematically correct, but makes do in case of this test
     assert pvalues_anderson[2] > 0.5
 
-
-# test_normal_distribution_with_input()
-test_normal_distribution_with_argument()
-# test_normal_distribution_default()
