@@ -75,8 +75,8 @@ class NormalDistribution : public Operator<Backend> {
     }
   }
 
-
-  USE_OPERATOR_MEMBERS();
+  using Operator<Backend>::spec_;
+  using Operator<Backend>::batch_size_;
   std::vector<float> mean_, stddev_;
   decltype(detail::kShapeDefaultValue) shape_;
   const int64_t seed_;
