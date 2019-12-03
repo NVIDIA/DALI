@@ -18,6 +18,7 @@
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/signal/window/extract_windows_gpu.cuh"
 #include "dali/kernels/scratch.h"
+#include "dali/kernels/signal/window/window_functions.h"
 
 namespace dali {
 namespace kernels {
@@ -85,7 +86,7 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
 
 
 
-void TestBatchedExtract(bool concatenate, Padding padding) {
+void TestBatchedExtract(bool concatenate, Padding padding, span<const float> window) {
   ExtractWindowsGPU<float, float> extract;
 
   TensorListShape<1> lengths({ TensorShape<1>{5}, TensorShape<1>{305}, TensorShape<1>{157} });
@@ -105,8 +106,8 @@ void TestBatchedExtract(bool concatenate, Padding padding) {
   }
 
   ExtractWindowsArgs args;
-  args.window_length = 55;
-  args.window_center = 21;
+  args.window_length = window.empty() ? 55 : window.size();
+  args.window_center = window.empty() ? 21 : window.size()/2;
   args.window_step = 2;
   args.padding = padding;
 
@@ -124,12 +125,18 @@ void TestBatchedExtract(bool concatenate, Padding padding) {
   ctx.scratchpad = &scratchpad;
 
   TestTensorList<float, 2> out;
-  TensorView<StorageGPU, float, 1> window_gpu;  // empty
+  memory::KernelUniquePtr<float> gpu_win;
+  if (!window.empty()) {
+    gpu_win = memory::alloc_unique<float>(AllocType::GPU, window.size());
+    cudaMemcpy(gpu_win.get(), window.data(), sizeof(float)*window.size(), cudaMemcpyHostToDevice);
+  }
+  auto window_gpu = make_tensor_gpu<1>(gpu_win.get(), { window.size() });
   out.reshape(req.output_shapes[0].to_static<2>());
   extract.Run(ctx, out.gpu(0), in_gpu, window_gpu);
   auto out_cpu = out.cpu();
 
   int ofs = 0;
+
   for (int sample = 0; sample < N; sample++) {
     ptrdiff_t length = lengths[sample][0];
     int nwnd = args.num_windows(length);
@@ -155,6 +162,8 @@ void TestBatchedExtract(bool concatenate, Padding padding) {
           }
         }
         float ref = idx >= 0 && idx < length ? in_cpu.data[sample][idx] : 0;
+        if (!window.empty())
+          ref *= window[i];
         ASSERT_EQ(out_cpu.data[out_sample][ofs + i*stride], ref)
           << "@ sample = " << sample
           << ", window = " << w << ", index = " << i;
@@ -164,11 +173,23 @@ void TestBatchedExtract(bool concatenate, Padding padding) {
 }
 
 TEST(ExtractWindowsGPU, BatchedConcat) {
-  TestBatchedExtract(true, Padding::Reflect);
+  TestBatchedExtract(true, Padding::Reflect, {});
 }
 
-TEST(ExtractWindowsGPU, BatchedSeparateConcat) {
-  TestBatchedExtract(false, Padding::Zero);
+TEST(ExtractWindowsGPU, BatchedSeparate) {
+  TestBatchedExtract(false, Padding::Zero, {});
+}
+
+TEST(ExtractWindowsGPU, BatchedConcatWindowFunc) {
+  vector<float> window(60);
+  HannWindow(make_span(window));
+  TestBatchedExtract(true, Padding::Zero, make_cspan(window));
+}
+
+TEST(ExtractWindowsGPU, BatchedSeparateWindowFunc) {
+  vector<float> window(60);
+  HammingWindow(make_span(window));
+  TestBatchedExtract(false, Padding::Reflect, make_cspan(window));
 }
 
 
