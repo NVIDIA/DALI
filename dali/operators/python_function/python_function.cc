@@ -41,12 +41,16 @@ DALI_SCHEMA(PythonFunctionBase)
 DALI_SCHEMA(PythonFunction)
         .DocStr("Executes a python function")
         .NumInput(0, 256)
+        .AllowSequences()
+        .SupportVolumetric()
         .NoPrune()
         .AddParent("PythonFunctionBase");
 
 DALI_SCHEMA(TorchPythonFunction)
         .DocStr("Executes a function operating on Torch tensors")
         .NumInput(0, 256)
+        .AllowSequences()
+        .SupportVolumetric()
         .NoPrune()
         .AddParent("PythonFunctionBase");
 

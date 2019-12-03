@@ -21,6 +21,7 @@ DALI_SCHEMA(Rotate)
   .NumInput(1)
   .NumOutput(1)
   .InputLayout(0, { "HWC", "DHWC" })
+  .SupportVolumetric()
   .AddOptionalArg<float>("axis", "3D only: axis around which to rotate.\n"
   "The vector does not need to be normalized, but must have non-zero length.\n"
   "Reversing the vector is equivalent to changing the sign of `angle`.\n",

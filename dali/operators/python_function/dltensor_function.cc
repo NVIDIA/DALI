@@ -38,6 +38,8 @@ In this case, the `synchronize_stream` flag can be set to false.')code")
 Should be set to false only if the called function schedules the device job
 to the stream used by DALI.)code", true)
     .NumInput(0, 256)
+    .AllowSequences()
+    .SupportVolumetric()
     .NoPrune()
     .AddParent("PythonFunctionBase");
 

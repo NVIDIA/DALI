@@ -21,6 +21,7 @@ DALI_SCHEMA(Transpose)
   .NumInput(1)
   .NumOutput(1)
   .AllowSequences()
+  .SupportVolumetric()
   .AddArg("perm",
       R"code(Permutation of the dimensions of the input (e.g. [2, 0, 1]).)code",
       DALI_INT_VEC)
