@@ -35,10 +35,12 @@ shape_small = shape_big
 # A number used to test constant inputs
 magic_number = 42
 
+unary_inputs_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar"]
+
 # We cannot have 'Constant x Constant' operations with DALI op.
 # And scalar is still a represented by a Tensor, so 'Scalar x Constant' is the same
 # as 'Tensor x Constant'.
-input_kinds = (list(itertools.product(["cpu", "gpu"], ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"])) +
+bin_inputs_kinds = (list(itertools.product(["cpu", "gpu"], ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"])) +
                list(itertools.product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"])))
 
 
@@ -59,6 +61,8 @@ np_types_to_dali = {
     np.float32: types.FLOAT,
     np.float64: types.FLOAT64,
 }
+
+unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*")]
@@ -134,25 +138,27 @@ def float_generator(shape, type):
         return type([np.random.rand()])
 
 class ExternalInputIterator(object):
-    def __init__(self, batch_size, shape, left_type, right_type, left_kind, right_kind):
+    def __init__(self, batch_size, shape, types, kinds):
         self.batch_size = batch_size
-        self.left_type = left_type
-        self.right_type = right_type
-        self.gen_l = self.get_generator(self.left_type)
-        self.gen_r = self.get_generator(self.right_type)
-        self.left_shape = shape if ("scalar" not in left_kind) else [(1,)] * batch_size
-        self.right_shape = shape if ("scalar" not in right_kind) else [(1,)] * batch_size
+        self.types = types
+        self.gens = []
+        self.shapes = []
+        self.length = len(types)
+        for i in range(self.length):
+            self.gens.append(self.get_generator(self.types[i]))
+            self.shapes.append(shape if ("scalar" not in kinds[i]) else [(1,)] * batch_size )
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        left = []
-        right = []
-        for sample in range(self.batch_size):
-            left.append(self.gen_l(self.left_shape[sample]))
-            right.append(self.gen_r(self.right_shape[sample]))
-        return (left, right)
+        out = ()
+        for i in range(self.length):
+            batch = []
+            for sample in range(self.batch_size):
+                batch.append(self.gens[i](self.shapes[i][sample]))
+            out = out + (batch,)
+        return out
 
     def get_generator(self, type):
         if type in [np.float16, np.float32, np.float64]:
@@ -218,9 +224,8 @@ def extract_data(pipe_out, sample_id, kinds, target_type):
 # Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, _):
     left_type, right_type = types
-    left_kind, right_kind = kinds
     target_type = bin_promote(left_type, right_type)
-    iterator = iter(ExternalInputIterator(batch_size, shape, left_type, right_type, left_kind, right_kind))
+    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
     pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size = batch_size, num_threads = 2,
             device_id = 0)
     pipe.build()
@@ -235,13 +240,13 @@ def check_arithm_op(kinds, types, op, shape, _):
 
 
 def test_arithmetic_ops_big():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for (op, op_desc) in sane_operations:
             for types_in in [(np.int8, np.int8)]:
                 yield check_arithm_op, kinds, types_in, op, shape_big, op_desc
 
 def test_arithmetic_ops():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for (op, op_desc) in sane_operations:
             for types_in in itertools.product(input_types, input_types):
                 yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
@@ -249,9 +254,8 @@ def test_arithmetic_ops():
 # The div operator that always returns floating point values
 def check_arithm_fdiv(kinds, types, shape):
     left_type, right_type = types
-    left_kind, right_kind = kinds
     target_type = div_promote(left_type, right_type)
-    iterator = iter(ExternalInputIterator(batch_size, shape, left_type, right_type, left_kind, right_kind))
+    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
     pipe = ExprOpPipeline(kinds, types, iterator, (lambda x, y : x / y), batch_size = batch_size,
             num_threads = 2, device_id = 0)
     pipe.build()
@@ -262,21 +266,20 @@ def check_arithm_fdiv(kinds, types, shape):
             rtol=1e-07 if target_type != np.float16 else 0.005)
 
 def test_arithmetic_float_big():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for types_in in [(np.int8, np.int8)]:
             yield check_arithm_fdiv, kinds, types_in, shape_big
 
 def test_arithmetic_float_division():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for types_in in itertools.product(input_types, input_types):
             yield check_arithm_fdiv, kinds, types_in, shape_small
 
 # The div operator behaves like C/C++ one
 def check_arithm_div(kinds, types, shape):
     left_type, right_type = types
-    left_kind, right_kind = kinds
     target_type = bin_promote(left_type, right_type)
-    iterator = iter(ExternalInputIterator(batch_size, shape, left_type, right_type, left_kind, right_kind))
+    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
     pipe = ExprOpPipeline(kinds, types, iterator, (lambda x, y : x // y), batch_size = batch_size,
             num_threads = 2, device_id = 0)
     pipe.build()
@@ -295,11 +298,11 @@ def check_arithm_div(kinds, types, shape):
             np.testing.assert_array_equal(out, result)
 
 def test_arithmetic_division_big():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for types_in in [(np.int8, np.int8)]:
             yield check_arithm_div, kinds, types_in, shape_big
 
 def test_arithmetic_division():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for types_in in itertools.product(input_types, input_types):
             yield check_arithm_div, kinds, types_in, shape_small

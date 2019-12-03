@@ -52,6 +52,7 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::sub:
     case ArithmeticOp::mul:
     case ArithmeticOp::div:
+    case ArithmeticOp::fdiv:
     case ArithmeticOp::mod:
       return 2;
     default:
