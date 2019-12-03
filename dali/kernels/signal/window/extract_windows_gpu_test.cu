@@ -87,7 +87,7 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
 
 
 void TestBatchedExtract(bool concatenate, Padding padding, span<const float> window) {
-  ExtractWindowsGPU<float, float> extract;
+  ExtractWindowsGPUImpl<float, float> extract;
 
   TensorListShape<1> lengths({ TensorShape<1>{5}, TensorShape<1>{305}, TensorShape<1>{157} });
   int N = lengths.num_samples();

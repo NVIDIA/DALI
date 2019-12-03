@@ -18,6 +18,7 @@
 #include <cuda_runtime.h>
 #include <algorithm>
 
+#include "dali/core/convert.h"
 #include "dali/kernels/signal/window/extract_windows_args.h"
 #include "dali/kernels/kernel.h"
 
@@ -64,7 +65,7 @@ __device__ void ExtractWindowsBlock(
           break;
       }
     }
-    Src v = idx >= 0 && idx < length ? src[idx] * w : Src();
+    float v = idx >= 0 && idx < length ? ConvertNorm<float>(src[idx]) * w : Src();
     tmp[page][threadIdx.y][threadIdx.x] = v;
   }
   __syncthreads();
@@ -73,7 +74,7 @@ __device__ void ExtractWindowsBlock(
   ptrdiff_t win_idx = first_window_idx + threadIdx.x;
 
   if (win_ofs < win_len && win_idx < num_windows)
-    dst[stride * win_ofs + win_idx] = tmp[page][threadIdx.x][threadIdx.y];
+    dst[stride * win_ofs + win_idx] = ConvertSatNorm<Dst>(tmp[page][threadIdx.x][threadIdx.y]);
 }
 
 
@@ -161,13 +162,13 @@ __global__ void ExtractWindowsBatchedKernel(
 }  // namespace window
 
 template <typename Dst, typename Src>
-struct ExtractWindowsGPU {
+struct ExtractWindowsGPUImpl {
   using SampleDesc = window::SampleDesc;
   using BlockDesc = window::BlockDesc;
 
   KernelRequirements Setup(
       KernelContext &context,
-      const InListGPU<float, 1> &input,
+      const InListGPU<Src, 1> &input,
       const ExtractWindowsArgs &args,
       bool concatenate,
       int out_win_length = -1) {
