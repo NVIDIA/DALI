@@ -21,12 +21,9 @@ namespace dali {
 DALI_SCHEMA(NormalDistribution)
                 .DocStr(R"code(Creates a tensor that consists of data distributed normally.
 This operator can be ran in 3 modes, which determine the shape of the output tensor:
-1. Providing an input batch to this operator resolves in a batch of output tensors,
-where the shapes correspond to the shapes of tensors in the input batch.
-2. Providing a custom shape as an argument resolves in a batch of output tensors,
-where every output tensor has the same shape.
-3. Providing no input arguments resolves in a batch of output scalars,
-distributed normally (similar to `CoinFlip` operator).)code")
+1. Providing an input batch to this operator resolves in a batch of output tensors, which have the same shape as the input tensors.
+2. Providing a custom shape as an argument resolves in an output batch, where every tensor has the same (given) shape.
+3. Providing no input arguments resolves in an output batch of scalars, one per every input tensor, distributed normally.)code")
                 .NumInput(0, 1)
                 .NumOutput(detail::kNumOutputs)
                 .AddOptionalArg(detail::kMean, R"code(Mean value of the distribution)code",
@@ -43,7 +40,7 @@ distributed normally (similar to `CoinFlip` operator).)code")
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);
 
 
-#define NORM_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
+#define NORM_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float16, float, double)  // NOLINT
 
 
 bool NormalDistributionCpu::SetupImpl(std::vector<OutputDesc> &output_desc,

@@ -133,8 +133,7 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
 
   std::mt19937_64 rng_;
   static_assert(std::is_same<decltype(mean_), decltype(stddev_)>::value &&
-                is_vector<decltype(mean_)>::value,
-                "It's assumed, that both `mean` and `stddev` are vectors");
+                is_vector<decltype(mean_)>::value, "Both `mean` and `stddev` should be vectors");
   static_assert(std::is_floating_point<decltype(mean_)::value_type>::value,
                 "Normal distribution is undefined for given type of mean");
   using distribution_t = std::normal_distribution<decltype(mean_)::value_type>;
