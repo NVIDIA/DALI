@@ -16,41 +16,70 @@
 #define DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_CPU_IMPL_H_
 
 #include <cmath>
+#include <memory>
 #include <vector>
+#include "dali/kernels/audio/mel_scale/mel_filter_bank_args.h"
+#include "dali/core/force_inline.h"
 
 namespace dali {
 namespace kernels {
 namespace audio {
 
 template <typename T>
-T hz_to_mel(T hz) {}
+struct DefaultMelScale {
+  static DALI_FORCEINLINE T hz_to_mel(T hz) {
+    // equivalent to `2595.0 * std::log10(1 + hz / 700.0)`
+    return T(1127) * std::log(T(1) + hz / T(700));
+  }
 
-template <>
-float hz_to_mel(float hz) {
-  // equivalent to `2595.0 * std::log10(1 + hz / 700.0)`
-  return 1127.0f * std::log(1.0f + hz / 700.0f);
-}
-
-template <>
-double hz_to_mel(double hz) {
-  // equivalent to `2595.0 * std::log10(1 + hz / 700.0)`
-  return 1127.0 * std::log(1.0 + hz / 700.0);
-}
+  static DALI_FORCEINLINE T mel_to_hz(T mel) {
+    // equivalent to `700.0 * (std::pow(10, mel / 2595.0) - 1.0)`
+    return T(700) * (std::exp(mel / T(1127)) - T(1));
+  }
+};
 
 template <typename T>
-T mel_to_hz(T mel);
+struct SlaneyMelScale {
+  static constexpr T fmin = 0;
+  static constexpr T fsp = 200.0 / 3.0;
 
-template <>
-float mel_to_hz(float mel) {
-  // equivalent to `700.0 * (std::pow(10, mel / 2595.0) - 1.0)`
-  return 700.0f * (std::exp(mel / 1127.0f) - 1.0f);
-}
+  static constexpr T min_log_hz = 1000.0;
+  static constexpr T min_log_mel = (min_log_hz - fmin) / fsp;
+  static constexpr T step_log = 0.068751777;  // Equivalent to std::log(6.4) / 27.0;
 
-template <>
-double mel_to_hz(double mel) {
-  // equivalent to `700.0 * (std::pow(10, mel / 2595.0) - 1.0)`
-  return 700.0 * (std::exp(mel / 1127.0) - 1.0);
-}
+  static DALI_FORCEINLINE T hz_to_mel(T hz) {
+    T mel = 0;
+    if (hz >= min_log_hz) {
+      // non-linear scale
+      mel = min_log_mel + std::log(hz / min_log_hz) / step_log;
+    } else {
+      // linear scale
+      mel = (hz - fmin) / fsp;
+    }
+
+    return mel;
+  }
+
+  static DALI_FORCEINLINE T mel_to_hz(T mel) {
+    T hz = 0;
+    if (mel >= min_log_mel) {
+      // non linear scale
+      hz = min_log_hz * std::exp(step_log * (mel - min_log_mel));
+    } else {
+      // linear scale
+      hz = fmin + mel * fsp;
+    }
+    return hz;
+  }
+};
+
+template <typename T>
+class MelFilterBankImpl {
+ public:
+  virtual ~MelFilterBankImpl() = default;
+  virtual void Compute(T* out, const T* in, int64_t nwindows,
+                       int64_t out_stride = -1, int64_t in_stride = -1) = 0;
+};
 
 // In the outer loop we travel at a linearly spaced frequency grid in the mel scale
 // Each triangular filter is defined by three points in this grid (left, center, right)
@@ -62,14 +91,16 @@ double mel_to_hz(double mel) {
 // For every FFT bin we compute the weight for each filter and travel through the row, computing
 // the contributions on every window of the spectrogram (horizontal axis)
 //
-template <typename T>
-class MelFilterBankCpuImpl {
+template <typename T, typename MelScaleCalc = DefaultMelScale<T>>
+class MelFilterBankCpuImpl : public MelFilterBankImpl<T>{
  public:
+  ~MelFilterBankCpuImpl() override = default;
+
   MelFilterBankCpuImpl(int nfilter, int nfft, T sample_rate, T freq_low = 0, T freq_high = 0)
       : nfilter_(nfilter), nfft_(nfft), sample_rate_(sample_rate)
       , freq_low_(freq_low), freq_high_(freq_high > 0 ? freq_high : sample_rate / 2) {
-    mel_low_ = hz_to_mel(freq_low_);
-    mel_high_ = hz_to_mel(freq_high_);
+    mel_low_ = MelScaleCalc::hz_to_mel(freq_low_);
+    mel_high_ = MelScaleCalc::hz_to_mel(freq_high_);
     hz_step_ = sample_rate_ / nfft_;
     mel_delta_ = (mel_high_ - mel_low_) / (nfilter_ + 1);
 
@@ -84,7 +115,7 @@ class MelFilterBankCpuImpl {
          interval++, mel0 = mel1, mel1 += mel_delta_) {
       if (interval == last_interval)
         mel1 = mel_high_;
-      T f0 = mel_to_hz(mel0), f1 = mel_to_hz(mel1);
+      T f0 = MelScaleCalc::mel_to_hz(mel0), f1 = MelScaleCalc::mel_to_hz(mel1);
       T slope = T(1) / (f1 - f0);
       for (; fftbin < fftbin_size && f < f1; fftbin++, f += hz_step_) {
         weights_down_[fftbin] = (f1 - f) * slope;;
@@ -94,7 +125,7 @@ class MelFilterBankCpuImpl {
   }
 
   void Compute(T* out, const T* in, int64_t nwindows,
-               int64_t out_stride = -1, int64_t in_stride = -1) {
+               int64_t out_stride = -1, int64_t in_stride = -1) override {
     if (out_stride <= 0)
       out_stride = nwindows;
 
@@ -140,6 +171,21 @@ class MelFilterBankCpuImpl {
   std::vector<int> intervals_;
   bool centered_ = false;
 };
+
+template <typename T, typename... Args>
+std::unique_ptr<MelFilterBankImpl<T>> CreateMelFilterBankImpl(MelScaleType mel_scale_type,
+                                                              Args... args) {
+  using SlaneyImpl = MelFilterBankCpuImpl<T, SlaneyMelScale<T> >;
+  using DefaultImpl = MelFilterBankCpuImpl<T, SlaneyMelScale<T> >;
+  switch(mel_scale_type) {
+    case MelScaleType::SLANEY:
+      return std::make_unique<SlaneyImpl>(args...);
+
+    case MelScaleType::DEFAULT:
+    default:
+      return std::make_unique<DefaultImpl>(args...);
+  }
+}
 
 }  // namespace audio
 }  // namespace kernels

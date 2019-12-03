@@ -19,6 +19,11 @@ namespace dali {
 namespace kernels {
 namespace audio {
 
+enum class MelScaleType {
+  DEFAULT,
+  SLANEY
+};
+
 struct MelFilterBankArgs {
   // Signal's sampling rate
   float sample_rate = 44100.0f;
@@ -39,13 +44,17 @@ struct MelFilterBankArgs {
   // It should match the shape of the input data: `input.shape[axis] == nfft/2 + 1`
   int nfft = -1;
 
+  // Determines the formula used in for mel_to_hz and hz_to_mel calculations
+  MelScaleType mel_scale_type = MelScaleType::DEFAULT;
+
   bool operator==(const MelFilterBankArgs &oth) const {
     return sample_rate == oth.sample_rate
         && fmin  == oth.fmin
         && fmax  == oth.fmax
         && nfilter == oth.nfilter
         && axis == oth.axis
-        && nfft == oth.nfft;
+        && nfft == oth.nfft
+        && mel_scale_type == oth.mel_scale_type;
   }
 
   bool operator!=(const MelFilterBankArgs &oth) const {

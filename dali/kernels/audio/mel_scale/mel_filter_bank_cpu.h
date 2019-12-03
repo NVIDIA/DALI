@@ -46,7 +46,7 @@ class DLL_PUBLIC MelFilterBankCpu {
                       const MelFilterBankArgs &args);
 
  private:
-  using Impl = MelFilterBankCpuImpl<T>;
+  using Impl = MelFilterBankImpl<T>;
   std::unique_ptr<Impl> impl_;
   MelFilterBankArgs args_;
 };

@@ -63,19 +63,13 @@ void print_data(const OutTensorCPU<T, 2>& data_view) {
   }
 }
 
-float hz_to_mel(float hz) {
-  return 2595.0f * std::log10(1.0f + hz / 700.0f);
-}
-
-float mel_to_hz(float mel) {
-  return 700.0f * (std::pow(10.0f, mel / 2595.0f) - 1.0f);
-}
-
 std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, float sample_rate,
                                                      float low_freq, float high_freq) {
+  using MelScale = DefaultMelScale<float>;
+
   std::vector<std::vector<float>> fbanks(nfilter);
-  auto low_mel = hz_to_mel(low_freq);
-  auto high_mel = hz_to_mel(high_freq);
+  auto low_mel = MelScale::hz_to_mel(low_freq);
+  auto high_mel = MelScale::hz_to_mel(high_freq);
 
   float delta_mel = (high_mel - low_mel) / (nfilter + 1);
   std::vector<float> mel_points(nfilter+2, 0.0f);
@@ -90,7 +84,7 @@ std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, floa
 
   std::vector<float> freq_grid(mel_points.size(), 0.0f);
   for (int i = 0; i < static_cast<int>(mel_points.size()); i++) {
-    freq_grid[i] = mel_to_hz(mel_points[i]);
+    freq_grid[i] = MelScale::mel_to_hz(mel_points[i]);
   }
 
   for (int j = 0; j < nfilter; j++) {
@@ -117,6 +111,7 @@ std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, floa
 
 TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   using T = float;
+  using MelScale = DefaultMelScale<T>;
   constexpr int Dims = 2;
 
   auto shape = in_view_.shape;
@@ -130,16 +125,16 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   auto out_size = volume(out_shape);
 
   T sample_rate = 16000;
-  T mel_low = hz_to_mel(0.0f);
-  T mel_high = hz_to_mel(sample_rate / 2);
+  T mel_low = MelScale::hz_to_mel(0.0f);
+  T mel_high = MelScale::hz_to_mel(sample_rate / 2);
 
   T mel_delta = (mel_high - mel_low) / (nfilter_ + 1);
   T mel = mel_low;
   LOG_LINE << "Mel frequency grid (Hz):";
   for (int i = 0; i < nfilter_+1; i++, mel += mel_delta) {
-    LOG_LINE << " " << mel_to_hz(mel);
+    LOG_LINE << " " << MelScale::mel_to_hz(mel);
   }
-  LOG_LINE << " " << mel_to_hz(mel_high) << "\n";
+  LOG_LINE << " " << MelScale::mel_to_hz(mel_high) << "\n";
 
   LOG_LINE << "FFT bin frequencies (Hz):";
   for (int k = 0; k < nfft / 2 + 1; k++) {

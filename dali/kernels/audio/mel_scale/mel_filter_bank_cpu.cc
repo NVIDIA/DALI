@@ -49,7 +49,18 @@ KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
 
   if (!impl_ || args_ != args) {
     args_ = args;
-    impl_.reset(new MelFilterBankCpuImpl<T>(args.nfilter, nfft, args.sample_rate));
+    switch(args_.mel_scale_type) {
+      case MelScaleType::SLANEY:
+        impl_.reset(new MelFilterBankCpuImpl<T, SlaneyMelScale<T>>(
+          args.nfilter, nfft, args.sample_rate));
+        break;
+
+      case MelScaleType::DEFAULT:
+      default:
+        impl_.reset(new MelFilterBankCpuImpl<T, DefaultMelScale<T>>(
+          args.nfilter, nfft, args.sample_rate));
+        break;
+    }
   }
 
   return req;
