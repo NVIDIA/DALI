@@ -30,7 +30,8 @@ DALI_SCHEMA(Flip)
     .AddOptionalArg("vertical", R"code(Perform a vertical flip.)code", 0, true)
     .AddOptionalArg("depthwise", R"code(Perform a depthwise flip.)code", 0, true)
     .InputLayout({"FDHWC", "FHWC", "DHWC", "HWC", "FCDHW", "FCHW", "CDHW", "CHW"})
-    .AllowSequences();
+    .AllowSequences()
+    .SupportVolumetric();
 
 
 template <>

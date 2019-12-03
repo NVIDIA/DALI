@@ -178,12 +178,11 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
-   * Notes if the operator can process 3D data.
-   * @param support
+   * Notes that the operator can process 3D data.
    * @return
    */
-  DLL_PUBLIC inline OpSchema& SupportVolumetric(bool support = true) {
-    support_volumetric_ = support;
+  DLL_PUBLIC inline OpSchema& SupportVolumetric() {
+    support_volumetric_ = true;
     return *this;
   }
 
@@ -249,12 +248,6 @@ class DLL_PUBLIC OpSchema {
                  " already specified");
     for (auto &l : layouts) {
       DALI_ENFORCE(!l.empty(), "Cannot specify an empty layout for an input");
-    }
-    for (auto &l : layouts) {
-      if (l.contains('D')) {
-        support_volumetric_ = true;
-        break;
-      }
     }
     input_layouts_[index] = layouts;
     return *this;
