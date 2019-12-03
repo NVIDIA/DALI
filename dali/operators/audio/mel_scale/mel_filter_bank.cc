@@ -34,6 +34,9 @@ fft bin index and the window index respectively.)code")
     .AddOptionalArg("nfilter",
       R"code(Number of mel filters.)code",
       128)
+    .AddOptionalArg("sample_rate",
+      R"code(Sampling rate of the audio signal)code",
+      44100.0f)
     .AddOptionalArg("fmin",
       R"code(Minimum frequency)code",
       0.0f)
