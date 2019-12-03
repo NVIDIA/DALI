@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_IMPL_H_
-#define DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_IMPL_H_
+#ifndef DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_CPU_IMPL_H_
+#define DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_CPU_IMPL_H_
 
 #include <cmath>
 #include <vector>
@@ -52,7 +52,16 @@ double mel_to_hz(double mel) {
   return 700.0 * (std::exp(mel / 1127.0) - 1.0);
 }
 
-
+// In the outer loop we travel at a linearly spaced frequency grid in the mel scale
+// Each triangular filter is defined by three points in this grid (left, center, right)
+// For each iteration we process a range between two mel frequencies in the grid, calculating
+// the contribution of each FFT bin to 2 triangular filters (one is in the negative slope region
+// and the other in the positive slope region), except for the first and last iteration.
+// In total, we do a single pass on every FFT bin column
+//
+// For every FFT bin we compute the weight for each filter and travel through the row, computing
+// the contributions on every window of the spectrogram (horizontal axis)
+//
 template <typename T>
 class MelFilterBankCpuImpl {
  public:
@@ -84,16 +93,6 @@ class MelFilterBankCpuImpl {
     }
   }
 
-  // In the outer loop we travel at a linearly spaced frequency grid in the mel scale
-  // Each triangular filter is defined by three points in this grid (left, center, right)
-  // For each iteration we process a range between two mel frequencies in the grid, calculating
-  // the contribution of each FFT bin to 2 triangular filters (one is in the negative slope region
-  // and the other in the positive slope region), except for the first and last iteration.
-  // In total, we do a single pass on every FFT bin column
-  //
-  // For every FFT bin we compute the weight for each filter and travel through the row, computing
-  // the contributions on every window of the spectrogram (horizontal axis)
-  //
   void Compute(T* out, const T* in, int64_t nwindows,
                int64_t out_stride = -1, int64_t in_stride = -1) {
     if (out_stride <= 0)
@@ -146,4 +145,4 @@ class MelFilterBankCpuImpl {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_IMPL_H_
+#endif  // DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_CPU_IMPL_H_
