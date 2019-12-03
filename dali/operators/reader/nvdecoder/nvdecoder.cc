@@ -374,6 +374,8 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
       auto* frame_disp_info = frame_queue_.pop();
       if (stop_) break;
       auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
+      sequence.timestamps.push_back(frame_disp_info->timestamp * av_q2d(
+            nv_time_base_));
       if (stop_) break;
       convert_frame(frame, sequence, i);
   }

@@ -30,6 +30,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     file_root_(spec.GetArgument<std::string>("file_root")),
     file_list_(spec.GetArgument<std::string>("file_list")),
+    enable_frame_num_(spec.GetArgument<bool>("enable_frame_num")),
+    enable_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
     count_(spec.GetArgument<int>("sequence_length")),
     channels_(spec.GetArgument<int>("channels")),
     output_scale_(spec.GetArgument<float>("scale")),
@@ -49,6 +51,13 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     DALI_ENFORCE(dtype_ == DALI_FLOAT || dtype_ == DALI_UINT8,
                  "Data type must be FLOAT or UINT8.");
 
+     enable_label_output_ = !file_root_.empty() || !file_list_.empty();
+     DALI_ENFORCE(enable_label_output_ || !enable_frame_num_,
+                  "frame numbers can be enabled only when "
+                  "`file_list` or `file_root` argument is passed");
+     DALI_ENFORCE(enable_label_output_ || !enable_timestamps_,
+                  "timestamps can be enabled only when "
+                  "`file_list` or `file_root` argument is passed");
 
     // TODO(spanev): support rescale
     // TODO(spanev): Factor out the constructor body to make VideoReader compatible with lazy_init.
@@ -59,10 +68,13 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
         throw;
       }
 
-      enable_label_output_ = !file_root_.empty() || !file_list_.empty();
-
       if (enable_label_output_) {
         label_shape_ = uniform_list_shape(batch_size_, {1});
+
+        if (enable_frame_num_)
+          frame_num_shape_ = label_shape_;
+        if (enable_timestamps_)
+          timestamp_shape_ = uniform_list_shape(batch_size_, {count_});
       }
   }
 
@@ -75,6 +87,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   void RunImpl(DeviceWorkspace &ws) override {
     auto& tl_sequence_output = ws.Output<GPUBackend>(0);
     TensorList<GPUBackend> *label_output = NULL;
+    TensorList<GPUBackend> *frame_num_output = NULL;
+    TensorList<GPUBackend> *timestamp_output = NULL;
 
     if (dtype_ == DALI_FLOAT) {
       tl_sequence_output.set_type(TypeInfo::Create<float>());
@@ -91,9 +105,21 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     tl_sequence_output.SetLayout("FHWC");
 
     if (enable_label_output_) {
-      label_output = &ws.Output<GPUBackend>(1);
+      int output_index = 1;
+      label_output = &ws.Output<GPUBackend>(output_index++);
       label_output->set_type(TypeInfo::Create<int>());
       label_output->Resize(label_shape_);
+      if (enable_frame_num_) {
+        frame_num_output = &ws.Output<GPUBackend>(output_index++);
+        frame_num_output->set_type(TypeInfo::Create<int>());
+        frame_num_output->Resize(frame_num_shape_);
+      }
+
+      if (enable_timestamps_) {
+        timestamp_output = &ws.Output<GPUBackend>(output_index++);
+        timestamp_output->set_type(TypeInfo::Create<double>());
+        timestamp_output->Resize(timestamp_shape_);
+      }
     }
 
     for (int data_idx = 0; data_idx < batch_size_; ++data_idx) {
@@ -109,6 +135,18 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
           auto *label = label_output->mutable_tensor<int>(data_idx);
           CUDA_CALL(cudaMemcpyAsync(label, &prefetched_sequence.label, sizeof(int),
                                     cudaMemcpyDefault, ws.stream()));
+          if (enable_frame_num_) {
+            auto *frame_num = frame_num_output->mutable_tensor<int>(data_idx);
+            CUDA_CALL(cudaMemcpyAsync(frame_num, &prefetched_sequence.first_frame_idx,
+                                      sizeof(int), cudaMemcpyDefault, ws.stream()));
+          }
+          if (enable_timestamps_) {
+            auto *timestamp = timestamp_output->mutable_tensor<double>(data_idx);
+            timestamp_output->type().Copy<GPUBackend, CPUBackend>(timestamp,
+                                                   prefetched_sequence.timestamps.data(),
+                                                   prefetched_sequence.timestamps.size(),
+                                                   ws.stream());
+          }
         }
     }
   }
@@ -119,6 +157,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   std::vector<std::string> filenames_;
   std::string file_root_;
   std::string file_list_;
+  bool enable_frame_num_;
+  bool enable_timestamps_;
   int count_;
   int channels_;
 
@@ -126,6 +166,8 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
   TensorListShape<> tl_shape_;
   TensorListShape<> label_shape_;
+  TensorListShape<> timestamp_shape_;
+  TensorListShape<> frame_num_shape_;
 
   DALIDataType dtype_;
   bool enable_label_output_;

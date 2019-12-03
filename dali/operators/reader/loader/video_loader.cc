@@ -637,6 +637,7 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     ++current_frame_idx_;
 
     tensor.label = seq_meta.label;
+    tensor.first_frame_idx = seq_meta.frame_idx;
     MoveToNextShard(current_frame_idx_);
 }
 
