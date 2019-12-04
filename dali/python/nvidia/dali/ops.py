@@ -410,6 +410,9 @@ def python_op_factory(name, op_device = "cpu"):
 
 
     Operator.__name__ = str(name)
+    # The autodoc doesn't generate doc for something that doesn't match the module name
+    if b.GetSchema(Operator.__name__).IsInternal():
+        Operator.__module__ = Operator.__module__ + ".internal"
     return Operator
 
 def _load_ops():
