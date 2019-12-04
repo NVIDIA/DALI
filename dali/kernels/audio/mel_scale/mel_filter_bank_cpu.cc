@@ -139,9 +139,11 @@ class MelFilterBankCpu<T, Dims>::Impl {
   std::vector<T> norm_factors_;
 };
 
+template <typename T, int Dims>
+MelFilterBankCpu<T, Dims>::MelFilterBankCpu() = default;
 
 template <typename T, int Dims>
-MelFilterBankCpu<T, Dims>::~MelFilterBankCpu() {}
+MelFilterBankCpu<T, Dims>::~MelFilterBankCpu() = default;
 
 template <typename T, int Dims>
 KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
@@ -166,11 +168,11 @@ KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
     impl_.reset();
     switch(args.mel_formula) {
       case MelScaleFormula::HTK:
-        impl_ = std::make_shared<Impl>(HtkMelScale<T>(), args);
+        impl_ = std::make_unique<Impl>(HtkMelScale<T>(), args);
         break;
       case MelScaleFormula::Slaney:
       default:
-        impl_ = std::make_shared<Impl>(SlaneyMelScale<T>(), args);
+        impl_ = std::make_unique<Impl>(SlaneyMelScale<T>(), args);
         break;
     }
   }

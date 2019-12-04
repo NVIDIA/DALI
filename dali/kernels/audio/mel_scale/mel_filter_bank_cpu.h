@@ -33,6 +33,7 @@ class DLL_PUBLIC MelFilterBankCpu {
   static_assert(std::is_floating_point<T>::value, "Only floating point types are supported");
   static_assert(Dims >= 2, "At least 2 dimensions are expected");
 
+  DLL_PUBLIC MelFilterBankCpu();
   DLL_PUBLIC ~MelFilterBankCpu();
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
@@ -46,7 +47,7 @@ class DLL_PUBLIC MelFilterBankCpu {
 
  private:
   class Impl;
-  std::shared_ptr<Impl> impl_;
+  std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace audio
