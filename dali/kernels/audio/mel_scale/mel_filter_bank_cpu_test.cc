@@ -18,7 +18,7 @@
 #include <complex>
 #include <cmath>
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu_impl.h"
+#include "dali/kernels/audio/mel_scale/mel_scale.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/test/test_tensors.h"
@@ -65,11 +65,11 @@ void print_data(const OutTensorCPU<T, 2>& data_view) {
 
 std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, float sample_rate,
                                                      float low_freq, float high_freq) {
-  using MelScale = HtkMelScale<float>;
+  HtkMelScale<float> mel_scale;
 
   std::vector<std::vector<float>> fbanks(nfilter);
-  auto low_mel = MelScale::hz_to_mel(low_freq);
-  auto high_mel = MelScale::hz_to_mel(high_freq);
+  auto low_mel = mel_scale.hz_to_mel(low_freq);
+  auto high_mel = mel_scale.hz_to_mel(high_freq);
 
   float delta_mel = (high_mel - low_mel) / (nfilter + 1);
   std::vector<float> mel_points(nfilter+2, 0.0f);
@@ -84,7 +84,7 @@ std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, floa
 
   std::vector<float> freq_grid(mel_points.size(), 0.0f);
   for (int i = 0; i < static_cast<int>(mel_points.size()); i++) {
-    freq_grid[i] = MelScale::mel_to_hz(mel_points[i]);
+    freq_grid[i] = mel_scale.mel_to_hz(mel_points[i]);
   }
 
   for (int j = 0; j < nfilter; j++) {
@@ -111,7 +111,7 @@ std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, floa
 
 TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   using T = float;
-  using MelScale = HtkMelScale<T>;
+  HtkMelScale<float> mel_scale;
   constexpr int Dims = 2;
 
   auto shape = in_view_.shape;
@@ -125,16 +125,16 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   auto out_size = volume(out_shape);
 
   T sample_rate = 16000;
-  T mel_low = MelScale::hz_to_mel(0.0f);
-  T mel_high = MelScale::hz_to_mel(sample_rate / 2);
+  T mel_low = mel_scale.hz_to_mel(0.0f);
+  T mel_high = mel_scale.hz_to_mel(sample_rate / 2);
 
   T mel_delta = (mel_high - mel_low) / (nfilter_ + 1);
   T mel = mel_low;
   LOG_LINE << "Mel frequency grid (Hz):";
   for (int i = 0; i < nfilter_+1; i++, mel += mel_delta) {
-    LOG_LINE << " " << MelScale::mel_to_hz(mel);
+    LOG_LINE << " " << mel_scale.mel_to_hz(mel);
   }
-  LOG_LINE << " " << MelScale::mel_to_hz(mel_high) << "\n";
+  LOG_LINE << " " << mel_scale.mel_to_hz(mel_high) << "\n";
 
   LOG_LINE << "FFT bin frequencies (Hz):";
   for (int k = 0; k < nfft / 2 + 1; k++) {
@@ -160,10 +160,10 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   args.nfft = nfft;
   args.nfilter = nfilter_;
   args.sample_rate = sample_rate;
-  args.fmin = 0;
-  args.fmax = 0.5f * sample_rate;
-  args.mel_formula = MelScaleType::HTK;
-  args.norm_filters = false;
+  args.freq_low = 0;
+  args.freq_high = 0.5f * sample_rate;
+  args.mel_formula = MelScaleFormula::HTK;
+  args.normalize = false;
 
   kernels::audio::MelFilterBankCpu<T, Dims> kernel;
   auto req = kernel.Setup(ctx, in_view_, args);
