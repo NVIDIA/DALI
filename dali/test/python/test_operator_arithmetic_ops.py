@@ -197,7 +197,7 @@ class ExprOpPipeline(Pipeline):
         for i in range(self.length):
             self.source.append(self.external_source[i]())
             inputs.append(self.get_operand(self.source[i], self.kinds[i], self.types[i]))
-        return tuple(self.source) + (self.op(*inputs), )
+        return self.unary_plus_war(tuple(self.source) + (self.op(*inputs), ))
 
     def get_operand(self, operand, kind, operand_type):
         if kind == "const":
@@ -211,6 +211,14 @@ class ExprOpPipeline(Pipeline):
         inputs = self.iterator.next()
         for i in range(len(inputs)):
             self.feed_input(self.source[i], inputs[i])
+
+    # Workaround for unary `+` operator
+    # It is just a passthrough on python level and we cannot return the same output twice
+    # from the pipeline, so I just put one of the outputs on GPU in case it would happen
+    def unary_plus_war(self, result):
+        if len(result) == 2 and result[0].name == result[1].name and result[0].device == result[1].device:
+            return result[0].gpu(), result[1]
+        return result
 
 def get_numpy_input(input, kind, type):
     if kind == "const":
