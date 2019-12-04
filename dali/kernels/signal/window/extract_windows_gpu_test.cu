@@ -101,7 +101,7 @@ void TestBatchedExtract(bool concatenate, Padding padding, span<const float> win
   in_list.reshape(lengths);
   auto in_cpu = in_list.cpu();
   for (int i = 0; i < N; i++) {
-    for (int j = 0; j < lengths[j][0]; j++)
+    for (int j = 0; j < lengths[i][0]; j++)
       in_cpu[i].data[j] = 1000*(i+1)+j;
   }
 
