@@ -40,26 +40,26 @@ class MelFilterBank : public Operator<Backend> {
     args_.fmin = spec.GetArgument<float>("fmin");
     DALI_ENFORCE(args_.fmin >= 0.0f, "fmin should be >= 0");
 
-    args_.fmax = spec.GetArgument<float>("fmax");
-    if (args_.fmax <= 0.0f)
-      args_.fmax = 0.5f * args_.sample_rate;
-    DALI_ENFORCE(args_.fmax > args_.fmin && args_.fmax <= args_.sample_rate,
-      "fmax should be within the range (fmin, sample_rate/2]");
+    args_.freq_high = spec.GetArgument<float>("freq_high");
+    if (args_.freq_high <= 0.0f)
+      args_.freq_high = 0.5f * args_.sample_rate;
+    DALI_ENFORCE(args_.freq_high > args_.fmin && args_.freq_high <= args_.sample_rate,
+      "freq_high should be within the range (fmin, sample_rate/2]");
 
-    args_.mel_formula = kernels::audio::MelScaleType::SLANEY;
+    args_.mel_formula = kernels::audio::MelScaleFormula::Slaney;
     if (spec.HasArgument("mel_formula")) {
       auto mel_formula = spec.GetArgument<std::string>("mel_formula");
       if (mel_formula == "htk") {
-        args_.mel_formula = kernels::audio::MelScaleType::HTK;
+        args_.mel_formula = kernels::audio::MelScaleFormula::HTK;
       } else if (mel_formula == "slaney") {
-        args_.mel_formula = kernels::audio::MelScaleType::SLANEY;
+        args_.mel_formula = kernels::audio::MelScaleFormula::Slaney;
       } else {
         DALI_FAIL(make_string("Unsupported mel_formula value \"", mel_formula,
           "\". Supported values are: \"slaney\", \"htk\""));
       }
     }
 
-    args_.norm_filters = spec.GetArgument<bool>("norm_filters");
+    args_.normalize = spec.GetArgument<bool>("normalize");
   }
 
  protected:

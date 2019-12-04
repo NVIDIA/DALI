@@ -37,13 +37,13 @@ fft bin index and the window index respectively.)code")
     .AddOptionalArg("sample_rate",
       R"code(Sampling rate of the audio signal)code",
       44100.0f)
-    .AddOptionalArg("fmin",
+    .AddOptionalArg("freq_low",
       R"code(Minimum frequency)code",
       0.0f)
-    .AddOptionalArg("fmax",
+    .AddOptionalArg("freq_high",
       R"code(Maximum frequency. If not provided, `sample_rate / 2` will be used)code",
       0.0f)
-    .AddOptionalArg("norm_filters",
+    .AddOptionalArg("normalize",
       R"code(Whether to normalize the triangular filter weights by the width of their mel band.
 If set to true, the integral of the filter function will amount to 1.
 If set to false, the peak of the filter function will be to 1)code",
