@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 pip_packages="nose numpy"
-target_dir=./docs/examples/video
+target_dir=./docs/examples/sequence_processing/video
 
 do_once() {
   apt-get update
@@ -36,7 +36,8 @@ test_body() {
     # First running simple code
     python video_label_example.py
 
-    nosetests --verbose ../../../dali/test/python/test_video_pipeline.py
+    echo $(pwd)
+    nosetests --verbose ../../../../dali/test/python/test_video_pipeline.py
 }
 
 pushd ../..
