@@ -22,7 +22,6 @@
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_args.h"
-#include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu_impl.h"
 
 namespace dali {
 namespace kernels {
@@ -46,9 +45,8 @@ class DLL_PUBLIC MelFilterBankCpu {
                       const MelFilterBankArgs &args);
 
  private:
-  using Impl = MelFilterBankImpl<T>;
-  std::unique_ptr<Impl> impl_;
-  MelFilterBankArgs args_;
+  class Impl;
+  std::shared_ptr<Impl> impl_;
 };
 
 }  // namespace audio
