@@ -45,6 +45,21 @@ class MelFilterBank : public Operator<Backend> {
       args_.fmax = 0.5f * args_.sample_rate;
     DALI_ENFORCE(args_.fmax > args_.fmin && args_.fmax <= args_.sample_rate,
       "fmax should be within the range (fmin, sample_rate/2]");
+
+    args_.mel_formula = kernels::audio::MelScaleType::SLANEY;
+    if (spec.HasArgument("mel_formula")) {
+      auto mel_formula = spec.GetArgument<std::string>("mel_formula");
+      if (mel_formula == "htk") {
+        args_.mel_formula = kernels::audio::MelScaleType::HTK;
+      } else if (mel_formula == "slaney") {
+        args_.mel_formula = kernels::audio::MelScaleType::SLANEY;
+      } else {
+        DALI_FAIL(make_string("Unsupported mel_formula value \"", mel_formula,
+          "\". Supported values are: \"slaney\", \"htk\""));
+      }
+    }
+
+    args_.norm_filters = spec.GetArgument<bool>("norm_filters");
   }
 
  protected:

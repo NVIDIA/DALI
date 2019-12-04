@@ -42,7 +42,23 @@ fft bin index and the window index respectively.)code")
       0.0f)
     .AddOptionalArg("fmax",
       R"code(Maximum frequency. If not provided, `sample_rate / 2` will be used)code",
-      0.0f);
+      0.0f)
+    .AddOptionalArg("norm_filters",
+      R"code(Whether to normalize the triangular filter weights by the width of their mel band.
+If set to true, the integral of the filter function will amount to 1.
+If set to false, the peak of the filter function will be to 1)code",
+      true)
+    .AddOptionalArg("mel_formula",
+      R"code(Determines the formula used to convert frequencies from Hertz to mel and viceversa.
+The mel scale is a perceptual scale of pitches and therefore there is no single formula to it.
+Supported values are:
+- \"slaney\" : Follows Slaney's MATLAB Auditory Modelling Work behavior. This formula is linear
+under 1 KHz and logarithmic above. This implementation is consistent with Librosa's default
+implementation.
+- \"htk\" : Follows O'Shaughnessy's book formula `m = 2595 * log10(1 + (f/700))`. This is
+consistent with the implementation of the Hidden Markov Toolkit (HTK).
+)code",
+      "slaney");
 
 template <>
 bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
