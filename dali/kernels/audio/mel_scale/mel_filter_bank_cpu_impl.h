@@ -26,7 +26,7 @@ namespace kernels {
 namespace audio {
 
 template <typename T>
-struct DefaultMelScale {
+struct HtkMelScale {
   static DALI_FORCEINLINE T hz_to_mel(T hz) {
     // equivalent to `2595.0 * std::log10(1 + hz / 700.0)`
     return T(1127) * std::log(T(1) + hz / T(700));
@@ -91,16 +91,18 @@ class MelFilterBankImpl {
 // For every FFT bin we compute the weight for each filter and travel through the row, computing
 // the contributions on every window of the spectrogram (horizontal axis)
 //
-template <typename T, typename MelScaleCalc = DefaultMelScale<T>>
+template <typename T, typename MelScale = HtkMelScale<T>>
 class MelFilterBankCpuImpl : public MelFilterBankImpl<T>{
  public:
   ~MelFilterBankCpuImpl() override = default;
 
-  MelFilterBankCpuImpl(int nfilter, int nfft, T sample_rate, T freq_low = 0, T freq_high = 0)
+  MelFilterBankCpuImpl(int nfilter, int nfft, T sample_rate, T freq_low = 0, T freq_high = 0,
+                       bool norm_filters = true)
       : nfilter_(nfilter), nfft_(nfft), sample_rate_(sample_rate)
-      , freq_low_(freq_low), freq_high_(freq_high > 0 ? freq_high : sample_rate / 2) {
-    mel_low_ = MelScaleCalc::hz_to_mel(freq_low_);
-    mel_high_ = MelScaleCalc::hz_to_mel(freq_high_);
+      , freq_low_(freq_low), freq_high_(freq_high > 0 ? freq_high : sample_rate / 2)
+      , norm_filters_(norm_filters) {
+    mel_low_ = MelScale::hz_to_mel(freq_low_);
+    mel_high_ = MelScale::hz_to_mel(freq_high_);
     hz_step_ = sample_rate_ / nfft_;
     mel_delta_ = (mel_high_ - mel_low_) / (nfilter_ + 1);
 
@@ -108,14 +110,20 @@ class MelFilterBankCpuImpl : public MelFilterBankImpl<T>{
     int64_t fftbin_size = nfft_ / 2 + 1;
     weights_down_.resize(fftbin_size);
     intervals_.resize(fftbin_size);
+    norm_factors_.resize(nfilter_, T(1));
     T mel0 = mel_low_, mel1 = mel_low_ + mel_delta_;
-    T f = centered_ ? T(0.5) * hz_step_ : T(0);
+    T f = centered_freqs_ ? T(0.5) * hz_step_ : T(0);
     int last_interval = nfilter_;
     for (int64_t interval = 0; interval <= last_interval;
          interval++, mel0 = mel1, mel1 += mel_delta_) {
       if (interval == last_interval)
         mel1 = mel_high_;
-      T f0 = MelScaleCalc::mel_to_hz(mel0), f1 = MelScaleCalc::mel_to_hz(mel1);
+      T f0 = MelScale::mel_to_hz(mel0), f1 = MelScale::mel_to_hz(mel1);
+      if (norm_filters_ && interval < nfilter_) {
+        // Filters are normalized so that they have constant energy per band
+        T f2 = MelScale::mel_to_hz(mel1 + mel_delta_);
+        norm_factors_[interval] = T(2) / (f2 - f0);
+      }
       T slope = T(1) / (f1 - f0);
       for (; fftbin < fftbin_size && f < f1; fftbin++, f += hz_step_) {
         weights_down_[fftbin] = (f1 - f) * slope;;
@@ -142,6 +150,8 @@ class MelFilterBankCpuImpl : public MelFilterBankImpl<T>{
       auto weight_down = weights_down_[fftbin];
 
       if (filter_down >= 0) {
+        if (norm_filters_)
+          weight_down *= norm_factors_[filter_down];
         auto *out_row_start = out + filter_down * out_stride;
         for (int t = 0; t < nwindows; t++) {
           out_row_start[t] += weight_down * in_row_start[t];
@@ -149,6 +159,8 @@ class MelFilterBankCpuImpl : public MelFilterBankImpl<T>{
       }
 
       if (filter_up < nfilter_) {
+        if (norm_filters_)
+          weight_up *= norm_factors_[filter_up];
         auto *out_row_start = out + filter_up * out_stride;
         for (int t = 0; t < nwindows; t++) {
           out_row_start[t] += weight_up * in_row_start[t];
@@ -163,27 +175,30 @@ class MelFilterBankCpuImpl : public MelFilterBankImpl<T>{
   T sample_rate_;
   T freq_low_;
   T freq_high_;
+  bool norm_filters_;
+
   T mel_low_;
   T mel_high_;
   T hz_step_;
   T mel_delta_;
   std::vector<T> weights_down_;
   std::vector<int> intervals_;
-  bool centered_ = false;
+  std::vector<T> norm_factors_;
+  bool centered_freqs_ = false;
 };
 
 template <typename T, typename... Args>
-std::unique_ptr<MelFilterBankImpl<T>> CreateMelFilterBankImpl(MelScaleType mel_scale_type,
+std::unique_ptr<MelFilterBankImpl<T>> CreateMelFilterBankImpl(MelScaleType mel_formula,
                                                               Args... args) {
-  using SlaneyImpl = MelFilterBankCpuImpl<T, SlaneyMelScale<T> >;
-  using DefaultImpl = MelFilterBankCpuImpl<T, SlaneyMelScale<T> >;
-  switch(mel_scale_type) {
+  using SlaneyImpl = MelFilterBankCpuImpl<T, SlaneyMelScale<T>>;
+  using HtkImpl    = MelFilterBankCpuImpl<T, HtkMelScale<T>>;
+  switch(mel_formula) {
     case MelScaleType::SLANEY:
       return std::make_unique<SlaneyImpl>(args...);
 
-    case MelScaleType::DEFAULT:
+    case MelScaleType::HTK:
     default:
-      return std::make_unique<DefaultImpl>(args...);
+      return std::make_unique<HtkImpl>(args...);
   }
 }
 

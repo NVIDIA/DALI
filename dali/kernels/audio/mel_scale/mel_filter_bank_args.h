@@ -20,8 +20,8 @@ namespace kernels {
 namespace audio {
 
 enum class MelScaleType {
-  DEFAULT,
-  SLANEY
+  SLANEY,
+  HTK
 };
 
 struct MelFilterBankArgs {
@@ -45,7 +45,10 @@ struct MelFilterBankArgs {
   int nfft = -1;
 
   // Determines the formula used in for mel_to_hz and hz_to_mel calculations
-  MelScaleType mel_scale_type = MelScaleType::DEFAULT;
+  MelScaleType mel_formula = MelScaleType::SLANEY;
+
+  // Determines whether to normalize the filter weights by the width of the mel band
+  bool norm_filters = true;
 
   bool operator==(const MelFilterBankArgs &oth) const {
     return sample_rate == oth.sample_rate
@@ -54,7 +57,8 @@ struct MelFilterBankArgs {
         && nfilter == oth.nfilter
         && axis == oth.axis
         && nfft == oth.nfft
-        && mel_scale_type == oth.mel_scale_type;
+        && mel_formula == oth.mel_formula
+        && norm_filters == oth.norm_filters;
   }
 
   bool operator!=(const MelFilterBankArgs &oth) const {

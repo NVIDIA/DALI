@@ -65,7 +65,7 @@ void print_data(const OutTensorCPU<T, 2>& data_view) {
 
 std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, float sample_rate,
                                                      float low_freq, float high_freq) {
-  using MelScale = DefaultMelScale<float>;
+  using MelScale = HtkMelScale<float>;
 
   std::vector<std::vector<float>> fbanks(nfilter);
   auto low_mel = MelScale::hz_to_mel(low_freq);
@@ -111,7 +111,7 @@ std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, floa
 
 TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   using T = float;
-  using MelScale = DefaultMelScale<T>;
+  using MelScale = HtkMelScale<T>;
   constexpr int Dims = 2;
 
   auto shape = in_view_.shape;
@@ -162,6 +162,8 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   args.sample_rate = sample_rate;
   args.fmin = 0;
   args.fmax = 0.5f * sample_rate;
+  args.mel_formula = MelScaleType::HTK;
+  args.norm_filters = false;
 
   kernels::audio::MelFilterBankCpu<T, Dims> kernel;
   auto req = kernel.Setup(ctx, in_view_, args);

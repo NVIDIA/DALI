@@ -22,6 +22,7 @@
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/common/for_axis.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu_impl.h"
 
 namespace dali {
 namespace kernels {
@@ -37,6 +38,8 @@ KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
     const MelFilterBankArgs &args) {
   auto axis = args.axis >= 0 ? args.axis : Dims - 2;
   auto nfft = args.nfft > 0 ? args.nfft : 2 * (in.shape[axis] - 1);
+  auto fmin = args.fmin;
+  auto fmax = args.fmax > 0 ? args.fmax : args.sample_rate / 2;
   DALI_ENFORCE(axis == Dims - 2,
     "Input is expected to be a spectrogram with the last two dimensions being FFT bin index and "
     "window index respectively");
@@ -49,20 +52,9 @@ KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
 
   if (!impl_ || args_ != args) {
     args_ = args;
-    switch(args_.mel_scale_type) {
-      case MelScaleType::SLANEY:
-        impl_.reset(new MelFilterBankCpuImpl<T, SlaneyMelScale<T>>(
-          args.nfilter, nfft, args.sample_rate));
-        break;
-
-      case MelScaleType::DEFAULT:
-      default:
-        impl_.reset(new MelFilterBankCpuImpl<T, DefaultMelScale<T>>(
-          args.nfilter, nfft, args.sample_rate));
-        break;
-    }
+    impl_ = CreateMelFilterBankImpl<T>(
+      args_.mel_formula, args.nfilter, nfft, args.sample_rate, fmin, fmax, args_.norm_filters);
   }
-
   return req;
 }
 
