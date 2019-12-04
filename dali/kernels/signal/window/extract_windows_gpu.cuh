@@ -162,7 +162,7 @@ __global__ void ExtractWindowsBatchedKernel(
 }  // namespace window
 
 template <typename Dst, typename Src>
-struct ExtractWindowsGPUImpl {
+struct ExtractWindowsGpuImpl {
   using SampleDesc = window::SampleDesc;
   using BlockDesc = window::BlockDesc;
 
@@ -206,7 +206,8 @@ struct ExtractWindowsGPUImpl {
       out_shape.set_tensor_shape(0, { out_win_length, total_windows });
     }
 
-    while (xgrid > 0x10000 && xgrid > N) {
+    const int kMaxBlocks = 0x10000;
+    while (xgrid > kMaxBlocks && xgrid > 2 * N) {
       windows_per_block <<= 1;
       xgrid = 0;
       for (int i = 0; i < N; i++) {

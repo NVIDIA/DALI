@@ -20,15 +20,15 @@ namespace kernels {
 namespace signal {
 
 template <typename Dst, typename Src>
-struct ExtractWindowsGPU<Dst, Src>::Impl : public ExtractWindowsGPUImpl<Dst, Src> {
+struct ExtractWindowsGpu<Dst, Src>::Impl : public ExtractWindowsGpuImpl<Dst, Src> {
 };
 
 template <typename Dst, typename Src>
-KernelRequirements ExtractWindowsGPU<Dst, Src>::Setup(
+KernelRequirements ExtractWindowsGpu<Dst, Src>::Setup(
     KernelContext &context,
     const InListGPU<Src, 1> &input,
     const InTensorGPU<float, 1> &window,
-    const ExtractWindowsGPUArgs &args) {
+    const ExtractWindowsBatchedArgs &args) {
   if (!impl)
     impl.reset(new Impl());
 
@@ -36,23 +36,23 @@ KernelRequirements ExtractWindowsGPU<Dst, Src>::Setup(
 }
 
 template <typename Dst, typename Src>
-void ExtractWindowsGPU<Dst, Src>::Run(
+void ExtractWindowsGpu<Dst, Src>::Run(
     KernelContext &context,
     const OutListGPU<Dst, 2> &output,
     const InListGPU<Src, 1> &input,
     const InTensorGPU<float, 1> &window,
-    const ExtractWindowsGPUArgs &args) {
+    const ExtractWindowsBatchedArgs &args) {
   (void)args;
   assert(impl != nullptr);
   impl->Run(context, output, input, window);
 }
 
 template <typename Dst, typename Src>
-ExtractWindowsGPU<Dst, Src>::~ExtractWindowsGPU() = default;
+ExtractWindowsGpu<Dst, Src>::~ExtractWindowsGpu() = default;
 
-template class ExtractWindowsGPU<float, float>;
-template class ExtractWindowsGPU<float, int16_t>;
-template class ExtractWindowsGPU<float, int8_t>;
+template class ExtractWindowsGpu<float, float>;
+template class ExtractWindowsGpu<float, int16_t>;
+template class ExtractWindowsGpu<float, int8_t>;
 
 }  // namespace signal
 }  // namespace kernels

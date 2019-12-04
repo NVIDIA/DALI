@@ -24,7 +24,7 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-TEST(ExtractWindowsGPU, NonBatchedKernel) {
+TEST(ExtractWindowsGpu, NonBatchedKernel) {
   float *in_gpu, *out_gpu;
   int winlen = 60;
   int windows = 80;
@@ -87,7 +87,7 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
 
 
 void TestBatchedExtract(bool concatenate, Padding padding, span<const float> window) {
-  ExtractWindowsGPUImpl<float, float> extract;
+  ExtractWindowsGpuImpl<float, float> extract;
 
   TensorListShape<1> lengths({ TensorShape<1>{5}, TensorShape<1>{305}, TensorShape<1>{157} });
   int N = lengths.num_samples();
@@ -172,21 +172,21 @@ void TestBatchedExtract(bool concatenate, Padding padding, span<const float> win
   }
 }
 
-TEST(ExtractWindowsGPU, BatchedConcat) {
+TEST(ExtractWindowsGpu, BatchedConcat) {
   TestBatchedExtract(true, Padding::Reflect, {});
 }
 
-TEST(ExtractWindowsGPU, BatchedSeparate) {
+TEST(ExtractWindowsGpu, BatchedSeparate) {
   TestBatchedExtract(false, Padding::Zero, {});
 }
 
-TEST(ExtractWindowsGPU, BatchedConcatWindowFunc) {
+TEST(ExtractWindowsGpu, BatchedConcatWindowFunc) {
   vector<float> window(60);
   HannWindow(make_span(window));
   TestBatchedExtract(true, Padding::Zero, make_cspan(window));
 }
 
-TEST(ExtractWindowsGPU, BatchedSeparateWindowFunc) {
+TEST(ExtractWindowsGpu, BatchedSeparateWindowFunc) {
   vector<float> window(60);
   HammingWindow(make_span(window));
   TestBatchedExtract(false, Padding::Reflect, make_cspan(window));

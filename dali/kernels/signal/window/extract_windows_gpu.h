@@ -24,7 +24,7 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-struct ExtractWindowsGPUArgs : ExtractWindowsArgs {
+struct ExtractWindowsBatchedArgs : ExtractWindowsArgs {
   /**
    * @brief If true, all outputs are concatenated.
    *
@@ -49,14 +49,14 @@ struct ExtractWindowsGPUArgs : ExtractWindowsArgs {
  *
  * The output windows are stored as columns - there's a row of first samples from all windows,
  * then second samples, etc - a layout typically used in spectrograms.
- * If the `ExtractWindowsGPUArgs::concatenate` is true, then the output rows are concatenated and
+ * If the `ExtractWindowsBatchedArgs::concatenate` is true, then the output rows are concatenated and
  * the output TensorList contains just one tensor.
  *
- * @see ExtractWindowsGPUArgs
+ * @see ExtractWindowsBatchedArgs
  * @see ExtractWindowsArgs
  */
 template <typename Dst, typename Src>
-class DLL_PUBLIC ExtractWindowsGPU {
+class DLL_PUBLIC ExtractWindowsGpu {
  public:
   static_assert(std::is_same<Dst, float>::value, "Output type must be float");
   static_assert(
@@ -68,15 +68,15 @@ class DLL_PUBLIC ExtractWindowsGPU {
       KernelContext &context,
       const InListGPU<Src, 1> &input,
       const InTensorGPU<float, 1> &window,
-      const ExtractWindowsGPUArgs &args);
+      const ExtractWindowsBatchedArgs &args);
 
   DLL_PUBLIC void Run(KernelContext &ctx,
       const OutListGPU<Dst, 2> &out,
       const InListGPU<Src, 1> &in,
       const InTensorGPU<float, 1> &window,
-      const ExtractWindowsGPUArgs &args);
+      const ExtractWindowsBatchedArgs &args);
 
-  DLL_PUBLIC virtual ~ExtractWindowsGPU();
+  DLL_PUBLIC virtual ~ExtractWindowsGpu();
 
  private:
   struct Impl;
