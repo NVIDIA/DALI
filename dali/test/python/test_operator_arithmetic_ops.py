@@ -217,7 +217,7 @@ def get_numpy_input(input, kind, type):
         return type(magic_number)
     else:
         if "scalar" in kind:
-            return input.astype(type).reshape(input.shape + (1,))
+            return input.astype(type).reshape(input.shape)
         else:
             return input.astype(type)
 
@@ -225,7 +225,7 @@ def extract_un_data(pipe_out, sample_id, kind, target_type):
     input = as_cpu(pipe_out[0]).at(sample_id)
     out = as_cpu(pipe_out[1]).at(sample_id)
     assert_equals(out.dtype, target_type)
-    in_np = get_numpy_input(input, input, target_type)
+    in_np = get_numpy_input(input, kind, target_type)
     return in_np, out
 
 def extract_bin_data(pipe_out, sample_id, kinds, target_type):

@@ -65,8 +65,10 @@ class _EdgeReference(object):
 
     def __neg__(self):
         return _arithm_op("minus", self)
+
+    # Shortucitng the execution, unary + is basically a no-op
     def __pos__(self):
-        return _arithm_op("plus", self)
+        return self
 
 _cpu_ops = set({})
 _gpu_ops = set({})
