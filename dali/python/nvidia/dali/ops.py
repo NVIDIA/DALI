@@ -637,7 +637,7 @@ def _is_boolean_like(input):
 
 # Boolean and integer types are considered integer-like
 def _is_integer_like(input):
-    if type(input) == bool:
+    if _is_boolean_like(input):
         return True
     if type(input) == int:
         return True

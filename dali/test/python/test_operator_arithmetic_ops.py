@@ -20,9 +20,14 @@ import nvidia.dali.types as types
 from nvidia.dali.tensors import TensorListGPU
 import numpy as np
 from nose.tools import assert_equals, raises
+from nose.plugins.attrib import attr
 import itertools
 
 from test_utils import check_batch
+
+# Some test in this file are marked as `slow`. They cover all possible type and input kind
+# combinations. The rest of the test cover only subset of selected cases to allow
+# running time reduction.
 
 batch_size = 4
 
@@ -34,12 +39,12 @@ shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
 # A number used to test constant inputs
 magic_number = 42
 
-unary_inputs_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar"]
+unary_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar"]
 
 # We cannot have 'Constant x Constant' operations with DALI op.
 # And scalar is still a represented by a Tensor, so 'Scalar x Constant' is the same
 # as 'Tensor x Constant'.
-bin_inputs_kinds = (list(itertools.product(["cpu", "gpu"], ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"])) +
+bin_input_kinds = (list(itertools.product(["cpu", "gpu"], ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"])) +
                list(itertools.product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"])))
 
 # float16 is marked as TODO in backend for gpu
@@ -47,6 +52,11 @@ input_types = [np.bool_,
                np.int8, np.int16, np.int32, np.int64,
                np.uint8, np.uint16, np.uint32, np.uint64,
                np.float32, np.float64]
+
+selected_input_types = [np.bool_, np.int32, np.uint8, np.float32]
+
+selected_bin_input_kinds = [("cpu", "cpu"), ("gpu", "gpu"), ("cpu", "cpu_scalar"), ("gpu", "gpu_scalar"),
+                            ("const", "cpu"), ("const", "gpu")]
 
 np_types_to_dali = {
     np.bool_:   types.BOOL,
@@ -296,7 +306,7 @@ def check_unary_op(kind, type, op, shape, _):
             np.testing.assert_array_equal(out, op(in_np))
 
 def test_unary_arithmetic_ops():
-    for kinds in unary_inputs_kinds:
+    for kinds in unary_input_kinds:
         for (op, op_desc) in unary_operations:
             for types_in in input_types:
                 if types_in != np.bool_:
@@ -321,15 +331,22 @@ def check_arithm_op(kinds, types, op, shape, _):
         else:
             np.testing.assert_array_equal(out, op(l_np, r_np))
 
-
 def test_arithmetic_ops_big():
-    for kinds in bin_inputs_kinds:
+    for kinds in bin_input_kinds:
         for (op, op_desc) in sane_operations:
             for types_in in [(np.int8, np.int8)]:
                 yield check_arithm_op, kinds, types_in, op, shape_big, op_desc
 
+def test_arithmetic_ops_selected():
+    for kinds in selected_bin_input_kinds:
+        for (op, op_desc) in sane_operations:
+            for types_in in itertools.product(selected_input_types, selected_input_types):
+                if types_in != (np.bool_, np.bool_) or op_desc == "*":
+                    yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
+
+@attr('slow')
 def test_arithmetic_ops():
-    for kinds in bin_inputs_kinds:
+    for kinds in bin_input_kinds:
         for (op, op_desc) in sane_operations:
             for types_in in itertools.product(input_types, input_types):
                 if types_in != (np.bool_, np.bool_) or op_desc == "*":
@@ -350,8 +367,15 @@ def check_comparsion_op(kinds, types, op, shape, _):
         assert_equals(out.dtype, np.bool_)
         np.testing.assert_array_equal(out, op(l_np, r_np), err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
 
+def test_comparison_ops_selected():
+    for kinds in selected_bin_input_kinds:
+        for (op, op_desc) in comparisons_operations:
+            for types_in in itertools.product(selected_input_types, selected_input_types):
+                yield check_comparsion_op, kinds, types_in, op, shape_small, op_desc
+
+@attr('slow')
 def test_comparison_ops():
-    for kinds in bin_inputs_kinds:
+    for kinds in bin_input_kinds:
         for (op, op_desc) in comparisons_operations:
             for types_in in itertools.product(input_types, input_types):
                 yield check_comparsion_op, kinds, types_in, op, shape_small, op_desc
@@ -372,12 +396,19 @@ def check_arithm_fdiv(kinds, types, shape):
             rtol=1e-07 if target_type != np.float16 else 0.005, err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
 
 def test_arithmetic_float_big():
-    for kinds in bin_inputs_kinds:
+    for kinds in bin_input_kinds:
         for types_in in [(np.int8, np.int8)]:
             yield check_arithm_fdiv, kinds, types_in, shape_big
 
+def test_arithmetic_float_division_selected():
+    for kinds in selected_bin_input_kinds:
+        for types_in in itertools.product(selected_input_types, selected_input_types):
+            if types_in != (np.bool_, np.bool_):
+                yield check_arithm_fdiv, kinds, types_in, shape_small
+
+@attr('slow')
 def test_arithmetic_float_division():
-    for kinds in bin_inputs_kinds:
+    for kinds in bin_input_kinds:
         for types_in in itertools.product(input_types, input_types):
             if types_in != (np.bool_, np.bool_):
                 yield check_arithm_fdiv, kinds, types_in, shape_small
@@ -406,12 +437,19 @@ def check_arithm_div(kinds, types, shape):
             np.testing.assert_array_equal(out, result)
 
 def test_arithmetic_division_big():
-    for kinds in bin_inputs_kinds:
+    for kinds in bin_input_kinds:
         for types_in in [(np.int8, np.int8)]:
             yield check_arithm_div, kinds, types_in, shape_big
 
+def test_arithmetic_division_selected():
+    for kinds in selected_bin_input_kinds:
+        for types_in in itertools.product(selected_input_types, selected_input_types):
+            if types_in != (np.bool_, np.bool_):
+                yield check_arithm_div, kinds, types_in, shape_small
+
+@attr('slow')
 def test_arithmetic_division():
-    for kinds in bin_inputs_kinds:
+    for kinds in bin_input_kinds:
         for types_in in itertools.product(input_types, input_types):
             if types_in != (np.bool_, np.bool_):
                 yield check_arithm_div, kinds, types_in, shape_small
@@ -433,6 +471,6 @@ bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x / y), "/"), ((lambda x, y: x / y), "//")]
 
 def test_bool_disallowed():
-    for kinds in bin_inputs_kinds:
+    for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
             yield check_bool_disallowed_arithm, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
