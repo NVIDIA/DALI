@@ -37,14 +37,14 @@ class MelFilterBank : public Operator<Backend> {
     args_.sample_rate = spec.GetArgument<float>("sample_rate");
     DALI_ENFORCE(args_.sample_rate > 0.0f, "sample rate should be > 0");
 
-    args_.fmin = spec.GetArgument<float>("fmin");
-    DALI_ENFORCE(args_.fmin >= 0.0f, "fmin should be >= 0");
+    args_.freq_low = spec.GetArgument<float>("freq_low");
+    DALI_ENFORCE(args_.freq_low >= 0.0f, "freq_low should be >= 0");
 
     args_.freq_high = spec.GetArgument<float>("freq_high");
     if (args_.freq_high <= 0.0f)
       args_.freq_high = 0.5f * args_.sample_rate;
-    DALI_ENFORCE(args_.freq_high > args_.fmin && args_.freq_high <= args_.sample_rate,
-      "freq_high should be within the range (fmin, sample_rate/2]");
+    DALI_ENFORCE(args_.freq_high > args_.freq_low && args_.freq_high <= args_.sample_rate,
+      "freq_high should be within the range (freq_low, sample_rate/2]");
 
     args_.mel_formula = kernels::audio::MelScaleFormula::Slaney;
     if (spec.HasArgument("mel_formula")) {

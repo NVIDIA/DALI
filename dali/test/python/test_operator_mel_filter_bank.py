@@ -26,7 +26,7 @@ import math
 import librosa as librosa
 
 class MelFilterBankPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, nfilter, sample_rate, freq_min, freq_max,
+    def __init__(self, device, batch_size, iterator, nfilter, sample_rate, freq_low, freq_high,
                  normalize, mel_formula, num_threads=1, device_id=0):
         super(MelFilterBankPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
@@ -35,8 +35,8 @@ class MelFilterBankPipeline(Pipeline):
         self.fbank = ops.MelFilterBank(device = self.device,
                                        nfilter = nfilter,
                                        sample_rate = sample_rate,
-                                       freq_min = freq_min,
-                                       freq_max = freq_max,
+                                       freq_low = freq_low,
+                                       freq_high = freq_high,
                                        normalize = normalize,
                                        mel_formula = mel_formula)
 
@@ -50,7 +50,7 @@ class MelFilterBankPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data)
 
-def mel_fbank_func(nfilter, sample_rate, freq_min, freq_max, normalize, mel_formula, input_data):
+def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, input_data):
     in_shape = input_data.shape
     nfft = 2 * (input_data.shape[-2] - 1)
     librosa_norm = 1 if normalize else None
@@ -58,7 +58,7 @@ def mel_fbank_func(nfilter, sample_rate, freq_min, freq_max, normalize, mel_form
     print(librosa_norm)
     mel_transform = librosa.filters.mel(
         sr = sample_rate, n_mels=nfilter, n_fft = nfft,
-        freq_min=freq_min, freq_max=freq_max,
+        fmin=freq_low, fmax=freq_high,
         norm=librosa_norm, dtype=np.float32, htk=librosa_htk)
 
     out_shape = list(in_shape)
@@ -74,7 +74,7 @@ def mel_fbank_func(nfilter, sample_rate, freq_min, freq_max, normalize, mel_form
     return out
 
 class MelFilterBankPythonPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, nfilter, sample_rate, freq_min, freq_max,
+    def __init__(self, device, batch_size, iterator, nfilter, sample_rate, freq_low, freq_high,
                  normalize, mel_formula, num_threads=1, device_id=0, func=mel_fbank_func):
         super(MelFilterBankPythonPipeline, self).__init__(
               batch_size, num_threads, device_id,
@@ -83,7 +83,7 @@ class MelFilterBankPythonPipeline(Pipeline):
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
 
-        function = partial(func, nfilter, sample_rate, freq_min, freq_max, normalize, mel_formula)
+        function = partial(func, nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula)
         self.mel_fbank = ops.PythonFunction(function=function)
 
     def define_graph(self):
@@ -96,16 +96,16 @@ class MelFilterBankPythonPipeline(Pipeline):
         self.feed_input(self.data, data)
 
 def check_operator_mel_filter_bank_vs_python(device, batch_size, input_shape,
-                                             nfilter, sample_rate, freq_min, freq_max,
+                                             nfilter, sample_rate, freq_low, freq_high,
                                              normalize, mel_formula):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
         MelFilterBankPipeline(device, batch_size, iter(eii1),
-                              nfilter=nfilter, sample_rate=sample_rate, freq_min=freq_min, freq_max=freq_max,
+                              nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
                               normalize=normalize, mel_formula=mel_formula),
         MelFilterBankPythonPipeline(device, batch_size, iter(eii2),
-                                    nfilter=nfilter, sample_rate=sample_rate, freq_min=freq_min, freq_max=freq_max,
+                                    nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
                                     normalize=normalize, mel_formula=mel_formula),
         batch_size=batch_size, N_iterations=5, eps=1e-04)
 
@@ -114,9 +114,9 @@ def test_operator_mel_filter_bank_vs_python():
         for batch_size in [1, 3]:
             for normalize in [True, False]:
                 for mel_formula in ['htk', 'slaney']:
-                    for nfilter, sample_rate, freq_min, freq_max, shape in \
+                    for nfilter, sample_rate, freq_low, freq_high, shape in \
                         [(4, 16000, 0.0, 8000.0, (17, 1)),
                         (128, 16000, 0.0, 8000.0, (513, 100)),
                         (128, 16000, 0.0, 8000.0, (10, 513, 100))]:
                         yield check_operator_mel_filter_bank_vs_python, device, batch_size, shape, \
-                            nfilter, sample_rate, freq_min, freq_max, normalize, mel_formula
+                            nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula
