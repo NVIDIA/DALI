@@ -38,6 +38,23 @@ struct ExtractWindowsGPUArgs : ExtractWindowsArgs {
   int padded_output_window = -1;
 };
 
+
+/**
+ * @brief Extracts windows from 1D signal, optionally applying a custom window function
+ *
+ * This kernel copies evenly spaced 1D windows from the input signal(s) to the output.
+ * The windows can (and usually do) overlap. If the `window` argument is non-empty, it's used
+ * as a window function - i.e. its pointwise multiplied with each extracted window element
+ * before storing it to the output.
+ *
+ * The output windows are stored as columns - there's a row of first samples from all windows,
+ * then second samples, etc - a layout typically used in spectrograms.
+ * If the `ExtractWindowsGPUArgs::concatenate` is true, then the output rows are concatenated and
+ * the output TensorList contains just one tensor.
+ *
+ * @see ExtractWindowsGPUArgs
+ * @see ExtractWindowsArgs
+ */
 template <typename Dst, typename Src>
 class DLL_PUBLIC ExtractWindowsGPU {
  public:
