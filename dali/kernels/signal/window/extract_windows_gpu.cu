@@ -30,7 +30,7 @@ KernelRequirements ExtractWindowsGpu<Dst, Src>::Setup(
     const InTensorGPU<float, 1> &window,
     const ExtractWindowsBatchedArgs &args) {
   if (!impl)
-    impl.reset(new Impl());
+    impl = std::make_unique<Impl>();
 
   return impl->Setup(context, input, args, args.concatenate, args.padded_output_window);
 }
@@ -46,6 +46,9 @@ void ExtractWindowsGpu<Dst, Src>::Run(
   assert(impl != nullptr);
   impl->Run(context, output, input, window);
 }
+
+template <typename Dst, typename Src>
+ExtractWindowsGpu<Dst, Src>::ExtractWindowsGpu() = default;
 
 template <typename Dst, typename Src>
 ExtractWindowsGpu<Dst, Src>::~ExtractWindowsGpu() = default;

@@ -38,7 +38,6 @@ struct ExtractWindowsBatchedArgs : ExtractWindowsArgs {
   int padded_output_window = -1;
 };
 
-
 /**
  * @brief Extracts windows from 1D signal, optionally applying a custom window function
  *
@@ -76,12 +75,14 @@ class DLL_PUBLIC ExtractWindowsGpu {
       const InTensorGPU<float, 1> &window,
       const ExtractWindowsBatchedArgs &args);
 
-  DLL_PUBLIC virtual ~ExtractWindowsGpu();
+  DLL_PUBLIC ExtractWindowsGpu();
+  DLL_PUBLIC ~ExtractWindowsGpu();
 
  private:
   struct Impl;
   std::unique_ptr<Impl> impl;
 };
+
 
 }  // namespace signal
 }  // namespace kernels
