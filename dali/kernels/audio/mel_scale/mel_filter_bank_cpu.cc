@@ -166,7 +166,7 @@ KernelRequirements MelFilterBankCpu<T, Dims>::Setup(
   args.freq_high = args.freq_high > 0 ? args.freq_high : args.sample_rate / 2;
   if (!impl_ || impl_->Args() != args) {
     impl_.reset();
-    switch(args.mel_formula) {
+    switch (args.mel_formula) {
       case MelScaleFormula::HTK:
         impl_ = std::make_unique<Impl>(HtkMelScale<T>(), args);
         break;
