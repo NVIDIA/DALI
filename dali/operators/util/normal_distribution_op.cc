@@ -21,9 +21,9 @@ namespace dali {
 DALI_SCHEMA(NormalDistribution)
                 .DocStr(R"code(Creates a tensor that consists of data distributed normally.
 This operator can be ran in 3 modes, which determine the shape of the output tensor:
-1. Providing an input batch to this operator resolves in a batch of output tensors, which have the same shape as the input tensors.
-2. Providing a custom shape as an argument resolves in an output batch, where every tensor has the same (given) shape.
-3. Providing no input arguments resolves in an output batch of scalars, one per every input tensor, distributed normally.)code")
+1. Providing an input batch to this operator results in a batch of output tensors, which have the same shape as the input tensors.
+2. Providing a custom `shape` as an argument results in an output batch, where every tensor has the same (given) shape.
+3. Providing no input arguments results in an output batch of scalars, distributed normally.)code")
                 .NumInput(0, 1)
                 .NumOutput(detail::kNumOutputs)
                 .AddOptionalArg(detail::kMean, R"code(Mean value of the distribution)code",
@@ -65,14 +65,10 @@ void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &w
   distribution_t distribution(mean_[0], stddev_[0]);
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
           for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-            tp.DoWorkWithID(
-                [&, sample_id](int thread_id) {
-                  auto ptr = output[sample_id].mutable_data<DType>();
-                  *ptr = ConvertSat<DType>(distribution(rng_));
-                });
+            auto ptr = output[sample_id].mutable_data<DType>();
+            *ptr = ConvertSat<DType>(distribution(rng_));
           }
   ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
-  tp.WaitForWork();
 }
 
 
@@ -81,11 +77,14 @@ void NormalDistributionCpu::AssignTensorToOutput(workspace_t<CPUBackend> &ws) {
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
             for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-                distribution_t distribution(mean_[sample_id], stddev_[sample_id]);
-                auto ptr = output[sample_id].mutable_data<DType>();
-                for (int64_t j = 0; j < volume(output[sample_id].shape()); j++) {
-                    ptr[j] = ConvertSat<DType>(distribution(rng_));
-                }
+              tp.DoWorkWithID(
+                  [&, sample_id](int thread_id) {
+                     distribution_t distribution(mean_[sample_id], stddev_[sample_id]);
+                     auto ptr = output[sample_id].mutable_data<DType>();
+                     for (int64_t j = 0; j < volume(output[sample_id].shape()); j++) {
+                         ptr[j] = ConvertSat<DType>(distribution(batch_rng_[sample_id]));
+                     }
+                  });
             }
   ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
 }

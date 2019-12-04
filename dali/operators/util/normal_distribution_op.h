@@ -19,6 +19,7 @@
 #include <vector>
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/util/batch_rng.h"
 
 namespace dali {
 namespace detail {
@@ -113,7 +114,8 @@ class NormalDistribution : public Operator<Backend> {
 
 class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
  public:
-  explicit NormalDistributionCpu(const OpSpec &spec) : NormalDistribution(spec), rng_(seed_) {}
+  explicit NormalDistributionCpu(const OpSpec &spec) : NormalDistribution(spec), rng_(seed_),
+                                                       batch_rng_(seed_, batch_size_) {}
 
   ~NormalDistributionCpu() override = default;
 
@@ -131,6 +133,7 @@ class NormalDistributionCpu : public NormalDistribution<CPUBackend> {
   void AssignSingleValueToOutput(workspace_t<CPUBackend> &ws);
 
   std::mt19937_64 rng_;
+  BatchRNG<std::mt19937_64> batch_rng_;
   static_assert(std::is_same<decltype(mean_), decltype(stddev_)>::value &&
                 is_vector<decltype(mean_)>::value, "Both `mean` and `stddev` should be vectors");
   static_assert(std::is_floating_point<decltype(mean_)::value_type>::value,
