@@ -104,12 +104,7 @@ def _docstring_generator(cls):
         op_dev.append("'gpu'")
     if op_name in _mixed_ops:
         op_dev.append("'mixed'")
-    ret += """
-Supported backends
-------------------
-"""
-    ret += ", ".join(op_dev)
-    ret += "\n\n"
+    ret += "\nSupported backends: " + ", ".join(op_dev) + "\n"
 
     ret += """
 Parameters
@@ -130,7 +125,7 @@ Parameters
                 default_value = default_value_string
             ret += (", optional, default = " +
                     repr(_type_convert_value(dtype, default_value)))
-        indent = '\n' + " " * len(arg_name_doc)
+        indent = '\n' + " " * 4
         ret += indent
         ret += schema.GetArgumentDox(arg).replace("\n", indent)
         ret += '\n'
