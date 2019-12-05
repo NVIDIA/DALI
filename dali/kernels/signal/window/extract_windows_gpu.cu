@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 #include "dali/kernels/signal/window/extract_windows_gpu.h"
 #include "dali/kernels/signal/window/extract_windows_gpu.cuh"
 
@@ -20,19 +21,20 @@ namespace kernels {
 namespace signal {
 
 template <typename Dst, typename Src>
-struct ExtractWindowsGpu<Dst, Src>::Impl : public ExtractWindowsGpuImpl<Dst, Src> {
-};
-
-template <typename Dst, typename Src>
 KernelRequirements ExtractWindowsGpu<Dst, Src>::Setup(
     KernelContext &context,
     const InListGPU<Src, 1> &input,
     const InTensorGPU<float, 1> &window,
     const ExtractWindowsBatchedArgs &args) {
-  if (!impl)
-    impl = std::make_unique<Impl>();
+  if (!impl || impl->IsVertical() != args.vertical) {
+    impl.reset();
+    if (args.vertical)
+      impl = std::make_unique<ExtractVerticalWindowsGpuImpl<Dst, Src>>();
+    else
+      impl = std::make_unique<ExtractHorizontalWindowsGpuImpl<Dst, Src>>();
+  }
 
-  return impl->Setup(context, input, args, args.concatenate, args.padded_output_window);
+  return impl->Setup(context, input.shape, args, args.concatenate, args.padded_output_window);
 }
 
 template <typename Dst, typename Src>

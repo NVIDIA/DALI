@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <memory>
 #include <vector>
 #include "dali/core/util.h"
 #include "dali/test/test_tensors.h"
@@ -45,7 +46,7 @@ TEST(ExtractWindowsGpu, NonBatchedKernel) {
   cudaMemset(out_gpu, 0, sizeof(float)*windows*winlen);
   int xblocks = div_ceil(length, 32);
   int yblocks = div_ceil(winlen, 32);
-  window::ExtractWindowsKernel<<<dim3(xblocks, yblocks), dim3(32, 32)>>>(
+  window::ExtractVerticalWindowsKernel<<<dim3(xblocks, yblocks), dim3(32, 32)>>>(
     out_gpu, windows, stride, in_gpu, length, nullptr, winlen, center, step, reflect);
   cudaMemcpy(out.data(), out_gpu, sizeof(float)*winlen*windows, cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
@@ -85,9 +86,16 @@ TEST(ExtractWindowsGpu, NonBatchedKernel) {
 }
 
 
-
-void TestBatchedExtract(bool concatenate, Padding padding, span<const float> window) {
-  ExtractWindowsGpuImpl<float, float> extract;
+void TestBatchedExtract(
+    bool concatenate,
+    Padding padding,
+    bool vertical,
+    span<const float> window) {
+  std::unique_ptr<ExtractWindowsGpuImpl<float, float>> extract;
+  if (vertical)
+    extract = std::make_unique<ExtractVerticalWindowsGpuImpl<float, float>>();
+  else
+    extract = std::make_unique<ExtractHorizontalWindowsGpuImpl<float, float>>();
 
   TensorListShape<1> lengths({ TensorShape<1>{5}, TensorShape<1>{305}, TensorShape<1>{157} });
   int N = lengths.num_samples();
@@ -116,7 +124,7 @@ void TestBatchedExtract(bool concatenate, Padding padding, span<const float> win
 
   auto in_gpu = in_list.gpu(0);
 
-  auto req = extract.Setup(ctx, in_gpu, args, concatenate);
+  auto req = extract->Setup(ctx, lengths, args, concatenate);
   ASSERT_EQ(req.output_shapes.size(), 1u);
   ASSERT_EQ(req.output_shapes[0].num_samples(), concatenate ? 1 : N);
 
@@ -132,10 +140,10 @@ void TestBatchedExtract(bool concatenate, Padding padding, span<const float> win
   }
   auto window_gpu = make_tensor_gpu<1>(gpu_win.get(), { window.size() });
   out.reshape(req.output_shapes[0].to_static<2>());
-  extract.Run(ctx, out.gpu(0), in_gpu, window_gpu);
+  extract->Run(ctx, out.gpu(0), in_gpu, window_gpu);
   auto out_cpu = out.cpu();
 
-  int ofs = 0;
+  ptrdiff_t ofs = 0;
 
   for (int sample = 0; sample < N; sample++) {
     ptrdiff_t length = lengths[sample][0];
@@ -146,9 +154,10 @@ void TestBatchedExtract(bool concatenate, Padding padding, span<const float> win
       ofs = 0;
       out_sample = sample;
     }
-    ptrdiff_t stride = out_cpu.shape[out_sample][1];
+    ptrdiff_t sample_stride = vertical ? out_cpu.shape[out_sample][1] : 1;
+    ptrdiff_t window_stride = vertical ? 1 : out_cpu.shape[out_sample][1];
 
-    for (int w = 0; w < nwnd; w++, ofs++) {
+    for (int w = 0; w < nwnd; w++, ofs += window_stride) {
         for (int i = 0; i < args.window_length; i++) {
         ptrdiff_t idx = w * args.window_step + i - args.window_center;
         if (args.padding == Padding::Reflect) {
@@ -164,7 +173,7 @@ void TestBatchedExtract(bool concatenate, Padding padding, span<const float> win
         float ref = idx >= 0 && idx < length ? in_cpu.data[sample][idx] : 0;
         if (!window.empty())
           ref *= window[i];
-        ASSERT_EQ(out_cpu.data[out_sample][ofs + i*stride], ref)
+        ASSERT_EQ(out_cpu.data[out_sample][ofs + i*sample_stride], ref)
           << "@ sample = " << sample
           << ", window = " << w << ", index = " << i;
       }
@@ -172,24 +181,44 @@ void TestBatchedExtract(bool concatenate, Padding padding, span<const float> win
   }
 }
 
-TEST(ExtractWindowsGpu, BatchedConcat) {
-  TestBatchedExtract(true, Padding::Reflect, {});
+TEST(ExtractVerticalWindowsGpu, BatchedConcat) {
+  TestBatchedExtract(true, Padding::Reflect, true, {});
 }
 
-TEST(ExtractWindowsGpu, BatchedSeparate) {
-  TestBatchedExtract(false, Padding::Zero, {});
+TEST(ExtractVerticalWindowsGpu, BatchedSeparate) {
+  TestBatchedExtract(false, Padding::Zero, true, {});
 }
 
-TEST(ExtractWindowsGpu, BatchedConcatWindowFunc) {
+TEST(ExtractVerticalWindowsGpu, BatchedConcatWindowFunc) {
   vector<float> window(60);
   HannWindow(make_span(window));
-  TestBatchedExtract(true, Padding::Zero, make_cspan(window));
+  TestBatchedExtract(true, Padding::Zero, true, make_cspan(window));
 }
 
-TEST(ExtractWindowsGpu, BatchedSeparateWindowFunc) {
+TEST(ExtractVerticalWindowsGpu, BatchedSeparateWindowFunc) {
   vector<float> window(60);
   HammingWindow(make_span(window));
-  TestBatchedExtract(false, Padding::Reflect, make_cspan(window));
+  TestBatchedExtract(false, Padding::Reflect, true, make_cspan(window));
+}
+
+TEST(ExtractHorizontalWindowsGpu, BatchedConcat) {
+  TestBatchedExtract(true, Padding::Reflect, false, {});
+}
+
+TEST(ExtractHorizontalWindowsGpu, BatchedSeparate) {
+  TestBatchedExtract(false, Padding::Zero, false, {});
+}
+
+TEST(ExtractHorizontalWindowsGpu, BatchedConcatWindowFunc) {
+  vector<float> window(60);
+  HannWindow(make_span(window));
+  TestBatchedExtract(true, Padding::Zero, false, make_cspan(window));
+}
+
+TEST(ExtractHorizontalWindowsGpu, BatchedSeparateWindowFunc) {
+  vector<float> window(60);
+  HammingWindow(make_span(window));
+  TestBatchedExtract(false, Padding::Reflect, false, make_cspan(window));
 }
 
 

@@ -25,11 +25,14 @@ namespace kernels {
 namespace signal {
 
 struct ExtractWindowsBatchedArgs : ExtractWindowsArgs {
+  bool vertical = false;
   /**
    * @brief If true, all outputs are concatenated.
    *
-   * The concatenated output will contain all first samples from windows from 1st recording,
-   * then 2nd, etc, and then all seconds samples from all recordings and so forth.
+   * In case of vertical windows, tThe concatenated output will contain all first samples from
+   * windows from 1st recording, then 2nd, etc, and then all seconds samples from all
+   * recordings and so forth.
+   * For horizontal windows, the concatenation is trivial.
    */
   bool concatenate = true;
   /**
@@ -37,6 +40,9 @@ struct ExtractWindowsBatchedArgs : ExtractWindowsArgs {
    */
   int padded_output_window = -1;
 };
+
+template <typename Dst, typename Src>
+struct ExtractWindowsGpuImpl;
 
 /**
  * @brief Extracts windows from 1D signal, optionally applying a custom window function
@@ -50,6 +56,8 @@ struct ExtractWindowsBatchedArgs : ExtractWindowsArgs {
  * then second samples, etc - a layout typically used in spectrograms.
  * If the `ExtractWindowsBatchedArgs::concatenate` is true, then the output rows are concatenated and
  * the output TensorList contains just one tensor.
+ *
+ * The signed input values of non-float type are normalized to -1..1 range
  *
  * @see ExtractWindowsBatchedArgs
  * @see ExtractWindowsArgs
@@ -79,7 +87,7 @@ class DLL_PUBLIC ExtractWindowsGpu {
   DLL_PUBLIC ~ExtractWindowsGpu();
 
  private:
-  struct Impl;
+  using Impl = ExtractWindowsGpuImpl<Dst, Src>;
   std::unique_ptr<Impl> impl;
 };
 
