@@ -55,13 +55,17 @@ TEST(ExtractWindowsGpu, NonBatchedKernel) {
     for (int i = 0; i < winlen; i++) {
       int idx = w * step + i - center;
       if (reflect) {
-        for (;;) {
-          if (idx < 0)
-            idx = -idx;
-          else if (idx >= length)
-            idx = 2*(length-1) - idx;
-          else
-            break;
+        if (length == 1) {
+          idx = 0;
+        } else {
+          for (;;) {
+            if (idx < 0)
+              idx = -idx;
+            else if (idx >= length)
+              idx = 2*(length-1) - idx;
+            else
+              break;
+          }
         }
       }
       float ref = idx >= 0 && idx < length ? in[idx] : 0;
@@ -87,6 +91,7 @@ TEST(ExtractWindowsGpu, NonBatchedKernel) {
 
 
 void TestBatchedExtract(
+    const TensorListShape<1> &lengths,
     bool concatenate,
     Padding padding,
     bool vertical,
@@ -97,7 +102,6 @@ void TestBatchedExtract(
   else
     extract = std::make_unique<ExtractHorizontalWindowsGpuImpl<float, float>>();
 
-  TensorListShape<1> lengths({ TensorShape<1>{5}, TensorShape<1>{305}, TensorShape<1>{157} });
   int N = lengths.num_samples();
 
   ptrdiff_t total_length = 0;
@@ -161,13 +165,17 @@ void TestBatchedExtract(
         for (int i = 0; i < args.window_length; i++) {
         ptrdiff_t idx = w * args.window_step + i - args.window_center;
         if (args.padding == Padding::Reflect) {
-          for (;;) {
-            if (idx < 0)
-              idx = -idx;
-            else if (idx >= length)
-              idx = 2*(length-1) - idx;
-            else
-              break;
+          if (length == 1) {
+            idx = 0;
+          } else {
+            for (;;) {
+              if (idx < 0)
+                idx = -idx;
+              else if (idx >= length)
+                idx = 2*(length-1) - idx;
+              else
+                break;
+            }
           }
         }
         float ref = idx >= 0 && idx < length ? in_cpu.data[sample][idx] : 0;
@@ -179,6 +187,15 @@ void TestBatchedExtract(
       }
     }
   }
+}
+
+void TestBatchedExtract(
+    bool concatenate,
+    Padding padding,
+    bool vertical,
+    span<const float> window) {
+  TensorListShape<1> lengths({ TensorShape<1>{5}, TensorShape<1>{305}, TensorShape<1>{157} });
+  TestBatchedExtract(lengths, concatenate, padding, vertical, window);
 }
 
 TEST(ExtractVerticalWindowsGpu, BatchedConcat) {
@@ -220,6 +237,25 @@ TEST(ExtractHorizontalWindowsGpu, BatchedSeparateWindowFunc) {
   HammingWindow(make_span(window));
   TestBatchedExtract(false, Padding::Reflect, false, make_cspan(window));
 }
+
+TEST(ExtractHorizontalWindowsGpu, SizeSweep) {
+  int max_size = 2048;
+  std::vector<TensorShape<1>> lengths;
+  int step = 1;
+  for (int s = 1; s <= max_size; s+=step) {
+    if ((s&255) == 0) {
+      if (step > 1)  // add 2^n-1
+        lengths.push_back({s-1});
+      step += step;
+    }
+    lengths.push_back({s});
+  }
+  TensorListShape<1> shape(lengths);
+  vector<float> window(60);
+  HammingWindow(make_span(window));
+  TestBatchedExtract(shape, false, Padding::Reflect, false, make_cspan(window));
+}
+
 
 
 }  // namespace signal

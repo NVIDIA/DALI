@@ -30,6 +30,22 @@ namespace window {
 
 constexpr int kBlock = 32;
 
+template <typename T>
+DALI_HOST_DEV DALI_FORCEINLINE
+T reflect_idx(T idx, T length) {
+  if (length == 1)
+    return 0;
+  for (;;) {
+    if (idx < 0)
+      idx = -idx;
+    else if (idx >= length)
+      idx = 2 * length - 2 - idx;
+    else
+      break;
+  }
+  return idx;
+}
+
 /// @brief Extract and store kBlock values from kBlock windows.
 ///
 /// This function reads kBlock elements from kBlock windows to shared memory
@@ -56,14 +72,7 @@ __device__ void ExtractVerticalWindowsBlock(
     float w = window ? window[window_offset] : 1;
     ptrdiff_t idx = window_start + window_offset;
     if (reflect) {
-      for (;;) {
-        if (idx < 0)
-          idx = -idx;
-        else if (idx >= length)
-          idx = 2 * length - 2 - idx;
-        else
-          break;
-      }
+      idx = reflect_idx(idx, length);
     }
     float v = idx >= 0 && idx < length ? ConvertNorm<float>(src[idx]) * w : Src();
     tmp[page][threadIdx.y][threadIdx.x] = v;
@@ -116,15 +125,7 @@ __device__ void ExtractHorizontalWindows(
   float value = 0;
 
   if (reflect) {
-    ptrdiff_t src_idx = idx;
-    for (;;) {
-      if (src_idx < 0)
-        src_idx = -src_idx;
-      else if (src_idx >= length)
-        src_idx = 2 * length - 2 - src_idx;
-      else
-        break;
-    }
+    ptrdiff_t src_idx = reflect_idx(idx, length);
     value = ConvertSatNorm<float>(src[src_idx]);
   } else {
     if (idx >= 0 && idx < length)
@@ -556,8 +557,8 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsGpuImpl<Dst, Src> {
       args.window_step, args.padding == Padding::Reflect);
   }
 
-  int block_dim, grid_dim;
-  int logical_block_size = 256;
+  int block_dim = 0, grid_dim = 0;
+  int logical_block_size = 0;
   ExtractWindowsArgs args;
   bool concatenate = true;
 };

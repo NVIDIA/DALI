@@ -125,13 +125,17 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
               int64_t in_idx = window_start + t;
               if (padding_ == Padding::Reflect) {
                 // find the mirrored position if the index is out of bounds
-                while (in_idx < 0 || in_idx >= in_size) {
-                  if (in_idx < 0) {
-                    // left side
-                    in_idx = -in_idx;
-                  } else {
-                    // right side
-                    in_idx = 2 * in_size - 2 - in_idx;
+                if (in_size == 1) {
+                  in_idx = 0;
+                } else {
+                  while (in_idx < 0 || in_idx >= in_size) {
+                    if (in_idx < 0) {
+                      // left side
+                      in_idx = -in_idx;
+                    } else {
+                      // right side
+                      in_idx = 2 * in_size - 2 - in_idx;
+                    }
                   }
                 }
                 // at this point we know that in_idx is in valid range
