@@ -293,6 +293,9 @@ class DLL_PUBLIC OpSpec {
 
   /**
    * @brief Checks the spec to see if an argument has been specified
+   *
+   * @remark If user does not explicitly specify value for OptionalArgument,
+   *         this will return false.
    */
   DLL_PUBLIC bool HasArgument(const string &name) const {
     auto arg_it = arguments_.find(name);
