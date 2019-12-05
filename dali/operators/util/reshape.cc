@@ -25,6 +25,8 @@ DALI_SCHEMA(Reshape)
   .DocStr(R"code(Treats content of the input as if it had a different shape and layout.)code")
   .NumInput(1, 2)
   .NumOutput(1)
+  .AllowSequences()
+  .SupportVolumetric()
   .AddOptionalArg<int>("shape", "The desired shape of the output. Number of elements in "
                                 "each sample must match that of the input sample.",
                                 std::vector<int>(), true)

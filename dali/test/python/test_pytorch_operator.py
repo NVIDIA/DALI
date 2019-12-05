@@ -77,7 +77,7 @@ def torch_operation(tensor):
     return tensor_n.sin(), tensor_n.cos()
 
 
-def test_torch_operator():
+def test_pytorch_operator():
     pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
     pt_pipe = TorchPythonFunctionPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID,
                                           SEED, images_dir, torch_operation)

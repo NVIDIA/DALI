@@ -35,6 +35,8 @@ DALI_REGISTER_OPERATOR(Copy, Copy<CPUBackend>, CPU);
 DALI_SCHEMA(Copy)
   .DocStr("Make a copy of the input tensor")
   .NumInput(1)
-  .NumOutput(1);
+  .NumOutput(1)
+  .AllowSequences()
+  .SupportVolumetric();
 
 }  // namespace dali

@@ -21,6 +21,7 @@ DALI_SCHEMA(WarpAffine)
   .NumInput(1, 2)
   .NumOutput(1)
   .InputLayout(0, { "HWC", "DHWC" })
+  .SupportVolumetric()
   .AddOptionalArg<float>("matrix",
       R"code(Transform matrix (dst -> src).
 Given list of values `(M11, M12, M13, M21, M22, M23)`

@@ -33,6 +33,7 @@ normalization only.
   .NumInput(1)
   .NumOutput(1)
   .AllowSequences()
+  .SupportVolumetric()
   .AddOptionalArg("output_dtype",
     R"code(Output data type. Supported types: `FLOAT` and `FLOAT16`)code", DALI_FLOAT)
   .AddOptionalArg("output_layout",

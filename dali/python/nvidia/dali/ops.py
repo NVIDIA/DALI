@@ -74,25 +74,18 @@ _mixed_ops = set({})
 
 def _docstring_generator(cls):
     op_name = cls.__name__
-    op_dev = []
-    if op_name in _cpu_ops:
-        op_dev.append("'CPU'")
-    if op_name in _gpu_ops:
-        op_dev.append("'GPU'")
-    if op_name in _mixed_ops:
-        op_dev.append("'mixed'")
-    pre_doc = "This is a " + ", ".join(op_dev) + " operator\n\n"
-
     schema = b.GetSchema(op_name)
     # insert tag to easily link to the operator
     ret = '.. _' + op_name + ':\n\n'
-    ret += pre_doc
     ret += schema.Dox()
     ret += '\n'
     if schema.IsSequenceOperator():
         ret += "\nThis operator expects sequence inputs\n"
     elif schema.AllowsSequences():
         ret += "\nThis operator allows sequence inputs\n"
+
+    if schema.SupportsVolumetric():
+        ret += "\nThis operator supports volumetric data\n"
 
     if schema.IsDeprecated():
         use_instead = schema.DeprecatedInFavorOf()
@@ -103,6 +96,20 @@ def _docstring_generator(cls):
 
     if schema.IsNoPrune():
         ret += "\nThis operator will **not** be optimized out of the graph.\n"
+
+    op_dev = []
+    if op_name in _cpu_ops:
+        op_dev.append("'cpu'")
+    if op_name in _gpu_ops:
+        op_dev.append("'gpu'")
+    if op_name in _mixed_ops:
+        op_dev.append("'mixed'")
+    ret += """
+Supported backends
+------------------
+"""
+    ret += ", ".join(op_dev)
+    ret += "\n\n"
 
     ret += """
 Parameters
@@ -403,6 +410,9 @@ def python_op_factory(name, op_device = "cpu"):
 
 
     Operator.__name__ = str(name)
+    # The autodoc doesn't generate doc for something that doesn't match the module name
+    if b.GetSchema(Operator.__name__).IsInternal():
+        Operator.__module__ = Operator.__module__ + ".internal"
     return Operator
 
 def _load_ops():

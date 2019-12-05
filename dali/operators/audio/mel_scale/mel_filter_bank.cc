@@ -46,7 +46,7 @@ fft bin index and the window index respectively.)code")
     .AddOptionalArg("normalize",
       R"code(Whether to normalize the triangular filter weights by the width of their mel band.
 If set to true, the integral of the filter function will amount to 1.
-If set to false, the peak of the filter function will be to 1)code",
+If set to false, the peak of the filter function will be 1)code",
       true)
     .AddOptionalArg("mel_formula",
       R"code(Determines the formula used to convert frequencies from Hertz to mel and viceversa.

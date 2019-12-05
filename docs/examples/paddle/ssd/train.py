@@ -75,7 +75,8 @@ class HybridTrainPipe(Pipeline):
             resize_x=300,
             resize_y=300,
             min_filter=types.DALIInterpType.INTERP_TRIANGULAR)
-        self.twist = ops.ColorTwist(device="gpu")
+        self.bc = ops.BrightnessContrast(device="gpu")
+        self.hsv = ops.Hsv(device="gpu")
         self.cmnp = ops.CropMirrorNormalize(
             device="gpu",
             mean=[104., 117., 123.],
@@ -104,12 +105,8 @@ class HybridTrainPipe(Pipeline):
 
         images = self.roi_decode(images, crop_begin, crop_size)
         images = self.resize(images)
-        images = self.twist(
-            images.gpu(),
-            saturation=saturation,
-            contrast=contrast,
-            brightness=brightness,
-            hue=hue)
+        images = self.bc(images.gpu(), brightness_delta=brightness, contrast_delta=contrast)
+        images = self.hsv(images, hue=hue, saturation=saturation)
         images = self.cmnp(images, mirror=flip)
         return images, bboxes, labels
 

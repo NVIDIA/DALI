@@ -15,18 +15,61 @@
 import nvidia.dali.ops as ops
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
-import torch.utils.dlpack as torch_dlpack
-import torch
 import os
 import random
 import numpy
-from mxnet import ndarray as mxnd
-import cupy
 from functools import partial
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
+def setup_pytorch():
+    global torch_dlpack
+    global torch
+    import torch.utils.dlpack as torch_dlpack
+    import torch as torch
+    global torch_stream
+    torch_stream = torch.cuda.Stream()
+
+def setup_mxnet():
+    global mxnd
+    from mxnet import ndarray as mxnd
+
+def setup_cupy():
+    global cupy
+    global cupy_stream
+    global square_diff_kernel
+    global mix_channels_kernel
+    global gray_scale_kernel
+    import cupy as cupy
+    cupy_stream = cupy.cuda.Stream()
+    square_diff_kernel = cupy.ElementwiseKernel(
+        'T x, T y',
+        'T z',
+        'z = x*x - y*y',
+        'square_diff'
+    )
+
+    mix_channels_kernel = cupy.ElementwiseKernel(
+        'uint8 x, uint8 y',
+        'uint8 z',
+        'z = (i % 3) ? x : y',
+        'mix_channels'
+    )
+
+    gray_scale_kernel = cupy.RawKernel(r'''
+    extern "C" __global__
+    void gray_scale(float *output, const unsigned char *input, long long height, long long width) {
+        int tidx = blockIdx.x * blockDim.x + threadIdx.x;
+        int tidy = blockIdx.y * blockDim.y + threadIdx.y;
+        if (tidx < width && tidy < height) {
+            float r = input[tidy * width + tidx] / 255.;
+            float g = input[tidy * width + tidx + 1] / 255.;
+            float b = input[tidy * width + tidx + 2] / 255.;
+            output[tidy * width + tidx] = 0.299 * r + 0.59 * g + 0.11 * b;
+        }
+    }
+    ''', 'gray_scale')
 
 def random_seed():
     return int(random.random() * (1 << 32))
@@ -77,10 +120,7 @@ class DLTensorOpPipeline(CommonPipeline):
         return self.op(im, self.flip(im2))
 
 
-torch_stream = torch.cuda.Stream()
-
-
-def torch_adapter(fun, in1, in2):
+def pytorch_adapter(fun, in1, in2):
     with torch.cuda.stream(torch_stream):
         tin1 = [torch_dlpack.from_dlpack(dltensor) for dltensor in in1]
         tin2 = [torch_dlpack.from_dlpack(dltensor) for dltensor in in2]
@@ -91,8 +131,8 @@ def torch_adapter(fun, in1, in2):
     return out1, out2
 
 
-def torch_wrapper(fun):
-    return lambda in1, in2: torch_adapter(fun, in1, in2)
+def pytorch_wrapper(fun):
+    return lambda in1, in2: pytorch_adapter(fun, in1, in2)
 
 
 def common_case(wrapped_fun, device, compare, synchronize=True):
@@ -115,7 +155,7 @@ def common_case(wrapped_fun, device, compare, synchronize=True):
         compare(pre1, pre2, post1, post2)
 
 
-def torch_compare(fun, pre1, pre2, post1, post2):
+def pytorch_compare(fun, pre1, pre2, post1, post2):
     torch_pre1 = [torch.from_numpy(pre1.at(i)) for i in range(BATCH_SIZE)]
     torch_pre2 = [torch.from_numpy(pre2.at(i)) for i in range(BATCH_SIZE)]
     torch_post1, torch_post2 = fun(torch_pre1, torch_pre2)
@@ -124,25 +164,26 @@ def torch_compare(fun, pre1, pre2, post1, post2):
         assert numpy.array_equal(post2.at(i), torch_post2[i].numpy())
 
 
-def torch_case(fun, device):
-    common_case(torch_wrapper(fun), device, partial(torch_compare, fun))
+def pytorch_case(fun, device):
+    common_case(pytorch_wrapper(fun), device, partial(pytorch_compare, fun))
 
 
-def simple_torch_op(in1, in2):
+def simple_pytorch_op(in1, in2):
     fin1 = [t.to(dtype=torch.float) for t in in1]
     fin2 = [t.to(dtype=torch.float) for t in in2]
     return [fin1[i] + fin2[i] for i in range(len(fin1))], \
            [fin1[i] - fin2[i] for i in range(len(fin1))]
 
 
-def torch_red_channel_op(in1, in2):
+def pytorch_red_channel_op(in1, in2):
     return [t.narrow(2, 0, 1).squeeze() for t in in1], [t.narrow(2, 0, 1).squeeze() for t in in2]
 
 
-def test_torch():
-    for testcase in [simple_torch_op, torch_red_channel_op]:
+def test_pytorch():
+    setup_pytorch()
+    for testcase in [simple_pytorch_op, pytorch_red_channel_op]:
         for device in ['cpu', 'gpu']:
-            yield torch_case, testcase, device
+            yield pytorch_case, testcase, device
 
 
 def mxnet_adapter(fun, in1, in2):
@@ -167,6 +208,7 @@ def mxnet_compare(fun, pre1, pre2, post1, post2):
 
 
 def mxnet_case(fun, device):
+    setup_mxnet()
     common_case(mxnet_wrapper(fun), device, partial(mxnet_compare, fun))
 
 
@@ -189,8 +231,6 @@ def test_mxnet():
         for device in ['cpu', 'gpu']:
             yield mxnet_case, testcase, device
 
-
-cupy_stream = cupy.cuda.Stream()
 
 
 def cupy_adapter_sync(fun, in1, in2):
@@ -241,35 +281,6 @@ def cupy_simple(in1, in2):
            [cupy.cos(fin1[i]*fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)]
 
 
-square_diff_kernel = cupy.ElementwiseKernel(
-    'T x, T y',
-    'T z',
-    'z = x*x - y*y',
-    'square_diff'
-)
-
-mix_channels_kernel = cupy.ElementwiseKernel(
-    'uint8 x, uint8 y',
-    'uint8 z',
-    'z = (i % 3) ? x : y',
-    'mix_channels'
-)
-
-gray_scale_kernel = cupy.RawKernel(r'''
-extern "C" __global__
-void gray_scale(float *output, const unsigned char *input, long long height, long long width) {
-    int tidx = blockIdx.x * blockDim.x + threadIdx.x;
-    int tidy = blockIdx.y * blockDim.y + threadIdx.y;
-    if (tidx < width && tidy < height) {
-        float r = input[tidy * width + tidx] / 255.;
-        float g = input[tidy * width + tidx + 1] / 255.;
-        float b = input[tidy * width + tidx + 2] / 255.;
-        output[tidy * width + tidx] = 0.299 * r + 0.59 * g + 0.11 * b;
-    }
-}
-''', 'gray_scale')
-
-
 def gray_scale_call(input):
     height = input.shape[0]
     width = input.shape[1]
@@ -299,9 +310,12 @@ def cupy_kernel_gray_scale(in1, in2):
 
 
 def test_cupy():
+    setup_cupy()
+    print(cupy)
     for testcase in [cupy_simple,  cupy_kernel_square_diff, cupy_kernel_mix_channels]:
         yield cupy_case, testcase
 
 
 def test_cupy_kernel_gray_scale():
+    setup_cupy()
     cupy_case(cupy_kernel_gray_scale, synchronize=False)

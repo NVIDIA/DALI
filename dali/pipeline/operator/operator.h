@@ -40,6 +40,7 @@ namespace dali {
  * Names for most commonly used arguments, to keep consistency between arg naming amongst operators.
  */
 namespace arg_names {
+const std::string kSeed = "seed";            // NOLINT
 const std::string kDtype = "dtype";          // NOLINT
 }  // namespace arg_names
 

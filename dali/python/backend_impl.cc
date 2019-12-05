@@ -853,6 +853,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
     .def("AllowsSequences", &OpSchema::AllowsSequences)
+    .def("SupportsVolumetric", &OpSchema::SupportsVolumetric)
     .def("IsInternal", &OpSchema::IsInternal)
     .def("IsNoPrune", &OpSchema::IsNoPrune)
     .def("IsDeprecated", &OpSchema::IsDeprecated)
