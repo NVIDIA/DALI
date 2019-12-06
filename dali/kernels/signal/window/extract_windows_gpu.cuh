@@ -19,6 +19,7 @@
 #include <algorithm>
 
 #include "dali/core/convert.h"
+#include "dali/core/boundary.h"
 #include "dali/kernels/signal/window/extract_windows_args.h"
 #include "dali/kernels/kernel.h"
 
@@ -30,21 +31,6 @@ namespace window {
 
 constexpr int kBlock = 32;
 
-template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE
-T reflect_idx(T idx, T length) {
-  if (length == 1)
-    return 0;
-  for (;;) {
-    if (idx < 0)
-      idx = -idx;
-    else if (idx >= length)
-      idx = 2 * length - 2 - idx;
-    else
-      break;
-  }
-  return idx;
-}
 
 /// @brief Extract and store kBlock values from kBlock windows.
 ///
@@ -72,7 +58,7 @@ __device__ void ExtractVerticalWindowsBlock(
     float w = window ? window[window_offset] : 1;
     ptrdiff_t idx = window_start + window_offset;
     if (reflect) {
-      idx = reflect_idx(idx, length);
+      idx = boundary::idx_reflect_101(idx, length);
     }
     float v = idx >= 0 && idx < length ? ConvertNorm<float>(src[idx]) * w : Src();
     tmp[page][threadIdx.y][threadIdx.x] = v;
@@ -120,12 +106,12 @@ __device__ void ExtractHorizontalWindows(
 
   // calculate the index of the first window that sample at `idx ` contributes to
   ptrdiff_t idx0 = idx + win_center - win_len + step;  // add step to round up
-  ptrdiff_t win0 = max(ptrdiff_t(), idx0/step);
+  ptrdiff_t win0 = ::max(ptrdiff_t(), idx0/step);
 
   float value = 0;
 
   if (reflect) {
-    ptrdiff_t src_idx = reflect_idx(idx, length);
+    ptrdiff_t src_idx = boundary::idx_reflect_101(idx, length);
     value = ConvertSatNorm<float>(src[src_idx]);
   } else {
     if (idx >= 0 && idx < length)
@@ -217,7 +203,7 @@ __global__ void ExtractVerticalWindowsBatchedKernel(
   int num_windows = sample.num_windows;
   ptrdiff_t length = sample.length;
 
-  int block_end = min(blk.start + windows_per_block, num_windows);
+  int block_end = ::min(blk.start + windows_per_block, num_windows);
 
   // NOTE: This loop is dynamically uniform. Introducing any thread-index dependent condition
   // will break the code, leading to undefined behavior (including hangs).

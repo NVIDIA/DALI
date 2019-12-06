@@ -54,20 +54,9 @@ TEST(ExtractWindowsGpu, NonBatchedKernel) {
   for (int w = 0; w < windows; w++) {
     for (int i = 0; i < winlen; i++) {
       int idx = w * step + i - center;
-      if (reflect) {
-        if (length == 1) {
-          idx = 0;
-        } else {
-          for (;;) {
-            if (idx < 0)
-              idx = -idx;
-            else if (idx >= length)
-              idx = 2*(length-1) - idx;
-            else
-              break;
-          }
-        }
-      }
+      if (reflect)
+        idx = boundary::idx_reflect_101(idx, 0, length);
+
       float ref = idx >= 0 && idx < length ? in[idx] : 0;
       EXPECT_EQ(out[w + i*stride], ref)
         << "@ window = " << w << ", index = " << i;
@@ -165,18 +154,7 @@ void TestBatchedExtract(
         for (int i = 0; i < args.window_length; i++) {
         ptrdiff_t idx = w * args.window_step + i - args.window_center;
         if (args.padding == Padding::Reflect) {
-          if (length == 1) {
-            idx = 0;
-          } else {
-            for (;;) {
-              if (idx < 0)
-                idx = -idx;
-              else if (idx >= length)
-                idx = 2*(length-1) - idx;
-              else
-                break;
-            }
-          }
+          idx = boundary::idx_reflect_101(idx, length);
         }
         float ref = idx >= 0 && idx < length ? in_cpu.data[sample][idx] : 0;
         if (!window.empty())

@@ -15,10 +15,13 @@
 #ifndef DALI_KERNELS_COMMON_UTILS_H_
 #define DALI_KERNELS_COMMON_UTILS_H_
 
+#include "dali/core/host_dev.h"
+
 namespace dali {
 namespace kernels {
 
 template <typename Shape>
+DALI_HOST_DEV
 Shape GetStrides(const Shape& shape) {
   Shape strides = shape;
   strides[strides.size()-1] = 1;
