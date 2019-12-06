@@ -20,8 +20,24 @@
 #include "dali/core/geom/vec.h"
 
 namespace dali {
+
+/// Out-of-bounds index handling
 namespace boundary {
 
+/**
+ * @brief Reflects out-of-range indices until fits in range.
+ *
+ * @param idx The index to clamp
+ * @param lo Low (inclusive) bound
+ * @param hi High (exclusive) bound
+ *
+ * This reflect flavor does not repeat the first and last element:
+ * ```
+ * lo--v     v--hi
+ *     ABCDEF         is padded as
+ * EDCBABCDEFEDCBABCD
+ * ```
+ */
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T hi) {
@@ -38,6 +54,7 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T h
   return idx;
 }
 
+/// @brief Equivalent to `idx_reflect_101(idx, 0, size)`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T size) {
@@ -45,6 +62,20 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T size) {
 }
 
 
+/**
+ * @brief Reflects out-of-range indices until fits in range.
+ *
+ * @param idx The index to clamp
+ * @param lo Low (inclusive) bound
+ * @param hi High (exclusive) bound
+ *
+ * This reflect flavor repeats the first and last element:
+ * ```
+ * lo--v     v--hi
+ *     ABCDEF           is padded as
+ * DCBAABCDEFFEDCBAABCD
+ * ```
+ */
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T lo, T hi) {
@@ -61,25 +92,34 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T lo, T 
   return idx;
 }
 
+/// @brief Equivalent to `idx_reflect_1001(idx, 0, size)`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T size) {
   return idx_reflect_1001(idx, T(0), size);
 }
 
-
+/**
+ * @brief Clamps out of range coordinates to [lo, hi)
+ *
+ * @param idx The index to clamp
+ * @param lo Low (inclusive) bound
+ * @param hi High (exclusive) bound
+ */
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx, T lo, T hi) {
   return idx < lo ? lo : idx > hi-1 ? hi-1 : idx;
 }
 
+/// @brief Equivalent to `idx_clamp(idx, 0, size)`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx, T size) {
   return idx_clamp(idx, 0, size);
 }
 
+/// @brief Wraps out-of-range indices modulo `size`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value && std::is_signed<T>::value, T>
@@ -88,6 +128,7 @@ idx_wrap(T idx, T size) {
   return idx < 0 ? idx + size : idx;
 }
 
+/// @brief Wraps out-of-range indices modulo `size`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_unsigned<T>::value, T> idx_wrap(T idx, T size) {
