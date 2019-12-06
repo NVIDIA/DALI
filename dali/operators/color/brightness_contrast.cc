@@ -71,6 +71,8 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
+              kernels::KernelContext ctx;
+              auto& tp = ws.GetThreadPool();
               for (int sample_id = 0; sample_id < input.shape().num_samples(); sample_id++) {
                 tp.DoWorkWithID([&, sample_id](int thread_id) {
                     kernels::KernelContext ctx;
