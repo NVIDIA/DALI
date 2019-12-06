@@ -77,11 +77,11 @@ bool HsvCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<C
 void HsvCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
+  auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
-              auto &tp = ws.GetThreadPool();
               for (int i = 0; i < input.shape().num_samples(); i++) {
                 tp.DoWorkWithID([&, i](int thread_id) {
                   kernels::KernelContext ctx;
@@ -90,10 +90,10 @@ void HsvCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                   kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin, tmatrices_[i]);
                 });
               }
-              tp.WaitForWork();
           }
       ), DALI_FAIL("Unsupported output type"))  // NOLINT
   ), DALI_FAIL("Unsupported input type"))  // NOLINT
+  tp.WaitForWork();
 }
 
 
