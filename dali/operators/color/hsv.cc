@@ -82,7 +82,6 @@ void HsvCpu::RunImpl(workspace_t<CPUBackend> &ws) {
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
-              kernels::KernelContext ctx;
               for (int i = 0; i < input.shape().num_samples(); i++) {
                 tp.DoWorkWithID([&, i](int thread_id) {
                   kernels::KernelContext ctx;

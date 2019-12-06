@@ -324,7 +324,33 @@ def crop_border(image, border):
 
 
 def diff_against_eps(image_1, image_2, eps):
-    return np.absolute(image_1.astype(float) - image_2.astype(float)).max() <= eps
+    abs_diff = np.absolute(image_1.astype(float) - image_2.astype(float))
+    max_err = abs_diff.max()
+    test_result = max_err <= eps
+    debug_errors = True
+    if debug_errors and not test_result:
+        import sys
+        print("Max error {} exceeded eps {}".format(max_err, eps))
+        np.set_printoptions(threshold=sys.maxsize)  # Print the whole array
+
+        diff1 = np.abs(image_1 - image_2)
+        diff2 = np.abs(image_2 - image_1)
+        diff_min = np.minimum(diff2, diff1)
+
+        mean_err = np.mean(diff_min)
+        print("Mean error {}".format(mean_err))
+
+        print("---------------")
+        print("Image 1:")
+        print(image_1)
+        print("Image 2:")
+        print(image_2)
+        print("Original abs diff:")
+        print(abs_diff)
+        print("Second abs diff:")
+        print(diff_min)
+        print("---------------")
+    return test_result
 
 
 def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
