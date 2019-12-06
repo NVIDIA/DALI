@@ -70,16 +70,17 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
-              kernels::KernelContext ctx;
               auto& tp = ws.GetThreadPool();
               for (int sample_id = 0; sample_id < input.shape().num_samples(); sample_id++) {
                 tp.DoWorkWithID([&, sample_id](int thread_id) {
+                    kernels::KernelContext ctx;
                     auto tvin = view<const InputType, 3>(input[sample_id]);
                     auto tvout = view<OutputType, 3>(output[sample_id]);
                     kernel_manager_.Run<Kernel>(thread_id, sample_id, ctx, tvout, tvin,
                                                 brightness_[sample_id], contrast_[sample_id]);
                 });
               }
+              tp.WaitForWork();
           }
       ), DALI_FAIL("Unsupported output type"))  // NOLINT
   ), DALI_FAIL("Unsupported input type"))  // NOLINT
