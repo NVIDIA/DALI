@@ -57,12 +57,13 @@ void PreemphasisFilterCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
           for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-            auto work = [&, sample_id](int thread_id) {
-                    const auto in_ptr = input[sample_id].data<InputType>();
-                    auto out_ptr = output[sample_id].mutable_data<OutputType>();
-                    auto num_samples = volume(output[sample_id].shape());
-                    DALI_ENFORCE(input[sample_id].shape() == output[sample_id].shape(),
-                             "Input and output shapes don't match");
+            tp.DoWorkWithID(
+              [&, sample_id](int thread_id) {
+                const auto in_ptr = input[sample_id].data<InputType>();
+                auto out_ptr = output[sample_id].mutable_data<OutputType>();
+                auto num_samples = volume(output[sample_id].shape());
+                DALI_ENFORCE(input[sample_id].shape() == output[sample_id].shape(),
+                          "Input and output shapes don't match");
                 if (preemph_coeff_[sample_id] == 0.f) {
                   for (long j = 0; j < num_samples; j++) {  // NOLINT (long)
                     out_ptr[j] = ConvertSat<OutputType>(in_ptr[j]);
@@ -74,8 +75,7 @@ void PreemphasisFilterCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                   }
                   out_ptr[0] = ConvertSat<OutputType>(in_ptr[0] * preemph_coeff_[sample_id]);
                 }
-            };
-            tp.DoWorkWithID(work);
+              });
           }
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT

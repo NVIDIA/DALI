@@ -15,8 +15,10 @@
 #include "dali/operators/util/normal_distribution_op.h"
 #include "dali/core/static_switch.h"
 
-namespace dali {
+#define NORM_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, \
+                    float16, float, double)
 
+namespace dali {
 
 DALI_SCHEMA(NormalDistribution)
                 .DocStr(R"code(Creates a tensor that consists of data distributed normally.
@@ -39,10 +41,6 @@ This operator can be ran in 3 modes, which determine the shape of the output ten
 
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);
 
-
-#define NORM_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float16, float, double)  // NOLINT
-
-
 bool NormalDistributionCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
   AcquireArguments(ws);
@@ -61,7 +59,6 @@ bool NormalDistributionCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 void NormalDistributionCpu::AssignSingleValueToOutput(workspace_t<CPUBackend> &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
-  auto &tp = ws.GetThreadPool();
   distribution_t distribution(mean_[0], stddev_[0]);
   TYPE_SWITCH(dtype_, type2id, DType, NORM_TYPES, (
           for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
@@ -87,6 +84,7 @@ void NormalDistributionCpu::AssignTensorToOutput(workspace_t<CPUBackend> &ws) {
                   });
             }
   ), DALI_FAIL(make_string("Unsupported output type: ", dtype_)))  // NOLINT
+  tp.WaitForWork();
 }
 
 

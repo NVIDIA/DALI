@@ -63,7 +63,7 @@ bool HsvCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<C
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernel_manager_.Initialize<Kernel>();
-              auto shapes = CallSetup<Kernel, InputType>(input, ws.data_idx());
+              auto shapes = CallSetup<Kernel, InputType>(input);
               TypeInfo type;
               type.SetType<OutputType>(output_type_);
               output_desc[0] = {shapes, type};
@@ -77,20 +77,23 @@ bool HsvCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<C
 void HsvCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
+  auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
           {
               using Kernel = TheKernel<OutputType, InputType>;
-              kernels::KernelContext ctx;
               for (int i = 0; i < input.shape().num_samples(); i++) {
-                auto tvin = view<const InputType, 3>(input[i]);
-                auto tvout = view<OutputType, 3>(output[i]);
-                kernel_manager_.Run<Kernel>(ws.thread_idx(), ws.data_idx(),
-                        ctx, tvout, tvin, tmatrices_[i]);
+                tp.DoWorkWithID([&, i](int thread_id) {
+                  kernels::KernelContext ctx;
+                  auto tvin = view<const InputType, 3>(input[i]);
+                  auto tvout = view<OutputType, 3>(output[i]);
+                  kernel_manager_.Run<Kernel>(ws.thread_idx(), i, ctx, tvout, tvin, tmatrices_[i]);
+                });
               }
           }
       ), DALI_FAIL("Unsupported output type"))  // NOLINT
   ), DALI_FAIL("Unsupported input type"))  // NOLINT
+  tp.WaitForWork();
 }
 
 

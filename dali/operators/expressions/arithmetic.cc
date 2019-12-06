@@ -39,6 +39,7 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
       }
     });
   }
+  pool.WaitForWork();
 }
 
 DALI_SCHEMA(ArithmeticGenericOp)

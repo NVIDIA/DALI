@@ -174,14 +174,14 @@ class HsvCpu : public HsvOp<CPUBackend> {
 
  private:
   template <typename Kernel, typename InputType>
-  TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input, int instance_idx) {
+  TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input) {
     kernels::KernelContext ctx;
     TensorListShape<> sh = input.shape();
     TensorListShape<> ret(sh.num_samples(), 3);
     assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
     for (int i = 0; i < sh.num_samples(); i++) {
       const auto tvin = view<const InputType, 3>(input[i]);
-      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, tmatrices_[i]);
+      const auto reqs = kernel_manager_.Setup<Kernel>(i, ctx, tvin, tmatrices_[i]);
       const TensorListShape<> &out_sh = reqs.output_shapes[0];
       ret.set_tensor_shape(i, out_sh.tensor_shape(0));
     }
@@ -206,11 +206,10 @@ class HsvGpu : public HsvOp<GPUBackend> {
 
  private:
   template <typename Kernel, typename InputType>
-  TensorListShape<> CallSetup(const TensorList<GPUBackend> &tl, int instance_idx) {
+  TensorListShape<> CallSetup(const TensorList<GPUBackend> &tl) {
     kernels::KernelContext ctx;
     const auto tvin = view<const InputType, 3>(tl);
-    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin,
-                                                    make_cspan(tmatrices_));
+    const auto reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_));
     return reqs.output_shapes[0];
   }
 };
