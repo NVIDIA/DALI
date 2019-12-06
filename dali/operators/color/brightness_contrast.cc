@@ -52,7 +52,7 @@ bool BrightnessContrastCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernel_manager_.Initialize<Kernel>();
-              auto shapes = CallSetup<Kernel, InputType>(input, ws.data_idx());
+              auto shapes = CallSetup<Kernel, InputType>(input);
               TypeInfo type;
               type.SetType<OutputType>(output_type_);
               output_desc[0] = {shapes, type};
