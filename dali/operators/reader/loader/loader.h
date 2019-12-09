@@ -37,6 +37,9 @@ namespace dali {
 DLL_PUBLIC size_t start_index(const size_t shard_id,
                               const size_t shard_num,
                               const size_t size);
+
+DLL_PUBLIC Index num_samples(const size_t shard_num,
+                             const size_t size);
 /**
  * @brief Base class for Loaders, responsible for reading samples from resource of some kind
  *        into memory.
@@ -66,6 +69,7 @@ class Loader {
       lazy_init_(options.GetArgument<bool>("lazy_init")),
       loading_flag_(false),
       read_sample_counter_(0),
+      returned_sample_counter_(0),
       pad_last_batch_(options.GetArgument<bool>("pad_last_batch")) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
@@ -111,7 +115,7 @@ class Loader {
   }
 
   // Get a random read sample
-  LoadTargetSharedPtr ReadOne(bool is_new_epoch) {
+  LoadTargetSharedPtr ReadOne(bool is_new_batch) {
     if (!loading_flag_) {
       PrepareMetadata();
     }
@@ -146,11 +150,21 @@ class Loader {
 
     int samples_to_choose_from = initial_buffer_fill_;
     if (shards_.front().start == shards_.front().end) {
-      if (!is_new_epoch && pad_last_batch_) {
+      // If the reader has depleted samples from the given shard, but shards are not equal
+      // and we need to pad samples inside batch (even create a whole new dummy batch) using padding
+      // just to return in each shard the same number of samples and batches within the epoch.
+      // It happened only when pad_last_batch_ is set
+      // First part of this condition makes sure that the same number of batches is returned in each
+      // shard. Second makes sure that padding is done up to the full batch. For the first sample in
+      // the batch is_new_batch is set so it means that padding may be no longer needed
+      if ((returned_sample_counter_  < num_samples(num_shards_, Size()) || !is_new_batch) &&
+        pad_last_batch_) {
+        ++returned_sample_counter_;
         return last_sample_ptr_tmp;
       }
       // remove shard that was fully consumed
       shards_.pop_front();
+      returned_sample_counter_ = 0;
     }
 
     // choose the random index
@@ -182,6 +196,7 @@ class Loader {
     last_sample_ptr_tmp = sample_ptr;
 
     shards_.front().start++;
+    returned_sample_counter_++;
     return sample_ptr;
   }
 
@@ -211,6 +226,17 @@ class Loader {
       PrepareMetadata();
     }
     return SizeImpl();
+  }
+  // Give the size of the data accessed externally from python
+  Index SizePadded() {
+    if (!loading_flag_) {
+      PrepareMetadata();
+    }
+    if (pad_last_batch_) {
+      return num_samples(num_shards_, SizeImpl()) * num_shards_;
+    } else {
+      return SizeImpl();
+    }
   }
 
  protected:
@@ -245,7 +271,9 @@ class Loader {
   inline void IncreaseReadSampleCounter() {
     ++read_sample_counter_;
     if (IsNextShardRelative(read_sample_counter_ - 1, virtual_shard_id_)) {
-      ++virtual_shard_id_;
+      if (!stick_to_shard_) {
+        ++virtual_shard_id_;
+      }
       read_sample_counter_ = 1;
       if (virtual_shard_id_ == num_shards_) {
         virtual_shard_id_ = 0;
@@ -317,8 +345,10 @@ class Loader {
   std::once_flag fetch_cache_;
   std::shared_ptr<ImageCache> cache_;
 
-  // Counts how many samples reader have read already from this and next epoch
+  // Counts how many samples the reader have read already from this epoch
   Index read_sample_counter_;
+  // Counts how many samples the reader have read returned in the current epoch (including padding)
+  Index returned_sample_counter_;
   // If true, the last batch will be padded with the last sample so that the number
   // of samples matches batch size
   bool pad_last_batch_;

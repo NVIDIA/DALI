@@ -162,7 +162,7 @@ class DataReader : public Operator<Backend> {
   }
 
   Index epoch_size() const override {
-    return loader_->Size();
+    return loader_->SizePadded();
   }
 
   LoadTarget& GetSample(int sample_idx) {

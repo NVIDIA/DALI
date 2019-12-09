@@ -28,6 +28,7 @@ import nvidia.dali.tfrecord as tfrec
 from test_utils import compare_pipelines, get_dali_extra_path
 
 test_data_path = os.path.join(get_dali_extra_path(), 'db', 'coco')
+test_dummy_data_path = os.path.join(get_dali_extra_path(), 'db', 'coco_dummy')
 
 def coco_anchors():
     anchors = []
@@ -84,8 +85,8 @@ class TFRecordDetectionPipeline(Pipeline):
         super(TFRecordDetectionPipeline, self).__init__(
             args.batch_size, args.num_workers, 0, 0)
         self.input = ops.TFRecordReader(
-            path = os.path.join(test_data_path, 'small_coco.tfrecord'),
-            index_path = os.path.join(test_data_path, 'small_coco_index.idx'),
+            path = os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
+            index_path = os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
             features = {
                 'image/encoded' : tfrec.FixedLenFeature((), tfrec.string, ""),
                 'image/object/class/label':  tfrec.VarLenFeature([1], tfrec.int64,  0),
@@ -120,13 +121,13 @@ class TFRecordDetectionPipeline(Pipeline):
 
 
 class COCODetectionPipeline(Pipeline):
-    def __init__(self, args):
+    def __init__(self, args, data_path = test_data_path):
         super(COCODetectionPipeline, self).__init__(
             args.batch_size, args.num_workers, 0, 0)
 
         self.input = ops.COCOReader(
-            file_root=os.path.join(test_data_path, 'images'),
-            annotations_file=os.path.join(test_data_path, 'instances.json'),
+            file_root=os.path.join(data_path, 'images'),
+            annotations_file=os.path.join(data_path, 'instances.json'),
             shard_id=0,
             num_shards=1,
             ratio=True,
@@ -164,7 +165,7 @@ def run_test(args):
     print_args(args)
 
     pipe_tf = TFRecordDetectionPipeline(args)
-    pipe_coco = COCODetectionPipeline(args)
+    pipe_coco = COCODetectionPipeline(args, test_dummy_data_path)
 
     compare_pipelines(pipe_tf, pipe_coco, 1, 64)
 
