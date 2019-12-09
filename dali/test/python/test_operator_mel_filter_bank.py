@@ -106,7 +106,7 @@ def check_operator_mel_filter_bank_vs_python(device, batch_size, input_shape,
         MelFilterBankPythonPipeline(device, batch_size, iter(eii2),
                                     nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
                                     normalize=normalize, mel_formula=mel_formula),
-        batch_size=batch_size, N_iterations=5, eps=1e-04)
+        batch_size=batch_size, N_iterations=5, eps=1e-03)
 
 def test_operator_mel_filter_bank_vs_python():
     for device in ['cpu']:
@@ -118,6 +118,8 @@ def test_operator_mel_filter_bank_vs_python():
                         (128, 16000.0, 0.0, 8000.0, (513, 100)),
                         (128, 16000.0, 0.0, 8000.0, (10, 513, 100)),
                         (128, 48000.0, 0.0, 24000.0, (513, 100)),
-                        (128, 44100.0, 0.0, 22050.0, (513, 100))]:
+                        (128, 48000.0, 4000.0, 24000.0, (513, 100)),
+                        (128, 44100.0, 0.0, 22050.0, (513, 100)),
+                        (128, 44100.0, 1000.0, 22050.0, (513, 100))]:
                         yield check_operator_mel_filter_bank_vs_python, device, batch_size, shape, \
                             nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula
