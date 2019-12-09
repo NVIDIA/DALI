@@ -38,7 +38,7 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernel_manager_.Initialize<Kernel>();
-              auto shapes = CallSetup<Kernel, InputType>(input, ws.data_idx());
+              auto shapes = CallSetup<Kernel, InputType>(input);
               TypeInfo type;
               type.SetType<OutputType>(output_type_);
               output_desc[0] = {shapes, type};
@@ -52,6 +52,7 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.template Input<GPUBackend>(0);
   auto &output = ws.template Output<GPUBackend>(0);
+  output.SetLayout(InputLayout(ws, 0));
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
@@ -59,7 +60,7 @@ void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
               kernels::KernelContext ctx;
               auto tvin = view<const InputType, 3>(input);
               auto tvout = view<OutputType, 3>(output);
-              kernel_manager_.Run<Kernel>(ws.thread_idx(), ws.data_idx(), ctx, tvout, tvin,
+              kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
                                           brightness_, contrast_);
           }
       ), DALI_FAIL("Unsupported output type"))  // NOLINT

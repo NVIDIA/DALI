@@ -104,6 +104,7 @@ void AudioDecoderCpu::RunImpl(workspace_t<Backend> &ws) {
         }
     });
   }
+  tp.WaitForWork();
 }
 
 }  // namespace dali

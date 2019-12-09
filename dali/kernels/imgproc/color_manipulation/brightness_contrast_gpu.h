@@ -128,8 +128,8 @@ BrightnessContrastKernel(const SampleDescriptor<OutputType, InputType, ndims> *s
   const auto *__restrict__ in = sample.in;
   auto *__restrict__ out = sample.out;
 
-  for (int y = threadIdx.y + block.start.y; y < threadIdx.y + block.end.y; y += blockDim.y) {
-    for (int x = threadIdx.x + block.start.x; x < threadIdx.x + block.end.x; x += blockDim.x) {
+  for (int y = threadIdx.y + block.start.y; y < block.end.y; y += blockDim.y) {
+    for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
       out[y * sample.out_pitch.x + x] = ConvertSat<OutputType>(
               in[y * sample.in_pitch.x + x] * sample.contrast + sample.brightness);
     }
