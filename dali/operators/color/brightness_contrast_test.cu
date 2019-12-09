@@ -19,12 +19,15 @@
 #include "dali/test/dali_operator_test_utils.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/convert.h"
+#include "dali/operators/color/brightness_contrast.h"
 
 namespace dali {
 
 namespace testing {
 namespace brightness_contrast {
 
+using dali::brightness_contrast::detail::FullRange;
+using dali::brightness_contrast::detail::HalfRange;
 
 using InputDataType = float;
 
@@ -66,27 +69,13 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
 
 namespace {
 
-template <typename T>
-constexpr float FullRange() {
-  return std::is_integral<T>::value
-    ? std::numeric_limits<T>::max()
-    : 1.0f;
-}
-
-template <typename T>
-constexpr float HalfRange() {
-  return std::is_integral<T>::value
-    ? 1 << (8*sizeof(T) - std::is_signed<T>::value - 1)
-    : 0.5f;
-}
-
 static_assert(HalfRange<uint8_t>() == 128.0f, "Half range of uint8_t should be 128");
 static_assert(HalfRange<int16_t>() == 16384.0f, "Half range of int16_t should be 2^14");
 static_assert(HalfRange<float>() == 0.5f, "Half range of float should be 0.5f");
 
 static_assert(FullRange<uint8_t>() == 255.0f, "Full range of uint8_t should be 255");
 static_assert(FullRange<int16_t>() == 32767.0f, "Full range of int16_t should be 2^15-1");
-static_assert(FullRange<float>() == 1.0f, "Fukk range of float should be 1.0f");
+static_assert(FullRange<float>() == 1.0f, "Full range of float should be 1.0f");
 
 
 template <class OutputType>

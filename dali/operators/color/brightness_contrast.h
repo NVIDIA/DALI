@@ -28,6 +28,25 @@
 
 namespace dali {
 
+namespace brightness_contrast {
+namespace detail {
+
+template <typename T>
+constexpr float FullRange() {
+  return std::is_integral<T>::value
+    ? std::numeric_limits<T>::max()
+    : 1.0f;
+}
+
+template <typename T>
+constexpr float HalfRange() {
+  return std::is_integral<T>::value
+    ? (1 << (8*sizeof(T) - std::is_signed<T>::value - 1))
+    : 0.5f;
+}
+
+}  // namespace detail
+}  // namespace brightness_contrast
 
 template <typename Backend>
 class BrightnessContrastOp : public Operator<Backend> {
@@ -51,25 +70,11 @@ class BrightnessContrastOp : public Operator<Backend> {
     return true;
   }
 
-  template <typename T>
-  static float FullRange() {
-    return std::is_integral<T>::value
-      ? std::numeric_limits<T>::max()
-      : 1.0f;
-  }
-
-  template <typename T>
-  static float HalfRange() {
-    return std::is_integral<T>::value
-      ? (1 << (8*sizeof(T) - std::is_signed<T>::value - 1))
-      : 0.5f;
-  }
-
   template <typename OutputType, typename InputType>
   static void OpArgsToKernelArgs(float &addend, float &multiplier,
     float brightness, float brightness_shift, float contrast) {
-    float contrast_offset = HalfRange<InputType>();
-    float brightness_range = FullRange<OutputType>();
+    float contrast_offset = brightness_contrast::detail::HalfRange<InputType>();
+    float brightness_range = brightness_contrast::detail::FullRange<OutputType>();
     // The formula is:
     // out = brightness_shift * brightness_range +
     //       brightness * (contrast_offset + contrast * (in - contrast_offset)
