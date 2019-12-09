@@ -34,9 +34,9 @@ if not initialized:
         # show only this warning
         with warnings.catch_warnings():
             warnings.simplefilter("default")
-            warnings.warn("DALI 0.17 is the last official release for Python 2.7, which"
-                        "reaches the end of life on January 1st, 2020. To stay up to date with"
-                        "DALI, please upgrade to Python 3.5 or later.", Warning, stacklevel=2)
+            warnings.warn("DALI 0.17 is the last official release for Python 2.7, which "
+                          "reaches the end of life on January 1st, 2020. To stay up to date with "
+                          "DALI, please upgrade to Python 3.5 or later.", Warning, stacklevel=2)
 
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
