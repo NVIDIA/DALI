@@ -14,13 +14,13 @@
 
 #include "dali/operators/color/brightness_contrast.h"
 #include <vector>
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.h"
+#include "dali/kernels/imgproc/pointwise/multiply_add_gpu.h"
 
 namespace dali {
 namespace {
 
 template <typename Out, typename In>
-using TheKernel = kernels::brightness_contrast::BrightnessContrastGpu<Out, In, 3>;
+using TheKernel = kernels::MultiplyAddGpu<Out, In, 3>;
 
 }  // namespace
 
@@ -33,6 +33,9 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &output = ws.template OutputRef<GPUBackend>(0);
   output_desc.resize(1);
   AcquireArguments(ws);
+  int N = input.ntensor();
+  addends_.resize(N);
+  multipliers_.resize(N);
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
@@ -60,8 +63,12 @@ void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
               kernels::KernelContext ctx;
               auto tvin = view<const InputType, 3>(input);
               auto tvout = view<OutputType, 3>(output);
+              for (int i = 0; i < tvin.num_samples(); i++) {
+                OpArgsToKernelArgs<OutputType, InputType>(addends_[i], multipliers_[i],
+                      brightness_[i], brightness_shift_[i], contrast_[i]);
+              }
               kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
-                                          brightness_, contrast_);
+                                          addends_, multipliers_);
           }
       ), DALI_FAIL("Unsupported output type"))  // NOLINT
   ), DALI_FAIL("Unsupported input type"))  // NOLINT

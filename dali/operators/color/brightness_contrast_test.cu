@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <limits>
 #include <vector>
 #include <memory>
 #include "dali/test/dali_operator_test.h"
@@ -65,14 +66,41 @@ class BrightnessContrastTest : public testing::DaliOperatorTest {
 
 namespace {
 
+template <typename T>
+constexpr float FullRange() {
+  return std::is_integral<T>::value
+    ? std::numeric_limits<T>::max()
+    : 1.0f;
+}
+
+template <typename T>
+constexpr float HalfRange() {
+  return std::is_integral<T>::value
+    ? 1 << (8*sizeof(T) - std::is_signed<T>::value - 1)
+    : 0.5f;
+}
+
+static_assert(HalfRange<uint8_t>() == 128.0f, "Half range of uint8_t should be 128");
+static_assert(HalfRange<int16_t>() == 16384.0f, "Half range of int16_t should be 2^14");
+static_assert(HalfRange<float>() == 0.5f, "Half range of float should be 0.5f");
+
+static_assert(FullRange<uint8_t>() == 255.0f, "Full range of uint8_t should be 255");
+static_assert(FullRange<int16_t>() == 32767.0f, "Full range of int16_t should be 2^15-1");
+static_assert(FullRange<float>() == 1.0f, "Fukk range of float should be 1.0f");
+
 
 template <class OutputType>
 void BrightnessContrastVerify(TensorListWrapper input, TensorListWrapper output, Arguments args) {
   static_assert(std::is_fundamental<OutputType>::value, "");
   auto input_tl = input.CopyTo<CPUBackend>();
   auto output_tl = output.CopyTo<CPUBackend>();
-  auto brightness = args["brightness_delta"].GetValue<float>();
-  auto contrast = args["contrast_delta"].GetValue<float>();
+  auto brightness = args["brightness"].GetValue<float>();
+  auto brightness_shift = args["brightness_shift"].GetValue<float>();
+  auto contrast = args["contrast"].GetValue<float>();
+
+  float contrast_offset = HalfRange<InputDataType>();
+  float out_range = FullRange<OutputType>();
+
   ASSERT_EQ(input_tl->ntensor(), output_tl->ntensor());
   for (size_t t = 0; t < input.cpu().ntensor(); t++) {
     auto out_shape = output_tl->tensor_shape(t);
@@ -81,26 +109,32 @@ void BrightnessContrastVerify(TensorListWrapper input, TensorListWrapper output,
     auto in_tensor = input_tl->tensor<InputDataType>(t);
     ASSERT_EQ(in_shape, out_shape);
     for (int i = 0; i < volume(out_shape); i++) {
-       EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(in_tensor[i] * contrast + brightness));
+      float with_contrast = contrast_offset + contrast*(in_tensor[i] - contrast_offset);
+      float with_brighness = brightness * with_contrast;
+      float with_shift = out_range * brightness_shift + with_brighness;
+      EXPECT_EQ(out_tensor[i], ConvertSat<OutputType>(with_shift));
     }
   }
 }
 
 
 Arguments args1 = {
-        {"output_type",      DALI_UINT8},
-        {"brightness_delta", 0.f},
-        {"contrast_delta",   1.f}
+        {"dtype",             DALI_UINT8},
+        {"brightness" ,       1.f},
+        {"brightness_shift",  0.f},
+        {"contrast",          1.f}
 };
 Arguments args2 = {
-        {"output_type",      DALI_UINT8},
-        {"brightness_delta", 1.f},
-        {"contrast_delta",   0.f}
+        {"dtype",             DALI_UINT8},
+        {"brightness" ,       1.f},
+        {"brightness_shift",  0.1f},
+        {"contrast",          2.f}
 };
 Arguments args3 = {
-        {"output_type",      DALI_UINT8},
-        {"brightness_delta", 13.f},
-        {"contrast_delta",   0.5f}
+        {"dtype",             DALI_UINT8},
+        {"brightness" ,       0.5f},
+        {"brightness_shift",  0.051f},
+        {"contrast",          1.f}
 };
 
 std::vector<Arguments> args_for_types = {args1, args2, args3};

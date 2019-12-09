@@ -23,7 +23,7 @@
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_gpu.h"
-#include "dali/kernels/imgproc/color_manipulation/color_manipulation_test_utils.h"
+#include "dali/test/cv_mat_utils.h"
 #include "dali/kernels/imgproc/roi.h"
 
 namespace dali {
@@ -194,10 +194,11 @@ TYPED_TEST(LinearTransformationGpuTest, run_test_with_roi) {
   cudaDeviceSynchronize();
 
   auto res = copy<AllocType::Host>(out[0]);
-  auto mat = color_manipulation::test::to_mat<kNChannelsOut>(this->ref_output_.data(),
-                                                             this->rois_[0],
-                                                             this->out_shapes_[0][0],
-                                                             this->out_shapes_[0][1]);
+  auto mat = testing::copy_to_mat<kNChannelsOut>(
+      this->rois_[0],
+      this->ref_output_.data(),
+      this->out_shapes_[0][0],
+      this->out_shapes_[0][1]);
   Check(view_as_tensor<typename TypeParam::Out>(mat), res.first, EqualUlp());
 }
 

@@ -13,30 +13,33 @@
 // limitations under the License.
 
 #include "dali/operators/color/brightness_contrast.h"
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
+#include "dali/kernels/imgproc/pointwise/multiply_add.h"
 
 namespace dali {
 namespace {
 
 template <typename Out, typename In>
-using TheKernel = kernels::BrightnessContrastCpu<Out, In, 3>;
+using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
 
 }  // namespace
 
 
 DALI_SCHEMA(BrightnessContrast)
-                .DocStr(R"code(Change the brightness and contrast of the image.
+    .DocStr(R"code(Change the brightness and contrast of the image.
 Additionally, this operator can change the type of data.)code")
-                .NumInput(1)
-                .NumOutput(1)
-                .AddOptionalArg(brightness_contrast::kBrightness,
-                                R"code(Set additive brightness delta. 0 denotes no-op)code", .0f,
-                                true)
-                .AddOptionalArg(brightness_contrast::kContrast,
-                                R"code(Set multiplicative contrast delta. 1 denotes no-op)code",
-                                1.f, true)
-                .AddOptionalArg(brightness_contrast::kOutputType,
-                                R"code(Set output data type)code", DALI_INT16);
+    .NumInput(1)
+    .NumOutput(1)
+    .AddOptionalArg("brightness",
+                    "Set brightness mutliplier; 1.0 is neutral.",
+                    1.0f, true)
+    .AddOptionalArg("brightness_shift",
+                    "Set brightness shift; 0 is neutral.",
+                    0.0f, true)
+    .AddOptionalArg("contrast",
+                    "Set contrast multiplier; 1.0 is neutral.",
+                    1.0f, true)
+    .AddOptionalArg("dtype",
+                    "Output data type", DALI_NO_TYPE);
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastCpu, CPU)
 
@@ -77,8 +80,11 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
                     kernels::KernelContext ctx;
                     auto tvin = view<const InputType, 3>(input[sample_id]);
                     auto tvout = view<OutputType, 3>(output[sample_id]);
+                    float add, mul;
+                    OpArgsToKernelArgs<OutputType, InputType>(add, mul,
+                      brightness_[sample_id], brightness_shift_[sample_id], contrast_[sample_id]);
                     kernel_manager_.Run<Kernel>(thread_id, sample_id, ctx, tvout, tvin,
-                                                brightness_[sample_id], contrast_[sample_id]);
+                                                add, mul);
                 });
               }
           }

@@ -105,7 +105,7 @@ class HybridTrainPipe(Pipeline):
 
         images = self.roi_decode(images, crop_begin, crop_size)
         images = self.resize(images)
-        images = self.bc(images.gpu(), brightness_delta=brightness, contrast_delta=contrast)
+        images = self.bc(images.gpu(), brightness=brightness, contrast=contrast)
         images = self.hsv(images, hue=hue, saturation=saturation)
         images = self.cmnp(images, mirror=flip)
         return images, bboxes, labels

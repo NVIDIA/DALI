@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_COLOR_BRIGHTNESS_CONTRAST_H_
 #define DALI_OPERATORS_COLOR_BRIGHTNESS_CONTRAST_H_
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -26,13 +27,6 @@
 #include "dali/core/format.h"
 
 namespace dali {
-namespace brightness_contrast {
-
-const std::string kBrightness = "brightness_delta";  // NOLINT
-const std::string kContrast = "contrast_delta";      // NOLINT
-const std::string kOutputType = "output_type";       // NOLINT
-
-}  // namespace brightness_contrast
 
 
 template <typename Backend>
@@ -43,9 +37,9 @@ class BrightnessContrastOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(BrightnessContrastOp);
 
  protected:
-  explicit BrightnessContrastOp(const OpSpec &spec) :
-          Operator<Backend>(spec),
-          output_type_(spec.GetArgument<DALIDataType>(brightness_contrast::kOutputType)) {
+  explicit BrightnessContrastOp(const OpSpec &spec)
+        : Operator<Backend>(spec)
+        , output_type_arg_(spec.GetArgument<DALIDataType>("dtype")) {
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
@@ -53,21 +47,57 @@ class BrightnessContrastOp : public Operator<Backend> {
     }
   }
 
-
   bool CanInferOutputs() const override {
     return true;
   }
 
-
-  void AcquireArguments(const ArgumentWorkspace &ws) {
-    this->GetPerSampleArgument(brightness_, brightness_contrast::kBrightness, ws);
-    this->GetPerSampleArgument(contrast_, brightness_contrast::kContrast, ws);
+  template <typename T>
+  static float FullRange() {
+    return std::is_integral<T>::value
+      ? std::numeric_limits<T>::max()
+      : 1.0f;
   }
 
+  template <typename T>
+  static float HalfRange() {
+    return std::is_integral<T>::value
+      ? (1 << (8*sizeof(T) - std::is_signed<T>::value - 1))
+      : 0.5f;
+  }
+
+  template <typename OutputType, typename InputType>
+  static void OpArgsToKernelArgs(float &addend, float &multiplier,
+    float brightness, float brightness_shift, float contrast) {
+    float contrast_offset = HalfRange<InputType>();
+    float brightness_range = FullRange<OutputType>();
+    // The formula is:
+    // out = brightness_shift * brightness_range +
+    //       brightness * (contrast_offset + contrast * (in - contrast_offset)
+    //
+    // It can be rearranged as:
+    // out = (brightness_shift * brightness_range +
+    //        brightness * (contrast_offset - contrast * contrast_offset)) +
+    //        brightness * contrast * in
+    addend = brightness_shift * brightness_range +
+             brightness * (contrast_offset - contrast * contrast_offset);
+    multiplier = brightness * contrast;
+  }
+
+  void AcquireArguments(const workspace_t<Backend> &ws) {
+    this->GetPerSampleArgument(brightness_, "brightness", ws);
+    this->GetPerSampleArgument(brightness_shift_, "brightness_shift", ws);
+    this->GetPerSampleArgument(contrast_, "contrast", ws);
+
+    input_type_ = ws.template InputRef<Backend>(0).type().id();
+    output_type_ =
+        output_type_arg_ != DALI_NO_TYPE
+        ? output_type_arg_
+        : input_type_;
+  }
 
   USE_OPERATOR_MEMBERS();
-  std::vector<float> brightness_, contrast_;
-  DALIDataType output_type_;
+  std::vector<float> brightness_, brightness_shift_, contrast_;
+  DALIDataType output_type_arg_, output_type_, input_type_;
   kernels::KernelManager kernel_manager_;
 };
 
@@ -131,6 +161,7 @@ class BrightnessContrastGpu : public BrightnessContrastOp<GPUBackend> {
     const auto reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
     return reqs.output_shapes[0];
   }
+  std::vector<float> addends_, multipliers_;
 };
 
 }  // namespace dali

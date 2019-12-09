@@ -23,7 +23,7 @@
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
-#include "dali/kernels/imgproc/color_manipulation/color_manipulation_test_utils.h"
+#include "dali/test/cv_mat_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -156,9 +156,11 @@ TYPED_TEST(LinearTransformationCpuTest, run_test_with_roi) {
   kernel.Run(ctx, out, in, this->mat_, this->vec_, &this->roi_);
 
 
-  auto mat = color_manipulation::test::to_mat<kNChannelsOut>(this->ref_output_.data(), this->roi_,
-                                                             this->in_shape_[0],
-                                                             this->in_shape_[1]);
+  auto mat = testing::copy_to_mat<kNChannelsOut>(
+      this->roi_,
+      this->ref_output_.data(),
+      this->in_shape_[0],
+      this->in_shape_[1]);
   Check(out, view_as_tensor<float>(mat), EqualUlp());
 }
 

@@ -197,7 +197,7 @@ def Rotate(image):
 
 
 def Brightness(image):
-    return numpy.array(ImageEnhance.Brightness(Image.fromarray(image)).enhance(1.0))
+    return numpy.array(ImageEnhance.Brightness(Image.fromarray(image)).enhance(0.5))
 
 
 def test_python_operator_one_channel_normalize():
@@ -238,7 +238,7 @@ class RotatePipeline(CommonPipeline):
 class BrightnessPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
         super(BrightnessPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
-        self.brightness=ops.BrightnessContrast(device = "gpu", brightness_delta = 0)
+        self.brightness=ops.BrightnessContrast(device = "gpu", brightness = 0.5)
 
     def define_graph(self):
         images, labels = self.load()
@@ -270,7 +270,7 @@ def test_python_operator_brightness():
         numpy_output, = numpy_brightness.run()
         dali_output, = dali_brightness.run()
         for i in range(len(dali_output)):
-            assert numpy.array_equal(numpy_output.at(i), dali_output.as_cpu().at(i))
+            assert numpy.allclose(numpy_output.at(i), dali_output.as_cpu().at(i), rtol = 1e-5, atol = 1)
 
 
 def invalid_function(image):

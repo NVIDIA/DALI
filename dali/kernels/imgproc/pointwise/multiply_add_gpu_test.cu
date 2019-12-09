@@ -20,11 +20,11 @@
 #include "dali/kernels/common/copy.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast_gpu.h"
+#include "dali/kernels/imgproc/pointwise/multiply_add_gpu.h"
 
 namespace dali {
 namespace kernels {
-namespace brightness_contrast {
+namespace multiply_add {
 namespace test {
 
 namespace {
@@ -50,12 +50,12 @@ std::enable_if_t<!std::is_integral<Out>::value, Out> custom_round(float val) {
 }  // namespace
 
 template <class InputOutputTypes>
-class BrightnessContrastGpuTest : public ::testing::Test {
+class MultiplyAddGpuTest : public ::testing::Test {
   using In = typename InputOutputTypes::In;
   using Out = typename InputOutputTypes::Out;
 
  public:
-  BrightnessContrastGpuTest() {
+  MultiplyAddGpuTest() {
     input_host_.resize(dataset_size());
   }
 
@@ -79,13 +79,13 @@ class BrightnessContrastGpuTest : public ::testing::Test {
   std::vector<In> input_host_;
   std::vector<Out> ref_output_;
   std::vector<TensorShape<kNdims>> shapes_ = {{480, 640, 3}};
-  std::vector<float> brightness_ = {4};
-  std::vector<float> contrast_ = {3};
+  std::vector<float> addends_ = {4};
+  std::vector<float> multipliers_ = {3};
 
 
   void verify_test() {
-    assert(shapes_.size() == brightness_.size());
-    assert(brightness_.size() == contrast_.size());
+    assert(shapes_.size() == addends_.size());
+    assert(addends_.size() == multipliers_.size());
     assert(dataset_size() == input_host_.size());
     assert(dataset_size() == ref_output_.size());
   }
@@ -93,7 +93,7 @@ class BrightnessContrastGpuTest : public ::testing::Test {
 
   void calc_output(int idx) {
     for (auto in : input_host_) {
-      ref_output_.push_back(custom_round<In, Out>(in * contrast_[idx] + brightness_[idx]));
+      ref_output_.push_back(custom_round<In, Out>(in * multipliers_[idx] + addends_[idx]));
     }
   }
 
@@ -111,27 +111,27 @@ using TestTypes = std::tuple<int8_t, float>;
 /* Cause the line below takes RIDICULOUSLY long time to compile */
 // using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, float>;
 
-INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastGpuTest, TestTypes);
+INPUT_OUTPUT_TYPED_TEST_SUITE(MultiplyAddGpuTest, TestTypes);
 
 namespace {
 
 template <class GtestTypeParam>
-using TheKernel = BrightnessContrastGpu
+using TheKernel = MultiplyAddGpu
         <typename GtestTypeParam::Out, typename GtestTypeParam::In, kNdims>;
 
 }  // namespace
 
 
-TYPED_TEST(BrightnessContrastGpuTest, check_kernel) {
+TYPED_TEST(MultiplyAddGpuTest, check_kernel) {
   check_kernel<TheKernel<TypeParam>>();
 }
 
 
-TYPED_TEST(BrightnessContrastGpuTest, setup_test) {
+TYPED_TEST(MultiplyAddGpuTest, setup_test) {
   TheKernel<TypeParam> kernel;
   KernelContext ctx;
   InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
-  auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
+  auto reqs = kernel.Setup(ctx, in, this->addends_, this->multipliers_);
   ASSERT_EQ(this->shapes_.size(), static_cast<size_t>(reqs.output_shapes[0].num_samples()))
                         << "Kernel::Setup provides incorrect shape";
   for (size_t i = 0; i < this->shapes_.size(); i++) {
@@ -141,20 +141,20 @@ TYPED_TEST(BrightnessContrastGpuTest, setup_test) {
 }
 
 
-TYPED_TEST(BrightnessContrastGpuTest, run_test) {
+TYPED_TEST(MultiplyAddGpuTest, run_test) {
   TheKernel<TypeParam> kernel;
   KernelContext c;
   InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
   OutListGPU<typename TypeParam::Out, kNdims> out(this->output_,
                                                   TensorListShape<kNdims>(this->shapes_));
 
-  auto reqs = kernel.Setup(c, in, this->brightness_, this->contrast_);
+  auto reqs = kernel.Setup(c, in, this->addends_, this->multipliers_);
 
   ScratchpadAllocator sa;
   sa.Reserve(reqs.scratch_sizes);
   auto scratchpad = sa.GetScratchpad();
   c.scratchpad = &scratchpad;
-  kernel.Run(c, out, in, this->brightness_, this->contrast_);
+  kernel.Run(c, out, in, this->addends_, this->multipliers_);
   cudaDeviceSynchronize();
 
   auto res = copy<AllocType::Host>(out[0]);
@@ -165,22 +165,24 @@ TYPED_TEST(BrightnessContrastGpuTest, run_test) {
 }
 
 
-TYPED_TEST(BrightnessContrastGpuTest, sample_descriptors) {
-  InListGPU<typename TypeParam::In, kNdims> in(this->input_device_, this->shapes_);
-  OutListGPU<typename TypeParam::Out, kNdims> out(this->output_,
-                                                  TensorListShape<3>(this->shapes_));
-  auto res = CreateSampleDescriptors(out, in, this->brightness_, this->contrast_);
+TYPED_TEST(MultiplyAddGpuTest, sample_descriptors) {
+  using InType = typename TypeParam::In;
+  using OutType = typename TypeParam::Out;
+  InListGPU<InType, kNdims> in(this->input_device_, this->shapes_);
+  OutListGPU<OutType, kNdims> out(this->output_, TensorListShape<3>(this->shapes_));
+  std::vector<SampleDescriptor<OutType, InType, kNdims-1>> res(in.num_samples());
+  CreateSampleDescriptors(make_span(res), out, in, this->addends_, this->multipliers_);
   EXPECT_EQ(this->input_device_, res[0].in);
   EXPECT_EQ(this->output_, res[0].out);
   ivec<kNdims - 2> ref_pitch = {1920};
   EXPECT_EQ(ref_pitch, res[0].in_pitch);
   EXPECT_EQ(ref_pitch, res[0].out_pitch);
-  EXPECT_EQ(this->brightness_[0], res[0].brightness);
-  EXPECT_EQ(this->contrast_[0], res[0].contrast);
+  EXPECT_EQ(this->addends_[0], res[0].addend);
+  EXPECT_EQ(this->multipliers_[0], res[0].multiplier);
 }
 
 
 }  // namespace test
-}  // namespace brightness_contrast
+}  // namespace multiply_add
 }  // namespace kernels
 }  // namespace dali
