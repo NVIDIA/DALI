@@ -52,6 +52,7 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.template Input<GPUBackend>(0);
   auto &output = ws.template Output<GPUBackend>(0);
+  output.SetLayout(InputLayout(ws, 0));
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float), (
           {
