@@ -58,7 +58,9 @@ class BrightnessContrastOp : public Operator<Backend> {
  protected:
   explicit BrightnessContrastOp(const OpSpec &spec)
         : Operator<Backend>(spec)
-        , output_type_arg_(spec.GetArgument<DALIDataType>("dtype")) {
+        , output_type_arg_(spec.GetArgument<DALIDataType>("dtype"))
+        , output_type_(DALI_NO_TYPE)
+        , input_type_(DALI_NO_TYPE) {
     if (spec.HasArgument("contrast_center"))
       contrast_center_ = spec.GetArgument<float>("contrast_center");
     if (std::is_same<Backend, GPUBackend>::value) {

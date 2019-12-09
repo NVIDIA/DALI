@@ -54,6 +54,8 @@ const std::string &dali_extra_path() {
         return;
       }
       auto count = fread(hash, sizeof(hash[0]), kHashLen, pipe);
+      // hash is kHashLen + 1
+      hash[count] = '\0';
       auto ret = pclose(pipe);
       if (ret != 0 || count != kHashLen) {
         std::cerr << "WARNING: Could not read the sha of DALI_extra at " << *_dali_extra_path
