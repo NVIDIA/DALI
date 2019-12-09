@@ -255,6 +255,15 @@ __global__ void ExtractHorizontalWindowsBatchedKernel(
 
 }  // namespace window
 
+/**
+ * @tparam Dst output type - for integral outputs, the intermediate floating point value is
+ *                           assumed to be in -1..1 (for signed Dst) or 0..1 (for unsigned)
+ *                           range and scaled to occupy the Dst dynamic range;
+ *                           if `Dst` is `float`, the output value is stored as-is.
+ * @tparam Src input type - `float` or integer type; the integer ranges are converted to
+ *                          floats and normalized to -1..1 range before applying the window
+ *                          function.
+ */
 template <typename Dst, typename Src>
 struct ExtractWindowsGpuImpl {
   virtual KernelRequirements Setup(
@@ -276,6 +285,7 @@ struct ExtractWindowsGpuImpl {
 };
 
 
+/// @brief Extracts windows and stores them in columns
 template <typename Dst, typename Src>
 struct ExtractVerticalWindowsGpuImpl : ExtractWindowsGpuImpl<Dst, Src> {
   using SampleDesc = window::SampleDesc;
@@ -407,6 +417,7 @@ struct ExtractVerticalWindowsGpuImpl : ExtractWindowsGpuImpl<Dst, Src> {
 };
 
 
+/// @brief Extracts windows and stores them in rows
 template <typename Dst, typename Src>
 struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsGpuImpl<Dst, Src> {
   using SampleDesc = window::SampleDesc;

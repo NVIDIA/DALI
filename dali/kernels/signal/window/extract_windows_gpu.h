@@ -59,6 +59,11 @@ struct ExtractWindowsGpuImpl;
  *
  * The signed input values of non-float type are normalized to -1..1 range
  *
+ * @tparam Dst output type - currently must be `float`
+ * @tparam Src input type - `float`, `int8_t` or `int16_t`; the integer ranges are converted to
+ *                          floats and normalized to -1..1 range before applying the window
+ *                          function.
+ *
  * @see ExtractWindowsBatchedArgs
  * @see ExtractWindowsArgs
  */
