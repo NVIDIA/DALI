@@ -140,17 +140,28 @@ void PrepareTilesForTasks(std::vector<std::vector<ExtendedTileDesc>> &tiles_per_
   }
 }
 
-template <template <ArithmeticOp, typename...> class ImplTensor, typename Backend>
-std::unique_ptr<ExprImplBase> ExprImplFactoryUnOp(const workspace_t<Backend> &ws,
-                                                  const ExprFunc &expr) {
+/**
+ * @brief Inspect `expr` to transform runtime information to static information, obtain the
+ *        implementation for unary (executor for given expression) and return it.
+ *
+ * The static type switch goes over input types, the ArithemticOp used and input kinds.
+ * This is unary case and only tensor inputs are allowed.
+ *
+ * @tparam ImplTensor template that maps unary Arithmetic Op and input/output type
+ *                    to a functor that can execute it over a tile of a tensor (by creating a loop)
+ *                    @see ExprImplCpuT or ExprImplGpuT
+ * @param expr The expression node for which we return the executor
+ */
+template <template <ArithmeticOp, typename...> class ImplTensor>
+std::unique_ptr<ExprImplBase> ExprImplFactoryUnOp(const ExprFunc &expr) {
   std::unique_ptr<ExprImplBase> result;
   auto op = NameToOp(expr.GetFuncName());
-  auto input0_type = expr[0].GetTypeId();
-  TYPE_SWITCH(input0_type, type2id, Input0_t, ARITHMETIC_ALLOWED_TYPES, (
+  auto input_type = expr[0].GetTypeId();
+  TYPE_SWITCH(input_type, type2id, Input_t, ARITHMETIC_ALLOWED_TYPES, (
     VALUE_SWITCH(op, op_static, ALLOWED_UN_OPS, (
-      using Out_t = Input0_t;
+      using Out_t = Input_t;
       if (expr[0].GetNodeType() == NodeType::Tensor) {
-        result.reset(new ImplTensor<op_static, Out_t, Input0_t>());
+        result.reset(new ImplTensor<op_static, Out_t, Input_t>());
       } else {
         DALI_FAIL("Expression cannot have a constant operand");
       }
@@ -159,6 +170,32 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryUnOp(const workspace_t<Backend> &ws
   return result;
 }
 
+/**
+ * @brief Inspect `expr` to transform runtime information to static information, obtain the
+ *        implementation for binary op (executor for given expression) and return it.
+ *
+ * The static type switch goes over input types, the ArithemticOp used and input kinds.
+ * This is binary case and three possible input kind combinations are supported:
+ * * Tensor and Tensor
+ * * Tensor and Constant
+ * * Constant and Tensor
+ *
+ * @tparam ImplTensorTensor template that maps binary Arithmetic Op and input/output types
+ *                          to a functor that can execute it over a tile of two tensors.
+ *                          The implementation need to loop over inputs and output.
+ *                          @see ExprImplCpuTT or ExprImplGpuTT
+ * @tparam ImplTensorConstant template that maps binary Arithmetic Op and input/output types
+ *                            to a functor that can execute it over a tile of a tensor
+ *                            and take a second input as a constant.
+ *                            The implementation need to loop over tensor input and output.
+ *                            @see ExprImplCpuTC or ExprImplGpuTC
+ * @tparam ImplConstantTensor template that maps binary Arithmetic Op and input/output types
+ *                            to a functor that can execute it over a tile of a tensor
+ *                            but take the first input as a constant.
+ *                            The implementation need to loop over tensor input and output.
+ *                            @see ExprImplCpuCT or ExprImplGpuCT
+ * @param expr The expression node for which we return the executor
+ */
 template <template <ArithmeticOp, typename...> class ImplTensorTensor,
           template <ArithmeticOp, typename...> class ImplTensorConstant,
           template <ArithmeticOp, typename...> class ImplConstantTensor>
@@ -189,9 +226,20 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
   return result;
 }
 
-
+/**
+ * @brief Convert runtime expression tree `expr` to an executor for this expression by doing
+ *        a static type switch over the `expr` data. CPU variant.
+ *
+ * @param ws Workspace to disambiguate over backend.
+ */
 std::unique_ptr<ExprImplBase> ExprImplFactory(const HostWorkspace &ws, const ExprNode &expr);
 
+/**
+ * @brief Convert runtime expression tree `expr` to an executor for this expression by doing
+ *        a static type switch over the `expr` data. GPU variant.
+ *
+ * @param ws Workspace to disambiguate over backend.
+ */
 std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws, const ExprNode &expr);
 
 struct ExprImplCache {

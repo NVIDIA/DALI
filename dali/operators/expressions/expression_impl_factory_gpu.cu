@@ -28,7 +28,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws,
 
   switch (expr.GetSubexpressionCount()) {
     case 1:
-      return ExprImplFactoryUnOp<ExprImplGpuT, GPUBackend>(ws, dynamic_cast<const ExprFunc&>(expr));
+      return ExprImplFactoryUnOp<ExprImplGpuT>(dynamic_cast<const ExprFunc&>(expr));
     case 2:
       return ExprImplFactoryBinOp<ExprImplGpuTT, ExprImplGpuTC, ExprImplGpuCT>(
           dynamic_cast<const ExprFunc&>(expr));

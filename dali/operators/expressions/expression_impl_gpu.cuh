@@ -30,11 +30,11 @@ namespace dali {
 /**
  * @brief Loop over tile of `extent` length
  */
-template <ArithmeticOp op, typename Result, typename Input0>
-__device__ void ExecuteUnOp(Result *result, const Input0 *in0, int64_t extent) {
+template <ArithmeticOp op, typename Result, typename Input>
+__device__ void ExecuteUnOp(Result *result, const Input *in, int64_t extent) {
   using meta = arithm_meta<op, GPUBackend>;
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < extent; i += blockDim.x * gridDim.x) {
-    result[i] = meta::impl(in0[i]);
+    result[i] = meta::impl(in[i]);
   }
 }
 
@@ -74,12 +74,12 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, Right r, int64_t ext
 /**
  * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
  */
-template <ArithmeticOp op, typename Result, typename Input0>
+template <ArithmeticOp op, typename Result, typename Input>
 __global__ void ExecuteTiledUnOp(const ExtendedTileDesc *tiles, int num_tiles) {
   const auto &tile = tiles[blockIdx.y];
   auto output = static_cast<Result *>(tile.output);
-  auto in0 = static_cast<const Input0 *>(tile.args[0]);
-  ExecuteUnOp<op>(output, in0, tile.desc.extent_size);
+  auto in = static_cast<const Input *>(tile.args[0]);
+  ExecuteUnOp<op>(output, in, tile.desc.extent_size);
 }
 
 /**
@@ -115,11 +115,11 @@ __global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles, int num_tiles) 
                    tile.desc.extent_size);
 }
 
-template <ArithmeticOp op, typename Result, typename Input0>
+template <ArithmeticOp op, typename Result, typename Input>
 struct InvokerUnOp {
   static void Invoke(const ExtendedTileDesc *tiles, int num_tiles, dim3 grid, dim3 block,
                      cudaStream_t stream) {
-    ExecuteTiledUnOp<op, Result, Input0><<<grid, block, 0, stream>>>(tiles, num_tiles);
+    ExecuteTiledUnOp<op, Result, Input><<<grid, block, 0, stream>>>(tiles, num_tiles);
   }
 };
 
@@ -154,8 +154,8 @@ class ExprImplGPUInvoke : public ExprImplBase {
   Tensor<GPUBackend> tiles_;
 };
 
-template <ArithmeticOp op, typename Result, typename Input0>
-using ExprImplGpuT = ExprImplGPUInvoke<InvokerUnOp<op, Result, Input0>>;
+template <ArithmeticOp op, typename Result, typename Input>
+using ExprImplGpuT = ExprImplGPUInvoke<InvokerUnOp<op, Result, Input>>;
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 using ExprImplGpuTT = ExprImplGPUInvoke<InvokerBinOp<op, Result, Left, Right, true, true>>;

@@ -33,6 +33,9 @@
 
 namespace dali {
 
+/**
+ * @brief The first element contains vector of tiles, the second groups the tiles into task ranges
+ */
 using TileCover = std::tuple<std::vector<TileDesc>, std::vector<TileRange>>;
 
 /**
@@ -124,6 +127,9 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
   return expr.GetTypeId();
 }
 
+/**
+ * @brief Helper for recursively filling vector of tasks to execute
+ */
 template <typename Backend>
 inline void CreateExecutionTasks(std::vector<ExprImplTask> &order, const ExprNode &expr,
                                  ExprImplCache &cache, cudaStream_t stream) {
@@ -137,6 +143,10 @@ inline void CreateExecutionTasks(std::vector<ExprImplTask> &order, const ExprNod
   order.push_back({cache.GetExprImpl<Backend>(func), {stream, &func}});
 }
 
+/**
+ * @brief Recurse over `expr` tree and looking up from `cache` return vector of tasks to execute
+ *        in given order.
+ */
 template <typename Backend>
 inline std::vector<ExprImplTask> CreateExecutionTasks(const ExprNode &expr, ExprImplCache &cache,
                                                       cudaStream_t stream) {
@@ -163,6 +173,11 @@ inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListSha
   return out_shape ? *out_shape : uniform_list_shape(batch_size, {1});
 }
 
+/**
+ * @brief Recurse over expression tree and propagate shapes between expression nodes.
+ *
+ * @return The resulting shape of the expression
+ */
 template <typename Backend>
 DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
                                                            const workspace_t<Backend> &ws,

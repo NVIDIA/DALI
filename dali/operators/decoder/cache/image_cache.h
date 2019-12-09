@@ -48,7 +48,7 @@ class DLL_PUBLIC ImageCache {
      * @param image_key key representing the image in cache
      * @param destination_data destination buffer
      * @param stream cuda stream
-     * @returns true if successful cache read, false otherwise
+     * @return true if successful cache read, false otherwise
      */
     DLL_PUBLIC virtual bool Read(const ImageKey& image_key,
                                  void* destination_data,

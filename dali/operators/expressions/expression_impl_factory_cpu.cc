@@ -28,8 +28,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactory(const HostWorkspace &ws, const Exp
 
   switch (expr.GetSubexpressionCount()) {
     case 1:
-      return ExprImplFactoryUnOp<ExprImplCpuT, CPUBackend>(ws,
-                                                           dynamic_cast<const ExprFunc &>(expr));
+      return ExprImplFactoryUnOp<ExprImplCpuT>(dynamic_cast<const ExprFunc &>(expr));
     case 2:
       return ExprImplFactoryBinOp<ExprImplCpuTT, ExprImplCpuTC, ExprImplCpuCT>(
           dynamic_cast<const ExprFunc &>(expr));

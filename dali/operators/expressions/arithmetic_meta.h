@@ -32,6 +32,13 @@ namespace dali {
 
 constexpr int kMaxArity = 2;
 
+/**
+ * @brief Registered arithmetic and mathematical operations
+ *
+ * The enum is used to provide specializations of arithm_meta with implementation
+ * for every operation.
+ *
+ */
 enum class ArithmeticOp : int {
   plus,
   minus,
@@ -217,6 +224,14 @@ struct arithm_meta;
 //    static constexpr int num_outputs;
 // };
 
+
+/************************************************************/
+/*                                                          */
+/* Section for registering implementations of for AritihmOp */
+/*                                                          */
+/************************************************************/
+
+
 #define REGISTER_UNARY_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                        \
   template <>                                                                       \
   struct arithm_meta<OP, BACKEND> {                                                 \
@@ -376,7 +391,9 @@ inline std::string to_string(ArithmeticOp op) {
   return result;
 }
 
-
+/**
+ * @brief Calculate type promotion of Binary Arithmetic op at runtime
+ */
 inline DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right) {
   DALIDataType result = DALIDataType::DALI_NO_TYPE;
   TYPE_SWITCH(left, type2id, Left_t,
@@ -399,6 +416,9 @@ inline DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right) {
   return result;
 }
 
+/**
+ * @brief Calculate type promotion for given `op` and input `types` at runtime
+ */
 inline DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types) {
   assert(types.size() == 1 || types.size() == 2);
   if (types.size() == 1) {
@@ -429,6 +449,12 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
   return it->second;
 }
 
+/**
+ * @brief Check if input of given `shape` should be considered to represent (tensor of) scalars.
+ *
+ * A tensor of scalars is uniform tensor with sample dimension equal 1 and only 1 (scalar) element
+ * in every sample.
+ */
 inline bool IsScalarLike(const TensorListShape<> &shape) {
   return is_uniform(shape) && shape.sample_dim() == 1 && shape.tensor_shape_span(0)[0] == 1;
 }

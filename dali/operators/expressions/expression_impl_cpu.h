@@ -27,7 +27,7 @@
 
 namespace dali {
 
-template <ArithmeticOp op, typename Result, typename Input0>
+template <ArithmeticOp op, typename Result, typename Input>
 class ExprImplCpuT : public ExprImplBase {
  public:
   void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
@@ -36,14 +36,14 @@ class ExprImplCpuT : public ExprImplBase {
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
     auto output = static_cast<Result *>(tile.output);
-    auto input0 = static_cast<const Input0 *>(tile.args[0]);
-    Execute(output, input0, tile.desc.extent_size);
+    auto input = static_cast<const Input *>(tile.args[0]);
+    Execute(output, input, tile.desc.extent_size);
   }
 
  private:
   using meta = arithm_meta<op, CPUBackend>;
 
-  static void Execute(Result *result, const Input0 *i0, int64_t extent) {
+  static void Execute(Result *result, const Input *i0, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
       result[i] = meta::impl(i0[i]);
     }
