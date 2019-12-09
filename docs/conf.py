@@ -217,3 +217,8 @@ texinfo_documents = [
 extlinks = {'issue': ('https://github.com/NVIDIA/DALI/issues/%s',
                       'issue '),
             'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "master") + '/%s', ''),}
+
+def setup(app):
+    count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
+    if count_unique_visitor_script:
+        app.add_js_file(count_unique_visitor_script)
