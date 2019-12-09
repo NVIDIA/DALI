@@ -24,7 +24,7 @@ using TheKernel = kernels::LinearTransformationCpu<Out, In, 3, 3, 3>;
 }  // namespace
 
 DALI_SCHEMA(Hsv)
-              .DocStr(R"code(This operator performs HSV manipulation.
+    .DocStr(R"code(This operator performs HSV manipulation.
 To change hue, saturation and/or value of the image, pass corresponding coefficients.
 Keep in mind, that `hue` has additive delta argument,
 while for `saturation` and `value` they are multiplicative.
@@ -36,18 +36,19 @@ The color vector is projected along the neutral (gray) axis,
 rotated (according to hue delta) and scaled according to value and saturation multiplers,
 and then restored to original color space.
 )code")
-              .NumInput(1)
-              .NumOutput(1)
-              .AddOptionalArg(hsv::kHue,
-                              R"code(Set additive change of hue. 0 denotes no-op)code", .0f,
-                              true)
-              .AddOptionalArg(hsv::kSaturation,
-                              R"code(Set multiplicative change of saturation. 1 denotes no-op)code",
-                              1.f, true)
-              .AddOptionalArg(hsv::kValue,
-                              R"code(Set multiplicative change of value. 1 denotes no-op)code",
-                              1.f, true)
-              .AddOptionalArg(hsv::kOutputType, R"code(Set output data type)code", DALI_UINT8);
+    .NumInput(1)
+    .NumOutput(1)
+    .AddOptionalArg(hsv::kHue,
+                    R"code(Set additive change of hue. 0 denotes no-op)code",
+                    0.0f, true)
+    .AddOptionalArg(hsv::kSaturation,
+                    R"code(Set multiplicative change of saturation. 1 denotes no-op)code",
+                    1.0f, true)
+    .AddOptionalArg(hsv::kValue,
+                    R"code(Set multiplicative change of value. 1 denotes no-op)code",
+                    1.0f, true)
+    .AddOptionalArg(hsv::kOutputType, R"code(Set output data type)code", DALI_UINT8)
+    .InputLayout(0, "HWC");
 
 
 DALI_REGISTER_OPERATOR(Hsv, HsvCpu, CPU)
@@ -77,6 +78,7 @@ bool HsvCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<C
 void HsvCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output = ws.template OutputRef<CPUBackend>(0);
+  output.SetLayout(InputLayout(ws, 0));
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type().id(), type2id, InputType, (uint8_t, int16_t, int32_t, float, float16), (
       TYPE_SWITCH(output_type_, type2id, OutputType, (uint8_t, int16_t, int32_t, float, float16), (
