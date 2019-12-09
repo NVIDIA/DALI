@@ -55,7 +55,6 @@ def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_for
     nfft = 2 * (input_data.shape[-2] - 1)
     librosa_norm = 1 if normalize else None
     librosa_htk = (mel_formula == 'htk')
-    print(librosa_norm)
     mel_transform = librosa.filters.mel(
         sr = sample_rate, n_mels=nfilter, n_fft = nfft,
         fmin=freq_low, fmax=freq_high,
@@ -115,8 +114,10 @@ def test_operator_mel_filter_bank_vs_python():
             for normalize in [True, False]:
                 for mel_formula in ['htk', 'slaney']:
                     for nfilter, sample_rate, freq_low, freq_high, shape in \
-                        [(4, 16000, 0.0, 8000.0, (17, 1)),
-                        (128, 16000, 0.0, 8000.0, (513, 100)),
-                        (128, 16000, 0.0, 8000.0, (10, 513, 100))]:
+                        [(4, 16000.0, 0.0, 8000.0, (17, 1)),
+                        (128, 16000.0, 0.0, 8000.0, (513, 100)),
+                        (128, 16000.0, 0.0, 8000.0, (10, 513, 100)),
+                        (128, 48000.0, 0.0, 24000.0, (513, 100)),
+                        (128, 44100.0, 0.0, 22050.0, (513, 100))]:
                         yield check_operator_mel_filter_bank_vs_python, device, batch_size, shape, \
                             nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula

@@ -15,6 +15,7 @@
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu.h"
 #include <cmath>
 #include <complex>
+#include <algorithm>
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -58,17 +59,26 @@ class MelFilterBankCpu<T, Dims>::Impl {
     int64_t nfft = args.nfft;
     assert(nfft > 0);
 
-    T hz_step = args.sample_rate / nfft;
-    T mel_delta = (mel_high - mel_low) / (nfilter + 1);
+    double hz_step = args.sample_rate / nfft;
+    double mel_delta = (mel_high - mel_low) / (nfilter + 1);
 
-    int64_t fftbin = 0;
     int64_t fftbin_size = nfft / 2 + 1;
+    double inv_hz_step = 1.0f / hz_step;
+    fftbin_start_ = std::ceil(args.freq_low * inv_hz_step);
+    if (fftbin_start_ < 0)
+      fftbin_start_ = 0;
+    fftbin_end_ = std::floor(args.freq_high * inv_hz_step);
+    if (fftbin_end_ > fftbin_size-1)
+      fftbin_end_ = fftbin_size-1;
+
     weights_down_.resize(fftbin_size);
-    intervals_.resize(fftbin_size);
+    intervals_.resize(fftbin_size, -1);
     norm_factors_.resize(nfilter, T(1));
     T mel0 = mel_low, mel1 = mel_low + mel_delta;
-    constexpr bool center_freqs = false;
-    T f = center_freqs ? T(0.5) * hz_step : T(0);
+
+    int64_t fftbin = fftbin_start_;
+    T f = fftbin * hz_step;
+
     int last_interval = nfilter;
     for (int64_t interval = 0; interval <= last_interval;
          interval++, mel0 = mel1, mel1 += mel_delta) {
@@ -81,8 +91,9 @@ class MelFilterBankCpu<T, Dims>::Impl {
         norm_factors_[interval] = T(2) / (f2 - f0);
       }
       T slope = T(1) / (f1 - f0);
-      for (; fftbin < fftbin_size && f < f1; fftbin++, f += hz_step) {
-        weights_down_[fftbin] = (f1 - f) * slope;;
+
+      for (; fftbin <= fftbin_end_ && f < f1; fftbin++, f = fftbin * hz_step) {
+        weights_down_[fftbin] = (f1 - f) * slope;
         intervals_[fftbin] = interval;
       }
     }
@@ -100,8 +111,7 @@ class MelFilterBankCpu<T, Dims>::Impl {
     int nfft = args_.nfft;
 
     std::memset(out, 0, sizeof(T) * nfilter * nwindows);
-    int fftbin_size = nfft / 2 + 1;
-    for (int64_t fftbin = 0; fftbin < fftbin_size; fftbin++) {
+    for (int64_t fftbin = fftbin_start_; fftbin <= fftbin_end_; fftbin++) {
       auto *in_row_start = in + fftbin * in_stride;
       auto filter_up = intervals_[fftbin];
       auto weight_up = T(1) - weights_down_[fftbin];
@@ -117,7 +127,7 @@ class MelFilterBankCpu<T, Dims>::Impl {
         }
       }
 
-      if (filter_up < nfilter) {
+      if (filter_up >= 0 && filter_up < nfilter) {
         if (args_.normalize)
           weight_up *= norm_factors_[filter_up];
         auto *out_row_start = out + filter_up * out_stride;
@@ -137,6 +147,7 @@ class MelFilterBankCpu<T, Dims>::Impl {
   std::vector<T> weights_down_;
   std::vector<int> intervals_;
   std::vector<T> norm_factors_;
+  int64_t fftbin_start_ = -1, fftbin_end_ = -1;
 };
 
 template <typename T, int Dims>
