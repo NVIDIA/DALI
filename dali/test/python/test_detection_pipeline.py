@@ -235,9 +235,9 @@ class DetectionPipeline(Pipeline):
         image_normalized_cpu = self.normalize_cpu(image_resized_cpu)
         image_normalized_gpu = self.normalize_gpu(image_resized_cpu.gpu())
 
-        image_twisted_cpu = self.bc_cpu(image_ssd_crop, brightness_delta=brightness, contrast_delta=contrast)
+        image_twisted_cpu = self.bc_cpu(image_ssd_crop, brightness=brightness, contrast=contrast)
         image_twisted_cpu = self.hsv_cpu(image_twisted_cpu, saturation=saturation, hue=hue)
-        image_twisted_gpu = self.bc_gpu(image_ssd_crop.gpu(), brightness_delta=brightness, contrast_delta=contrast)
+        image_twisted_gpu = self.bc_gpu(image_ssd_crop.gpu(), brightness=brightness, contrast=contrast)
         image_twisted_gpu = self.hsv_gpu(image_twisted_gpu, saturation=saturation, hue=hue)
 
         image_flipped_cpu = self.flip_cpu(image_resized_cpu)

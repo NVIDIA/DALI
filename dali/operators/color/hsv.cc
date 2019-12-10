@@ -47,7 +47,8 @@ and then restored to original color space.
     .AddOptionalArg(hsv::kValue,
                     R"code(Set multiplicative change of value. 1 denotes no-op)code",
                     1.0f, true)
-    .AddOptionalArg(hsv::kOutputType, R"code(Set output data type)code", DALI_UINT8)
+    .AddOptionalArg(hsv::kOutputType, "Output data type; if not set, the input type is used.",
+                    DALI_UINT8)
     .InputLayout(0, "HWC");
 
 

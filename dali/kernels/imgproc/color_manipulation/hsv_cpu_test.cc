@@ -18,7 +18,7 @@
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/color_manipulation/hsv_cpu.h"
-#include "dali/kernels/imgproc/color_manipulation/color_manipulation_test_utils.h"
+#include "dali/test/cv_mat_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -147,8 +147,9 @@ TYPED_TEST(HsvCpuTest, RunTestWithRoi) {
 
   kernel.Run(ctx, out, in, this->hue_, this->saturation_, this->value_, &roi);
 
-  auto mat = color_manipulation::test::to_mat<ndims>(this->ref_output_.data(), roi,
-                                                     this->shape_[0], this->shape_[1]);
+  auto mat = testing::copy_to_mat<ndims>(
+    roi, this->ref_output_.data(), this->shape_[0], this->shape_[1]);
+
   ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
                         << "Number of elements doesn't match";
   auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);

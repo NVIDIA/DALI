@@ -17,12 +17,12 @@
 #include <tuple>
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
-#include "dali/kernels/imgproc/color_manipulation/brightness_contrast.h"
-#include "dali/kernels/imgproc/color_manipulation/color_manipulation_test_utils.h"
+#include "dali/kernels/imgproc/pointwise/multiply_add.h"
+#include "dali/test/cv_mat_utils.h"
 
 namespace dali {
 namespace kernels {
-namespace brightness_contrast {
+namespace multiply_add {
 namespace test {
 
 namespace {
@@ -35,9 +35,9 @@ void fill_roi(Box<2, int> &roi) {
 }  // namespace
 
 template <class InputOutputTypes>
-class BrightnessContrastCpuTest : public ::testing::Test {
+class MultiplyAddCpuTest : public ::testing::Test {
  protected:
-  BrightnessContrastCpuTest() {
+  MultiplyAddCpuTest() {
     input_.resize(dali::volume(shape_));
   }
 
@@ -54,15 +54,15 @@ class BrightnessContrastCpuTest : public ::testing::Test {
   std::vector<typename InputOutputTypes::Out> ref_output_;
   OutTensorCPU<typename InputOutputTypes::Out, 3> ref_out_tv_;
   TensorShape<3> shape_ = {240, 320, 3};
-  float brightness_ = 4;
-  float contrast_ = 3;
+  float addend_ = 4;
+  float multiplier_ = 3;
   static constexpr size_t ndims = 3;
 
 
   template <typename OutputType>
   std::enable_if_t<std::is_integral<OutputType>::value> calc_output() {
     for (auto in : input_) {
-      ref_output_.push_back(std::round(in * contrast_ + brightness_));
+      ref_output_.push_back(std::round(in * multiplier_ + addend_));
     }
   }
 
@@ -70,63 +70,63 @@ class BrightnessContrastCpuTest : public ::testing::Test {
   template <typename OutputType>
   std::enable_if_t<!std::is_integral<OutputType>::value> calc_output() {
     for (auto in : input_) {
-      ref_output_.push_back(in * contrast_ + brightness_);
+      ref_output_.push_back(in * multiplier_ + addend_);
     }
   }
 };
 
 
 using TestTypes = std::tuple<uint8_t, int16_t, int32_t, float>;
-INPUT_OUTPUT_TYPED_TEST_SUITE(BrightnessContrastCpuTest, TestTypes);
+INPUT_OUTPUT_TYPED_TEST_SUITE(MultiplyAddCpuTest, TestTypes);
 
 namespace {
 
 template <class GtestTypeParam>
-using BrightnessContrastKernel = BrightnessContrastCpu
+using MultiplyAddKernel = MultiplyAddCpu
         <typename GtestTypeParam::Out, typename GtestTypeParam::In>;
 
 }  // namespace
 
 
 
-TYPED_TEST(BrightnessContrastCpuTest, check_kernel) {
-  BrightnessContrastKernel<TypeParam> kernel;
+TYPED_TEST(MultiplyAddCpuTest, check_kernel) {
+  MultiplyAddKernel<TypeParam> kernel;
   check_kernel<decltype(kernel)>();
 }
 
 
-TYPED_TEST(BrightnessContrastCpuTest, SetupTestAndCheckKernel) {
-  BrightnessContrastKernel<TypeParam> kernel;
+TYPED_TEST(MultiplyAddCpuTest, SetupTestAndCheckKernel) {
+  MultiplyAddKernel<TypeParam> kernel;
   constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
-  auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
+  auto reqs = kernel.Setup(ctx, in, this->addend_, this->multiplier_);
   auto sh = reqs.output_shapes[0][0];
   ASSERT_EQ(this->shape_, sh);
 }
 
 
-TYPED_TEST(BrightnessContrastCpuTest, RunTest) {
-  BrightnessContrastKernel<TypeParam> kernel;
+TYPED_TEST(MultiplyAddCpuTest, RunTest) {
+  MultiplyAddKernel<TypeParam> kernel;
   constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
-  auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_);
+  auto reqs = kernel.Setup(ctx, in, this->addend_, this->multiplier_);
   auto out_shape = reqs.output_shapes[0][0];
   vector<typename TypeParam::Out> output;
   output.resize(dali::volume(out_shape));
   OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
                                                    out_shape.template to_static<ndims>());
 
-  kernel.Run(ctx, out, in, this->brightness_, this->contrast_);
+  kernel.Run(ctx, out, in, this->addend_, this->multiplier_);
   for (int i = 0; i < out.num_elements(); i++) {
     EXPECT_FLOAT_EQ(this->ref_out_tv_.data[i], out.data[i]) << "Failed at idx: " << i;
   }
 }
 
 
-TYPED_TEST(BrightnessContrastCpuTest, RunTestWithRoi) {
-  BrightnessContrastKernel<TypeParam> kernel;
+TYPED_TEST(MultiplyAddCpuTest, RunTestWithRoi) {
+  MultiplyAddKernel<TypeParam> kernel;
   constexpr auto ndims = std::remove_reference_t<decltype(*this)>::ndims;
   KernelContext ctx;
   InTensorCPU<typename TypeParam::In, ndims> in(this->input_.data(), this->shape_);
@@ -134,18 +134,19 @@ TYPED_TEST(BrightnessContrastCpuTest, RunTestWithRoi) {
   typename decltype(kernel)::Roi roi;
   fill_roi(roi);
 
-  auto reqs = kernel.Setup(ctx, in, this->brightness_, this->contrast_, &roi);
+  auto reqs = kernel.Setup(ctx, in, this->addend_, this->multiplier_, &roi);
   auto out_shape = reqs.output_shapes[0][0];
   vector<typename TypeParam::Out> output;
   output.resize(dali::volume(out_shape));
   OutTensorCPU<typename TypeParam::Out, ndims> out(output.data(),
                                                    out_shape.template to_static<ndims>());
 
-  kernel.Run(ctx, out, in, this->brightness_, this->contrast_, &roi);
+  kernel.Run(ctx, out, in, this->addend_, this->multiplier_, &roi);
 
-  auto mat = color_manipulation::test::to_mat<ndims>(this->ref_output_.data(), roi,
-                                                     this->shape_[0], this->shape_[1]);
-  ASSERT_EQ(mat.rows * mat.cols * mat.channels(), out.num_elements())
+  auto mat = testing::copy_to_mat<ndims>(
+    roi, this->ref_output_.data(), this->shape_[0], this->shape_[1]);
+
+  ASSERT_EQ(volume(roi.extent()) * ndims, out.num_elements())
                         << "Number of elements doesn't match";
   auto ptr = reinterpret_cast<typename TypeParam::Out *>(mat.data);
   for (int i = 0; i < out.num_elements(); i++) {
@@ -157,6 +158,6 @@ TYPED_TEST(BrightnessContrastCpuTest, RunTestWithRoi) {
 
 
 }  // namespace test
-}  // namespace brightness_contrast
+}  // namespace multiply_add
 }  // namespace kernels
 }  // namespace dali
