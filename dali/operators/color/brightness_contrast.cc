@@ -45,6 +45,11 @@ Additionally, this operator can change the type of data.)code")
     .AddOptionalArg("contrast",
                     "Set the contrast multiplier; 1.0 is neutral, 0.0 produces uniform grey.",
                     1.0f, true)
+    .AddOptionalArg("contrast_center",
+                    "Sets the instensity level that is unaffected by contrast - this is the value "
+                    "which all pixels assume when contrast is zero. When not set, the half of the "
+                    "input types's positive range (or 0.5 for float) is used.",
+                    0.5f, false)
     .AddOptionalArg("dtype",
                     "Output data type; if not set, the input type is used.", DALI_NO_TYPE);
 

@@ -171,11 +171,11 @@ class DetectionPipeline(Pipeline):
         self.twist_cpu = ops.ColorTwist(device="cpu")
         self.twist_gpu = ops.ColorTwist(device="gpu")
 
-        self.hsv_cpu = ops.Hsv(device="cpu")
-        self.hsv_gpu = ops.Hsv(device="gpu")
+        self.hsv_cpu = ops.Hsv(device="cpu", dtype=types.FLOAT)
+        self.hsv_gpu = ops.Hsv(device="gpu", dtype=types.FLOAT)
 
-        self.bc_cpu = ops.BrightnessContrast(device="cpu")
-        self.bc_gpu = ops.BrightnessContrast(device="gpu")
+        self.bc_cpu = ops.BrightnessContrast(device="cpu", dtype=types.UINT8, contrast_center=128)
+        self.bc_gpu = ops.BrightnessContrast(device="gpu", dtype=types.UINT8, contrast_center=128)
 
         self.flip_cpu = ops.Flip(device="cpu")
         self.bbox_flip_cpu = ops.BbFlip(device="cpu", ltrb=True)
@@ -208,16 +208,17 @@ class DetectionPipeline(Pipeline):
             anchors=default_boxes)
 
         # Random variables
-        self.rng1 = ops.Uniform(range=[0.5, 1.5])
-        self.rng2 = ops.Uniform(range=[0.875, 1.125])
-        self.rng3 = ops.Uniform(range=[-0.5, 0.5])
+        self.saturation_rng = ops.Uniform(range=[0.8, 1.2])
+        self.contrast_rng = ops.Uniform(range=[0.5, 1.5])
+        self.brighness_rng = ops.Uniform(range=[0.875, 1.125])
+        self.hue_rng = ops.Uniform(range=[-45, 45])
 
     def define_graph(self):
         # Random variables
-        saturation = self.rng1()
-        contrast = self.rng1()
-        brightness = self.rng2()
-        hue = self.rng3()
+        saturation = self.saturation_rng()
+        contrast = self.contrast_rng()
+        brightness = self.brighness_rng()
+        hue = self.hue_rng()
 
         inputs, boxes, labels = self.input(name="Reader")
 
@@ -248,13 +249,13 @@ class DetectionPipeline(Pipeline):
             saturation=saturation,
             contrast=contrast,
             brightness=brightness,
-            hue=hue)
+            hue=0-hue)
         image_legacy_twisted_gpu = self.twist_gpu(
             image_ssd_crop.gpu(),
             saturation=saturation,
             contrast=contrast,
             brightness=brightness,
-            hue=hue)
+            hue=0-hue)
 
         image_flipped_cpu = self.flip_cpu(image_resized_cpu)
         boxes_flipped_cpu = self.bbox_flip_cpu(boxes_ssd_crop)
@@ -343,9 +344,6 @@ def crop_border(image, border):
 def diff_against_eps(image_1, image_2, eps):
     return np.absolute(image_1.astype(float) - image_2.astype(float)).max() <= eps
 
-dump_idx = 0
-import cv2
-
 def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
     test = diff_against_eps(val_1, val_2, eps)
 
@@ -359,24 +357,6 @@ def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
         else:
             test = test and diff_against_eps(reference, val_1, eps)
             test = test and diff_against_eps(reference, val_2, eps)
-
-    if not test:
-      global dump_idx
-      idx = dump_idx
-      dump_idx = dump_idx + 1
-      name1 = "val1_%04d.png"%idx
-      cv2.imwrite(name1, val_1)
-      name2 = "val2_%04d.png"%idx
-      cv2.imwrite(name2, val_2)
-
-      name_dif = "diffAB_%04d.png"%idx
-      dif = ((val_1.astype(np.float32) - val_2.astype(np.float32)) * 10 + 128).astype(val_1.dtype)
-      cv2.imwrite(name_dif, dif)
-
-      if reference is not None:
-        name_ref = "ref_%04d.png"%idx
-        cv2.imwrite(name_ref, reference)
-
     return test
 
 from PIL import Image
