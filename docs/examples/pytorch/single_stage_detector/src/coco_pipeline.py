@@ -109,8 +109,8 @@ class COCOPipeline(Pipeline):
         bboxes = self.bbflip(bboxes, horizontal=coin_rnd)
         images = self.resize(images)
         images = images.gpu()
-        images = self.bc(images, brightness=brightness, contrast=contrast)
         images = self.hsv(images, hue=hue, saturation=saturation)
+        images = self.bc(images, brightness=brightness, contrast=contrast)
         images = self.normalize(images)
         bboxes, labels = self.box_encoder(bboxes, labels)
 
