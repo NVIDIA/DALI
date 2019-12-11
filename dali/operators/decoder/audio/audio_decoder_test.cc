@@ -17,6 +17,7 @@
 #include <string>
 #include "dali/core/format.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
+#include "dali/operators/decoder/audio/audio_decoder_op.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/core/span.h"
 
@@ -87,6 +88,35 @@ TEST(AudioDecoderTest, WavDecoderTest) {
   EXPECT_EQ(meta.channels_interleaved, true);
   EXPECT_EQ(meta.sample_rate, expected_frequency);
   EXPECT_PRED3(CheckBuffers<DataType>, output.data(), vec.data(), vec.size());
+}
+
+
+TEST(AudioDecoderTest, DownmixingTest) {
+  std::vector<float> in = {1,2,3,4,5,6,7,8,9,10,11,12};
+  int nchannels = 3;
+  std::vector<float> ref = {2, 5, 8, 11};
+  std::vector<float> out;
+  out.resize(ref.size());
+
+  detail::Downmixing(out.data(), in.data(), in.size(), nchannels);
+
+  for (size_t i = 0; i < ref.size(); i++) {
+    EXPECT_FLOAT_EQ(out[i], ref[i]);
+  }
+}
+
+TEST(AudioDecoderTest, DownmixingInPlaceTest) {
+  std::vector<float> in = {1,2,3,4,5,6,7,8,9,10,11,12};
+  int nchannels = 3;
+  std::vector<float> ref = {2, 5, 8, 11};
+  std::vector<float> out;
+  out.resize(ref.size());
+
+  detail::Downmixing(in.data(), in.data(), in.size(), nchannels);
+
+  for (size_t i = 0; i < ref.size(); i++) {
+    EXPECT_FLOAT_EQ(in[i], ref[i]);
+  }
 }
 
 }  // namespace dali
