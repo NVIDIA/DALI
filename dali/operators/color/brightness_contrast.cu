@@ -41,7 +41,7 @@ bool BrightnessContrastGpu::SetupImpl(std::vector<OutputDesc> &output_desc,
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernel_manager_.Initialize<Kernel>();
-              auto shapes = CallSetup<Kernel, InputType>(input);
+              auto &shapes = CallSetup<Kernel, InputType>(ws, input);
               TypeInfo type;
               type.SetType<OutputType>(output_type_);
               output_desc[0] = {shapes, type};
@@ -61,6 +61,7 @@ void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernels::KernelContext ctx;
+              ctx.gpu.stream = ws.stream();
               auto tvin = view<const InputType, 3>(input);
               auto tvout = view<OutputType, 3>(output);
               for (int i = 0; i < tvin.num_samples(); i++) {

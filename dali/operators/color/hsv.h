@@ -211,10 +211,11 @@ class HsvGpu : public HsvOp<GPUBackend> {
 
  private:
   template <typename Kernel, typename InputType>
-  TensorListShape<> CallSetup(const TensorList<GPUBackend> &tl) {
+  const TensorListShape<> &CallSetup(const DeviceWorkspace &ws, const TensorList<GPUBackend> &tl) {
     kernels::KernelContext ctx;
+    ctx.gpu.stream = ws.stream();
     const auto tvin = view<const InputType, 3>(tl);
-    const auto reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_));
+    const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_));
     return reqs.output_shapes[0];
   }
 };
