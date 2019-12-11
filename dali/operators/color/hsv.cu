@@ -37,7 +37,7 @@ bool HsvGpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<G
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernel_manager_.Initialize<Kernel>();
-              auto shapes = CallSetup<Kernel, InputType>(input);
+              auto &shapes = CallSetup<Kernel, InputType>(ws, input);
               TypeInfo type;
               type.SetType<OutputType>(output_type_);
               output_desc[0] = {shapes, type};
@@ -57,6 +57,7 @@ void HsvGpu::RunImpl(workspace_t<GPUBackend> &ws) {
           {
               using Kernel = TheKernel<OutputType, InputType>;
               kernels::KernelContext ctx;
+              ctx.gpu.stream = ws.stream();
               auto tvin = view<const InputType, 3>(input);
               auto tvout = view<OutputType, 3>(output);
               kernel_manager_.Run<Kernel>(ws.thread_idx(), 0, ctx, tvout, tvin,
