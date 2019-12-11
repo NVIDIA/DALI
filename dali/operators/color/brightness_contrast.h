@@ -59,6 +59,8 @@ class BrightnessContrastOp : public Operator<Backend> {
   explicit BrightnessContrastOp(const OpSpec &spec)
         : Operator<Backend>(spec)
         , output_type_arg_(spec.GetArgument<DALIDataType>("dtype")) {
+    if (spec.HasArgument("contrast_center"))
+      contrast_center_ = spec.GetArgument<float>("contrast_center");
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
@@ -71,20 +73,22 @@ class BrightnessContrastOp : public Operator<Backend> {
   }
 
   template <typename OutputType, typename InputType>
-  static void OpArgsToKernelArgs(float &addend, float &multiplier,
+  void OpArgsToKernelArgs(float &addend, float &multiplier,
     float brightness, float brightness_shift, float contrast) {
-    float contrast_offset = brightness_contrast::detail::HalfRange<InputType>();
+    float contrast_center = std::isnan(contrast_center_)
+      ? brightness_contrast::detail::HalfRange<InputType>()
+      : contrast_center_;
     float brightness_range = brightness_contrast::detail::FullRange<OutputType>();
     // The formula is:
     // out = brightness_shift * brightness_range +
-    //       brightness * (contrast_offset + contrast * (in - contrast_offset)
+    //       brightness * (contrast_center + contrast * (in - contrast_center)
     //
     // It can be rearranged as:
     // out = (brightness_shift * brightness_range +
-    //        brightness * (contrast_offset - contrast * contrast_offset)) +
+    //        brightness * (contrast_center - contrast * contrast_center)) +
     //        brightness * contrast * in
     addend = brightness_shift * brightness_range +
-             brightness * (contrast_offset - contrast * contrast_offset);
+             brightness * (contrast_center - contrast * contrast_center);
     multiplier = brightness * contrast;
   }
 
@@ -103,6 +107,7 @@ class BrightnessContrastOp : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   std::vector<float> brightness_, brightness_shift_, contrast_;
   DALIDataType output_type_arg_, output_type_, input_type_;
+  float contrast_center_ = std::nanf("");
   kernels::KernelManager kernel_manager_;
 };
 
