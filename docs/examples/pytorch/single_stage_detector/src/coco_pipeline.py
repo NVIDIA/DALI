@@ -58,10 +58,11 @@ class COCOPipeline(Pipeline):
             num_attempts=1)
         self.slice = ops.Slice(device="cpu")
 
-        self.hsv = ops.Hsv(device="gpu", output_dtype=types.FLOAT)
+        self.hsv = ops.Hsv(device="gpu", dtype=types.FLOAT)  # use float to avoid clipping and
+                                                             # quantizing the intermediate result
         self.bc = ops.BrightnessContrast(device="gpu",
                         contrast_center=128,  # input is in float, but in 0..255 range
-                        output_dtype=types.UINT8)
+                        dtype=types.UINT8)
 
         self.resize = ops.Resize(
             device="cpu",
