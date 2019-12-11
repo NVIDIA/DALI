@@ -57,13 +57,7 @@ class COCOPipeline(Pipeline):
             allow_no_crop=True,
             num_attempts=1)
         self.slice = ops.Slice(device="cpu")
-
-        self.hsv = ops.Hsv(device="gpu", dtype=types.FLOAT)  # use float to avoid clipping and
-                                                             # quantizing the intermediate result
-        self.bc = ops.BrightnessContrast(device="gpu",
-                        contrast_center=128,  # input is in float, but in 0..255 range
-                        dtype=types.UINT8)
-
+        self.twist = ops.ColorTwist(device="gpu")
         self.resize = ops.Resize(
             device="cpu",
             resize_x=300,
@@ -114,10 +108,12 @@ class COCOPipeline(Pipeline):
         bboxes = self.bbflip(bboxes, horizontal=coin_rnd)
         images = self.resize(images)
         images = images.gpu()
-
-        images = self.hsv(images, hue=hue, saturation=saturation)
-        images = self.bc(images, brightness=brightness, contrast=contrast)
-
+        images = self.twist(
+            images,
+            saturation=saturation,
+            contrast=contrast,
+            brightness=brightness,
+            hue=hue)
         images = self.normalize(images)
         bboxes, labels = self.box_encoder(bboxes, labels)
 
