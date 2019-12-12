@@ -58,7 +58,7 @@ Dct1DCpu<OutputType, InputType, Dims>::Setup(KernelContext &context,
 
   args_ = args;
   args_.axis = args_.axis >= 0 ? args_.axis : Dims - 1;
-  DALI_ENFORCE(args_.axis >= 1 && args_.axis < Dims,
+  DALI_ENFORCE(args_.axis >= 0 && args_.axis < Dims,
                make_string("Axis is out of bounds: ", args_.axis));
   int64_t n = in.shape[args_.axis];
 
