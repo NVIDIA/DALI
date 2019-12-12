@@ -29,13 +29,11 @@ namespace signal {
 namespace dct {
 
 struct DctArgs {
+  int dct_type = 2;  // 1, 2, 3, 4
   int axis = -1;
-  int ndct = -1;
-  int dct_type = 2;  // 1, 2, 3
 
   inline bool operator==(const DctArgs& oth) const {
     return axis == oth.axis &&
-           ndct == oth.ndct &&
            dct_type == oth.dct_type;
   }
 
@@ -47,8 +45,10 @@ struct DctArgs {
 template <typename OutputType = float,  typename InputType = float, int Dims = 2>
 class DLL_PUBLIC Dct1DCpu {
  public:
-  static_assert(std::is_same<InputType, float>::value && std::is_same<OutputType, float>::value,
-    "Data types other than float are not yet supported");
+  static_assert(std::is_floating_point<InputType>::value,
+    "Data type should be floating point");
+  static_assert(std::is_same<OutputType, InputType>::value,
+    "Data type conversion is not supported");
 
   DLL_PUBLIC ~Dct1DCpu();
 
