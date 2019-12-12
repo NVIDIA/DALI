@@ -22,6 +22,7 @@ except ImportError:
 
 packages = {
             "opencv-python" : ["4.1.0.25"],
+            "cupy" : ["6.6.0"],
             "mxnet-cu{cuda_v}" : {
                         "90" : ["1.5.0"],
                         "100" : ["1.5.0"]},

@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose jupyter tensorflow-gpu"
+pip_packages="nose jupyter tensorflow-gpu ipykernel<5.0.0 ipython<7.0.0"
 target_dir=./dali/test/python
 
 # populate epilog and prolog with variants to enable/disable conda and virtual env
