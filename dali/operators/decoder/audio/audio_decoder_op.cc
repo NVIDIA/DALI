@@ -22,8 +22,8 @@ DALI_SCHEMA(AudioDecoder)
 This operator is a generic way of handling encoded data in DALI.
 It supports most of well-known audio formats (wav, flac, ogg).
 
-This operator produces two outputs:
-output[0]: batch of decoded data
+This operator produces two outputs: <br/>
+output[0]: batch of decoded data <br/>
 output[1]: batch of sampling rates [Hz]
 
 Sample rate (output[1]) at index `i` corresponds to sample (output[0]) at index `i`.
@@ -41,6 +41,9 @@ AddOptionalArg(detail::kSampleRateName,
 
 DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
 
+std::vector<std::string> AudioDecoderCpu::files_names_ = {};
+std::vector<AudioMetadata> AudioDecoderCpu::sample_meta_ = {};
+std::vector<std::vector<float>> AudioDecoderCpu::intermediate_buffers_ = {};
 
 namespace {
 double Hann(double x) {
@@ -133,9 +136,77 @@ void resample_sinc(
     }
   }
 }
-
-
 }  // namespace
+
+class AudioDecoderCpu::DecoderHelper {
+ public:
+  DecoderHelper(AudioDecoderBase *decoder) : decoder_(decoder) {}
+
+
+  virtual void operator()(span<char> output_buffer, int &sample_rate, int sample_idx) = 0;
+
+ protected:
+  AudioDecoderBase *decoder_;
+};
+
+class AudioDecoderCpu::DirectDecoder : public AudioDecoderCpu::DecoderHelper {
+ public:
+  DirectDecoder(AudioDecoderBase *decoder) : DecoderHelper(decoder) {}
+
+
+  void operator()(span<char> output_buffer, int &sample_rate, int sample_idx) override {
+    cout<<"SIZE "<<output_buffer.size()<<endl;
+    cout<<"LEN "<<sample_meta_[sample_idx].length<<endl;
+    cout<<"SR " <<sample_meta_[sample_idx].sample_rate<<endl;
+    decoder_->Decode(output_buffer);
+    sample_rate = sample_meta_[sample_idx].sample_rate;
+  }
+
+
+ private:
+  using DecoderHelper::decoder_;
+};
+
+using T = float;
+
+class AudioDecoderCpu::ResamplingDecoder : public AudioDecoderCpu::DecoderHelper {
+ public:
+  ResamplingDecoder(AudioDecoderBase *decoder, int target_sample_rate) :
+          DecoderHelper(decoder), target_sample_rate_(target_sample_rate) {}
+
+
+  void operator()(span<char> output_buffer, int &sample_rate, int sample_idx) override {
+    intermediate_buffers_[sample_idx].resize(sample_meta_[sample_idx].length);
+    auto intermediate_buffer = make_span(intermediate_buffers_[sample_idx]);
+    auto intermediate_buffer_c = make_cspan(intermediate_buffers_[sample_idx]);
+    cout<<"SIZE "<<intermediate_buffers_[sample_idx].size()<<endl;
+    cout<<"SIZEB "<<intermediate_buffers_[sample_idx].size()*sizeof(float)<<endl;
+    cout<<"LEN "<<sample_meta_[sample_idx].length<<endl;
+    cout<<"SR " <<sample_meta_[sample_idx].sample_rate<<endl;
+    cout<<"TARGET "<<target_sample_rate_<<endl;
+    auto typed=   (TypedAudioDecoderBase<T>*)(decoder_);
+    typed->DecodeTyped(intermediate_buffer);
+//    sample_rate = target_sample_rate_;
+//    decoder_->Decode(output_buffer);
+    for (int i = 0; i < 10; i++) {
+      cout << intermediate_buffer[i]<<endl;
+    }
+    sample_rate = sample_meta_[sample_idx].sample_rate;
+
+    detail::Downmixing(intermediate_buffer, intermediate_buffer_c, sample_meta_[sample_idx].sample_rate);
+
+    cout<<"DUPA\n";
+
+//    auto sz = Downmixing(intermediate_buffers_[sample_idx].data(), intermediate_buffers_[sample_idx].data(), intermediate_buffers_[sample_idx].size())
+//    resample_sinc(reinterpret_cast<float *>(output_buffer.data()),
+//                  output_buffer.size() / sizeof(float), target_sample_rate_, in, in_rate);
+  }
+
+
+ private:
+  int target_sample_rate_;
+};
+
 
 
 bool
@@ -175,19 +246,16 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
     auto meta = decoders_[i]->Open({reinterpret_cast<const char *>(input[i].raw_mutable_data()),
                                     input[i].shape().num_elements()});
     sample_meta_[i] = meta;
-//    TensorShape<> data_sample_shape = target_sample_rate_ == -1 ?
-//                                      {meta.length, meta.channels} :
-//                                      {static_cast<int>(meta.length * target_sample_rate /
-//                                                        meta.sample_rate) + 1, 1};
-    TensorShape<> data_sample_shape = {meta.length, meta.channels};
+    TensorShape<> data_sample_shape;
+    if (!NeedsResampling()) {
+      data_sample_shape = {meta.length, meta.channels};
+    } else {
+      data_sample_shape = {static_cast<int>(meta.length * target_sample_rate_ / meta.sample_rate) +
+                           1, 1 /* resampling currently supported for 1-channel data only */};
+    }
     shape_data.set_tensor_shape(i, data_sample_shape);
     shape_rate.set_tensor_shape(i, {1});
     files_names_[i] = input[i].GetSourceInfo();
-
-    if (NeedsResampling()) {
-      intermediate_buffers_[i].resize(meta.length);
-    }
-
   }
 
   output_desc[0] = {shape_data, type};
@@ -203,30 +271,43 @@ void AudioDecoderCpu::RunImpl(workspace_t<Backend> &ws) {
   auto batch_size = decoded_output.shape().num_samples();
 
   for (int i = 0; i < batch_size; i++) {
+    cout << "TAKZE TEGO\n";
 
     auto decode = [&, i](int thread_id) {
-      auto &decoder = decoders_[i];
-      auto &output = decoded_output[i];
-
-      try {
-        decoder->Decode({reinterpret_cast<char *>(output.raw_mutable_data()),
-                         static_cast<int>(output.type().size() * output.shape().num_elements())});
-        auto sample_rate_ptr = sample_rate_output[i].mutable_data<sample_rate_t>();
-        *sample_rate_ptr =
-                target_sample_rate_ == -1 ? sample_meta_[i].sample_rate : target_sample_rate_;
-      } catch (const DALIException &e) {
-        DALI_FAIL(make_string("Error decoding file.\nError: ", e.what(), "\nFile: ",
-                              files_names_[i], "\n"));
-      }
-
-      if (NeedsResampling()) {
-        if (sample_meta_[i].channels != 1) {
-//          detail::Downmixing()
+        auto &output = decoded_output[i];
+        DirectDecoder decoder(decoders_[i].get());
+        try {
+          decoder({reinterpret_cast<char *>(output.raw_mutable_data()),
+                   static_cast<int>(output.type().size() * output.shape().num_elements())},
+                  *sample_rate_output[i].mutable_data<sample_rate_t>(), i);
+        } catch (const DALIException &e) {
+          DALI_FAIL(make_string("Error decoding file.\nError: ", e.what(), "\nFile: ",
+                                files_names_[i], "\n"));
         }
-      }
+
     };
 
-    tp.DoWorkWithID(decode);
+    auto decode_and_resample = [&, i](int thread_id) {
+        auto &output = decoded_output[i];
+        ResamplingDecoder decoder(                decoders_[i].get(),                target_sample_rate_);
+        try {
+          decoder({reinterpret_cast<char *>(output.raw_mutable_data()),
+                   static_cast<int>(output.type().size() * output.shape().num_elements())},
+                  *sample_rate_output[i].mutable_data<sample_rate_t>(), i);
+        } catch (const DALIException &e) {
+          DALI_FAIL(make_string("Error decoding file.\nError: ", e.what(), "\nFile: ",
+                                files_names_[i], "\n"));
+        }
+    };
+
+    if (NeedsResampling()) {
+//      tp.DoWorkWithID(decode_and_resample);
+decode_and_resample(0);
+    } else {
+//      tp.DoWorkWithID(decode);
+      decode(0);
+    }
+
   }
   tp.WaitForWork();
 }

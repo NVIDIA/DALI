@@ -109,10 +109,20 @@ TEST(AudioDecoderTest, DownmixingInPlaceTest) {
   std::vector<float> in = {1,2,3,4,5,6,7,8,9,10,11,12};
   int nchannels = 3;
   std::vector<float> ref = {2, 5, 8, 11};
-  std::vector<float> out;
-  out.resize(ref.size());
 
   detail::Downmixing(in.data(), in.data(), in.size(), nchannels);
+
+  for (size_t i = 0; i < ref.size(); i++) {
+    EXPECT_FLOAT_EQ(in[i], ref[i]);
+  }
+}
+
+TEST(AudioDecoderTest, DownmixingSpan) {
+  std::vector<float> in = {1,2,3,4,5,6,7,8,9,10,11,12};
+  int nchannels = 3;
+  std::vector<float> ref = {2, 5, 8, 11};
+
+  detail::Downmixing(make_span(in), make_cspan(in), nchannels);
 
   for (size_t i = 0; i < ref.size(); i++) {
     EXPECT_FLOAT_EQ(in[i], ref[i]);

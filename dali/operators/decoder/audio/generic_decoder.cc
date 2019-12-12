@@ -173,11 +173,14 @@ GenericAudioDecoder<SampleType>::GenericAudioDecoder() :
 template<typename SampleType>
 struct GenericAudioDecoder<SampleType>::Impl {
   void DecodeTyped(span<SampleType> output) {
+    cout<<"ASD0\n";
     ReadSamples(sound_, output);
+    cout<<"ASD1\n";
   }
 
 
   AudioMetadata OpenImpl(span<const char> encoded) {
+    cout<<"QWE0\n";
     assert(!encoded.empty());
     AudioMetadata ret;
     sf_info_ = {};
@@ -199,6 +202,7 @@ struct GenericAudioDecoder<SampleType>::Impl {
     ret.channels = sf_info_.channels;
     ret.sample_rate = sf_info_.samplerate;
     ret.channels_interleaved = true;
+    cout<<"QWE1\n";
     return ret;
   }
 
