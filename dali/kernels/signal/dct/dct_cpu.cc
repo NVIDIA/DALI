@@ -19,9 +19,9 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/util.h"
-#include "dali/kernels/kernel.h"
 #include "dali/kernels/common/for_axis.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/kernels/kernel.h"
 
 namespace dali {
 namespace kernels {
@@ -31,11 +31,11 @@ namespace dct {
 namespace {
 
 template <typename T>
-void FillCosineTable(T* table, int64_t input_length, int64_t ndct, int dct_type) {
-  T phase_mul = (dct_type == 1) ? M_PI / (input_length - 1) :  M_PI / input_length;
+void FillCosineTable(T *table, int64_t input_length, int64_t ndct, int dct_type) {
+  T phase_mul = (dct_type == 1) ? M_PI / (input_length - 1) : M_PI / input_length;
   int64_t idx = 0;
   for (int64_t k = 0; k < ndct; k++) {
-    T k_factor = (dct_type ==  3 || dct_type == 4) ? k + T(0.5) : k;
+    T k_factor = (dct_type == 3 || dct_type == 4) ? k + T(0.5) : k;
     for (int64_t n = 0; n < input_length; n++) {
       T n_factor = (dct_type == 2 || dct_type == 4) ? n + T(0.5) : n;
       table[idx++] = std::cos(phase_mul * k_factor * n_factor);
@@ -49,16 +49,17 @@ template <typename OutputType, typename InputType, int Dims>
 Dct1DCpu<OutputType, InputType, Dims>::~Dct1DCpu() = default;
 
 template <typename OutputType, typename InputType, int Dims>
-KernelRequirements Dct1DCpu<OutputType, InputType, Dims>::Setup(
-    KernelContext &context,
-    const InTensorCPU<InputType, Dims> &in,
-    const DctArgs &args) {
-  const auto& in_shape = in.shape;
+KernelRequirements
+Dct1DCpu<OutputType, InputType, Dims>::Setup(KernelContext &context,
+                                             const InTensorCPU<InputType, Dims> &in,
+                                             const DctArgs &args) {
+  const auto &in_shape = in.shape;
   DALI_ENFORCE(in_shape.size() == Dims);
 
   args_ = args;
-  args_.axis = args_.axis >= 0 ? args_.axis : Dims-1;
-  DALI_ENFORCE(args_.axis >= 1 && args_.axis < Dims, make_string("Axis is out of bounds: ", args_.axis));
+  args_.axis = args_.axis >= 0 ? args_.axis : Dims - 1;
+  DALI_ENFORCE(args_.axis >= 1 && args_.axis < Dims,
+               make_string("Axis is out of bounds: ", args_.axis));
   int64_t n = in.shape[args_.axis];
 
   KernelRequirements req;
@@ -73,19 +74,19 @@ KernelRequirements Dct1DCpu<OutputType, InputType, Dims>::Setup(
 }
 
 template <typename OutputType, typename InputType, int Dims>
-void Dct1DCpu<OutputType, InputType, Dims>::Run(
-    KernelContext &context,
-    const OutTensorCPU<OutputType, Dims> &out,
-    const InTensorCPU<InputType, Dims> &in,
-    const DctArgs &args) {
-  (void) args;
+void Dct1DCpu<OutputType, InputType, Dims>::Run(KernelContext &context,
+                                                const OutTensorCPU<OutputType, Dims> &out,
+                                                const InTensorCPU<InputType, Dims> &in,
+                                                const DctArgs &args) {
+  (void)args;
   assert(args_.axis >= 0 && args_.axis < Dims);
   const auto n = in.shape[args_.axis];
 
   assert(args_.dct_type >= 1 && args_.dct_type <= 4);
 
   auto cos_table_sz = n * n;
-  OutputType* cos_table = context.scratchpad->template Allocate<OutputType>(AllocType::Host, cos_table_sz);
+  OutputType *cos_table =
+      context.scratchpad->template Allocate<OutputType>(AllocType::Host, cos_table_sz);
   memset(cos_table, 0, cos_table_sz * sizeof(OutputType));
   auto ndct = n;
   FillCosineTable(cos_table, n, ndct, args.dct_type);
@@ -99,8 +100,8 @@ void Dct1DCpu<OutputType, InputType, Dims>::Run(
     out.data, in.data, out_shape.data(), out_strides.data(), in_shape.data(), in_strides.data(),
     args_.axis, out.dim(),
     [this, &cos_table](
-      OutputType *out_data, const InputType *in_data,
-      int64_t out_size, int64_t out_stride, int64_t in_size, int64_t in_stride) {
+      OutputType *out_data, const InputType *in_data, int64_t out_size, int64_t out_stride,
+      int64_t in_size, int64_t in_stride) {
         const OutputType phase_mul = M_PI / in_size;
         int64_t out_idx = 0;
         for (int64_t k = 0; k < out_size; k++) {
@@ -112,16 +113,16 @@ void Dct1DCpu<OutputType, InputType, Dims>::Run(
           } else if (args_.dct_type == 3) {
             out_val = OutputType(0.5) * in_data[0];
           }
-          const auto* cos_table_row = cos_table + k * in_size;
+          const auto *cos_table_row = cos_table + k * in_size;
           for (int64_t n = 0; n < in_size; n++) {
             OutputType in_val = in_data[in_idx];
             in_idx += in_stride;
             out_val += in_val * cos_table_row[n];
           }
           out_data[out_idx] = out_val;
-          out_idx += out_stride; 
+          out_idx += out_stride;
         }
-    });  
+    });
 }
 
 template class Dct1DCpu<float, float, 1>;
@@ -132,7 +133,7 @@ template class Dct1DCpu<double, double, 1>;
 template class Dct1DCpu<double, double, 2>;
 template class Dct1DCpu<double, double, 3>;
 
-}  // namespace fft
+}  // namespace dct
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
