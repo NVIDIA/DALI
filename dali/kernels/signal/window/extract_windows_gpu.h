@@ -29,7 +29,7 @@ struct ExtractWindowsBatchedArgs : ExtractWindowsArgs {
   /**
    * @brief If true, all outputs are concatenated.
    *
-   * In case of vertical windows, tThe concatenated output will contain all first samples from
+   * In case of vertical windows, the concatenated output will contain all first samples from
    * windows from 1st recording, then 2nd, etc, and then all seconds samples from all
    * recordings and so forth.
    * For horizontal windows, the concatenation is trivial.
@@ -37,8 +37,9 @@ struct ExtractWindowsBatchedArgs : ExtractWindowsArgs {
   bool concatenate = true;
   /**
    * @brief Indicates that the output should be overallocated (or windows truncated) to this size.
+   * @remarks Negative values are ignored and window_length is used.
    */
-  int padded_output_window = -1;
+  int output_window_length = -1;
 };
 
 template <typename Dst, typename Src>

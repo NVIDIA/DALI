@@ -34,7 +34,7 @@ KernelRequirements ExtractWindowsGpu<Dst, Src>::Setup(
       impl = std::make_unique<ExtractHorizontalWindowsGpuImpl<Dst, Src>>();
   }
 
-  return impl->Setup(context, input.shape, args, args.concatenate, args.padded_output_window);
+  return impl->Setup(context, input.shape, args, args.concatenate, args.output_window_length);
 }
 
 template <typename Dst, typename Src>
