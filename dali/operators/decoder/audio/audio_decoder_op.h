@@ -40,6 +40,8 @@ const int kNumOutputs = 2;
 
 /**
  * Downmixing data to mono-channel. It's safe to do it in-place.
+ * Assumes, that `out` buffer is properly allocated
+ * (i.e. has `n_in`/`n_channels_in` elements at least)
  */
 template<typename T>
 void Downmixing(T *out, const T *in, size_t n_in, size_t n_channels_in) {
@@ -54,6 +56,17 @@ void Downmixing(T *out, const T *in, size_t n_in, size_t n_channels_in) {
   }
 }
 
+
+template<typename T>
+void Downmixing(span<T> out, span<const T> in, size_t n_channels_in) {
+  Downmixing(out.data(), in.data(), in.size(), n_channels_in);
+}
+
+//template<typename T>
+//void Downmixing(T *out, const T *in, size_t n_in, size_t n_channels_in) {
+//std::vector<int> weights(n_channels_in, 1);
+//}
+
 }  // namespace detail
 
 class AudioDecoderCpu : public Operator<CPUBackend> {
@@ -65,8 +78,10 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
           Operator<Backend>(spec),
           output_type_(spec.GetArgument<DALIDataType>(detail::kOutputTypeName)),
           target_sample_rate_(spec.GetArgument<int>(detail::kSampleRateName)) {
-    DALI_ENFORCE(target_sample_rate_ != -1 && output_type_ == DALI_FLOAT,
-                 "Resampling currently supported only for float output");
+    DALI_ENFORCE(target_sample_rate_ == -1 || target_sample_rate_ > 0,
+                 "Target sample rate has to be positive or `-1`");
+//    DALI_ENFORCE(target_sample_rate_ == -1 || output_type_ == DALI_FLOAT,
+//                 "Resampling currently supported only for float output");
   }
 
   inline ~AudioDecoderCpu() override = default;
@@ -88,13 +103,19 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   }
 
 
+  class DecoderHelper;
+
+  class DirectDecoder;
+
+  class ResamplingDecoder;
+
   DALIDataType output_type_;
   const int target_sample_rate_;
-  std::vector<std::string> files_names_;
-  std::vector<AudioMetadata> sample_meta_;
+  static std::vector<std::string> files_names_;
+  static std::vector<AudioMetadata> sample_meta_;
+  static std::vector<std::vector<float>> intermediate_buffers_;
   using sample_rate_t = decltype(AudioMetadata::sample_rate);
   std::vector<std::unique_ptr<AudioDecoderBase>> decoders_;
-  std::vector <std::vector<float>> intermediate_buffers_;
 };
 
 }  // namespace dali
