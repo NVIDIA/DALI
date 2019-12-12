@@ -48,11 +48,13 @@ args = parser.parse_args()
 
 def get_key_with_cuda(key, val_dict, cuda):
     key_w_cuda = key
+    max_cuda = None
     if isinstance(val_dict, dict):
         for ver in sorted(val_dict.keys(), key=int):
             if int(ver) <= int(cuda):
                 key_w_cuda = key.format(cuda_v=ver)
-    return key_w_cuda
+                max_cuda = ver
+    return key_w_cuda, max_cuda
 
 def get_package(package_data, key, cuda):
     if key in package_data.keys():
@@ -82,13 +84,13 @@ def get_pyvers_name(name, cuda):
 
 def print_configs(cuda):
     for key in packages.keys():
-        key_w_cuda = get_key_with_cuda(key, packages[key], cuda)
+        key_w_cuda, max_cuda = get_key_with_cuda(key, packages[key], cuda)
         print (key_w_cuda + ":")
-        for val in get_package(packages, key, cuda):
+        for val in get_package(packages, key, max_cuda):
             if val == None:
                 val = "Default"
             elif val.startswith('http'):
-                val = get_pyvers_name(val, cuda)
+                val = get_pyvers_name(val, max_cuda)
             print ('\t' + val)
 
 def get_install_string(variant, use, cuda):
@@ -96,16 +98,16 @@ def get_install_string(variant, use, cuda):
     for key in packages.keys():
         if key not in use:
             continue
-        key_w_cuda = get_key_with_cuda(key, packages[key], cuda)
-        tmp = variant % len(get_package(packages, key, cuda))
-        val = get_package(packages, key, cuda)[tmp]
+        key_w_cuda, max_cuda = get_key_with_cuda(key, packages[key], cuda)
+        tmp = variant % len(get_package(packages, key, max_cuda))
+        val = get_package(packages, key, max_cuda)[tmp]
         if val == None:
             ret.append(key_w_cuda)
         elif val.startswith('http'):
-            ret.append(get_pyvers_name(val, cuda))
+            ret.append(get_pyvers_name(val, max_cuda))
         else:
             ret.append(key_w_cuda + "==" + val)
-        variant = variant // len(get_package(packages, key, cuda))
+        variant = variant // len(get_package(packages, key, max_cuda))
     # add all remaining used packages with default versions
     additional = [v for v in use if v not in packages.keys()]
     return " ".join(ret + additional)
@@ -116,8 +118,8 @@ def get_remove_string(use, cuda):
     for key in packages.keys():
         if key not in use:
             continue
-        key_w_cuda = get_key_with_cuda(key, packages[key], cuda)
-        pkg_list_len = len(get_package(packages, key, cuda))
+        key_w_cuda, max_cuda = get_key_with_cuda(key, packages[key], cuda)
+        pkg_list_len = len(get_package(packages, key, max_cuda))
         if pkg_list_len > 1:
             to_remove.append(key_w_cuda)
     return " ".join(to_remove)
@@ -135,11 +137,12 @@ def get_all_strings(use, cuda):
     for key in packages.keys():
         if key not in use:
             continue
-        for val in get_package(packages, key, cuda):
+        _, max_cuda = get_key_with_cuda(key, packages[key], cuda)
+        for val in get_package(packages, key, max_cuda):
             if val is None:
                 ret.append(key)
             elif val.startswith('http'):
-                ret.append(get_pyvers_name(val, cuda))
+                ret.append(get_pyvers_name(val, max_cuda))
             else:
                 ret.append(key + "==" + val)
     # add all remaining used packages with default versions
