@@ -72,7 +72,7 @@ namespace dali {
     //  limits to support the given pipeline
     google::protobuf::io::CodedInputStream coded_input(
             reinterpret_cast<const uint8_t *>(serialized_pipe.c_str()), serialized_pipe.size());
-    coded_input.SetTotalBytesLimit(serialized_pipe.size(), 67108864);
+    coded_input.SetTotalBytesLimit(serialized_pipe.size());
     def.ParseFromCodedStream(&coded_input);
 
     // If not given, take parameters from the
