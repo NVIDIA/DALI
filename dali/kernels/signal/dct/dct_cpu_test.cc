@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/kernels/signal/dct/dct_cpu.h"
 #include <gtest/gtest.h>
-#include <tuple>
-#include <vector>
 #include <cmath>
 #include <complex>
-#include <cmath>
+#include <tuple>
+#include <vector>
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/signal/dct/dct_cpu.h"
-#include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/test/test_tensors.h"
 
 #undef LOG_LINE
 #define LOG_LINE std::cout
@@ -34,71 +33,70 @@ namespace test {
 
 template <typename T>
 void ReferenceDctTypeI(span<T> out, span<const T> in) {
-	int64_t in_length = in.size();
+  int64_t in_length = in.size();
   int64_t out_length = out.size();
-	T phase_mul = M_PI / (in_length - 1);
-	for (int64_t k = 0; k < out_length; k++) {
+  T phase_mul = M_PI / (in_length - 1);
+  for (int64_t k = 0; k < out_length; k++) {
     T sign = (k % 2 == 0) ? T(1) : T(-1);
-		T sum = T(0.5) * (in[0] + sign * in[in_length-1]);
-		for (int64_t n = 0; n < in_length; n++) {
-			sum += in[n] * std::cos(phase_mul * n * k);
+    T sum = T(0.5) * (in[0] + sign * in[in_length - 1]);
+    for (int64_t n = 0; n < in_length; n++) {
+      sum += in[n] * std::cos(phase_mul * n * k);
     }
-		out[k] = sum;
-	}
+    out[k] = sum;
+  }
 }
 
 template <typename T>
 void ReferenceDctTypeII(span<T> out, span<const T> in) {
-	int64_t in_length = in.size();
+  int64_t in_length = in.size();
   int64_t out_length = out.size();
-	T phase_mul = M_PI / in_length;
-	for (int64_t k = 0; k < out_length; k++) {
-		T sum = 0;
-		for (int64_t n = 0; n < in_length; n++) {
-			sum += in[n] * std::cos(phase_mul * (n + T(0.5)) * k);
+  T phase_mul = M_PI / in_length;
+  for (int64_t k = 0; k < out_length; k++) {
+    T sum = 0;
+    for (int64_t n = 0; n < in_length; n++) {
+      sum += in[n] * std::cos(phase_mul * (n + T(0.5)) * k);
     }
-		out[k] = sum;
-	}
+    out[k] = sum;
+  }
 }
 
 template <typename T>
 void ReferenceDctTypeIII(span<T> out, span<const T> in) {
-	int64_t in_length = in.size();
+  int64_t in_length = in.size();
   int64_t out_length = out.size();
-	T phase_mul = M_PI / in_length;
-	for (int64_t k = 0; k < out_length; k++) {
-		T sum = T(0.5) * in[0];
-		for (int64_t n = 0; n < in_length; n++) {
-			sum += in[n] * std::cos(phase_mul * n * (k + T(0.5)));
+  T phase_mul = M_PI / in_length;
+  for (int64_t k = 0; k < out_length; k++) {
+    T sum = T(0.5) * in[0];
+    for (int64_t n = 0; n < in_length; n++) {
+      sum += in[n] * std::cos(phase_mul * n * (k + T(0.5)));
     }
-		out[k] = sum;
-	}
+    out[k] = sum;
+  }
 }
 
 template <typename T>
 void ReferenceDctTypeIV(span<T> out, span<const T> in) {
-	int64_t in_length = in.size();
+  int64_t in_length = in.size();
   int64_t out_length = out.size();
-	T phase_mul = M_PI / in_length;
-	for (int64_t k = 0; k < out_length; k++) {
-		T sum = 0;
-		for (int64_t n = 0; n < in_length; n++) {
-			sum += in[n] * std::cos(phase_mul * (n + T(0.5)) * (k + T(0.5)));
+  T phase_mul = M_PI / in_length;
+  for (int64_t k = 0; k < out_length; k++) {
+    T sum = 0;
+    for (int64_t n = 0; n < in_length; n++) {
+      sum += in[n] * std::cos(phase_mul * (n + T(0.5)) * (k + T(0.5)));
     }
-		out[k] = sum;
-	}
+    out[k] = sum;
+  }
 }
 
-
-class Dct1DCpuTest : public::testing::TestWithParam<
+class Dct1DCpuTest : public ::testing::TestWithParam<
   std::tuple<std::array<int64_t, 2>, int, int>> {
  public:
   Dct1DCpuTest()
-    : data_shape_(std::get<0>(GetParam()))
-    , dct_type_(std::get<1>(GetParam()))
-    , axis_(std::get<2>(GetParam()))
-    , data_(volume(data_shape_))
-    , in_view_(data_.data(), data_shape_) {}
+      : data_shape_(std::get<0>(GetParam()))
+      , dct_type_(std::get<1>(GetParam()))
+      , axis_(std::get<2>(GetParam()))
+      , data_(volume(data_shape_))
+      , in_view_(data_.data(), data_shape_) {}
 
   ~Dct1DCpuTest() override = default;
 
@@ -125,9 +123,11 @@ TEST_P(Dct1DCpuTest, DctTest) {
   KernelContext ctx;
 
   auto in_shape = in_view_.shape;
-  ASSERT_TRUE(volume(in_shape) > 0);
-  ASSERT_TRUE(axis_ >= 0 && axis_ < in_shape.size());
-  ASSERT_TRUE(dct_type_ >= 1 && dct_type_ <= 4);
+  ASSERT_GT(volume(in_shape), 0);
+  ASSERT_GE(axis_, 0);
+  ASSERT_LT(axis_, in_shape.size());
+  ASSERT_GE(dct_type_, 1);
+  ASSERT_LE(dct_type_, 4);
 
   auto n = in_shape[axis_];
   LOG_LINE << "Test n=" << n << " axis=" << axis_ << std::endl;
@@ -157,7 +157,7 @@ TEST_P(Dct1DCpuTest, DctTest) {
   std::vector<OutputType> ref(n, 0);
   switch (dct_type_) {
     case 1:
-      ReferenceDctTypeI(make_span(ref), make_cspan(in_view_.data, n));  
+      ReferenceDctTypeI(make_span(ref), make_cspan(in_view_.data, n));
       break;
 
     case 2:
@@ -181,14 +181,13 @@ TEST_P(Dct1DCpuTest, DctTest) {
     LOG_LINE << " " << ref[k] << "\n";
     ASSERT_NEAR(ref[k], out_data[k], 1e-4);
   }
-
 }
 
 INSTANTIATE_TEST_SUITE_P(Dct1DCpuTest, Dct1DCpuTest, testing::Combine(
     testing::Values(std::array<int64_t, 2>{8, 8}),  // shape
     testing::Values(1, 2, 3, 4),  // dct_type
-    testing::Values(1)  // axis
-  ));
+    testing::Values(1)            // axis
+  ));  // NOLINT
 
 }  // namespace test
 }  // namespace dct
