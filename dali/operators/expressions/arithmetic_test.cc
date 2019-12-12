@@ -208,6 +208,7 @@ class BinaryArithmeticOpsTest
     auto *result = ws.OutputRef<Backend>(0).template data<T>();
     vector<T> result_cpu(shape.num_elements());
     MemCopy(result_cpu.data(), result, shape.num_elements() * sizeof(T));
+    cudaStreamSynchronize(0);
 
     int64_t offset = 0;
     for (int i = 0; i < shape.num_samples(); i++) {
@@ -324,6 +325,7 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
   vector<int32_t> result2_cpu(batch_size * tensor_elements);
 
   MemCopy(result2_cpu.data(), result2, batch_size * tensor_elements * sizeof(int));
+  cudaStreamSynchronize(0);
   for (int i = 0; i < batch_size * tensor_elements; i++) {
     EXPECT_EQ(result[i], data[i] + data[i]);
     EXPECT_EQ(result2_cpu[i], data[i] * (data[i] + data[i]));
@@ -381,6 +383,7 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   vector<float> result1_cpu(batch_size * tensor_elements);
 
   MemCopy(result1_cpu.data(), result1, batch_size * tensor_elements * sizeof(float));
+  cudaStreamSynchronize(0);
   for (int i = 0; i < batch_size * tensor_elements; i++) {
     EXPECT_EQ(result0[i], static_cast<float>(data0[i]) / data1[i]);
     EXPECT_EQ(result1_cpu[i], static_cast<float>(data0[i]) / data1[i]);
@@ -501,6 +504,7 @@ class ArithmeticOpsScalarTest :  public ::testing::TestWithParam<shape_sequence>
       vector<int> result1_cpu(result_shape.num_elements());
 
       MemCopy(result1_cpu.data(), result1, result_shape.num_elements() * sizeof(int));
+      cudaStreamSynchronize(0);
 
       int64_t offset_out = 0;
       int64_t offset_in[2] = {0, 0};
@@ -592,6 +596,60 @@ INSTANTIATE_TEST_SUITE_P(TensorScalarTensorBatch5,
 INSTANTIATE_TEST_SUITE_P(TensorScalarTensorBatch1,
                          ArithmeticOpsScalarTest,
                          ::testing::ValuesIn(GetTensorScalarTensorSequences(1)));
+TEST(ArithmeticOpsTest, UnaryPipeline) {
+  constexpr int batch_size = 16;
+  constexpr int num_threads = 4;
+  constexpr int tensor_elements = 16;
+  Pipeline pipe(batch_size, num_threads, 0);
+
+  pipe.AddExternalInput("data0");
+
+  pipe.AddOperator(OpSpec("ArithmeticGenericOp")
+                       .AddArg("device", "cpu")
+                       .AddArg("expression_desc", "minus(&0)")
+                       .AddInput("data0", "cpu")
+                       .AddOutput("result0", "cpu"),
+                   "arithm_cpu_neg");
+
+  pipe.AddOperator(OpSpec("ArithmeticGenericOp")
+                       .AddArg("device", "gpu")
+                       .AddArg("expression_desc", "plus(&0)")
+                       .AddInput("result0", "gpu")
+                       .AddOutput("result1", "gpu"),
+                   "arithm_gpu_pos");
+
+  vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "gpu"}};
+
+  pipe.Build(outputs);
+
+  TensorList<CPUBackend> batch;
+  batch.Resize(uniform_list_shape(batch_size, {tensor_elements}));
+  batch.set_type(TypeInfo::Create<int32_t>());
+  for (int i = 0; i < batch_size; i++) {
+    auto *t = batch.mutable_tensor<int32_t>(i);
+    for (int j = 0; j < tensor_elements; j++) {
+      t[j] = i * tensor_elements + j;
+    }
+  }
+
+  pipe.SetExternalInput("data0", batch);
+  pipe.RunCPU();
+  pipe.RunGPU();
+  DeviceWorkspace ws;
+  pipe.Outputs(&ws);
+  auto *result0 = ws.OutputRef<CPUBackend>(0).data<int32_t>();
+
+  auto *result1 = ws.OutputRef<GPUBackend>(1).data<int32_t>();
+  vector<int32_t> result1_cpu(batch_size * tensor_elements);
+
+  MemCopy(result1_cpu.data(), result1, batch_size * tensor_elements * sizeof(int));
+  cudaStreamSynchronize(0);
+  for (int i = 0; i < batch_size * tensor_elements; i++) {
+    EXPECT_EQ(result0[i], -i);
+    EXPECT_EQ(result1_cpu[i], -i);
+  }
+}
+
 
 }  // namespace dali
 

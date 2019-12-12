@@ -29,16 +29,17 @@ batch_size = 4
 # Shape of the samples, currently forces the sample to have be covered by more than 1 tile
 shape_big = [(256, 256)] * batch_size
 # For the coverage of all type combinations we use smaller batch
-# TODO(klecki): revert to small batch
-shape_small = shape_big
+shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
 
 # A number used to test constant inputs
 magic_number = 42
 
+unary_inputs_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar"]
+
 # We cannot have 'Constant x Constant' operations with DALI op.
 # And scalar is still a represented by a Tensor, so 'Scalar x Constant' is the same
 # as 'Tensor x Constant'.
-input_kinds = (list(itertools.product(["cpu", "gpu"], ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"])) +
+bin_inputs_kinds = (list(itertools.product(["cpu", "gpu"], ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"])) +
                list(itertools.product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"])))
 
 
@@ -59,6 +60,8 @@ np_types_to_dali = {
     np.float32: types.FLOAT,
     np.float64: types.FLOAT64,
 }
+
+unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*")]
@@ -134,25 +137,32 @@ def float_generator(shape, type):
         return type([np.random.rand()])
 
 class ExternalInputIterator(object):
-    def __init__(self, batch_size, shape, left_type, right_type, left_kind, right_kind):
+    def __init__(self, batch_size, shape, types, kinds):
+        try:
+            self.length = len(types)
+        except TypeError:
+            types = (types,)
+            kinds = (kinds,)
+            self.length = 1
         self.batch_size = batch_size
-        self.left_type = left_type
-        self.right_type = right_type
-        self.gen_l = self.get_generator(self.left_type)
-        self.gen_r = self.get_generator(self.right_type)
-        self.left_shape = shape if ("scalar" not in left_kind) else [(1,)] * batch_size
-        self.right_shape = shape if ("scalar" not in right_kind) else [(1,)] * batch_size
+        self.types = types
+        self.gens = []
+        self.shapes = []
+        for i in range(self.length):
+            self.gens.append(self.get_generator(self.types[i]))
+            self.shapes.append(shape if ("scalar" not in kinds[i]) else [(1,)] * batch_size )
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        left = []
-        right = []
-        for sample in range(self.batch_size):
-            left.append(self.gen_l(self.left_shape[sample]))
-            right.append(self.gen_r(self.right_shape[sample]))
-        return (left, right)
+        out = ()
+        for i in range(self.length):
+            batch = []
+            for sample in range(self.batch_size):
+                batch.append(self.gens[i](self.shapes[i][sample]))
+            out = out + (batch,)
+        return out
 
     def get_generator(self, type):
         if type in [np.float16, np.float32, np.float64]:
@@ -167,21 +177,27 @@ class ExternalInputIterator(object):
 class ExprOpPipeline(Pipeline):
     def __init__(self, kinds, types, iterator, op, batch_size, num_threads, device_id):
         super(ExprOpPipeline, self).__init__(batch_size, num_threads, device_id, seed=12)
-        self.left_source = ops.ExternalSource()
-        self.right_source = ops.ExternalSource()
+        try:
+            self.length = len(types)
+        except TypeError:
+            types = (types,)
+            kinds = (kinds,)
+            self.length = 1
+        self.external_source = []
+        for i in range(self.length):
+            self.external_source.append(ops.ExternalSource())
         self.kinds = kinds
         self.types = types
         self.iterator = iterator
         self.op = op
 
     def define_graph(self):
-        self.left = self.left_source()
-        self.right = self.right_source()
-        left_kind, right_kind = self.kinds
-        left_type, right_type = self.types
-        l = self.get_operand(self.left, left_kind, left_type)
-        r = self.get_operand(self.right, right_kind, right_type)
-        return self.left, self.right, self.op(l, r)
+        self.source = []
+        inputs = []
+        for i in range(self.length):
+            self.source.append(self.external_source[i]())
+            inputs.append(self.get_operand(self.source[i], self.kinds[i], self.types[i]))
+        return self.unary_plus_war(tuple(self.source) + (self.op(*inputs), ))
 
     def get_operand(self, operand, kind, operand_type):
         if kind == "const":
@@ -192,20 +208,35 @@ class ExprOpPipeline(Pipeline):
             return operand.gpu()
 
     def iter_setup(self):
-        (l, r) = self.iterator.next()
-        self.feed_input(self.left, l)
-        self.feed_input(self.right, r)
+        inputs = self.iterator.next()
+        for i in range(len(inputs)):
+            self.feed_input(self.source[i], inputs[i])
+
+    # Workaround for unary `+` operator
+    # It is just a passthrough on python level and we cannot return the same output twice
+    # from the pipeline, so I just put one of the outputs on GPU in case it would happen
+    def unary_plus_war(self, result):
+        if len(result) == 2 and result[0].name == result[1].name and result[0].device == result[1].device:
+            return result[0].gpu(), result[1]
+        return result
 
 def get_numpy_input(input, kind, type):
     if kind == "const":
         return type(magic_number)
     else:
         if "scalar" in kind:
-            return input.astype(type).reshape(input.shape + (1,))
+            return input.astype(type).reshape(input.shape)
         else:
             return input.astype(type)
 
-def extract_data(pipe_out, sample_id, kinds, target_type):
+def extract_un_data(pipe_out, sample_id, kind, target_type):
+    input = as_cpu(pipe_out[0]).at(sample_id)
+    out = as_cpu(pipe_out[1]).at(sample_id)
+    assert_equals(out.dtype, target_type)
+    in_np = get_numpy_input(input, kind, target_type)
+    return in_np, out
+
+def extract_bin_data(pipe_out, sample_id, kinds, target_type):
     left_kind, right_kind = kinds
     l = as_cpu(pipe_out[0]).at(sample_id)
     r = as_cpu(pipe_out[1]).at(sample_id)
@@ -216,17 +247,38 @@ def extract_data(pipe_out, sample_id, kinds, target_type):
     return l_np, r_np, out
 
 # Regular arithmetic ops that can be validated as straight numpy
+def check_unary_op(kind, type, op, shape, _):
+    iterator = iter(ExternalInputIterator(batch_size, shape, type, kind))
+    pipe = ExprOpPipeline(kind, type, iterator, op, batch_size = batch_size, num_threads = 2,
+            device_id = 0)
+    pipe.build()
+    pipe_out = pipe.run()
+    for sample in range(batch_size):
+        in_np, out = extract_un_data(pipe_out, sample, kind, type)
+        if 'f' in np.dtype(type).kind:
+            np.testing.assert_allclose(out, op(in_np),
+                rtol=1e-07 if type != np.float16 else 0.005)
+        else:
+            np.testing.assert_array_equal(out, op(in_np))
+
+def test_unary_arithmetic_ops():
+    for kinds in unary_inputs_kinds:
+        for (op, op_desc) in unary_operations:
+            for types_in in input_types:
+                yield check_unary_op, kinds, types_in, op, shape_small, op_desc
+
+
+# Regular arithmetic ops that can be validated as straight numpy
 def check_arithm_op(kinds, types, op, shape, _):
     left_type, right_type = types
-    left_kind, right_kind = kinds
     target_type = bin_promote(left_type, right_type)
-    iterator = iter(ExternalInputIterator(batch_size, shape, left_type, right_type, left_kind, right_kind))
+    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
     pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size = batch_size, num_threads = 2,
             device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
         if 'f' in np.dtype(target_type).kind:
             np.testing.assert_allclose(out, op(l_np, r_np),
                 rtol=1e-07 if target_type != np.float16 else 0.005)
@@ -235,13 +287,13 @@ def check_arithm_op(kinds, types, op, shape, _):
 
 
 def test_arithmetic_ops_big():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for (op, op_desc) in sane_operations:
             for types_in in [(np.int8, np.int8)]:
                 yield check_arithm_op, kinds, types_in, op, shape_big, op_desc
 
 def test_arithmetic_ops():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for (op, op_desc) in sane_operations:
             for types_in in itertools.product(input_types, input_types):
                 yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
@@ -249,40 +301,38 @@ def test_arithmetic_ops():
 # The div operator that always returns floating point values
 def check_arithm_fdiv(kinds, types, shape):
     left_type, right_type = types
-    left_kind, right_kind = kinds
     target_type = div_promote(left_type, right_type)
-    iterator = iter(ExternalInputIterator(batch_size, shape, left_type, right_type, left_kind, right_kind))
+    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
     pipe = ExprOpPipeline(kinds, types, iterator, (lambda x, y : x / y), batch_size = batch_size,
             num_threads = 2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
         np.testing.assert_allclose(out, l_np / r_np,
             rtol=1e-07 if target_type != np.float16 else 0.005)
 
 def test_arithmetic_float_big():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for types_in in [(np.int8, np.int8)]:
             yield check_arithm_fdiv, kinds, types_in, shape_big
 
 def test_arithmetic_float_division():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for types_in in itertools.product(input_types, input_types):
             yield check_arithm_fdiv, kinds, types_in, shape_small
 
 # The div operator behaves like C/C++ one
 def check_arithm_div(kinds, types, shape):
     left_type, right_type = types
-    left_kind, right_kind = kinds
     target_type = bin_promote(left_type, right_type)
-    iterator = iter(ExternalInputIterator(batch_size, shape, left_type, right_type, left_kind, right_kind))
+    iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
     pipe = ExprOpPipeline(kinds, types, iterator, (lambda x, y : x // y), batch_size = batch_size,
             num_threads = 2, device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
-        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
+        l_np, r_np, out = extract_bin_data(pipe_out, sample, kinds, target_type)
         if 'f' in np.dtype(target_type).kind:
             np.testing.assert_allclose(out, l_np / r_np,
                 rtol=1e-07 if target_type != np.float16 else 0.005)
@@ -295,11 +345,11 @@ def check_arithm_div(kinds, types, shape):
             np.testing.assert_array_equal(out, result)
 
 def test_arithmetic_division_big():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for types_in in [(np.int8, np.int8)]:
             yield check_arithm_div, kinds, types_in, shape_big
 
 def test_arithmetic_division():
-    for kinds in input_kinds:
+    for kinds in bin_inputs_kinds:
         for types_in in itertools.product(input_types, input_types):
             yield check_arithm_div, kinds, types_in, shape_small
