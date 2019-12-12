@@ -29,32 +29,42 @@ TEST(Scratchpad, ToContiguous) {
   ScratchpadEstimator se;
   std::vector<char> chars(301);
   std::vector<float> floats(1927);
+  std::vector<int16_t> shorts(1233);
   std::iota(chars.begin(), chars.end(), 1);
   std::iota(floats.begin(), floats.end(), 1);
+  std::iota(shorts.begin(), shorts.end(), 1);
 
   se.add<char>(AllocType::GPU, chars.size());
   se.add<float>(AllocType::GPU, floats.size());
+  se.add<int16_t>(AllocType::GPU, shorts.size());
   se.add<char>(AllocType::Host, chars.size());
   se.add<float>(AllocType::Host, floats.size());
+  se.add<int16_t>(AllocType::Host, shorts.size());
   ScratchpadAllocator sa;
   sa.Reserve(se.sizes);
   auto scratchpad = sa.GetScratchpad();
-  auto ptrs = ToContiguousGPUMem(scratchpad, 0, chars, floats);
+  auto ptrs = ToContiguousGPUMem(scratchpad, 0, chars, floats, shorts);
   std::vector<char> chars2(chars.size());
   std::vector<float> floats2(floats.size());
+  std::vector<int16_t> shorts2(shorts.size());
   cudaDeviceSynchronize();
   cudaMemcpy(chars2.data(), std::get<0>(ptrs), size_bytes(chars2), cudaMemcpyDeviceToHost);
   cudaMemcpy(floats2.data(), std::get<1>(ptrs), size_bytes(floats2), cudaMemcpyDeviceToHost);
+  cudaMemcpy(shorts2.data(), std::get<2>(ptrs), size_bytes(shorts2), cudaMemcpyDeviceToHost);
 
   EXPECT_EQ(chars, chars);
   EXPECT_EQ(floats, floats2);
+  EXPECT_EQ(shorts, shorts2);
 
-  ptrs = ToContiguousHostMem(scratchpad, chars, floats);
+  ptrs = ToContiguousHostMem(scratchpad, chars, floats, shorts);
+  size_t offsets[4] = { 0xdead, 0xdead, 0xdead, 0xdead };
   memcpy(chars2.data(), std::get<0>(ptrs), size_bytes(chars2));
   memcpy(floats2.data(), std::get<1>(ptrs), size_bytes(floats2));
+  memcpy(shorts2.data(), std::get<2>(ptrs), size_bytes(shorts2));
 
   EXPECT_EQ(chars, chars);
   EXPECT_EQ(floats, floats2);
+  EXPECT_EQ(shorts, shorts2);
 }
 
 }  // namespace kernels
