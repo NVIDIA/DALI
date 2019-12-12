@@ -19,11 +19,9 @@
 #include <tuple>
 #include <vector>
 #include "dali/kernels/scratch.h"
+#include "dali/kernels/common/utils.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
-
-#undef LOG_LINE
-#define LOG_LINE std::cout
 
 namespace dali {
 namespace kernels {
@@ -88,6 +86,32 @@ void ReferenceDctTypeIV(span<T> out, span<const T> in) {
   }
 }
 
+
+template <typename T>
+void ReferenceDct(int dct_type, span<T> out, span<const T> in) {
+  switch (dct_type) {
+    case 1:
+      ReferenceDctTypeI(out, in);
+      break;
+
+    case 2:
+      ReferenceDctTypeII(out, in);
+      break;
+
+    case 3:
+      ReferenceDctTypeIII(out, in);
+      break;
+
+    case 4:
+      ReferenceDctTypeIV(out, in);
+      break;
+
+    default:
+      ASSERT_TRUE(false);
+  }
+}
+
+
 class Dct1DCpuTest : public ::testing::TestWithParam<
   std::tuple<std::array<int64_t, 2>, int, int>> {
  public:
@@ -130,7 +154,7 @@ TEST_P(Dct1DCpuTest, DctTest) {
   ASSERT_LE(dct_type_, 4);
 
   auto n = in_shape[axis_];
-  LOG_LINE << "Test n=" << n << " axis=" << axis_ << std::endl;
+  LOG_LINE << "Test n=" << n << " axis=" << axis_ << " dct_type=" << dct_type_ << "\n";
 
   DctArgs args;
   args.axis = axis_;
@@ -153,40 +177,48 @@ TEST_P(Dct1DCpuTest, DctTest) {
   auto out_view = OutTensorCPU<OutputType, 2>(out_data.data(), out_shape.to_static<2>());
   kernel.Run(ctx, out_view, in_view_, args);
 
-  LOG_LINE << "Calculating reference\n";
-  std::vector<OutputType> ref(n, 0);
-  switch (dct_type_) {
-    case 1:
-      ReferenceDctTypeI(make_span(ref), make_cspan(in_view_.data, n));
-      break;
+  auto in_strides = GetStrides(in_shape);
+  auto out_strides = GetStrides(out_shape);
 
-    case 2:
-      ReferenceDctTypeII(make_span(ref), make_cspan(in_view_.data, n));
-      break;
+  auto in_stride = in_strides[axis_];
+  auto out_stride = in_strides[axis_];
 
-    case 3:
-      ReferenceDctTypeIII(make_span(ref), make_cspan(in_view_.data, n));
-      break;
+  assert(in_shape.size() == 2);  // assuming 2D for simplicity of this test
+  auto other_axis = axis_ == 1 ? 0 : 1;
 
-    case 4:
-      ReferenceDctTypeIV(make_span(ref), make_cspan(in_view_.data, n));
-      break;
+  auto nframes = in_shape[other_axis];
+  for (int64_t j = 0; j < nframes; j++) {
+    int64_t in_idx = j * in_strides[other_axis];
+    int64_t out_idx = j * out_strides[other_axis];
 
-    default:
-      ASSERT_TRUE(false);
-  }
+    LOG_LINE << "Frame " << j << " / " << nframes << "\n";
 
-  LOG_LINE << "Reference DCT:" << std::endl;
-  for (int k = 0; k < n; k++) {
-    LOG_LINE << " " << ref[k] << "\n";
-    ASSERT_NEAR(ref[k], out_data[k], 1e-4);
+    std::vector<InputType> in_buf(n, 0);
+    LOG_LINE << "Input: ";
+    for (int64_t i = 0; i < n; i++) {
+      in_buf[i] = in_view_.data[in_idx];
+      LOG_LINE << " " << in_view_.data[in_idx];
+      in_idx += in_stride;
+    }
+    LOG_LINE << "\n";
+
+    std::vector<OutputType> ref(n, 0);
+    ReferenceDct(dct_type_, make_span(ref), make_cspan(in_buf));
+
+    LOG_LINE << "DCT (type " << dct_type_ << "):";
+    for (int k = 0; k < n; k++) {
+      LOG_LINE << " " << ref[k];
+      ASSERT_NEAR(ref[k], out_data[out_idx], 1e-5);
+      out_idx += out_stride;
+    }
+    LOG_LINE << "\n";
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(Dct1DCpuTest, Dct1DCpuTest, testing::Combine(
     testing::Values(std::array<int64_t, 2>{8, 8}),  // shape
     testing::Values(1, 2, 3, 4),  // dct_type
-    testing::Values(1)            // axis
+    testing::Values(0, 1)  // axis
   ));  // NOLINT
 
 }  // namespace test
