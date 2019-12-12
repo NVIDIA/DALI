@@ -27,11 +27,10 @@ namespace dali {
 
 DALI_SCHEMA(ToDecibels)
     .DocStr(R"code(Converts a magnitude (real, positive) to the decibel scale, according to the
-formula:
-```
-    min_ratio = pow(10, cutoff_db / multiplier)
-    out[i] = multiplier * log10( max(min_ratio, input[i] / reference) )
-```)code")
+formula::
+
+  min_ratio = pow(10, cutoff_db / multiplier)
+  out[i] = multiplier * log10( max(min_ratio, input[i] / reference) ))code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
     .AddOptionalArg("multiplier",

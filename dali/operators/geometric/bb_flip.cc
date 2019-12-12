@@ -26,8 +26,8 @@ DALI_REGISTER_OPERATOR(BbFlip, BbFlip<CPUBackend>, CPU);
 
 DALI_SCHEMA(BbFlip)
     .DocStr(R"code(Operator for horizontal flip (mirror) of bounding box.
-Input: Bounding box coordinates; in either [x, y, w, h]
-or [left, top, right, bottom] format. All coordinates are
+Input: Bounding box coordinates; in either `[x, y, w, h]`
+or `[left, top, right, bottom]` format. All coordinates are
 in the image coordinate system (i.e. 0.0-1.0))code")
     .NumInput(1)
     .NumOutput(1)

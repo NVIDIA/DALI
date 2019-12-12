@@ -50,6 +50,8 @@ release = str(version_long)
 # generate table of supported operators and their devices
 subprocess.call(["python", "supported_op_devices.py", "op_inclusion"])
 
+keep_warnings = True
+
 # hack: version is used for html creation, so put the version picker
 # link here as well:
 option_on = " selected"

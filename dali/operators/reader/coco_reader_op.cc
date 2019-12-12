@@ -21,8 +21,8 @@ DALI_SCHEMA(COCOReader)
   .NumInput(0)
   .NumOutput(3)
   .DocStr(R"code(Read data from a COCO dataset composed of directory with images
-and an annotation files. For each image, with `m` bboxes, returns its bboxes as (m,4)
-Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as `(m,1)` Tensor (`m` * `category_id`).)code")
+and an annotation files. For each image, with `m` bboxes, returns its bboxes as `(m,4)`
+Tensor (``m * [x, y, w, h]`` or ``m * [left, top, right, bottom]``) and labels as `(m,1)` Tensor (``m * category_id``).)code")
   .AddOptionalArg(
     "meta_files_path",
     "Path to directory with meta files containing preprocessed COCO annotations.",
@@ -43,8 +43,10 @@ Tensor (`m` * `[x, y, w, h] or `m` * [left, top, right, bottom]`) and labels as 
       R"code(If true, segmentation masks are read and returned as polygons.
 Each mask can be one or more polygons. A polygon is a list of points (2 floats).
 For a given sample, the polygons are represented by two tensors:
-  `masks_meta` -> list of tuples (mask_idx, start_idx, count)
-  `masks_coords`-> list of (x,y) coordinates
+
+- `masks_meta` -> list of tuples (mask_idx, start_idx, count)
+- `masks_coords`-> list of (x,y) coordinates
+
 One mask can have one or more `masks_meta` having the same `mask_idx`, which means that the mask for that given
 index consists of several polygons).
 `start_idx` indicates the index of the first coords in `masks_coords`.

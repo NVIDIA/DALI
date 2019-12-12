@@ -25,15 +25,24 @@ DALI_SCHEMA(Pad)
 to match the size of the biggest dimension on those axes in the batch.
 The element padding axes is specified with the argument `axes`.
 Supported types: int, float.
+
 Examples:
-- Batch of 3 1-d samples, fill_value=-1, axes=(0,)
+
+- Batch of 3 `1-D` samples, `fill_value` = -1, `axes` = (0,)
+
+::
+
   input  = [{3, 4, 2, 5, 4},
             {2, 2},
             {3, 199, 5}};
   output = [{3, 4, 2, 5, 4},
             {2, 2, -1, -1, -1},
             {3, 199, 5, -1, -1}]
-- Batch of 2 2-d samples, fill_value=42, axes=(1,)
+
+- Batch of 2 `2-D` samples, `fill_value` = 42, `axes` = (1,)
+
+::
+
   input  = [{{1, 2 , 3, 4},
              {5, 6, 7, 8}},
             {{1, 2},
@@ -41,8 +50,7 @@ Examples:
   output = [{{1,  2,  3,  4},
              {5,  6,  7,  8}},
             {{1,  2, 42, 42},
-             {4,  5, 42, 42}}]
-)code")
+             {4,  5, 42, 42}}])code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("fill_value",

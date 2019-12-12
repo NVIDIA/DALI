@@ -77,9 +77,9 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
       3)
   .AddOptionalArg("additional_decode_surfaces",
       R"code(Additional decode surfaces to use beyond minimum required.
-      This is ignored when decoder is not able to determine minimum
-      number of decode surfaces, which may happen when using an older driver.
-      This parameter can be used trade off memory usage with performance.)code",
+This is ignored when decoder is not able to determine minimum
+number of decode surfaces, which may happen when using an older driver.
+This parameter can be used trade off memory usage with performance.)code",
       2)
   .AddOptionalArg("normalized",
       R"code(Get output as normalized data.)code",
@@ -96,8 +96,8 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
       R"code(Skips check for variable frame rate on videos. This is useful when heuristic fails.)code", false)
   .AddOptionalArg("file_list_frame_num",
       R"code(If start/end timestamps are provided in file_list, interpret them as frame
-      numbers instead of timestamp. If floating point values are given, then
-      start frame number is ceiling of the number and end frame number is floor of
-      the number. Frame numbers start from 0.)code", false)
+numbers instead of timestamp. If floating point values are given, then
+start frame number is ceiling of the number and end frame number is floor of
+the number. Frame numbers start from 0.)code", false)
   .AddParent("LoaderBase");
 }  // namespace dali

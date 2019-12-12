@@ -185,14 +185,14 @@ DALI_REGISTER_OPERATOR(BoxEncoder, BoxEncoder<CPUBackend>, CPU);
 
 DALI_SCHEMA(BoxEncoder)
     .DocStr(
-        R"code("Encodes input bounding boxes and labels using set of default boxes (anchors) passed
+        R"code(Encodes input bounding boxes and labels using set of default boxes (anchors) passed
 during op construction. Follows algorithm described in https://arxiv.org/abs/1512.02325 and
 implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd
 Inputs must be supplied as two Tensors: `BBoxes` containing bounding boxes represented as
 `[l,t,r,b]`, and `Labels` containing the corresponding label for each bounding box.
 Results are two tensors: `EncodedBBoxes` containing M encoded bounding boxes as `[l,t,r,b]`,
 where M is number of anchors and `EncodedLabels` containing the corresponding label for each
-encoded box.")code")
+encoded box.)code")
     .NumInput(2)
     .NumOutput(2)
     .AddArg("anchors",
@@ -205,7 +205,7 @@ encoded box.")code")
     .AddOptionalArg(
         "offset",
         R"code(Returns normalized offsets `((encoded_bboxes*scale - anchors*scale) - mean) / stds`
-               in `EncodedBBoxes` using `std`, `mean` and `scale` arguments (default values are transparent).)code",
+in `EncodedBBoxes` using `std`, `mean` and `scale` arguments (default values are transparent).)code",
         false)
     .AddOptionalArg("scale",
             R"code(Rescale the box and anchors values before offset calculation (e.g. to get back to absolute values).)code",

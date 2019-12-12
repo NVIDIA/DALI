@@ -23,8 +23,9 @@ This operator is a generic way of handling encoded data in DALI.
 It supports most of well-known audio formats (wav, flac, ogg).
 
 This operator produces two outputs:
-output[0]: batch of decoded data
-output[1]: batch of sampling rates [Hz]
+
+* output[0]: batch of decoded data
+* output[1]: batch of sampling rates [Hz]
 
 Sample rate (output[1]) at index `i` corresponds to sample (output[0]) at index `i`.
 On the event more metadata will appear, we reserve a right to change this behaviour.)code")
