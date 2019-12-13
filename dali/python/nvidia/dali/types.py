@@ -102,9 +102,13 @@ class CUDAStream:
         """Raw CUDA stream pointer, stored as uint64."""
         return self._ptr
 
-_float_types = [DALIDataType.FLOAT16, DALIDataType.FLOAT, DALIDataType.FLOAT64]
+_bool_types = [DALIDataType.BOOL]
 _int_types = [DALIDataType.INT8, DALIDataType.INT16, DALIDataType.INT32, DALIDataType.INT64,
               DALIDataType.UINT8, DALIDataType.UINT16, DALIDataType.UINT32, DALIDataType.UINT64]
+_float_types = [DALIDataType.FLOAT16, DALIDataType.FLOAT, DALIDataType.FLOAT64]
+
+_int_like_types = _bool_types + _int_types
+_all_types = _bool_types + _int_types + _float_types
 
 class Constant(object):
     """Wrapper for a constant value that can be used in arithmetic operations
@@ -112,27 +116,35 @@ class Constant(object):
 
     It indicates what type it should be treated as. The integers values
     will be passed to DALI as `int32` and the floating point values as `float32`.
-    Python builtin types `int` and `float` will also be treated as those types.
+    Python builtin types `bool`, `int` and `float` will also be treated as those types.
     """
     def __init__(self, value, dtype=None):
-        if not isinstance(value, (int, float)):
-            raise TypeError("Expected scalar value of type 'int' or 'float', got {}."
+        if not isinstance(value, (bool, int, float)):
+            raise TypeError("Expected scalar value of type 'bool', int' or 'float', got {}."
                     .format(str(type(value))))
         if dtype:
             self.dtype = dtype
-            if self.dtype in _int_types:
+            if self.dtype in _bool_types:
+                self.value = bool(value)
+            elif self.dtype in _int_types:
                 self.value = int(value)
             elif self.dtype in _float_types:
                 self.value = float(value)
             else:
                 raise TypeError("DALI Constant can only hold one of: {} types."
-                        .format(_int_types + _float_types))
+                        .format(_all_types))
+        elif isinstance(value, bool):
+            self.value = value
+            self.dtype = DALIDataType.BOOL
         elif isinstance(value, int):
             self.value = value
             self.dtype = DALIDataType.INT32
         elif isinstance(value, float):
             self.value = value
             self.dtype = DALIDataType.FLOAT
+
+    def bool(self):
+        return Constant(self.value, DALIDataType.BOOL)
 
     def int8(self):
         return Constant(self.value, DALIDataType.INT8)
@@ -168,19 +180,34 @@ class Constant(object):
         return Constant(self.value, DALIDataType.FLOAT64)
 
     def __eq__(self, other):
-        return self.value == other.value and self.dtype == other.dtype
+        if isinstance(other, Constant):
+            return self.value == other.value and self.dtype == other.dtype
+        # Delegate the call to the `__eq__` of other object, most probably an `_EdgeReference`
+        return other.__eq__(self)
+
+    def __ne__(self, other):
+        if isinstance(other, Constant):
+            return self.value != other.value or self.dtype != other.dtype
+        # Delegate the call to the `__ne__` of other object, most probably an `_EdgeReference`
+        return other.__ne__(self)
+
+    def __bool__(self):
+        if self.dtype in _int_like_types:
+            return bool(self.value)
+        raise TypeError(("DALI Constant must be converted to one of bool or int types: ({}) "
+                "explicitly before casting to builtin `bool`.").format(_int_like_types))
 
     def __int__(self):
-        if self.dtype in _int_types:
-            return self.value
-        raise TypeError("DALI Constant must be converted to one of int types explicitly before "
-                "casting to builtin 'int'.")
+        if self.dtype in _int_like_types:
+            return int(self.value)
+        raise TypeError(("DALI Constant must be converted to one of bool or int types: ({}) "
+                "explicitly before casting to builtin `int`.").format(_int_like_types))
 
     def __float__(self):
         if self.dtype in _float_types:
             return self.value
-        raise TypeError("DALI Constant must be converted to one of float types explicitly before "
-                "casting to builtin 'float'.")
+        raise TypeError(("DALI Constant must be converted to one of the float types: ({}) "
+                "explicitly before casting to builtin `float`.").format(_float_types))
 
     def __str__(self):
         return "{}:{}".format(self.value, self.dtype)

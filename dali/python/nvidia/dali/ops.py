@@ -20,7 +20,8 @@ from itertools import count
 import threading
 from nvidia.dali import backend as b
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, \
-        _vector_element_type, _int_types, _float_types, DALIDataType, CUDAStream, Constant
+        _vector_element_type, _bool_types, _int_types, _int_like_types, _float_types, \
+        DALIDataType, CUDAStream, Constant
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
@@ -69,6 +70,24 @@ class _EdgeReference(object):
     # Shortucitng the execution, unary + is basically a no-op
     def __pos__(self):
         return self
+
+    def __eq__(self, other):
+        return _arithm_op("eq", self, other)
+
+    def __ne__(self, other):
+        return _arithm_op("neq", self, other)
+
+    def __lt__(self, other):
+        return _arithm_op("lt", self, other)
+
+    def __le__(self, other):
+        return _arithm_op("leq", self, other)
+
+    def __gt__(self, other):
+        return _arithm_op("gt", self, other)
+
+    def __ge__(self, other):
+        return _arithm_op("geq", self, other)
 
 _cpu_ops = set({})
 _gpu_ops = set({})
@@ -608,11 +627,22 @@ def _choose_device(inputs):
         return "gpu"
     return "cpu"
 
+def _is_boolean_like(input):
+    if type(input) == bool:
+        return True
+    if isinstance(input, Constant):
+        if input.dtype in _bool_types:
+            return True
+    return False
+
+# Boolean and integer types are considered integer-like
 def _is_integer_like(input):
+    if _is_boolean_like(input):
+        return True
     if type(input) == int:
         return True
     if isinstance(input, Constant):
-        if input.dtype in _int_types:
+        if input.dtype in _int_like_types:
             return True
     return False
 
@@ -626,27 +656,30 @@ def _is_real_like(input):
 
 # <type> description required by ArithmeticGenericOp
 def _to_type_desc(input):
-    if  type(input) == int:
+    if type(input) == bool:
+        return "bool"
+    if type(input) == int:
         return "int32"
     if type(input) == float:
         return "float32" # TODO(klecki): current DALI limitation
     if isinstance(input, Constant):
         dtype_to_desc = {
-            DALIDataType.INT8: "int8",
-            DALIDataType.INT16: "int16",
-            DALIDataType.INT32: "int32",
-            DALIDataType.INT64: "int64",
-            DALIDataType.UINT8: "uint8",
-            DALIDataType.UINT16: "uint16",
-            DALIDataType.UINT32: "uint32",
-            DALIDataType.UINT64: "uint64",
+            DALIDataType.BOOL:    "bool",
+            DALIDataType.INT8:    "int8",
+            DALIDataType.INT16:   "int16",
+            DALIDataType.INT32:   "int32",
+            DALIDataType.INT64:   "int64",
+            DALIDataType.UINT8:   "uint8",
+            DALIDataType.UINT16:  "uint16",
+            DALIDataType.UINT32:  "uint32",
+            DALIDataType.UINT64:  "uint64",
             DALIDataType.FLOAT16: "float16",
-            DALIDataType.FLOAT: "float32",
+            DALIDataType.FLOAT:   "float32",
             DALIDataType.FLOAT64: "float64",
         }
         return dtype_to_desc[input.dtype]
     raise TypeError(("Constant argument to arithmetic operation not supported. Got {}, expected "
-            "a constant value of type 'int', 'float' or 'nvidia.dali.types.Constant'.")
+            "a constant value of type 'bool', 'int', 'float' or 'nvidia.dali.types.Constant'.")
             .format(str(type(input))))
 
 
@@ -670,7 +703,7 @@ def _group_inputs(inputs):
             reals.append(input)
         else:
             raise TypeError(("Argument to arithmetic operation not supported. Got {}, expected "
-                    "a return value from other DALI Operator  or a constant value of type 'int', "
+                    "a return value from other DALI Operator  or a constant value of type 'bool', 'int', "
                     "'float' or 'nvidia.dali.types.Constant'.").format(str(type(input))))
     if len(integers) == 0:
         integers = None
@@ -693,7 +726,7 @@ def _generate_input_desc(categories_idx, integers, reals):
             input_desc += " "
     return input_desc
 
-# Create arguments for ArithmeticGenericOp andd call it with supplied inputs.
+# Create arguments for ArithmeticGenericOp and call it with supplied inputs.
 # Select the `gpu` device if at least one of the inputs is `gpu`, otherwise `cpu`.
 def _arithm_op(name, *inputs):
     categories_idxs, edges, integers, reals = _group_inputs(inputs)
@@ -708,7 +741,7 @@ def _arithm_op(name, *inputs):
         dev_inputs = list(edge.gpu() for edge in edges)
     else:
         dev_inputs = edges
-    # Call it imediatelly
+    # Call it immediately
     return op(*dev_inputs)
 
 def cpu_ops():
