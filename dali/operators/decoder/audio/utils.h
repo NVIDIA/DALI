@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_asdasdasdasdLS_H
-#define DALI_asdasdasdasdLS_H
+#ifndef DALI_OPERATORS_DECODER_AUDIO_UTILS_H_
+#define DALI_OPERATORS_DECODER_AUDIO_UTILS_H_
 
-#include <cassert>
-#include <cmath>
 #include <functional>
 #include <numeric>
+#include <utility>
+#include <vector>
+#include <cassert>
+#include <cmath>
 #include "dali/core/error_handling.h"
 #include "dali/core/span.h"
 
@@ -84,7 +86,7 @@ struct sinc_coeffs {
     float scale_envelope = 2.0f / coeffs;
     this->coeffs = coeffs;
     this->lobes = lobes;
-    lookup.resize(coeffs + 2); // add zeros
+    lookup.resize(coeffs + 2);  // add zeros
     center = (coeffs - 1) * 0.5f;
     for (int i = 0; i < coeffs; i++) {
       float x = (i - center) * scale;
@@ -109,7 +111,7 @@ struct sinc_coeffs {
     float fi = x * scale + center;
     int i = std::floor(fi);
     float di = fi - i;
-    assert(i >= 0 && i < (int) lookup.size());
+    assert(i >= 0 && i < (int) lookup.size());  // NOLINT
     return lookup[i] + di * (lookup[i + 1] - lookup[i]);
   }
 
@@ -161,6 +163,6 @@ void resample_sinc(
 }  // namespace resampling
 
 
-}
+}  // namespace dali
 
-#endif //DALI_UTILS_H
+#endif  // DALI_OPERATORS_DECODER_AUDIO_UTILS_H_

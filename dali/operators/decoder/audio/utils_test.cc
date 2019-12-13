@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <vector>
 #include "dali/operators/decoder/audio/utils.h"
 
 namespace dali {
