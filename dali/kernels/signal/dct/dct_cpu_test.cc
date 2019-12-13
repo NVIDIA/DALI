@@ -162,7 +162,7 @@ TEST_P(Dct1DCpuTest, DctTest) {
   check_kernel<decltype(kernel)>();
 
   if (normalize_ && dct_type_ == 1) {
-    return; // skip test.
+    return;  // Unsupported, skip this test.
   }
 
   KernelContext ctx;
