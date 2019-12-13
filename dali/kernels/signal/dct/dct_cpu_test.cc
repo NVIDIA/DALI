@@ -30,80 +30,93 @@ namespace dct {
 namespace test {
 
 template <typename T>
-void ReferenceDctTypeI(span<T> out, span<const T> in) {
+void ReferenceDctTypeI(span<T> out, span<const T> in, bool normalize) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
   T phase_mul = M_PI / (in_length - 1);
   for (int64_t k = 0; k < out_length; k++) {
     T sign = (k % 2 == 0) ? T(1) : T(-1);
-    T sum = T(0.5) * (in[0] + sign * in[in_length - 1]);
-    for (int64_t n = 0; n < in_length; n++) {
-      sum += in[n] * std::cos(phase_mul * n * k);
+    T out_val = T(0.5) * (in[0] + sign * in[in_length-1]);
+    for (int64_t n = 1; n < in_length - 1; n++) {
+      out_val += in[n] * std::cos(phase_mul * n * k);
     }
-    out[k] = sum;
+    out[k] = out_val;
   }
 }
 
 template <typename T>
-void ReferenceDctTypeII(span<T> out, span<const T> in) {
+void ReferenceDctTypeII(span<T> out, span<const T> in, bool normalize) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
   T phase_mul = M_PI / in_length;
+  T factor_k_0 = 1, factor_k_i = 1;
+  if (normalize) {
+    factor_k_i = std::sqrt(T(2) / in_length);
+    factor_k_0 = factor_k_i / std::sqrt(T(2));
+  }
   for (int64_t k = 0; k < out_length; k++) {
-    T sum = 0;
+    T out_val = 0;
     for (int64_t n = 0; n < in_length; n++) {
-      sum += in[n] * std::cos(phase_mul * (n + T(0.5)) * k);
+      out_val += in[n] * std::cos(phase_mul * (n + T(0.5)) * k);
     }
-    out[k] = sum;
+    T factor = (k == 0) ? factor_k_0 : factor_k_i;
+    out[k] = factor * out_val;
   }
 }
 
 template <typename T>
-void ReferenceDctTypeIII(span<T> out, span<const T> in) {
+void ReferenceDctTypeIII(span<T> out, span<const T> in, bool normalize) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
   T phase_mul = M_PI / in_length;
+  T factor_n_0 = 0.5, factor_n_i = 1;
+  if (normalize) {
+    factor_n_i = std::sqrt(T(2) / in_length);
+    factor_n_0 = factor_n_i / std::sqrt(T(2));
+  }
+
   for (int64_t k = 0; k < out_length; k++) {
-    T sum = T(0.5) * in[0];
-    for (int64_t n = 0; n < in_length; n++) {
-      sum += in[n] * std::cos(phase_mul * n * (k + T(0.5)));
+    T out_val = factor_n_0 * in[0];
+    for (int64_t n = 1; n < in_length; n++) {
+      out_val += factor_n_i * in[n] * std::cos(phase_mul * n * (k + T(0.5)));
     }
-    out[k] = sum;
+    out[k] = out_val;
   }
 }
 
 template <typename T>
-void ReferenceDctTypeIV(span<T> out, span<const T> in) {
+void ReferenceDctTypeIV(span<T> out, span<const T> in, bool normalize) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
   T phase_mul = M_PI / in_length;
+  T factor = normalize ? std::sqrt(T(2) / in_length) : 1;
   for (int64_t k = 0; k < out_length; k++) {
-    T sum = 0;
+    T out_val = 0;
     for (int64_t n = 0; n < in_length; n++) {
-      sum += in[n] * std::cos(phase_mul * (n + T(0.5)) * (k + T(0.5)));
+      out_val += factor * in[n] * std::cos(phase_mul * (n + T(0.5)) * (k + T(0.5)));
     }
-    out[k] = sum;
+    out[k] = out_val;
   }
 }
 
 
 template <typename T>
-void ReferenceDct(int dct_type, span<T> out, span<const T> in) {
+void ReferenceDct(int dct_type, span<T> out, span<const T> in, bool normalize) {
   switch (dct_type) {
     case 1:
-      ReferenceDctTypeI(out, in);
+      ReferenceDctTypeI(out, in, normalize);
       break;
 
     case 2:
-      ReferenceDctTypeII(out, in);
+      ReferenceDctTypeII(out, in, normalize);
       break;
 
     case 3:
-      ReferenceDctTypeIII(out, in);
+      ReferenceDctTypeIII(out, in, normalize);
       break;
 
     case 4:
-      ReferenceDctTypeIV(out, in);
+      ReferenceDctTypeIV(out, in, normalize);
       break;
 
     default:
@@ -113,12 +126,13 @@ void ReferenceDct(int dct_type, span<T> out, span<const T> in) {
 
 
 class Dct1DCpuTest : public ::testing::TestWithParam<
-  std::tuple<std::array<int64_t, 2>, int, int>> {
+  std::tuple<std::array<int64_t, 2>, int, int, bool>> {
  public:
   Dct1DCpuTest()
       : data_shape_(std::get<0>(GetParam()))
       , dct_type_(std::get<1>(GetParam()))
       , axis_(std::get<2>(GetParam()))
+      , normalize_(std::get<3>(GetParam()))
       , data_(volume(data_shape_))
       , in_view_(data_.data(), data_shape_) {}
 
@@ -132,6 +146,7 @@ class Dct1DCpuTest : public ::testing::TestWithParam<
   TensorShape<2> data_shape_;
   int dct_type_ = 2;
   int axis_ = 1;
+  bool normalize_ = false;
 
   std::vector<float> data_;
   OutTensorCPU<float, 2> in_view_;
@@ -143,6 +158,10 @@ TEST_P(Dct1DCpuTest, DctTest) {
   constexpr int Dims = 2;
   Dct1DCpu<OutputType, InputType, Dims> kernel;
   check_kernel<decltype(kernel)>();
+
+  if (normalize_ && dct_type_ == 1) {
+    return; // skip test.
+  }
 
   KernelContext ctx;
 
@@ -159,6 +178,7 @@ TEST_P(Dct1DCpuTest, DctTest) {
   DctArgs args;
   args.axis = axis_;
   args.dct_type = dct_type_;
+  args.normalize = normalize_;
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
@@ -203,12 +223,12 @@ TEST_P(Dct1DCpuTest, DctTest) {
     LOG_LINE << "\n";
 
     std::vector<OutputType> ref(n, 0);
-    ReferenceDct(dct_type_, make_span(ref), make_cspan(in_buf));
+    ReferenceDct(dct_type_, make_span(ref), make_cspan(in_buf), normalize_);
 
     LOG_LINE << "DCT (type " << dct_type_ << "):";
     for (int k = 0; k < n; k++) {
       LOG_LINE << " " << ref[k];
-      ASSERT_NEAR(ref[k], out_data[out_idx], 1e-5);
+      EXPECT_NEAR(ref[k], out_data[out_idx], 1e-3);
       out_idx += out_stride;
     }
     LOG_LINE << "\n";
@@ -216,9 +236,11 @@ TEST_P(Dct1DCpuTest, DctTest) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Dct1DCpuTest, Dct1DCpuTest, testing::Combine(
-    testing::Values(std::array<int64_t, 2>{8, 8}),  // shape
+    testing::Values(std::array<int64_t, 2>{8, 8},
+                    std::array<int64_t, 2>{100, 300}),  // shape
     testing::Values(1, 2, 3, 4),  // dct_type
-    testing::Values(0, 1)  // axis
+    testing::Values(0, 1),  // axis
+    testing::Values(false, true)  // normalize
   ));  // NOLINT
 
 }  // namespace test
