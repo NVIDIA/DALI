@@ -96,7 +96,7 @@ void FillCosineTableTypeIV(T *table, int64_t input_length, int64_t ndct, bool no
 
 template <typename T>
 void FillCosineTable(T *table, int64_t input_length, int64_t ndct, int dct_type, bool normalize) {
-  switch(dct_type) {
+  switch (dct_type) {
     case 1:
       FillCosineTableTypeI(table, input_length, ndct, normalize);
       break;
@@ -152,7 +152,7 @@ Dct1DCpu<OutputType, InputType, Dims>::Setup(KernelContext &context,
     auto cos_table_sz = n * args.ndct;
     cos_table_.resize(cos_table_sz);
     FillCosineTable(cos_table_.data(), n, args.ndct, args.dct_type, args.normalize);
-    args_ = std::move(args);
+    args_ = args;
   }
 
   KernelRequirements req;
