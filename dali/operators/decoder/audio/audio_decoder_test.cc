@@ -17,7 +17,6 @@
 #include <string>
 #include "dali/core/format.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
-#include "dali/operators/decoder/audio/audio_decoder_op.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/core/span.h"
 
