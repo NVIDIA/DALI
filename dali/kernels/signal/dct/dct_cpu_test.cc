@@ -126,13 +126,14 @@ void ReferenceDct(int dct_type, span<T> out, span<const T> in, bool normalize) {
 
 
 class Dct1DCpuTest : public ::testing::TestWithParam<
-  std::tuple<std::array<int64_t, 2>, int, int, bool>> {
+  std::tuple<std::array<int64_t, 2>, int, int, bool, int>> {
  public:
   Dct1DCpuTest()
       : data_shape_(std::get<0>(GetParam()))
       , dct_type_(std::get<1>(GetParam()))
       , axis_(std::get<2>(GetParam()))
       , normalize_(std::get<3>(GetParam()))
+      , ndct_(std::get<4>(GetParam()))
       , data_(volume(data_shape_))
       , in_view_(data_.data(), data_shape_) {}
 
@@ -147,6 +148,7 @@ class Dct1DCpuTest : public ::testing::TestWithParam<
   int dct_type_ = 2;
   int axis_ = 1;
   bool normalize_ = false;
+  int ndct_ = -1;
 
   std::vector<float> data_;
   OutTensorCPU<float, 2> in_view_;
@@ -173,12 +175,14 @@ TEST_P(Dct1DCpuTest, DctTest) {
   ASSERT_LE(dct_type_, 4);
 
   auto n = in_shape[axis_];
-  LOG_LINE << "Test n=" << n << " axis=" << axis_ << " dct_type=" << dct_type_ << "\n";
+  LOG_LINE << "Test n=" << n << " axis=" << axis_ << " dct_type=" << dct_type_
+           << " ndct=" << ndct_ << "\n";
 
   DctArgs args;
   args.axis = axis_;
   args.dct_type = dct_type_;
   args.normalize = normalize_;
+  args.ndct = ndct_;
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
@@ -188,6 +192,12 @@ TEST_P(Dct1DCpuTest, DctTest) {
   ctx.scratchpad = &scratchpad;
 
   TensorShape<> expected_out_shape = in_shape;
+
+  if (ndct_ <= 0 || ndct_ > n) {
+    ndct_ = n;
+  }
+  expected_out_shape[axis_] = ndct_;
+
   auto out_shape = reqs.output_shapes[0][0];
   ASSERT_EQ(expected_out_shape, out_shape);
 
@@ -222,11 +232,11 @@ TEST_P(Dct1DCpuTest, DctTest) {
     }
     LOG_LINE << "\n";
 
-    std::vector<OutputType> ref(n, 0);
+    std::vector<OutputType> ref(ndct_, 0);
     ReferenceDct(dct_type_, make_span(ref), make_cspan(in_buf), normalize_);
 
     LOG_LINE << "DCT (type " << dct_type_ << "):";
-    for (int k = 0; k < n; k++) {
+    for (int k = 0; k < ndct_; k++) {
       LOG_LINE << " " << ref[k];
       EXPECT_NEAR(ref[k], out_data[out_idx], 1e-3);
       out_idx += out_stride;
@@ -237,10 +247,11 @@ TEST_P(Dct1DCpuTest, DctTest) {
 
 INSTANTIATE_TEST_SUITE_P(Dct1DCpuTest, Dct1DCpuTest, testing::Combine(
     testing::Values(std::array<int64_t, 2>{8, 8},
-                    std::array<int64_t, 2>{100, 300}),  // shape
+                    std::array<int64_t, 2>{100, 80}),  // shape
     testing::Values(1, 2, 3, 4),  // dct_type
     testing::Values(0, 1),  // axis
-    testing::Values(false, true)  // normalize
+    testing::Values(false, true),  // normalize
+    testing::Values(-1, 4)  // ndct
   ));  // NOLINT
 
 }  // namespace test
