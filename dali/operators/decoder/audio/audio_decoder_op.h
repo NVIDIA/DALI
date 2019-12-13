@@ -1,6 +1,3 @@
-
-
-
 // Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,35 +35,6 @@ const std::string kSampleRateName = "sample_rate";  // NOLINT
 const int kNumOutputs = 2;
 
 
-/**
- * Downmixing data to mono-channel. It's safe to do it in-place.
- * Assumes, that `out` buffer is properly allocated
- * (i.e. has `n_in`/`n_channels_in` elements at least)
- */
-template<typename T>
-void Downmixing(T *out, const T *in, size_t n_in, size_t n_channels_in) {
-  DALI_ENFORCE(n_channels_in > 1, "You can't downmix mono-channel data");
-  DALI_ENFORCE(n_in % n_channels_in == 0, "Data layout incorrect");
-  for (size_t i = 0; i < n_in; i++) {
-    *out = *in++;
-    for (size_t j = 1; j < n_channels_in; j++) {
-      *out += *in++;
-    }
-    *out++ /= n_channels_in;
-  }
-}
-
-
-template<typename T>
-void Downmixing(span<T> out, span<const T> in, size_t n_channels_in) {
-  Downmixing(out.data(), in.data(), in.size(), n_channels_in);
-}
-
-//template<typename T>
-//void Downmixing(T *out, const T *in, size_t n_in, size_t n_channels_in) {
-//std::vector<int> weights(n_channels_in, 1);
-//}
-
 }  // namespace detail
 
 class AudioDecoderCpu : public Operator<CPUBackend> {
@@ -84,6 +52,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
 //                 "Resampling currently supported only for float output");
   }
 
+
   inline ~AudioDecoderCpu() override = default;
 
  protected:
@@ -91,22 +60,18 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
 
   void RunImpl(workspace_t<Backend> &ws) override;
 
+
   bool CanInferOutputs() const override {
     return true;
   }
 
  private:
-
-
   bool NeedsResampling() {
     return target_sample_rate_ != -1;
   }
 
-
   class DecoderHelper;
-
   class DirectDecoder;
-
   class ResamplingDecoder;
 
   DALIDataType output_type_;
