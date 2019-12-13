@@ -150,92 +150,97 @@ Prerequisites
 
 .. note::
 
-   This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here. <https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2>`_
+  This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here`__.
 
-   FFmpeg was compiled using the following command line:
+  .. __: `ffmpeg link`_
 
-.. code-block:: bash
+  FFmpeg was compiled using the following command line:
+
+  .. code-block:: bash
 
     ./configure \
-     --prefix=/usr/local \
-     --disable-static \
-     --disable-all \
-     --disable-autodetect \
-     --disable-iconv \
-     --enable-shared \
-     --enable-avformat \
-     --enable-avcodec \
-     --enable-avfilter \
-     --enable-protocol=file \
-     --enable-demuxer=mov,matroska,avi \
-     --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes  && \
-     make
+    --prefix=/usr/local \
+    --disable-static \
+    --disable-all \
+    --disable-autodetect \
+    --disable-iconv \
+    --enable-shared \
+    --enable-avformat \
+    --enable-avcodec \
+    --enable-avfilter \
+    --enable-protocol=file \
+    --enable-demuxer=mov,matroska,avi \
+    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes  && \
+    make
 
 .. note::
 
-   This software uses the libsnd licensed under the LGPLv2.1. Its source can be downloaded `from here. <https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz>`_
+  This software uses the libsnd licensed under the LGPLv2.1. Its source can be downloaded `from here`__.
 
-   libsnd was compiled using the following command line:
+  .. __: `libsnd link`_
 
-.. code-block:: bash
+  libsnd was compiled using the following command line:
+
+  .. code-block:: bash
 
     ./configure && make
 
 
 Get the DALI source
-^^^^^^^^^^^^^^^^^^^
++++++++++++++++++++
 
 .. code-block:: bash
 
-    git clone --recursive https://github.com/NVIDIA/dali
-    cd dali
+  git clone --recursive https://github.com/NVIDIA/dali
+  cd dali
 
 Make the build directory
-^^^^^^^^^^^^^^^^^^^^^^^^
+++++++++++++++++++++++++
 
 .. code-block:: bash
 
-    mkdir build
-    cd build
+  mkdir build
+  cd build
 
 
 Compile DALI
 ^^^^^^^^^^^^
 
 Building DALI without LMDB support:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++++++++++++++++++++++++++++++++++++
 
 .. code-block:: bash
 
-    cmake ..
-    make -j"$(nproc)"
+  cmake ..
+  make -j"$(nproc)"
 
 
 Building DALI with LMDB support:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+++++++++++++++++++++++++++++++++
 
 .. code-block:: bash
 
-    cmake -DBUILD_LMDB=ON ..
-    make -j"$(nproc)"
+  cmake -DBUILD_LMDB=ON ..
+  make -j"$(nproc)"
 
 
 Building DALI using Clang (experimental):
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++++++++++++++++++++++++++++++++++++++++++
 
 .. note::
 
-   This build is experimental. It is neither maintained nor tested. It is not guaranteed to work.
-   We recommend using GCC for production builds.
+  This build is experimental. It is neither maintained nor tested. It is not guaranteed to work.
+  We recommend using GCC for production builds.
 
 
 .. code-block:: bash
 
-    cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang  ..
-    make -j"$(nproc)"
+  cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang  ..
+  make -j"$(nproc)"
 
 
-**Optional CMake build parameters**:
+Optional CMake build parameters:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 -  ``BUILD_PYTHON`` - build Python bindings (default: ON)
 -  ``BUILD_TEST`` - include building test suite (default: ON)
@@ -253,11 +258,13 @@ Building DALI using Clang (experimental):
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
 -  ``BUILD_WITH_ASAN`` - build with ASAN support (default: OFF). To run issue:
 
-   LD_LIBRARY_PATH=. ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0 ASAN_SYMBOLIZER_PATH=$(shell which llvm-symbolizer)
-   LD_PRELOAD= *PATH_TO_LIB_ASAN* /libasan.so. *X* *PATH_TO_BINARY*
+.. code-block:: bash
 
-   Where *X* depends on used compiler version, for example GCC 7.x uses 4. Tested with GCC 7.4, CUDA 10.0
-   and libasan.4. Any earlier version may not work.
+  LD_LIBRARY_PATH=. ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0 ASAN_SYMBOLIZER_PATH=$(shell which llvm-symbolizer)
+  LD_PRELOAD= *PATH_TO_LIB_ASAN* /libasan.so. *X* *PATH_TO_BINARY*
+
+  Where *X* depends on used compiler version, for example GCC 7.x uses 4. Tested with GCC 7.4, CUDA 10.0
+  and libasan.4. Any earlier version may not work.
 
 -  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
