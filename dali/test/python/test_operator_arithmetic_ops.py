@@ -168,7 +168,7 @@ def float_generator(shape, type, _):
         return type([np.random.rand()])
 
 # Generates inputs of required shapes and types
-# The number of inputs is based on the lenghth of tuple `types`, if types is a single elementm
+# The number of inputs is based on the length of tuple `types`, if types is a single element
 # it is considered we should generate 1 output.
 # If the kind contains 'scalar', than the result is batch of scalar tensors.
 # the "shape" of `kinds` arguments should match the `types` argument - single elements or tuples of
