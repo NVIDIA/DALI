@@ -48,8 +48,8 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
           target_sample_rate_(spec.GetArgument<int>(detail::kSampleRateName)) {
     DALI_ENFORCE(target_sample_rate_ == -1 || target_sample_rate_ > 0,
                  "Target sample rate has to be positive or `-1`");
-//    DALI_ENFORCE(target_sample_rate_ == -1 || output_type_ == DALI_FLOAT,
-//                 "Resampling currently supported only for float output");
+    DALI_ENFORCE(target_sample_rate_ == -1 || output_type_ == DALI_FLOAT,
+                 "Resampling currently supported only for float output");
   }
 
 
