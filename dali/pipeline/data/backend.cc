@@ -14,6 +14,7 @@
 
 #include "dali/pipeline/data/backend.h"
 
+#include <shared_mutex>
 #include <mutex>
 #include <memory>
 #include <unordered_map>
@@ -41,7 +42,7 @@ class AllocatorManager {
                             const OpSpec &pinned_cpu_allocator,
                             const OpSpec &gpu_allocator) {
     // Lock so we can give a good error if the user calls this from multiple threads.
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::shared_timed_mutex> lock(mutex_);
     DALI_ENFORCE(cpu_allocator_ == nullptr, "DALI CPU allocator already set");
     DALI_ENFORCE(pinned_cpu_allocator_ == nullptr, "DALI Pinned CPU allocator already set");
     DALI_ENFORCE(gpu_allocators_.size() == 0, "DALI GPU allocator already set");
@@ -69,36 +70,44 @@ class AllocatorManager {
   static GPUAllocator& GetGPUAllocator() {
     int dev;
     CUDA_CALL(cudaGetDevice(&dev));
-    auto gpu_allocator = gpu_allocators_.find(dev);
     // Lazy allocation per device
-    if (gpu_allocator == gpu_allocators_.end()) {
-      MAP_INSERT_OR_UPDATE(
-        GPUAllocatorRegistry::Registry().Create(gpu_opspec_->name(), *gpu_opspec_));
-      gpu_allocator = gpu_allocators_.find(dev);
+    {
+      std::shared_lock<std::shared_timed_mutex> lock(mutex_);
+      auto gpu_allocator = gpu_allocators_.find(dev);
+      bool found = gpu_allocator != gpu_allocators_.end();
+      if (found) {
+        return *gpu_allocator->second;
+      }
     }
-    return *gpu_allocator->second.get();
+    std::lock_guard<std::shared_timed_mutex> lock(mutex_);
+    auto &instance = gpu_allocators_[dev];
+
+    if (!instance) {
+      instance = GPUAllocatorRegistry::Registry().Create(gpu_opspec_->name(), *gpu_opspec_);
+    }
+    return *instance;
   }
 
   static void SetCPUAllocator(const OpSpec& allocator) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::shared_timed_mutex> lock(mutex_);
     cpu_allocator_ = CPUAllocatorRegistry::Registry()
       .Create(allocator.name(), allocator);
   }
 
   static void SetPinnedCPUAllocator(const OpSpec& allocator) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::shared_timed_mutex> lock(mutex_);
     pinned_cpu_allocator_ = CPUAllocatorRegistry::Registry()
       .Create(allocator.name(), allocator);
   }
 
   static void SetGPUAllocator(const OpSpec& allocator) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::shared_timed_mutex> lock(mutex_);
     MAP_INSERT_OR_UPDATE(
       GPUAllocatorRegistry::Registry().Create(allocator.name(), allocator));
   }
 
   static void SetGPUAllocator(std::unique_ptr<GPUAllocator> allocator) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::shared_timed_mutex> lock(mutex_);
     MAP_INSERT_OR_UPDATE(std::move(allocator));
   }
 
@@ -111,14 +120,14 @@ class AllocatorManager {
   static std::unordered_map<int, unique_ptr<GPUAllocator>> gpu_allocators_;
   static std::unique_ptr<const OpSpec> gpu_opspec_;
 
-  static std::mutex mutex_;
+  static std::shared_timed_mutex mutex_;
 };
 
 unique_ptr<CPUAllocator> AllocatorManager::cpu_allocator_(nullptr);
 unique_ptr<CPUAllocator> AllocatorManager::pinned_cpu_allocator_(nullptr);
 std::unordered_map<int, unique_ptr<GPUAllocator>> AllocatorManager::gpu_allocators_;
 unique_ptr<const OpSpec> AllocatorManager::gpu_opspec_(nullptr);
-std::mutex AllocatorManager::mutex_;
+std::shared_timed_mutex AllocatorManager::mutex_;
 
 // Sets the allocator ptrs for all backends
 void InitializeBackends(const OpSpec &cpu_allocator,
