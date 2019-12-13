@@ -79,8 +79,17 @@ def _docstring_generator(cls):
     schema = b.GetSchema(op_name)
     # insert tag to easily link to the operator
     ret = '.. _' + op_name + ':\n\n'
+
+    if schema.IsDeprecated():
+        use_instead = schema.DeprecatedInFavorOf()
+        ret += ".. warning::\n\n   This operator is now deprecated"
+        if use_instead:
+            ret +=". Use `" + use_instead + "` instead."
+        ret += "\n\n"
+
     ret += schema.Dox()
     ret += '\n'
+
     if schema.IsSequenceOperator():
         ret += "\nThis operator expects sequence inputs.\n"
     elif schema.AllowsSequences():
@@ -88,13 +97,6 @@ def _docstring_generator(cls):
 
     if schema.SupportsVolumetric():
         ret += "\nThis operator supports volumetric data.\n"
-
-    if schema.IsDeprecated():
-        use_instead = schema.DeprecatedInFavorOf()
-        ret += "\n.. warning::\n\n   This operator is now deprecated"
-        if use_instead:
-            ret +=". Use `" + use_instead + "` instead."
-        ret += "\n"
 
     if schema.IsNoPrune():
         ret += "\nThis operator will **not** be optimized out of the graph.\n"

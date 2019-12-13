@@ -28,7 +28,7 @@ namespace dali {
 
 DALI_SCHEMA(Spectrogram)
   .DocStr(R"code(Produces a spectrogram from a 1D signal (e.g. audio). Input data is expected
-to be single channel (1D shape `(time)`) or multi channel in planar layout (channel, time) 32 bit
+to be single channel (1D shape `(time)`) or multi channel in planar layout `(channel, time)` 32 bit
 float tensor.)code")
   .NumInput(1)
   .NumOutput(1)
