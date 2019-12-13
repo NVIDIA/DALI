@@ -28,13 +28,25 @@ namespace kernels {
 namespace signal {
 namespace dct {
 
+/**
+ * @brief DCT kernel arguments
+ */
 struct DctArgs {
-  int dct_type = 2;  // 1, 2, 3, 4
+  /// @brief DCT type. Supported types are 1, 2, 3, 4
+  /// @remarks DCT type I requires the input data length to be > 1.
+  int dct_type = 2;
+
+  /// @brief Index of the dimension to be transformed. Last dimension by default
   int axis = -1;
 
+  /// @brief If true, the output DCT matrix will be normalized to be orthogonal
+  /// @remarks Normalization is not supported for DCT type I
+  bool normalize = false;
+
   inline bool operator==(const DctArgs& oth) const {
-    return axis == oth.axis &&
-           dct_type == oth.dct_type;
+    return dct_type == oth.dct_type &&
+           axis == oth.axis &&
+           normalize == oth.normalize;
   }
 
   inline bool operator!=(const DctArgs& oth) const {
@@ -42,6 +54,16 @@ struct DctArgs {
   }
 };
 
+/**
+ * @brief Discrete Cosine Transform 1D CPU kernel.
+ *        Performs a DCT transformation over a single dimension in a multi-dimensional input.
+ *
+ * @remarks It supports DCT types I, II, III and IV decribed here:
+ *          https://en.wikipedia.org/wiki/Discrete_cosine_transform
+ *          DCT generally stands for type II and inverse DCT stands for DCT type III
+ *
+ * @see DCTArgs
+ */
 template <typename OutputType = float,  typename InputType = float, int Dims = 2>
 class DLL_PUBLIC Dct1DCpu {
  public:

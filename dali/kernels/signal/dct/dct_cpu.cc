@@ -31,15 +31,86 @@ namespace dct {
 namespace {
 
 template <typename T>
-void FillCosineTable(T *table, int64_t input_length, int64_t ndct, int dct_type) {
-  T phase_mul = (dct_type == 1) ? M_PI / (input_length - 1) : M_PI / input_length;
+void FillCosineTableTypeI(T *table, int64_t input_length, int64_t ndct, bool normalize) {
+  assert(input_length > 1);
+  assert(!normalize);
+  T phase_mul = M_PI / (input_length - 1);
   int64_t idx = 0;
   for (int64_t k = 0; k < ndct; k++) {
-    T k_factor = (dct_type == 3 || dct_type == 4) ? k + T(0.5) : k;
-    for (int64_t n = 0; n < input_length; n++) {
-      T n_factor = (dct_type == 2 || dct_type == 4) ? n + T(0.5) : n;
-      table[idx++] = std::cos(phase_mul * k_factor * n_factor);
+    table[idx++] = T(0.5);  // n = 0
+    for (int64_t n = 1; n < input_length-1; n++) {
+      table[idx++] = std::cos(phase_mul * k * n);
     }
+    table[idx++] = k % 2 == 0 ?  T(0.5) : -T(0.5);  // n = input_length - 1
+  }
+}
+
+template <typename T>
+void FillCosineTableTypeII(T *table, int64_t input_length, int64_t ndct, bool normalize) {
+  T phase_mul = M_PI / input_length;
+  T factor_k_0 = 1, factor_k_i = 1;
+  if (normalize) {
+    factor_k_i = std::sqrt(2 / T(input_length));
+    factor_k_0 = factor_k_i / std::sqrt(T(2));
+  }
+  int64_t idx = 0;
+  for (int64_t k = 0; k < ndct; k++) {
+    T norm_factor = (k == 0) ? factor_k_0 : factor_k_i;
+    for (int64_t n = 0; n < input_length; n++) {
+      table[idx++] = norm_factor * std::cos(phase_mul * (n + T(0.5)) * k);
+    }
+  }
+}
+
+
+template <typename T>
+void FillCosineTableTypeIII(T *table, int64_t input_length, int64_t ndct, bool normalize) {
+  T phase_mul = M_PI / input_length;
+  T factor_n_0 = 0.5, factor_n_i = 1;
+  if (normalize) {
+    factor_n_i = std::sqrt(T(2) / input_length);
+    factor_n_0 = factor_n_i / std::sqrt(T(2));
+  }
+  int64_t idx = 0;
+  for (int64_t k = 0; k < ndct; k++) {
+    table[idx++] = factor_n_0;  // n = 0
+    for (int64_t n = 1; n < input_length; n++) {
+      table[idx++] = factor_n_i * std::cos(phase_mul * n * (k + T(0.5)));
+    }
+  }
+}
+
+
+template <typename T>
+void FillCosineTableTypeIV(T *table, int64_t input_length, int64_t ndct, bool normalize) {
+  T phase_mul = M_PI / input_length;
+  T factor = normalize ? std::sqrt(T(2)/input_length) : T(1);
+  int64_t idx = 0;
+  for (int64_t k = 0; k < ndct; k++) {
+    for (int64_t n = 0; n < input_length; n++) {
+      table[idx++] = factor * std::cos(phase_mul * (n + T(0.5)) * (k + T(0.5)));
+    }
+  }
+}
+
+
+template <typename T>
+void FillCosineTable(T *table, int64_t input_length, int64_t ndct, int dct_type, bool normalize) {
+  switch(dct_type) {
+    case 1:
+      FillCosineTableTypeI(table, input_length, ndct, normalize);
+      break;
+    case 2:
+      FillCosineTableTypeII(table, input_length, ndct, normalize);
+      break;
+    case 3:
+      FillCosineTableTypeIII(table, input_length, ndct, normalize);
+      break;
+    case 4:
+      FillCosineTableTypeIV(table, input_length, ndct, normalize);
+      break;
+    default:
+      assert(false);
   }
 }
 
@@ -61,6 +132,14 @@ Dct1DCpu<OutputType, InputType, Dims>::Setup(KernelContext &context,
   DALI_ENFORCE(args_.axis >= 0 && args_.axis < Dims,
                make_string("Axis is out of bounds: ", args_.axis));
   int64_t n = in.shape[args_.axis];
+
+  if (args_.dct_type == 1) {
+    DALI_ENFORCE(n > 1, "DCT type I requires an input length > 1");
+    if (args_.normalize) {
+      DALI_WARN("DCT type-I does not support orthogonal normalization. Ignoring");
+      args_.normalize = false;
+    }
+  }
 
   KernelRequirements req;
   auto out_shape = in.shape;
@@ -89,7 +168,7 @@ void Dct1DCpu<OutputType, InputType, Dims>::Run(KernelContext &context,
       context.scratchpad->template Allocate<OutputType>(AllocType::Host, cos_table_sz);
   memset(cos_table, 0, cos_table_sz * sizeof(OutputType));
   auto ndct = n;
-  FillCosineTable(cos_table, n, ndct, args.dct_type);
+  FillCosineTable(cos_table, n, ndct, args_.dct_type, args_.normalize);
 
   auto in_shape = in.shape;
   auto in_strides = GetStrides(in_shape);
@@ -99,21 +178,14 @@ void Dct1DCpu<OutputType, InputType, Dims>::Run(KernelContext &context,
   ForAxis(
     out.data, in.data, out_shape.data(), out_strides.data(), in_shape.data(), in_strides.data(),
     args_.axis, out.dim(),
-    [this, &cos_table](
+    [&cos_table](
       OutputType *out_data, const InputType *in_data, int64_t out_size, int64_t out_stride,
       int64_t in_size, int64_t in_stride) {
-        const OutputType phase_mul = M_PI / in_size;
         int64_t out_idx = 0;
         for (int64_t k = 0; k < out_size; k++) {
-          int64_t in_idx = 0;
           OutputType out_val = 0;
-          if (args_.dct_type == 1) {
-            OutputType sign = (k % 2 == 0) ? 1 : -1;
-            out_val = OutputType(0.5) * (in_data[0] + sign * in_data[(in_size - 1) * in_stride]);
-          } else if (args_.dct_type == 3) {
-            out_val = OutputType(0.5) * in_data[0];
-          }
           const auto *cos_table_row = cos_table + k * in_size;
+          int64_t in_idx = 0;
           for (int64_t n = 0; n < in_size; n++) {
             OutputType in_val = in_data[in_idx];
             in_idx += in_stride;
