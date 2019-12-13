@@ -123,31 +123,39 @@ template <typename OutputType, typename InputType, int Dims>
 KernelRequirements
 Dct1DCpu<OutputType, InputType, Dims>::Setup(KernelContext &context,
                                              const InTensorCPU<InputType, Dims> &in,
-                                             const DctArgs &args) {
+                                             const DctArgs &original_args) {
   const auto &in_shape = in.shape;
   DALI_ENFORCE(in_shape.size() == Dims);
 
-  args_ = args;
-  args_.axis = args_.axis >= 0 ? args_.axis : Dims - 1;
-  DALI_ENFORCE(args_.axis >= 0 && args_.axis < Dims,
-               make_string("Axis is out of bounds: ", args_.axis));
-  int64_t n = in.shape[args_.axis];
+  auto args = original_args;
+  args.axis = args.axis >= 0 ? args.axis : Dims - 1;
+  DALI_ENFORCE(args.axis >= 0 && args.axis < Dims,
+               make_string("Axis is out of bounds: ", args.axis));
+  int64_t n = in.shape[args.axis];
 
-  if (args_.dct_type == 1) {
+  if (args.dct_type == 1) {
     DALI_ENFORCE(n > 1, "DCT type I requires an input length > 1");
-    if (args_.normalize) {
+    if (args.normalize) {
       DALI_WARN("DCT type-I does not support orthogonal normalization. Ignoring");
-      args_.normalize = false;
+      args.normalize = false;
     }
   }
 
-  KernelRequirements req;
+  if (args.ndct <= 0 || args.ndct > n) {
+    args.ndct = n;
+  }
+
   auto out_shape = in.shape;
+  out_shape[args.axis] = args.ndct;
 
-  ScratchpadEstimator se;
-  se.add<OutputType>(AllocType::Host, n * n);
-  req.scratch_sizes = se.sizes;
+  if (cos_table_.empty() || args != args_) {
+    auto cos_table_sz = n * args.ndct;
+    cos_table_.resize(cos_table_sz);
+    FillCosineTable(cos_table_.data(), n, args.ndct, args.dct_type, args.normalize);
+    args_ = std::move(args);
+  }
 
+  KernelRequirements req;
   req.output_shapes = {TensorListShape<DynamicDimensions>({out_shape})};
   return req;
 }
@@ -163,13 +171,6 @@ void Dct1DCpu<OutputType, InputType, Dims>::Run(KernelContext &context,
 
   assert(args_.dct_type >= 1 && args_.dct_type <= 4);
 
-  auto cos_table_sz = n * n;
-  OutputType *cos_table =
-      context.scratchpad->template Allocate<OutputType>(AllocType::Host, cos_table_sz);
-  memset(cos_table, 0, cos_table_sz * sizeof(OutputType));
-  auto ndct = n;
-  FillCosineTable(cos_table, n, ndct, args_.dct_type, args_.normalize);
-
   auto in_shape = in.shape;
   auto in_strides = GetStrides(in_shape);
   auto out_shape = out.shape;
@@ -178,13 +179,13 @@ void Dct1DCpu<OutputType, InputType, Dims>::Run(KernelContext &context,
   ForAxis(
     out.data, in.data, out_shape.data(), out_strides.data(), in_shape.data(), in_strides.data(),
     args_.axis, out.dim(),
-    [&cos_table](
+    [this](
       OutputType *out_data, const InputType *in_data, int64_t out_size, int64_t out_stride,
       int64_t in_size, int64_t in_stride) {
         int64_t out_idx = 0;
         for (int64_t k = 0; k < out_size; k++) {
           OutputType out_val = 0;
-          const auto *cos_table_row = cos_table + k * in_size;
+          const auto *cos_table_row = cos_table_.data() + k * in_size;
           int64_t in_idx = 0;
           for (int64_t n = 0; n < in_size; n++) {
             OutputType in_val = in_data[in_idx];
@@ -200,10 +201,12 @@ void Dct1DCpu<OutputType, InputType, Dims>::Run(KernelContext &context,
 template class Dct1DCpu<float, float, 1>;
 template class Dct1DCpu<float, float, 2>;
 template class Dct1DCpu<float, float, 3>;
+template class Dct1DCpu<float, float, 4>;
 
 template class Dct1DCpu<double, double, 1>;
 template class Dct1DCpu<double, double, 2>;
 template class Dct1DCpu<double, double, 3>;
+template class Dct1DCpu<double, double, 4>;
 
 }  // namespace dct
 }  // namespace signal

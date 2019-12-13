@@ -16,43 +16,18 @@
 #define DALI_KERNELS_SIGNAL_DCT_DCT_CPU_H_
 
 #include <memory>
-#include <complex>
+#include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/signal/dct/dct_args.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
 namespace dct {
-
-/**
- * @brief DCT kernel arguments
- */
-struct DctArgs {
-  /// @brief DCT type. Supported types are 1, 2, 3, 4
-  /// @remarks DCT type I requires the input data length to be > 1.
-  int dct_type = 2;
-
-  /// @brief Index of the dimension to be transformed. Last dimension by default
-  int axis = -1;
-
-  /// @brief If true, the output DCT matrix will be normalized to be orthogonal
-  /// @remarks Normalization is not supported for DCT type I
-  bool normalize = false;
-
-  inline bool operator==(const DctArgs& oth) const {
-    return dct_type == oth.dct_type &&
-           axis == oth.axis &&
-           normalize == oth.normalize;
-  }
-
-  inline bool operator!=(const DctArgs& oth) const {
-    return !operator==(oth);
-  }
-};
 
 /**
  * @brief Discrete Cosine Transform 1D CPU kernel.
@@ -83,6 +58,7 @@ class DLL_PUBLIC Dct1DCpu {
                       const InTensorCPU<InputType, Dims> &in,
                       const DctArgs &args);
  private:
+  std::vector<OutputType> cos_table_;
   DctArgs args_;
 };
 
