@@ -22,6 +22,7 @@ namespace kernels {
 namespace signal {
 
 TEST(ResampleSinc, SingleChannel) {
+
 }
 
 }  // namespace signal
