@@ -89,7 +89,7 @@ class AudioDecoderCpu::ResamplingDecoder : public AudioDecoderCpu::DecoderHelper
 
     // You don't need to downmix mono-channel stream
     if (sample_meta_[sample_idx].channels > 1) {
-      Downmixing(intermediate_buffer, intermediate_buffer_c, sample_meta_[sample_idx].channels);
+      Downmix(intermediate_buffer, intermediate_buffer_c, sample_meta_[sample_idx].channels);
     }
 
     resampling::resample_sinc(reinterpret_cast<float *>(output_buffer.data()),

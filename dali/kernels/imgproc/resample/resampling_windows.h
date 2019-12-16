@@ -18,6 +18,7 @@
 #include <cuda_runtime.h>
 #include <functional>
 #include "dali/kernels/kernel.h"
+#include "dali/core/math_util.h"
 
 namespace dali {
 namespace kernels {
@@ -38,10 +39,6 @@ inline __host__ __device__ float TriangularWindow(float x) {
 
 inline __host__ __device__ float RectangularWindow(float x) {
   return -0.5f <= x && x < 0.5f ? 1 : 0;
-}
-
-inline __host__ __device__ float sinc(float x) {
-  return x ? sinf(x * M_PI) / (x * M_PI) : 1;
 }
 
 inline __host__ __device__ float LanczosWindow(float x, float a) {

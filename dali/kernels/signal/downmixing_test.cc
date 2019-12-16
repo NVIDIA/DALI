@@ -14,48 +14,46 @@
 
 #include <gtest/gtest.h>
 #include <vector>
-#include "dali/operators/decoder/audio/utils.h"
+#include <numeric>
+#include "dali/kernels/signal/downmixing.h"
 
 namespace dali {
+namespace kernels {
+namespace signal {
 
-TEST(AudioDecoderTest, DownmixingTest) {
+TEST(SignalDownmixingTest, RawPointer_Weighted) {
   std::vector<float> in = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
   int nchannels = 3;
-  std::vector<int> weights = {3, 2, 1};
-  std::vector<float> ref = {1.67, 4.67, 7.67, 10.67};
+  std::vector<float> weights = {3, 2, 1};
+  float sum = std::accumulate(weights.begin(), weights.end(), 0);
+  std::vector<float> ref = {
+    ( 1+ 2+ 3) / sum,
+    ( 4+ 5+ 6) / sum,
+    ( 7+ 8+ 9) / sum,
+    (10+11+12) / sum
+  };
   std::vector<float> out;
   out.resize(ref.size());
 
-  Downmixing(out.data(), in.data(), in.size(), weights);
+  Downmix(out.data(), in.data(), in.size(), weights, true);
 
   for (size_t i = 0; i < ref.size(); i++) {
-    EXPECT_FLOAT_EQ(out[i], ref[i]);
+    EXPECT_NEAR(out[i], ref[i], 1e-6);
   }
 }
 
-
-TEST(AudioDecoderTest, DownmixingInPlaceTest) {
+TEST(SignalDownmixingTest, Span_DefaultWeights) {
   std::vector<float> in = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
   int nchannels = 3;
   std::vector<float> ref = {2, 5, 8, 11};
 
-  Downmixing(in.data(), in.data(), in.size(), nchannels);
+  Downmix(make_span(in), make_cspan(in), nchannels);
 
   for (size_t i = 0; i < ref.size(); i++) {
-    EXPECT_FLOAT_EQ(in[i], ref[i]);
+    EXPECT_NEAR(in[i], ref[i], 1e-6);
   }
 }
 
-
-TEST(AudioDecoderTest, DownmixingSpan) {
-  std::vector<float> in = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-  int nchannels = 3;
-  std::vector<float> ref = {2, 5, 8, 11};
-
-  Downmixing(make_span(in), make_cspan(in), nchannels);
-
-  for (size_t i = 0; i < ref.size(); i++) {
-    EXPECT_FLOAT_EQ(in[i], ref[i]);
-  }
-}
+}  // namespace signal
+}  // namespace kernels
 }  // namespace dali

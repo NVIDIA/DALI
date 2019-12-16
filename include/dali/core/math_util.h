@@ -167,6 +167,23 @@ constexpr double rad2deg(double rad) {
   return rad * r2d;
 }
 
+DALI_HOST_DEV DALI_FORCEINLINE
+double sinc(double x) {
+  x *= M_PI;
+  if (std::abs(x) < 1e-10)
+    return 1 - x * x * 0.25;  // approximate by a parabola near the pole
+  return std::sin(x) / x;
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE
+float sinc(float x) {
+  x *= M_PI;
+  if (std::abs(x) < 1e-10f)
+    return 1 - x * x * 0.25f;  // approximate by a parabola near the pole
+  return std::sin(x) / x;
+}
+
+
 }  // namespace dali
 
 #endif  // DALI_CORE_MATH_UTIL_H_

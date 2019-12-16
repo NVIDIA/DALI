@@ -16,69 +16,21 @@
 #define DALI_OPERATORS_DECODER_AUDIO_UTILS_H_
 
 #include <functional>
-#include <numeric>
 #include <utility>
 #include <vector>
 #include <cassert>
 #include <cmath>
+#include "dali/core/static_switch.h"
+#include "dali/core/convert.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/span.h"
 
 namespace dali {
 
-/**
- * Downmixing data to mono-channel. It's safe to do it in-place.
- *
- * Assumes, that `out` buffer is properly allocated
- * (i.e. has `n_in`/`weights.size()` elements at least)
- *
- * @param weights Specifies weight for every channel.
- */
-template<typename T>
-void Downmixing(T *out, const T *in, size_t n_in, const std::vector<int> &weights) {
-  DALI_ENFORCE(out && in, "Incorrect input or output buffer. Or both.");
-  DALI_ENFORCE(weights.size() > 1, "You can't downmix mono-channel data");
-  DALI_ENFORCE(n_in % weights.size() == 0, "Data layout incorrect");
-  for (size_t i = 0; i < n_in; i++) {
-    *out = (*in++) * weights[0];
-    for (size_t j = 1; j < weights.size(); j++) {
-      *out += (*in++) * weights[j];
-    }
-    *out++ /= std::accumulate(weights.begin(), weights.end(), 0);
-  }
-}
-
-
-template<typename T>
-void Downmixing(T *out, const T *in, size_t n_in, int n_channels_in) {
-  Downmixing(out, in, n_in, {n_channels_in, 1});
-}
-
-
-template<typename T>
-void Downmixing(span<T> out, span<const T> in, const std::vector<int> &weights) {
-  Downmixing(out.data(), in.data(), in.size(), weights);
-}
-
-
-template<typename T>
-void Downmixing(span <T> out, span<const T> in, size_t n_channels_in) {
-  Downmixing(out.data(), in.data(), in.size(), n_channels_in);
-}
-
 namespace resampling {
 double Hann(double x) {
   return 0.5 * (1 + std::cos(x * M_PI_2));
 }
-
-
-double sinc(double x) {
-  x *= M_PI;
-  if (std::abs(x) < 1e-10)
-    return 1 - x * x * 0.25;  // approximate by a parabola near the pole
-  return std::sin(x) / x;
-}
-
 
 struct sinc_coeffs {
   void init(int coeffs, int lobes = 3, std::function<double(double)> envelope = Hann) {
