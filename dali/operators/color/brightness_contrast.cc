@@ -25,7 +25,7 @@ using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
 
 
 DALI_SCHEMA(BrightnessContrast)
-    .DocStr(R"code(Adhust the brightness and contrast of the image according to the formula::
+    .DocStr(R"code(Adjust the brightness and contrast of the image according to the formula::
 
   out = brightness_shift * output_range + brightness * (grey + contrast * (in - grey))
 
