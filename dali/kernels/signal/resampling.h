@@ -29,7 +29,7 @@ namespace signal {
 namespace resampling {
 
 inline double Hann(double x) {
-  return 0.5 * (1 + std::cos(x * M_PI_2));
+  return 0.5 * (1 + std::cos(x * M_PI));
 }
 
 struct ResamplingWindow {
@@ -66,7 +66,6 @@ void windowed_sinc(ResamplingWindow &window,
     float y = (i - center) * scale_envelope;
     float w = sinc(x) * envelope(y);
     window.lookup[i + 1] = w;
-    std::cerr << i << ": " << w << "\n";
   }
   window.center = center + 1;  // allow for leading zero
   window.scale = 1 / scale;
@@ -155,7 +154,7 @@ struct Resampler {
       double in_block_f = (out_block + 0.5) * scale - 0.5;
       int64_t in_block_i = std::floor(in_block_f);
       float in_pos = in_block_f - in_block_i;
-      const float *in_block_ptr = in + in_block_i;
+      const float *in_block_ptr = in + in_block_i * num_channels;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
         int i0, i1;
         std::tie(i0, i1) = window.input_range(in_pos);
