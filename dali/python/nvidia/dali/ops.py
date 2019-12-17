@@ -98,22 +98,24 @@ def _docstring_generator(cls):
     schema = b.GetSchema(op_name)
     # insert tag to easily link to the operator
     ret = '.. _' + op_name + ':\n\n'
-    ret += schema.Dox()
-    ret += '\n'
-    if schema.IsSequenceOperator():
-        ret += "\nThis operator expects sequence inputs\n"
-    elif schema.AllowsSequences():
-        ret += "\nThis operator allows sequence inputs\n"
-
-    if schema.SupportsVolumetric():
-        ret += "\nThis operator supports volumetric data\n"
 
     if schema.IsDeprecated():
         use_instead = schema.DeprecatedInFavorOf()
-        ret += "\n.. warning::\n\n   This operator is now deprecated"
+        ret += ".. warning::\n\n   This operator is now deprecated"
         if use_instead:
-            ret +=". Use `" + use_instead + "` instead"
-        ret += "\n"
+            ret +=". Use `" + use_instead + "` instead."
+        ret += "\n\n"
+
+    ret += schema.Dox()
+    ret += '\n'
+
+    if schema.IsSequenceOperator():
+        ret += "\nThis operator expects sequence inputs.\n"
+    elif schema.AllowsSequences():
+        ret += "\nThis operator allows sequence inputs.\n"
+
+    if schema.SupportsVolumetric():
+        ret += "\nThis operator supports volumetric data.\n"
 
     if schema.IsNoPrune():
         ret += "\nThis operator will **not** be optimized out of the graph.\n"
@@ -125,7 +127,7 @@ def _docstring_generator(cls):
         op_dev.append("'gpu'")
     if op_name in _mixed_ops:
         op_dev.append("'mixed'")
-    ret += "\nSupported backends: " + ", ".join(op_dev) + "\n"
+    ret += "\nSupported backends: " + ", ".join(op_dev) + ".\n"
 
     ret += """
 Parameters

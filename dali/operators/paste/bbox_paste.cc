@@ -22,17 +22,20 @@ DALI_SCHEMA(BBoxPaste)
     .DocStr(
         R"code(Transforms bounding boxes so that they are in the same place in the image after pasting it onto a larger canvas.
 
-Corner coordinates:
+Corner coordinates::
+
   (x', y') = (x/ratio + paste_x', y/ratio + paste_y')
 
-Box sizes:
+Box sizes::
+
   (w', h') = (w/ratio, h/ratio)
 
-Where:
+Where::
+
   paste_x' = paste_x * (ratio - 1)/ratio
   paste_y' = paste_y * (ratio - 1)/ratio
 
-Paste coordinates are normalized so that (0,0) aligns the image to top-left of the canvas and (1,1) aligns it to bottom-right.
+Paste coordinates are normalized so that `(0,0)` aligns the image to top-left of the canvas and `(1,1)` aligns it to bottom-right.
 )code")
   .NumInput(1)
   .NumOutput(1)

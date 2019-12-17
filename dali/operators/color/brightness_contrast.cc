@@ -25,9 +25,9 @@ using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
 
 
 DALI_SCHEMA(BrightnessContrast)
-    .DocStr(R"code(Adhust the brightness and contrast of the image according to the formula:
+    .DocStr(R"code(Adjust the brightness and contrast of the image according to the formula::
 
-``out = brightness_shift * output_range + brightness * (grey + contrast * (in - grey))``
+  out = brightness_shift * output_range + brightness * (grey + contrast * (in - grey))
 
 where output_range is 1 for float outputs or the maximum positive value for integral types;
 grey denotes the value of 0.5 for float, 128 for `uint8`, 16384 for `int16`, etc.

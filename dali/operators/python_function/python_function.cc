@@ -39,7 +39,7 @@ DALI_SCHEMA(PythonFunctionBase)
         .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
-        .DocStr("Executes a python function")
+        .DocStr("Executes a python function.")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()
@@ -47,7 +47,7 @@ DALI_SCHEMA(PythonFunction)
         .AddParent("PythonFunctionBase");
 
 DALI_SCHEMA(TorchPythonFunction)
-        .DocStr("Executes a function operating on Torch tensors")
+        .DocStr("Executes a function operating on Torch tensors.")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()

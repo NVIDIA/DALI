@@ -19,7 +19,7 @@
 namespace dali {
 
 DALI_SCHEMA(ColorSpaceConversion)
-    .DocStr(R"code(Converts between various image color models)code")
+    .DocStr(R"code(Converts between various image color models.)code")
     .NumInput(1)
     .NumOutput(1)
     .InputLayout("HWC")

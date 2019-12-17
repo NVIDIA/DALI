@@ -53,29 +53,28 @@ DALI_SCHEMA(LookupTable)
   .DocStr(R"code(Maps input to output by using a lookup table specified by `keys` and `values`
 and a `default_value` for non specified keys.
 
-`keys` and `values` are used to define the lookup table:
-```
-   keys[] =   {0,     2,   3,   4,   5,    3}
-   values[] = {0.2, 0.4, 0.5, 0.6, 0.7, 0.10}
-   default_value = 0.99
-```
-yielding
-```
-   lut[] = {0.2, 0.99, 0.4, 0.10, 0.6, 0.7}  // only last occurrence of a key is considered
-```
-producing the output according to the formula
-```
+`keys` and `values` are used to define the lookup table::
+
+  keys[] =   {0,     2,   3,   4,   5,    3}
+  values[] = {0.2, 0.4, 0.5, 0.6, 0.7, 0.10}
+  default_value = 0.99
+
+
+yielding::
+
+  lut[] = {0.2, 0.99, 0.4, 0.10, 0.6, 0.7}  // only last occurrence of a key is considered
+
+producing the output according to the formula::
+
    Output[i] = lut[Input[i]]   if 0 <= Input[i] <= len(lut)
    Output[i] = default_value   otherwise
-```
-  Example:
+
+Example::
+
   Input[] =  {1,      4,    1,   0,  100,   2,     3,   4}
   Output[] = {0.99, 0.6, 0.99, 0.2, 0.99, 0.4,  0.10, 0.6}
-```
 
-Note: Only integer types can be used as input to this operator
-
-)code")
+Note: Only integer types can be used as input to this operator.)code")
   .NumInput(1)
   .NumOutput(1)
   .AllowSequences()

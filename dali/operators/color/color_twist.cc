@@ -36,8 +36,7 @@ Values >= 0 are accepted. For example:
 
 * `0` - black image,
 * `1` - no change
-* `2` - increase brightness twice
-)code", 1.f, true)
+* `2` - increase brightness twice)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .Deprecate("BrightnessContrast")
     .InputLayout(0, "HWC");
@@ -52,8 +51,7 @@ Values >= 0 are accepted. For example:
 
 * `0` - gray image,
 * `1` - no change
-* `2` - increase contrast twice
-)code", 1.f, true)
+* `2` - increase contrast twice)code", 1.f, true)
     .Deprecate("BrightnessContrast")
     .AddParent("ColorTransformBase");
 
@@ -76,8 +74,7 @@ DALI_SCHEMA(Saturation)
 Values >= 0 are supported. For example:
 
 * `0` - completely desaturated image
-* `1` - no change to image's saturation
-)code", 1.f, true)
+* `1` - no change to image's saturation)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .Deprecate("Hsv")
     .InputLayout(0, "HWC");
@@ -93,25 +90,21 @@ DALI_SCHEMA(ColorTwist)
 Values >= 0 are supported. For example:
 
 * `0` - completely desaturated image
-* `1` - no change to image's saturation
-)code", 1.f, true)
+* `1` - no change to image's saturation)code", 1.f, true)
     .AddOptionalArg("contrast",
         R"code(Contrast change factor.
 Values >= 0 are accepted. For example:
 
 * `0` - gray image,
 * `1` - no change
-* `2` - increase contrast twice
-)code", 1.f, true)
+* `2` - increase contrast twice)code", 1.f, true)
     .AddOptionalArg("brightness",
         R"code(Brightness change factor.
 Values >= 0 are accepted. For example:
 
 * `0` - black image,
 * `1` - no change
-* `2` - increase brightness twice
-
-)code", 1.f, true)
+* `2` - increase brightness twice)code", 1.f, true)
     .AddParent("ColorTransformBase")
     .Deprecate("Hsv/BrightnessContrast")
     .InputLayout(0, "HWC");
