@@ -345,7 +345,8 @@ Build the aarch64 Build Container
 
 .. code-block:: bash
 
-    docker build -t nvidia/dali:builder_aarch64-qnx -f docker/Dockerfile.build.aarch64-qnx .
+    docker build -t nvidia/dali:tools_aarch64-qnx -f docker/Dockerfile.cuda_qnx.deps .
+    docker build -t nvidia/dali:builder_aarch64-qnx --build-arg "QNX_CUDA_TOOL_IMAGE_NAME=nvidia/dali:tools_aarch64-qnx" -f docker/Dockerfile.build.aarch64-qnx .
 
 Compile
 ^^^^^^^

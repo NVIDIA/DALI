@@ -1,3 +1,5 @@
+ARG QNX_CUDA_TOOL_IMAGE_NAME
+FROM ${QNX_CUDA_TOOL_IMAGE_NAME} as qnx_cuda_tools
 FROM nvidia/cuda:10.0-devel-ubuntu16.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -8,10 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     rsync \
     dh-autoreconf \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-COPY qnx/cuda* /cuda-qnx-cross.deb
-COPY qnx /qnx
+COPY --from=qnx_cuda_tools /qnx /qnx
+RUN mv /qnx/cuda* cuda-qnx-cross.deb
 
 # We need to remove QNX's libjpeg.so so OpenCV and DALI do not pick it up over static libjpeg-turbo that we compile
 RUN rsync -a /qnx/host/linux/x86_64/ / && \
@@ -53,8 +56,8 @@ RUN CMAKE_VERSION=3.11 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /cmake-${CMAKE_BUILD}
 
-# protobuf v3.5.1
-ENV PROTOBUF_VERSION=3.5.1
+# protobuf v3.11.1
+ENV PROTOBUF_VERSION=3.11.1
 RUN curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
     cd /protobuf-${PROTOBUF_VERSION} && \
     ./autogen.sh && \
@@ -73,20 +76,23 @@ RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
       --with-protoc=/usr/local/bin/protoc && make -j$(nproc) install && \
     rm -rf /protobuf-${PROTOBUF_VERSION}
 
-
-ENV JPEG_TURBO_VERSION=1.5.3
-RUN curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
-    cd /libjpeg-turbo-${JPEG_TURBO_VERSION} && \
-    autoreconf -fiv && \
-    ./configure \
-      --disable-shared \
+# libjpeg-turbo
+RUN JPEG_TURBO_VERSION=2.0.2 && \
+    curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
+    cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
+    echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
+    echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake && \
+    echo "set(CMAKE_C_COMPILER aarch64-unknown-nto-qnx7.0.0-gcc)" >> toolchain.cmake && \
       CFLAGS="-fPIC" \
       CXXFLAGS="-fPIC" \
       CC=aarch64-unknown-nto-qnx7.0.0-gcc \
       CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
-      --host=aarch64-unknown-nto-qnx7.0.0 \
-      --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    cmake -G"Unix Makefiles" -DENABLE_SHARED=FALSE -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_INSTALL_PREFIX=/usr/aarch64-unknown-nto-qnx/aarch64le . 2>&1 >/dev/null && \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+      CC=aarch64-unknown-nto-qnx7.0.0-gcc \
+      CXX=aarch64-unknown-nto-qnx7.0.0-g++ \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
 # libtiff
@@ -154,15 +160,18 @@ RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | 
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /opencv-${OPENCV_VERSION}
 
+ENV PKG_CONFIG_PATH=/usr/aarch64-unknown-nto-qnx/aarch64le/lib/pkgconfig
+
 # flac
+# QNX doesn't support wcswidth as DJGPP, so enabling __DJGPP__ fixes the problem
 RUN FLAC_VERSION=1.3.3 && cd /tmp                                                    && \
     wget https://ftp.osuosl.org/pub/xiph/releases/flac/flac-${FLAC_VERSION}.tar.xz   && \
     tar -xf flac-$FLAC_VERSION.tar.xz                                                && \
     rm flac-$FLAC_VERSION.tar.xz                                                     && \
     cd flac-$FLAC_VERSION                                                            && \
-    ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
+    ./configure CFLAGS="-fPIC -D__DJGPP__" CXXFLAGS="-fPIC -D__DJGPP__" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
            CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
-           --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                           && \
+           --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le --disable-ogg             && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
     cd /tmp && rm -rf flac-$FLAC_VERSION
 
@@ -177,7 +186,7 @@ RUN OGG_VERSION=1.3.4 && cd /tmp                                                
            --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                           && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install                && \
     cd /tmp && rm -rf libogg-$OGG_VERSION
-    
+
 # libvorbis
 # Install after libogg
 RUN VORBIS_VERSION=1.3.6 && cd /tmp                                                   && \
@@ -192,15 +201,17 @@ RUN VORBIS_VERSION=1.3.6 && cd /tmp                                             
     cd /tmp && rm -rf libvorbis-$VORBIS_VERSION
 
 # libsnd
+# libsnd cannot find /usr/aarch64-unknown-nto-qnx/aarch64le/include for FLAC so add it manually
 RUN LIBSND_VERSION=1.0.28 && cd /tmp                                                                           && \
     wget https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-${LIBSND_VERSION}.tar.gz  && \
     tar -xf libsndfile-$LIBSND_VERSION.tar.gz                                                                  && \
     rm libsndfile-$LIBSND_VERSION.tar.gz                                                                       && \
     cd libsndfile-$LIBSND_VERSION                                                                              && \
-    ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
+    ./configure CFLAGS="-fPIC -I/usr/aarch64-unknown-nto-qnx/aarch64le/include" CXXFLAGS="-fPIC -I/usr/aarch64-unknown-nto-qnx/aarch64le/include" CC=aarch64-unknown-nto-qnx7.0.0-gcc \
            CXX=aarch64-unknown-nto-qnx7.0.0-g++ --host=aarch64-unknown-nto-qnx7.0.0 \
            --prefix=/usr/aarch64-unknown-nto-qnx/aarch64le                                                     && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                                  && \
+    cd /tmp && rm -rf libsndfile-$LIBSND_VERSION
 
 VOLUME /dali
 
