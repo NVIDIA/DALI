@@ -35,7 +35,7 @@ TEST(SignalDownmixingTest, RawPointer_Weighted) {
   std::vector<float> out;
   out.resize(ref.size());
 
-  Downmix(out.data(), in.data(), in.size(), weights, true);
+  Downmix(out.data(), in.data(), in.size() / nchannels, nchannels, weights.data(), true);
 
   for (size_t i = 0; i < ref.size(); i++) {
     EXPECT_NEAR(out[i], ref[i], 1e-6);

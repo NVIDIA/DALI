@@ -25,17 +25,11 @@
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/host_workspace.h"
+#include "dali/kernels/signal/resampling.h"
+#include "dali/kernels/signal/downmixing.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
-
-namespace detail {
-
-const std::string kOutputTypeName = "dtype";        // NOLINT
-const std::string kSampleRateName = "sample_rate";  // NOLINT
-const int kNumOutputs = 2;
-
-
-}  // namespace detail
 
 class AudioDecoderCpu : public Operator<CPUBackend> {
  private:
@@ -44,12 +38,11 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
  public:
   explicit inline AudioDecoderCpu(const OpSpec &spec) :
           Operator<Backend>(spec),
-          output_type_(spec.GetArgument<DALIDataType>(detail::kOutputTypeName)),
-          target_sample_rate_(spec.GetArgument<int>(detail::kSampleRateName)) {
-    DALI_ENFORCE(target_sample_rate_ == -1 || target_sample_rate_ > 0,
-                 "Target sample rate has to be positive or `-1`");
-    DALI_ENFORCE(target_sample_rate_ == -1 || output_type_ == DALI_FLOAT,
-                 "Resampling currently supported only for float output");
+          output_type_(spec.GetArgument<DALIDataType>("dtype")),
+          downmix_(spec.GetArgument<bool>("downmix")),
+          use_resampling_(spec_.HasArgument("sample_rate")) {
+    if (use_resampling_)
+      resampler_.initialize();
   }
 
 
@@ -66,20 +59,33 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   }
 
  private:
-  bool NeedsResampling() {
-    return target_sample_rate_ != -1;
+
+  template <typename OutputType>
+  void DecodeSample(
+    const TensorView<StorageCPU, OutputType, 2> &audio,
+    int thread_idx,
+    int sample_idx);
+
+  template <typename OutputType>
+  void DecodeBatch(workspace_t<Backend> &ws);
+
+  int64_t OutputLength(int64_t in_length, double in_rate, int sample_idx) const {
+    if (use_resampling_) {
+      return kernels::signal::resampling::resampled_length(
+          in_length, in_rate, target_sample_rates_[sample_idx]);
+    } else {
+      return in_length;
+    }
   }
 
-  class DecoderHelper;
-  class DirectDecoder;
-  class ResamplingDecoder;
-
-  DALIDataType output_type_;
-  const int target_sample_rate_;
-  static std::vector<std::string> files_names_;
-  static std::vector<AudioMetadata> sample_meta_;
-  static std::vector<std::vector<float>> intermediate_buffers_;
-  using sample_rate_t = decltype(AudioMetadata::sample_rate);
+  std::vector<float> target_sample_rates_;
+  kernels::signal::resampling::Resampler resampler_;
+  DALIDataType output_type_, decode_type_;
+  double target_sample_rate_ = 0;
+  const bool downmix_ = false, use_resampling_ = false;
+  std::vector<std::string> files_names_;
+  std::vector<AudioMetadata> sample_meta_;
+  std::vector<std::vector<float>> intermediate_buffers_;
   std::vector<std::unique_ptr<AudioDecoderBase>> decoders_;
 };
 

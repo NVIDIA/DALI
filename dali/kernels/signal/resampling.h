@@ -20,6 +20,7 @@
 #include <functional>
 #include "dali/core/math_util.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/convert.h"
 
 namespace dali {
 namespace kernels {
@@ -59,20 +60,22 @@ void windowed_sinc(ResamplingWindow &window,
   window.coeffs = coeffs;
   window.lobes = lobes;
   window.lookup.resize(coeffs + 2);  // add zeros
-  int =center = (coeffs - 1) * 0.5f;
+  int center = (coeffs - 1) * 0.5f;
   for (int i = 0; i < coeffs; i++) {
     float x = (i - center) * scale;
     float y = (i - center) * scale_envelope;
     float w = sinc(x) * envelope(y);
-    lookup[i + 1] = w;
+    window.lookup[i + 1] = w;
     std::cerr << i << ": " << w << "\n";
   }
   window.center = center + 1;  // allow for leading zero
-  thiswindow.scale = 1 / scale;
+  window.scale = 1 / scale;
 }
 
 
-
+inline int64_t resampled_length(int64_t in_length, double in_rate, double out_rate) {
+  return std::ceil(in_length * out_rate / in_rate);
+}
 
 struct Resampler {
   ResamplingWindow window;
@@ -81,23 +84,30 @@ struct Resampler {
     windowed_sinc(window, 2048, lobes);
   }
 
-  void operator()(
-        float *out, int64_t n_out, double out_rate,
-        const float *in, int64_t n_in, double in_rate,
-        int lobes = 3) {
+  /**
+   * @brief Resample single-channel signal and convert to Out
+   *
+   * Calculates a range of resampled signal.
+   * The function can seamlessly resample the input and produce the result in chunks.
+   * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
+   */
+  template <typename Out>
+  void resample(
+        Out *out, int64_t out_begin, int64_t out_end, double out_rate,
+        const float *in, int64_t n_in, double in_rate) const {
     int64_t in_pos = 0;
     int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
-    for (int64_t out_block = 0; out_block < n_out; out_block += block) {
-      int64_t block_end = std::min(out_block + block, n_out);
+    for (int64_t out_block = out_begin; out_block < out_end; out_block += block) {
+      int64_t block_end = std::min(out_block + block, out_end);
       double in_block_f = (out_block + 0.5) * scale - 0.5;
       int64_t in_block_i = std::floor(in_block_f);
       float in_pos = in_block_f - in_block_i;
       const float *in_block_ptr = in + in_block_i;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
-        int i0 = std::ceil(in_pos) - lobes;
-        int i1 = std::floor(in_pos) + lobes;
+        int i0, i1;
+        std::tie(i0, i1) = window.input_range(in_pos);
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
         if (i1 + in_block_i >= n_in)
@@ -110,40 +120,56 @@ struct Resampler {
           f += in_block_ptr[i] * w;
         }
         assert(out_pos >= 0 && out_pos < n_out);
-        out[out_pos] = f;
+        out[out_pos] = ConvertSatNorm<Out>(f);
       }
     }
   }
 
 
-  void operator()(
-        float *out, int64_t n_out, double out_rate,
+  /**
+   * @brief Resample multi-channel signal and convert to Out
+   *
+   * Calculates a range of resampled signal.
+   * The function can seamlessly resample the input and produce the result in chunks.
+   * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
+   */
+  template <typename Out>
+  void resample(
+        Out *out, int64_t out_begin, int64_t out_end, double out_rate,
         const float *in, int64_t n_in, double in_rate,
-        int num_channels,
-        int lobes = 3) {
+        int num_channels) {
+    if (num_channels == 1) {
+      // fast path
+      resample(out, out_begin, out_end, out_rate, in, n_in, in_rate);
+      return;
+    }
+
     int64_t in_pos = 0;
     int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
-    SmallVector<float, 8> tmp(num_channels);
-    for (int64_t out_block = 0; out_block < n_out; out_block += block) {
-      int64_t block_end = std::min(out_block + block, n_out);
+    SmallVector<float, 8> tmp;
+    tmp.resize(num_channels);
+    for (int64_t out_block = out_begin; out_block < out_end; out_block += block) {
+      int64_t block_end = std::min(out_block + block, out_end);
       double in_block_f = (out_block + 0.5) * scale - 0.5;
       int64_t in_block_i = std::floor(in_block_f);
       float in_pos = in_block_f - in_block_i;
       const float *in_block_ptr = in + in_block_i;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
-        int i0 = std::ceil(in_pos) - lobes;
-        int i1 = std::floor(in_pos) + lobes;
+        int i0, i1;
+        std::tie(i0, i1) = window.input_range(in_pos);
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
         if (i1 + in_block_i >= n_in)
           i1 = n_in - 1 - in_block_i;
+
         for (int c = 0; c < num_channels; c++)
           tmp[c] = 0;
+
         float x = i0 - in_pos;
-        int ofs0 *= c;
-        int ofs1 *= c;
+        int ofs0 = i0 * num_channels;
+        int ofs1 = i1 * num_channels;
         for (int in_ofs = ofs0; in_ofs <= ofs1; in_ofs += num_channels, x++) {
           float w = window(x);
           for (int c = 0; c < num_channels; c++) {
@@ -154,7 +180,7 @@ struct Resampler {
         }
         assert(out_pos >= 0 && out_pos < n_out * num_channels);
         for (int c = 0; c < num_channels; c++)
-          out[out_pos * num_channels + c] = tmp[c];
+          out[out_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
       }
     }
   }

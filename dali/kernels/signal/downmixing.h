@@ -15,6 +15,13 @@
 #ifndef DALI_KERNELS_SIGNAL_DOWNMIXING_H_
 #define DALI_KERNELS_SIGNAL_DOWNMIXING_H_
 
+#include <cassert>
+#include <vector>
+#include "dali/core/convert.h"
+#include "dali/core/small_vector.h"
+#include "dali/core/span.h"
+#include "dali/core/static_switch.h"
+
 namespace dali {
 namespace kernels {
 namespace signal {
@@ -33,7 +40,7 @@ namespace signal {
  * @tparam In input sample type - if integral, it's normalized to 0..1 or -1..1 range
  * @tparam static_channels compile-time number of channels
  */
-template <typename Out, typename In, int static_channels = -1>
+template <int static_channels = -1, typename Out, typename In>
 void DownmixChannels(
     Out *out, const In *in, int64_t samples, int channels,
     const float *weights, bool normalize_weights = false) {
@@ -80,13 +87,14 @@ void Downmix(
   VALUE_SWITCH(channels, static_channels, (1, 2, 3, 4, 5, 6, 7, 8),
     (DownmixChannels<static_channels>(out, in, samples, static_channels,
                                       weights, normalize_weights);),
-    (DownmixChannels<-1>(out, in, samples, channels, weights, normalize_weights);)
+    (DownmixChannels(out, in, samples, channels, weights, normalize_weights);)
   );
 }
 
 template <typename Out, typename In>
 void Downmix(Out *out, const In *in, int64_t num_samples, int num_channels) {
-  SmallVector<float, 8> weights(num_channels, 1.0f / num_channels);
+  SmallVector<float, 8> weights;
+  weights.resize(num_channels, 1.0f / num_channels);
   Downmix(out, in, num_samples, num_channels);
 }
 
