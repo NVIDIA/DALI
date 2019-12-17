@@ -28,7 +28,7 @@ namespace signal {
 
 namespace resampling {
 
-constexpr inline double Hann(double x) {
+inline double Hann(double x) {
   return 0.5 * (1 + std::cos(x * M_PI_2));
 }
 
@@ -119,7 +119,7 @@ struct Resampler {
           float w = window(x);
           f += in_block_ptr[i] * w;
         }
-        assert(out_pos >= 0 && out_pos < n_out);
+        assert(out_pos >= out_begin && out_pos < out_end);
         out[out_pos] = ConvertSatNorm<Out>(f);
       }
     }
@@ -178,7 +178,7 @@ struct Resampler {
             tmp[c] += in_block_ptr[in_ofs + c] * w;
           }
         }
-        assert(out_pos >= 0 && out_pos < n_out * num_channels);
+        assert(out_pos >= out_begin && out_pos < out_end);
         for (int c = 0; c < num_channels; c++)
           out[out_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
       }
