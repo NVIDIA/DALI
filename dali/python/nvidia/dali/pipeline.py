@@ -19,7 +19,15 @@ from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
 from nvidia.dali import check_edge as Edge
 from threading import local as tls
+import warnings
 pipeline_tls = tls()
+
+def _show_deprecation_warning(deprecated, in_favor_of):
+    # show only this warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("default")
+        warnings.warn("{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
+                      Warning, stacklevel=2)
 
 
 class Pipeline(object):
@@ -377,6 +385,7 @@ class Pipeline(object):
     # for the backward compatibility
     def _run(self):
         """Deprecated. Use `nvidia.dali.pipeline.Pipeline.schedule_run` instead."""
+        _show_deprecation_warning("_run", "schedule_run")
         self.schedule_run()
 
     def share_outputs(self):
@@ -392,7 +401,7 @@ class Pipeline(object):
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
         and :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
-        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
                 raise StopIteration
             self._batches_to_consume -= 1
@@ -402,6 +411,7 @@ class Pipeline(object):
     # for the backward compatibility
     def _share_outputs(self):
         """Deprecated. Use :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` instead"""
+        _show_deprecation_warning("_share_outputs", "share_outputs")
         self.share_outputs()
 
     def release_outputs(self):
@@ -415,7 +425,7 @@ class Pipeline(object):
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
         and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
-        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if not self._built:
                 raise RuntimeError("Pipeline must be built first.")
             return self._pipe.ReleaseOutputs()
@@ -423,6 +433,7 @@ class Pipeline(object):
     # for the backward compatibility
     def _release_outputs(self):
         """Deprecated. Use :meth:`nvidia.dali.pipeline.Pipeline.release_outputs` instead"""
+        _show_deprecation_warning("_release_outputs", "release_outputs")
         self.release_outputs()
 
     def _outputs(self):
@@ -433,7 +444,7 @@ class Pipeline(object):
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
-
+    
     def run(self):
         """Run the pipeline and return the result.
 
@@ -443,7 +454,7 @@ class Pipeline(object):
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run` in the same pipeline,
         :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` and
         :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`"""
-        with self._check_api_type_scope(types.PipelineAPIType.BASIC) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.BASIC):
             self.schedule_run()
             return self.outputs()
 

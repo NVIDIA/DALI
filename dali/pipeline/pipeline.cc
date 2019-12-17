@@ -485,12 +485,9 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
         PrepareOpSpec(&spec, GetNextInternalLogicalId());
 
         graph_.AddOp(spec, "__MakeContiguous_" + name);
-
-        outputs.push_back("contiguous_" + name + "_" + device);
-      } else {
-        // handle contiguous output from gpu ops
-        outputs.push_back(name + "_" + device);
+        it->second.has_contiguous = true;
       }
+      outputs.push_back("contiguous_" + name + "_" + device);
     } else if (device == "gpu") {
       if (!it->second.has_gpu) {
         DALI_ENFORCE(it->second.has_cpu, "Output '" + name +
@@ -719,7 +716,7 @@ string Pipeline::SerializeToProtobuf() const {
   printf("%s\n", pipe.DebugString().c_str());
 #endif
 
-  return pipe.SerializeAsString();
+  return output;
 }
 
 OpNode * Pipeline::GetOperatorNode(const std::string& name) {
