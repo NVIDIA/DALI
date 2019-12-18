@@ -8,8 +8,8 @@ def main(argv):
     gpu_ops = ops.gpu_ops()
     mix_ops = ops.mixed_ops()
     all_ops = cpu_ops.union(gpu_ops).union(mix_ops)
-    link_string = '_'
-    op_name_max_len = len(max(all_ops, key=len)) + len(link_string)
+    link_formatter = ':meth:`{op} <nvidia.dali.ops.{op}>`'
+    op_name_max_len = len(link_formatter.format(op = "")) + 2 * len(max(all_ops, key=len))
     name_bar = op_name_max_len * '='
     formater = '{:{c}<{op_name_max_len}} {:{c}^6}  {:{c}^6}  {:{c}^7} {:{c}^9} {:{c}^10}\n'
     doc_table = ''
@@ -26,7 +26,7 @@ def main(argv):
         is_mixed = '|v|' if op in mix_ops else ''
         supports_seq = '|v|' if schema.AllowsSequences() or schema.IsSequenceOperator() else ''
         volumetric = '|v|' if schema.SupportsVolumetric() else ''
-        op_string = op + link_string
+        op_string = link_formatter.format(op = op)
         op_doc = formater.format(op_string, is_cpu, is_gpu, is_mixed, supports_seq, volumetric, op_name_max_len = op_name_max_len, c=' ')
         doc_table += op_doc
     doc_table += formater.format('', '', '', '', '', '', op_name_max_len = op_name_max_len, c='=')

@@ -117,6 +117,10 @@ exclude_patterns = [u'_build', 'Thumbs.db', '.DS_Store', '**.ipynb_checkpoints']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
+# -- Options for Napoleon ----------------------------------------------------
+
+napoleon_custom_sections = ['Supported backends']
+
 
 # -- Options for HTML output -------------------------------------------------
 

@@ -17,13 +17,15 @@
 
 #include <functional>
 #include <map>
-#include <string>
-#include <set>
-#include <vector>
-#include <utility>
 #include <memory>
+#include <set>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/format.h"
 #include "dali/core/traits.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/argument.h"
@@ -91,6 +93,65 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
+   * @brief Sets the docstring for input.
+   *
+   * Set the documentation for intput at given `index`.
+   *
+   * If the operator specifies some range of allowed inputs with NumInput(int min, int max)
+   * only the first `min` inputs are considered mandatory, the rest are optional
+   *
+   * Will generate entry in `Args` section using numpydoc style:
+   * `name`: type_doc
+   *     doc
+   */
+  DLL_PUBLIC inline OpSchema &InputDox(int index, const string &name, const string &type_doc,
+                                          const string &doc) {
+    CheckInputIndex(index);
+    DALI_ENFORCE(!name.empty(), "Name of the argument should not be empty");
+    DALI_ENFORCE(call_dox_.empty(),
+                 "Providing docstrings for inputs is not supported when the CallDocStr was used.");
+    input_dox_set_ = true;
+    input_dox_[index] = {name, type_doc, doc};
+    return *this;
+  }
+
+  /**
+   * @brief Allows to set a docstring for __call__ method of Operator.
+   *
+   * The first line of the string can contain the signature that will be used
+   * in the sphinx-generated documentation, for example:
+   * "__call__(input0, input1, optional_input = None, **kwargs)\n"
+   *
+   * The arguments should be described using Args section and numpydoc syntax,
+   * with comments indented by 4 spaces, for example:
+   * """
+   * Args
+   * ----
+   * `input0`: Type of input
+   *     This is the first input
+   * `input1`: Tensor of some kind
+   *     This is second input
+   * `optional_input`: Tensor, optional
+   *     This is optional input
+   *
+   * If the `append_kwargs_section` is true, the docstring generator will append the Keyword args
+   * section at the end of this doc
+   *
+   * @param doc
+   * @param append_kwargs_section
+   */
+  DLL_PUBLIC inline OpSchema &CallDocStr(const string &doc, bool append_kwargs_section = true) {
+    DALI_ENFORCE(!doc.empty(), "The custom docstring for __call__ should not be empty.");
+
+    DALI_ENFORCE(!input_dox_set_,
+                 "Providing docstring for `__call__` is not supported when docstrings for separate "
+                 "inputs were set using InputDox.");
+    call_dox_ = doc;
+    append_kwargs_section_ = append_kwargs_section;
+    return *this;
+  }
+
+  /**
    * @brief Sets a funtion that infers the number of outputs this
    * op will produce from the ops specfication. This is required
    * to expose the op to the python interface.
@@ -126,6 +187,7 @@ class DLL_PUBLIC OpSchema {
     DALI_ENFORCE(n >= 0);
     max_num_input_ = n;
     min_num_input_ = n;
+    input_dox_.resize(n);
     input_layouts_.resize(n);
     return *this;
   }
@@ -149,6 +211,15 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC inline OpSchema& NumOutput(int n) {
     DALI_ENFORCE(n >= 0);
     num_output_ = n;
+    return *this;
+  }
+
+  /**
+   * @brief Indicates that this operator should not use auto-generated documentation
+   *        of inputs and `__call__` operator with custom signature.
+   */
+  DLL_PUBLIC inline OpSchema& DisableAutoInputDox() {
+    disable_auto_input_dox_ = true;
     return *this;
   }
 
@@ -361,7 +432,9 @@ class DLL_PUBLIC OpSchema {
 
   /**
    * @brief Sets a parent (which could be used as a storage of default parameters)
-   * Does not support cyclic dependency.
+   * Does not support cyclic dependency. There can be multiple parents
+   * and the lookup is transitive.
+   * Only arguments are inherited, inputs and outputs are not.
    */
   DLL_PUBLIC inline OpSchema& AddParent(const std::string &parentName) {
     parents_.push_back(parentName);
@@ -388,6 +461,87 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC string Dox() const;
 
+  /**
+   * @brief Return true wether the default input docs can be used
+   */
+  DLL_PUBLIC bool CanUseAutoInputDox() {
+    return !disable_auto_input_dox_ && MaxNumInput() <= 1;
+  }
+
+  DLL_PUBLIC bool AppendKwargsSection() {
+    return append_kwargs_section_;
+  }
+
+  /**
+   * @brief Return true when `__call__` docstring was explicitly set
+   *
+   * Should be considered as highest preference
+   */
+  DLL_PUBLIC bool HasCallDox() {
+    return !call_dox_.empty();
+  }
+
+  DLL_PUBLIC std::string GetCallDox() {
+    DALI_ENFORCE(HasCallDox(), "__call__ docstring was not set");
+    return call_dox_;
+  }
+
+  /**
+   * @brief Check if this operator has input docstrings provided
+   */
+  DLL_PUBLIC bool HasInputDox() {
+    return input_dox_set_;
+  }
+
+  /**
+   * @brief List all the inputs that should appear in `__call__` signature based on the input
+   *        docs that were specified. Requires HasInputDox() to return true
+   *
+   */
+  DLL_PUBLIC std::string GetCallSignatureInputs() {
+    DALI_ENFORCE(HasInputDox(),
+                 "Input documentation was not specified for this operator.");
+    std::stringstream result;
+    for (int i = 0; i < MinNumInput(); i++) {
+      result << input_dox_[i].name;
+      if (i < MaxNumInput() - 1) {
+        result << ", ";
+      }
+    }
+    for (int i = MinNumInput(); i < MaxNumInput(); i++) {
+      result << input_dox_[i].name << " = None";
+      if (i < MaxNumInput() - 1) {
+        result << ", ";
+      }
+    }
+    return result.str();
+  }
+
+  DLL_PUBLIC std::string GetInputName(int input_idx) {
+    CheckInputIndex(input_idx);
+    DALI_ENFORCE(HasInputDox(),
+                 "Input documentation was not specified for this operator.");
+    DALI_ENFORCE(!input_dox_[input_idx].name.empty(),
+                 make_string("Docstring for input ", input_idx,
+                             "was not set. All inputs should be documented."));
+    return input_dox_[input_idx].name;
+  }
+
+  DLL_PUBLIC std::string GetInputType(int input_idx) {
+    CheckInputIndex(input_idx);
+    DALI_ENFORCE(HasInputDox(),
+                 "Input documentation was not specified for this operator.");
+    return input_dox_[input_idx].type_doc;
+  }
+
+  DLL_PUBLIC std::string GetInputDox(int input_idx) {
+    CheckInputIndex(input_idx);
+    DALI_ENFORCE(HasInputDox(),
+                 "Input documentation was not specified for this operator.");
+    return input_dox_[input_idx].doc;
+  }
+
+
   DLL_PUBLIC inline int MaxNumInput() const {
     return max_num_input_;
   }
@@ -398,6 +552,10 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC inline int NumOutput() const {
     return num_output_;
+  }
+
+  DLL_PUBLIC inline bool AllowsAutoInputDox() const {
+    return allow_instance_grouping_;
   }
 
   DLL_PUBLIC inline bool AllowsInstanceGrouping() const {
@@ -496,6 +654,24 @@ class DLL_PUBLIC OpSchema {
 
   string dox_;
   string name_;
+
+  bool disable_auto_input_dox_ = false;
+
+  struct InputDoc {
+    std::string name = {};
+    std::string type_doc = {};
+    std::string doc = {};
+  };
+  std::vector<InputDoc> input_dox_ = {};
+  bool input_dox_set_ = false;
+
+  // Custom docstring, if not empty should be used in place of input_dox_ descriptions
+  std::string call_dox_ = {};
+
+  // Whether to append kwargs section to __call__ docstring. On by default,
+  // can be turned off for call_dox_ specified manually
+  bool append_kwargs_section_ = true;
+
   SpecFunc output_fn_, in_place_fn_, additional_outputs_fn_;
 
   int min_num_input_ = 0, max_num_input_ = 0;

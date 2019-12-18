@@ -37,16 +37,17 @@ _known_types = {
         DALIDataType.FLOAT : ("float", float),
         DALIDataType.BOOL : ("bool", bool),
         DALIDataType.STRING : ("str", str),
-        DALIDataType._BOOL_VEC : ("bool or list of bool", _to_list(bool)),
-        DALIDataType._INT32_VEC : ("int or list of int",_to_list(int)),
-        DALIDataType._STRING_VEC : ("str or list of str", _to_list(str)),
-        DALIDataType._FLOAT_VEC : ("float or list of float", _to_list(float)),
+        DALIDataType._BOOL_VEC : ("bool", _to_list(bool)),
+        DALIDataType._INT32_VEC : ("int", _to_list(int)),
+        DALIDataType._STRING_VEC : ("str", _to_list(str)),
+        DALIDataType._FLOAT_VEC : ("float", _to_list(float)),
         DALIDataType.IMAGE_TYPE : ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),
         DALIDataType.DATA_TYPE : ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
         DALIDataType.INTERP_TYPE : ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
         DALIDataType.TENSOR_LAYOUT : ("nvidia.dali.types.TensorLayout", lambda x: TensorLayout(str(x))),
         DALIDataType.PYTHON_OBJECT : ("object", lambda x: x)
         }
+
 _vector_types = {
         DALIDataType._BOOL_VEC : DALIDataType.BOOL,
         DALIDataType._INT32_VEC : DALIDataType.INT32,
@@ -66,7 +67,9 @@ def _type_name_convert_to_string(dtype, is_tensor):
     if dtype in _known_types:
         ret = _known_types[dtype][0]
         if is_tensor:
-            ret += " or " + ret + " tensor"
+            ret = "Tensor of " + ret
+        elif dtype in _vector_types:
+            ret = ret + " or list of " + _known_types[dtype][0]
         return ret
     else:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")

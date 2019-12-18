@@ -19,18 +19,23 @@ namespace dali {
 DALI_SCHEMA(Slice)
     .DocStr(
         R"code(Extract a subtensor or `slice` with a given shape and anchor.
-Inputs must be supplied as 3 separate tensors in a specific order: `data`
-containing input data, `anchor` containing either normalized or absolute coordinates
-(depending on the value of `normalized_anchor`) for the starting point of the
-slice (x0, x1, x2, ...), and `shape` containing either normalized or absolute coordinates
-(depending on the value of `normalized_shape`) for the dimensions of the slice
-(s0, s1, s2, ...). Both `anchor` and `shape` coordinates must be within the interval
+Inputs must be supplied as 3 separate tensors in a specific order: `data`, `anchor` and `shape`.
+Both `anchor` and `shape` coordinates must be within the interval
 [0.0, 1.0] for normalized coordinates, or within the image shape for absolute
 coordinates. Both `anchor` and `shape` inputs will provide as many dimensions as specified
 with arguments `axis_names` or `axes`. By default `Slice` operator uses normalized
 coordinates and `WH` order for the slice arguments.)code")
     .NumInput(3)
     .NumOutput(1)
+    .InputDox(0, "data", "Tensor", "Tensor containing input data")
+    .InputDox(1, "anchor", "1D tensor of floats",
+                 R"code(Tensor containing either normalized or absolute coordinates
+(depending on the value of `normalized_anchor`) for the starting point of the
+slice (x0, x1, x2, ...).)code")
+    .InputDox(2, "shape", "1D tensor of floats",
+                 R"code(containing either normalized or absolute coordinates
+(depending on the value of `normalized_shape`) for the dimensions of the slice
+(s0, s1, s2, ...).)code")
     .AllowSequences()
     .SupportVolumetric()
     .AddOptionalArg("image_type",
