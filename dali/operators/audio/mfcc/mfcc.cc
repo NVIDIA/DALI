@@ -15,7 +15,10 @@
 #include "dali/operators/audio/mfcc/mfcc.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/signal/dct/dct_cpu.h"
+#include "dali/kernels/common/utils.h"
+#include "dali/kernels/common/for_axis.h"
 #include "dali/pipeline/data/views.h"
+
 
 #define MFCC_SUPPORTED_TYPES (float)
 #define MFCC_SUPPORTED_NDIMS (2, 3, 4)
@@ -24,6 +27,30 @@ static constexpr int kNumInputs = 1;
 static constexpr int kNumOutputs = 1;
 
 namespace dali {
+
+namespace detail {
+
+template <typename T, int Dims>
+void ApplyLifter(const kernels::OutTensorCPU<T, Dims> &inout, int axis, const T* lifter_coeffs) {
+  auto* data = inout.data;
+  auto shape = inout.shape;
+  auto strides = kernels::GetStrides(shape);
+  kernels::ForAxis(
+    data, data, shape.data(), strides.data(), shape.data(), strides.data(), axis, Dims,
+    [lifter_coeffs](
+      T *out_data, const T *in_data, int64_t out_size, int64_t out_stride,
+      int64_t in_size, int64_t in_stride) {
+        int64_t idx = 0;
+        assert(out_size == in_size);
+        assert(out_stride == in_stride);
+        for (int64_t k = 0; k < out_size; k++) {
+          out_data[idx] = lifter_coeffs[k] * in_data[idx];
+          idx += out_stride;
+        }
+      });
+}
+
+}  // namespace detail
 
 DALI_SCHEMA(MFCC)
     .DocStr(R"code(Mel Frequency Cepstral Coefficiencs (MFCC).
@@ -66,6 +93,8 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   int nsamples = input.size();
   auto nthreads = ws.GetThreadPool().size();
 
+  int64_t max_length = -1;
+
   TYPE_SWITCH(input.type().id(), type2id, T, MFCC_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, MFCC_SUPPORTED_NDIMS, (
       using DctKernel = kernels::signal::dct::Dct1DCpu<T, T, Dims>;
@@ -77,9 +106,17 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
         const auto in_view = view<const T, Dims>(input[i]);
         auto &req = kmgr_.Setup<DctKernel>(i, ctx, in_view, args_);
         output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
+
+        if (in_view.shape[args_.axis] > max_length) {
+          max_length = in_view.shape[args_.axis];
+        }
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
+
+  if (lifter_ != 0.0 && max_length > static_cast<int64_t>(lifter_coeffs_.size())) {
+    CalcLifterCoeffs(max_length);
+  }
   return true;
 }
 
@@ -101,6 +138,9 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
             kmgr_.Run<DctKernel>(thread_id, i, ctx, out_view, in_view, args_);
+            if (lifter_ != 0.0) {
+              detail::ApplyLifter(out_view, args_.axis, lifter_coeffs_.data());
+            }
           });
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT

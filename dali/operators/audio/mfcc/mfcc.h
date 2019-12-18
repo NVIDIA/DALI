@@ -57,9 +57,23 @@ class MFCC : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
+  void CalcLifterCoeffs(int64_t length) {
+    if (static_cast<int64_t>(lifter_coeffs_.size()) < length || lifter_ == 0)
+      return;
+
+    lifter_coeffs_.reserve(length);
+    int64_t start = lifter_coeffs_.size(), end = length;
+    float mult = lifter_ / 2;
+    for (int64_t i = 0; i < end; i++) {
+      lifter_coeffs_.push_back(mult * (1 + std::sin(M_PI * (i + 1) / lifter_)));
+    }
+  }
+
+
   kernels::KernelManager kmgr_;
   kernels::signal::dct::DctArgs args_;
   float lifter_ = 0.0f;
+  std::vector<float> lifter_coeffs_;
 };
 
 }  // namespace dali
