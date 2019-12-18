@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <cmath>
 
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
@@ -26,6 +27,15 @@ class VideoReaderTest : public ::testing::Test {
   }
   std::vector<std::pair<std::string, std::string>> LabelledOutputs() {
     return {{"frames", "gpu"}, {"labels", "gpu"}};
+  }
+  std::vector<std::pair<std::string, std::string>> Output_frames_label_frame_num() {
+    return {{"frames", "gpu"}, {"labels", "gpu"}, {"frame_num", "gpu"}};
+  }
+  std::vector<std::pair<std::string, std::string>> Output_frames_label_timestamp() {
+    return {{"frames", "gpu"}, {"labels", "gpu"}, {"timestamp", "gpu"}};
+  }
+  std::vector<std::pair<std::string, std::string>> Output_frames_frame_num_timestamp() {
+    return {{"frames", "gpu"}, {"labels", "gpu"}, {"frame_num", "gpu"}, {"timestamp", "gpu"}};
   }
 };
 
@@ -246,6 +256,216 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
 
   ASSERT_EQ(frames_shape.size(), 1);
   ASSERT_EQ(frames_shape[0][0], sequence_length);
+}
+
+TEST_F(VideoReaderTest, FrameLabels) {
+  const int sequence_length = 1;
+  const int iterations = 256;
+  const int batch_size = 1;
+  Pipeline pipe(batch_size, 1, 0);
+
+  pipe.AddOperator(
+    OpSpec("VideoReader")
+    .AddArg("device", "gpu")
+    .AddArg("random_shuffle", false)
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("enable_frame_num", true)
+    .AddArg("image_type", DALI_YCbCr)
+    .AddArg(
+      "file_list", "/tmp/file_list.txt")
+    .AddOutput("frames", "gpu")
+    .AddOutput("labels", "gpu")
+    .AddOutput("frame_num", "gpu"));
+
+  pipe.Build(this->Output_frames_label_frame_num());
+
+  DeviceWorkspace ws;
+  for (int i = 0; i < iterations; ++i) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
+
+    TensorList<CPUBackend> frames_cpu;
+    frames_cpu.Copy(frames_gpu, 0);
+    TensorList<CPUBackend> labels_cpu;
+    labels_cpu.Copy(label_gpu, 0);
+    TensorList<CPUBackend> frame_num_cpu;
+    frame_num_cpu.Copy(frame_num_gpu, 0);
+    cudaStreamSynchronize(0);
+
+    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
+    const int *label = static_cast<const int *>(labels_cpu.raw_data());
+    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+
+    ASSERT_EQ(frames[0], frame_num[0]);
+  }
+}
+
+TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
+  const int sequence_length = 1;
+  const int iterations = 256;
+  const int batch_size = 1;
+  Pipeline pipe(batch_size, 1, 0);
+
+  pipe.AddOperator(
+    OpSpec("VideoReader")
+    .AddArg("device", "gpu")
+    .AddArg("random_shuffle", false)
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("enable_frame_num", true)
+    .AddArg("enable_timestamps", true)
+    .AddArg("file_list_frame_num", true)
+    .AddArg("image_type", DALI_YCbCr)
+    .AddArg(
+      "file_list", "/tmp/file_list_frame_num.txt")
+    .AddOutput("frames", "gpu")
+    .AddOutput("labels", "gpu")
+    .AddOutput("frame_num", "gpu")
+    .AddOutput("timestamp", "gpu"));
+
+  pipe.Build(this->Output_frames_frame_num_timestamp());
+
+  DeviceWorkspace ws;
+  for (int i = 0; i < iterations; ++i) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
+    const auto &timestamp_gpu = ws.Output<dali::GPUBackend>(3);
+
+    TensorList<CPUBackend> frames_cpu;
+    frames_cpu.Copy(frames_gpu, 0);
+    TensorList<CPUBackend> labels_cpu;
+    labels_cpu.Copy(label_gpu, 0);
+    TensorList<CPUBackend> frame_num_cpu;
+    frame_num_cpu.Copy(frame_num_gpu, 0);
+    TensorList<CPUBackend> timestamps_cpu;
+    timestamps_cpu.Copy(timestamp_gpu, 0);
+    cudaStreamSynchronize(0);
+
+    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
+    const int *label = static_cast<const int *>(labels_cpu.raw_data());
+    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+    const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
+
+    ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0]*25);
+    switch (label[0]) {
+      case 0:
+        ASSERT_TRUE(frame_num[0] >= 0 && frame_num[0] < 50);
+        break;
+      case 1:
+        ASSERT_TRUE(frame_num[0] >= 50 && frame_num[0] < 100);
+        break;
+      case 2:
+        ASSERT_TRUE(frame_num[0] >= 100 && frame_num[0] < 150);
+        break;
+      default:
+        FAIL() << "Unexpected label";
+    }
+  }
+}
+
+TEST_F(VideoReaderTest, TimestampLabels) {
+  const int sequence_length = 1;
+  const int iterations = 256;
+  const int batch_size = 1;
+  Pipeline pipe(batch_size, 1, 0);
+
+  pipe.AddOperator(
+    OpSpec("VideoReader")
+    .AddArg("device", "gpu")
+    .AddArg("random_shuffle", false)
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("enable_timestamps", true)
+    .AddArg("enable_frame_num", true)
+    .AddArg("image_type", DALI_YCbCr)
+    .AddArg(
+      "file_list", "/tmp/file_list_timestamp.txt")
+    .AddOutput("frames", "gpu")
+    .AddOutput("labels", "gpu")
+    .AddOutput("frame_num", "gpu")
+    .AddOutput("timestamp", "gpu"));
+
+  pipe.Build(this->Output_frames_frame_num_timestamp());
+
+  DeviceWorkspace ws;
+  for (int i = 0; i < iterations; ++i) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
+    const auto &timestamp_gpu = ws.Output<dali::GPUBackend>(3);
+
+    TensorList<CPUBackend> frames_cpu;
+    frames_cpu.Copy(frames_gpu, 0);
+    TensorList<CPUBackend> labels_cpu;
+    labels_cpu.Copy(label_gpu, 0);
+    TensorList<CPUBackend> timestamps_cpu;
+    timestamps_cpu.Copy(timestamp_gpu, 0);
+    TensorList<CPUBackend> frame_num_cpu;
+    frame_num_cpu.Copy(frame_num_gpu, 0);
+    cudaStreamSynchronize(0);
+
+    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
+    const int *label = static_cast<const int *>(labels_cpu.raw_data());
+    const int *frame_num = static_cast<const int *>(frame_num_cpu.raw_data());
+    const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
+
+    ASSERT_DOUBLE_EQ(frame_num[0], timestamps[0]*25);
+  }
+}
+
+TEST_F(VideoReaderTest, StartEndLabels) {
+  const int sequence_length = 1;
+  const int iterations = 256;
+  const int batch_size = 1;
+  Pipeline pipe(batch_size, 1, 0);
+
+  pipe.AddOperator(
+    OpSpec("VideoReader")
+    .AddArg("device", "gpu")
+    .AddArg("random_shuffle", false)
+    .AddArg("sequence_length", sequence_length)
+    .AddArg("enable_timestamps", true)
+    .AddArg("image_type", DALI_YCbCr)
+    .AddArg(
+      "file_list", "/tmp/file_list.txt")
+    .AddOutput("frames", "gpu")
+    .AddOutput("labels", "gpu")
+    .AddOutput("timestamp", "gpu"));
+
+  pipe.Build(this->Output_frames_label_timestamp());
+
+  DeviceWorkspace ws;
+  for (int i = 0; i < iterations; ++i) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+    const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
+    const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
+    const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
+
+    TensorList<CPUBackend> frames_cpu;
+    frames_cpu.Copy(frames_gpu, 0);
+    TensorList<CPUBackend> labels_cpu;
+    labels_cpu.Copy(label_gpu, 0);
+    TensorList<CPUBackend> timestamps_cpu;
+    timestamps_cpu.Copy(frame_num_gpu, 0);
+    cudaStreamSynchronize(0);
+
+    const uint8 *frames = static_cast<const uint8 *>(frames_cpu.raw_data());
+    const int *label = static_cast<const int *>(labels_cpu.raw_data());
+    const double *timestamps = static_cast<const double *>(timestamps_cpu.raw_data());
+
+    ASSERT_EQ(*label, std::floor(timestamps[0]/100));
+  }
 }
 
 }  // namespace dali

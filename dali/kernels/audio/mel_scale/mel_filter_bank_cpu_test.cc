@@ -30,11 +30,18 @@ namespace audio {
 namespace test {
 
 class MelScaleCpuTest : public::testing::TestWithParam<
-  std::tuple<std::array<int64_t, 2> /* data_shape */, int /* nfilter */>> {
+  std::tuple<std::array<int64_t, 2>, /* data_shape */
+             int, /* nfilter */
+             float, /* sample_rate */
+             float, /* fmin */
+             float>> {  /* fmax */
  public:
   MelScaleCpuTest()
     : data_shape_(std::get<0>(GetParam()))
     , nfilter_(std::get<1>(GetParam()))
+    , sample_rate_(std::get<2>(GetParam()))
+    , freq_low_(std::get<3>(GetParam()))
+    , freq_high_(std::get<4>(GetParam()))
     , data_(volume(data_shape_))
     , in_view_(data_.data(), data_shape_) {}
 
@@ -47,6 +54,7 @@ class MelScaleCpuTest : public::testing::TestWithParam<
   }
   TensorShape<2> data_shape_;
   int nfilter_ = 4;
+  float sample_rate_ = 16000, freq_low_ = 0, freq_high_ = 8000;
   std::vector<float> data_;
   OutTensorCPU<float, 2> in_view_;
 };
@@ -72,10 +80,13 @@ std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, floa
   auto high_mel = mel_scale.hz_to_mel(high_freq);
 
   float delta_mel = (high_mel - low_mel) / (nfilter + 1);
+  assert(nfilter > 0);
   std::vector<float> mel_points(nfilter+2, 0.0f);
-  for (int i = 0; i < static_cast<int>(mel_points.size()); i++) {
-    mel_points[i] = i * delta_mel;
+  mel_points[0] = mel_scale.hz_to_mel(low_freq);
+  for (int i = 1; i < nfilter+1; i++) {
+    mel_points[i] = mel_points[i-1] + delta_mel;
   }
+  mel_points[nfilter+1] = mel_scale.hz_to_mel(high_freq);
 
   std::vector<float> fftfreqs(nfft/2+1, 0.0f);
   for (int i = 0; i < nfft/2+1; i++) {
@@ -83,18 +94,25 @@ std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, floa
   }
 
   std::vector<float> freq_grid(mel_points.size(), 0.0f);
-  for (int i = 0; i < static_cast<int>(mel_points.size()); i++) {
+  int i = 0;
+  freq_grid[0] = low_freq;
+  for (int i = 1; i < nfilter+1; i++) {
     freq_grid[i] = mel_scale.mel_to_hz(mel_points[i]);
   }
+  freq_grid[nfilter+1] = high_freq;
 
   for (int j = 0; j < nfilter; j++) {
     auto &fbank = fbanks[j];
     fbank.resize(nfft/2+1, 0.0f);
     for (int i = 0; i < nfft/2+1; i++) {
       auto f = fftfreqs[i];
-      auto upper = (f - freq_grid[j]) / (freq_grid[j+1] - freq_grid[j]);
-      auto lower = (freq_grid[j+2] - f) / (freq_grid[j+2] - freq_grid[j+1]);
-      fbank[i] = std::max(0.0f, std::min(upper, lower));
+      if (f < low_freq || f > high_freq) {
+        fbank[i] = 0.0f;
+      } else {
+        auto upper = (f - freq_grid[j]) / (freq_grid[j+1] - freq_grid[j]);
+        auto lower = (freq_grid[j+2] - f) / (freq_grid[j+2] - freq_grid[j+1]);
+        fbank[i] = std::max(0.0f, std::min(upper, lower));
+      }
     }
   }
 
@@ -124,9 +142,8 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   out_shape[axis] = nfilter_;
   auto out_size = volume(out_shape);
 
-  T sample_rate = 16000;
-  T mel_low = mel_scale.hz_to_mel(0.0f);
-  T mel_high = mel_scale.hz_to_mel(sample_rate / 2);
+  T mel_low = mel_scale.hz_to_mel(freq_low_);
+  T mel_high = mel_scale.hz_to_mel(freq_high_);
 
   T mel_delta = (mel_high - mel_low) / (nfilter_ + 1);
   T mel = mel_low;
@@ -138,11 +155,11 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
 
   LOG_LINE << "FFT bin frequencies (Hz):";
   for (int k = 0; k < nfft / 2 + 1; k++) {
-    LOG_LINE << " " << (k * sample_rate / nfft);
+    LOG_LINE << " " << (k * sample_rate_ / nfft);
   }
   LOG_LINE << "\n";
 
-  auto fbanks = ReferenceFilterBanks(nfilter_, nfft, sample_rate, 0.0f, sample_rate/2.0f);
+  auto fbanks = ReferenceFilterBanks(nfilter_, nfft, sample_rate_, freq_low_, freq_high_);
   std::vector<T> expected_out(out_size, 0.0f);
   auto expected_out_view = OutTensorCPU<T, Dims>(expected_out.data(), out_shape.to_static<Dims>());
   for (int j = 0; j < nfilter_; j++) {
@@ -159,9 +176,9 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   args.axis = Dims - 2;
   args.nfft = nfft;
   args.nfilter = nfilter_;
-  args.sample_rate = sample_rate;
-  args.freq_low = 0;
-  args.freq_high = 0.5f * sample_rate;
+  args.sample_rate = sample_rate_;
+  args.freq_low = freq_low_;
+  args.freq_high = freq_high_;
   args.mel_formula = MelScaleFormula::HTK;
   args.normalize = false;
 
@@ -192,7 +209,10 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
 INSTANTIATE_TEST_SUITE_P(MelScaleCpuTest, MelScaleCpuTest, testing::Combine(
     testing::Values(std::array<int64_t, 2>{17, 1},
                     std::array<int64_t, 2>{513, 111}),  // shape
-    testing::Values(4, 8)));  // nfilter
+    testing::Values(4, 8),  // nfilter
+    testing::Values(16000.0f),  // sample rate
+    testing::Values(0.0f, 1000.0f),  // fmin
+    testing::Values(5000.0f, 8000.0f)));  // fmax
 
 }  // namespace test
 }  // namespace audio

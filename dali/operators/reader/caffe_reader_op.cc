@@ -19,7 +19,7 @@ namespace dali {
 DALI_REGISTER_OPERATOR(CaffeReader, CaffeReader, CPU);
 
 DALI_SCHEMA(CaffeReader)
-  .DocStr("Read (Image, label) pairs from a Caffe LMDB")
+  .DocStr("Read (Image, label) pairs from a Caffe LMDB.")
   .NumInput(0)
   .OutputFn([](const OpSpec& spec) {
     auto image_available = spec.GetArgument<bool>("image_available");

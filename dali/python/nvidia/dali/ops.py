@@ -20,7 +20,8 @@ from itertools import count
 import threading
 from nvidia.dali import backend as b
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, \
-        _vector_element_type, _int_types, _float_types, DALIDataType, CUDAStream, Constant
+        _vector_element_type, _bool_types, _int_types, _int_like_types, _float_types, \
+        DALIDataType, CUDAStream, Constant
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
@@ -64,36 +65,99 @@ class _EdgeReference(object):
     def __rfloordiv__(self, other):
         return _arithm_op("div", other, self)
 
-    # def __neg__(self):
-    #     return _arithm_op("minus", self)
-    # def __pos__(self):
-    #     return _arithm_op("plus", self)
+    def __neg__(self):
+        return _arithm_op("minus", self)
+
+    # Shortucitng the execution, unary + is basically a no-op
+    def __pos__(self):
+        return self
+
+    def __eq__(self, other):
+        return _arithm_op("eq", self, other)
+
+    def __ne__(self, other):
+        return _arithm_op("neq", self, other)
+
+    def __lt__(self, other):
+        return _arithm_op("lt", self, other)
+
+    def __le__(self, other):
+        return _arithm_op("leq", self, other)
+
+    def __gt__(self, other):
+        return _arithm_op("gt", self, other)
+
+    def __ge__(self, other):
+        return _arithm_op("geq", self, other)
 
 _cpu_ops = set({})
 _gpu_ops = set({})
 _mixed_ops = set({})
 
+def _numpydoc_formatter(name, type, doc):
+    indent = "\n" + " " * 4
+    return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
+
+def _get_kwargs(schema, only_tensor = False):
+    """
+    Get the keywords arguments from the schema.
+
+    `schema`
+        the schema in which to lookup arguments
+    `only_tensor`: bool
+        If True list only keyword arguments that can be passed as Tensors (argument inputs)
+        If False list all the arguments. False indicates that we list arguments to the
+        constructor of the operator which does not accept Tensors (argument inputs) - that
+        fact will be reflected in specified type
+    """
+    ret = ""
+    for arg in schema.GetArgumentNames():
+        if not only_tensor or schema.IsTensorArgument(arg):
+            arg_name_doc = arg
+            dtype = schema.GetArgumentType(arg)
+            type_name = _type_name_convert_to_string(dtype, is_tensor = only_tensor)
+            if schema.IsArgumentOptional(arg):
+                default_value_string = schema.GetArgumentDefaultValueString(arg)
+                # Evaluating empty string results in an error
+                # so we need to prevent that
+                if default_value_string:
+                    default_value = eval(default_value_string)
+                else:
+                    default_value = default_value_string
+                type_name += (", optional, default = " +
+                        repr(_type_convert_value(dtype, default_value)))
+            doc = schema.GetArgumentDox(arg)
+            ret += _numpydoc_formatter(arg, type_name, doc)
+            ret += '\n'
+    return ret
+
 def _docstring_generator(cls):
+    """
+        Generate docstring for the class obtaining it from schema based on cls.__name__
+
+        This lists all the Keyword args that can be used when creating operator
+    """
     op_name = cls.__name__
     schema = b.GetSchema(op_name)
-    # insert tag to easily link to the operator
-    ret = '.. _' + op_name + ':\n\n'
-    ret += schema.Dox()
-    ret += '\n'
-    if schema.IsSequenceOperator():
-        ret += "\nThis operator expects sequence inputs\n"
-    elif schema.AllowsSequences():
-        ret += "\nThis operator allows sequence inputs\n"
-
-    if schema.SupportsVolumetric():
-        ret += "\nThis operator supports volumetric data\n"
+    ret = '\n'
 
     if schema.IsDeprecated():
         use_instead = schema.DeprecatedInFavorOf()
-        ret += "\n.. warning::\n\n   This operator is now deprecated"
+        ret += ".. warning::\n\n   This operator is now deprecated"
         if use_instead:
-            ret +=". Use `" + use_instead + "` instead"
-        ret += "\n"
+            ret +=". Use `" + use_instead + "` instead."
+        ret += "\n\n"
+
+    ret += schema.Dox()
+    ret += '\n'
+
+    if schema.IsSequenceOperator():
+        ret += "\nThis operator expects sequence inputs.\n"
+    elif schema.AllowsSequences():
+        ret += "\nThis operator allows sequence inputs.\n"
+
+    if schema.SupportsVolumetric():
+        ret += "\nThis operator supports volumetric data.\n"
 
     if schema.IsNoPrune():
         ret += "\nThis operator will **not** be optimized out of the graph.\n"
@@ -105,31 +169,90 @@ def _docstring_generator(cls):
         op_dev.append("'gpu'")
     if op_name in _mixed_ops:
         op_dev.append("'mixed'")
-    ret += "\nSupported backends: " + ", ".join(op_dev) + "\n"
+    ret += """
+Supported backends
+------------------
+"""
+    for dev in op_dev:
+        ret += "* " + dev + "\n"
+    ret += "\n"
 
     ret += """
-Parameters
-----------
+Keyword args
+------------
 """
-    for arg in schema.GetArgumentNames():
-        dtype = schema.GetArgumentType(arg)
-        arg_name_doc = "`" + arg + "` : "
-        ret += (arg_name_doc +
-                _type_name_convert_to_string(dtype, schema.IsTensorArgument(arg)))
-        if schema.IsArgumentOptional(arg):
-            default_value_string = schema.GetArgumentDefaultValueString(arg)
-            # Evaluating empty string results in an error
-            # so we need to prevent that
-            if default_value_string:
-                default_value = eval(default_value_string)
-            else:
-                default_value = default_value_string
-            ret += (", optional, default = " +
-                    repr(_type_convert_value(dtype, default_value)))
-        indent = '\n' + " " * 4
-        ret += indent
-        ret += schema.GetArgumentDox(arg).replace("\n", indent)
-        ret += '\n'
+    ret += _get_kwargs(schema)
+    return ret
+
+def _docstring_prefix_from_inputs(op_name):
+    """
+        Generate start of the docstring for `__call__` of Operator `op_name`
+        assuming the docstrings were provided for all inputs separatelly
+
+        Returns the signature of `__call__` and list of `Args` in appropriate section
+    """
+    schema = b.GetSchema(op_name)
+    # Signature
+    ret = "__call__(" + schema.GetCallSignatureInputs() + ", **kwargs)\n"
+    # __call__ docstring
+    ret += "\nOperator call to be used in `define_graph` step.\n"
+    # Args section
+    ret += """
+Args
+----
+"""
+    for i in range(schema.MaxNumInput()):
+        ret += _numpydoc_formatter(schema.GetInputName(i), schema.GetInputType(i), schema.GetInputDox(i))
+        ret += "\n"
+    ret += "\n"
+    return ret
+
+def _docstring_prefix_auto(op_name):
+    """
+        Generate start of the docstring for `__call__` of Operator `op_name`
+        with default values. Assumes ther will be 0 or 1 inputs
+    """
+    schema = b.GetSchema(op_name)
+    if schema.MaxNumInput() == 0:
+        return """__call__(**kwargs)
+
+Operator call to be used in `define_graph` step. This operator does not accept any Tensor inputs.
+"""
+    elif schema.MaxNumInput() == 1:
+        return """__call__(data, **kwargs)
+
+Operator call to be used in `define_graph` step.
+
+Args
+----
+`data`: Tensor
+    Input to the operator.
+"""
+    return ""
+
+
+def _docstring_generator_call(op_name):
+    """
+        Generate full docstring for `__call__` of Operator `op_name`.
+    """
+    schema = b.GetSchema(op_name)
+    if schema.HasCallDox():
+        ret = schema.GetCallDox()
+    elif schema.HasInputDox():
+        ret =_docstring_prefix_from_inputs(op_name)
+    elif schema.CanUseAutoInputDox():
+        ret = _docstring_prefix_auto(op_name)
+    else:
+        ret = "Please refer to class :meth:`nvidia.dali.ops." + op_name + "` for full documentation.\n"
+    if schema.AppendKwargsSection():
+        # Kwargs section
+        tensor_kwargs = _get_kwargs(schema, only_tensor = True)
+        if tensor_kwargs:
+            ret += """
+Keyword Args
+------------
+"""
+            ret += tensor_kwargs
     return ret
 
 class _OpCounter(object):
@@ -252,6 +375,33 @@ class _DaliOperatorMeta(type):
     def __doc__(self):
         return _docstring_generator(self)
 
+    def __new__(mcs, name, bases, attrs, **kwargs):
+        """
+            This is just a workaround for Python2.
+            In Python3 it just works, when we do Operator.__call__.__doc__ = ...
+            after creating it in python_op_factory().
+
+            Here we intercept the creation of class by overloading the __new__ of
+            the metaclass, and access the `__call__` atribute in `attrs`.
+            We must pass the operator name using a workaround through attributes as there seems
+            to be no way of passing kwargs in Python2 using six.with_metaclass.
+            TODO(klecki): remove when Python2 is dropped
+        """
+        # Get the operator name and remove it from attributes
+        # In some cases we use the direct name
+        try:
+            actual_operator_name = attrs['_name']
+            del attrs['_name']
+        except KeyError:
+            actual_operator_name = name
+        # Set the docstring for __call__, if it's present
+        try:
+            attrs['__call__'].__doc__ = _docstring_generator_call(actual_operator_name)
+        except KeyError:
+            pass
+        op_instance = super(_DaliOperatorMeta, mcs).__new__(mcs, name, bases, attrs)
+        return op_instance
+
 def python_op_factory(name, op_device = "cpu"):
     class Operator(with_metaclass(_DaliOperatorMeta, object)):
         def __init__(self, **kwargs):
@@ -288,6 +438,9 @@ def python_op_factory(name, op_device = "cpu"):
                         continue
                 converted_value = _type_convert_value(dtype, value)
                 self._spec.AddArg(key, converted_value)
+
+        # TODO(klecki): remove when Python2 is dropped
+        _name = name
 
         @property
         def spec(self):
@@ -409,6 +562,9 @@ def python_op_factory(name, op_device = "cpu"):
     # The autodoc doesn't generate doc for something that doesn't match the module name
     if b.GetSchema(Operator.__name__).IsInternal():
         Operator.__module__ = Operator.__module__ + ".internal"
+
+    # TODO(klecki): use this instead of __new__ in metaclass when Python2 is dropped
+    # Operator.__call__.__doc__ = _docstring_generator_call(name)
     return Operator
 
 def _load_ops():
@@ -654,11 +810,22 @@ def _choose_device(inputs):
         return "gpu"
     return "cpu"
 
+def _is_boolean_like(input):
+    if type(input) == bool:
+        return True
+    if isinstance(input, Constant):
+        if input.dtype in _bool_types:
+            return True
+    return False
+
+# Boolean and integer types are considered integer-like
 def _is_integer_like(input):
+    if _is_boolean_like(input):
+        return True
     if type(input) == int:
         return True
     if isinstance(input, Constant):
-        if input.dtype in _int_types:
+        if input.dtype in _int_like_types:
             return True
     return False
 
@@ -672,27 +839,30 @@ def _is_real_like(input):
 
 # <type> description required by ArithmeticGenericOp
 def _to_type_desc(input):
-    if  type(input) == int:
+    if type(input) == bool:
+        return "bool"
+    if type(input) == int:
         return "int32"
     if type(input) == float:
         return "float32" # TODO(klecki): current DALI limitation
     if isinstance(input, Constant):
         dtype_to_desc = {
-            DALIDataType.INT8: "int8",
-            DALIDataType.INT16: "int16",
-            DALIDataType.INT32: "int32",
-            DALIDataType.INT64: "int64",
-            DALIDataType.UINT8: "uint8",
-            DALIDataType.UINT16: "uint16",
-            DALIDataType.UINT32: "uint32",
-            DALIDataType.UINT64: "uint64",
+            DALIDataType.BOOL:    "bool",
+            DALIDataType.INT8:    "int8",
+            DALIDataType.INT16:   "int16",
+            DALIDataType.INT32:   "int32",
+            DALIDataType.INT64:   "int64",
+            DALIDataType.UINT8:   "uint8",
+            DALIDataType.UINT16:  "uint16",
+            DALIDataType.UINT32:  "uint32",
+            DALIDataType.UINT64:  "uint64",
             DALIDataType.FLOAT16: "float16",
-            DALIDataType.FLOAT: "float32",
+            DALIDataType.FLOAT:   "float32",
             DALIDataType.FLOAT64: "float64",
         }
         return dtype_to_desc[input.dtype]
     raise TypeError(("Constant argument to arithmetic operation not supported. Got {}, expected "
-            "a constant value of type 'int', 'float' or 'nvidia.dali.types.Constant'.")
+            "a constant value of type 'bool', 'int', 'float' or 'nvidia.dali.types.Constant'.")
             .format(str(type(input))))
 
 
@@ -716,7 +886,7 @@ def _group_inputs(inputs):
             reals.append(input)
         else:
             raise TypeError(("Argument to arithmetic operation not supported. Got {}, expected "
-                    "a return value from other DALI Operator  or a constant value of type 'int', "
+                    "a return value from other DALI Operator  or a constant value of type 'bool', 'int', "
                     "'float' or 'nvidia.dali.types.Constant'.").format(str(type(input))))
     if len(integers) == 0:
         integers = None
@@ -739,7 +909,7 @@ def _generate_input_desc(categories_idx, integers, reals):
             input_desc += " "
     return input_desc
 
-# Create arguments for ArithmeticGenericOp andd call it with supplied inputs.
+# Create arguments for ArithmeticGenericOp and call it with supplied inputs.
 # Select the `gpu` device if at least one of the inputs is `gpu`, otherwise `cpu`.
 def _arithm_op(name, *inputs):
     categories_idxs, edges, integers, reals = _group_inputs(inputs)
@@ -754,7 +924,7 @@ def _arithm_op(name, *inputs):
         dev_inputs = list(edge.gpu() for edge in edges)
     else:
         dev_inputs = edges
-    # Call it imediatelly
+    # Call it immediately
     return op(*dev_inputs)
 
 def cpu_ops():

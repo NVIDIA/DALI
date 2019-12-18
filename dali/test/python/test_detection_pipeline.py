@@ -168,11 +168,14 @@ class DetectionPipeline(Pipeline):
             mirror=0,
             output_dtype=types.FLOAT)
 
-        self.bc_cpu = ops.BrightnessContrast(device="cpu")
-        self.bc_gpu = ops.BrightnessContrast(device="gpu")
+        self.twist_cpu = ops.ColorTwist(device="cpu")
+        self.twist_gpu = ops.ColorTwist(device="gpu")
 
-        self.hsv_cpu = ops.Hsv(device="cpu")
-        self.hsv_gpu = ops.Hsv(device="gpu")
+        self.hsv_cpu = ops.Hsv(device="cpu", dtype=types.FLOAT)
+        self.hsv_gpu = ops.Hsv(device="gpu", dtype=types.FLOAT)
+
+        self.bc_cpu = ops.BrightnessContrast(device="cpu", dtype=types.UINT8, contrast_center=128)
+        self.bc_gpu = ops.BrightnessContrast(device="gpu", dtype=types.UINT8, contrast_center=128)
 
         self.flip_cpu = ops.Flip(device="cpu")
         self.bbox_flip_cpu = ops.BbFlip(device="cpu", ltrb=True)
@@ -205,16 +208,17 @@ class DetectionPipeline(Pipeline):
             anchors=default_boxes)
 
         # Random variables
-        self.rng1 = ops.Uniform(range=[0.5, 1.5])
-        self.rng2 = ops.Uniform(range=[0.875, 1.125])
-        self.rng3 = ops.Uniform(range=[-0.5, 0.5])
+        self.saturation_rng = ops.Uniform(range=[0.8, 1.2])
+        self.contrast_rng = ops.Uniform(range=[0.5, 1.5])
+        self.brighness_rng = ops.Uniform(range=[0.875, 1.125])
+        self.hue_rng = ops.Uniform(range=[-45, 45])
 
     def define_graph(self):
         # Random variables
-        saturation = self.rng1()
-        contrast = self.rng1()
-        brightness = self.rng2()
-        hue = self.rng3()
+        saturation = self.saturation_rng()
+        contrast = self.contrast_rng()
+        brightness = self.brighness_rng()
+        hue = self.hue_rng()
 
         inputs, boxes, labels = self.input(name="Reader")
 
@@ -235,10 +239,23 @@ class DetectionPipeline(Pipeline):
         image_normalized_cpu = self.normalize_cpu(image_resized_cpu)
         image_normalized_gpu = self.normalize_gpu(image_resized_cpu.gpu())
 
-        image_twisted_cpu = self.bc_cpu(image_ssd_crop, brightness_delta=brightness, contrast_delta=contrast)
-        image_twisted_cpu = self.hsv_cpu(image_twisted_cpu, saturation=saturation, hue=hue)
-        image_twisted_gpu = self.bc_gpu(image_ssd_crop.gpu(), brightness_delta=brightness, contrast_delta=contrast)
-        image_twisted_gpu = self.hsv_gpu(image_twisted_gpu, saturation=saturation, hue=hue)
+        image_twisted_cpu = self.hsv_cpu(image_ssd_crop, saturation=saturation, hue=hue)
+        image_twisted_cpu = self.bc_cpu(image_twisted_cpu, brightness=brightness, contrast=contrast)
+        image_twisted_gpu = self.hsv_gpu(image_ssd_crop.gpu(), saturation=saturation, hue=hue)
+        image_twisted_gpu = self.bc_gpu(image_twisted_gpu, brightness=brightness, contrast=contrast)
+
+        image_legacy_twisted_cpu = self.twist_cpu(
+            image_ssd_crop,
+            saturation=saturation,
+            contrast=contrast,
+            brightness=brightness,
+            hue=0-hue)
+        image_legacy_twisted_gpu = self.twist_gpu(
+            image_ssd_crop.gpu(),
+            saturation=saturation,
+            contrast=contrast,
+            brightness=brightness,
+            hue=0-hue)
 
         image_flipped_cpu = self.flip_cpu(image_resized_cpu)
         boxes_flipped_cpu = self.bbox_flip_cpu(boxes_ssd_crop)
@@ -269,6 +286,7 @@ class DetectionPipeline(Pipeline):
             image_resized_cpu, image_resized_gpu,
             image_normalized_cpu, image_normalized_gpu,
             image_twisted_cpu, image_twisted_gpu,
+            image_legacy_twisted_cpu, image_legacy_twisted_gpu,
             image_flipped_cpu, image_flipped_gpu,
             boxes_flipped_cpu, boxes_flipped_gpu,
             encoded_boxes_cpu, encoded_boxes_gpu,
@@ -326,7 +344,6 @@ def crop_border(image, border):
 def diff_against_eps(image_1, image_2, eps):
     return np.absolute(image_1.astype(float) - image_2.astype(float)).max() <= eps
 
-
 def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
     test = diff_against_eps(val_1, val_2, eps)
 
@@ -340,7 +357,6 @@ def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
         else:
             test = test and diff_against_eps(reference, val_1, eps)
             test = test and diff_against_eps(reference, val_2, eps)
-
     return test
 
 from PIL import Image
@@ -363,6 +379,7 @@ def run_for_dataset(args, dataset):
                 image_resized_cpu, image_resized_gpu, \
                 image_normalized_cpu, image_normalized_gpu, \
                 image_twisted_cpu, image_twisted_gpu, \
+                image_legacy_twisted_cpu, image_legacy_twisted_gpu, \
                 image_flipped_cpu, image_flipped_gpu,\
                 boxes_flipped_cpu, boxes_flipped_gpu, \
                 encoded_boxes_cpu, encoded_boxes_gpu, \
@@ -384,6 +401,8 @@ def run_for_dataset(args, dataset):
             labels_crop = compare(labels_ssd_crop, labels_random_crop)
             crop = image_crop and boxes_crop and labels_crop
 
+            hsv_bc_twist = relaxed_compare(image_twisted_gpu, image_legacy_twisted_gpu, eps=4)
+
             # Check resizing ops
             resize = relaxed_compare(
                 val_1=image_resized_cpu,
@@ -397,7 +416,8 @@ def run_for_dataset(args, dataset):
                 image_normalized_cpu, image_normalized_gpu, image_normalized_ref)
 
             # Check twisting ops
-            twist = relaxed_compare(image_twisted_cpu, image_twisted_gpu)
+            twist_gpu_cpu = relaxed_compare(image_twisted_cpu, image_twisted_gpu, eps = 2)
+            twist = twist_gpu_cpu and hsv_bc_twist
 
             # Check flipping ops
             image_flipped_ref, boxes_flipped_ref = horizontal_flip_ref(
@@ -434,6 +454,8 @@ def run_for_dataset(args, dataset):
                 print('Normalize =', normalize)
 
                 print('Twist =', twist)
+                print('  twist gpu vs cpu = ', twist_gpu_cpu)
+                print('  HSV + BC vs legacy Twist = ', hsv_bc_twist)
 
                 print('Flip =', flip)
                 print('  image_flip =', image_flip)

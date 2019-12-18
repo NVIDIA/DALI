@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dh-autoreconf \
     gcc-aarch64-linux-gnu \
     g++-aarch64-linux-gnu \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 ENV REPO_DEBS="cuda-repo-ubuntu1604-10-0-local-10.0.117-410.38_1.0-1_amd64.deb"
@@ -40,8 +41,8 @@ RUN CMAKE_VERSION=3.11 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /cmake-${CMAKE_BUILD}
 
-# protobuf v3.5.1
-ENV PROTOBUF_VERSION=3.5.1
+# protobuf v3.11.1
+ENV PROTOBUF_VERSION=3.11.1
 RUN curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
     cd /protobuf-${PROTOBUF_VERSION} && \
     ./autogen.sh && \
@@ -59,20 +60,25 @@ RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
     rm -rf /protobuf-${PROTOBUF_VERSION}
 
 
-ENV JPEG_TURBO_VERSION=1.5.3
-RUN curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
-    cd /libjpeg-turbo-${JPEG_TURBO_VERSION} && \
-    autoreconf -fiv && \
-    ./configure \
-      --disable-shared \
+# libjpeg-turbo
+RUN JPEG_TURBO_VERSION=2.0.2 && \
+    curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
+    cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
+    echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
+    echo "set(CMAKE_SYSTEM_PROCESSOR aarch64)" >> toolchain.cmake && \
+    echo "set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)" >> toolchain.cmake && \
       CFLAGS="-fPIC" \
       CXXFLAGS="-fPIC" \
       CC=aarch64-linux-gnu-gcc \
       CXX=aarch64-linux-gnu-g++ \
-      --host=aarch64-unknown-linux-gnu \
-      --prefix=/usr/aarch64-linux-gnu/ && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
+    cmake -G"Unix Makefiles" -DENABLE_SHARED=FALSE -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ . 2>&1 >/dev/null && \
+      CFLAGS="-fPIC" \
+      CXXFLAGS="-fPIC" \
+      CC=aarch64-linux-gnu-gcc \
+      CXX=aarch64-linux-gnu-g++ \
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
+
 
 # libtiff
 RUN LIBTIFF_VERSION=4.0.10 && \
@@ -135,14 +141,17 @@ RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | 
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /opencv-${OPENCV_VERSION}
 
+ENV PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
+
 # flac
 RUN FLAC_VERSION=1.3.3 && cd /tmp                                                    && \
-    wget https://ftp.osuosl.org/pub/xiph/releases/flac/flac-${FLAC_VERSION}.tar.xz   && \
+    wget http://downloads.xiph.org/releases/flac/flac-${FLAC_VERSION}.tar.xz         && \
     tar -xf flac-$FLAC_VERSION.tar.xz                                                && \
     rm flac-$FLAC_VERSION.tar.xz                                                     && \
     cd flac-$FLAC_VERSION                                                            && \
     ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
-                                             --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ && \
+                                             --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ \
+                                             --disable-ogg && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
     cd /tmp && rm -rf flac-$FLAC_VERSION
 
@@ -177,7 +186,8 @@ RUN LIBSND_VERSION=1.0.28 && cd /tmp                                            
     cd libsndfile-$LIBSND_VERSION                                                                              && \
     ./configure CFLAGS="-fPIC" CXXFLAGS="-fPIC" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
                                              --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install
+    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                                  && \
+    cd /tmp && rm -rf libsndfile-$LIBSND_VERSION
 
 
 VOLUME /dali

@@ -31,42 +31,27 @@ Expects file_root to contain set of directories, each of them represents one ext
 stream. Extracted video stream is represented by one file for each frame, sorting the paths to
 frames lexicographically should give the original order of frames.
 Sequences do not cross stream boundary and only full sequences are considered - there is no padding.
-Example:
 
-> file_root
+Example directory structure::
 
-  > 0
+  - file_root
+    - 0
+      - 00001.png
+      - 00002.png
+      - 00003.png
+      - 00004.png
+      - 00005.png
+      - 00006.png
+      ....
 
-    > 00001.png
-
-    > 00002.png
-
-    > 00003.png
-
-    > 00004.png
-
-    > 00005.png
-
-    > 00006.png
-
-    ....
-
-  > 1
-
-    > 00001.png
-
-    > 00002.png
-
-    > 00003.png
-
-    > 00004.png
-
-    > 00005.png
-
-    > 00006.png
-
-    ....
-)code")
+    - 1
+      - 00001.png
+      - 00002.png
+      - 00003.png
+      - 00004.png
+      - 00005.png
+      - 00006.png
+      ....)code")
     .NumInput(0)
     .NumOutput(1)  // ([Frames])
     .AddArg("file_root",
