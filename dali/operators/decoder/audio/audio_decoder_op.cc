@@ -55,7 +55,7 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
   sample_meta_.resize(batch_size);
   files_names_.resize(batch_size);
 
-  decode_type_ = use_resampling_ || downmix_ ? output_type_ : DALI_FLOAT;
+  decode_type_ = use_resampling_ || downmix_ ? DALI_FLOAT : output_type_;
   TYPE_SWITCH(decode_type_, type2id, OutputType, (int16_t, int32_t, float), (
       for (int i=0; i < batch_size; i++)
         decoders_[i] = std::make_unique<GenericAudioDecoder<OutputType>>();
@@ -94,9 +94,8 @@ span<char> as_raw_span(T *buffer, ptrdiff_t length) {
 }
 
 template <typename OutputType>
-void AudioDecoderCpu::DecodeSample(
-  const TensorView<StorageCPU, OutputType, 2> &audio, int thread_idx, int sample_idx) {
-
+void AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, 2> &audio,
+                                   int thread_idx, int sample_idx) {
   const AudioMetadata &meta = sample_meta_[sample_idx];
 
   auto &tmp_buf = intermediate_buffers_[thread_idx];
@@ -165,12 +164,11 @@ void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
   }
 
   tp.WaitForWork();
-
 }
 
 
 void AudioDecoderCpu::RunImpl(workspace_t<Backend> &ws) {
-  TYPE_SWITCH(decode_type_, type2id, OutputType, (int16_t, int32_t, float), (
+  TYPE_SWITCH(output_type_, type2id, OutputType, (int16_t, int32_t, float), (
       DecodeBatch<OutputType>(ws);
   ), DALI_FAIL("Unsupported output type"))  // NOLINT
 }

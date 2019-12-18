@@ -195,7 +195,7 @@ struct GenericAudioDecoder<SampleType>::Impl {
       throw DALIException(make_string("Failed to open encoded data: ", sf_strerror(sound_)));
     }
 
-    ret.length = sf_info_.frames * sf_info_.channels;
+    ret.length = sf_info_.frames;
     ret.channels = sf_info_.channels;
     ret.sample_rate = sf_info_.samplerate;
     ret.channels_interleaved = true;

@@ -15,9 +15,10 @@
 #ifndef DALI_KERNELS_SIGNAL_RESAMPLING_H_
 #define DALI_KERNELS_SIGNAL_RESAMPLING_H_
 
-#include <vector>
 #include <cmath>
 #include <functional>
+#include <utility>
+#include <vector>
 #include "dali/core/math_util.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/convert.h"

@@ -70,7 +70,7 @@ TEST(ResampleSinc, SingleChannel) {
 }
 
 TEST(ResampleSinc, MultiChannel) {
-  int n_in = 22050, n_out = 22057; // some weird upsampling
+  int n_in = 22050, n_out = 22057;  // some weird upsampling
   int ch = 5;
   std::vector<float> in(n_in * ch);
   std::vector<float> out(n_out * ch);

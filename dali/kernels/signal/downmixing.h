@@ -88,14 +88,14 @@ void Downmix(
     (DownmixChannels<static_channels>(out, in, samples, static_channels,
                                       weights, normalize_weights);),
     (DownmixChannels(out, in, samples, channels, weights, normalize_weights);)
-  );
+  );  // NOLINT
 }
 
 template <typename Out, typename In>
 void Downmix(Out *out, const In *in, int64_t num_samples, int num_channels) {
   SmallVector<float, 8> weights;
   weights.resize(num_channels, 1.0f / num_channels);
-  Downmix(out, in, num_samples, num_channels);
+  Downmix(out, in, num_samples, num_channels, weights.data());
 }
 
 

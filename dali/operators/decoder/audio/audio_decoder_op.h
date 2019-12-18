@@ -59,7 +59,6 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   }
 
  private:
-
   template <typename OutputType>
   void DecodeSample(
     const TensorView<StorageCPU, OutputType, 2> &audio,
