@@ -25,7 +25,6 @@ from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value,
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
-import numpy
 
 
 class _EdgeReference(object):
