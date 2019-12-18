@@ -47,12 +47,13 @@ class ConstantStorageTest : public ::testing::Test {
     {0, DALIDataType::DALI_FLOAT},
     {2, DALIDataType::DALI_INT32},
     {1, DALIDataType::DALI_FLOAT16},
+    {3, DALIDataType::DALI_BOOL},
   };
 
   std::vector<ExprConstant*> constant_ptrs_;
 
   OpSpec good_spec_;
-  std::vector<int> integers_ = {1, 1024, 42};
+  std::vector<int> integers_ = {1, 1024, 42, false};
   std::vector<float> reals_ = {0.1f, 0.42f};
 
   OpSpec bad_spec_;

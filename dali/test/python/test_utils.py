@@ -109,7 +109,7 @@ def check_batch(batch1, batch2, batch_size, eps = 1e-07):
 def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
     pipe1.build()
     pipe2.build()
-    for k in range(N_iterations):
+    for _ in range(N_iterations):
         out1 = pipe1.run()
         out2 = pipe2.run()
         assert len(out1) == len(out2)

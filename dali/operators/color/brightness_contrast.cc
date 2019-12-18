@@ -25,9 +25,9 @@ using TheKernel = kernels::MultiplyAddCpu<Out, In, 3>;
 
 
 DALI_SCHEMA(BrightnessContrast)
-    .DocStr(R"code(Adhust the brightness and contrast of the image according to the formula:
+    .DocStr(R"code(Adjust the brightness and contrast of the image according to the formula::
 
-``out = brightness_shift * output_range + brightness * (grey + contrast * (in - grey))``
+  out = brightness_shift * output_range + brightness * (grey + contrast * (in - grey))
 
 where output_range is 1 for float outputs or the maximum positive value for integral types;
 grey denotes the value of 0.5 for float, 128 for `uint8`, 16384 for `int16`, etc.
@@ -45,6 +45,11 @@ Additionally, this operator can change the type of data.)code")
     .AddOptionalArg("contrast",
                     "Set the contrast multiplier; 1.0 is neutral, 0.0 produces uniform grey.",
                     1.0f, true)
+    .AddOptionalArg("contrast_center",
+                    "Sets the instensity level that is unaffected by contrast - this is the value "
+                    "which all pixels assume when contrast is zero. When not set, the half of the "
+                    "input types's positive range (or 0.5 for float) is used.",
+                    0.5f, false)
     .AddOptionalArg("dtype",
                     "Output data type; if not set, the input type is used.", DALI_NO_TYPE);
 

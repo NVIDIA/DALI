@@ -52,9 +52,19 @@ auto codecpar(AVStream* stream) -> decltype(stream->codecpar);
 auto codecpar(AVStream* stream) -> decltype(stream->codec);
 #endif
 
+struct file_meta {
+  std::string video_file;
+  int label;
+  float start_time;
+  float end_time;
+  bool operator< (const file_meta& right) {
+    return video_file < right.video_file;
+  }
+};
+
 namespace filesystem {
 
-std::vector<std::pair<std::string, int>> get_file_label_pair(const std::string& path,
+std::vector<dali::file_meta> get_file_label_pair(const std::string& path,
     const std::vector<std::string>& filenames, const std::string& file_list);
 
 }  // namespace filesystem
@@ -136,15 +146,15 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       device_id_(spec.GetArgument<int>("device_id")),
       codec_id_(0),
       skip_vfr_check_(spec.GetArgument<bool>("skip_vfr_check")),
+      file_list_frame_num_(spec.GetArgument<bool>("file_list_frame_num")),
       stats_({0, 0, 0, 0, 0}),
       current_frame_idx_(-1),
       stop_(false) {
     if (step_ < 0)
       step_ = count_ * stride_;
 
-    file_label_pair_ = filesystem::get_file_label_pair(file_root_, filenames_,
-                                                       file_list_);
-    DALI_ENFORCE(!file_label_pair_.empty(), "No files were read.");
+    file_info_ = filesystem::get_file_label_pair(file_root_, filenames_, file_list_);
+    DALI_ENFORCE(!file_info_.empty(), "No files were read.");
   }
 
   ~VideoLoader() noexcept override {
@@ -177,19 +187,37 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void PrepareMetadataImpl() override {
     int total_count = 1 + (count_ - 1) * stride_;
 
-    for (size_t i = 0; i < file_label_pair_.size(); ++i) {
-      const auto& file = get_or_open_file(file_label_pair_[i].first);
+    for (size_t i = 0; i < file_info_.size(); ++i) {
+      const auto& file = get_or_open_file(file_info_[i].video_file);
       const auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
       int frame_count = file.frame_count_;
 
-      for (int s = 0; s < frame_count && s + total_count <= frame_count; s += step_) {
-        frame_starts_.emplace_back(sequence_meta{i, s, file_label_pair_[i].second,
+      int start_frame = 0;
+      int end_frame = file.frame_count_;
+      float start = file_info_[i].start_time;
+      float end = file_info_[i].end_time;
+      if (file_list_frame_num_) {
+        start_frame = start;
+        end_frame = end;
+        DALI_ENFORCE(end_frame <= file.frame_count_, "End frame number is greater than "
+            "total number of frames for file " + file_info_[i].video_file);
+      } else if (start != -1 && end != -1) {
+        auto frame_rate = av_inv_q(file.frame_base_);
+        start_frame = static_cast<int>(std::ceil(start * av_q2d(frame_rate)));
+        end_frame = static_cast<int>(std::floor(end * av_q2d(frame_rate)));
+
+        DALI_ENFORCE(end_frame <= file.frame_count_, "End time is greater than video duration "
+                     "for file " + file_info_[i].video_file);
+      }
+
+      for (int s = start_frame; s < end_frame && s + total_count <= end_frame; s += step_) {
+        frame_starts_.emplace_back(sequence_meta{i, s, file_info_[i].label,
                                    codecpar(stream)->height, codecpar(stream)->width});
       }
     }
 
 
-    const auto& file = get_or_open_file(file_label_pair_[0].first);
+    const auto& file = get_or_open_file(file_info_[0].video_file);
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
 
     vid_decoder_ = std::make_unique<NvDecoder>(device_id_,
@@ -242,6 +270,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int device_id_;
   int codec_id_;
   bool skip_vfr_check_;
+  bool file_list_frame_num_;
   VideoLoaderStats stats_;
 
   std::unordered_map<std::string, OpenFile> open_files_;
@@ -255,7 +284,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   Index current_frame_idx_;
 
   volatile bool stop_;
-  std::vector<std::pair<std::string, int>> file_label_pair_;
+  std::vector<file_meta> file_info_;
 };
 
 }  // namespace dali

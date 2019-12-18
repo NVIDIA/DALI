@@ -25,10 +25,12 @@ from numpy.testing import assert_array_equal, assert_allclose
 import os
 import random
 from PIL import Image
+from math import floor
 
 from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
+from test_utils import RandomDataIterator
 from nose.tools import assert_raises
 
 test_data_root = get_dali_extra_path()
@@ -1631,3 +1633,231 @@ def test_api_check2():
         assert(True)
     except RuntimeError:
         assert(False)
+
+class DupPipeline(Pipeline):
+    def __init__(self, batch_size, num_threads, device_id, first_out_device = "cpu", second_out_device = "cpu"):
+        super(DupPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.first_out_device = first_out_device
+        self.second_out_device = second_out_device
+        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = 1)
+        self.decode = ops.ImageDecoder(device = "mixed" if first_out_device == "mixed" else "cpu", output_type = types.RGB)
+        if self.second_out_device:
+            self.cmnp = ops.CropMirrorNormalize(device = second_out_device,
+                                                output_dtype = types.FLOAT,
+                                                output_layout = types.NHWC,
+                                                crop = (224, 224),
+                                                image_type = types.RGB,
+                                                mean = [128., 128., 128.],
+                                                std = [1., 1., 1.])
+
+    def define_graph(self):
+        inputs, _ = self.input()
+        decoded_images = self.decode(inputs)
+        if self.second_out_device:
+            if self.first_out_device != "mixed" and self.second_out_device == "gpu":
+                images = self.cmnp(decoded_images.gpu())
+            else:
+                images = self.cmnp(decoded_images)
+        else:
+            images = decoded_images
+        images_2 = images
+        return images, images_2, images, decoded_images
+
+def check_duplicated_outs_pipeline(first_device, second_device):
+    batch_size = 5
+    pipe = DupPipeline(batch_size=batch_size, num_threads=2, device_id=0,
+                       first_out_device = first_device, second_out_device = second_device)
+    pipe.build()
+    out = pipe.run()
+    assert len(out) == 4
+    for i in range(batch_size):
+        assert isinstance(out[3].at(0), dali.backend_impl.TensorGPU) or first_device == "cpu"
+        out1 = out[0].as_cpu().at(i) if isinstance(out[0].at(0), dali.backend_impl.TensorGPU) else out[0].at(i)
+        out2 = out[1].as_cpu().at(i) if isinstance(out[1].at(0), dali.backend_impl.TensorGPU) else out[1].at(i)
+        out3 = out[2].as_cpu().at(i) if isinstance(out[2].at(0), dali.backend_impl.TensorGPU) else out[2].at(i)
+
+        np.testing.assert_array_equal( out1, out2 )
+        np.testing.assert_array_equal( out1, out3 )
+
+def test_duplicated_outs_pipeline():
+    for first_device, second_device in [("cpu", None),
+                                        ("cpu", "cpu"),
+                                        ("cpu", "gpu"),
+                                        ("mixed", None),
+                                        ("mixed", "gpu")]:
+        yield check_duplicated_outs_pipeline, first_device, second_device
+
+def check_serialized_outs_duplicated_pipeline(first_device, second_device):
+    batch_size = 5
+    pipe = DupPipeline(batch_size=batch_size, num_threads=2, device_id=0,
+                       first_out_device = first_device, second_out_device = second_device)
+    serialized_pipeline = pipe.serialize()
+    del(pipe)
+    new_pipe = Pipeline(batch_size=batch_size, num_threads=2, device_id=0)
+    new_pipe.deserialize_and_build(serialized_pipeline)
+    out = new_pipe.run()
+    assert len(out) == 4
+    for i in range(batch_size):
+        assert isinstance(out[3].at(0), dali.backend_impl.TensorGPU) or first_device == "cpu"
+        out1 = out[0].as_cpu().at(i) if isinstance(out[0].at(0), dali.backend_impl.TensorGPU) else out[0].at(i)
+        out2 = out[1].as_cpu().at(i) if isinstance(out[1].at(0), dali.backend_impl.TensorGPU) else out[1].at(i)
+        out3 = out[2].as_cpu().at(i) if isinstance(out[2].at(0), dali.backend_impl.TensorGPU) else out[2].at(i)
+
+        np.testing.assert_array_equal( out1, out2 )
+        np.testing.assert_array_equal( out1, out3 )
+
+def test_serialized_outs_duplicated_pipeline():
+    for first_device, second_device in [("cpu", None),
+                                        ("cpu", "cpu"),
+                                        ("cpu", "gpu"),
+                                        ("mixed", None),
+                                        ("mixed", "gpu")]:
+        yield check_serialized_outs_duplicated_pipeline, first_device, second_device
+
+def check_duplicated_outs_cpu_to_gpu(device):
+    class SliceArgsIterator(object):
+        def __init__(self,
+                    batch_size,
+                    num_dims=3,
+                    image_shape=None,  # Needed if normalized_anchor and normalized_shape are False
+                    image_layout=None, # Needed if axis_names is used to specify the slice
+                    normalized_anchor=True,
+                    normalized_shape=True,
+                    axes=None,
+                    axis_names=None,
+                    min_norm_anchor=0.0,
+                    max_norm_anchor=0.2,
+                    min_norm_shape=0.4,
+                    max_norm_shape=0.75,
+                    seed=54643613):
+            self.batch_size = batch_size
+            self.num_dims = num_dims
+            self.image_shape = image_shape
+            self.image_layout = image_layout
+            self.normalized_anchor = normalized_anchor
+            self.normalized_shape = normalized_shape
+            self.axes = axes
+            self.axis_names = axis_names
+            self.min_norm_anchor=min_norm_anchor
+            self.max_norm_anchor=max_norm_anchor
+            self.min_norm_shape=min_norm_shape
+            self.max_norm_shape=max_norm_shape
+            self.seed=seed
+
+            if not self.axis_names and not self.axes:
+                self.axis_names = "WH"
+
+            if self.axis_names:
+                self.axes = []
+                for axis_name in self.axis_names:
+                    assert axis_name in self.image_layout
+                    self.axes.append(self.image_layout.index(axis_name))
+            assert(len(self.axes)>0)
+
+        def __iter__(self):
+            self.i = 0
+            self.n = self.batch_size
+            return self
+
+        def __next__(self):
+            pos = []
+            size = []
+            anchor_amplitude = self.max_norm_anchor - self.min_norm_anchor
+            anchor_offset = self.min_norm_anchor
+            shape_amplitude = self.max_norm_shape - self.min_norm_shape
+            shape_offset = self.min_norm_shape
+            np.random.seed(self.seed)
+            for k in range(self.batch_size):
+                norm_anchor = anchor_amplitude * np.random.rand(len(self.axes)) + anchor_offset
+                norm_shape = shape_amplitude * np.random.rand(len(self.axes)) + shape_offset
+
+                if self.normalized_anchor:
+                    anchor = norm_anchor
+                else:
+                    anchor = [floor(norm_anchor[i] * self.image_shape[self.axes[i]]) for i in range(len(self.axes))]
+
+                if self.normalized_shape:
+                    shape = norm_shape
+                else:
+                    shape = [floor(norm_shape[i] * self.image_shape[self.axes[i]]) for i in range(len(self.axes))]
+
+                pos.append(np.asarray(anchor, dtype=np.float32))
+                size.append(np.asarray(shape, dtype=np.float32))
+                self.i = (self.i + 1) % self.n
+            return (pos, size)
+        next = __next__
+
+    class SliceSynthDataPipeline(Pipeline):
+      def __init__(self, device, batch_size, layout, iterator, pos_size_iter,
+                  num_threads=1, device_id=0, num_gpus=1,
+                  axes=None, axis_names=None, normalized_anchor=True, normalized_shape=True):
+          super(SliceSynthDataPipeline, self).__init__(
+              batch_size, num_threads, device_id, seed=1234)
+          self.device = device
+          self.layout = layout
+          self.iterator = iterator
+          self.pos_size_iter = pos_size_iter
+          self.inputs = ops.ExternalSource()
+          self.input_crop_pos = ops.ExternalSource()
+          self.input_crop_size = ops.ExternalSource()
+
+          if axis_names:
+              self.slice = ops.Slice(device = self.device,
+                                    normalized_anchor=normalized_anchor,
+                                    normalized_shape=normalized_shape,
+                                    axis_names = axis_names)
+          elif axes:
+              self.slice = ops.Slice(device = self.device,
+                                    normalized_anchor=normalized_anchor,
+                                    normalized_shape=normalized_shape,
+                                    axes = axes)
+          else:
+              self.slice = ops.Slice(device = self.device,
+                                    normalized_anchor=normalized_anchor,
+                                    normalized_shape=normalized_shape,
+  )
+
+      def define_graph(self):
+          self.data = self.inputs()
+          self.crop_pos = self.input_crop_pos()
+          self.crop_size = self.input_crop_size()
+          data = self.data.gpu() if self.device == 'gpu' else self.data
+          out = self.slice(data, self.crop_pos, self.crop_size)
+          return out, self.crop_pos, self.crop_size
+
+      def iter_setup(self):
+          data = self.iterator.next()
+          self.feed_input(self.data, data, layout=self.layout)
+
+          (crop_pos, crop_size) = self.pos_size_iter.next()
+          self.feed_input(self.crop_pos, crop_pos)
+          self.feed_input(self.crop_size, crop_size)
+
+    batch_size = 1
+    input_shape = (200,400,3)
+    layout = "HWC"
+    axes = None
+    axis_names = "WH"
+    normalized_anchor = False
+    normalized_shape = False
+    eiis = [RandomDataIterator(batch_size, shape=input_shape)
+            for k in range(2)]
+    eii_args = [SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
+                image_layout=layout, axes=axes, axis_names=axis_names, normalized_anchor=normalized_anchor,
+                normalized_shape=normalized_shape)
+                for k in range(2)]
+
+    pipe = SliceSynthDataPipeline(device, batch_size, layout, iter(eiis[0]), iter(eii_args[0]),
+            axes=axes, axis_names=axis_names, normalized_anchor=normalized_anchor,
+            normalized_shape=normalized_shape)
+    pipe.build()
+    out = pipe.run()
+    assert isinstance(out[0].at(0), dali.backend_impl.TensorGPU) or device == "cpu"
+    assert not isinstance(out[1].at(0), dali.backend_impl.TensorGPU)
+    assert not isinstance(out[2].at(0), dali.backend_impl.TensorGPU)
+
+# check if it is possible to return outputs from CPU op that goes directly to the GPU op without
+# MakeContiguous as a CPU output from the pipeline
+def test_duplicated_outs_cpu_op_to_gpu():
+    for device in ["cpu", "gpu"]:
+        yield check_duplicated_outs_cpu_to_gpu, device

@@ -50,6 +50,9 @@ release = str(version_long)
 # generate table of supported operators and their devices
 subprocess.call(["python", "supported_op_devices.py", "op_inclusion"])
 
+# Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
+# keep_warnings = True
+
 # hack: version is used for html creation, so put the version picker
 # link here as well:
 option_on = " selected"
@@ -114,6 +117,10 @@ exclude_patterns = [u'_build', 'Thumbs.db', '.DS_Store', '**.ipynb_checkpoints']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
+# -- Options for Napoleon ----------------------------------------------------
+
+napoleon_custom_sections = ['Supported backends']
+
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -137,7 +144,8 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+# We remove the `_static` as we do not use it
+html_static_path = []
 
 # Download favicon and set it (the variable `html_favicon`) for this project.
 # It must be relative path.

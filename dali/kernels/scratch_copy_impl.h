@@ -71,8 +71,8 @@ auto GetCollectionPtrs(void *base, const size_t *offsets,
                        const Collections &...tail) {
   using T = std::remove_cv_t<element_t<Collection>>;
   return std::tuple_cat(
-    std::make_tuple(static_cast<T*>(base)),
-    GetCollectionPtrs(static_cast<char *>(base) + offsets[1], offsets+1, tail...));
+    std::make_tuple(reinterpret_cast<T*>(static_cast<char *>(base) + offsets[0])),
+    GetCollectionPtrs(base, offsets+1, tail...));
 }
 
 

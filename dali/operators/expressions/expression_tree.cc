@@ -30,6 +30,7 @@ namespace {
 
 DALIDataType TypeNameToTypeId(const std::string &type_name) {
   static std::map<std::string, DALIDataType> token_to_type_id = {
+    {"bool",    DALIDataType::DALI_BOOL},
     {"uint8",   DALIDataType::DALI_UINT8},
     {"uint16",  DALIDataType::DALI_UINT16},
     {"uint32",  DALIDataType::DALI_UINT32},
