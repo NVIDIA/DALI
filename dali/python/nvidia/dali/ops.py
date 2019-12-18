@@ -24,6 +24,7 @@ from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value,
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
+import numpy
 
 
 class _EdgeReference(object):
@@ -565,6 +566,14 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
         return outputs[0] if len(outputs) == 1 else outputs
 
 
+def _dlpack_to_array(dlpack):
+    return nvidia.dali.libpython_function_plugin.DLTensorToArray(dlpack)
+
+
+def _dlpack_from_array(array):
+    return nvidia.dali.libpython_function_plugin.ArrayToDLTensor(array)
+
+
 class PythonFunction(PythonFunctionBase):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
@@ -574,9 +583,46 @@ class PythonFunction(PythonFunctionBase):
         """Get DALI's current CUDA stream."""
         return CUDAStream(nvidia.dali.libpython_function_plugin.current_dali_stream())
 
-    def __init__(self, function, num_outputs=1, device='cpu', **kwargs):
-        super(PythonFunction, self).__init__(impl_name="PythonFunctionImpl", function=function,
-                                             num_outputs=num_outputs, device=device, **kwargs)
+    @staticmethod
+    def function_wrapper_per_sample(function, from_dlpack, to_dlpack, *dlpack_inputs):
+        arrays = [from_dlpack(dlpack) for dlpack in dlpack_inputs]
+        arr_out = function(*arrays)
+        if arr_out is None:
+            return
+        if isinstance(arr_out, tuple) or isinstance(arr_out, list):
+            return tuple(map(lambda t: to_dlpack(t), arr_out))
+        else:
+            return to_dlpack(arr_out)
+
+    @staticmethod
+    def function_wrapper_batch(function, from_dlpack, to_dlpack, *dlpack_inputs):
+        arrays = [[from_dlpack(dlpack) for dlpack in dl_input] for dl_input in dlpack_inputs]
+        arr_outs = function(*arrays)
+        if arr_outs is None:
+            return
+        if isinstance(arr_outs, tuple) or isinstance(arr_outs, list):
+            return tuple(map(lambda l: [to_dlpack(out) for out in l], arr_outs))
+        else:
+            return [to_dlpack(out) for out in arr_outs]
+
+    @staticmethod
+    def _function_wrapper_cpu(batch_processing, function, *dlpack_inputs):
+        if batch_processing:
+            return PythonFunction.function_wrapper_batch(function, _dlpack_to_array,
+                                                             _dlpack_from_array, *dlpack_inputs)
+        else:
+            return PythonFunction.function_wrapper_per_sample(function, _dlpack_to_array,
+                                                                  _dlpack_from_array,
+                                                                  *dlpack_inputs)
+
+    def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
+        super(PythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
+                                             function=lambda *ins:
+                                             PythonFunction._function_wrapper_cpu(batch_processing,
+                                                                                  function, *ins),
+                                             num_outputs=num_outputs, device=device,
+                                             batch_processing=batch_processing, **kwargs)
+
 
 
 class DLTensorPythonFunction(PythonFunctionBase):
@@ -585,11 +631,13 @@ class DLTensorPythonFunction(PythonFunctionBase):
     global _gpu_ops
     _gpu_ops = _gpu_ops.union({'DLTensorPythonFunction'})
 
-    def __init__(self, function, num_outputs=1, device='cpu', synchronize_stream=True, **kwargs):
+    def __init__(self, function, num_outputs=1, device='cpu', synchronize_stream=True,
+                 batch_processing=True, **kwargs):
         super(DLTensorPythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
                                                      function=function, num_outputs=num_outputs,
                                                      device=device,
                                                      synchronize_stream=synchronize_stream,
+                                                     batch_processing=batch_processing,
                                                      **kwargs)
 
 def _load_arithm_ops():

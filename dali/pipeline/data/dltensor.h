@@ -33,9 +33,11 @@ DLL_PUBLIC DLDataType GetDLType(const TypeInfo &type);
 
 struct DLTensorResource {
   explicit DLTensorResource(TensorShape<> shape)
-  : shape(std::move(shape)) {}
+  : shape(std::move(shape))
+  , strides() {}
 
   TensorShape<> shape;
+  TensorShape<> strides;
   DLManagedTensor dlm_tensor{};
 
   virtual ~DLTensorResource() = default;

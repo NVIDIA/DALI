@@ -34,7 +34,7 @@ def random_seed():
 
 DEVICE_ID = 0
 BATCH_SIZE = 8
-ITERS = 64
+ITERS = 32
 SEED = random_seed()
 NUM_WORKERS = 6
 
@@ -62,10 +62,11 @@ class BasicPipeline(CommonPipeline):
 
 
 class TorchPythonFunctionPipeline(CommonPipeline):
-    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function, bp=False):
         super(TorchPythonFunctionPipeline, self).__init__(batch_size, num_threads,
                                                           device_id, seed, image_dir)
-        self.torch_function = dalitorch.TorchPythonFunction(function=function, num_outputs=2)
+        self.torch_function = dalitorch.TorchPythonFunction(function=function, num_outputs=2,
+                                                            batch_processing=bp)
 
     def define_graph(self):
         images, labels = self.load()
@@ -75,6 +76,11 @@ class TorchPythonFunctionPipeline(CommonPipeline):
 def torch_operation(tensor):
     tensor_n = tensor.double() / 255
     return tensor_n.sin(), tensor_n.cos()
+
+
+def torch_batch_operation(tensors):
+    out = [torch_operation(t) for t in tensors]
+    return [p[0] for p in out], [p[1] for p in out]
 
 
 def test_pytorch_operator():
@@ -92,3 +98,22 @@ def test_pytorch_operator():
             exp1_t, exp2_t = torch_operation(torch.from_numpy(preprocessed_output.at(i)))
             assert numpy.array_equal(res1, exp1_t.numpy())
             assert numpy.array_equal(res2, exp2_t.numpy())
+
+
+def test_pytorch_operator():
+    pipe = BasicPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    pt_pipe = TorchPythonFunctionPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID,
+                                          SEED, images_dir, torch_batch_operation,
+                                          True)
+    pipe.build()
+    pt_pipe.build()
+    for it in range(ITERS):
+        preprocessed_output, = pipe.run()
+        tensors = [torch.from_numpy(preprocessed_output.at(i)) for i in range(BATCH_SIZE)]
+        exp1, exp2 = torch_batch_operation(tensors)
+        output1, output2 = pt_pipe.run()
+        for i in range(len(output1)):
+            res1 = output1.at(i)
+            res2 = output2.at(i)
+            assert numpy.array_equal(res1, exp1[i].numpy())
+            assert numpy.array_equal(res2, exp2[i].numpy())
