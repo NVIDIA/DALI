@@ -6,12 +6,13 @@ import nvidia.dali.types as types
 import scipy.io.wavfile
 import numpy as np
 import math
+import librosa
 
 # generate sinewaves with given frequencies,
 # add Hann envelope and store in channel-last layout
 def generate_waveforms(length, frequencies):
   n = int(math.ceil(length))
-  X = np.arange(n, dtype=np.float32) + 0.5
+  X = np.arange(n, dtype=np.float32)
   def window(x):
     x = 2 * x / length - 1
     np.clip(x, -1, 1, out=x)
@@ -73,6 +74,20 @@ class DecoderPipeline(Pipeline):
         list.append(np.array(bytearray(f.read()), np.uint8))
     self.feed_input(self.raw_file, list)
 
+
+def rosa_resample(input, in_rate, out_rate):
+  if input.shape[1] == 1:
+    return librosa.resample(input[:,0], in_rate, out_rate)[:,np.newaxis]
+
+  channels = [librosa.resample(np.array(input[:,c]), in_rate, out_rate) for c in range(input.shape[1])]
+  ret = np.zeros(shape = [channels[0].shape[0], len(channels)], dtype=channels[0].dtype)
+  for c, a in enumerate(channels):
+    ret[:,c] = a
+
+  return ret
+
+
+
 def test_decoded_vs_generated():
   pipeline = DecoderPipeline()
   pipeline.build();
@@ -101,12 +116,20 @@ def test_decoded_vs_generated():
       # just reading - allow only for rounding
       assert np.allclose(plain, ref0, rtol = 0, atol=0.5)
       # resampling - allow for 1e-3 dynamic range error
-      assert np.allclose(res, ref1, rtol = 0, atol=32757 * 1e-3)
+      assert np.allclose(res, ref1, rtol = 0, atol=32767 * 1e-3)
       # downmixing - allow for 2 bits of error
       # - one for quantization of channels, one for quantization of result
       assert np.allclose(mix, ref2, rtol = 0, atol=2)
       # resampling with weird ratio - allow for 3e-3 dynamic range error
       assert np.allclose(res_mix, ref3, rtol = 0, atol=3e-3)
+
+      rosa_in1 = plain.astype(np.float32)
+      rosa1 = rosa_resample(rosa_in1, rates[idx], rate1)
+      rosa_in3 = rosa_in1 / 32767;
+      rosa3 = rosa_resample(rosa_in3.mean(axis = 1, keepdims = 1), rates[idx], rate2)
+
+      assert np.allclose(res, rosa1, rtol = 0, atol=32767 * 1e-3)
+      assert np.allclose(res_mix, rosa3, rtol = 0, atol=3e-3)
 
       idx = (idx + 1) % len(names)
 

@@ -101,7 +101,7 @@ struct Resampler {
     float fscale = scale;
     for (int64_t out_block = out_begin; out_block < out_end; out_block += block) {
       int64_t block_end = std::min(out_block + block, out_end);
-      double in_block_f = (out_block + 0.5) * scale - 0.5;
+      double in_block_f = out_block * scale;
       int64_t in_block_i = std::floor(in_block_f);
       float in_pos = in_block_f - in_block_i;
       const float *in_block_ptr = in + in_block_i;
@@ -152,7 +152,7 @@ struct Resampler {
     tmp.resize(num_channels);
     for (int64_t out_block = out_begin; out_block < out_end; out_block += block) {
       int64_t block_end = std::min(out_block + block, out_end);
-      double in_block_f = (out_block + 0.5) * scale - 0.5;
+      double in_block_f = out_block * scale;
       int64_t in_block_i = std::floor(in_block_f);
       float in_pos = in_block_f - in_block_i;
       const float *in_block_ptr = in + in_block_i * num_channels;

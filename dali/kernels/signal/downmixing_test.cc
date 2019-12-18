@@ -27,10 +27,10 @@ TEST(SignalDownmixingTest, RawPointer_Weighted) {
   std::vector<float> weights = {3, 2, 1};
   float sum = std::accumulate(weights.begin(), weights.end(), 0);
   std::vector<float> ref = {
-     (1+ 2+ 3) / sum,
-     (4+ 5+ 6) / sum,
-     (7+ 8+ 9) / sum,
-    (10+11+12) / sum
+     (1 * 3 +  2 * 2 +  3) / sum,
+     (4 * 3 +  5 * 2 +  6) / sum,
+     (7 * 3 +  8 * 2 +  9) / sum,
+    (10 * 3 + 11 * 2 + 12) / sum
   };
   std::vector<float> out;
   out.resize(ref.size());

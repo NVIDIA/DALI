@@ -25,14 +25,14 @@ namespace resampling {
 namespace {
 
 double HannWindow(int i, int n) {
-  return Hann((2.0*i + 1.0) / n - 1);
+  return Hann(2.0*i / n - 1);
 }
 
 template <typename T>
 void TestWave(T *out, int n, int stride, float freq) {
   for (int i = 0; i < n; i++) {
     float x = i * freq;
-    float f = std::sin((i + 0.5) * freq) * HannWindow(i, n);
+    float f = std::sin(i* freq) * HannWindow(i, n);
     out[i*stride] = ConvertSatNorm<T>(f);
   }
 }
@@ -70,7 +70,7 @@ TEST(ResampleSinc, SingleChannel) {
 }
 
 TEST(ResampleSinc, MultiChannel) {
-  int n_in = 22050, n_out = 22057;  // some weird upsampling
+  int n_in = 22050, n_out = 22053;  // some weird upsampling
   int ch = 5;
   std::vector<float> in(n_in * ch);
   std::vector<float> out(n_out * ch);
@@ -89,7 +89,7 @@ TEST(ResampleSinc, MultiChannel) {
 
   double err = 0, max_diff = 0;
   for (int i = 0; i < n_out * ch; i++) {
-    ASSERT_NEAR(out[i], ref[i], 1e-3) << "Sample error too big @" << i << std::endl;
+    ASSERT_NEAR(out[i], ref[i], 2e-3) << "Sample error too big @" << i << std::endl;
     float diff = std::abs(out[i] - ref[i]);
     if (diff > max_diff)
       max_diff = diff;
