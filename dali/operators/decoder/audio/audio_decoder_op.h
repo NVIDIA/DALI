@@ -40,9 +40,15 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
           Operator<Backend>(spec),
           output_type_(spec.GetArgument<DALIDataType>("dtype")),
           downmix_(spec.GetArgument<bool>("downmix")),
-          use_resampling_(spec_.HasArgument("sample_rate")) {
-    if (use_resampling_)
-      resampler_.initialize();
+          use_resampling_(spec.HasArgument("sample_rate")),
+          quality_(spec.GetArgument<float>("quality")) {
+    if (use_resampling_) {
+      double q = quality_;
+      DALI_ENFORCE(q >= 0 && q <= 100, "Resampling quality must be in [0..100] range");
+      // this should give 3 lobes for q = 0, 16 lobes for q = 50 and 64 lobes for q = 100
+      int lobes = std::round(0.007 * q * q - 0.09 * q + 3);
+      resampler_.initialize(lobes, lobes * 64 + 1);
+    }
   }
 
 
@@ -81,6 +87,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   kernels::signal::resampling::Resampler resampler_;
   DALIDataType output_type_, decode_type_;
   const bool downmix_ = false, use_resampling_ = false;
+  const float quality_ = 50.0f;
   std::vector<std::string> files_names_;
   std::vector<AudioMetadata> sample_meta_;
   std::vector<std::vector<float>> intermediate_buffers_;

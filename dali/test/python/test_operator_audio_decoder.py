@@ -53,7 +53,8 @@ class DecoderPipeline(Pipeline):
     self.plain_decoder = ops.AudioDecoder(dtype = types.INT16)
     self.resampling_decoder = ops.AudioDecoder(sample_rate=rate1, dtype = types.INT16)
     self.downmixing_decoder = ops.AudioDecoder(downmix=True, dtype = types.INT16)
-    self.resampling_downmixing_decoder = ops.AudioDecoder(sample_rate=rate2, downmix=True, dtype = types.FLOAT)
+    self.resampling_downmixing_decoder = ops.AudioDecoder(sample_rate=rate2, downmix=True,
+                                                          quality=50, dtype = types.FLOAT)
 
   def define_graph(self):
     self.raw_file = self.file_source()

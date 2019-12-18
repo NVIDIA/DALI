@@ -80,8 +80,8 @@ inline int64_t resampled_length(int64_t in_length, double in_rate, double out_ra
 struct Resampler {
   ResamplingWindow window;
 
-  void initialize(int lobes = 16) {
-    windowed_sinc(window, 2048, lobes);
+  void initialize(int lobes = 16, int lookup_size = 2048) {
+    windowed_sinc(window, lookup_size, lobes);
   }
 
   /**
