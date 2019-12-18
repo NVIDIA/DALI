@@ -34,30 +34,30 @@ template <typename T>
 void FillCosineTableTypeI(T *table, int64_t input_length, int64_t ndct, bool normalize) {
   assert(input_length > 1);
   assert(!normalize);
-  T phase_mul = M_PI / (input_length - 1);
+  double phase_mul = M_PI / (input_length - 1);
   int64_t idx = 0;
   for (int64_t k = 0; k < ndct; k++) {
-    table[idx++] = T(0.5);  // n = 0
+    table[idx++] = 0.5;  // n = 0
     for (int64_t n = 1; n < input_length-1; n++) {
       table[idx++] = std::cos(phase_mul * k * n);
     }
-    table[idx++] = k % 2 == 0 ?  T(0.5) : -T(0.5);  // n = input_length - 1
+    table[idx++] = k % 2 == 0 ?  0.5 : -0.5;  // n = input_length - 1
   }
 }
 
 template <typename T>
 void FillCosineTableTypeII(T *table, int64_t input_length, int64_t ndct, bool normalize) {
-  T phase_mul = M_PI / input_length;
-  T factor_k_0 = 1, factor_k_i = 1;
+  double phase_mul = M_PI / input_length;
+  double factor_k_0 = 1, factor_k_i = 1;
   if (normalize) {
-    factor_k_i = std::sqrt(2 / T(input_length));
-    factor_k_0 = factor_k_i / std::sqrt(T(2));
+    factor_k_i = std::sqrt(2.0 / input_length);
+    factor_k_0 = 1.0 / std::sqrt(input_length);
   }
   int64_t idx = 0;
   for (int64_t k = 0; k < ndct; k++) {
-    T norm_factor = (k == 0) ? factor_k_0 : factor_k_i;
+    double norm_factor = (k == 0) ? factor_k_0 : factor_k_i;
     for (int64_t n = 0; n < input_length; n++) {
-      table[idx++] = norm_factor * std::cos(phase_mul * (n + T(0.5)) * k);
+      table[idx++] = norm_factor * std::cos(phase_mul * (n + 0.5) * k);
     }
   }
 }
@@ -65,17 +65,17 @@ void FillCosineTableTypeII(T *table, int64_t input_length, int64_t ndct, bool no
 
 template <typename T>
 void FillCosineTableTypeIII(T *table, int64_t input_length, int64_t ndct, bool normalize) {
-  T phase_mul = M_PI / input_length;
-  T factor_n_0 = 0.5, factor_n_i = 1;
+  double phase_mul = M_PI / input_length;
+  double factor_n_0 = 0.5, factor_n_i = 1;
   if (normalize) {
-    factor_n_i = std::sqrt(T(2) / input_length);
-    factor_n_0 = factor_n_i / std::sqrt(T(2));
+    factor_n_i = std::sqrt(2.0 / input_length);
+    factor_n_0 = 1.0 / std::sqrt(input_length);
   }
   int64_t idx = 0;
   for (int64_t k = 0; k < ndct; k++) {
     table[idx++] = factor_n_0;  // n = 0
     for (int64_t n = 1; n < input_length; n++) {
-      table[idx++] = factor_n_i * std::cos(phase_mul * n * (k + T(0.5)));
+      table[idx++] = factor_n_i * std::cos(phase_mul * n * (k + 0.5));
     }
   }
 }
@@ -83,12 +83,12 @@ void FillCosineTableTypeIII(T *table, int64_t input_length, int64_t ndct, bool n
 
 template <typename T>
 void FillCosineTableTypeIV(T *table, int64_t input_length, int64_t ndct, bool normalize) {
-  T phase_mul = M_PI / input_length;
-  T factor = normalize ? std::sqrt(T(2)/input_length) : T(1);
+  double phase_mul = M_PI / input_length;
+  double factor = normalize ? std::sqrt(2.0 / input_length) : 1.0;
   int64_t idx = 0;
   for (int64_t k = 0; k < ndct; k++) {
     for (int64_t n = 0; n < input_length; n++) {
-      table[idx++] = factor * std::cos(phase_mul * (n + T(0.5)) * (k + T(0.5)));
+      table[idx++] = factor * std::cos(phase_mul * (n + 0.5) * (k + 0.5));
     }
   }
 }

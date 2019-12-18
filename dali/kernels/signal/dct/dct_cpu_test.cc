@@ -33,10 +33,10 @@ template <typename T>
 void ReferenceDctTypeI(span<T> out, span<const T> in, bool normalize) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
-  T phase_mul = M_PI / (in_length - 1);
+  double phase_mul = M_PI / (in_length - 1);
   for (int64_t k = 0; k < out_length; k++) {
-    T sign = (k % 2 == 0) ? T(1) : T(-1);
-    T out_val = T(0.5) * (in[0] + sign * in[in_length-1]);
+    double sign = (k % 2 == 0) ? 1 : -1;
+    double out_val = 0.5 * (in[0] + sign * in[in_length-1]);
     for (int64_t n = 1; n < in_length - 1; n++) {
       out_val += in[n] * std::cos(phase_mul * n * k);
     }
@@ -48,18 +48,18 @@ template <typename T>
 void ReferenceDctTypeII(span<T> out, span<const T> in, bool normalize) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
-  T phase_mul = M_PI / in_length;
-  T factor_k_0 = 1, factor_k_i = 1;
+  double phase_mul = M_PI / in_length;
+  double factor_k_0 = 1, factor_k_i = 1;
   if (normalize) {
-    factor_k_i = std::sqrt(T(2) / in_length);
-    factor_k_0 = factor_k_i / std::sqrt(T(2));
+    factor_k_i = std::sqrt(2.0 / in_length);
+    factor_k_0 = 1.0 / std::sqrt(in_length);
   }
   for (int64_t k = 0; k < out_length; k++) {
-    T out_val = 0;
+    double out_val = 0;
     for (int64_t n = 0; n < in_length; n++) {
-      out_val += in[n] * std::cos(phase_mul * (n + T(0.5)) * k);
+      out_val += in[n] * std::cos(phase_mul * (n + 0.5) * k);
     }
-    T factor = (k == 0) ? factor_k_0 : factor_k_i;
+    double factor = (k == 0) ? factor_k_0 : factor_k_i;
     out[k] = factor * out_val;
   }
 }
@@ -68,17 +68,17 @@ template <typename T>
 void ReferenceDctTypeIII(span<T> out, span<const T> in, bool normalize) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
-  T phase_mul = M_PI / in_length;
-  T factor_n_0 = 0.5, factor_n_i = 1;
+  double phase_mul = M_PI / in_length;
+  double factor_n_0 = 0.5, factor_n_i = 1;
   if (normalize) {
-    factor_n_i = std::sqrt(T(2) / in_length);
-    factor_n_0 = factor_n_i / std::sqrt(T(2));
+    factor_n_i = std::sqrt(2.0 / in_length);
+    factor_n_0 = 1.0 / std::sqrt(in_length);
   }
 
   for (int64_t k = 0; k < out_length; k++) {
-    T out_val = factor_n_0 * in[0];
+    double out_val = factor_n_0 * in[0];
     for (int64_t n = 1; n < in_length; n++) {
-      out_val += factor_n_i * in[n] * std::cos(phase_mul * n * (k + T(0.5)));
+      out_val += factor_n_i * in[n] * std::cos(phase_mul * n * (k + 0.5));
     }
     out[k] = out_val;
   }
@@ -88,12 +88,12 @@ template <typename T>
 void ReferenceDctTypeIV(span<T> out, span<const T> in, bool normalize) {
   int64_t in_length = in.size();
   int64_t out_length = out.size();
-  T phase_mul = M_PI / in_length;
-  T factor = normalize ? std::sqrt(T(2) / in_length) : 1;
+  double phase_mul = M_PI / in_length;
+  double factor = normalize ? std::sqrt(2.0 / in_length) : 1.0;
   for (int64_t k = 0; k < out_length; k++) {
-    T out_val = 0;
+    double out_val = 0;
     for (int64_t n = 0; n < in_length; n++) {
-      out_val += factor * in[n] * std::cos(phase_mul * (n + T(0.5)) * (k + T(0.5)));
+      out_val += factor * in[n] * std::cos(phase_mul * (n + 0.5) * (k + 0.5));
     }
     out[k] = out_val;
   }
