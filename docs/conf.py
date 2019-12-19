@@ -117,6 +117,10 @@ exclude_patterns = [u'_build', 'Thumbs.db', '.DS_Store', '**.ipynb_checkpoints']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
+# Mock some of the dependencies for building docs. tf-plugin doc check tf version before loading,
+# so we do not mock tensorflow so we do not need to extend the logic there.
+autodoc_mock_imports = ['mxnet', 'paddle', 'torch', 'torchvision']
+
 # -- Options for Napoleon ----------------------------------------------------
 
 napoleon_custom_sections = ['Supported backends']
