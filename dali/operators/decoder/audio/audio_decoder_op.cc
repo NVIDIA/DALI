@@ -103,7 +103,13 @@ void AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, 2> &
   const AudioMetadata &meta = sample_meta_[sample_idx];
 
   auto &tmp_buf = intermediate_buffers_[thread_idx];
-  double output_rate = use_resampling_ ? target_sample_rates_[sample_idx] : meta.sample_rate;
+  double output_rate = meta.sample_rate;
+  if (use_resampling_) {
+    output_rate = target_sample_rates_[sample_idx];
+    DALI_ENFORCE(meta.sample_rate > 0, make_string("Unknown or invalid input sampling rate."));
+    DALI_ENFORCE(output_rate > 0, make_string(
+        "Output sampling rate must be positive; got ", output_rate));
+  }
   bool should_resample = meta.sample_rate != output_rate;
   bool should_downmix = meta.channels > 1 && downmix_;
   if (should_resample || should_downmix || output_type_ != decode_type_) {
