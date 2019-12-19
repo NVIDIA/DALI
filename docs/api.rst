@@ -27,6 +27,13 @@ TensorList
 .. autoclass:: nvidia.dali.backend.TensorListGPU
    :members:
 
+
+Types
+-----
+
+.. autoclass:: nvidia.dali.types.Constant
+   :members:
+
 Enums
 -----
 
