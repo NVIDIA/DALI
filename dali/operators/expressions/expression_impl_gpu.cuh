@@ -133,7 +133,7 @@ struct InvokerBinOp {
   }
 };
 
-dim3 GetGridLayout(int extent, int tiles) {
+inline dim3 GetGridLayout(int extent, int tiles) {
   return dim3(extent, tiles, 1);
 }
 
