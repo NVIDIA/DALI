@@ -27,7 +27,7 @@ namespace kernels {
 namespace signal {
 
 /**
- * Downmix data to a single channel.
+ * @brief Downmix interleaved signals to a single channel.
  *
  * @param out               output buffer (single channel)
  * @param in                input buffer (interleaved multiple channels)
@@ -39,14 +39,23 @@ namespace signal {
  *         is stretched so that 0..1 or -1..1 range occupies the whole Out range.
  * @tparam In input sample type - if integral, it's normalized to 0..1 or -1..1 range
  * @tparam static_channels compile-time number of channels
+ *
+ * Downmix interleaved signals to a single channel, using the weights provided.
+ * If `normalize_weights` is true, the weights are copied into intermediate buffer
+ * and divided by their sum.
+ *
+ * @remarks The operation can be done in place if output and input are of the same type.
  */
 template <int static_channels = -1, typename Out, typename In>
 void DownmixChannels(
     Out *out, const In *in, int64_t samples, int channels,
     const float *weights, bool normalize_weights = false) {
   SmallVector<float, 8> normalized_weights;  // 8 channels should be enough for 7.1 audio
+  static_assert(static_channels != 0, "Number of channels cannot be zero."
+                                      "Use negative values to use run-time value");
   int actual_channels = static_channels < 0 ? channels : static_channels;
   assert(actual_channels == channels);
+  assert(actual_channels > 0);
   if (normalize_weights) {
     double sum = 0;
     for (int i = 0; i < channels; i++)
@@ -67,7 +76,7 @@ void DownmixChannels(
 }
 
 /**
- * Downmix data to a single channel.
+ * @brief Downmix data to a single channel.
  *
  * @param out               output buffer (single channel)
  * @param in                input buffer (interleaved multiple channels)
@@ -78,7 +87,12 @@ void DownmixChannels(
  * @tparam Out output sample type - if integral, the intermediate floating point representation
  *         is stretched so that 0..1 or -1..1 range occupies the whole Out range.
  * @tparam In input sample type - if integral, it's normalized to 0..1 or -1..1 range
- * @tparam static_channels compile-time number of channels
+ *
+ * Downmix interleaved signals to a single channel, using the weights provided.
+ * If `normalize_weights` is true, the weights are copied into intermediate buffer
+ * and divided by their sum.
+ *
+ * @remarks The operation can be done in place if output and input are of the same type.
  */
 template <typename Out, typename In>
 void Downmix(

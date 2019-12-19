@@ -38,7 +38,7 @@ TEST(SignalDownmixingTest, RawPointer_Weighted) {
   Downmix(out.data(), in.data(), in.size() / nchannels, nchannels, weights.data(), true);
 
   for (size_t i = 0; i < ref.size(); i++) {
-    EXPECT_NEAR(out[i], ref[i], 1e-6);
+    EXPECT_FLOAT_EQ(out[i], ref[i]);
   }
 }
 
@@ -50,7 +50,7 @@ TEST(SignalDownmixingTest, Span_DefaultWeights) {
   Downmix(make_span(in), make_cspan(in), nchannels);
 
   for (size_t i = 0; i < ref.size(); i++) {
-    EXPECT_NEAR(in[i], ref[i], 1e-6);
+    EXPECT_FLOAT_EQ(in[i], ref[i]);
   }
 }
 

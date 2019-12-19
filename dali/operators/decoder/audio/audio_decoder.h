@@ -21,7 +21,7 @@
 namespace dali {
 
 struct AudioMetadata {
-  /// @brief Length, in samples, of the recording
+  /// @brief Length, in (multi-channel) samples, of the recording
   int64_t length;
   /// @brief Sampling rate, in Hz
   int sample_rate;

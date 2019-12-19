@@ -57,6 +57,7 @@ struct ResamplingWindow {
 
 void windowed_sinc(ResamplingWindow &window,
     int coeffs, int lobes, std::function<double(double)> envelope = Hann) {
+  assert(coeffs > 1 && lobes > 0 && "Degenerate parameters specified.");
   float scale = 2.0f * lobes / (coeffs - 1);
   float scale_envelope = 2.0f / coeffs;
   window.coeffs = coeffs;
@@ -81,7 +82,7 @@ inline int64_t resampled_length(int64_t in_length, double in_rate, double out_ra
 struct Resampler {
   ResamplingWindow window;
 
-  void initialize(int lobes = 16, int lookup_size = 2048) {
+  void Initialize(int lobes = 16, int lookup_size = 2048) {
     windowed_sinc(window, lookup_size, lobes);
   }
 
@@ -93,9 +94,10 @@ struct Resampler {
    * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
    */
   template <typename Out>
-  void resample(
-        Out *out, int64_t out_begin, int64_t out_end, double out_rate,
-        const float *in, int64_t n_in, double in_rate) const {
+  void Resample(
+        Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
+        const float *__restrict__ in, int64_t n_in, double in_rate) const {
+    assert(out_rate > 0 && in_rate > 0 && "Sampling rate must be positive");
     int64_t in_pos = 0;
     int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
     double scale = in_rate / out_rate;
@@ -105,7 +107,7 @@ struct Resampler {
       double in_block_f = out_block * scale;
       int64_t in_block_i = std::floor(in_block_f);
       float in_pos = in_block_f - in_block_i;
-      const float *in_block_ptr = in + in_block_i;
+      const float *__restrict__ in_block_ptr = in + in_block_i;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
         int i0, i1;
         std::tie(i0, i1) = window.input_range(in_pos);
@@ -137,18 +139,22 @@ struct Resampler {
    * @tparam satic_channels   number of channels, if known at compile time, or -1
    */
   template <int static_channels, typename Out>
-  void resample(
-        Out *out, int64_t out_begin, int64_t out_end, double out_rate,
-        const float *in, int64_t n_in, double in_rate,
+  void Resample(
+        Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
+        const float *__restrict__ in, int64_t n_in, double in_rate,
         int dynamic_num_channels) {
+    static_assert(static_channels != 0, "Static number of channels must be positive (use static) "
+                                        "or negative (use dynamic).");
+    assert(out_rate > 0 && in_rate > 0 && "Sampling rate must be positive");
     if (dynamic_num_channels == 1) {
       // fast path
-      resample(out, out_begin, out_end, out_rate, in, n_in, in_rate);
+      Resample(out, out_begin, out_end, out_rate, in, n_in, in_rate);
       return;
     }
     // the check below is compile time, so num_channels will be a compile-time constant
     // or a run-time constant, depending on the value of static_channels
     const int num_channels = static_channels < 0 ? dynamic_num_channels : static_channels;
+    assert(num_channels > 0);
 
     int64_t in_pos = 0;
     int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
@@ -161,7 +167,7 @@ struct Resampler {
       double in_block_f = out_block * scale;
       int64_t in_block_i = std::floor(in_block_f);
       float in_pos = in_block_f - in_block_i;
-      const float *in_block_ptr = in + in_block_i * num_channels;
+      const float *__restrict__ in_block_ptr = in + in_block_i * num_channels;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
         int i0, i1;
         std::tie(i0, i1) = window.input_range(in_pos);
@@ -200,14 +206,14 @@ struct Resampler {
    * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
    */
   template <typename Out>
-  void resample(
-        Out *out, int64_t out_begin, int64_t out_end, double out_rate,
-        const float *in, int64_t n_in, double in_rate,
+  void Resample(
+        Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
+        const float *__restrict__ in, int64_t n_in, double in_rate,
         int num_channels) {
     VALUE_SWITCH(num_channels, static_channels, (1, 2, 3, 4, 5, 6, 7, 8),
-      (resample<static_channels, Out>(out, out_begin, out_end, out_rate,
+      (Resample<static_channels, Out>(out, out_begin, out_end, out_rate,
         in, n_in, in_rate, static_channels);),
-      (resample<-1, Out>(out, out_begin, out_end, out_rate,
+      (Resample<-1, Out>(out, out_begin, out_end, out_rate,
         in, n_in, in_rate, num_channels)));
   }
 };

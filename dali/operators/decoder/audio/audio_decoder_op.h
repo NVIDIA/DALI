@@ -47,7 +47,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
       DALI_ENFORCE(q >= 0 && q <= 100, "Resampling quality must be in [0..100] range");
       // this should give 3 lobes for q = 0, 16 lobes for q = 50 and 64 lobes for q = 100
       int lobes = std::round(0.007 * q * q - 0.09 * q + 3);
-      resampler_.initialize(lobes, lobes * 64 + 1);
+      resampler_.Initialize(lobes, lobes * 64 + 1);
     }
   }
 

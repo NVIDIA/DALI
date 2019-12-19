@@ -41,7 +41,7 @@ This operator produces two outputs:
   .AddOptionalArg("downmix",
           "If True, downmix all input channels to mono.", false)
   .AddOptionalArg("dtype",
-          "Type of the output data. Supports types: `INT16`, `INT32`, `FLOAT`", DALI_INT16);
+          "Type of the output data. Supports types: `INT16`, `INT32`, `FLOAT`", DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
 
@@ -78,9 +78,8 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
     auto meta = decoders_[i]->Open({reinterpret_cast<const char *>(input[i].raw_mutable_data()),
                                     input[i].shape().num_elements()});
     sample_meta_[i] = meta;
-    TensorShape<> data_sample_shape;
     int64_t out_length = OutputLength(meta.length, meta.sample_rate, i);
-    data_sample_shape = { out_length, downmix_ ? 1 : meta.channels, };
+    TensorShape<> data_sample_shape = { out_length, downmix_ ? 1 : meta.channels, };
 
     shape_data.set_tensor_shape(i, data_sample_shape);
     shape_rate.set_tensor_shape(i, {1});
@@ -123,7 +122,7 @@ void AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, 2> &
         float *downmixed = tmp_buf.data() + meta.length * meta.channels;
         assert(downmixed + meta.length <= tmp_buf.data() + tmp_buf.size());
         kernels::signal::Downmix(downmixed, tmp_buf.data(), meta.length, meta.channels);
-        resampler_.resample(audio.data, 0, audio.shape[0], output_rate,
+        resampler_.Resample(audio.data, 0, audio.shape[0], output_rate,
                             downmixed, meta.length, meta.sample_rate);
       } else {
         // downmix only
@@ -131,7 +130,7 @@ void AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, 2> &
       }
     } else if (should_resample) {
       // multi-channel resample
-      resampler_.resample(audio.data, 0, audio.shape[0], output_rate,
+      resampler_.Resample(audio.data, 0, audio.shape[0], output_rate,
                           tmp_buf.data(), meta.length, meta.sample_rate, meta.channels);
 
     } else {
