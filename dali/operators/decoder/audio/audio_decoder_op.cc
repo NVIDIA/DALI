@@ -166,6 +166,9 @@ void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
     tp.DoWorkWithID([&, i](int thread_id) {
       try {
         DecodeSample<OutputType>(decoded_output[i], thread_id, i);
+        sample_rate_output[i].data[0] = use_resampling_
+          ? target_sample_rates_[i]
+          : sample_meta_[i].sample_rate;
       } catch (const DALIException &e) {
         DALI_FAIL(make_string("Error decoding file.\nError: ", e.what(), "\nFile: ",
                               files_names_[i], "\n"));

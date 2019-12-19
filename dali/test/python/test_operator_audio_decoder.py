@@ -59,11 +59,12 @@ class DecoderPipeline(Pipeline):
 
   def define_graph(self):
     self.raw_file = self.file_source()
-    dec_plain,_ = self.plain_decoder(self.raw_file)
-    dec_res,_ = self.resampling_decoder(self.raw_file)
-    dec_mix,_ = self.downmixing_decoder(self.raw_file)
-    dec_res_mix,_ = self.resampling_downmixing_decoder(self.raw_file)
-    out = [dec_plain, dec_res, dec_mix, dec_res_mix]
+    dec_plain, rates_plain = self.plain_decoder(self.raw_file)
+    dec_res, rates_res = self.resampling_decoder(self.raw_file)
+    dec_mix, rates_mix = self.downmixing_decoder(self.raw_file)
+    dec_res_mix, rates_res_mix = self.resampling_downmixing_decoder(self.raw_file)
+    out = [dec_plain, dec_res, dec_mix, dec_res_mix,
+           rates_plain, rates_res, rates_mix, rates_res_mix]
     return out
 
   def iter_setup(self):
@@ -112,6 +113,11 @@ def test_decoded_vs_generated():
       ref2 = ref2.mean(axis = 1, keepdims = 1)
       ref3 = generate_waveforms(ref_len[3], freqs[idx] * (rates[idx] / rate2))
       ref3 = ref3.mean(axis = 1, keepdims = 1)
+
+      assert(out[4].at(i)[0] == rates[idx])
+      assert(out[5].at(i)[0] == rate1)
+      assert(out[6].at(i)[0] == rates[idx])
+      assert(out[7].at(i)[0] == rate2)
 
       # just reading - allow only for rounding
       assert np.allclose(plain, ref0, rtol = 0, atol=0.5)
