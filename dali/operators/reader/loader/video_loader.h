@@ -222,7 +222,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
     vid_decoder_ = std::make_unique<NvDecoder>(device_id_,
                                                codecpar(stream),
-                                               stream->time_base,
                                                image_type_,
                                                dtype_,
                                                normalized_,

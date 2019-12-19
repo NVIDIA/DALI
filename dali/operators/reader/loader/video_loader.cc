@@ -526,7 +526,7 @@ void VideoLoader::read_file() {
         }
         while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
           auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
-          vid_decoder_->decode_packet(fpkt.get(), file.start_time_);
+          vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_);
         }
         if (ret != AVERROR(EAGAIN)) {
           DALI_FAIL(std::string("BSF receive packet failed:") + av_err2str(ret));
@@ -563,21 +563,21 @@ void VideoLoader::read_file() {
           }
           *pkt.get() = fpkt;
         }
-        vid_decoder_->decode_packet(pkt.get(), file.start_time_);
+        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_);
 #endif
       } else {
-        vid_decoder_->decode_packet(pkt.get(), file.start_time_);
+        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_);
       }
       is_first_frame = false;
     }
 
     // flush the decoder
-    vid_decoder_->decode_packet(nullptr, 0);
+    vid_decoder_->decode_packet(nullptr, 0, {0});
   }  // while not done
 
   if (vid_decoder_) {
     // stop decoding
-    vid_decoder_->decode_packet(nullptr, 0);
+    vid_decoder_->decode_packet(nullptr, 0, {0});
   }
   LOG_LINE << "Leaving read_file" << std::endl;
 }

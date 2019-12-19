@@ -468,4 +468,36 @@ TEST_F(VideoReaderTest, StartEndLabels) {
   }
 }
 
+TEST_F(VideoReaderTest, MultipleFrameRates) {
+  const int sequence_length = 1;
+  const int iterations = 100;
+  const int batch_size = 1;
+  Pipeline pipe(batch_size, 1, 0);
+
+  pipe.AddOperator(
+    OpSpec("VideoReader")
+    .AddArg("device", "gpu")
+    .AddArg("sequence_length", sequence_length)
+    .AddArg(
+      "file_root",
+      testing::dali_extra_path() +
+      "/db/video/multiple_framerate/")
+    .AddOutput("frames", "gpu")
+    .AddOutput("labels", "gpu"));
+
+  pipe.Build(this->LabelledOutputs());
+
+  DeviceWorkspace ws;
+  for (int i = 0; i < iterations; ++i) {
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws);
+    const auto &frames_output = ws.Output<dali::GPUBackend>(0);
+    const auto &frames_shape = frames_output.shape();
+
+    ASSERT_EQ(frames_shape.size(), batch_size);
+    ASSERT_EQ(frames_shape[0][0], sequence_length);
+  }
+}
+
 }  // namespace dali
