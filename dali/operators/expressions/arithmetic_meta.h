@@ -56,7 +56,10 @@ enum class ArithmeticOp : int {
   lt,   // <
   leq,  // <=
   gt,   // >
-  geq   // >=
+  geq,  // >=
+  bit_and,
+  bit_or,
+  bit_xor
 };
 
 DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
@@ -76,6 +79,9 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::leq:
     case ArithmeticOp::gt:
     case ArithmeticOp::geq:
+    case ArithmeticOp::bit_and:
+    case ArithmeticOp::bit_or:
+    case ArithmeticOp::bit_xor:
       return 2;
     default:
       return -1;
@@ -92,6 +98,17 @@ DALI_HOST_DEV constexpr bool IsArithmetic(ArithmeticOp op) {
     case ArithmeticOp::div:
     case ArithmeticOp::fdiv:
     case ArithmeticOp::mod:
+      return true;
+    default:
+      return false;
+  }
+}
+
+DALI_HOST_DEV constexpr bool IsBitwise(ArithmeticOp op) {
+  switch (op) {
+    case ArithmeticOp::bit_and:
+    case ArithmeticOp::bit_or:
+    case ArithmeticOp::bit_xor:
       return true;
     default:
       return false;
@@ -351,6 +368,52 @@ REGISTER_BINARY_IMPL(ArithmeticOp::sub, -);
 REGISTER_BINARY_IMPL(ArithmeticOp::mul, *);
 REGISTER_BINARY_IMPL(ArithmeticOp::div, /);
 
+#define REGISTER_BINARY_BITWISE_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                \
+  template <>                                                                        \
+  struct arithm_meta<OP, BACKEND> {                                                  \
+    template <typename L, typename R>                                                \
+    using result_t = binary_result_t<L, R>;                                          \
+                                                                                     \
+    template <typename L, typename R>                                                \
+    using bitwise_allowed =                                                          \
+        std::enable_if_t<std::is_integral<L>::value && std::is_integral<R>::value,   \
+                         result_t<L, R>>;                                            \
+    template <typename L, typename R>                                                \
+    using bitwise_disallowed =                                                       \
+        std::enable_if_t<!std::is_integral<L>::value || !std::is_integral<R>::value, \
+                         result_t<L, R>>;                                            \
+                                                                                     \
+    template <typename L, typename R>                                                \
+    DALI_HOST_DEV static constexpr bitwise_allowed<L, R> impl(L l, R r) {            \
+      static_assert(GetOpArity(OP) == 2,                                             \
+                    "Registered operation arity does not match the requirements.");  \
+      auto l_ = static_cast<result_t<L, R>>(l);                                      \
+      auto r_ = static_cast<result_t<L, R>>(r);                                      \
+      return l_ EXPRESSION r_;                                                       \
+    }                                                                                \
+    template <typename L, typename R>                                                \
+    DALI_HOST_DEV static constexpr bitwise_disallowed<L, R> impl(L l, R r) {         \
+      return {};                                                                     \
+    }                                                                                \
+                                                                                     \
+    static inline std::string to_string() {                                          \
+      return #EXPRESSION;                                                            \
+    }                                                                                \
+                                                                                     \
+    static constexpr int num_inputs = 2;                                             \
+    static constexpr int num_outputs = 1;                                            \
+  }
+
+#define REGISTER_BINARY_BITWISE_IMPL(OP, EXPRESSION)                \
+  REGISTER_BINARY_BITWISE_IMPL_BACKEND(OP, EXPRESSION, CPUBackend); \
+  REGISTER_BINARY_BITWISE_IMPL_BACKEND(OP, EXPRESSION, GPUBackend)
+
+
+
+REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_and, &);
+REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_or,  |);
+REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_xor, ^);
+
 // @TODO(klecki): move it somewhere appropriate
 
 template <typename T>
@@ -566,7 +629,7 @@ inline std::string to_string(ArithmeticOp op) {
   VALUE_SWITCH(op, op_static, (ArithmeticOp::plus, ArithmeticOp::minus,
       ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::mod,
       ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq, ArithmeticOp::gt,
-      ArithmeticOp::geq),
+      ArithmeticOp::geq, ArithmeticOp::bit_and, ArithmeticOp::bit_or, ArithmeticOp::bit_xor),
       (result = arithm_meta<op_static, CPUBackend>::to_string();),
       (result = "InvalidOp";)
   );  // NOLINT(whitespace/parens)
@@ -616,20 +679,23 @@ inline DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types) {
 
 inline ArithmeticOp NameToOp(const std::string &op_name) {
   static std::map<std::string, ArithmeticOp> token_to_op = {
-      {"plus",  ArithmeticOp::plus},
-      {"minus", ArithmeticOp::minus},
-      {"add",   ArithmeticOp::add},
-      {"sub",   ArithmeticOp::sub},
-      {"mul",   ArithmeticOp::mul},
-      {"div",   ArithmeticOp::div},
-      {"fdiv",  ArithmeticOp::fdiv},
-      {"mod",   ArithmeticOp::mod},
-      {"eq",    ArithmeticOp::eq},
-      {"neq",   ArithmeticOp::neq},
-      {"lt",    ArithmeticOp::lt},
-      {"leq",   ArithmeticOp::leq},
-      {"gt",    ArithmeticOp::gt},
-      {"geq",   ArithmeticOp::geq}
+      {"plus",   ArithmeticOp::plus},
+      {"minus",  ArithmeticOp::minus},
+      {"add",    ArithmeticOp::add},
+      {"sub",    ArithmeticOp::sub},
+      {"mul",    ArithmeticOp::mul},
+      {"div",    ArithmeticOp::div},
+      {"fdiv",   ArithmeticOp::fdiv},
+      {"mod",    ArithmeticOp::mod},
+      {"eq",     ArithmeticOp::eq},
+      {"neq",    ArithmeticOp::neq},
+      {"lt",     ArithmeticOp::lt},
+      {"leq",    ArithmeticOp::leq},
+      {"gt",     ArithmeticOp::gt},
+      {"geq",    ArithmeticOp::geq},
+      {"bitand", ArithmeticOp::bit_and},
+      {"bitor",  ArithmeticOp::bit_or},
+      {"bitxor", ArithmeticOp::bit_xor},
   };
   auto it = token_to_op.find(op_name);
   DALI_ENFORCE(it != token_to_op.end(), "No implementation for op \"" + op_name + "\".");

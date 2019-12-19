@@ -247,6 +247,30 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::gt, CPUBackend
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::geq, CPUBackend>,
                                         const ExprFunc &expr);
 
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_and`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_and, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_or`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_or, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_xor`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, CPUBackend>,
+                                        const ExprFunc &expr);
+
 
 
 /**
@@ -361,6 +385,30 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::gt, GPUBackend
  *        specified in `expr`.
  */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::geq, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_and`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_and, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_or`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_or, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_xor`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, GPUBackend>,
                                         const ExprFunc &expr);
 
 
