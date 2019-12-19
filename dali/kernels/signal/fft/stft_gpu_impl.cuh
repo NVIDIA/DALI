@@ -17,9 +17,14 @@
 
 #include <cuda_runtime.h>
 #include <cufft.h>
+#include <vector>
+#include <map>
 #include "dali/core/tensor_view.h"
+#include "dali/core/cuda_stream.h"
 #include "dali/kernels/kernel_req.h"
 #include "dali/kernels/signal/fft/stft_gpu.h"
+#include "dali/kernels/signal/fft/cufft_helper.h"
+#include "dali/kernels/signal/window/extract_windows_gpu.h"
 
 namespace dali {
 namespace kernels {
@@ -28,30 +33,34 @@ namespace fft {
 
 class StftGpuImpl {
  public:
-  bool UpdateArgs(const StftArgs &args) {
-    if (args.estimated_max_total_length != args_.estimated_max_total_length ||
-        args.window_length != args_.window_length)
-      return false;
-    args_ = args;
-    return true;
-  }
 
-  KernelRequirements Setup(span<int64_t> lengths) {
-    int64_t windows = 0;
-    int64_t total_length = 0;
-    TensorListShape<> shape;
-    shape.resize(lengths.size(), 2);
-    int N = lengths.size();
-    for (int i = 0; i < N; i++) {
-      //
-    }
-    KernelRequirements req;
-    req.output_shapes = { shape };
-    return req;
-  }
+  KernelRequirements Setup(span<const int64_t> lengths, const StftArgs &args);
+
+  void RunR2C(KernelContext &ctx,
+              const OutListGPU<complexf, 2> &out,
+              const InListGPU<float, 1> &in);
 
  private:
-  cufftHandle plan_;
+  void CreatePlans(int64_t nwindows);
+  void ReserveTempStorage(ScratchpadEstimator &se, int64_t nwindows, int window_length);
+  void CreateStreams(int new_num_streams);
+
+  static constexpr int kMinSize = 1<<16;
+  static constexpr int kMaxSize = 1<<26;
+
+  int max_windows_ = 1, min_windows_ = 0;
+
+  inline int transform_size() const {
+    return args_.window_length;
+  }
+
+  struct PlanInfo {
+    CUFFTHandle handle;
+    size_t work_size = 0;
+  };
+  size_t total_work_size_ = 0;
+  std::map<int, PlanInfo> plans_;
+  std::vector<CUDAStream> streams_;
   StftArgs args_;
 };
 

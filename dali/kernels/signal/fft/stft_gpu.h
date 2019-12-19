@@ -18,6 +18,7 @@
 #include <memory>
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/signal/fft/fft_common.h"
 #include "dali/kernels/signal/window/extract_windows_args.h"
 
 namespace dali {
@@ -26,8 +27,13 @@ namespace signal {
 namespace fft {
 
 struct StftArgs : ExtractWindowsArgs {
-  int power = 2;  // 1 = magnitude, 2 = squared magnitude
+  /// @brief If set to > 0, the implementation setup will try to provide optimum
+  ///        environment for processing batches of this combined length.
+  int64_t estimated_max_total_length = 0;
+};
 
+struct SpectrogramArgs : StftArgs {
+  FftSpectrumType spectrum_type = FFT_SPECTRUM_POWER;
   /// @brief If set to > 0, the implementation setup will try to provide optimum
   ///        environment for processing batches of this combined length.
   int64_t estimated_max_total_length = 0;
@@ -46,7 +52,7 @@ class DLL_PUBLIC StftGpu {
 
   void Run(
     KernelContext &ctx,
-    const OutListGPU<float, 2> &out,
+    const OutListGPU<complexf, 2> &out,
     const InListGPU<float, 1> &in,
     const InTensorGPU<float, 1> &window,
     const StftArgs &args);

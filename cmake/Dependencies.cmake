@@ -50,6 +50,9 @@ list(APPEND DALI_EXCLUDES libnppicc_static.a)
 list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
+# cuFFT library
+CUDA_find_library(CUDA_cufft_static_LIBRARY cufft_static)
+
 # CULIBOS needed when using static CUDA libs
 CUDA_find_library(CUDA_culibos_LIBRARY culibos)
 list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})

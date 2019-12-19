@@ -22,17 +22,12 @@
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/signal/fft/fft_common.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
 namespace fft {
-
-enum FftSpectrumType {
-  FFT_SPECTRUM_COMPLEX = 0,    // separate interleaved real and img parts: (r0, i0, r1, i1, ...)
-  FFT_SPECTRUM_MAGNITUDE = 1,  // sqrt( real^2 + img^2 )
-  FFT_SPECTRUM_POWER = 2,      // real^2 + img^2
-};
 
 struct FftArgs {
   FftSpectrumType spectrum_type = FFT_SPECTRUM_COMPLEX;
@@ -52,14 +47,14 @@ struct FftArgs {
 
 namespace impl {
 
-template <typename OutputType = std::complex<float>, typename InputType = float, int Dims = 2>
+template <typename OutputType = complexf, typename InputType = float, int Dims = 2>
 class DLL_PUBLIC FftImpl {
  public:
   static_assert(std::is_same<InputType, float>::value,
     "Data types other than float are not yet supported");
 
   static_assert(std::is_same<OutputType, float>::value
-             || std::is_same<OutputType, std::complex<float>>::value,
+             || std::is_same<OutputType, complexf>::value,
     "Data types other than float are not yet supported");
 
   DLL_PUBLIC virtual ~FftImpl() = default;

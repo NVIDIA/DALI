@@ -12,34 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_CUSTREAM_H_
-#define DALI_UTIL_CUSTREAM_H_
+#ifndef DALI_KERNELS_SIGNAL_FFT_TRANSPOSE_CUH_
+#define DALI_KERNELS_SIGNAL_FFT_TRANSPOSE_CUH_
 
-#include <driver_types.h>
-#include "dali/core/common.h"
+#include <cuda_runtime.h>
+#include "dali/core/geom/vec.h"
 
 namespace dali {
+namespace kernels {
+namespace signal {
 
-class DLL_PUBLIC CUStream {
- public:
-  CUStream(int device_id, bool default_stream, int priority);
-
-  ~CUStream();
-
-  CUStream(const CUStream &) = delete;
-
-  CUStream &operator=(const CUStream &) = delete;
-
-  explicit CUStream(CUStream &&);
-
-  CUStream &operator=(CUStream &&);
-
-  operator cudaStream_t();
-
- private:
-  cudaStream_t stream_;
+template <typename T>
+struct TransposeBatchSampleDesc {
+  T *out;
+  const T *in;
+  ptrdiff_t in_stride;
+  ptrdiff_t out_size;
 };
 
+template <typename T>
+__global__ void TransposeBatch(TransposeBatchSampleDesc<T> *samples, BlockDesc *blocks) {
+
+}
+
+}  // namespace signal
+}  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_UTIL_CUSTREAM_H_
+#endif
