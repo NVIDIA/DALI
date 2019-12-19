@@ -181,6 +181,7 @@ struct SampleDesc {
 };
 
 struct BlockDesc {
+  /// @brief index of the sample (tensor) in the batch
   int sample_idx;
   /// @brief Index of the first window in this block.
   ///
@@ -190,6 +191,7 @@ struct BlockDesc {
 };
 
 struct HorizontalBlockDesc {
+  /// @brief index of the sample (tensor) in the batch
   int sample_idx;
   /// @brief actual length of the block (may be less than blockDim)
   int count;

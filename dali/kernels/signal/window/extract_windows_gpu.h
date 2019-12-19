@@ -25,6 +25,9 @@ namespace kernels {
 namespace signal {
 
 struct ExtractWindowsBatchedArgs : ExtractWindowsArgs {
+  /**
+   * @brief If true, the extracted windows are stacked as columns, otherwise as rows.
+   */
   bool vertical = false;
   /**
    * @brief If true, all outputs are concatenated.
