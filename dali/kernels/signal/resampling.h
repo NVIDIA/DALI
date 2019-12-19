@@ -22,6 +22,7 @@
 #include "dali/core/math_util.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/convert.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {
@@ -132,23 +133,28 @@ struct Resampler {
    * Calculates a range of resampled signal.
    * The function can seamlessly resample the input and produce the result in chunks.
    * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
+   *
+   * @tparam satic_channels   number of channels, if known at compile time, or -1
    */
-  template <typename Out>
+  template <int static_channels, typename Out>
   void resample(
         Out *out, int64_t out_begin, int64_t out_end, double out_rate,
         const float *in, int64_t n_in, double in_rate,
-        int num_channels) {
-    if (num_channels == 1) {
+        int dynamic_num_channels) {
+    if (dynamic_num_channels == 1) {
       // fast path
       resample(out, out_begin, out_end, out_rate, in, n_in, in_rate);
       return;
     }
+    // the check below is compile time, so num_channels will be a compile-time constant
+    // or a run-time constant, depending on the value of static_channels
+    const int num_channels = static_channels < 0 ? dynamic_num_channels : static_channels;
 
     int64_t in_pos = 0;
     int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
-    SmallVector<float, 8> tmp;
+    SmallVector<float, (static_channels < 0 ? 16 : static_channels)> tmp;
     tmp.resize(num_channels);
     for (int64_t out_block = out_begin; out_block < out_end; out_block += block) {
       int64_t block_end = std::min(out_block + block, out_end);
@@ -183,6 +189,26 @@ struct Resampler {
           out[out_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
       }
     }
+  }
+
+
+  /**
+   * @brief Resample multi-channel signal and convert to Out
+   *
+   * Calculates a range of resampled signal.
+   * The function can seamlessly resample the input and produce the result in chunks.
+   * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
+   */
+  template <typename Out>
+  void resample(
+        Out *out, int64_t out_begin, int64_t out_end, double out_rate,
+        const float *in, int64_t n_in, double in_rate,
+        int num_channels) {
+    VALUE_SWITCH(num_channels, static_channels, (1, 2, 3, 4, 5, 6, 7, 8),
+      (resample<static_channels, Out>(out, out_begin, out_end, out_rate,
+        in, n_in, in_rate, static_channels);),
+      (resample<-1, Out>(out, out_begin, out_end, out_rate,
+        in, n_in, in_rate, num_channels)));
   }
 };
 
