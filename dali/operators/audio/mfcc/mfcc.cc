@@ -43,9 +43,8 @@ void ApplyLifter(const kernels::OutTensorCPU<T, Dims> &inout, int axis, const T*
         int64_t idx = 0;
         assert(out_size == in_size);
         assert(out_stride == in_stride);
-        for (int64_t k = 0; k < out_size; k++) {
+        for (int64_t k = 0; k < out_size; k++, idx += out_stride) {
           out_data[idx] = lifter_coeffs[k] * in_data[idx];
-          idx += out_stride;
         }
       });
 }
@@ -139,6 +138,7 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
             auto out_view = view<T, Dims>(output[i]);
             kmgr_.Run<DctKernel>(thread_id, i, ctx, out_view, in_view, args_);
             if (lifter_ != 0.0) {
+              assert(static_cast<int64_t>(lifter_coeffs_.size()) >= out_view.shape[args_.axis]);
               detail::ApplyLifter(out_view, args_.axis, lifter_coeffs_.data());
             }
           });
