@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/core/boundary.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/util.h"
@@ -125,15 +126,7 @@ void ExtractWindowsCpu<OutputType, InputType, Dims>::Run(
               int64_t in_idx = window_start + t;
               if (padding_ == Padding::Reflect) {
                 // find the mirrored position if the index is out of bounds
-                while (in_idx < 0 || in_idx >= in_size) {
-                  if (in_idx < 0) {
-                    // left side
-                    in_idx = -in_idx;
-                  } else {
-                    // right side
-                    in_idx = 2 * in_size - 2 - in_idx;
-                  }
-                }
+                in_idx = boundary::idx_reflect_101(in_idx, in_size);
                 // at this point we know that in_idx is in valid range
                 out_data[out_idx * out_stride] = window_fn.data[t] * in_data[in_idx * in_stride];
               } else {

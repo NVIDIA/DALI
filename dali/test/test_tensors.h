@@ -19,6 +19,7 @@
 #include <memory>
 #include <utility>
 #include "dali/core/tensor_view.h"
+#include "dali/core/backend_tags.h"
 
 namespace dali {
 namespace kernels {
