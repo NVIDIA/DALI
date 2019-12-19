@@ -21,8 +21,10 @@
 namespace dali {
 
 struct AudioMetadata {
-  int length;
-  int sample_rate;  /// [Hz]
+  /// @brief Length, in (multi-channel) samples, of the recording
+  int64_t length;
+  /// @brief Sampling rate, in Hz
+  int sample_rate;
   int channels;
   bool channels_interleaved;
 };
@@ -40,7 +42,11 @@ class AudioDecoderBase {
   }
 
 
-  virtual void Decode(span<char> raw_output) = 0;
+  /**
+   * @brief Decode audio data and store it in the supplied buffer
+   * @return Number of (multi-channel) samples actually read
+   */
+  virtual ptrdiff_t Decode(span<char> raw_output) = 0;
 
   virtual ~AudioDecoderBase() = default;
 
@@ -53,13 +59,12 @@ class AudioDecoderBase {
 template<typename SampleType>
 class TypedAudioDecoderBase : public AudioDecoderBase {
  public:
-  void Decode(span<char> raw_output) override {
+  ptrdiff_t Decode(span<char> raw_output) override {
     int max_samples = static_cast<int>(raw_output.size() / sizeof(SampleType));
-    DecodeTyped({reinterpret_cast<SampleType *>(raw_output.data()), max_samples});
+    return DecodeTyped({reinterpret_cast<SampleType *>(raw_output.data()), max_samples});
   }
 
-
-  virtual void DecodeTyped(span<SampleType> typed_output) = 0;
+  virtual ptrdiff_t DecodeTyped(span<SampleType> typed_output) = 0;
 };
 
 
