@@ -12,14 +12,14 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
 # sys.path.insert(0, os.path.abspath('..'))
+import os
+import sys
 import sphinx_rtd_theme
+from sphinx.ext.autodoc.importer import mock, _MockImporter
 from builtins import str
 import re
 import subprocess
-import os
 
 # -- Project information -----------------------------------------------------
 
@@ -48,7 +48,13 @@ version = str(version_long + u"-" + git_sha)
 release = str(version_long)
 
 # generate table of supported operators and their devices
-subprocess.call(["python", "supported_op_devices.py", "op_inclusion"])
+# mock torch required by supported_op_devices
+importer = _MockImporter(["torch"])
+importer.load_module("torch")
+sys.path.insert(0, os.path.abspath('./'))
+import supported_op_devices
+
+supported_op_devices.main(["op_inclusion"])
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True
