@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <pybind11/stl.h>
+#include <memory>
+#include <utility>
 #include "dali/operators/python_function/dltensor_function.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
@@ -19,10 +22,13 @@ namespace dali {
 
 DALI_SCHEMA(DLTensorPythonFunctionImpl)
     .AddOptionalArg("synchronize_stream", "Synchronize CUDA stream", true)
+    .AddArg("function_id", R"code(Id of the python function)code", DALI_INT64)
+    .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
+    .AddArg("batch_processing", "Batch processing.", DALI_BOOL)
     .NumInput(0, 256)
     .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
-    .MakeInternal()
-    .AddParent("PythonFunctionImplBase");
+    .NoPrune()
+    .MakeInternal();
 
 DALI_SCHEMA(DLTensorPythonFunction)
     .DocStr(R"code(Execute a python function that operates on DLPack tensors.
@@ -37,6 +43,8 @@ In this case, the `synchronize_stream` flag can be set to false.)code")
         R"code(Make DALI synchronize its CUDA stream before calling the python function.
 Should be set to false only if the called function schedules the device job
 to the stream used by DALI.)code", true)
+    .AddOptionalArg("batch_processing",
+                    "Whether the function should get the whole batch as input.", true)
     .NumInput(0, 256)
     .AllowSequences()
     .SupportVolumetric()
@@ -69,6 +77,38 @@ py::list PrepareDLTensorInputs<GPUBackend>(DeviceWorkspace &ws) {
     input_tuple.append(dl_tensor_list);
   }
   return input_tuple;
+}
+
+template <>
+py::list PrepareDLTensorInputsPerSample<CPUBackend>(HostWorkspace &ws) {
+  py::list input_tuples;
+  if (ws.NumInput() == 0) return input_tuples;
+  auto batch_size = ws.NumInputAtIdx(0);
+  for (Index s = 0; s < batch_size; ++s) {
+    py::list tuple;
+    for (Index idx = 0; idx < ws.NumInput(); ++idx) {
+      auto &t = ws.Input<CPUBackend>(idx, s);
+      auto dl_capsule = TensorToDLPackView(const_cast<Tensor<CPUBackend>&>(t));
+      tuple.append(dl_capsule);
+    }
+    input_tuples.append(tuple);
+  }
+  return input_tuples;
+}
+
+template <>
+py::list PrepareDLTensorInputsPerSample<GPUBackend>(DeviceWorkspace &ws) {
+  std::vector<py::list> input_tuples;
+  if (ws.NumInput() == 0) return py::cast(input_tuples);
+  Index batch_size = ws.InputRef<GPUBackend>(0).ntensor();
+  input_tuples.resize(batch_size);
+  for (Index idx = 0; idx < ws.NumInput(); ++idx) {
+    py::list dl_tensor_list = TensorListToDLPackView(ws.InputRef<GPUBackend>(idx));
+    for (Index s = 0; s < batch_size; ++s) {
+      input_tuples[s].append(dl_tensor_list[s]);
+    }
+  }
+  return py::cast(input_tuples);
 }
 
 TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>& dl_tensors) {
@@ -107,5 +147,76 @@ void CopyOutputData(TensorList<GPUBackend>& output, std::vector<DLMTensorPtr> &d
 DALI_REGISTER_OPERATOR(DLTensorPythonFunctionImpl, DLTensorPythonFunctionImpl<CPUBackend>, CPU);
 
 DALI_REGISTER_OPERATOR(DLTensorPythonFunctionImpl, DLTensorPythonFunctionImpl<GPUBackend>, GPU);
+
+std::mutex operator_lock;
+
+static cudaStream_t current_cuda_stream = nullptr;
+
+cudaStream_t GetCurrentStream() {
+  return current_cuda_stream;
+}
+
+void SetCurrentStream(cudaStream_t stream) {
+  current_cuda_stream = stream;
+}
+
+struct PyBindInitializer {
+  PyBindInitializer() {
+    auto thread_state = PyGILState_Ensure();
+    pybind11::get_shared_data("");  // setup the pybind's internals pointer
+    PyGILState_Release(thread_state);
+  }
+};
+
+// Some pybind's internals are not properly initialized when used in dynamically linked library,
+// so this workaround initializes them manually
+static PyBindInitializer pybind_initializer{}; // NOLINT
+
+struct DLTensorNumpyResource: public DLTensorResource {
+  explicit DLTensorNumpyResource(const py::array &array)
+      : DLTensorResource(TensorShape<>(array.shape(), array.shape() + array.ndim()))
+      , array(array) {
+    strides.resize(array.ndim());
+    auto itemsize = array.dtype().itemsize();
+    for (int i = 0; i < array.ndim(); ++i) {
+      strides[i] = array.strides(i) / itemsize;
+    }
+  }
+
+  py::array array;
+
+  ~DLTensorNumpyResource() override = default;
+};
+
+PYBIND11_MODULE(libpython_function_plugin, m) {
+  m.def("current_dali_stream", []() { return reinterpret_cast<uint64_t>(GetCurrentStream()); });
+
+  m.def("DLTensorToArray", [](py::capsule dl_capsule) {
+    auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(dl_capsule);
+    const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
+    auto dali_type = TypeTable::GetTypeInfo(DLToDALIType(dl_tensor.dtype));
+    py::dtype dtype(FormatStrFromType(dali_type));
+    auto shape = make_span(dl_tensor.shape, dl_tensor.ndim);
+    py::array array;
+    if (dl_tensor.strides) {
+      TensorShape<> strides;
+      strides.resize(dl_tensor.ndim);
+      for (int i = 0; i < dl_tensor.ndim; ++i) {
+        strides[i] = dl_tensor.strides[i] * dtype.itemsize();
+      }
+      array = py::array(dtype, shape, strides, dl_tensor.data, py::array());
+    } else {
+      array = py::array(dtype, shape, dl_tensor.data, py::array());
+    }
+    return array;
+  });
+
+  m.def("ArrayToDLTensor", [](py::array array) {
+    auto buffer = array.request();
+    auto dlm_tensor_ptr = MakeDLTensor(buffer.ptr, TypeFromFormatStr(buffer.format),
+                                       false, 0, std::make_unique<DLTensorNumpyResource>(array));
+    return DLTensorToCapsule(std::move(dlm_tensor_ptr));
+  });
+}
 
 }  // namespace dali

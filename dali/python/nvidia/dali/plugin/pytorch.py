@@ -19,6 +19,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 from nvidia.dali import types
 import torch
+import torch.utils.dlpack as torch_dlpack
 import ctypes
 import logging
 import functools
@@ -341,15 +342,22 @@ class TorchPythonFunction(ops.PythonFunction):
     ops.register_cpu_op('TorchPythonFunction')
 
     @staticmethod
-    def torch_wrapper(function, *args):
-        input_tensors = list(map(torch.from_numpy, args))
-        output_tensors = function(*input_tensors)
-        if isinstance(output_tensors, tuple) or isinstance(output_tensors, list):
-            return tuple(map(lambda t: t.numpy(), output_tensors))
+    def torch_wrapper(batch_processing, function, *args):
+        if batch_processing:
+            return ops.PythonFunction.function_wrapper_batch(function,
+                                                                 torch.utils.dlpack.from_dlpack,
+                                                                 torch.utils.dlpack.to_dlpack,
+                                                                 *args)
         else:
-            return output_tensors.numpy()
+            return ops.PythonFunction.function_wrapper_per_sample(function,
+                                                                      torch_dlpack.from_dlpack,
+                                                                      torch_dlpack.to_dlpack,
+                                                                      *args)
 
-    def __init__(self, function, num_outputs=1, **kwargs):
-        ops.PythonFunction.__init__(self,
-                                    functools.partial(TorchPythonFunction.torch_wrapper, function),
-                                    num_outputs, **kwargs)
+    def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
+        super(ops.PythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
+                                                 function=lambda *ins:
+                                                 TorchPythonFunction.torch_wrapper(batch_processing,
+                                                                                   function, *ins),
+                                                 num_outputs=num_outputs, device=device,
+                                                 batch_processing=batch_processing, **kwargs)
