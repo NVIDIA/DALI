@@ -61,7 +61,7 @@ RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
 
 
 # libjpeg-turbo
-RUN JPEG_TURBO_VERSION=2.0.2 && \
+RUN JPEG_TURBO_VERSION=2.0.4 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
     echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
@@ -79,9 +79,8 @@ RUN JPEG_TURBO_VERSION=2.0.2 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install 2>&1 >/dev/null && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
-
 # libtiff
-RUN LIBTIFF_VERSION=4.0.10 && \
+RUN LIBTIFF_VERSION=4.1.0 && \
     cd /tmp && \
     curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
     cd tiff-${LIBTIFF_VERSION} && \
@@ -99,9 +98,10 @@ RUN LIBTIFF_VERSION=4.0.10 && \
     rm -rf /tmp/tiff-${LIBTIFF_VERSION}
 
 # OpenCV
-ENV OPENCV_VERSION=3.4.3
+ENV OPENCV_VERSION=4.1.2
+COPY docker/fix_ocv_4.1.2.patch /fix_ocv_4.1.2.patch
 RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
+    cd /opencv-${OPENCV_VERSION} && git apply /fix_ocv_4.1.2.patch && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_TOOLCHAIN_FILE=$PWD/../platforms/linux/aarch64-gnu.toolchain.cmake \
           -DCMAKE_INSTALL_PREFIX=/usr/aarch64-linux-gnu/ \
@@ -112,7 +112,9 @@ RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | 
           -DBUILD_TBB=OFF \
           -DBUILD_WEBP=OFF \
           -DBUILD_JPEG=OFF \
+          -DBUILD_TIFF=OFF \
           -DWITH_JPEG=ON \
+          -DWITH_TIFF=ON \
           -DBUILD_JASPER=OFF \
           -DBUILD_ZLIB=ON \
           -DBUILD_EXAMPLES=OFF \
@@ -165,7 +167,7 @@ RUN OGG_VERSION=1.3.4 && cd /tmp                                                
                                              --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
     cd /tmp && rm -rf libogg-$OGG_VERSION
-    
+
 # libvorbis
 # Install after libogg
 RUN VORBIS_VERSION=1.3.6 && cd /tmp                                                   && \

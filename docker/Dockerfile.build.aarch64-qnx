@@ -77,7 +77,7 @@ RUN cd /protobuf-${PROTOBUF_VERSION} && make clean \
     rm -rf /protobuf-${PROTOBUF_VERSION}
 
 # libjpeg-turbo
-RUN JPEG_TURBO_VERSION=2.0.2 && \
+RUN JPEG_TURBO_VERSION=2.0.4 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
     echo "set(CMAKE_SYSTEM_NAME  Linux)" > toolchain.cmake && \
@@ -96,7 +96,7 @@ RUN JPEG_TURBO_VERSION=2.0.2 && \
     rm -rf /libjpeg-turbo-${JPEG_TURBO_VERSION}
 
 # libtiff
-RUN LIBTIFF_VERSION=4.0.10 && \
+RUN LIBTIFF_VERSION=4.1.0 && \
     cd /tmp && \
     curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
     cd tiff-${LIBTIFF_VERSION} && \
@@ -114,10 +114,11 @@ RUN LIBTIFF_VERSION=4.0.10 && \
     rm -rf /tmp/tiff-${LIBTIFF_VERSION}
 
 # OpenCV
-ENV OPENCV_VERSION=3.4.3
 COPY docker/opencv-qnx.patch /opencv-qnx.patch
-RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && git apply /opencv-qnx.patch \
+COPY docker/fix_ocv_4.1.2.patch /fix_ocv_4.1.2.patch
+RUN OPENCV_VERSION=4.1.2 && \
+    curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
+    cd /opencv-${OPENCV_VERSION} && git apply /opencv-qnx.patch && git apply /fix_ocv_4.1.2.patch \
     && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DVIBRANTE_PDK:STRING=/ \

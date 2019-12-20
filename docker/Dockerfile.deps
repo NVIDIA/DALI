@@ -53,7 +53,7 @@ RUN LMDB_VERSION=0.9.22 && \
     rm -rf /lmdb
 
 # libjpeg-turbo
-RUN JPEG_TURBO_VERSION=2.0.2 && \
+RUN JPEG_TURBO_VERSION=2.0.4 && \
     curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
     cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
     cmake -G"Unix Makefiles" -DENABLE_SHARED=TRUE -DCMAKE_INSTALL_PREFIX=/usr/local . 2>&1 >/dev/null && \
@@ -63,7 +63,7 @@ RUN JPEG_TURBO_VERSION=2.0.2 && \
 # libtiff
 # Note: libtiff should be built with support for zlib. If running this step alone on a custom
 #       system, zlib should be installed first
-RUN LIBTIFF_VERSION=4.0.10 && \
+RUN LIBTIFF_VERSION=4.1.0 && \
     cd /tmp && \
     curl -L http://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz | tar -xzf - && \
     cd tiff-${LIBTIFF_VERSION} && \
@@ -75,9 +75,10 @@ RUN LIBTIFF_VERSION=4.0.10 && \
     rm -rf /tmp/tiff-${LIBTIFF_VERSION}
 
 # OpenCV
-RUN OPENCV_VERSION=3.4.3 && \
+COPY docker/fix_ocv_4.1.2.patch /fix_ocv_4.1.2.patch
+RUN OPENCV_VERSION=4.1.2 && \
     curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.tar.gz | tar -xzf - && \
-    cd /opencv-${OPENCV_VERSION} && mkdir build && cd build && \
+    cd /opencv-${OPENCV_VERSION} && git apply /fix_ocv_4.1.2.patch && mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_INSTALL_PREFIX=/usr/local \
           -DBUILD_SHARED_LIBS=OFF \
           -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \

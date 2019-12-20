@@ -74,28 +74,28 @@ Prerequisites
 .. _protobuf link: https://github.com/google/protobuf
 .. |cmake link| replace:: **CMake 3.11**
 .. _cmake link: https://cmake.org
-.. |jpegturbo link| replace:: **libjpeg-turbo 1.5.x**
+.. |jpegturbo link| replace:: **libjpeg-turbo 2.0.4 (2.0.3 for conda due to availability)**
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
-.. |libtiff link| replace:: **libtiff 4.0.x**
+.. |libtiff link| replace:: **libtiff 4.1.0**
 .. _libtiff link: http://libtiff.org/
 .. |ffmpeg link| replace:: **FFmpeg 4.2.1**
 .. _ffmpeg link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2
 .. |libsnd link| replace:: **libsnd 1.0.28**
 .. _libsnd link: https://developer.download.nvidia.com/compute/redist/nvidia-dali/libsndfile-1.0.28.tar.gz
-.. |opencv link| replace:: **OpenCV 3**
+.. |opencv link| replace:: **OpenCV 4**
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
 .. _lmdb link: https://github.com/LMDB/lmdb
-.. |gcc link| replace:: **GCC 4.9.2**
+.. |gcc link| replace:: **GCC 5.3.1**
 .. _gcc link: https://www.gnu.org/software/gcc/
 .. |boost link| replace:: **Boost 1.66**
 .. _boost link: https://www.boost.org/
 
-.. |mxnet link| replace:: **MXNet 1.3**
+.. |mxnet link| replace:: **MXNet 1.5**
 .. _mxnet link: http://mxnet.incubator.apache.org
-.. |pytorch link| replace:: **PyTorch 0.4**
+.. |pytorch link| replace:: **PyTorch 1.1**
 .. _pytorch link: https://pytorch.org
-.. |tf link| replace:: **TensorFlow 1.7**
+.. |tf link| replace:: **TensorFlow 1.12**
 .. _tf link: https://www.tensorflow.org
 
 
@@ -128,7 +128,7 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |libsnd link|_ or later                | We recommend using version 1.0.28 compiled following the *instructions below*.              |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |opencv link|_ or later                | Supported version: 3.4                                                                      |
+   | |opencv link|_ or later                | Supported version: 4.1.2                                                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | (Optional) |lmdb link|_ or later       |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
