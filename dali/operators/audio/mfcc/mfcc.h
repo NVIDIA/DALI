@@ -26,6 +26,55 @@
 
 namespace dali {
 
+namespace detail {
+
+/**
+ * @brief Liftering coefficients calculator
+ */
+class LifterCoeffs {
+ public:
+  void Calculate(int64_t target_length, float lifter) {
+    // If different lifter argument, clear previous coefficients
+    if (lifter_ != lifter) {
+      coeffs_.clear();
+      lifter_ = lifter;
+    }
+
+    // 0 means no liftering
+    if (lifter_ == 0.0f)
+      return;
+
+    // Calculate remaining coefficients (if necessary)
+    if (static_cast<int64_t>(coeffs_.size()) < target_length) {
+      int64_t start = coeffs_.size(), end = target_length;
+      double ampl_mult = lifter_ / 2;
+      double phase_mult = M_PI / lifter_;
+      for (int64_t i = start; i < end; i++) {
+        coeffs_.push_back(1.0 + ampl_mult * std::sin(phase_mult * (i + 1)));
+      }
+    }
+  }
+
+  bool empty() const {
+    return coeffs_.empty();
+  }
+
+  size_t size() const {
+    return coeffs_.size();
+  }
+
+  const float* data() const {
+    return coeffs_.data();
+  }
+
+ private:
+  float lifter_ = 0;
+  std::vector<float> coeffs_;
+};
+
+}  // namespace detail
+
+
 template <typename Backend>
 class MFCC : public Operator<Backend> {
  public:
@@ -57,24 +106,10 @@ class MFCC : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
-  void CalcLifterCoeffs(int64_t length) {
-    if (static_cast<int64_t>(lifter_coeffs_.size()) >= length || lifter_ == 0)
-      return;
-
-    lifter_coeffs_.reserve(length);
-    int64_t start = lifter_coeffs_.size(), end = length;
-    float ampl_mult = lifter_ / 2;
-    float phase_mult = M_PI / lifter_;
-    for (int64_t i = start; i < end; i++) {
-      lifter_coeffs_.push_back(1.0f + ampl_mult * std::sin(phase_mult * (i + 1)));
-    }
-  }
-
-
   kernels::KernelManager kmgr_;
   kernels::signal::dct::DctArgs args_;
   float lifter_ = 0.0f;
-  std::vector<float> lifter_coeffs_;
+  detail::LifterCoeffs lifter_coeffs_;
 };
 
 }  // namespace dali

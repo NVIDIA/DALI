@@ -24,6 +24,7 @@ from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 import math
 import librosa as librosa
+from nose.tools import *
 
 class MFCCPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, axis=0, dct_type=2, lifter=1.0, n_mfcc=20,
@@ -119,5 +120,24 @@ def test_operator_mfcc_vs_python():
                         yield check_operator_mfcc_vs_python, device, batch_size, shape, \
                             axis, dct_type, lifter, n_mfcc, norm
 
-#check_operator_mfcc_vs_python(device='cpu', batch_size=3, input_shape=(17,1), axis=0,
-#                              dct_type=3, lifter=2, n_mfcc=17, norm=False)
+@raises(RuntimeError)
+def check_operator_mfcc_wrong_args(device, batch_size, input_shape,
+                                   axis, dct_type, lifter, n_mfcc, norm):
+    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    pipe = MFCCPipeline(device, batch_size, iter(eii1),
+                        axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm)
+    pipe.build()
+    pipe.run()
+
+def test_operator_mfcc_wrong_args():
+    device = 'cpu'
+    batch_size = 3
+    for dct_type, norm, axis, n_mfcc, lifter, shape in \
+        [(1, True, 0, 20, 0.0, (100, 100)),  # DCT-I ortho-normalization is not supported
+         (2, False, -1, 20, 0.0, (100, 100)),  # axis out of bounds
+         (2, False, 2, 20, 0.0, (100, 100)),  # axis out of bounds
+         (2, False, 2, 20, -1.0, (100, 100)),  # negative lifter ??
+         (2, False, 2, 2000, -1.0, (100, 100))  # too many mffcs
+        ]:
+        yield check_operator_mfcc_wrong_args, device, batch_size, shape, \
+            axis, dct_type, lifter, n_mfcc, norm

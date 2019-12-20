@@ -32,6 +32,8 @@ namespace detail {
 
 template <typename T, int Dims>
 void ApplyLifter(const kernels::OutTensorCPU<T, Dims> &inout, int axis, const T* lifter_coeffs) {
+  assert(axis >= 0 && axis < Dims);
+  assert(lifter_coeffs != nullptr);
   auto* data = inout.data;
   auto shape = inout.shape;
   auto strides = kernels::GetStrides(shape);
@@ -53,7 +55,7 @@ void ApplyLifter(const kernels::OutTensorCPU<T, Dims> &inout, int axis, const T*
 
 DALI_SCHEMA(MFCC)
     .DocStr(R"code(Mel Frequency Cepstral Coefficiencs (MFCC).
-Computes MFCCs from a mel spectrogram)code")
+Computes MFCCs from a mel spectrogram.)code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)
     .AddOptionalArg("n_mfcc",
@@ -74,9 +76,9 @@ If not provided, the outer-most dimension will be used.)code",
       0)
     .AddOptionalArg("lifter",
       R"code(Cepstral filtering (also known as `liftering`) coefficient.
-If `lifter>0`, the MFCCs will be scaled according to the following formula::
+If `lifter>0`, the MFCCs will be scaled according to the following formula:
 
-  MFFC[i] = MFCC[i] * (1 + sin(pi * (i + 1) / lifter)) * (lifter / 2)
+  `MFFC[i] = MFCC[i] * (1 + sin(pi * (i + 1) / lifter)) * (lifter / 2)`
 
 )code",
       0.0f);
@@ -93,6 +95,10 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto nthreads = ws.GetThreadPool().size();
 
   int64_t max_length = -1;
+
+  int ndim = in_shape.sample_dim();
+  DALI_ENFORCE(args_.axis >= 0 && args_.axis < ndim,
+               make_string("Axis ", args_.axis, " is out of bounds [0,", ndim, ")"));
 
   TYPE_SWITCH(input.type().id(), type2id, T, MFCC_SUPPORTED_TYPES, (
     VALUE_SWITCH(in_shape.sample_dim(), Dims, MFCC_SUPPORTED_NDIMS, (
@@ -113,9 +119,7 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 
-  if (lifter_ != 0.0 && max_length > static_cast<int64_t>(lifter_coeffs_.size())) {
-    CalcLifterCoeffs(max_length);
-  }
+  lifter_coeffs_.Calculate(max_length, lifter_);
   return true;
 }
 
@@ -137,7 +141,7 @@ void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
             kmgr_.Run<DctKernel>(thread_id, i, ctx, out_view, in_view, args_);
-            if (lifter_ != 0.0) {
+            if (lifter_ != 0.0f) {
               assert(static_cast<int64_t>(lifter_coeffs_.size()) >= out_view.shape[args_.axis]);
               detail::ApplyLifter(out_view, args_.axis, lifter_coeffs_.data());
             }
