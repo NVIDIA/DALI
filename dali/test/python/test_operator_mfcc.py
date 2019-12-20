@@ -136,8 +136,7 @@ def test_operator_mfcc_wrong_args():
         [(1, True, 0, 20, 0.0, (100, 100)),  # DCT-I ortho-normalization is not supported
          (2, False, -1, 20, 0.0, (100, 100)),  # axis out of bounds
          (2, False, 2, 20, 0.0, (100, 100)),  # axis out of bounds
-         (2, False, 2, 20, -1.0, (100, 100)),  # negative lifter ??
-         (2, False, 2, 2000, -1.0, (100, 100))  # too many mffcs
+         (10, False, 0, 20, 0.0, (100, 100)),  # not supported DCT type
         ]:
         yield check_operator_mfcc_wrong_args, device, batch_size, shape, \
             axis, dct_type, lifter, n_mfcc, norm
