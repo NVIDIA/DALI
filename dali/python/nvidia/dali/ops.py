@@ -89,6 +89,21 @@ class _EdgeReference(object):
     def __ge__(self, other):
         return _arithm_op("geq", self, other)
 
+    def __and__(self, other):
+        return _arithm_op("bitand", self, other)
+    def __rand__(self, other):
+        return _arithm_op("bitand", other, self)
+
+    def __or__(self, other):
+        return _arithm_op("bitor", self, other)
+    def __ror__(self, other):
+        return _arithm_op("bitor", other, self)
+
+    def __xor__(self, other):
+        return _arithm_op("bitxor", self, other)
+    def __rxor__(self, other):
+        return _arithm_op("bitxor", other, self)
+
 _cpu_ops = set({})
 _gpu_ops = set({})
 _mixed_ops = set({})

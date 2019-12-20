@@ -219,6 +219,24 @@ inline void GetConstantNodes(ExprNode &expr, std::vector<ExprConstant *> &nodes)
   }
 }
 
+
+/**
+ * @brief Provide an error when the node is an bitwise operator that has any floating point
+ *        inputs
+ */
+inline void CheckBitwise(ExprFunc &func) {
+  auto op = NameToOp(func.GetFuncName());
+  if (IsBitwise(op)) {
+    bool inputs_are_integral = true;
+    for (int i = 0; i < func.GetSubexpressionCount(); i++) {
+      inputs_are_integral = inputs_are_integral && IsIntegral(func[i].GetTypeId());
+    }
+    DALI_ENFORCE(inputs_are_integral, make_string("Inputs to bitwise operator `", to_string(op),
+                                                  "` must be of integral type."));
+  }
+}
+
+
 /**
  * @brief Provide an error when the node is an arithmetic operator (other than `*`)
  *        that has only boolean inputs.
@@ -256,6 +274,7 @@ inline void CheckAllowedOperations(ExprNode &expr) {
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
   CheckArithmeticOnBooleans(func);
+  CheckBitwise(func);
   for (int i = 0; i < func.GetSubexpressionCount(); i++) {
     CheckAllowedOperations(func[i]);
   }

@@ -47,11 +47,14 @@ unary_input_kinds = ["cpu", "gpu", "cpu_scalar", "gpu_scalar"]
 bin_input_kinds = (list(itertools.product(["cpu", "gpu"], ["cpu", "gpu", "cpu_scalar", "gpu_scalar", "const"])) +
                list(itertools.product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"])))
 
+integer_types = [np.bool_,
+                 np.int8, np.int16, np.int32, np.int64,
+                 np.uint8, np.uint16, np.uint32, np.uint64]
+
 # float16 is marked as TODO in backend for gpu
-input_types = [np.bool_,
-               np.int8, np.int16, np.int32, np.int64,
-               np.uint8, np.uint16, np.uint32, np.uint64,
-               np.float32, np.float64]
+float_types = [np.float32, np.float64]
+
+input_types = integer_types + float_types
 
 selected_input_types = [np.bool_, np.int32, np.uint8, np.float32]
 
@@ -77,6 +80,9 @@ unary_operations = [((lambda x: +x), "+"), ((lambda x: -x), "-")]
 
 sane_operations = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x * y), "*")]
+
+bitwise_operations = [((lambda x, y: x & y), "&"), ((lambda x, y: x | y), "|"),
+                      ((lambda x, y: x ^ y), "^")]
 
 comparisons_operations = [((lambda x, y: x == y), "=="), ((lambda x, y: x != y), "!="),
                           ((lambda x, y: x < y), "<"), ((lambda x, y: x <= y), "<="),
@@ -352,6 +358,20 @@ def test_arithmetic_ops():
                 if types_in != (np.bool_, np.bool_) or op_desc == "*":
                     yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
 
+def test_bitwise_ops_selected():
+    for kinds in selected_bin_input_kinds:
+        for (op, op_desc) in bitwise_operations:
+            for types_in in itertools.product(selected_input_types, selected_input_types):
+                if types_in[0] in integer_types and types_in[1] in integer_types:
+                    yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
+
+@attr('slow')
+def test_bitwise_ops():
+    for kinds in bin_input_kinds:
+        for (op, op_desc) in bitwise_operations:
+            for types_in in itertools.product(input_types, input_types):
+                if types_in[0] in integer_types and types_in[1] in integer_types:
+                    yield check_arithm_op, kinds, types_in, op, shape_small, op_desc
 
 # Comparisons - should always return bool
 def check_comparsion_op(kinds, types, op, shape, _):
@@ -447,6 +467,9 @@ def test_arithmetic_division_selected():
             if types_in != (np.bool_, np.bool_):
                 yield check_arithm_div, kinds, types_in, shape_small
 
+
+
+
 @attr('slow')
 def test_arithmetic_division():
     for kinds in bin_input_kinds:
@@ -455,22 +478,30 @@ def test_arithmetic_division():
                 yield check_arithm_div, kinds, types_in, shape_small
 
 
-# Arithmetic operations between booleans that are not allowed
+
 @raises(RuntimeError)
-def check_bool_disallowed_arithm(kinds, types, op, shape, _):
+def check_raises(kinds, types, op, shape, _):
     left_type, right_type = types
     left_kind, right_kind = kinds
-    target_type = bin_promote(left_type, right_type)
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
     pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size = batch_size, num_threads = 2,
             device_id = 0)
     pipe.build()
     pipe_out = pipe.run()
 
+# Arithmetic operations between booleans that are not allowed
 bool_disallowed = [((lambda x, y: x + y), "+"), ((lambda x, y: x - y), "-"),
                    ((lambda x, y: x / y), "/"), ((lambda x, y: x / y), "//")]
 
 def test_bool_disallowed():
     for kinds in bin_input_kinds:
         for (op, op_desc) in bool_disallowed:
-            yield check_bool_disallowed_arithm, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
+            yield check_raises, kinds, (np.bool_, np.bool_), op, shape_small, op_desc
+
+
+def test_bitwise_disallowed():
+    for kinds in bin_input_kinds:
+        for (op, op_desc) in bitwise_operations:
+            for types_in in itertools.product(selected_input_types, selected_input_types):
+                if types_in[0] in float_types or types_in[1] in float_types:
+                    yield check_raises, kinds, types_in, op, shape_small, op_desc

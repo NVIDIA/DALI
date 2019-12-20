@@ -143,8 +143,8 @@ sf_count_t Tell(void *self) {
 
 
 template<typename SampleType>
-void GenericAudioDecoder<SampleType>::DecodeTyped(span<SampleType> output) {
-  impl_->DecodeTyped(output);
+ptrdiff_t GenericAudioDecoder<SampleType>::DecodeTyped(span<SampleType> output) {
+  return impl_->DecodeTyped(output);
 }
 
 
@@ -172,8 +172,8 @@ GenericAudioDecoder<SampleType>::GenericAudioDecoder() :
 
 template<typename SampleType>
 struct GenericAudioDecoder<SampleType>::Impl {
-  void DecodeTyped(span<SampleType> output) {
-    ReadSamples(sound_, output);
+  ptrdiff_t DecodeTyped(span<SampleType> output) {
+    return ReadSamples(sound_, output);
   }
 
 
@@ -195,7 +195,7 @@ struct GenericAudioDecoder<SampleType>::Impl {
       throw DALIException(make_string("Failed to open encoded data: ", sf_strerror(sound_)));
     }
 
-    ret.length = sf_info_.frames * sf_info_.channels;
+    ret.length = sf_info_.frames;
     ret.channels = sf_info_.channels;
     ret.sample_rate = sf_info_.samplerate;
     ret.channels_interleaved = true;
