@@ -86,7 +86,7 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
     // Special case.
     // This allows using crop_d to crop on the sequence dimension,
     // by treating video inputs as a volume instead of a sequence
-    if (F > 1 && D == 1) {
+    if (has_crop_d_ && F > 1 && D == 1) {
       std::swap(d_dim, f_dim);
       std::swap(D, F);
       spatial_ndim++;
