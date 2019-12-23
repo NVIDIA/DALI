@@ -276,13 +276,13 @@ def test_cmn_vs_numpy():
 class CMNRandomDataPipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0, num_gpus=1,
                  output_dtype = types.FLOAT, output_layout = "FHWC",
-                 mirror_probability = 0.0, mean=[0., 0., 0.], std=[1., 1., 1.], pad_output=False):
+                 mirror_probability = 0.0, mean=[0., 0., 0.], std=[1., 1., 1.], pad_output=False, crop_seq_as_depth=False):
         super(CMNRandomDataPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        if layout.count('D') > 0:
+        if layout.count('D') > 0 or (crop_seq_as_depth and layout.count('F') > 0):
             self.cmn = ops.CropMirrorNormalize(device = self.device,
                                                output_dtype = output_dtype,
                                                output_layout = output_layout,
@@ -398,3 +398,51 @@ def test_cmn_random_data_vs_numpy():
                                         yield check_cmn_random_data_vs_numpy, device, batch_size, output_dtype, \
                                             input_layout, input_shape, output_layout, mirror_probability, \
                                             mean, std, should_pad
+
+
+def check_cmn_crop_sequence_length(device, batch_size, output_dtype, input_layout, input_shape,
+                                   output_layout, mirror_probability, mean, std, should_pad):
+    crop_z, crop_y, crop_x = (0.1, 0.2, 0.3)
+    crop_d, crop_h, crop_w = (8, 16, 32)
+    eii1 = RandomDataIterator(batch_size, shape=input_shape)
+
+    pipe = CMNRandomDataPipeline(device, batch_size, input_layout, iter(eii1),
+                                 output_dtype = output_dtype, output_layout = output_layout,
+                                 mirror_probability = mirror_probability, mean = mean, std= std,
+                                 pad_output = should_pad, crop_seq_as_depth=True)
+    pipe.build()
+    out = pipe.run()
+    out_data = out[0]
+
+    expected_out_shape = (crop_d, 3, crop_h, crop_w) if output_layout == "FCHW" else (crop_d, crop_h, crop_w, 3)
+
+    for i in range(batch_size):
+        assert(out_data.at(i).shape == expected_out_shape), \
+            "Shape mismatch {} != {}".format(out_data.at(i).shape, expected_out_shape)
+
+# Tests cropping along the sequence dimension as if it was depth
+def test_cmn_crop_sequence_length():
+    input_layout = "FHWC"
+    output_layouts = ["FHWC", "FCHW"]
+    output_layouts = {
+        "FHWC" : ["FHWC", "FCHW"],
+    }
+
+    input_shapes = {
+        "FHWC" : [(10, 60, 80, 3)],
+    }
+
+    mean = [127, ]
+    std = [127, ]
+    should_pad = False
+    mirror_probability = 0.5
+
+    for device in ['cpu']:
+        for batch_size in [8]:
+            for output_dtype in [types.FLOAT]:
+                for input_shape in input_shapes[input_layout]:
+                    assert len(input_layout) == len(input_shape)
+                    for output_layout in output_layouts[input_layout]:
+                        yield check_cmn_crop_sequence_length, device, batch_size, output_dtype, \
+                            input_layout, input_shape, output_layout, mirror_probability, \
+                            mean, std, should_pad

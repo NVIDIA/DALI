@@ -83,6 +83,15 @@ class Crop : public SliceBase<Backend>, protected CropAttr {
     int spatial_ndim = ImageLayoutInfo::NumSpatialDims(layout);
     assert(spatial_ndim >= 2);  // bug-check: should never occur with h_dim, w_dim >= 0
 
+    // Special case.
+    // This allows using crop_d to crop on the sequence dimension,
+    // by treating video inputs as a volume instead of a sequence
+    if (F > 1 && D == 1) {
+      std::swap(d_dim, f_dim);
+      std::swap(D, F);
+      spatial_ndim++;
+    }
+
     auto crop_window_gen = GetCropWindowGenerator(data_idx);
     auto win = spatial_ndim == 3 ?
       crop_window_gen({D, H, W}, "DHW") : crop_window_gen({H, W}, "HW");
