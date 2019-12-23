@@ -45,6 +45,9 @@ av_unique_ptr<T> make_unique_av(T* raw_ptr, void (*deleter)(T**)) {
     return av_unique_ptr<T>(raw_ptr, [=] (T* data) {deleter(&data);});
 }
 
+using nvdecDriverHandle = std::unique_ptr<std::remove_pointer<DLLDRIVER>::type,
+                                          std::function< void(DLLDRIVER) >>;
+
 namespace dali {
 #if HAVE_AVSTREAM_CODECPAR
 auto codecpar(AVStream* stream) -> decltype(stream->codecpar);
@@ -155,6 +158,13 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
     file_info_ = filesystem::get_file_label_pair(file_root_, filenames_, file_list_);
     DALI_ENFORCE(!file_info_.empty(), "No files were read.");
+
+    lib_handle_ = nvdecDriverHandle(cuvidInitChecked(0), cuvidDeinit);
+
+    DALI_ENFORCE(lib_handle_,
+      "Failed to load libnvcuvid.so, needed by the VideoReader operator. "
+      "If you are running in a Docker container, please refer "
+      "to https://github.com/NVIDIA/nvidia-docker/wiki/Usage");
   }
 
   ~VideoLoader() noexcept override {
@@ -274,6 +284,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   VideoLoaderStats stats_;
 
   std::unordered_map<std::string, OpenFile> open_files_;
+  nvdecDriverHandle lib_handle_;
   std::unique_ptr<NvDecoder> vid_decoder_;
 
   ThreadSafeQueue<FrameReq> send_queue_;

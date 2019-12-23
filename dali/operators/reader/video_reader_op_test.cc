@@ -101,6 +101,16 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   const int batch_size = 10;
   const int sequence_length = 1;
   const int initial_fill = 10;
+  int driverVersion = 0;
+  if (cudaDriverGetVersion(&driverVersion) != cudaSuccess) {
+    FAIL() << "cudaDriverGetVersion failed!";
+  }
+
+  if (driverVersion < 9020) {
+    GTEST_SKIP() << "Test skipped because cuvidReconfigureDecoder API is not"
+                    " supported by installed driver version";
+  }
+
   Pipeline pipe(batch_size, 1, 0);
 
   pipe.AddOperator(
@@ -117,18 +127,11 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
 
 
   DeviceWorkspace ws;
-  try {
-    pipe.Build(this->LabelledOutputs());
+  pipe.Build(this->LabelledOutputs());
 
-    pipe.RunCPU();
-    pipe.RunGPU();
-    pipe.Outputs(&ws);
-  } catch (unsupported_exception &) {
-    GTEST_SKIP() << "Test skipped because cuvidReconfigureDecoder API is not"
-                    " supported by installed driver version";
-  } catch (...) {
-    FAIL();
-  }
+  pipe.RunCPU();
+  pipe.RunGPU();
+  pipe.Outputs(&ws);
 
   const auto &frames_output = ws.Output<dali::GPUBackend>(0);
   const auto &labels_output = ws.Output<dali::GPUBackend>(1);
