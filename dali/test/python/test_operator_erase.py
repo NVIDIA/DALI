@@ -35,8 +35,8 @@ class ErasePipeline(Pipeline):
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         self.erase = ops.Erase(device = self.device,
-                               anchor = (0, 0),
-                               shape = (10, 10))
+                               anchor = (0, 0, 10, 10),
+                               shape = (10, 10, 8, 8))
 
     def define_graph(self):
         self.data = self.inputs()

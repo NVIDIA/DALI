@@ -41,19 +41,14 @@ class Erase : public Operator<Backend> {
     auto layout = input.GetLayout();
     auto type = input.type();
 
-    //if (spec_->HasTensorArgument("anchor")) {
-    //  UseInputAsParams(ws->ArgumentInput("anchor"));
-    //} else {
     auto roi_anchor = spec_.template GetArgument<std::vector<float>>("anchor");
-    for (auto &x : roi_anchor) {
+    for (auto &x : roi_anchor)
       std::cout << " " << x;
-    }
     std::cout << "\n";
 
     auto roi_shape = spec_.template GetArgument<std::vector<float>>("shape");
-    for (auto &x : roi_shape) {
+    for (auto &x : roi_shape)
       std::cout << " " << x;
-    }
     std::cout << "\n";
 
     std::vector<int> axes;
