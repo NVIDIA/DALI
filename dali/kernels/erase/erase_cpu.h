@@ -34,9 +34,15 @@ template <typename T, int Dims>
 void EraseKernelImpl(T *data,
                      const TensorShape<Dims> &strides,
                      const TensorShape<Dims> &shape,
+                     const T* fill_values,
+                     int channels_dim,
                      std::integral_constant<int, 1>) {
+  assert(fill_values != nullptr);
   for (int i = 0; i < shape[Dims - 1]; i++) {
-    data[i] = T(0);  // TODO(janton): support fill value
+    data[i] = *fill_values;
+    if (channels_dim == Dims - 1) {
+      fill_values++;
+    }
   }
 }
 
@@ -44,12 +50,17 @@ template <typename T, int Dims, int DimsLeft>
 void EraseKernelImpl(T *data,
                      const TensorShape<Dims> &strides,
                      const TensorShape<Dims> &shape,
+                     const T* fill_values,
+                     int channels_dim,
                      std::integral_constant<int, DimsLeft>) {
   constexpr auto d = Dims - DimsLeft;  // NOLINT
   for (int i = 0; i < shape[d]; i++) {
-    EraseKernelImpl(data, strides, shape,
+    EraseKernelImpl(data, strides, shape, fill_values, channels_dim,
                     std::integral_constant<int, DimsLeft - 1>());
     data += strides[d];
+    if (d == channels_dim) {
+      fill_values++;
+    }
   }
 }
 
@@ -60,11 +71,18 @@ template <typename T, int Dims>
 void EraseKernel(T *data,
                  const TensorShape<Dims> &strides,
                  const TensorShape<Dims> &anchor,
-                 const TensorShape<Dims> &shape) {
+                 const TensorShape<Dims> &shape,
+                 const T* fill_values = nullptr,
+                 int channels_dim = -1) {
+  T default_fill_value = 0;
+  if (fill_values == nullptr) {
+    fill_values = &default_fill_value;
+    assert(channels_dim == -1);
+  }
   for (int d = 0; d < Dims; d++) {
     data += strides[d] * anchor[d];
   }
-  detail::EraseKernelImpl(data, strides, shape,
+  detail::EraseKernelImpl(data, strides, shape, fill_values, channels_dim,
                           std::integral_constant<int, Dims>());
 }
 
@@ -94,11 +112,23 @@ class EraseCpu {
 
     for (auto &roi : args.rois) {
       for (int d = 0; d < Dims; d++) {
-        DALI_ENFORCE(roi.anchor[d]>=0 && (roi.anchor[d] + roi.shape[d]) <= shape[d],
-          make_string("Erase region-of-interest is out of bounds: dimension=", d, 
+        DALI_ENFORCE(roi.anchor[d] >= 0 && (roi.anchor[d] + roi.shape[d]) <= shape[d],
+          make_string("Erase region-of-interest is out of bounds: dimension=", d,
             " roi_anchor=", roi.anchor[d], " roi_shape=", roi.shape[d], " data_shape=", shape[d]));
       }
-      EraseKernel(out_ptr, strides, roi.anchor, roi.shape);
+
+      const T* fill_values = roi.fill_values.empty() ? nullptr : roi.fill_values.data();
+      int channels_dim = -1;  // by default single-value
+      int fill_values_size = roi.fill_values.size();
+      if (fill_values_size > 1) {
+        channels_dim = roi.channels_dim;
+        DALI_ENFORCE(channels_dim >= 0 && channels_dim < Dims);
+        DALI_ENFORCE(fill_values_size == in.shape[channels_dim],
+          "Multi-channel fill value does not match the number of channels in the input");
+        fill_values = roi.fill_values.data();
+      }
+
+      EraseKernel(out_ptr, strides, roi.anchor, roi.shape, fill_values, channels_dim);
     }
   }
 };

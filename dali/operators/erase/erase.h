@@ -53,7 +53,7 @@ class Erase : public Operator<Backend> {
 
     std::vector<int> axes;
     if (spec_.HasArgument("axis_names")) {
-      for (auto axis_name: spec_.GetArgument<TensorLayout>("axis_names")) {
+      for (auto axis_name : spec_.GetArgument<TensorLayout>("axis_names")) {
         int d = layout.find(axis_name);
         DALI_ENFORCE(d >= 0);
         axes.push_back(d);
@@ -70,7 +70,7 @@ class Erase : public Operator<Backend> {
     }
 
     std::cout << "axes ";
-    for (auto axis: axes) {
+    for (auto axis : axes) {
       std::cout << " " << axis;
     }
     std::cout << "\n";
@@ -92,7 +92,7 @@ class Erase : public Operator<Backend> {
   bool CanInferOutputs() const override {
     return true;
   }
- 
+
   USE_OPERATOR_MEMBERS();
 };
 

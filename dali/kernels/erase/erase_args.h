@@ -26,6 +26,8 @@ struct EraseArgs {
   struct ROI {
     TensorShape<Dims> anchor;
     TensorShape<Dims> shape;
+    SmallVector<float, 3> fill_values = {0};
+    int channels_dim = -1;
   };
   std::vector<ROI> rois;
 };
