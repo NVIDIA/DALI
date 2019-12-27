@@ -39,35 +39,13 @@ class OpImplBase {
   virtual void RunImpl(workspace_t<Backend> &ws) = 0;
 };
 
-std::vector<int> GetAxes(const OpSpec &spec, TensorLayout layout) {
-  std::vector<int> axes;
-  if (spec.HasArgument("axis_names")) {
-    for (auto axis_name : spec.GetArgument<TensorLayout>("axis_names")) {
-      int d = layout.find(axis_name);
-      DALI_ENFORCE(d >= 0);
-      axes.push_back(d);
-    }
-  } else if (spec.HasArgument("axes")) {
-    axes = spec.GetArgument<std::vector<int>>("axes");
-  } else {
-    // no axes info, expecting all dimensions except 'C'
-    for (int d = 0; d < layout.size(); d++) {
-      if (layout[d] == 'C')
-        continue;
-      axes.push_back(d);
-    }
-  }
-  return axes;
-}
-
 }  // namespace detail
 
 template <typename Backend>
 class Erase : public Operator<Backend> {
  public:
   explicit inline Erase(const OpSpec &spec)
-    : Operator<Backend>(spec)
-    , spec__(spec) {}
+    : Operator<Backend>(spec) {}
 
  protected:
   using Operator<Backend>::RunImpl;
@@ -80,7 +58,6 @@ class Erase : public Operator<Backend> {
 
   USE_OPERATOR_MEMBERS();
 
-  OpSpec spec__;
   std::unique_ptr<detail::OpImplBase<Backend>> impl_;
 };
 
