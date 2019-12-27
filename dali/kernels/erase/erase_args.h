@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_ERASE_ARGS_H_
-#define DALI_KERNELS_ERASE_ARGS_H_
+#ifndef DALI_KERNELS_ERASE_ERASE_ARGS_H_
+#define DALI_KERNELS_ERASE_ERASE_ARGS_H_
 
 #include <vector>
 #include "dali/core/small_vector.h"
@@ -21,12 +21,12 @@
 namespace dali {
 namespace kernels {
 
-template <int Dims>
+template <typename T, int Dims>
 struct EraseArgs {
   struct ROI {
     TensorShape<Dims> anchor;
     TensorShape<Dims> shape;
-    SmallVector<float, 3> fill_values = {0};
+    SmallVector<T, 3> fill_values = {0};
     int channels_dim = -1;
   };
   std::vector<ROI> rois;
@@ -35,4 +35,4 @@ struct EraseArgs {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_ERASE_ARGS_H_
+#endif  // DALI_KERNELS_ERASE_ERASE_ARGS_H_

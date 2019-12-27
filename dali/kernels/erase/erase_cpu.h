@@ -91,7 +91,7 @@ class EraseCpu {
  public:
   KernelRequirements Setup(KernelContext &context,
                            const InTensorCPU<T, Dims> &in,
-                           const EraseArgs<Dims> &args) {
+                           const EraseArgs<T, Dims> &args) {
     KernelRequirements req;
     req.output_shapes.push_back(uniform_list_shape<Dims>(1, in.shape));
     return req;
@@ -100,7 +100,7 @@ class EraseCpu {
   void Run(KernelContext &context,
            OutTensorCPU<T, Dims> &out,
            const InTensorCPU<T, Dims> &in,
-           const EraseArgs<Dims> &args) {
+           const EraseArgs<T, Dims> &args) {
     DALI_ENFORCE(in.shape == out.shape);
     const auto &shape = out.shape;
     auto strides = GetStrides(shape);

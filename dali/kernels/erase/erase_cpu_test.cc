@@ -123,7 +123,7 @@ TEST_P(EraseCpuTest, EraseCpuTest) {
   auto size = volume(shape);
 
   KernelContext ctx;
-  kernels::EraseArgs<Dims> args;
+  kernels::EraseArgs<T, Dims> args;
   args.rois = {{roi_anchor_, roi_shape_}};
   if (channels_dim_ > 0) {
     args.rois[0].channels_dim = channels_dim_;

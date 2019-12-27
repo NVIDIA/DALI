@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_ERASE_ERASE_H_
 #define DALI_OPERATORS_ERASE_ERASE_H_
 
+#include <memory>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -27,73 +28,60 @@
 
 namespace dali {
 
+namespace detail {
+
+template <typename Backend>
+class OpImplBase {
+ public:
+  virtual ~OpImplBase() = default;
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                         const workspace_t<Backend> &ws) = 0;
+  virtual void RunImpl(workspace_t<Backend> &ws) = 0;
+};
+
+std::vector<int> GetAxes(const OpSpec &spec, TensorLayout layout) {
+  std::vector<int> axes;
+  if (spec.HasArgument("axis_names")) {
+    for (auto axis_name : spec.GetArgument<TensorLayout>("axis_names")) {
+      int d = layout.find(axis_name);
+      DALI_ENFORCE(d >= 0);
+      axes.push_back(d);
+    }
+  } else if (spec.HasArgument("axes")) {
+    axes = spec.GetArgument<std::vector<int>>("axes");
+  } else {
+    // no axes info, expecting all dimensions except 'C'
+    for (int d = 0; d < layout.size(); d++) {
+      if (layout[d] == 'C')
+        continue;
+      axes.push_back(d);
+    }
+  }
+  return axes;
+}
+
+}  // namespace detail
+
 template <typename Backend>
 class Erase : public Operator<Backend> {
  public:
   explicit inline Erase(const OpSpec &spec)
     : Operator<Backend>(spec)
-  {}
+    , spec__(spec) {}
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template InputRef<CPUBackend>(0);
-    auto shape = input.shape();
-    auto layout = input.GetLayout();
-    auto type = input.type();
-
-    auto roi_anchor = spec_.template GetArgument<std::vector<float>>("anchor");
-    for (auto &x : roi_anchor)
-      std::cout << " " << x;
-    std::cout << "\n";
-
-    auto roi_shape = spec_.template GetArgument<std::vector<float>>("shape");
-    for (auto &x : roi_shape)
-      std::cout << " " << x;
-    std::cout << "\n";
-
-    std::vector<int> axes;
-    if (spec_.HasArgument("axis_names")) {
-      for (auto axis_name : spec_.GetArgument<TensorLayout>("axis_names")) {
-        int d = layout.find(axis_name);
-        DALI_ENFORCE(d >= 0);
-        axes.push_back(d);
-      }
-    } else if (spec_.HasArgument("axes")) {
-      axes = spec_.GetArgument<std::vector<int>>("axes");
-    } else {
-      std::cout << "no axes info, expecting all dimensions except 'D'" << std::endl;
-      for (int d = 0; d < shape.size(); d++) {
-        if (layout[d] == 'C')
-          continue;
-        axes.push_back(d);
-      }
-    }
-
-    std::cout << "axes ";
-    for (auto axis : axes) {
-      std::cout << " " << axis;
-    }
-    std::cout << "\n";
-
-    if (roi_anchor.empty()) {
-      roi_anchor.resize(roi_shape.size());
-    }
-    DALI_ENFORCE(roi_anchor.size() == roi_shape.size());
-    DALI_ENFORCE(roi_shape.size() % axes.size() == 0);
-
-    output_desc.resize(1);
-    output_desc[0] = {shape, input.type()};
-    return true;
-  }
-
   using Operator<Backend>::RunImpl;
   void RunImpl(workspace_t<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
 
   bool CanInferOutputs() const override {
     return true;
   }
 
   USE_OPERATOR_MEMBERS();
+
+  OpSpec spec__;
+  std::unique_ptr<detail::OpImplBase<Backend>> impl_;
 };
 
 }  // namespace dali

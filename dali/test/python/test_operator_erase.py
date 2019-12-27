@@ -28,15 +28,18 @@ from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
 
 class ErasePipeline(Pipeline):
-    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0, num_gpus=1):
+    def __init__(self, device, batch_size, layout, iterator, 
+                 start_y, erase_h, start_x, erase_w,
+                 num_threads=1, device_id=0, num_gpus=1):
         super(ErasePipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         self.erase = ops.Erase(device = self.device,
-                               anchor = (0, 0, 10, 10),
-                               shape = (10, 10, 8, 8))
+                               anchor = (start_y, start_x),
+                               shape = (erase_h, erase_w),
+                               axis_names = "HW")
 
     def define_graph(self):
         self.data = self.inputs()
@@ -48,14 +51,70 @@ class ErasePipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
+def erase_func(start_y, erase_h, start_x, erase_w, layout, image):
+    assert layout == "HWC"  # TODO(janton): extend to other layouts
+    assert len(image.shape) == 3
+    H = image.shape[0]
+    W = image.shape[1]
 
-def check_erase_vs_numpy(device, batch_size, input_layout, input_shape):
-    eii1 = RandomDataIterator(batch_size, shape=input_shape)
-    pipe = ErasePipeline(device, batch_size, input_layout, iter(eii1)) 
-    pipe.build()
-    pipe.run()
+    # start_y = int(np.float32(crop_y) * np.float32(H - crop_h) + np.float32(0.5))
+    end_y = start_y + erase_h
+    # start_x = int(np.float32(crop_x) * np.float32(W - crop_w) + np.float32(0.5))
+    end_x = start_x + erase_w
 
-check_erase_vs_numpy('cpu', 3, 'HWC', (30, 30, 3))
+    assert H >= end_y
+    assert W >= end_x
+
+    if layout == "HWC":
+        image[start_y:end_y, start_x:end_x, :] = 0
+        return image
+    else:
+        assert(False)  # should not happen
+
+class ErasePythonPipeline(Pipeline):
+    def __init__(self, function, batch_size, data_layout, iterator,
+                 start_y, erase_h, start_x, erase_w,
+                 erase_func=erase_func,
+                 num_threads=1, device_id=0):
+        super(ErasePythonPipeline, self).__init__(batch_size,
+                                                  num_threads,
+                                                  device_id,
+                                                  exec_async=False,
+                                                  exec_pipelined=False)
+        self.iterator = iterator
+        self.inputs = ops.ExternalSource()
+        self.data_layout = data_layout
+
+        function = partial(erase_func, start_y, erase_h, start_x, erase_w, data_layout)
+
+        self.erase = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        self.data = self.inputs()
+        out = self.erase(self.data)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data, layout=self.data_layout)
+
+
+def check_operator_erase_vs_python(device, batch_size, input_shape,
+                                   start_y, erase_h, start_x, erase_w,
+                                   layout = "HWC"):
+    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    compare_pipelines(
+        ErasePipeline(device, batch_size, "HWC", iter(eii1),
+                      start_y=start_y, erase_h=erase_h, start_x=start_x, erase_w=erase_w),
+        ErasePythonPipeline(device, batch_size, "HWC", iter(eii2),
+                            start_y=start_y, erase_h=erase_h, start_x=start_x, erase_w=erase_w),
+        batch_size=batch_size, N_iterations=5, eps=1e-04)
+
+
+check_operator_erase_vs_python('cpu', 3, input_shape=(10, 10, 3),
+                               start_y=1, erase_h=8, start_x=1, erase_w=8,
+                               layout="HWC")
 
 def test_erase_vs_numpy():
     layouts = ["HWC", "FHWC", "DHWC", "FDHWC"]
