@@ -26,22 +26,46 @@
 namespace dali {
 
 DALI_SCHEMA(Erase)
-  .DocStr(R"code(TODO....)code")
+  .DocStr(R"code(Erases one or multiple regions from the image.
+
+The region is specified by an anchor (starting point) and a shape (dimensions).
+Only the relevant dimensions are specified.
+Non-specified dimensions are treated as if the whole range of the axis was provided.
+To specify multiple regions, anchor and shape represent multiple points consecutively
+ (e.g. anchor=(y0, x0, y0, y1,...) and shape=(h0, w0, h1, w1,...)).
+
+Example 1:
+  ```anchor=(10, 20), shape=(190, 200), axis_names=\"HW\", input: layout=\"HWC\", shape=(300, 300, 3), fill_value=0```
+  The erase region covers the range from 10 to 200 in the vertical dimension (heigth) and goes from
+ 20 to 220 in the horizontal dimension (width). The range for the channel dimension goes from 0 to 3, as it
+ was not specified. That is
+ output[y, x, c] = 0               if 20 <= x < 220 and 10 <= y < 200
+ output[y, x, c] = input[y, x, c]  otherwise
+)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg<float>("anchor",
-    R"code()code",
+    R"code(Coordinates for *anchor* or starting point of the erase region. Only the coordinates of the relevant dimensions
+(specified by `axis_names` or `axes`) are provided.)code",
     vector<float>(), true)
   .AddOptionalArg<float>("shape",
-    R"code()code",
+    R"code(Values for *shape* or dimensions of the erase region. Only the coordinates of the relevant dimensions
+(specified by `axis_names` or `axes`) are provided.)code",
     vector<float>(), true)
   .AddOptionalArg("axes",
-    R"code(Order of dimensions used for anchor and shape arguments, as dimension indexes)code",
-    std::vector<int>{0, 1})
+    R"code(Order of dimensions used for anchor and shape arguments, as dimension indexes. For instance, `axes=(1, 0)`
+ means the coordinates in `anchor` and `shape` refer to axes 1 and 0, in that parcular order)code",
+    std::vector<int>{1, 0})
   .AddOptionalArg("axis_names",
     R"code(Order of dimensions used for anchor and shape arguments, as described in layout.
+For instance, `axis_names=\"HW\"` means that the coordinates in `anchor` and `shape` refer to dimensions H (heigth)
+ and W (width), in that particular order.
 If provided, `axis_names` takes higher priority than `axes`)code",
     "HW")
+  .AddOptionalArg<float>("fill_value",
+    R"code(Value to fill the erased region. Might be specified as a single value (e.g. 0) or a multi-channel value
+(e.g. (200, 210, 220)). If a multi-channel fill value is provided, the input layout should contain a channel dimension `C`)code",
+    0)
   .AllowSequences()
   .SupportVolumetric();
 
