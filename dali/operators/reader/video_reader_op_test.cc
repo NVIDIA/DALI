@@ -17,6 +17,7 @@
 
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
+#include "dali/util/nvml_wrap.h"
 
 namespace dali {
 
@@ -101,12 +102,29 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   const int batch_size = 10;
   const int sequence_length = 1;
   const int initial_fill = 10;
-  int driverVersion = 0;
-  if (cudaDriverGetVersion(&driverVersion) != cudaSuccess) {
-    FAIL() << "cudaDriverGetVersion failed!";
+  float driverVersion = 0;
+  char version[80];
+
+  if (nvml::wrapSymbols() != DALISuccess) {
+    FAIL() << "wrapSymbols() failed";
+  }
+  if (nvml::wrapNvmlInit() != DALISuccess) {
+    FAIL() << "wrapNvmlInit() failed";
   }
 
-  if (driverVersion < 9020) {
+  if (nvml::wrapNvmlSystemGetDriverVersion(version, sizeof version) != DALISuccess) {
+    FAIL() << "wrapNvmlSystemGetDriverVersion failed!";
+  }
+
+  driverVersion = std::stof(version);
+
+#if defined __powerpc64__
+  std::cerr << "Test case running on powerpc64, driver version " << driverVersion << '\n';
+  if (driverVersion < 415) {
+#elif defined __x86_64__
+  std::cerr << "Test case running on x86_64, driver version " << driverVersion << '\n';
+  if (driverVersion < 396) {
+#endif
     GTEST_SKIP() << "Test skipped because cuvidReconfigureDecoder API is not"
                     " supported by installed driver version";
   }

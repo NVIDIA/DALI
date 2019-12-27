@@ -35,6 +35,7 @@ static nvmlReturn_t (*nvmlInternalDeviceGetIndex)(nvmlDevice_t device, unsigned*
 
 static nvmlReturn_t (*nvmlInternalDeviceSetCpuAffinity)(nvmlDevice_t device);
 static nvmlReturn_t (*nvmlInternalDeviceClearCpuAffinity)(nvmlDevice_t device);
+static nvmlReturn_t (*nvmlInternalSystemGetDriverVersion)(char* name, unsigned int length);
 static nvmlReturn_t (*nvmlInternalDeviceGetCpuAffinity)(nvmlDevice_t device,
                                                         unsigned int cpuSetSize,
                                                         unsigned long* cpuSet);  // NOLINT(*)
@@ -73,6 +74,7 @@ DALIError_t wrapSymbols(void) {
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetIndex", nvmlInternalDeviceGetIndex);
   LOAD_SYM(nvmlhandle, "nvmlDeviceSetCpuAffinity", nvmlInternalDeviceSetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlDeviceClearCpuAffinity", nvmlInternalDeviceClearCpuAffinity);
+  LOAD_SYM(nvmlhandle, "nvmlSystemGetDriverVersion", nvmlInternalSystemGetDriverVersion);
   LOAD_SYM(nvmlhandle, "nvmlDeviceGetCpuAffinity", nvmlInternalDeviceGetCpuAffinity);
   LOAD_SYM(nvmlhandle, "nvmlErrorString", nvmlInternalErrorString);
 
@@ -173,6 +175,20 @@ DALIError_t wrapNvmlDeviceClearCpuAffinity(nvmlDevice_t device) {
   nvmlReturn_t ret = nvmlInternalDeviceClearCpuAffinity(device);
   if (ret != NVML_SUCCESS) {
     DALI_FAIL("nvmlDeviceClearCpuAffinity() failed: " +
+      nvmlInternalErrorString(ret));
+    return DALIError;
+  }
+  return DALISuccess;
+}
+
+DALIError_t wrapNvmlSystemGetDriverVersion(char* name, unsigned int length) {
+  if (nvmlInternalInit == NULL) {
+    DALI_FAIL("lib wrapper not initialized.");
+    return DALIError;
+  }
+  nvmlReturn_t ret = nvmlInternalSystemGetDriverVersion(name, length);
+  if (ret != NVML_SUCCESS) {
+    DALI_FAIL("nvmlSystemGetDriverVersion() failed: " +
       nvmlInternalErrorString(ret));
     return DALIError;
   }
