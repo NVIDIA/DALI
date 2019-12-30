@@ -21,7 +21,8 @@
 #include "dali/kernels/kernel_manager.h"
 
 #define ERASE_SUPPORTED_NDIMS (1, 2, 3, 4, 5)
-#define ERASE_SUPPORTED_TYPES (float, uint8)
+#define ERASE_SUPPORTED_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, \
+                               uint64_t, int64_t, float, float16)
 
 namespace dali {
 
