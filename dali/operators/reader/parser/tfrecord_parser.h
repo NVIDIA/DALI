@@ -58,13 +58,9 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
 
     // Omit length and crc
     raw_data = raw_data + sizeof(length) + sizeof(crc);
-    try {
-      DALI_ENFORCE(example.ParseFromArray(raw_data, length),
-          "Error in parsing - invalid TFRecord file!");
-    } catch (std::exception& e) {
-      std::string str = "Error while parsing TFRecord: " + std::string(e.what());
-      DALI_FAIL(str);
-    }
+    DALI_ENFORCE(example.ParseFromArray(raw_data, length),
+      make_string("Error parsing TFRecord file: ", data.GetSourceInfo(),
+                  " (raw data length ", length, ")"));
 
     for (size_t i = 0; i < features_.size(); ++i) {
       auto& output = ws->Output<CPUBackend>(i);

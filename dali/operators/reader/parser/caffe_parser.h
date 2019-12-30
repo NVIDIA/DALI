@@ -30,7 +30,9 @@ class CaffeParser : public Parser<Tensor<CPUBackend>> {
   void Parse(const Tensor<CPUBackend>& data, SampleWorkspace* ws) override {
     caffe::Datum datum;
     int out_tensors = 0;
-    DALI_ENFORCE(datum.ParseFromArray(data.raw_data(), data.size()));
+    DALI_ENFORCE(datum.ParseFromArray(data.raw_data(), data.size()),
+      make_string("Error Caffe file: ", data.GetSourceInfo(),
+                  " (raw data length ", data.size(), ")"));
 
     if (image_available_ && datum.has_data()) {
       bool encoded_data = true;
