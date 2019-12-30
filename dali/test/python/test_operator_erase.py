@@ -29,17 +29,23 @@ from test_utils import get_dali_extra_path
 
 class ErasePipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator,
-                 anchor, shape, axis_names,
+                 anchor, shape, axis_names, axes,
                  num_threads=1, device_id=0, num_gpus=1):
         super(ErasePipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.erase = ops.Erase(device = self.device,
-                               anchor = anchor,
-                               shape = shape,
-                               axis_names = axis_names)
+        if axis_names:
+            self.erase = ops.Erase(device = self.device,
+                                   anchor = anchor,
+                                   shape = shape,
+                                   axis_names = axis_names)
+        else:
+            self.erase = ops.Erase(device = self.device,
+                                   anchor = anchor,
+                                   shape = shape,
+                                   axes = axes)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -52,37 +58,65 @@ class ErasePipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 
-def erase_func(anchor, shape, axis_names, layout, image):
+def erase_func(anchor, shape, axis_names, axes, layout, image):
     assert layout == "HWC"
     assert len(anchor) == len(shape)
-    assert axis_names == "HW"
-    assert len(shape) % len(axis_names) == 0
 
+    if not axis_names:
+        assert(axes is not None)
+        if axes == (0, 1):
+            axis_names = "HW"
+        elif axes == (1, 0):
+            axis_names = "WH"
+        elif axes == (0,):
+            axis_names = "H"
+        elif axes == (1,):
+            axis_names = "W"
+        else:
+            assert(False)
+
+    assert len(shape) % len(axis_names) == 0
     assert len(image.shape) == 3
+
     H = image.shape[0]
     W = image.shape[1]
 
     nregions = int(len(shape) / len(axis_names))
+    region_length = int(len(shape) / nregions)
     if layout == "HWC":
         for n in range(nregions):
-            start_y = anchor[n*2+0]
-            erase_h = shape[n*2+0]
-            end_y = start_y + erase_h
-            assert H >= end_y
+            start_0 = anchor[n*region_length+0]
+            shape_0 = shape[n*region_length+0]
+            end_0 = start_0 + shape_0
 
-            start_x = anchor[n*2+1]
-            erase_w = shape[n*2+1]
-            end_x = start_x + erase_w
-            assert W >= end_x
+            if region_length > 1:
+                start_1 = anchor[n*2+1]
+                shape_1 = shape[n*2+1]
+                end_1 = start_1 + shape_1
 
-            image[start_y:end_y, start_x:end_x, :] = 0
+            if axis_names == "H":
+                assert H >= end_0
+                image[start_0:end_0, :, :] = 0
+            elif axis_names == "W":
+                assert W >= end_0
+                image[:, start_0:end_0, :] = 0
+            elif axis_names == "HW":
+                assert H >= end_0
+                assert W >= end_1
+                image[start_0:end_0, start_1:end_1, :] = 0
+            elif axis_names == "WH":
+                assert H >= end_1
+                assert W >= end_0
+                image[start_1:end_1, start_0:end_0, :] = 0
+            else:
+                assert(False)  # should not happen
         return image
     else:
         assert(False)  # should not happen
 
 class ErasePythonPipeline(Pipeline):
     def __init__(self, function, batch_size, data_layout, iterator,
-                 anchor, shape, axis_names,
+                 anchor, shape, axis_names, axes,
                  erase_func=erase_func,
                  num_threads=1, device_id=0):
         super(ErasePythonPipeline, self).__init__(batch_size,
@@ -94,7 +128,7 @@ class ErasePythonPipeline(Pipeline):
         self.inputs = ops.ExternalSource()
         self.data_layout = data_layout
 
-        function = partial(erase_func, anchor, shape, axis_names, data_layout)
+        function = partial(erase_func, anchor, shape, axis_names, axes, data_layout)
 
         self.erase = ops.PythonFunction(function=function)
 
@@ -109,39 +143,43 @@ class ErasePythonPipeline(Pipeline):
 
 
 def check_operator_erase_vs_python(device, batch_size, input_shape,
-                                   anchor, shape, axis_names,
-                                   layout = "HWC"):
+                                   anchor, shape, axis_names, axes, input_layout):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
-        ErasePipeline(device, batch_size, "HWC", iter(eii1),
-                      anchor=anchor, shape=shape, axis_names=axis_names),
-        ErasePythonPipeline(device, batch_size, "HWC", iter(eii2),
-                            anchor=anchor, shape=shape, axis_names=axis_names),
+        ErasePipeline(device, batch_size, input_layout, iter(eii1),
+                      anchor=anchor, shape=shape, axis_names=axis_names, axes=axes),
+        ErasePythonPipeline(device, batch_size, input_layout, iter(eii2),
+                            anchor=anchor, shape=shape, axis_names=axis_names, axes=axes),
         batch_size=batch_size, N_iterations=5, eps=1e-04)
 
 
 def test_operator_erase_vs_python():
-    layouts = ["HWC"]
-    input_shapes = {
-        "HWC" : [(60, 80, 3)],
-    }
-
-    axis_names = "HW"
-
-    anchor_1_region = (4, 10)
-    shape_1_region = (40, 50)
-
-    anchor_2_region = (4, 2, 3, 4)     # y0, x0, y1, x1
-    shape_2_region = (50, 10, 10, 50)  # h0, w0, h1, w1
-
-    regions = [(anchor_1_region, shape_1_region), (anchor_2_region, shape_2_region)]
+    # layout, shape, axis_names, anchor, shape
+    rois = [("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50)),
+            ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50)),
+            ("HWC", (60, 80, 3), "H", None, (4,), (7,)),
+            ("HWC", (60, 80, 3), "H", None, (4, 15), (7, 8)),
+            ("HWC", (60, 80, 3), "W", None, (4,), (7,)),
+            ("HWC", (60, 80, 3), "W", None, (4, 15), (7, 8)),
+            ("HWC", (60, 80, 3), None, (0, 1), (4, 10), (40, 50)),
+            ("HWC", (60, 80, 3), None, (0, 1), (4, 2, 3, 4), (50, 10, 10, 50)),
+            ("HWC", (60, 80, 3), None, (0,), (4,), (7,)),
+            ("HWC", (60, 80, 3), None, (0,), (4, 15), (7, 8)),
+            ("HWC", (60, 80, 3), None, (1,), (4,), (7,)),
+            ("HWC", (60, 80, 3), None, (1,), (4, 15), (7, 8))]
 
     for device in ['cpu']:
         for batch_size in [1, 8]:
-            for input_layout in layouts:
-                for anchor, shape in regions:
-                    for input_shape in input_shapes[input_layout]:
-                        assert len(input_layout) == len(input_shape)
-                        yield check_operator_erase_vs_python, device, batch_size, input_shape, \
-                            anchor, shape, axis_names, input_layout
+            for input_layout, input_shape, axis_names, axes, anchor, shape in rois:
+                assert len(input_layout) == len(input_shape)
+                assert len(anchor) == len(shape)
+                if axis_names:
+                    assert axes is None
+                    assert len(anchor) % len(axis_names) == 0
+                else:
+                    assert len(axes) > 0
+                    assert len(anchor) % len(axes) == 0
+
+                yield check_operator_erase_vs_python, device, batch_size, input_shape, \
+                    anchor, shape, axis_names, axes, input_layout

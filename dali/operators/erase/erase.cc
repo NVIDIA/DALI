@@ -41,23 +41,30 @@ Example 1:
  was not specified. That is
  output[y, x, c] = 0               if 20 <= x < 220 and 10 <= y < 200
  output[y, x, c] = input[y, x, c]  otherwise
+
+Example 2:
+  ```anchor=(10, 250), shape=(20, 30), axis_names=\"W\", input: layout=\"HWC\", shape=(300, 300, 3), fill_value=(118, 185, 0)```
+  Two erase regions are provided, covering two vertical bands ranging from `x=(10, 30)` and `x=(250, 280)` respectively.
+  Each pixel in the erased regions is filled with a multi-channel value `(118, 185, 0)`. That is
+ output[y, x, :] = (118, 185, 0)   if 10 <= x < 30 or 250 <= x < 280
+ output[y, x, :] = input[y, x, :]  otherwise
 )code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg<float>("anchor",
     R"code(Coordinates for *anchor* or starting point of the erase region. Only the coordinates of the relevant dimensions
-(specified by `axis_names` or `axes`) are provided.)code",
+(specified by `axis_names` or `axes`) should be provided.)code",
     vector<float>(), true)
   .AddOptionalArg<float>("shape",
     R"code(Values for *shape* or dimensions of the erase region. Only the coordinates of the relevant dimensions
-(specified by `axis_names` or `axes`) are provided.)code",
+(specified by `axis_names` or `axes`) should be provided.)code",
     vector<float>(), true)
   .AddOptionalArg("axes",
     R"code(Order of dimensions used for anchor and shape arguments, as dimension indexes. For instance, `axes=(1, 0)`
- means the coordinates in `anchor` and `shape` refer to axes 1 and 0, in that parcular order)code",
+ means the coordinates in `anchor` and `shape` refer to axes 1 and 0, in that particular order)code",
     std::vector<int>{1, 0})
   .AddOptionalArg("axis_names",
-    R"code(Order of dimensions used for anchor and shape arguments, as described in layout.
+    R"code(Order of dimensions used for anchor and shape arguments, as described in the layout.
 For instance, `axis_names=\"HW\"` means that the coordinates in `anchor` and `shape` refer to dimensions H (heigth)
  and W (width), in that particular order.
 If provided, `axis_names` takes higher priority than `axes`)code",

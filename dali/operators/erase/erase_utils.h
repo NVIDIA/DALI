@@ -40,7 +40,7 @@ SmallVector<int, 3> GetAxes(const OpSpec &spec, TensorLayout layout) {
       axes.push_back(d);
     }
   } else if (spec.HasArgument("axes")) {
-    axes = spec.GetArgument<std::vector<int>>("axes");
+    axes = spec.GetRepeatedArgument<int>("axes");
   } else {
     // no axes info, expecting all dimensions except 'C'
     for (int d = 0; d < layout.size(); d++) {
