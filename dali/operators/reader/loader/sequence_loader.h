@@ -115,7 +115,7 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
       // TODO(spanev) decide of a policy for multi-gpu here
       // seeded with hardcoded value to get
       // the same sequence on every shard
-      std::mt19937 g(524287);
+      std::mt19937 g(kDaliDataloaderSeed);
       std::shuffle(sequences_.begin(), sequences_.end(), g);
     }
     Reset(true);

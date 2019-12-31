@@ -74,7 +74,7 @@ class CocoLoader : public FileLoader {
     if (shuffle_) {
       // seeded with hardcoded value to get
       // the same sequence on every shard
-      std::mt19937 g(524287);
+      std::mt19937 g(kDaliDataloaderSeed);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
     Reset(true);

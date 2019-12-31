@@ -259,4 +259,6 @@ DLL_PUBLIC std::vector<std::string> string_split(const std::string &s, const cha
   if (1) \
   std::cerr << __FILE__ << ":" << __LINE__ << ": "
 
+static constexpr int kDaliDataloaderSeed = 524287;
+
 #endif  // DALI_CORE_COMMON_H_
