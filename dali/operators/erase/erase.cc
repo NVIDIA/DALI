@@ -49,6 +49,14 @@ Example 2:
   Each pixel in the erased regions is filled with a multi-channel value `(118, 185, 0)`. That is
  output[y, x, :] = (118, 185, 0)   if 10 <= x < 30 or 250 <= x < 280
  output[y, x, :] = input[y, x, :]  otherwise
+
+Example 3:
+  ```anchor=(0.15, 0.15), shape=(0.3, 0.3), axis_names=\"HW\", input: layout=\"HWC\", shape=(300, 300, 3), fill_value=(100,),
+ normalized_anchor=True, normalized_shape=True```
+  One erase region with normalized coordinates in the height and width dimensions is provided. A single fill value is provided
+ for all the channels. The coordinates can be transformed to the absolute by multiplying by the input shape. That is
+ output[y, x, c] = 100             if 0.15*300 <= x < (0.3+0.15)*300 and 0.15*300 <= y < (0.3+0.15)*300
+ output[y, x, c] = input[y, x, c]  otherwise
 )code")
   .NumInput(1)
   .NumOutput(1)
@@ -74,6 +82,14 @@ If provided, `axis_names` takes higher priority than `axes`)code",
     R"code(Value to fill the erased region. Might be specified as a single value (e.g. 0) or a multi-channel value
 (e.g. (200, 210, 220)). If a multi-channel fill value is provided, the input layout should contain a channel dimension `C`)code",
     0)
+  .AddOptionalArg("normalized_anchor",
+    R"code(Whether or not the `anchor` input should be interpreted as normalized (range [0.0, 1.0])
+or absolute coordinates)code",
+    false)
+  .AddOptionalArg("normalized_shape",
+    R"code(Whether or not the `shape` input should be interpreted as normalized (range [0.0, 1.0])
+or absolute coordinates)code",
+    false)
   .AllowSequences()
   .SupportVolumetric();
 

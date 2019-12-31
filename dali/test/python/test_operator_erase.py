@@ -30,6 +30,7 @@ from test_utils import get_dali_extra_path
 class ErasePipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator,
                  anchor, shape, axis_names, axes,
+                 normalized_anchor=False, normalized_shape=False,
                  num_threads=1, device_id=0, num_gpus=1):
         super(ErasePipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
@@ -40,12 +41,17 @@ class ErasePipeline(Pipeline):
             self.erase = ops.Erase(device = self.device,
                                    anchor = anchor,
                                    shape = shape,
-                                   axis_names = axis_names)
+                                   axis_names = axis_names,
+                                   normalized_anchor=normalized_anchor,
+                                   normalized_shape=normalized_shape)
         else:
             self.erase = ops.Erase(device = self.device,
                                    anchor = anchor,
                                    shape = shape,
-                                   axes = axes)
+                                   axes = axes,
+                                   normalized_anchor=normalized_anchor,
+                                   normalized_shape=normalized_shape)
+
 
     def define_graph(self):
         self.data = self.inputs()
@@ -155,7 +161,7 @@ def check_operator_erase_vs_python(device, batch_size, input_shape,
 
 
 def test_operator_erase_vs_python():
-    # layout, shape, axis_names, anchor, shape
+    # layout, shape, axis_names, axes, anchor, shape
     rois = [("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50)),
             ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50)),
             ("HWC", (60, 80, 3), "H", None, (4,), (7,)),
@@ -183,3 +189,51 @@ def test_operator_erase_vs_python():
 
                 yield check_operator_erase_vs_python, device, batch_size, input_shape, \
                     anchor, shape, axis_names, axes, input_layout
+
+
+def check_operator_erase_with_normalized_coords(device, batch_size, input_shape,
+                                                anchor, shape, axis_names, input_layout,
+                                                anchor_norm, shape_norm, normalized_anchor, normalized_shape):
+    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    compare_pipelines(
+        ErasePipeline(device, batch_size, input_layout, iter(eii1),
+                      anchor=anchor_norm, shape=shape_norm,
+                      normalized_anchor=normalized_anchor, normalized_shape=normalized_shape,
+                      axis_names=axis_names, axes=None),
+        ErasePipeline(device, batch_size, input_layout, iter(eii1),
+                      anchor=anchor, shape=shape, axis_names=axis_names, axes=None),
+        batch_size=batch_size, N_iterations=5, eps=1e-04)
+
+
+def test_operator_erase_with_normalized_coords():
+    # layout, shape, axis_names, anchor, shape, anchor_norm, shape_norm
+    rois = [("HWC", (60, 80, 3), "HW", (4, 10), (40, 50), (4/60.0, 10/80.0), (40/60.0, 50/80.0)),
+            ("HWC", (60, 80, 3), "HW", (4, 2, 3, 4), (50, 10, 10, 50), (4/60.0, 2/80.0, 3/60.0, 4/80.0), (50/60.0, 10/80.0, 10/60.0, 50/80.0)),
+            ("HWC", (60, 80, 3), "H", (4,), (7,), (4/60.0,), (7/60.0,))]
+
+    for device in ['cpu']:
+        for batch_size in [1, 8]:
+            for input_layout, input_shape, axis_names, anchor, shape, anchor_norm, shape_norm in rois:
+                assert len(input_layout) == len(input_shape)
+                assert len(anchor) == len(shape)
+                assert len(anchor) % len(axis_names) == 0
+                for (normalized_anchor, normalized_shape) in [(True, True), (True, False), (False, True)]:
+                    anchor_norm_arg = anchor_norm if normalized_anchor else anchor
+                    shape_norm_arg = shape_norm if normalized_shape else shape
+                    yield check_operator_erase_with_normalized_coords, device, batch_size, input_shape, \
+                        anchor, shape, axis_names, input_layout, anchor_norm_arg, shape_norm_arg, \
+                        normalized_anchor, normalized_shape
+
+def test_operator_erase_with_out_of_bounds_roi_coords():
+    device = 'cpu'
+    batch_size = 8
+    input_layout = "HWC"
+    input_shape = (60, 80, 3)
+    axis_names = "HW"
+    anchor_arg = (4, 10, 10, 4)
+    shape_arg = (40, 50, 50, 40)
+    anchor_norm_arg = (4/60.0, 10/80.0, 2000, 2000, 10/60.0, 4/80.0)  # second region is completely out of bounds
+    shape_norm_arg = (40/60.0, 50/80.0, 200, 200, 50/60.0, 40/80.0)
+    yield check_operator_erase_with_normalized_coords, device, batch_size, input_shape, anchor_arg, shape_arg, \
+        axis_names, input_layout, anchor_norm_arg, shape_norm_arg, True, True

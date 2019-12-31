@@ -58,7 +58,11 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
                                                       TensorLayout layout) {
   int nsamples = shape.num_samples();
   auto roi_anchor = spec.template GetArgument<std::vector<float>>("anchor");
+  auto norm_anchor = spec.template GetArgument<bool>("normalized_anchor");
+
   auto roi_shape = spec.template GetArgument<std::vector<float>>("shape");
+  auto norm_shape = spec.template GetArgument<bool>("normalized_shape");
+
   if (roi_anchor.empty()) {
     roi_anchor.resize(roi_shape.size(), 0);
   }
@@ -75,19 +79,35 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
   out.resize(nsamples);
   for (int i = 0; i < nsamples; i++) {
     auto &args = out[i];
+    auto sample_shape = shape.tensor_shape(i);
     int k = 0;
-    args.rois.resize(nregions);
-    for (auto &roi : args.rois) {
-      auto sample_shape = shape.tensor_shape(i);
+    args.rois.reserve(nregions);
+    for (int roi_idx = 0; roi_idx < nregions; roi_idx++) {
+      typename kernels::EraseArgs<T, Dims>::ROI roi;
       for (int d = 0; d < Dims; d++) {
         roi.anchor[d] = 0;
         roi.shape[d] = sample_shape[d];
       }
 
+      bool in_bounds = true;
       for (int j=0; j < naxes; j++, k++) {
         int axis = axes[j];
-        roi.anchor[axis] = roi_anchor[k];
-        roi.shape[axis] = roi_shape[k];
+        auto anchor_val = norm_anchor ? roi_anchor[k] * sample_shape[axis] : roi_anchor[k];
+        roi.anchor[axis] = static_cast<int64_t>(anchor_val);
+        if (roi.anchor[axis] < 0 || roi.anchor[axis] >= sample_shape[axis]) {
+          in_bounds = false;
+        }
+
+        auto shape_val = norm_shape ? roi_shape[k] * sample_shape[axis] : roi_shape[k];
+        auto end_val = static_cast<int64_t>(anchor_val + shape_val);
+        // If only the end is out-of-bounds, trim it
+        if (end_val > sample_shape[axis])
+          end_val = sample_shape[axis];
+        roi.shape[axis] = end_val - anchor_val;
+      }
+
+      if (in_bounds) {
+        args.rois.push_back(roi);
       }
     }
   }
