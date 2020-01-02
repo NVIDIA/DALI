@@ -34,8 +34,8 @@ This operator produces two outputs:
           "If specified, the target sample rate, in Hz, to which the audio is resampled.",
           0.0f, true)
   .AddOptionalArg("quality",
-          "Resampling quality, 0 is lowest, 100 is highest.\n\n"
-          "0 corresponds to 3 lobes of the sinc filter;\n"
+          "Resampling quality, 0 is lowest, 100 is highest.\n"
+          "0 corresponds to 3 lobes of the sinc filter; "
           "50 gives 16 lobes and 100 gives 64 lobes.",
           50.0f, false)
   .AddOptionalArg("downmix",
