@@ -190,8 +190,8 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
     int consumed_inputs = 0;
 
     DALI_ENFORCE(protos.ParseFromArray(data.data<uint8_t>(), data.size()),
-      make_string("Error parsing Caffe2 file: ", data.GetSourceInfo(),
-                  " (raw data length ", data.size(), ")"));
+      make_string("Error while parsing Caffe2 file: ", data.GetSourceInfo(),
+                  " (raw data length: ", data.size(), " bytes)."));
 
 
     if (image_available_) {
