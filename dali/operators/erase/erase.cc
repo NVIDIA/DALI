@@ -73,7 +73,7 @@ Example 3:
     vector<float>(), true)
   .AddOptionalArg("axes",
     R"code(Order of dimensions used for anchor and shape arguments, as dimension indexes. For instance, `axes=(1, 0)`
- means the coordinates in `anchor` and `shape` refer to axes 1 and 0,1054794 in that particular order)code",
+ means the coordinates in `anchor` and `shape` refer to axes 1 and 0, in that particular order)code",
     std::vector<int>{1, 0})
   .AddOptionalArg("axis_names",
     R"code(Order of dimensions used for anchor and shape arguments, as described in the layout.
