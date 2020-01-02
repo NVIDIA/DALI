@@ -36,7 +36,8 @@ SmallVector<int, 3> GetAxes(const OpSpec &spec, TensorLayout layout) {
   if (spec.HasArgument("axis_names")) {
     for (auto axis_name : spec.GetArgument<TensorLayout>("axis_names")) {
       int d = layout.find(axis_name);
-      DALI_ENFORCE(d >= 0);
+      DALI_ENFORCE(d >= 0,
+        make_string("Axis '", axis_name, "' is not present in the input layout"));
       axes.push_back(d);
     }
   } else if (spec.HasArgument("axes")) {
@@ -66,7 +67,7 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
   auto norm_anchor = spec.template GetArgument<bool>("normalized_anchor");
 
   std::vector<float> roi_shape;
-  bool has_tensor_roi_shape = spec.HasTensorArgument("anchor");
+  bool has_tensor_roi_shape = spec.HasTensorArgument("shape");
   if (!has_tensor_roi_shape)
     roi_shape = spec.template GetArgument<std::vector<float>>("shape");
   auto norm_shape = spec.template GetArgument<bool>("normalized_shape");

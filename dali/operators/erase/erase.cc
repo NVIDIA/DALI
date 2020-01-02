@@ -39,14 +39,16 @@ Example 1:
   ```anchor=(10, 20), shape=(190, 200), axis_names=\"HW\", input: layout=\"HWC\", shape=(300, 300, 3), fill_value=0```
   The erase region covers the range from 10 to 200 in the vertical dimension (heigth) and goes from
  20 to 220 in the horizontal dimension (width). The range for the channel dimension goes from 0 to 3, as it
- was not specified. That is
+ was not specified. That is::
+
  output[y, x, c] = 0               if 20 <= x < 220 and 10 <= y < 200
  output[y, x, c] = input[y, x, c]  otherwise
 
 Example 2:
   ```anchor=(10, 250), shape=(20, 30), axis_names=\"W\", input: layout=\"HWC\", shape=(300, 300, 3), fill_value=(118, 185, 0)```
   Two erase regions are provided, covering two vertical bands ranging from `x=(10, 30)` and `x=(250, 280)` respectively.
-  Each pixel in the erased regions is filled with a multi-channel value `(118, 185, 0)`. That is
+  Each pixel in the erased regions is filled with a multi-channel value `(118, 185, 0)`. That is::
+
  output[y, x, :] = (118, 185, 0)   if 10 <= x < 30 or 250 <= x < 280
  output[y, x, :] = input[y, x, :]  otherwise
 
@@ -54,7 +56,8 @@ Example 3:
   ```anchor=(0.15, 0.15), shape=(0.3, 0.3), axis_names=\"HW\", input: layout=\"HWC\", shape=(300, 300, 3), fill_value=(100,),
  normalized_anchor=True, normalized_shape=True```
   One erase region with normalized coordinates in the height and width dimensions is provided. A single fill value is provided
- for all the channels. The coordinates can be transformed to the absolute by multiplying by the input shape. That is
+ for all the channels. The coordinates can be transformed to the absolute by multiplying by the input shape. That is::
+
  output[y, x, c] = 100             if 0.15*300 <= x < (0.3+0.15)*300 and 0.15*300 <= y < (0.3+0.15)*300
  output[y, x, c] = input[y, x, c]  otherwise
 )code")
@@ -70,7 +73,7 @@ Example 3:
     vector<float>(), true)
   .AddOptionalArg("axes",
     R"code(Order of dimensions used for anchor and shape arguments, as dimension indexes. For instance, `axes=(1, 0)`
- means the coordinates in `anchor` and `shape` refer to axes 1 and 0, in that particular order)code",
+ means the coordinates in `anchor` and `shape` refer to axes 1 and 0,1054794 in that particular order)code",
     std::vector<int>{1, 0})
   .AddOptionalArg("axis_names",
     R"code(Order of dimensions used for anchor and shape arguments, as described in the layout.
@@ -81,7 +84,7 @@ If provided, `axis_names` takes higher priority than `axes`)code",
   .AddOptionalArg("fill_value",
     R"code(Value to fill the erased region. Might be specified as a single value (e.g. 0) or a multi-channel value
 (e.g. (200, 210, 220)). If a multi-channel fill value is provided, the input layout should contain a channel dimension `C`)code",
-    std::vector<float>{0,})
+    std::vector<float>{0, })
   .AddOptionalArg("normalized_anchor",
     R"code(Whether or not the `anchor` input should be interpreted as normalized (range [0.0, 1.0])
 or absolute coordinates)code",
