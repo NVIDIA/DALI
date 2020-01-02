@@ -114,12 +114,23 @@ _int_like_types = _bool_types + _int_types
 _all_types = _bool_types + _int_types + _float_types
 
 class Constant(object):
-    """Wrapper for a constant value that can be used in arithmetic operations
-    with the results of DALI Operators in `define_graph()` step.
+    """Wrapper for a constant value that can be used in DALI arithmetic expressions
+    and applied element-wise to the results of DALI Operators representing Tensors in
+    :meth:`nvidia.dali.pipeline.Pipeline.define_graph` step.
 
-    It indicates what type it should be treated as. The integers values
-    will be passed to DALI as `int32` and the floating point values as `float32`.
-    Python builtin types `bool`, `int` and `float` will also be treated as those types.
+    Constant indicates what type should the value be treated as with respect
+    to type promotions. The actual values passed to the backend from python
+    would be `int32` for integer values and `float32` for floating point values.
+    Python builtin types `bool`, `int` and `float` will be marked to indicate
+    :meth:`nvidia.dali.types.DALIDataType.BOOL`, :meth:`nvidia.dali.types.DALIDataType.INT32`,
+    and :meth:`nvidia.dali.types.DALIDataType.FLOAT` respectively.
+
+    Args
+    ----
+    value: bool or int or float
+        The constant value to be passed to DALI expression.
+    `dtype`: DALIDataType, optional
+        Target type of the constant to be used in types promotions.
     """
     def __init__(self, value, dtype=None):
         if not isinstance(value, (bool, int, float)):
