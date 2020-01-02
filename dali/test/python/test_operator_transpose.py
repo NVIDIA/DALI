@@ -114,15 +114,16 @@ def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
 
 def test_transpose_layout():
     batch_size = 3
-    shape = (600, 400, 3)
     in_layout = "HWC"
     for device in {'gpu'}:
-        for permutation, transpose_layout, out_layout_arg in \
-            [((2, 0, 1), True, None),
-             ((2, 0, 1), True, "CHW"),
-             ((2, 0, 1), False, "CHW"),
-             ((1, 0, 2), False, None),
-             ((1, 0, 2), True, None),
-             ((1, 0, 2), True, "HWC")]:
-            yield check_transpose_layout, device, batch_size, shape, \
-                in_layout, permutation, transpose_layout, out_layout_arg
+        for batch_size in (1, 3):
+            for shape in [(600, 400, 3), (600, 400, 1)]:
+                for permutation, transpose_layout, out_layout_arg in \
+                    [((2, 0, 1), True, None),
+                     ((2, 0, 1), True, "CHW"),
+                     ((2, 0, 1), False, "CHW"),
+                     ((1, 0, 2), False, None),
+                     ((1, 0, 2), True, None),
+                     ((1, 0, 2), True, "HWC")]:
+                    yield check_transpose_layout, device, batch_size, shape, \
+                        in_layout, permutation, transpose_layout, out_layout_arg
