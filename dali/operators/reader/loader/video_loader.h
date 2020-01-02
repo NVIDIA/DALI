@@ -244,7 +244,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       // TODO(spanev) decide of a policy for multi-gpu here and SequenceLoader
       // seeded with hardcoded value to get
       // the same sequence on every shard
-      std::mt19937 g(524287);
+      std::mt19937 g(kDaliDataloaderSeed);
       std::shuffle(std::begin(frame_starts_), std::end(frame_starts_), g);
     }
 

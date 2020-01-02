@@ -110,7 +110,7 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
     if (shuffle_) {
       // seeded with hardcoded value to get
       // the same sequence on every shard
-      std::mt19937 g(524287);
+      std::mt19937 g(kDaliDataloaderSeed);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
     Reset(true);
@@ -126,7 +126,7 @@ class FileLoader : public Loader<CPUBackend, ImageLabelWrapper> {
     current_epoch_++;
 
     if (shuffle_after_epoch_) {
-      std::mt19937 g(524287 + current_epoch_);
+      std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
   }
