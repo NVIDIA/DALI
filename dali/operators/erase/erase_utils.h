@@ -54,36 +54,68 @@ SmallVector<int, 3> GetAxes(const OpSpec &spec, TensorLayout layout) {
 
 template <typename T, int Dims>
 std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
+                                                      const ArgumentWorkspace &ws,
                                                       TensorListShape<> shape,
                                                       TensorLayout layout) {
   int nsamples = shape.num_samples();
-  auto roi_anchor = spec.template GetArgument<std::vector<float>>("anchor");
+
+  std::vector<float> roi_anchor;
+  bool has_tensor_roi_anchor = spec.HasTensorArgument("anchor");
+  if (!has_tensor_roi_anchor)
+    roi_anchor = spec.template GetArgument<std::vector<float>>("anchor");
   auto norm_anchor = spec.template GetArgument<bool>("normalized_anchor");
 
-  auto roi_shape = spec.template GetArgument<std::vector<float>>("shape");
+  std::vector<float> roi_shape;
+  bool has_tensor_roi_shape = spec.HasTensorArgument("anchor");
+  if (!has_tensor_roi_shape)
+    roi_shape = spec.template GetArgument<std::vector<float>>("shape");
   auto norm_shape = spec.template GetArgument<bool>("normalized_shape");
 
-  if (roi_anchor.empty()) {
+  if (roi_anchor.empty() && !roi_shape.empty()) {
     roi_anchor.resize(roi_shape.size(), 0);
   }
-  DALI_ENFORCE(roi_anchor.size() == roi_shape.size());
-  int args_ndim = roi_shape.size();
+
+  auto fill_value = spec.template GetRepeatedArgument<float>("fill_value");
+  auto channels_dim = layout.find('C');
+  DALI_ENFORCE(channels_dim >= 0,
+    "If a multi channel fill value is provided, the input layout must have a 'C' dimension");
 
   auto axes = detail::GetAxes(spec, layout);
   int naxes = axes.size();
   assert(naxes > 0);
-  DALI_ENFORCE(args_ndim % naxes == 0);
-  int nregions = args_ndim / naxes;
 
   std::vector<kernels::EraseArgs<T, Dims>> out;
   out.resize(nsamples);
+
   for (int i = 0; i < nsamples; i++) {
+    if (has_tensor_roi_anchor) {
+      const auto& anchor = ws.ArgumentInput("anchor")[i];
+      assert(anchor.size() > 0);
+      roi_anchor.resize(anchor.size());
+      std::memcpy(roi_anchor.data(), anchor.data<float>(), sizeof(float) * roi_anchor.size());
+    }
+
+    if (has_tensor_roi_shape) {
+      const auto& shape = ws.ArgumentInput("shape")[i];
+      assert(shape.size() > 0);
+      roi_shape.resize(shape.size());
+      std::memcpy(roi_shape.data(), shape.data<float>(), sizeof(float) * roi_shape.size());
+    }
+
+    DALI_ENFORCE(roi_anchor.size() == roi_shape.size());
+    int args_ndim = roi_shape.size();
+
+    DALI_ENFORCE(args_ndim % naxes == 0);
+    int nregions = args_ndim / naxes;
+
     auto &args = out[i];
     auto sample_shape = shape.tensor_shape(i);
     int k = 0;
     args.rois.reserve(nregions);
     for (int roi_idx = 0; roi_idx < nregions; roi_idx++) {
       typename kernels::EraseArgs<T, Dims>::ROI roi;
+      roi.fill_values = fill_value;
+      roi.channels_dim = channels_dim;
       for (int d = 0; d < Dims; d++) {
         roi.anchor[d] = 0;
         roi.shape[d] = sample_shape[d];

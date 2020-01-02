@@ -78,10 +78,10 @@ For instance, `axis_names=\"HW\"` means that the coordinates in `anchor` and `sh
  and W (width), in that particular order.
 If provided, `axis_names` takes higher priority than `axes`)code",
     "HW")
-  .AddOptionalArg<float>("fill_value",
+  .AddOptionalArg("fill_value",
     R"code(Value to fill the erased region. Might be specified as a single value (e.g. 0) or a multi-channel value
 (e.g. (200, 210, 220)). If a multi-channel fill value is provided, the input layout should contain a channel dimension `C`)code",
-    0)
+    std::vector<float>{0,})
   .AddOptionalArg("normalized_anchor",
     R"code(Whether or not the `anchor` input should be interpreted as normalized (range [0.0, 1.0])
 or absolute coordinates)code",
@@ -122,7 +122,7 @@ bool EraseImplCpu<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
   int nsamples = input.size();
   auto nthreads = ws.GetThreadPool().size();
 
-  args_ = detail::GetEraseArgs<T, Dims>(spec_, shape, layout);
+  args_ = detail::GetEraseArgs<T, Dims>(spec_, ws, shape, layout);
 
   kmgr_.Initialize<EraseKernel>();
   kmgr_.Resize<EraseKernel>(nthreads, nsamples);
