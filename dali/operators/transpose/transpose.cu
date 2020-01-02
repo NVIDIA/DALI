@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <functional>
 
 #include "dali/operators/transpose/transpose.h"
 #include "dali/core/error_handling.h"
@@ -48,35 +49,33 @@ void PrepareArguments(VecInt &shape,
                       VecInt &perm) {
   DALI_ENFORCE(shape.size() == perm.size());
 
-  VecInt idx;
-  idx.resize(shape.size());
-  std::iota(idx.begin(), idx.end(), 0);
-
-  detail::VecInt idx_map;
-  idx_map.resize(idx.size());
-
   // cuTT does not handle dimensions with size 1 so we remove them
   // (H, W, 1) is equivalent to (H, W)
   auto it_shape = shape.begin();
   auto it_perm = perm.begin();
-  auto it_idx = idx.begin();
+  VecInt erased;
   while (it_shape != shape.end()) {
     if (*it_shape == 1) {
+      erased.push_back(*it_perm);
       it_shape = shape.erase(it_shape);
       it_perm = perm.erase(it_perm);
-      it_idx = idx.erase(it_idx);
     } else {
       ++it_shape;
       ++it_perm;
-      ++it_idx;
     }
   }
-
-  for (size_t i = 0; i < idx.size(); i++)
-    idx_map[idx[i]] = i;
-
-  for (auto &p : perm)
-    p = idx_map[p];
+  // when some permutation element is erased all elements positions after it should be decreased
+  // by one like it doesn't exist at all
+  // sort elements to erase in descending order so we avoid situations like
+  // erased(0, 2), perm(3, 1) -> perm(2, 0) while it should be (1, 0)
+  std::sort(erased.begin(), erased.end(), std::greater<int>());
+  for (auto &pos : erased) {
+    for (auto &elm : perm) {
+       if (elm > pos) {
+         --elm;
+       }
+    }
+  }
 
   RowToColumnMajor(shape.data(), perm.data(), shape.size());
 }
