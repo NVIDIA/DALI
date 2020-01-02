@@ -40,7 +40,6 @@ static constexpr int kNvcuvid_failure = 0;
 
 NvDecoder::NvDecoder(int device_id,
                      const CodecParameters* codecpar,
-                     AVRational time_base,
                      DALIImageType image_type,
                      DALIDataType dtype,
                      bool normalized,
@@ -50,7 +49,6 @@ NvDecoder::NvDecoder(int device_id,
     : device_id_(device_id), stream_(device_id, false, 0), codecpar_(codecpar),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
       device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
-      time_base_{time_base.num, time_base.den},
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
       current_recv_(), textures_(), stop_(false) {
@@ -106,7 +104,7 @@ bool NvDecoder::initialized() const {
 }
 NvDecoder::~NvDecoder() = default;
 
-int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time) {
+int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time, AVRational stream_base) {
   if (stop_) {
     LOG_LINE << "NvDecoder::stop_ requested" << std::endl;
     return 0;
@@ -121,8 +119,8 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time) {
       cupkt.payload = avpkt->data;
       if (avpkt->pts != AV_NOPTS_VALUE) {
         cupkt.flags = CUVID_PKT_TIMESTAMP;
-        if (time_base_.num && time_base_.den) {
-          cupkt.timestamp = av_rescale_q(avpkt->pts - start_time, time_base_, nv_time_base_);
+        if (stream_base.num && stream_base.den) {
+          cupkt.timestamp = av_rescale_q(avpkt->pts - start_time, stream_base, nv_time_base_);
         } else {
           cupkt.timestamp = avpkt->pts - start_time;
         }
@@ -339,11 +337,11 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   return kNvcuvid_success;
 }
 
-int NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time) {
+int NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base) {
   switch (codecpar_->codec_type) {
     case AVMEDIA_TYPE_AUDIO:
     case AVMEDIA_TYPE_VIDEO:
-      return decode_av_packet(pkt, start_time);
+      return decode_av_packet(pkt, start_time, stream_base);
 
     default:
       DALI_FAIL("Got to decode_packet in a decoder that is not "

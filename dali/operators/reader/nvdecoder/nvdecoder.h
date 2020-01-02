@@ -75,7 +75,6 @@ class NvDecoder {
  public:
   NvDecoder(int device_id,
             const CodecParameters* codecpar,
-            AVRational time_base,
             DALIImageType image_type,
             DALIDataType dtype,
             bool normalized,
@@ -96,7 +95,7 @@ class NvDecoder {
   static int handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
   static int handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
 
-  int decode_packet(AVPacket* pkt, int64_t start_time);
+  int decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base);
 
   void push_req(FrameReq req);
 
@@ -105,7 +104,7 @@ class NvDecoder {
   void finish();
 
  private:
-  int decode_av_packet(AVPacket* pkt, int64_t start_time);
+  int decode_av_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base);
 
   void record_sequence_event_(SequenceWrapper& sequence);
 
@@ -178,7 +177,6 @@ class NvDecoder {
   CUVideoParser parser_;
   CUVideoDecoder decoder_;
 
-  AVRational time_base_;
   AVRational nv_time_base_ = {1, 10000000};
 
   std::vector<uint8_t> frame_in_use_;
