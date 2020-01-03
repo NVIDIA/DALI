@@ -89,7 +89,7 @@ class MFCC : public Operator<Backend> {
 
     args_.normalize = spec.GetArgument<bool>("normalize");
     if (args_.normalize) {
-      DALI_ENFORCE(args_.dct_type != 1, "Ortho-normalization is not supported for DCT type I");
+      DALI_ENFORCE(args_.dct_type != 1, "Ortho-normalization is not supported for DCT type I.");
     }
 
     args_.axis = spec.GetArgument<int>("axis");

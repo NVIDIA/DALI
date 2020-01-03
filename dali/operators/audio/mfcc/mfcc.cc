@@ -68,17 +68,17 @@ https://en.wikipedia.org/wiki/Discrete_cosine_transform)code",
       2)
     .AddOptionalArg("normalize",
       R"code(If true, the DCT will use an ortho-normal basis.
-Note: Normalization is not supported for `dct_type=1`.)code",
+Note: Normalization is not supported for dct_type=1.)code",
       false)
     .AddOptionalArg("axis",
       R"code(Axis over which the transform will be applied.
 If not provided, the outer-most dimension will be used.)code",
       0)
     .AddOptionalArg("lifter",
-      R"code(Cepstral filtering (also known as `liftering`) coefficient.
-If `lifter>0`, the MFCCs will be scaled according to the following formula:
+      R"code(Cepstral filtering (also known as liftering) coefficient.
+If lifter > 0, the MFCCs will be scaled according to the following formula::
 
-  `MFFC[i] = MFCC[i] * (1 + sin(pi * (i + 1) / lifter)) * (lifter / 2)`
+    MFFC[i] = MFCC[i] * (1 + sin(pi * (i + 1) / lifter)) * (lifter / 2)
 
 )code",
       0.0f);
