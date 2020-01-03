@@ -106,7 +106,8 @@ class HsvOp : public Operator<Backend> {
  protected:
   explicit HsvOp(const OpSpec &spec)
           : Operator<Backend>(spec)
-          , output_type_arg_(spec.GetArgument<DALIDataType>(hsv::kOutputType)) {
+          , output_type_arg_(spec.GetArgument<DALIDataType>(hsv::kOutputType))
+          , output_type_(DALI_NO_TYPE) {
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
