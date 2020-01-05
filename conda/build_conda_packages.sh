@@ -12,7 +12,7 @@ nvidia-smi
 
 # If driver version is less than 410 and CUDA version is 10,
 # add /usr/local/cuda/compat to LD_LIBRARY_PATH
-CUDA_VERSION=$(cat /usr/local/cuda/version.txt | sed 's/.*Version \([0-9]\+\)\.\([0-9]\+\).*/\1\2/')
+CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1\2/')
 CUDA_VERSION=${CUDA_VERSION:-90}
 
 NVIDIA_SMI_DRIVER_VERSION=$(nvidia-smi | grep -Po '(?<=Driver Version: )\d+.\d+')
