@@ -56,9 +56,9 @@ SmallVector<int, 3> GetAxes(const OpSpec &spec, TensorLayout layout) {
 template <typename T, int Dims>
 std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
                                                       const ArgumentWorkspace &ws,
-                                                      TensorListShape<> shape,
-                                                      TensorLayout layout) {
-  int nsamples = shape.num_samples();
+                                                      TensorListShape<> in_shape,
+                                                      TensorLayout in_layout) {
+  int nsamples = in_shape.num_samples();
 
   std::vector<float> roi_anchor;
   bool has_tensor_roi_anchor = spec.HasTensorArgument("anchor");
@@ -72,16 +72,24 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
     roi_shape = spec.template GetArgument<std::vector<float>>("shape");
   auto norm_shape = spec.template GetArgument<bool>("normalized_shape");
 
+  if (spec.HasArgument("normalized")) {
+    DALI_ENFORCE(!spec.HasArgument("normalized_anchor") && !spec.HasArgument("normalized_shape"),
+      "`normalized` argument is incompatible with providing a separate value for "
+      "`normalized_anchor` and `normalized_shape`");
+    norm_anchor = spec.GetArgument<bool>("normalized");
+    norm_shape = norm_anchor;
+  }
+
   if (roi_anchor.empty() && !roi_shape.empty()) {
     roi_anchor.resize(roi_shape.size(), 0);
   }
 
   auto fill_value = spec.template GetRepeatedArgument<float>("fill_value");
-  auto channels_dim = layout.find('C');
+  auto channels_dim = in_layout.find('C');
   DALI_ENFORCE(channels_dim >= 0,
     "If a multi channel fill value is provided, the input layout must have a 'C' dimension");
 
-  auto axes = detail::GetAxes(spec, layout);
+  auto axes = detail::GetAxes(spec, in_layout);
   int naxes = axes.size();
   assert(naxes > 0);
 
@@ -110,7 +118,7 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
     int nregions = args_ndim / naxes;
 
     auto &args = out[i];
-    auto sample_shape = shape.tensor_shape(i);
+    auto sample_shape = in_shape.tensor_shape(i);
     int k = 0;
     args.rois.reserve(nregions);
     for (int roi_idx = 0; roi_idx < nregions; roi_idx++) {

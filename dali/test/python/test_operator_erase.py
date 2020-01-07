@@ -63,62 +63,53 @@ class ErasePipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
+def get_axes(layout, axis_names):
+    axes = []
+    for axis_name in axis_names:
+        axis_idx = layout.find(axis_name)
+        assert(axis_idx >= 0)
+        axes.append(axis_idx)
+    return axes
+
+def get_regions(in_layout, in_shape, axes, arg_anchor, arg_shape):
+    assert len(arg_shape) % len(axes) == 0
+    nregions = int(len(arg_shape) / len(axes))
+    region_length = int(len(arg_shape) / nregions)
+    starts = []
+    ends = []
+    for region_idx in range(nregions):
+        start_i = [0] * len(in_shape)
+        end_i = list(in_shape)
+        for k in range(region_length):
+            axis = axes[k]
+            anchor_val = arg_anchor[region_idx * region_length + k]
+            shape_val = arg_shape[region_idx * region_length + k]
+            end_val = anchor_val + shape_val
+            start_i[axis] = anchor_val
+            end_i[axis] = end_val
+        starts.append(start_i)
+        ends.append(end_i)
+    return (starts, ends)
 
 def erase_func(anchor, shape, axis_names, axes, layout, image):
-    assert layout == "HWC"
     assert len(anchor) == len(shape)
 
-    if not axis_names:
-        assert(axes is not None)
-        if axes == (0, 1):
-            axis_names = "HW"
-        elif axes == (1, 0):
-            axis_names = "WH"
-        elif axes == (0,):
-            axis_names = "H"
-        elif axes == (1,):
-            axis_names = "W"
+    if not axes:
+        axes = get_axes(layout, axis_names)
+
+    roi_starts, roi_ends = get_regions(layout, image.shape, axes, anchor, shape)
+    assert(len(roi_starts) == len(roi_ends))
+    for region_idx in range(len(roi_starts)):
+        start = roi_starts[region_idx]
+        end = roi_ends[region_idx]
+        assert(len(start) == len(end))
+        if len(start) == 3:
+            image[start[0]:end[0], start[1]:end[1], start[2]:end[2]] = 0
+        elif len(start) == 4:
+            image[start[0]:end[0], start[1]:end[1], start[2]:end[2], start[3]:end[3]] = 0
         else:
             assert(False)
-
-    assert len(shape) % len(axis_names) == 0
-    assert len(image.shape) == 3
-
-    H = image.shape[0]
-    W = image.shape[1]
-
-    nregions = int(len(shape) / len(axis_names))
-    region_length = int(len(shape) / nregions)
-    if layout == "HWC":
-        for n in range(nregions):
-            start_0 = anchor[n*region_length+0]
-            shape_0 = shape[n*region_length+0]
-            end_0 = start_0 + shape_0
-
-            if region_length > 1:
-                start_1 = anchor[n*2+1]
-                shape_1 = shape[n*2+1]
-                end_1 = start_1 + shape_1
-
-            if axis_names == "H":
-                assert H >= end_0
-                image[start_0:end_0, :, :] = 0
-            elif axis_names == "W":
-                assert W >= end_0
-                image[:, start_0:end_0, :] = 0
-            elif axis_names == "HW":
-                assert H >= end_0
-                assert W >= end_1
-                image[start_0:end_0, start_1:end_1, :] = 0
-            elif axis_names == "WH":
-                assert H >= end_1
-                assert W >= end_0
-                image[start_1:end_1, start_0:end_0, :] = 0
-            else:
-                assert(False)  # should not happen
-        return image
-    else:
-        assert(False)  # should not happen
+    return image
 
 class ErasePythonPipeline(Pipeline):
     def __init__(self, function, batch_size, data_layout, iterator,
@@ -173,7 +164,9 @@ def test_operator_erase_vs_python():
             ("HWC", (60, 80, 3), None, (0,), (4,), (7,)),
             ("HWC", (60, 80, 3), None, (0,), (4, 15), (7, 8)),
             ("HWC", (60, 80, 3), None, (1,), (4,), (7,)),
-            ("HWC", (60, 80, 3), None, (1,), (4, 15), (7, 8))]
+            ("HWC", (60, 80, 3), None, (1,), (4, 15), (7, 8)),
+            ("DHWC", (10, 60, 80, 3), "DHW", None, (2, 4, 15), (3, 7, 8)),
+            ("HWC", (60, 80, 1), "HW", None, (4, 15), (7, 8))]
 
     for device in ['cpu']:
         for batch_size in [1, 8]:
@@ -189,7 +182,6 @@ def test_operator_erase_vs_python():
 
                 yield check_operator_erase_vs_python, device, batch_size, input_shape, \
                     anchor, shape, axis_names, axes, input_layout
-
 
 def check_operator_erase_with_normalized_coords(device, batch_size, input_shape,
                                                 anchor, shape, axis_names, input_layout,
@@ -210,7 +202,9 @@ def test_operator_erase_with_normalized_coords():
     # layout, shape, axis_names, anchor, shape, anchor_norm, shape_norm
     rois = [("HWC", (60, 80, 3), "HW", (4, 10), (40, 50), (4/60.0, 10/80.0), (40/60.0, 50/80.0)),
             ("HWC", (60, 80, 3), "HW", (4, 2, 3, 4), (50, 10, 10, 50), (4/60.0, 2/80.0, 3/60.0, 4/80.0), (50/60.0, 10/80.0, 10/60.0, 50/80.0)),
-            ("HWC", (60, 80, 3), "H", (4,), (7,), (4/60.0,), (7/60.0,))]
+            ("HWC", (60, 80, 3), "H", (4,), (7,), (4/60.0,), (7/60.0,)),
+            ("DHWC", (10, 60, 80, 3), "DHW", (2, 4, 10), (5, 40, 50), (2/10.0, 4/60.0, 10/80.0), (5/10.0, 40/60.0, 50/80.0)),
+            ("HWC", (60, 80, 1), "WH", (10, 4), (50, 40), (10/80.0, 4/60.0), (50/80.0, 40/60.0))]
 
     for device in ['cpu']:
         for batch_size in [1, 8]:
