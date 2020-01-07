@@ -251,11 +251,13 @@ class Crop3dPipeline(Pipeline):
         self.data_layout = data_layout
 
         if self.data_layout == "DHWC":
-            D, H, W = self.data_shape[0], self.data_shape[1], self.data_shape[2]
+            D, H, W, _ = self.data_shape
         elif self.data_layout == "CDHW":
-            D, H, W = self.data_shape[1], self.data_shape[2], self.data_shape[3]
+            _, D, H, W = self.data_shape
         elif self.data_layout == "FHWC" and crop_seq_as_depth:
-            D, H, W = self.data_shape[0], self.data_shape[1], self.data_shape[2]
+            D, H, W, _ = self.data_shape
+        elif self.data_layout == "FCHW" and crop_seq_as_depth:
+            D, _, H, W = self.data_shape
         else:
             assert(False)
 
@@ -358,7 +360,25 @@ def test_crop_3d_vs_python_op_crop():
 
 def check_crop_sequence_length(device, batch_size, output_dtype, input_layout, input_shape):
     crop_z, crop_y, crop_x = (0.1, 0.2, 0.3)
-    crop_shape=(int(0.91*input_shape[0]), int(0.85*input_shape[1]), int(0.75*input_shape[2]), 3)
+
+    if input_layout == "FHWC":
+        D, H, W, C = input_shape
+    elif input_layout == "FCHW":
+        D, C, H, W = input_shape
+    else:
+        assert(False)
+
+    crop_d = int(D * 0.91)
+    crop_h = int(H * 0.85)
+    crop_w = int(W * 0.75)
+
+    if input_layout == "FHWC":
+        crop_shape = (crop_d, crop_h, crop_w, C)
+    elif input_layout == "FCHW":
+        crop_shape = (crop_d, C, crop_h, crop_w)
+    else:
+        assert(False)
+
     eii1 = RandomDataIterator(batch_size, shape=input_shape)
 
     pipe = Crop3dPipeline(device, batch_size, iter(eii1),
@@ -373,16 +393,12 @@ def check_crop_sequence_length(device, batch_size, output_dtype, input_layout, i
 
 # Tests cropping along the sequence dimension as if it was depth
 def test_cmn_crop_sequence_length():
-    input_layout = "FHWC"
-    output_layouts = ["FHWC", "FCHW"]
-    input_shapes = {
-        "FHWC" : [(10, 60, 80, 3)],
-    }
-
+    input_configs = {("FHWC", (10, 60, 80, 3)),
+                     ("FCHW", (10, 3, 60, 80))}
     for device in ['cpu']:
         for batch_size in [8]:
             for output_dtype in [types.FLOAT]:
-                for input_shape in input_shapes[input_layout]:
+                for input_layout, input_shape in input_configs:
                     assert len(input_layout) == len(input_shape)
                     yield check_crop_sequence_length, device, batch_size, output_dtype, \
                         input_layout, input_shape
