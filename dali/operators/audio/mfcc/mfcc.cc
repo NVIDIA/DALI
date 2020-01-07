@@ -79,7 +79,6 @@ If not provided, the outer-most dimension will be used.)code",
 If lifter > 0, the MFCCs will be scaled according to the following formula::
 
     MFFC[i] = MFCC[i] * (1 + sin(pi * (i + 1) / lifter)) * (lifter / 2)
-
 )code",
       0.0f);
 
