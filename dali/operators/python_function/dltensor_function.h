@@ -14,13 +14,20 @@
 
 #ifndef DALI_OPERATORS_PYTHON_FUNCTION_DLTENSOR_FUNCTION_H_
 #define DALI_OPERATORS_PYTHON_FUNCTION_DLTENSOR_FUNCTION_H_
-
-#include "dali/operators/python_function/python_function.h"
-// All python headers must be included before std headers due to macro redefinition error
-#include <vector>  // NOLINT
+#include <dali/util/pybind.h>
+#include <pybind11/embed.h>
+#include <pybind11/stl.h>
+#include <vector>
+#include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
 namespace dali {
+
+extern std::mutex operator_lock;
+
+cudaStream_t GetCurrentStream();
+
+void SetCurrentStream(cudaStream_t stream);
 
 namespace detail {
 
@@ -85,12 +92,16 @@ void CopyDlTensor(void *out_data, DLMTensorPtr &dlm_tensor_ptr, cudaStream_t str
 template <typename Backend>
 py::list PrepareDLTensorInputs(workspace_t<Backend> &ws);
 
+template <typename Backend>
+py::list PrepareDLTensorInputsPerSample(workspace_t<Backend> &ws);
+
 template <typename Workspace, typename Output>
 void CopyOutputData(Output& output, std::vector<DLMTensorPtr> &dl_tensors,
                     int batch_size, Workspace &workspace);
 
 template <typename Backend>
-void PrepareOutputs(workspace_t<Backend> &ws, py::tuple &return_tuple, int batch_size) {
+void PrepareOutputs(workspace_t<Backend> &ws, const py::object &output_o, int batch_size) {
+  py::tuple return_tuple = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
   for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
     py::list dl_list = py::cast<py::list>(return_tuple[idx]);
     auto dl_tensors = CastToDLTensorList<Backend>(dl_list, batch_size, idx);
@@ -100,6 +111,25 @@ void PrepareOutputs(workspace_t<Backend> &ws, py::tuple &return_tuple, int batch
     tlist.Resize(GetDLTensorListShape(dl_tensors));
     CopyOutputData(tlist, dl_tensors, batch_size, ws);
   }
+}
+
+template <typename Backend>
+void PrepareOutputsPerSample(workspace_t<Backend> &ws, const py::object &output_o, int batch_size) {
+  py::list output = output_o;
+  std::vector<py::list> output_tuple(ws.NumOutput());
+  for (auto &sample_out : output) {
+    if (py::tuple::check_(sample_out)) {
+      py::tuple out = py::reinterpret_borrow<py::tuple>(sample_out);
+      for (Index idx = 0; idx < ws.NumOutput(); ++idx) output_tuple[idx].append(out[idx]);
+    } else {
+      output_tuple[0].append(sample_out);
+    }
+  }
+  py::tuple t(ws.NumOutput());
+  for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
+    t[idx] = py::reinterpret_steal<py::list>(output_tuple[idx]);
+  }
+  PrepareOutputs<Backend>(ws, t, batch_size);
 }
 
 template <typename Backend>
@@ -128,12 +158,16 @@ class StreamSynchronizer<CPUBackend> {
 
 }  // namespace detail
 
+
 template <typename Backend>
-class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
+class DLTensorPythonFunctionImpl : public Operator<Backend> {
  public:
   inline explicit DLTensorPythonFunctionImpl(const OpSpec &spec)
-    : PythonFunctionImplBase<Backend>(spec) {
+      : Operator<Backend>(spec)
+      , python_function(py::reinterpret_borrow<py::object>(
+          reinterpret_cast<PyObject*>(spec.GetArgument<int64_t>("function_id")))) {
     synchronize_stream_ = spec.GetArgument<bool>("synchronize_stream");
+    batch_processing = spec.GetArgument<bool>("batch_processing");
   }
 
  protected:
@@ -144,16 +178,37 @@ class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
   void RunImpl(workspace_t<Backend> &ws) override {
     std::lock_guard<std::mutex> operator_guard(operator_lock);
     py::gil_scoped_acquire interpreter_guard{};
-    py::object output_o;
+    py::object output_o = py::none();
     try {
       detail::StreamSynchronizer<Backend> sync(ws, synchronize_stream_);
-      output_o = python_function(*detail::PrepareDLTensorInputs<Backend>(ws));
+      if (batch_processing) {
+        auto input = detail::PrepareDLTensorInputs<Backend>(ws);
+        output_o = python_function(*input);
+      } else {
+        auto inputs = detail::PrepareDLTensorInputsPerSample<Backend>(ws);
+        py::list out_batch;
+        if (inputs.size() > 0) {
+          for (auto &input_tuple : inputs) {
+            py::object output = python_function(*input_tuple);
+            if (!output.is_none()) out_batch.append(output);
+          }
+        } else {
+          for (int s = 0; s < batch_size_; ++s) {
+            py::object output = python_function();
+            if (!output.is_none()) out_batch.append(output);
+          }
+        }
+        if (out_batch.size() != 0) output_o = out_batch;
+      }
     } catch(const py::error_already_set &e) {
       throw std::runtime_error(to_string("DLTensorPythonFunction error: ") + to_string(e.what()));
     }
     if (!output_o.is_none()) {
-      py::tuple output = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
-      detail::PrepareOutputs<Backend>(ws, output, batch_size_);
+      if (batch_processing) {
+        detail::PrepareOutputs<Backend>(ws, output_o, batch_size_);
+      } else {
+        detail::PrepareOutputsPerSample<Backend>(ws, output_o, batch_size_);
+      }
     } else {
       DALI_ENFORCE(ws.NumOutput() == 0, "Python function returned 0 outputs and "
           + std::to_string(ws.NumOutput()) + " were expected.");
@@ -162,9 +217,10 @@ class DLTensorPythonFunctionImpl : public PythonFunctionImplBase<Backend> {
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
-  using PythonFunctionImplBase<Backend>::python_function;
 
+  py::object python_function;
   bool synchronize_stream_;
+  bool batch_processing;
 };
 
 }  // namespace dali

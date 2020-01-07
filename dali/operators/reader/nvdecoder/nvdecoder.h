@@ -21,7 +21,6 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 
 #include <condition_variable>
-#include <memory>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -76,7 +75,6 @@ class NvDecoder {
  public:
   NvDecoder(int device_id,
             const CodecParameters* codecpar,
-            AVRational time_base,
             DALIImageType image_type,
             DALIDataType dtype,
             bool normalized,
@@ -97,7 +95,7 @@ class NvDecoder {
   static int handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
   static int handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
 
-  int decode_packet(AVPacket* pkt, int64_t start_time);
+  int decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base);
 
   void push_req(FrameReq req);
 
@@ -106,7 +104,7 @@ class NvDecoder {
   void finish();
 
  private:
-  int decode_av_packet(AVPacket* pkt, int64_t start_time);
+  int decode_av_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base);
 
   void record_sequence_event_(SequenceWrapper& sequence);
 
@@ -114,10 +112,6 @@ class NvDecoder {
   int handle_sequence_(CUVIDEOFORMAT* format);
   int handle_decode_(CUVIDPICPARAMS* pic_params);
   int handle_display_(CUVIDPARSERDISPINFO* disp_info);
-
-  using nvdecDriverHandle = std::unique_ptr<std::remove_pointer<DLLDRIVER>::type,
-                                         std::function< void(DLLDRIVER) >>;
-  nvdecDriverHandle lib_handle_;
 
   class MappedFrame {
    public:
@@ -183,7 +177,6 @@ class NvDecoder {
   CUVideoParser parser_;
   CUVideoDecoder decoder_;
 
-  AVRational time_base_;
   AVRational nv_time_base_ = {1, 10000000};
 
   std::vector<uint8_t> frame_in_use_;

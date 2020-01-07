@@ -70,6 +70,11 @@ struct needs_clamp {
     (from_unsigned && !to_unsigned && sizeof(To) <= sizeof(From));
 };
 
+template <typename To>
+struct needs_clamp<bool, To> {
+  static constexpr bool value = false;
+};
+
 template <typename T>
 struct ret_type {  // a placeholder for return type
   constexpr ret_type() = default;
@@ -173,10 +178,6 @@ DALI_HOST_DEV inline float16 clamp(int64_t value, ret_type<float16>) {
 template <typename T>
 DALI_HOST_DEV constexpr T clamp(float16 value, ret_type<T>) {
   return clamp(static_cast<float>(value), ret_type<T>());
-}
-
-DALI_HOST_DEV inline bool clamp(float16 value, ret_type<bool>) {
-  return static_cast<bool>(value);
 }
 
 DALI_HOST_DEV constexpr float16 clamp(float16 value, ret_type<float16>) {

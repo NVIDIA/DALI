@@ -18,7 +18,7 @@
 namespace dali {
 
 DALI_SCHEMA(ElementExtract)
-    .DocStr(R"code(Extracts one or more elements from input)code")
+    .DocStr(R"code(Extracts one or more elements from input.)code")
     .NumInput(1)
     .NumOutput(1)
     .SequenceOperator()

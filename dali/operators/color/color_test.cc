@@ -14,6 +14,10 @@
 
 #include "dali/test/dali_test_matching.h"
 
+/////////////////////////////////////////
+///// DEPRECATED, WILL BE REMOVED ///////
+/////////////////////////////////////////
+
 namespace dali {
 
 template <typename ImgType>

@@ -33,8 +33,8 @@ RUN CMAKE_VERSION=3.11 && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install && \
     rm -rf /cmake-${CMAKE_BUILD}
 
-# protobuf v3.5.1
-RUN PROTOBUF_VERSION=3.5.1 && \
+# protobuf v3.11.1
+RUN PROTOBUF_VERSION=3.11.1 && \
     curl -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-all-${PROTOBUF_VERSION}.tar.gz | tar -xzf - && \
     cd /protobuf-${PROTOBUF_VERSION} && \
     ./autogen.sh && \
@@ -122,7 +122,7 @@ RUN FFMPEG_VERSION=4.2.1 && \
 
 # flac
 RUN FLAC_VERSION=1.3.3 && cd /tmp                                                    && \
-    wget https://ftp.osuosl.org/pub/xiph/releases/flac/flac-${FLAC_VERSION}.tar.xz   && \
+    wget http://downloads.xiph.org/releases/flac/flac-${FLAC_VERSION}.tar.xz         && \
     tar -xf flac-$FLAC_VERSION.tar.xz                                                && \
     rm flac-$FLAC_VERSION.tar.xz                                                     && \
     cd flac-$FLAC_VERSION                                                            && \

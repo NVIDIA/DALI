@@ -167,6 +167,25 @@ constexpr double rad2deg(double rad) {
   return rad * r2d;
 }
 
+/// @brief Calculates normalized sinc i.e. `sin(pi * x) / (pi * x)`
+DALI_HOST_DEV DALI_FORCEINLINE
+double sinc(double x) {
+  x *= M_PI;
+  if (std::abs(x) < 1e-8)
+    return 1.0 - x * x * (1.0 / 6);  // remove singularity by using Taylor expansion
+  return std::sin(x) / x;
+}
+
+/// @brief Calculates normalized sinc i.e. `sin(pi * x) / (pi * x)`
+DALI_HOST_DEV DALI_FORCEINLINE
+float sinc(float x) {
+  x *= M_PI;
+  if (std::abs(x) < 1e-5f)
+    return 1.0f - x * x * (1.0f / 6);  // remove singularity by using Taylor expansion
+  return std::sin(x) / x;
+}
+
+
 }  // namespace dali
 
 #endif  // DALI_CORE_MATH_UTIL_H_

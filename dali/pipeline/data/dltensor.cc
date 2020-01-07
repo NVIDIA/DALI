@@ -52,6 +52,9 @@ DLMTensorPtr MakeDLTensor(void* data, const TypeInfo& type,
   dl_tensor.data = data;
   dl_tensor.ndim = resource->shape.size();
   dl_tensor.shape = resource->shape.begin();
+  if (!resource->strides.empty()) {
+    dl_tensor.strides = resource->strides.data();
+  }
   if (device) {
     dl_tensor.ctx = {kDLGPU, device_id};
   } else {

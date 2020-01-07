@@ -36,7 +36,7 @@ namespace hsv {
 const std::string kHue = "hue";                 // NOLINT
 const std::string kSaturation = "saturation";   // NOLINT
 const std::string kValue = "value";             // NOLINT
-const std::string kOutputType = "output_type";  // NOLINT
+const std::string kOutputType = "dtype";        // NOLINT
 
 /**
  * Color space conversion
@@ -104,9 +104,10 @@ class HsvOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(HsvOp);
 
  protected:
-  explicit HsvOp(const OpSpec &spec) :
-          Operator<Backend>(spec),
-          output_type_(spec.GetArgument<DALIDataType>(hsv::kOutputType)) {
+  explicit HsvOp(const OpSpec &spec)
+          : Operator<Backend>(spec)
+          , output_type_arg_(spec.GetArgument<DALIDataType>(hsv::kOutputType))
+          , output_type_(DALI_NO_TYPE) {
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1, 1);
     } else {
@@ -120,17 +121,22 @@ class HsvOp : public Operator<Backend> {
   }
 
 
-  void AcquireArguments(const ArgumentWorkspace &ws) {
+  void AcquireArguments(const workspace_t<Backend> &ws) {
     this->GetPerSampleArgument(hue_, hsv::kHue, ws);
     this->GetPerSampleArgument(saturation_, hsv::kSaturation, ws);
     this->GetPerSampleArgument(value_, hsv::kValue, ws);
+
+    output_type_ =
+        output_type_arg_ != DALI_NO_TYPE
+        ? output_type_arg_
+        : ws.template InputRef<Backend>(0).type().id();
   }
 
 
   /**
    * @brief Creates transformation matrices based on given args
    */
-  void DetermineTransformation(const ArgumentWorkspace &ws) {
+  void DetermineTransformation(const workspace_t<Backend> &ws) {
     using namespace hsv;  // NOLINT
     AcquireArguments(ws);
     assert(hue_.size() == saturation_.size() && hue_.size() == value_.size());
@@ -146,7 +152,7 @@ class HsvOp : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
   std::vector<float> hue_, saturation_, value_;
   std::vector<mat3> tmatrices_;
-  DALIDataType output_type_;
+  DALIDataType output_type_arg_, output_type_;
   kernels::KernelManager kernel_manager_;
 };
 
@@ -174,14 +180,14 @@ class HsvCpu : public HsvOp<CPUBackend> {
 
  private:
   template <typename Kernel, typename InputType>
-  TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input, int instance_idx) {
+  TensorListShape<> CallSetup(const TensorVector<CPUBackend> &input) {
     kernels::KernelContext ctx;
     TensorListShape<> sh = input.shape();
     TensorListShape<> ret(sh.num_samples(), 3);
     assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
     for (int i = 0; i < sh.num_samples(); i++) {
       const auto tvin = view<const InputType, 3>(input[i]);
-      const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin, tmatrices_[i]);
+      const auto reqs = kernel_manager_.Setup<Kernel>(i, ctx, tvin, tmatrices_[i]);
       const TensorListShape<> &out_sh = reqs.output_shapes[0];
       ret.set_tensor_shape(i, out_sh.tensor_shape(0));
     }
@@ -206,11 +212,11 @@ class HsvGpu : public HsvOp<GPUBackend> {
 
  private:
   template <typename Kernel, typename InputType>
-  TensorListShape<> CallSetup(const TensorList<GPUBackend> &tl, int instance_idx) {
+  const TensorListShape<> &CallSetup(const DeviceWorkspace &ws, const TensorList<GPUBackend> &tl) {
     kernels::KernelContext ctx;
+    ctx.gpu.stream = ws.stream();
     const auto tvin = view<const InputType, 3>(tl);
-    const auto reqs = kernel_manager_.Setup<Kernel>(instance_idx, ctx, tvin,
-                                                    make_cspan(tmatrices_));
+    const auto &reqs = kernel_manager_.Setup<Kernel>(0, ctx, tvin, make_cspan(tmatrices_));
     return reqs.output_shapes[0];
   }
 };

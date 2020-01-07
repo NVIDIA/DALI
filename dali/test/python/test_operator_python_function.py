@@ -32,6 +32,18 @@ test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
 
+def test_dlpack_conversions():
+    array = numpy.arange(0, 10, 0.5)
+    reshaped = array.reshape((2, 10, 1))
+    slice = reshaped[:, 2:5, :]
+    dlpack = ops._dlpack_from_array(slice)
+    result_array = ops._dlpack_to_array(dlpack)
+    print(slice)
+    print(result_array)
+    assert result_array.shape == slice.shape
+    assert numpy.array_equal(result_array, slice)
+
+
 def resize(image):
     return numpy.array(Image.fromarray(image).resize((300, 300)))
 
@@ -113,10 +125,12 @@ class TwoOutputsPythonOperatorPipeline(CommonPipeline):
 
 
 class MultiInputMultiOutputPipeline(CommonPipeline):
-    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function,
+                 batch_processing=False):
         super(MultiInputMultiOutputPipeline, self).__init__(batch_size, num_threads,
                                                             device_id, seed, image_dir)
-        self.python_function = ops.PythonFunction(function=function, num_outputs=3)
+        self.python_function = ops.PythonFunction(function=function, num_outputs=3,
+                                                  batch_processing=batch_processing)
 
     def define_graph(self):
         images1, labels1 = self.load()
@@ -156,7 +170,7 @@ def random_seed():
 
 DEVICE_ID = 0
 BATCH_SIZE = 8
-ITERS = 64
+ITERS = 32
 SEED = random_seed()
 NUM_WORKERS = 6
 
@@ -238,7 +252,7 @@ class RotatePipeline(CommonPipeline):
 class BrightnessPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
         super(BrightnessPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
-        self.brightness=ops.Brightness(device = "gpu", brightness = 0.5)
+        self.brightness=ops.BrightnessContrast(device = "gpu", brightness = 0.5)
 
     def define_graph(self):
         images, labels = self.load()
@@ -270,7 +284,7 @@ def test_python_operator_brightness():
         numpy_output, = numpy_brightness.run()
         dali_output, = dali_brightness.run()
         for i in range(len(dali_output)):
-            assert numpy.array_equal(numpy_output.at(i), dali_output.as_cpu().at(i))
+            assert numpy.allclose(numpy_output.at(i), dali_output.as_cpu().at(i), rtol = 1e-5, atol = 1)
 
 
 def invalid_function(image):
@@ -324,20 +338,37 @@ def test_mixed_types():
     run_two_outputs(mixed_types)
 
 
-def run_multi_input_multi_output(func):
-    pipe = DoubleLoadPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
-    pyfunc_pipe = MultiInputMultiOutputPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
-                                                images_dir, func)
-    pipe.build()
-    pyfunc_pipe.build()
+def multi_per_sample_compare(func, pipe, pyfunc_pipe):
     for it in range(ITERS):
         preprocessed_output1, preprocessed_output2 = pipe.run()
         out1, out2, out3 = pyfunc_pipe.run()
-        for i in range(len(out1)):
+        for i in range(BATCH_SIZE):
             pro1, pro2, pro3 = func(preprocessed_output1.at(i), preprocessed_output2.at(i))
             assert numpy.array_equal(out1.at(i), pro1)
             assert numpy.array_equal(out2.at(i), pro2)
             assert numpy.array_equal(out3.at(i), pro3)
+
+
+def multi_batch_compare(func, pipe, pyfunc_pipe):
+    for it in range(ITERS):
+        preprocessed_output1, preprocessed_output2 = pipe.run()
+        out1, out2, out3 = pyfunc_pipe.run()
+        in1 = [preprocessed_output1.at(i) for i in range(BATCH_SIZE)]
+        in2 = [preprocessed_output2.at(i) for i in range(BATCH_SIZE)]
+        pro1, pro2, pro3 = func(in1, in2)
+        for i in range(BATCH_SIZE):
+            assert numpy.array_equal(out1.at(i), pro1[i])
+            assert numpy.array_equal(out2.at(i), pro2[i])
+            assert numpy.array_equal(out3.at(i), pro3[i])
+
+
+def run_multi_input_multi_output(func, compare, batch=False):
+    pipe = DoubleLoadPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
+    pyfunc_pipe = MultiInputMultiOutputPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                images_dir, func, batch_processing=batch)
+    pipe.build()
+    pyfunc_pipe.build()
+    compare(func, pipe, pyfunc_pipe)
 
 
 def split_and_mix(images1, images2):
@@ -352,11 +383,34 @@ def output_with_stride_mixed_types(images1, images2):
 
 
 def test_split_and_mix():
-    run_multi_input_multi_output(split_and_mix)
+    run_multi_input_multi_output(split_and_mix, multi_per_sample_compare)
 
 
 def test_output_with_stride_mixed_types():
-    run_multi_input_multi_output(output_with_stride_mixed_types)
+    run_multi_input_multi_output(output_with_stride_mixed_types, multi_per_sample_compare)
+
+
+def mix_and_split_batch(images1, images2):
+    mixed = [(images1[i] + images2[i]) // 2 for i in range(len(images1))]
+    r = [im[:, :, 0] for im in mixed]
+    g = [im[:, :, 1] for im in mixed]
+    b = [im[:, :, 2] for im in mixed]
+    return r, g, b
+
+
+def with_stride_mixed_types_batch(images1, images2):
+    out1 = [im[:, :, 2] for im in images1]
+    out2 = [one_channel_normalize(im) for im in images2]
+    out3 = [im1 > im2 for (im1, im2) in zip(images1, images2)]
+    return out1, out2, out3
+
+
+def test_split_and_mix_batch():
+    run_multi_input_multi_output(mix_and_split_batch, multi_batch_compare, batch=True)
+
+
+def test_output_with_stride_mixed_types_batch():
+    run_multi_input_multi_output(with_stride_mixed_types_batch, multi_batch_compare, batch=True)
 
 
 @raises(RuntimeError)
@@ -382,6 +436,7 @@ def test_sink():
     assert len(glob.glob(SINK_PATH + '/sink_img*')) == 0
     pipe.run()
     created_files = glob.glob(SINK_PATH + '/sink_img*')
+    print(created_files)
     assert len(created_files) == BATCH_SIZE
     for file in created_files:
         os.remove(file)

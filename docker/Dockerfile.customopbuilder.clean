@@ -14,7 +14,9 @@ ENV PYV=${PYV}
 
 # Python 3.6 and 3.7 are not available in Ubuntu 14
 # Python 3.7 can't be installed with PPA method in this Ubuntu 14
-RUN apt-get update && \
+# NOTE: jonathonf has removed his PPAs, but TensorFlow still has the repo in its docker image
+RUN rm -rf /etc/apt/sources.list.d/jonathonf-* \
+    apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     if [ "${PYVER}" = "3.7" ]; then \
         apt-get install -y --no-install-recommends libffi-dev && \
@@ -27,7 +29,7 @@ RUN apt-get update && \
     else \
         if [ $(apt-cache search python$PYVER | wc -l) -eq 0 ]; then \
             apt-get install software-properties-common -y --no-install-recommends && \
-            add-apt-repository ppa:jonathonf/python-$PYVER -y && \
+            add-apt-repository ppa:deadsnakes/ppa -y && \
             apt-get update; \
         fi && \
         curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \

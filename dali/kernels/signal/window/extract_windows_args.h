@@ -16,6 +16,7 @@
 #define DALI_KERNELS_SIGNAL_WINDOW_EXTRACT_WINDOWS_ARGS_H_
 
 #include "dali/core/host_dev.h"
+#include "dali/core/force_inline.h"
 
 namespace dali {
 namespace kernels {

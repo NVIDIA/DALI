@@ -18,6 +18,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -41,6 +42,8 @@ struct SequenceWrapper {
     // TODO(spanev) Handle other types
     sequence.set_type(TypeInfo::Create<float>());
     sequence.Resize({count, height, width, channels});
+    timestamps.clear();
+    timestamps.reserve(count);
 
     int dev;
     CUDA_CALL(cudaGetDevice(&dev));
@@ -88,6 +91,8 @@ struct SequenceWrapper {
   int width;
   int channels;
   int label;
+  vector<double> timestamps;
+  int first_frame_idx;
 
  private:
   void wait_until_started_() const {

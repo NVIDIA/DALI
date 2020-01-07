@@ -39,6 +39,7 @@ DLL_PUBLIC DALIError_t wrapNvmlDeviceGetHandleByIndex(const int device_id,
                                                       nvmlDevice_t* device);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetIndex(nvmlDevice_t device, unsigned* index);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceSetCpuAffinity(nvmlDevice_t device);
+DLL_PUBLIC DALIError_t wrapNvmlSystemGetDriverVersion(char* name, unsigned int length);
 DLL_PUBLIC DALIError_t wrapNvmlDeviceGetCpuAffinity(nvmlDevice_t device,
                                                     unsigned int cpuSetSize,
                                                     unsigned long* cpuSet);  // NOLINT(runtime/int)

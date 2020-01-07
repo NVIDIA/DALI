@@ -598,10 +598,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &grap
   pipeline_outputs_ = graph.GetOutputs(output_names_);
 
   // If there are GPU outputs from given stages, we have to wait for them
-  auto has_gpu_output = [] (OpType stage_type, const auto &pipeline_outputs, const OpGraph &graph) {
+  auto has_gpu_output = [] (OpType stage_type, const auto &pipeline_outputs,
+                            const OpGraph &graph_to_check) {
     for (auto tid : pipeline_outputs) {
-      const auto &tensor = graph.Tensor(tid);
-      const auto &producer_node = graph.Node(tensor.producer.node);
+      const auto &tensor = graph_to_check.Tensor(tid);
+      const auto &producer_node = graph_to_check.Node(tensor.producer.node);
       if (producer_node.op_type == stage_type) {
         if (tensor.producer.storage_device == StorageDevice::GPU) {
           return true;

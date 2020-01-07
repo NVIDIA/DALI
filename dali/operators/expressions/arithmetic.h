@@ -33,6 +33,9 @@
 
 namespace dali {
 
+/**
+ * @brief The first element contains vector of tiles, the second groups the tiles into task ranges
+ */
 using TileCover = std::tuple<std::vector<TileDesc>, std::vector<TileRange>>;
 
 /**
@@ -124,6 +127,9 @@ DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend
   return expr.GetTypeId();
 }
 
+/**
+ * @brief Helper for recursively filling vector of tasks to execute
+ */
 template <typename Backend>
 inline void CreateExecutionTasks(std::vector<ExprImplTask> &order, const ExprNode &expr,
                                  ExprImplCache &cache, cudaStream_t stream) {
@@ -137,6 +143,10 @@ inline void CreateExecutionTasks(std::vector<ExprImplTask> &order, const ExprNod
   order.push_back({cache.GetExprImpl<Backend>(func), {stream, &func}});
 }
 
+/**
+ * @brief Recurse over `expr` tree and looking up from `cache` return vector of tasks to execute
+ *        in given order.
+ */
 template <typename Backend>
 inline std::vector<ExprImplTask> CreateExecutionTasks(const ExprNode &expr, ExprImplCache &cache,
                                                       cudaStream_t stream) {
@@ -163,6 +173,11 @@ inline TensorListShape<> ShapePromotion(std::string op, span<const TensorListSha
   return out_shape ? *out_shape : uniform_list_shape(batch_size, {1});
 }
 
+/**
+ * @brief Recurse over expression tree and propagate shapes between expression nodes.
+ *
+ * @return The resulting shape of the expression
+ */
 template <typename Backend>
 DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
                                                            const workspace_t<Backend> &ws,
@@ -204,6 +219,67 @@ inline void GetConstantNodes(ExprNode &expr, std::vector<ExprConstant *> &nodes)
   }
 }
 
+
+/**
+ * @brief Provide an error when the node is an bitwise operator that has any floating point
+ *        inputs
+ */
+inline void CheckBitwise(ExprFunc &func) {
+  auto op = NameToOp(func.GetFuncName());
+  if (IsBitwise(op)) {
+    bool inputs_are_integral = true;
+    for (int i = 0; i < func.GetSubexpressionCount(); i++) {
+      inputs_are_integral = inputs_are_integral && IsIntegral(func[i].GetTypeId());
+    }
+    DALI_ENFORCE(inputs_are_integral, make_string("Inputs to bitwise operator `", to_string(op),
+                                                  "` must be of integral type."));
+  }
+}
+
+
+/**
+ * @brief Provide an error when the node is an arithmetic operator (other than `*`)
+ *        that has only boolean inputs.
+ */
+inline void CheckArithmeticOnBooleans(ExprFunc &func) {
+  auto op = NameToOp(func.GetFuncName());
+  if (IsArithmetic(op) && op != ArithmeticOp::mul) {
+    bool inputs_are_bool = true;
+    for (int i = 0; i < func.GetSubexpressionCount(); i++) {
+      inputs_are_bool = inputs_are_bool && func[i].GetTypeId() == DALIDataType::DALI_BOOL;
+    }
+    if (func.GetSubexpressionCount() == 1) {
+      DALI_ENFORCE(
+          !inputs_are_bool,
+          make_string(
+              "Input to unary arithmetic operator `", to_string(op),
+              "` cannot be a boolean. Consider using bitwise operator `~` or an numeric type."));
+    } else {
+      DALI_ENFORCE(
+          !inputs_are_bool,
+          make_string("All inputs to arithmetic operator `", to_string(op),
+                      "` cannot be booleans. Consider using bitwise operators `|`, `&`, `^` or use "
+                      "numeric type as one of the inputs to force type promotions of the booleans. "
+                      "Note: using `*` (multiplication) is still allowed for boolean inputs."));
+    }
+  }
+}
+
+inline void CheckAllowedOperations(ExprNode &expr) {
+  if (expr.GetNodeType() == NodeType::Constant) {
+    return;
+  }
+  if (expr.GetNodeType() == NodeType::Tensor) {
+    return;
+  }
+  auto &func = dynamic_cast<ExprFunc &>(expr);
+  CheckArithmeticOnBooleans(func);
+  CheckBitwise(func);
+  for (int i = 0; i < func.GetSubexpressionCount(); i++) {
+    CheckAllowedOperations(func[i]);
+  }
+}
+
 /**
  * @brief Arithmetic operator capable of executing expression tree of element-wise
  *        arithmetic operations.
@@ -241,6 +317,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
       std::vector<ExprConstant *> constant_nodes;
       GetConstantNodes(*expr_, constant_nodes);
       constant_storage_.Initialize(spec_, ws.has_stream() ? ws.stream() : 0, constant_nodes);
+      CheckAllowedOperations(*expr_);
       types_layout_inferred_ = true;
     }
 

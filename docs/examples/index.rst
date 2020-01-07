@@ -19,3 +19,6 @@ Tutorials
    python_operator/python_operator.ipynb
    expressions/index
    audio/index
+   audio_decoder.ipynb
+   hsv_example.ipynb
+   brightness_contrast_example.ipynb

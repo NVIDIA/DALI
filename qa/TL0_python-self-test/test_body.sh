@@ -2,7 +2,7 @@
 
 test_nose() {
     for test_script in $(ls test_operator_*.py test_pipeline*.py test_backend_impl.py); do
-        nosetests --verbose ${test_script}
+        nosetests --verbose --attr '!slow' ${test_script}
     done
 }
 

@@ -12,14 +12,14 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
 # sys.path.insert(0, os.path.abspath('..'))
+import os
+import sys
 import sphinx_rtd_theme
+from sphinx.ext.autodoc.importer import mock, _MockImporter
 from builtins import str
 import re
 import subprocess
-import os
 
 # -- Project information -----------------------------------------------------
 
@@ -48,7 +48,16 @@ version = str(version_long + u"-" + git_sha)
 release = str(version_long)
 
 # generate table of supported operators and their devices
-subprocess.call(["python", "supported_op_devices.py", "op_inclusion"])
+# mock torch required by supported_op_devices
+importer = _MockImporter(["torch"])
+importer.load_module("torch")
+sys.path.insert(0, os.path.abspath('./'))
+import supported_op_devices
+
+supported_op_devices.main(["op_inclusion"])
+
+# Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
+# keep_warnings = True
 
 # hack: version is used for html creation, so put the version picker
 # link here as well:
@@ -114,6 +123,14 @@ exclude_patterns = [u'_build', 'Thumbs.db', '.DS_Store', '**.ipynb_checkpoints']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
+# Mock some of the dependencies for building docs. tf-plugin doc check tf version before loading,
+# so we do not mock tensorflow so we do not need to extend the logic there.
+autodoc_mock_imports = ['mxnet', 'paddle', 'torch', 'torchvision']
+
+# -- Options for Napoleon ----------------------------------------------------
+
+napoleon_custom_sections = ['Supported backends']
+
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -137,7 +154,8 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+# We remove the `_static` as we do not use it
+html_static_path = []
 
 # Download favicon and set it (the variable `html_favicon`) for this project.
 # It must be relative path.
@@ -217,3 +235,8 @@ texinfo_documents = [
 extlinks = {'issue': ('https://github.com/NVIDIA/DALI/issues/%s',
                       'issue '),
             'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "master") + '/%s', ''),}
+
+def setup(app):
+    count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
+    if count_unique_visitor_script:
+        app.add_js_file(count_unique_visitor_script)

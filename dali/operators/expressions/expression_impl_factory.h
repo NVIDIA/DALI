@@ -33,9 +33,14 @@
 
 namespace dali {
 
+#define ALLOWED_UN_OPS \
+  (ArithmeticOp::plus, ArithmeticOp::minus)
+
 #define ALLOWED_BIN_OPS                                                                            \
   (ArithmeticOp::add, ArithmeticOp::sub, ArithmeticOp::mul, ArithmeticOp::div, ArithmeticOp::fdiv, \
-      ArithmeticOp::mod)
+      ArithmeticOp::mod, ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq, \
+      ArithmeticOp::gt, ArithmeticOp::geq, ArithmeticOp::bit_and, ArithmeticOp::bit_or,            \
+      ArithmeticOp::bit_xor)
 
 struct ExprImplTask {
   ExprImplBase *impl;
@@ -137,39 +142,20 @@ void PrepareTilesForTasks(std::vector<std::vector<ExtendedTileDesc>> &tiles_per_
   }
 }
 
-template <template <ArithmeticOp, typename...> class ImplTensorTensor,
-          template <ArithmeticOp, typename...> class ImplTensorConstant,
-          template <ArithmeticOp, typename...> class ImplConstantTensor>
-std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
-  std::unique_ptr<ExprImplBase> result;
-  auto op = NameToOp(expr.GetFuncName());
-  auto left_type = expr[0].GetTypeId();
-  auto right_type = expr[1].GetTypeId();
-  // 4-fold static switch
-  TYPE_SWITCH(left_type, type2id, Left_t, ARITHMETIC_ALLOWED_TYPES, (
-    TYPE_SWITCH(right_type, type2id, Right_t, ARITHMETIC_ALLOWED_TYPES, (
-        VALUE_SWITCH(op, op_static, ALLOWED_BIN_OPS, (
-          using Out_t = arithm_meta<op_static, CPUBackend>::result_t<Left_t, Right_t>;
-          if (expr[0].GetNodeType() == NodeType::Tensor && IsScalarLike(expr[1])) {
-            result.reset(new ImplTensorConstant<op_static, Out_t, Left_t, Right_t>());
-          } else if (IsScalarLike(expr[0]) && expr[1].GetNodeType() == NodeType::Tensor) {
-            result.reset(new ImplConstantTensor<op_static, Out_t, Left_t, Right_t>());
-          } else if (expr[0].GetNodeType() == NodeType::Tensor &&
-                     expr[1].GetNodeType() == NodeType::Tensor) {
-            // Bot are non-scalar tensors
-            result.reset(new ImplTensorTensor<op_static, Out_t, Left_t, Right_t>());
-          } else {
-            DALI_FAIL("Expression cannot have two scalar operands");
-          }
-      ), DALI_FAIL("No suitable op value found"););  // NOLINT(whitespace/parens)
-    ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
-  ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
-  return result;
-}
-
-
+/**
+ * @brief Convert runtime expression tree `expr` to an executor for this expression by doing
+ *        a static type switch over the `expr` data. CPU variant.
+ *
+ * @param ws Workspace to disambiguate over backend.
+ */
 std::unique_ptr<ExprImplBase> ExprImplFactory(const HostWorkspace &ws, const ExprNode &expr);
 
+/**
+ * @brief Convert runtime expression tree `expr` to an executor for this expression by doing
+ *        a static type switch over the `expr` data. GPU variant.
+ *
+ * @param ws Workspace to disambiguate over backend.
+ */
 std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws, const ExprNode &expr);
 
 struct ExprImplCache {

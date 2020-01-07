@@ -59,7 +59,7 @@ requirements:
   host:
     - python
     - future >=0.17.1
-    - protobuf >=3.5
+    - protobuf >=3.11.2
     - libjpeg-turbo >=1.5
     - ffmpeg >=4.1
     - tensorflow-gpu
@@ -72,7 +72,7 @@ requirements:
   run:
     - python
     - future >=0.17.1
-    - protobuf >=3.5
+    - protobuf >=3.11.2
     - libjpeg-turbo >=1.5
     - ffmpeg >=4.1
     - tensorflow-gpu
