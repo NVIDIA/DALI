@@ -1,0 +1,142 @@
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.ops as ops
+import nvidia.dali.types as types
+import nvidia.dali as dali
+import numpy as np
+from numpy.testing import assert_array_equal, assert_allclose
+from functools import partial
+from test_utils import check_batch
+from test_utils import compare_pipelines
+from test_utils import RandomDataIterator
+import math
+import librosa as librosa
+from nose.tools import *
+
+class MFCCPipeline(Pipeline):
+    def __init__(self, device, batch_size, iterator, axis=0, dct_type=2, lifter=1.0, n_mfcc=20,
+                 norm=None, num_threads=1, device_id=0):
+        super(MFCCPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.device = device
+        self.iterator = iterator
+        self.inputs = ops.ExternalSource()
+        self.mfcc = ops.MFCC(device = self.device,
+                             axis = axis,
+                             dct_type = dct_type,
+                             lifter = lifter,
+                             n_mfcc = n_mfcc,
+                             normalize = norm)
+
+    def define_graph(self):
+        self.data = self.inputs()
+        out = self.data.gpu() if self.device == 'gpu' else self.data
+        out = self.mfcc(out)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data)
+
+def mfcc_func(axis, dct_type, lifter, n_mfcc, norm, input_data):
+    # Librosa works with frequency-major mel-spectrograms
+    if axis == 1:
+        input_data = np.transpose(input_data)
+
+    in_shape = input_data.shape
+    assert(len(in_shape) == 2)
+
+    norm_str = 'ortho' if norm else None
+
+    out = librosa.feature.mfcc(
+        S = input_data, n_mfcc = n_mfcc, dct_type = dct_type, norm = norm_str, lifter = lifter)
+
+    # Scipy DCT (used by Librosa) without normalization is scaled by a factor of 2 when comparing
+    # with Wikipedia's formula
+    if not norm:
+        out = out / 2
+
+    # Transpose back the output if necessary
+    if axis == 1:
+        out = np.transpose(out)
+
+    return out
+
+class MFCCPythonPipeline(Pipeline):
+    def __init__(self, device, batch_size, iterator, axis=0, dct_type=2, lifter=1.0, n_mfcc=20,
+                 norm=None, num_threads=1, device_id=0, func=mfcc_func):
+        super(MFCCPythonPipeline, self).__init__(
+              batch_size, num_threads, device_id,
+              seed=12345, exec_async=False, exec_pipelined=False)
+        self.device = "cpu"
+        self.iterator = iterator
+        self.inputs = ops.ExternalSource()
+
+        function = partial(func, axis, dct_type, lifter, n_mfcc, norm)
+        self.mfcc = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        self.data = self.inputs()
+        out = self.mfcc(self.data)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data)
+
+def check_operator_mfcc_vs_python(device, batch_size, input_shape,
+                                  axis, dct_type, lifter, n_mfcc, norm):
+    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    compare_pipelines(
+        MFCCPipeline(device, batch_size, iter(eii1),
+                     axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm),
+        MFCCPythonPipeline(device, batch_size, iter(eii2),
+                           axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm),
+        batch_size=batch_size, N_iterations=5, eps=1e-03)
+
+def test_operator_mfcc_vs_python():
+    for device in ['cpu']:
+        for batch_size in [1, 3]:
+            for dct_type in [1, 2, 3]:
+                for norm in [False] if dct_type == 1 else [True, False]:
+                    for axis, n_mfcc, lifter, shape in \
+                        [(0, 17, 0.0, (17, 1)),
+                         (1, 80, 2.0, (513, 100)),
+                         (1, 90, 0.0, (513, 100)),
+                         (1, 20, 202.0, (513, 100))]:
+                        yield check_operator_mfcc_vs_python, device, batch_size, shape, \
+                            axis, dct_type, lifter, n_mfcc, norm
+
+@raises(RuntimeError)
+def check_operator_mfcc_wrong_args(device, batch_size, input_shape,
+                                   axis, dct_type, lifter, n_mfcc, norm):
+    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    pipe = MFCCPipeline(device, batch_size, iter(eii1),
+                        axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm)
+    pipe.build()
+    pipe.run()
+
+def test_operator_mfcc_wrong_args():
+    device = 'cpu'
+    batch_size = 3
+    for dct_type, norm, axis, n_mfcc, lifter, shape in \
+        [(1, True, 0, 20, 0.0, (100, 100)),  # DCT-I ortho-normalization is not supported
+         (2, False, -1, 20, 0.0, (100, 100)),  # axis out of bounds
+         (2, False, 2, 20, 0.0, (100, 100)),  # axis out of bounds
+         (10, False, 0, 20, 0.0, (100, 100)),  # not supported DCT type
+        ]:
+        yield check_operator_mfcc_wrong_args, device, batch_size, shape, \
+            axis, dct_type, lifter, n_mfcc, norm
