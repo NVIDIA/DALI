@@ -1,7 +1,8 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages="jupyter matplotlib torchvision torch"
+# TODO(janton): remove explicit pillow version installation when torch fixes the issue with PILLOW_VERSION not being defined
+pip_packages="pillow==6.2.2 jupyter matplotlib torchvision torch"
 target_dir=./docs/examples
 
 do_once() {
