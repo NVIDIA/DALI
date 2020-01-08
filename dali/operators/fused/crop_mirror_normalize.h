@@ -189,7 +189,7 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
     DALI_ENFORCE(shape.size() >= 3 || shape.size() <= 5,
       "Unexpected number of dimensions: " + std::to_string(shape.size()));
     DALI_ENFORCE(layout.ndim() == shape.size());
-    const int spatial_ndim = ImageLayoutInfo::NumSpatialDims(layout);
+    int spatial_ndim = ImageLayoutInfo::NumSpatialDims(layout);
     DALI_ENFORCE(spatial_ndim == 2 || spatial_ndim == 3,
       "Only 2D or 3D images and sequences of images are supported");
     DALI_ENFORCE(ImageLayoutInfo::HasChannel(layout),
@@ -211,6 +211,15 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
       F = shape[f_dim];
     if (d_dim >= 0)
       D = shape[d_dim];
+
+    // Special case.
+    // This allows using crop_d to crop on the sequence dimension,
+    // by treating video inputs as a volume instead of a sequence
+    if (has_crop_d_ && F > 1 && D == 1) {
+      std::swap(d_dim, f_dim);
+      std::swap(D, F);
+      spatial_ndim++;
+    }
 
     auto crop_window_gen = GetCropWindowGenerator(data_idx);
     auto win = spatial_ndim == 3 ?
