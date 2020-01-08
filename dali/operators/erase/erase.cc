@@ -117,12 +117,16 @@ or absolute coordinates. It is mutually exclusive with providing a value for *no
     false)
   .AddOptionalArg("normalized_shape",
     R"code(Whether or not the shape argument should be interpreted as normalized (range [0.0, 1.0])
-or absolute coordinates. It is mutually exclusive with providing a value for *normalized*)code",
+or absolute coordinates. It is mutually exclusive with providing a value for *normalized*.)code",
     false)
   .AddOptionalArg("normalized",
     R"code(Whether or not the anchor and shape arguments should be interpreted as normalized (range [0.0, 1.0])
 or absolute coordinates. It is mutually exclusive with providing a value for *normalized_shape* and
-*normalized_anchor* separately)code",
+*normalized_anchor* separately.)code",
+    false)
+  .AddOptionalArg("centered_anchor",
+    R"code(If True, the anchors refer to the center of the region instead of the top-left corner,
+resulting in centered erased regions at the specified *anchor*.)code",
     false)
   .AllowSequences()
   .SupportVolumetric();

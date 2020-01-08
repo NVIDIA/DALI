@@ -84,6 +84,8 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
     roi_anchor.resize(roi_shape.size(), 0);
   }
 
+  bool centered_anchor = spec.GetArgument<bool>("centered_anchor");
+
   auto fill_value = spec.template GetRepeatedArgument<float>("fill_value");
   auto channels_dim = in_layout.find('C');
   DALI_ENFORCE(channels_dim >= 0,
@@ -112,10 +114,9 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
     }
 
     DALI_ENFORCE(roi_anchor.size() == roi_shape.size());
-    int args_ndim = roi_shape.size();
-
-    DALI_ENFORCE(args_ndim % naxes == 0);
-    int nregions = args_ndim / naxes;
+    int args_len = roi_shape.size();
+    DALI_ENFORCE(args_len % naxes == 0);
+    int nregions = args_len / naxes;
 
     auto &args = out[i];
     auto sample_shape = in_shape.tensor_shape(i);
@@ -130,26 +131,19 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
         roi.shape[d] = sample_shape[d];
       }
 
-      bool in_bounds = true;
       for (int j=0; j < naxes; j++, k++) {
         int axis = axes[j];
         auto anchor_val = norm_anchor ? roi_anchor[k] * sample_shape[axis] : roi_anchor[k];
-        roi.anchor[axis] = static_cast<int64_t>(anchor_val);
-        if (roi.anchor[axis] < 0 || roi.anchor[axis] >= sample_shape[axis]) {
-          in_bounds = false;
-        }
-
         auto shape_val = norm_shape ? roi_shape[k] * sample_shape[axis] : roi_shape[k];
-        auto end_val = static_cast<int64_t>(anchor_val + shape_val);
-        // If only the end is out-of-bounds, trim it
-        if (end_val > sample_shape[axis])
-          end_val = sample_shape[axis];
-        roi.shape[axis] = end_val - anchor_val;
-      }
+        if (centered_anchor) {
+          anchor_val -= shape_val / 2;
+        }
+        roi.anchor[axis] = static_cast<int64_t>(anchor_val);
 
-      if (in_bounds) {
-        args.rois.push_back(roi);
+        auto end_val = static_cast<int64_t>(anchor_val + shape_val);
+        roi.shape[axis] = end_val - roi.anchor[axis];
       }
+      args.rois.push_back(roi);
     }
   }
   return out;

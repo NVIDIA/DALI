@@ -100,7 +100,8 @@ class EraseCpu {
   void Run(KernelContext &context,
            OutTensorCPU<T, Dims> &out,
            const InTensorCPU<T, Dims> &in,
-           const EraseArgs<T, Dims> &args) {
+           const EraseArgs<T, Dims> &orig_args) {
+    auto args = orig_args;
     DALI_ENFORCE(in.shape == out.shape);
     const auto &shape = out.shape;
     auto strides = GetStrides(shape);
@@ -111,11 +112,31 @@ class EraseCpu {
     }
 
     for (auto &roi : args.rois) {
+      bool valid_region = true;
       for (int d = 0; d < Dims; d++) {
-        DALI_ENFORCE(roi.anchor[d] >= 0 && (roi.anchor[d] + roi.shape[d]) <= shape[d],
-          make_string("Erase region-of-interest is out of bounds: dimension=", d,
-            " roi_anchor=", roi.anchor[d], " roi_shape=", roi.shape[d], " data_shape=", shape[d]));
+        // correcting anchor if out of bounds
+        if (roi.anchor[d] < 0) {
+          roi.shape[d] += roi.anchor[d];
+          roi.anchor[d] = 0;
+        }
+        // correcting shape if out of bounds
+        if ((roi.anchor[d] + roi.shape[d]) > shape[d]) {
+          roi.shape[d] = shape[d] - roi.anchor[d];
+          assert(roi.anchor[d] + roi.shape[d] == shape[d]);
+        }
+
+        // filter out invalid regions
+        if (roi.shape[d] < 1) {
+          valid_region = false;
+        }
+
+        // at this point the region should be within bounds
+        assert(roi.anchor[d] >= 0);
+        assert(roi.anchor[d] + roi.shape[d] <= shape[d]);
       }
+
+      if (!valid_region)
+        continue;
 
       const T* fill_values = roi.fill_values.empty() ? nullptr : roi.fill_values.data();
       int channels_dim = -1;  // by default single-value
