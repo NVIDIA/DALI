@@ -39,6 +39,6 @@ DALI_SCHEMA(Uniform)
   .AddOptionalArg("range",
     R"code(Range of produced random numbers.)code", std::vector<float>({-1, 1}))
   .AddOptionalArg("shape",
-    R"code(Shape of the samples)code", std::vector<int>{1,});
+    R"code(Shape of the samples)code", std::vector<int>{1});
 
 }  // namespace dali
