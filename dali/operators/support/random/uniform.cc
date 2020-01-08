@@ -21,9 +21,12 @@ namespace dali {
 
 void Uniform::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
-
   for (int i = 0; i < batch_size_; ++i) {
-    output[i].mutable_data<float>()[0] = dis_(rng_);
+    auto *sample_data = output[i].mutable_data<float>();
+    auto sample_len = output[i].size();
+    for (int k = 0; k < sample_len; ++k) {
+      sample_data[k] = dis_(rng_);
+    }
   }
 }
 
@@ -34,6 +37,8 @@ DALI_SCHEMA(Uniform)
   .NumInput(0)
   .NumOutput(1)
   .AddOptionalArg("range",
-      R"code(Range of produced random numbers.)code", std::vector<float>({-1, 1}));
+    R"code(Range of produced random numbers.)code", std::vector<float>({-1, 1}))
+  .AddOptionalArg("shape",
+    R"code(Shape of the samples)code", std::vector<int>{1,});
 
 }  // namespace dali

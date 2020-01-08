@@ -31,6 +31,8 @@ class Uniform : public Operator<CPUBackend> {
     std::vector<float> range;
     GetSingleOrRepeatedArg(spec, range, "range", 2);
     dis_ = std::uniform_real_distribution<float>(range[0], range[1]);
+    auto shape_arg = spec.GetRepeatedArgument<int>("shape");
+    shape_ = std::vector<int64_t>{std::begin(shape_arg), std::end(shape_arg)};
   }
 
   inline ~Uniform() override = default;
@@ -47,7 +49,7 @@ class Uniform : public Operator<CPUBackend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
-    output_desc[0].shape = uniform_list_shape(batch_size_, {1});
+    output_desc[0].shape = uniform_list_shape(batch_size_, shape_);
     output_desc[0].type = TypeTable::GetTypeInfo(DALI_FLOAT);
     return true;
   }
@@ -57,6 +59,7 @@ class Uniform : public Operator<CPUBackend> {
  private:
   std::uniform_real_distribution<float> dis_;
   std::mt19937 rng_;
+  TensorShape<> shape_;
 };
 
 }  // namespace dali
