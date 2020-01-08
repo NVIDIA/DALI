@@ -162,9 +162,9 @@ TEST_P(EraseCpuTestMultiChannel, EraseCpuTestMultiChannel) {
 }
 
 INSTANTIATE_TEST_SUITE_P(EraseCpuTestMultiChannel, EraseCpuTestMultiChannel, testing::Combine(
-    testing::Values(TensorShape<-1>{54, 55, 3}),  // data shape
-    testing::Values(TensorShape<-1>{1, 2, 0}),  // roi anchor
-    testing::Values(TensorShape<-1>{2, 2, 3}),  // roi shape
+    testing::Values(TensorShape<>{54, 55, 3}),  // data shape
+    testing::Values(TensorShape<>{1, 2, 0}),  // roi anchor
+    testing::Values(TensorShape<>{2, 2, 3}),  // roi shape
     testing::Values(std::vector<float>{0.0, 200.0, 300.0}),  // fill values
     testing::Values(-1, 2)));  // channels dim
 
@@ -175,9 +175,9 @@ TEST_P(EraseCpuTestSingleChannel, EraseCpuTestSingleChannel) {
 }
 
 INSTANTIATE_TEST_SUITE_P(EraseCpuTestSingleChannel, EraseCpuTestSingleChannel, testing::Combine(
-    testing::Values(TensorShape<-1>{15, 33, 1}),  // data shape
-    testing::Values(TensorShape<-1>{1, 2, 0}),  // roi anchor
-    testing::Values(TensorShape<-1>{2, 2, 1}),  // roi shape
+    testing::Values(TensorShape<>{15, 33, 1}),  // data shape
+    testing::Values(TensorShape<>{1, 2, 0}),  // roi anchor
+    testing::Values(TensorShape<>{2, 2, 1}),  // roi shape
     testing::Values(std::vector<float>{100.99}),  // fill values
     testing::Values(-1, 2)));  // channels dim
 
