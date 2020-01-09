@@ -45,6 +45,7 @@ class Reshape : public Operator<Backend> {
   TensorShape<> uniform_shape_;
   std::vector<float> rel_uniform_shape_;
   TensorLayout layout_;
+  bool use_layout_ = false;
 
   enum class ShapeSource {
     None,

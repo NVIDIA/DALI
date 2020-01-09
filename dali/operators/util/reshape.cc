@@ -31,16 +31,19 @@ DALI_SCHEMA(Reshape)
   .AddOptionalArg<int>("shape", "The desired shape of the output. Number of elements in "
                                 "each sample must match that of the input sample. There can be "
                                 "one negative extent which receives the size required to match "
-                                "the input volume.",
+                                "the input volume.\nNOTE: `shape` and `rel_shape` are mutually "
+                                "exclusive.",
                                 std::vector<int>(), true)
   .AddOptionalArg<float>("rel_shape", "The relative shape of the output. Number of dimensions "
                   "must not exceed the number of dimensions of the input. There can be one "
                   "negative value which means all remaining extents, e.g. input of shape "
-                  "`[480, 640, 3]` and `rel_shape = [0.5, -1]` would get the shape [240, 3840].",
+                  "`[480, 640, 3]` and `rel_shape = [0.5, -1]` would get the shape [240, 3840].\n"
+                  "NOTE: `rel_shape` and `shape` are mutually exclusive.",
                                 std::vector<float>(), true)
   .AddOptionalArg("layout", "New layout for the data. If not specified, the output layout "
                             "is preserved if number of dimension matches existing layout "
-                            "or reset to empty otherwise",
+                            "or reset to empty otherwise. If set and not empty, the layout must "
+                            "match the dimesnionality of the output.",
                             "");
 
 
@@ -50,10 +53,11 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_shape_arg = spec.HasArgument("shape") || spec.HasTensorArgument("shape");
   bool has_layout_arg = spec.HasArgument("layout");
   bool has_rel_shape_arg = spec.HasArgument("rel_shape") || spec.HasTensorArgument("rel_shape");
-  DALI_ENFORCE(has_shape_input + has_shape_arg + has_rel_shape_arg == 1,
+  DALI_ENFORCE(has_shape_input + has_shape_arg + has_rel_shape_arg <= 1,
     "Reshape: shape input, `shape` argument and `rel_shape` argument are mutually exclusive");
   DALI_ENFORCE(has_shape_input || has_shape_arg || has_rel_shape_arg || has_layout_arg,
     "Reshape is no-op: arguments specify neither new shape nor layout.");
+  use_layout_ = has_layout_arg;
   use_rel_shape_ = false;
   if (has_shape_arg) {
     if (spec.HasTensorArgument("shape")) {
@@ -253,6 +257,9 @@ TensorLayout Reshape<Backend>::GetOutputLayout(const Workspace &ws) const {
       layout_.str() + "' is not compatible with a " +
       to_string(output_shape_.sample_dim()) + "D shape");
     return layout_;
+  } else if (use_layout_) {
+    // layout was explicitly cleared
+    return TensorLayout();
   }
   auto in_layout = this->InputLayout(ws, 0);
   return in_layout.ndim() == output_shape_.sample_dim() ? in_layout : TensorLayout();
