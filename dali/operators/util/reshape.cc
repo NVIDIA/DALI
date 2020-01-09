@@ -15,9 +15,10 @@
 #include "dali/operators/util/reshape.h"
 
 #include <vector>
-#include "dali/pipeline/data/views.h"
+#include "dali/core/math_util.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
@@ -28,34 +29,71 @@ DALI_SCHEMA(Reshape)
   .AllowSequences()
   .SupportVolumetric()
   .AddOptionalArg<int>("shape", "The desired shape of the output. Number of elements in "
-                                "each sample must match that of the input sample.",
+                                "each sample must match that of the input sample. There can be "
+                                "one negative extent which receives the size required to match "
+                                "the input volume.",
                                 std::vector<int>(), true)
-  .AddOptionalArg("layout",     "New layout for the data. If not specified, the output layout "
-                                "is preserved if number of dimension matches existing layout "
-                                "or reset to empty otherwise",
-                                "");
+  .AddOptionalArg<float>("rel_shape", "The relative shape of the output. Number of dimensions "
+                  "must not exceed the number of dimensions of the input. There can be one "
+                  "negative value which means all remaining extents, e.g. input of shape "
+                  "`[480, 640, 3]` and `rel_shape = [0.5, -1]` would get the shape [240, 3840].",
+                                std::vector<float>(), true)
+  .AddOptionalArg("layout", "New layout for the data. If not specified, the output layout "
+                            "is preserved if number of dimension matches existing layout "
+                            "or reset to empty otherwise",
+                            "");
 
 
 template <typename Backend>
 Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_shape_input = spec.NumRegularInput() == 2;
-  bool has_shape_arg = spec.HasArgument("shape");
+  bool has_shape_arg = spec.HasArgument("shape") || spec.HasTensorArgument("shape");
   bool has_layout_arg = spec.HasArgument("layout");
-  DALI_ENFORCE(!(has_shape_input && has_shape_arg),
-    "Reshape: use either shape input or shape argument, not both");
-  DALI_ENFORCE(has_shape_input || has_shape_arg || has_layout_arg,
+  bool has_rel_shape_arg = spec.HasArgument("rel_shape") || spec.HasTensorArgument("rel_shape");
+  DALI_ENFORCE(has_shape_input + has_shape_arg + has_rel_shape_arg == 1,
+    "Reshape: shape input, `shape` argument and `rel_shape` argument are mutually exclusive");
+  DALI_ENFORCE(has_shape_input || has_shape_arg || has_rel_shape_arg || has_layout_arg,
     "Reshape is no-op: arguments specify neither new shape nor layout.");
+  use_rel_shape_ = false;
   if (has_shape_arg) {
     if (spec.HasTensorArgument("shape")) {
       shape_source_ = ShapeSource::ArgInput;
     } else {
       auto shape_vec = spec.GetRepeatedArgument<int>("shape");
-      DALI_ENFORCE(!shape_vec.empty(), "Reshape: `shape` specified as empty list");
+      DALI_ENFORCE(!shape_vec.empty(), "Reshape: `shape` specified as an empty list");
       uniform_shape_.resize(shape_vec.size());
+      int num_negative = 0;
       for (int i = 0; i < uniform_shape_.sample_dim(); i++) {
-        DALI_ENFORCE(shape_vec[i] > 0, "Reshape: all extents must be positive; got: " +
-            to_string(uniform_shape_));
-        uniform_shape_[i] = shape_vec[i];
+        if (shape_vec[i] < 0) {
+          DALI_ENFORCE(++num_negative == 1, make_string(
+            "Reshape: Only one negative extent is allowed; got: ", uniform_shape_));
+          uniform_shape_[i] = 0;
+          wildcard_dim_ = i;
+        } else {
+          DALI_ENFORCE(shape_vec[i] != 0, "Reshape: extent of 0 is illegal; got: " +
+              to_string(uniform_shape_));
+          uniform_shape_[i] = shape_vec[i];
+        }
+      }
+      shape_source_ = ShapeSource::Arg;
+    }
+  } else if (has_rel_shape_arg) {
+    use_rel_shape_ = true;
+    if (spec.HasTensorArgument("rel_shape")) {
+      shape_source_ = ShapeSource::ArgInput;
+    } else {
+      rel_uniform_shape_ = spec.GetRepeatedArgument<float>("rel_shape");
+      DALI_ENFORCE(!rel_uniform_shape_.empty(), "Reshape: `rel_shape` specified as an empty list");
+      int num_negative = 0;
+      int out_dims = rel_uniform_shape_.size();
+      for (int i = 0; i < out_dims; i++) {
+        if (rel_uniform_shape_[i] < 0) {
+          DALI_ENFORCE(++num_negative == 1, make_string(
+            "Reshape: Only one negative extent is allowed; got: ", uniform_shape_));
+          wildcard_dim_ = i;
+        } else {
+          DALI_ENFORCE(rel_uniform_shape_[i] != 0, "Reshape: zero extent is illegal");
+        }
       }
       shape_source_ = ShapeSource::Arg;
     }
@@ -80,23 +118,32 @@ bool Reshape<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
 }
 
 template <typename Backend>
-template <typename Integer>
+template <typename Extent>
 void Reshape<Backend>::ShapeFromInput(
-      const TensorListView<StorageCPU, Integer> &shape) {
+      const TensorListView<StorageCPU, Extent> &shape) {
+  constexpr bool relative = std::is_floating_point<Extent>::value;
   DALI_ENFORCE(shape.sample_dim() == 1 || (shape.sample_dim() == 2 && shape.num_samples() == 1),
     "Reshape: shape input must be a list of 1D tensors or a single 2D tensor");
   if (shape.sample_dim() == 2) {
     auto shape_tensor = shape[0];
     int N = shape_tensor.shape[0];
+    DALI_ENFORCE(N == input_shape_.num_samples(),
+      "Reshape: the new shape mush have same number of samples. Got " +
+      to_string(output_shape_.num_samples()) + ", expected " + to_string(N));
     int dim = shape_tensor.shape[1];
     output_shape_.resize(N, dim);
     for (int i = 0; i < N; i++) {
       for (int d = 0; d < dim; d++) {
-        output_shape_.tensor_shape_span(i)[d] = *shape_tensor(i, d);
+        Extent e = *shape_tensor(i, d);
+        int out_e = e < 0 ? -1 : relative ? round_int(e * input_shape_.tensor_shape_span(i)[d]) : e;
+        output_shape_.tensor_shape_span(i)[d] = out_e;
       }
     }
   } else {
     int N = shape.num_samples();
+    DALI_ENFORCE(N == input_shape_.num_samples(),
+      "Reshape: the new shape mush have same number of samples. Got " +
+      to_string(output_shape_.num_samples()) + ", expected " + to_string(N));
     int sample_dim;
     for (int i = 0; i < N; i++) {
       int current_sample_dim = shape.tensor_shape_span(i)[0];
@@ -109,7 +156,9 @@ void Reshape<Backend>::ShapeFromInput(
       }
 
       for (int d = 0; d < sample_dim; d++) {
-        output_shape_.tensor_shape_span(i)[d] = shape.tensor_data(i)[d];
+        Extent e = shape.tensor_data(i)[d];
+        int out_e = e < 0 ? -1 : relative ? round_int(e * input_shape_.tensor_shape_span(i)[d]) : e;
+        output_shape_.tensor_shape_span(i)[d] = out_e;
       }
     }
   }
@@ -117,13 +166,17 @@ void Reshape<Backend>::ShapeFromInput(
 
 template <typename Backend>
 template <typename TensorListLike>
-void Reshape<Backend>::ShapeFromInput(const TensorListLike &tl) {
-  TYPE_SWITCH(tl.type().id(), type2id, type,
-    (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t),
-    (this->ShapeFromInput(view<const type>(tl));),
-    (DALI_FAIL("Reshape: shape input must have integral type; got: " + tl.type().name() +
-               " (id = " + to_string(static_cast<int>(tl.type().id())) + ")");)
-  );  // NOLINT
+void Reshape<Backend>::ShapeFromInput(const TensorListLike &tl, bool relative) {
+  if (relative) {
+    this->ShapeFromInput(view<const float>(tl));
+  } else {
+    TYPE_SWITCH(tl.type().id(), type2id, type,
+      (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t),
+      (this->ShapeFromInput(view<const type>(tl));),
+      (DALI_FAIL("Reshape: shape input must have integral type; got: " + tl.type().name() +
+                " (id = " + to_string(static_cast<int>(tl.type().id())) + ")");)
+    );  // NOLINT
+  }
 }
 
 template <typename Backend>
@@ -132,33 +185,64 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
   const int N = input_shape_.num_samples();
   switch (shape_source_) {
     case ShapeSource::Arg:
-      if (output_shape_.num_samples() != N) {
-        output_shape_ = uniform_list_shape(N, uniform_shape_);
+      if (use_rel_shape_) {
+        output_shape_.resize(N, rel_uniform_shape_.size());
+        for (int i = 0; i < N; i++) {
+          for (int d = 0; d < output_shape_.sample_dim(); d++) {
+            int out_e = round_int(rel_uniform_shape_[d] * input_shape_.tensor_shape_span(i)[d]);
+            output_shape_.tensor_shape_span(i)[d] = out_e;
+          }
+        }
+      } else {
+        if (output_shape_.num_samples() != N) {
+          output_shape_ = uniform_list_shape(N, uniform_shape_);
+        }
       }
       break;
     case ShapeSource::ArgInput:
-      ShapeFromInput(ws.ArgumentInput("shape"));
+      if (use_rel_shape_)
+        ShapeFromInput(ws.ArgumentInput("shape"), false);
+      else
+        ShapeFromInput(ws.ArgumentInput("rel_shape"), false);
       break;
     case ShapeSource::Input:
-      ShapeFromInput(ws.template InputRef<CPUBackend>(1));
+      ShapeFromInput(ws.template InputRef<CPUBackend>(1), use_rel_shape_);
       break;
     case ShapeSource::None:
       output_shape_ = input_shape_;
       return;
   }
 
-  DALI_ENFORCE(output_shape_.num_samples() == N,
-    "Reshape: the new shape mush have same number of samples. Got " +
-    to_string(output_shape_.num_samples()) + ", expected " + to_string(N));
+  if (shape_source_ != ShapeSource::None) {
+    for (int i = 0; i < N; i++) {
+      auto actual_volume = volume(input_shape_.tensor_shape_span(i));
+      auto out_sample_shape = output_shape_.tensor_shape_span(i);
+      int wildcard_dim = wildcard_dim_;
+      if (shape_source_ != ShapeSource::Arg) {
+        for (int d = 0; d < out_sample_shape.size(); d++)
+          if (out_sample_shape[d] < 0) {
+            DALI_ENFORCE(wildcard_dim < 0, "Only one dimension can have negative extent");
+            wildcard_dim = d;
+          }
+      }
+      if (wildcard_dim >= 0) {
+        // calculate the volume in all other dimensions
+        out_sample_shape[wildcard_dim] = 1;
+        auto other_dims_volume = volume(out_sample_shape);
+        // try to make wildcard dim match the input volume - if it fails,
+        // volume comparison will fail
+        out_sample_shape[wildcard_dim] = actual_volume / other_dims_volume;
+      }
 
-  for (int i = 0; i < N; i++) {
-    auto actual_volume = volume(input_shape_.tensor_shape_span(i));
-    auto requested_volume = volume(output_shape_.tensor_shape_span(i));
-    DALI_ENFORCE(actual_volume == requested_volume,
-      "Reshape: Input and output samples should have the same number of elements."
-      "\nSample index:     " + to_string(i) +
-      "\nActual volume:    " + to_string(actual_volume) +
-      "\nRequested volume: " + to_string(requested_volume));
+      auto requested_volume = volume(out_sample_shape);
+      DALI_ENFORCE(actual_volume == requested_volume,
+        make_string(
+          "Reshape: Input and output samples should have the same number of elements."
+          "\nSample index:     ", i,
+          "\nActual volume:    ", actual_volume,
+          "\nRequested volume: ", requested_volume,
+          "\nRequested shape:  ", output_shape_[i]));
+    }
   }
 }
 
