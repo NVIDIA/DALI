@@ -93,11 +93,15 @@ def check_batch(batch1, batch2, batch_size, eps = 1e-07):
                 diff1 = np.abs(batch1.at(i) - batch2.at(i))
                 diff2 = np.abs(batch2.at(i) - batch1.at(i))
                 err = np.mean( np.minimum(diff2, diff1) )
+                max_err = np.max( np.minimum(diff2, diff1))
+                min_err = np.min( np.minimum(diff2, diff1))
             except:
                 is_failed = True
             if is_failed or err > eps:
                 try:
-                    print("failed[{}] err[{}]".format(is_failed, err))
+
+                    print("failed[{}] mean_err[{}] min_err[{}] max_err[{}]".format(
+                        is_failed, err, min_err, max_err))
                     save_image(batch1.at(i), "err_1.png")
                     save_image(batch2.at(i), "err_2.png")
                 except:

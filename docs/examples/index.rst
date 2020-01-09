@@ -22,3 +22,4 @@ Tutorials
    audio_decoder.ipynb
    hsv_example.ipynb
    brightness_contrast_example.ipynb
+   erase.ipynb

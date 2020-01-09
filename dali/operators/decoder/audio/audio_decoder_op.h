@@ -40,7 +40,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
           Operator<Backend>(spec),
           output_type_(spec.GetArgument<DALIDataType>("dtype")),
           downmix_(spec.GetArgument<bool>("downmix")),
-          use_resampling_(spec.HasArgument("sample_rate")),
+          use_resampling_(spec.HasArgument("sample_rate") || spec.HasTensorArgument("sample_rate")),
           quality_(spec.GetArgument<float>("quality")) {
     if (use_resampling_) {
       double q = quality_;

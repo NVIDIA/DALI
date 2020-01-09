@@ -255,7 +255,7 @@ class TestLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   void ReadSample(Tensor<CPUBackend> &t) override {}
 
   Index SizeImpl() override {
-    return 10;
+    return internal_size_;
   }
 
   void Reset(bool wrap_to_shard) override {
@@ -275,6 +275,7 @@ class TestLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
   Index current_index_;
+  Index internal_size_ = 10;
 };
 
 TYPED_TEST(ReaderTest, ResetLoaderTestWrap) {
@@ -393,6 +394,79 @@ TYPED_TEST(ReaderTest, ResetLoaderTestStickToShard2) {
   tl.current_index_ = tl.Size() + 1;
   tl.MoveToNextShard(tl.current_index_);
   ASSERT_EQ(tl.current_index_, tl.Size() / 2);
+}
+
+TYPED_TEST(ReaderTest, ResetLoaderTestNoPad) {
+  TestLoader tl_even(
+      OpSpec("FileReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("shard_id", 1)
+      .AddArg("num_shards", 2)
+      .AddArg("stick_to_shard", true)
+      .AddArg("batch_size", 2)
+      .AddArg("device_id", 0)
+      .AddArg("pad_last_batch", false));
+  tl_even.PrepareMetadata();
+
+  TestLoader tl_odd(
+      OpSpec("FileReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("shard_id", 1)
+      .AddArg("num_shards", 3)
+      .AddArg("stick_to_shard", true)
+      .AddArg("batch_size", 2)
+      .AddArg("device_id", 0)
+      .AddArg("pad_last_batch", false));
+  tl_odd.PrepareMetadata();
+
+  tl_even.internal_size_ = 10;
+  tl_odd.internal_size_ = 10;
+
+  ASSERT_EQ(tl_even.Size(), tl_even.SizePadded());
+  ASSERT_EQ(tl_odd.Size(), tl_odd.SizePadded());
+}
+
+TYPED_TEST(ReaderTest, ResetLoaderTestPad) {
+  TestLoader tl_even(
+      OpSpec("FileReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("shard_id", 1)
+      .AddArg("num_shards", 2)
+      .AddArg("stick_to_shard", true)
+      .AddArg("batch_size", 2)
+      .AddArg("device_id", 0)
+      .AddArg("pad_last_batch", true));
+  tl_even.PrepareMetadata();
+
+  TestLoader tl_odd(
+      OpSpec("FileReader")
+      .AddOutput("data_out", "cpu")
+      .AddArg("shard_id", 1)
+      .AddArg("num_shards", 3)
+      .AddArg("stick_to_shard", true)
+      .AddArg("batch_size", 2)
+      .AddArg("device_id", 0)
+      .AddArg("pad_last_batch", true));
+  tl_odd.PrepareMetadata();
+
+  tl_even.internal_size_ = 10;
+  tl_odd.internal_size_ = 10;
+
+  ASSERT_EQ(tl_even.Size(), tl_even.internal_size_);
+  ASSERT_EQ(tl_odd.Size(), tl_odd.internal_size_);
+
+  ASSERT_EQ(tl_even.Size(), tl_even.SizePadded());
+  ASSERT_NE(tl_odd.Size(), tl_odd.SizePadded());
+
+  ASSERT_EQ(tl_even.SizePadded(), tl_even.internal_size_);
+  ASSERT_EQ(tl_odd.SizePadded(),
+            static_cast<Index>(std::ceil(tl_odd.internal_size_ * 1.0 / 3)) * 3);
+}
+
+TEST(ReaderTestSimple, CheckNumSamples) {
+  ASSERT_EQ(num_samples(1, 10), 10 / 1);
+  ASSERT_EQ(num_samples(2, 10), 10 / 2);
+  ASSERT_EQ(num_samples(3, 10), static_cast<Index>(std::ceil(10 * 1.0 / 3)));
 }
 
 };  // namespace dali
