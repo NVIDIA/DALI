@@ -48,13 +48,20 @@ In such case the output of the loader will be empty)code", false)
       R"code(If set to true, Loader will parse and prepare the dataset metadata only during the first `Run`
 instead of in the constructor.)code", false)
   .AddOptionalArg("pad_last_batch",
-      R"code(If set to true, the Loader will pad the last batch with the last image when the batch size is not aligned
-with the shard size.)code", false);
+      R"code(If set to true, the Loader will pad the last batch with the last image when the batch size is
+not aligned with the shard size. It means that the remainder of the batch or even the whole batch can be
+artificially added when the data set size is not equally divisible by the number of shards, and the shard is
+not equally divisible by the batch size. In the end, the shard size will be equalized between shards.)code", false);
 
 size_t start_index(const size_t shard_id,
                    const size_t shard_num,
                    const size_t size) {
   return size * shard_id / shard_num;
+}
+
+Index num_samples(const size_t shard_num,
+                  const size_t size) {
+  return static_cast<Index>(std::ceil(size * 1.0 / shard_num));
 }
 
 }  // namespace dali

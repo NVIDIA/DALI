@@ -230,9 +230,10 @@ class CocoReaderTest : public ::testing::Test {
     }
   }
 
-  std::string file_list_ = dali::testing::dali_extra_path() + "/db/coco/file_list.txt";
-  std::string file_root_ = dali::testing::dali_extra_path() + "/db/coco/images";
-  std::string annotations_filename_ = dali::testing::dali_extra_path() + "/db/coco/instances.json";
+  std::string file_list_ = dali::testing::dali_extra_path() + "/db/coco_dummy/file_list.txt";
+  std::string file_root_ = dali::testing::dali_extra_path() + "/db/coco_dummy/images";
+  std::string annotations_filename_ = dali::testing::dali_extra_path() +
+                                      "/db/coco_dummy/instances.json";
 
   const int bbox_size_ = 4;
 

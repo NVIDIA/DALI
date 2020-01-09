@@ -30,7 +30,7 @@ class COCOReaderPipeline(Pipeline):
                                     pad_last_batch=pad_last_batch, initial_fill=initial_fill)
 
     def define_graph(self):
-        images, bb, labels, ids = self.input(name="Reader")
+        _, __, ___, ids = self.input(name="Reader")
         return ids
 
 test_data_root = get_dali_extra_path()
@@ -39,76 +39,99 @@ data_sets = [[os.path.join(coco_folder, 'images'), os.path.join(coco_folder, 'in
 
 def test_shuffling_patterns():
     for data_set in data_sets:
-        #get reference ids
+        # get reference ids
         ref_img_ids = []
         pipe = COCOReaderPipeline(batch_size=1, num_threads=4, shard_id=0, num_gpus=1, data_paths=data_set,
                                   random_shuffle=False, stick_to_shard=False, shuffle_after_epoch=False, pad_last_batch=False)
         pipe.build()
         iters = pipe.epoch_size("Reader")
-        for j in range(iters):
-            pipe._run()
+        for _ in range(iters):
+            pipe.schedule_run()
             ref_img_ids.append(np.concatenate(pipe.outputs()[0].as_array()))
         ref_img_ids = set(np.concatenate(ref_img_ids))
-        for num_gpus in [1, 2]:
+        for num_gpus in [1, 2, 3, 4]:
             for batch_size in [1, 10, 100]:
                 for stick_to_shard in [True, False]:
                     for shuffle_after_epoch in [True, False]:
                         for dry_run_num in [0, 1, 2]:
-                            random_shuffle = not shuffle_after_epoch
-                            pad_last_batch = batch_size != 1
-                            pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                                                        data_paths=data_set, random_shuffle=random_shuffle, stick_to_shard=stick_to_shard,
-                                                        shuffle_after_epoch=shuffle_after_epoch, pad_last_batch=pad_last_batch) for gpu in range(num_gpus)]
-                            if stick_to_shard and shuffle_after_epoch:
-                                continue
-                            [pipe.build() for pipe in pipes]
-                            iters = pipes[0].epoch_size("Reader")
-                            iters_tmp = iters
-                            iters = iters // batch_size
-                            if iters_tmp != iters * batch_size:
-                                iters += 1
-                            iters_tmp = iters
+                            yield check_shuffling_patterns, data_set, num_gpus, batch_size, stick_to_shard, shuffle_after_epoch, dry_run_num, len(ref_img_ids)
 
-                            iters = iters // num_gpus
-                            if iters_tmp != iters * num_gpus:
-                                iters += 1
+def check_shuffling_patterns(data_set, num_gpus, batch_size, stick_to_shard, shuffle_after_epoch, dry_run_num, len_ref_img_ids):
+    random_shuffle = not shuffle_after_epoch
+    pad_last_batch = batch_size != 1
+    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
+                                data_paths=data_set, random_shuffle=random_shuffle, stick_to_shard=stick_to_shard,
+                                shuffle_after_epoch=shuffle_after_epoch, pad_last_batch=pad_last_batch, initial_fill = 1) for gpu in range(num_gpus)]
+    if stick_to_shard and shuffle_after_epoch:
+        return
 
-                            new_img_ids = []
-                            # dry run
-                            for j in range(iters * dry_run_num):
-                                for pipe in pipes:
-                                    pipe._run()
-                                for pipe in pipes:
-                                    pipe.outputs()
-                            # get stats here
-                            for j in range(iters):
-                                for pipe in pipes:
-                                    pipe._run()
-                                for pipe in pipes:
-                                    val = np.concatenate(pipe.outputs()[0].as_array())
-                                    new_img_ids.append(val)
-                            new_img_ids = set(np.concatenate(new_img_ids))
-                            assert len(new_img_ids) == pipes[0].epoch_size("Reader")
+    [pipe.build() for pipe in pipes]
+    dataset_size = pipes[0].epoch_size("Reader")
 
-                            yield check, data_set, num_gpus, batch_size, stick_to_shard, shuffle_after_epoch, dry_run_num
+    # dry run
+    for j in range(dry_run_num):
+        for n in range(num_gpus):
+            mod = j
+            if stick_to_shard or shuffle_after_epoch:
+                mod = 0
+            if pad_last_batch:
+                shard_size = dataset_size // num_gpus
+            else:
+                shard_size = dataset_size * (n + 1 + mod) // num_gpus - dataset_size * (n + mod) // num_gpus
+            iters = shard_size // batch_size
+            if shard_size != iters * batch_size:
+                iters += 1
+            for _ in range(iters):
+                pipes[n].run()
 
-
-def gather_ids(pipes, iters, num_gpus):
-    img_ids_list = [[] for i in range(num_gpus)]
-    for _ in range(iters):
-        for pipe in pipes:
-            pipe._run()
-        for pipe, new_img_ids in zip(pipes, img_ids_list):
-            val = np.concatenate(pipe.outputs()[0].as_array())
+    new_img_ids = []
+    for n in range(num_gpus):
+        mod = dry_run_num
+        if stick_to_shard or shuffle_after_epoch:
+            mod = 0
+        if pad_last_batch:
+            shard_size = dataset_size // num_gpus
+        else:
+            shard_size = dataset_size * (n + 1 + mod) // num_gpus - dataset_size * (n + mod) // num_gpus
+        iters = shard_size // batch_size
+        if shard_size != iters * batch_size:
+            iters += 1
+        for _ in range(iters):
+            val = np.concatenate(pipes[n].run()[0].as_array())
             new_img_ids.append(val)
+    new_img_ids = set(np.concatenate(new_img_ids))
+
+    assert len(new_img_ids) == len_ref_img_ids
+
+def gather_ids(pipes, epochs_run = 0, batch_size = 1, num_gpus_arg = None, gpus_arg = None):
+    dataset_size = pipes[0].epoch_size("Reader")
+    num_gpus = len(pipes)
+    if num_gpus_arg:
+        num_gpus = num_gpus_arg
+    iterate_over = range(num_gpus)
+    if gpus_arg:
+       iterate_over = gpus_arg
+    img_ids_list = [[] for _ in pipes]
+
+    # each GPU needs to iterate from `shard_id * data_size / num_gpus` samples to `(shard_id + 1)* data_size / num_gpus`
+    # after each epoch each GPU moves to the next shard
+    # epochs_run takes into account that after epoch readers advances to the next shard, if shuffle_after_epoch or stick_to_shard
+    # if doesn't matter and could/should be 0
+    # it is relevant only pad_last_batch == False, otherwise each shard has the same size thanks to padding
+    for img_ids_l, pipe, n in zip(img_ids_list, pipes, iterate_over):
+        shard_size = dataset_size * (n + 1 + epochs_run) // num_gpus - dataset_size * (n + epochs_run) // num_gpus
+        iters = int(math.ceil(shard_size / batch_size))
+        for _ in range(iters):
+            val = np.concatenate(pipe.run()[0].as_array())
+            img_ids_l.append(val)
 
     set_list = []
     for elm in img_ids_list:
         set_list.append(set(np.concatenate(elm)))
-    if num_gpus == 1:
-        return img_ids_list[0], set_list[0]
+    if len(pipes) == 1:
+        return img_ids_list[0], set_list[0], epochs_run + 1
     else:
-        return img_ids_list, set_list
+        return img_ids_list, set_list, epochs_run + 1
 
 def test_global_shuffle_random_shuffle():
     num_gpus = 2
@@ -117,10 +140,9 @@ def test_global_shuffle_random_shuffle():
                                                     data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
                                                     shuffle_after_epoch=True, pad_last_batch=False) for gpu in range(num_gpus)]
     [pipe.build() for pipe in pipes]
-    iters = pipes[0].epoch_size("Reader")
 
-    _, img_ids_list_set = gather_ids(pipes, iters, num_gpus)
-    _, img_ids_list_set_new = gather_ids(pipes, iters, num_gpus)
+    _, img_ids_list_set, _ = gather_ids(pipes)
+    _, img_ids_list_set_new, _ = gather_ids(pipes)
 
     assert img_ids_list_set[0] != img_ids_list_set_new[0]
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
@@ -134,17 +156,14 @@ def test_global_shuffle_random_shuffle_2():
                                                     data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
                                                     shuffle_after_epoch=True, pad_last_batch=False, initial_fill=1) for gpu in range(num_gpus)]
     [pipe.build() for pipe in pipes]
-    iters = pipes[0].epoch_size("Reader")
-    iters = iters // 2
 
-    img_ids_list, img_ids_list_set = gather_ids(pipes, iters, num_gpus)
+    img_ids_list, img_ids_list_set, _ = gather_ids(pipes, num_gpus_arg = 2, gpus_arg = [0])
     assert len(img_ids_list) == len(img_ids_list_set)
 
-    img_ids_list_new, img_ids_list_new_set = gather_ids(pipes, iters, num_gpus)
+    img_ids_list_new, img_ids_list_new_set, _ = gather_ids(pipes, num_gpus_arg = 2, gpus_arg = [0])
 
     assert len(img_ids_list_new) == len(img_ids_list_new_set)
     assert len(img_ids_list_set.intersection(img_ids_list_new_set)) != 0
-
 
 # with `random_shuffle=False` `shuffle_after_epoch=True` should still make data random between epochs
 def test_global_shuffle_dont_mix_epochs():
@@ -154,16 +173,13 @@ def test_global_shuffle_dont_mix_epochs():
                                                     data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
                                                     shuffle_after_epoch=True, pad_last_batch=False) for gpu in range(num_gpus)]
     [pipe.build() for pipe in pipes]
-    iters = pipes[0].epoch_size("Reader")
-    iters = iters // num_gpus
 
-    _, img_ids_list_set = gather_ids(pipes, iters, num_gpus)
-    _, img_ids_list_set_new = gather_ids(pipes, iters, num_gpus)
+    _, img_ids_list_set, _ = gather_ids(pipes)
+    _, img_ids_list_set_new, _ = gather_ids(pipes)
 
     assert img_ids_list_set[0] != img_ids_list_set_new[0]
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
     assert img_ids_list_set[0].union(img_ids_list_set[1]) == img_ids_list_set_new[0].union(img_ids_list_set_new[1])
-
 
 # with `random_shuffle=False` `shuffle_after_epoch=False` GPU0 data from epoch 0 should equal to data from GPU1 from epoch 1
 def test_dont_mix_epochs():
@@ -173,11 +189,9 @@ def test_dont_mix_epochs():
                                                     data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
                                                     shuffle_after_epoch=False, pad_last_batch=False) for gpu in range(num_gpus)]
     [pipe.build() for pipe in pipes]
-    iters = pipes[0].epoch_size("Reader")
-    iters = iters // num_gpus
 
-    _, img_ids_list_set = gather_ids(pipes, iters, num_gpus)
-    _, img_ids_list_set_new = gather_ids(pipes, iters, num_gpus)
+    _, img_ids_list_set, epochs_run = gather_ids(pipes)
+    _, img_ids_list_set_new, _ = gather_ids(pipes, epochs_run)
 
     assert img_ids_list_set[0] == img_ids_list_set_new[1]
     assert img_ids_list_set[1] == img_ids_list_set_new[0]
@@ -185,7 +199,7 @@ def test_dont_mix_epochs():
 
 def create_pipeline(creator, batch_size, num_gpus):
     iters = 0
-    #make sure that data size and batch are not divisible
+    # make sure that data size and batch are not divisible
     while iters % batch_size == 0:
         while iters != 0 and iters % batch_size == 0:
             batch_size += 1
@@ -196,44 +210,50 @@ def create_pipeline(creator, batch_size, num_gpus):
         iters = iters // num_gpus
     return pipes, iters
 
+def test_pad_last_batch_epoch_size():
+    pipe = COCOReaderPipeline(batch_size=10, num_threads=4, shard_id=0, num_gpus=1,
+                                  data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
+                                  shuffle_after_epoch=False, pad_last_batch=True)
+    pipe.build()
+    reference_size = pipe.epoch_size("Reader")
+
+    for num_gpus in range(1, 10):
+        pipe = COCOReaderPipeline(batch_size=10, num_threads=4, shard_id=0, num_gpus=num_gpus,
+                                  data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
+                                  shuffle_after_epoch=False, pad_last_batch=True)
+        pipe.build()
+        size = pipe.epoch_size("Reader")
+        print(reference_size, size, num_gpus)
+        assert size == int(math.ceil(reference_size * 1.0 /  num_gpus)) * num_gpus
 
 def test_pad_last_batch():
     num_gpus = 1
     batch_size = 100
-    iters = 0
 
     pipes, iters = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
                                                                       data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
                                                                       shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus)
-    data_size = iters
 
-    iters_tmp = iters
-    iters = iters // batch_size
-    if iters_tmp != iters * batch_size:
-        iters += 1
-    iters_tmp = iters
 
-    img_ids_list, _ = gather_ids(pipes, iters, num_gpus)
+    img_ids_list, _, epochs_run = gather_ids(pipes, batch_size = batch_size)
 
     img_ids_list = np.concatenate(img_ids_list)
     img_ids_list_set = set(img_ids_list)
 
     # check number of repeated samples
-    remainder = int(math.ceil(data_size / batch_size)) * batch_size - data_size
+    remainder = int(math.ceil(iters * 1.0 / batch_size)) * batch_size - iters
     # check if repeated samples are equal to the last one
     mirrored_data = img_ids_list[-remainder - 1:]
+    print(iters, remainder, set(mirrored_data), img_ids_list)
     assert len(set(mirrored_data)) == 1
     assert len(img_ids_list) != len(img_ids_list_set)
 
-    next_img_ids_list, _ = gather_ids(pipes, iters, num_gpus)
+    next_img_ids_list, _, _ = gather_ids(pipes, epochs_run, batch_size = batch_size)
 
     next_img_ids_list = np.concatenate(next_img_ids_list)
     next_img_ids_list_set = set(next_img_ids_list)
 
     mirrored_data = next_img_ids_list[-remainder - 1:]
+    print(set(mirrored_data))
     assert len(set(mirrored_data)) == 1
     assert len(next_img_ids_list) != len(next_img_ids_list_set)
-
-
-def check(data_set, num_gpus, batch_size, stick_to_shard, shuffle_after_epoch, dry_run_num):
-    pass
