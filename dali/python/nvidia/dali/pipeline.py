@@ -186,12 +186,13 @@ class Pipeline(object):
         pipeline_tls.current_pipeline = pipeline
         return prev
 
-    # Graph edges that are not connected to the output must be manually added to a pipeline
     def add_sink(self, edge):
+        """Allows to manual add of graph edges to the pipeline which are not connected to the output and all pruned
+        """
         self._sinks.append(edge)
 
     def _set_api_type(self, type):
-        if not types.PipelineAPIType._is_member(type):
+        if not type in types.PipelineAPIType:
             raise RuntimeError("Wrong pipeline API set!"
                                "check available values in :meth:`nvidia.dali.types.PipelineAPIType`")
         self._api_type = type
@@ -358,7 +359,7 @@ class Pipeline(object):
         If the pipeline is executed asynchronously, this function blocks
         until the results become available. It rises StopIteration if data set
         reached its end - usually when iter_setup cannot produce any more data"""
-        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
                 raise StopIteration
             self._batches_to_consume -= 1
@@ -376,7 +377,7 @@ class Pipeline(object):
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
         and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`.
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
-        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED) as check:
+        with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
                 self._prefetch()
             else:
