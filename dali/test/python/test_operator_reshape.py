@@ -82,6 +82,45 @@ class ReshapeWithInput(Pipeline):
 
         return [images, reshaped]
 
+def MakeTallFunc(relative, wildcard):
+  def func(image):
+    if relative:
+        return np.array([ -1 if wildcard else 2, 0.5, 1]).astype(np.float32)
+    else:
+        h, w, c = image.shape
+        return np.array([ -1 if wildcard else 2*h, w/2, c]).astype(np.int)
+  return func
+
+class ReshapeWithArgInput(Pipeline):
+    def __init__(self, device, batch_size, relative, use_wildcard, num_threads=3, device_id=0, num_gpus=1):
+        super(ReshapeWithArgInput, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
+        self.device = device
+        self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.resize = ops.Resize(device = "cpu");
+        self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+        self.gen_shapes = ops.PythonFunction(function=MakeTallFunc(relative, use_wildcard))
+        self.reshape = ops.Reshape(device = device);
+        self.relative = relative
+
+    def define_graph(self):
+        jpegs, labels = self.input(name = "Reader")
+        images_cpu = self.decode(jpegs)
+
+        rng = ops.Uniform(range=[100,128])
+        cast = ops.Cast(dtype=types.INT32)
+        widths = cast(rng()) * 2.0
+        heights = cast(rng()) * 2.0
+        images_cpu = self.resize(images_cpu, resize_x = widths, resize_y = heights)
+
+        shapes = self.gen_shapes(images_cpu)
+        images = images_cpu.gpu() if self.device == "gpu" else images_cpu
+        if self.relative:
+            reshaped = self.reshape(images, rel_shape = shapes)
+        else:
+            reshaped = self.reshape(images, shape = shapes)
+
+        return [images, reshaped]
+
 def verify_tensor_layouts(imgs, reshaped):
   assert imgs.layout() == "HWC"
   assert reshaped.layout() == "ab"
@@ -89,7 +128,7 @@ def verify_tensor_layouts(imgs, reshaped):
     assert imgs.at(i).layout() == "HWC"
     assert reshaped.at(i).layout() == "ab"
 
-def verify(imgs, reshaped, src_shape = None):
+def verify_flatten(imgs, reshaped, src_shape = None):
   assert imgs.layout() == "HWC"
   assert reshaped.layout() == "ab"
   for i in range(len(imgs)):
@@ -98,6 +137,18 @@ def verify(imgs, reshaped, src_shape = None):
     img_shape = imgs.at(i).shape
     # collapse width and channels
     ref_shape = (img_shape[0], img_shape[1] * img_shape[2])
+    assert reshaped.at(i).shape == ref_shape
+    assert_array_equal(imgs.at(i).flatten(), reshaped.at(i).flatten())
+
+def verify_make_tall(imgs, reshaped, src_shape = None):
+  assert imgs.layout() == "HWC"
+  assert reshaped.layout() == "HWC"
+  for i in range(len(imgs)):
+    if src_shape is not None:
+      assert imgs.at(i).shape == src_shape
+    img_shape = imgs.at(i).shape
+    # collapse width and channels
+    ref_shape = (img_shape[0] * 2, img_shape[1] // 2, 3)
     assert reshaped.at(i).shape == ref_shape
     assert_array_equal(imgs.at(i).flatten(), reshaped.at(i).flatten())
 
@@ -111,7 +162,7 @@ def check_reshape(device, batch_size, relative, use_wildcard):
       verify_tensor_layouts(imgs, reshaped)
       imgs = imgs.as_cpu()
       reshaped = reshaped.as_cpu()
-    verify(imgs, reshaped, (224, 320, 3))
+    verify_flatten(imgs, reshaped, (224, 320, 3))
 
 def check_reshape_with_input(device, batch_size, use_wildcard):
   pipe = ReshapeWithInput(device, batch_size, use_wildcard)
@@ -122,7 +173,17 @@ def check_reshape_with_input(device, batch_size, use_wildcard):
       verify_tensor_layouts(imgs, reshaped)
       imgs = imgs.as_cpu()
       reshaped = reshaped.as_cpu()
-    verify(imgs, reshaped)
+    verify_flatten(imgs, reshaped)
+
+def check_reshape_with_arg_input(device, batch_size, relative, use_wildcard):
+  pipe = ReshapeWithArgInput(device, batch_size, relative, use_wildcard)
+  pipe.build()
+  for iter in range(2):
+    imgs, reshaped = pipe.run()
+    if device == "gpu":
+      imgs = imgs.as_cpu()
+      reshaped = reshaped.as_cpu()
+    verify_make_tall(imgs, reshaped)
 
 def test_reshape_arg():
   for device in ["cpu", "gpu"]:
@@ -137,10 +198,19 @@ def test_reshape_input():
       for use_wildcard in [False, True]:
         yield check_reshape_with_input, device, batch_size, use_wildcard
 
+def test_reshape_arg_input():
+  for device in ["cpu", "gpu"]:
+    for batch_size in [16]:
+      for relative in [False, True]:
+        for use_wildcard in [False, True]:
+           yield check_reshape_with_arg_input, device, batch_size, relative, use_wildcard
+
 def main():
   for test in test_reshape_arg():
     test[0](*test[1:])
   for test in test_reshape_input():
+    test[0](*test[1:])
+  for test in test_reshape_arg_input():
     test[0](*test[1:])
 
 if __name__ == '__main__':

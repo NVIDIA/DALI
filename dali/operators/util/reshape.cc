@@ -23,28 +23,32 @@
 namespace dali {
 
 DALI_SCHEMA(Reshape)
-  .DocStr(R"code(Treats content of the input as if it had a different shape and layout.)code")
+  .DocStr(R"code(Treats content of the input as if it had a different shape and/or layout.)code")
   .NumInput(1, 2)
   .NumOutput(1)
+  .InputDox(0, "data", "TensorList", "Data to be reshaped")
+  .InputDox(1, "shape", "1D TensorList of integers", "Same as `shape` argument")
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg<int>("shape", "The desired shape of the output. Number of elements in "
-                                "each sample must match that of the input sample. There can be "
-                                "one negative extent which receives the size required to match "
-                                "the input volume.\nNOTE: `shape` and `rel_shape` are mutually "
-                                "exclusive.",
-                                std::vector<int>(), true)
+  .AddOptionalArg<int>("shape", "The desired shape of the output. Number of dimensions "
+                  "must not exceed the number of dimensions of the input. There can be one "
+                  "negative extent which receives the size required to match the input volume, "
+                  "e.g. input of shape `[480, 640, 3]` and `rel_shape = [240, -1]` would get the "
+                  "shape [240, 3840].\n"
+                  "NOTE: `rel_shape` and `shape` are mutually exclusive.",
+                  std::vector<int>(), true)
   .AddOptionalArg<float>("rel_shape", "The relative shape of the output. Number of dimensions "
                   "must not exceed the number of dimensions of the input. There can be one "
-                  "negative value which means all remaining extents, e.g. input of shape "
-                  "`[480, 640, 3]` and `rel_shape = [0.5, -1]` would get the shape [240, 3840].\n"
+                  "negative extent which receives the size required to match the input volume, "
+                  "e.g. input of shape `[480, 640, 3]` and `rel_shape = [0.5, -1]` would get the "
+                  "shape [240, 3840].\n"
                   "NOTE: `rel_shape` and `shape` are mutually exclusive.",
                                 std::vector<float>(), true)
-  .AddOptionalArg("layout", "New layout for the data. If not specified, the output layout "
-                            "is preserved if number of dimension matches existing layout "
-                            "or reset to empty otherwise. If set and not empty, the layout must "
-                            "match the dimesnionality of the output.",
-                            "");
+  .AddOptionalArg("layout", "New layout for the data. If not specified, the output layout is "
+                  "preserved if number of dimension matches existing layout or reset to empty "
+                  "otherwise. If set and not empty, the layout must match the dimesnionality of "
+                  "the output.",
+                  "");
 
 
 template <typename Backend>
@@ -205,12 +209,12 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
       break;
     case ShapeSource::ArgInput:
       if (use_rel_shape_)
-        ShapeFromInput(ws.ArgumentInput("shape"), false);
+        ShapeFromInput(ws.ArgumentInput("rel_shape"), true);
       else
-        ShapeFromInput(ws.ArgumentInput("rel_shape"), false);
+        ShapeFromInput(ws.ArgumentInput("shape"), false);
       break;
     case ShapeSource::Input:
-      ShapeFromInput(ws.template InputRef<CPUBackend>(1), use_rel_shape_);
+      ShapeFromInput(ws.template InputRef<CPUBackend>(1), false);
       break;
     case ShapeSource::None:
       output_shape_ = input_shape_;
