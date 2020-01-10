@@ -22,6 +22,9 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from nvidia.dali.backend_impl import TensorListGPU
 from nvidia.dali.pipeline import Pipeline
+import re
+
+from nose.tools import assert_raises
 
 VIDEO_DIRECTORY="video_files"
 VIDEO_FILES=os.listdir(VIDEO_DIRECTORY)
@@ -35,11 +38,11 @@ COUNT=5
 
 
 class VideoPipe(Pipeline):
-    def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1, device_id=0, num_shards=1):
+    def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1, device_id=0, num_shards=1, dtype=types.FLOAT):
         super(VideoPipe, self).__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
         self.input = ops.VideoReader(device="gpu", filenames=data, sequence_length=COUNT,
                                      shard_id=0, num_shards=num_shards, random_shuffle=shuffle,
-                                     normalized=True, image_type=types.YCbCr, dtype=types.FLOAT,
+                                     normalized=True, image_type=types.YCbCr, dtype=dtype,
                                      step=step, stride=stride)
 
     def define_graph(self):
@@ -72,6 +75,25 @@ def test_simple_videopipeline():
         print("Iter " + str(i))
         pipe_out = pipe.run()
     del pipe
+
+def check_videopipeline_supported_type(dtype):
+    pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
+    pipe.build()
+    for i in range(ITER):
+        print("Iter " + str(i))
+        pipe_out = pipe.run()
+    del pipe
+
+SUPPORTED_TYPES = [types.DALIDataType.FLOAT, types.DALIDataType.UINT8]
+ALL_TYPES = [v for k, v in types.DALIDataType.__dict__.items() if not re.match("__(.*)__", str(k))]
+
+def test_simple_videopipeline_supported_types():
+    for type in SUPPORTED_TYPES:
+        yield check_videopipeline_supported_type, type
+
+def test_simple_videopipeline_not_supported_types():
+    for type in set(ALL_TYPES) - set(SUPPORTED_TYPES):
+        yield assert_raises, RuntimeError, check_videopipeline_supported_type, type
 
 def test_file_list_videopipeline():
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=FILE_LIST)
