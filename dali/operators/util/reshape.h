@@ -43,7 +43,9 @@ class Reshape : public Operator<Backend> {
  private:
   TensorListShape<> input_shape_, output_shape_;
   TensorShape<> uniform_shape_;
+  std::vector<float> rel_uniform_shape_;
   TensorLayout layout_;
+  bool use_layout_ = false;
 
   enum class ShapeSource {
     None,
@@ -53,14 +55,16 @@ class Reshape : public Operator<Backend> {
   };
 
   ShapeSource shape_source_ = ShapeSource::None;
+  bool use_rel_shape_ = false;
+  int wildcard_dim_ = -1;
 
   void CalculateOutputShape(const Workspace &ws);
 
   template <typename TensorListLike>
-  void ShapeFromInput(const TensorListLike &tl);
+  void ShapeFromInput(const TensorListLike &tl, bool relative);
 
-  template <typename Integer>
-  void ShapeFromInput(const TensorListView<StorageCPU, Integer> &shape);
+  template <typename Extent>
+  void ShapeFromInput(const TensorListView<StorageCPU, Extent> &shape);
 
   TensorLayout GetOutputLayout(const Workspace &ws) const;
 };

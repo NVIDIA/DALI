@@ -202,6 +202,7 @@ class DLL_PUBLIC OpSchema {
     min_num_input_ = min;
     max_num_input_ = max;
     input_layouts_.resize(max);
+    input_dox_.resize(max);
     return *this;
   }
 
