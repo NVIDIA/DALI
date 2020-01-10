@@ -17,99 +17,59 @@
 #include "dali/operators/util/pad.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_gpu.h"
 
 namespace dali {
 
-DALI_SCHEMA(Pad)
-    .DocStr(R"code(Pads all samples with `fill_value` in the given `axes`,
-to match the size of the biggest dimension on those axes in the batch.
-The element padding axes is specified with the argument `axes`.
-Supported types: int, float.
-
-Examples:
-
-- Batch of 3 `1-D` samples, `fill_value` = -1, `axes` = (0,)
-
-::
-
-  input  = [{3, 4, 2, 5, 4},
-            {2, 2},
-            {3, 199, 5}};
-  output = [{3, 4, 2, 5, 4},
-            {2, 2, -1, -1, -1},
-            {3, 199, 5, -1, -1}]
-
-- Batch of 2 `2-D` samples, `fill_value` = 42, `axes` = (1,)
-
-::
-
-  input  = [{{1, 2 , 3, 4},
-             {5, 6, 7, 8}},
-            {{1, 2},
-             {4, 5}}]
-  output = [{{1,  2,  3,  4},
-             {5,  6,  7,  8}},
-            {{1,  2, 42, 42},
-             {4,  5, 42, 42}}])code")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddOptionalArg("fill_value",
-        R"code(The value to pad the batch with)code",
-        0.0f)
-    .AddOptionalArg<int>("axes",
-        R"code(The axes on which the batch samples will be padded.
-Indexes are zero-based with 0 being the first axis or outermost dimension
-of the tensor. If `axes` is empty or not provided, the output will be padded
-on all the axes.
-)code", std::vector<int>());
-
 template <>
 bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                const DeviceWorkspace &ws) {
+                                const workspace_t<GPUBackend> &ws) {
   output_desc.resize(1);
   const auto &input = ws.Input<GPUBackend>(0);
-  std::size_t number_of_axes = input.shape().sample_dim();
-  DALI_TYPE_SWITCH_WITH_FP16(input.type().id(), DataType,
-    VALUE_SWITCH(number_of_axes, NumAxes, (1, 2, 3, 4),
-    (
-      using Kernel = kernels::PadGPU<DataType, NumAxes>;
+  auto in_shape = input.shape();
+  int ndim = input.shape().sample_dim();
+
+  TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
+    VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
+      using Kernel = kernels::SliceFlipNormalizePermutePadGPU<T, T, Dims>;
+      using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
       kernels::KernelContext ctx;
       ctx.gpu.stream = ws.stream();
 
-      output_desc[0].type = TypeInfo::Create<DataType>();
-      output_desc[0].shape.resize(batch_size_, NumAxes);
+      auto in_view = view<const T, Dims>(input);
+      auto &kernel_sample_args = FillArgs<Args>(in_shape);
+
       kmgr_.Initialize<Kernel>();
+      kmgr_.Resize<Kernel>(1, 1);
+      auto req = kmgr_.Setup<Kernel>(0, ctx, in_view, kernel_sample_args);
 
-      auto in_view = view<const DataType, NumAxes>(input);
-
-      auto &req = kmgr_.Setup<Kernel>(0, ctx, in_view, axes_);
+      output_desc[0].type = TypeInfo::Create<T>();
+      output_desc[0].shape.resize(batch_size_, Dims);
       output_desc[0].shape = req.output_shapes[0];
-      // NOLINTNEXTLINE(whitespace/parens)
-    ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_axes)););
-  );  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
   return true;
 }
 
-
 template <>
-void Pad<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void Pad<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
-  std::size_t number_of_axes = input.shape().sample_dim();
-  DALI_TYPE_SWITCH_WITH_FP16(input.type().id(), DataType,
-    VALUE_SWITCH(number_of_axes, NumAxes, (1, 2, 3, 4),
-    (
-      using Kernel = kernels::PadGPU<DataType, NumAxes>;
+  int ndim = input.shape().sample_dim();
+  TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
+    VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
+      using Kernel = kernels::SliceFlipNormalizePermutePadGPU<T, T, Dims>;
+      using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
-      auto in_view = view<const DataType, NumAxes>(input);
-      auto out_view = view<DataType, NumAxes>(output);
+      auto in_view = view<const T, Dims>(input);
+      auto out_view = view<T, Dims>(output);
       kernels::KernelContext ctx;
       ctx.gpu.stream = ws.stream();
-      kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, static_cast<DataType>(fill_value_));
-      // NOLINTNEXTLINE(whitespace/parens)
-    ), DALI_FAIL("Not supported number of dimensions: " + std::to_string(number_of_axes)););
-  );  // NOLINT
+      auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+      kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, kernel_sample_args);
+    ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(Pad, Pad<GPUBackend>, GPU);

@@ -70,12 +70,12 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes):
                     assert(output_shape[dim] == max_shape[dim])
 
 def test_slice_synth_data_vs_numpy():
-    for device in ["gpu"]:
-        for batch_size in {1, 8, 100}:
+    for device in ["cpu", "gpu"]:
+        for batch_size in {1, 8}:
             for input_max_shape, axes in \
-                [((200,400,3), (0,)),
-                 ((200,400,3), (1,)),
-                 ((200,400,3), (0,1)),
-                 ((200,400,3), ()),
-                 ((200,400,3), [])]:
+                [((200, 400, 3), (0,)),
+                 ((200, 400, 3), (1,)),
+                 ((200, 400, 3), (0, 1)),
+                 ((200, 400, 3), ()),
+                 ((200, 400, 3), [])]:
                 yield check_pad_synth_data, device, batch_size, input_max_shape, axes

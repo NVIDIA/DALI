@@ -142,8 +142,7 @@ std::vector<Arguments> two_axes_args = {{{"fill_value", 0.0f}, {"axes", std::vec
 
 
 std::vector<Arguments> devices = {
-// CPU Pad not supported yet
-//  {{"device", std::string{"cpu"}}},
+    {{"device", std::string{"cpu"}}},
     {{"device", std::string{"gpu"}}},
 };
 
