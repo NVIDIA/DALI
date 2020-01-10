@@ -31,15 +31,10 @@ namespace dali {
 
 namespace detail {
 
-SmallVector<int, 3> GetAxes(const OpSpec &spec, TensorLayout layout) {
-  SmallVector<int, 3> axes;
+SmallVector<int, 6> GetAxes(const OpSpec &spec, TensorLayout layout) {
+  SmallVector<int, 6> axes;
   if (spec.HasArgument("axis_names")) {
-    for (auto axis_name : spec.GetArgument<TensorLayout>("axis_names")) {
-      int d = layout.find(axis_name);
-      DALI_ENFORCE(d >= 0,
-        make_string("Axis '", axis_name, "' is not present in the input layout"));
-      axes.push_back(d);
-    }
+    axes = GetDimIndices(layout, spec.GetArgument<TensorLayout>("axis_names"));
   } else if (spec.HasArgument("axes")) {
     axes = spec.GetRepeatedArgument<int>("axes");
   } else {

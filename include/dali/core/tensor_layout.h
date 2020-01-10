@@ -22,7 +22,9 @@
 #include <string>
 #include <stdexcept>
 #include "dali/core/error_handling.h"
+#include "dali/core/format.h"
 #include "dali/core/host_dev.h"
+#include "dali/core/small_vector.h"
 
 namespace dali {
 
@@ -544,6 +546,18 @@ inline std::array<int, Dims> GetLayoutMapping(const TensorLayout &in_layout,
 
 inline std::ostream &operator<<(std::ostream &os, const TensorLayout &tl) {
   return os << tl.c_str();
+}
+
+inline SmallVector<int, 6> GetDimIndices(const TensorLayout &layout,
+                                         const TensorLayout &dim_names) {
+  SmallVector<int, 6> dims;
+  dims.reserve(dim_names.size());
+  for (auto dim_name : dim_names) {
+    int d = layout.find(dim_name);
+    DALI_ENFORCE(d >= 0, make_string("Axis '", dim_name, "' is not present in the input layout"));
+    dims.push_back(d);
+  }
+  return dims;
 }
 
 }  // namespace dali
