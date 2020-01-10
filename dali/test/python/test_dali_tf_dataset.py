@@ -33,8 +33,8 @@ except:
     pass
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
-file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
-annotations_file = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
+file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
+annotations_file = os.path.join(test_data_root, 'db', 'coco_dummy', 'instances.json')
 
 
 class TestPipeline(Pipeline):
@@ -69,7 +69,7 @@ class TestPipeline(Pipeline):
 
 
     def define_graph(self):
-        inputs, _, _, im_ids = self.input()
+        inputs, _, _, im_ids = self.input(name="Reader")
         images = self.decode(inputs)
         images = self.resize(images)
         output = self.cmn(
@@ -95,12 +95,12 @@ def _test_tf_dataset(device, device_id = 0):
 
     dataset_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
     shapes = [
-        (batch_size, 3, 224, 224), 
+        (batch_size, 3, 224, 224),
         (batch_size, 1),
         (batch_size, 1)]
     dtypes = [
         tf.float32,
-        tf.int32, 
+        tf.int32,
         tf.int16]
 
     dataset_results = []
@@ -108,7 +108,7 @@ def _test_tf_dataset(device, device_id = 0):
         daliset = dali_tf.DALIDataset(
             pipeline=dataset_pipeline,
             batch_size=batch_size,
-            shapes=shapes, 
+            shapes=shapes,
             dtypes=dtypes,
             num_threads=num_threads,
             device_id=device_id)
@@ -132,7 +132,7 @@ def _test_tf_dataset(device, device_id = 0):
         else:
             standalone_results.append(
                 tuple(result.as_array() for result in standalone_pipeline.run()))
-        
+
     for dataset_result, standalone_result in zip(dataset_results, standalone_results):
         for dataset_out, standalone_out in zip(dataset_result, standalone_result):
             assert np.array_equal(dataset_out, standalone_out)
@@ -152,13 +152,13 @@ def test_tf_dataset_cpu():
 
 
 @raises(Exception)
-def test_differnt_num_shapes_dtypes():
+def test_different_num_shapes_dtypes():
     batch_size = 12
     num_threads = 4
 
     dataset_pipeline = TestPipeline(batch_size, num_threads, 'cpu')
     shapes = [
-        (batch_size, 3, 224, 224), 
+        (batch_size, 3, 224, 224),
         (batch_size, 1),
         (batch_size, 1)]
     dtypes = [
@@ -169,25 +169,23 @@ def test_differnt_num_shapes_dtypes():
         dali_tf.DALIDataset(
             pipeline=dataset_pipeline,
             batch_size=batch_size,
-            shapes=shapes, 
+            shapes=shapes,
             dtypes=dtypes,
             num_threads=num_threads)
 
 
 def _test_tf_dataset_multigpu():
     num_devices = num_available_gpus()
-    dataset_size = 64
     batch_size = 8
     num_threads = 4
-    iterations = dataset_size // batch_size
 
     shapes = [
-        (batch_size, 3, 224, 224), 
+        (batch_size, 3, 224, 224),
         (batch_size, 1),
         (batch_size, 1)]
     dtypes = [
         tf.float32,
-        tf.int32, 
+        tf.int32,
         tf.int16]
 
     dataset_results = []
@@ -200,7 +198,7 @@ def _test_tf_dataset_multigpu():
             daliset = dali_tf.DALIDataset(
                 pipeline=dataset_pipeline,
                 batch_size=batch_size,
-                shapes=shapes, 
+                shapes=shapes,
                 dtypes=dtypes,
                 num_threads=num_threads,
                 device_id=device_id)
@@ -211,14 +209,19 @@ def _test_tf_dataset_multigpu():
 
             ops_to_run.append(iterator.get_next())
 
+
+    standalone_pipeline = TestPipeline(
+        batch_size, num_threads, device = 'gpu', device_id = 0)
+    standalone_pipeline.build()
+
+    dataset_size = standalone_pipeline.epoch_size("Reader")
+    iterations = dataset_size // batch_size
+
     with tf.compat.v1.Session() as sess:
         sess.run(initializers)
         for _ in range(iterations):
             dataset_results.append(sess.run(ops_to_run))
 
-    standalone_pipeline = TestPipeline(
-        batch_size, num_threads, device = 'gpu', device_id = 0)
-    standalone_pipeline.build()
     standalone_results = []
     for _ in range(iterations):
         standalone_results.append(
