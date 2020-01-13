@@ -15,10 +15,6 @@
 #include "dali/operators/color/color_twist.h"
 #include "dali/image/transform.h"
 
-/////////////////////////////////////////
-///// DEPRECATED, WILL BE REMOVED ///////
-/////////////////////////////////////////
-
 namespace dali {
 
 DALI_SCHEMA(ColorTransformBase)
@@ -38,7 +34,6 @@ Values >= 0 are accepted. For example:
 * `1` - no change
 * `2` - increase brightness twice)code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .Deprecate("BrightnessContrast")
     .InputLayout(0, "HWC");
 
 DALI_SCHEMA(Contrast)
@@ -52,7 +47,6 @@ Values >= 0 are accepted. For example:
 * `0` - gray image,
 * `1` - no change
 * `2` - increase contrast twice)code", 1.f, true)
-    .Deprecate("BrightnessContrast")
     .AddParent("ColorTransformBase");
 
 DALI_SCHEMA(Hue)
@@ -62,7 +56,6 @@ DALI_SCHEMA(Hue)
     .AddOptionalArg("hue",
         R"code(Hue change, in degrees.)code", 0.f, true)
     .AddParent("ColorTransformBase")
-    .Deprecate("Hsv")
     .InputLayout(0, "HWC");
 
 DALI_SCHEMA(Saturation)
@@ -76,7 +69,6 @@ Values >= 0 are supported. For example:
 * `0` - completely desaturated image
 * `1` - no change to image's saturation)code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .Deprecate("Hsv")
     .InputLayout(0, "HWC");
 
 DALI_SCHEMA(ColorTwist)
@@ -106,7 +98,6 @@ Values >= 0 are accepted. For example:
 * `1` - no change
 * `2` - increase brightness twice)code", 1.f, true)
     .AddParent("ColorTransformBase")
-    .Deprecate("Hsv/BrightnessContrast")
     .InputLayout(0, "HWC");
 
 template <>

@@ -21,10 +21,6 @@
 #include <cmath>
 #include "dali/pipeline/operator/operator.h"
 
-/////////////////////////////////////////
-///// DEPRECATED, WILL BE REMOVED ///////
-/////////////////////////////////////////
-
 namespace dali {
 
 class ColorAugment {
@@ -176,9 +172,6 @@ class ColorTwistBase : public Operator<Backend> {
   inline explicit ColorTwistBase(const OpSpec &spec) : Operator<Backend>(spec),
                       C_(IsColor(spec.GetArgument<DALIImageType>("image_type")) ? 3 : 1) {
     DALI_ENFORCE(C_ == 3, "Color transformation is implemented only for RGB images");
-    DALI_WARN("The Operators: `ColorTwist`, `Hue`, `Saturation`, `Brightness`, `Contrast`, "
-              "are deprecated, not supported, and will be removed in version 0.20. "
-              "Please use `BrightnessContrast` and `Hsv` instead.");
   }
 
   ~ColorTwistBase() override {
