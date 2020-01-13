@@ -82,10 +82,14 @@ class NvDecoder {
             int max_width,
             int additional_decode_surfaces);
 
-  NvDecoder(const NvDecoder&) = default;
-  NvDecoder(NvDecoder&&) = default;
-  NvDecoder& operator=(const NvDecoder&) = default;
-  NvDecoder& operator=(NvDecoder&&) = default;
+  // Some of the members are non-movable or non-copyable so the constructors below still end up
+  // implicitly deleted, thus marking them explicitly deleted as this class in managed through
+  // unique_ptr.
+  // The culprits are: CUStream (non-copyable), ThreadSafeQueue (std::mutex) and const members.
+  NvDecoder(const NvDecoder&) = delete;
+  NvDecoder(NvDecoder&&) = delete;
+  NvDecoder& operator=(const NvDecoder&) = delete;
+  NvDecoder& operator=(NvDecoder&&) = delete;
   ~NvDecoder();
 
   bool initialized() const;

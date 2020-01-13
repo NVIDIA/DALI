@@ -84,11 +84,12 @@ typedef enum {
   t_decodeBmps  = (1<<7),
 } t_loadingFlags;
 
-typedef struct {
+struct OpArg {
+  OpArg() = default;
   const char *m_Name;
   std::string m_val;
-  const DALIDataType type;
-} OpArg;
+  DALIDataType type;
+};
 
 class opDescr {
  public:
