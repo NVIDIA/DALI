@@ -31,7 +31,7 @@ namespace dali {
 namespace kernels {
 
 template <typename OutputType, typename InputType, int Dims>
-class SliceFlipNormalizePermutePadGPU {
+class SliceFlipNormalizePermutePadGpu {
  private:
   static constexpr size_t kBlockDim = 512;
   static constexpr size_t kBlockSize = 64 * kBlockDim;

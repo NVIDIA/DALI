@@ -22,7 +22,7 @@ namespace dali {
 namespace kernels {
 
 template <typename TestArgs>
-class SliceFlipNormalizePermuteGPUTest : public SliceFlipNormalizePermuteTest<TestArgs> {
+class SliceFlipNormalizePermutePadGpuTest : public SliceFlipNormalizePermutePadTest<TestArgs> {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
@@ -30,7 +30,7 @@ class SliceFlipNormalizePermuteGPUTest : public SliceFlipNormalizePermuteTest<Te
   static constexpr int NumSamples = TestArgs::NumSamples;
   static constexpr int DimSize = TestArgs::DimSize;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
-  using KernelType = SliceFlipNormalizePermutePadGPU<OutputType, InputType, Dims>;
+  using KernelType = SliceFlipNormalizePermutePadGpu<OutputType, InputType, Dims>;
 
   void Run() override {
     KernelContext ctx;
@@ -72,9 +72,9 @@ class SliceFlipNormalizePermuteGPUTest : public SliceFlipNormalizePermuteTest<Te
   }
 };
 
-TYPED_TEST_SUITE(SliceFlipNormalizePermuteGPUTest, SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES);
+TYPED_TEST_SUITE(SliceFlipNormalizePermutePadGpuTest, SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES);
 
-TYPED_TEST(SliceFlipNormalizePermuteGPUTest, All) {
+TYPED_TEST(SliceFlipNormalizePermutePadGpuTest, All) {
   this->Run();
 }
 

@@ -65,7 +65,7 @@ inline void Pad(OutputType *output,
                 std::integral_constant<int, 1>) {
   constexpr auto d = Dims - 1;
   for (int64_t i = 0; i < padded_out_shape[d]; i++) {
-    *output = static_cast<OutputType>(fill_value);
+    *output = Convert<OutputType>(fill_value);
     output += out_strides[d];
   }
 }
@@ -106,7 +106,7 @@ inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *i
 
   // pad
   for (; i < padded_out_shape[d]; i++) {
-    *output = static_cast<OutputType>(fill_value);
+    *output = Convert<OutputType>(fill_value);
     output += out_strides[d];
   }
 }
@@ -190,7 +190,7 @@ void SliceFlipNormalizePermute(OutputType *output, const InputType *input,
 }  // namespace detail
 
 template <typename OutputType, typename InputType, int Dims>
-class SliceFlipNormalizePermuteCPU {
+class SliceFlipNormalizePermutePadCpu {
  public:
   using Args = SliceFlipNormalizePermutePadArgs<Dims>;
 

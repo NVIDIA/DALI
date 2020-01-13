@@ -67,7 +67,7 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
       VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS, (
-        using Kernel = kernels::SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims>;
+        using Kernel = kernels::SliceFlipNormalizePermutePadCpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         output_desc[0].type = TypeInfo::Create<OutputType>();
         output_desc[0].shape.resize(batch_size_, Dims);
@@ -98,7 +98,7 @@ void CropMirrorNormalize<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
       VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS, (
-        using Kernel = kernels::SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims>;
+        using Kernel = kernels::SliceFlipNormalizePermutePadCpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         auto in_view = view<const InputType, Dims>(input);
         auto out_view = view<OutputType, Dims>(output);

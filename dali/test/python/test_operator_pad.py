@@ -50,7 +50,7 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes, align):
     pipe = PadSynthDataPipeline(device, batch_size, iter(eii), axes=axes, align=align)
     pipe.build()
     actual_axes = axes if len(axes) > 0 else range(len(input_max_shape))
-    if align and len(align) == 1:
+    if align and len(align) == 1 and len(axes) > 1:
         align = [align[0] for _ in actual_axes]
 
     assert(len(actual_axes)>0)

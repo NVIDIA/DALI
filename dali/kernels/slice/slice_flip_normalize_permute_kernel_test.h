@@ -25,7 +25,7 @@ namespace dali {
 namespace kernels {
 
 template <typename TestArgs>
-class SliceFlipNormalizePermuteTest : public ::testing::Test {
+class SliceFlipNormalizePermutePadTest : public ::testing::Test {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;

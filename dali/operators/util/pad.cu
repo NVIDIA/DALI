@@ -31,7 +31,7 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
-      using Kernel = kernels::SliceFlipNormalizePermutePadGPU<T, T, Dims>;
+      using Kernel = kernels::SliceFlipNormalizePermutePadGpu<T, T, Dims>;
       using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
       kernels::KernelContext ctx;
@@ -59,7 +59,7 @@ void Pad<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   int ndim = input.shape().sample_dim();
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
-      using Kernel = kernels::SliceFlipNormalizePermutePadGPU<T, T, Dims>;
+      using Kernel = kernels::SliceFlipNormalizePermutePadGpu<T, T, Dims>;
       using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
       auto in_view = view<const T, Dims>(input);

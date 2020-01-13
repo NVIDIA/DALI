@@ -25,7 +25,7 @@ DALI_SCHEMA(Pad)
   .DocStr(R"code(Pads all samples with `fill_value` in the given `axes`,
 to match the size of the biggest dimension on those axes in the batch.
 The element padding axes is specified with the argument `axes`.
-Supported types: int, float.
+Supported types are integer and floating point numeric types.
 
 Examples:
 
@@ -111,7 +111,7 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
-      using Kernel = kernels::SliceFlipNormalizePermuteCPU<T, T, Dims>;
+      using Kernel = kernels::SliceFlipNormalizePermutePadCpu<T, T, Dims>;
       using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
       kmgr_.Initialize<Kernel>();
@@ -142,7 +142,7 @@ void Pad<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
-      using Kernel = kernels::SliceFlipNormalizePermuteCPU<T, T, Dims>;
+      using Kernel = kernels::SliceFlipNormalizePermutePadCpu<T, T, Dims>;
       using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
       for (int i = 0; i < nsamples; i++) {
