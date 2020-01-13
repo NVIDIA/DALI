@@ -36,7 +36,7 @@ class SliceAttr {
       , crop_window_generators_(batch_size__) {
     const bool has_axes_arg = spec.HasArgument("axes");
     const bool has_axis_names_arg = spec.HasArgument("axis_names");
-    // Process `axis_names` if provided, or if neither `dir_names` nor `axes` are
+    // Process `axis_names` if provided, or if neither `axis_names` nor `axes` are
     if (has_axis_names_arg || !has_axes_arg) {
       axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
       axes_ = {};
@@ -97,14 +97,7 @@ class SliceAttr {
 
         auto axes = axes_;
         if (!axis_names_.empty()) {
-          axes = {};
-          for (auto axis_name : axis_names_) {
-            auto dim_idx = shape_layout.find(axis_name);
-            DALI_ENFORCE(dim_idx >= 0,
-              make_string("Requested to slice dimension ", axis_name,
-                " which is not present in the shape layout ", shape_layout));
-            axes.push_back(dim_idx);
-          }
+          axes = GetDimIndices(shape_layout, axis_names_).to_vector();
         }
 
         for (size_t i = 0; i < axes.size(); i++) {
