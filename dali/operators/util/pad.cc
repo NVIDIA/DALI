@@ -22,7 +22,7 @@
 namespace dali {
 
 DALI_SCHEMA(Pad)
-    .DocStr(R"code(Pads all samples with `fill_value` in the given `axes`,
+  .DocStr(R"code(Pads all samples with `fill_value` in the given `axes`,
 to match the size of the biggest dimension on those axes in the batch.
 The element padding axes is specified with the argument `axes`.
 Supported types: int, float.
@@ -40,6 +40,18 @@ Examples:
             {2, 2, -1, -1, -1},
             {3, 199, 5, -1, -1}]
 
+- Batch of 3 `1-D` samples, `fill_value` = -1, `axes` = (0,), `align` = (4,)
+
+::
+
+  input  = [{3,   4, 2, 5, 4},
+            {2,   2},
+            {3, 199, 5}};
+  output = [{3,   4,  2,  5,  4, -1, -1, -1},
+            {2,   2, -1, -1, -1, -1, -1, -1},
+            {3, 199,  5, -1, -1, -1, -1, -1}]
+
+
 - Batch of 2 `2-D` samples, `fill_value` = 42, `axes` = (1,)
 
 ::
@@ -51,18 +63,41 @@ Examples:
   output = [{{1,  2,  3,  4},
              {5,  6,  7,  8}},
             {{1,  2, 42, 42},
-             {4,  5, 42, 42}}])code")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddOptionalArg("fill_value",
-        R"code(The value to pad the batch with)code",
-        0.0f)
-    .AddOptionalArg<int>("axes",
-        R"code(The axes on which the batch samples will be padded.
+             {4,  5, 42, 42}}]
+
+- Batch of 2 `2-D` samples, `fill_value` = 0, `axes` = (0, 1), `align` = (4, 5)
+
+::
+
+  input  = [{{1,  2,  3,  4},
+             {5,  6,  7,  8},
+             {9, 10, 11, 12}},
+            {{1, 2},
+             {4, 5}}]
+  output = [{{1,  2,  3,  4,  0},
+             {5,  6,  7,  8,  0},
+             {9, 10, 11, 12,  0},
+             {0,  0,  0,  0,  0}},
+            {{1,  2,  0,  0,  0},
+             {4,  5,  0,  0,  0},
+             {0,  0,  0,  0,  0},
+             {0,  0,  0,  0,  0}}])code")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddOptionalArg("fill_value",
+    R"code(The value to pad the batch with)code",
+    0.0f)
+  .AddOptionalArg<int>("axes",
+    R"code(The axes on which the batch samples will be padded.
 Indexes are zero-based with 0 being the first axis or outermost dimension
 of the tensor. If `axes` is empty or not provided, the output will be padded
 on all the axes.
-)code", std::vector<int>());
+)code", std::vector<int>())
+  .AddOptionalArg<int>("align",
+    R"code(If specified, determines the alignment on those dimensions that are padded. That is,
+the padded length on `axis = axes[i]` should be a multiple of `align[i]`. If a single integer value
+is provided, the alignment restrictions are applied to all the padded axes.)code",
+    std::vector<int>());
 
 template <>
 bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,

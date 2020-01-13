@@ -35,9 +35,16 @@ template <typename Backend>
 class Pad : public Operator<Backend> {
  public:
   inline explicit Pad(const OpSpec &spec)
-    : Operator<Backend>(spec)
-    , fill_value_(spec.GetArgument<float>("fill_value"))
-    , axes_(spec.GetRepeatedArgument<int>("axes")) {}
+      : Operator<Backend>(spec)
+      , fill_value_(spec.GetArgument<float>("fill_value")) {
+    if (spec.HasArgument("axes")) {
+      axes_ = spec.GetRepeatedArgument<int>("axes");
+    }
+
+    if (spec.HasArgument("align")) {
+      align_ = spec.GetRepeatedArgument<int>("align");
+    }
+  }
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
@@ -70,6 +77,11 @@ class Pad : public Operator<Backend> {
       axes_.resize(ndim);
       std::iota(axes_.begin(), axes_.end(), 0);
     }
+
+    if (align_.size() == 1) {
+      align_.resize(axes_.size(), align_[0]);
+    }
+
     TensorShape<> padded_shape;
     padded_shape.resize(ndim);
 
@@ -82,12 +94,24 @@ class Pad : public Operator<Backend> {
       }
     }
 
+    if (!align_.empty()) {
+      for (int i = 0; i < static_cast<int>(axes_.size()); i++) {
+        auto axis = axes_[i];
+        auto align_val = align_[i];
+        if (align_val <= 0)
+          continue;
+        assert(padded_shape[axis] > 0);
+        int64_t remainder = padded_shape[axis] % align_val;
+        padded_shape[axis] += align_val - remainder;
+      }
+    }
+
     for (int i = 0; i < nsamples; i++) {
       auto &sample_args = kernel_sample_args[i];
       sample_args.padding_val = fill_value_;
       for (auto axis : axes_) {
+        assert(padded_shape[axis] > 0);
         sample_args.padded_shape[axis] = padded_shape[axis];
-        assert(sample_args.padded_shape[axis] > 0);
       }
     }
 
@@ -96,6 +120,7 @@ class Pad : public Operator<Backend> {
 
   float fill_value_;
   std::vector<int> axes_;
+  std::vector<int> align_;
   kernels::KernelManager kmgr_;
   any kernel_sample_args_;
 

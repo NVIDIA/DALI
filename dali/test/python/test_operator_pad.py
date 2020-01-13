@@ -24,14 +24,14 @@ from test_utils import RandomlyShapedDataIterator
 
 class PadSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator,
-                 layout="HWC", num_threads=1, device_id=0, num_gpus=1, axes=()):
+                 layout="HWC", num_threads=1, device_id=0, num_gpus=1, axes=(), align=()):
         super(PadSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
         self.device = device
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.pad = ops.Pad(device = self.device, axes=axes)
+        self.pad = ops.Pad(device = self.device, axes=axes, align=align)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -45,9 +45,9 @@ class PadSynthDataPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 
-def check_pad_synth_data(device, batch_size, input_max_shape, axes):
+def check_pad_synth_data(device, batch_size, input_max_shape, axes, align):
     eii = RandomlyShapedDataIterator(batch_size, max_shape=input_max_shape)
-    pipe = PadSynthDataPipeline(device, batch_size, iter(eii), axes=axes)
+    pipe = PadSynthDataPipeline(device, batch_size, iter(eii), axes=axes, align=align)
     pipe.build()
     actual_axes = axes if len(axes) > 0 else range(len(input_max_shape))
     assert(len(actual_axes)>0)
@@ -62,6 +62,15 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes):
                 if input_shape[dim] > max_shape[dim]:
                     max_shape[dim] = input_shape[dim]
 
+            if align:
+                assert(len(align) == len(actual_axes))
+                for i in range(len(actual_axes)):
+                    dim = actual_axes[i]
+                    align_val = align[i]
+                    remainder = max_shape[dim] % align_val
+                    if remainder != 0:
+                        max_shape[dim] = max_shape[dim] - remainder + align_val
+
         out2_data = out2.as_cpu() if isinstance(out2.at(0), dali.backend_impl.TensorGPU) else out2
         for i in range(batch_size):
             output_shape = out2_data.at(i).shape
@@ -70,12 +79,14 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes):
                     assert(output_shape[dim] == max_shape[dim])
 
 def test_slice_synth_data_vs_numpy():
-    for device in ["cpu", "gpu"]:
+    for device in ["cpu"]:
         for batch_size in {1, 8}:
-            for input_max_shape, axes in \
-                [((200, 400, 3), (0,)),
-                 ((200, 400, 3), (1,)),
-                 ((200, 400, 3), (0, 1)),
-                 ((200, 400, 3), ()),
-                 ((200, 400, 3), [])]:
-                yield check_pad_synth_data, device, batch_size, input_max_shape, axes
+            for input_max_shape, axes, align in \
+                [((200, 400, 3), (0,), None),
+                 ((200, 400, 3), (1,), None),
+                 ((200, 400, 3), (0, 1), None),
+                 ((200, 400, 3), (), None),
+                 ((200, 400, 3), [], None),
+                 ((200, 400, 3), (2,), (4,)),]:
+#                 ((200, 400, 3), (0, 1), (256, 256))]:
+                yield check_pad_synth_data, device, batch_size, input_max_shape, axes, align
