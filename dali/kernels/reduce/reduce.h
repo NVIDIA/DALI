@@ -16,6 +16,7 @@
 #define DALI_KERNELS_REDUCE_REDUCE_H_
 
 #include <cassert>
+#include <utility>
 #include <vector>
 #include "dali/kernels/kernel.h"
 #include "dali/core/format.h"
@@ -89,6 +90,7 @@ void reduce1D(Dst &reduced, const Src *data, int64_t stride, int64_t n,
   }
 }
 
+namespace detail {
 template <typename Backend, typename T>
 struct StridedTensor {
   T *data = nullptr;
@@ -96,7 +98,7 @@ struct StridedTensor {
   SmallVector<int, 6> stride, size;
 };
 
-
+/// @brief Reduces a strided tensor slice to a scalar
 template <typename Dst, typename Src, typename Mapping, typename Reduction>
 void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
             const Mapping &M, const Reduction &R,
@@ -127,15 +129,23 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
   }
 }
 
+/// @brief Reduces a strided tensor to a scalar
 template <typename Dst, typename Src, typename Mapping, typename Reduction>
 void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
             const Mapping &M, const Reduction &R, int64_t offset) {
   reduce(reduced, in, M, R, 0, in.size[0], offset);
 }
 
+}  // namespace detail
+
+/**
+ * Base CRTP class for reduction. The pairwise reduction functor and mapping functor
+ * come from the Actual subclass.
+ *
+ * @tparam Provides GetMapping, GetReduction, PostSetup and Postprocess functions
+ */
 template <typename Dst, typename Src, typename Actual>
 struct ReduceBase {
-
   void Setup(const OutTensorCPU<Dst, -1> &out,
              const InTensorCPU<Src, -1> &in,
              span<const int> axes) {
@@ -169,7 +179,7 @@ struct ReduceBase {
     auto R = This().GetReduction();
     if (a == output.dim()) {
       Dst tmp = 0;
-      reduce(tmp, strided_in, This().GetMapping(pos), R, offset);
+      detail::reduce(tmp, strided_in, This().GetMapping(pos), R, offset);
       *output(pos) = This().Postprocess(tmp);
     } else {
       for (int64_t i = 0; i < output.shape[a]; i++) {
@@ -251,7 +261,7 @@ struct ReduceBase {
   OutTensorCPU<Dst, -1> output;
   InTensorCPU<Src, -1> input;
   SmallVector<int, 6> axes, skipped_axes;
-  StridedTensor<StorageCPU, const Src> strided_in;
+  detail::StridedTensor<StorageCPU, const Src> strided_in;
   SmallVector<int64_t, 6> step;
   uint64_t axis_mask = 0;
 };

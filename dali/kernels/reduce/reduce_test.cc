@@ -63,7 +63,7 @@ TEST(ReduceTest, Mean3D) {
   int *data = in_v.data();
   auto *out_data = out_v.data();
 
-  // fill te array with decreasing values - this will exacerbate numerical instability
+  // fill the array with decreasing values - this will exacerbate numerical instability
   // in sequential approach
   for (int i = 0; i < H; i++)
     for (int j = 0; j < W; j++)
@@ -91,7 +91,7 @@ TEST(ReduceTest, Mean3D) {
       reduction_mask |= (1 << a);
     int64_t den = 1;
     for (int d = 0; d < 3; d++) {
-      if (!(reduction_mask & (1<<d))) {
+      if (!(reduction_mask & (1 << d))) {
         out_shape.shape.push_back(in.shape[d]);
       } else {
         den *= in.shape[d];
