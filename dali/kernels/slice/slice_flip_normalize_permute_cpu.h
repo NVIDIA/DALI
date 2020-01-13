@@ -58,30 +58,28 @@ struct NormalizePolicy {
 };
 
 template <typename OutputType, int Dims>
-inline void ZeroPad(OutputType *output,
-                    TensorShape<Dims> out_strides,
-                    TensorShape<Dims> padded_out_shape,
-                    float fill_value,
-                    std::integral_constant<int, 1>) {
+inline void Pad(OutputType *output,
+                TensorShape<Dims> out_strides,
+                TensorShape<Dims> padded_out_shape,
+                float fill_value,
+                std::integral_constant<int, 1>) {
   constexpr auto d = Dims - 1;
-  // zero pad
   for (int64_t i = 0; i < padded_out_shape[d]; i++) {
-    *output = fill_value;
+    *output = static_cast<OutputType>(fill_value);
     output += out_strides[d];
   }
 }
 
 template <typename OutputType, int Dims, int DimsLeft>
-inline void ZeroPad(OutputType *output,
-                    TensorShape<Dims> out_strides,
-                    TensorShape<Dims> padded_out_shape,
-                    float fill_value,
-                    std::integral_constant<int, DimsLeft>) {
+inline void Pad(OutputType *output,
+                TensorShape<Dims> out_strides,
+                TensorShape<Dims> padded_out_shape,
+                float fill_value,
+                std::integral_constant<int, DimsLeft>) {
   constexpr auto d = Dims - DimsLeft;
-  // zero pad
   for (int64_t i = 0; i < padded_out_shape[d]; i++) {
-    ZeroPad(output, out_strides, padded_out_shape, fill_value,
-            std::integral_constant<int, DimsLeft - 1>());
+    Pad(output, out_strides, padded_out_shape, fill_value,
+        std::integral_constant<int, DimsLeft - 1>());
     output += out_strides[d];
   }
 }
@@ -148,10 +146,9 @@ inline void SliceFlipNormalizePermuteImpl(OutputType *output, const InputType *i
     }
   }
 
-  // zero pad
   for (; i < padded_out_shape[d]; i++) {
-    ZeroPad(output, out_strides, padded_out_shape, fill_value,
-            std::integral_constant<int, DimsLeft - 1>());
+    Pad(output, out_strides, padded_out_shape, fill_value,
+        std::integral_constant<int, DimsLeft - 1>());
     output += out_strides[d];
   }
 }

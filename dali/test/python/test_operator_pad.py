@@ -50,6 +50,9 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes, align):
     pipe = PadSynthDataPipeline(device, batch_size, iter(eii), axes=axes, align=align)
     pipe.build()
     actual_axes = axes if len(axes) > 0 else range(len(input_max_shape))
+    if align and len(align) == 1:
+        align = [align[0] for _ in actual_axes]
+
     assert(len(actual_axes)>0)
     for k in range(5):
         out1, out2 = pipe.run()
@@ -79,7 +82,7 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes, align):
                     assert(output_shape[dim] == max_shape[dim])
 
 def test_slice_synth_data_vs_numpy():
-    for device in ["cpu"]:
+    for device in ["cpu", "gpu"]:
         for batch_size in {1, 8}:
             for input_max_shape, axes, align in \
                 [((200, 400, 3), (0,), None),
@@ -87,6 +90,8 @@ def test_slice_synth_data_vs_numpy():
                  ((200, 400, 3), (0, 1), None),
                  ((200, 400, 3), (), None),
                  ((200, 400, 3), [], None),
-                 ((200, 400, 3), (2,), (4,)),]:
-#                 ((200, 400, 3), (0, 1), (256, 256))]:
+                 ((200, 400, 3), (2,), (4,)),
+                 ((200, 400, 3), (0, 1), (256, 256)),
+                 ((200, 400, 3), (0, 1), (16, 64)),
+                 ((200, 400, 3), (0, 1), (256,))]:
                 yield check_pad_synth_data, device, batch_size, input_max_shape, axes, align
