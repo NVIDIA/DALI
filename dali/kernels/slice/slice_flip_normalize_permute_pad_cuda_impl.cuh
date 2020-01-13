@@ -25,7 +25,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_common.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 
 
 namespace dali {

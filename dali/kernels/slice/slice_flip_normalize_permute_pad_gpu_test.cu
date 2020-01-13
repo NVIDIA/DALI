@@ -15,8 +15,8 @@
 #include <gtest/gtest.h>
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_kernel_test.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_gpu.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_kernel_test.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_gpu.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_kernel_test.h"
 
 namespace dali {
 namespace kernels {

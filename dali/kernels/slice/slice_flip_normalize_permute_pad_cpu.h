@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_CPU_H_
-#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_CPU_H_
+#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_CPU_H_
+#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_CPU_H_
 
 #include <utility>
 #include <vector>
@@ -21,7 +21,7 @@
 #include "dali/core/convert.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_common.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
 #include "dali/util/half.hpp"
 
@@ -220,4 +220,4 @@ class SliceFlipNormalizePermutePadCpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_CPU_H_
+#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_CPU_H_

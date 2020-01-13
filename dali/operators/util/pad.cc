@@ -17,7 +17,7 @@
 #include "dali/operators/util/pad.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_cpu.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
 
 namespace dali {
 

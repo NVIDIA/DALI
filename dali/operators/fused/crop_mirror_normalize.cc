@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/fused/crop_mirror_normalize.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_cpu.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
 #include "dali/util/half.hpp"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"

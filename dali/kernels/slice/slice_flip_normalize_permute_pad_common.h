@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_COMMON_H_
-#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_COMMON_H_
+#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_COMMON_H_
+#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_COMMON_H_
 
 #include <utility>
 #include <vector>
@@ -135,4 +135,4 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_COMMON_H_
+#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_COMMON_H_
