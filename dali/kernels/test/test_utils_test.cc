@@ -89,11 +89,7 @@ TEST(TestTensorList, Transfer) {
 
   ttl.invalidate_cpu();
 
-  std::vector<int> dummy(1024);  // allocate 1024 ints to (hopefully) prevent
-                                 // same address from being allocated to the tensor list
-
   auto cpu = ttl.cpu(0);
-  EXPECT_NE(cpu.data[0], ptr) << "It's highly unlikely that we get exactly the same pointer";
   for (int i = 0; i < 1024; i++) {
     ASSERT_EQ(cpu.data[0][i], i+1);
   }
