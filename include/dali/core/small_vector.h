@@ -180,7 +180,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     clear();
     reserve(n);
     T *ptr = data();
-    for (size_t i = 0; i < n; i++) {
+    for (decltype(n) i = 0; i < n; i++) {
       new(ptr+i) T(c[i]);
       if (!noexcept(new(ptr+i) T(c[i])))
         set_size(i+1);
