@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,10 +19,12 @@
 #include <utility>
 #include <vector>
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/common/utils.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/tensor_shape_print.h"
 #include "dali/core/tensor_view.h"
 #include "dali/core/util.h"
 
@@ -32,6 +34,7 @@ namespace reductions {
 
 struct identity {
   template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
   T &&operator()(T &&x) const noexcept {
     return std::forward<T>(x);
   }
@@ -39,14 +42,17 @@ struct identity {
 
 struct square {
   template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
   auto operator()(const T &x) const noexcept {
     return x * x;
   }
 
+  DALI_HOST_DEV DALI_FORCEINLINE
   int64_t operator()(int32_t x) const noexcept {
     return static_cast<int64_t>(x) * x;
   }
 
+  DALI_HOST_DEV DALI_FORCEINLINE
   uint64_t operator()(uint32_t x) const noexcept {
     return static_cast<uint64_t>(x) * x;
   }
@@ -56,6 +62,7 @@ template <typename Mean>
 struct variance {
   Mean mean = 0;
   template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
   auto operator()(const T &x) const noexcept {
     auto d = x - mean;
     return d * d;
@@ -127,9 +134,9 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
     R(reduced, tmp);
   } else {
     int64_t sub_v = volume(in.size.begin() + axis + 1, in.size.end());
-    if (!sub_v)
+    if (sub_v == 0)
       sub_v = 1;
-    if (extent >= 4 && extent * sub_v > kTreeReduceThreshold) {
+    if (extent >= 2 && extent * sub_v > kTreeReduceThreshold) {
       Dst tmp1 = 0, tmp2 = 0;
       int64_t mid = extent / 2;
       reduce(tmp1, in, P, R, axis, mid, offset);
@@ -170,9 +177,11 @@ struct ReduceBase {
       throw std::range_error("Reduce supports up to 64 dimensions");
     input = in;
     output = out;
-    setup_axes(axes);
-    setup_output();
-    setup_input();
+    InitAxes(axes);
+    CheckOutput();
+    CollapseAxes();
+    SetupOutput();
+    SetupInput();
     assert(output.num_elements() == out.num_elements());
     This().PostSetup();
   }
@@ -200,46 +209,71 @@ struct ReduceBase {
   reductions::sum GetReduction() const { return {}; }
   Dst Postprocess(const Dst &x) const { return x; }
 
-  void ReduceAxis(bool clear, span<int64_t> pos, int a, int64_t offset = 0) {
+ protected:
+  void ReduceAxis(bool clear, span<int64_t> pos, int axis, int64_t offset = 0) {
     auto R = This().GetReduction();
-    if (a == output.dim()) {
+    if (axis == output.dim()) {
       Dst &r = *output(pos);
       if (clear) r = 0;
       detail::reduce(r, strided_in, This().GetPreprocessor(pos), R, offset);
     } else {
-      for (int64_t i = 0; i < output.shape[a]; i++) {
-        pos[a] = i;
-        ReduceAxis(clear, pos, a+1, offset + i*step[a]);
+      for (int64_t i = 0; i < output.shape[axis]; i++) {
+        pos[axis] = i;
+        ReduceAxis(clear, pos, axis+1, offset + i*step[axis]);
       }
     }
   }
 
-  void setup_axes(span<const int> _axes) {
-    for (int axis : axes) {
+  void InitAxes(span<const int> _axes) {
+    for (int axis : _axes) {
       if (axis < 0 || axis >= ndim()) {
         throw std::range_error(make_string("Axis index out of range: ", axis, " not in 0..",
                                ndim()-1));
       }
     }
 
-    SmallVector<int, 6> tmp_axes;
-    tmp_axes = _axes;
+    axes = _axes;
+    axis_mask = 0;
+    for (int axis : axes) {
+      axis_mask |= static_cast<uint64_t>(1) << axis;
+    }
+  }
+
+  void CheckOutput() {
+    if (axis_mask == static_cast<uint64_t>((1 << ndim()) - 1)) {
+      DALI_ENFORCE(output.shape == TensorShape<1>{1}, make_string(
+        "Full reduction produces a single value. Output shape provided: ", output.shape));
+    } else {
+      TensorShape<> expected1, expected2 = input.shape;
+      for (int i = 0; i < input.dim(); i++) {
+        if (is_reduced_axis(i))
+          expected2[i] = 1;
+        else
+          expected1.shape.push_back(input.shape[i]);
+      }
+      DALI_ENFORCE(output.shape == expected1 || output.shape == expected2, make_string(
+        "Unexpected shape for reduction. Should be:  ", expected1, "  or  ", expected2, ",\ngot:  ",
+        output.shape));
+    }
+  }
+
+
+  void CollapseAxes() {
+    SmallVector<int, 6> tmp_axes = std::move(axes);
     std::sort(tmp_axes.begin(), tmp_axes.end());
     int skipped = 0;
     int prev = -2;
     axes.clear();
-    skipped_axes.clear();
     for (int i = 0; i < static_cast<int>(tmp_axes.size()); i++) {
       int axis = tmp_axes[i] - skipped;
       if (axis != prev + 1) {
         axes.push_back(axis);
+        prev = axis;
       } else {
         assert(prev >= 0);
         input = collapse_dim(input, prev);
         skipped++;
-        skipped_axes.push_back(tmp_axes[i]);
       }
-      prev = axis;
     }
     axis_mask = 0;
     for (int axis : axes) {
@@ -247,22 +281,16 @@ struct ReduceBase {
     }
   }
 
-  void setup_output() {
+  void SetupOutput() {
     output.shape.resize(ndim() - axes.size());
     // full reduction?
     if (output.shape.empty())
       output.shape = { 1 };
   }
 
-  void setup_input() {
+  void SetupInput() {
     step.clear();
-    SmallVector<int, 6> strides;
-    strides.resize(ndim());
-    int64_t v = 1;
-    for (int i = ndim()-1; i >= 0; i--) {
-      strides[i] = v;
-      v *= input.shape[i];
-    }
+    auto strides = GetStrides(input.shape);
 
     strided_in = {};
     strided_in.data = input.data;
@@ -276,6 +304,7 @@ struct ReduceBase {
         oaxis++;
       }
     }
+    assert(oaxis == output.dim());
   }
 
   DALI_FORCEINLINE int ndim() const noexcept { return input.shape.size(); }
@@ -285,7 +314,7 @@ struct ReduceBase {
 
   OutTensorCPU<Dst, -1> output;
   InTensorCPU<Src, -1> input;
-  SmallVector<int, 6> axes, skipped_axes;
+  SmallVector<int, 6> axes;
   detail::StridedTensor<StorageCPU, const Src> strided_in;
   SmallVector<int64_t, 6> step;
   uint64_t axis_mask = 0;
@@ -298,13 +327,15 @@ struct Sum : ReduceBase<Dst, Src, Sum<Dst, Src>> {
 template <typename Dst, typename Src>
 struct Mean : ReduceBase<Dst, Src, Mean<Dst, Src>> {
   void PostSetup() {
-    norm_factor = 1;
+    int64_t v = 1;
     for (auto a : this->axes)
-      norm_factor *= this->input.shape[a];
+      v *= this->input.shape[a];
+    norm_factor = 1.0 / v;
   }
 
+
   Dst Postprocess(Dst x) const {
-    return x / norm_factor;
+    return x * norm_factor;
   }
 
   std::conditional_t<std::is_same<Dst, double>::value, double, float> norm_factor = 1;
@@ -316,9 +347,10 @@ struct MeanSquare : ReduceBase<Dst, Src, MeanSquare<Dst, Src>> {
   using Base = ReduceBase<Dst, Src, MeanSquare<Dst, Src>>;
 
   void PostSetup() {
-    norm_factor = 1;
+    int64_t v = 1;
     for (auto a : this->axes)
-      norm_factor /= this->input.shape[a];
+      v *= this->input.shape[a];
+    norm_factor = 1.0 / v;
   }
 
   reductions::square GetPreprocessor(span<int64_t> pos) const { return {}; }
@@ -336,9 +368,10 @@ struct RootMeanSquare : ReduceBase<Dst, Src, RootMeanSquare<Dst, Src>> {
   using Base = ReduceBase<Dst, Src, RootMeanSquare<Dst, Src>>;
 
   void PostSetup() {
-    norm_factor = 1;
+    int64_t v = 1;
     for (auto a : this->axes)
-      norm_factor /= this->input.shape[a];
+      v *= this->input.shape[a];
+    norm_factor = 1.0 / v;
   }
 
   reductions::square GetPreprocessor(span<int64_t> pos) const { return {}; }
@@ -366,9 +399,10 @@ struct Variance : ReduceBase<Dst, Src, Variance<Dst, Src, MeanType>> {
   }
 
   void PostSetup() {
-    norm_factor = 1;
+    int64_t v = 1;
     for (auto a : this->axes)
-      norm_factor /= this->input.shape[a];
+      v *= this->input.shape[a];
+    norm_factor = 1.0 / v;
   }
 
   reductions::variance<MeanType> GetPreprocessor(span<int64_t> pos) const {
@@ -394,9 +428,10 @@ struct StdDev : ReduceBase<Dst, Src, StdDev<Dst, Src, MeanType>> {
   }
 
   void PostSetup() {
-    norm_factor = 1;
+    int64_t v = 1;
     for (auto a : this->axes)
-      norm_factor /= this->input.shape[a];
+      v *= this->input.shape[a];
+    norm_factor = 1.0 / v;
   }
 
   reductions::variance<MeanType> GetPreprocessor(span<int64_t> pos) const {
