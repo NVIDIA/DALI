@@ -28,7 +28,8 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &input = ws.Input<GPUBackend>(0);
   auto in_shape = input.shape();
   auto in_layout = input.GetLayout();
-  int ndim = input.shape().sample_dim();
+  int ndim = in_shape.sample_dim();
+  int nsamples = in_shape.num_samples();
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
     VALUE_SWITCH(ndim, Dims, PAD_SUPPORTED_NDIMS, (
@@ -41,12 +42,11 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       auto in_view = view<const T, Dims>(input);
       auto &kernel_sample_args = FillArgs<Args>(in_shape, in_layout);
 
-      kmgr_.Initialize<Kernel>();
       kmgr_.Resize<Kernel>(1, 1);
       auto req = kmgr_.Setup<Kernel>(0, ctx, in_view, kernel_sample_args);
 
       output_desc[0].type = TypeInfo::Create<T>();
-      output_desc[0].shape.resize(batch_size_, Dims);
+      output_desc[0].shape.resize(nsamples, Dims);
       output_desc[0].shape = req.output_shapes[0];
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT

@@ -37,11 +37,13 @@ class Pad : public Operator<Backend> {
   inline explicit Pad(const OpSpec &spec)
       : Operator<Backend>(spec)
       , fill_value_(spec.GetArgument<float>("fill_value")) {
-    if (spec.HasArgument("axis_names")) {
+    bool has_axis_names = spec.HasArgument("axis_names");
+    bool has_axes = spec.HasArgument("axes");
+    if (has_axis_names && has_axes) {
+      DALI_FAIL("Arguments axis_names and axes are mutually exclusive");
+    } else if (has_axis_names) {
       axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
-    }
-
-    if (spec.HasArgument("axes")) {
+    } else if (has_axes) {
       axes_ = spec.GetRepeatedArgument<int>("axes");
     }
 

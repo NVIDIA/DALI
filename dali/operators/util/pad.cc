@@ -33,44 +33,44 @@ Examples:
 
 ::
 
-  input  = [[3,   4, 2, 5, 4],
+  input  = [[3,   4,   2,   5,   4],
             [2,   2],
-            [3, 199, 5]];
-  output = [[3,   4,  2,  5,  4],
-            [2,   2, -1, -1, -1],
-            [3, 199,  5, -1, -1]]
+            [3, 199,   5]];
+  output = [[3,   4,   2,   5,   4],
+            [2,   2,  -1,  -1,  -1],
+            [3, 199,   5,  -1,  -1]]
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `shape` = (7,)
 
 ::
 
-  input  = [[3,   4, 2, 5, 4],
+  input  = [[3,   4,   2,   5,   4],
             [2,   2],
-            [3, 199, 5]];
-  output = [[3, 4,   2,  5,  4, -1, -1],
-            [2, 2,  -1, -1, -1, -1, -1],
-            [3, 199, 5, -1, -1, -1, -1]]
+            [3, 199,   5]];
+  output = [[3,   4,   2,   5,   4,  -1,  -1],
+            [2,   2,  -1,  -1,  -1,  -1,  -1],
+            [3, 199,   5,  -1,  -1,  -1,  -1]]
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `align` = (4,)
 
 ::
 
-  input  = [[3,   4, 2, 5, 4],
+  input  = [[3,   4,   2,   5,   4],
             [2,   2],
-            [3, 199, 5]];
-  output = [[3,   4,  2,  5,  4, -1, -1, -1],
-            [2,   2, -1, -1, -1, -1, -1, -1],
-            [3, 199,  5, -1, -1, -1, -1, -1]]
+            [3, 199,   5]];
+  output = [[3,   4,   2,   5,   4,  -1,  -1,  -1],
+            [2,   2,  -1,  -1,  -1,  -1,  -1,  -1],
+            [3, 199,   5,  -1,  -1,  -1,  -1,  -1]]
 
 
 - `2-D` samples, `fill_value` = 42, `axes` = (1,)
 
 ::
 
-  input  = [[[1, 2 , 3, 4],
-             [5, 6, 7, 8]],
-            [[1, 2],
-             [4, 5]]]
+  input  = [[[1,  2,  3,  4],
+             [5,  6,  7,  8]],
+            [[1,  2],
+             [4,  5]]]
   output = [[[1,  2,  3,  4],
              [5,  6,  7,  8]],
             [[1,  2, 42, 42],
@@ -119,13 +119,13 @@ Examples:
   .AddOptionalArg<int>("axes",
     R"code(Indices of the axes on which the batch samples will be padded.
 Indexes are zero-based with 0 being the outer-most dimension of the tensor.
-If provided, *axis_names* takes higher priority than *axes*.
+Arguments *axis_names* and *axes* are mutually exclusive.
 If *axes* and *axis_names* are empty or not provided, the output will be padded on all the axes)code",
     std::vector<int>())
   .AddOptionalArg<TensorLayout>("axis_names",
     R"code(Names of the axes on which the batch samples will be padded.
 Dimension names should correspond to dimensions in the input layout.
-If provided, *axis_names* takes higher priority than *axes*.
+Arguments *axis_names* and *axes* are mutually exclusive.
 If *axes* and *axis_names* are empty or not provided, the output will be padded on all the axes)code",
     "")
   .AddOptionalArg<int>("align",
@@ -147,8 +147,8 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
   auto in_layout = input.GetLayout();
-  int ndim = input.shape().sample_dim();
-  int nsamples = input.size();
+  int ndim = in_shape.sample_dim();
+  int nsamples = in_shape.num_samples();
   auto nthreads = ws.GetThreadPool().size();
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
@@ -156,14 +156,13 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       using Kernel = kernels::SliceFlipNormalizePermutePadCpu<T, T, Dims>;
       using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
 
-      kmgr_.Initialize<Kernel>();
       kmgr_.Resize<Kernel>(nthreads, nsamples);
       output_desc[0].type = TypeInfo::Create<T>();
-      output_desc[0].shape.resize(batch_size_, Dims);
+      output_desc[0].shape.resize(nsamples, Dims);
 
       auto in_view = view<const T, Dims>(input);
       auto &kernel_sample_args = FillArgs<Args>(in_shape, in_layout);
-      for (int i = 0; i < batch_size_; i++) {
+      for (int i = 0; i < nsamples; i++) {
         auto in_view = view<const T, Dims>(input[i]);
         kernels::KernelContext ctx;
         auto req = kmgr_.Setup<Kernel>(i, ctx, in_view, kernel_sample_args[i]);
