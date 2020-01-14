@@ -37,12 +37,21 @@ class Pad : public Operator<Backend> {
   inline explicit Pad(const OpSpec &spec)
       : Operator<Backend>(spec)
       , fill_value_(spec.GetArgument<float>("fill_value")) {
+    if (spec.HasArgument("axis_names")) {
+      axis_names_ = spec.GetArgument<TensorLayout>("axis_names");
+    }
+
     if (spec.HasArgument("axes")) {
       axes_ = spec.GetRepeatedArgument<int>("axes");
     }
 
     if (spec.HasArgument("align")) {
       align_ = spec.GetRepeatedArgument<int>("align");
+    }
+
+    if (spec.HasArgument("shape")) {
+      auto shape_arg = spec.GetRepeatedArgument<int>("shape");
+      shape_ = std::vector<int64_t>{std::begin(shape_arg), std::end(shape_arg)};
     }
   }
 
@@ -58,7 +67,7 @@ class Pad : public Operator<Backend> {
 
  private:
   template <typename Args>
-  std::vector<Args>& FillArgs(TensorListShape<> in_shape) {
+  std::vector<Args>& FillArgs(TensorListShape<> in_shape, TensorLayout in_layout) {
     int nsamples = in_shape.num_samples();
     if (!kernel_sample_args_.has_value()) {
       kernel_sample_args_ = std::vector<Args>();
@@ -73,11 +82,18 @@ class Pad : public Operator<Backend> {
     assert(static_cast<int>(kernel_sample_args.size()) == nsamples);
 
     int ndim = in_shape.sample_dim();
+
+    if (!axis_names_.empty()) {
+      axes_ = GetDimIndices(in_layout, axis_names_).to_vector();
+    }
+
+    // If no axes are provided, use all
     if (axes_.empty()) {
       axes_.resize(ndim);
       std::iota(axes_.begin(), axes_.end(), 0);
     }
 
+    // If a single *align* value is provided, use this value for all the axes
     if (align_.size() == 1) {
       align_.resize(axes_.size(), align_[0]);
     }
@@ -85,24 +101,34 @@ class Pad : public Operator<Backend> {
     TensorShape<> padded_shape;
     padded_shape.resize(ndim);
 
-    assert(static_cast<int>(axes_.size()) <= ndim);
-    for (int i = 0; i < nsamples; i++) {
-      auto shape = in_shape[i];
-      for (auto axis : axes_) {
-        if (shape[axis] > padded_shape[axis])
-          padded_shape[axis] = shape[axis];
-      }
+    // If no shape arg is provided, mark all axis as -1 (automatic shape)
+    if (shape_.empty()) {
+      shape_ = std::vector<int64_t>(axes_.size(), -1);
     }
 
-    if (!align_.empty()) {
-      for (int i = 0; i < static_cast<int>(axes_.size()); i++) {
-        auto axis = axes_[i];
-        auto align_val = align_[i];
-        if (align_val <= 0)
-          continue;
+    DALI_ENFORCE(static_cast<int>(axes_.size()) == shape_.size(),
+      make_string("If explicit shape is provided, there should be a value per axis to be padded. "
+                  "Expected ", axes_.size(), " values for shape, got ", shape_.size()));
+
+    assert(static_cast<int>(axes_.size()) <= ndim);
+    for (int i = 0; i < static_cast<int>(axes_.size()); i++) {
+      auto axis = axes_[i];
+      if (shape_[axis] > 0) {
+        padded_shape[axis] = shape_[axis];
+      } else {
+        for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+          auto data_shape = in_shape[sample_idx];
+          if (data_shape[axis] > padded_shape[axis])
+            padded_shape[axis] = data_shape[axis];
+        }
         assert(padded_shape[axis] > 0);
-        int64_t remainder = padded_shape[axis] % align_val;
-        padded_shape[axis] += align_val - remainder;
+        if (!align_.empty()) {
+          int64_t align_val = align_[i];
+          int64_t remainder = padded_shape[axis] % align_val;
+          if (remainder > 0) {
+            padded_shape[axis] += align_val - remainder;
+          }
+        }
       }
     }
 
@@ -119,8 +145,10 @@ class Pad : public Operator<Backend> {
   }
 
   float fill_value_;
+  TensorLayout axis_names_;
   std::vector<int> axes_;
   std::vector<int> align_;
+  TensorShape<> shape_;
   kernels::KernelManager kmgr_;
   any kernel_sample_args_;
 

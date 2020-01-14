@@ -27,6 +27,7 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(1);
   const auto &input = ws.Input<GPUBackend>(0);
   auto in_shape = input.shape();
+  auto in_layout = input.GetLayout();
   int ndim = input.shape().sample_dim();
 
   TYPE_SWITCH(input.type().id(), type2id, T, PAD_SUPPORTED_TYPES, (
@@ -38,7 +39,7 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       ctx.gpu.stream = ws.stream();
 
       auto in_view = view<const T, Dims>(input);
-      auto &kernel_sample_args = FillArgs<Args>(in_shape);
+      auto &kernel_sample_args = FillArgs<Args>(in_shape, in_layout);
 
       kmgr_.Initialize<Kernel>();
       kmgr_.Resize<Kernel>(1, 1);
