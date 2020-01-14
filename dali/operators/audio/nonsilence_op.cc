@@ -18,9 +18,8 @@
 
 namespace dali {
 
-
 DALI_SCHEMA(NonsilenceRegion)
-                .DocStr(R"code(The operator performs leading and trailing nonsilence detection on an audio buffer.<br>
+                .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.<br>
 This operators' behaviour can be described as:
 ```
 def nonsilence(buffer, cutoff_value):
@@ -37,14 +36,14 @@ def nonsilence(buffer, cutoff_value):
     length = end - begin + 1
     return begin, length
 ```
-`Input`: 1-D buffer
+`Input`: 1-D audio buffer
 `Output[0]`: Begin index of nonsilent region
 `Output[1] >= 0`: Length of nonsilent region<br>
 If `Output[1] == 0`, `Output[0]` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
-                .AddArg(detail::kCutoff, R"code()code", DALI_FLOAT);
+                .AddArg(detail::kCutoff, R"code(Everything below this value will be regarded as silence)code", DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
 
@@ -88,7 +87,6 @@ void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
   tp.WaitForWork();
 }
-
 
 #undef NONSILENCE_TYPES
 
