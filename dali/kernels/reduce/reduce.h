@@ -42,6 +42,14 @@ struct square {
   auto operator()(const T &x) const noexcept {
     return x * x;
   }
+
+  int64_t operator()(int32_t x) const noexcept {
+    return static_cast<int64_t>(x) * x;
+  }
+
+  uint64_t operator()(uint32_t x) const noexcept {
+    return static_cast<uint64_t>(x) * x;
+  }
 };
 
 template <typename Mean>
@@ -182,7 +190,7 @@ struct ReduceBase {
 
   reductions::identity GetPreprocessor(span<int64_t> pos) const { return {}; }
   reductions::sum GetReduction() const { return {}; }
-  Dst Potprocess(const Dst &x) const { return x; }
+  Dst Postprocess(const Dst &x) const { return x; }
 
   void ReduceAxis(span<int64_t> pos, int a, int64_t offset = 0) {
     auto R = This().GetReduction();
@@ -303,6 +311,10 @@ struct MeanSquare : ReduceBase<Dst, Src, MeanSquare<Dst, Src>> {
   }
 
   reductions::square GetPreprocessor(span<int64_t> pos) const { return {}; }
+
+  Dst Postprocess(Dst x) const {
+    return x * norm_factor;
+  }
 
   std::conditional_t<std::is_same<Dst, double>::value, double, float> norm_factor = 1;
 };

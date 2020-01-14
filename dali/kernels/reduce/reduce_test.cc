@@ -62,8 +62,9 @@ TEST(ReduceTest, Mean2D) {
   EXPECT_EQ(out[0], xmean + ymean);
 }
 
-TEST(ReduceTest, Mean3D) {
-  Mean<float, int> mean;
+template <typename Reduce, typename Preprocess, typename Postprocess>
+void TestStatelessReduction3D(bool mean, Preprocess pre, Postprocess post) {
+  Reduce red;
 
   const int W = 640, H = 480, C = 3;
   std::vector<int> in_v(W*H*C);
@@ -102,15 +103,16 @@ TEST(ReduceTest, Mean3D) {
       if (!(reduction_mask & (1 << d))) {
         out_shape.shape.push_back(in.shape[d]);
       } else {
-        den *= in.shape[d];
+        if (mean)
+          den *= in.shape[d];
       }
     }
     if (out_shape.empty())
       out_shape = { 1 };
 
     auto out = make_tensor_cpu(out_data, out_shape);
-    mean.Setup(out, in, make_cspan(axes));
-    mean.Run();
+    red.Setup(out, in, make_cspan(axes));
+    red.Run();
 
     std::fill(ref.begin(), ref.end(), 0);
 
@@ -121,16 +123,38 @@ TEST(ReduceTest, Mean3D) {
         for (int k = 0; k < C; k++) {
           ptrdiff_t ofs_k = reduction_mask&4 ? ofs_j : C*ofs_j+k;
           auto v = data[(i*W+j)*C+k];
-          ref[ofs_k] += v;
+          ref[ofs_k] += pre(v);
         }
       }
     }
 
     for (int64_t i = 0; i < out.num_elements(); i++) {
       float eps = (ref[i] / den) * 1e-6;
-      EXPECT_NEAR(out_v[i], ref[i] / den, eps);
+      EXPECT_NEAR(out_v[i], post(ref[i] / den), eps);
     }
   }
+}
+
+TEST(ReduceTest, Mean3D) {
+  TestStatelessReduction3D<Mean<float, int>>(
+    true,
+    reductions::identity(),
+    reductions::identity());
+}
+
+TEST(ReduceTest, MeanSquare3D) {
+  TestStatelessReduction3D<MeanSquare<float, int>>(
+    true,
+    reductions::square(),
+    reductions::identity());
+}
+
+TEST(ReduceTest, RootMeanSquare3D) {
+  auto sqrt = [](auto x) { return std::sqrt(x); };
+  TestStatelessReduction3D<RootMeanSquare<float, int>>(
+    true,
+    reductions::square(),
+    sqrt);
 }
 
 TEST(ReduceTest, StdDev) {
