@@ -15,6 +15,7 @@
 from __future__ import print_function
 
 import os
+import math
 from test_utils import get_gpu_num
 from test_utils import get_dali_extra_path
 
@@ -26,11 +27,14 @@ import re
 
 from nose.tools import assert_raises
 
-VIDEO_DIRECTORY="video_files"
-VIDEO_FILES=os.listdir(VIDEO_DIRECTORY)
+VIDEO_DIRECTORY = "video_files"
+PLENTY_VIDEO_DIRECTORY = "many_video_files"
+VIDEO_FILES = os.listdir(VIDEO_DIRECTORY)
+PLENTY_VIDEO_FILES=  os.listdir(PLENTY_VIDEO_DIRECTORY)
 VIDEO_FILES = [VIDEO_DIRECTORY + '/' + f for f in VIDEO_FILES]
-FILE_LIST="file_list.txt"
-MUTLIPLE_RESOLUTION_ROOT='video_resolution/'
+PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + '/' + f for f in PLENTY_VIDEO_FILES]
+FILE_LIST = "file_list.txt"
+MUTLIPLE_RESOLUTION_ROOT = 'video_resolution/'
 
 ITER=6
 BATCH_SIZE=4
@@ -38,9 +42,10 @@ COUNT=5
 
 
 class VideoPipe(Pipeline):
-    def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1, device_id=0, num_shards=1, dtype=types.FLOAT):
+    def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1, device_id=0, num_shards=1,
+                 dtype=types.FLOAT, sequence_length=COUNT):
         super(VideoPipe, self).__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
-        self.input = ops.VideoReader(device="gpu", filenames=data, sequence_length=COUNT,
+        self.input = ops.VideoReader(device="gpu", filenames=data, sequence_length=sequence_length,
                                      shard_id=0, num_shards=num_shards, random_shuffle=shuffle,
                                      normalized=True, image_type=types.YCbCr, dtype=dtype,
                                      step=step, stride=stride)
@@ -50,18 +55,18 @@ class VideoPipe(Pipeline):
         return output
 
 class VideoPipeList(Pipeline):
-    def __init__(self, batch_size, data, device_id=0):
+    def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT):
         super(VideoPipeList, self).__init__(batch_size, num_threads=2, device_id=device_id)
-        self.input = ops.VideoReader(device="gpu", file_list=data, sequence_length=COUNT)
+        self.input = ops.VideoReader(device="gpu", file_list=data, sequence_length=sequence_length)
 
     def define_graph(self):
         output = self.input(name="Reader")
         return output
 
 class VideoPipeRoot(Pipeline):
-    def __init__(self, batch_size, data, device_id=0):
+    def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT):
         super(VideoPipeRoot, self).__init__(batch_size, num_threads=2, device_id=device_id)
-        self.input = ops.VideoReader(device="gpu", file_root=data, sequence_length=COUNT,
+        self.input = ops.VideoReader(device="gpu", file_root=data, sequence_length=sequence_length,
                                      random_shuffle=True, initial_fill=10)
 
     def define_graph(self):
@@ -139,3 +144,13 @@ def test_multi_gpu_video_pipeline():
     for p in pipes:
         p.build()
         p.run()
+
+# checks if the VideoReader can handle more than OS max open file limit of opened files at once
+def test_plenty_of_video_files():
+    # make sure that there is one sequence per video file
+    pipe = VideoPipe(batch_size=BATCH_SIZE, data=PLENTY_VIDEO_FILES, step=1000000, sequence_length=1)
+    pipe.build()
+    iters = math.ceil(len(os.listdir(PLENTY_VIDEO_DIRECTORY)) / BATCH_SIZE)
+    for i in range(iters):
+        print("Iter " + str(i))
+        pipe.run()

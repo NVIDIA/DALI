@@ -24,6 +24,7 @@
 #include <limits>
 #include <sstream>
 
+
 inline int gcd(int a, int b) {
   while (b) {
     int tmp = b;
@@ -249,7 +250,6 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
       DALI_FAIL(std::string("Could not find video stream in ") + filename);
     }
 
-
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
     int width = codecpar(stream)->width;
     int height = codecpar(stream)->height;
@@ -357,6 +357,15 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
       DALI_FAIL(err.str());
     }
     file.open = true;
+    recently_opened_.push_back(filename);
+    if (recently_opened_.size() > kMaxOpenFiles) {
+      // close the oldest file
+      auto& file_to_close = open_files_[recently_opened_.front()];
+
+      file_to_close.fmt_ctx_.reset(nullptr);
+      file_to_close.open = false;
+      recently_opened_.pop_front();
+    }
   } else {
     /* Flush the bitstream filter handle when using mpeg4_unpack_bframes filter.
      * When mpeg4_unpack_bframe is used the filter handle stores information
@@ -412,6 +421,7 @@ void VideoLoader::read_file() {
     }
 
     auto& file = get_or_open_file(req.filename);
+    auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
     req.frame_base = file.frame_base_;
 
     if (vid_decoder_) {
@@ -526,7 +536,8 @@ void VideoLoader::read_file() {
         }
         while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
           auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
-          vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_);
+          vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_,
+                                      codecpar(stream));
         }
         if (ret != AVERROR(EAGAIN)) {
           DALI_FAIL(std::string("BSF receive packet failed:") + av_err2str(ret));
@@ -563,21 +574,23 @@ void VideoLoader::read_file() {
           }
           *pkt.get() = fpkt;
         }
-        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_);
+        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
+                                    codecpar(stream));
 #endif
       } else {
-        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_);
+        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
+                                    codecpar(stream));
       }
       is_first_frame = false;
     }
 
     // flush the decoder
-    vid_decoder_->decode_packet(nullptr, 0, {0});
+    vid_decoder_->decode_packet(nullptr, 0, {0}, 0);
   }  // while not done
 
   if (vid_decoder_) {
     // stop decoding
-    vid_decoder_->decode_packet(nullptr, 0, {0});
+    vid_decoder_->decode_packet(nullptr, 0, {0}, 0);
   }
   LOG_LINE << "Leaving read_file" << std::endl;
 }

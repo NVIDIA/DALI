@@ -9,6 +9,7 @@ do_once() {
 
 
   mkdir -p video_files
+  mkdir -p many_video_files
   mkdir -p labelled_videos/{0..2}
   cp -r ${DALI_EXTRA_PATH}/db/video_resolution .
 
@@ -20,6 +21,12 @@ do_once() {
   for i in {0..4};
   do
       ffmpeg -ss 00:00:${i}0 -t 00:00:10 -i $container_path -vcodec copy -acodec copy -y video_files/${split[0]}_$i.${split[1]}
+  done
+
+  #create dummy files for max_opened_file_test
+  for i in {0..1400};
+  do
+      ln -s ../video_files/${split[0]}_0.${split[1]} many_video_files/${split[0]}_$i.${split[1]}
   done
 
   for i in {0..9};

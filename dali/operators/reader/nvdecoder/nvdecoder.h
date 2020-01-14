@@ -101,7 +101,8 @@ class NvDecoder {
   static int handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
   static int handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
 
-  int decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base);
+  int decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base,
+                    const CodecParameters*);
 
   void push_req(FrameReq req);
 
@@ -173,7 +174,6 @@ class NvDecoder {
 
   const int device_id_;
   CUStream stream_;
-  const CodecParameters* codecpar_;
 
   bool rgb_;
   DALIDataType dtype_;

@@ -31,6 +31,7 @@ extern "C" {
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <list>
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
@@ -283,6 +284,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   VideoLoaderStats stats_;
 
   std::unordered_map<std::string, OpenFile> open_files_;
+  std::list<std::string> recently_opened_;
   nvdecDriverHandle lib_handle_;
   std::unique_ptr<NvDecoder> vid_decoder_;
 
@@ -295,6 +297,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   volatile bool stop_;
   std::vector<file_meta> file_info_;
+
+  constexpr static size_t kMaxOpenFiles = 200;
 };
 
 }  // namespace dali
