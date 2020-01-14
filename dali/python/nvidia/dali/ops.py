@@ -753,6 +753,7 @@ def _dlpack_from_array(array):
 
 class PythonFunction(PythonFunctionBase):
     global _cpu_ops
+    global _gpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
     _gpu_ops = _gpu_ops.union({'PythonFunction'})
 

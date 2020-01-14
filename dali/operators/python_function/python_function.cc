@@ -20,13 +20,19 @@ namespace dali {
 
 DALI_SCHEMA(PythonFunctionBase)
         .AddArg("function",
-                R"code(Function object consuming and producing numpy arrays.)code",
+                R"code(Function object.)code",
                 DALI_PYTHON_OBJECT)
         .AddOptionalArg("num_outputs", R"code(Number of outputs)code", 1)
         .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
-        .DocStr("Executes a python function.")
+        .DocStr("Executes a python function. \n"
+                "The operator can be used to execute custom python code within the DALI pipeline. "
+                "The called function will get tensors' data as numpy arrays for CPU operators"
+                " or as cupy arrays for GPU operators and should return results in the same format."
+                "For now, this operator can be used only in pipelines with "
+                "`exec_async=False` and `exec_pipelined=False` specified. Due to "
+                "inferior performance, it is intended mostly for prototyping and debugging.")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()
