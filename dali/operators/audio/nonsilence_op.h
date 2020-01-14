@@ -30,11 +30,9 @@ static_assert(std::is_integral<OutputType>::value,
               "Operator return indices, thus OutputType shall be integral");
 
 /**
- *
- * @tparam T
- * @param buffer
- * @param cutoff
- * @return (begin, length)
+ * Detects nonsilence region in provided 1-D audio buffer
+ * @param cutoff Everything below this value will be reagrded as silence
+ * @return (begin index, length)
  */
 template<typename T>
 std::pair<int, int> DetectNonsilenceRegion(span<const T> buffer, T cutoff) {
