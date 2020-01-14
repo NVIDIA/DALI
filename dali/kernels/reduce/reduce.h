@@ -294,7 +294,8 @@ struct ReduceBase {
 
     strided_in = {};
     strided_in.data = input.data;
-    for (int i = 0, oaxis = 0; i < ndim(); i++) {
+    int oaxis = 0;
+    for (int i = 0; i < ndim(); i++) {
       if (is_reduced_axis(i)) {
         strided_in.stride.push_back(strides[i]);
         strided_in.size.push_back(input.shape[i]);
@@ -304,7 +305,7 @@ struct ReduceBase {
         oaxis++;
       }
     }
-    assert(oaxis == output.dim());
+    assert((oaxis == 0 && output.dim() == 1) || oaxis == output.dim());
   }
 
   DALI_FORCEINLINE int ndim() const noexcept { return input.shape.size(); }
