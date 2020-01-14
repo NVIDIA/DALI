@@ -67,35 +67,35 @@ struct sum {
 
 constexpr int kTreeReduceThreshold = 32;
 
-template <int static_stride, typename Dst, typename Src, typename Mapping, typename Reduction>
+template <int static_stride, typename Dst, typename Src, typename Preprocessor, typename Reduction>
 void reduce1D_stride(Dst &reduced, const Src *data, int64_t dynamic_stride, int64_t n,
-                     const Mapping &M, const Reduction &R) {
+                     const Preprocessor &P, const Reduction &R) {
   const int64_t stride = static_stride < 0 ? dynamic_stride : static_stride;
   if (n > kTreeReduceThreshold) {
     int64_t m = n >> 1;
     Dst tmp1 = 0, tmp2 = 0;
     // reduce first half and accumulate
-    reduce1D_stride<static_stride>(tmp1, data, stride, m, M, R);
+    reduce1D_stride<static_stride>(tmp1, data, stride, m, P, R);
     // reduce second half and accumulate
-    reduce1D_stride<static_stride>(tmp2, data + m * stride, stride, n - m, M, R);
+    reduce1D_stride<static_stride>(tmp2, data + m * stride, stride, n - m, P, R);
     R(tmp1, tmp2);
     R(reduced, tmp1);
   } else {
     // reduce to a temporary
     Dst tmp = 0;
     for (int64_t i = 0; i < n; i++)
-       R(tmp, M(data[i * stride]));
+       R(tmp, P(data[i * stride]));
     // accumulate in target value
     R(reduced, tmp);
   }
 }
 
-template <typename Dst, typename Src, typename Mapping, typename Reduction>
+template <typename Dst, typename Src, typename Preprocessor, typename Reduction>
 void reduce1D(Dst &reduced, const Src *data, int64_t stride, int64_t n,
-              const Mapping &M, const Reduction &R) {
+              const Preprocessor &P, const Reduction &R) {
   VALUE_SWITCH(stride, static_stride, (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16),
-    (reduce1D_stride<static_stride>(reduced, data, static_stride, n, M, R);),
-    (reduce1D_stride<-1>(reduced, data, stride, n, M, R);)
+    (reduce1D_stride<static_stride>(reduced, data, static_stride, n, P, R);),
+    (reduce1D_stride<-1>(reduced, data, stride, n, P, R);)
   );  // NOLINT
 }
 
@@ -108,14 +108,14 @@ struct StridedTensor {
 };
 
 /// @brief Reduces a strided tensor slice to a scalar
-template <typename Dst, typename Src, typename Mapping, typename Reduction>
+template <typename Dst, typename Src, typename Preprocessor, typename Reduction>
 void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
-            const Mapping &M, const Reduction &R,
+            const Preprocessor &P, const Reduction &R,
             int axis, int64_t extent, int64_t offset) {
   int64_t stride = in.stride[axis];
   if (axis == in.dim() - 1) {
     Dst tmp = 0;
-    reduce1D(tmp, in.data + offset, stride, in.size[axis], M, R);
+    reduce1D(tmp, in.data + offset, stride, in.size[axis], P, R);
     R(reduced, tmp);
   } else {
     int64_t sub_v = volume(in.size.begin() + axis + 1, in.size.end());
@@ -124,14 +124,14 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
     if (extent >= 4 && extent * sub_v > kTreeReduceThreshold) {
       Dst tmp1 = 0, tmp2 = 0;
       int64_t mid = extent / 2;
-      reduce(tmp1, in, M, R, axis, mid, offset);
-      reduce(tmp2, in, M, R, axis, extent - mid, offset + mid * stride);
+      reduce(tmp1, in, P, R, axis, mid, offset);
+      reduce(tmp2, in, P, R, axis, extent - mid, offset + mid * stride);
       R(tmp1, tmp2);
       R(reduced, tmp1);
     } else {
       for (int64_t i = 0; i < extent; i++) {
         Dst tmp = 0;
-        reduce(tmp, in, M, R, axis + 1, in.size[axis + 1], offset + i * stride);
+        reduce(tmp, in, P, R, axis + 1, in.size[axis + 1], offset + i * stride);
         R(reduced, tmp);
       }
     }
@@ -139,19 +139,19 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
 }
 
 /// @brief Reduces a strided tensor to a scalar
-template <typename Dst, typename Src, typename Mapping, typename Reduction>
+template <typename Dst, typename Src, typename Preprocessor, typename Reduction>
 void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
-            const Mapping &M, const Reduction &R, int64_t offset) {
-  reduce(reduced, in, M, R, 0, in.size[0], offset);
+            const Preprocessor &P, const Reduction &R, int64_t offset) {
+  reduce(reduced, in, P, R, 0, in.size[0], offset);
 }
 
 }  // namespace detail
 
 /**
- * Base CRTP class for reduction. The pairwise reduction functor and mapping functor
+ * Base CRTP class for reduction. The pairwise reduction functor and Preprocessor functor
  * come from the Actual subclass.
  *
- * @tparam Provides GetMapping, GetReduction, PostSetup and Postprocess functions
+ * @tparam Provides GetPreprocessor, GetReduction, PostSetup and Get functions
  */
 template <typename Dst, typename Src, typename Actual>
 struct ReduceBase {
@@ -180,7 +180,7 @@ struct ReduceBase {
   Actual &This() noexcept { return static_cast<Actual&>(*this); }
   const Actual &This() const noexcept { return static_cast<const Actual&>(*this); }
 
-  reductions::identity GetMapping(span<int64_t> pos) const { return {}; }
+  reductions::identity GetPreprocessor(span<int64_t> pos) const { return {}; }
   reductions::sum GetReduction() const { return {}; }
   Dst Potprocess(const Dst &x) const { return x; }
 
@@ -188,7 +188,7 @@ struct ReduceBase {
     auto R = This().GetReduction();
     if (a == output.dim()) {
       Dst tmp = 0;
-      detail::reduce(tmp, strided_in, This().GetMapping(pos), R, offset);
+      detail::reduce(tmp, strided_in, This().GetPreprocessor(pos), R, offset);
       *output(pos) = This().Postprocess(tmp);
     } else {
       for (int64_t i = 0; i < output.shape[a]; i++) {
@@ -292,6 +292,69 @@ struct Mean : ReduceBase<Dst, Src, Mean<Dst, Src>> {
 };
 
 
+template <typename Dst, typename Src>
+struct MeanSquare : ReduceBase<Dst, Src, MeanSquare<Dst, Src>> {
+  using Base = ReduceBase<Dst, Src, MeanSquare<Dst, Src>>;
+
+  void PostSetup() {
+    norm_factor = 1;
+    for (auto a : this->axes)
+      norm_factor /= this->input.shape[a];
+  }
+
+  reductions::square GetPreprocessor(span<int64_t> pos) const { return {}; }
+
+  std::conditional_t<std::is_same<Dst, double>::value, double, float> norm_factor = 1;
+};
+
+
+template <typename Dst, typename Src>
+struct RootMeanSquare : ReduceBase<Dst, Src, RootMeanSquare<Dst, Src>> {
+  using Base = ReduceBase<Dst, Src, RootMeanSquare<Dst, Src>>;
+
+  void PostSetup() {
+    norm_factor = 1;
+    for (auto a : this->axes)
+      norm_factor /= this->input.shape[a];
+  }
+
+  reductions::square GetPreprocessor(span<int64_t> pos) const { return {}; }
+
+  Dst Postprocess(Dst x) const {
+    return std::sqrt(x * norm_factor);
+  }
+
+  std::conditional_t<std::is_same<Dst, double>::value, double, float> norm_factor = 1;
+};
+
+template <typename Dst, typename Src, typename MeanType = Dst>
+struct Variance : ReduceBase<Dst, Src, Variance<Dst, Src, MeanType>> {
+  using Base = ReduceBase<Dst, Src, Variance<Dst, Src, MeanType>>;
+  InTensorCPU<MeanType, -1> mean;
+
+  void Setup(const OutTensorCPU<Dst, -1> &out,
+             const InTensorCPU<Dst, -1> &in,
+             span<const int> axes,
+             const InTensorCPU<Dst, -1> &mean) {
+    assert(mean.shape == out.shape);
+    Base::Setup(out, in, axes);
+    this->mean = mean;
+    this->mean.shape = this->output.shape;
+  }
+
+  void PostSetup() {
+    norm_factor = 1;
+    for (auto a : this->axes)
+      norm_factor /= this->input.shape[a];
+  }
+
+  reductions::variance<MeanType> GetPreprocessor(span<int64_t> pos) const {
+    return { *mean(pos) };
+  }
+
+  std::conditional_t<std::is_same<Dst, double>::value, double, float> norm_factor = 1;
+};
+
 template <typename Dst, typename Src, typename MeanType = Dst>
 struct StdDev : ReduceBase<Dst, Src, StdDev<Dst, Src, MeanType>> {
   using Base = ReduceBase<Dst, Src, StdDev<Dst, Src, MeanType>>;
@@ -313,7 +376,7 @@ struct StdDev : ReduceBase<Dst, Src, StdDev<Dst, Src, MeanType>> {
       norm_factor /= this->input.shape[a];
   }
 
-  reductions::variance<MeanType> GetMapping(span<int64_t> pos) const {
+  reductions::variance<MeanType> GetPreprocessor(span<int64_t> pos) const {
     return { *mean(pos) };
   }
 
