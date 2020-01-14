@@ -283,6 +283,9 @@ struct ReduceBase {
   uint64_t axis_mask = 0;
 };
 
+template <typename Dst, typename Src>
+struct Sum : ReduceBase<Dst, Src, Sum<Dst, Src>> {
+};
 
 template <typename Dst, typename Src>
 struct Mean : ReduceBase<Dst, Src, Mean<Dst, Src>> {

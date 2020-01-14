@@ -135,6 +135,13 @@ void TestStatelessReduction3D(bool mean, Preprocess pre, Postprocess post) {
   }
 }
 
+TEST(ReduceTest, Sum3D) {
+  TestStatelessReduction3D<Sum<float, int>>(
+    false,
+    reductions::identity(),
+    reductions::identity());
+}
+
 TEST(ReduceTest, Mean3D) {
   TestStatelessReduction3D<Mean<float, int>>(
     true,
