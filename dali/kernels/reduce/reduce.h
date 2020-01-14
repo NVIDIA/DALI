@@ -67,27 +67,36 @@ struct sum {
 
 constexpr int kTreeReduceThreshold = 32;
 
-template <typename Dst, typename Src, typename Mapping, typename Reduction>
-void reduce1D(Dst &reduced, const Src *data, int64_t stride, int64_t n,
-              const Mapping &M, const Reduction &R) {
+template <int static_stride, typename Dst, typename Src, typename Mapping, typename Reduction>
+void reduce1D_stride(Dst &reduced, const Src *data, int64_t dynamic_stride, int64_t n,
+                     const Mapping &M, const Reduction &R) {
+  const int64_t stride = static_stride < 0 ? dynamic_stride : static_stride;
   if (n > kTreeReduceThreshold) {
     int64_t m = n >> 1;
     Dst tmp1 = 0, tmp2 = 0;
     // reduce first half and accumulate
-    reduce1D(tmp1, data, stride, m, M, R);
+    reduce1D_stride<static_stride>(tmp1, data, stride, m, M, R);
     // reduce second half and accumulate
-    reduce1D(tmp2, data + m * stride, stride, n - m, M, R);
+    reduce1D_stride<static_stride>(tmp2, data + m * stride, stride, n - m, M, R);
     R(tmp1, tmp2);
     R(reduced, tmp1);
   } else {
     // reduce to a temporary
     Dst tmp = 0;
-    for (int64_t i = 0; i < n; i++) {
-      R(tmp, M(data[i * stride]));
-    }
+    for (int64_t i = 0; i < n; i++)
+       R(tmp, M(data[i * stride]));
     // accumulate in target value
     R(reduced, tmp);
   }
+}
+
+template <typename Dst, typename Src, typename Mapping, typename Reduction>
+void reduce1D(Dst &reduced, const Src *data, int64_t stride, int64_t n,
+              const Mapping &M, const Reduction &R) {
+  VALUE_SWITCH(stride, static_stride, (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16),
+    (reduce1D_stride<static_stride>(reduced, data, static_stride, n, M, R);),
+    (reduce1D_stride<-1>(reduced, data, stride, n, M, R);)
+  );  // NOLINT
 }
 
 namespace detail {

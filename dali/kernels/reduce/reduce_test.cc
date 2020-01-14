@@ -14,10 +14,18 @@
 
 #include <gtest/gtest.h>
 #include <random>
+#include <chrono>
 #include "dali/kernels/reduce/reduce.h"
 
 namespace dali {
 namespace kernels {
+
+using perfclock = std::chrono::high_resolution_clock;
+
+template <typename Out = double, typename R, typename P>
+inline Out microseconds(std::chrono::duration<R, P> d) {
+  return std::chrono::duration_cast<std::chrono::duration<Out, std::micro>>(d).count();
+}
 
 TEST(ReduceTest, Mean2D) {
   Mean<float, int> mean;
@@ -151,29 +159,56 @@ TEST(ReduceTest, StdDev) {
   int axes2[] = { 0 };
   int axes3[] = { 0, 1 };
 
+  auto t0 = perfclock::now();
   auto mean1 = make_tensor_cpu<1>(m1, { H });
   mean.Setup(mean1, in, make_span(axes1));
   mean.Run();
+  auto t1 = perfclock::now();
   auto stddev1 = make_tensor_cpu<1>(s1, { H });
   stddev.Setup(stddev1, in, make_span(axes1), mean1);
   stddev.Run();
+  auto t2 = perfclock::now();
+  print(std::cerr, "Performance:\nMean<float, float>: ", microseconds(t1-t0),
+                   "us\nStdDev<float, float>: ", microseconds(t2-t1), "us\n");
+
   for (int i = 0; i < H; i++) {
     EXPECT_NEAR(m1[i], i + 10, 3.5);
     EXPECT_NEAR(s1[i], 42, 3);
   }
 
+  t0 = perfclock::now();
   auto mean2 = make_tensor_cpu<1>(m2, { W });
   mean.Setup(mean2, in, make_span(axes2));
   mean.Run();
+  t1 = perfclock::now();
   auto stddev2 = make_tensor_cpu<1>(s2, { W });
   stddev.Setup(stddev2, in, make_span(axes2), mean2);
   stddev.Run();
+  t2 = perfclock::now();
+  print(std::cerr, "Performance:\nMean<float, float>: ", microseconds(t1-t0),
+                   "us\nStdDev<float, float>: ", microseconds(t2-t1), "us\n");
+
   double dev2 = sqrt(42*42 + H*H/12);  // combined distribution for linear change from 0 to H-1
                                        // and a Gaussian distribution
   for (int i = 0; i < W; i++) {
     EXPECT_NEAR(m2[i], 10 + (H-1)*0.5f, 5);
     EXPECT_NEAR(s2[i], dev2, 5);
   }
+
+  t0 = perfclock::now();
+  auto mean3 = make_tensor_cpu<1>(m3, { 1 });
+  mean.Setup(mean3, in, make_span(axes3));
+  mean.Run();
+  t1 = perfclock::now();
+  auto stddev3 = make_tensor_cpu<1>(s3, { 1 });
+  stddev.Setup(stddev3, in, make_span(axes3), mean3);
+  stddev.Run();
+  t2 = perfclock::now();
+  print(std::cerr, "Performance:\nMean<float, float>: ", microseconds(t1-t0),
+                   "us\nStdDev<float, float>: ", microseconds(t2-t1), "us\n");
+
+  EXPECT_NEAR(m3[0], 10 + (H-1)*0.5f, 1);
+  EXPECT_NEAR(s3[0], dev2, 1);
 }
 
 }  // namespace kernels
