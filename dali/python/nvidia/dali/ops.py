@@ -27,6 +27,13 @@ from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
 
 
+cupy = None
+def _setup_cupy():
+    global cupy
+    if cupy is None:
+        import cupy as cupy
+
+
 class _EdgeReference(object):
     def __init__(self, name, device="cpu", source=None):
         self.name = name
@@ -747,6 +754,7 @@ def _dlpack_from_array(array):
 class PythonFunction(PythonFunctionBase):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
+    _gpu_ops = _gpu_ops.union({'PythonFunction'})
 
     @staticmethod
     def current_stream():
@@ -779,20 +787,44 @@ class PythonFunction(PythonFunctionBase):
     def _function_wrapper_cpu(batch_processing, function, *dlpack_inputs):
         if batch_processing:
             return PythonFunction.function_wrapper_batch(function, _dlpack_to_array,
-                                                             _dlpack_from_array, *dlpack_inputs)
+                                                         _dlpack_from_array, *dlpack_inputs)
         else:
             return PythonFunction.function_wrapper_per_sample(function, _dlpack_to_array,
-                                                                  _dlpack_from_array,
-                                                                  *dlpack_inputs)
+                                                              _dlpack_from_array,
+                                                              *dlpack_inputs)
+
+    @staticmethod
+    def _cupy_stream_wrapper(function, *inputs):
+        stream = cupy.cuda.Stream(null=True)
+        stream.ptr = PythonFunction.current_stream().ptr
+        with stream:
+            out = function(*inputs)
+        stream.ptr = 0
+        return out
+
+    @staticmethod
+    def _function_wrapper_gpu(batch_processing, function, *dlpack_inputs):
+        def wrapped_func(*inputs):
+            return PythonFunction._cupy_stream_wrapper(function, *inputs)
+        if batch_processing:
+            return PythonFunction.function_wrapper_batch(wrapped_func, cupy.fromDlpack,
+                                                         lambda t: t.toDlpack(), *dlpack_inputs)
+        else:
+            return PythonFunction.function_wrapper_per_sample(wrapped_func, cupy.fromDlpack,
+                                                              lambda t: t.toDlpack(),
+                                                              *dlpack_inputs)
 
     def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
+        if device == 'gpu':
+            _setup_cupy()
+        func = (lambda *ts: PythonFunction._function_wrapper_cpu(batch_processing, function, *ts))\
+               if device == 'cpu' else \
+               (lambda *ts: PythonFunction._function_wrapper_gpu(batch_processing, function, *ts))
         super(PythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                                             function=lambda *ins:
-                                             PythonFunction._function_wrapper_cpu(batch_processing,
-                                                                                  function, *ins),
+                                             function=func,
                                              num_outputs=num_outputs, device=device,
+                                             synchronize_stream=False,
                                              batch_processing=batch_processing, **kwargs)
-
 
 
 class DLTensorPythonFunction(PythonFunctionBase):
