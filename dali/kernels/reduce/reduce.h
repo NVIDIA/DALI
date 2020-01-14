@@ -179,10 +179,18 @@ struct ReduceBase {
 
   void PostSetup() {}
 
-  void Run() {
+  void Run(bool clear = true, bool postprocess = true) {
     SmallVector<int64_t, 6> pos;
     pos.resize(output.dim());
-    ReduceAxis(make_span(pos), 0, 0);
+    ReduceAxis(clear, make_span(pos), 0, 0);
+    if (postprocess)
+      PostprocessAll();
+  }
+
+  void PostprocessAll() {
+    int64_t v = output.num_elements();
+    for (int64_t i = 0; i < v; i++)
+      output.data[i] = This().Postprocess(output.data[i]);
   }
 
   Actual &This() noexcept { return static_cast<Actual&>(*this); }
@@ -192,16 +200,16 @@ struct ReduceBase {
   reductions::sum GetReduction() const { return {}; }
   Dst Postprocess(const Dst &x) const { return x; }
 
-  void ReduceAxis(span<int64_t> pos, int a, int64_t offset = 0) {
+  void ReduceAxis(bool clear, span<int64_t> pos, int a, int64_t offset = 0) {
     auto R = This().GetReduction();
     if (a == output.dim()) {
-      Dst tmp = 0;
-      detail::reduce(tmp, strided_in, This().GetPreprocessor(pos), R, offset);
-      *output(pos) = This().Postprocess(tmp);
+      Dst &r = *output(pos);
+      if (clear) r = 0;
+      detail::reduce(r, strided_in, This().GetPreprocessor(pos), R, offset);
     } else {
       for (int64_t i = 0; i < output.shape[a]; i++) {
         pos[a] = i;
-        ReduceAxis(pos, a+1, offset + i*step[a]);
+        ReduceAxis(clear, pos, a+1, offset + i*step[a]);
       }
     }
   }
