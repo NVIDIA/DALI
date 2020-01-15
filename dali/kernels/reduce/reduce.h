@@ -165,8 +165,22 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
 /**
  * Base CRTP class for reduction. The pairwise reduction functor and Preprocessor functor
  * come from the Actual subclass.
+ * As with any CRTP-based system, any non-private method can be shadowed by the Actual class.
  *
- * @tparam Provides GetPreprocessor, GetReduction, PostSetup and Get functions
+ * The default implementation uses pairwise reduction which is suitable for summation. If this kind
+ * of reduction is not suitable, the Actual class should replace the whole Run method.
+ *
+ * The default postprocessing is an elementwise call to Actual::Postprocess. If different kind of
+ * postprocessing is required, Actual should replace the PostprocessAll method instead.
+ *
+ * @tparam Actual - provides `GetPreprocessor`, `GetReduction`, `PostSetup` and `Postprocess`
+ *         functions
+ *         `GetPreprocessor` returns a unary functor that transforms an input value.
+ *         `GetReduction` returns a binary functor that combines an accumulator with a new value
+ *         `PostSetup` runs after default setup stage.
+ *         `Postprocess` transforms the output value in some way (e.g. applies some normalization
+ *         or weighting).
+ *
  */
 template <typename Dst, typename Src, typename Actual>
 struct ReduceBase {
@@ -177,13 +191,14 @@ struct ReduceBase {
       throw std::range_error("Reduce supports up to 64 dimensions");
     input = in;
     output = out;
-    InitAxes(axes);
-    CheckOutput();
-    CollapseAxes();
-    SetupOutput();
-    SetupInput();
+    Actual &self = This();
+    self.InitAxes(axes);
+    self.CheckOutput();
+    self.CollapseAxes();
+    self.SetupOutput();
+    self.SetupInput();
     assert(output.num_elements() == out.num_elements());
-    This().PostSetup();
+    self.PostSetup();
   }
 
   void PostSetup() {}
@@ -193,10 +208,14 @@ struct ReduceBase {
     pos.resize(output.dim());
     ReduceAxis(clear, make_span(pos), 0, 0);
     if (postprocess)
-      PostprocessAll();
+      This().PostprocessAll();
   }
 
   void PostprocessAll() {
+    if (reinterpret_cast<decltype(&ReduceBase::Postprocess)>(&Actual::Postprocess) ==
+        &ReduceBase::Postprocess)
+      return;  // trivial postprocessing, nothing to do
+
     int64_t v = output.num_elements();
     for (int64_t i = 0; i < v; i++)
       output.data[i] = This().Postprocess(output.data[i]);
@@ -205,8 +224,19 @@ struct ReduceBase {
   Actual &This() noexcept { return static_cast<Actual&>(*this); }
   const Actual &This() const noexcept { return static_cast<const Actual&>(*this); }
 
+  /**
+   * @brief Returns a unary function transforming the input values prior to reduction.
+   *
+   * When shadowed in the Actual class, the return type may differ.
+   *
+   * @param pos coordinates of the reduced value in the output tensor
+   */
   reductions::identity GetPreprocessor(span<int64_t> pos) const { return {}; }
+
+  /// @brief Returns a reduction functor, by default, a sum. Can be shadowed by Actual class.
   reductions::sum GetReduction() const { return {}; }
+
+  /// @brief Transforms an output value. Can be shadowed by Actual class.
   Dst Postprocess(const Dst &x) const { return x; }
 
  protected:
