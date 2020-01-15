@@ -677,7 +677,7 @@ subtensor(TensorView<StorageBackend, DataType, DynamicDimensions> source, int64_
  * @details The output tensor represents the same data, but the shape has two dimensions
  * collapsed into one, e.g. a tensor with shape
  * [2, 3, 4, 5]
- * after a call to flatten(tensor, 1) would have a shape:
+ * after a call to collapse_dim(tensor, 1) would have a shape:
  * [2, 12, 5]
  *
  * @param dim_idx - the dimension to drop; must be >= 0 and < tv.dim() - 1

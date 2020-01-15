@@ -1055,7 +1055,7 @@ TensorListShape<ndim> uniform_list_shape(int num_samples, std::initializer_list<
  *
  * @details The output shape has two specified dimension collapsed with the next one
  * [2, 3, 4, 5]
- * after a call to flatten(tensor, 1) would have a shape:
+ * after a call to collapse_dim(tensor, 1) would have a shape:
  * [2, 12, 5]
  *
  * @param dim_idx - the dimension to drop; must be >= 0 and < shape.size() - 1
@@ -1066,7 +1066,9 @@ DALI_NO_EXEC_CHECK
 template <int ndim>
 DALI_HOST_DEV
 auto collapse_dim(const TensorShape<ndim> &shape, int dim_idx) {
+  static_assert(ndim != 1, "Cannot collapse the only dimension");
   TensorShape<(ndim > 0 ? ndim-1 : -1)> ret;
+  assert(dim_idx >= 0 && dim_idx < shape.size() - 1);
   ret.resize(shape.size() - 1);
   for (int i = 0; i < dim_idx; i++)
     ret[i] = shape[i];
