@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_KERNEL_TEST_H_
-#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_KERNEL_TEST_H_
+#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_KERNEL_TEST_H_
+#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_KERNEL_TEST_H_
 
 #include <gtest/gtest.h>
 #include <vector>
 #include <string>
 #include "dali/kernels/slice/slice_kernel_test.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_common.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 
 namespace dali {
 namespace kernels {
 
 template <typename TestArgs>
-class SliceFlipNormalizePermuteTest : public ::testing::Test {
+class SliceFlipNormalizePermutePadTest : public ::testing::Test {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
@@ -379,4 +379,4 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES_CPU_ONLY = ::testing::Types<
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_KERNEL_TEST_H_
+#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_KERNEL_TEST_H_

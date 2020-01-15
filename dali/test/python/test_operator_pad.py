@@ -24,14 +24,14 @@ from test_utils import RandomlyShapedDataIterator
 
 class PadSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator,
-                 layout="HWC", num_threads=1, device_id=0, num_gpus=1, axes=()):
+                 layout="HWC", num_threads=1, device_id=0, num_gpus=1, axes=(), axis_names="", align=(), shape_arg=()):
         super(PadSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
         self.device = device
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.pad = ops.Pad(device = self.device, axes=axes)
+        self.pad = ops.Pad(device = self.device, axes=axes, axis_names=axis_names, align=align, shape=shape_arg)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -45,22 +45,53 @@ class PadSynthDataPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 
-def check_pad_synth_data(device, batch_size, input_max_shape, axes):
+def check_pad_synth_data(device, batch_size, input_max_shape, axes, axis_names, align, shape_arg):
     eii = RandomlyShapedDataIterator(batch_size, max_shape=input_max_shape)
-    pipe = PadSynthDataPipeline(device, batch_size, iter(eii), axes=axes)
+    layout = "HWC"
+    pipe = PadSynthDataPipeline(device, batch_size, iter(eii), axes=axes, axis_names=axis_names,
+                                align=align, shape_arg=shape_arg, layout=layout)
     pipe.build()
-    actual_axes = axes if len(axes) > 0 else range(len(input_max_shape))
+
+    if axis_names:
+        axes = []
+        for axis_name in axis_names:
+            axis_idx = layout.find(axis_name)
+            assert(axis_idx >= 0)
+            axes.append(axis_idx)
+
+    actual_axes = axes if (axes and len(axes) > 0) else range(len(input_max_shape))
     assert(len(actual_axes)>0)
+
+    if not shape_arg or len(shape_arg) == 0:
+        shape_arg = [-1] * len(actual_axes)
+    assert(len(shape_arg) == len(actual_axes))
+
+    if not align or len(align) == 0:
+        align = [1] * len(actual_axes)
+    elif len(align) == 1 and len(actual_axes) > 1:
+        align = [align[0] for _ in actual_axes]
+    assert(len(align) == len(actual_axes))
+
     for k in range(5):
         out1, out2 = pipe.run()
 
         out1_data = out1.as_cpu() if isinstance(out1.at(0), dali.backend_impl.TensorGPU) else out1
-        max_shape = [0] * len(input_max_shape)
-        for i in range(batch_size):
-            input_shape = out1_data.at(i).shape
-            for dim in actual_axes:
-                if input_shape[dim] > max_shape[dim]:
-                    max_shape[dim] = input_shape[dim]
+        max_shape = [-1] * len(input_max_shape)
+
+        for i in range(len(actual_axes)):
+            dim = actual_axes[i]
+            align_val = align[i]
+            shape_arg_val = shape_arg[i]
+            if shape_arg_val > 0:
+                max_shape[dim] = shape_arg_val
+            else:
+                for i in range(batch_size):
+                    input_shape = out1_data.at(i).shape
+                    if input_shape[dim] > max_shape[dim]:
+                        max_shape[dim] = input_shape[dim]
+                remainder = max_shape[dim] % align_val
+                if remainder > 0:
+                    max_shape[dim] = max_shape[dim] - remainder + align_val
 
         out2_data = out2.as_cpu() if isinstance(out2.at(0), dali.backend_impl.TensorGPU) else out2
         for i in range(batch_size):
@@ -70,12 +101,32 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes):
                     assert(output_shape[dim] == max_shape[dim])
 
 def test_slice_synth_data_vs_numpy():
-    for device in ["gpu"]:
-        for batch_size in {1, 8, 100}:
-            for input_max_shape, axes in \
-                [((200,400,3), (0,)),
-                 ((200,400,3), (1,)),
-                 ((200,400,3), (0,1)),
-                 ((200,400,3), ()),
-                 ((200,400,3), [])]:
-                yield check_pad_synth_data, device, batch_size, input_max_shape, axes
+    for device in ["cpu", "gpu"]:
+        for batch_size in {1, 8}:
+            for input_max_shape, axes, axis_names, align, shape_arg in \
+                [((200, 400, 3), (0,), None, None, None),
+                 ((200, 400, 3), None, "H", None, None),
+                 ((200, 400, 3), (1,), None, None, None),
+                 ((200, 400, 3), None, "W", None, None),
+                 ((200, 400, 3), (0, 1), None, None, None),
+                 ((200, 400, 3), None, "HW", None, None),
+                 ((200, 400, 3), (), None, None, None),
+                 ((200, 400, 3), [], None, None, None),
+                 ((200, 400, 3), None, "", None, None),
+                 ((200, 400, 3), (2,), None, (4,), None),
+                 ((200, 400, 3), None, "C", (4,), None),
+                 ((200, 400, 3), (0, 1), None, (256, 256), None),
+                 ((200, 400, 3), None, "HW", (256, 256), None),
+                 ((200, 400, 3), (0, 1), None, (16, 64), None),
+                 ((200, 400, 3), None, "HW", (16, 64), None),
+                 ((200, 400, 3), (0, 1), None, (256,), None),
+                 ((200, 400, 3), None, "HW", (256,), None),
+                 ((200, 400, 3), None, None, None, (-1, -1, 4))]:
+                yield check_pad_synth_data, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
+
+def main():
+  for test in test_slice_synth_data_vs_numpy():
+    test[0](*test[1:])
+
+if __name__ == '__main__':
+  main()

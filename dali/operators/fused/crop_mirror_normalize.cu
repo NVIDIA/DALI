@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 #include "dali/operators/fused/crop_mirror_normalize.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_gpu.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_gpu.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
 
@@ -32,7 +32,7 @@ bool CropMirrorNormalize<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
       VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS, (
-        using Kernel = kernels::SliceFlipNormalizePermutePadGPU<OutputType, InputType, Dims>;
+        using Kernel = kernels::SliceFlipNormalizePermutePadGpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
         output_desc[0].type = TypeInfo::Create<OutputType>();
@@ -59,7 +59,7 @@ void CropMirrorNormalize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   TYPE_SWITCH(input_type_, type2id, InputType, CMN_IN_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, CMN_OUT_TYPES, (
       VALUE_SWITCH(number_of_dims, Dims, CMN_NDIMS, (
-        using Kernel = kernels::SliceFlipNormalizePermutePadGPU<OutputType, InputType, Dims>;
+        using Kernel = kernels::SliceFlipNormalizePermutePadGpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         auto in_view = view<const InputType, Dims>(input);
         auto out_view = view<OutputType, Dims>(output);

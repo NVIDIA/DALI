@@ -25,7 +25,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_common.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 
 
 namespace dali {
@@ -146,7 +146,7 @@ __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *sampl
     out, in, sample.out_strides.data(), sample.in_strides.data(),
     sample.out_shape.data(), sample.padded_out_shape.data(),
     should_pad, normalization_dim, norm_add, norm_mul,
-    static_cast<OutputType>(sample.padding_val), offset, block_end);
+    Convert<OutputType>(sample.padding_val), offset, block_end);
 }
 
 }  // namespace detail

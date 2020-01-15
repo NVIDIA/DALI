@@ -14,14 +14,14 @@
 
 #include <gtest/gtest.h>
 #include "dali/kernels/slice/slice_kernel_test.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_cpu.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_kernel_test.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_kernel_test.h"
 
 namespace dali {
 namespace kernels {
 
 template <typename TestArgs>
-class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<TestArgs> {
+class SliceFlipNormalizePermutePadCpuTest : public SliceFlipNormalizePermutePadTest<TestArgs> {
  public:
   using InputType = typename TestArgs::InputType;
   using OutputType = typename TestArgs::OutputType;
@@ -29,7 +29,7 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
   static constexpr int NumSamples = TestArgs::NumSamples;
   static constexpr int DimSize = TestArgs::DimSize;
   using ArgsGenerator = typename TestArgs::ArgsGenerator;
-  using KernelType = SliceFlipNormalizePermuteCPU<OutputType, InputType, Dims>;
+  using KernelType = SliceFlipNormalizePermutePadCpu<OutputType, InputType, Dims>;
 
   void Run() override {
     KernelContext ctx;
@@ -73,20 +73,20 @@ class SliceFlipNormalizePermuteCPUTest : public SliceFlipNormalizePermuteTest<Te
   }
 };
 
-TYPED_TEST_SUITE(SliceFlipNormalizePermuteCPUTest, SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES);
+TYPED_TEST_SUITE(SliceFlipNormalizePermutePadCpuTest, SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES);
 
-TYPED_TEST(SliceFlipNormalizePermuteCPUTest, All) {
+TYPED_TEST(SliceFlipNormalizePermutePadCpuTest, All) {
   this->Run();
 }
 
 template <typename TestArgs>
-class SliceFlipNormalizePermuteCPUTest_CPUOnlyTests
-  : public SliceFlipNormalizePermuteCPUTest<TestArgs> {};
+class SliceFlipNormalizePermutePadCpuTest_CpuOnlyTests
+  : public SliceFlipNormalizePermutePadCpuTest<TestArgs> {};
 
-TYPED_TEST_SUITE(SliceFlipNormalizePermuteCPUTest_CPUOnlyTests,
+TYPED_TEST_SUITE(SliceFlipNormalizePermutePadCpuTest_CpuOnlyTests,
                  SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES_CPU_ONLY);
 
-TYPED_TEST(SliceFlipNormalizePermuteCPUTest_CPUOnlyTests, All) {
+TYPED_TEST(SliceFlipNormalizePermutePadCpuTest_CpuOnlyTests, All) {
   this->Run();
 }
 

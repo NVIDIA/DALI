@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_GPU_H_
-#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_GPU_H_
+#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_GPU_H_
+#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_GPU_H_
 
 #include <cuda_runtime.h>
 #include <utility>
@@ -25,13 +25,13 @@
 #include "dali/core/error_handling.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/slice/slice_flip_normalize_permute_common.h"
+#include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_cuda_impl.cuh"
 namespace dali {
 namespace kernels {
 
 template <typename OutputType, typename InputType, int Dims>
-class SliceFlipNormalizePermutePadGPU {
+class SliceFlipNormalizePermutePadGpu {
  private:
   static constexpr size_t kBlockDim = 512;
   static constexpr size_t kBlockSize = 64 * kBlockDim;
@@ -177,4 +177,4 @@ class SliceFlipNormalizePermutePadGPU {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_GPU_H_
+#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_GPU_H_
