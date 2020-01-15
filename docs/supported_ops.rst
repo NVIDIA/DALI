@@ -17,10 +17,10 @@ Documentation of every DALI Operator lists **Keyword Arguments** supported by th
 
 The documentation for `__call__` operator lists the positional arguments (**Parameters**) and additional **Keyword Arguments**.
 `__call__` should be only used in the :meth:`~nvidia.dali.pipeline.Pipeline.define_graph`.
-The inputs to the `__call__` operator represent Tensors (or rather batches of Tensors) processed by DALI,
+The inputs to the `__call__` operator represent batches of Tensors (TensorLists) processed by DALI,
 which are returned by other DALI Operators.
 
-The **Keyword Arguments** listed in `__call__` operator accept Tensor argument inputs. They should be
+The **Keyword Arguments** listed in `__call__` operator accept TensorList argument inputs. They should be
 produced by other 'cpu' Operators.
 
 .. note::
@@ -57,7 +57,7 @@ method on the values returned from invocations of other operators.
 The expressions used will be incorporated into the Pipeline without the need to explicitly instantiate operators
 and will describe element-wise operations on Tensors.
 
-At least one of the inputs must be a Tensor input that is returned by other DALI Operator.
+At least one of the inputs must be a TensorList input that is returned by other DALI Operator.
 The other can be :meth:`nvidia.dali.types.Constant` or regular Python value of type `bool`, `int` or `float`.
 
 As the operations performed are element-wise, the shapes of all operands must match.
@@ -78,9 +78,9 @@ Currently, DALI supports the following operations:
 
     Unary operators implementing `__pos__(self)` and `__neg__(self)`.
     The result of an unary arithmetic operation always keeps the input type.
-    Unary operators accept only Tensor inputs from other operators.
+    Unary operators accept only TensorList inputs from other operators.
 
-    :rtype: Tensor of the same type
+    :rtype: TensorList of the same type
 
 .. function:: Binary arithmetic operations: +, -, *, /, //
 
@@ -115,13 +115,13 @@ Currently, DALI supports the following operations:
     .. note::
         The only allowed arithmetic operation between two `bool` values is multiplication `*`.
 
-    :rtype: Tensor of type calculated based on type promotion rules.
+    :rtype: TensorList of type calculated based on type promotion rules.
 
 .. function:: Comparison operations: ==, !=, <, <=, >, >=
 
     Comparison operations.
 
-    :rtype: Tensor of `bool` type.
+    :rtype: TensorList of `bool` type.
 
 .. function:: Bitwise binary operations: &, |, ^
 
@@ -132,4 +132,4 @@ Currently, DALI supports the following operations:
         A bitwise operation can be applied to two boolean inputs. Those operations can be used
         to emulate element-wise logical operations on Tensors.
 
-    :rtype: Tensor of type calculated based on type promotion rules.
+    :rtype: TensorList of type calculated based on type promotion rules.
