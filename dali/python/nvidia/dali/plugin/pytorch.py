@@ -340,19 +340,20 @@ class DALIClassificationIterator(DALIGenericIterator):
 
 class TorchPythonFunction(ops.PythonFunction):
     ops.register_cpu_op('TorchPythonFunction')
+    ops.register_gpu_op('TorchPythonFunction')
 
     @staticmethod
     def torch_wrapper(batch_processing, function, *args):
         if batch_processing:
             return ops.PythonFunction.function_wrapper_batch(function,
-                                                                 torch.utils.dlpack.from_dlpack,
-                                                                 torch.utils.dlpack.to_dlpack,
-                                                                 *args)
+                                                             torch.utils.dlpack.from_dlpack,
+                                                             torch.utils.dlpack.to_dlpack,
+                                                             *args)
         else:
             return ops.PythonFunction.function_wrapper_per_sample(function,
-                                                                      torch_dlpack.from_dlpack,
-                                                                      torch_dlpack.to_dlpack,
-                                                                      *args)
+                                                                  torch_dlpack.from_dlpack,
+                                                                  torch_dlpack.to_dlpack,
+                                                                  *args)
 
     def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
         super(ops.PythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",

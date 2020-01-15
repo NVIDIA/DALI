@@ -983,6 +983,12 @@ def gpu_ops():
 def mixed_ops():
     return _mixed_ops
 
+
 def register_cpu_op(name):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({name})
+
+
+def register_gpu_op(name):
+    global _gpu_ops
+    _gpu_ops = _gpu_ops.union({name})
