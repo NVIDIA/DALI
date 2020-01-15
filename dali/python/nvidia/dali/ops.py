@@ -108,8 +108,10 @@ _cpu_ops = set({})
 _gpu_ops = set({})
 _mixed_ops = set({})
 
-def _numpydoc_formatter(name, type, doc):
+def _numpydoc_formatter(name, type, doc, optional = False):
     indent = "\n" + " " * 4
+    if optional:
+        type += ", optional"
     return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
 
 def _get_kwargs(schema, only_tensor = False):
@@ -119,9 +121,9 @@ def _get_kwargs(schema, only_tensor = False):
     `schema`
         the schema in which to lookup arguments
     `only_tensor`: bool
-        If True list only keyword arguments that can be passed as Tensors (argument inputs)
+        If True list only keyword arguments that can be passed as TensorLists (argument inputs)
         If False list all the arguments. False indicates that we list arguments to the
-        constructor of the operator which does not accept Tensors (argument inputs) - that
+        constructor of the operator which does not accept TensorLists (argument inputs) - that
         fact will be reflected in specified type
     """
     ret = ""
@@ -216,7 +218,8 @@ Args
 ----
 """
     for i in range(schema.MaxNumInput()):
-        ret += _numpydoc_formatter(schema.GetInputName(i), schema.GetInputType(i), schema.GetInputDox(i))
+        optional = i >= schema.MinNumInput()
+        ret += _numpydoc_formatter(schema.GetInputName(i), schema.GetInputType(i), schema.GetInputDox(i), optional)
         ret += "\n"
     ret += "\n"
     return ret
@@ -224,13 +227,13 @@ Args
 def _docstring_prefix_auto(op_name):
     """
         Generate start of the docstring for `__call__` of Operator `op_name`
-        with default values. Assumes ther will be 0 or 1 inputs
+        with default values. Assumes there will be 0 or 1 inputs
     """
     schema = b.GetSchema(op_name)
     if schema.MaxNumInput() == 0:
         return """__call__(**kwargs)
 
-Operator call to be used in `define_graph` step. This operator does not accept any Tensor inputs.
+Operator call to be used in `define_graph` step. This operator does not accept any TensorList inputs.
 """
     elif schema.MaxNumInput() == 1:
         return """__call__(data, **kwargs)
@@ -239,7 +242,7 @@ Operator call to be used in `define_graph` step.
 
 Args
 ----
-`data`: Tensor
+`data`: TensorList
     Input to the operator.
 """
     return ""

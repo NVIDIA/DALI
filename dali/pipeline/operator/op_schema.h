@@ -129,9 +129,9 @@ class DLL_PUBLIC OpSchema {
    * ----
    * `input0`: Type of input
    *     This is the first input
-   * `input1`: Tensor of some kind
+   * `input1`: TensorList of some kind
    *     This is second input
-   * `optional_input`: Tensor, optional
+   * `optional_input`: TensorList, optional
    *     This is optional input
    *
    * If the `append_kwargs_section` is true, the docstring generator will append the Keyword args
@@ -152,8 +152,8 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
-   * @brief Sets a funtion that infers the number of outputs this
-   * op will produce from the ops specfication. This is required
+   * @brief Sets a function that infers the number of outputs this
+   * op will produce from the ops specification. This is required
    * to expose the op to the python interface.
    *
    * If the ops has a fixed number of outputs, this function

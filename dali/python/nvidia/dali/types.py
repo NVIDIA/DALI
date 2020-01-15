@@ -67,7 +67,7 @@ def _type_name_convert_to_string(dtype, is_tensor):
     if dtype in _known_types:
         ret = _known_types[dtype][0]
         if is_tensor:
-            ret = "Tensor of " + ret
+            ret = "TensorList of " + ret
         elif dtype in _vector_types:
             ret = ret + " or list of " + _known_types[dtype][0]
         return ret
