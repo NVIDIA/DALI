@@ -36,7 +36,6 @@ const int kNDims = 1;
 
 template<class InputType>
 class MovingMeanSquareCpuTest : public ::testing::Test {
-
  public:
   MovingMeanSquareCpuTest() {
     input_.resize(dataset_size(shape_));
@@ -45,7 +44,7 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
 
   void SetUp() final {
     std::mt19937_64 rng;
-    UniformRandomFill(input_, rng, 0., 1000.);
+    UniformRandomFill(input_, rng, -100., 100.);
     calc_output();
   }
 
@@ -59,9 +58,9 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
 
   void calc_output() {
     ref_output_.resize(dataset_size(shape_));
-    for (int i = 0; i < buffer_length_ - window_size_; i++) {
-      int sumsq = 0;
-      for (int j = 0; j < window_size_; j++) {
+    for (int i = 0; i < buffer_length_; i++) {
+      float sumsq = 0;
+      for (int j = 0; j < window_size_ && i + j < buffer_length_; j++) {
         sumsq += input_[i + j] * input_[i + j];
       }
       ref_output_[i] = sumsq / window_size_;

@@ -15,11 +15,6 @@
 #ifndef DALI_KERdsfasdfasdfS_CPU_H_
 #define DALI_KERdsfasdfasdfS_CPU_H_
 
-//#include <memory>
-//#include "dali/core/common.h"
-//#include "dali/core/error_handling.h"
-//#include "dali/core/format.h"
-//#include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/signal/moving_mean_square_args.h"
 
@@ -27,18 +22,16 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-template<typename T = float>
+template<typename InputType>
 class DLL_PUBLIC MovingMeanSquareCpu {
  public:
-
   DLL_PUBLIC ~MovingMeanSquareCpu();
 
-  DLL_PUBLIC KernelRequirements
-  Setup(KernelContext &context, const InTensorCPU<T, 1> &in, const MovingMeanSquareArgs &args);
+  DLL_PUBLIC KernelRequirements Setup(KernelContext &context, const InTensorCPU<InputType, 1> &in,
+                                      const MovingMeanSquareArgs &args);
 
-  DLL_PUBLIC void
-  Run(KernelContext &context, const OutTensorCPU<float, 1> &out, const InTensorCPU<T, 1> &in,
-      const MovingMeanSquareArgs &args);
+  DLL_PUBLIC void Run(KernelContext &context, const OutTensorCPU<float, 1> &out,
+                      const InTensorCPU<InputType, 1> &in, const MovingMeanSquareArgs &args);
 };
 
 }  // namespace signal

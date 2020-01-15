@@ -13,53 +13,48 @@
 // limitations under the License.
 
 #include "dali/kernels/signal/moving_mean_square.h"
-//#include <cmath>
-//#include <complex>
-//#include <vector>
-//#include "dali/core/common.h"
-//#include "dali/core/error_handling.h"
-//#include "dali/core/format.h"
-//#include "dali/kernels/kernel.h"
-//#include "dali/kernels/signal/decibel/decibel_calculator.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
 
 
-template <typename T>
+template<typename T>
 MovingMeanSquareCpu<T>::~MovingMeanSquareCpu() = default;
 
-template <typename T>
-KernelRequirements MovingMeanSquareCpu<T>::Setup(        KernelContext &context,        const InTensorCPU<T, 1> &in,        const MovingMeanSquareArgs &args) {
+
+template<typename T>
+KernelRequirements
+MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &in,
+                              const MovingMeanSquareArgs &args) {
   KernelRequirements req;
   req.output_shapes = {TensorListShape<>({in.shape})};
   return req;
 }
 
-template <typename T>
-void MovingMeanSquareCpu<T>::Run(        KernelContext &context,        const OutTensorCPU<float, 1> &out,        const InTensorCPU<T, 1> &in,        const MovingMeanSquareArgs &args) {
-//  auto in_size = volume(in.shape);
-//  auto out_size = volume(out.shape);
-//  assert(out_size == in_size);
-//
-//  auto s_ref = args.s_ref;
-//  if (args.ref_max) {
-//    s_ref = 0.0;
-//    for (int64_t i = 0; i < in_size; i++) {
-//      if (in.data[i] > s_ref)
-//        s_ref = in.data[i];
-//    }
-//    // avoid division by 0
-//    if (s_ref == 0.0)
-//      s_ref = 1.0;
-//  }
-//
-//  DecibelCalculator<T> dB(args.multiplier, s_ref, args.min_ratio);
-//  for (int64_t i = 0; i < in_size; i++) {
-//    out.data[i] = dB(in.data[i]);
-//  }
+
+template<typename T>
+void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<float, 1> &out,
+                                 const InTensorCPU<T, 1> &in, const MovingMeanSquareArgs &args) {
+  const auto in_ptr = in.data;
+  const auto out_ptr = out.data;
+  const auto length = in.shape[0];
+  const float mean_factor = 1.f / args.window_size;
+  T sumsq = 0;
+  for (int i = 0; i < args.window_size; i++) {
+    sumsq += in_ptr[i] * in_ptr[i];
+  }
+  for (int i = 0; i < length - args.window_size; i++) {
+    out_ptr[i] = sumsq * mean_factor;
+    sumsq -= in_ptr[i] * in_ptr[i];
+    sumsq += in_ptr[i + args.window_size] * in_ptr[i + args.window_size];
+  }
+  for (int i = length - args.window_size; i < length; i++) {
+    out_ptr[i] = sumsq * mean_factor;
+    sumsq -= in_ptr[i] * in_ptr[i];
+  }
 }
+
 
 template class MovingMeanSquareCpu<float>;
 template class MovingMeanSquareCpu<int>;
