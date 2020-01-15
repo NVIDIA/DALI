@@ -8,3 +8,4 @@ DALI expressions and arithmetic operations
    expr_examples.ipynb
    expr_type_promotions.ipynb
    expr_blend_image.ipynb
+   expr_conditional_and_masking.ipynb

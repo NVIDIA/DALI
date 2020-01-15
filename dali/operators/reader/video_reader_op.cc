@@ -69,9 +69,6 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
   .AddOptionalArg("step",
       R"code(Frame interval between each sequence (if `step` < 0, `step` is set to `sequence_length`).)code",
       -1)
-  .AddOptionalArg("scale",
-      R"code(Rescaling factor of height and width.)code",
-      1.f)
   .AddOptionalArg("channels",
       R"code(Number of channels.)code",
       3)

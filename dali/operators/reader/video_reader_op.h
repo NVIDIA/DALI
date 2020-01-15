@@ -34,7 +34,6 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     enable_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
     count_(spec.GetArgument<int>("sequence_length")),
     channels_(spec.GetArgument<int>("channels")),
-    output_scale_(spec.GetArgument<float>("scale")),
     tl_shape_(batch_size_, sequence_dim),
     dtype_(spec.GetArgument<DALIDataType>("dtype")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
@@ -161,8 +160,6 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   bool enable_timestamps_;
   int count_;
   int channels_;
-
-  float output_scale_;
 
   TensorListShape<> tl_shape_;
   TensorListShape<> label_shape_;
