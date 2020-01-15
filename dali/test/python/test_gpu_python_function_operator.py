@@ -33,7 +33,6 @@ class PythonFunctionPipeline(Pipeline):
         self.decode = ops.ImageDecoder(device='cpu',
                                        output_type=types.RGB)
         self.norm = ops.CropMirrorNormalize(std=255., mean=0., device=device, output_layout="HWC")
-        # self.resize = ops.Resize(resize_x=400, resize_y=400, device=device)
         self.func = ops.PythonFunction(device=device, function=function, num_outputs=num_outputs)
 
     def define_graph(self):
