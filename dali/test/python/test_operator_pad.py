@@ -79,7 +79,6 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes, axis_names, 
         max_shape = [-1] * len(input_max_shape)
 
         for i in range(len(actual_axes)):
-            print("Axis: {}".format(actual_axes[i]))
             dim = actual_axes[i]
             align_val = align[i]
             shape_arg_val = shape_arg[i]
@@ -124,3 +123,10 @@ def test_slice_synth_data_vs_numpy():
                  ((200, 400, 3), None, "HW", (256,), None),
                  ((200, 400, 3), None, None, None, (-1, -1, 4))]:
                 yield check_pad_synth_data, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
+
+def main():
+  for test in test_slice_synth_data_vs_numpy():
+    test[0](*test[1:])
+
+if __name__ == '__main__':
+  main()

@@ -85,6 +85,11 @@ class Pad : public Operator<Backend> {
 
     int ndim = in_shape.sample_dim();
 
+    for (auto axis : axes_) {
+      DALI_ENFORCE(axis >= 0 && axis < ndim,
+        make_string("specified axis is out of bounds. axis=", axis, ", ndim=", ndim));
+    }
+
     if (!axis_names_.empty()) {
       axes_ = GetDimIndices(in_layout, axis_names_).to_vector();
     }
@@ -96,7 +101,7 @@ class Pad : public Operator<Backend> {
     }
 
     // If a single *align* value is provided, use this value for all the axes
-    if (align_.size() == 1) {
+    if (align_.size() == 1 && axes_.size() > 1) {
       align_.resize(axes_.size(), align_[0]);
     }
 
@@ -115,8 +120,9 @@ class Pad : public Operator<Backend> {
     assert(static_cast<int>(axes_.size()) <= ndim);
     for (int i = 0; i < static_cast<int>(axes_.size()); i++) {
       auto axis = axes_[i];
-      if (shape_[axis] > 0) {
-        padded_shape[axis] = shape_[axis];
+      int64_t shape_val = shape_[i];
+      if (shape_val > 0) {
+        padded_shape[axis] = shape_val;
       } else {
         for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
           auto data_shape = in_shape[sample_idx];
