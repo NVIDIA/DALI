@@ -79,6 +79,7 @@ struct sum {
 
 }  // namespace reductions
 
+namespace reduce_impl {
 
 constexpr int kTreeReduceThreshold = 32;
 
@@ -114,7 +115,6 @@ void reduce1D(Dst &reduced, const Src *data, int64_t stride, int64_t n,
   );  // NOLINT
 }
 
-namespace detail {
 template <typename Backend, typename T>
 struct StridedTensor {
   T *data = nullptr;
@@ -160,7 +160,7 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
   reduce(reduced, in, P, R, 0, in.size[0], offset);
 }
 
-}  // namespace detail
+}  // namespace reduce_impl
 
 /**
  * Base CRTP class for reduction. The pairwise reduction functor and Preprocessor functor
@@ -245,7 +245,7 @@ struct ReduceBase {
     if (axis == output.dim()) {
       Dst &r = *output(pos);
       if (clear) r = 0;
-      detail::reduce(r, strided_in, This().GetPreprocessor(pos), R, offset);
+      reduce_impl::reduce(r, strided_in, This().GetPreprocessor(pos), R, offset);
     } else {
       for (int64_t i = 0; i < output.shape[axis]; i++) {
         pos[axis] = i;
@@ -346,7 +346,7 @@ struct ReduceBase {
   OutTensorCPU<Dst, -1> output;
   InTensorCPU<Src, -1> input;
   SmallVector<int, 6> axes;
-  detail::StridedTensor<StorageCPU, const Src> strided_in;
+  reduce_impl::StridedTensor<StorageCPU, const Src> strided_in;
   SmallVector<int64_t, 6> step;
   uint64_t axis_mask = 0;
 };
