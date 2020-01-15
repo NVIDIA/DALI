@@ -16,10 +16,6 @@
 #include "dali/util/npp.h"
 #include "dali/operators/color/color_twist.h"
 
-/////////////////////////////////////////
-///// DEPRECATED, WILL BE REMOVED ///////
-/////////////////////////////////////////
-
 namespace dali {
 
 typedef NppStatus (*colorTwistFunc)(const Npp8u *pSrc, int nSrcStep, Npp8u *pDst, int nDstStep,
