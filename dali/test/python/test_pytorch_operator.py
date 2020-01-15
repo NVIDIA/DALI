@@ -107,9 +107,10 @@ def test_pytorch_operator():
     for device in {'cpu', 'gpu'}:
         yield check_pytorch_operator, device
 
-def test_pytorch_operator_batch_processing():
+
+def check_pytorch_operator_batch_processing(device):
     pipe = BasicPipeline()
-    pt_pipe = TorchPythonFunctionPipeline(torch_batch_operation, 'cpu',
+    pt_pipe = TorchPythonFunctionPipeline(torch_batch_operation, device,
                                           True)
     pipe.build()
     pt_pipe.build()
@@ -118,8 +119,16 @@ def test_pytorch_operator_batch_processing():
         tensors = [torch.from_numpy(preprocessed_output.at(i)) for i in range(BATCH_SIZE)]
         exp1, exp2 = torch_batch_operation(tensors)
         output1, output2 = pt_pipe.run()
+        if device == 'gpu':
+            output1 = output1.as_cpu()
+            output2 = output2.as_cpu()
         for i in range(len(output1)):
             res1 = output1.at(i)
             res2 = output2.at(i)
-            assert numpy.array_equal(res1, exp1[i].numpy())
-            assert numpy.array_equal(res2, exp2[i].numpy())
+            assert numpy.allclose(res1, exp1[i].numpy())
+            assert numpy.allclose(res2, exp2[i].numpy())
+
+
+def test_pytorch_operator_batch_processing():
+    for device in {'cpu', 'gpu'}:
+        yield check_pytorch_operator_batch_processing, device

@@ -342,15 +342,26 @@ class TorchPythonFunction(ops.PythonFunction):
     ops.register_cpu_op('TorchPythonFunction')
     ops.register_gpu_op('TorchPythonFunction')
 
+    stream = torch.cuda.Stream()
+
     @staticmethod
-    def torch_wrapper(batch_processing, function, *args):
+    def _torch_stream_wrapper(function, *ins):
+        with torch.cuda.stream(TorchPythonFunction.stream):
+            out = function(*ins)
+        TorchPythonFunction.stream.synchronize()
+        return out
+
+    @staticmethod
+    def torch_wrapper(batch_processing, function, device, *args):
+        func = function if device == 'cpu' else \
+               lambda *ins: TorchPythonFunction._torch_stream_wrapper(function, *ins)
         if batch_processing:
-            return ops.PythonFunction.function_wrapper_batch(function,
+            return ops.PythonFunction.function_wrapper_batch(func,
                                                              torch.utils.dlpack.from_dlpack,
                                                              torch.utils.dlpack.to_dlpack,
                                                              *args)
         else:
-            return ops.PythonFunction.function_wrapper_per_sample(function,
+            return ops.PythonFunction.function_wrapper_per_sample(func,
                                                                   torch_dlpack.from_dlpack,
                                                                   torch_dlpack.to_dlpack,
                                                                   *args)
@@ -359,6 +370,7 @@ class TorchPythonFunction(ops.PythonFunction):
         super(ops.PythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
                                                  function=lambda *ins:
                                                  TorchPythonFunction.torch_wrapper(batch_processing,
-                                                                                   function, *ins),
+                                                                                   function, device,
+                                                                                   *ins),
                                                  num_outputs=num_outputs, device=device,
                                                  batch_processing=batch_processing, **kwargs)
