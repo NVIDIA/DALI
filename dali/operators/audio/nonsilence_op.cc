@@ -19,27 +19,27 @@
 namespace dali {
 
 DALI_SCHEMA(NonsilenceRegion)
-                .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.<br>
-This operators' behaviour can be described as:
-```
-def nonsilence(buffer, cutoff_value):
-    begin = 0
-    end = 0
-    for i in range(len(buffer)):
-        if buffer[i] > cutoff_value:
-            begin = i
-            break
-    for i in range(len(buffer) - 1, -1, -1):
-        if buffer[i] > cutoff_value:
-            end = i
-            break
-    length = end - begin + 1
-    return begin, length
-```
-`Input`: 1-D audio buffer
-`Output[0]`: Begin index of nonsilent region
-`Output[1] >= 0`: Length of nonsilent region<br>
-If `Output[1] == 0`, `Output[0]` value is undefined
+                .DocStr(R"code(The operator performs leading and trailing silence
+detection in an audio buffer. This operators' behaviour can be described as::
+
+  def nonsilence(buffer, cutoff_value):
+      begin = 0
+      end = 0
+      for i in range(len(buffer)):
+          if buffer[i] > cutoff_value:
+              begin = i
+              break
+      for i in range(len(buffer) - 1, -1, -1):
+          if buffer[i] > cutoff_value:
+              end = i
+              break
+      length = end - begin + 1
+      return begin, length
+
+- ``Input``: 1-D audio buffer
+- ``Output[0]``: Begin index of nonsilent region
+- ``Output[1] >= 0``: Length of nonsilent region
+- If ``Output[1] == 0``, ``Output[0]`` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
