@@ -44,7 +44,7 @@ DALI_SCHEMA(PythonFunction)
 
 DALI_SCHEMA(TorchPythonFunction)
         .DocStr("Executes a function operating on Torch tensors. "
-                "Analogous to PythonFunction but tensors's data is handled as PyTorch tensors.")
+                "Analogous to PythonFunction but tensors' data is handled as PyTorch tensors.")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()
