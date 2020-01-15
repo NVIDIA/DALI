@@ -13,6 +13,8 @@
 # limitations under the License.
 
 #pylint: disable=no-name-in-module,unused-import
+from enum import Enum, unique
+
 from nvidia.dali.backend_impl.types import *
 try:
     from nvidia.dali import tfrecord as tfrec
@@ -84,12 +86,10 @@ def _vector_element_type(dtype):
         raise RuntimeError(str(dtype) + " is not a vector type.")
     return _vector_types[dtype]
 
-class PipelineAPIType(object):
+@unique
+class PipelineAPIType(Enum):
     """Pipeline API type
     """
-    @staticmethod
-    def _is_member(self):
-        return PipelineAPIType.__dict__.keys()
     BASIC = 0
     ITERATOR = 1
     SCHEDULED = 2
