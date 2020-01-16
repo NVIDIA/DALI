@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/decoder/decoder_test.h"
-#include "dali/operators/crop/random_crop_attr.h"
+#include "dali/operators/image/crop/random_crop_attr.h"
 
 namespace dali {
 

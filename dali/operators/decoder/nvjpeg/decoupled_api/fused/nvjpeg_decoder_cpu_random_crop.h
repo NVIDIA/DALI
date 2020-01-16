@@ -16,7 +16,7 @@
 #define DALI_OPERATORS_DECODER_NVJPEG_DECOUPLED_API_FUSED_NVJPEG_DECODER_CPU_RANDOM_CROP_H_
 
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_decoder_cpu.h"
-#include "dali/operators/crop/random_crop_attr.h"
+#include "dali/operators/image/crop/random_crop_attr.h"
 
 namespace dali {
 

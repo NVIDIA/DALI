@@ -13,6 +13,10 @@
 # limitations under the License.
 
 # Get all the source files and dump test files
+if (BUILD_NVOF)
+  add_subdirectory(optical_flow)
+endif()
+
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)

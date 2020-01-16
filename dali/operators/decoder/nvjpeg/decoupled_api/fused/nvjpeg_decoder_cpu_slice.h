@@ -17,7 +17,7 @@
 
 #include <vector>
 #include "dali/operators/decoder/nvjpeg/decoupled_api/nvjpeg_decoder_cpu.h"
-#include "dali/operators/crop/slice_attr.h"
+#include "dali/operators/generic/slice/slice_attr.h"
 
 namespace dali {
 

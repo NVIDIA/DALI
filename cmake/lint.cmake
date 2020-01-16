@@ -24,24 +24,24 @@ list(REMOVE_ITEM LINT_INC
 
 # cuTT
 list(REMOVE_ITEM LINT_SRC
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cutt.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cutt.cc
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttplan.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttplan.cc
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttkernel.cu
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttkernel.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/calls.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttGpuModel.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttGpuModel.cc
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttGpuModelKernel.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttGpuModelKernel.cu
-    ${DALI_SRC_DIR}/operators/transpose/cutt/CudaMemcpy.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/CudaMemcpy.cu
-    ${DALI_SRC_DIR}/operators/transpose/cutt/CudaUtils.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/CudaUtils.cu
-    ${DALI_SRC_DIR}/operators/transpose/cutt/cuttTypes.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/int_vector.h
-    ${DALI_SRC_DIR}/operators/transpose/cutt/LRUCache.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cutt.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cutt.cc
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cuttplan.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cuttplan.cc
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cuttkernel.cu
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cuttkernel.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/calls.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cuttGpuModel.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cuttGpuModel.cc
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cuttGpuModelKernel.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cuttGpuModelKernel.cu
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/CudaMemcpy.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/CudaMemcpy.cu
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/CudaUtils.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/CudaUtils.cu
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/cuttTypes.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/int_vector.h
+    ${DALI_SRC_DIR}/operators/generic/transpose/cutt/LRUCache.h
 )
 
 set(LINT_TARGET lint)

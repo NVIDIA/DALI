@@ -17,7 +17,7 @@
 
 #include <vector>
 #include "dali/core/common.h"
-#include "dali/operators/crop/slice_attr.h"
+#include "dali/operators/generic/slice/slice_attr.h"
 #include "dali/operators/decoder/host/host_decoder.h"
 
 namespace dali {
