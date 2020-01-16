@@ -106,11 +106,15 @@ class DALIGenericIterator(object):
 
     Example
     -------
-    With the data set [1,2,3,4,5,6,7] and the batch size 2:
-    fill_last_batch = False, last_batch_padded = True  -> last batch = [7], next iteration will return [1, 2]
-    fill_last_batch = False, last_batch_padded = False -> last batch = [7], next iteration will return [2, 3]
-    fill_last_batch = True, last_batch_padded = True   -> last batch = [7, 7], next iteration will return [1, 2]
-    fill_last_batch = True, last_batch_padded = False  -> last batch = [7, 1], next iteration will return [2, 3]
+    With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
+
+    fill_last_batch = False, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+
+    fill_last_batch = False, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+
+    fill_last_batch = True, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+
+    fill_last_batch = True, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
     """
     def __init__(self,
                  pipelines,
@@ -374,11 +378,15 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     Example
     -------
-    With the data set [1,2,3,4,5,6,7] and the batch size 2:
-    fill_last_batch = False, last_batch_padded = True  -> last batch = [7], next iteration will return [1, 2]
-    fill_last_batch = False, last_batch_padded = False -> last batch = [7], next iteration will return [2, 3]
-    fill_last_batch = True, last_batch_padded = True   -> last batch = [7, 7], next iteration will return [1, 2]
-    fill_last_batch = True, last_batch_padded = False  -> last batch = [7, 1], next iteration will return [2, 3]
+    With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
+
+    fill_last_batch = False, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+
+    fill_last_batch = False, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+
+    fill_last_batch = True, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+
+    fill_last_batch = True, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
     """
     def __init__(self,
                  pipelines,
