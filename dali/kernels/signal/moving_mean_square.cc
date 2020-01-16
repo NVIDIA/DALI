@@ -18,6 +18,13 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
+namespace {
+template<typename T>
+float Power2(const T &val) {
+  return static_cast<float>(val) * val;
+}
+}
+
 template<typename T>
 MovingMeanSquareCpu<T>::~MovingMeanSquareCpu() = default;
 
@@ -39,18 +46,26 @@ void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<floa
   auto spin = make_cspan(in.data, length);
   auto spout = make_span(out.data, length);
   const float mean_factor = 1.f / args.window_size;
-  float sumsq = detail::CalcSumSquared(spin, 0, args.window_size);
-  for (int i = 0; i < length - args.window_size; i++) {
-    spout[i] = sumsq * mean_factor;
-    sumsq -= static_cast<float>(spin[i]) * spin[i];
-    sumsq += static_cast<float>(spin[i + args.window_size]) * spin[i + args.window_size];
+  const int reset_interval = args.reset_interval == -1 ? length : args.reset_interval;
+
+  float sumsq;
+  for (int window_begin = 0; window_begin <= length - args.window_size; window_begin++) {
+    if (window_begin % reset_interval == 0) {
+      sumsq = detail::CalcSumSquared(spin, window_begin, args.window_size);
+    } else {
+      sumsq += Power2(spin[window_begin + args.window_size - 1]) - Power2(spin[window_begin - 1]);
+    }
+    spout[window_begin] = sumsq * mean_factor;
   }
-  for (int i = length - args.window_size; i < length; i++) {
+  for (int i = length - args.window_size + 1; i < length; i++) {
+    if (i % reset_interval == 0) {
+      sumsq = detail::CalcSumSquared(spin, i, length - i);
+    } else {
+      sumsq -= Power2(spin[i - 1]);
+    }
     spout[i] = sumsq * mean_factor;
-    sumsq -= static_cast<float>(spin[i]) * spin[i];
   }
 }
-
 
 template class MovingMeanSquareCpu<float>;
 template class MovingMeanSquareCpu<uint8_t>;

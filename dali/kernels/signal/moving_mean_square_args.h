@@ -20,7 +20,16 @@ namespace kernels {
 namespace signal {
 
 struct MovingMeanSquareArgs {
+  /**
+   * Size of the sliding window
+   */
   int window_size = 2048;
+
+  /**
+   * After what amount of samples will the cumulative
+   * squared sum be recalculated.
+   * If `-1`, no recalculation will happen
+   */
   int reset_interval = -1;
 };
 

@@ -44,15 +44,17 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   std::vector<float> ref_output_;
   int window_size_ = 2048;
   int buffer_length_ = 32000;
+  int reset_interval_ = 5000;
   TensorShape<kNDims> shape_ = {buffer_length_};
 
  private:
   void calc_output() {
-    ref_output_.resize(dataset_size(shape_));
+    ref_output_.resize(buffer_length_);
     for (int i = 0; i < buffer_length_; i++) {
       float sumsq = 0;
       for (int j = 0; j < window_size_ && i + j < buffer_length_; j++) {
-        sumsq += static_cast<float>(input_[i + j]) * input_[i + j];
+        auto val = static_cast<float>(input_[i + j]);
+        sumsq += val * val;
       }
       ref_output_[i] = sumsq / window_size_;
     }
@@ -67,14 +69,14 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   template<typename RNG>
   std::enable_if_t<std::is_signed<InputType>::value>
   FillInput(RNG &rng) {
-    UniformRandomFill(input_, rng, -100., 100.);
+    UniformRandomFill(input_, rng, -100, 100);
   }
 
 
   template<typename RNG>
   std::enable_if_t<!std::is_signed<InputType>::value>
   FillInput(RNG &rng) {
-    UniformRandomFill(input_, rng, .0, 200.);
+    UniformRandomFill(input_, rng, 0, 100);
   }
 };
 
@@ -126,10 +128,10 @@ TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
   output.resize(dali::volume(out_shape));
   OutTensorCPU<float, kNDims> out(output.data(), out_shape.template to_static<kNDims>());
 
-  kernel.Run(ctx, out, in, {this->window_size_});
+  kernel.Run(ctx, out, in, {this->window_size_, this->reset_interval_});
 
   auto ref_tv = TensorView<StorageCPU, float>(this->ref_output_.data(), this->shape_);
-  Check(out, ref_tv, EqualEps(1e-1));
+  Check(out, ref_tv, EqualRelative(1e-2));
 }
 
 

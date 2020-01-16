@@ -16,6 +16,7 @@
 #define DALI_KERNELS_SIGNAL_MOVING_MEAN_SQUARE_H_
 
 #include "dali/kernels/kernel.h"
+#include "dali/core/format.h"
 #include "dali/kernels/signal/moving_mean_square_args.h"
 
 namespace dali {
@@ -25,7 +26,9 @@ namespace signal {
 namespace detail {
 template<typename T>
 float CalcSumSquared(span<const T> buffer, int start, int length) {
-  DALI_ENFORCE(buffer.size() > length + start, "Buffer overflow");
+  DALI_ENFORCE(buffer.size() >= length + start,
+               make_string_delim(" ", "Buffer overflow (size:", buffer.size(), "length:", length,
+                                 "start:", start));
   float sumsq = 0;
   for (int i = start; i < length + start; i++) {
     sumsq += buffer[i] * buffer[i];
