@@ -636,31 +636,31 @@ TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T **data, TensorListSha
 
 /**
  * @{
- * @brief Get a subtensor by slicing along outermost dimension at position `pos`
+ * @brief Get a subtensor by slicing along the outermost dimension at position `pos`
  *
- * @details Produces tensor, for which number of dimensions is reduced by 1.
- * Removed dimension is outer-most (e.g. for shape {3,2,4,6} produces {2,4,6}).
- * Data inside the tensor is extracted according to provided index.
- * Data is not copied.
+ * @details Produces a tensor with the outermost extent removed,
+ * (e.g. for shape {3,2,4,6} produces {2,4,6}).
+ * The data pointer in the new tensor points to the subtensor at the index `pos`.
+ * No copy or allocation (except possibly the shape) occurs.
  *
  * Example:
  * tv.data = [[1, 2, 3], [4, 5, 6]]       (shape: [2, 3])
  * oust_dimension(tv, 1) -> [4, 5, 6]     (shape: [3])
  *
  * @param source Source TensorView
- * @param idx Index inside dimension, along which data is extracted
- * @return TensorView with reduced dimensionality
+ * @param idx Outermost index
+ * @return The tensor slice
  */
-template<typename StorageBackend, typename DataType, int ndims>
-TensorView<StorageBackend, DataType, ndims - 1>
-subtensor(TensorView<StorageBackend, DataType, ndims> source, int64_t pos) {
-  TensorShape<ndims - 1> shape = source.shape.template last<ndims - 1>();
+template <typename StorageBackend, typename DataType, int ndim>
+TensorView<StorageBackend, DataType, ndim - 1>
+subtensor(TensorView<StorageBackend, DataType, ndim> source, int64_t pos) {
+  TensorShape<ndim - 1> shape = source.shape.template last<ndim - 1>();
   DataType *data = source.data + pos * volume(shape);
   return make_tensor<StorageBackend>(data, shape);
 }
 
 
-template<typename StorageBackend, typename DataType>
+template <typename StorageBackend, typename DataType>
 TensorView<StorageBackend, DataType, DynamicDimensions>
 subtensor(TensorView<StorageBackend, DataType, DynamicDimensions> source, int64_t pos) {
   auto shape = source.shape.last(source.dim() - 1);
@@ -670,6 +670,24 @@ subtensor(TensorView<StorageBackend, DataType, DynamicDimensions> source, int64_
 /**
  * @}
  */
+
+/**
+ * @brief Merges a dimension with the next one
+ *
+ * @details The output tensor represents the same data, but the shape has two dimensions
+ * collapsed into one, e.g. a tensor with shape
+ * [2, 3, 4, 5]
+ * after a call to collapse_dim(tensor, 1) would have a shape:
+ * [2, 12, 5]
+ *
+ * @param dim_idx - the dimension to drop; must be >= 0 and < tv.dim() - 1
+ * @param rv - input TensorView
+ * @remarks The `dim_idx` must not be the innermost dimension or the result is undefined.
+ */
+template <typename StorageBackend, typename DataType, int ndim>
+auto collapse_dim(const TensorView<StorageBackend, DataType, ndim> &tv, int dim_idx) {
+  return make_tensor<StorageBackend>(tv.data, collapse_dim(tv.shape, dim_idx));
+}
 
 /**
  * @brief Retrieves a sample range from a tensor list

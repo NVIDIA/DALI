@@ -308,6 +308,20 @@ TEST(TensorViewTest, DynamicSubtensorTest) {
   }
 }
 
+TEST(TensorViewTest, CollapseDim) {
+  int d1[5] = {};
+  TensorView<EmptyBackendTag, int, 2> t2(d1, { 3, 4 });
+  EXPECT_EQ(collapse_dim(t2, 0).shape, (TensorShape<1>{12}));
+  TensorView<EmptyBackendTag, int, 3> t3(d1, { 3, 4, 5});
+  EXPECT_EQ(collapse_dim(t3, 0).shape, (TensorShape<2>{12, 5}));
+  EXPECT_EQ(collapse_dim(t3, 1).shape, (TensorShape<2>{3, 20}));
+  EXPECT_EQ(collapse_dim(t3, 1).data, d1);
+  TensorView<EmptyBackendTag, int, -1> td(d1, TensorShape<>{ 5, 4, 3, 2});
+  EXPECT_EQ(collapse_dim(td, 0).shape, (TensorShape<>{20, 3, 2}));
+  EXPECT_EQ(collapse_dim(td, 1).shape, (TensorShape<>{5, 12, 2}));
+  EXPECT_EQ(collapse_dim(td, 2).shape, (TensorShape<>{5, 4, 6}));
+}
+
 TEST(TensorListViewTest, SampleRange) {
   const int D = 3;
   unsigned seed = 42;

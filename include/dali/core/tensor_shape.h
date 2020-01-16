@@ -263,7 +263,8 @@ struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
   template <typename... Ts>
   DALI_HOST_DEV TensorShape(int64_t i0, Ts... s)  // NOLINT
       : Base(typename Base::container_type{i0, int64_t{s}...}) {
-    static_assert(sizeof...(Ts) == ndim - 1, "Number of shapes passed must match ndim");
+    static_assert(sizeof...(Ts) == ndim - 1 || ndim == DynamicDimensions,
+      "Number of shapes passed must match ndim");
   }
 
   template <int other_ndim>
@@ -1047,6 +1048,34 @@ template <int ndim = InferDimensions,
 template <int ndim = DynamicDimensions, typename T>
 TensorListShape<ndim> uniform_list_shape(int num_samples, std::initializer_list<T> sample_shape) {
   return TensorListShape<ndim>::make_uniform(num_samples, sample_shape);
+}
+
+/**
+ * @brief Merges a dimension with the next one
+ *
+ * @details The output shape has two specified dimension collapsed with the next one
+ * [2, 3, 4, 5]
+ * after a call to collapse_dim(tensor, 1) would have a shape:
+ * [2, 12, 5]
+ *
+ * @param dim_idx - the dimension to drop; must be >= 0 and < shape.size() - 1
+ * @param rv - input TensorView
+ * @remarks The `dim_idx` must not be the innermost dimension or the result is undefined.
+ */
+DALI_NO_EXEC_CHECK
+template <int ndim>
+DALI_HOST_DEV
+auto collapse_dim(const TensorShape<ndim> &shape, int dim_idx) {
+  static_assert(ndim != 1, "Cannot collapse the only dimension");
+  TensorShape<(ndim > 0 ? ndim-1 : -1)> ret;
+  assert(dim_idx >= 0 && dim_idx < shape.size() - 1);
+  ret.resize(shape.size() - 1);
+  for (int i = 0; i < dim_idx; i++)
+    ret[i] = shape[i];
+  ret[dim_idx] = shape[dim_idx] * shape[dim_idx + 1];
+  for (int i = dim_idx + 2; i < shape.size(); i++)
+    ret[i - 1] = shape[i];
+  return ret;
 }
 
 }  // namespace dali
