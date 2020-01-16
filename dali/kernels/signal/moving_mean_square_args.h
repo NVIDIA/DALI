@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_3452345245235CIBELS_ARGS_H_
-#define DALI_KERNELS_SIGNAL_3452345245235CIBELS_ARGS_H_
+#ifndef DALI_KERNELS_SIGNAL_MOVING_MEAN_SQUARE_ARGS_H_
+#define DALI_KERNELS_SIGNAL_MOVING_MEAN_SQUARE_ARGS_H_
 
 namespace dali {
 namespace kernels {
@@ -37,4 +37,4 @@ struct MovingMeanSquareArgs {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_DECIBEL_TO_DECIBELS_ARGS_H_
+#endif  // DALI_KERNELS_SIGNAL_MOVING_MEAN_SQUARE_ARGS_H_
