@@ -16,11 +16,15 @@
 #define DALI_OPERATORS_MATH_NORMALIZE_NORMALIZE_H_
 
 #include <memory>
+#include <sstream>
 #include <vector>
+
 #include "dali/core/tensor_shape.h"
-#include "dali/pipeline/operator/operator.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
+#include "dali/operators/util/diag_msg.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
@@ -29,10 +33,10 @@ class Normalize : public Operator<Backend> {
  public:
   explicit Normalize(const OpSpec &spec) : Operator<Backend>(spec) {
     has_tensor_mean_ = spec.HasTensorArgument("mean");
-    has_scalar_mean_ = spec.GetArgument("mean") && !has_tensor_mean_;
+    has_scalar_mean_ = spec.HasArgument("mean") && !has_tensor_mean_;
+    has_tensor_stddev_ = spec.HasTensorArgument("stddev");
+    has_scalar_stddev_ = spec.HasArgument("stddev") && !has_tensor_stddev_;
 
-    calc_mean_ = !spec.HasArgument("mean") && !spec.HasTensorArgument("mean");
-    calc_stddev_ = !spec.HasArgument("stddev") && !spec.HasTensorArgument("stddev");
     batch_norm_ = spec.GetArgument<bool>("batch");
     has_axes_arg_ = spec.HasTensorArgument("axes");
     has_axis_names_arg_ = spec.HasTensorArgument("axis_names");
@@ -42,19 +46,50 @@ class Normalize : public Operator<Backend> {
     DALI_ENFORCE(!has_axes_arg_ || !has_axis_names_arg_,
       "Normalize: Arguments `axes` and `axis_names` are mutually exclusive");
 
+    if (has_scalar_mean_ && has_scalar_stddev_) {
+      DALI_ENFORCE(!has_axes_arg_ && !has_axis_names_arg_,
+        "Normalize: Axes must not be specified when both mean and standard deviation are scalars");
+    }
+
   }
 
-  void SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) {
-    input_shape_ = ws.InputRef(0).shape();
+  bool CanInferOutputs() const override { return true; }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template InputRef<Backend>(0);
+    input_shape_ = input.shape();
     output_descs.resize(1);
     output_descs[0] = { input_shape_, TypeTable::GetTypeInfo(output_type_) };
+    input_type_ = input.type().id();
+
+    SetupAxes(ws);
+    SetupBackend(ws);
+    return true;
+  }
+
+  void SetupBackend(const workspace_t<Backend> &ws);
+
+  void RunImpl(workspace_t<Backend> &ws) override;
+
+  void UseAllAxes() {
+    int dim = input_shape_.sample_dim();
+    axes_.resize(dim);
+    std::iota(axes_.begin(), axes_.end(), 0);
+    axis_mask_ = (1 << dim) - 1;
+    GetParamShapesFromAxes();
   }
 
   void SetupAxes(const workspace_t<Backend> &ws) {
     int dim = input_shape_.sample_dim();
+    if (has_scalar_mean_ && has_scalar_stddev_) {
+      UseAllAxes();
+      return;
+    }
+
+    const OpSpec &spec = this->spec_;
 
     if (has_axes_arg_) {
-      axes_ = spec_.GetRepeatedArgument<int>("axes");
+      axes_ = spec.GetRepeatedArgument<int>("axes");
       for (auto axis : axes_) {
         DALI_ENFORCE(axis >= 0 && axis < dim, make_string("Normalize: axis index ", axis,
         " is out of valid range 0..", dim-1));
@@ -62,41 +97,99 @@ class Normalize : public Operator<Backend> {
       SetAxisMask();
       GetParamShapesFromAxes();
     } else if (has_axis_names_arg_) {
-      axes_ = GetDimIndices(InputLayout(ws, 0), spec.GetArgument<TensorLayout>("axis_names"));
+      TensorLayout names = spec.GetArgument<TensorLayout>("axis_names");
+      auto dim_idx = GetDimIndices(this->InputLayout(ws, 0), names);
+      axes_ = dim_idx.to_vector();
       SetAxisMask();
       GetParamShapesFromAxes();
-    } else {
-      GetParamShapesFromArgs();
+    } else if (!should_calc_mean() || !should_calc_stddev()) {
       GetAxesFromParamShapes(ws);
+    } else {
+      UseAllAxes();
+      return;
     }
     CheckParamShape();
   }
 
 
   void GetParamShapesFromAxes() {
-    for (int i = 0; i < input_shape_.num_samples(); i++) {
-      param_shape_.set_tensor_shape(i, input_shape_[i])
-      for (int axis = 0; axis < param_shape_.dim; axis++) {
+    int dim = input_shape_.sample_dim();
+    int n = input_shape_.num_samples();
+    param_shape_.resize(n, dim);
+    for (int i = 0; i < n; i++) {
+      param_shape_.set_tensor_shape(i, input_shape_[i]);
+      for (int axis = 0; axis < dim; axis++) {
         if (IsReducedAxis(axis))
           param_shape_[axis] = 1;
       }
     }
   }
 
-  void GetAaxesFromParamShapes(const workspace_t<Backend> &ws) {
-    if (spec_.HasTensorArgument("mean")) {
-      mean_input_ = view<float>(ws.ArgumentInput("mean"));
-    }
-    if (spec_.HasTensorArgument("stddev")) {
-      stddev_input_ = view<float>(ws.ArgumentInput("stddev"));
+  void GetAxesFromParamShapes(const workspace_t<Backend> &ws) {
+    if (!has_tensor_mean_ && !has_tensor_stddev_) {
+      UseAllAxes();
+      return;
     }
 
-    if (!mean_input_.empty() && !stddev_input_.empty())
-      DALI_ENFORCE("When providing both `mean` and `stddev`, their shapes must match");
+    if (has_tensor_mean_) {
+      param_shape_ = mean_input_.shape;
+      mean_input_ = view<const float>(ws.ArgumentInput("mean"));
+    }
+
+    if (has_tensor_stddev_) {
+      if (!has_tensor_mean_)  // if not taken from `mean` - use `stddev` shape
+        param_shape_ = stddev_input_.shape;
+
+      stddev_input_ = view<const float>(ws.ArgumentInput("stddev"));
+    }
+
+    if (has_tensor_mean_ && has_tensor_stddev_) {
+      if (mean_input_.shape != stddev_input_.shape) {
+        auto msg = ShapeMismatchMsg(mean_input_.shape, stddev_input_.shape);
+        DALI_FAIL(make_string("Normalize: When providing both `mean` and `stddev`, "
+          "their shapes must match.\n", msg));
+      }
+    }
+
+    // 1. First mark all axes as reduced
+    // 2. For all samples, if parameter shape has an extent other than 1, mark the axis
+    //    of that extent as non-reduced.
+    //
+    // NOTE: It may happen, that the dimension was not really indended for reduction, but
+    // all input samples had extent of 1 - which is OK, because it doesn't change the result.
+    int dim = param_shape_.sample_dim();
+    int n = param_shape_.num_samples();
+    has_axis_names_arg_ = (1 << dim) - 1;
+    for (int i = 0; i < n; i++) {
+      for (int d = 0; d < dim; d++) {
+        if (param_shape_.tensor_shape_span(i)[d] != 1) {
+          // dimension not reduced in at least one sample - clear the axis reduction flag
+          axis_mask_ &= ~(1 << d);
+        }
+      }
+    }
+
+    // Collect the axis indices from the reduction mask
+    axes_.clear();
+    for (int d = 0; d < dim; d++) {
+      if (axis_mask_ & (1 << d))
+        axes_.push_back(d);
+    }
   }
 
   void CheckParamShape() {
-
+    int dim = param_shape_.sample_dim();
+    int n = param_shape_.num_samples();
+    TensorShape<> expected;
+    expected.resize(dim);
+    for (int i = 0; i < n; i++) {
+      for (int d = 0; d < dim; d++) {
+        expected[d] = IsReducedAxis(d) ? 1 : input_shape_.tensor_shape_span(i)[d];
+      }
+      DALI_ENFORCE(param_shape_[i] == expected, make_string(
+        "Normalize: At sample ", i, ": expected parameter shape: ", expected,
+        ",\ngot:", param_shape_[i]));
+    }
   }
 
   void SetAxisMask() {
@@ -111,15 +204,18 @@ class Normalize : public Operator<Backend> {
 
   kernels::KernelManager kmgr_;
 
-  bool calc_mean_ = true, calc_stddev_ = true;
+  bool should_calc_mean() const noexcept { return !has_tensor_mean_ && !has_scalar_mean_; }
+  bool should_calc_stddev() const noexcept { return !has_tensor_stddev_ && !has_scalar_stddev_; }
   TensorListShape<> input_shape_;
   TensorListShape<> param_shape_;
-  TensorListView<StorageCPU, float> mean_input_, stddev_input_;
+  TensorListView<StorageCPU, const float> mean_input_, stddev_input_;
+  TensorList<Backend> mean_, inv_stddev_;
   bool has_tensor_mean_, has_tensor_stddev_ = false;
+  bool has_scalar_mean_, has_scalar_stddev_ = false;
   bool batch_norm_ = false;
   bool has_axes_arg_ = false;
   bool has_axis_names_arg_ = false;
-  DALIDataType output_type_ = DALI_FLOAT;
+  DALIDataType input_type_ = DALI_NO_TYPE, output_type_ = DALI_FLOAT;
   float shift_ = 0;
   float scale_ = 1;
   std::vector<int> axes_;

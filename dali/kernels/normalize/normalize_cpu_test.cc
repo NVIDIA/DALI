@@ -84,8 +84,8 @@ TEST(NormalizeTest, 1D_elementwise) {
   auto ref = make_tensor_cpu<1>(ref_data, out.shape);
   ReferenceNormalize(ref, in, M, D);
   KernelContext ctx;
-  norm.Setup(ctx, in, M, D);
-  norm.Run(ctx, out);
+  norm.Setup(ctx, in.shape, M.shape);
+  norm.Run(ctx, out, in, M, D);
   Check(out, ref);
 }
 
@@ -105,8 +105,8 @@ TEST(NormalizeTest, 1D_global) {
   auto ref = make_tensor_cpu<1>(ref_data, out.shape);
   ReferenceNormalize(ref, in, M, D);
   KernelContext ctx;
-  norm.Setup(ctx, in, M, D);
-  norm.Run(ctx, out);
+  norm.Setup(ctx, in.shape, M.shape);
+  norm.Run(ctx, out, in, M, D);
   Check(out, ref);
 }
 
@@ -167,9 +167,9 @@ TEST_P(NormalizeNDTest, NormalizeNDTest) {
     auto invstddev = make_tensor_cpu(invstddev_data.data(), param_shape);
     NormalizeCPU<float, float> norm;
     KernelContext ctx;
-    auto req = norm.Setup(ctx, in, mean, invstddev);
+    auto req = norm.Setup(ctx, data_shape, param_shape);
     ASSERT_EQ(req.output_shapes[0][0], data_shape);
-    norm.Run(ctx, out);
+    norm.Run(ctx, out, in, mean, invstddev);
     ReferenceNormalize<float, float, float, -1>(ref, in, mean, invstddev);
     Check(out, ref);  // for CPU, we expect bit-exact result
     if (HasFailure()) {

@@ -82,50 +82,52 @@ void normalize_outer(Out *out, const In *in, int64_t nouter, int64_t ninner,
 template <typename Out, typename In, typename MeanStdDev = float>
 struct NormalizeCPU {
   KernelRequirements Setup(
-    KernelContext &ctx,
-    const InTensorCPU<In, -1> &in,
-    const InTensorCPU<MeanStdDev, -1> &mean,
-    const InTensorCPU<MeanStdDev, -1> &inv_stddev) {
-      DALI_ENFORCE(mean.shape == inv_stddev.shape,
-        "Mean and inverse standard deviation must have the same shape");
-      DALI_ENFORCE(in.dim() == mean.dim() && in.dim() == inv_stddev.dim(),
-        "All inputs must have equal dimensionality");
-      int d = in.dim();
-      for (int i = 0; i < d; i++) {
-        DALI_ENFORCE(mean.shape[i] == 1 || mean.shape[i] == in.shape[i], make_string(
-          "`mean` parameter's shape must have extent of 1 or one that matches the input.\n"
-          "in.shape = ", in.shape,
-          "\nmean.shape = ", mean.shape));
-        DALI_ENFORCE(inv_stddev.shape[i] == 1 || inv_stddev.shape[i] == in.shape[i], make_string(
-          "`inv_stddev` parameter's shape must have extent of 1 or one that matches the input.\n"
-          "in.shape = ", in.shape,
-          "\ninv_nstddev.shape = ", inv_stddev.shape));
-      }
-      DALI_ENFORCE(mean.shape == inv_stddev.shape, make_string(
-          "Mean and inverse standard deviation must have the same shape; got:"
-          "\nmean.shape       = ", mean.shape,
-          "\ninv_stddev.shape = ", inv_stddev.shape));
-      input_ = in.data;
-      output_ = nullptr;
-      orig_shape_ = in.shape;
-      data_shape_ = in.shape;
-      param_shape_ = inv_stddev.shape;
-      mean_ = mean.data;
-      inv_stddev_ = inv_stddev.data;
-      Squeeze();
+        KernelContext &ctx,
+        const TensorShape<> &in_shape,
+        const TensorShape<> &param_shape) {
+    int d = in_shape.size();
+    for (int i = 0; i < d; i++) {
+      DALI_ENFORCE(param_shape[i] == 1 || param_shape[i] == in_shape[i], make_string(
+        "Normalization parameters' shape must have extent of 1 or one that matches the input.\n"
+        "in_shape = ", in_shape,
+        "\nparam_shape = ", param_shape));
+    }
 
-      KernelRequirements req;
-      req.output_shapes = { TensorListShape<>({in.shape}) };
-      return req;
+    orig_shape_ = in_shape;
+    data_shape_ = in_shape;
+    param_shape_ = param_shape;
+    orig_param_shape_ = param_shape;
+    Squeeze();
+
+    KernelRequirements req;
+    req.output_shapes.resize(1);
+    TensorListShape<> tmp({in_shape});  // clang's destructor bug still haunting
+    req.output_shapes[0] = tmp;
+    return req;
   }
 
-  void Run(KernelContext &ctx, const OutTensorCPU<Out, -1> &out) {
+  void Run(KernelContext &ctx,
+           const OutTensorCPU<Out, -1> &out,
+           const InTensorCPU<In, -1> &in,
+           const InTensorCPU<MeanStdDev, -1> &mean,
+           const InTensorCPU<MeanStdDev, -1> &inv_stddev) {
     (void)ctx;
+
+    DALI_ENFORCE(mean.shape == inv_stddev.shape, make_string(
+        "Mean and inverse standard deviation must have the same shape; got:"
+        "\nmean.shape       = ", mean.shape,
+        "\ninv_stddev.shape = ", inv_stddev.shape));
+
+    DALI_ENFORCE(in.shape == orig_shape_,
+      "Input must have the same shape as was specified in call to Setup");
 
     DALI_ENFORCE(out.shape == orig_shape_, "Output and input shapes must match");
 
-    // squeeze the output - input has already been squeezed in Setup
+    input_ = in.data;
     output_ = out.data;
+
+    mean_ = mean.data;
+    inv_stddev_ = inv_stddev.data;
 
     Normalize();
   }
@@ -167,7 +169,7 @@ struct NormalizeCPU {
         assert(param_strides[axis+1] == 1);
         normalize_inner(out, in, data_shape_[axis], data_shape_[axis+1], mean, stddev);
       } else {
-        assert(param_strides[axis] ==1 && param_strides[axis+1] == 0);
+        assert(param_strides[axis] == 1 && param_strides[axis+1] == 0);
         // e.g. normalize R,G,B planes using per-channel normalization factors shared across pixels
         normalize_outer(out, in, data_shape_[axis], data_shape_[axis+1], mean, stddev);
       }
@@ -219,7 +221,7 @@ struct NormalizeCPU {
 
   inline int ndim() const noexcept { return data_shape_.size(); }
 
-  TensorShape<> orig_shape_, data_shape_, param_shape_;
+  TensorShape<> orig_shape_, orig_param_shape_, data_shape_, param_shape_;
   const In *input_  = nullptr;;
   Out *output_ = nullptr;
   const MeanStdDev *mean_, *inv_stddev_;
