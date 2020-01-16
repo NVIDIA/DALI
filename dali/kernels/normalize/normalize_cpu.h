@@ -101,43 +101,45 @@ struct NormalizeCPU {
           "in.shape = ", in.shape,
           "\ninv_nstddev.shape = ", inv_stddev.shape));
       }
-      this->input = in;
-      this->orig_shape = in.shape;
-      this->mean = mean;
-      this->inv_stddev = inv_stddev;
+      DALI_ENFORCE(mean.shape == inv_stddev.shape, make_string(
+          "Mean and inverse standard deviation must have the same shape; got:"
+          "\nmean.shape       = ", mean.shape,
+          "\ninv_stddev.shape = ", inv_stddev.shape));
+      input_ = in.data;
+      output_ = nullptr;
+      orig_shape_ = in.shape;
+      data_shape_ = in.shape;
+      param_shape_ = inv_stddev.shape;
+      mean_ = mean.data;
+      inv_stddev_ = inv_stddev.data;
       Squeeze();
 
       KernelRequirements req;
-      ScratchpadEstimator se;
       req.output_shapes = { TensorListShape<>({in.shape}) };
-
-      se.add<MeanStdDev>(AllocType::Host, inv_stddev.num_elements());
-
-      req.scratch_sizes = se.sizes;
       return req;
   }
 
   void Run(KernelContext &ctx, const OutTensorCPU<Out, -1> &out) {
     (void)ctx;
 
-    DALI_ENFORCE(out.shape == orig_shape, "Output and input shape must match");
+    DALI_ENFORCE(out.shape == orig_shape_, "Output and input shapes must match");
 
-    // squeeze the output
-    this->output = make_tensor_cpu(out.data, input.shape);
+    // squeeze the output - input has already been squeezed in Setup
+    output_ = out.data;
 
     Normalize();
   }
 
   void Normalize() {
     int D = ndim();
-    TensorShape<> data_strides = GetStrides(data_shape());
-    TensorShape<> param_strides = GetStrides(param_shape());
+    TensorShape<> data_strides = GetStrides(data_shape_);
+    TensorShape<> param_strides = GetStrides(param_shape_);
     for (int i = 0; i < D; i++) {
-      if (mean.shape[i] == 1)
-        param_strides[i] = 0;  // reudced dim - use the same parameter slice for all data slices
+      if (param_shape_[i] == 1)
+        param_strides[i] = 0;  // reduced dim - use the same parameter slice for all data slices
     }
-    NormalizeAxis(0, output.data, input.data, data_strides.data(),
-                  mean.data, inv_stddev.data, param_strides.data());
+    NormalizeAxis(0, output_, input_, data_strides.data(),
+                  mean_, inv_stddev_, param_strides.data());
   }
 
   void NormalizeAxis(int axis,
@@ -154,28 +156,27 @@ struct NormalizeCPU {
 
       // last dimension - 1D case, which can be either:
       if (param_strides[axis] == 0)
-        normalize(out, in, data_shape()[axis], *mean, *stddev);  // shared factors or..
+        normalize(out, in, data_shape_[axis], *mean, *stddev);  // shared factors or..
       else
-        normalize(out, in, data_shape()[axis], mean, stddev);    // per-element factors
+        normalize(out, in, data_shape_[axis], mean, stddev);    // per-element factors
     } else if (axis == ndim() - 2) {
-      // 2D case can be either normalizing the innerm or the outer dimenion
+      // 2D case can be either normalizing the inner or the outer dimension
       if (param_strides[axis] == 0 && param_strides[axis+1] != 0) {
         // e.g. normalize R,G,B interleaved channels using per-channel normalization factors
         // shared across pixels
         assert(param_strides[axis+1] == 1);
-        normalize_inner(out, in, data_shape()[axis], data_shape()[axis+1], mean, stddev);
+        normalize_inner(out, in, data_shape_[axis], data_shape_[axis+1], mean, stddev);
       } else {
-        assert(param_strides[axis] != 0 && param_strides[axis+1] == 0);
+        assert(param_strides[axis] ==1 && param_strides[axis+1] == 0);
         // e.g. normalize R,G,B planes using per-channel normalization factors shared across pixels
-        assert(param_strides[axis] == 1);
-        normalize_outer(out, in, data_shape()[axis], data_shape()[axis+1], mean, stddev);
+        normalize_outer(out, in, data_shape_[axis], data_shape_[axis+1], mean, stddev);
       }
     } else {
       // anything else - just recursively peel off the outermost dimension
       ptrdiff_t data_ofs = 0, param_ofs = 0;
       ptrdiff_t data_stride = data_strides[axis];
       ptrdiff_t param_stride = param_strides[axis];
-      for (int i = 0; i < data_shape()[axis];
+      for (int i = 0; i < data_shape_[axis];
            i++, data_ofs += data_stride, param_ofs += param_stride) {
         NormalizeAxis(axis + 1, out + data_ofs, in + data_ofs, data_strides,
                       mean + param_ofs, stddev + param_ofs, param_strides);
@@ -191,40 +192,37 @@ struct NormalizeCPU {
    * The function preserves boundaries between non-collapsed and collapsed dimensions, e.g.
    * If the input extent is 1, it can always be collapsed.
    *
-   * in.shape  =  [ 4, 5, 7, 3, 2 ]
-   * mean.shape = [ 4, 5, 1, 1, 2 ]
+   * data_shape   = [ 4, 5, 7, 3, 2 ]
+   * param_shape_ = [ 4, 5, 1, 1, 2 ]
    *
    * will be collapsed to
-   * in.shape  =  [ 20, 21, 2 ]
-   * mean.shape = [ 20,  1, 2 ]
+   * data_shape_  = [ 20, 21, 2 ]
+   * param_shape_ = [ 20,  1, 2 ]
    *
    * The resulting simplified tensor is faster to traverse.
    */
   void Squeeze() {
-    for (int i = 0; i < input.dim() - 1; i++) {
+    for (int i = 0; i < ndim() - 1; i++) {
       bool collapse =
-        (mean.shape[i] == 1 && mean.shape[i+1] == 1) ||
-        (mean.shape[i] != 1 && mean.shape[i+1] != 1) ||
-        input.shape[i] == 1 ||
-        input.shape[i+1] == 1;
+        (param_shape_[i] == 1 && param_shape_[i+1] == 1) ||
+        (param_shape_[i] != 1 && param_shape_[i+1] != 1) ||
+        data_shape_[i] == 1 ||
+        data_shape_[i+1] == 1;
 
       if (collapse) {
-        input      = collapse_dim(input, i);
-        mean       = collapse_dim(mean, i);
-        inv_stddev = collapse_dim(inv_stddev, i);
+        data_shape_ = collapse_dim(data_shape_, i);
+        param_shape_ = collapse_dim(param_shape_, i);
         i--;
       }
     }
   }
 
-  inline int ndim() const noexcept { return input.dim(); }
-  inline const TensorShape<> &data_shape() const noexcept  { return input.shape; }
-  inline const TensorShape<> &param_shape() const noexcept { return mean.shape; }
+  inline int ndim() const noexcept { return data_shape_.size(); }
 
-  InTensorCPU<In, -1> input;
-  OutTensorCPU<Out, -1> output;
-  TensorShape<> orig_shape;
-  InTensorCPU<MeanStdDev, -1> mean, inv_stddev;
+  TensorShape<> orig_shape_, data_shape_, param_shape_;
+  const In *input_  = nullptr;;
+  Out *output_ = nullptr;
+  const MeanStdDev *mean_, *inv_stddev_;
 };
 
 }  // namespace kernels
