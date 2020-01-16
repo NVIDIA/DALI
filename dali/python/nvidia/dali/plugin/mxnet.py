@@ -51,7 +51,7 @@ def feed_ndarray(dali_tensor, arr):
     # Copy data from DALI tensor to ptr
     dali_tensor.copy_to_external(ptr)
 
-class DALIGenericIterator(object):
+class DALIGenericIterator(mx.io.DataIter):
     """
     General DALI iterator for MXNet. It can return any number of
     outputs from the DALI pipeline in the form of MXNet's DataBatch
