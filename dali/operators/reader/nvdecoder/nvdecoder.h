@@ -51,6 +51,8 @@ using CodecParameters = AVCodecContext;
 
 namespace dali {
 
+#define NVDECODER_SUPPORTED_TYPES (float, uint8_t)
+
 struct FrameReq {
   std::string filename;
   int frame;

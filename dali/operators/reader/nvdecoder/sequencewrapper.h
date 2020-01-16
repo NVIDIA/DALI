@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/static_switch.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/data/tensor.h"
@@ -28,19 +29,25 @@
 
 namespace dali {
 
+#define SEQUENCEWRAPPER_SUPPORTED_TYPES (float, uint8_t)
+
 // Struct that Loader::ReadOne will read
 struct SequenceWrapper {
  public:
   SequenceWrapper()
   : started_(false) {}
 
-  void initialize(int count, int height, int width, int channels) {
+  void initialize(int count, int height, int width, int channels, DALIDataType dtype) {
     this->count = count;
     this->height = height;
     this->width = width;
     this->channels = channels;
-    // TODO(spanev) Handle other types
-    sequence.set_type(TypeInfo::Create<float>());
+    this->dtype = dtype;
+
+    TYPE_SWITCH(dtype, type2id, OutputType, SEQUENCEWRAPPER_SUPPORTED_TYPES, (
+        sequence.set_type(TypeInfo::Create<OutputType>());
+      ), DALI_FAIL(make_string("Not supported output type:", dtype));); // NOLINT
+
     sequence.Resize({count, height, width, channels});
     timestamps.clear();
     timestamps.reserve(count);
@@ -93,6 +100,7 @@ struct SequenceWrapper {
   int label;
   vector<double> timestamps;
   int first_frame_idx;
+  DALIDataType dtype;
 
  private:
   void wait_until_started_() const {

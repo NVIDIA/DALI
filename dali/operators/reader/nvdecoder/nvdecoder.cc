@@ -26,6 +26,7 @@
 #include <string>
 #include <utility>
 
+#include "dali/core/static_switch.h"
 #include "dali/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/error_handling.h"
@@ -442,19 +443,14 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                                       input_width,
                                       input_height,
                                       ScaleMethod_Linear);
-  if (dtype_ == DALI_UINT8) {
-    process_frame<uint8>(textures.chroma, textures.luma,
+  TYPE_SWITCH(dtype_, type2id, OutputType, NVDECODER_SUPPORTED_TYPES, (
+      process_frame<OutputType>(textures.chroma, textures.luma,
                   sequence,
                   output_idx, stream_,
                   input_width, input_height,
                   rgb_, normalized_);
-  } else {  // dtype_ == DALI_FLOAT
-    process_frame<float>(textures.chroma, textures.luma,
-                  sequence,
-                  output_idx, stream_,
-                  input_width, input_height,
-                  rgb_, normalized_);
-  }
+    ), DALI_FAIL(make_string("Not supported output type:", dtype_, // NOLINT
+        "Only DALI_UINT8 and DALI_FLOAT are supported as the decoder outputs.")););
 
   frame_in_use_[frame.disp_info->picture_index] = false;
 }
