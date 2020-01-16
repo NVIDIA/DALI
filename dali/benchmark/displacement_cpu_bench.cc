@@ -15,9 +15,9 @@
 #include <benchmark/benchmark.h>
 
 #include "dali/benchmark/dali_bench.h"
-#include "dali/operators/displacement/displacement_filter_impl_cpu.h"
-#include "dali/operators/displacement/sphere.h"
-#include "dali/operators/displacement/water.h"
+#include "dali/operators/image/remap/displacement_filter_impl_cpu.h"
+#include "dali/operators/image/remap/sphere.h"
+#include "dali/operators/image/remap/water.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
