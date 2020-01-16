@@ -21,7 +21,7 @@ namespace signal {
 
 struct MovingMeanSquareArgs {
   int window_size = 2048;
-  int reset_interval = 10000;
+  int reset_interval = -1;
 };
 
 }  // namespace signal

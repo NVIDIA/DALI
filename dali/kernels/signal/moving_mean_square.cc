@@ -18,7 +18,6 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-
 template<typename T>
 MovingMeanSquareCpu<T>::~MovingMeanSquareCpu() = default;
 
@@ -36,30 +35,32 @@ MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &i
 template<typename T>
 void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<float, 1> &out,
                                  const InTensorCPU<T, 1> &in, const MovingMeanSquareArgs &args) {
-  const auto in_ptr = in.data;
-  const auto out_ptr = out.data;
   const auto length = in.shape[0];
+  auto spin = make_cspan(in.data, length);
+  auto spout = make_span(out.data, length);
   const float mean_factor = 1.f / args.window_size;
-  T sumsq = 0;
-  for (int i = 0; i < args.window_size; i++) {
-    sumsq += in_ptr[i] * in_ptr[i];
-  }
+  float sumsq = detail::CalcSumSquared(spin, 0, args.window_size);
   for (int i = 0; i < length - args.window_size; i++) {
-    out_ptr[i] = sumsq * mean_factor;
-    sumsq -= in_ptr[i] * in_ptr[i];
-    sumsq += in_ptr[i + args.window_size] * in_ptr[i + args.window_size];
+    spout[i] = sumsq * mean_factor;
+    sumsq -= static_cast<float>(spin[i]) * spin[i];
+    sumsq += static_cast<float>(spin[i + args.window_size]) * spin[i + args.window_size];
   }
   for (int i = length - args.window_size; i < length; i++) {
-    out_ptr[i] = sumsq * mean_factor;
-    sumsq -= in_ptr[i] * in_ptr[i];
+    spout[i] = sumsq * mean_factor;
+    sumsq -= static_cast<float>(spin[i]) * spin[i];
   }
 }
 
 
 template class MovingMeanSquareCpu<float>;
-template class MovingMeanSquareCpu<int>;
-//template class ToDecibelsCpu<float, 3>;
-//template class ToDecibelsCpu<float, 4>;
+template class MovingMeanSquareCpu<uint8_t>;
+template class MovingMeanSquareCpu<int8_t>;
+template class MovingMeanSquareCpu<uint16_t>;
+template class MovingMeanSquareCpu<int16_t>;
+template class MovingMeanSquareCpu<uint32_t>;
+template class MovingMeanSquareCpu<int32_t>;
+template class MovingMeanSquareCpu<uint64_t>;
+template class MovingMeanSquareCpu<int64_t>;
 
 }  // namespace signal
 }  // namespace kernels

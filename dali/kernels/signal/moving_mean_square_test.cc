@@ -13,17 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-//#include <vector>
-//#include <tuple>
-//#include "dali/core/geom/mat.h"
-//#include "dali/core/tensor_shape.h"
-//#include "dali/kernels/scratch.h"
-//#include "dali/kernels/common/copy.h"
-//#include "dali/test/mat2tensor.h"
+#include <vector>
 #include "dali/test/tensor_test_utils.h"
-//#include "dali/kernels/test/kernel_test_utils.h"
-//#include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
-//#include "dali/test/cv_mat_utils.h"
 #include "dali/kernels/signal/moving_mean_square.h"
 
 namespace dali {
@@ -44,7 +35,7 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
 
   void SetUp() final {
     std::mt19937_64 rng;
-    UniformRandomFill(input_, rng, -100., 100.);
+    FillInput(rng);
     calc_output();
   }
 
@@ -55,13 +46,13 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   int buffer_length_ = 32000;
   TensorShape<kNDims> shape_ = {buffer_length_};
 
-
+ private:
   void calc_output() {
     ref_output_.resize(dataset_size(shape_));
     for (int i = 0; i < buffer_length_; i++) {
       float sumsq = 0;
       for (int j = 0; j < window_size_ && i + j < buffer_length_; j++) {
-        sumsq += input_[i + j] * input_[i + j];
+        sumsq += static_cast<float>(input_[i + j]) * input_[i + j];
       }
       ref_output_[i] = sumsq / window_size_;
     }
@@ -71,9 +62,23 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   size_t dataset_size(const TensorShape<kNDims> &shape) {
     return volume(shape);
   }
+
+
+  template<typename RNG>
+  std::enable_if_t<std::is_signed<InputType>::value>
+  FillInput(RNG &rng) {
+    UniformRandomFill(input_, rng, -100., 100.);
+  }
+
+
+  template<typename RNG>
+  std::enable_if_t<!std::is_signed<InputType>::value>
+  FillInput(RNG &rng) {
+    UniformRandomFill(input_, rng, .0, 200.);
+  }
 };
 
-using TestTypes = ::testing::Types<int/*uint8_t, int8_t, uint16_t, int16_t, int32_t, float*/>;
+using TestTypes = ::testing::Types<uint8_t, uint16_t, int8_t, int16_t, int32_t, float>;
 
 TYPED_TEST_SUITE(MovingMeanSquareCpuTest, TestTypes);
 
@@ -83,6 +88,15 @@ template<class GtestTypeParam>
 using TestedKernel = signal::MovingMeanSquareCpu<GtestTypeParam>;
 
 }  // namespace
+
+TYPED_TEST(MovingMeanSquareCpuTest, CalcSumSquaredTest) {
+  int st = 10, len = 200;
+  float ref = 0;
+  for (int i = st; i < len + st; i++) {
+    ref += this->input_[i] * this->input_[i];
+  }
+  EXPECT_FLOAT_EQ(signal::detail::CalcSumSquared(make_cspan(this->input_), st, len), ref);
+}
 
 
 TYPED_TEST(MovingMeanSquareCpuTest, CheckKernel) {
@@ -115,7 +129,7 @@ TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
   kernel.Run(ctx, out, in, {this->window_size_});
 
   auto ref_tv = TensorView<StorageCPU, float>(this->ref_output_.data(), this->shape_);
-  Check(out, ref_tv, EqualUlp());
+  Check(out, ref_tv, EqualEps(1e-1));
 }
 
 

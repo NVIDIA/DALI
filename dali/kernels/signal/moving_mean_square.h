@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERdsfasdfasdfS_CPU_H_
-#define DALI_KERdsfasdfasdfS_CPU_H_
+#ifndef DALI_KERNELS_SIGNAL_MOVING_MEAN_SQUARE_H_
+#define DALI_KERNELS_SIGNAL_MOVING_MEAN_SQUARE_H_
 
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/signal/moving_mean_square_args.h"
@@ -21,6 +21,18 @@
 namespace dali {
 namespace kernels {
 namespace signal {
+
+namespace detail {
+template<typename T>
+float CalcSumSquared(span<const T> buffer, int start, int length) {
+  DALI_ENFORCE(buffer.size() > length + start, "Buffer overflow");
+  float sumsq = 0;
+  for (int i = start; i < length + start; i++) {
+    sumsq += buffer[i] * buffer[i];
+  }
+  return sumsq;
+}
+}  // namespace detail
 
 template<typename InputType>
 class DLL_PUBLIC MovingMeanSquareCpu {
@@ -38,4 +50,4 @@ class DLL_PUBLIC MovingMeanSquareCpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_DECIBEL_TO_DECIBELS_CPU_H_
+#endif  // DALI_KERNELS_SIGNAL_MOVING_MEAN_SQUARE_H_
