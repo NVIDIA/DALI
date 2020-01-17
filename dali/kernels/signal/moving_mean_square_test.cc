@@ -93,9 +93,10 @@ using TestedKernel = signal::MovingMeanSquareCpu<GtestTypeParam>;
 }  // namespace
 
 using TestedType = float;
+
 TEST(MovingMeanBench, Bench) {
-  cout<<"\n\n\n\n";
-  for (int i=0;i<30;i++) {
+  cout << "\n\n\n\n";
+  for (int i = 0; i < 2; i++) {
     int window_size = 2048;
     int buffer_length = 256e6;
     int reset_interval = 5001;
@@ -117,15 +118,6 @@ TEST(MovingMeanBench, Bench) {
     kernel.Run(ctx, out, in, {window_size, reset_interval});
   }
   SUCCEED();
-}
-
-TYPED_TEST(MovingMeanSquareCpuTest, CalcSumSquaredTest) {
-  int st = 10, len = 200;
-  float ref = 0;
-  for (int i = st; i < len + st; i++) {
-    ref += this->input_[i] * this->input_[i];
-  }
-  EXPECT_FLOAT_EQ(signal::detail::CalcSumSquared(make_cspan(this->input_), st, len), ref);
 }
 
 

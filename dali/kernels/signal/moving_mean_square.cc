@@ -19,12 +19,27 @@ namespace kernels {
 namespace signal {
 
 namespace {
+
 template<typename Result = float, typename T>
 float Square(const T &val) {
   Result res = val;
   return res * res;
 }
+
+
+template<typename T>
+float CalcSumSquared(span<const T> buffer, int start, int length) {
+  DALI_ENFORCE(buffer.size() >= length + start,
+               make_string_delim(" ", "Buffer overflow (size:", buffer.size(), "length:", length,
+                                 "start:", start));
+  float sumsq = 0;
+  for (int i = start; i < length + start; i++) {
+    sumsq += Square(buffer[i]);
+  }
+  return sumsq;
 }
+
+}  // namespace
 
 template<typename T>
 MovingMeanSquareCpu<T>::~MovingMeanSquareCpu() = default;
@@ -46,7 +61,7 @@ void with_modulo(span<const T> spin, span<float> spout, int length, float mean_f
   float sumsq;
   for (int window_begin = 0; window_begin <= length - window_size; window_begin++) {
     if (window_begin % reset_interval == 0) {
-      sumsq = detail::CalcSumSquared(spin, window_begin, window_size);
+      sumsq = CalcSumSquared(spin, window_begin, window_size);
     } else {
       sumsq += Square(spin[window_begin + window_size - 1]) - Square(spin[window_begin - 1]);
     }
@@ -54,7 +69,7 @@ void with_modulo(span<const T> spin, span<float> spout, int length, float mean_f
   }
   for (int i = length - window_size + 1; i < length; i++) {
     if (i % reset_interval == 0) {
-      sumsq = detail::CalcSumSquared(spin, i, length - i);
+      sumsq = CalcSumSquared(spin, i, length - i);
     } else {
       sumsq -= Square(spin[i - 1]);
     }
@@ -73,7 +88,7 @@ with_loop(span<const T> spin, span<float> spout, int length, float mean_factor, 
   bool recalc = true;
   while (window_begin <= length - window_size) {
     if (recalc) {
-      sumsq = detail::CalcSumSquared(spin, window_begin, window_size);
+      sumsq = CalcSumSquared(spin, window_begin, window_size);
       spout[window_begin++] = sumsq * mean_factor;
       recalc = false;
       cnt++;
@@ -88,7 +103,7 @@ with_loop(span<const T> spin, span<float> spout, int length, float mean_factor, 
   }
   while (window_begin < length) {
     if (recalc) {
-      sumsq = detail::CalcSumSquared(spin, window_begin, length - window_begin);
+      sumsq = CalcSumSquared(spin, window_begin, length - window_begin);
       spout[window_begin++] = sumsq * mean_factor;
       recalc = false;
       cnt++;
@@ -101,8 +116,6 @@ with_loop(span<const T> spin, span<float> spout, int length, float mean_factor, 
       recalc = true;
     }
   }
-
-
 }
 
 
@@ -115,13 +128,13 @@ void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<floa
   const float mean_factor = 1.f / args.window_size;
   const int reset_interval = args.reset_interval == -1 ? length : args.reset_interval;
 
-  using namespace std::chrono;
+  using namespace std::chrono;  // NOLINT
   using hrc = std::chrono::high_resolution_clock;
   auto start = hrc::now();
   with_modulo(spin, spout, length, mean_factor, reset_interval, args.window_size);
 //  with_loop(spin, spout, length, mean_factor, reset_interval, args.window_size);
   auto stop = hrc::now();
-  cout<<duration_cast<microseconds>(stop - start).count()<<"\n";
+  cout << duration_cast<microseconds>(stop - start).count() << "\n";
 }
 
 

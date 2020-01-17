@@ -23,20 +23,6 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-namespace detail {
-template<typename T>
-float CalcSumSquared(span<const T> buffer, int start, int length) {
-  DALI_ENFORCE(buffer.size() >= length + start,
-               make_string_delim(" ", "Buffer overflow (size:", buffer.size(), "length:", length,
-                                 "start:", start));
-  float sumsq = 0;
-  for (int i = start; i < length + start; i++) {
-    sumsq += buffer[i] * buffer[i];
-  }
-  return sumsq;
-}
-}  // namespace detail
-
 template<typename InputType>
 class DLL_PUBLIC MovingMeanSquareCpu {
  public:
