@@ -27,14 +27,14 @@ import re
 
 from nose.tools import assert_raises
 
-VIDEO_DIRECTORY = "video_files"
-PLENTY_VIDEO_DIRECTORY = "many_video_files"
+VIDEO_DIRECTORY = "/tmp/video_files"
+PLENTY_VIDEO_DIRECTORY = "/tmp/many_video_files"
 VIDEO_FILES = os.listdir(VIDEO_DIRECTORY)
 PLENTY_VIDEO_FILES=  os.listdir(PLENTY_VIDEO_DIRECTORY)
 VIDEO_FILES = [VIDEO_DIRECTORY + '/' + f for f in VIDEO_FILES]
 PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + '/' + f for f in PLENTY_VIDEO_FILES]
-FILE_LIST = "file_list.txt"
-MUTLIPLE_RESOLUTION_ROOT = 'video_resolution/'
+FILE_LIST = "/tmp/file_list.txt"
+MUTLIPLE_RESOLUTION_ROOT = '/tmp/video_resolution/'
 
 ITER=6
 BATCH_SIZE=4
