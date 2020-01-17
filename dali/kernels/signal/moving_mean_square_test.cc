@@ -25,6 +25,7 @@ namespace {
 const int kNDims = 1;
 }
 
+
 template<class InputType>
 class MovingMeanSquareCpuTest : public ::testing::Test {
  public:
@@ -43,8 +44,8 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   std::vector<InputType> input_;
   std::vector<float> ref_output_;
   int window_size_ = 2048;
-  int buffer_length_ = 32000;
-  int reset_interval_ = 5000;
+  int buffer_length_ = 256e6;
+  int reset_interval_ = 5001;
   TensorShape<kNDims> shape_ = {buffer_length_};
 
  private:
@@ -90,6 +91,33 @@ template<class GtestTypeParam>
 using TestedKernel = signal::MovingMeanSquareCpu<GtestTypeParam>;
 
 }  // namespace
+
+using TestedType = float;
+TEST(MovingMeanBench, Bench) {
+  cout<<"\n\n\n\n";
+  for (int i=0;i<30;i++) {
+    int window_size = 2048;
+    int buffer_length = 256e6;
+    int reset_interval = 5001;
+    std::vector<TestedType> input;
+    input.resize(buffer_length);
+    TensorShape<kNDims> shape = {buffer_length};
+
+    TestedKernel<TestedType> kernel;
+    KernelContext ctx;
+    InTensorCPU<TestedType, kNDims> in(input.data(), shape);
+
+    auto reqs = kernel.Setup(ctx, in, {window_size});
+
+    auto out_shape = reqs.output_shapes[0][0];
+    std::vector<float> output;
+    output.resize(dali::volume(out_shape));
+    OutTensorCPU<float, kNDims> out(output.data(), out_shape.template to_static<kNDims>());
+
+    kernel.Run(ctx, out, in, {window_size, reset_interval});
+  }
+  SUCCEED();
+}
 
 TYPED_TEST(MovingMeanSquareCpuTest, CalcSumSquaredTest) {
   int st = 10, len = 200;

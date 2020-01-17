@@ -21,8 +21,8 @@ namespace signal {
 namespace {
 template<typename Result = float, typename T>
 float Square(const T &val) {
-  Result res=val;
-  return res*res;
+  Result res = val;
+  return res * res;
 }
 }
 
@@ -41,7 +41,8 @@ MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &i
 
 
 template<typename T>
-void with_modulo(span<const T> spin, span<float> spout, int length, float mean_factor, int reset_interval, int window_size){
+void with_modulo(span<const T> spin, span<float> spout, int length, float mean_factor,
+                 int reset_interval, int window_size) {
   float sumsq;
   for (int window_begin = 0; window_begin <= length - window_size; window_begin++) {
     if (window_begin % reset_interval == 0) {
@@ -63,6 +64,49 @@ void with_modulo(span<const T> spin, span<float> spout, int length, float mean_f
 
 
 template<typename T>
+void
+with_loop(span<const T> spin, span<float> spout, int length, float mean_factor, int reset_interval,
+          int window_size) {
+  float sumsq = 0;
+  int cnt = 0;
+  int window_begin = 0;
+  bool recalc = true;
+  while (window_begin <= length - window_size) {
+    if (recalc) {
+      sumsq = detail::CalcSumSquared(spin, window_begin, window_size);
+      spout[window_begin++] = sumsq * mean_factor;
+      recalc = false;
+      cnt++;
+    }
+    while (window_begin < reset_interval * cnt && window_begin <= length - window_size) {
+      sumsq += Square(spin[window_begin + window_size - 1]) - Square(spin[window_begin - 1]);
+      spout[window_begin++] = sumsq * mean_factor;
+    }
+    if (window_begin >= reset_interval * cnt) {
+      recalc = true;
+    }
+  }
+  while (window_begin < length) {
+    if (recalc) {
+      sumsq = detail::CalcSumSquared(spin, window_begin, length - window_begin);
+      spout[window_begin++] = sumsq * mean_factor;
+      recalc = false;
+      cnt++;
+    }
+    while (window_begin < reset_interval * cnt && window_begin < length) {
+      sumsq -= Square(spin[window_begin - 1]);
+      spout[window_begin++] = sumsq * mean_factor;
+    }
+    if (window_begin >= reset_interval * cnt) {
+      recalc = true;
+    }
+  }
+
+
+}
+
+
+template<typename T>
 void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<float, 1> &out,
                                  const InTensorCPU<T, 1> &in, const MovingMeanSquareArgs &args) {
   const auto length = in.shape[0];
@@ -71,36 +115,42 @@ void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<floa
   const float mean_factor = 1.f / args.window_size;
   const int reset_interval = args.reset_interval == -1 ? length : args.reset_interval;
 
-  with_modulo(spin,spout,length,mean_factor,reset_interval,args.window_size);
-
-//  float sumsq;
-//  for (int window_begin = 0; window_begin <= length - args.window_size; window_begin++) {
-//    if (window_begin % reset_interval == 0) {
-//      sumsq = detail::CalcSumSquared(spin, window_begin, args.window_size);
-//    } else {
-//      sumsq += Square(spin[window_begin + args.window_size - 1]) - Square(spin[window_begin - 1]);
-//    }
-//    spout[window_begin] = sumsq * mean_factor;
-//  }
-//  for (int i = length - args.window_size + 1; i < length; i++) {
-//    if (i % reset_interval == 0) {
-//      sumsq = detail::CalcSumSquared(spin, i, length - i);
-//    } else {
-//      sumsq -= Square(spin[i - 1]);
-//    }
-//    spout[i] = sumsq * mean_factor;
-//  }
+  using namespace std::chrono;
+  using hrc = std::chrono::high_resolution_clock;
+  auto start = hrc::now();
+  with_modulo(spin, spout, length, mean_factor, reset_interval, args.window_size);
+//  with_loop(spin, spout, length, mean_factor, reset_interval, args.window_size);
+  auto stop = hrc::now();
+  cout<<duration_cast<microseconds>(stop - start).count()<<"\n";
 }
 
-template class MovingMeanSquareCpu<float>;
-template class MovingMeanSquareCpu<uint8_t>;
-template class MovingMeanSquareCpu<int8_t>;
-template class MovingMeanSquareCpu<uint16_t>;
-template class MovingMeanSquareCpu<int16_t>;
-template class MovingMeanSquareCpu<uint32_t>;
-template class MovingMeanSquareCpu<int32_t>;
-template class MovingMeanSquareCpu<uint64_t>;
-template class MovingMeanSquareCpu<int64_t>;
+
+template
+class MovingMeanSquareCpu<float>;
+
+template
+class MovingMeanSquareCpu<uint8_t>;
+
+template
+class MovingMeanSquareCpu<int8_t>;
+
+template
+class MovingMeanSquareCpu<uint16_t>;
+
+template
+class MovingMeanSquareCpu<int16_t>;
+
+template
+class MovingMeanSquareCpu<uint32_t>;
+
+template
+class MovingMeanSquareCpu<int32_t>;
+
+template
+class MovingMeanSquareCpu<uint64_t>;
+
+template
+class MovingMeanSquareCpu<int64_t>;
 
 }  // namespace signal
 }  // namespace kernels
