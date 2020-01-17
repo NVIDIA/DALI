@@ -26,8 +26,8 @@ struct MovingMeanSquareArgs {
   int window_size = 2048;
 
   /**
-   * After what amount of samples will the cumulative
-   * squared sum be recalculated.
+   * The number of samples after which the running
+   * sum of squares is recalculated.
    * If `-1`, no recalculation will happen
    */
   int reset_interval = -1;

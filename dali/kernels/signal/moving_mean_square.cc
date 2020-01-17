@@ -19,9 +19,10 @@ namespace kernels {
 namespace signal {
 
 namespace {
-template<typename T>
-float Power2(const T &val) {
-  return static_cast<float>(val) * val;
+template<typename Result = float, typename T>
+float Square(const T &val) {
+  Result res=val;
+  return res*res;
 }
 }
 
@@ -40,6 +41,28 @@ MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &i
 
 
 template<typename T>
+void with_modulo(span<const T> spin, span<float> spout, int length, float mean_factor, int reset_interval, int window_size){
+  float sumsq;
+  for (int window_begin = 0; window_begin <= length - window_size; window_begin++) {
+    if (window_begin % reset_interval == 0) {
+      sumsq = detail::CalcSumSquared(spin, window_begin, window_size);
+    } else {
+      sumsq += Square(spin[window_begin + window_size - 1]) - Square(spin[window_begin - 1]);
+    }
+    spout[window_begin] = sumsq * mean_factor;
+  }
+  for (int i = length - window_size + 1; i < length; i++) {
+    if (i % reset_interval == 0) {
+      sumsq = detail::CalcSumSquared(spin, i, length - i);
+    } else {
+      sumsq -= Square(spin[i - 1]);
+    }
+    spout[i] = sumsq * mean_factor;
+  }
+}
+
+
+template<typename T>
 void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<float, 1> &out,
                                  const InTensorCPU<T, 1> &in, const MovingMeanSquareArgs &args) {
   const auto length = in.shape[0];
@@ -48,23 +71,25 @@ void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<floa
   const float mean_factor = 1.f / args.window_size;
   const int reset_interval = args.reset_interval == -1 ? length : args.reset_interval;
 
-  float sumsq;
-  for (int window_begin = 0; window_begin <= length - args.window_size; window_begin++) {
-    if (window_begin % reset_interval == 0) {
-      sumsq = detail::CalcSumSquared(spin, window_begin, args.window_size);
-    } else {
-      sumsq += Power2(spin[window_begin + args.window_size - 1]) - Power2(spin[window_begin - 1]);
-    }
-    spout[window_begin] = sumsq * mean_factor;
-  }
-  for (int i = length - args.window_size + 1; i < length; i++) {
-    if (i % reset_interval == 0) {
-      sumsq = detail::CalcSumSquared(spin, i, length - i);
-    } else {
-      sumsq -= Power2(spin[i - 1]);
-    }
-    spout[i] = sumsq * mean_factor;
-  }
+  with_modulo(spin,spout,length,mean_factor,reset_interval,args.window_size);
+
+//  float sumsq;
+//  for (int window_begin = 0; window_begin <= length - args.window_size; window_begin++) {
+//    if (window_begin % reset_interval == 0) {
+//      sumsq = detail::CalcSumSquared(spin, window_begin, args.window_size);
+//    } else {
+//      sumsq += Square(spin[window_begin + args.window_size - 1]) - Square(spin[window_begin - 1]);
+//    }
+//    spout[window_begin] = sumsq * mean_factor;
+//  }
+//  for (int i = length - args.window_size + 1; i < length; i++) {
+//    if (i % reset_interval == 0) {
+//      sumsq = detail::CalcSumSquared(spin, i, length - i);
+//    } else {
+//      sumsq -= Square(spin[i - 1]);
+//    }
+//    spout[i] = sumsq * mean_factor;
+//  }
 }
 
 template class MovingMeanSquareCpu<float>;
