@@ -2,7 +2,7 @@
 # used pip packages
 # Fixing numpy to 1.17.0 version to avoid the error about not being able to implicitly convert from float64 to integer
 # TODO(janton): remove explicit pillow version installation when torch fixes the issue with PILLOW_VERSION not being defined
-pip_packages="numpy==1.17.0 pillow==6.2.2 torch torchvision mlperf_compliance matplotlib Cython"
+pip_packages="numpy<1.17.0 pillow==6.2.2 torch torchvision mlperf_compliance matplotlib Cython"
 target_dir=./docs/examples/pytorch/single_stage_detector/
 
 test_body() {
