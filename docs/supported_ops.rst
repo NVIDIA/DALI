@@ -66,7 +66,7 @@ As the operations performed are element-wise, the shapes of all operands must ma
     If one of the operands is a batch of Tensors representing scalars the scalar values
     are *broadcasted* to the other operand.
 
-For details and examples see :doc:`expressions tutorials <examples/expressions/index>`.
+For details and examples see :doc:`expressions tutorials <examples/general/expressions/index>`.
 
 
 Supported arithmetic operations
