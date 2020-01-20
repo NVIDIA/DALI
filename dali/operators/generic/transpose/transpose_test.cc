@@ -97,9 +97,8 @@ std::vector<testing::Arguments> GetPermutations(int rank) {
 }
 
 std::vector<testing::Arguments> devices = {
-// CPU transpose not supported yet
-//    {{"device", std::string{"cpu"}}},
-    {{"device", std::string{"gpu"}}},
+  {{"device", std::string{"cpu"}}},
+  {{"device", std::string{"gpu"}}},
 };
 
 namespace detail {
@@ -111,7 +110,7 @@ tensor_loop_impl(const T* in_tensor,
                  const TensorShape<>& /*unused*/,
                  const std::vector<int>& /*unused*/, const std::vector<int>& /*unused*/,
                  const std::vector<int>& /*unused*/,
-                 int in_idx, int out_idx) {
+                 int in_idx, int out_idx, std::vector<int> &position) {
   EXPECT_EQ(in_tensor[in_idx], out_tensor[out_idx]);
 }
 
@@ -122,13 +121,14 @@ tensor_loop_impl(const T* in_tensor,
                  const TensorShape<>& shape,
                  const std::vector<int>& old_strides, const std::vector<int>& new_strides,
                  const std::vector<int>& perm,
-                 int in_idx, int out_idx) {
+                 int in_idx, int out_idx, std::vector<int> &position) {
   for (int i = 0; i < shape[CurrDim]; ++i) {
+    position[CurrDim] = i;
     tensor_loop_impl<T, Rank, CurrDim +1>(in_tensor,
                                       out_tensor,
                                       shape, old_strides, new_strides, perm,
                                       in_idx + old_strides[perm[CurrDim]] * i,
-                                      out_idx + new_strides[CurrDim] * i);
+                                      out_idx + new_strides[CurrDim] * i, position);
   }
 }
 
@@ -138,9 +138,10 @@ inline void tensor_loop(const T* in_tensor,
                         const TensorShape<>& shape,
                         const std::vector<int>& old_strides, const std::vector<int>& new_strides,
                         const std::vector<int>& perm) {
+  std::vector<int> position(shape.size());
   detail::tensor_loop_impl<T, Rank, 0>(in_tensor, out_tensor,
                                        shape, old_strides, new_strides, perm,
-                                       0, 0);
+                                       0, 0, position);
 }
 
 }  // namespace detail
