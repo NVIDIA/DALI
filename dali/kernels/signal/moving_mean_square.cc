@@ -78,7 +78,6 @@ void CalcMovingMeanSquared(span<float> out, span<const T> in, int length, float 
       recalc = true;
     }
   }
-
 }
 
 
