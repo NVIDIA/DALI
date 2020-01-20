@@ -28,11 +28,12 @@ DALI_SCHEMA(PythonFunctionBase)
 DALI_SCHEMA(PythonFunction)
         .DocStr("Executes a python function. \n"
                 "The operator can be used to execute custom python code within the DALI pipeline. "
-                "The called function will get tensors' data as numpy arrays for CPU operators"
-                " or as cupy arrays for GPU operators and should return results in the same format."
+                "The called function will get tensors' data as NumPy arrays for CPU operators"
+                " or as CuPy arrays for GPU operators and should return results in the same format"
+                " (for more universal data format see `DLTensorPythonFunction`). "
                 "For now, this operator can be used only in pipelines with "
                 "`exec_async=False` and `exec_pipelined=False` specified. Due to "
-                "inferior performance, it is intended mostly for prototyping and debugging.")
+                "inferior performance, it is intended mostly for prototyping and debugging.\n")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()
@@ -42,7 +43,8 @@ DALI_SCHEMA(PythonFunction)
                         "Whether the function should get the whole batch as input.", false);
 
 DALI_SCHEMA(TorchPythonFunction)
-        .DocStr("Executes a function operating on Torch tensors.")
+        .DocStr("Executes a function operating on Torch tensors. "
+                "Analogous to PythonFunction but tensors' data is handled as PyTorch tensors.")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()
