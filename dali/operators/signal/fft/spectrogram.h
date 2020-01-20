@@ -50,7 +50,7 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
  private:
-  OpSpec spec__;
+  OpSpec op_spec_;
 
   std::unique_ptr<detail::OpImplBase<Backend>> impl_;
 };

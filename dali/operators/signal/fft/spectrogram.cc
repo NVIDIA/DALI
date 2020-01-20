@@ -245,7 +245,7 @@ void SpectrogramImplCpu<Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
 template <>
 Spectrogram<CPUBackend>::Spectrogram(const OpSpec &spec)
     : Operator<CPUBackend>(spec)
-    , spec__(spec) {}
+    , op_spec_(spec) {}
 
 template <>
 bool Spectrogram<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -253,7 +253,7 @@ bool Spectrogram<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
   VALUE_SWITCH(in_shape.sample_dim(), Dims, SPECTROGRAM_SUPPORTED_NDIMS,
-    (impl_ = std::make_unique<SpectrogramImplCpu<Dims>>(spec__);),
+    (impl_ = std::make_unique<SpectrogramImplCpu<Dims>>(op_spec_);),
     (DALI_FAIL(make_string("Not supported number of dimensions: ", in_shape.size()))));
 
   assert(impl_ != nullptr);
