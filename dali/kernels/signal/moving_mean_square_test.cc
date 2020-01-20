@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,27 +78,12 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
 };
 
 using TestTypes = ::testing::Types<uint8_t, uint16_t, int8_t, int16_t, int32_t, float>;
-
 TYPED_TEST_SUITE(MovingMeanSquareCpuTest, TestTypes);
 
-namespace {
-
-template<class GtestTypeParam>
-using TestedKernel = signal::MovingMeanSquareCpu<GtestTypeParam>;
-
-}  // namespace
-
-using TestedType = float;
-
-
-TYPED_TEST(MovingMeanSquareCpuTest, CheckKernel) {
-  check_kernel<TestedKernel<TypeParam>>();
-  SUCCEED();
-}
-
+using signal::MovingMeanSquareCpu;
 
 TYPED_TEST(MovingMeanSquareCpuTest, SetupTest) {
-  TestedKernel<TypeParam> kernel;
+  MovingMeanSquareCpu<TypeParam> kernel;
   KernelContext ctx;
   InTensorCPU<TypeParam, kNDims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, {this->window_size_});
@@ -107,7 +92,7 @@ TYPED_TEST(MovingMeanSquareCpuTest, SetupTest) {
 
 
 TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
-  TestedKernel<TypeParam> kernel;
+  MovingMeanSquareCpu<TypeParam> kernel;
   KernelContext ctx;
   InTensorCPU<TypeParam, kNDims> in(this->input_.data(), this->shape_);
 
@@ -121,7 +106,7 @@ TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
   kernel.Run(ctx, out, in, {this->window_size_, this->reset_interval_});
 
   auto ref_tv = TensorView<StorageCPU, float>(this->ref_output_.data(), this->out_shape_);
-  Check(out, ref_tv, EqualRelative(1e-4));
+  Check(out, ref_tv, EqualRelative(1e-5));
 }
 
 

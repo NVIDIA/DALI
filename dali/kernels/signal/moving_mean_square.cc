@@ -57,25 +57,16 @@ MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &i
 
 
 template<typename T>
-void CalcMovingMeanSquared(span<float> out, span<const T> in, int length, float mean_factor,
-                           int reset_interval, int window_size) {
+void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float mean_factor,
+                          int reset_interval, int window_size) {
   float sumsq = 0;
-  int cnt = 0;
-  int window_begin = 0;
-  bool recalc = true;
-  while (window_begin <= length - window_size) {
-    if (recalc) {
-      sumsq = CalcSumSquared(in, window_begin, window_size);
-      out[window_begin++] = sumsq * mean_factor;
-      recalc = false;
-      cnt++;
-    }
-    while (window_begin < reset_interval * cnt && window_begin <= length - window_size) {
+  for (int window_begin = 0, cnt = 1; window_begin <= length - window_size; cnt++) {
+    sumsq = CalcSumSquared(in, window_begin, window_size);
+    out[window_begin] = sumsq * mean_factor;
+    for (window_begin++; window_begin < reset_interval * cnt &&
+                         window_begin <= length - window_size; window_begin++) {
       sumsq += Square(in[window_begin + window_size - 1]) - Square(in[window_begin - 1]);
-      out[window_begin++] = sumsq * mean_factor;
-    }
-    if (window_begin >= reset_interval * cnt) {
-      recalc = true;
+      out[window_begin] = sumsq * mean_factor;
     }
   }
 }
@@ -85,12 +76,12 @@ template<typename T>
 void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<float, 1> &out,
                                  const InTensorCPU<T, 1> &in, const MovingMeanSquareArgs &args) {
   const auto length = in.shape[0];
-  auto spin = make_cspan(in.data, in.shape[0]);
-  auto spout = make_span(out.data, in.shape[0] - args.window_size);
+  auto sp_in = make_cspan(in.data, in.shape[0]);
+  auto sp_out = make_span(out.data, in.shape[0] - args.window_size + 1);
   const float mean_factor = 1.f / args.window_size;
   const int reset_interval = args.reset_interval == -1 ? length : args.reset_interval;
 
-  CalcMovingMeanSquared(spout, spin, length, mean_factor, reset_interval, args.window_size);
+  CalcMovingMeanSquare(sp_out, sp_in, length, mean_factor, reset_interval, args.window_size);
 }
 
 
