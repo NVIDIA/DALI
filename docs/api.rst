@@ -78,4 +78,3 @@ PipelineAPIType
    :members:
    :undoc-members:
 
-----

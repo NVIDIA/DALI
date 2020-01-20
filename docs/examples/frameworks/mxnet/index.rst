@@ -6,6 +6,5 @@ MXNet Framework
 
    gluon.ipynb
    mxnet-external_input.ipynb
-   mxnet-resnet50.ipynb
    mxnet-various-readers.ipynb
 
