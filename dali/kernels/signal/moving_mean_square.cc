@@ -80,7 +80,7 @@ void with_modulo(span<const T> spin, span<float> spout, int length, float mean_f
 
 template<typename T>
 void
-with_loop(span<const T> spin, span<float> spout, int length, float mean_factor, int reset_interval,
+with_loop(span<const T> in, span<float> out, int length, float mean_factor, int reset_interval,
           int window_size) {
   float sumsq = 0;
   int cnt = 0;
@@ -88,14 +88,14 @@ with_loop(span<const T> spin, span<float> spout, int length, float mean_factor, 
   bool recalc = true;
   while (window_begin <= length - window_size) {
     if (recalc) {
-      sumsq = CalcSumSquared(spin, window_begin, window_size);
-      spout[window_begin++] = sumsq * mean_factor;
+      sumsq = CalcSumSquared(in, window_begin, window_size); // krotsze dane niz window size
+      out[window_begin++] = sumsq * mean_factor;
       recalc = false;
       cnt++;
     }
     while (window_begin < reset_interval * cnt && window_begin <= length - window_size) {
-      sumsq += Square(spin[window_begin + window_size - 1]) - Square(spin[window_begin - 1]);
-      spout[window_begin++] = sumsq * mean_factor;
+      sumsq += Square(in[window_begin + window_size - 1]) - Square(in[window_begin - 1]);
+      out[window_begin++] = sumsq * mean_factor;
     }
     if (window_begin >= reset_interval * cnt) {
       recalc = true;
@@ -103,14 +103,14 @@ with_loop(span<const T> spin, span<float> spout, int length, float mean_factor, 
   }
   while (window_begin < length) {
     if (recalc) {
-      sumsq = CalcSumSquared(spin, window_begin, length - window_begin);
-      spout[window_begin++] = sumsq * mean_factor;
+      sumsq = CalcSumSquared(in, window_begin, length - window_begin);
+      out[window_begin++] = sumsq * mean_factor;
       recalc = false;
       cnt++;
     }
     while (window_begin < reset_interval * cnt && window_begin < length) {
-      sumsq -= Square(spin[window_begin - 1]);
-      spout[window_begin++] = sumsq * mean_factor;
+      sumsq -= Square(in[window_begin - 1]);
+      out[window_begin++] = sumsq * mean_factor;
     }
     if (window_begin >= reset_interval * cnt) {
       recalc = true;
@@ -128,13 +128,13 @@ void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<floa
   const float mean_factor = 1.f / args.window_size;
   const int reset_interval = args.reset_interval == -1 ? length : args.reset_interval;
 
-  using namespace std::chrono;  // NOLINT
-  using hrc = std::chrono::high_resolution_clock;
-  auto start = hrc::now();
+//  using namespace std::chrono;  // NOLINT
+//  using hrc = std::chrono::high_resolution_clock;
+//  auto start = hrc::now();
   with_modulo(spin, spout, length, mean_factor, reset_interval, args.window_size);
 //  with_loop(spin, spout, length, mean_factor, reset_interval, args.window_size);
-  auto stop = hrc::now();
-  cout << duration_cast<microseconds>(stop - start).count() << "\n";
+//  auto stop = hrc::now();
+//  cout << duration_cast<microseconds>(stop - start).count() << "\n";
 }
 
 

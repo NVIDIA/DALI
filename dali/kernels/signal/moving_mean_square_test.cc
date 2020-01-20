@@ -44,7 +44,7 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   std::vector<InputType> input_;
   std::vector<float> ref_output_;
   int window_size_ = 2048;
-  int buffer_length_ = 256e6;
+  int buffer_length_ = 16000;
   int reset_interval_ = 5001;
   TensorShape<kNDims> shape_ = {buffer_length_};
 
@@ -98,7 +98,7 @@ TEST(MovingMeanBench, Bench) {
   cout << "\n\n\n\n";
   for (int i = 0; i < 2; i++) {
     int window_size = 2048;
-    int buffer_length = 256e6;
+    int buffer_length = 16000;
     int reset_interval = 5001;
     std::vector<TestedType> input;
     input.resize(buffer_length);
@@ -151,7 +151,7 @@ TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
   kernel.Run(ctx, out, in, {this->window_size_, this->reset_interval_});
 
   auto ref_tv = TensorView<StorageCPU, float>(this->ref_output_.data(), this->shape_);
-  Check(out, ref_tv, EqualRelative(1e-2));
+  Check(out, ref_tv, EqualRelative(1e-4));
 }
 
 
