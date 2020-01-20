@@ -85,7 +85,7 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
       data_sample_shape = {out_length};
     } else {
       data_sample_shape = {out_length, meta.channels};
-    };
+    }
 
     shape_data.set_tensor_shape(i, data_sample_shape);
     shape_rate.set_tensor_shape(i, {1});
