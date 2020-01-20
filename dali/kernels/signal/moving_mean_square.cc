@@ -28,13 +28,10 @@ float Square(const T &val) {
 
 
 template<typename T>
-float CalcSumSquared(span<const T> buffer, int start, int length) {
-  DALI_ENFORCE(buffer.size() >= length + start,
-               make_string_delim(" ", "Buffer overflow (size:", buffer.size(), "length:", length,
-                                 "start:", start));
+float CalcSumSquared(span<const T> values) {
   float sumsq = 0;
-  for (int i = start; i < length + start; i++) {
-    sumsq += Square(buffer[i]);
+  for (const auto &val : values) {
+    sumsq += Square(val);
   }
   return sumsq;
 }
@@ -49,6 +46,9 @@ template<typename T>
 KernelRequirements
 MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &in,
                               const MovingMeanSquareArgs &args) {
+  DALI_ENFORCE(args.window_size < in.num_elements(),
+               make_string("window_size can't be bigger than input buffer. Obtained: window_size=",
+                           args.window_size, ", input_size=", in.num_elements()));
   KernelRequirements req;
   TensorShape<> out_shape = {in.shape[0] - args.window_size};
   req.output_shapes = {TensorListShape<>({out_shape})};
@@ -61,7 +61,7 @@ void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float m
                           int reset_interval, int window_size) {
   float sumsq = 0;
   for (int window_begin = 0, cnt = 1; window_begin <= length - window_size; cnt++) {
-    sumsq = CalcSumSquared(in, window_begin, window_size);
+    sumsq = CalcSumSquared(make_span(&in[window_begin], window_size));
     out[window_begin] = sumsq * mean_factor;
     for (window_begin++; window_begin < reset_interval * cnt &&
                          window_begin <= length - window_size; window_begin++) {
