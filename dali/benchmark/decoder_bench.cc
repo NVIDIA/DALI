@@ -43,7 +43,6 @@ class DecoderBench : public DALIBenchmark {
     TensorList<CPUBackend> data;
     this->MakeJPEGBatch(&data, batch_size);
     pipe.AddExternalInput("raw_jpegs");
-    pipe.SetExternalInput("raw_jpegs", data);
 
     if (add_other_inputs)
       add_other_inputs(pipe);
@@ -56,6 +55,7 @@ class DecoderBench : public DALIBenchmark {
 
     // Run once to allocate the memory
     DeviceWorkspace ws;
+    pipe.SetExternalInput("raw_jpegs", data);
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
@@ -65,9 +65,12 @@ class DecoderBench : public DALIBenchmark {
         // We will start the processing for the next batch
         // immediately after issueing work to the gpu to
         // pipeline the cpu/copy/gpu work
+        pipe.SetExternalInput("raw_jpegs", data);
         pipe.RunCPU();
         pipe.RunGPU();
       }
+
+      pipe.SetExternalInput("raw_jpegs", data);
       pipe.RunCPU();
       pipe.RunGPU();
       pipe.Outputs(&ws);
@@ -86,7 +89,7 @@ class DecoderBench : public DALIBenchmark {
 };
 
 static void PipeArgs(benchmark::internal::Benchmark *b) {
-  for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
+  for (int batch_size = 1; batch_size <= 128; batch_size <<= 1) {
     for (int num_thread = 1; num_thread <= 4; ++num_thread) {
       b->Args({batch_size, num_thread});
     }
