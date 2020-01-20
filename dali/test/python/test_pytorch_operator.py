@@ -28,22 +28,18 @@ test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
 
-def random_seed():
-    return int(random.random() * (1 << 32))
-
-
 DEVICE_ID = 0
 BATCH_SIZE = 8
 ITERS = 32
-SEED = random_seed()
 NUM_WORKERS = 6
 
 
 class CommonPipeline(Pipeline):
-    def __init__(self):
-        super(CommonPipeline, self).__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+    def __init__(self, batch_size=BATCH_SIZE, num_threads=NUM_WORKERS, device_id=DEVICE_ID,
+                 image_dir=images_dir):
+        super(CommonPipeline, self).__init__(batch_size, num_threads, device_id,
                                              exec_async=False, exec_pipelined=False)
-        self.input = ops.FileReader(file_root=images_dir)
+        self.input = ops.FileReader(file_root=image_dir)
         self.decode = ops.ImageDecoder(device='cpu', output_type=types.RGB)
 
     def load(self):
@@ -53,8 +49,9 @@ class CommonPipeline(Pipeline):
 
 
 class BasicPipeline(CommonPipeline):
-    def __init__(self):
-        super(BasicPipeline, self).__init__()
+    def __init__(self, batch_size=BATCH_SIZE, num_threads=NUM_WORKERS, device_id=DEVICE_ID,
+                 image_dir=images_dir):
+        super(BasicPipeline, self).__init__(batch_size, num_threads, device_id, image_dir)
 
     def define_graph(self):
         images, labels = self.load()
@@ -62,8 +59,10 @@ class BasicPipeline(CommonPipeline):
 
 
 class TorchPythonFunctionPipeline(CommonPipeline):
-    def __init__(self, function, device, bp=False):
-        super(TorchPythonFunctionPipeline, self).__init__()
+    def __init__(self, function, device, bp=False, batch_size=BATCH_SIZE, num_threads=NUM_WORKERS,
+                 device_id=DEVICE_ID, image_dir=images_dir):
+        super(TorchPythonFunctionPipeline, self).__init__(batch_size, num_threads, device_id,
+                                                          image_dir)
         self.device = device
         self.torch_function = dalitorch.TorchPythonFunction(function=function, num_outputs=2,
                                                             device=device,
