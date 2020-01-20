@@ -115,7 +115,7 @@ TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
 
   auto out_shape = reqs.output_shapes[0][0];
   std::vector<float> output;
-  output.resize(dali::volume(out_shape));
+  output.resize(out_shape.num_elements());
   OutTensorCPU<float, kNDims> out(output.data(), out_shape.template to_static<kNDims>());
 
   kernel.Run(ctx, out, in, {this->window_size_, this->reset_interval_});
