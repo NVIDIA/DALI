@@ -30,7 +30,7 @@ template<class InputType>
 class MovingMeanSquareCpuTest : public ::testing::Test {
  public:
   MovingMeanSquareCpuTest() {
-    input_.resize(dataset_size(shape_));
+    input_.resize(shape_.num_elements());
   }
 
 
@@ -47,23 +47,19 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   int buffer_length_ = 16000;
   int reset_interval_ = 5001;
   TensorShape<kNDims> shape_ = {buffer_length_};
+  TensorShape<kNDims> out_shape_ = {buffer_length_ - window_size_};
 
  private:
   void calc_output() {
-    ref_output_.resize(buffer_length_);
-    for (int i = 0; i < buffer_length_; i++) {
+    ref_output_.resize(buffer_length_ - window_size_);
+    for (int i = 0; i <= buffer_length_ - window_size_; i++) {
       float sumsq = 0;
-      for (int j = 0; j < window_size_ && i + j < buffer_length_; j++) {
+      for (int j = 0; j < window_size_; j++) {
         auto val = static_cast<float>(input_[i + j]);
         sumsq += val * val;
       }
       ref_output_[i] = sumsq / window_size_;
     }
-  }
-
-
-  size_t dataset_size(const TensorShape<kNDims> &shape) {
-    return volume(shape);
   }
 
 
@@ -94,32 +90,6 @@ using TestedKernel = signal::MovingMeanSquareCpu<GtestTypeParam>;
 
 using TestedType = float;
 
-TEST(MovingMeanBench, Bench) {
-  cout << "\n\n\n\n";
-  for (int i = 0; i < 2; i++) {
-    int window_size = 2048;
-    int buffer_length = 16000;
-    int reset_interval = 5001;
-    std::vector<TestedType> input;
-    input.resize(buffer_length);
-    TensorShape<kNDims> shape = {buffer_length};
-
-    TestedKernel<TestedType> kernel;
-    KernelContext ctx;
-    InTensorCPU<TestedType, kNDims> in(input.data(), shape);
-
-    auto reqs = kernel.Setup(ctx, in, {window_size});
-
-    auto out_shape = reqs.output_shapes[0][0];
-    std::vector<float> output;
-    output.resize(dali::volume(out_shape));
-    OutTensorCPU<float, kNDims> out(output.data(), out_shape.template to_static<kNDims>());
-
-    kernel.Run(ctx, out, in, {window_size, reset_interval});
-  }
-  SUCCEED();
-}
-
 
 TYPED_TEST(MovingMeanSquareCpuTest, CheckKernel) {
   check_kernel<TestedKernel<TypeParam>>();
@@ -132,7 +102,7 @@ TYPED_TEST(MovingMeanSquareCpuTest, SetupTest) {
   KernelContext ctx;
   InTensorCPU<TypeParam, kNDims> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, {this->window_size_});
-  ASSERT_EQ(this->shape_, reqs.output_shapes[0][0]) << "Kernel::Setup provides incorrect shape";
+  ASSERT_EQ(this->out_shape_, reqs.output_shapes[0][0]) << "Kernel::Setup provides incorrect shape";
 }
 
 
@@ -150,7 +120,7 @@ TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
 
   kernel.Run(ctx, out, in, {this->window_size_, this->reset_interval_});
 
-  auto ref_tv = TensorView<StorageCPU, float>(this->ref_output_.data(), this->shape_);
+  auto ref_tv = TensorView<StorageCPU, float>(this->ref_output_.data(), this->out_shape_);
   Check(out, ref_tv, EqualRelative(1e-4));
 }
 
