@@ -46,8 +46,8 @@ template<typename T>
 KernelRequirements
 MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &in,
                               const MovingMeanSquareArgs &args) {
-  DALI_ENFORCE(args.window_size < in.num_elements(),
-               make_string("window_size can't be bigger than input buffer. Obtained: window_size=",
+  DALI_ENFORCE(args.window_size <= in.num_elements(),
+               make_string("window_size can't be bigger than input buffer. Received: window_size=",
                            args.window_size, ", input_size=", in.num_elements()));
   KernelRequirements req;
   TensorShape<> out_shape = {in.shape[0] - args.window_size};
@@ -63,8 +63,8 @@ void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float m
   for (int window_begin = 0, cnt = 1; window_begin <= length - window_size; cnt++) {
     sumsq = CalcSumSquared(make_span(&in[window_begin], window_size));
     out[window_begin] = sumsq * mean_factor;
-    for (window_begin++; window_begin < reset_interval * cnt &&
-                         window_begin <= length - window_size; window_begin++) {
+    auto interval_end = std::min(window_begin + reset_interval, length) - window_size + 1;
+    for (window_begin++; window_begin < interval_end; window_begin++) {
       sumsq += Square(in[window_begin + window_size - 1]) - Square(in[window_begin - 1]);
       out[window_begin] = sumsq * mean_factor;
     }
