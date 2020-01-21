@@ -45,7 +45,7 @@ std::vector<DLMTensorPtr> CastToDLTensorList(py::list &list, Index exp_size, Ind
   DALI_ENFORCE(list.size() == static_cast<size_t>(exp_size),
       "Function called by DLTensorPythonFunction returned tensor list of wrong size at idx "
       + std::to_string(out_idx) + ". Returned list is of a size "
-      + std::to_string(exp_size) + " and should be of size " + std::to_string(exp_size));
+      + std::to_string(list.size()) + " and should be of size " + std::to_string(exp_size));
   std::vector<DLMTensorPtr> result;
   result.reserve(exp_size);
   if (exp_size) {
