@@ -60,7 +60,7 @@ template<typename T>
 void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float mean_factor,
                           int reset_interval, int window_size) {
   float sumsq = 0;
-  for (int window_begin = 0, cnt = 1; window_begin <= length - window_size; cnt++) {
+  for (int window_begin = 0; window_begin <= length - window_size;) {
     sumsq = CalcSumSquared(make_span(&in[window_begin], window_size));
     out[window_begin] = sumsq * mean_factor;
     auto interval_end = std::min(window_begin + reset_interval, length) - window_size + 1;
