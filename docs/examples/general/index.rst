@@ -6,7 +6,6 @@ General
 
    data_loading/index
    expressions/index
-   external_input.ipynb
    erase.ipynb
    advanced/index
 
