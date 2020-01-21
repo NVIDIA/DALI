@@ -19,6 +19,7 @@
 #include <sstream>
 #include <vector>
 
+#include "dali/core/any.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
@@ -27,6 +28,9 @@
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
+
+#define DALI_NORMALIZE_INPUT_TYPES (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, float)
+#define DALI_NORMALIZE_OUTPUT_TYPES DALI_NORMALIZE_INPUT_TYPES
 
 template <typename Backend>
 class Normalize : public Operator<Backend> {
@@ -51,28 +55,48 @@ class Normalize : public Operator<Backend> {
         "Normalize: Axes must not be specified when both mean and standard deviation are scalars");
     }
 
+    if (has_tensor_mean_ || has_tensor_stddev_) {
+      DALI_ENFORCE(!batch_norm_, "Normalize: Batch normalization cannot be used with parameters "
+      "specified as TensorList inputs");
+    }
+
   }
 
   bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template InputRef<Backend>(0);
-    input_shape_ = input.shape();
+    data_shape_ = input.shape();
     output_descs.resize(1);
-    output_descs[0] = { input_shape_, TypeTable::GetTypeInfo(output_type_) };
+    output_descs[0] = { data_shape_, TypeTable::GetTypeInfo(output_type_) };
     input_type_ = input.type().id();
 
     SetupAxes(ws);
-    SetupBackend(ws);
+    TYPE_SWITCH(input_type_, type2id, InputType, DALI_NORMALIZE_INPUT_TYPES, (
+      TYPE_SWITCH(output_type_, type2id, OutputType, DALI_NORMALIZE_OUTPUT_TYPES, (
+        SetupTyped<OutputType, InputType>(ws);
+      ), (DALI_FAIL("Normalize: unsupported output type")))  // NOLINT
+    ), (DALI_FAIL("Normalize: unsupported input type")));    // NOLINT
+    AllocTempStorage();
     return true;
   }
 
-  void SetupBackend(const workspace_t<Backend> &ws);
+  template <typename OutputType, typename InputType>
+  void SetupTyped(const workspace_t<Backend> &ws);
 
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(workspace_t<Backend> &ws) override {
+    TYPE_SWITCH(input_type_, type2id, InputType, DALI_NORMALIZE_INPUT_TYPES, (
+      TYPE_SWITCH(output_type_, type2id, OutputType, DALI_NORMALIZE_OUTPUT_TYPES, (
+        RunTyped<OutputType, InputType>(ws);
+      ), (DALI_FAIL("Normalize: ureachable code - Run without matching Setup?")))  // NOLINT
+    ), (DALI_FAIL("Normalize: ureachable code - Run without matching Setup?")));   // NOLINT
+  }
+
+  template <typename OutputType, typename InputType>
+  void RunTyped(workspace_t<Backend> &ws);
 
   void UseAllAxes() {
-    int dim = input_shape_.sample_dim();
+    int dim = data_shape_.sample_dim();
     axes_.resize(dim);
     std::iota(axes_.begin(), axes_.end(), 0);
     axis_mask_ = (1 << dim) - 1;
@@ -80,7 +104,7 @@ class Normalize : public Operator<Backend> {
   }
 
   void SetupAxes(const workspace_t<Backend> &ws) {
-    int dim = input_shape_.sample_dim();
+    int dim = data_shape_.sample_dim();
     if (has_scalar_mean_ && has_scalar_stddev_) {
       UseAllAxes();
       return;
@@ -102,7 +126,7 @@ class Normalize : public Operator<Backend> {
       axes_ = dim_idx.to_vector();
       SetAxisMask();
       GetParamShapesFromAxes();
-    } else if (!should_calc_mean() || !should_calc_stddev()) {
+    } else if (!ShouldCalcMean() || !ShouldCalcStdDev()) {
       GetAxesFromParamShapes(ws);
     } else {
       UseAllAxes();
@@ -113,14 +137,35 @@ class Normalize : public Operator<Backend> {
 
 
   void GetParamShapesFromAxes() {
-    int dim = input_shape_.sample_dim();
-    int n = input_shape_.num_samples();
-    param_shape_.resize(n, dim);
-    for (int i = 0; i < n; i++) {
-      param_shape_.set_tensor_shape(i, input_shape_[i]);
+    int dim = data_shape_.sample_dim();
+    int n = data_shape_.num_samples();
+    if (batch_norm_) {
+      param_shape_.resize(1, dim);
+      DALI_ENFORCE(data_shape_.num_samples() > 0, "Normalize: Got an empty batch!");
+      param_shape_.set_tensor_shape(0, data_shape_[0]);
       for (int axis = 0; axis < dim; axis++) {
         if (IsReducedAxis(axis))
-          param_shape_[axis] = 1;
+          param_shape_.tensor_shape_span(0)[axis] = 1;
+      }
+      for (int i = 1; i < n; i++) {
+        for (int axis = 0; axis < dim; axis++) {
+          if (!IsReducedAxis(axis))
+            DALI_ENFORCE(data_shape_[i][axis] == data_shape_[0][axis], make_string(
+              "Normalize: Batch normalization requires that non-reduced dimensions have equal "
+              "extent in all samples in the batch. Got sample #", i, " with shape ",
+              data_shape_[i], " which has a different extent  (", data_shape_[i][axis],
+              ") in axis ", axis, " than sample #0, which was "
+              "of shape ", data_shape_[0], " (", data_shape_[0][axis], " in axis ", axis, ")"));
+        }
+      }
+    } else {
+      param_shape_.resize(n, dim);
+      for (int i = 0; i < n; i++) {
+        param_shape_.set_tensor_shape(i, data_shape_[i]);
+        for (int axis = 0; axis < dim; axis++) {
+          if (IsReducedAxis(axis))
+            param_shape_.tensor_shape_span(i)[axis] = 1;
+        }
       }
     }
   }
@@ -179,12 +224,12 @@ class Normalize : public Operator<Backend> {
 
   void CheckParamShape() {
     int dim = param_shape_.sample_dim();
-    int n = param_shape_.num_samples();
+    int n = data_shape_.num_samples();
     TensorShape<> expected;
     expected.resize(dim);
     for (int i = 0; i < n; i++) {
       for (int d = 0; d < dim; d++) {
-        expected[d] = IsReducedAxis(d) ? 1 : input_shape_.tensor_shape_span(i)[d];
+        expected[d] = IsReducedAxis(d) ? 1 : data_shape_.tensor_shape_span(i)[d];
       }
       DALI_ENFORCE(param_shape_[i] == expected, make_string(
         "Normalize: At sample ", i, ": expected parameter shape: ", expected,
@@ -202,22 +247,60 @@ class Normalize : public Operator<Backend> {
     return axis_mask_ & (1 << axis);
   }
 
+  void AllocTempStorage() {
+    int n = data_shape_.num_samples();
+    const TensorListShape<> &tmp_shape = batch_norm_
+      ? uniform_list_shape(n, param_shape_[0])  // extend to all samples, to enable parallelism
+      : param_shape_;
+
+    if (ShouldCalcMean()) {
+      mean_.Resize(tmp_shape);
+    } else if (has_tensor_stddev_) {
+      assert(!batch_norm_);
+      // use mean as-is
+    } else if (has_scalar_stddev_) {
+      // need to broadcast mean to match required shape
+      mean_.Resize(TensorListShape<>({ param_shape_[0] }));
+    }
+    if (ShouldCalcStdDev()) {
+      inv_stddev_.Resize(tmp_shape);
+    } else if (has_tensor_stddev_) {
+      assert(!batch_norm_);
+      // we need space to calculate inverse stddev
+      inv_stddev_.Resize(stddev_input_.shape);
+    } else {
+      assert(has_scalar_stddev_);
+      if (!IsFullReduction()) {
+        // need to broadcast stddev to match required shape
+        inv_stddev_.Resize(TensorListShape<>({ param_shape_[0] }));
+      }
+    }
+  }
+
+  void FoldMeans();
+  void FoldStdDev();
+
   kernels::KernelManager kmgr_;
 
-  bool should_calc_mean() const noexcept { return !has_tensor_mean_ && !has_scalar_mean_; }
-  bool should_calc_stddev() const noexcept { return !has_tensor_stddev_ && !has_scalar_stddev_; }
-  TensorListShape<> input_shape_;
+  using StorageTag = detail::storage_tag_map_t<Backend>;
+
+  bool ShouldCalcMean() const noexcept { return !has_tensor_mean_ && !has_scalar_mean_; }
+  bool ShouldCalcStdDev() const noexcept { return !has_tensor_stddev_ && !has_scalar_stddev_; }
+  bool IsFullReduction() const noexcept {
+    return volume(param_shape_.tensor_shape_span(0)) == 1;
+  }
+  TensorListShape<> data_shape_;
   TensorListShape<> param_shape_;
-  TensorListView<StorageCPU, const float> mean_input_, stddev_input_;
+  TensorListView<StorageTag, const float> mean_input_, stddev_input_;
   TensorList<Backend> mean_, inv_stddev_;
   bool has_tensor_mean_, has_tensor_stddev_ = false;
   bool has_scalar_mean_, has_scalar_stddev_ = false;
   bool batch_norm_ = false;
   bool has_axes_arg_ = false;
   bool has_axis_names_arg_ = false;
-  DALIDataType input_type_ = DALI_NO_TYPE, output_type_ = DALI_FLOAT;
   float shift_ = 0;
   float scale_ = 1;
+  DALIDataType input_type_ = DALI_NO_TYPE, output_type_ = DALI_FLOAT;
   std::vector<int> axes_;
   int axis_mask_ = 0;
 };

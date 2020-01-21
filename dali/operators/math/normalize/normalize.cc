@@ -15,7 +15,8 @@
 #include "dali/operators/math/normalize/normalize.h"
 #include "dali/kernels/reduce/reduce.h"
 #include "dali/kernels/normalize/normalize_cpu.h"
-#include "dali/core/static_switch.h"
+#include "dali/core/math_util.h"
+#include "dali/operators/math/normalize/normalize_utils.h"
 
 namespace dali {
 
@@ -29,15 +30,16 @@ can be externally provided as *mean* and *stddev* arguments.)")
     "in the batch. This also requires that the input sample shapes in the non-averaged axes match.",
     false)
   .AddOptionalArg<float>("mean", "Mean value to subtract from the data. It can be either a scalar "
-    "or a batch of tensors with same dimesnionality as the input and the shape in each dimesnion "
+    "or a batch of tensors with same dimensionality as the input and the shape in each dimension "
     "must either match that of the input or be equal to 1 (in which case the value will be "
     "broadcast in this dimension). If not specified, the mean is calculated from the input.",
     0.0f, true)
   .AddOptionalArg<float>("stddev", "Stanrad deviation value to scale the data. For shape "
     "constraints, see *mean* argument. If not specified, the mean is calculated from the input.",
     0.0f, true)
-  .AddOptionalArg<int>("axes", "Indices if axes along which the input is normalized. By default, "
-    "all axes are used. Axes can also be specified by name, see *axes_names*.", -1, false)
+  .AddOptionalArg("axes", "Indices if axes along which the input is normalized. By default, "
+    "all axes are used. Axes can also be specified by name, see *axes_names*.",
+    std::vector<int>{}, false)
   .AddOptionalArg<TensorLayout>("axis_names", "Names of the axes in the input - axis indices "
     "are taken from the input layout. This argument cannot be used together with *axes*.", "")
   .AddOptionalArg("shift", "The value to which the mean will map in the output. Useful for "
@@ -50,10 +52,11 @@ can be externally provided as *mean* and *stddev* arguments.)")
 
 DALI_REGISTER_OPERATOR(Normalize, Normalize<CPUBackend>, CPU);
 
-#define NormTypes (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, float)
+using namespace normalize;  // NOLINT
 
 template <>
-void Normalize<CPUBackend>::SetupBackend(const HostWorkspace &ws) {
+template <typename OutputType, typename InputType>
+void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
   int nsamples = input.size();
   int nthreads = ws.GetThreadPool().size();
@@ -64,17 +67,187 @@ void Normalize<CPUBackend>::SetupBackend(const HostWorkspace &ws) {
   inv_stddev_.Resize(param_shape_);
   inv_stddev_.set_type(Float);
 
-  TYPE_SWITCH(input_type_, type2id, InputType, NormTypes, (
-    TYPE_SWITCH(output_type_, type2id, OutputType, NormTypes, (
-      using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
-      kmgr_.Resize<Kernel>(nthreads, nsamples);
-    ), (DALI_FAIL("Normalize: unsupported output type")))  // NOLINT
-  ), (DALI_FAIL("Normalize: unsupported input type")));   // NOLINT
+  using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
+  kmgr_.Resize<Kernel>(nthreads, nsamples);
+
+  kernels::KernelContext ctx;
+  for (int i = 0; i < nsamples; i++) {
+    kmgr_.Setup<Kernel>(i, ctx, data_shape_[i], param_shape_[i]);
+  }
 }
 
 template <>
-void Normalize<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void Normalize<CPUBackend>::FoldMeans() {
+  assert(mean_.ntensor() > 0);
+  SumSamples(view<float>(mean_));
+  // calculate the normalization factor in double, then cast to float
+  float den = static_cast<float>(1.0 / ReducedVolume(data_shape_, make_span(axes_)));
+  auto sample0 = make_tensor_cpu(mean_.mutable_tensor<float>(0), mean_.shape()[0]);
+  auto elems = sample0.num_elements();
+  for (int i = 0; i < elems; i++) {
+    sample0.data[i] *= den;
+  }
+}
+
+template <>
+void Normalize<CPUBackend>::FoldStdDev() {
+  assert(inv_stddev_.ntensor() > 0);
+  SumSamples(view<float>(inv_stddev_));
+  // calculate the normalization factor in double, then cast to float
+  auto v = ReducedVolume(data_shape_, make_span(axes_));
+  float scale = static_cast<float>(1.0 * scale_ * scale_ / v);
+  auto sample0 = make_tensor_cpu(mean_.mutable_tensor<float>(0), mean_.shape()[0]);
+  auto elems = sample0.num_elements();
+  int i = 0;
+#ifdef __SSE__
+  __m128 denx4 = _mm_set1_ps(scale);
+  __m128 zero = _mm_setzero_ps();
+  for (; i < elems; i += 4) {
+    __m128 data = _mm_loadu_ps(&sample0.data[i]);
+    data = _mm_mul_ps(data, denx4);
+    __m128 mask = _mm_cmpneq_ps(data, zero);
+    data = _mm_rsqrt_ps(data);
+    data = _mm_and_ps(data, mask);
+    _mm_storeu_ps(&sample0.data[i], data);
+  }
+#endif
+
+  for (; i < elems; i++) {
+    if (sample0.data[i])
+      sample0.data[i] = rsqrt(sample0.data[i] * scale);
+  }
+}
+
+template <>
+template <typename OutputType, typename InputType>
+void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   ThreadPool &TP = ws.GetThreadPool();
+
+  auto &input = ws.InputRef<CPUBackend>(0);
+  TensorListView<StorageCPU, const InputType> in_view = view<const InputType>(input);
+
+  auto &output = ws.InputRef<CPUBackend>(0);
+  TensorListView<StorageCPU, OutputType> out_view = view<OutputType>(output);
+
+  int nsamples = input.size();
+  int nthreads = ws.GetThreadPool().size();
+
+  float scalar_mean = 0;
+  float scalar_inv_stddev = 1;
+
+  kernels::InListCPU<float, -1> mean_view, inv_stddev_view;
+
+  // consume arguments
+
+  auto mutable_mean = view<float>(mean_);
+  auto mutable_stddev = view<float>(inv_stddev_);
+
+  if (has_scalar_mean_) {
+    scalar_mean = spec_.GetArgument<float>("mean");
+    if (!IsFullReduction()) {
+      UniformFill(mean_, scalar_mean);
+      mean_view = view<const float>(mean_);
+    } else {
+      assert(param_shape_.num_elements() == param_shape_.num_samples());
+      mean_view.shape = param_shape_;
+      mean_view.data.resize(param_shape_.num_samples());
+      for (auto &d : mean_view.data)
+        d = &scalar_mean;
+    }
+  } else if (has_tensor_mean_) {
+    mean_view = mean_input_;
+  }
+
+  if (has_scalar_stddev_) {
+    scalar_inv_stddev = scale_ / spec_.GetArgument<float>("stddev");
+    if (!IsFullReduction()) {
+      UniformFill(inv_stddev_, scalar_inv_stddev);
+      inv_stddev_view = view<const float>(inv_stddev_);
+    } else {
+      assert(param_shape_.num_elements() == param_shape_.num_samples());
+      inv_stddev_view.shape = param_shape_;
+      inv_stddev_view.data.resize(param_shape_.num_samples());
+      for (auto &d : inv_stddev_view.data)
+        d = &scalar_inv_stddev;
+    }
+  } else if (has_tensor_stddev_) {
+    inv_stddev_.Resize(param_shape_);
+    CalcInvStdDev(view<float>(inv_stddev_), stddev_input_, scale_);
+  }
+
+  // When using batch normalization, we need to reduce the per-sample results
+  // between calculating mean and standard deviation and between standard deviation
+  // and rescaling the input.
+
+  if (batch_norm_) {
+    if (ShouldCalcMean()) {
+      for (int i = 0; i < nsamples; i++) {
+        TP.DoWorkWithID([&, i](int thread_idx) {
+          kernels::Mean<float, InputType> mean;
+          mean.Setup(mutable_mean[i], in_view[i], make_span(axes_));
+          // Reset per-sample values, but don't postprocess
+          mean.Run(true, false);
+        });
+      }
+      TP.WaitForWork();
+      // Aggregate and posptprocess now
+      FoldMeans();
+      mean_view = mutable_mean;
+    }
+
+    if (ShouldCalcStdDev()) {
+      for (int i = 0; i < nsamples; i++) {
+        TP.DoWorkWithID([&, i](int thread_idx) {
+          kernels::StdDev<float, InputType> stddev;
+          auto sample_mean = mean_view.num_samples() == 1 ? mean_view[0] : mean_view[i];
+          stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
+          // Reset per-sample values, but don't postprocess
+          stddev.Run(true, false);
+        });
+      }
+      TP.WaitForWork();
+      // Aggregate and posptprocess now - use inverse square root.
+      FoldStdDev();
+      inv_stddev_view = mutable_stddev;
+    }
+  }
+
+  if (ShouldCalcMean()) {
+    mean_view = mutable_mean;
+  }
+
+  for (int i = 0; i < nsamples; i++) {
+    TP.DoWorkWithID([&, i](int thread_idx) {
+      auto sample_mean = mean_view.num_samples() == 1
+                              ? mean_view[0]
+                              : mean_view[i];
+
+      auto sample_inv_stddev = inv_stddev_view.num_samples() == 1
+                              ? inv_stddev_view[0]
+                              : inv_stddev_view[i];
+
+      if (!batch_norm_) {
+        if (ShouldCalcMean()) {
+          kernels::Mean<float, InputType> mean;
+          mean.Setup(mutable_mean[i], in_view[i], make_span(axes_));
+          // Reset per-sample values, but don't postprocess
+          mean.Run(true, true);
+        }
+
+        if (ShouldCalcStdDev()) {
+          kernels::Variance<float, InputType> stddev;
+          stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
+          // Reset per-sample values, but don't postprocess
+          stddev.Run(true, false);
+          SumSquare2InvStdDev(mutable_stddev[i], data_shape_[i], scale_);
+        }
+      }
+      kernels::KernelContext ctx;
+      using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
+      kmgr_.Run<Kernel>(thread_idx, i, ctx,
+          out_view[i], in_view[i], sample_mean, sample_inv_stddev, shift_);
+    });
+  }
 
   TP.WaitForWork();
 }

@@ -35,36 +35,38 @@ namespace kernels {
 namespace normalize_impl {
 
 template <typename Out, typename In, typename Param>
-void normalize(Out *out, const In *in, int64_t count, const Param *mean, const Param *inv_stddev) {
+void normalize(Out *out, const In *in, int64_t count,
+               const Param *mean, const Param *scale, float shift) {
   for (int64_t i = 0; i < count; i++) {
-    out[i] = ConvertSat<Out>((in[i] - mean[i]) * inv_stddev[i]);
+    out[i] = ConvertSat<Out>((in[i] - mean[i]) * scale[i] + shift);
   }
 }
 
 template <typename Out, typename In, typename Param>
-void normalize(Out *out, const In *in, int64_t count, const Param &mean, const Param &inv_stddev) {
+void normalize(Out *out, const In *in, int64_t count,
+               Param mean, Param scale, Param shift) {
   for (int64_t i = 0; i < count; i++) {
-    out[i] = ConvertSat<Out>((in[i] - mean) * inv_stddev);
+    out[i] = ConvertSat<Out>((in[i] - mean) * scale + shift);
   }
 }
 
 template <typename Out, typename In, typename Param>
 void normalize_inner(Out *out, const In *in, int64_t nouter, int64_t ninner,
-                     const Param *mean, const Param *inv_stddev) {
+                     const Param *mean, const Param *scale, float shift) {
   for (int64_t i = 0, k = 0; i < nouter; i++) {
     for (int64_t j = 0; j < ninner; j++, k++) {
-      out[k] = ConvertSat<Out>((in[k] - mean[j]) * inv_stddev[j]);
+      out[k] = ConvertSat<Out>((in[k] - mean[j]) * scale[j] + shift);
     }
   }
 }
 
 template <typename Out, typename In, typename Param>
 void normalize_outer(Out *out, const In *in, int64_t nouter, int64_t ninner,
-                     const Param *mean, const Param *inv_stddev) {
+                     const Param *mean, const Param *scale, float shift) {
   for (int64_t i = 0, k = 0; i < nouter; i++) {
-    Param m = mean[i], d = inv_stddev[i];
+    Param m = mean[i], d = scale[i];
     for (int64_t j = 0; j < ninner; j++, k++) {
-      out[k] = ConvertSat<Out>((in[k] - m) * d);
+      out[k] = ConvertSat<Out>((in[k] - m) * d + shift);
     }
   }
 }
@@ -79,7 +81,7 @@ void normalize_outer(Out *out, const In *in, int64_t nouter, int64_t ninner,
  * and multiplying by the inverse of standard deviation.
  * The result is converted (with rounding and saturation) to the specified output type.
  */
-template <typename Out, typename In, typename MeanStdDev = float>
+template <typename Out, typename In, typename Param = float>
 struct NormalizeCPU {
   KernelRequirements Setup(
         KernelContext &ctx,
@@ -106,17 +108,26 @@ struct NormalizeCPU {
     return req;
   }
 
+  /**
+   * @param out   output tensor, must have the same shape as the input
+   * @param in    input tensor, must have the same shape as specified in Setup
+   * @param mean  mean values to be subtracted from input data
+   * @param scale scale (typically inverse of standard deviation) to multiply the centered values
+   * @param shift the value to add to centered and rescaled data; input values equal to mean
+   *              will produce shift (converted to Out) at the output
+   */
   void Run(KernelContext &ctx,
            const OutTensorCPU<Out, -1> &out,
            const InTensorCPU<In, -1> &in,
-           const InTensorCPU<MeanStdDev, -1> &mean,
-           const InTensorCPU<MeanStdDev, -1> &inv_stddev) {
+           const InTensorCPU<Param, -1> &mean,
+           const InTensorCPU<Param, -1> &scale,
+           float shift = 0) {
     (void)ctx;
 
-    DALI_ENFORCE(mean.shape == inv_stddev.shape, make_string(
+    DALI_ENFORCE(mean.shape == scale.shape, make_string(
         "Mean and inverse standard deviation must have the same shape; got:"
         "\nmean.shape       = ", mean.shape,
-        "\ninv_stddev.shape = ", inv_stddev.shape));
+        "\nscale.shape = ", scale.shape));
 
     DALI_ENFORCE(in.shape == orig_shape_,
       "Input must have the same shape as was specified in call to Setup");
@@ -127,7 +138,9 @@ struct NormalizeCPU {
     output_ = out.data;
 
     mean_ = mean.data;
-    inv_stddev_ = inv_stddev.data;
+    scale_ = scale.data;
+
+    shift_ = shift;
 
     Normalize();
   }
@@ -141,13 +154,13 @@ struct NormalizeCPU {
         param_strides[i] = 0;  // reduced dim - use the same parameter slice for all data slices
     }
     NormalizeAxis(0, output_, input_, data_strides.data(),
-                  mean_, inv_stddev_, param_strides.data());
+                  mean_, scale_, param_strides.data());
   }
 
   void NormalizeAxis(int axis,
     Out *out, const In *in,
     const int64_t *data_strides,
-    const MeanStdDev *mean, const MeanStdDev *stddev,
+    const Param *mean, const Param *scale,
     const int64_t *param_strides) {
 
     using namespace normalize_impl;  // NOLINT
@@ -158,20 +171,20 @@ struct NormalizeCPU {
 
       // last dimension - 1D case, which can be either:
       if (param_strides[axis] == 0)
-        normalize(out, in, data_shape_[axis], *mean, *stddev);  // shared factors or..
+        normalize(out, in, data_shape_[axis], *mean, *scale, shift_);  // shared factors or..
       else
-        normalize(out, in, data_shape_[axis], mean, stddev);    // per-element factors
+        normalize(out, in, data_shape_[axis], mean, scale, shift_);    // per-element factors
     } else if (axis == ndim() - 2) {
       // 2D case can be either normalizing the inner or the outer dimension
       if (param_strides[axis] == 0 && param_strides[axis+1] != 0) {
         // e.g. normalize R,G,B interleaved channels using per-channel normalization factors
         // shared across pixels
         assert(param_strides[axis+1] == 1);
-        normalize_inner(out, in, data_shape_[axis], data_shape_[axis+1], mean, stddev);
+        normalize_inner(out, in, data_shape_[axis], data_shape_[axis+1], mean, scale, shift_);
       } else {
         assert(param_strides[axis] == 1 && param_strides[axis+1] == 0);
         // e.g. normalize R,G,B planes using per-channel normalization factors shared across pixels
-        normalize_outer(out, in, data_shape_[axis], data_shape_[axis+1], mean, stddev);
+        normalize_outer(out, in, data_shape_[axis], data_shape_[axis+1], mean, scale, shift_);
       }
     } else {
       // anything else - just recursively peel off the outermost dimension
@@ -181,7 +194,7 @@ struct NormalizeCPU {
       for (int i = 0; i < data_shape_[axis];
            i++, data_ofs += data_stride, param_ofs += param_stride) {
         NormalizeAxis(axis + 1, out + data_ofs, in + data_ofs, data_strides,
-                      mean + param_ofs, stddev + param_ofs, param_strides);
+                      mean + param_ofs, scale + param_ofs, param_strides);
       }
     }
   }
@@ -189,7 +202,7 @@ struct NormalizeCPU {
   /**
    * @brief Collapses groups of reduced and groups of non-reduced dimensions.
    *
-   * If the mean/stddev reduction spans multiple consecutive dimesnions, collapse them into one.
+   * If the mean/stddev reduction spans multiple consecutive dimensions, collapse them into one.
    * Conversely, if there are multiple non-reduced dimensions, also collapse them.
    * The function preserves boundaries between non-collapsed and collapsed dimensions, e.g.
    * If the input extent is 1, it can always be collapsed.
@@ -224,7 +237,8 @@ struct NormalizeCPU {
   TensorShape<> orig_shape_, orig_param_shape_, data_shape_, param_shape_;
   const In *input_  = nullptr;;
   Out *output_ = nullptr;
-  const MeanStdDev *mean_, *inv_stddev_;
+  const Param *mean_, *scale_;
+  float shift_ = 0;
 };
 
 }  // namespace kernels

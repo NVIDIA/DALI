@@ -420,9 +420,9 @@ struct Variance : ReduceBase<Dst, Src, Variance<Dst, Src, MeanType>> {
   InTensorCPU<MeanType, -1> mean;
 
   void Setup(const OutTensorCPU<Dst, -1> &out,
-             const InTensorCPU<Dst, -1> &in,
+             const InTensorCPU<Src, -1> &in,
              span<const int> axes,
-             const InTensorCPU<Dst, -1> &mean) {
+             const InTensorCPU<MeanType, -1> &mean) {
     assert(mean.shape == out.shape);
     Base::Setup(out, in, axes);
     this->mean = mean;
@@ -449,9 +449,9 @@ struct StdDev : ReduceBase<Dst, Src, StdDev<Dst, Src, MeanType>> {
   InTensorCPU<MeanType, -1> mean;
 
   void Setup(const OutTensorCPU<Dst, -1> &out,
-             const InTensorCPU<Dst, -1> &in,
+             const InTensorCPU<Src, -1> &in,
              span<const int> axes,
-             const InTensorCPU<Dst, -1> &mean) {
+             const InTensorCPU<MeanType, -1> &mean) {
     assert(mean.shape == out.shape);
     Base::Setup(out, in, axes);
     this->mean = mean;
