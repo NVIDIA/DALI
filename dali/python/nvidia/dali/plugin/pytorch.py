@@ -346,23 +346,19 @@ class DALIClassificationIterator(DALIGenericIterator):
                                                          last_batch_padded = last_batch_padded)
 
 
-class TorchPythonFunction(ops.PythonFunction):
+class TorchPythonFunction(ops.PythonFunctionBase):
     ops.register_cpu_op('TorchPythonFunction')
     ops.register_gpu_op('TorchPythonFunction')
 
-    stream = torch.cuda.Stream()
-
-    @staticmethod
-    def _torch_stream_wrapper(function, *ins):
-        with torch.cuda.stream(TorchPythonFunction.stream):
+    def _torch_stream_wrapper(self, function, *ins):
+        with torch.cuda.stream(self.stream):
             out = function(*ins)
-        TorchPythonFunction.stream.synchronize()
+        self.stream.synchronize()
         return out
 
-    @staticmethod
-    def torch_wrapper(batch_processing, function, device, *args):
+    def torch_wrapper(self, batch_processing, function, device, *args):
         func = function if device == 'cpu' else \
-               lambda *ins: TorchPythonFunction._torch_stream_wrapper(function, *ins)
+               lambda *ins: self._torch_stream_wrapper(function, *ins)
         if batch_processing:
             return ops.PythonFunction.function_wrapper_batch(func,
                                                              torch.utils.dlpack.from_dlpack,
@@ -374,11 +370,17 @@ class TorchPythonFunction(ops.PythonFunction):
                                                                   torch_dlpack.to_dlpack,
                                                                   *args)
 
+    def __call__(self, *inputs, **kwargs):
+        if self.stream is None:
+            self.stream = torch.cuda.Stream(device=Pipeline.current().device_id)
+        return super(TorchPythonFunction, self).__call__(*inputs, **kwargs)
+
     def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
-        super(ops.PythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                                                 function=lambda *ins:
-                                                 TorchPythonFunction.torch_wrapper(batch_processing,
-                                                                                   function, device,
-                                                                                   *ins),
-                                                 num_outputs=num_outputs, device=device,
-                                                 batch_processing=batch_processing, **kwargs)
+        self.stream = None
+        super(TorchPythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
+                                                  function=lambda *ins:
+                                                  self.torch_wrapper(batch_processing,
+                                                                    function, device,
+                                                                    *ins),
+                                                  num_outputs=num_outputs, device=device,
+                                                  batch_processing=batch_processing, **kwargs)
