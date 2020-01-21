@@ -28,8 +28,7 @@ namespace dali {
 
 DALI_SCHEMA(Spectrogram)
   .DocStr(R"code(Produces a spectrogram from a 1D signal (e.g. audio). Input data is expected
-to be single channel (1D shape `(time)`) or multi channel in planar layout `(channel, time)` 32 bit
-float tensor.)code")
+to be single channel (shape being `(nsamples,)`, `(nsamples, 1)` or `(1, nsamples)`).)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("nfft",
@@ -62,16 +61,15 @@ true, the signal is mirrored with respect to the boundary, otherwise the signal 
 zeros. Note: This option is ignored when `center_windows` is set to false.)code",
     true);
 
-template <int Dims>
 struct SpectrogramImplCpu : detail::OpImplBase<CPUBackend> {
   using OutputType = float;
   using InputType = float;
 
-  static constexpr int InputDims = Dims;
+  static constexpr int InputDims = 1;
   using WindowKernel =
     kernels::signal::ExtractWindowsCpu<InputType, InputType, InputDims>;
 
-  static constexpr int WindowsDims = Dims+1;
+  static constexpr int WindowsDims = 2;
   using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, WindowsDims>;
 
   explicit SpectrogramImplCpu(const OpSpec & spec);
@@ -122,8 +120,7 @@ namespace {
 
 }  // namespace
 
-template <int Dims>
-SpectrogramImplCpu<Dims>::SpectrogramImplCpu(const OpSpec & spec)
+SpectrogramImplCpu::SpectrogramImplCpu(const OpSpec &spec)
     : nfft_(spec.GetArgument<int>("nfft"))
     , window_length_(spec.GetArgument<int>("window_length"))
     , window_step_(spec.GetArgument<int>("window_step"))
@@ -149,9 +146,8 @@ SpectrogramImplCpu<Dims>::SpectrogramImplCpu(const OpSpec & spec)
 }
 
 
-template <int Dims>
-bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
-                                         const workspace_t<CPUBackend> &ws) {
+bool SpectrogramImplCpu::SetupImpl(std::vector<OutputDesc> &out_desc,
+                                   const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   kernels::KernelContext ctx;
@@ -159,16 +155,28 @@ bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
   int nsamples = input.size();
   auto nthreads = ws.GetThreadPool().size();
 
+  // Check that input is 1-D (allowing having extra dims with extent 1)
+  if (in_shape.sample_dim() > 1) {
+    for (int i = 0; i < in_shape.num_samples(); i++) {
+      auto shape = in_shape.tensor_shape(i);
+      auto n = volume(shape);
+      for (auto extent : shape) {
+        DALI_ENFORCE(extent == 1 || extent == n, make_string("Input data must be 1D or all "
+          "but one dimensions must be degenerate (extent 1). Got: ", shape));
+      }
+    }
+  }
+
   // Intermediate output buffers
   window_out_.resize(nthreads);
 
   kmgr_window_.Initialize<WindowKernel>();
   kmgr_window_.Resize<WindowKernel>(nthreads, nsamples);
-  constexpr int axis = InputDims - 1;
+  constexpr int axis = 0;
   window_args_ = {window_length_, window_center_, window_step_, axis, padding_};
 
   for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
-    int64_t signal_length = in_shape.tensor_shape(sample_id)[axis];
+    int64_t signal_length = in_shape[sample_id].num_elements();
     DALI_ENFORCE(window_args_.num_windows(signal_length) > 0,
       make_string("Signal is too short (", signal_length, ") for sample ", sample_id));
   }
@@ -187,10 +195,13 @@ bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
 
   auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
   for (int i = 0; i < nsamples; i++) {
+    auto view_signal_1d =
+        make_tensor_cpu<1>(input[i].template data<const InputType>(), {input[i].size()});
+
     auto &windows_req =
       kmgr_window_.Setup<WindowKernel>(
         i, ctx,
-        view<const InputType, Dims>(input[i]),
+        view_signal_1d,
         view_window_fn,
         window_args_);
     window_out_desc_[0].shape.set_tensor_shape(i, windows_req.output_shapes[0][0].shape);
@@ -207,8 +218,7 @@ bool SpectrogramImplCpu<Dims>::SetupImpl(std::vector<OutputDesc> &out_desc,
   return true;
 }
 
-template <int Dims>
-void SpectrogramImplCpu<Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
+void SpectrogramImplCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   int nsamples = input.size();
@@ -224,10 +234,12 @@ void SpectrogramImplCpu<Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
         win_out.set_type(TypeInfo::Create<InputType>());
         win_out.Resize(window_out_desc_[0].shape.tensor_shape(i));
 
+        auto view_signal_1d =
+            make_tensor_cpu<1>(input[i].data<const InputType>(), {input[i].size()});
         kmgr_window_.Run<WindowKernel>(
           thread_id, i, ctx,
           view<InputType, WindowsDims>(win_out),
-          view<const InputType, InputDims>(input[i]),
+          view_signal_1d,
           view_window_fn,
           window_args_);
 
@@ -245,16 +257,15 @@ void SpectrogramImplCpu<Dims>::RunImpl(workspace_t<CPUBackend> &ws) {
 template <>
 Spectrogram<CPUBackend>::Spectrogram(const OpSpec &spec)
     : Operator<CPUBackend>(spec)
-    , spec__(spec) {}
+    , impl_(std::make_unique<SpectrogramImplCpu>(spec)) {}
 
 template <>
 bool Spectrogram<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                         const workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto in_shape = input.shape();
-  VALUE_SWITCH(in_shape.sample_dim(), Dims, SPECTROGRAM_SUPPORTED_NDIMS,
-    (impl_ = std::make_unique<SpectrogramImplCpu<Dims>>(spec__);),
-    (DALI_FAIL(make_string("Not supported number of dimensions: ", in_shape.size()))));
+
+
 
   assert(impl_ != nullptr);
   return impl_->SetupImpl(output_desc, ws);

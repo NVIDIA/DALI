@@ -58,10 +58,9 @@ def spectrogram_func_librosa(nfft, win_len, win_step, input_data):
             hann[t] = 0.5 * (1.0 - math.cos(phase))
         return hann
 
-    has_channels_dim = len(input_data.shape) == 2
-
-    if has_channels_dim:
-        input_data = np.squeeze(input_data, axis=0)
+    # Squeeze to 1d
+    if len(input_data.shape) > 1:
+        input_data = np.squeeze(input_data)
 
     out = np.abs(
         librosa.stft(y=input_data, n_fft=nfft, hop_length=win_step, window=hann_win))**2
@@ -69,9 +68,6 @@ def spectrogram_func_librosa(nfft, win_len, win_step, input_data):
     # Alternative way to calculate the spectrogram:
     # out, _ = librosa.core.spectrum._spectrogram(
     #     y=input_data, n_fft=nfft, hop_length=win_step, window=hann_win, power=2)
-
-    if has_channels_dim:
-        out = np.expand_dims(out, axis=0)
 
     return out
 
@@ -113,6 +109,8 @@ def test_operator_spectrogram_vs_python():
         for batch_size in [3]:
             for nfft, window_length, window_step, shape in [(256, 256, 128, (1, 4096)),
                                                             (256, 256, 128, (4096,)),
+                                                            (256, 256, 128, (4096, 1)),
+                                                            (256, 256, 128, (1, 1, 4096, 1)),
                                                             (16, 16, 8, (1, 1000)),
                                                             (10, 10, 5, (1, 1000)),
                                                             ]:
