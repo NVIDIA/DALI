@@ -89,7 +89,8 @@ TEST(TransposeTest, CollapsePermutationOneElem) {
 TEST(TransposeTest, CollapsePermutationTwoElems) {
   auto perm_0 = std::vector<int>{0, 1};
   auto groups_0 = compact_result{{0, 1}};
-  auto result_0 = kernels::transpose_impl::CollapsePermutation(make_cspan(perm_0), make_cspan(groups_0));
+  auto result_0 =
+      kernels::transpose_impl::CollapsePermutation(make_cspan(perm_0), make_cspan(groups_0));
   auto expected_0 = std::vector<int>{0};
   EXPECT_EQ(expected_0, result_0);
 
@@ -104,7 +105,8 @@ TEST(TransposeTest, CollapsePermutationTwoElems) {
 TEST(TransposeTest, CollapsePermutation) {
   auto perm_0 = std::vector<int>{0, 1, 2};
   auto groups_0 = compact_result{{0, 2}};
-  auto result_0 = kernels::transpose_impl::CollapsePermutation(make_cspan(perm_0), make_cspan(groups_0));
+  auto result_0 =
+      kernels::transpose_impl::CollapsePermutation(make_cspan(perm_0), make_cspan(groups_0));
   auto expected_0 = std::vector<int>{0};
   EXPECT_EQ(expected_0, result_0);
 
@@ -117,8 +119,8 @@ TEST(TransposeTest, CollapsePermutation) {
 
   auto perm_2 = std::vector<int>{3, 4, 5, 2, 0, 1};
   auto groups_2 = compact_result{{0, 2}, {3, 3}, {4, 5}};
-  auto result_2 = kernels::transpose_impl::CollapsePermutation(make_cspan(perm_2), make_cspan(groups_2)
-                                                       );
+  auto result_2 =
+      kernels::transpose_impl::CollapsePermutation(make_cspan(perm_2), make_cspan(groups_2));
   auto expected_2 = std::vector<int>{2, 1, 0};
   EXPECT_EQ(expected_2, result_2);
 
@@ -133,7 +135,8 @@ TEST(TransposeTest, CollapsePermutation) {
 TEST(TransposeTest, CollapseShapeEmpty) {
   auto perm = std::vector<int>{};
   auto groups = compact_result{};
-  auto result = kernels::transpose_impl::CollapseShape(TensorShape<>{}, make_cspan(perm), make_cspan(groups));
+  auto result =
+      kernels::transpose_impl::CollapseShape(TensorShape<>{}, make_cspan(perm), make_cspan(groups));
   auto expected = TensorShape<>{};
   EXPECT_EQ(expected, result);
 }
@@ -141,8 +144,8 @@ TEST(TransposeTest, CollapseShapeEmpty) {
 TEST(TransposeTest, CollapseShapeOneElem) {
   auto perm = std::vector<int>{0};
   auto groups = compact_result{{0, 0}};
-  auto result =
-      kernels::transpose_impl::CollapseShape(TensorShape<>{1}, make_cspan(perm), make_cspan(groups));
+  auto result = kernels::transpose_impl::CollapseShape(TensorShape<>{1}, make_cspan(perm),
+                                                       make_cspan(groups));
   auto expected = TensorShape<>{1};
   EXPECT_EQ(expected, result);
 }
@@ -151,14 +154,14 @@ TEST(TransposeTest, CollapseShapeTwoElems) {
   auto perm_0 = std::vector<int>{0, 1};
   auto groups_0 = compact_result{{0, 1}};
   auto result_0 = kernels::transpose_impl::CollapseShape(TensorShape<>{1, 2}, make_cspan(perm_0),
-                                                 make_cspan(groups_0));
+                                                         make_cspan(groups_0));
   auto expected_0 = TensorShape<>{2};
   EXPECT_EQ(expected_0, result_0);
 
   auto perm_1 = std::vector<int>{1, 0};
   auto groups_1 = compact_result{{0, 0}, {1, 1}};
   auto result_1 = kernels::transpose_impl::CollapseShape(TensorShape<>{1, 2}, make_cspan(perm_1),
-                                                 make_cspan(groups_1));
+                                                         make_cspan(groups_1));
   auto expected_1 = TensorShape<>{1, 2};
   EXPECT_EQ(expected_1, result_1);
 }
@@ -167,28 +170,28 @@ TEST(TransposeTest, CollapseShape) {
   auto perm_0 = std::vector<int>{0, 1, 2};
   auto groups_0 = compact_result{{0, 2}};
   auto result_0 = kernels::transpose_impl::CollapseShape(TensorShape<>{1, 2, 3}, make_cspan(perm_0),
-                                                make_cspan(groups_0));
+                                                         make_cspan(groups_0));
   auto expected_0 = TensorShape<>{6};
   EXPECT_EQ(expected_0, result_0);
 
   auto perm_1 = std::vector<int>{2, 0, 1};
   auto groups_1 = compact_result{{0, 0}, {1, 2}};
   auto result_1 = kernels::transpose_impl::CollapseShape(TensorShape<>{1, 2, 3}, make_cspan(perm_1),
-                                                 make_cspan(groups_1));
+                                                         make_cspan(groups_1));
   auto expected_1 = TensorShape<>{2, 3};
   EXPECT_EQ(expected_1, result_1);
 
   auto perm_2 = std::vector<int>{3, 4, 5, 2, 0, 1};
   auto groups_2 = compact_result{{0, 2}, {3, 3}, {4, 5}};
-  auto result_2 = kernels::transpose_impl::CollapseShape(
-      TensorShape<>{1, 2, 3, 4, 5, 6}, make_cspan(perm_2), make_cspan(groups_2));
+  auto result_2 = kernels::transpose_impl::CollapseShape(TensorShape<>{1, 2, 3, 4, 5, 6},
+                                                         make_cspan(perm_2), make_cspan(groups_2));
   auto expected_2 = TensorShape<>{2, 3, 120};
   EXPECT_EQ(expected_2, result_2);
 
   auto perm_3 = std::vector<int>{3, 0, 1, 2};
   auto groups_3 = compact_result{{0, 0}, {1, 3}};
-  auto result_3 = kernels::transpose_impl::CollapseShape(TensorShape<>{1, 2, 3, 4}, make_cspan(perm_3),
-                                                 make_cspan(groups_3));
+  auto result_3 = kernels::transpose_impl::CollapseShape(TensorShape<>{1, 2, 3, 4},
+                                                         make_cspan(perm_3), make_cspan(groups_3));
   auto expected_3 = TensorShape<>{6, 4};
   EXPECT_EQ(expected_3, result_3);
 }

@@ -25,29 +25,29 @@ namespace {
 using CaseData = std::tuple<TensorShape<>, std::vector<int>>;
 
 static CaseData cases[] = {
-  // HWC small cases
-    CaseData{{8, 6, 3}, {0, 1, 2}},  // HWC
-    CaseData{{8, 6, 3}, {2, 0, 1}},  // CHW
-    CaseData{{8, 6, 3}, {2, 1, 0}},  // CWH
-  // HWC small cases
-    CaseData{{8, 6, 4}, {0, 1, 2}},  // HWC
-    CaseData{{8, 6, 4}, {2, 0, 1}},  // CHW
-    CaseData{{8, 6, 4}, {2, 1, 0}},  // CWH
-  // HWC bigger cases
-    CaseData{{100, 60, 3}, {0, 1, 2}},  // HWC
-    CaseData{{100, 60, 3}, {2, 0, 1}},  // CHW
-    CaseData{{100, 60, 3}, {2, 1, 0}},  // CWH
-  // 4D
+    // HWC small cases
+    CaseData{{8, 6, 3}, {0, 1, 2}},           // HWC
+    CaseData{{8, 6, 3}, {2, 0, 1}},           // CHW
+    CaseData{{8, 6, 3}, {2, 1, 0}},           // CWH
+                                              // HWC small cases
+    CaseData{{8, 6, 4}, {0, 1, 2}},           // HWC
+    CaseData{{8, 6, 4}, {2, 0, 1}},           // CHW
+    CaseData{{8, 6, 4}, {2, 1, 0}},           // CWH
+                                              // HWC bigger cases
+    CaseData{{100, 60, 3}, {0, 1, 2}},        // HWC
+    CaseData{{100, 60, 3}, {2, 0, 1}},        // CHW
+    CaseData{{100, 60, 3}, {2, 1, 0}},        // CWH
+                                              // 4D
     CaseData{{20, 20, 20, 4}, {0, 1, 2, 3}},  // id
     CaseData{{20, 20, 20, 4}, {3, 2, 1, 0}},
     CaseData{{20, 20, 20, 4}, {0, 1, 3, 2}},
     CaseData{{20, 20, 20, 4}, {0, 3, 1, 2}},
-  // 8D
+    // 8D
     CaseData{{7, 2, 4, 6, 10, 8, 4, 2}, {0, 1, 2, 3, 4, 5, 6, 7}},
     CaseData{{7, 2, 4, 6, 10, 8, 4, 2}, {6, 4, 2, 0, 7, 5, 3, 1}},
     CaseData{{7, 2, 4, 6, 10, 8, 4, 2}, {5, 4, 2, 1, 7, 6, 3, 0}},
     CaseData{{7, 2, 4, 6, 10, 8, 4, 2}, {7, 5, 3, 2, 4, 0, 1, 6}},
-  };
+};
 
 std::tuple<TensorShape<>, std::vector<int>> GetCase(int id) {
   return cases[id];
@@ -70,9 +70,8 @@ class TransposeFixture : public benchmark::Fixture {
     auto test_case = GetCase(st.range(0));
     src_shape_ = std::get<0>(test_case);
     int dim = 0, total_dims = src_shape_.size();
-    for (auto &elem : src_shape_) {
-      if (dim++ < 4)
-        elem *= st.range(1);
+    for (auto& elem : src_shape_) {
+      if (dim++ < 4) elem *= st.range(1);
     }
     perm_ = std::get<1>(test_case);
     dst_shape_ = kernels::Permute(src_shape_, perm_);
@@ -170,8 +169,4 @@ BENCHMARK_REGISTER_F(TransposeFixture, CompactUint16Test)->Apply(CustomArguments
 BENCHMARK_REGISTER_F(TransposeFixture, CompactIntTest)->Apply(CustomArguments);
 BENCHMARK_REGISTER_F(TransposeFixture, CompactDoubleTest)->Apply(CustomArguments);
 
-
-
-
 }  // namespace dali
-

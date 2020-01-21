@@ -27,7 +27,7 @@ namespace dali {
 namespace kernels {
 namespace transpose_impl {
 
-template <typename T, int LevelsLeft, int MaxLevels = -1>
+template <int LevelsLeft, int MaxLevels = -1, typename T>
 std::enable_if_t<LevelsLeft == 1> TransposeImplStatic(T *dst, const T *src, int max_levels,
                                                       span<const int64_t> dst_stride,
                                                       span<const int64_t> src_stride,
@@ -42,7 +42,7 @@ std::enable_if_t<LevelsLeft == 1> TransposeImplStatic(T *dst, const T *src, int 
   }
 }
 
-template <typename T, int LevelsLeft, int MaxLevels = -1>
+template <int LevelsLeft, int MaxLevels = -1, typename T>
 std::enable_if_t<(LevelsLeft > 1)> TransposeImplStatic(T *dst, const T *src, int max_levels,
                                                        span<const int64_t> dst_stride,
                                                        span<const int64_t> src_stride,
@@ -51,24 +51,24 @@ std::enable_if_t<(LevelsLeft > 1)> TransposeImplStatic(T *dst, const T *src, int
   auto dst_level_stride = dst_stride[level];
   auto src_level_stride = src_stride[perm[level]];
   for (int64_t i = 0; i < size[level]; i++) {
-    TransposeImplStatic<T, LevelsLeft - 1, MaxLevels>(dst, src, max_levels, dst_stride, src_stride,
+    TransposeImplStatic<LevelsLeft - 1, MaxLevels>(dst, src, max_levels, dst_stride, src_stride,
                                                       size, perm);
     dst += dst_level_stride;
     src += src_level_stride;
   }
 }
 
-template <typename T, int Static = 3>
+template <int Static = 3, typename T>
 void TransposeImpl(T *dst, const T *src, int level, int max_levels, span<const int64_t> dst_stride,
                    span<const int64_t> src_stride, TensorShape<> size, span<const int> perm) {
   auto dst_level_stride = dst_stride[level];
   auto src_level_stride = src_stride[perm[level]];
 
   if (max_levels - level == Static) {
-    TransposeImplStatic<T, Static>(dst, src, max_levels, dst_stride, src_stride, size, perm);
+    TransposeImplStatic<Static>(dst, src, max_levels, dst_stride, src_stride, size, perm);
   } else {
     for (int64_t i = 0; i < size[level]; i++) {
-      TransposeImpl<T, Static>(dst, src, level + 1, max_levels, dst_stride, src_stride, size, perm);
+      TransposeImpl<Static>(dst, src, level + 1, max_levels, dst_stride, src_stride, size, perm);
       dst += dst_level_stride;
       src += src_level_stride;
     }
@@ -150,14 +150,18 @@ TensorShape<> CollapseShape(const TensorShape<> &shape, span<const int> perm,
                             span<const std::pair<int, int>> perm_blocks) {
   TensorShape<> result;
   result.resize(perm_blocks.size());
-  auto collapsed_perm = CollapsePermutation(perm, perm_blocks);
+  SmallVector<std::pair<int, int>, 6> shape_blocks;
+  shape_blocks.reserve(perm_blocks.size());
+  for (auto &range : perm_blocks) {
+    shape_blocks.push_back({perm[range.first], perm[range.second]});
+  }
+  std::sort(shape_blocks.begin(), shape_blocks.end());
   for (int i = 0; i < perm_blocks.size(); i++) {
     result[i] = 1;
   }
-  for (int i = 0; i < perm_blocks.size(); i++) {
-    int source_pos = collapsed_perm[i];
-    for (int j = perm_blocks[i].first; j <= perm_blocks[i].second; j++) {
-      result[source_pos] *= shape[perm[j]];
+  for (size_t i = 0; i < shape_blocks.size(); i++) {
+    for (int j = shape_blocks[i].first; j <= shape_blocks[i].second; j++) {
+      result[i] *= shape[j];
     }
   }
   assert(volume(result) == volume(shape));
@@ -178,11 +182,11 @@ void Transpose(const TensorView<StorageCPU, T> &dst, const TensorView<StorageCPU
   auto dst_strides = GetStrides(dst.shape);
   auto src_strides = GetStrides(src.shape);
   VALUE_SWITCH(N, static_dims, (1, 2, 3), (
-    transpose_impl::TransposeImplStatic<T, static_dims, static_dims>(
+    transpose_impl::TransposeImplStatic<static_dims, static_dims>(
         dst.data, src.data,
         static_dims, make_span(dst_strides), make_span(src_strides), dst.shape, perm);),
   (
-    transpose_impl::TransposeImpl<T, 3>(dst.data, src.data, 0, N,
+    transpose_impl::TransposeImpl(dst.data, src.data, 0, N,
         make_span(dst_strides), make_span(src_strides), dst.shape, perm);));
 }
 
@@ -200,7 +204,8 @@ void TransposeGrouped(const TensorView<StorageCPU, T> &dst,
   int N = src.shape.sample_dim();
   auto src_shape = src.shape;
   auto perm_blocks = transpose_impl::PermutationBlocks(perm);
-  auto collapsed_src_shape = transpose_impl::CollapseShape(src_shape, perm, make_cspan(perm_blocks));
+  auto collapsed_src_shape =
+      transpose_impl::CollapseShape(src_shape, perm, make_cspan(perm_blocks));
   auto collapsed_perm = transpose_impl::CollapsePermutation(perm, make_cspan(perm_blocks));
   auto collapsed_dst_shape = Permute(collapsed_src_shape, collapsed_perm);
   Transpose(TensorView<StorageCPU, T>{dst.data, collapsed_dst_shape},
