@@ -1,12 +1,12 @@
 // Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except perm compliance with the License.
+// you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to perm writing, software
+// Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
@@ -92,6 +92,18 @@ class TransposeFixture : public benchmark::Fixture {
     src_mem_.clear();
     src_mem_.shrink_to_fit();
   }
+
+  using TransposeFunction = void(const TensorView<StorageCPU, T>&,
+                                 const TensorView<StorageCPU, const T>&, span<const int>);
+
+  template <TransposeFunction F>
+  void benchmark() {
+    benchmark::DoNotOptimize(src_mem_.data());
+    F(dst_view_, src_view_, make_span(perm_));
+    benchmark::DoNotOptimize(dst_mem_.data());
+    benchmark::ClobberMemory();
+  }
+
   std::vector<int> perm_;
 
   TensorView<StorageCPU, T> dst_view_;
@@ -102,37 +114,25 @@ class TransposeFixture : public benchmark::Fixture {
 
 BENCHMARK_TEMPLATE_DEFINE_F(TransposeFixture, Uint8Test, uint8_t)(benchmark::State& st) {
   for (auto _ : st) {
-    benchmark::DoNotOptimize(src_mem_.data());
-    kernels::Transpose(dst_view_, src_view_, make_span(perm_));
-    benchmark::DoNotOptimize(dst_mem_.data());
-    benchmark::ClobberMemory();
+    benchmark<&kernels::Transpose<uint8_t>>();
   }
 }
 
 BENCHMARK_TEMPLATE_DEFINE_F(TransposeFixture, Uint16Test, uint16_t)(benchmark::State& st) {
   for (auto _ : st) {
-    benchmark::DoNotOptimize(src_mem_.data());
-    kernels::Transpose(dst_view_, src_view_, make_span(perm_));
-    benchmark::DoNotOptimize(dst_mem_.data());
-    benchmark::ClobberMemory();
+    benchmark<&kernels::Transpose<uint16_t>>();
   }
 }
 
 BENCHMARK_TEMPLATE_DEFINE_F(TransposeFixture, IntTest, int)(benchmark::State& st) {
   for (auto _ : st) {
-    benchmark::DoNotOptimize(src_mem_.data());
-    kernels::Transpose(dst_view_, src_view_, make_span(perm_));
-    benchmark::DoNotOptimize(dst_mem_.data());
-    benchmark::ClobberMemory();
+    benchmark<&kernels::Transpose<int>>();
   }
 }
 
 BENCHMARK_TEMPLATE_DEFINE_F(TransposeFixture, DoubleTest, double)(benchmark::State& st) {
   for (auto _ : st) {
-    benchmark::DoNotOptimize(src_mem_.data());
-    kernels::Transpose(dst_view_, src_view_, make_span(perm_));
-    benchmark::DoNotOptimize(dst_mem_.data());
-    benchmark::ClobberMemory();
+    benchmark<&kernels::Transpose<double>>();
   }
 }
 
@@ -141,40 +141,27 @@ BENCHMARK_REGISTER_F(TransposeFixture, Uint16Test)->Apply(CustomArguments);
 BENCHMARK_REGISTER_F(TransposeFixture, IntTest)->Apply(CustomArguments);
 BENCHMARK_REGISTER_F(TransposeFixture, DoubleTest)->Apply(CustomArguments);
 
-
 BENCHMARK_TEMPLATE_DEFINE_F(TransposeFixture, CompactUint8Test, uint8_t)(benchmark::State& st) {
   for (auto _ : st) {
-    benchmark::DoNotOptimize(src_mem_.data());
-    kernels::TransposeGrouped(dst_view_, src_view_, make_cspan(perm_));
-    benchmark::DoNotOptimize(dst_mem_.data());
-    benchmark::ClobberMemory();
+    benchmark<&kernels::TransposeGrouped<uint8_t>>();
   }
 }
 
 BENCHMARK_TEMPLATE_DEFINE_F(TransposeFixture, CompactUint16Test, uint16_t)(benchmark::State& st) {
   for (auto _ : st) {
-    benchmark::DoNotOptimize(src_mem_.data());
-    kernels::TransposeGrouped(dst_view_, src_view_, make_cspan(perm_));
-    benchmark::DoNotOptimize(dst_mem_.data());
-    benchmark::ClobberMemory();
+    benchmark<&kernels::TransposeGrouped<uint16_t>>();
   }
 }
 
 BENCHMARK_TEMPLATE_DEFINE_F(TransposeFixture, CompactIntTest, int)(benchmark::State& st) {
   for (auto _ : st) {
-    benchmark::DoNotOptimize(src_mem_.data());
-    kernels::TransposeGrouped(dst_view_, src_view_, make_cspan(perm_));
-    benchmark::DoNotOptimize(dst_mem_.data());
-    benchmark::ClobberMemory();
+    benchmark<&kernels::TransposeGrouped<int>>();
   }
 }
 
 BENCHMARK_TEMPLATE_DEFINE_F(TransposeFixture, CompactDoubleTest, double)(benchmark::State& st) {
   for (auto _ : st) {
-    benchmark::DoNotOptimize(src_mem_.data());
-    kernels::TransposeGrouped(dst_view_, src_view_, make_cspan(perm_));
-    benchmark::DoNotOptimize(dst_mem_.data());
-    benchmark::ClobberMemory();
+    benchmark<&kernels::TransposeGrouped<double>>();
   }
 }
 

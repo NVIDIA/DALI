@@ -26,7 +26,7 @@
 
 namespace dali {
 
-namespace detail {
+namespace transpose_detail {
 
 template <typename ShapeT>
 inline void RowToColumnMajor(ShapeT *dims, int *perm, size_t len) {
@@ -36,7 +36,7 @@ inline void RowToColumnMajor(ShapeT *dims, int *perm, size_t len) {
 }
 
 // enough to represent batches of 4D
-constexpr int kStaticShapeElements = 5;
+constexpr int kStaticShapeElements = 6;
 using VecInt = SmallVector<int, kStaticShapeElements>;
 
 /**
@@ -81,13 +81,13 @@ void PrepareArguments(SmallVector<ShapeT, kStaticShapeElements> &shape, VecInt &
   }
 }
 
-}  // namespace detail
+}  // namespace transpose_detail
 
 
 template <typename Backend>
-class TransposeBase : public Operator<Backend> {
+class Transpose : public Operator<Backend> {
  public:
-  explicit inline TransposeBase(const OpSpec &spec)
+  explicit inline Transpose(const OpSpec &spec)
       : Operator<Backend>(spec),
         perm_(spec.GetRepeatedArgument<int>("perm")),
         transpose_layout_(spec.GetArgument<bool>("transpose_layout")),
@@ -112,7 +112,7 @@ class TransposeBase : public Operator<Backend> {
       "Invalid permutation: sorted `perm` is not equal to [0, ..., n-1].");
   }
 
-  DISABLE_COPY_MOVE_ASSIGN(TransposeBase);
+  DISABLE_COPY_MOVE_ASSIGN(Transpose);
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc,

@@ -39,15 +39,15 @@ void cuTTKernel(const TensorList<GPUBackend>& input,
                 cudaStream_t stream) {
   int batch_size = static_cast<int>(input.ntensor());
   for (int i = 0; i < batch_size; ++i) {
-    detail::VecInt shape;
+    transpose_detail::VecInt shape;
     for (auto s : input.tensor_shape(i))
       shape.push_back(s);
 
-    detail::VecInt perm;
+    transpose_detail::VecInt perm;
     for (auto p : permutation)
       perm.push_back(p);
 
-    detail::PrepareArguments(shape, perm, true);
+    transpose_detail::PrepareArguments(shape, perm, true);
 
     const void* in = input.raw_tensor(0);
     void* out = output.raw_mutable_tensor(0);
@@ -71,17 +71,17 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
                        cuttHandle* plan,
                        cudaStream_t stream) {
   int batch_size = static_cast<int>(input.ntensor());
-  detail::VecInt shape;
+  transpose_detail::VecInt shape;
   shape.push_back(batch_size);
   for (auto &s : input.tensor_shape(0))
     shape.push_back(s);
 
-  detail::VecInt perm;
+  transpose_detail::VecInt perm;
   perm.push_back(0);
   for (auto p : permutation)
     perm.push_back(p+1);
 
-  detail::PrepareArguments(shape, perm, true);
+  transpose_detail::PrepareArguments(shape, perm, true);
 
   if (*plan == 0) {
     cuttCheck(cuttPlan(plan,
@@ -99,9 +99,9 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
 }  // namespace kernel
 
 
-class TransposeGPU : public TransposeBase<GPUBackend> {
+class TransposeGPU : public Transpose<GPUBackend> {
  public:
-  explicit inline TransposeGPU(const OpSpec &spec) : TransposeBase(spec) {}
+  explicit inline TransposeGPU(const OpSpec &spec) : Transpose(spec) {}
 
   void RunImpl(DeviceWorkspace &ws) override {
     const auto& input = ws.Input<GPUBackend>(0);
@@ -127,8 +127,6 @@ class TransposeGPU : public TransposeBase<GPUBackend> {
       } else {
         previous_iter_shape_ = input_shape;
       }
-      // auto permuted_dims = detail::Permute(input_shape, perm_);
-      // output.Resize(uniform_list_shape(batch_size_, permuted_dims));
       if (itype.size() == 1) {
         kernel::cuTTKernelBatched<uint8_t>(input, output, perm_, &cutt_handle_, ws.stream());
       } else if (itype.size() == 2) {
@@ -151,7 +149,7 @@ class TransposeGPU : public TransposeBase<GPUBackend> {
     }
   }
 
-  ~TransposeGPU() noexcept {
+  ~TransposeGPU() {
     if (cutt_handle_ > 0) {
       auto err = cuttDestroy(cutt_handle_);
       if (err != CUTT_SUCCESS) {

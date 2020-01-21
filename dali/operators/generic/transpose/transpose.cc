@@ -24,9 +24,9 @@ namespace dali {
     double)
 
 
-class TransposeCPU : public TransposeBase<CPUBackend> {
+class TransposeCPU : public Transpose<CPUBackend> {
  public:
-  explicit inline TransposeCPU(const OpSpec &spec) : TransposeBase(spec) {}
+  explicit inline TransposeCPU(const OpSpec &spec) : Transpose(spec) {}
 
   void RunImpl(HostWorkspace& ws) {
     const auto& input = ws.InputRef<CPUBackend>(0);
@@ -37,15 +37,15 @@ class TransposeCPU : public TransposeBase<CPUBackend> {
     TYPE_SWITCH(input_type, type2id, T, TRANSPOSE_ALLOWED_TYPES, (
       for (int i = 0; i < batch_size_; i++) {
         thread_pool.DoWorkWithID([this, &input, &output, i](int thread_id) {
-          SmallVector<int64_t, 5> src_shape;
-          detail::VecInt perm;
+          SmallVector<int64_t, transpose_detail::kStaticShapeElements> src_shape;
+          transpose_detail::VecInt perm;
           for (auto s : input.shape().tensor_shape(i)) {
             src_shape.push_back(s);
           }
           for (auto p : perm_) {
             perm.push_back(p);
           }
-          detail::PrepareArguments(src_shape, perm);
+          transpose_detail::PrepareArguments(src_shape, perm);
           auto dst_shape = kernels::Permute(src_shape, perm);
           TensorShape<> src_ts(src_shape.begin(), src_shape.end());
           TensorShape<> dst_ts(dst_shape.begin(), dst_shape.end());
