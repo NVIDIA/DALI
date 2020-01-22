@@ -50,7 +50,7 @@ MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &i
                make_string("window_size can't be bigger than input buffer. Received: window_size=",
                            args.window_size, ", input_size=", in.num_elements()));
   KernelRequirements req;
-  TensorShape<> out_shape = {in.shape[0] - args.window_size};
+  TensorShape<> out_shape = {in.shape[0] - args.window_size + 1};
   req.output_shapes = {TensorListShape<>({out_shape})};
   return req;
 }
@@ -77,7 +77,7 @@ void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<floa
                                  const InTensorCPU<T, 1> &in, const MovingMeanSquareArgs &args) {
   const auto length = in.shape[0];
   auto sp_in = make_cspan(in.data, in.shape[0]);
-  auto sp_out = make_span(out.data, in.shape[0] - args.window_size + 1);
+  auto sp_out = make_span(out.data, out.shape[0]);
   const float mean_factor = 1.f / args.window_size;
   const int reset_interval = args.reset_interval == -1 ? length : args.reset_interval;
 
