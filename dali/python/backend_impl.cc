@@ -299,6 +299,19 @@ void ExposeTensorList(py::module &m) {
       Parameters
       ----------
       )code")
+      .def("tensor",
+        [](TensorList<CPUBackend> &t, Index id) -> std::unique_ptr<Tensor<CPUBackend>> {
+          std::unique_ptr<Tensor<CPUBackend>> ptr(new Tensor<CPUBackend>());
+          ptr->ShareData(&t, id);
+          return ptr;
+        },
+      R"code(
+      Returns a tensor at given position in the list.
+
+      Parameters
+      ----------
+      )code",
+      py::keep_alive<0, 1>())
     .def("as_array", [](TensorList<CPUBackend> &t) -> py::array {
           void* raw_mutable_data = nullptr;
           std::string format;
@@ -454,7 +467,7 @@ void ExposeTensorList(py::module &m) {
       non_blocking : bool
             Asynchronous copy.
       )code")
-    .def("at",
+    .def("tensor",
         [](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
           std::unique_ptr<Tensor<GPUBackend>> ptr(new Tensor<GPUBackend>());
           ptr->ShareData(&t, id);

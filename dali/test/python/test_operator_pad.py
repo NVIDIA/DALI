@@ -75,7 +75,7 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes, axis_names, 
     for k in range(5):
         out1, out2 = pipe.run()
 
-        out1_data = out1.as_cpu() if isinstance(out1.at(0), dali.backend_impl.TensorGPU) else out1
+        out1_data = out1.as_cpu() if isinstance(out1.tensor(0), dali.backend_impl.TensorGPU) else out1
         max_shape = [-1] * len(input_max_shape)
 
         for i in range(len(actual_axes)):
@@ -93,7 +93,7 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes, axis_names, 
                 if remainder > 0:
                     max_shape[dim] = max_shape[dim] - remainder + align_val
 
-        out2_data = out2.as_cpu() if isinstance(out2.at(0), dali.backend_impl.TensorGPU) else out2
+        out2_data = out2.as_cpu() if isinstance(out2.tensor(0), dali.backend_impl.TensorGPU) else out2
         for i in range(batch_size):
             output_shape = out2_data.at(i).shape
             for dim in range(len(max_shape)):

@@ -21,21 +21,28 @@ def test_create_tensor():
     tensor = TensorCPU(arr, types.NHWC)
     assert_array_equal(arr, np.array(tensor))
 
-def test_create_tensor_list():
+def test_create_tensorlist():
     arr = np.random.rand(3, 5, 6)
-    tensor_list = TensorListCPU(arr, types.NHWC)
-    assert_array_equal(arr, tensor_list.as_array())
+    tensorlist = TensorListCPU(arr, types.NHWC)
+    assert_array_equal(arr, tensorlist.as_array())
 
-def test_create_tensor_list_as_tensor():
+def test_create_tensorlist_as_tensor():
     arr = np.random.rand(3, 5, 6)
-    tensor_list = TensorListCPU(arr, types.NHWC)
-    tensor = tensor_list.as_tensor()
-    assert_array_equal(np.array(tensor), tensor_list.as_array())
+    tensorlist = TensorListCPU(arr, types.NHWC)
+    tensor = tensorlist.as_tensor()
+    assert_array_equal(np.array(tensor), tensorlist.as_array())
 
-def test_empty_tensor_tensor_list():
+def test_empty_tensor_tensorlist():
     arr = np.array([], dtype=np.float32)
     tensor = TensorCPU(arr, types.NHWC)
-    tensor_list = TensorListCPU(arr, types.NHWC)
-    assert_array_equal(np.array(tensor), tensor_list.as_array())
+    tensorlist = TensorListCPU(arr, types.NHWC)
+    assert_array_equal(np.array(tensor), tensorlist.as_array())
     assert(np.array(tensor).shape == (0,))
-    assert(tensor_list.as_array().shape == (0,))
+    assert(tensorlist.as_array().shape == (0,))
+
+def test_tensorlist_tensor_method():
+    arr = np.random.rand(3, 5, 6)
+    tensorlist = TensorListCPU(arr, types.NHWC)
+    assert(type(tensorlist.at(0)) == np.ndarray)
+    assert(type(tensorlist.tensor(0)) != np.ndarray)
+    assert(type(tensorlist.tensor(0)) == TensorCPU)

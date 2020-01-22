@@ -38,5 +38,14 @@ if not initialized:
                           "reaches the end of life on January 1st, 2020. To stay up to date with "
                           "DALI, please upgrade to Python 3.5 or later.", Warning, stacklevel=2)
 
+    # TODO: remove in 0.20
+    def old_at(self, id):
+        warnings.warn("`TensorListGPU.at` is deprecated for `TensorListGPU.tensor`. "
+                      "It will be removed in future version of DALI."
+                      "Please make sure to update your projects with `tensor`",
+                      Warning, stacklevel=2)
+        return self.tensor(id)
+    setattr(TensorListGPU, 'at', old_at)
+
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))

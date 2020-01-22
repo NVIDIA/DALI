@@ -118,8 +118,8 @@ def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps = 1e-07):
         out2 = pipe2.run()
         assert len(out1) == len(out2)
         for i in range(len(out1)):
-            out1_data = out1[i].as_cpu() if isinstance(out1[i].at(0), dali.backend_impl.TensorGPU) else out1[i]
-            out2_data = out2[i].as_cpu() if isinstance(out2[i].at(0), dali.backend_impl.TensorGPU) else out2[i]
+            out1_data = out1[i].as_cpu() if isinstance(out1[i].tensor(0), dali.backend_impl.TensorGPU) else out1[i]
+            out2_data = out2[i].as_cpu() if isinstance(out2[i].tensor(0), dali.backend_impl.TensorGPU) else out2[i]
             check_batch(out1_data, out2_data, batch_size, eps)
     print("OK: ({} iterations)".format(N_iterations))
 

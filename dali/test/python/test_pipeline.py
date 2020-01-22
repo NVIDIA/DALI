@@ -1672,9 +1672,9 @@ def check_duplicated_outs_pipeline(first_device, second_device):
     assert len(out) == 4
     for i in range(batch_size):
         assert isinstance(out[3].at(0), dali.backend_impl.TensorGPU) or first_device == "cpu"
-        out1 = out[0].as_cpu().at(i) if isinstance(out[0].at(0), dali.backend_impl.TensorGPU) else out[0].at(i)
-        out2 = out[1].as_cpu().at(i) if isinstance(out[1].at(0), dali.backend_impl.TensorGPU) else out[1].at(i)
-        out3 = out[2].as_cpu().at(i) if isinstance(out[2].at(0), dali.backend_impl.TensorGPU) else out[2].at(i)
+        out1 = out[0].as_cpu().at(i) if isinstance(out[0].tensor(0), dali.backend_impl.TensorGPU) else out[0].at(i)
+        out2 = out[1].as_cpu().at(i) if isinstance(out[1].tensor(0), dali.backend_impl.TensorGPU) else out[1].at(i)
+        out3 = out[2].as_cpu().at(i) if isinstance(out[2].tensor(0), dali.backend_impl.TensorGPU) else out[2].at(i)
 
         np.testing.assert_array_equal( out1, out2 )
         np.testing.assert_array_equal( out1, out3 )
@@ -1699,9 +1699,9 @@ def check_serialized_outs_duplicated_pipeline(first_device, second_device):
     assert len(out) == 4
     for i in range(batch_size):
         assert isinstance(out[3].at(0), dali.backend_impl.TensorGPU) or first_device == "cpu"
-        out1 = out[0].as_cpu().at(i) if isinstance(out[0].at(0), dali.backend_impl.TensorGPU) else out[0].at(i)
-        out2 = out[1].as_cpu().at(i) if isinstance(out[1].at(0), dali.backend_impl.TensorGPU) else out[1].at(i)
-        out3 = out[2].as_cpu().at(i) if isinstance(out[2].at(0), dali.backend_impl.TensorGPU) else out[2].at(i)
+        out1 = out[0].as_cpu().at(i) if isinstance(out[0].tensor(0), dali.backend_impl.TensorGPU) else out[0].at(i)
+        out2 = out[1].as_cpu().at(i) if isinstance(out[1].tensor(0), dali.backend_impl.TensorGPU) else out[1].at(i)
+        out3 = out[2].as_cpu().at(i) if isinstance(out[2].tensor(0), dali.backend_impl.TensorGPU) else out[2].at(i)
 
         np.testing.assert_array_equal( out1, out2 )
         np.testing.assert_array_equal( out1, out3 )
@@ -1852,9 +1852,9 @@ def check_duplicated_outs_cpu_to_gpu(device):
             normalized_shape=normalized_shape)
     pipe.build()
     out = pipe.run()
-    assert isinstance(out[0].at(0), dali.backend_impl.TensorGPU) or device == "cpu"
-    assert not isinstance(out[1].at(0), dali.backend_impl.TensorGPU)
-    assert not isinstance(out[2].at(0), dali.backend_impl.TensorGPU)
+    assert isinstance(out[0].tensor(0), dali.backend_impl.TensorGPU) or device == "cpu"
+    assert not isinstance(out[1].tensor(0), dali.backend_impl.TensorGPU)
+    assert not isinstance(out[2].tensor(0), dali.backend_impl.TensorGPU)
 
 # check if it is possible to return outputs from CPU op that goes directly to the GPU op without
 # MakeContiguous as a CPU output from the pipeline
