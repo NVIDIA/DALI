@@ -78,7 +78,7 @@ void normalize_outer(Out *out, const In *in, int64_t nouter, int64_t ninner,
  * @brief Subtracts mean and divides by standard deviation
  *
  * The kernel takes input tensor and produces equally shaped output tensor by subtracting mean
- * and multiplying by the inverse of standard deviation.
+ * and multiplying by a scaling factor (and optionally adding a scalar value to all outputs)
  * The result is converted (with rounding and saturation) to the specified output type.
  */
 template <typename Out, typename In, typename Param = float>
@@ -125,7 +125,7 @@ struct NormalizeCPU {
     (void)ctx;
 
     DALI_ENFORCE(mean.shape == scale.shape, make_string(
-        "Mean and inverse standard deviation must have the same shape; got:"
+        "Mean and scale must have the same shape; got:"
         "\nmean.shape       = ", mean.shape,
         "\nscale.shape = ", scale.shape));
 
@@ -202,10 +202,11 @@ struct NormalizeCPU {
   /**
    * @brief Collapses groups of reduced and groups of non-reduced dimensions.
    *
-   * If the mean/stddev reduction spans multiple consecutive dimensions, collapse them into one.
+   * If the mean/scale reduction spans multiple consecutive dimensions, collapse them into one.
    * Conversely, if there are multiple non-reduced dimensions, also collapse them.
    * The function preserves boundaries between non-collapsed and collapsed dimensions, e.g.
-   * If the input extent is 1, it can always be collapsed.
+   * If an extent is 1, it can always be - it's compatible with both reduced and non-reduced
+   * dimensions.
    *
    * data_shape   = [ 4, 5, 7, 3, 2 ]
    * param_shape_ = [ 4, 5, 1, 1, 2 ]

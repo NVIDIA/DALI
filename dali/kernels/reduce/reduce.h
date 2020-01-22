@@ -271,8 +271,9 @@ struct ReduceBase {
 
   void CheckOutput() {
     if (axis_mask == static_cast<uint64_t>((1 << ndim()) - 1)) {
-      DALI_ENFORCE(output.shape == TensorShape<1>{1}, make_string(
-        "Full reduction produces a single value. Output shape provided: ", output.shape));
+      DALI_ENFORCE((output.dim() == 1 || output.dim() == input.dim()) && output.num_elements() == 1,
+        make_string("Full reduction produces a single value (possibly keeping reduced dimensions)."
+        "\nOutput shape provided: ", output.shape));
     } else {
       TensorShape<> expected1, expected2 = input.shape;
       for (int i = 0; i < input.dim(); i++) {

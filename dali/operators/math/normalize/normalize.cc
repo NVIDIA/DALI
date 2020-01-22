@@ -26,6 +26,7 @@ DALI_SCHEMA(Normalize)
 The mean and standard deviation can be calculated internally for specified subset of axes or
 can be externally provided as *mean* and *stddev* arguments.)")
   .NumInput(1)
+  .NumOutput(1)
   .AddOptionalArg("batch", "If True, the mean and standard deviation are calculated across tensors "
     "in the batch. This also requires that the input sample shapes in the non-averaged axes match.",
     false)
@@ -126,7 +127,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
   TensorListView<StorageCPU, const InputType> in_view = view<const InputType>(input);
 
-  auto &output = ws.InputRef<CPUBackend>(0);
+  auto &output = ws.OutputRef<CPUBackend>(0);
   TensorListView<StorageCPU, OutputType> out_view = view<OutputType>(output);
 
   int nsamples = input.size();
@@ -156,6 +157,8 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
     }
   } else if (has_tensor_mean_) {
     mean_view = mean_input_;
+  } else if (ShouldCalcMean()) {
+    mean_view = mutable_mean;
   }
 
   if (has_scalar_stddev_) {
@@ -172,7 +175,11 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
     }
   } else if (has_tensor_stddev_) {
     inv_stddev_.Resize(param_shape_);
-    CalcInvStdDev(view<float>(inv_stddev_), stddev_input_, scale_);
+    mutable_stddev = view<float>(inv_stddev_);
+    CalcInvStdDev(mutable_stddev, stddev_input_, scale_);
+    inv_stddev_view = mutable_stddev;
+  } else if (ShouldCalcStdDev()) {
+    inv_stddev_view = mutable_stddev;
   }
 
   // When using batch normalization, we need to reduce the per-sample results
@@ -192,7 +199,6 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
       TP.WaitForWork();
       // Aggregate and posptprocess now
       FoldMeans();
-      mean_view = mutable_mean;
     }
 
     if (ShouldCalcStdDev()) {
@@ -208,13 +214,12 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
       TP.WaitForWork();
       // Aggregate and posptprocess now - use inverse square root.
       FoldStdDev();
-      inv_stddev_view = mutable_stddev;
     }
   }
 
-  if (ShouldCalcMean()) {
-    mean_view = mutable_mean;
-  }
+  assert(static_cast<int>(mean_view.data.size()) == mean_view.num_samples());
+  assert(static_cast<int>(inv_stddev_view.data.size()) == inv_stddev_view.num_samples());
+
 
   for (int i = 0; i < nsamples; i++) {
     TP.DoWorkWithID([&, i](int thread_idx) {

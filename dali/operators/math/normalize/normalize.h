@@ -42,8 +42,8 @@ class Normalize : public Operator<Backend> {
     has_scalar_stddev_ = spec.HasArgument("stddev") && !has_tensor_stddev_;
 
     batch_norm_ = spec.GetArgument<bool>("batch");
-    has_axes_arg_ = spec.HasTensorArgument("axes");
-    has_axis_names_arg_ = spec.HasTensorArgument("axis_names");
+    has_axes_arg_ = spec.HasArgument("axes");
+    has_axis_names_arg_ = spec.HasArgument("axis_names");
     shift_ = spec.GetArgument<float>("shift");
     scale_ = spec.GetArgument<float>("scale");
 
@@ -59,7 +59,6 @@ class Normalize : public Operator<Backend> {
       DALI_ENFORCE(!batch_norm_, "Normalize: Batch normalization cannot be used with parameters "
       "specified as TensorList inputs");
     }
-
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -100,7 +99,7 @@ class Normalize : public Operator<Backend> {
     axes_.resize(dim);
     std::iota(axes_.begin(), axes_.end(), 0);
     axis_mask_ = (1 << dim) - 1;
-    GetParamShapesFromAxes();
+    GetParamShapeFromAxes();
   }
 
   void SetupAxes(const workspace_t<Backend> &ws) {
@@ -112,22 +111,26 @@ class Normalize : public Operator<Backend> {
 
     const OpSpec &spec = this->spec_;
 
+    ConsumeArguments(ws);
+
     if (has_axes_arg_) {
       axes_ = spec.GetRepeatedArgument<int>("axes");
+      DALI_ENFORCE(!axes_.empty(),
+        "Normalize `axes` argument must specify at least one reduction axis.");
       for (auto axis : axes_) {
         DALI_ENFORCE(axis >= 0 && axis < dim, make_string("Normalize: axis index ", axis,
         " is out of valid range 0..", dim-1));
       }
       SetAxisMask();
-      GetParamShapesFromAxes();
+      GetParamShapeFromAxes();
     } else if (has_axis_names_arg_) {
       TensorLayout names = spec.GetArgument<TensorLayout>("axis_names");
       auto dim_idx = GetDimIndices(this->InputLayout(ws, 0), names);
       axes_ = dim_idx.to_vector();
       SetAxisMask();
-      GetParamShapesFromAxes();
-    } else if (!ShouldCalcMean() || !ShouldCalcStdDev()) {
-      GetAxesFromParamShapes(ws);
+      GetParamShapeFromAxes();
+    } else if (has_tensor_mean_ || has_tensor_stddev_) {
+      GetAxesFromParamShape();
     } else {
       UseAllAxes();
       return;
@@ -136,7 +139,7 @@ class Normalize : public Operator<Backend> {
   }
 
 
-  void GetParamShapesFromAxes() {
+  void GetParamShapeFromAxes() {
     int dim = data_shape_.sample_dim();
     int n = data_shape_.num_samples();
     if (batch_norm_) {
@@ -170,22 +173,16 @@ class Normalize : public Operator<Backend> {
     }
   }
 
-  void GetAxesFromParamShapes(const workspace_t<Backend> &ws) {
-    if (!has_tensor_mean_ && !has_tensor_stddev_) {
-      UseAllAxes();
-      return;
-    }
-
+  void ConsumeArguments(const workspace_t<Backend> &ws) {
     if (has_tensor_mean_) {
-      param_shape_ = mean_input_.shape;
       mean_input_ = view<const float>(ws.ArgumentInput("mean"));
+      param_shape_ = mean_input_.shape;
     }
 
     if (has_tensor_stddev_) {
+      stddev_input_ = view<const float>(ws.ArgumentInput("stddev"));
       if (!has_tensor_mean_)  // if not taken from `mean` - use `stddev` shape
         param_shape_ = stddev_input_.shape;
-
-      stddev_input_ = view<const float>(ws.ArgumentInput("stddev"));
     }
 
     if (has_tensor_mean_ && has_tensor_stddev_) {
@@ -195,7 +192,9 @@ class Normalize : public Operator<Backend> {
           "their shapes must match.\n", msg));
       }
     }
+  }
 
+  void GetAxesFromParamShape() {
     // 1. First mark all axes as reduced
     // 2. For all samples, if parameter shape has an extent other than 1, mark the axis
     //    of that extent as non-reduced.
@@ -204,7 +203,7 @@ class Normalize : public Operator<Backend> {
     // all input samples had extent of 1 - which is OK, because it doesn't change the result.
     int dim = param_shape_.sample_dim();
     int n = param_shape_.num_samples();
-    has_axis_names_arg_ = (1 << dim) - 1;
+    axis_mask_ = (1 << dim) - 1;
     for (int i = 0; i < n; i++) {
       for (int d = 0; d < dim; d++) {
         if (param_shape_.tensor_shape_span(i)[d] != 1) {
@@ -233,7 +232,7 @@ class Normalize : public Operator<Backend> {
       }
       DALI_ENFORCE(param_shape_[i] == expected, make_string(
         "Normalize: At sample ", i, ": expected parameter shape: ", expected,
-        ",\ngot:", param_shape_[i]));
+        ",\ngot: ", param_shape_[i]));
     }
   }
 
@@ -255,12 +254,18 @@ class Normalize : public Operator<Backend> {
 
     if (ShouldCalcMean()) {
       mean_.Resize(tmp_shape);
-    } else if (has_tensor_stddev_) {
+    } else if (has_tensor_mean_) {
       assert(!batch_norm_);
       // use mean as-is
-    } else if (has_scalar_stddev_) {
+      assert(param_shape_ == mean_input_.shape);
+    } else if (has_scalar_mean_) {
       // need to broadcast mean to match required shape
-      mean_.Resize(TensorListShape<>({ param_shape_[0] }));
+      if (is_uniform(param_shape_)) {
+        // if param_shape_ is uniform, we need only one tensor
+        mean_.Resize(TensorListShape<>({ param_shape_[0] }));
+      } else {
+        mean_.Resize(param_shape_);
+      }
     }
     if (ShouldCalcStdDev()) {
       inv_stddev_.Resize(tmp_shape);
@@ -272,7 +277,12 @@ class Normalize : public Operator<Backend> {
       assert(has_scalar_stddev_);
       if (!IsFullReduction()) {
         // need to broadcast stddev to match required shape
-        inv_stddev_.Resize(TensorListShape<>({ param_shape_[0] }));
+        if (is_uniform(param_shape_)) {
+          // if param_shape_ is uniform, we need only one tensor
+          inv_stddev_.Resize(TensorListShape<>({ param_shape_[0] }));
+        } else {
+          mean_.Resize(param_shape_);
+        }
       }
     }
   }
@@ -287,7 +297,8 @@ class Normalize : public Operator<Backend> {
   bool ShouldCalcMean() const noexcept { return !has_tensor_mean_ && !has_scalar_mean_; }
   bool ShouldCalcStdDev() const noexcept { return !has_tensor_stddev_ && !has_scalar_stddev_; }
   bool IsFullReduction() const noexcept {
-    return volume(param_shape_.tensor_shape_span(0)) == 1;
+    int ndim = data_shape_.sample_dim();
+    return axis_mask_== ((1 << ndim) - 1);
   }
   TensorListShape<> data_shape_;
   TensorListShape<> param_shape_;
