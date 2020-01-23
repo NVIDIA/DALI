@@ -20,6 +20,29 @@ namespace signal {
 
 namespace {
 
+/**
+ * Accurate type is such type, that doesn't require
+ * reset interval for maintaining numeric precision
+ */
+template<typename T>
+struct is_accurate {
+  static constexpr bool value = std::is_integral<T>::value && sizeof(T)<=2;
+};
+
+
+/**
+ * Type of the accumulator:
+ * In case calculation is performed on floating-point,
+ * it requires reset_interval to keep numeric accuracy.
+ */
+template<typename T>
+struct accumulator_type {
+  using type = std::conditional_t<is_accurate<T>::value, int64_t, float>;
+};
+
+template<typename T>
+using acc_t = typename accumulator_type<T>::type;
+
 template<typename Result = float, typename T>
 float Square(const T &val) {
   Result res = val;
@@ -57,9 +80,9 @@ MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &i
 
 
 template<typename T>
-void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float mean_factor,
+void CalcMovingMeanSquareWithInterval(span<float> out, span<const T> in, int length, float mean_factor,
                           int reset_interval, int window_size) {
-  float sumsq = 0;
+  acc_t<T> sumsq = 0;
   for (int window_begin = 0; window_begin <= length - window_size;) {
     sumsq = CalcSumSquared(make_span(&in[window_begin], window_size));
     out[window_begin] = sumsq * mean_factor;
@@ -69,6 +92,16 @@ void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float m
       out[window_begin] = sumsq * mean_factor;
     }
   }
+}
+
+template<typename T>
+void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float mean_factor, int window_size) {
+  acc_t<T> sumsq = CalcSumSquared(make_span(in.data(), window_size));
+  for (int window_begin = 0; window_begin <= length - window_size; window_begin++) {
+    out[window_begin] = sumsq * mean_factor;
+    sumsq += Square(in[window_begin + window_size]) - Square(in[window_begin]);
+  }
+
 }
 
 
@@ -81,7 +114,11 @@ void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<floa
   const float mean_factor = 1.f / args.window_size;
   const int reset_interval = args.reset_interval == -1 ? length : args.reset_interval;
 
-  CalcMovingMeanSquare(sp_out, sp_in, length, mean_factor, reset_interval, args.window_size);
+  if(is_accurate<T>::value) {
+    CalcMovingMeanSquare(sp_out, sp_in, length, mean_factor, args.window_size);
+  } else {
+    CalcMovingMeanSquareWithInterval(sp_out, sp_in, length, mean_factor, reset_interval, args.window_size);
+  }
 }
 
 
