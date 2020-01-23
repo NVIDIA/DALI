@@ -22,6 +22,7 @@ while getopts 'h' option; do
 done
 shift $((OPTIND - 1))
 
+export ARCH=${ARCH}
 export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
 export BUILD_TEST=${BUILD_TEST:-ON}
 export BUILD_BENCHMARK=${BUILD_BENCHMARK:-ON}
@@ -48,6 +49,7 @@ export WHL_PLATFORM_NAME=${WHL_PLATFORM_NAME:-manylinux1_x86_64}
 
 LD_LIBRARY_PATH="${PWD}:${LD_LIBRARY_PATH}" && \
 cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
+      -DARCH=${ARCH}                               \
       -DCUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}     \
       -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}       \
       -DBUILD_TEST=${BUILD_TEST}                   \

@@ -161,6 +161,10 @@ if (BUILD_FFTS)
   set(GENERATE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "-fPIC")
   set(ENABLE_SHARED OFF CACHE BOOL "shared library target")
   set(ENABLE_STATIC ON CACHE BOOL "static library target")
+  # dynamic machine code generation works only for x86
+  if(NOT (${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64"))
+    set(DISABLE_DYNAMIC_CODE ON CACHE BOOL "Disables the use of dynamic machine code generation")
+  endif()
 
   # Workaround for Clang as msse3 is only enabled if GCC is detected
   if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
