@@ -138,34 +138,18 @@ std::vector<int> CollapsePermutation(span<const int> perm,
 }
 
 /**
- * @brief Based on the blocks returned from PermutationBlocks, collapse the blocks
- *        in the shape that are permuted together.
- *
- * @param shape Shape to be collapsed
- * @param perm Original, non-collapsed permutation
- * @param perm_blocks Description of blocks in permutation
- * @return Collapsed shape
+ * @brief Convert permutation blocks [first_idx_in_perm, last_idx_in_perm] to
+ *        description of shape blocks: {starting_dimension_idx, length}
  */
-TensorShape<> CollapseShape(const TensorShape<> &shape, span<const int> perm,
+SmallVector<std::pair<int, int>, 6> PermToShapeBlocks(span<const int> perm,
                             span<const std::pair<int, int>> perm_blocks) {
-  TensorShape<> result;
-  result.resize(perm_blocks.size());
   SmallVector<std::pair<int, int>, 6> shape_blocks;
   shape_blocks.reserve(perm_blocks.size());
   for (auto &range : perm_blocks) {
-    shape_blocks.push_back({perm[range.first], perm[range.second]});
+    shape_blocks.push_back({perm[range.first], perm[range.second] - perm[range.first] + 1});
   }
   std::sort(shape_blocks.begin(), shape_blocks.end());
-  for (int i = 0; i < perm_blocks.size(); i++) {
-    result[i] = 1;
-  }
-  for (size_t i = 0; i < shape_blocks.size(); i++) {
-    for (int j = shape_blocks[i].first; j <= shape_blocks[i].second; j++) {
-      result[i] *= shape[j];
-    }
-  }
-  assert(volume(result) == volume(shape));
-  return result;
+  return shape_blocks;
 }
 
 }  // namespace transpose_impl
@@ -204,9 +188,9 @@ void TransposeGrouped(const TensorView<StorageCPU, T> &dst,
   int N = src.shape.sample_dim();
   auto src_shape = src.shape;
   auto perm_blocks = transpose_impl::PermutationBlocks(perm);
-  auto collapsed_src_shape =
-      transpose_impl::CollapseShape(src_shape, perm, make_cspan(perm_blocks));
   auto collapsed_perm = transpose_impl::CollapsePermutation(perm, make_cspan(perm_blocks));
+  auto shape_blocks = transpose_impl::PermToShapeBlocks(perm, make_cspan(perm_blocks));
+  auto collapsed_src_shape = collapse_dims(src_shape, make_cspan(shape_blocks));
   auto collapsed_dst_shape = Permute(collapsed_src_shape, collapsed_perm);
   Transpose(TensorView<StorageCPU, T>{dst.data, collapsed_dst_shape},
             TensorView<StorageCPU, const T>{src.data, collapsed_src_shape},

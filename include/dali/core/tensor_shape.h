@@ -1078,6 +1078,35 @@ auto collapse_dim(const TensorShape<ndim> &shape, int dim_idx) {
   return ret;
 }
 
+
+
+/**
+ * @brief Collapse blocks of dims in the shape based on shape_blocks descritpion
+ *
+ * Allows to collapse more the one dimension in one go.
+ * For example shape = [2, 4, 10, 30, 3]; shape_blocks = {{0, 2}, {2, 3}} will return: [8, 90].
+ *
+ * @param shape Shape to be collapsed
+ * @param shape_blocks Description of blocks in shape {starting_dimension_idx, length}
+ * @return Collapsed shape
+ */
+template <int out_ndim = DynamicDimensions, int ndim>
+TensorShape<out_ndim> collapse_dims(const TensorShape<ndim> &shape,
+                                    span<const std::pair<int, int>> shape_blocks) {
+  TensorShape<out_ndim> result;
+  result.resize(shape_blocks.size());
+  for (int i = 0; i < shape_blocks.size(); i++) {
+    result[i] = 1;
+  }
+  for (int i = 0; i < shape_blocks.size(); i++) {
+    for (int j = shape_blocks[i].first; j < shape_blocks[i].first + shape_blocks[i].second; j++) {
+      result[i] *= shape[j];
+    }
+  }
+  assert(volume(result) == volume(shape));
+  return result;
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_TENSOR_SHAPE_H_
