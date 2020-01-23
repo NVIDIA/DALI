@@ -332,7 +332,7 @@ def all_axes(dim):
     for mask in range(1, 1 << dim):
         yield mask2axes(mask)
 
-def run_test(device, batch_size, dim, axes, axis_names, batch_norm,
+def _run_test(device, batch_size, dim, axes, axis_names, batch_norm,
              out_type = None, in_type = None, shift = None, scale = None):
     kind = "inter-sample" if batch_norm else "per-sample"
     msg = "{0}, {1}, batch = {2}, dim = {3}".format(device, kind, batch_size, dim)
@@ -359,24 +359,24 @@ def _test_up_to_5D_all_axis_combinations(device):
     for batch_norm in [False, True]:
         for dim in range(1, 6):
             for axes in all_axes(dim):
-                yield run_test, device, batch_size, dim, axes, None, batch_norm
+                yield _run_test, device, batch_size, dim, axes, None, batch_norm
                 if axes is not None and dim < 5:
                     axis_names = axes2names(axes)
-                    yield run_test, device, batch_size, dim, None, axis_names, batch_norm
+                    yield _run_test, device, batch_size, dim, None, axis_names, batch_norm
 
 def test_cpu_up_to_5D_all_axis_combinations():
-    return _test_up_to_5D_all_axis_combinations("cpu")
+    for x in _test_up_to_5D_all_axis_combinations("cpu"):
+        yield x
 
 def test_types(device = "cpu"):
     batch_size = 100
     dim = 4
     axes = [1, 2]
-    axes = None
     out_type = np.uint8
     in_type = None
     for out_type, scale, shift in [(np.uint8, 64, 128), (np.int16, 1000, 0), (np.float32, 0.5, 0.5)]:
         for in_type in [None, np.uint8, np.int16, np.float32]:
-            yield run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
+            yield _run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
 
 def main():
     for test in test_cpu_up_to_5D_all_axis_combinations():

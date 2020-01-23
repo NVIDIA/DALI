@@ -24,21 +24,39 @@ DALI_SCHEMA(Normalize)
   .DocStr(R"(Normalizes the input by removing mean and dividing by standard deviation.
 
 The mean and standard deviation can be calculated internally for specified subset of axes or
-can be externally provided as *mean* and *stddev* arguments.)")
+can be externally provided as `mean` and `stddev` arguments.
+
+The normalization is done following the formula::
+
+out = scale * (in - mean) / stddev + shift
+
+The expression assumes that *out*, *in* are equally shaped tensors whereas *mean* and *stddev*
+may be either tensors of same shape or scalars or a mix of these. The expression follows
+*numpy* broadcasting rules.
+
+Sizes of (non-scalar) `mean` and `stddev` must have either extent of 1, if given axis is reduced,
+or match the corresponding extent of the input. A dimension is considered reduced if it's listed
+in `axes` or `axis_names`. If neither `axes` nor `axis_names` argument is
+present, the set of reduced axes is inferred by comparing input shape to the shape of
+mean/stddev arguments, but it is enforced that the set of reduced axes is the same for all tensors
+in the batch.
+)")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalArg("batch", "If True, the mean and standard deviation are calculated across tensors "
     "in the batch. This also requires that the input sample shapes in the non-averaged axes match.",
     false)
   .AddOptionalArg<float>("mean", "Mean value to subtract from the data. It can be either a scalar "
-    "or a batch of tensors with same dimensionality as the input and the shape in each dimension "
+    "or a batch of tensors with same dimensionality as the input and the extent in each dimension "
     "must either match that of the input or be equal to 1 (in which case the value will be "
-    "broadcast in this dimension). If not specified, the mean is calculated from the input.",
+    "broadcast in this dimension). If not specified, the mean is calculated from the input. "
+    "Non-scalar mean cannot be used when `batch` argument is True.",
     0.0f, true)
-  .AddOptionalArg<float>("stddev", "Stanrad deviation value to scale the data. For shape "
-    "constraints, see *mean* argument. If not specified, the mean is calculated from the input.",
+  .AddOptionalArg<float>("stddev", "Standard deviation value to scale the data. For shape "
+    "constraints, see *mean* argument. If not specified, the standard deviation is calculated "
+    "from the input. Non-scalar mean cannot be used when `batch` argument is True.",
     0.0f, true)
-  .AddOptionalArg("axes", "Indices if axes along which the input is normalized. By default, "
+  .AddOptionalArg("axes", "Indices of dimensions along which the input is normalized. By default, "
     "all axes are used. Axes can also be specified by name, see *axes_names*.",
     std::vector<int>{}, false)
   .AddOptionalArg<TensorLayout>("axis_names", "Names of the axes in the input - axis indices "
@@ -48,7 +66,7 @@ can be externally provided as *mean* and *stddev* arguments.)")
   .AddOptionalArg("scale", "The scaling factor applied to the output. Useful for integral "
     "output types", 1.0f, false)
   .AddOptionalArg("dtype", "Output type. When using integral types, use *shift* and *scale* to "
-    "improve usage of the output type dynamic range. If dtype is an integral type, out of range "
+    "improve usage of the output type's dynamic range. If dtype is an integral type, out of range "
     "values are clamped, and non-integer values are rounded to nearest integer.", DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(Normalize, Normalize<CPUBackend>, CPU);
@@ -175,7 +193,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
         });
       }
       TP.WaitForWork();
-      // Aggregate and posptprocess now
+      // Aggregate and postprocess now
       FoldMeans();
     }
 
@@ -190,7 +208,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
         });
       }
       TP.WaitForWork();
-      // Aggregate and posptprocess now - use inverse square root.
+      // Aggregate and postprocess now - use inverse square root.
       FoldStdDev();
     }
   }
