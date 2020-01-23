@@ -1671,7 +1671,7 @@ def check_duplicated_outs_pipeline(first_device, second_device):
     out = pipe.run()
     assert len(out) == 4
     for i in range(batch_size):
-        assert isinstance(out[3].at(0), dali.backend_impl.TensorGPU) or first_device == "cpu"
+        assert isinstance(out[3].tensor(0), dali.backend_impl.TensorGPU) or first_device == "cpu"
         out1 = out[0].as_cpu().at(i) if isinstance(out[0].tensor(0), dali.backend_impl.TensorGPU) else out[0].at(i)
         out2 = out[1].as_cpu().at(i) if isinstance(out[1].tensor(0), dali.backend_impl.TensorGPU) else out[1].at(i)
         out3 = out[2].as_cpu().at(i) if isinstance(out[2].tensor(0), dali.backend_impl.TensorGPU) else out[2].at(i)
@@ -1698,7 +1698,7 @@ def check_serialized_outs_duplicated_pipeline(first_device, second_device):
     out = new_pipe.run()
     assert len(out) == 4
     for i in range(batch_size):
-        assert isinstance(out[3].at(0), dali.backend_impl.TensorGPU) or first_device == "cpu"
+        assert isinstance(out[3].tensor(0), dali.backend_impl.TensorGPU) or first_device == "cpu"
         out1 = out[0].as_cpu().at(i) if isinstance(out[0].tensor(0), dali.backend_impl.TensorGPU) else out[0].at(i)
         out2 = out[1].as_cpu().at(i) if isinstance(out[1].tensor(0), dali.backend_impl.TensorGPU) else out[1].at(i)
         out3 = out[2].as_cpu().at(i) if isinstance(out[2].tensor(0), dali.backend_impl.TensorGPU) else out[2].at(i)
