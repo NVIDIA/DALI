@@ -104,10 +104,9 @@ void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<floa
   auto sp_in = make_cspan(in.data, in.shape[0]);
   auto sp_out = make_span(out.data, out.shape[0]);
   const float mean_factor = 1.f / args.window_size;
-  const int reset_interval = args.reset_interval == -1 ? length : args.reset_interval;
+  const int reset_interval = needs_reset<T>::value ? args.reset_interval : -1;
 
-  CalcMovingMeanSquare(sp_out, sp_in, length, mean_factor, args.window_size,
-                       needs_reset<T>::value ? reset_interval : -1);
+  CalcMovingMeanSquare(sp_out, sp_in, length, mean_factor, args.window_size, reset_interval);
 }
 
 
