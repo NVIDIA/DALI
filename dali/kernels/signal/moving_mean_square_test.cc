@@ -63,15 +63,15 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   }
 
 
-  template<typename RNG>
-  std::enable_if_t<std::is_signed<InputType>::value>
+  template<typename RNG, typename T = InputType>
+  std::enable_if_t<std::is_signed<T>::value>
   FillInput(RNG &rng) {
     UniformRandomFill(input_, rng, -100, 100);
   }
 
 
-  template<typename RNG>
-  std::enable_if_t<!std::is_signed<InputType>::value>
+  template<typename RNG, typename T = InputType>
+  std::enable_if_t<!std::is_signed<T>::value>
   FillInput(RNG &rng) {
     UniformRandomFill(input_, rng, 0, 100);
   }
