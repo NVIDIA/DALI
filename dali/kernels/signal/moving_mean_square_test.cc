@@ -47,7 +47,7 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   int buffer_length_ = 16000;
   int reset_interval_ = 5001;
   TensorShape<kNDims> shape_ = {buffer_length_};
-  TensorShape<kNDims> out_shape_ = {buffer_length_ - window_size_};
+  TensorShape<kNDims> out_shape_ = {buffer_length_ - window_size_ + 1};
 
  private:
   void calc_output() {
