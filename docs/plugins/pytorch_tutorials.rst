@@ -5,6 +5,6 @@ PyTorch
    :maxdepth: 2
    :glob:
 
-   ../examples/pytorch/**
    pytorch_plugin_api
+   ../examples/frameworks/pytorch/index
 

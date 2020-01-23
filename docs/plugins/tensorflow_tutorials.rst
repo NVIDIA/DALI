@@ -5,6 +5,6 @@ TensorFlow
    :maxdepth: 2
    :glob:
 
-   ../examples/tensorflow/**
    tensorflow_plugin_api
+   ../examples/frameworks/tensorflow/index
 

@@ -1,17 +1,14 @@
 # Examples
 
-This directory contains examples of DALI usage. List of examples:
+This directory contains examples of DALI usage.
 
 - [Getting started](getting%20started.ipynb) - build your first pipeline with DALI
-- [Augmentation gallery](augmentation_gallery.ipynb) - showcases different augmentations
-- [Color space conversion](color_space_conversion.ipynb) - showcases different color space conversion operations (e.g. RGB to YCbCr)
-- [LMDB data loading](dataloading_lmdb.ipynb) - example of reading data from LMDB database
-- [TFRecord data loading](dataloading_tfrecord.ipynb) - example of reading data from TensorFlow's TFRecord file
-- [RecordIO data loading](dataloading_recordio.ipynb) - example of reading data from MXNet's RecordIO file
-- [Serialization](serialization.ipynb) - example of pipeline serialization
+- [General](general) - General topics about using DALI, regardless if you want to do image, audio or any other processing.
+- [Image Processing](image_processing), [Sequence Processing](sequence_processing), [Audio Processing](audio_processing) - Tutorials, that present topics specific to the type of processed data
+- [Use Cases](use_cases) - Take a look on some real-life scenarios, where DALI can proove to be useful.
 
 Examples specific to frameworks integration:
 
-- [MXNet](mxnet)
-- [TensorFlow](tensorflow)
-- [PyTorch](pytorch)
+- [MXNet](frameworks/mxnet)
+- [TensorFlow](frameworks/tensorflow)
+- [PyTorch](frameworks/pytorch)
