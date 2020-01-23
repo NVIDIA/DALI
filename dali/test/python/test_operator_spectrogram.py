@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@ from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import ConstantDataIterator
+from test_utils import get_dali_extra_path
+import os
 import librosa as librosa
 import math
 
@@ -143,3 +145,68 @@ def test_operator_spectrogram_vs_python_wave():
                                                              ]:
                 yield check_operator_spectrogram_vs_python_wave_1d, device, batch_size, length, \
                     nfft, window_length, window_step
+
+
+dali_extra = get_dali_extra_path()
+audio_files = os.path.join(dali_extra, "db", "audio")
+
+
+class AudioSpectrogramPipeline(Pipeline):
+    def __init__(self, batch_size, nfft, window_length, window_step,
+                 num_threads=1, device_id=0):
+        super(AudioSpectrogramPipeline, self).__init__(batch_size, num_threads, device_id)
+        self.input = ops.FileReader(device="cpu", file_root=audio_files)
+        self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
+        self.fft = ops.Spectrogram(device="cpu",
+                                   nfft=nfft,
+                                   window_length=window_length,
+                                   window_step=window_step,
+                                   power=2)
+
+    def define_graph(self):
+        read, _ = self.input()
+        audio, rate = self.decode(read)
+        spec = self.fft(audio)
+        return spec
+
+
+class AudioSpectrogramPythonPipeline(Pipeline):
+    def __init__(self, batch_size, nfft, window_length, window_step,
+                 num_threads=1, device_id=0, spectrogram_func=spectrogram_func_librosa):
+        super(AudioSpectrogramPythonPipeline, self).__init__(
+            batch_size, num_threads, device_id,
+            seed=12345, exec_async=False, exec_pipelined=False)
+
+        self.input = ops.FileReader(device="cpu", file_root=audio_files)
+        self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
+
+        function = partial(spectrogram_func, nfft, window_length, window_step)
+        self.spectrogram = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        read, _ = self.input()
+        audio, rate = self.decode(read)
+        out = self.spectrogram(audio)
+        return out
+
+
+def check_operator_decoder_and_spectrogram_vs_python(batch_size, nfft, window_length, window_step):
+    compare_pipelines(
+        AudioSpectrogramPipeline(batch_size, nfft=nfft,
+                                 window_length=window_length, window_step=window_step),
+        AudioSpectrogramPythonPipeline(batch_size, nfft=nfft,
+                                       window_length=window_length, window_step=window_step),
+        batch_size=batch_size, N_iterations=5, eps=1e-04)
+
+
+def test_operator_decoder_and_spectrogram():
+    for batch_size in [3]:
+        for nfft, window_length, window_step, shape in [(256, 256, 128, (1, 4096)),
+                                                        (256, 256, 128, (4096,)),
+                                                        (256, 256, 128, (4096, 1)),
+                                                        (256, 256, 128, (1, 1, 4096, 1)),
+                                                        (16, 16, 8, (1, 1000)),
+                                                        (10, 10, 5, (1, 1000)),
+                                                        ]:
+            yield check_operator_decoder_and_spectrogram_vs_python, batch_size, \
+                  nfft, window_length, window_step
