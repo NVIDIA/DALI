@@ -83,7 +83,7 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
 
   auto fill_value = spec.template GetRepeatedArgument<float>("fill_value");
   auto channels_dim = in_layout.find('C');
-  DALI_ENFORCE(channels_dim >= 0,
+  DALI_ENFORCE(channels_dim >= 0 || fill_value.size() <= 1,
     "If a multi channel fill value is provided, the input layout must have a 'C' dimension");
 
   auto axes = detail::GetAxes(spec, in_layout);
