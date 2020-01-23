@@ -14,11 +14,31 @@ def normalize(x, axes = None, mean = None, stddev = None):
     elif mean is None:
         mean = x.mean(axis = axes, keepdims = True)
     elif stddev is None:
-        stddev = np.sqrt(((x - mean)**2).mean(axis = axes, keepdims = True))
+        var = ((x - mean).astype(np.float)**2).mean(axis = axes, keepdims = True)
+        stddev = np.sqrt(var)
 
     with np.errstate(divide='ignore', invalid='ignore'):
         norm = (x - mean) / stddev
     return np.nan_to_num(norm, copy = False, nan = 0, posinf = 0, neginf = 0)
+
+def dali_type(t):
+    if t is None:
+        return None
+    if t is np.float32:
+        return types.FLOAT
+    if t is np.uint8:
+        return types.UINT8
+    if t is np.int8:
+        return types.INT8
+    if t is np.uint16:
+        return types.UINT16
+    if t is np.int16:
+        return types.INT16
+    if t is np.uint32:
+        return types.UINT32
+    if t is np.int32:
+        return types.INT32
+    raise "Unsupported type"
 
 def batch_reduced_vol(batch, axes):
     reduced_vol = 0
@@ -48,16 +68,14 @@ def batch_mean(batch, axes):
 
 # calculate standard deviation over whole batch
 def batch_stddev(batch, axes, mean):
-    stddev = None
-    if type(mean) is not list:
-        mean = [mean] * len(batch)
+    var = None
     for i, x in enumerate(batch):
-        tmp = np.sum((x - mean[i])**2, axis = axes, keepdims = True)
-        if stddev is None:
-            stddev = tmp
+        tmp = np.sum((x - mean)**2, axis = axes, keepdims = True)
+        if var is None:
+            var = tmp
         else:
-            stddev += tmp
-    return np.sqrt(stddev / batch_reduced_vol(batch, axes))
+            var += tmp
+    return np.sqrt(var / batch_reduced_vol(batch, axes))
 
 # normalize a batch as a whole
 # non-reduced dims must have same extent in all batch items
@@ -81,7 +99,7 @@ def batch_norm(in_batch, axes = None, mean = None, stddev = None):
 # Generate random tensors with given dimensionality.
 # If batch_norm is True, the extents in non-reduced axes are equal.
 # If no using batch_norm, axes argument is ignored.
-def generate_data(dims, batch_size, batch_norm, axes):
+def generate_data(dims, batch_size, batch_norm, axes, dtype = None):
     shapes = np.random.randint(1, 10, [batch_size, dims], dtype=int)
     if batch_norm and axes is not None:
         for i in range(1, batch_size):
@@ -89,7 +107,12 @@ def generate_data(dims, batch_size, batch_norm, axes):
                 if a not in axes:
                     shapes[i, a] = shapes[0, a]
     shapes = shapes.tolist()
-    return [np.random.rand(*s).astype(np.float32) for s in shapes]
+    scale = 1
+    if dtype is None:
+        dtype = np.float32
+    elif dtype is not np.float32:
+        scale = 255
+    return [(scale*(np.random.rand(*s).astype(np.float32)*(1 + i) - i)).astype(dtype) for i,s in enumerate(shapes)]
 
 def custom_mean(batch_norm, axes):
     bias = 0.3  # make the result purposefully slightly off
@@ -134,85 +157,157 @@ def normalize_list(whole_batch, data_batch, axes = None, mean = None, stddev = N
             mean = [mean] * len(data_batch)
         if type(stddev) is not list:
             stddev = [stddev] * len(data_batch)
-        return [normalize(data_batch[i], axes, mean[i], stddev[i]) for i in range(len(data_batch))]
+        return [normalize(data_batch[i].astype(np.float), axes, mean[i], stddev[i]) for i in range(len(data_batch))]
 
 def err(l1, l2):
     return np.max([np.max(np.abs(a[0] - a[1])) for a in zip(l1, l2)])
 
-def check(l1, l2):
-    for a in zip(l1, l2):
-        np.allclose(a[0], a[1], rtol=1e-3, atol=1e-3)
+def check_float(l1, l2, eps = 1e-3):
+    for i, a in enumerate(zip(l1, l2)):
+        assert(np.allclose(a[0], a[1], rtol=1e-3, atol=eps))
+
+def check_integer(actual, ref, input = None):
+    for i, a in enumerate(zip(actual, ref)):
+        t = a[0].dtype
+        min = np.iinfo(t).min
+        max = np.iinfo(t).max
+        a1 = np.clip(a[1], min, max)
+        # actual values are saturated, so we must clip the reference, too
+        assert(np.allclose(a[0], a1, atol=2))
+
+def shift_scale(batch, shift, scale):
+    for i in range(len(batch)):
+        batch[i] = batch[i] * scale + shift
 
 class NormalizePipeline(Pipeline):
-    def __init__(self, device, batch_size, dims, axis_names, axes, batch = False,
+    def __init__(self, device, batch_size, dims, axes, axis_names, batch = False,
+                 out_type = None, in_type = None, shift = None, scale = None,
                 num_threads=3, device_id=0, num_gpus=1):
         super(NormalizePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
+        common_args = {
+            "axes" : axes,
+            "axis_names" : axis_names,
+            "batch" : batch,
+            "dtype" : dali_type(out_type),
+            "shift" : shift,
+            "scale" : scale
+        }
+        self.in_type = in_type
+        self.out_type = out_type
         self.device = device
         self.input = ops.ExternalSource()
-        self.axes = axes
+        self.add_layout = None
+        if axis_names is not None:
+            layout = ''
+            for i in range(dims):
+                layout += chr(ord('a') + i)
+            self.add_layout = ops.Reshape(layout = layout)
         self.batch = batch
         self.dims = dims
+        self.has_axes = axes is not None or axis_names is not None
+        self.scale = scale
+        self.shift = shift
+        self.is_integral = out_type is not None and out_type is not np.float32
+
+        if axis_names is not None:
+            axes = []
+            for a in axis_names:
+                axes.append(ord(a) - ord('a'))
+
+        self.axes = axes
+        self.axis_names = axis_names
+
         self.mean = ops.PythonFunction(function = custom_mean(batch, axes), batch_processing=True)
         self.stddev = ops.PythonFunction(function = custom_stddev(batch, axes), batch_processing=True)
-        self.normalize = ops.Normalize(axes = axes, axis_names = axis_names)
-        self.scalar_mean = ops.Normalize(axes = axes, axis_names = axis_names, mean = 1)
-        self.scalar_stddev = ops.Normalize(axes = axes, axis_names = axis_names, stddev = 2)
-        self.scalar_params = ops.Normalize(axes = axes, axis_names = axis_names, mean = 1, stddev = 2)
+        self.normalize = ops.Normalize(**common_args)
+        self.scalar_mean = ops.Normalize(**common_args, mean = 1)
+        self.scalar_stddev = ops.Normalize(**common_args, stddev = 2)
+        self.scalar_params = ops.Normalize(**common_args, mean = 1, stddev = 2)
+
 
     def define_graph(self):
         data = self.input_data = self.input()
+        if self.add_layout is not None:
+            data = self.add_layout(data)
         mean = self.mean(data)
         stddev = self.stddev(data)
         normalized = self.normalize(data)
         scalar_mean = self.scalar_mean(data)
         scalar_stddev = self.scalar_stddev(data)
-        ext_mean = self.normalize(data, mean = mean)
-        ext_stddev = self.normalize(data, stddev = stddev)
-        ext_all = self.normalize(data, mean = mean, stddev = stddev)
-        scalar_mean_ext = self.scalar_mean(data, stddev = stddev)
-        scalar_stddev_ext = self.scalar_stddev(data, mean = mean)
-        if self.axes is None:
+        if not self.batch:
+            ext_mean = self.normalize(data, mean = mean)
+            ext_stddev = self.normalize(data, stddev = stddev)
+            ext_all = self.normalize(data, mean = mean, stddev = stddev)
+            scalar_mean_ext = self.scalar_mean(data, stddev = stddev)
+            scalar_stddev_ext = self.scalar_stddev(data, mean = mean)
+        if not self.has_axes:
             scalar_params = self.scalar_params(data)
 
-        out = [data, mean, stddev, normalized, scalar_mean, scalar_stddev,
-                ext_mean, ext_stddev, ext_all, scalar_mean_ext, scalar_stddev_ext]
-        if self.axes is None:
+        out = [data, mean, stddev, normalized, scalar_mean, scalar_stddev]
+        if not self.batch:
+            out += [ext_mean, ext_stddev, ext_all, scalar_mean_ext, scalar_stddev_ext]
+        if not self.has_axes:
             out.append(scalar_params)
         return out
 
-    def check_batch(self, data, mean, stddev, normalized, scalar_mean, scalar_stddev,
-                ext_mean, ext_stddev, ext_all, scalar_mean_ext, scalar_stddev_ext, scalar_params = None):
+    def check_batch(self, data, mean, stddev, normalized, scalar_mean = None, scalar_stddev = None,
+                ext_mean = None, ext_stddev = None, ext_all = None,
+                scalar_mean_ext = None, scalar_stddev_ext = None, scalar_params = None):
         axes = self.axes
         if type(axes) is list:
             axes = tuple(axes)
         batch = self.batch
         mean_func = custom_mean(batch, axes)
         stddev_func = custom_stddev(batch, axes)
+        scale = 1 if self.scale is None else self.scale
+        shift = 0 if self.shift is None else self.shift
+
+
+        def check(l1, l2):
+            if self.is_integral:
+                check_integer(l1, l2, data)
+            else:
+                eps = 1e-3 * scale * len(data[0].shape)
+                check_float(l1, l2, eps)
 
         ref = normalize_list(batch, data, axes)
         ref_scalar_mean = normalize_list(batch, data, axes, mean = 1)
         ref_scalar_stddev = normalize_list(batch, data, axes, stddev = 2)
+        shift_scale(ref, shift, scale)
+        shift_scale(ref_scalar_mean, shift, scale)
+        shift_scale(ref_scalar_stddev, shift, scale)
         mean, = mean_func(data)
         stddev, = stddev_func(data)
-        ref_ext_mean = normalize_list(batch, data, axes, mean = mean)
-        ref_ext_stddev = normalize_list(batch, data, axes, stddev = stddev)
-        ref_ext_all = normalize_list(batch, data, axes, mean = mean, stddev = stddev)
-        ref_ext_all = normalize_list(batch, data, axes, mean = mean, stddev = stddev)
-        ref_scalar_mean_ext = normalize_list(batch, data, axes, mean = 1, stddev = stddev)
-        ref_scalar_stddev_ext = normalize_list(batch, data, axes, mean = mean, stddev = 2)
-        check(scalar_stddev, ref_scalar_stddev)
+        check(normalized, ref)
         check(scalar_mean, ref_scalar_mean)
-        check(ext_mean, ref_ext_mean)
-        check(ext_stddev, ref_ext_stddev)
-        check(ext_all, ref_ext_all)
-        check(scalar_mean_ext, ref_scalar_mean_ext)
-        check(scalar_stddev_ext, ref_scalar_stddev_ext)
+        check(scalar_stddev, ref_scalar_stddev)
+
+        if not batch:
+            ref_ext_mean = normalize_list(batch, data, axes, mean = mean)
+            ref_ext_stddev = normalize_list(batch, data, axes, stddev = stddev)
+            ref_ext_all = normalize_list(batch, data, axes, mean = mean, stddev = stddev)
+            ref_scalar_mean_ext = normalize_list(batch, data, axes, mean = 1, stddev = stddev)
+            ref_scalar_stddev_ext = normalize_list(batch, data, axes, mean = mean, stddev = 2)
+
+            shift_scale(ref_ext_mean, shift, scale)
+            shift_scale(ref_ext_stddev, shift, scale)
+            shift_scale(ref_ext_all, shift, scale)
+            shift_scale(ref_scalar_mean_ext, shift, scale)
+            shift_scale(ref_scalar_stddev_ext, shift, scale)
+
+            check(ext_mean, ref_ext_mean)
+            check(ext_stddev, ref_ext_stddev)
+            check(ext_all, ref_ext_all)
+            check(scalar_mean_ext, ref_scalar_mean_ext)
+            check(scalar_stddev_ext, ref_scalar_stddev_ext)
+
         if scalar_params is not None:
             ref_scalar_params = normalize_list(batch, data, axes, mean = 1, stddev = 2)
+            shift_scale(ref_scalar_params, shift, scale)
             check(scalar_params, ref_scalar_params)
 
     def iter_setup(self):
-        self.feed_input(self.input_data, generate_data(self.dims, self.batch_size, self.batch, self.axes))
+        self.feed_input(self.input_data, generate_data(self.dims, self.batch_size, self.batch, self.axes, dtype = self.in_type))
 
 def to_list(tensor_list):
     out = []
@@ -237,17 +332,58 @@ def all_axes(dim):
     for mask in range(1, 1 << dim):
         yield mask2axes(mask)
 
-def main():
-    for whole_batch in [False, True]:
-        kind = "batch" if whole_batch else "per-sample"
+def run_test(device, batch_size, dim, axes, axis_names, batch_norm,
+             out_type = None, in_type = None, shift = None, scale = None):
+    kind = "inter-sample" if batch_norm else "per-sample"
+    msg = "{0}, {1}, batch = {2}, dim = {3}".format(device, kind, batch_size, dim)
+    if axes is not None:
+        msg += " axes = {}".format(axes)
+    if axis_names is not None:
+        msg += " axis_names = '{}'".format(axis_names)
+    if out_type is not None:
+        msg += " output = {}".format(out_type)
+    if in_type is not None:
+        msg += " input = {}".format(in_type)
+    print(msg)
+
+    pipe = NormalizePipeline(device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale)
+    pipe.build()
+    out = pipe.run()
+    pipe.check_batch(*[to_list(x) for x in out])
+
+def axes2names(axes, layout='abcdefghijklmnopqrstuvwxyz'):
+    return "".join([layout[axis] for axis in axes])
+
+def _test_up_to_5D_all_axis_combinations(device):
+    batch_size = 10
+    for batch_norm in [False, True]:
         for dim in range(1, 6):
-            print("Testing from dimensionality = ", dim)
             for axes in all_axes(dim):
-                print(kind, ", dim", dim, " axes: ", axes)
-                pipe = NormalizePipeline("cpu", 10, dim, None, axes, True)
-                pipe.build()
-                out = pipe.run()
-                pipe.check_batch(*[to_list(x) for x in out])
+                yield run_test, device, batch_size, dim, axes, None, batch_norm
+                if axes is not None and dim < 5:
+                    axis_names = axes2names(axes)
+                    yield run_test, device, batch_size, dim, None, axis_names, batch_norm
+
+def test_cpu_up_to_5D_all_axis_combinations():
+    return _test_up_to_5D_all_axis_combinations("cpu")
+
+def test_types(device = "cpu"):
+    batch_size = 100
+    dim = 4
+    axes = [1, 2]
+    axes = None
+    out_type = np.uint8
+    in_type = None
+    for out_type, scale, shift in [(np.uint8, 64, 128), (np.int16, 1000, 0), (np.float32, 0.5, 0.5)]:
+        for in_type in [None, np.uint8, np.int16, np.float32]:
+            yield run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
+
+def main():
+    for test in test_cpu_up_to_5D_all_axis_combinations():
+        test[0](*test[1:])
+
+    for test in test_types():
+        test[0](*test[1:])
 
 if __name__ == '__main__':
     main()

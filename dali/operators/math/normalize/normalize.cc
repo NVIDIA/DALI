@@ -59,21 +59,15 @@ template <>
 template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
   auto &input = ws.InputRef<CPUBackend>(0);
-  int nsamples = input.size();
+  int nsamples = input.ntensor();
   int nthreads = ws.GetThreadPool().size();
-
-  const TypeInfo &Float = TypeTable::GetTypeInfo(DALI_FLOAT);
-  mean_.Resize(param_shape_);
-  mean_.set_type(Float);
-  inv_stddev_.Resize(param_shape_);
-  inv_stddev_.set_type(Float);
 
   using Kernel = kernels::NormalizeCPU<OutputType, InputType, float>;
   kmgr_.Resize<Kernel>(nthreads, nsamples);
 
   kernels::KernelContext ctx;
   for (int i = 0; i < nsamples; i++) {
-    kmgr_.Setup<Kernel>(i, ctx, data_shape_[i], param_shape_[i]);
+    kmgr_.Setup<Kernel>(i, ctx, data_shape_[i], param_shape_[batch_norm_ ? 0 : i]);
   }
 }
 
@@ -96,27 +90,11 @@ void Normalize<CPUBackend>::FoldStdDev() {
   SumSamples(view<float>(inv_stddev_));
   // calculate the normalization factor in double, then cast to float
   auto v = ReducedVolume(data_shape_, make_span(axes_));
-  float scale = static_cast<float>(1.0 * scale_ * scale_ / v);
-  auto sample0 = make_tensor_cpu(mean_.mutable_tensor<float>(0), mean_.shape()[0]);
+  float rdiv = static_cast<float>(1.0 / v);
+  auto sample0 = make_tensor_cpu(inv_stddev_.mutable_tensor<float>(0), inv_stddev_.shape()[0]);
   auto elems = sample0.num_elements();
   int i = 0;
-#ifdef __SSE__
-  __m128 denx4 = _mm_set1_ps(scale);
-  __m128 zero = _mm_setzero_ps();
-  for (; i < elems; i += 4) {
-    __m128 data = _mm_loadu_ps(&sample0.data[i]);
-    data = _mm_mul_ps(data, denx4);
-    __m128 mask = _mm_cmpneq_ps(data, zero);
-    data = _mm_rsqrt_ps(data);
-    data = _mm_and_ps(data, mask);
-    _mm_storeu_ps(&sample0.data[i], data);
-  }
-#endif
-
-  for (; i < elems; i++) {
-    if (sample0.data[i])
-      sample0.data[i] = rsqrt(sample0.data[i] * scale);
-  }
+  ScaleRSqrtKeepZero(sample0.data, elems, rdiv, scale_);
 }
 
 template <>
@@ -130,7 +108,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   TensorListView<StorageCPU, OutputType> out_view = view<OutputType>(output);
 
-  int nsamples = input.size();
+  int nsamples = input.ntensor();
   int nthreads = ws.GetThreadPool().size();
 
   float scalar_mean = 0;
@@ -202,10 +180,10 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
     }
 
     if (ShouldCalcStdDev()) {
+      auto sample_mean = mean_view[0];
       for (int i = 0; i < nsamples; i++) {
         TP.DoWorkWithID([&, i](int thread_idx) {
-          kernels::StdDev<float, InputType> stddev;
-          auto sample_mean = mean_view.num_samples() == 1 ? mean_view[0] : mean_view[i];
+          kernels::Variance<float, InputType> stddev;
           stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
           // Reset per-sample values, but don't postprocess
           stddev.Run(true, false);
@@ -223,11 +201,11 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
 
   for (int i = 0; i < nsamples; i++) {
     TP.DoWorkWithID([&, i](int thread_idx) {
-      auto sample_mean = mean_view.num_samples() == 1
+      auto sample_mean = mean_view.num_samples() == 1 || batch_norm_
                               ? mean_view[0]
                               : mean_view[i];
 
-      auto sample_inv_stddev = inv_stddev_view.num_samples() == 1
+      auto sample_inv_stddev = inv_stddev_view.num_samples() == 1 || batch_norm_
                               ? inv_stddev_view[0]
                               : inv_stddev_view[i];
 
@@ -235,8 +213,9 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
         if (ShouldCalcMean()) {
           kernels::Mean<float, InputType> mean;
           mean.Setup(mutable_mean[i], in_view[i], make_span(axes_));
-          // Reset per-sample values, but don't postprocess
+          // Reset per-sample values and preprocess
           mean.Run(true, true);
+          assert(sample_mean.data == mutable_mean[i].data);
         }
 
         if (ShouldCalcStdDev()) {
@@ -244,7 +223,9 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
           stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
           // Reset per-sample values, but don't postprocess
           stddev.Run(true, false);
+          // Fused postprocessing with inverse square root.
           SumSquare2InvStdDev(mutable_stddev[i], data_shape_[i], scale_);
+          assert(sample_inv_stddev.data == mutable_stddev[i].data);
         }
       }
       kernels::KernelContext ctx;

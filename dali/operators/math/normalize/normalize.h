@@ -46,6 +46,7 @@ class Normalize : public Operator<Backend> {
     has_axis_names_arg_ = spec.HasArgument("axis_names");
     shift_ = spec.GetArgument<float>("shift");
     scale_ = spec.GetArgument<float>("scale");
+    output_type_ = spec.GetArgument<DALIDataType>("dtype");
 
     DALI_ENFORCE(!has_axes_arg_ || !has_axis_names_arg_,
       "Normalize: Arguments `axes` and `axis_names` are mutually exclusive");
@@ -122,13 +123,15 @@ class Normalize : public Operator<Backend> {
         " is out of valid range 0..", dim-1));
       }
       SetAxisMask();
-      GetParamShapeFromAxes();
+      if (!has_tensor_mean_ && !has_tensor_stddev_)
+        GetParamShapeFromAxes();
     } else if (has_axis_names_arg_) {
       TensorLayout names = spec.GetArgument<TensorLayout>("axis_names");
       auto dim_idx = GetDimIndices(this->InputLayout(ws, 0), names);
       axes_ = dim_idx.to_vector();
       SetAxisMask();
-      GetParamShapeFromAxes();
+      if (!has_tensor_mean_ && !has_tensor_stddev_)
+        GetParamShapeFromAxes();
     } else if (has_tensor_mean_ || has_tensor_stddev_) {
       GetAxesFromParamShape();
     } else {
@@ -230,9 +233,10 @@ class Normalize : public Operator<Backend> {
       for (int d = 0; d < dim; d++) {
         expected[d] = IsReducedAxis(d) ? 1 : data_shape_.tensor_shape_span(i)[d];
       }
-      DALI_ENFORCE(param_shape_[i] == expected, make_string(
-        "Normalize: At sample ", i, ": expected parameter shape: ", expected,
-        ",\ngot: ", param_shape_[i]));
+      int param_idx = batch_norm_ ? 0 : i;
+      DALI_ENFORCE(param_shape_[param_idx] == expected, make_string(
+        "Normalize: At sample ", i, ": parameter shape: ", param_shape_[param_idx],
+        " does not match the reduced input sample shape which is : ", expected));
     }
   }
 
@@ -247,6 +251,7 @@ class Normalize : public Operator<Backend> {
   }
 
   void AllocTempStorage() {
+    const TypeInfo &Float = TypeTable::GetTypeInfo(DALI_FLOAT);
     int n = data_shape_.num_samples();
     const TensorListShape<> &tmp_shape = batch_norm_
       ? uniform_list_shape(n, param_shape_[0])  // extend to all samples, to enable parallelism
@@ -281,10 +286,12 @@ class Normalize : public Operator<Backend> {
           // if param_shape_ is uniform, we need only one tensor
           inv_stddev_.Resize(TensorListShape<>({ param_shape_[0] }));
         } else {
-          mean_.Resize(param_shape_);
+          inv_stddev_.Resize(param_shape_);
         }
       }
     }
+    mean_.set_type(Float);
+    inv_stddev_.set_type(Float);
   }
 
   void FoldMeans();
