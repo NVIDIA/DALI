@@ -6,6 +6,6 @@ General
 
    data_loading/index
    expressions/index
+   multigpu.ipynb
    erase.ipynb
-   advanced/index
 
