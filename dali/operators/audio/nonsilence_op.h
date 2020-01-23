@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <utility>
 #include <vector>
+#include <dali/kernels/kernel_manager.h>
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -29,20 +30,16 @@ using OutputType = int;
 static_assert(std::is_integral<OutputType>::value,
               "Operator return indices, thus OutputType shall be integral");
 
-/**
- * Detects nonsilence region in provided 1-D audio buffer
- * @param cutoff Everything below this value will be reagrded as silence
- * @return (begin index, length)
- */
-template<typename T>
-std::pair<int, int> DetectNonsilenceRegion(span<const T> buffer, T cutoff) {
-  int begin = -1;
-  int end = buffer.size();
-  while (begin < end && buffer[++begin] < cutoff);  // NOLINT
-  if (begin == end) return {-1, 0};
-  while (buffer[--end] < cutoff);  // NOLINT
-  return {begin, end - begin + 1};
-}
+
+//template<typename T>
+//std::pair<int, int> DetectNonsilenceRegion(TensorView<CPUBackend, const T, 1>, T cutoff) {
+//  int begin = -1;
+//  int end = buffer.size();
+//  while (begin < end && buffer[++begin] < cutoff);  // NOLINT
+//  if (begin == end) return {-1, 0};
+//  while (buffer[--end] < cutoff);  // NOLINT
+//  return {begin, end - begin + 1};
+//}
 
 }  // namespace detail
 
@@ -66,6 +63,7 @@ class NonsilenceOperator : public Operator<Backend> {
 
   USE_OPERATOR_MEMBERS();
   const float cutoff_;
+  kernels::KernelManager kernel_manager_;
 };
 
 
@@ -83,6 +81,23 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
                  const workspace_t<CPUBackend> &ws) override;
 
   void RunImpl(workspace_t<CPUBackend> &ws) override;
+ private:
+
+  template<typename InputType>
+  void RunImplTyped(workspace_t<CPUBackend> &ws);
+
+  /**
+   * Detects nonsilence region in provided 1-D audio buffer
+   * @param cutoff Everything below this value will be reagrded as silence
+   * @return (begin index, length)
+   */
+  template<typename InputType>
+  std::pair<int, int> DetectNonsilenceRegion(TensorView<CPUBackend, const InputType, 1>, InputType cutoff);
+
+  template<typename InputType, typename Kernel>
+  void RunKernel(TensorView<CPUBackend, const InputType, 1> in, int nsamples, int nthreads, int sample_id);
+
+  std::vector<Tensor<CPUBackend>> intermediate_buffers_;
 };
 
 

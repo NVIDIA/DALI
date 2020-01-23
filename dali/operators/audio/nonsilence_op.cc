@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <dali/kernels/signal/dct/dct_cpu.h>
+#include <dali/pipeline/data/views.h>
 #include "dali/operators/audio/nonsilence_op.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/convert.h"
@@ -43,11 +45,12 @@ If `Output[1] == 0`, `Output[0]` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
-                .AddArg(detail::kCutoff, R"code(Everything below this value will be regarded as silence)code", DALI_FLOAT);
+                .AddArg(detail::kCutoff,
+                        R"code(Everything below this value will be regarded as silence)code",
+                        DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
 
-#define NONSILENCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
 
 
 bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -65,29 +68,79 @@ bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 
-void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+template<typename InputType>
+void NonsilenceOperatorCpu::RunImplTyped(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   auto &output_begin = ws.OutputRef<CPUBackend>(0);
   auto &output_length = ws.OutputRef<CPUBackend>(1);
   auto &tp = ws.GetThreadPool();
-  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
-      for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
-        tp.DoWorkWithID(
-            [&, sample_id](int thread_id) {
-              const auto in_ptr = input[sample_id].data<InputType>();
-              auto num_samples = volume(input[sample_id].shape());
-              auto res = detail::DetectNonsilenceRegion
-                      (make_cspan(in_ptr, num_samples), ConvertSat<InputType>(cutoff_));
-              auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
-              auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
-              *beg_ptr = res.first;
-              *len_ptr = res.second;
-            });
-      }
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  int nsamples = input.size();
+  auto nthreads = ws.GetThreadPool().size();
+
+
+
+
+  int sample_id=0;
+
+
+  const auto in_view = view<const InputType, 1>(input[sample_id]);
+
+  const auto in_ptr = input[sample_id].data<InputType>();
+  auto num_samples = volume(input[sample_id].shape());
+  auto res = detail::DetectNonsilenceRegion
+          (make_cspan(in_ptr, num_samples), ConvertSat<InputType>(cutoff_));
+  auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
+  auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
+  *beg_ptr = res.first;
+  *len_ptr = res.second;
+
+//  for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
+//    tp.DoWorkWithID(
+//            [&, sample_id](int thread_id) {
+//                const auto in_ptr = input[sample_id].data<InputType>();
+//                auto num_samples = volume(input[sample_id].shape());
+//                auto res = detail::DetectNonsilenceRegion
+//                        (make_cspan(in_ptr, num_samples), ConvertSat<InputType>(cutoff_));
+//                auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
+//                auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
+//                *beg_ptr = res.first;
+//                *len_ptr = res.second;
+//            });
+//  }
+
   tp.WaitForWork();
 }
 
+#define NONSILENCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
+
+void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
+          RunImplTyped<InputType>(ws);
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+}
+
 #undef NONSILENCE_TYPES
+
+template<typename T>
+std::pair<int, int> NonsilenceOperatorCpu::DetectNonsilenceRegion(TensorView<CPUBackend, const T, 1>, T cutoff) {
+
+}
+
+template<typename InputType, typename Kernel>
+void NonsilenceOperatorCpu::RunKernel(TensorView<CPUBackend, const InputType, 1> in, int nsamples, int nthreads, int sample_id) {
+
+  kernels::KernelContext kctx;
+  kernel_manager_.Initialize<Kernel>();
+  kernel_manager_.Resize(nthreads, nsamples);
+  auto reqs = kernel_manager_.Setup<Kernel>(sample_id, kctx, in);
+  reqs.output_shapes[0];
+//  assert(intermediate_buffers_.size() == reqs.output_shapes[0].num_samples());
+//  for(int i=0;i<reqs.output_shapes[0];i++) {
+//  }
+
+}
+
+
 
 }  // namespace dali
