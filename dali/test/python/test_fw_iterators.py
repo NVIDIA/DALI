@@ -15,6 +15,7 @@
 from __future__ import print_function, division
 import math
 from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.types as types
 import nvidia.dali.ops as ops
 import numpy as np
 import os
@@ -36,6 +37,7 @@ class COCOReaderPipeline(Pipeline):
 test_data_root = get_dali_extra_path()
 coco_folder = os.path.join(test_data_root, 'db', 'coco')
 data_sets = [[os.path.join(coco_folder, 'images'), os.path.join(coco_folder, 'instances.json')]]
+image_data_set = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
 
 def gather_ids(dali_train_iter, data_getter, pad_getter, data_size):
@@ -67,6 +69,61 @@ def create_pipeline(creator, batch_size, num_gpus):
         iters = pipes[0].epoch_size("Reader")
         iters = iters // num_gpus
     return pipes, iters
+
+
+def test_mxnet_iterator_model_fit():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    import mxnet as mx
+    num_gpus = 1
+    batch_size = 1
+    class RN50Pipeline(Pipeline):
+        def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths):
+            super(RN50Pipeline, self).__init__(batch_size, num_threads, device_id,)
+            self.input = ops.FileReader(file_root = data_paths, shard_id = device_id, num_shards = num_gpus)
+            self.decode_gpu = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
+            self.res = ops.RandomResizedCrop(device="cpu", size =(224,224))
+
+            self.cmnp = ops.CropMirrorNormalize(device="cpu",
+                                                output_dtype=types.FLOAT,
+                                                output_layout=types.NCHW,
+                                                crop=(224, 224),
+                                                image_type=types.RGB,
+                                                mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+                                                std=[0.229 * 255,0.224 * 255,0.225 * 255])
+            self.coin = ops.CoinFlip(probability=0.5)
+
+        def define_graph(self):
+            rng = self.coin()
+            jpegs, labels = self.input(name="Reader")
+            images = self.decode_gpu(jpegs)
+            images = self.res(images)
+            output = self.cmnp(images, mirror=rng)
+            return labels
+
+    pipes, _ = create_pipeline(lambda gpu: RN50Pipeline(batch_size=batch_size, num_threads=4, device_id=gpu, num_gpus=num_gpus,
+                                                                  data_paths=image_data_set), batch_size, num_gpus)
+    pipe = pipes[0]
+
+    class MXNetIteratorWrapper(MXNetIterator):
+        def __init__(self, iter):
+            self.iter = iter
+
+        def __getattr__(self, attr):
+            return getattr(self.iter, attr)
+
+        def __next__(self):
+            ret = self.iter.__next__()[0]
+            return ret
+
+    dali_train_iter = MXNetIterator(pipe, [("labels", MXNetIterator.LABEL_TAG)],
+                                    size=pipe.epoch_size("Reader"))
+    data = mx.symbol.Variable('labels')
+
+    # create a dummy model
+    _ = mx.model.FeedForward.create(data,
+                                    X=MXNetIteratorWrapper(dali_train_iter),
+                                    num_epoch=1,
+                                    learning_rate=0.01)
 
 
 def test_mxnet_iterator_last_batch_no_pad_last_batch():
