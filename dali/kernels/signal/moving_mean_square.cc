@@ -75,7 +75,8 @@ MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &i
                            args.window_size, ", input_size=", in.num_elements()));
   KernelRequirements req;
   TensorShape<> out_shape = {in.shape[0] - args.window_size + 1};
-  req.output_shapes = {TensorListShape<>({out_shape})};
+  std::vector<TensorShape<DynamicDimensions>> tmp = {out_shape};  // workaround for clang-6 bug
+  req.output_shapes = {TensorListShape<DynamicDimensions>(tmp)};
   return req;
 }
 
