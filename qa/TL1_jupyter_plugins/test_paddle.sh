@@ -2,7 +2,7 @@
 
 # used pip packages
 pip_packages="jupyter matplotlib paddle"
-target_dir=./docs/examples
+target_dir=./docs/examples/frameworks/paddle
 
 do_once() {
   mkdir -p idx_files
@@ -13,7 +13,7 @@ test_body() {
   black_list_files="#"
 
   # test code
-  find . -name "paddle-*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
+  find . -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600 {}

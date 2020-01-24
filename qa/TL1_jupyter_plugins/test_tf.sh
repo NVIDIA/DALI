@@ -2,7 +2,7 @@
 
 # used pip packages
 pip_packages="jupyter matplotlib tensorflow-gpu"
-target_dir=./docs/examples
+target_dir=./docs/examples/frameworks/tensorflow
 
 do_once() {
   mkdir -p idx_files
@@ -15,7 +15,7 @@ test_body() {
 
 
   # test code
-  find . -name "tensorflow-*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
+  find . -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600 {}
