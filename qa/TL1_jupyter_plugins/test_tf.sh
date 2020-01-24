@@ -15,7 +15,7 @@ test_body() {
 
 
   # test code
-  find tensorflow/* -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
+  find . -name "tensorflow-*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600 {}

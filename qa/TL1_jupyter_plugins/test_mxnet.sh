@@ -13,7 +13,7 @@ test_body() {
   black_list_files="#"
 
   # test code
-  find mxnet/* -name "*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
+  find . -name "mxnet-*.ipynb" | sed "/${black_list_files}/d" | xargs -i jupyter nbconvert \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600 {}

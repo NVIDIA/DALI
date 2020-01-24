@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-cd /opt/dali/docs/examples/tensorflow/demo
+cd /opt/dali/docs/examples/use_cases/tensorflow/resnet-n
 
 mkdir -p idx-files/
 

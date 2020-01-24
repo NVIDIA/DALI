@@ -2,12 +2,12 @@
 
 # used pip packages
 pip_packages="jupyter matplotlib numpy"
-target_dir=./docs/examples
+target_dir=./docs/examples/sequence_processing
 
 test_body() {
     # workaround for the CI
     put_optflow_libs
-    test_files=("optical_flow/optical_flow_example.ipynb")
+    test_files=("optical_flow_example.ipynb")
 
     # test code
     echo $test_files | xargs -i jupyter nbconvert \

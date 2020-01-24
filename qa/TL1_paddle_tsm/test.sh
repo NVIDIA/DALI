@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages="numpy paddle"
-target_dir=./docs/examples/paddle/tsm/
+target_dir=./docs/examples/frameworks/paddle/tsm/
 
 do_once() {
   apt-get update
