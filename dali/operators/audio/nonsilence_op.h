@@ -18,6 +18,8 @@
 #include <utility>
 #include <vector>
 #include <dali/kernels/kernel_manager.h>
+#include <gtest/gtest_prod.h>
+#include <dali/pipeline/data/views.h>
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -66,7 +68,6 @@ class NonsilenceOperator : public Operator<Backend> {
   kernels::KernelManager kernel_manager_;
 };
 
-
 class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
  public:
   explicit NonsilenceOperatorCpu(const OpSpec &spec) : NonsilenceOperator<CPUBackend>(spec) {}
@@ -78,25 +79,51 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
 
  protected:
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<CPUBackend> &ws) override;
+                 const workspace_t<CPUBackend> &ws) override {}
 
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+
+  void RunImpl(workspace_t<CPUBackend> &ws) override {}
+
+
  private:
+};
 
-  template<typename InputType>
-  void RunImplTyped(workspace_t<CPUBackend> &ws);
+
+class NonsilenceOperatorCpuImpl {
+ public:
+
+//  template<typename InputType>
+//  void RunImplTyped(workspace_t<CPUBackend> &ws);
 
   /**
    * Detects nonsilence region in provided 1-D audio buffer
    * @param cutoff Everything below this value will be reagrded as silence
    * @return (begin index, length)
    */
-  template<typename InputType>
-  std::pair<int, int> DetectNonsilenceRegion(TensorView<CPUBackend, const InputType, 1>, InputType cutoff);
+//  template<typename InputType>
+//  std::pair<int, int> DetectNonsilenceRegion(TensorView<CPUBackend, const InputType, 1>, InputType cutoff);
+
+  template<typename Kernel>
+  void SetupKernel(int nthreads, int nsamples) {
+    kernel_manager_.Initialize<Kernel>();
+    kernel_manager_.Resize(nthreads, nsamples);
+  }
+
 
   template<typename InputType, typename Kernel>
-  void RunKernel(TensorView<CPUBackend, const InputType, 1> in, int nsamples, int nthreads, int sample_id);
+  void RunKernel(TensorView<CPUBackend, const InputType, 1> in, int sample_id, int thread_id) {
+    kernels::KernelContext kctx;
 
+    auto reqs = kernel_manager_.Setup<Kernel>(sample_id, kctx, in);
+    intermediate_buffers_[sample_id].Resize(reqs.output_shapes[0][sample_id]);
+    auto out = view_as_tensor<float>(intermediate_buffers_[sample_id]);
+    kernel_manager_.Run(thread_id, sample_id, kctx, out, in, {2048, -1});
+    cout << "JUZ\n";
+  }
+
+
+  kernels::KernelManager kernel_manager_;
+  kernels::KernelContext kctx_;
   std::vector<Tensor<CPUBackend>> intermediate_buffers_;
 };
 

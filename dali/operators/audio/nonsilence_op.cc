@@ -53,46 +53,46 @@ DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
 
 
 
-bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                      const workspace_t<CPUBackend> &ws) {
-  TypeInfo output_type;
-  output_type.SetType<detail::OutputType>(TypeTable::GetTypeID<detail::OutputType>());
-  TensorShape<> scalar_shape = {1};
-
-  output_desc.resize(detail::kNumOutputs);
-  for (int i = 0; i < detail::kNumOutputs; i++) {
-    output_desc[i].shape = uniform_list_shape(batch_size_, scalar_shape);
-    output_desc[i].type = output_type;
-  }
-  return true;
-}
-
-
-template<typename InputType>
-void NonsilenceOperatorCpu::RunImplTyped(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
-  auto &output_begin = ws.OutputRef<CPUBackend>(0);
-  auto &output_length = ws.OutputRef<CPUBackend>(1);
-  auto &tp = ws.GetThreadPool();
-  int nsamples = input.size();
-  auto nthreads = ws.GetThreadPool().size();
+//bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
+//                                      const workspace_t<CPUBackend> &ws) {
+//  TypeInfo output_type;
+//  output_type.SetType<detail::OutputType>(TypeTable::GetTypeID<detail::OutputType>());
+//  TensorShape<> scalar_shape = {1};
+//
+//  output_desc.resize(detail::kNumOutputs);
+//  for (int i = 0; i < detail::kNumOutputs; i++) {
+//    output_desc[i].shape = uniform_list_shape(batch_size_, scalar_shape);
+//    output_desc[i].type = output_type;
+//  }
+//  return true;
+//}
 
 
+//template<typename InputType>
+//void NonsilenceOperatorCpu::RunImplTyped(workspace_t<CPUBackend> &ws) {
+//  const auto &input = ws.template InputRef<CPUBackend>(0);
+//  auto &output_begin = ws.OutputRef<CPUBackend>(0);
+//  auto &output_length = ws.OutputRef<CPUBackend>(1);
+//  auto &tp = ws.GetThreadPool();
+//  int nsamples = input.size();
+//  auto nthreads = ws.GetThreadPool().size();
 
 
-  int sample_id=0;
 
 
-  const auto in_view = view<const InputType, 1>(input[sample_id]);
+//  int sample_id=0;
 
-  const auto in_ptr = input[sample_id].data<InputType>();
-  auto num_samples = volume(input[sample_id].shape());
-  auto res = detail::DetectNonsilenceRegion
-          (make_cspan(in_ptr, num_samples), ConvertSat<InputType>(cutoff_));
-  auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
-  auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
-  *beg_ptr = res.first;
-  *len_ptr = res.second;
+
+//  const auto in_view = view<const InputType, 1>(input[sample_id]);
+
+//  const auto in_ptr = input[sample_id].data<InputType>();
+//  auto num_samples = volume(input[sample_id].shape());
+//  auto res = detail::DetectNonsilenceRegion
+//          (make_cspan(in_ptr, num_samples), ConvertSat<InputType>(cutoff_));
+//  auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
+//  auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
+//  *beg_ptr = res.first;
+//  *len_ptr = res.second;
 
 //  for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
 //    tp.DoWorkWithID(
@@ -108,38 +108,42 @@ void NonsilenceOperatorCpu::RunImplTyped(workspace_t<CPUBackend> &ws) {
 //            });
 //  }
 
-  tp.WaitForWork();
-}
+//  tp.WaitForWork();
+//}
 
 #define NONSILENCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
 
-void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
-  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
-          RunImplTyped<InputType>(ws);
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
-}
+//void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+//  const auto &input = ws.template InputRef<CPUBackend>(0);
+//  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
+//          RunImplTyped<InputType>(ws);
+//  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+//}
 
 #undef NONSILENCE_TYPES
 
-template<typename T>
-std::pair<int, int> NonsilenceOperatorCpu::DetectNonsilenceRegion(TensorView<CPUBackend, const T, 1>, T cutoff) {
+//template<typename T>
+//std::pair<int, int> NonsilenceOperatorCpu::DetectNonsilenceRegion(TensorView<CPUBackend, const T, 1>, T cutoff) {
+//}
 
-}
+//template<typename Kernel>
+//void NonsilenceOperatorCpuImpl::SetupKernel(int nthreads, int nsamples) {
+//  kernel_manager_.Initialize<Kernel>();
+//  kernel_manager_.Resize(nthreads, nsamples);
+//}
 
-template<typename InputType, typename Kernel>
-void NonsilenceOperatorCpu::RunKernel(TensorView<CPUBackend, const InputType, 1> in, int nsamples, int nthreads, int sample_id) {
-
-  kernels::KernelContext kctx;
-  kernel_manager_.Initialize<Kernel>();
-  kernel_manager_.Resize(nthreads, nsamples);
-  auto reqs = kernel_manager_.Setup<Kernel>(sample_id, kctx, in);
-  reqs.output_shapes[0];
-//  assert(intermediate_buffers_.size() == reqs.output_shapes[0].num_samples());
-//  for(int i=0;i<reqs.output_shapes[0];i++) {
-//  }
-
-}
+//template<typename InputType, typename Kernel>
+//void NonsilenceOperatorCpuImpl::RunKernel(TensorView<CPUBackend, const InputType, 1> in, int nsamples, int nthreads, int sample_id, int thread_id) {
+//
+//  kernels::KernelContext kctx;
+//
+//  auto reqs = kernel_manager_.Setup<Kernel>(sample_id, kctx, in);
+//  intermediate_buffers_[sample_id].Resize(reqs.output_shapes[0][sample_id]);
+//  auto out = view_as_tensor<float>(intermediate_buffers_[sample_id]);
+//  kernel_manager_.Run(thread_id, sample_id, kctx, out, in, {2048,-1});
+//  cout<<"JUZ\n";
+//
+//}
 
 
 
