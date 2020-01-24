@@ -28,7 +28,7 @@ can be externally provided as `mean` and `stddev` arguments.
 
 The normalization is done following the formula::
 
-out = scale * (in - mean) / stddev + shift
+    out = scale * (in - mean) / stddev + shift
 
 The expression assumes that *out*, *in* are equally shaped tensors whereas *mean* and *stddev*
 may be either tensors of same shape or scalars or a mix of these. The expression follows
@@ -43,6 +43,8 @@ in the batch.
 )")
   .NumInput(1)
   .NumOutput(1)
+  .SupportVolumetric()
+  .AllowSequences()
   .AddOptionalArg("batch", "If True, the mean and standard deviation are calculated across tensors "
     "in the batch. This also requires that the input sample shapes in the non-averaged axes match.",
     false)
