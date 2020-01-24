@@ -1078,6 +1078,54 @@ auto collapse_dim(const TensorShape<ndim> &shape, int dim_idx) {
   return ret;
 }
 
+
+
+/**
+ * @brief Collapse blocks of dims in the shape based on shape_blocks descritpion
+ *
+ * If the dimension is not covered by the shape_blocks it is not collapsed.
+ *
+ * Allows to collapse more the one dimension in one go.
+ * For example shape = [2, 4, 10, 30, 3]; shape_blocks = {{0, 2}, {2, 3}} will return: [8, 90].
+ *
+ * @param shape Shape to be collapsed
+ * @param shape_blocks Description of blocks in shape {starting_dimension_idx, length}.
+ *                     Expected to be sorted, does not require entries describing blocks of
+ *                     length 1.
+ * @return Collapsed shape
+ */
+template <int out_ndim = DynamicDimensions, int ndim>
+TensorShape<out_ndim> collapse_dims(const TensorShape<ndim> &shape,
+                                    span<const std::pair<int, int>> shape_blocks) {
+  TensorShape<out_ndim> result;
+  int covered_elements = 0;
+  for (const auto &block : shape_blocks) {
+    covered_elements += block.second;
+  }
+  int result_length = shape_blocks.size() + shape.size() - covered_elements;
+  result.resize(result_length);
+  int current_src_dim = 0;
+  int block_idx = 0;
+  for (int i = 0; i < result_length; i++) {
+    if (block_idx < shape_blocks.size() && current_src_dim == shape_blocks[block_idx].first) {
+      assert(current_src_dim == shape_blocks[block_idx].first);
+      result[i] = 1;
+      auto block_start = shape_blocks[block_idx].first;
+      auto block_end = shape_blocks[block_idx].first + shape_blocks[block_idx].second;
+      for (int j = block_start; j < block_end; j++) {
+        result[i] *= shape[j];
+      }
+      current_src_dim = shape_blocks[block_idx].first + shape_blocks[block_idx].second;
+      block_idx++;
+    } else {
+      result[i] = shape[current_src_dim];
+      current_src_dim++;
+    }
+  }
+  assert(volume(result) == volume(shape));
+  return result;
+}
+
 }  // namespace dali
 
 #endif  // DALI_CORE_TENSOR_SHAPE_H_

@@ -86,8 +86,7 @@ def check_transpose_vs_numpy(device, batch_size, shape):
                       batch_size=batch_size, N_iterations=10)
 
 def test_transpose_vs_numpy():
-    # TODO(janton) Transpose not implemented for CPU
-    for device in {'gpu'}:
+    for device in {'cpu', 'gpu'}:
         for batch_size in {1, 3}:
             for shape in {(2048, 512, 1), (2048, 512, 3), (2048, 512, 8)}:
                 yield check_transpose_vs_numpy, device, batch_size, shape
@@ -115,7 +114,7 @@ def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
 def test_transpose_layout():
     batch_size = 3
     in_layout = "HWC"
-    for device in {'gpu'}:
+    for device in {'cpu', 'gpu'}:
         for batch_size in (1, 3):
             for shape in [(600, 400, 3), (600, 400, 1)]:
                 for permutation, transpose_layout, out_layout_arg in \
