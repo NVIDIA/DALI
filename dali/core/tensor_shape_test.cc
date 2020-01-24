@@ -947,7 +947,6 @@ TEST(TensorListShapeTest, ConvertDim) {
 using shape_blocks_t = SmallVector<std::pair<int, int>, 6>;
 
 TEST(TensorShapeTest, CollapseDimsEmpty) {
-  auto perm = std::vector<int>{};
   auto groups = shape_blocks_t{};
   auto result = collapse_dims(TensorShape<>{}, make_cspan(groups));
   auto expected = TensorShape<>{};
@@ -955,7 +954,6 @@ TEST(TensorShapeTest, CollapseDimsEmpty) {
 }
 
 TEST(TensorShapeTest, CollapseDimsOneElem) {
-  auto perm = std::vector<int>{0};
   auto groups = shape_blocks_t{{0, 1}};
   auto result = collapse_dims(TensorShape<>{1}, make_cspan(groups));
   auto expected = TensorShape<>{1};
@@ -975,15 +973,13 @@ TEST(TensorShapeTest, CollapseDimsTwoElems) {
 }
 
 TEST(TensorShapeTest, CollapseDims) {
-  auto perm_0 = std::vector<int>{0, 1, 2};
   auto groups_0 = shape_blocks_t{{0, 3}};
   auto result_0 = collapse_dims(TensorShape<>{1, 2, 3}, make_cspan(groups_0));
   auto expected_0 = TensorShape<>{6};
   EXPECT_EQ(expected_0, result_0);
 
   auto groups_1 = shape_blocks_t{{0, 2}, {2, 1}};
-  auto result_1 = collapse_dims(TensorShape<>{1, 2, 3},
-                                                         make_cspan(groups_1));
+  auto result_1 = collapse_dims(TensorShape<>{1, 2, 3}, make_cspan(groups_1));
   auto expected_1 = TensorShape<>{2, 3};
   EXPECT_EQ(expected_1, result_1);
 
@@ -998,6 +994,48 @@ TEST(TensorShapeTest, CollapseDims) {
   EXPECT_EQ(expected_3, result_3);
 }
 
+TEST(TensorShapeTest, CollapseDimsSkip) {
+  auto groups_0 = shape_blocks_t{};
+  auto result_0 = collapse_dims(TensorShape<>{1, 2, 3}, make_cspan(groups_0));
+  auto expected_0 = TensorShape<>{1, 2, 3};
+  EXPECT_EQ(expected_0, result_0);
+
+  auto groups_1 = shape_blocks_t{{0, 1}};
+  auto result_1 = collapse_dims(TensorShape<>{1, 2, 3}, make_cspan(groups_1));
+  auto expected_1 = TensorShape<>{1, 2, 3};
+  EXPECT_EQ(expected_1, result_1);
+
+  auto groups_2 = shape_blocks_t{{1, 1}};
+  auto result_2 = collapse_dims(TensorShape<>{1, 2, 3}, make_cspan(groups_2));
+  auto expected_2 = TensorShape<>{1, 2, 3};
+  EXPECT_EQ(expected_2, result_2);
+
+  auto groups_3 = shape_blocks_t{{2, 1}};
+  auto result_3 = collapse_dims(TensorShape<>{1, 2, 3}, make_cspan(groups_3));
+  auto expected_3 = TensorShape<>{1, 2, 3};
+  EXPECT_EQ(expected_3, result_3);
+
+  auto groups_4 = shape_blocks_t{{0, 1}, {1, 1}, {2, 1}};
+  auto result_4 = collapse_dims(TensorShape<>{1, 2, 3}, make_cspan(groups_4));
+  auto expected_4 = TensorShape<>{1, 2, 3};
+  EXPECT_EQ(expected_4, result_4);
+
+  auto groups_5 = shape_blocks_t{{0, 1}, {2, 1}};
+  auto result_5 = collapse_dims(TensorShape<>{1, 2, 3}, make_cspan(groups_5));
+  auto expected_5 = TensorShape<>{1, 2, 3};
+  EXPECT_EQ(expected_5, result_5);
+
+  auto groups_6 = shape_blocks_t{{0, 2}, {3, 3}};
+  auto result_6 = collapse_dims(TensorShape<>{1, 2, 3, 4, 5, 6}, make_cspan(groups_6));
+  auto expected_6 = TensorShape<>{2, 3, 120};
+  EXPECT_EQ(expected_6, result_6);
+
+  auto groups_7 = shape_blocks_t{{0, 2}, {3, 3}};
+  auto result_7 = collapse_dims(TensorShape<>{1, 2, 3, 4, 5, 6, 7}, make_cspan(groups_7));
+  auto expected_7 = TensorShape<>{2, 3, 120, 7};
+  EXPECT_EQ(expected_7, result_7);
+}
+
 TEST(TensorShapeTest, CollapseDimsStatic) {
   auto perm_0 = std::vector<int>{0, 1, 2};
   auto groups_0 = shape_blocks_t{{0, 3}};
@@ -1006,8 +1044,7 @@ TEST(TensorShapeTest, CollapseDimsStatic) {
   EXPECT_EQ(expected_0, result_0);
 
   auto groups_1 = shape_blocks_t{{0, 2}, {2, 1}};
-  auto result_1 = collapse_dims<2>(TensorShape<3>{1, 2, 3},
-                                                         make_cspan(groups_1));
+  auto result_1 = collapse_dims<2>(TensorShape<3>{1, 2, 3}, make_cspan(groups_1));
   auto expected_1 = TensorShape<>{2, 3};
   EXPECT_EQ(expected_1, result_1);
 
@@ -1021,8 +1058,6 @@ TEST(TensorShapeTest, CollapseDimsStatic) {
   auto expected_3 = TensorShape<>{6, 4};
   EXPECT_EQ(expected_3, result_3);
 }
-
-
 
 TEST(TensorTest, WontCompile) {
   // TensorShape<5> static_shape_less(1, 2, 3, 4);
