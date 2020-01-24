@@ -222,6 +222,34 @@ void ExposeTensor(py::module &m) {
       String representing NumPy type of the Tensor.
       )code");
 }
+
+template <typename Backend>
+std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, Index id) {
+  if (id < 0) {
+    int num_tensors = static_cast<int>(t.ntensor());
+    if (id < -num_tensors)
+      throw py::index_error("TensorListCPU index out of range");
+    id = num_tensors + id;
+  }
+  std::unique_ptr<Tensor<Backend>> ptr(new Tensor<Backend>());
+  ptr->ShareData(&t, id);
+  return ptr;
+}
+
+template <typename Backend>
+py::list TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
+  size_t start, stop, step, slicelength;
+  if (!slice.compute(t.ntensor(), &start, &stop, &step, &slicelength))
+      throw py::error_already_set();
+  py::list list;
+  for (; start < stop; start += step) {
+      auto ptr = new Tensor<Backend>();
+      ptr->ShareData(&t, static_cast<int>(start));
+      list.append(ptr);
+  }
+  return py::cast<py::tuple>(list);
+}
+
 void ExposeTensorList(py::module &m) {
   // We only want to wrap buffers w/ TensorLists to feed then to
   // the backend. We do not support converting from TensorLists
@@ -299,11 +327,9 @@ void ExposeTensorList(py::module &m) {
       Parameters
       ----------
       )code")
-      .def("tensor",
+      .def("__getitem__",
         [](TensorList<CPUBackend> &t, Index id) -> std::unique_ptr<Tensor<CPUBackend>> {
-          std::unique_ptr<Tensor<CPUBackend>> ptr(new Tensor<CPUBackend>());
-          ptr->ShareData(&t, id);
-          return ptr;
+          return TensorListGetItemImpl(t, id);
         },
       R"code(
       Returns a tensor at given position in the list.
@@ -312,6 +338,16 @@ void ExposeTensorList(py::module &m) {
       ----------
       )code",
       py::keep_alive<0, 1>())
+      .def("__getitem__",
+        [](TensorList<CPUBackend> &t, py::slice slice) -> py::list {
+          return TensorListGetItemSliceImpl(t, slice);
+        },
+      R"code(
+      Returns a tensor at given position in the list.
+
+      Parameters
+      ----------
+      )code", py::keep_alive<1, 0>())  // 0: return value - 1: object ref
     .def("as_array", [](TensorList<CPUBackend> &t) -> py::array {
           void* raw_mutable_data = nullptr;
           std::string format;
@@ -467,14 +503,38 @@ void ExposeTensorList(py::module &m) {
       non_blocking : bool
             Asynchronous copy.
       )code")
-    .def("tensor",
+    .def("__getitem__",
         [](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
-          std::unique_ptr<Tensor<GPUBackend>> ptr(new Tensor<GPUBackend>());
-          ptr->ShareData(&t, id);
-          return ptr;
+          return TensorListGetItemImpl(t, id);
         },
       R"code(
       Returns a tensor at given position in the list.
+
+      Parameters
+      ----------
+      )code",
+      py::keep_alive<0, 1>())
+      .def("__getitem__",
+        [](TensorList<GPUBackend> &t, py::slice slice) -> py::list {
+          return TensorListGetItemSliceImpl(t, slice);
+        },
+      R"code(
+      Returns a tensor at given position in the list.
+
+      Parameters
+      ----------
+      )code", py::keep_alive<1, 0>())  // 0: return value - 1: object ref
+      .def("at",
+        [&](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
+          std::cout << "Warning: `TensorListGPU.at` is deprecated for `TensorListGPU.tensor`. "
+                       "It will be removed in future version of DALI."
+                       "Please make sure to update your projects with `tensor`"
+                    << std::endl;
+          return TensorListGetItemImpl(t, id);
+        },
+      R"code(
+      Returns a tensor at given position in the list.
+      Deprecated for __getitem__().
 
       Parameters
       ----------
