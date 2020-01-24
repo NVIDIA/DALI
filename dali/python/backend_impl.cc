@@ -237,7 +237,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
 }
 
 template <typename Backend>
-py::list TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
+py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
   size_t start, stop, step, slicelength;
   if (!slice.compute(t.ntensor(), &start, &stop, &step, &slicelength))
       throw py::error_already_set();
@@ -247,7 +247,7 @@ py::list TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
       ptr->ShareData(&t, static_cast<int>(start));
       list.append(ptr);
   }
-  return py::cast<py::tuple>(list);
+  return list;
 }
 
 void ExposeTensorList(py::module &m) {
@@ -526,9 +526,9 @@ void ExposeTensorList(py::module &m) {
       )code", py::keep_alive<1, 0>())  // 0: return value - 1: object ref
       .def("at",
         [&](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
-          std::cout << "Warning: `TensorListGPU.at` is deprecated for `TensorListGPU.tensor`. "
+          std::cout << "Warning: `TensorListGPU.at` is deprecated for `TensorListGPU.__getitem__`. "
                        "It will be removed in future version of DALI."
-                       "Please make sure to update your projects with `tensor`"
+                       "Please make sure to update your projects with the item access operator []"
                     << std::endl;
           return TensorListGetItemImpl(t, id);
         },

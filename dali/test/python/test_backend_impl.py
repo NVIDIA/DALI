@@ -44,11 +44,13 @@ def test_tensorlist_getitem():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
     assert(type(tensorlist.at(0)) == np.ndarray)
-    assert(type(tensorlist[0])) != np.ndarray)
+    assert(type(tensorlist[0]) != np.ndarray)
     assert(type(tensorlist[0]) == TensorCPU)
-    assert(type(tensorlist[-3] == TensorCPU)
+    assert(type(tensorlist[-3]) == TensorCPU)
 
 def test_tensorlist_getitem_slice():
+    arr = np.random.rand(3, 5, 6)
+    tensorlist = TensorListCPU(arr, "NHWC")
     two_first_tensors = tensorlist[0:2]
     assert(type(two_first_tensors) == tuple)
     assert(type(two_first_tensors[0]) == TensorCPU)
