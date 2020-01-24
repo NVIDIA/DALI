@@ -19,7 +19,7 @@ test_body() {
                   --ExecutePreprocessor.timeout=600 {}
   jupyter nbconvert --to notebook --inplace --execute \
                     --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                    --ExecutePreprocessor.timeout=600 use_cases/mxnet-resnet50.ipynb
+                    --ExecutePreprocessor.timeout=600 use_cases/mxnet/mxnet-resnet50.ipynb
 }
 
 pushd ../..
