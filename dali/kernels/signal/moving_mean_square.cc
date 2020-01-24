@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/kernels/signal/moving_mean_square.h"
+#include <vector>
 
 namespace dali {
 namespace kernels {
