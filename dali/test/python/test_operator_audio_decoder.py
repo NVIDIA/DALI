@@ -98,8 +98,8 @@ def test_decoded_vs_generated():
     for i in range(len(out[0])):
       plain = out[0].at(i)
       res = out[1].at(i)
-      mix = out[2].at(i)
-      res_mix = out[3].at(i)
+      mix = out[2].at(i)[:,np.newaxis]
+      res_mix = out[3].at(i)[:,np.newaxis]
 
       ref_len = [0,0,0,0]
       ref_len[0] = lengths[idx]
