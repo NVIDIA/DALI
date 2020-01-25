@@ -236,6 +236,7 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   return ptr;
 }
 
+#if 0  // TODO(spanev): figure out which return_value_policy to choose
 template <typename Backend>
 py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
   size_t start, stop, step, slicelength;
@@ -249,6 +250,7 @@ py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
   }
   return list;
 }
+#endif
 
 void ExposeTensorList(py::module &m) {
   // We only want to wrap buffers w/ TensorLists to feed then to
@@ -338,8 +340,9 @@ void ExposeTensorList(py::module &m) {
       ----------
       )code",
       py::keep_alive<0, 1>())
+#if 0  // TODO(spanev): figure out which return_value_policy to choose
       .def("__getitem__",
-        [](TensorList<CPUBackend> &t, py::slice slice) -> py::list {
+        [](TensorList<CPUBackend> &t, py::slice slice) -> py::tuple {
           return TensorListGetItemSliceImpl(t, slice);
         },
       R"code(
@@ -347,7 +350,8 @@ void ExposeTensorList(py::module &m) {
 
       Parameters
       ----------
-      )code", py::keep_alive<1, 0>())  // 0: return value - 1: object ref
+      )code")
+#endif
     .def("as_array", [](TensorList<CPUBackend> &t) -> py::array {
           void* raw_mutable_data = nullptr;
           std::string format;
@@ -514,8 +518,9 @@ void ExposeTensorList(py::module &m) {
       ----------
       )code",
       py::keep_alive<0, 1>())
+#if 0  // TODO(spanev): figure out which return_value_policy to choose
       .def("__getitem__",
-        [](TensorList<GPUBackend> &t, py::slice slice) -> py::list {
+        [](TensorList<GPUBackend> &t, py::slice slice) -> py::tuple {
           return TensorListGetItemSliceImpl(t, slice);
         },
       R"code(
@@ -523,7 +528,8 @@ void ExposeTensorList(py::module &m) {
 
       Parameters
       ----------
-      )code", py::keep_alive<1, 0>())  // 0: return value - 1: object ref
+      )code")
+#endif
       .def("at",
         [&](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
           std::cout << "Warning: `TensorListGPU.at` is deprecated for `TensorListGPU.__getitem__`. "
