@@ -1,6 +1,6 @@
 #!/bin/bash -e
 pip_packages=""
-target_dir=./docs/examples/tensorflow/demo
+target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {
     mkdir -p idx-files/
@@ -50,7 +50,7 @@ do_once() {
 
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do
-        python ../../../../tools/tfrecord2idx /data/imagenet/train-val-tfrecord-480-subset/${file} \
+        python ../../../../../tools/tfrecord2idx /data/imagenet/train-val-tfrecord-480-subset/${file} \
             idx-files/${file}.idx;
     done
 
