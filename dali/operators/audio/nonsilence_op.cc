@@ -147,4 +147,63 @@ DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
 
 
 
+
+
+
+
+
+
+
+
+
+//template<typename InputType>
+//std::pair<int, int> NonsilenceOperatorCpuImpl::DetectNonsilenceRegion(int thread_id, int sample_id,
+//                                           TensorView<StorageCPU, const InputType, 1> in,
+//                                           InputType cutoff) {
+//  SetupKernels(nthreads, nsamples);
+//  RunKernels(thread_id, sample_id, in, {3, -1}, {}); //TODO ARGS
+//  auto dbs = view_as_tensor<float>(to_db_kernel_.outputs_[sample_id]);
+//  return LeadTrailThresh(make_cspan(dbs.data, dbs.num_elements()), cutoff);
+//
+//}
+
+
+
+
+
+//template<typename T>
+//std::pair<int, int> NonsilenceOperatorCpuImpl::LeadTrailThresh(span<const T> buffer, T cutoff) {
+//  assert(buffer.size()>0);
+//  int begin = -1;
+//  int end = buffer.size();
+//  while (begin < end && buffer[++begin] < cutoff);  // NOLINT
+//  if (begin == end) return {-1, 0};
+//  while (buffer[--end] < cutoff);  // NOLINT
+//  return {begin, end - begin + 1};
+//}
+
+
+
+//void NonsilenceOperatorCpuImpl::SetupKernels(int nthreads, int nsamples) {
+//  mms_kernel_.Setup(nthreads, nsamples);
+//  to_db_kernel_.Setup(nthreads, nsamples);
+//}
+
+
+//template<typename InputType>
+//void NonsilenceOperatorCpuImpl::RunKernels(int thread_id, int sample_id, TensorView<StorageCPU, const InputType, 1> in,
+//                const MmsArgs &mms_args, const DbArgs &db_args) {
+//  mms_kernel_.Run(thread_id, sample_id, in, mms_args);
+//  auto db_in = view_as_tensor<const float>(mms_kernel_.outputs_[sample_id]).to_static<1>();
+//  to_db_kernel_.Run(thread_id, sample_id, db_in, db_args);
+//}
+
+
+
+
+
+
+
+
+
 }  // namespace dali
