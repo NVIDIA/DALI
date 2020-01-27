@@ -36,7 +36,7 @@ namespace normalize_impl {
 
 template <typename Out, typename In, typename Param>
 void normalize(Out *out, const In *in, int64_t count,
-               const Param *mean, const Param *scale, float shift) {
+               const Param *mean, const Param *scale, Param shift) {
   for (int64_t i = 0; i < count; i++) {
     out[i] = ConvertSat<Out>((in[i] - mean[i]) * scale[i] + shift);
   }
@@ -52,7 +52,7 @@ void normalize(Out *out, const In *in, int64_t count,
 
 template <typename Out, typename In, typename Param>
 void normalize_inner(Out *out, const In *in, int64_t nouter, int64_t ninner,
-                     const Param *mean, const Param *scale, float shift) {
+                     const Param *mean, const Param *scale, Param shift) {
   for (int64_t i = 0, k = 0; i < nouter; i++) {
     for (int64_t j = 0; j < ninner; j++, k++) {
       out[k] = ConvertSat<Out>((in[k] - mean[j]) * scale[j] + shift);
@@ -62,7 +62,7 @@ void normalize_inner(Out *out, const In *in, int64_t nouter, int64_t ninner,
 
 template <typename Out, typename In, typename Param>
 void normalize_outer(Out *out, const In *in, int64_t nouter, int64_t ninner,
-                     const Param *mean, const Param *scale, float shift) {
+                     const Param *mean, const Param *scale, Param shift) {
   for (int64_t i = 0, k = 0; i < nouter; i++) {
     Param m = mean[i], d = scale[i];
     for (int64_t j = 0; j < ninner; j++, k++) {
@@ -121,7 +121,7 @@ struct NormalizeCPU {
            const InTensorCPU<In, -1> &in,
            const InTensorCPU<Param, -1> &mean,
            const InTensorCPU<Param, -1> &scale,
-           float shift = 0) {
+           Param shift = 0) {
     (void)ctx;
 
     DALI_ENFORCE(mean.shape == scale.shape, make_string(
@@ -239,7 +239,7 @@ struct NormalizeCPU {
   const In *input_  = nullptr;;
   Out *output_ = nullptr;
   const Param *mean_, *scale_;
-  float shift_ = 0;
+  Param shift_ = 0;
 };
 
 }  // namespace kernels

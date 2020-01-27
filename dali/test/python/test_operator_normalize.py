@@ -4,6 +4,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
+from test_utils import dali_type
 
 def normalize(x, axes = None, mean = None, stddev = None):
     if type(axes) is list:
@@ -20,25 +21,6 @@ def normalize(x, axes = None, mean = None, stddev = None):
     with np.errstate(divide='ignore', invalid='ignore'):
         norm = (x - mean) / stddev
     return np.nan_to_num(norm, copy = False, nan = 0, posinf = 0, neginf = 0)
-
-def dali_type(t):
-    if t is None:
-        return None
-    if t is np.float32:
-        return types.FLOAT
-    if t is np.uint8:
-        return types.UINT8
-    if t is np.int8:
-        return types.INT8
-    if t is np.uint16:
-        return types.UINT16
-    if t is np.int16:
-        return types.INT16
-    if t is np.uint32:
-        return types.UINT32
-    if t is np.int32:
-        return types.INT32
-    raise "Unsupported type"
 
 def batch_reduced_vol(batch, axes):
     reduced_vol = 0
@@ -387,5 +369,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-

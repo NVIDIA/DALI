@@ -40,6 +40,30 @@ in `axes` or `axis_names`. If neither `axes` nor `axis_names` argument is
 present, the set of reduced axes is inferred by comparing input shape to the shape of
 mean/stddev arguments, but it is enforced that the set of reduced axes is the same for all tensors
 in the batch.
+
+Examples of valid argument combinations:
+
+1. Per-sample normalization of dimensions 0 and 2::
+
+    axes = 0,2                                        # optional
+    input.shape = [ [480, 640, 3], [1080, 1920, 4] ]
+    batch = False
+    mean.shape =  [ [1, 640, 1], [1, 1920, 1] ]
+    stddev = (not supplied)
+
+With these shapes, batch normalization is not possible, because the non-reduced dimension
+has different extent across samples.
+
+2. Batch normalization of dimensions 0 and 1::
+
+    axes = 0,1                                        # optional
+    input.shape = [ [480, 640, 3], [1080, 1920, 3] ]
+    batch = True
+    mean = (scalar)
+    stddev.shape =  [ [1, 1, 3] ] ]
+
+For color images, this normalizes the 3 color channels separately, but across all
+samples in the batch.
 )")
   .NumInput(1)
   .NumOutput(1)
@@ -113,14 +137,13 @@ void Normalize<CPUBackend>::FoldStdDev() {
   float rdiv = static_cast<float>(1.0 / v);
   auto sample0 = make_tensor_cpu(inv_stddev_.mutable_tensor<float>(0), inv_stddev_.shape()[0]);
   auto elems = sample0.num_elements();
-  int i = 0;
   ScaleRSqrtKeepZero(sample0.data, elems, rdiv, scale_);
 }
 
 template <>
 template <typename OutputType, typename InputType>
 void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
-  ThreadPool &TP = ws.GetThreadPool();
+  ThreadPool &tp = ws.GetThreadPool();
 
   auto &input = ws.InputRef<CPUBackend>(0);
   TensorListView<StorageCPU, const InputType> in_view = view<const InputType>(input);
@@ -155,7 +178,8 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
     }
   } else if (has_tensor_mean_) {
     mean_view = mean_input_;
-  } else if (ShouldCalcMean()) {
+  } else {
+    assert(ShouldCalcMean());
     mean_view = mutable_mean;
   }
 
@@ -176,7 +200,8 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
     mutable_stddev = view<float>(inv_stddev_);
     CalcInvStdDev(mutable_stddev, stddev_input_, scale_);
     inv_stddev_view = mutable_stddev;
-  } else if (ShouldCalcStdDev()) {
+  } else {
+    assert(ShouldCalcStdDev());
     inv_stddev_view = mutable_stddev;
   }
 
@@ -187,14 +212,14 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
   if (batch_norm_) {
     if (ShouldCalcMean()) {
       for (int i = 0; i < nsamples; i++) {
-        TP.DoWorkWithID([&, i](int thread_idx) {
+        tp.DoWorkWithID([&, i](int thread_idx) {
           kernels::Mean<float, InputType> mean;
           mean.Setup(mutable_mean[i], in_view[i], make_span(axes_));
           // Reset per-sample values, but don't postprocess
           mean.Run(true, false);
         });
       }
-      TP.WaitForWork();
+      tp.WaitForWork();
       // Aggregate and postprocess now
       FoldMeans();
     }
@@ -202,14 +227,14 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
     if (ShouldCalcStdDev()) {
       auto sample_mean = mean_view[0];
       for (int i = 0; i < nsamples; i++) {
-        TP.DoWorkWithID([&, i](int thread_idx) {
+        tp.DoWorkWithID([&, i](int thread_idx) {
           kernels::Variance<float, InputType> stddev;
           stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
           // Reset per-sample values, but don't postprocess
           stddev.Run(true, false);
         });
       }
-      TP.WaitForWork();
+      tp.WaitForWork();
       // Aggregate and postprocess now - use inverse square root.
       FoldStdDev();
     }
@@ -220,7 +245,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
 
 
   for (int i = 0; i < nsamples; i++) {
-    TP.DoWorkWithID([&, i](int thread_idx) {
+    tp.DoWorkWithID([&, i](int thread_idx) {
       auto sample_mean = mean_view.num_samples() == 1 || batch_norm_
                               ? mean_view[0]
                               : mean_view[i];
@@ -255,7 +280,7 @@ void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
     });
   }
 
-  TP.WaitForWork();
+  tp.WaitForWork();
 }
 
 

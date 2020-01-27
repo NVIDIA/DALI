@@ -192,3 +192,23 @@ class ConstantDataIterator(object):
         return (batch)
 
     next = __next__
+
+
+def dali_type(t):
+    if t is None:
+        return None
+    if t is np.float32:
+        return types.FLOAT
+    if t is np.uint8:
+        return types.UINT8
+    if t is np.int8:
+        return types.INT8
+    if t is np.uint16:
+        return types.UINT16
+    if t is np.int16:
+        return types.INT16
+    if t is np.uint32:
+        return types.UINT32
+    if t is np.int32:
+        return types.INT32
+    raise "Unsupported type: " + str(t)

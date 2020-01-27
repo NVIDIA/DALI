@@ -251,7 +251,7 @@ class Normalize : public Operator<Backend> {
   }
 
   void AllocTempStorage() {
-    const TypeInfo &Float = TypeTable::GetTypeInfo(DALI_FLOAT);
+    const TypeInfo &float_type = TypeTable::GetTypeInfo(DALI_FLOAT);
     int n = data_shape_.num_samples();
     const TensorListShape<> &tmp_shape = batch_norm_
       ? uniform_list_shape(n, param_shape_[0])  // extend to all samples, to enable parallelism
@@ -290,8 +290,8 @@ class Normalize : public Operator<Backend> {
         }
       }
     }
-    mean_.set_type(Float);
-    inv_stddev_.set_type(Float);
+    mean_.set_type(float_type);
+    inv_stddev_.set_type(float_type);
   }
 
   void FoldMeans();
