@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter numpy matplotlib torch torchvision"
+pip_packages="pillow==6.2.2 jupyter numpy matplotlib torch torchvision"
 target_dir=./docs/examples
 
 test_body() {
