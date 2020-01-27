@@ -2,7 +2,7 @@
 
 # used pip packages
 pip_packages="jupyter matplotlib numpy"
-target_dir=./docs/examples
+target_dir=./docs/examples/general
 
 test_body() {
     test_files=("multigpu.ipynb")

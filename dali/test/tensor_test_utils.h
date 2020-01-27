@@ -146,6 +146,20 @@ struct Equal {
 };
 
 
+struct EqualRelative {
+  EqualRelative() = default;
+
+  explicit EqualRelative(double eps) : eps(eps) {}
+
+  template<typename T1, typename T2>
+  bool operator()(const T1 &a, const T2 &b) {
+    return std::abs(a - b) <= eps * std::max<double>(std::abs(a), std::abs(b));
+  }
+
+  double eps = 1e-5;
+};
+
+
 struct EqualEps {
   EqualEps() = default;
 

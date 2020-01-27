@@ -8,7 +8,7 @@ function CLEAN_AND_EXIT {
     exit $1
 }
 
-cd /opt/dali/docs/examples/pytorch/resnet50
+cd /opt/dali/docs/examples/use_cases/pytorch/resnet50
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 

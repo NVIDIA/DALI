@@ -20,6 +20,16 @@
 namespace dali {
 namespace kernels {
 
+template <typename T, typename U>
+T Permute(const T& in, const U& permutation) {
+  T out = in;
+  for (size_t i = 0; i < permutation.size(); i++) {
+    auto idx = permutation[i];
+    out[i] = in[idx];
+  }
+  return out;
+}
+
 template <typename Shape>
 DALI_HOST_DEV
 Shape GetStrides(const Shape& shape) {

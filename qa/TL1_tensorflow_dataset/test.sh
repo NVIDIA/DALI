@@ -24,7 +24,7 @@ test_body() {
         nosetests --verbose -s test_dali_tf_dataset_mnist.py
 
         # DALI TF Notebooks run
-        pushd ../../../docs/examples/tensorflow/
+        pushd ../../../docs/examples/frameworks/tensorflow/
         jupyter nbconvert tensorflow-dataset.ipynb \
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \

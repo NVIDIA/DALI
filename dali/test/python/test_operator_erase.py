@@ -29,7 +29,7 @@ from test_utils import get_dali_extra_path
 
 class ErasePipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator,
-                 anchor, shape, axis_names, axes,
+                 anchor, shape, axis_names, axes, fill_value,
                  normalized_anchor=False, normalized_shape=False,
                  num_threads=1, device_id=0, num_gpus=1):
         super(ErasePipeline, self).__init__(batch_size, num_threads, device_id)
@@ -37,21 +37,14 @@ class ErasePipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        if axis_names:
-            self.erase = ops.Erase(device = self.device,
-                                   anchor = anchor,
-                                   shape = shape,
-                                   axis_names = axis_names,
-                                   normalized_anchor=normalized_anchor,
-                                   normalized_shape=normalized_shape)
-        else:
-            self.erase = ops.Erase(device = self.device,
-                                   anchor = anchor,
-                                   shape = shape,
-                                   axes = axes,
-                                   normalized_anchor=normalized_anchor,
-                                   normalized_shape=normalized_shape)
-
+        self.erase = ops.Erase(device = self.device,
+                               anchor = anchor,
+                               shape = shape,
+                               axis_names = axis_names,
+                               axes = axes,
+                               fill_value = fill_value,
+                               normalized_anchor = normalized_anchor,
+                               normalized_shape = normalized_shape)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -91,11 +84,14 @@ def get_regions(in_layout, in_shape, axes, arg_anchor, arg_shape):
         ends.append(end_i)
     return (starts, ends)
 
-def erase_func(anchor, shape, axis_names, axes, layout, image):
+def erase_func(anchor, shape, axis_names, axes, layout, fill_value, image):
     assert len(anchor) == len(shape)
 
     if not axes:
         axes = get_axes(layout, axis_names)
+
+    if not fill_value:
+        fill_value = 0
 
     roi_starts, roi_ends = get_regions(layout, image.shape, axes, anchor, shape)
     assert(len(roi_starts) == len(roi_ends))
@@ -104,16 +100,16 @@ def erase_func(anchor, shape, axis_names, axes, layout, image):
         end = roi_ends[region_idx]
         assert(len(start) == len(end))
         if len(start) == 3:
-            image[start[0]:end[0], start[1]:end[1], start[2]:end[2]] = 0
+            image[start[0]:end[0], start[1]:end[1], start[2]:end[2]] = fill_value
         elif len(start) == 4:
-            image[start[0]:end[0], start[1]:end[1], start[2]:end[2], start[3]:end[3]] = 0
+            image[start[0]:end[0], start[1]:end[1], start[2]:end[2], start[3]:end[3]] = fill_value
         else:
             assert(False)
     return image
 
 class ErasePythonPipeline(Pipeline):
     def __init__(self, function, batch_size, data_layout, iterator,
-                 anchor, shape, axis_names, axes,
+                 anchor, shape, axis_names, axes, fill_value,
                  erase_func=erase_func,
                  num_threads=1, device_id=0):
         super(ErasePythonPipeline, self).__init__(batch_size,
@@ -125,7 +121,7 @@ class ErasePythonPipeline(Pipeline):
         self.inputs = ops.ExternalSource()
         self.data_layout = data_layout
 
-        function = partial(erase_func, anchor, shape, axis_names, axes, data_layout)
+        function = partial(erase_func, anchor, shape, axis_names, axes, data_layout, fill_value)
 
         self.erase = ops.PythonFunction(function=function)
 
@@ -140,37 +136,40 @@ class ErasePythonPipeline(Pipeline):
 
 
 def check_operator_erase_vs_python(device, batch_size, input_shape,
-                                   anchor, shape, axis_names, axes, input_layout):
+                                   anchor, shape, axis_names, axes, input_layout, fill_value):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
-        ErasePipeline(device, batch_size, input_layout, iter(eii1),
-                      anchor=anchor, shape=shape, axis_names=axis_names, axes=axes),
-        ErasePythonPipeline(device, batch_size, input_layout, iter(eii2),
-                            anchor=anchor, shape=shape, axis_names=axis_names, axes=axes),
+        ErasePipeline(device, batch_size, input_layout, iter(eii1), anchor=anchor,
+                      shape=shape, axis_names=axis_names, axes=axes, fill_value=fill_value),
+        ErasePythonPipeline(device, batch_size, input_layout, iter(eii2), anchor=anchor,
+                            shape=shape, axis_names=axis_names, axes=axes, fill_value=fill_value),
         batch_size=batch_size, N_iterations=5, eps=1e-04)
 
 
 def test_operator_erase_vs_python():
-    # layout, shape, axis_names, axes, anchor, shape
-    rois = [("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50)),
-            ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50)),
-            ("HWC", (60, 80, 3), "H", None, (4,), (7,)),
-            ("HWC", (60, 80, 3), "H", None, (4, 15), (7, 8)),
-            ("HWC", (60, 80, 3), "W", None, (4,), (7,)),
-            ("HWC", (60, 80, 3), "W", None, (4, 15), (7, 8)),
-            ("HWC", (60, 80, 3), None, (0, 1), (4, 10), (40, 50)),
-            ("HWC", (60, 80, 3), None, (0, 1), (4, 2, 3, 4), (50, 10, 10, 50)),
-            ("HWC", (60, 80, 3), None, (0,), (4,), (7,)),
-            ("HWC", (60, 80, 3), None, (0,), (4, 15), (7, 8)),
-            ("HWC", (60, 80, 3), None, (1,), (4,), (7,)),
-            ("HWC", (60, 80, 3), None, (1,), (4, 15), (7, 8)),
-            ("DHWC", (10, 60, 80, 3), "DHW", None, (2, 4, 15), (3, 7, 8)),
-            ("HWC", (60, 80, 1), "HW", None, (4, 15), (7, 8))]
+    # layout, shape, axis_names, axes, anchor, shape, fill_value
+    rois = [("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50), 0),
+            ("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50), None),
+            ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), -1),
+            ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), (118, 185, 0)),
+            ("HWC", (60, 80, 3), "H", None, (4,), (7,), 0),
+            ("HWC", (60, 80, 3), "H", None, (4, 15), (7, 8), 0),
+            ("HWC", (60, 80, 3), "W", None, (4,), (7,), 0),
+            ("HWC", (60, 80, 3), "W", None, (4, 15), (7, 8), 0),
+            ("HWC", (60, 80, 3), None, (0, 1), (4, 10), (40, 50), 0),
+            ("HWC", (60, 80, 3), None, (0, 1), (4, 2, 3, 4), (50, 10, 10, 50), 0),
+            ("HWC", (60, 80, 3), None, (0,), (4,), (7,), 0),
+            ("HWC", (60, 80, 3), None, (0,), (4, 15), (7, 8), 0),
+            ("HWC", (60, 80, 3), None, (1,), (4,), (7,), 0),
+            ("HWC", (60, 80, 3), None, (1,), (4, 15), (7, 8), 0),
+            ("DHWC", (10, 60, 80, 3), "DHW", None, (2, 4, 15), (3, 7, 8), 0),
+            ("HWC", (60, 80, 1), "HW", None, (4, 15), (7, 8), 0),
+            ("XYZ", (60, 80, 3), "XY", None, (4, 10), (40, 50), -1),]
 
     for device in ['cpu']:
         for batch_size in [1, 8]:
-            for input_layout, input_shape, axis_names, axes, anchor, shape in rois:
+            for input_layout, input_shape, axis_names, axes, anchor, shape, fill_value in rois:
                 assert len(input_layout) == len(input_shape)
                 assert len(anchor) == len(shape)
                 if axis_names:
@@ -181,7 +180,7 @@ def test_operator_erase_vs_python():
                     assert len(anchor) % len(axes) == 0
 
                 yield check_operator_erase_vs_python, device, batch_size, input_shape, \
-                    anchor, shape, axis_names, axes, input_layout
+                    anchor, shape, axis_names, axes, input_layout, fill_value
 
 def check_operator_erase_with_normalized_coords(device, batch_size, input_shape,
                                                 anchor, shape, axis_names, input_layout,
@@ -192,23 +191,26 @@ def check_operator_erase_with_normalized_coords(device, batch_size, input_shape,
         ErasePipeline(device, batch_size, input_layout, iter(eii1),
                       anchor=anchor_norm, shape=shape_norm,
                       normalized_anchor=normalized_anchor, normalized_shape=normalized_shape,
-                      axis_names=axis_names, axes=None),
+                      axis_names=axis_names, axes=None, fill_value = 0),
         ErasePipeline(device, batch_size, input_layout, iter(eii1),
-                      anchor=anchor, shape=shape, axis_names=axis_names, axes=None),
+                      anchor=anchor, shape=shape, axis_names=axis_names, axes=None, fill_value = 0),
         batch_size=batch_size, N_iterations=5, eps=1e-04)
 
 
 def test_operator_erase_with_normalized_coords():
     # layout, shape, axis_names, anchor, shape, anchor_norm, shape_norm
-    rois = [("HWC", (60, 80, 3), "HW", (4, 10), (40, 50), (4/60.0, 10/80.0), (40/60.0, 50/80.0)),
-            ("HWC", (60, 80, 3), "HW", (4, 2, 3, 4), (50, 10, 10, 50), (4/60.0, 2/80.0, 3/60.0, 4/80.0), (50/60.0, 10/80.0, 10/60.0, 50/80.0)),
-            ("HWC", (60, 80, 3), "H", (4,), (7,), (4/60.0,), (7/60.0,)),
-            ("DHWC", (10, 60, 80, 3), "DHW", (2, 4, 10), (5, 40, 50), (2/10.0, 4/60.0, 10/80.0), (5/10.0, 40/60.0, 50/80.0)),
-            ("HWC", (60, 80, 1), "WH", (10, 4), (50, 40), (10/80.0, 4/60.0), (50/80.0, 40/60.0))]
+    rois = [("HWC", (60, 80, 3), "HW", (4, 10), (40, 50), (4/60.0, 10/80.0), (40/60.0, 50/80.0), 0),
+            ("HWC", (60, 80, 3), "HW", (4, 10), (40, 50), (4/60.0, 10/80.0), (40/60.0, 50/80.0), -1),
+            ("HWC", (60, 80, 3), "HW", (4, 10), (40, 50), (4/60.0, 10/80.0), (40/60.0, 50/80.0), (118, 186, 0)),
+            ("HWC", (60, 80, 3), "HW", (4, 2, 3, 4), (50, 10, 10, 50), (4/60.0, 2/80.0, 3/60.0, 4/80.0), (50/60.0, 10/80.0, 10/60.0, 50/80.0), 0),
+            ("HWC", (60, 80, 3), "H", (4,), (7,), (4/60.0,), (7/60.0,), 0),
+            ("DHWC", (10, 60, 80, 3), "DHW", (2, 4, 10), (5, 40, 50), (2/10.0, 4/60.0, 10/80.0), (5/10.0, 40/60.0, 50/80.0), 0),
+            ("HWC", (60, 80, 1), "WH", (10, 4), (50, 40), (10/80.0, 4/60.0), (50/80.0, 40/60.0), 0),
+            ("XYZ", (60, 80, 3), "X", (4,), (7,), (4/60.0,), (7/60.0,), -10),]
 
     for device in ['cpu']:
         for batch_size in [1, 8]:
-            for input_layout, input_shape, axis_names, anchor, shape, anchor_norm, shape_norm in rois:
+            for input_layout, input_shape, axis_names, anchor, shape, anchor_norm, shape_norm, fill_value in rois:
                 assert len(input_layout) == len(input_shape)
                 assert len(anchor) == len(shape)
                 assert len(anchor) % len(axis_names) == 0

@@ -16,7 +16,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <functional>
 
 #include "dali/operators/generic/transpose/transpose.h"
 #include "dali/core/error_handling.h"
@@ -31,57 +30,6 @@ namespace dali {
   }                                                            \
 } while (0)
 
-namespace detail {
-
-void RowToColumnMajor(int *dims,
-                      int *perm,
-                      size_t len) {
-  std::reverse(dims, dims + len);
-  std::reverse(perm, perm + len);
-  for (size_t i = 0; i < len; ++i)
-    perm[i] = len - 1 - perm[i];
-}
-
-// enough to represent batches of 4D
-using VecInt = SmallVector<int, 5>;
-
-void PrepareArguments(VecInt &shape,
-                      VecInt &perm) {
-  DALI_ENFORCE(shape.size() == perm.size());
-
-  // cuTT does not handle dimensions with size 1 so we remove them
-  // (H, W, 1) is equivalent to (H, W)
-  auto it_shape = shape.begin();
-  auto it_perm = perm.begin();
-  VecInt erased;
-  while (it_shape != shape.end()) {
-    if (*it_shape == 1) {
-      erased.push_back(*it_perm);
-      it_shape = shape.erase(it_shape);
-      it_perm = perm.erase(it_perm);
-    } else {
-      ++it_shape;
-      ++it_perm;
-    }
-  }
-  // when some permutation element is erased all elements positions after it should be decreased
-  // by one like it doesn't exist at all
-  // sort elements to erase in descending order so we avoid situations like
-  // erased(0, 2), perm(3, 1) -> perm(2, 0) while it should be (1, 0)
-  std::sort(erased.begin(), erased.end(), std::greater<int>());
-  for (auto &pos : erased) {
-    for (auto &elm : perm) {
-       if (elm > pos) {
-         --elm;
-       }
-    }
-  }
-
-  RowToColumnMajor(shape.data(), perm.data(), shape.size());
-}
-
-}  // namespace detail
-
 namespace kernel {
 
 template <typename T>
@@ -91,15 +39,15 @@ void cuTTKernel(const TensorList<GPUBackend>& input,
                 cudaStream_t stream) {
   int batch_size = static_cast<int>(input.ntensor());
   for (int i = 0; i < batch_size; ++i) {
-    detail::VecInt shape;
+    transpose_detail::VecInt shape;
     for (auto s : input.tensor_shape(i))
       shape.push_back(s);
 
-    detail::VecInt perm;
+    transpose_detail::VecInt perm;
     for (auto p : permutation)
       perm.push_back(p);
 
-    detail::PrepareArguments(shape, perm);
+    transpose_detail::PrepareArguments(shape, perm, true);
 
     const void* in = input.raw_tensor(0);
     void* out = output.raw_mutable_tensor(0);
@@ -123,17 +71,17 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
                        cuttHandle* plan,
                        cudaStream_t stream) {
   int batch_size = static_cast<int>(input.ntensor());
-  detail::VecInt shape;
+  transpose_detail::VecInt shape;
   shape.push_back(batch_size);
   for (auto &s : input.tensor_shape(0))
     shape.push_back(s);
 
-  detail::VecInt perm;
+  transpose_detail::VecInt perm;
   perm.push_back(0);
   for (auto p : permutation)
     perm.push_back(p+1);
 
-  detail::PrepareArguments(shape, perm);
+  transpose_detail::PrepareArguments(shape, perm, true);
 
   if (*plan == 0) {
     cuttCheck(cuttPlan(plan,
@@ -150,74 +98,73 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
 }
 }  // namespace kernel
 
-template <>
-Transpose<GPUBackend>::~Transpose() noexcept {
-  if (cutt_handle_ > 0) {
-    auto err = cuttDestroy(cutt_handle_);
-    if (err != CUTT_SUCCESS) {
-      // Something terrible happened. Just quit now, before you'll loose your life or worse...
-      std::terminate();
-    }
-  }
-}
 
+class TransposeGPU : public Transpose<GPUBackend> {
+ public:
+  explicit inline TransposeGPU(const OpSpec &spec) : Transpose(spec) {}
 
-template<>
-void Transpose<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  const auto& input = ws.Input<GPUBackend>(0);
-  auto& output = ws.Output<GPUBackend>(0);
+  void RunImpl(DeviceWorkspace &ws) override {
+    const auto& input = ws.Input<GPUBackend>(0);
+    auto& output = ws.Output<GPUBackend>(0);
 
-  TypeInfo itype = input.type();
-  DALI_ENFORCE((itype.size() == 1 || itype.size() == 2 || itype.size() == 4 || itype.size() == 8),
-      "cuTT transpose supports only [1-2-4-8] bytes types.");
+    TypeInfo itype = input.type();
+    DALI_ENFORCE((itype.size() == 1 || itype.size() == 2 || itype.size() == 4 || itype.size() == 8),
+        "cuTT transpose supports only [1-2-4-8] bytes types.");
 
-  output.set_type(itype);
-  output.SetLayout(output_layout_);
+    output.SetLayout(output_layout_);
 
-  auto input_shape = input.tensor_shape(0);
-  DALI_ENFORCE(input_shape.size() == static_cast<int>(perm_.size()),
-               "Transposed tensors rank should be equal to the permutation index list.");
+    auto input_shape = input.tensor_shape(0);
+    DALI_ENFORCE(input_shape.size() == static_cast<int>(perm_.size()),
+                "Transposed tensors rank should be equal to the permutation index list.");
 
-  if (input.IsDenseTensor()) {
-    if (cutt_handle_ != 0) {
-      if (input_shape != previous_iter_shape_) {
-        cuttCheck(cuttDestroy(cutt_handle_));
-        cutt_handle_ = 0;
+    if (input.IsDenseTensor()) {
+      if (cutt_handle_ != 0) {
+        if (input_shape != previous_iter_shape_) {
+          cuttCheck(cuttDestroy(cutt_handle_));
+          cutt_handle_ = 0;
+          previous_iter_shape_ = input_shape;
+        }
+      } else {
         previous_iter_shape_ = input_shape;
       }
+      if (itype.size() == 1) {
+        kernel::cuTTKernelBatched<uint8_t>(input, output, perm_, &cutt_handle_, ws.stream());
+      } else if (itype.size() == 2) {
+        kernel::cuTTKernelBatched<uint16_t>(input, output, perm_, &cutt_handle_, ws.stream());
+      } else if (itype.size() == 4) {
+        kernel::cuTTKernelBatched<int32_t>(input, output, perm_, &cutt_handle_, ws.stream());
+      } else {  // itype.size() == 8
+        kernel::cuTTKernelBatched<int64_t>(input, output, perm_, &cutt_handle_, ws.stream());
+      }
     } else {
-      previous_iter_shape_ = input_shape;
-    }
-    auto permuted_dims = detail::Permute(input_shape, perm_);
-    output.Resize(uniform_list_shape(batch_size_, permuted_dims));
-    if (itype.size() == 1) {
-      kernel::cuTTKernelBatched<uint8_t>(input, output, perm_, &cutt_handle_, ws.stream());
-    } else if (itype.size() == 2) {
-      kernel::cuTTKernelBatched<uint16_t>(input, output, perm_, &cutt_handle_, ws.stream());
-    } else if (itype.size() == 4) {
-      kernel::cuTTKernelBatched<int32_t>(input, output, perm_, &cutt_handle_, ws.stream());
-    } else {  // itype.size() == 8
-      kernel::cuTTKernelBatched<int64_t>(input, output, perm_, &cutt_handle_, ws.stream());
-    }
-  } else {
-    std::vector<TensorShape<>> tl_shape;
-    for (int i = 0; i < batch_size_; ++i) {
-      auto in_shape = input.tensor_shape(i);
-      tl_shape.emplace_back(detail::Permute(in_shape, perm_));
-    }
-    output.Resize(tl_shape);
-    if (itype.size() == 1) {
-      kernel::cuTTKernel<uint8_t>(input, output, perm_, ws.stream());
-    } else if (itype.size() == 2) {
-      kernel::cuTTKernel<uint16_t>(input, output, perm_, ws.stream());
-    } else if (itype.size() == 4) {
-      kernel::cuTTKernel<int32_t>(input, output, perm_, ws.stream());
-    } else {  // itype.size() == 8
-      kernel::cuTTKernel<int64_t>(input, output, perm_, ws.stream());
+      if (itype.size() == 1) {
+        kernel::cuTTKernel<uint8_t>(input, output, perm_, ws.stream());
+      } else if (itype.size() == 2) {
+        kernel::cuTTKernel<uint16_t>(input, output, perm_, ws.stream());
+      } else if (itype.size() == 4) {
+        kernel::cuTTKernel<int32_t>(input, output, perm_, ws.stream());
+      } else {  // itype.size() == 8
+        kernel::cuTTKernel<int64_t>(input, output, perm_, ws.stream());
+      }
     }
   }
-}
 
-DALI_REGISTER_OPERATOR(Transpose, Transpose<GPUBackend>, GPU);
+  ~TransposeGPU() {
+    if (cutt_handle_ > 0) {
+      auto err = cuttDestroy(cutt_handle_);
+      if (err != CUTT_SUCCESS) {
+        // Something terrible happened. Just quit now, before you'll loose your life or worse...
+        std::terminate();
+      }
+    }
+  }
+
+ private:
+  cuttHandle cutt_handle_ = 0;
+  // used by dense TL cuttHandle
+  TensorShape<> previous_iter_shape_;
+};
+
+DALI_REGISTER_OPERATOR(Transpose, TransposeGPU, GPU);
 
 }  // namespace dali

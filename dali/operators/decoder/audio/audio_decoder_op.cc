@@ -39,7 +39,8 @@ This operator produces two outputs:
           "50 gives 16 lobes and 100 gives 64 lobes.",
           50.0f, false)
   .AddOptionalArg("downmix",
-          "If True, downmix all input channels to mono.", false)
+          "If True, downmix all input channels to mono. "
+          "If downmixing is turned on, decoder will produce always 1-D output", false)
   .AddOptionalArg("dtype",
           "Type of the output data. Supports types: `INT16`, `INT32`, `FLOAT`", DALI_FLOAT);
 
@@ -72,14 +73,19 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
   // On the event something else would emerge,
   // this approach should be completely redefined
   TensorListShape<> shape_rate(batch_size, 1);
-  TensorListShape<> shape_data(batch_size, 2);
+  TensorListShape<> shape_data(batch_size, downmix_ ? 1 : 2);
 
   for (int i = 0; i < batch_size; i++) {
     auto meta = decoders_[i]->Open({reinterpret_cast<const char *>(input[i].raw_mutable_data()),
                                     input[i].shape().num_elements()});
     sample_meta_[i] = meta;
     int64_t out_length = OutputLength(meta.length, meta.sample_rate, i);
-    TensorShape<> data_sample_shape = { out_length, downmix_ ? 1 : meta.channels, };
+    TensorShape<> data_sample_shape;
+    if (downmix_) {
+      data_sample_shape = {out_length};
+    } else {
+      data_sample_shape = {out_length, meta.channels};
+    }
 
     shape_data.set_tensor_shape(i, data_sample_shape);
     shape_rate.set_tensor_shape(i, {1});
@@ -97,9 +103,11 @@ span<char> as_raw_span(T *buffer, ptrdiff_t length) {
   return make_span(reinterpret_cast<char*>(buffer), length*sizeof(T));
 }
 
-template <typename OutputType>
-void AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, 2> &audio,
-                                   int thread_idx, int sample_idx) {
+
+template<typename OutputType>
+void
+AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, DynamicDimensions> &audio,
+                              int thread_idx, int sample_idx) {
   const AudioMetadata &meta = sample_meta_[sample_idx];
 
   auto &tmp_buf = intermediate_buffers_[thread_idx];
@@ -155,7 +163,7 @@ void AudioDecoderCpu::DecodeSample(const TensorView<StorageCPU, OutputType, 2> &
 
 template <typename OutputType>
 void AudioDecoderCpu::DecodeBatch(workspace_t<Backend> &ws) {
-  auto decoded_output = view<OutputType, 2>(ws.template OutputRef<Backend>(0));
+  auto decoded_output = view<OutputType, DynamicDimensions>(ws.template OutputRef<Backend>(0));
   auto sample_rate_output = view<float, 1>(ws.template OutputRef<Backend>(1));
   int batch_size = decoded_output.shape.num_samples();
   auto &tp = ws.GetThreadPool();
