@@ -244,7 +244,7 @@ CMD cmake \
   -DBUILD_NVDEC=OFF \
   -DBUILD_LIBSND=ON \
   -DBUILD_NVML=OFF \
-  -DBUILD_FFTS=OFF \
+  -DBUILD_FFTS=ON \
   -DVERBOSE_LOGS=OFF \
   .. && \
   make install -j"$(grep ^processor /proc/cpuinfo | wc -l)"

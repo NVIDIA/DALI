@@ -21,4 +21,4 @@
 	url = https://github.com/dmlc/dlpack.git
 [submodule "third_party/ffts"]
 	path = third_party/ffts
-	url = https://github.com/anthonix/ffts
+	url = https://github.com/JanuszL/ffts
