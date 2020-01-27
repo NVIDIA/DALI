@@ -72,17 +72,31 @@ def get_package(package_data, key, cuda):
     else:
         return None
 
+def test_request(req, name, cuda):
+    req = name.format(req, cuda_v = "cu" + cuda)
+    request = Request(req)
+    request.get_method = lambda : 'HEAD'
+    try:
+        response = urlopen(request)
+        return req
+    except HTTPError:
+        return None
+
 def get_pyvers_name(name, cuda):
-    for v in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and 'any' not in y]:
-        v = "-".join(v)
-        v = name.format(v, cuda_v = "cu" + cuda)
-        request = Request(v)
-        request.get_method = lambda : 'HEAD'
-        try:
-             response = urlopen(request)
-             return v
-        except HTTPError:
-             pass
+    if isinstance(p.get_supported()[0], tuple):
+        # old PIP returns tuple
+        for v in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and 'any' not in y]:
+            v = "-".join(v)
+            ret = test_request(v, name, cuda)
+            if ret:
+                return ret
+    else:
+        # new PIP returns object
+        for t in [tag for tag in p.get_supported() if tag.abi != 'none' and tag.platform != 'any']:
+            t = str(t)
+            ret = test_request(t, name, cuda)
+            if ret:
+                return ret
     return ""
 
 def print_configs(cuda):
