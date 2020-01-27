@@ -47,16 +47,12 @@ NvDecoder::NvDecoder(int device_id,
                      int max_height,
                      int max_width,
                      int additional_decode_surfaces)
-    : device_id_(device_id), stream_(device_id, false, 0), codecpar_(codecpar),
+    : device_id_(device_id), stream_(device_id, false, 0),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
       device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
       current_recv_(), textures_(), stop_(false) {
-  if (!codecpar) {
-    // TODO(spanev) explicit handling
-    return;
-  }
 
   DALI_ENFORCE(cuInitChecked(),
     "Failed to load libcuda.so. "
@@ -338,8 +334,14 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   return kNvcuvid_success;
 }
 
-int NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base) {
-  switch (codecpar_->codec_type) {
+int NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base,
+                             const CodecParameters* codecpar) {
+  AVMediaType codec_type = AVMEDIA_TYPE_VIDEO;
+  // if they are null we are flushing the decoder and we don't want the bellow check
+  if (pkt && codecpar) {
+    codec_type = codecpar->codec_type;
+  }
+  switch (codec_type) {
     case AVMEDIA_TYPE_AUDIO:
     case AVMEDIA_TYPE_VIDEO:
       return decode_av_packet(pkt, start_time, stream_base);
