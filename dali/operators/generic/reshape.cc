@@ -33,7 +33,7 @@ DALI_SCHEMA(Reshape)
   .AddOptionalArg<int>("shape", "The desired shape of the output. Number of dimensions "
                   "must not exceed the number of dimensions of the input. There can be one "
                   "negative extent which receives the size required to match the input volume, "
-                  "e.g. input of shape `[480, 640, 3]` and `rel_shape = [240, -1]` would get the "
+                  "e.g. input of shape `[480, 640, 3]` and `shape = [240, -1]` would get the "
                   "shape [240, 3840].\n"
                   "NOTE: `rel_shape` and `shape` are mutually exclusive.",
                   std::vector<int>(), true)
