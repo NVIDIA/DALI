@@ -14,6 +14,11 @@
 
 from __future__ import absolute_import
 
+# we need to have that defined and accessible before any other DALI import
+__version__ = '@DALI_VERSION@'
+__cuda_version__ = int('@CUDA_VERSION@'.replace('.', ''))
+__git_sha__ = '@GIT_SHA@'
+
 from . import ops
 from . import pipeline
 from . import tensors
@@ -22,5 +27,3 @@ from . import tfrecord
 from . import types
 from . import plugin_manager
 from . import sysconfig
-
-__version__ = '@DALI_VERSION@'
