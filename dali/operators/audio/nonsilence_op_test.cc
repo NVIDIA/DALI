@@ -15,7 +15,6 @@
 #include <gtest/gtest.h>
 #include <utility>
 #include <random>
-//#include "dali/kernels/signal/moving_mean_square.h"
 #include "dali/operators/audio/nonsilence_op.h"
 #include "dali/test/tensor_test_utils.h"
 
@@ -23,110 +22,59 @@ namespace dali {
 namespace testing {
 
 class NonsilenceOpTest : public ::testing::Test {
- public:
-  NonsilenceOpTest() {
-//    input_.resize(shape_.num_elements());
-  }
-
-
-  struct TestData {
-    std::vector<float> input;
-    std::vector<float> ref_mms;
-    std::vector<float> ref_db;
-    int nonsilence_start, nonsilence_length;
-  };
-
+ protected:
 
   void SetUp() final {
-    FillInputAndReference();
+    impl_.nthreads_ = 1;
+    impl_.nsamples_ = 1;
   }
 
 
-  std::vector<float> input_;
-  std::pair<int, int> nonsilence_region_;
-//  std::vector<float> ref_output_;
-//  int window_size_ = 2048;
+  std::vector<float> input_{0, 0, 0, 0, 1000, -1000, 1000, 0, 0, 0};
+  int window_size_ = 3;
+  std::vector<float> mms_ref_{0, 0, 333333.344, 666666.688, 1000000, 666666.688, 333333.344, 0};
+  std::vector<float> db_ref_{-80, -80, 55.2287903, 58.23909, 60.0000038, 58.23909, 55.2287903, -80};
+  std::pair<int, int> nonsilence_region_{2, 5};
   int buffer_length_ = 10;
-//  int reset_interval_ = 5001;
   TensorShape<1> shape_ = {buffer_length_};
-//  TensorShape<kNDims> out_shape_ = {buffer_length_ - window_size_ + 1};
+  NonsilenceOperatorCpuImpl impl_;
 
- private:
-
-  void FillInputAndReference() {
-    const int nrolls = 10000;
-    nonsilence_region_ = {2, 4};
-    std::default_random_engine generator{42};
-    std::normal_distribution<double> distribution(5.0, .1);
-    input_.resize(buffer_length_);
-    for (int i = 0; i < nrolls; ++i) {
-      double number = distribution(generator);
-      if ((number >= 0) && (number < buffer_length_)) input_[int(number)]++;
-    }
-  }
-//  void calc_output() {
-//    ref_output_.resize(buffer_length_ - window_size_);
-//    for (int i = 0; i <= buffer_length_ - window_size_; i++) {
-//      float sumsq = 0;
-//      for (int j = 0; j < window_size_; j++) {
-//        auto val = static_cast<float>(input_[i + j]);
-//        sumsq += val * val;
-//      }
-//      ref_output_[i] = sumsq / window_size_;
-//    }
-//  }
-
-
-//  template<typename RNG, typename T = InputType>
-//  std::enable_if_t<std::is_signed<T>::value>
-//  FillInput(RNG &rng) {
-//    UniformRandomFill(input_, rng, -100, 100);
-//  }
-
-
-//  template<typename RNG, typename T = InputType>
-//  std::enable_if_t<!std::is_signed<T>::value>
-//  FillInput(RNG &rng) {
-//    UniformRandomFill(input_, rng, 0, 100);
-//  }
 };
-
-using TestedKernel = kernels::signal::MovingMeanSquareCpu<float>;
 
 
 TEST_F(NonsilenceOpTest, UnderlyingKernelsTest) {
-  NonsilenceOperatorCpuImpl ns_op;
+  auto &ns_op = this->impl_;
   ns_op.SetupKernels(1, 1);
   auto in = make_tensor_cpu(reinterpret_cast<const float *>(this->input_.data()), this->shape_);
-  kernels::signal::MovingMeanSquareArgs mms_args{3, -1};
+  kernels::signal::MovingMeanSquareArgs mms_args{this->window_size_, -1};
   kernels::signal::ToDecibelsArgs<float> db_args{};
-  ns_op.RunKernels( 0, 0,in, mms_args, db_args);
+  ns_op.RunKernels(0, 0, in, mms_args, db_args);
 
   auto &mms_output = ns_op.mms_kernel_.outputs_;
   auto &db_output = ns_op.to_db_kernel_.outputs_;
 
-  std::vector<float> mms_ref = {0, 0, 8544656, 16669312, 16669312, 8124656, 0, 0};
-  std::vector<float> db_ref = {-80, -80, 69.3169479, 72.2191849, 72.2191849, 69.098053, -80, -80};
 
-  ASSERT_EQ(mms_ref.size(), mms_output[0].size());
-  for (int i = 0; i < mms_ref.size(); i++) {
-    EXPECT_FLOAT_EQ(mms_ref[i], mms_output[0].data<float>()[i]);
+  ASSERT_EQ(this->mms_ref_.size(), mms_output[0].size());
+  for (size_t i = 0; i < this->mms_ref_.size(); i++) {
+    EXPECT_FLOAT_EQ(this->mms_ref_[i], mms_output[0].data<float>()[i]);
   }
 
-  ASSERT_EQ(db_ref.size(), db_output[0].size());
-  for (int i = 0; i < db_ref.size(); i++) {
-    EXPECT_FLOAT_EQ(db_ref[i], db_output[0].data<float>()[i]);
+  ASSERT_EQ(this->db_ref_.size(), db_output[0].size());
+  for (size_t i = 0; i < this->db_ref_.size(); i++) {
+    EXPECT_FLOAT_EQ(this->db_ref_[i], db_output[0].data<float>()[i]);
   }
 
 
 }
+
 
 TEST_F(NonsilenceOpTest, DetectNonsilenceRegionTest) {
-  NonsilenceOperatorCpuImpl ns_op;
+  auto &ns_op = this->impl_;
   auto in = make_tensor_cpu(reinterpret_cast<const float *>(this->input_.data()), this->shape_);
-  auto nonsilence_region = ns_op.DetectNonsilenceRegion<float>(0,0,in, 0);
+  auto nonsilence_region = ns_op.DetectNonsilenceRegion<float>(0, 0, in, 0);
   ASSERT_EQ(nonsilence_region, nonsilence_region_);
 }
+
 
 TEST_F(NonsilenceOpTest, LeadTrailThreshTest) {
   std::vector<float> t0 = {0, 0, 0, 0, 0, 1.5, -100, 1.5};
