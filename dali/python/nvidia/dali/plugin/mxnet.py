@@ -37,7 +37,7 @@ def _wait_to_write(arr):
         raise RuntimeError("Can only wait for NDArray")
     mx.base._LIB.MXNDArrayWaitToWrite(arr.handle)
 
-def _feed_ndarray(dali_tensor, arr):
+def feed_ndarray(dali_tensor, arr):
     """
     Copy contents of DALI tensor to MXNet's NDArray.
 
@@ -324,9 +324,9 @@ class DALIGenericIterator(_DALIIteratorBase):
                         l[j] = mx.nd.zeros(shape, l[j].context, dtype = dtype)
 
             for j, d_arr in enumerate(d):
-                _feed_ndarray(category_tensors[DALIGenericIterator.DATA_TAG][j], d_arr)
+                feed_ndarray(category_tensors[DALIGenericIterator.DATA_TAG][j], d_arr)
             for j, l_arr in enumerate(l):
-                _feed_ndarray(category_tensors[DALIGenericIterator.LABEL_TAG][j], l_arr)
+                feed_ndarray(category_tensors[DALIGenericIterator.LABEL_TAG][j], l_arr)
 
         for p in self._pipes:
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
@@ -623,11 +623,11 @@ class DALIGluonIterator(_DALIIteratorBase):
             for j, output_el in enumerate(output_elements):
                 if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
                     ndarray = batch[j].resize(shapes[j])
-                    _feed_ndarray(output_el, ndarray)
+                    feed_ndarray(output_el, ndarray)
                 else:
                     for sample_idx in range(self.batch_size):
                         ndarray = batch[j][sample_idx].resize(shapes[j][sample_idx])
-                        _feed_ndarray(output_el[sample_idx], ndarray)
+                        feed_ndarray(output_el[sample_idx], ndarray)
 
         batches = [[([sample.array for sample in output_el] if isinstance(output_el,list) else output_el.array)
                     for output_el in batch]
