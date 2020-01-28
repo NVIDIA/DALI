@@ -31,6 +31,7 @@ extern "C" {
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <list>
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
@@ -72,15 +73,26 @@ std::vector<dali::file_meta> get_file_label_pair(const std::string& path,
 
 }  // namespace filesystem
 
-struct OpenFile {
-  bool open = false;
+struct VideoFileDesc {
+  FILE *file_stream = nullptr;
+  uint64_t file_position = 0;
+  std::string filename;
+  ~VideoFileDesc() {
+    if (file_stream) {
+      fclose(file_stream);
+      file_stream = nullptr;
+    }
+  }
+};
+
+struct VideoFile {
   AVRational frame_base_;
   AVRational stream_base_;
-  int64_t start_time_;
-  int frame_count_;
+  int64_t start_time_ = 0;
+  int frame_count_ = -1;
 
-  int vid_stream_idx_;
-  int last_frame_;
+  int vid_stream_idx_ = -1;
+  int last_frame_ = -1;
 
 #if HAVE_AVBSFCONTEXT
   av_unique_ptr<AVBSFContext> bsf_ctx_;
@@ -92,9 +104,12 @@ struct OpenFile {
   };
   using bsf_ptr = std::unique_ptr<AVBitStreamFilterContext, BSFDeleter>;
   bsf_ptr bsf_ctx_;
-  AVCodecContext* codec;
+  AVCodecContext* codec = nullptr;
 #endif
   av_unique_ptr<AVFormatContext> fmt_ctx_;
+
+  VideoFileDesc file_desc;
+  bool empty() const noexcept { return file_desc.filename.empty(); }
 };
 
 struct VideoLoaderStats {
@@ -185,8 +200,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   void PrepareEmpty(SequenceWrapper &tensor) override;
   void ReadSample(SequenceWrapper &tensor) override;
 
-  OpenFile& get_or_open_file(const std::string &filename);
-  void seek(OpenFile& file, int frame);
+  VideoFile& get_or_open_file(const std::string &filename);
+  void seek(VideoFile& file, int frame);
   void read_file();
   void push_sequence_to_read(std::string filename, int frame, int count);
   void receive_frames(SequenceWrapper& sequence);
@@ -284,7 +299,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   bool file_list_frame_num_;
   VideoLoaderStats stats_;
 
-  std::unordered_map<std::string, OpenFile> open_files_;
+  std::unordered_map<std::string, VideoFile> open_files_;
+  std::string last_opened_;
   nvdecDriverHandle lib_handle_;
   std::unique_ptr<NvDecoder> vid_decoder_;
 

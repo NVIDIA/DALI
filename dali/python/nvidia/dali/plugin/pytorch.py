@@ -77,6 +77,10 @@ class DALIGenericIterator(object):
                  Each name should be distinct
     size : int
            Number of samples in the epoch (Usually the size of the dataset).
+           Providing -1 means that the iterator will work until StopIteration is raised
+           from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
+           `auto_reset` don't work in such case. It works with only one pipeline inside
+           the iterator.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -131,6 +135,12 @@ class DALIGenericIterator(object):
         self._dynamic_shape = dynamic_shape
         self._fill_last_batch = fill_last_batch
         self._last_batch_padded = last_batch_padded
+        assert self._size != 0, "Size cannot be 0"
+        assert self._size > 0 or (self._size < 0 and len(pipelines) == 1), "Negative size is supported only for a single pipeline"
+        if self._size < 0:
+            self._auto_reset = False
+            self._fill_last_batch = False
+            self._last_batch_padded = False
         self._pipes = pipelines
         # Build all pipelines
         for p in self._pipes:
@@ -156,7 +166,7 @@ class DALIGenericIterator(object):
             batch = self._first_batch
             self._first_batch = None
             return batch
-        if self._counter >= self._size:
+        if self._counter >= self._size and self._size > 0:
             if self._auto_reset:
                 self.reset()
             raise StopIteration
@@ -220,7 +230,7 @@ class DALIGenericIterator(object):
 
         self._counter += self._num_gpus * self.batch_size
 
-        if (not self._fill_last_batch) and (self._counter > self._size):
+        if (not self._fill_last_batch) and (self._counter > self._size) and self._size > 0:
             # First calculate how much data is required to return exactly self._size entries.
             diff = self._num_gpus * self.batch_size - (self._counter - self._size)
             # Figure out how many GPUs to grab from.
@@ -257,7 +267,7 @@ class DALIGenericIterator(object):
         DALI iterators do not support resetting before the end of the epoch
         and will ignore such request.
         """
-        if self._counter >= self._size:
+        if self._counter >= self._size or self._size < 0:
             if self._fill_last_batch and not self._last_batch_padded:
                 self._counter = self._counter % self._size
             else:
@@ -297,6 +307,10 @@ class DALIClassificationIterator(DALIGenericIterator):
                 List of pipelines to use
     size : int
            Number of samples in the epoch (Usually the size of the dataset).
+           Providing -1 means that the iterator will work until StopIteration is raised
+           from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
+           `auto_reset` don't work in such case. It works with only one pipeline inside
+           the iterator.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.

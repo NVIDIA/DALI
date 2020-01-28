@@ -165,7 +165,7 @@ RUN OGG_VERSION=1.3.4 && cd /tmp                                                
                                              --host=aarch64-unknown-linux-gnu --prefix=/usr/aarch64-linux-gnu/ && \
     make -j"$(grep ^processor /proc/cpuinfo | wc -l)" && make install && \
     cd /tmp && rm -rf libogg-$OGG_VERSION
-    
+
 # libvorbis
 # Install after libogg
 RUN VORBIS_VERSION=1.3.6 && cd /tmp                                                   && \
@@ -221,7 +221,7 @@ CMD cmake \
   -DBUILD_NVDEC=OFF \
   -DBUILD_LIBSND=ON \
   -DBUILD_NVML=OFF \
-  -DBUILD_FFTS=OFF \
+  -DBUILD_FFTS=ON \
   -DVERBOSE_LOGS=OFF \
   ..  && \
   make -j"$(grep ^processor /proc/cpuinfo | wc -l)"

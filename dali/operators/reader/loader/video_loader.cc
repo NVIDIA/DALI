@@ -24,6 +24,7 @@
 #include <limits>
 #include <sstream>
 
+
 inline int gcd(int a, int b) {
   while (b) {
     int tmp = b;
@@ -211,19 +212,80 @@ typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
         || std::abs(x-y) < std::numeric_limits<T>::min();
 }
 
-OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
+static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
+  VideoFileDesc *file_data = static_cast<VideoFileDesc*>(opaque);
+
+  // open file if needed
+  if (!file_data->file_stream) {
+    file_data->file_stream = fopen(file_data->filename.c_str(), "r");
+    DALI_ENFORCE(file_data->file_stream, make_string("Could not open file ", file_data->filename));
+    fseek(file_data->file_stream, file_data->file_position, SEEK_SET);
+  }
+  return fread(buf, 1, buf_size, file_data->file_stream);
+}
+
+static int64_t seek_file(void *opaque, int64_t offset, int whence) {
+  VideoFileDesc *file_data = static_cast<VideoFileDesc*>(opaque);
+
+  // open file if needed
+  if (!file_data->file_stream) {
+    file_data->file_stream = fopen(file_data->filename.c_str(), "r");
+    DALI_ENFORCE(file_data->file_stream, make_string("Could not open file ", file_data->filename));
+    fseek(file_data->file_stream, file_data->file_position, SEEK_SET);
+  }
+  int ret = -1;
+  switch (whence) {
+    case SEEK_SET:
+    case SEEK_CUR:
+    case SEEK_END:
+      ret = fseek(file_data->file_stream, offset, whence);
+      break;
+    default:
+      break;
+  }
+  if (ret == 0) {
+    return ftell(file_data->file_stream);
+  } else {
+    // fseek may return > 0 but it is still an error
+    return -abs(ret);
+  }
+}
+
+VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
   auto& file = open_files_[filename];
 
-  if (!file.open) {
+  if (file.empty()) {
+    file.file_desc.filename = filename;
     LOG_LINE << "Opening file " << filename << std::endl;
 
-    AVFormatContext* raw_fmt_ctx = nullptr;
-    int ret = avformat_open_input(&raw_fmt_ctx, filename.c_str(), NULL, NULL);
-    if (ret < 0) {
-      DALI_FAIL(std::string("Could not open file ") + filename + " because of " + av_err2str(ret));
-    }
-    file.fmt_ctx_ = make_unique_av<AVFormatContext>(raw_fmt_ctx, avformat_close_input);
+    auto raw_fmt_ctx = std::unique_ptr<AVFormatContext, void(*)(AVFormatContext*)>(
+                                       avformat_alloc_context(), avformat_free_context);
 
+    DALI_ENFORCE(raw_fmt_ctx, "Failed to allocate avformat_alloc_context");
+
+    size_t avio_ctx_buffer_size = 4096;
+    auto avio_ctx_buffer = std::unique_ptr<uint8_t, void(*)(void*)>(
+                                       static_cast<uint8_t*>(av_malloc(avio_ctx_buffer_size)),
+                                       av_freep);
+
+    DALI_ENFORCE(avio_ctx_buffer, "Failed to allocate avio_ctx_buffer");
+
+    AVIOContext *avio_ctx = avio_alloc_context(avio_ctx_buffer.get(), avio_ctx_buffer_size,
+                                               0, &file.file_desc, &read_packet, NULL, &seek_file);
+    if (!avio_ctx) {
+      DALI_FAIL("Failed to allocate avio_alloc_context");
+    }
+    // avio_alloc_context succeeded and avio_ctx owns this memory now, so release from unique_ptr
+    avio_ctx_buffer.release();
+
+    raw_fmt_ctx->pb = avio_ctx;
+    AVFormatContext *tmp_raw_fmt_ctx = raw_fmt_ctx.release();
+    // if avformat_open_input fails it frees raw_fmt_ctx so we can release it from unique_ptr
+    int ret = avformat_open_input(&tmp_raw_fmt_ctx, NULL, NULL, NULL);
+    DALI_ENFORCE(ret <= 0, std::string("Could not open file ") + filename +
+                 " because of " + av_err2str(ret));
+
+    file.fmt_ctx_ = make_unique_av<AVFormatContext>(tmp_raw_fmt_ctx, avformat_close_input);
     LOG_LINE << "File open " << filename << std::endl;
 
     // is this needed?
@@ -248,7 +310,6 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
     if (file.vid_stream_idx_ < 0) {
       DALI_FAIL(std::string("Could not find video stream in ") + filename);
     }
-
 
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
     int width = codecpar(stream)->width;
@@ -348,7 +409,7 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
       if (!raw_bsf_ctx_) {
         DALI_FAIL("Error finding h264_mp4toannexb bit stream filter.");
       }
-      file.bsf_ctx_ = OpenFile::bsf_ptr{raw_bsf_ctx_};
+      file.bsf_ctx_ = VideoFile::bsf_ptr{raw_bsf_ctx_};
       file.codec = stream->codec;
 #endif
     } else {
@@ -356,7 +417,6 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
       err << "Unhandled codec " << codec_id << " in " << filename;
       DALI_FAIL(err.str());
     }
-    file.open = true;
   } else {
     /* Flush the bitstream filter handle when using mpeg4_unpack_bframes filter.
      * When mpeg4_unpack_bframe is used the filter handle stores information
@@ -369,10 +429,21 @@ OpenFile& VideoLoader::get_or_open_file(const std::string &filename) {
       av_bsf_flush(file.bsf_ctx_.get());
     }
   }
+
+  // close the previous file if there was any open
+  if (last_opened_.size() && last_opened_ != filename) {
+    auto& old_file = open_files_[last_opened_];
+    if (old_file.file_desc.file_stream) {
+      old_file.file_desc.file_position = ftell(old_file.file_desc.file_stream);
+      fclose(old_file.file_desc.file_stream);
+      old_file.file_desc.file_stream = nullptr;
+    }
+  }
+  last_opened_ = filename;
   return file;
 }
 
-void VideoLoader::seek(OpenFile& file, int frame) {
+void VideoLoader::seek(VideoFile& file, int frame) {
     auto seek_time = av_rescale_q(frame, file.frame_base_, file.stream_base_) + file.start_time_;
     LOG_LINE << "Seeking to frame " << frame << " timestamp " << seek_time << std::endl;
 
@@ -412,6 +483,7 @@ void VideoLoader::read_file() {
     }
 
     auto& file = get_or_open_file(req.filename);
+    auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
     req.frame_base = file.frame_base_;
 
     if (vid_decoder_) {
@@ -526,7 +598,8 @@ void VideoLoader::read_file() {
         }
         while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
           auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
-          vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_);
+          vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_,
+                                      codecpar(stream));
         }
         if (ret != AVERROR(EAGAIN)) {
           DALI_FAIL(std::string("BSF receive packet failed:") + av_err2str(ret));
@@ -563,21 +636,23 @@ void VideoLoader::read_file() {
           }
           *pkt.get() = fpkt;
         }
-        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_);
+        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
+                                    codecpar(stream));
 #endif
       } else {
-        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_);
+        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
+                                    codecpar(stream));
       }
       is_first_frame = false;
     }
 
     // flush the decoder
-    vid_decoder_->decode_packet(nullptr, 0, {0});
+    vid_decoder_->decode_packet(nullptr, 0, {0}, 0);
   }  // while not done
 
   if (vid_decoder_) {
     // stop decoding
-    vid_decoder_->decode_packet(nullptr, 0, {0});
+    vid_decoder_->decode_packet(nullptr, 0, {0}, 0);
   }
   LOG_LINE << "Leaving read_file" << std::endl;
 }
