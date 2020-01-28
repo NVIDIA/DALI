@@ -208,7 +208,7 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
     assert len(set(next_mirrored_data)) == 1
 
 def test_gluon_iterator_last_batch_no_pad_last_batch():
-    from nvidia.dali.plugin.mxnet import DALIGluonGenericIterator as GluonIterator
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     num_gpus = 1
     batch_size = 100
 
@@ -226,7 +226,7 @@ def test_gluon_iterator_last_batch_no_pad_last_batch():
     assert len(set(mirrored_data)) != 1
 
 def test_gluon_iterator_last_batch_pad_last_batch():
-    from nvidia.dali.plugin.mxnet import DALIGluonGenericIterator as GluonIterator
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     num_gpus = 1
     batch_size = 100
 
@@ -253,7 +253,7 @@ def test_gluon_iterator_last_batch_pad_last_batch():
     assert len(set(next_mirrored_data)) == 1
 
 def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
-    from nvidia.dali.plugin.mxnet import DALIGluonGenericIterator as GluonIterator
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     num_gpus = 1
     batch_size = 100
 
@@ -281,7 +281,7 @@ def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
     assert len(set(next_mirrored_data)) != 1
 
 def test_gluon_iterator_sparse_batch():
-    from nvidia.dali.plugin.mxnet import DALIGluonGenericIterator as GluonIterator
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     from mxnet.ndarray.ndarray import NDArray
     num_gpus = 1
     batch_size = 16
@@ -554,7 +554,7 @@ def test_stop_iteration_mxnet_fail_single():
     check_stop_iter_fail_single(fw_iter)
 
 def test_stop_iteration_gluon():
-    from nvidia.dali.plugin.mxnet import DALIGluonGenericIterator as GluonIterator
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     test_stop_iteration(lambda pipe, size, auto_reset : GluonIterator(pipe, [GluonIterator.DENSE_TAG], size=size, auto_reset=auto_reset), "GluonIterator")
 
 def test_stop_iteration_pytorch():

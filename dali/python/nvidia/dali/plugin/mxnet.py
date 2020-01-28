@@ -116,6 +116,10 @@ class _DALIIteratorBase(mx.io.DataIter):
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
 
+    @property
+    def size(self):
+        return self._size
+
 ###################################################
 ###################################################
 ################## MXNet Sym API ##################
@@ -486,11 +490,11 @@ class SmartArray(object):
         return self._view
 
 
-class DALIGluonGenericIterator(_DALIIteratorBase):
+class DALIGluonIterator(_DALIIteratorBase):
     """
     General DALI iterator for MXNet with Gluon API. It can return any number of
     outputs from the DALI pipeline in the form of per GPU tuples of NDArray
-    of NDArrays or list of NDArrays (for output marked as DALIGluonGenericIterator.SPARSE_TAG).
+    of NDArrays or list of NDArrays (for output marked as DALIGluonIterator.SPARSE_TAG).
 
 
 
@@ -513,10 +517,10 @@ class DALIGluonGenericIterator(_DALIIteratorBase):
                  uniform (all the samples have the same size) or not. Batch output marked
                  as the former will be returned as a single NDArray, the latter
                  will be returned as a list of NDArray.
-                 Must be either DALIGluonGenericIterator.DENSE_TAG
-                 or DALIGluonGenericIterator.SPARSE_TAG.
+                 Must be either DALIGluonIterator.DENSE_TAG
+                 or DALIGluonIterator.SPARSE_TAG.
                  Length of output_types must match the number of the pipeline(s) output.
-                 If not set, all output are considered as DALIGluonGenericIterator.DENSE_TAG.
+                 If not set, all output are considered as DALIGluonIterator.DENSE_TAG.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -556,7 +560,7 @@ class DALIGluonGenericIterator(_DALIIteratorBase):
                  auto_reset=False,
                  fill_last_batch=True,
                  last_batch_padded=False):
-        super(DALIGluonGenericIterator, self).__init__(
+        super(DALIGluonIterator, self).__init__(
             pipelines,
             size,
             fill_last_batch,
@@ -570,8 +574,8 @@ class DALIGluonGenericIterator(_DALIIteratorBase):
                 p.build()
         self._data_batches = [None for i in range(self._num_gpus)]
         self._counter = 0
-        self._output_tags = {DALIGluonGenericIterator.DENSE_TAG, DALIGluonGenericIterator.SPARSE_TAG}
-        assert outputs_types is None or set(output_types) <= self._output_tags, \
+        self._output_tags = {DALIGluonIterator.DENSE_TAG, DALIGluonIterator.SPARSE_TAG}
+        assert output_types is None or set(output_types) <= self._output_tags, \
             "Only DENSE_TAG and SPARSE_TAG are allowed"
 
         self._outputs_types = output_types
@@ -603,11 +607,11 @@ class DALIGluonGenericIterator(_DALIIteratorBase):
             output_elements = []
             shapes = []
             for j, out in enumerate(dali_outputs[i]):
-                if self._outputs_types is None or self._outputs_types[j] == DALIGluonGenericIterator.DENSE_TAG:
+                if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
                     output_elements.append(out.as_tensor())
                     shapes.append(output_elements[-1].shape())
                 else:
-                    output_elements.append([out.tensor(sample_idx) for sample_idx in range(self.batch_size)])
+                    output_elements.append([out[sample_idx] for sample_idx in range(self.batch_size)])
                     s = [t.shape() for t in output_elements[-1]]
                     shapes.append(s)
 
@@ -617,7 +621,7 @@ class DALIGluonGenericIterator(_DALIIteratorBase):
             batch = self._data_batches[i]
             # Copy data from DALI Tensors to MXNet NDArrays
             for j, output_el in enumerate(output_elements):
-                if self._outputs_types is None or self._outputs_types[j] == DALIGluonGenericIterator.DENSE_TAG:
+                if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
                     ndarray = batch[j].resize(shapes[j])
                     _feed_ndarray(output_el, ndarray)
                 else:
@@ -663,10 +667,10 @@ class DALIGluonGenericIterator(_DALIIteratorBase):
         from nvidia.dali.backend import TensorGPU
         new_batch = []
         for j, output_el in enumerate(output_elements):
-            first_t = output_el if self._outputs_types[j] == DALIGluonGenericIterator.DENSE_TAG else output_el[0]
+            first_t = output_el if self._outputs_types[j] == DALIGluonIterator.DENSE_TAG else output_el[0]
             dtype = np.dtype(first_t.dtype())
             device = mx_gpu_device if type(first_t) is TensorGPU else mx_cpu_device
-            if self._outputs_types[j] == DALIGluonGenericIterator.DENSE_TAG:
+            if self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
                 new_batch.append(SmartArray(mx.nd.zeros(shapes[j], device, dtype=dtype)))
             else:
                 l = []
