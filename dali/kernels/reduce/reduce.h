@@ -271,8 +271,9 @@ struct ReduceBase {
 
   void CheckOutput() {
     if (axis_mask == static_cast<uint64_t>((1 << ndim()) - 1)) {
-      DALI_ENFORCE(output.shape == TensorShape<1>{1}, make_string(
-        "Full reduction produces a single value. Output shape provided: ", output.shape));
+      DALI_ENFORCE((output.dim() == 1 || output.dim() == input.dim()) && output.num_elements() == 1,
+        make_string("Full reduction produces a single value (possibly keeping reduced dimensions)."
+        "\nOutput shape provided: ", output.shape));
     } else {
       TensorShape<> expected1, expected2 = input.shape;
       for (int i = 0; i < input.dim(); i++) {
@@ -420,9 +421,9 @@ struct Variance : ReduceBase<Dst, Src, Variance<Dst, Src, MeanType>> {
   InTensorCPU<MeanType, -1> mean;
 
   void Setup(const OutTensorCPU<Dst, -1> &out,
-             const InTensorCPU<Dst, -1> &in,
+             const InTensorCPU<Src, -1> &in,
              span<const int> axes,
-             const InTensorCPU<Dst, -1> &mean) {
+             const InTensorCPU<MeanType, -1> &mean) {
     assert(mean.shape == out.shape);
     Base::Setup(out, in, axes);
     this->mean = mean;
@@ -449,9 +450,9 @@ struct StdDev : ReduceBase<Dst, Src, StdDev<Dst, Src, MeanType>> {
   InTensorCPU<MeanType, -1> mean;
 
   void Setup(const OutTensorCPU<Dst, -1> &out,
-             const InTensorCPU<Dst, -1> &in,
+             const InTensorCPU<Src, -1> &in,
              span<const int> axes,
-             const InTensorCPU<Dst, -1> &mean) {
+             const InTensorCPU<MeanType, -1> &mean) {
     assert(mean.shape == out.shape);
     Base::Setup(out, in, axes);
     this->mean = mean;

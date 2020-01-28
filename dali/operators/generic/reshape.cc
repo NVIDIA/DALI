@@ -46,7 +46,7 @@ DALI_SCHEMA(Reshape)
                                 std::vector<float>(), true)
   .AddOptionalArg("layout", "New layout for the data. If not specified, the output layout is "
                   "preserved if number of dimension matches existing layout or reset to empty "
-                  "otherwise. If set and not empty, the layout must match the dimesnionality of "
+                  "otherwise. If set and not empty, the layout must match the dimensionality of "
                   "the output.",
                   "");
 

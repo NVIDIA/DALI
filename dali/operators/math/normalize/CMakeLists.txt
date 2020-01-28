@@ -13,8 +13,6 @@
 # limitations under the License.
 
 # Get all the source files and dump test files
-add_subdirectory(expressions)
-add_subdirectory(normalize)
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
