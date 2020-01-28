@@ -270,7 +270,7 @@ class TensorVector {
       tl_->Reset();
       tl_->ResizeLike(*tv->tl_);
     }
-    int N = tl_->ntensor();
+    int N = tv->ntensor();
     tensors_.clear();
     views_count_ = 0;
     allocate_tensors(N);
