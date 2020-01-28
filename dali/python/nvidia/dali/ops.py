@@ -27,13 +27,6 @@ from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
 
 
-cupy = None
-def _setup_cupy():
-    global cupy
-    if cupy is None:
-        import cupy as cupy
-
-
 class _EdgeReference(object):
     def __init__(self, name, device="cpu", source=None):
         self.name = name
@@ -115,10 +108,8 @@ _cpu_ops = set({})
 _gpu_ops = set({})
 _mixed_ops = set({})
 
-def _numpydoc_formatter(name, type, doc, optional = False):
+def _numpydoc_formatter(name, type, doc):
     indent = "\n" + " " * 4
-    if optional:
-        type += ", optional"
     return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
 
 def _get_kwargs(schema, only_tensor = False):
@@ -128,9 +119,9 @@ def _get_kwargs(schema, only_tensor = False):
     `schema`
         the schema in which to lookup arguments
     `only_tensor`: bool
-        If True list only keyword arguments that can be passed as TensorLists (argument inputs)
+        If True list only keyword arguments that can be passed as Tensors (argument inputs)
         If False list all the arguments. False indicates that we list arguments to the
-        constructor of the operator which does not accept TensorLists (argument inputs) - that
+        constructor of the operator which does not accept Tensors (argument inputs) - that
         fact will be reflected in specified type
     """
     ret = ""
@@ -224,8 +215,7 @@ Args
 ----
 """
     for i in range(schema.MaxNumInput()):
-        optional = i >= schema.MinNumInput()
-        ret += _numpydoc_formatter(schema.GetInputName(i), schema.GetInputType(i), schema.GetInputDox(i), optional)
+        ret += _numpydoc_formatter(schema.GetInputName(i), schema.GetInputType(i), schema.GetInputDox(i))
         ret += "\n"
     ret += "\n"
     return ret
@@ -233,13 +223,13 @@ Args
 def _docstring_prefix_auto(op_name):
     """
         Generate start of the docstring for `__call__` of Operator `op_name`
-        with default values. Assumes there will be 0 or 1 inputs
+        with default values. Assumes ther will be 0 or 1 inputs
     """
     schema = b.GetSchema(op_name)
     if schema.MaxNumInput() == 0:
         return """__call__(**kwargs)
 
-Operator call to be used in `define_graph` step. This operator does not accept any TensorList inputs.
+Operator call to be used in `define_graph` step. This operator does not accept any Tensor inputs.
 """
     elif schema.MaxNumInput() == 1:
         return """__call__(data, **kwargs)
@@ -248,7 +238,7 @@ Operator call to be used in `define_graph` step.
 
 Args
 ----
-`data`: TensorList
+`data`: Tensor
     Input to the operator.
 """
     return ""
@@ -609,6 +599,62 @@ def python_op_factory(name, op_device = "cpu"):
     # Operator.__call__.__doc__ = _docstring_generator_call(name)
     return Operator
 
+
+def _to_snake_case(camel):
+    out = ""
+    nupper = 0
+    start = 0
+    for i, c in enumerate(camel):
+        if c.isupper():
+            if nupper == 0:
+                start = i
+            nupper += 1
+        else:
+            if nupper == 0:
+                out += c
+            else:
+                if len(out) > 0:
+                    out += '_'
+                if nupper > 1:
+                    out += camel[start:i-1].lower() + '_'
+                out += camel[i-1].lower()
+                out += c
+                nupper = 0
+
+    if nupper > 0:
+        out += camel[start:i].lower()
+    out = out.replace("b_box", "bbox").replace("mx_net", "mxnet")
+    return out
+
+def _wrap_op_fn(op_class):
+    def op_wrapper(*args, **kwargs):
+        def is_edge(x):
+            return isinstance(x, _EdgeReference)
+        def is_call_arg(name, value):
+            return name == "name" or is_edge(value)
+
+        scalar_args = { name:value for (name, value) in kwargs.items() if not is_call_arg(name, value) }
+        tensor_args = { name:value for (name, value) in kwargs.items() if is_call_arg(name, value) }
+        for idx, inp in enumerate(args):
+            if not is_edge(inp):
+                raise TypeError("""Input {0} is not a DALI tensor (edge reference).
+Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op_class.__name__))
+        default_dev = _choose_device(args)
+        if default_dev == "gpu" and scalar_args.get("device") == "cpu":
+            raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
+        if "device" not in scalar_args:
+            scalar_args["device"] = default_dev
+
+        return op_class(**scalar_args)(*args, **tensor_args)
+    return op_wrapper
+
+def _wrap_op(op_class):
+    wrapper_name = _to_snake_case(op_class.__name__)
+    if not hasattr(sys.modules[__name__], wrapper_name):
+        setattr(sys.modules[__name__], wrapper_name,
+                _wrap_op_fn(op_class))
+
+
 def _load_ops():
     global _cpu_ops
     global _gpu_ops
@@ -619,8 +665,9 @@ def _load_ops():
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
     for op_name in _cpu_gpu_ops:
         if not hasattr(sys.modules[__name__], op_name):
-            setattr(sys.modules[__name__], op_name,
-                    python_op_factory(op_name, op_device = "cpu"))
+            op_class = python_op_factory(op_name, op_device = "cpu")
+            setattr(sys.modules[__name__], op_name, op_class)
+            _wrap_op(op_class)
 _load_ops()
 
 def Reload():
@@ -774,9 +821,7 @@ def _dlpack_from_array(array):
 
 class PythonFunction(PythonFunctionBase):
     global _cpu_ops
-    global _gpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
-    _gpu_ops = _gpu_ops.union({'PythonFunction'})
 
     @staticmethod
     def current_stream():
@@ -809,44 +854,20 @@ class PythonFunction(PythonFunctionBase):
     def _function_wrapper_cpu(batch_processing, function, *dlpack_inputs):
         if batch_processing:
             return PythonFunction.function_wrapper_batch(function, _dlpack_to_array,
-                                                         _dlpack_from_array, *dlpack_inputs)
+                                                             _dlpack_from_array, *dlpack_inputs)
         else:
             return PythonFunction.function_wrapper_per_sample(function, _dlpack_to_array,
-                                                              _dlpack_from_array,
-                                                              *dlpack_inputs)
-
-    @staticmethod
-    def _cupy_stream_wrapper(function, *inputs):
-        stream = cupy.cuda.Stream(null=True)
-        stream.ptr = PythonFunction.current_stream().ptr
-        with stream:
-            out = function(*inputs)
-        stream.ptr = 0
-        return out
-
-    @staticmethod
-    def _function_wrapper_gpu(batch_processing, function, *dlpack_inputs):
-        def wrapped_func(*inputs):
-            return PythonFunction._cupy_stream_wrapper(function, *inputs)
-        if batch_processing:
-            return PythonFunction.function_wrapper_batch(wrapped_func, cupy.fromDlpack,
-                                                         lambda t: t.toDlpack(), *dlpack_inputs)
-        else:
-            return PythonFunction.function_wrapper_per_sample(wrapped_func, cupy.fromDlpack,
-                                                              lambda t: t.toDlpack(),
-                                                              *dlpack_inputs)
+                                                                  _dlpack_from_array,
+                                                                  *dlpack_inputs)
 
     def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
-        if device == 'gpu':
-            _setup_cupy()
-        func = (lambda *ts: PythonFunction._function_wrapper_cpu(batch_processing, function, *ts))\
-               if device == 'cpu' else \
-               (lambda *ts: PythonFunction._function_wrapper_gpu(batch_processing, function, *ts))
         super(PythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                                             function=func,
+                                             function=lambda *ins:
+                                             PythonFunction._function_wrapper_cpu(batch_processing,
+                                                                                  function, *ins),
                                              num_outputs=num_outputs, device=device,
-                                             synchronize_stream=False,
                                              batch_processing=batch_processing, **kwargs)
+
 
 
 class DLTensorPythonFunction(PythonFunctionBase):
@@ -863,6 +884,10 @@ class DLTensorPythonFunction(PythonFunctionBase):
                                                      synchronize_stream=synchronize_stream,
                                                      batch_processing=batch_processing,
                                                      **kwargs)
+
+_wrap_op(PythonFunction)
+_wrap_op(DLTensorPythonFunction)
+_wrap_op(TFRecordReader)
 
 def _load_arithm_ops():
     arithm_op_names = ["ArithmeticGenericOp"]
@@ -1004,12 +1029,6 @@ def gpu_ops():
 def mixed_ops():
     return _mixed_ops
 
-
 def register_cpu_op(name):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({name})
-
-
-def register_gpu_op(name):
-    global _gpu_ops
-    _gpu_ops = _gpu_ops.union({name})
