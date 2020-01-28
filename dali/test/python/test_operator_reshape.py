@@ -125,8 +125,8 @@ def verify_tensor_layouts(imgs, reshaped):
   assert imgs.layout() == "HWC"
   assert reshaped.layout() == "ab"
   for i in range(len(imgs)):
-    assert imgs.at(i).layout() == "HWC"
-    assert reshaped.at(i).layout() == "ab"
+    assert imgs[i].layout() == "HWC"
+    assert reshaped[i].layout() == "ab"
 
 def verify_flatten(imgs, reshaped, src_shape = None):
   assert imgs.layout() == "HWC"

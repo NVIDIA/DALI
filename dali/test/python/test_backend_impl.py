@@ -18,24 +18,41 @@ from numpy.testing import assert_array_equal, assert_allclose
 
 def test_create_tensor():
     arr = np.random.rand(3, 5, 6)
-    tensor = TensorCPU(arr, types.NHWC)
+    tensor = TensorCPU(arr, "NHWC")
     assert_array_equal(arr, np.array(tensor))
 
-def test_create_tensor_list():
+def test_create_tensorlist():
     arr = np.random.rand(3, 5, 6)
-    tensor_list = TensorListCPU(arr, types.NHWC)
-    assert_array_equal(arr, tensor_list.as_array())
+    tensorlist = TensorListCPU(arr, "NHWC")
+    assert_array_equal(arr, tensorlist.as_array())
 
-def test_create_tensor_list_as_tensor():
+def test_create_tensorlist_as_tensor():
     arr = np.random.rand(3, 5, 6)
-    tensor_list = TensorListCPU(arr, types.NHWC)
-    tensor = tensor_list.as_tensor()
-    assert_array_equal(np.array(tensor), tensor_list.as_array())
+    tensorlist = TensorListCPU(arr, "NHWC")
+    tensor = tensorlist.as_tensor()
+    assert_array_equal(np.array(tensor), tensorlist.as_array())
 
-def test_empty_tensor_tensor_list():
+def test_empty_tensor_tensorlist():
     arr = np.array([], dtype=np.float32)
-    tensor = TensorCPU(arr, types.NHWC)
-    tensor_list = TensorListCPU(arr, types.NHWC)
-    assert_array_equal(np.array(tensor), tensor_list.as_array())
+    tensor = TensorCPU(arr, "NHWC")
+    tensorlist = TensorListCPU(arr, "NHWC")
+    assert_array_equal(np.array(tensor), tensorlist.as_array())
     assert(np.array(tensor).shape == (0,))
-    assert(tensor_list.as_array().shape == (0,))
+    assert(tensorlist.as_array().shape == (0,))
+
+def test_tensorlist_getitem():
+    arr = np.random.rand(3, 5, 6)
+    tensorlist = TensorListCPU(arr, "NHWC")
+    assert(type(tensorlist.at(0)) == np.ndarray)
+    assert(type(tensorlist[0]) != np.ndarray)
+    assert(type(tensorlist[0]) == TensorCPU)
+    assert(type(tensorlist[-3]) == TensorCPU)
+
+
+#if 0  // TODO(spanev): figure out which return_value_policy to choose
+#def test_tensorlist_getitem_slice():
+#    arr = np.random.rand(3, 5, 6)
+#    tensorlist = TensorListCPU(arr, "NHWC")
+#    two_first_tensors = tensorlist[0:2]
+#    assert(type(two_first_tensors) == tuple)
+#    assert(type(two_first_tensors[0]) == TensorCPU)
