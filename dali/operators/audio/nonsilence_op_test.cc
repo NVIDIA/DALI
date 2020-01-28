@@ -37,7 +37,7 @@ class NonsilenceOpTest : public ::testing::Test {
   std::pair<int, int> nonsilence_region_{2, 5};
   int buffer_length_ = 10;
   TensorShape<1> shape_ = {buffer_length_};
-  NonsilenceOperatorCpuImpl impl_;
+  NonsilenceOperatorCpu::Impl impl_;
 
 };
 
@@ -71,26 +71,26 @@ TEST_F(NonsilenceOpTest, UnderlyingKernelsTest) {
 TEST_F(NonsilenceOpTest, DetectNonsilenceRegionTest) {
   auto &ns_op = this->impl_;
   auto in = make_tensor_cpu(reinterpret_cast<const float *>(this->input_.data()), this->shape_);
-  auto nonsilence_region = ns_op.DetectNonsilenceRegion<float>(0, 0, in, 0);
+  auto nonsilence_region = ns_op.DetectNonsilenceRegion<float>(0, 0, {in, 0,1.f,false,this->window_size_,-1});
   ASSERT_EQ(nonsilence_region, nonsilence_region_);
 }
 
 
 TEST_F(NonsilenceOpTest, LeadTrailThreshTest) {
   std::vector<float> t0 = {0, 0, 0, 0, 0, 1.5, -100, 1.5};
-  EXPECT_EQ(NonsilenceOperatorCpuImpl::LeadTrailThresh(make_cspan(t0), .5f), std::make_pair(5, 3));
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t0), .5f), std::make_pair(5, 3));
 
   std::vector<float> t1 = {1.5, -100, 1.5, 0, 0, 0, 0};
-  EXPECT_EQ(NonsilenceOperatorCpuImpl::LeadTrailThresh(make_cspan(t1), .5f), std::make_pair(0, 3));
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t1), .5f), std::make_pair(0, 3));
 
   std::vector<float> t2 = {0, 0, 0, 0, 0, 1.5, -100, -100, 1.5, 0, 0, 0, 0};
-  EXPECT_EQ(NonsilenceOperatorCpuImpl::LeadTrailThresh(make_cspan(t2), 1.5f), std::make_pair(5, 4));
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t2), 1.5f), std::make_pair(5, 4));
 
   std::vector<int> t3 = {23, 62, 46, 12, 53};
-  EXPECT_EQ(NonsilenceOperatorCpuImpl::LeadTrailThresh(make_cspan(t3), 100).second, 0);
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t3), 100).second, 0);
 
   std::vector<int64_t> t4 = {623, 45, 62, 46, 23};
-  EXPECT_EQ(NonsilenceOperatorCpuImpl::LeadTrailThresh(make_cspan(t4), 10L), std::make_pair(0, 5));
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t4), 10L), std::make_pair(0, 5));
 }
 
 }  // namespace testing

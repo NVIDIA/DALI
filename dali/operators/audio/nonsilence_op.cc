@@ -54,77 +54,20 @@ DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
 
 bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
-  TypeInfo output_type;
-  output_type.SetType<detail::OutputType>(TypeTable::GetTypeID<detail::OutputType>());
-  TensorShape<> scalar_shape = {1};
-
-  output_desc.resize(detail::kNumOutputs);
-  for (int i = 0; i < detail::kNumOutputs; i++) {
-    output_desc[i].shape = uniform_list_shape(batch_size_, scalar_shape);
-    output_desc[i].type = output_type;
-  }
-  return true;
+return this->impl_->SetupImpl(output_desc,ws);
 }
-
-
-//template<typename InputType>
-//void NonsilenceOperatorCpu::RunImplTyped(workspace_t<CPUBackend> &ws) {
-//  const auto &input = ws.template InputRef<CPUBackend>(0);
-//  auto &output_begin = ws.OutputRef<CPUBackend>(0);
-//  auto &output_length = ws.OutputRef<CPUBackend>(1);
-//  auto &tp = ws.GetThreadPool();
-//  int nsamples = input.size();
-//  auto nthreads = ws.GetThreadPool().size();
-
-
-
-
-//  int sample_id=0;
-
-
-//  const auto in_view = view<const InputType, 1>(input[sample_id]);
-
-//  const auto in_ptr = input[sample_id].data<InputType>();
-//  auto num_samples = volume(input[sample_id].shape());
-//  auto res = detail::DetectNonsilenceRegion
-//          (make_cspan(in_ptr, num_samples), ConvertSat<InputType>(cutoff_));
-//  auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
-//  auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
-//  *beg_ptr = res.first;
-//  *len_ptr = res.second;
-
-//  for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
-//    tp.DoWorkWithID(
-//            [&, sample_id](int thread_id) {
-//                const auto in_ptr = input[sample_id].data<InputType>();
-//                auto num_samples = volume(input[sample_id].shape());
-//                auto res = detail::DetectNonsilenceRegion
-//                        (make_cspan(in_ptr, num_samples), ConvertSat<InputType>(cutoff_));
-//                auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
-//                auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
-//                *beg_ptr = res.first;
-//                *len_ptr = res.second;
-//            });
-//  }
-
-//  tp.WaitForWork();
-//}
 
 #define NONSILENCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
 
 
 void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  auto &output_begin = ws.OutputRef<CPUBackend>(0);
-  auto &output_length = ws.OutputRef<CPUBackend>(1);
-  for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
-    auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
-    auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
-    *beg_ptr = 69;
-    *len_ptr = 42;
-  }
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+
 //  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
-//          RunImplTyped<InputType>(ws);
+//          this->impl_->RunImplTyped<InputType>(ws);
 //  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+this->impl_->RunImplTyped<float>(ws);
+
 }
 
 

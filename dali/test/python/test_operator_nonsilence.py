@@ -23,16 +23,46 @@ import librosa
 
 dali_extra = test_utils.get_dali_extra_path()
 audio_files = os.path.join(dali_extra, "db", "audio")
+window_size = 2048
 
 
 def trim_ref(top_db, frame_length, hop_length, input_data):
-    y, sr = librosa.load(librosa.util.example_audio_file())
     yt, index = librosa.effects.trim(y=input_data, top_db=top_db, frame_length=frame_length,
                                      hop_length=hop_length)
+    print(np.array([index[0]]), np.array([index[1] - index[0]]))
     return np.array([index[0]]), np.array([index[1] - index[0]])
 
 
-# TODO refator derive
+class NonsilencePipeline(Pipeline):
+    def __init__(self, batch_size, cutoff_value, num_threads=1):
+        super(NonsilenceDaliPipeline, self).__init__(batch_size, num_threads, 0)
+        self.input = ops.FileReader(device="cpu", file_root=audio_files)
+        self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
+
+        self.nonsilence = None
+
+    def define_graph(self):
+        if self.nonsilence == None:
+            raise RuntimeError(
+                "Error: you need to derive from this class and define `self.nonsilence` operator")
+        read, _ = self.input()
+        audio, rate = self.decode(read)
+        begin, len = self.nonsilence(audio)
+        return begin, len
+
+# class NonsilenceDaliPipeline(NonsilencePipeline):
+#     def __init__(self, batch_size, cutoff_value):
+#         super(NonsilenceDaliPipeline, self).__init__(batch_size, cutoff_value, num_threads=1)
+#         self.nonsilence = ops.NonsilenceRegion(cutoff_value=cutoff_value, device="cpu")
+#
+# class NonsilenceRosaPipeline(NonsilencePipeline):
+#     def __init__(self, batch_size, cutoff_value):
+#         super(NonsilenceRosaPipeline, self).__init__(batch_size, cutoff_value, num_threads=1)
+#         hop_length = 512
+#         function = partial(trim_ref, cutoff_value, window_size, hop_length)
+#         self.nonsilence = ops.PythonFunction(function=function, num_outputs=2)
+
+
 class NonsilenceDaliPipeline(Pipeline):
     def __init__(self, batch_size, cutoff_value, num_threads=1):
         super(NonsilenceDaliPipeline, self).__init__(batch_size, num_threads, 0)
@@ -44,33 +74,32 @@ class NonsilenceDaliPipeline(Pipeline):
     def define_graph(self):
         read, _ = self.input()
         audio, rate = self.decode(read)
-        out = self.nonsilence(audio)
-        return out
+        begin, len = self.nonsilence(audio)
+        return begin, len
 
 
 class NonsilenceRosaPipeline(Pipeline):
     def __init__(self, batch_size, cutoff_value, trim_ref_function=trim_ref, num_threads=1):
-        frame_length = 2048
         hop_length = 512
         super(NonsilenceRosaPipeline, self).__init__(batch_size, num_threads, 0, seed=42,
                                                      exec_async=False, exec_pipelined=False)
         self.input = ops.FileReader(device="cpu", file_root=audio_files)
         self.decode = ops.AudioDecoder(device="cpu", dtype=types.FLOAT, downmix=True)
 
-        function = partial(trim_ref_function, cutoff_value, frame_length, hop_length)
+        function = partial(trim_ref_function, cutoff_value, window_size, hop_length)
         self.nonsilence = ops.PythonFunction(function=function, num_outputs=2)
 
     def define_graph(self):
         read, _ = self.input()
         audio, rate = self.decode(read)
-        out = self.nonsilence(audio)
-        return out
+        begin, len = self.nonsilence(audio)
+        return begin, len
 
 
 def check_nonsilence_operator(batch_size, cutoff_value):
     test_utils.compare_pipelines(NonsilenceDaliPipeline(batch_size, cutoff_value),
                                  NonsilenceRosaPipeline(batch_size, cutoff_value),
-                                 batch_size=batch_size, N_iterations=1)
+                                 batch_size=batch_size, N_iterations=1, eps=window_size)
 
 
 def test_nonsilence_operator():
