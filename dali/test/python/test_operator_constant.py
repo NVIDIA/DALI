@@ -47,9 +47,7 @@ class ConstantFnPipeline(Pipeline):
         ]
 
 def check(a1, a2):
-    print(a1.dtype, a2.dtype)
     assert(a1.dtype == a2.dtype)
-    print(a1, a2)
     assert(np.array_equal(a1, a2))
 
 

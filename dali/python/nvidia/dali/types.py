@@ -115,23 +115,28 @@ _all_types = _bool_types + _int_types + _float_types
 
 
 class ScalarConstant(object):
-    """Wrapper for a constant value that can be used in DALI arithmetic expressions
-    and applied element-wise to the results of DALI Operators representing Tensors in
-    :meth:`nvidia.dali.pipeline.Pipeline.define_graph` step.
+    """
+.. note::
+    This class should not be instantiated directly; use :func:`Constant` function
+    with appropriate arguments to create instances of this class.
 
-    ScalarConstant indicates what type should the value be treated as with respect
-    to type promotions. The actual values passed to the backend from python
-    would be `int32` for integer values and `float32` for floating point values.
-    Python builtin types `bool`, `int` and `float` will be marked to indicate
-    :meth:`nvidia.dali.types.DALIDataType.BOOL`, :meth:`nvidia.dali.types.DALIDataType.INT32`,
-    and :meth:`nvidia.dali.types.DALIDataType.FLOAT` respectively.
+Wrapper for a constant value that can be used in DALI arithmetic expressions
+and applied element-wise to the results of DALI Operators representing Tensors in
+:meth:`nvidia.dali.pipeline.Pipeline.define_graph` step.
 
-    Args
-    ----
-    value: bool or int or float
-        The constant value to be passed to DALI expression.
-    `dtype`: DALIDataType, optional
-        Target type of the constant to be used in types promotions.
+ScalarConstant indicates what type should the value be treated as with respect
+to type promotions. The actual values passed to the backend from python
+would be `int32` for integer values and `float32` for floating point values.
+Python builtin types `bool`, `int` and `float` will be marked to indicate
+:meth:`nvidia.dali.types.DALIDataType.BOOL`, :meth:`nvidia.dali.types.DALIDataType.INT32`,
+and :meth:`nvidia.dali.types.DALIDataType.FLOAT` respectively.
+
+Args
+----
+value: bool or int or float
+    The constant value to be passed to DALI expression.
+dtype: DALIDataType, optional
+    Target type of the constant to be used in types promotions.
     """
     def __init__(self, value, dtype=None):
         if not isinstance(value, (bool, int, float)):
@@ -257,7 +262,6 @@ def ConstantNode(device, value, dtype, shape, layout):
         def _numpy_to_dali_type(t):
             if t is None:
                 return None
-            import numpy as np
             if t == np.bool:
                 return DALIDataType.BOOL
 
@@ -327,6 +331,38 @@ def ConstantNode(device, value, dtype, shape, layout):
     return op()
 
 def Constant(value, dtype = None, shape = None, layout = None, device = None):
+    """Wraps a constant value which can then be used in
+:meth:`nvidia.dali.pipeline.Pipeline.define_graph` pipeline definition step.
+
+If the `value` argument is a scalar and neither `shape`, `layout` nor
+`device` is provided, the function will return a :class:`ScalarConstant`
+wrapper object, which receives special, optimized treatment when used in
+arithmetic expressions.
+
+Otherwise, the function creates a `dali.ops.Constant` node, which produces
+a batch of constant tensors.
+
+Args
+----
+value: `bool`, `int`, `float`, a `list` or `tuple` thereof or a `numpy.ndarray`
+    The constant value to wrap. If it is a scalar, it can be used as scalar
+    value in arithmetic expressions. Otherwise, it will produce a constant
+    tensor node (optionally reshaped according to `shape` argument).
+    If this argument is is a `numpy.ndarray`, `shape` and `dtype` will
+    default to `value.shape` and `value.dtype`, respectively.
+dtype: DALIDataType, optional
+    Target type of the constant.
+shape: list or tuple of int, optional
+    Requested shape of the output. If `value` is a scalar, it is broadcast
+    as to fill the requested shape. Otherwise, the number of elements in
+    `value` must match the volume of the shape.
+layout: string, optional
+    A string descirbing the layout of the constant tensor, e.g. "HWC"
+device: string, optional, "cpu" or "gpu"
+    The device to place the constant tensor in. If specified, it forces
+    the value to become a constant tensor node on given device,
+    regardless of `value` type or `shape`.
+    """
     if device is not None or \
         _is_numpy_array(value) or \
         isinstance(value, (list, tuple)) or \

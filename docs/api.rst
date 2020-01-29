@@ -41,9 +41,9 @@ Types
 
 Constant
 ^^^^^^^^
-.. autoclass:: nvidia.dali.types.Constant
+.. autofunction:: nvidia.dali.types.Constant
+.. autoclass:: nvidia.dali.types.ScalarConstant
    :members:
-
 
 Enums
 -----

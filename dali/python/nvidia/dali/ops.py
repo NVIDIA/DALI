@@ -21,7 +21,7 @@ import threading
 from nvidia.dali import backend as b
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, \
         _vector_element_type, _bool_types, _int_types, _int_like_types, _float_types, \
-        DALIDataType, CUDAStream, ScalarConstant as _Constant
+        DALIDataType, CUDAStream, ScalarConstant as _ScalarConstant
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
@@ -320,7 +320,7 @@ class _OperatorInstance(object):
                 arg_inp = kwargs[k]
                 if arg_inp is None:
                     continue
-                if type(arg_inp) is _Constant:
+                if isinstance(type(arg_inp), _ScalarConstant):
                     arg_inp = instantiate_constant_node(arg_inp)
                 if not isinstance(arg_inp, _EdgeReference):
                     raise TypeError(
@@ -871,7 +871,7 @@ def _choose_device(inputs):
 def _is_boolean_like(input):
     if type(input) == bool:
         return True
-    if isinstance(input, _Constant):
+    if isinstance(input, _ScalarConstant):
         if input.dtype in _bool_types:
             return True
     return False
@@ -882,7 +882,7 @@ def _is_integer_like(input):
         return True
     if type(input) == int:
         return True
-    if isinstance(input, _Constant):
+    if isinstance(input, _ScalarConstant):
         if input.dtype in _int_like_types:
             return True
     return False
@@ -890,7 +890,7 @@ def _is_integer_like(input):
 def _is_real_like(input):
     if type(input) == float:
         return True
-    if isinstance(input, _Constant):
+    if isinstance(input, _ScalarConstant):
         if input.dtype in _float_types:
             return True
     return False
@@ -903,7 +903,7 @@ def _to_type_desc(input):
         return "int32"
     if type(input) == float:
         return "float32" # TODO(klecki): current DALI limitation
-    if isinstance(input, _Constant):
+    if isinstance(input, _ScalarConstant):
         dtype_to_desc = {
             DALIDataType.BOOL:    "bool",
             DALIDataType.INT8:    "int8",
