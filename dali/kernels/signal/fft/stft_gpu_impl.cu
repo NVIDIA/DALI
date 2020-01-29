@@ -96,6 +96,21 @@ void StftGpuImpl::ReserveTempStorage(ScratchpadEstimator &se, int64_t nwindows, 
 }
 
 
+void StftGpuImpl::RunR2C(KernelContext &ctx,
+                         const OutListGPU<complexf, 2> &out,
+                         const InListGPU<float, 1> &in) {
+  int N = in.num_samples();
+  assert(out.num_samples() == N);
+  int nout = (args_.window_length + 2) / 2;
+  for (int i = 0; i < N; i++) {
+    auto length = in.shape[i][0];
+    assert(out.shape[i] == (TensorShape<2>{ args_.num_windows(length), nout }));
+  }
+
+
+}
+
+
 }  // namespace fft
 }  // namespace signal
 }  // namespace kernels
