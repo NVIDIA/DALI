@@ -29,7 +29,6 @@
 namespace dali {
 namespace detail {
 
-const std::string kCutoff = "cutoff_value";  // NOLINT
 const int kNumOutputs = 2;
 using OutputType = int;
 static_assert(std::is_integral<OutputType>::value,

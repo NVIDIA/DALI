@@ -22,32 +22,34 @@ namespace dali {
 
 DALI_SCHEMA(NonsilenceRegion)
                 .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.<br>
-This operators' behaviour can be described as:
-```
-def nonsilence(buffer, cutoff_value):
-    begin = 0
-    end = 0
-    for i in range(len(buffer)):
+This operators' behaviour can be described as::
+
+def nonsilence(buffer, cutoff_value, top_db, ref_db):
+    buffer = ToDecibels(buffer, top_db, ref_db)
+    begin = end = 0
+    for i in [0 .. len(buffer)):
         if buffer[i] > cutoff_value:
-            begin = i
-            break
-    for i in range(len(buffer) - 1, -1, -1):
+            begin = i; break
+    for i in [len(buffer)-1 .. begin]:
         if buffer[i] > cutoff_value:
-            end = i
-            break
+            end = i; break
     length = end - begin + 1
     return begin, length
-```
+
 `Input`: 1-D audio buffer
 `Output[0]`: Begin index of nonsilent region
-`Output[1] >= 0`: Length of nonsilent region<br>
+`Output[1] >= 0`: Length of nonsilent region
 If `Output[1] == 0`, `Output[0]` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
-                .AddArg(detail::kCutoff,
-                        R"code(Everything below this value will be regarded as silence)code",
-                        DALI_FLOAT);
+                .AddOptionalArg("cutoff_db",
+                                R"code(Everything below this value will be regarded as silence)code",
+                                60)
+                .AddOptionalArg("window_length", "", 2048)
+                .AddOptionalArg("reference_db", "", 1.f)
+                .AddOptionalArg("reference_max", "", false)
+                .AddOptionalArg("reset_interval", "", -1);
 
 DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
 
