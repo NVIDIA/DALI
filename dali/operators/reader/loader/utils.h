@@ -25,7 +25,7 @@ namespace dali {
  * When adding new vector here,
  * make sure to add it also in `bool HasKnownExtension(const std::string &filepath);`
  */
-static const std::vector<std::string> kKnownImageExtensions = {".jpg", ".jpeg", ".png", ".gif",
+static const std::vector<std::string> kKnownImageExtensions = {".jpg", ".jpeg", ".png",
                                                                ".bmp", ".tif", ".tiff",
                                                                ".pnm", ".ppm", ".pgm", ".pbm"};
 
