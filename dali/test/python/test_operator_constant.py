@@ -46,6 +46,24 @@ class ConstantFnPipeline(Pipeline):
             types.Constant(device = device, value = -4, shape=(10,20))
         ]
 
+
+class ScalarConstantPipeline(Pipeline):
+    def __init__(self, device):
+        super(ScalarConstantPipeline, self).__init__(10, 3, device_id = 0, exec_async=True, exec_pipelined=True)
+        self.device = device
+
+    def define_graph(self):
+        device = self.device
+        return [
+            # no-op
+            ops.Reshape(device = device, shape=[1])(types.Constant(1.25)),
+            # flatten with reshape op
+            ops.Reshape(device = device)(types.Constant(np.array([[1,2],[3,4]],
+                                                        dtype = np.uint16),
+                                                        device = device),
+                                         shape = types.Constant(4))
+        ]
+
 def check(a1, a2):
     assert(a1.dtype == a2.dtype)
     assert(np.array_equal(a1, a2))
@@ -58,6 +76,7 @@ ref = [
     np.full([100, 100], 5.5, dtype=np.float32),
     np.full([10, 20], -4, dtype=np.int32)
 ]
+
 
 def _test_op(device):
     pipe = ConstantPipeline(device)
@@ -83,6 +102,24 @@ def _test_func(device):
             for i in range(len(out[o])):
                 check(out[o].at(i), ref[o])
 
+
+def _test_scalar_constant_promotion(device):
+    pipe = ScalarConstantPipeline(device)
+    pipe.build()
+    ref = [
+        np.array([1.25], dtype=np.float32),
+        np.array([1,2,3,4], dtype=np.uint16)
+    ]
+    for iter in range(3):
+        out = pipe.run()
+        if device == "gpu":
+            out = [o.as_cpu() for o in out]
+
+        for o in range(len(ref)):
+            for i in range(len(out[o])):
+                check(out[o].at(i), ref[o])
+
+
 def test_constant_op():
     yield _test_op, "cpu"
     yield _test_op, "gpu"
@@ -91,11 +128,17 @@ def test_constant_fn():
     yield _test_func, "cpu"
     yield _test_func, "gpu"
 
+def test_scalar_constant_promotion():
+    yield _test_scalar_constant_promotion, "cpu"
+    yield _test_scalar_constant_promotion, "gpu"
+
 def main():
     _test_op("cpu")
     _test_op("gpu")
     _test_func("cpu")
     _test_func("gpu")
+    _test_scalar_constant_promotion("cpu")
+    _test_scalar_constant_promotion("gpu")
 
 if __name__ == '__main__':
   main()

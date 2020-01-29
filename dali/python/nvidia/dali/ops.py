@@ -21,7 +21,7 @@ import threading
 from nvidia.dali import backend as b
 from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, \
         _vector_element_type, _bool_types, _int_types, _int_like_types, _float_types, \
-        DALIDataType, CUDAStream, ScalarConstant as _ScalarConstant
+        DALIDataType, CUDAStream, ScalarConstant as _ScalarConstant, Constant as _Constant
 from nvidia.dali.pipeline import Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
@@ -291,17 +291,28 @@ class _OpCounter(object):
     def id(self):
         return self._id
 
-def _instantiate_constant_node(constant):
-    return Constant(value = [constant.value], dtype = constant.dtype)
+def _instantiate_constant_node(device, constant):
+    return _Constant(device = device, value = constant.value, dtype = constant.dtype)
 
 class _OperatorInstance(object):
     def __init__(self, inputs, op, **kwargs):
         self._counter = _OpCounter()
-        self._inputs = inputs
         self._outputs = []
         self._op = op
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
+
+        default_input_device = "gpu" if op.device == "gpu" else "cpu"
+        if inputs is not None:
+            inputs = list(inputs)
+            for i in range(len(inputs)):
+                inp = inputs[i]
+                if isinstance(inp, _ScalarConstant):
+                    inputs[i] = _instantiate_constant_node(default_input_device, inp)
+            inputs = tuple(inputs)
+
+        self._inputs = inputs
+
         if "name" in kwargs.keys():
             self._name = kwargs["name"]
         else:
@@ -320,8 +331,8 @@ class _OperatorInstance(object):
                 arg_inp = kwargs[k]
                 if arg_inp is None:
                     continue
-                if isinstance(type(arg_inp), _ScalarConstant):
-                    arg_inp = instantiate_constant_node(arg_inp)
+                if isinstance(arg_inp, _ScalarConstant):
+                    arg_inp = _instantiate_constant_node("cpu", arg_inp)
                 if not isinstance(arg_inp, _EdgeReference):
                     raise TypeError(
                             ("Expected inputs of type " +
