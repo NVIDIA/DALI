@@ -43,7 +43,7 @@ If `Output[1] == 0`, `Output[0]` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg("cutoff_db", R"code(The threshold [dB], below which everything is considered as silence)code", 60)
+                .AddOptionalArg("cutoff_db", R"code(The threshold [dB], below which everything is considered as silence)code", 60.f)
                 .AddOptionalArg("window_length", R"code(Size of analysing window)code", 2048)
                 .AddOptionalArg("reference_db", R"code(The reference power. If `reference_max` is `True`, this value is ignored)code", 1.f)
                 .AddOptionalArg("reference_max", R"code(Is `True`, the maximum of the signal will be used as the reference power (instead of `reference_db`))code", false)
@@ -74,18 +74,27 @@ void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
 
 #undef NONSILENCE_TYPES
 
+template<typename T>
+void DetermineResetInterval(std::vector<int> &reset_intervals) {
+  reset_intervals.assign(reset_intervals.size(), -1);
+}
+
+template<>
+void DetermineResetInterval<float>(std::vector<int> &reset_intervals) {
+}
+
 void NonsilenceOperatorCpu::AcquireArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
   this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws);
-  this->GetPerSampleArgument(reference_db_, "reference_db_", ws);
-  this->GetPerSampleArgument(reference_max_, "reference_max_", ws);
-  this->GetPerSampleArgument(window_length_, "window_length_", ws);
-  this->GetPerSampleArgument(reset_interval_, "reset_interval_", ws);
-  auto size = cutoff_db_.size();
-  for (size_t i = 0; i < size; i++) {
-    reset_interval_[i] =
-            reset_interval_[i] == -1 ? window_length_[i] * detail::kWindowSize2ResetInterval
-                                     : reset_interval_[i];
-  }
+  this->GetPerSampleArgument(reference_db_, "reference_db", ws);
+  this->GetPerSampleArgument(reference_max_, "reference_max", ws);
+  this->GetPerSampleArgument(window_length_, "window_length", ws);
+  this->GetPerSampleArgument(reset_interval_, "reset_interval", ws);
+//  auto size = cutoff_db_.size();
+//  for (size_t i = 0; i < size; i++) {
+//    reset_interval_[i] =
+//            reset_interval_[i] == -1 ? window_length_[i] * detail::kWindowSize2ResetInterval
+//                                     : reset_interval_[i];
+//  }
 }
 
 

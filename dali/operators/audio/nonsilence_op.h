@@ -80,7 +80,6 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
 
 
  private:
-
   void AcquireArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws);
 
   std::unique_ptr<Impl> impl_;
@@ -152,17 +151,19 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
               [&, sample_id](int thread_id) {
                   Args<InputType> args;
                   args.input = view<const InputType, 1>(input[sample_id]);
-                  args.cutoff_db = enclosing_->cutoff_db_[sample_id];
+                  args.cutoff_db = - enclosing_->cutoff_db_[sample_id];
                   args.reference_db = enclosing_->reference_db_[sample_id];
                   args.reference_max = enclosing_->reference_max_[sample_id];
                   args.window_length = enclosing_->window_length_[sample_id];
                   args.reset_interval = enclosing_->reset_interval_[sample_id];
-//                  args.input = view<const InputType, 1>(input[sample_id]);
-//                  args.cutoff_db = -20;
-//                  args.reference_db = 1;
-//                  args.reference_max = true;
-//                  args.window_length = 2048;
-//                  args.reset_interval = -1;
+
+                  cout<<"ARGS\n"<<
+                  args.cutoff_db <<endl<<
+                  args.reference_db <<endl<<
+                  args.reference_max <<endl<<
+                  args.window_length <<endl<<
+                  args.reset_interval <<endl;
+
                   auto res = DetectNonsilenceRegion(thread_id, sample_id, args);
                   auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
                   auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
@@ -195,6 +196,21 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
   }
 
 
+  void SetupKernels(int nthreads, int nsamples) {
+    mms_kernel_.Setup(nthreads, nsamples);
+    to_db_kernel_.Setup(nthreads, nsamples);
+  }
+
+
+  template<typename InputType>
+  void RunKernels(int thread_id, int sample_id, TensorView<StorageCPU, const InputType, 1> in,
+                  const MmsArgs &mms_args, const DbArgs &db_args) {
+    mms_kernel_.Run(thread_id, sample_id, in, mms_args);
+    auto db_in = view_as_tensor<const float>(mms_kernel_.outputs_[sample_id]).to_static<1>();
+    to_db_kernel_.Run(thread_id, sample_id, db_in, db_args);
+  }
+
+
   /**
    * @brief Performs leading and trailing thresholding.
    *
@@ -217,21 +233,6 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
     if (begin == end) return {-1, 0};
     while (buffer[--end] < cutoff);  // NOLINT
     return {begin, end - begin + 1};
-  }
-
-
-  void SetupKernels(int nthreads, int nsamples) {
-    mms_kernel_.Setup(nthreads, nsamples);
-    to_db_kernel_.Setup(nthreads, nsamples);
-  }
-
-
-  template<typename InputType>
-  void RunKernels(int thread_id, int sample_id, TensorView<StorageCPU, const InputType, 1> in,
-                  const MmsArgs &mms_args, const DbArgs &db_args) {
-    mms_kernel_.Run(thread_id, sample_id, in, mms_args);
-    auto db_in = view_as_tensor<const float>(mms_kernel_.outputs_[sample_id]).to_static<1>();
-    to_db_kernel_.Run(thread_id, sample_id, db_in, db_args);
   }
 
 
