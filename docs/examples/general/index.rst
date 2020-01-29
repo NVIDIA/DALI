@@ -8,4 +8,4 @@ General
    expressions/index
    multigpu.ipynb
    erase.ipynb
-
+   normalize.ipynb
