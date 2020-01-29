@@ -43,19 +43,18 @@ If `Output[1] == 0`, `Output[0]` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg("cutoff_db",
-                                R"code(Everything below this value will be regarded as silence)code",
-                                60)
-                .AddOptionalArg("window_length", "", 2048)
-                .AddOptionalArg("reference_db", "", 1.f)
-                .AddOptionalArg("reference_max", "", false)
-                .AddOptionalArg("reset_interval", "", -1);
+                .AddOptionalArg("cutoff_db", R"code(The threshold [dB], below which everything is considered as silence)code", 60)
+                .AddOptionalArg("window_length", R"code(Size of analysing window)code", 2048)
+                .AddOptionalArg("reference_db", R"code(The reference power. If `reference_max` is `True`, this value is ignored)code", 1.f)
+                .AddOptionalArg("reference_max", R"code(Is `True`, the maximum of the signal will be used as the reference power (instead of `reference_db`))code", false)
+                .AddOptionalArg("reset_interval", R"code(The number of samples after which the moving mean average is recalculated to avoid loss of precision. Ignored if the input type allows exact calculation)code", -1);
 
 DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
 
 
 bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
+  AcquireArgs(spec_, ws);
 return this->impl_->SetupImpl(output_desc,ws);
 }
 
@@ -68,11 +67,26 @@ void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
 //  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
 //          this->impl_->RunImplTyped<InputType>(ws);
 //  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
-this->impl_->RunImplTyped<float>(ws);
+  this->impl_->RunImplTyped<float>(ws);
 
 }
 
 
 #undef NONSILENCE_TYPES
+
+void NonsilenceOperatorCpu::AcquireArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+  this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws);
+  this->GetPerSampleArgument(reference_db_, "reference_db_", ws);
+  this->GetPerSampleArgument(reference_max_, "reference_max_", ws);
+  this->GetPerSampleArgument(window_length_, "window_length_", ws);
+  this->GetPerSampleArgument(reset_interval_, "reset_interval_", ws);
+  auto size = cutoff_db_.size();
+  for (size_t i = 0; i < size; i++) {
+    reset_interval_[i] =
+            reset_interval_[i] == -1 ? window_length_[i] * detail::kWindowSize2ResetInterval
+                                     : reset_interval_[i];
+  }
+}
+
 
 }  // namespace dali

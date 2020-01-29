@@ -111,7 +111,6 @@ def test_nonsilence_operator():
     batch_size = 1
     window_sizes = [2048]
     coeffs = [20, 30, 40]
-    ref
     for ws in window_sizes:
         for c in coeffs:
             yield check_nonsilence_operator, batch_size, c, ws
