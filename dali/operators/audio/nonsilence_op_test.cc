@@ -65,7 +65,6 @@ TEST_F(NonsilenceOpTest, DetectNonsilenceRegionTest) {
 
 
 TEST_F(NonsilenceOpTest, LeadTrailThreshTest) {
-  using TestType = float;
   std::vector<float> t0 = {0, 0, 0, 0, 0, 1.5, -100, 1.5};
   EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t0), .5f),
             std::make_pair(5, 3));
