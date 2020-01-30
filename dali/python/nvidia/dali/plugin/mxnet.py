@@ -61,7 +61,7 @@ def feed_ndarray(dali_tensor, arr):
 
 class _DALIIteratorBase(mx.io.DataIter):
     """
-    Base class with methods shared by both and gluon.DALIGenericIterator
+    Base class with methods shared by both DALIGenericIterator and DALIGluonIterator.
     """
     def __init__(self,
                  pipelines,
@@ -103,7 +103,7 @@ class _DALIIteratorBase(mx.io.DataIter):
         DALI iterators do not support resetting before the end of the epoch
         and will ignore such request.
         """
-        if self._counter >= self._size and self._size < 0:
+        if self._counter >= self._size or self._size < 0:
             if self._fill_last_batch and not self._last_batch_padded:
                 self._counter = self._counter % self._size
             else:
