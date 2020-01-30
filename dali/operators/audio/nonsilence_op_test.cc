@@ -17,6 +17,7 @@
 #include <random>
 #include "dali/operators/audio/nonsilence_op.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/kernels/signal/decibel/decibel_calculator.h"
 
 namespace dali {
 namespace testing {
@@ -24,14 +25,13 @@ namespace testing {
 class NonsilenceOpTest : public ::testing::Test {
  protected:
   void SetUp() final {
-    impl_.nthreads_ = 1;
     impl_.nsamples_ = 1;
   }
+
 
   std::vector<float> input_{0, 0, 0, 0, 1000, -1000, 1000, 0, 0, 0};
   int window_size_ = 3;
   std::vector<float> mms_ref_{0, 0, 333333.344, 666666.688, 1000000, 666666.688, 333333.344, 0};
-  std::vector<float> db_ref_{-80, -80, 55.2287903, 58.23909, 60.0000038, 58.23909, 55.2287903, -80};
   std::pair<int, int> nonsilence_region_{2, 5};
   int buffer_length_ = 10;
   TensorShape<1> shape_ = {buffer_length_};
@@ -41,23 +41,16 @@ class NonsilenceOpTest : public ::testing::Test {
 
 TEST_F(NonsilenceOpTest, UnderlyingKernelsTest) {
   auto &ns_op = this->impl_;
-  ns_op.SetupKernels(1, 1);
   auto in = make_tensor_cpu(reinterpret_cast<const float *>(this->input_.data()), this->shape_);
   kernels::signal::MovingMeanSquareArgs mms_args{this->window_size_, -1};
-  kernels::signal::ToDecibelsArgs<float> db_args{};
-  ns_op.RunKernels(0, 0, in, mms_args, db_args);
+  ns_op.SetupKernel();
+  ns_op.RunKernel(0, in, mms_args);
 
-  auto &mms_output = ns_op.mms_kernel_.outputs_;
-  auto &db_output = ns_op.to_db_kernel_.outputs_;
+  auto &mms_output = ns_op.intermediate_buffers_;
 
   ASSERT_EQ(this->mms_ref_.size(), mms_output[0].size());
   for (size_t i = 0; i < this->mms_ref_.size(); i++) {
     EXPECT_FLOAT_EQ(this->mms_ref_[i], mms_output[0].data<float>()[i]);
-  }
-
-  ASSERT_EQ(this->db_ref_.size(), db_output[0].size());
-  for (size_t i = 0; i < this->db_ref_.size(); i++) {
-    EXPECT_FLOAT_EQ(this->db_ref_[i], db_output[0].data<float>()[i]);
   }
 }
 
@@ -65,13 +58,14 @@ TEST_F(NonsilenceOpTest, UnderlyingKernelsTest) {
 TEST_F(NonsilenceOpTest, DetectNonsilenceRegionTest) {
   auto &ns_op = this->impl_;
   auto in = make_tensor_cpu(reinterpret_cast<const float *>(this->input_.data()), this->shape_);
-  auto nonsilence_region = ns_op.DetectNonsilenceRegion<float>(0, 0, {in, 0, 1.f, false,
-                                                                      this->window_size_, -1});
+  auto nonsilence_region = ns_op.DetectNonsilenceRegion<float>(0, {in, 0, 1.f, false,
+                                                                   this->window_size_, -1});
   ASSERT_EQ(nonsilence_region, nonsilence_region_);
 }
 
 
 TEST_F(NonsilenceOpTest, LeadTrailThreshTest) {
+  using TestType = float;
   std::vector<float> t0 = {0, 0, 0, 0, 0, 1.5, -100, 1.5};
   EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t0), .5f),
             std::make_pair(5, 3));

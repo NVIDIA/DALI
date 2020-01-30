@@ -19,37 +19,37 @@
 namespace dali {
 
 DALI_SCHEMA(NonsilenceRegion)
-                .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.<br>
+                .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.
 This operators' behaviour can be described as::
 
-def nonsilence(buffer, cutoff_value, top_db, ref_db):
-    buffer = ToDecibels(buffer, top_db, ref_db)
-    begin = end = 0
-    for i in [0 .. len(buffer)):
-        if buffer[i] > cutoff_value:
-            begin = i; break
-    for i in [len(buffer)-1 .. begin]:
-        if buffer[i] > cutoff_value:
-            end = i; break
-    length = end - begin + 1
-    return begin, length
+  def nonsilence(buffer, cutoff_value, top_db, ref_db):
+      buffer = ToDecibels(buffer, top_db, ref_db)
+      begin = end = 0
+      for i in [0 .. len(buffer)):
+          if buffer[i] > cutoff_value:
+              begin = i; break
+      for i in [len(buffer)-1 .. begin]:
+          if buffer[i] > cutoff_value:
+              end = i; break
+      length = end - begin + 1
+      return begin, length
 
-`Input`: 1-D audio buffer
-`Output[0]`: Begin index of nonsilent region
-`Output[1] >= 0`: Length of nonsilent region
-If `Output[1] == 0`, `Output[0]` value is undefined
+``Input``: 1-D audio buffer
+``Output[0]``: Begin index of nonsilent region
+``Output[1] >= 0``: Length of nonsilent region
+If ``Output[1] == 0``, ``Output[0]`` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
                 .AddOptionalArg("cutoff_db",
                                 R"code(The threshold [dB], below which everything is considered as silence)code",
                                 60.f)
-                .AddOptionalArg("window_length", R"code(Size of analysing window)code", 2048)
+                .AddOptionalArg("window_length", R"code(Size of a sliding window)code", 2048)
                 .AddOptionalArg("reference_db",
-                                R"code(The reference power. If `reference_max` is `True`, this value is ignored)code",
+                                R"code(The reference power. If ``reference_max`` is ``True``, this value is ignored)code",
                                 1.f)
                 .AddOptionalArg("reference_max",
-                                R"code(Is `True`, the maximum of the signal will be used as the reference power (instead of `reference_db`))code",
+                                R"code(If ``True``, the maximum of the signal will be used as the reference power (instead of ``reference_db``))code",
                                 false)
                 .AddOptionalArg("reset_interval",
                                 R"code(The number of samples after which the moving mean average is recalculated to avoid loss of precision. Ignored if the input type allows exact calculation)code",
@@ -67,18 +67,16 @@ bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 #define NONSILENCE_TYPES (uint8_t,/* int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t,*/ float/*, double*/)  // NOLINT
 
-void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-//  const auto &input = ws.template InputRef<CPUBackend>(0);
-//  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
-//          this->impl_->RunImplTyped<InputType>(ws);
-//  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
 
-  this->impl_->RunImplTyped<uint8_t >(ws);
+void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
+          this->impl_->RunImplTyped<InputType>(ws);
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
 }
 
+
 #undef NONSILENCE_TYPES
-
-
 
 
 }  // namespace dali

@@ -15,12 +15,14 @@
 #ifndef DALI_OPERATORS_AUDIO_NONSILENCE_OP_H_
 #define DALI_OPERATORS_AUDIO_NONSILENCE_OP_H_
 
+#include <cmath>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
 #include "dali/core/convert.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/signal/decibel/to_decibels_cpu.h"
+#include "dali/kernels/signal/decibel/decibel_calculator.h"
 #include "dali/kernels/signal/moving_mean_square.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/operator.h"
@@ -46,9 +48,11 @@ class NonsilenceOperator : public Operator<Backend> {
   explicit NonsilenceOperator(const OpSpec &spec) :
           Operator<Backend>(spec) {}
 
+
   bool CanInferOutputs() const override {
     return true;
   }
+
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws) {
     this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws);
@@ -62,6 +66,7 @@ class NonsilenceOperator : public Operator<Backend> {
       reset_interval_.assign(reset_interval_.size(), -1);
     }
   }
+
 
   std::vector<float> cutoff_db_;
   std::vector<float> reference_db_;
@@ -78,6 +83,7 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
   explicit NonsilenceOperatorCpu(const OpSpec &spec) :
           NonsilenceOperator<CPUBackend>(spec),
           impl_(std::make_unique<Impl>(this)) {}
+
 
   ~NonsilenceOperatorCpu() override = default;
 
@@ -98,20 +104,19 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
 
 class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
  private:
-  using MmsKernel = kernels::signal::MovingMeanSquareCpu<float>;
-  using ToDbKernel = kernels::signal::ToDecibelsCpu<float>;
   using MmsArgs = kernels::signal::MovingMeanSquareArgs;
-  using DbArgs = kernels::signal::ToDecibelsArgs<float>;
 
  public:
   Impl() = default;
 
+
   explicit Impl(const NonsilenceOperatorCpu *enclosing) : enclosing_(enclosing),
                                                           batch_size_(enclosing->batch_size_) {}
 
-  template<typename InputType, int ndims = 1>
+
+  template<typename InputType>
   struct Args {
-    TensorView<StorageCPU, const InputType, ndims> input;
+    TensorView<StorageCPU, const InputType, 1> input;
     float cutoff_db;
     float reference_db;
     bool reference_max;
@@ -122,7 +127,6 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
     const auto &input = ws.template InputRef<CPUBackend>(0);
-    nthreads_ = ws.GetThreadPool().size();;
     nsamples_ = input.size();
 
     TypeInfo output_type;
@@ -150,13 +154,13 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
               [&, sample_id](int thread_id) {
                   Args<InputType> args;
                   args.input = view<const InputType, 1>(input[sample_id]);
-                  args.cutoff_db = - enclosing_->cutoff_db_[sample_id];
+                  args.cutoff_db = -enclosing_->cutoff_db_[sample_id];
                   args.reference_db = enclosing_->reference_db_[sample_id];
                   args.reference_max = enclosing_->reference_max_[sample_id];
                   args.window_length = enclosing_->window_length_[sample_id];
                   args.reset_interval = enclosing_->reset_interval_[sample_id];
 
-                  auto res = DetectNonsilenceRegion(thread_id, sample_id, args);
+                  auto res = DetectNonsilenceRegion(sample_id, args);
                   auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
                   auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
                   *beg_ptr = res.first;
@@ -173,30 +177,30 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
    */
   template<typename InputType>
   std::pair<int, int>
-  DetectNonsilenceRegion(int thread_id, int sample_id, const Args<InputType> &args) {
-    SetupKernels(nthreads_, nsamples_);
-    DbArgs db_args;
-    db_args.s_ref = args.reference_db;
-    db_args.ref_max = args.reference_max;
-    RunKernels(thread_id, sample_id, args.input, {args.window_length, args.reset_interval},
-               db_args);
-    auto dbs = view_as_tensor<float>(to_db_kernel_.outputs_[sample_id]);
-    return LeadTrailThresh(make_cspan(dbs.data, dbs.num_elements()), args.cutoff_db);
+  DetectNonsilenceRegion(int sample_id, const Args<InputType> &args) {
+    SetupKernel();
+    RunKernel(sample_id, args.input, {args.window_length, args.reset_interval});
+    auto dbs = view_as_tensor<float>(intermediate_buffers_[sample_id]);
+    kernels::signal::DecibelCalculator<float> dbc(10.f, args.reference_max ? max(dbs)
+                                                                           : args.reference_db);
+    return LeadTrailThresh(make_cspan(dbs.data, dbs.num_elements()), dbc.db2signal(args.cutoff_db));
   }
 
 
-  void SetupKernels(int nthreads, int nsamples) {
-    mms_kernel_.Setup(nthreads, nsamples);
-    to_db_kernel_.Setup(nthreads, nsamples);
+  void SetupKernel() {
+    intermediate_buffers_.resize(nsamples_);
   }
 
 
   template<typename InputType>
-  void RunKernels(int thread_id, int sample_id, TensorView<StorageCPU, const InputType, 1> in,
-                  const MmsArgs &mms_args, const DbArgs &db_args) {
-    mms_kernel_.Run(thread_id, sample_id, in, mms_args);
-    auto db_in = view_as_tensor<const float>(mms_kernel_.outputs_[sample_id]).to_static<1>();
-    to_db_kernel_.Run(thread_id, sample_id, db_in, db_args);
+  void
+  RunKernel(int sample_id, TensorView<StorageCPU, const InputType, 1> in, const MmsArgs &mms_args) {
+    kernels::KernelContext kctx;
+    kernels::signal::MovingMeanSquareCpu<InputType> mms;
+    auto reqs = mms.Setup(kctx, in, mms_args);
+    intermediate_buffers_[sample_id].Resize(reqs.output_shapes[0][sample_id]);
+    auto out = view_as_tensor<float>(intermediate_buffers_[sample_id]);
+    mms.Run(kctx, out.template to_static<1>(), in, mms_args);
   }
 
 
@@ -225,38 +229,19 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
   }
 
 
+  template<typename T>
+  T max(TensorView<StorageCPU, T, DynamicDimensions> tv) {
+    T max = -std::numeric_limits<T>::infinity();
+    for (int i = 0; i < tv.num_elements(); i++) {
+      max = max > tv.data[i] ? max : tv.data[i];
+    }
+    return max;
+  }
+
+
   const NonsilenceOperatorCpu *enclosing_ = nullptr;
-  int nthreads_ = -1, nsamples_ = -1, batch_size_ = -1;
-
-
-  /**
-   * Wrapper for KernelManager's boilerplate code, made-to-measure for NonsilenceOperator
-   */
-  template<typename Kernel>
-  struct YetAnotherKernelManager {
-    kernels::KernelManager manager_;
-    std::vector<Tensor<CPUBackend>> outputs_;
-
-
-    void Setup(int nthreads, int nsamples) {
-      manager_.Resize<Kernel>(nthreads, nsamples);
-      outputs_.resize(nsamples);
-    }
-
-
-    template<typename InputType, typename Args>
-    void Run(int thread_id, int sample_id, TensorView<StorageCPU, const InputType, 1> in,
-             const Args &args) {
-      kernels::KernelContext kctx;
-      auto reqs = manager_.Setup<Kernel>(sample_id, kctx, in, args);
-      outputs_[sample_id].Resize(reqs.output_shapes[0][sample_id]);
-      auto out = view_as_tensor<float>(outputs_[sample_id]);
-      manager_.Run<Kernel>(thread_id, sample_id, kctx, out.template to_static<1>(), in, args);
-    }
-  };
-
-  YetAnotherKernelManager<MmsKernel> mms_kernel_;
-  YetAnotherKernelManager<ToDbKernel> to_db_kernel_;
+  int nsamples_ = -1, batch_size_ = -1;
+  std::vector<Tensor<CPUBackend>> intermediate_buffers_;
 };
 
 

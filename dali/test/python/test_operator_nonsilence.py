@@ -105,15 +105,16 @@ def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_d
 def test_nonsilence_operator():
     batch_size = 1
     eps = 1
-    window_sizes = [1024]
-    # window_sizes = [512, 1024, 2048]
-    window_size_to_reset_interval = [4]
+    # window_sizes = [1024]
+    window_sizes = [512, 1024, 2048]
+    # window_size_to_reset_interval = [4]
+    window_size_to_reset_interval = [3, 4, 5]
     reset_intervals = [-1] + list(
         map(lambda x: x[0] * x[1], itertools.product(window_sizes, window_size_to_reset_interval)))
     references_max = [True, False]
     references_db = [1.]
-    cutoff_coeffs = [20]
-    # cutoff_coeffs = [10, 20, 30]
+    # cutoff_coeffs = [20]
+    cutoff_coeffs = [10, 20, 30]
     for ws in window_sizes:
         for ri in reset_intervals:
             for rm in references_max:
