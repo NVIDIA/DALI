@@ -34,10 +34,17 @@ This operators' behaviour can be described as::
       length = end - begin + 1
       return begin, length
 
-``Input``: 1-D audio buffer
-``Output[0]``: Begin index of nonsilent region
-``Output[1] >= 0``: Length of nonsilent region
-If ``Output[1] == 0``, ``Output[0]`` value is undefined
+
+
++----------------------+-----------------------------------------+
+| Inputs               | Outputs                                 |
++=======+==============+=======+=================================+
+|       | | 1-D audio  | **0** | Begin index of nonsilent region |
+| **0** | | buffer     +-------+---------------------------------+
+|       |              | **1** | Length of nonsilent region      |
++-------+--------------+-------+---------------------------------+
+
+If ``Outputs[1] == 0``, ``Outputs[0]`` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
