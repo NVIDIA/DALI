@@ -67,8 +67,11 @@ bool CachedDecoderImpl::DeferCacheLoad(const std::string& file_name, uint8_t *ou
 }
 
 void CachedDecoderImpl::LoadDeferred(cudaStream_t stream) {
-  if (scatter_gather_)
-    CUDA_CALL((scatter_gather_->Run(stream, true, !use_batch_copy_kernel_), cudaGetLastError()));
+  if (!scatter_gather_)
+    return;
+
+  cache_->SyncToRead(stream);
+  CUDA_CALL((scatter_gather_->Run(stream, true, !use_batch_copy_kernel_), cudaGetLastError()));
 }
 
 ImageCache::ImageShape CachedDecoderImpl::CacheImageShape(const std::string& file_name) {

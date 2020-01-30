@@ -76,6 +76,13 @@ class DLL_PUBLIC ImageCache {
    *          images from the cache.
    */
   DLL_PUBLIC virtual DecodedImage Get(const ImageKey &image_key) const = 0;
+
+  /**
+   * @brief Synchronizes internal cache CUDA stream with a provided stream before a cache reading
+   *        operation
+   * @remarks To be called before launching a memory copy from a pointer provided by Get
+   */
+  DLL_PUBLIC virtual void SyncToRead(cudaStream_t stream) const = 0;
 };
 
 }  // namespace dali
