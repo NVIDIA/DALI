@@ -40,7 +40,6 @@ ImageCacheBlob::ImageCacheBlob(std::size_t cache_size,
   CUDA_CALL(cudaStreamCreateWithPriority(&cache_stream_, cudaStreamNonBlocking, 0));
   CUDA_CALL(cudaEventCreate(&cache_read_event_));
   CUDA_CALL(cudaEventCreate(&cache_write_event_));
-
 }
 
 ImageCacheBlob::~ImageCacheBlob() {
