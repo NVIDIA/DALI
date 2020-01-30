@@ -15,21 +15,20 @@
 #ifndef DALI_OPERATORS_AUDIO_NONSILENCE_OP_H_
 #define DALI_OPERATORS_AUDIO_NONSILENCE_OP_H_
 
+#include <memory>
 #include <utility>
 #include <vector>
-#include <dali/kernels/kernel_manager.h>
-#include <gtest/gtest_prod.h>
-#include <dali/pipeline/data/views.h>
-#include <dali/kernels/signal/decibel/to_decibels_cpu.h>
 #include "dali/core/convert.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/signal/decibel/to_decibels_cpu.h"
 #include "dali/kernels/signal/moving_mean_square.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 namespace detail {
 
 const int kNumOutputs = 2;
-const int kWindowSize2ResetInterval = 4;
 using OutputType = int;
 static_assert(std::is_integral<OutputType>::value,
               "Operator return indices, thus OutputType shall be integral");
@@ -43,16 +42,32 @@ class NonsilenceOperator : public Operator<Backend> {
 
   DISABLE_COPY_MOVE_ASSIGN(NonsilenceOperator);
 
-
  protected:
   explicit NonsilenceOperator(const OpSpec &spec) :
           Operator<Backend>(spec) {}
-
 
   bool CanInferOutputs() const override {
     return true;
   }
 
+  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws) {
+    this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws);
+    this->GetPerSampleArgument(reference_db_, "reference_db", ws);
+    this->GetPerSampleArgument(reference_max_, "reference_max", ws);
+    this->GetPerSampleArgument(window_length_, "window_length", ws);
+    this->GetPerSampleArgument(reset_interval_, "reset_interval", ws);
+    auto input_type = ws.template InputRef<Backend>(0).type().id();
+    if (!IsFloatingPoint(input_type)) {
+      // If input type is integral, no need for reset interval
+      reset_interval_.assign(reset_interval_.size(), -1);
+    }
+  }
+
+  std::vector<float> cutoff_db_;
+  std::vector<float> reference_db_;
+  std::vector<bool> reference_max_;
+  std::vector<int> window_length_;
+  std::vector<int> reset_interval_;
 
   USE_OPERATOR_MEMBERS();
 };
@@ -64,7 +79,6 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
           NonsilenceOperator<CPUBackend>(spec),
           impl_(std::make_unique<Impl>(this)) {}
 
-
   ~NonsilenceOperatorCpu() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(NonsilenceOperatorCpu);
@@ -75,19 +89,10 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                  const workspace_t<CPUBackend> &ws) override;
 
-
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
-
  private:
-  void AcquireArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws);
-
   std::unique_ptr<Impl> impl_;
-  std::vector<float> cutoff_db_;
-  std::vector<float> reference_db_;
-  std::vector<bool> reference_max_;
-  std::vector<int> window_length_;
-  std::vector<int> reset_interval_;
 };
 
 
@@ -99,19 +104,14 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
   using DbArgs = kernels::signal::ToDecibelsArgs<float>;
 
  public:
-
   Impl() = default;
-
 
   explicit Impl(const NonsilenceOperatorCpu *enclosing) : enclosing_(enclosing),
                                                           batch_size_(enclosing->batch_size_) {}
 
-
   template<typename InputType, int ndims = 1>
   struct Args {
     TensorView<StorageCPU, const InputType, ndims> input;
-
-
     float cutoff_db;
     float reference_db;
     bool reference_max;
@@ -140,7 +140,6 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
 
   template<typename InputType>
   void RunImplTyped(workspace_t<CPUBackend> &ws) {
-
     const auto &input = ws.template InputRef<CPUBackend>(0);
     auto &output_begin = ws.OutputRef<CPUBackend>(0);
     auto &output_length = ws.OutputRef<CPUBackend>(1);
@@ -157,13 +156,6 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
                   args.window_length = enclosing_->window_length_[sample_id];
                   args.reset_interval = enclosing_->reset_interval_[sample_id];
 
-                  cout<<"ARGS\n"<<
-                  args.cutoff_db <<endl<<
-                  args.reference_db <<endl<<
-                  args.reference_max <<endl<<
-                  args.window_length <<endl<<
-                  args.reset_interval <<endl;
-
                   auto res = DetectNonsilenceRegion(thread_id, sample_id, args);
                   auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
                   auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
@@ -171,10 +163,7 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
                   *len_ptr = res.second;
               });
     }
-
     tp.WaitForWork();
-
-
   }
 
 

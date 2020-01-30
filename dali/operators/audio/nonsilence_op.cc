@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <dali/kernels/signal/dct/dct_cpu.h>
-#include <dali/pipeline/data/views.h>
-#include "dali/operators/audio/nonsilence_op.h"
 #include "dali/core/static_switch.h"
-#include "dali/core/convert.h"
+#include "dali/operators/audio/nonsilence_op.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
@@ -43,11 +41,19 @@ If `Output[1] == 0`, `Output[0]` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg("cutoff_db", R"code(The threshold [dB], below which everything is considered as silence)code", 60.f)
+                .AddOptionalArg("cutoff_db",
+                                R"code(The threshold [dB], below which everything is considered as silence)code",
+                                60.f)
                 .AddOptionalArg("window_length", R"code(Size of analysing window)code", 2048)
-                .AddOptionalArg("reference_db", R"code(The reference power. If `reference_max` is `True`, this value is ignored)code", 1.f)
-                .AddOptionalArg("reference_max", R"code(Is `True`, the maximum of the signal will be used as the reference power (instead of `reference_db`))code", false)
-                .AddOptionalArg("reset_interval", R"code(The number of samples after which the moving mean average is recalculated to avoid loss of precision. Ignored if the input type allows exact calculation)code", -1);
+                .AddOptionalArg("reference_db",
+                                R"code(The reference power. If `reference_max` is `True`, this value is ignored)code",
+                                1.f)
+                .AddOptionalArg("reference_max",
+                                R"code(Is `True`, the maximum of the signal will be used as the reference power (instead of `reference_db`))code",
+                                false)
+                .AddOptionalArg("reset_interval",
+                                R"code(The number of samples after which the moving mean average is recalculated to avoid loss of precision. Ignored if the input type allows exact calculation)code",
+                                -1);
 
 DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
 
@@ -55,47 +61,24 @@ DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
 bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
   AcquireArgs(spec_, ws);
-return this->impl_->SetupImpl(output_desc,ws);
+  return this->impl_->SetupImpl(output_desc, ws);
 }
 
-#define NONSILENCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
 
+#define NONSILENCE_TYPES (uint8_t,/* int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t,*/ float/*, double*/)  // NOLINT
 
 void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
-
+//  const auto &input = ws.template InputRef<CPUBackend>(0);
 //  TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
 //          this->impl_->RunImplTyped<InputType>(ws);
 //  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
-  this->impl_->RunImplTyped<float>(ws);
 
+  this->impl_->RunImplTyped<uint8_t >(ws);
 }
-
 
 #undef NONSILENCE_TYPES
 
-template<typename T>
-void DetermineResetInterval(std::vector<int> &reset_intervals) {
-  reset_intervals.assign(reset_intervals.size(), -1);
-}
 
-template<>
-void DetermineResetInterval<float>(std::vector<int> &reset_intervals) {
-}
-
-void NonsilenceOperatorCpu::AcquireArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
-  this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws);
-  this->GetPerSampleArgument(reference_db_, "reference_db", ws);
-  this->GetPerSampleArgument(reference_max_, "reference_max", ws);
-  this->GetPerSampleArgument(window_length_, "window_length", ws);
-  this->GetPerSampleArgument(reset_interval_, "reset_interval", ws);
-//  auto size = cutoff_db_.size();
-//  for (size_t i = 0; i < size; i++) {
-//    reset_interval_[i] =
-//            reset_interval_[i] == -1 ? window_length_[i] * detail::kWindowSize2ResetInterval
-//                                     : reset_interval_[i];
-//  }
-}
 
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,12 +23,10 @@ namespace testing {
 
 class NonsilenceOpTest : public ::testing::Test {
  protected:
-
   void SetUp() final {
     impl_.nthreads_ = 1;
     impl_.nsamples_ = 1;
   }
-
 
   std::vector<float> input_{0, 0, 0, 0, 1000, -1000, 1000, 0, 0, 0};
   int window_size_ = 3;
@@ -38,7 +36,6 @@ class NonsilenceOpTest : public ::testing::Test {
   int buffer_length_ = 10;
   TensorShape<1> shape_ = {buffer_length_};
   NonsilenceOperatorCpu::Impl impl_;
-
 };
 
 
@@ -53,7 +50,6 @@ TEST_F(NonsilenceOpTest, UnderlyingKernelsTest) {
   auto &mms_output = ns_op.mms_kernel_.outputs_;
   auto &db_output = ns_op.to_db_kernel_.outputs_;
 
-
   ASSERT_EQ(this->mms_ref_.size(), mms_output[0].size());
   for (size_t i = 0; i < this->mms_ref_.size(); i++) {
     EXPECT_FLOAT_EQ(this->mms_ref_[i], mms_output[0].data<float>()[i]);
@@ -63,34 +59,37 @@ TEST_F(NonsilenceOpTest, UnderlyingKernelsTest) {
   for (size_t i = 0; i < this->db_ref_.size(); i++) {
     EXPECT_FLOAT_EQ(this->db_ref_[i], db_output[0].data<float>()[i]);
   }
-
-
 }
 
 
 TEST_F(NonsilenceOpTest, DetectNonsilenceRegionTest) {
   auto &ns_op = this->impl_;
   auto in = make_tensor_cpu(reinterpret_cast<const float *>(this->input_.data()), this->shape_);
-  auto nonsilence_region = ns_op.DetectNonsilenceRegion<float>(0, 0, {in, 0,1.f,false,this->window_size_,-1});
+  auto nonsilence_region = ns_op.DetectNonsilenceRegion<float>(0, 0, {in, 0, 1.f, false,
+                                                                      this->window_size_, -1});
   ASSERT_EQ(nonsilence_region, nonsilence_region_);
 }
 
 
 TEST_F(NonsilenceOpTest, LeadTrailThreshTest) {
   std::vector<float> t0 = {0, 0, 0, 0, 0, 1.5, -100, 1.5};
-  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t0), .5f), std::make_pair(5, 3));
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t0), .5f),
+            std::make_pair(5, 3));
 
   std::vector<float> t1 = {1.5, -100, 1.5, 0, 0, 0, 0};
-  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t1), .5f), std::make_pair(0, 3));
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t1), .5f),
+            std::make_pair(0, 3));
 
   std::vector<float> t2 = {0, 0, 0, 0, 0, 1.5, -100, -100, 1.5, 0, 0, 0, 0};
-  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t2), 1.5f), std::make_pair(5, 4));
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t2), 1.5f),
+            std::make_pair(5, 4));
 
   std::vector<int> t3 = {23, 62, 46, 12, 53};
   EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t3), 100).second, 0);
 
   std::vector<int64_t> t4 = {623, 45, 62, 46, 23};
-  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t4), 10L), std::make_pair(0, 5));
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t4), 10L),
+            std::make_pair(0, 5));
 }
 
 }  // namespace testing

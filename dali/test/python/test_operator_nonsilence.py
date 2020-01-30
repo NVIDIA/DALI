@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import partial
+import itertools
+import librosa
+import numpy as np
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import numpy as np
-import test_utils
-from functools import partial
 import os
-import librosa
+import test_utils
 
 dali_extra = test_utils.get_dali_extra_path()
 audio_files = os.path.join(dali_extra, "db", "audio")
@@ -29,8 +30,12 @@ def trim_ref(top_db, ref, frame_length, hop_length, input_data):
     yt, index = librosa.effects.trim(y=input_data, top_db=top_db, ref=ref,
                                      frame_length=frame_length,
                                      hop_length=hop_length)
-    print(np.array([index[0]]), np.array([index[1] - index[0]]))
-    return np.array([index[0]]), np.array([index[1] - index[0]])
+
+    # librosa's trim function calculates power with reference to center of window,
+    # while DALI uses beginning of window. Hence the subtraction below
+    begin = index[0] - frame_length / 2
+    length = index[1] - index[0]
+    return np.array([begin]), np.array([length])
 
 
 class NonsilencePipeline(Pipeline):
@@ -76,25 +81,42 @@ class NonsilenceRosaPipeline(NonsilencePipeline):
 
 
 def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_db, reference_max,
-                              reset_interval):
-    test_utils.compare_pipelines(
-        NonsilenceDaliPipeline(batch_size, cutoff_value, window_size, reference_db, reference_max,
-                               reset_interval),
-        NonsilenceRosaPipeline(batch_size, cutoff_value, window_size, reference_db, reference_max,
-                               reset_interval),
-        batch_size=batch_size, N_iterations=1, eps=window_size)
+                              reset_interval, eps):
+    dali_pipe = NonsilenceDaliPipeline(batch_size, cutoff_value, window_size, reference_db,
+                                       reference_max, reset_interval)
+    rosa_pipe = NonsilenceRosaPipeline(batch_size, cutoff_value, window_size, reference_db,
+                                       reference_max, reset_interval)
+    dali_pipe.build()
+    rosa_pipe.build()
+    dali_out = dali_pipe.run()
+    rosa_out = rosa_pipe.run()
+    for i in range(batch_size):
+        diff0 = abs(dali_out[0].at(i) - rosa_out[0].at(i))
+        diff1 = abs(dali_out[1].at(i) - rosa_out[1].at(i))
+        print("out0\tval1: {}\tval2: {}\tdiff: {}\teps: {}".format(dali_out[0].at(i),
+                                                                   rosa_out[0].at(i), diff0, eps))
+        print("out1\tval1: {}\tval2: {}\tdiff: {}\teps: {}".format(dali_out[1].at(i),
+                                                                   rosa_out[1].at(i), diff0, eps))
+        # Test shall pass either when the lengths match and are equal to 0
+        # or when both lengths and begins match
+        assert diff1 <= eps and (dali_out[1].at(i) <= eps or diff0 <= eps)
 
 
 def test_nonsilence_operator():
     batch_size = 1
-    window_sizes = [2048]
-    reset_intervals = [-1, 2048*4]
-    references_max = [True]
+    eps = 1
+    window_sizes = [1024]
+    # window_sizes = [512, 1024, 2048]
+    window_size_to_reset_interval = [4]
+    reset_intervals = [-1] + list(
+        map(lambda x: x[0] * x[1], itertools.product(window_sizes, window_size_to_reset_interval)))
+    references_max = [True, False]
     references_db = [1.]
     cutoff_coeffs = [20]
+    # cutoff_coeffs = [10, 20, 30]
     for ws in window_sizes:
         for ri in reset_intervals:
             for rm in references_max:
                 for rd in references_db:
                     for cc in cutoff_coeffs:
-                        yield check_nonsilence_operator, batch_size, cc, ws, rd, rm, ri
+                        yield check_nonsilence_operator, batch_size, cc, ws, rd, rm, ri, eps
