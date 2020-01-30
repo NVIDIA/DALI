@@ -80,7 +80,8 @@ class DLL_PUBLIC ImageCache {
   /**
    * @brief Synchronizes internal cache CUDA stream with a provided stream before a cache reading
    *        operation
-   * @remarks To be called before launching a memory copy from a pointer provided by Get
+   * @remarks To be called before launching a memory copy from a pointer provided by Get.
+   *          Read/Add calls are already synchronized and don't require using this API
    */
   DLL_PUBLIC virtual void SyncToRead(cudaStream_t stream) const = 0;
 };
