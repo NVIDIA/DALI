@@ -66,6 +66,7 @@ class TestPipeline(Pipeline):
         self.cast = ops.Cast(
             device = device,
             dtype = types.INT16)
+        self.reshape = ops.Reshape(device = device, shape = [1, 1])
 
 
     def define_graph(self):
@@ -77,11 +78,9 @@ class TestPipeline(Pipeline):
         if self.device is 'gpu':
             im_ids = im_ids.gpu()
         im_ids_16 = self.cast(im_ids)
+        reshaped = self.reshape(im_ids) + 0
 
-        return (
-            output,
-            im_ids,
-            im_ids_16)
+        return (output, reshaped, im_ids_16)
 
 
 def setup():
@@ -94,22 +93,22 @@ def _test_tf_dataset(device, device_id = 0):
     iterations = 10
 
     dataset_pipeline = TestPipeline(batch_size, num_threads, device, device_id)
-    shapes = [
+    shapes = (
         (batch_size, 3, 224, 224),
-        (batch_size, 1),
-        (batch_size, 1)]
-    dtypes = [
+        (batch_size, 1, 1),
+        (batch_size, 1))
+    dtypes = (
         tf.float32,
         tf.int32,
-        tf.int16]
+        tf.int16)
 
     dataset_results = []
     with tf.device('/{0}:{1}'.format(device, device_id)):
         daliset = dali_tf.DALIDataset(
             pipeline=dataset_pipeline,
             batch_size=batch_size,
-            shapes=shapes,
-            dtypes=dtypes,
+            output_shapes=shapes,
+            output_dtypes=dtypes,
             num_threads=num_threads,
             device_id=device_id)
         daliset = daliset.with_options(dataset_options())
@@ -132,10 +131,10 @@ def _test_tf_dataset(device, device_id = 0):
         else:
             standalone_results.append(
                 tuple(result.as_array() for result in standalone_pipeline.run()))
-
     for dataset_result, standalone_result in zip(dataset_results, standalone_results):
         for dataset_out, standalone_out in zip(dataset_result, standalone_result):
             assert np.array_equal(dataset_out, standalone_out)
+
 
 
 def test_tf_dataset_gpu():
@@ -169,8 +168,8 @@ def test_different_num_shapes_dtypes():
         dali_tf.DALIDataset(
             pipeline=dataset_pipeline,
             batch_size=batch_size,
-            shapes=shapes,
-            dtypes=dtypes,
+            output_shapes=shapes,
+            output_dtypes=dtypes,
             num_threads=num_threads)
 
 
@@ -198,8 +197,8 @@ def _test_tf_dataset_multigpu():
             daliset = dali_tf.DALIDataset(
                 pipeline=dataset_pipeline,
                 batch_size=batch_size,
-                shapes=shapes,
-                dtypes=dtypes,
+                output_shapes=shapes,
+                output_dtypes=dtypes,
                 num_threads=num_threads,
                 device_id=device_id)
             daliset = daliset.with_options(dataset_options())
