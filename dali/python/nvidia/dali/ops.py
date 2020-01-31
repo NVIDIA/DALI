@@ -194,10 +194,9 @@ def _docstring_generator(cls):
         op_dev.append("'mixed'")
     ret += """
 Supported backends
-------------------
 """
     for dev in op_dev:
-        ret += "* " + dev + "\n"
+        ret += " * " + dev + "\n"
     ret += "\n"
 
     ret += """
