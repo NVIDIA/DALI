@@ -325,17 +325,34 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
         data = value.flatten().tolist()
     else:
         def _type_from_value_or_list(v):
-            if isinstance(v, (list, tuple)):
-                for x in v:
-                    if isinstance(x, float):
-                        return DALIDataType.FLOAT
-                return DALIDataType.INT32
+            if not isinstance(v, (list, tuple)):
+                v = [v]
 
-            if isinstance(v, float):
+            has_floats = False
+            has_ints = False
+            has_bools = False
+            for x in v:
+                if isinstance(x, float):
+                    has_floats = True
+                elif isinstance(x, bool):
+                    has_bools = True
+                elif isinstance(x, int):
+                    has_ints = True
+                else:
+                    raise TypeError("Unexpected type: " + str(type(x)))
+
+            if has_floats:
                 return DALIDataType.FLOAT
-            return DALIDataType.INT32
+            if has_ints:
+                return DALIDataType.INT32
+            if has_bools:
+                return DALIDataType.BOOL
+            # empty list defaults to float
+            return DALIDataType.FLOAT
 
         actual_type = _type_from_value_or_list(value)
+        if dtype is None:
+            dtype = actual_type
 
     import nvidia.dali.ops as ops
 

@@ -44,10 +44,12 @@ class ConstantPipeline(Pipeline):
         self.const4 = ops.Constant(device = device, fdata = (0.25,1.25,2.25,3.25,4.25), dtype=types.FLOAT16)
         self.const5 = ops.Constant(device = device, fdata = 5.5, shape=(100,100))
         self.const6 = ops.Constant(device = device, idata = -4, shape=(10,20))
+        self.const7 = ops.Constant(device = device, idata = [0, 1, 0], dtype=types.BOOL)
 
 
     def define_graph(self):
-        return (self.const1(), self.const2(), self.const3(), self.const4(), self.const5(), self.const6())
+        return (self.const1(), self.const2(), self.const3(), self.const4(),
+                self.const5(), self.const6(), self.const7())
 
 class ConstantFnPipeline(Pipeline):
     def __init__(self, device, array_interface):
@@ -66,7 +68,8 @@ class ConstantFnPipeline(Pipeline):
             types.Constant(device = device, value = self.array([0,1,2,3,4], dtype=self.dtype('uint8'))),
             types.Constant(device = device, value = self.array([0.25,1.25,2.25,3.25,4.25], dtype=self.dtype('float16'))),
             types.Constant(device = device, value = 5.5, shape=(100,100), name="large"),
-            types.Constant(device = device, value = -4, shape=(10,20))
+            types.Constant(device = device, value = -4, shape=(10,20)),
+            types.Constant(device = device, value = [False, True, False])
         ]
 
 
@@ -100,7 +103,8 @@ ref = [
     np.array([0,1,2,3,4], dtype=np.uint8),
     np.array([0.25,1.25,2.25,3.25,4.25], dtype=np.float16),
     np.full([100, 100], 5.5, dtype=np.float32),
-    np.full([10, 20], -4, dtype=np.int32)
+    np.full([10, 20], -4, dtype=np.int32),
+    np.array([False, True, False], dtype=np.bool)
 ]
 
 
