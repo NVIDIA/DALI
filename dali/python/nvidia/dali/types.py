@@ -297,7 +297,7 @@ def to_dali_type(framework_type):
 def _is_compatible_array_type(value):
     return _is_numpy_array(value) or _is_mxnet_array(value) or _is_torch_tensor(value)
 
-def ConstantNode(device, value, dtype, shape, layout):
+def ConstantNode(device, value, dtype, shape, layout, **kwargs):
     data = value
     if _is_mxnet_array(value):
         # mxnet ndarray is not directly compatible with numpy.ndarray, but provides conversion
@@ -350,11 +350,20 @@ def ConstantNode(device, value, dtype, shape, layout):
     if device is None:
         device = "cpu"
 
-    op = ops.Constant(device = device, fdata = fdata, idata = idata,
-                      shape = shape, dtype = dtype, layout = layout)
-    return op()
+    # 'name' argument is pased to call, not the constructor
+    constructor_args = kwargs
+    call_args = {}
+    name = constructor_args.get("name")
+    if name is not None:
+        call_args["name"] = name
+        del constructor_args["name"]
 
-def Constant(value, dtype = None, shape = None, layout = None, device = None):
+    op = ops.Constant(device = device, fdata = fdata, idata = idata,
+                      shape = shape, dtype = dtype, layout = layout,
+                      **constructor_args)
+    return op(**call_args)
+
+def Constant(value, dtype = None, shape = None, layout = None, device = None, **kwargs):
     """Wraps a constant value which can then be used in
 :meth:`nvidia.dali.pipeline.Pipeline.define_graph` pipeline definition step.
 
@@ -387,12 +396,16 @@ device: string, optional, "cpu" or "gpu"
     The device to place the constant tensor in. If specified, it forces
     the value to become a constant tensor node on given device,
     regardless of `value` type or `shape`.
+**kwargs: additional keyword arguments
+    If present, it forces the constant to become a Constant tensor node
+    and the arguments are passed to the `dali.ops.Constant` operator
     """
     if device is not None or \
         _is_compatible_array_type(value) or \
         isinstance(value, (list, tuple)) or \
         not _is_scalar_shape(shape) or \
+        kwargs or \
         layout is not None:
-        return ConstantNode(device, value, dtype, shape, layout)
+        return ConstantNode(device, value, dtype, shape, layout, **kwargs)
     else:
         return ScalarConstant(value, dtype)

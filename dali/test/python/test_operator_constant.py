@@ -65,7 +65,7 @@ class ConstantFnPipeline(Pipeline):
             types.Constant(device = device, value = self.array([[[1,2]],[[3,4]]], dtype=self.dtype('int32'))),
             types.Constant(device = device, value = self.array([0,1,2,3,4], dtype=self.dtype('uint8'))),
             types.Constant(device = device, value = self.array([0.25,1.25,2.25,3.25,4.25], dtype=self.dtype('float16'))),
-            types.Constant(device = device, value = 5.5, shape=(100,100)),
+            types.Constant(device = device, value = 5.5, shape=(100,100), name="large"),
             types.Constant(device = device, value = -4, shape=(10,20))
         ]
 
