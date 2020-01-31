@@ -62,11 +62,11 @@ class NonsilenceDaliPipeline(NonsilencePipeline):
     def __init__(self, batch_size, cutoff_value, window_size, reference_db, reference_max,
                  reset_interval):
         super(NonsilenceDaliPipeline, self).__init__(batch_size, num_threads=1)
-        self.nonsilence = ops.NonsilenceRegion(cutoff_db=cutoff_value, window_length=window_size,
-                                               reference_db=reference_db,
-                                               reference_max=reference_max,
-                                               reset_interval=reset_interval,
-                                               device="cpu")
+        self.nonsilence = ops.NonsilentRegion(cutoff_db=cutoff_value, window_length=window_size,
+                                              reference_db=reference_db,
+                                              reference_max=reference_max,
+                                              reset_interval=reset_interval,
+                                              device="cpu")
 
 
 class NonsilenceRosaPipeline(NonsilencePipeline):

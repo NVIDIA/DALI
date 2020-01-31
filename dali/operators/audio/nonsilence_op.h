@@ -230,7 +230,7 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
   T max(TensorView<StorageCPU, T, DynamicDimensions> tv) {
     T max = std::numeric_limits<T>::lowest();
     for (int i = 0; i < tv.num_elements(); i++) {
-      max = std::max(max, tv.data[i])
+      max = std::max(max, tv.data[i]);
     }
     return max;
   }
