@@ -20,21 +20,6 @@ namespace dali {
 
 DALI_SCHEMA(NonsilentRegion)
                 .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.
-This operators' behaviour can be described as::
-
-  def nonsilence(buffer, cutoff_value, top_db, ref_db):
-      buffer = ToDecibels(buffer, top_db, ref_db)
-      begin = end = 0
-      for i in [0 .. len(buffer)):
-          if buffer[i] > cutoff_value:
-              begin = i; break
-      for i in [len(buffer)-1 .. begin]:
-          if buffer[i] > cutoff_value:
-              end = i; break
-      length = end - begin + 1
-      return begin, length
-
-
 
 +----------------------+-----------------------------------------+
 | Inputs               | Outputs                                 |
@@ -44,7 +29,8 @@ This operators' behaviour can be described as::
 |       |              | **1** | Length of nonsilent region      |
 +-------+--------------+-------+---------------------------------+
 
-If ``Outputs[1] == 0``, ``Outputs[0]`` value is undefined
+Remarks
+  - If ``Outputs[1] == 0``, ``Outputs[0]`` value is undefined
 )code")
                 .NumInput(1)
                 .NumOutput(detail::kNumOutputs)
@@ -53,7 +39,7 @@ If ``Outputs[1] == 0``, ``Outputs[0]`` value is undefined
                                 60.f)
                 .AddOptionalArg("window_length", R"code(Size of a sliding window)code", 2048)
                 .AddOptionalArg("reference_db",
-                                R"code(The reference power. If ``reference_max`` is ``True``, this value is ignored)code",
+                                R"code(The reference power used for converting signal to db. If ``reference_max`` is ``True``, this value is ignored)code",
                                 1.f)
                 .AddOptionalArg("reference_max",
                                 R"code(If ``True``, the maximum of the signal will be used as the reference power (instead of ``reference_db``))code",
