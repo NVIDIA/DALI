@@ -53,7 +53,7 @@ class ReshapePipeline(Pipeline):
           images = images.gpu()
         reshaped = self.reshape(images)
 
-        return [images, reshaped]
+        return [images+0, reshaped]
 
 def CollapseChannels(image):
   new_shape = np.array([ image.shape[0], image.shape[1] * image.shape[2] ]).astype(np.int)

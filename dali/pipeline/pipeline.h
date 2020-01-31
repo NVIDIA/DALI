@@ -117,7 +117,6 @@ class DLL_PUBLIC Pipeline {
     meta.has_cpu = true;
     meta.has_gpu = false;
     meta.has_contiguous = false;
-    meta.is_support = false;
     DALI_ENFORCE(edge_names_.insert({name, meta}).second,
         "ExternalInput name insertion failure.");
 
@@ -381,7 +380,7 @@ class DLL_PUBLIC Pipeline {
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
   using EdgeMeta = struct {
-    bool has_cpu, has_gpu, has_contiguous, is_support;
+    bool has_cpu, has_gpu, has_contiguous;
   };
 
   // Return the nearest multiple of 8 that is >= base_ptr_offset
@@ -401,7 +400,6 @@ class DLL_PUBLIC Pipeline {
     edge.has_cpu = false;
     edge.has_gpu = false;
     edge.has_contiguous = false;
-    edge.is_support = false;
     if (device == "cpu") {
       edge.has_cpu = true;
     } else if (device == "gpu") {

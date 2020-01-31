@@ -625,7 +625,7 @@ std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(con
   std::vector<int> result;
   // By default we need one vector
   result.resize(graph.NumTensor(), 1);
-  auto output_ids = graph.GetOutputs(output_names_);
+  auto output_ids = graph.GetOutputs(output_names_, true);
   for (auto id : output_ids) {
     auto &tensor = graph.Tensor(id);
     auto parent_type =  graph.Node(tensor.producer.node).op_type;

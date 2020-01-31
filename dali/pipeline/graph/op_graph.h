@@ -88,7 +88,6 @@ struct TensorMeta {
   OpNodeId node;
   Index index;
   StorageDevice storage_device;
-  bool is_support;
 };
 
 using producer_edge_t = TensorMeta;
@@ -321,7 +320,8 @@ class DLL_PUBLIC OpGraph {
     ofs << "}\n";
   }
 
-  DLL_PUBLIC std::vector<TensorNodeId> GetOutputs(const std::vector<string>& output_names) const;
+  DLL_PUBLIC std::vector<TensorNodeId> GetOutputs(const std::vector<string>& output_names,
+                                                  bool follow_pass_through = false) const;
   DLL_PUBLIC std::vector<TensorNodeId> GetStageOutputs(OpType stage) const;
 
   DISABLE_COPY_MOVE_ASSIGN(OpGraph);
@@ -330,6 +330,9 @@ class DLL_PUBLIC OpGraph {
   // Should be called only once for each tensor
   void GenerateDOTFromGraph(const TensorNode& current_node, std::ofstream& ofs, bool show_tensors,
                             bool show_ids);
+
+  bool HasConsumersInOtherStage(const TensorNode &tensor, OpType this_stage) const;
+
 
   /**
    * @brief Recalculate OpNodes partitioning

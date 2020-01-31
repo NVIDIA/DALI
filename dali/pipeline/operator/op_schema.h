@@ -456,6 +456,15 @@ class DLL_PUBLIC OpSchema {
     return *this;
   }
 
+  /**
+   * @brief Informs that the data passes though this operator unchanged, only
+   *        the metadata is affected.
+   */
+  DLL_PUBLIC inline OpSchema &PassThrough(const std::map<int, int> &inout) {
+    passthrough_map_ = inout;
+    return *this;
+  }
+
   DLL_PUBLIC inline const vector<std::string>& GetParents() const {
     return parents_;
   }
@@ -595,6 +604,21 @@ class DLL_PUBLIC OpSchema {
     return no_prune_;
   }
 
+  /**
+   * @brief Returns the index of the output to which the input is passed.
+   * @return Output index or -1 if given input is not passed through.
+   */
+  DLL_PUBLIC inline int GetPassThroughOutputIdx(int input_idx) const {
+    auto it = passthrough_map_.find(input_idx);
+    if (it == passthrough_map_.end())
+      return -1;
+    return it->second;
+  }
+
+  DLL_PUBLIC inline bool HasPassThrough() const {
+    return !passthrough_map_.empty();
+  }
+
   DLL_PUBLIC int CalculateOutputs(const OpSpec &spec) const;
 
   DLL_PUBLIC int CalculateAdditionalOutputs(const OpSpec &spec) const {
@@ -689,6 +713,8 @@ class DLL_PUBLIC OpSchema {
   bool is_internal_ = false;
 
   bool no_prune_ = false;
+
+  std::map<int, int> passthrough_map_;
 
   bool is_deprecated_ = false;
   string deprecated_in_favor_of_;
