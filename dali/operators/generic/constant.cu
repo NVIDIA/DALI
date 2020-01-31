@@ -24,11 +24,23 @@ namespace dali {
 
 namespace {
 
+template <size_t size, size_t alignment>
+struct alignas(alignment) Placeholder {
+  char payload[size];  // NOLINT(runtime/arrays)
+};
+
 template <typename T>
-__global__ void Fill(T *data, size_t count, T value) {
+inline auto opaque(const T &value) {
+  Placeholder<sizeof(T), alignof(T)> placeholder;
+  memcpy(placeholder.payload, &value, sizeof(T));
+  return placeholder;
+}
+
+template <size_t size, size_t alignment>
+__global__ void Fill(void *data, size_t count, Placeholder<size, alignment> value) {
   auto i = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (i < count)
-    data[i] = value;
+    static_cast<Placeholder<size, alignment>*>(data)[i] = value;
 }
 
 template <typename Dst, typename Src>
@@ -36,12 +48,16 @@ void FillTensorList(
       TensorList<GPUBackend> &dst, const TensorListShape<> &shape, const std::vector<Src> &src,
       cudaStream_t stream) {
   dst.Resize(shape);
+  if (shape.num_samples() == 0)
+    return;
+
   if (src.size() == 1) {
     int64_t size = shape.num_elements();
     int64_t threads = 1024;
     int64_t blocks = div_ceil(size, threads);
     Dst *data = dst.mutable_data<Dst>();
-    Fill<<<dim3(blocks), dim3(threads), 0, stream>>>(data, size, ConvertSat<Dst>(src[0]));
+
+    Fill<<<dim3(blocks), dim3(threads), 0, stream>>>(data, size, opaque(ConvertSat<Dst>(src[0])));
   } else {
     SmallVector<Dst, 64> tmp;
     tmp.resize(src.size());
@@ -49,8 +65,18 @@ void FillTensorList(
       tmp[i] = ConvertSat<Dst>(src[i]);
 
     int n = tmp.size() * sizeof(Dst);
-    for (int i = 0; i < shape.num_samples(); i++)
-      cudaMemcpyAsync(dst.mutable_tensor<Dst>(i), tmp.data(), n, cudaMemcpyHostToDevice, stream);
+    int N = shape.num_samples();
+    cudaMemcpyAsync(dst.mutable_tensor<Dst>(0), tmp.data(), n, cudaMemcpyHostToDevice, stream);
+    int copied = 1;
+    // this loop doubles the data in GPU memory, so that there are log2(N) memcpys at most
+    while (copied < N) {
+      int to_copy = copied;
+      if (copied + to_copy > N)
+        to_copy = N - copied;
+      cudaMemcpyAsync(dst.mutable_tensor<Dst>(copied), dst.mutable_tensor<Dst>(0), n * to_copy,
+                      cudaMemcpyDeviceToDevice, stream);
+      copied += to_copy;
+    }
   }
 }
 
@@ -67,13 +93,12 @@ void Constant<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
           assert(!idata_.empty());
           FillTensorList<type>(output_, output_shape_, idata_, ws.stream());
         }
-      ), (DALI_FAIL("Unsupported type")));  // NOLINT
+      ), (DALI_FAIL(make_string("Unsupported type: ", to_string(output_type_)))));  // NOLINT
   }
   auto &out = ws.OutputRef<GPUBackend>(0);
 
   out.Reset();
   out.ShareData(&output_);
-  out.Resize(output_shape_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
     assert(out.raw_tensor(i) == output_.raw_tensor(i));

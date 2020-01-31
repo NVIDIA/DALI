@@ -240,14 +240,68 @@ dtype: DALIDataType, optional
         return "{}".format(self.value)
 
 def _is_scalar_shape(shape):
-    return shape is None or shape == 1 or shape == [1]
+    return shape is None or shape == 1 or shape == [1] or shape == (1,)
+
+def _is_mxnet_array(value):
+    return 'mxnet.ndarray.ndarray.NDArray' in str(type(value))
+
+def _is_torch_tensor(value):
+    return 'torch.Tensor' in str(type(value))
 
 def _is_numpy_array(value):
-    if 'numpy.ndarray' in str(type(value)):
-        return True
+    return 'numpy.ndarray' in str(type(value))
+
+# common type names used by numpy, torch and possibly
+_type_name_to_dali_type = {
+    'bool'    : DALIDataType.BOOL,
+    'boolean' : DALIDataType.BOOL,
+
+    'int8'    : DALIDataType.INT8,
+    'sbyte'   : DALIDataType.INT8,
+    'uint8'   : DALIDataType.UINT8,
+    'byte'    : DALIDataType.UINT8,
+    'ubyte'   : DALIDataType.UINT8,
+
+    'int16'   : DALIDataType.INT16,
+    'short'   : DALIDataType.INT16,
+    'uint16'  : DALIDataType.UINT16,
+    'ushort'  : DALIDataType.UINT16,
+
+    'int32'   : DALIDataType.INT32,
+    'uint32'  : DALIDataType.UINT32,
+
+    'int64'   : DALIDataType.INT64,
+    'long'    : DALIDataType.INT64,
+    'uint64'  : DALIDataType.UINT64,
+    'ulong'   : DALIDataType.UINT64,
+
+    'half'    : DALIDataType.FLOAT16,
+    'float16' : DALIDataType.FLOAT16,
+    'float'   : DALIDataType.FLOAT,
+    'float32' : DALIDataType.FLOAT,
+    'float64' : DALIDataType.FLOAT64,
+    'double'  : DALIDataType.FLOAT64,
+}
+
+dali_type_converters = []
+
+def to_dali_type(framework_type):
+    t = str(framework_type)
+    if t.startswith('torch.'):
+        t = t[6:]
+    t = _type_name_to_dali_type.get(t)
+    if t is None:
+        raise TypeError("'{}' could not be converted into any known DALIDataType.".format(framework_type));
+    return t
+
+def _is_compatible_array_type(value):
+    return _is_numpy_array(value) or _is_mxnet_array(value) or _is_torch_tensor(value)
 
 def ConstantNode(device, value, dtype, shape, layout):
     data = value
+    if _is_mxnet_array(value):
+        # mxnet ndarray is not directly compatible with numpy.ndarray, but provides conversion
+        value = value.asnumpy()
     if _is_numpy_array(value):
         import numpy as np
 
@@ -259,45 +313,15 @@ def ConstantNode(device, value, dtype, shape, layout):
         if value.dtype == np.uint64:
             value = value.astype(np.uint32)
 
-        def _numpy_to_dali_type(t):
-            if t is None:
-                return None
-            if t == np.bool:
-                return DALIDataType.BOOL
-
-            if t == np.float16:
-                return DALIDataType.FLOAT16
-            if t == np.float32:
-                return DALIDataType.FLOAT
-            if t == np.float64:
-                return DALIDataType.FLOAT64
-
-            if t == np.uint8:
-                return DALIDataType.UINT8
-            if t == np.int8:
-                return DALIDataType.INT8
-            if t == np.uint16:
-                return DALIDataType.UINT16
-            if t == np.int16:
-                return DALIDataType.INT16
-            if t == np.uint32:
-                return DALIDataType.UINT32
-            if t == np.int32:
-                return DALIDataType.INT32
-            if t == np.uint64:
-                return DALIDataType.UINT64
-            if t == np.int64:
-                return DALIDataType.INT64
-            raise TypeError("Unsupported type: " + str(t))
-
-        actual_type = _numpy_to_dali_type(value.dtype)
+    if _is_numpy_array(value) or _is_torch_tensor(value):
+        # torch tensor and numpy array have very similar API
+        actual_type = to_dali_type(value.dtype)
         if dtype is None:
             dtype = actual_type
         if shape is not None:
-            value = np.copy(value.reshape(shape), order='C')
+            value = value.reshape(shape)
         else:
-            value = np.copy(value, order='C')
-            shape = value.shape
+            shape = list(value.shape)  # torch uses torch.Size instead of list
         data = value.flatten().tolist()
     else:
         def _type_from_value_or_list(v):
@@ -348,8 +372,9 @@ value: `bool`, `int`, `float`, a `list` or `tuple` thereof or a `numpy.ndarray`
     The constant value to wrap. If it is a scalar, it can be used as scalar
     value in arithmetic expressions. Otherwise, it will produce a constant
     tensor node (optionally reshaped according to `shape` argument).
-    If this argument is is a `numpy.ndarray`, `shape` and `dtype` will
-    default to `value.shape` and `value.dtype`, respectively.
+    If this argument is is a numpy array, a PyTorch tensor or an MXNet array,
+    the values of `shape` and `dtype` will default to `value.shape` and `value.dtype`,
+    respectively.
 dtype: DALIDataType, optional
     Target type of the constant.
 shape: list or tuple of int, optional
@@ -364,7 +389,7 @@ device: string, optional, "cpu" or "gpu"
     regardless of `value` type or `shape`.
     """
     if device is not None or \
-        _is_numpy_array(value) or \
+        _is_compatible_array_type(value) or \
         isinstance(value, (list, tuple)) or \
         not _is_scalar_shape(shape) or \
         layout is not None:

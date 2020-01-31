@@ -41,17 +41,25 @@ to 32-bit.
 )code")
   .NumInput(0)
   .NumOutput(1)
-  .AddOptionalArg<int>("shape", "The desired shape of the output. "
-                                 "If not set, the data is assumed to be 1D",
+  .AddOptionalArg("shape",
+                  "The desired shape of the output. If not set, the data is assumed to be 1D",
                   std::vector<int>())
-  .AddOptionalArg<float>("fdata", "Contents of the constant produced (for floating point types).",
-                                 std::vector<float>())
-  .AddOptionalArg<int>("idata", "Contents of the constant produced (for integer types).",
-                                 std::vector<int>())
-  .AddOptionalArg("dtype", "Type of the output data. If not set, the output is float if `fdata` "
-                           "argument is used and int if `idata` is used.", DALI_NO_TYPE)
-  .AddOptionalArg("layout", "Layout info. If set and not empty, the layout must match the "
-                            "dimensionality of the output.", "");
+  .AddOptionalArg("fdata",
+                  "Contents of the constant produced (for floating point types). "
+                  "`fdata` and `idata` are mutually exclusive and one of them is required",
+                  std::vector<float>())
+  .AddOptionalArg("idata",
+                  "Contents of the constant produced (for integer types). "
+                  "`fdata` and `idata` are mutually exclusive and one of them is required",
+                  std::vector<int>())
+  .AddOptionalArg("dtype",
+                  "Type of the output data. If not set, the output is float if `fdata` "
+                  "argument is used and int if `idata` is used.",
+                  DALI_NO_TYPE)
+  .AddOptionalArg("layout",
+                  "Layout info. If set and not empty, the layout must match the "
+                  "dimensionality of the output.",
+                  TensorLayout());
 
 namespace {
 template <typename Dst, typename Src>
@@ -90,7 +98,7 @@ void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
           assert(!idata_.empty());
           FillTensorVector<type>(output_, output_shape_, idata_);
         }
-      ), (DALI_FAIL("Unsupported type")));  // NOLINT
+      ), (DALI_FAIL(make_string("Unsupported type: ", to_string(output_type_)))));  // NOLINT
   }
   auto &out = ws.OutputRef<CPUBackend>(0);
 

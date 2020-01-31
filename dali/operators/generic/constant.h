@@ -22,7 +22,7 @@
 #include "dali/core/static_switch.h"
 
 #define CONSTANT_OP_SUPPORTED_TYPES \
-  (bool, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, float)
+  (bool, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, float, float16)
 
 namespace dali {
 
