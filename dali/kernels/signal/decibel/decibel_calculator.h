@@ -26,7 +26,7 @@ template <typename T>
 struct DecibelCalculator {
  public:
   explicit DecibelCalculator(T mul = 10.0, T s_ref = 1.0, T min_ratio = 1e-8)
-      : mul_(mul)
+      : inv_mul_(1. / mul)
       , mul_log2_(mul * kLog2Factor)
       , s_ref_(s_ref)
       , inv_s_ref_(s_ref == 1.0 ? 1.0 : 1.0 / s_ref)
@@ -43,13 +43,14 @@ struct DecibelCalculator {
 
   DALI_FORCEINLINE
   T db2signal(T db) const {
-    return s_ref_ * std::pow(mul_, .1 * db);
+    return s_ref_ * std::pow(10.0, db * inv_mul_);
   }
 
  private:
   static constexpr  T kLog2Factor = 0.3010299956639812;  // std::log10(2.0);
 
-  T mul_;
+  // Inverse of the multiplier
+  T inv_mul_;
 
   // equivalent multiplier in terms of log2
   T mul_log2_;

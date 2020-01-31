@@ -18,7 +18,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(NonsilenceRegion)
+DALI_SCHEMA(NonsilentRegion)
                 .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.
 This operators' behaviour can be described as::
 
@@ -62,7 +62,7 @@ If ``Outputs[1] == 0``, ``Outputs[0]`` value is undefined
                                 R"code(The number of samples after which the moving mean average is recalculated to avoid loss of precision. Ignored if the input type allows exact calculation)code",
                                 -1);
 
-DALI_REGISTER_OPERATOR(NonsilenceRegion, NonsilenceOperatorCpu, CPU);
+DALI_REGISTER_OPERATOR(NonsilentRegion, NonsilenceOperatorCpu, CPU);
 
 
 bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -72,7 +72,7 @@ bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 
-#define NONSILENCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
+#define NONSILENCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
 
 
 void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {

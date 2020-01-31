@@ -31,9 +31,6 @@ namespace dali {
 namespace detail {
 
 const int kNumOutputs = 2;
-using OutputType = int;
-static_assert(std::is_integral<OutputType>::value,
-              "Operator return indices, thus OutputType shall be integral");
 
 }  // namespace detail
 
@@ -231,9 +228,9 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
 
   template<typename T>
   T max(TensorView<StorageCPU, T, DynamicDimensions> tv) {
-    T max = -std::numeric_limits<T>::infinity();
+    T max = std::numeric_limits<T>::lowest();
     for (int i = 0; i < tv.num_elements(); i++) {
-      max = max > tv.data[i] ? max : tv.data[i];
+      max = std::max(max, tv.data[i])
     }
     return max;
   }
