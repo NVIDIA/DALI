@@ -127,7 +127,7 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
     nsamples_ = input.size();
 
     TypeInfo output_type;
-    output_type.SetType<detail::OutputType>(TypeTable::GetTypeID<detail::OutputType>());
+    output_type.SetType<int>(TypeTable::GetTypeID<int>());
     TensorShape<> scalar_shape = {1};
 
     output_desc.resize(detail::kNumOutputs);
@@ -158,8 +158,8 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
                   args.reset_interval = enclosing_->reset_interval_[sample_id];
 
                   auto res = DetectNonsilenceRegion(sample_id, args);
-                  auto beg_ptr = output_begin[sample_id].mutable_data<detail::OutputType>();
-                  auto len_ptr = output_length[sample_id].mutable_data<detail::OutputType>();
+                  auto beg_ptr = output_begin[sample_id].mutable_data<int>();
+                  auto len_ptr = output_length[sample_id].mutable_data<int>();
                   *beg_ptr = res.first;
                   *len_ptr = res.second;
               });
