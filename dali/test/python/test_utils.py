@@ -93,8 +93,6 @@ def check_batch(batch1, batch2, batch_size, eps = 1e-07):
                 diff1 = np.abs(batch1.at(i) - batch2.at(i))
                 diff2 = np.abs(batch2.at(i) - batch1.at(i))
                 err = np.mean( np.minimum(diff2, diff1) )
-                print("val1: {}\tval2: {}\tdiff: {}\teps: {}".format(batch1.at(i), batch2.at(i),
-                                                                        err, eps))
                 max_err = np.max( np.minimum(diff2, diff1))
                 min_err = np.min( np.minimum(diff2, diff1))
             except:

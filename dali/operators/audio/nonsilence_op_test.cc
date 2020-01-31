@@ -78,14 +78,15 @@ TEST_F(NonsilenceOpTest, LeadTrailThreshTest) {
             std::make_pair(5, 4));
 
   std::vector<int> t3 = {23, 62, 46, 12, 53};
-  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t3), 100).second, 0);
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t3), 100),
+            std::make_pair(0, 0));
 
   std::vector<int64_t> t4 = {623, 45, 62, 46, 23};
   EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t4), 10L),
             std::make_pair(0, 5));
 
   std::vector<int> t5 = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t5), 1).second, 0);
+  EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t5), 1), std::make_pair(0, 0));
 
   std::vector<int> t6 = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   EXPECT_EQ(NonsilenceOperatorCpu::Impl::LeadTrailThresh(make_cspan(t6), 0), std::make_pair(0, 12));

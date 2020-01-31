@@ -20,6 +20,15 @@ namespace dali {
 
 DALI_SCHEMA(NonsilentRegion)
                 .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.
+Firstly, the signal is converted to dB scale::
+
+  signal_db = 10 * log10( short_term_power / reference_power )
+
+After conversion, leading and trailing region, that is below ``cutoff_db`` is detected::
+
+  begin = 0, end = len(signal_db)-1;
+  while(signal_db[begin] < cutoff) begin++;
+  while(signal_db[end] < cutoff) end--;
 
 +----------------------+-----------------------------------------+
 | Inputs               | Outputs                                 |
@@ -36,17 +45,17 @@ Remarks
                 .NumOutput(detail::kNumOutputs)
                 .AddOptionalArg("cutoff_db",
                                 R"code(The threshold [dB], below which everything is considered as silence)code",
-                                60.f)
-                .AddOptionalArg("window_length", R"code(Size of a sliding window)code", 2048)
-                .AddOptionalArg("reference_db",
-                                R"code(The reference power used for converting signal to db. If ``reference_max`` is ``True``, this value is ignored)code",
-                                1.f)
-                .AddOptionalArg("reference_max",
-                                R"code(If ``True``, the maximum of the signal will be used as the reference power (instead of ``reference_db``))code",
-                                false)
+                                -60.f)
+                .AddOptionalArg("window_length", R"code(Size of a sliding window.
+The sliding window is used to calculate short-term power of the signal.)code", 2048)
+                .AddOptionalArg("reference_power",
+                                R"code(The reference power used for converting signal to db.
+If ``reference_power`` is not provided, the maximum of the signal will be used as the reference power)code",
+                                0.f)
                 .AddOptionalArg("reset_interval",
-                                R"code(The number of samples after which the moving mean average is recalculated to avoid loss of precision. Ignored if the input type allows exact calculation)code",
-                                -1);
+                                R"code(The number of samples after which the moving mean average is
+recalculated to avoid loss of precision. Ignored if the input type allows exact calculation.)code",
+                                8192);
 
 DALI_REGISTER_OPERATOR(NonsilentRegion, NonsilenceOperatorCpu, CPU);
 

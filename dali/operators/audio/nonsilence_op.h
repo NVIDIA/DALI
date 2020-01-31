@@ -53,23 +53,19 @@ class NonsilenceOperator : public Operator<Backend> {
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws) {
     this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws);
-    this->GetPerSampleArgument(reference_db_, "reference_db", ws);
-    this->GetPerSampleArgument(reference_max_, "reference_max", ws);
-    this->GetPerSampleArgument(window_length_, "window_length", ws);
-    this->GetPerSampleArgument(reset_interval_, "reset_interval", ws);
+    this->GetPerSampleArgument(reference_power_, "reference_power", ws);
+    window_length_ = spec.GetArgument<int>("window_length", &ws);
     auto input_type = ws.template InputRef<Backend>(0).type().id();
-    if (!IsFloatingPoint(input_type)) {
-      // If input type is integral, no need for reset interval
-      reset_interval_.assign(reset_interval_.size(), -1);
-    }
+    // If input type is not floating point, there's no need for reset interval
+    reset_interval_ = IsFloatingPoint(input_type) ? spec.GetArgument<int>("reset_interval", &ws)
+                                                  : -1;
   }
 
 
   std::vector<float> cutoff_db_;
-  std::vector<float> reference_db_;
-  std::vector<bool> reference_max_;
-  std::vector<int> window_length_;
-  std::vector<int> reset_interval_;
+  std::vector<float> reference_power_;
+  int window_length_=-1;
+  int reset_interval_=-1;
 
   USE_OPERATOR_MEMBERS();
 };
@@ -100,9 +96,6 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
 
 
 class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
- private:
-  using MmsArgs = kernels::signal::MovingMeanSquareArgs;
-
  public:
   Impl() = default;
 
@@ -115,7 +108,7 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
   struct Args {
     TensorView<StorageCPU, const InputType, 1> input;
     float cutoff_db;
-    float reference_db;
+    float reference_power;
     bool reference_max;
     int window_length;
     int reset_interval;
@@ -151,11 +144,11 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
               [&, sample_id](int thread_id) {
                   Args<InputType> args;
                   args.input = view<const InputType, 1>(input[sample_id]);
-                  args.cutoff_db = -enclosing_->cutoff_db_[sample_id];
-                  args.reference_db = enclosing_->reference_db_[sample_id];
-                  args.reference_max = enclosing_->reference_max_[sample_id];
-                  args.window_length = enclosing_->window_length_[sample_id];
-                  args.reset_interval = enclosing_->reset_interval_[sample_id];
+                  args.cutoff_db = enclosing_->cutoff_db_[sample_id];
+                  args.reference_power = enclosing_->reference_power_[sample_id];
+                  args.reference_max = enclosing_->reference_power_[sample_id] == 0;
+                  args.window_length = enclosing_->window_length_;
+                  args.reset_interval = enclosing_->reset_interval_;
 
                   auto res = DetectNonsilenceRegion(sample_id, args);
                   auto beg_ptr = output_begin[sample_id].mutable_data<int>();
@@ -179,7 +172,7 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
     RunKernel(sample_id, args.input, {args.window_length, args.reset_interval});
     auto dbs = view_as_tensor<float>(intermediate_buffers_[sample_id]);
     kernels::signal::DecibelCalculator<float> dbc(10.f, args.reference_max ? max(dbs)
-                                                                           : args.reference_db);
+                                                                           : args.reference_power);
     return LeadTrailThresh(make_cspan(dbs.data, dbs.num_elements()), dbc.db2signal(args.cutoff_db));
   }
 
@@ -191,7 +184,7 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
 
   template<typename InputType>
   void
-  RunKernel(int sample_id, TensorView<StorageCPU, const InputType, 1> in, const MmsArgs &mms_args) {
+  RunKernel(int sample_id, TensorView<StorageCPU, const InputType, 1> in, const kernels::signal::MovingMeanSquareArgs &mms_args) {
     kernels::KernelContext kctx;
     kernels::signal::MovingMeanSquareCpu<InputType> mms;
     auto reqs = mms.Setup(kctx, in, mms_args);
@@ -207,6 +200,8 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
    * Returns index of a first value above the threshold in the buffer and
    * the length up to the point, where last value above the threshold appears in the buffer.
    *
+   * If the length == 0, begin == 0
+   *
    * Example:
    * buffer: [0, 0, 0, 0, 50, 50, 0, 0]
    * cutoff: 20
@@ -220,7 +215,7 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
     int begin = -1;
     int end = buffer.size();
     while (begin < end && buffer[++begin] < cutoff);  // NOLINT
-    if (begin == end) return {-1, 0};
+    if (begin == end) return {0, 0};  // Rest is silence
     while (buffer[--end] < cutoff);  // NOLINT
     return {begin, end - begin + 1};
   }

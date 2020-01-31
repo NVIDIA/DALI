@@ -59,47 +59,32 @@ class NonsilencePipeline(Pipeline):
 
 
 class NonsilenceDaliPipeline(NonsilencePipeline):
-    def __init__(self, batch_size, cutoff_value, window_size, reference_db, reference_max,
+    def __init__(self, batch_size, cutoff_value, window_size, reference_power,
                  reset_interval):
         super(NonsilenceDaliPipeline, self).__init__(batch_size, num_threads=1)
         self.nonsilence = ops.NonsilentRegion(cutoff_db=cutoff_value, window_length=window_size,
-                                              reference_db=reference_db,
-                                              reference_max=reference_max,
+                                              reference_power=reference_power,
                                               reset_interval=reset_interval,
                                               device="cpu")
 
 
 class NonsilenceRosaPipeline(NonsilencePipeline):
-    def __init__(self, batch_size, cutoff_value, window_size, reference_db, reference_max,
-                 reset_interval):
+    def __init__(self, batch_size, cutoff_value, window_size, reference_power, reset_interval):
         super(NonsilenceRosaPipeline, self).__init__(batch_size, num_threads=1,
                                                      exec_async=False, exec_pipelined=False)
         hop_length = 1
-        function = partial(trim_ref, cutoff_value, np.max if reference_max else reference_db,
+        function = partial(trim_ref, cutoff_value,
+                           np.max if reference_power == 0. else reference_power,
                            window_size, hop_length)
         self.nonsilence = ops.PythonFunction(function=function, num_outputs=2)
 
 
-def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_db, reference_max,
+def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_db,
                               reset_interval, eps):
-    dali_pipe = NonsilenceDaliPipeline(batch_size, cutoff_value, window_size, reference_db,
-                                       reference_max, reset_interval)
-    rosa_pipe = NonsilenceRosaPipeline(batch_size, cutoff_value, window_size, reference_db,
-                                       reference_max, reset_interval)
-    dali_pipe.build()
-    rosa_pipe.build()
-    dali_out = dali_pipe.run()
-    rosa_out = rosa_pipe.run()
-    for i in range(batch_size):
-        diff0 = abs(dali_out[0].at(i) - rosa_out[0].at(i))
-        diff1 = abs(dali_out[1].at(i) - rosa_out[1].at(i))
-        print("out0\tval1: {}\tval2: {}\tdiff: {}\teps: {}".format(dali_out[0].at(i),
-                                                                   rosa_out[0].at(i), diff0, eps))
-        print("out1\tval1: {}\tval2: {}\tdiff: {}\teps: {}".format(dali_out[1].at(i),
-                                                                   rosa_out[1].at(i), diff0, eps))
-        # Test shall pass either when the lengths match and are equal to 0
-        # or when both lengths and begins match
-        assert diff1 <= eps and (dali_out[1].at(i) <= eps or diff0 <= eps)
+    test_utils.compare_pipelines(
+        NonsilenceDaliPipeline(batch_size, cutoff_value, window_size, reference_db, reset_interval),
+        NonsilenceRosaPipeline(batch_size, -cutoff_value, window_size, reference_db,
+                               reset_interval), batch_size=batch_size, N_iterations=1, eps=eps)
 
 
 def test_nonsilence_operator():
@@ -109,12 +94,10 @@ def test_nonsilence_operator():
     window_size_to_reset_interval = [3, 4, 5]
     reset_intervals = [-1] + list(
         map(lambda x: x[0] * x[1], itertools.product(window_sizes, window_size_to_reset_interval)))
-    references_max = [True, False]
-    references_db = [1.]
-    cutoff_coeffs = [10, 20, 30]
+    references_power = [0.]
+    cutoff_coeffs = [-10, -20, -30]
     for ws in window_sizes:
         for ri in reset_intervals:
-            for rm in references_max:
-                for rd in references_db:
-                    for cc in cutoff_coeffs:
-                        yield check_nonsilence_operator, batch_size, cc, ws, rd, rm, ri, eps
+            for rp in references_power:
+                for cc in cutoff_coeffs:
+                    yield check_nonsilence_operator, batch_size, cc, ws, rp, ri, eps
