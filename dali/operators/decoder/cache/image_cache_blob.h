@@ -50,7 +50,11 @@ class DLL_PUBLIC ImageCacheBlob : public ImageCache {
 
     DecodedImage Get(const ImageKey &image_key) const override;
 
+    void SyncToRead(cudaStream_t stream) const override;  // part of the API
+
  protected:
+    void SyncAfterWrite(cudaStream_t stream) const;       // internal impl only
+
     void print_stats() const;
 
     inline std::size_t images_seen() const {
@@ -81,6 +85,10 @@ class DLL_PUBLIC ImageCacheBlob : public ImageCache {
     mutable std::unordered_map<ImageKey, Stats> stats_;
     bool is_full = false;
     std::size_t total_seen_images_ = 0;
+
+    cudaStream_t cache_stream_;
+    cudaEvent_t cache_read_event_;
+    cudaEvent_t cache_write_event_;
 };
 
 }  // namespace dali

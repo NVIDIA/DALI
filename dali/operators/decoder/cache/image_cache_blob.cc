@@ -36,10 +36,19 @@ ImageCacheBlob::ImageCacheBlob(std::size_t cache_size,
   tail_ = buffer_.get();
   buffer_end_ = buffer_.get() + cache_size_;
   LOG_LINE << "cache size is " << cache_size_ / (1024 * 1024) << " MB" << std::endl;
+
+  CUDA_CALL(cudaStreamCreateWithPriority(&cache_stream_, cudaStreamNonBlocking, 0));
+  CUDA_CALL(cudaEventCreate(&cache_read_event_));
+  CUDA_CALL(cudaEventCreate(&cache_write_event_));
 }
 
 ImageCacheBlob::~ImageCacheBlob() {
   try {
+    CUDA_CALL(cudaStreamSynchronize(cache_stream_));
+    CUDA_CALL(cudaEventDestroy(cache_read_event_));
+    CUDA_CALL(cudaEventDestroy(cache_write_event_));
+    CUDA_CALL(cudaStreamDestroy(cache_stream_));
+
     if (stats_enabled_ && images_seen() > 0) print_stats();
   } catch (...) {
     std::terminate();
@@ -72,7 +81,10 @@ bool ImageCacheBlob::Read(const ImageKey& image_key,
   DALI_ENFORCE(data.data < tail_);
   const auto n = data.num_elements();
   DALI_ENFORCE(data.data + n <= tail_);
+
+  SyncToRead(stream);
   MemCopy(destination_buffer, data.data, n, stream);
+
   if (stats_enabled_) stats_[image_key].reads++;
   return true;
 }
@@ -106,11 +118,26 @@ void ImageCacheBlob::Add(const ImageKey& image_key, const uint8_t* data,
     if (stats_enabled_) is_full = true;
     return;
   }
+
   MemCopy(tail_, data, data_size, stream);
+  SyncAfterWrite(stream);
+
   cache_[image_key] = {tail_, data_shape};
   tail_ += data_size;
 
   if (stats_enabled_) stats_[image_key].is_cached = true;
+}
+
+void ImageCacheBlob::SyncToRead(cudaStream_t stream) const {
+  // synchronizing with cache instance stream with provided stream
+  CUDA_CALL(cudaEventRecord(cache_read_event_, cache_stream_));
+  CUDA_CALL(cudaStreamWaitEvent(stream, cache_read_event_, 0));
+}
+
+void ImageCacheBlob::SyncAfterWrite(cudaStream_t stream) const {
+  // synchronizing with cache instance stream with provided stream
+  CUDA_CALL(cudaEventRecord(cache_write_event_, stream));
+  CUDA_CALL(cudaStreamWaitEvent(cache_stream_, cache_write_event_, 0));
 }
 
 void ImageCacheBlob::print_stats() const {
