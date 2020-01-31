@@ -60,7 +60,16 @@ DALI_REGISTER_OPERATOR(NonsilentRegion, NonsilenceOperatorCpu, CPU);
 bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const workspace_t<CPUBackend> &ws) {
   AcquireArgs(spec_, ws);
-  return this->impl_->SetupImpl(output_desc, ws);
+  TypeInfo output_type;
+  output_type.SetType<int>(TypeTable::GetTypeID<int>());
+  TensorShape<> scalar_shape = {1};
+
+  output_desc.resize(detail::kNumOutputs);
+  for (int i = 0; i < detail::kNumOutputs; i++) {
+    output_desc[i].shape = uniform_list_shape(batch_size_, scalar_shape);
+    output_desc[i].type = output_type;
+  }
+  return true;
 }
 
 
@@ -70,7 +79,7 @@ bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
 void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template InputRef<CPUBackend>(0);
   TYPE_SWITCH(input.type().id(), type2id, InputType, NONSILENCE_TYPES, (
-          this->impl_->RunImplTyped<InputType>(ws);
+          RunImplTyped<InputType>(ws);
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
 }
 

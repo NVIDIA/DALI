@@ -32,6 +32,80 @@ namespace detail {
 
 const int kNumOutputs = 2;
 
+template<typename InputType>
+struct Args {
+  TensorView<StorageCPU, const InputType, 1> input;
+  float cutoff_db;
+  float reference_power;
+  bool reference_max;
+  int window_length;
+  int reset_interval;
+};
+
+
+template<typename T>
+T max(TensorView<StorageCPU, T, DynamicDimensions> tv) {
+  T max = std::numeric_limits<T>::lowest();
+  for (int i = 0; i < tv.num_elements(); i++) {
+    max = std::max(max, tv.data[i]);
+  }
+  return max;
+}
+
+
+/**
+ * @brief Performs leading and trailing thresholding.
+ *
+ * Returns index of a first value above the threshold in the buffer and
+ * the length up to the point, where last value above the threshold appears in the buffer.
+ *
+ * If the length == 0, begin == 0
+ *
+ * Example:
+ * buffer: [0, 0, 0, 0, 50, 50, 0, 0]
+ * cutoff: 20
+ * return: {4, 2}
+ *
+ * @return (begin_idx, length)
+ */
+template<typename T>
+std::pair<int, int> LeadTrailThresh(span<const T> buffer, T cutoff) {
+  assert(buffer.size() > 0);
+  int begin = -1;
+  int end = buffer.size();
+  while (begin < end && buffer[++begin] < cutoff);  // NOLINT
+  if (begin == end) return {0, 0};  // Rest is silence
+  while (buffer[--end] < cutoff);  // NOLINT
+  return {begin, end - begin + 1};
+}
+
+
+template<typename InputType>
+void RunKernel(TensorView<StorageCPU, const InputType, 1> in, Tensor<CPUBackend> &out,
+               const kernels::signal::MovingMeanSquareArgs &mms_args) {
+  kernels::KernelContext kctx;
+  kernels::signal::MovingMeanSquareCpu<InputType> mms;
+  auto reqs = mms.Setup(kctx, in, mms_args);
+  out.Resize(reqs.output_shapes[0][0]);
+  auto tv = view_as_tensor<float>(out);
+  mms.Run(kctx, tv.template to_static<1>(), in, mms_args);
+}
+
+
+/**
+ * Performs nonsilent region detection for single sample
+ * @return (begin_idx, length)
+ */
+template<typename InputType>
+std::pair<int, int>
+DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<InputType> &args) {
+  RunKernel(args.input, intermediate_buffer, {args.window_length, args.reset_interval});
+  auto dbs = view_as_tensor<float>(intermediate_buffer);
+  kernels::signal::DecibelCalculator<float> dbc(10.f, args.reference_max ? max(dbs)
+                                                                         : args.reference_power);
+  return LeadTrailThresh(make_cspan(dbs.data, dbs.num_elements()), dbc.db2signal(args.cutoff_db));
+}
+
 }  // namespace detail
 
 template<typename Backend>
@@ -64,8 +138,8 @@ class NonsilenceOperator : public Operator<Backend> {
 
   std::vector<float> cutoff_db_;
   std::vector<float> reference_power_;
-  int window_length_=-1;
-  int reset_interval_=-1;
+  int window_length_ = -1;
+  int reset_interval_ = -1;
 
   USE_OPERATOR_MEMBERS();
 };
@@ -74,15 +148,14 @@ class NonsilenceOperator : public Operator<Backend> {
 class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
  public:
   explicit NonsilenceOperatorCpu(const OpSpec &spec) :
-          NonsilenceOperator<CPUBackend>(spec),
-          impl_(std::make_unique<Impl>(this)) {}
+          NonsilenceOperator<CPUBackend>(spec) {
+    intermediate_buffers_.resize(num_threads_);
+  }
 
 
   ~NonsilenceOperatorCpu() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(NonsilenceOperatorCpu);
-
-  class Impl;
 
  protected:
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
@@ -91,47 +164,6 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
-  std::unique_ptr<Impl> impl_;
-};
-
-
-class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
- public:
-  Impl() = default;
-
-
-  explicit Impl(const NonsilenceOperatorCpu *enclosing) : enclosing_(enclosing),
-                                                          batch_size_(enclosing->batch_size_) {}
-
-
-  template<typename InputType>
-  struct Args {
-    TensorView<StorageCPU, const InputType, 1> input;
-    float cutoff_db;
-    float reference_power;
-    bool reference_max;
-    int window_length;
-    int reset_interval;
-  };
-
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
-    const auto &input = ws.template InputRef<CPUBackend>(0);
-    nsamples_ = input.size();
-
-    TypeInfo output_type;
-    output_type.SetType<int>(TypeTable::GetTypeID<int>());
-    TensorShape<> scalar_shape = {1};
-
-    output_desc.resize(detail::kNumOutputs);
-    for (int i = 0; i < detail::kNumOutputs; i++) {
-      output_desc[i].shape = uniform_list_shape(batch_size_, scalar_shape);
-      output_desc[i].type = output_type;
-    }
-    return true;
-  }
-
-
   template<typename InputType>
   void RunImplTyped(workspace_t<CPUBackend> &ws) {
     const auto &input = ws.template InputRef<CPUBackend>(0);
@@ -142,15 +174,15 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
     for (int sample_id = 0; sample_id < batch_size_; sample_id++) {
       tp.DoWorkWithID(
               [&, sample_id](int thread_id) {
-                  Args<InputType> args;
+                  detail::Args<InputType> args;
                   args.input = view<const InputType, 1>(input[sample_id]);
-                  args.cutoff_db = enclosing_->cutoff_db_[sample_id];
-                  args.reference_power = enclosing_->reference_power_[sample_id];
-                  args.reference_max = enclosing_->reference_power_[sample_id] == 0;
-                  args.window_length = enclosing_->window_length_;
-                  args.reset_interval = enclosing_->reset_interval_;
+                  args.cutoff_db = cutoff_db_[sample_id];
+                  args.reference_power = reference_power_[sample_id];
+                  args.reference_max = reference_power_[sample_id] == 0;
+                  args.window_length = window_length_;
+                  args.reset_interval = reset_interval_;
 
-                  auto res = DetectNonsilenceRegion(sample_id, args);
+                  auto res = DetectNonsilenceRegion(intermediate_buffers_[thread_id], args);
                   auto beg_ptr = output_begin[sample_id].mutable_data<int>();
                   auto len_ptr = output_length[sample_id].mutable_data<int>();
                   *beg_ptr = res.first;
@@ -161,78 +193,6 @@ class DLL_PUBLIC NonsilenceOperatorCpu::Impl {
   }
 
 
-  /**
-   * Performs nonsilent region detection for single sample
-   * @return (begin_idx, length)
-   */
-  template<typename InputType>
-  std::pair<int, int>
-  DetectNonsilenceRegion(int sample_id, const Args<InputType> &args) {
-    SetupKernel();
-    RunKernel(sample_id, args.input, {args.window_length, args.reset_interval});
-    auto dbs = view_as_tensor<float>(intermediate_buffers_[sample_id]);
-    kernels::signal::DecibelCalculator<float> dbc(10.f, args.reference_max ? max(dbs)
-                                                                           : args.reference_power);
-    return LeadTrailThresh(make_cspan(dbs.data, dbs.num_elements()), dbc.db2signal(args.cutoff_db));
-  }
-
-
-  void SetupKernel() {
-    intermediate_buffers_.resize(nsamples_);
-  }
-
-
-  template<typename InputType>
-  void
-  RunKernel(int sample_id, TensorView<StorageCPU, const InputType, 1> in, const kernels::signal::MovingMeanSquareArgs &mms_args) {
-    kernels::KernelContext kctx;
-    kernels::signal::MovingMeanSquareCpu<InputType> mms;
-    auto reqs = mms.Setup(kctx, in, mms_args);
-    intermediate_buffers_[sample_id].Resize(reqs.output_shapes[0][sample_id]);
-    auto out = view_as_tensor<float>(intermediate_buffers_[sample_id]);
-    mms.Run(kctx, out.template to_static<1>(), in, mms_args);
-  }
-
-
-  /**
-   * @brief Performs leading and trailing thresholding.
-   *
-   * Returns index of a first value above the threshold in the buffer and
-   * the length up to the point, where last value above the threshold appears in the buffer.
-   *
-   * If the length == 0, begin == 0
-   *
-   * Example:
-   * buffer: [0, 0, 0, 0, 50, 50, 0, 0]
-   * cutoff: 20
-   * return: {4, 2}
-   *
-   * @return (begin_idx, length)
-   */
-  template<typename T>
-  static std::pair<int, int> LeadTrailThresh(span<const T> buffer, T cutoff) {
-    assert(buffer.size() > 0);
-    int begin = -1;
-    int end = buffer.size();
-    while (begin < end && buffer[++begin] < cutoff);  // NOLINT
-    if (begin == end) return {0, 0};  // Rest is silence
-    while (buffer[--end] < cutoff);  // NOLINT
-    return {begin, end - begin + 1};
-  }
-
-
-  template<typename T>
-  T max(TensorView<StorageCPU, T, DynamicDimensions> tv) {
-    T max = std::numeric_limits<T>::lowest();
-    for (int i = 0; i < tv.num_elements(); i++) {
-      max = std::max(max, tv.data[i]);
-    }
-    return max;
-  }
-
-
-  const NonsilenceOperatorCpu *enclosing_ = nullptr;
-  int nsamples_ = -1, batch_size_ = -1;
   std::vector<Tensor<CPUBackend>> intermediate_buffers_;
 };
 
