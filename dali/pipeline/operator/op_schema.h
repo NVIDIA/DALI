@@ -459,6 +459,18 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Informs that the data passes though this operator unchanged, only
    *        the metadata is affected.
+   *
+   * If the operator _can_ pass an input buffer as-is to the output (possibly
+   * changing the associated metadata), this property of should be set accordingly
+   * in the operator's OpSchema. The purpose of this property is to inform the
+   * pipeline and the executor that a particular output of the operator doesn't
+   * own the storage and the associated input should be included in double-buffering
+   * whenever the output should.
+   *
+   * @param inout - tells which inputs are passed through to which outputs.
+   *                Multiple inputs can be passed through to one output (at
+   *                least potentially, e.g. when conditionally forwarding
+   *                one of inputs to the output), but not vice versa.
    */
   DLL_PUBLIC inline OpSchema &PassThrough(const std::map<int, int> &inout) {
     passthrough_map_ = inout;
