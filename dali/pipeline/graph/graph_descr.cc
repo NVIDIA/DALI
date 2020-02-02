@@ -558,7 +558,7 @@ bool OpGraph::HasConsumersInOtherStage(const TensorNode &tensor, OpType this_sta
     }
     const OpSchema &schema = cons_op.spec.GetSchema();
     int out_idx = schema.GetPassThroughOutputIdx(cons_edge.index);
-    while (out_idx >= 0) {
+    if (out_idx >= 0) {
       if (HasConsumersInOtherStage(Tensor(cons_op.children_tensors[out_idx]), this_stage))
         return true;
     }
