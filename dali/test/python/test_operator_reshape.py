@@ -53,6 +53,8 @@ class ReshapePipeline(Pipeline):
           images = images.gpu()
         reshaped = self.reshape(images)
 
+        # `images+0` creates a (no-op) arithmetic expression node - this prevents the
+        # original `images` node from being marked as pipeline output
         return [images+0, reshaped]
 
 def CollapseChannels(image):
