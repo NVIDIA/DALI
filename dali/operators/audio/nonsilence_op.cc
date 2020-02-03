@@ -52,7 +52,7 @@ If ``reference_power`` is not provided, the maximum of the signal will be used a
                 .AddOptionalArg("reset_interval",
                                 R"code(The number of samples after which the moving mean average is
 recalculated to avoid loss of precision. If ``reset_interval == -1`` or the input type allows exact calculation,
-average won't be reset. The default value should fit most of the use cases.)code",
+the average won't be reset. The default value should fit most of the use cases.)code",
                                 8192);
 
 DALI_REGISTER_OPERATOR(NonsilentRegion, NonsilenceOperatorCpu, CPU);

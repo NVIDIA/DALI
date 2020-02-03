@@ -71,11 +71,21 @@ T max(TensorView<StorageCPU, T, DynamicDimensions> tv) {
 template<typename T>
 std::pair<int, int> LeadTrailThresh(span<const T> buffer, T cutoff) {
   assert(buffer.size() > 0);
-  int begin = -1;
   int end = buffer.size();
-  while (begin < end && buffer[++begin] < cutoff) {}
+  int begin = end;
+  for (int i = 0; i < end; i++) {
+    if (buffer[i] >= cutoff) {
+      begin = i;
+      break;
+    }
+  }
   if (begin == end) return {0, 0};  // Rest is silence
-  while (buffer[--end] < cutoff) {}
+  for (int i = end - 1; i >= begin; i--) {
+    if (buffer[i] >= cutoff) {
+      end = i;
+      break;
+    }
+  }
   return {begin, end - begin + 1};
 }
 
@@ -128,7 +138,14 @@ class NonsilenceOperator : public Operator<Backend> {
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws) {
     this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws);
-    this->GetPerSampleArgument(reference_power_, "reference_power", ws);
+    if (spec.HasArgument("reference_power")) {
+      this->GetPerSampleArgument(reference_power_, "reference_power", ws);
+      for (const auto &val : reference_power_) {
+        DALI_ENFORCE(val > 0, make_string("`reference_power` has to be positive. Got: ", val));
+      }
+    } else {
+      reference_max_ = true;
+    }
     window_length_ = spec.GetArgument<int>("window_length", &ws);
     auto input_type = ws.template InputRef<Backend>(0).type().id();
     // If input type is not floating point, there's no need for reset interval
@@ -144,6 +161,7 @@ class NonsilenceOperator : public Operator<Backend> {
 
   std::vector<float> cutoff_db_;
   std::vector<float> reference_power_;
+  bool reference_max_ = false;
   int window_length_ = -1;
   int reset_interval_ = -1;
 
@@ -183,8 +201,10 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
                   detail::Args<InputType> args;
                   args.input = view<const InputType, 1>(input[sample_id]);
                   args.cutoff_db = cutoff_db_[sample_id];
-                  args.reference_power = reference_power_[sample_id];
-                  args.reference_max = reference_power_[sample_id] == 0;
+                  if (!reference_max_) {
+                    args.reference_power = reference_power_[sample_id];
+                  }
+                  args.reference_max = reference_max_;
                   args.window_length = window_length_;
                   args.reset_interval = reset_interval_;
 

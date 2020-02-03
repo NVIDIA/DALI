@@ -74,7 +74,7 @@ class NonsilenceRosaPipeline(NonsilencePipeline):
                                                      exec_async=False, exec_pipelined=False)
         hop_length = 1
         function = partial(trim_ref, cutoff_value,
-                           np.max if reference_power == 0. else reference_power,
+                           np.max if not reference_power else reference_power,
                            window_size, hop_length)
         self.nonsilence = ops.PythonFunction(function=function, num_outputs=2)
 
@@ -93,7 +93,7 @@ def test_nonsilence_operator():
     batch_size = 3
     window_sizes = [512, 1024, 2048]
     reset_intervals = [-1, 2048, 8192]
-    references_power = [0., .0003]
+    references_power = [None, .0003]
     cutoff_coeffs = [-10, -20, -30]
     for ws in window_sizes:
         for ri in reset_intervals:
