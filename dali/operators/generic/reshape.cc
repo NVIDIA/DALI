@@ -28,6 +28,7 @@ DALI_SCHEMA(Reshape)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be reshaped")
   .InputDox(1, "shape", "1D TensorList of integers", "Same as `shape` keyword argument")
+  .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
   .AddOptionalArg<int>("shape", "The desired shape of the output. Number of dimensions "

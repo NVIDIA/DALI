@@ -165,7 +165,6 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
     TensorMeta meta;
     meta.node = new_node.id;
     meta.index = i;
-    meta.is_support = spec.IsArgumentInput(i);
     meta.storage_device = ParseStorageDevice(spec.InputDevice(i));
 
     // Insert new tensor consumer
@@ -179,7 +178,6 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
     TensorMeta meta;
     meta.node = new_node.id;
     meta.index = i;
-    meta.is_support = false;
     meta.storage_device = ParseStorageDevice(spec.OutputDevice(i));
 
     string name = spec.Output(i);
@@ -514,12 +512,58 @@ void OpGraph::GenerateDOTFromGraph(const TensorNode &current_node, std::ofstream
   }
 }
 
-std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_names) const {
+std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_names,
+                                              bool follow_pass_through) const {
   std::vector<TensorNodeId> result;
-  for (const auto& out : output_names) {
-    result.push_back(TensorId(out));
+  if (!follow_pass_through) {
+    for (const auto& out : output_names) {
+      result.push_back(TensorId(out));
+    }
+  } else {
+    std::vector<bool> visited(tensor_nodes_.size());
+    std::vector<TensorNodeId> q;
+    for (const auto& out : output_names) {
+      q.push_back(TensorId(out));
+    }
+    while (!q.empty()) {
+      TensorNodeId tid = q.back();
+      q.pop_back();
+      if (visited[tid])
+        continue;
+      visited[tid] = true;
+      result.push_back(tid);
+      auto output = Tensor(tid).producer;
+      auto &schema = Node(output.node).spec.GetSchema();
+      if (schema.HasPassThrough()) {
+        for (TensorNodeId parent_tid : Node(output.node).parent_tensors) {
+          for (TensorMeta input : Tensor(parent_tid).consumers) {
+            if (input.node == output.node &&
+                schema.GetPassThroughOutputIdx(input.index) == output.index) {
+                q.push_back(parent_tid);
+            }
+          }
+        }
+      }
+    }
   }
   return result;
+}
+
+bool OpGraph::HasConsumersInOtherStage(const TensorNode &tensor, OpType this_stage) const {
+  for (auto cons_edge : tensor.consumers) {
+    // We found a consumer from different stage, this tensor is a stage output
+    const OpNode &cons_op = Node(cons_edge.node);
+    if (cons_op.op_type != this_stage) {
+      return true;
+    }
+    const OpSchema &schema = cons_op.spec.GetSchema();
+    int out_idx = schema.GetPassThroughOutputIdx(cons_edge.index);
+    if (out_idx >= 0) {
+      if (HasConsumersInOtherStage(Tensor(cons_op.children_tensors[out_idx]), this_stage))
+        return true;
+    }
+  }
+  return false;
 }
 
 std::vector<TensorNodeId> OpGraph::GetStageOutputs(OpType stage) const {
@@ -527,13 +571,8 @@ std::vector<TensorNodeId> OpGraph::GetStageOutputs(OpType stage) const {
   for (const auto& tensor : tensor_nodes_) {
     // Check if the tensor is produced in current stage
     if (Node(tensor.producer.node).op_type == stage) {
-      for (auto cons_edge : tensor.consumers) {
-        // We found a consumer from different stage, this tensor is a stage output
-        if (Node(cons_edge.node).op_type != stage) {
-          result.push_back(tensor.id);
-          break;
-        }
-      }
+      if (HasConsumersInOtherStage(tensor, stage))
+        result.push_back(tensor.id);
     }
   }
   return result;
