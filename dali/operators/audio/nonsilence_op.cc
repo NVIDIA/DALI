@@ -27,13 +27,10 @@ with a silence cut-off threshold. The signal is consider silence when ``short_te
 
 and ``reference_power`` being typically the maximum of the signal, unless specified otherwise.
 
-+----------------------+-----------------------------------------+
-| Inputs               | Outputs                                 |
-+=======+==============+=======+=================================+
-|       | | 1-D audio  | **0** | Begin index of nonsilent region |
-| **0** | | buffer     +-------+---------------------------------+
-|       |              | **1** | Length of nonsilent region      |
-+-------+--------------+-------+---------------------------------+
+Inputs/Outputs
+  **Input 0** - 1D audio buffer
+  **Output 0** - Begin index of nonsilent region
+  **Output 1** - Length of nonsilent region
 
 Remarks
   - If ``Outputs[1] == 0``, ``Outputs[0]`` value is undefined
