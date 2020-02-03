@@ -79,25 +79,25 @@ class NonsilenceRosaPipeline(NonsilencePipeline):
         self.nonsilence = ops.PythonFunction(function=function, num_outputs=2)
 
 
-def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_db,
+def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_power,
                               reset_interval, eps):
     test_utils.compare_pipelines(
-        NonsilenceDaliPipeline(batch_size, cutoff_value, window_size, reference_db, reset_interval),
-        NonsilenceRosaPipeline(batch_size, -cutoff_value, window_size, reference_db,
-                               reset_interval), batch_size=batch_size, N_iterations=1, eps=eps)
+        NonsilenceDaliPipeline(batch_size, cutoff_value, window_size, reference_power,
+                               reset_interval),
+        NonsilenceRosaPipeline(batch_size, -cutoff_value, window_size, reference_power,
+                               reset_interval),
+        batch_size=batch_size, N_iterations=3, eps=eps)
 
 
 def test_nonsilence_operator():
-    batch_size = 1
-    eps = 1
+    batch_size = 3
     window_sizes = [512, 1024, 2048]
-    window_size_to_reset_interval = [3, 4, 5]
-    reset_intervals = [-1] + list(
-        map(lambda x: x[0] * x[1], itertools.product(window_sizes, window_size_to_reset_interval)))
-    references_power = [0.]
+    reset_intervals = [-1, 2048, 8192]
+    references_power = [0., .0003]
     cutoff_coeffs = [-10, -20, -30]
     for ws in window_sizes:
         for ri in reset_intervals:
             for rp in references_power:
                 for cc in cutoff_coeffs:
-                    yield check_nonsilence_operator, batch_size, cc, ws, rp, ri, eps
+                    yield check_nonsilence_operator, \
+                          batch_size, cc, ws, rp, ri, 5 if ri == -1 else 1

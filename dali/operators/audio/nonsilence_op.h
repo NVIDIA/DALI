@@ -73,9 +73,9 @@ std::pair<int, int> LeadTrailThresh(span<const T> buffer, T cutoff) {
   assert(buffer.size() > 0);
   int begin = -1;
   int end = buffer.size();
-  while (begin < end && buffer[++begin] < cutoff);  // NOLINT
+  while (begin < end && buffer[++begin] < cutoff) {}
   if (begin == end) return {0, 0};  // Rest is silence
-  while (buffer[--end] < cutoff);  // NOLINT
+  while (buffer[--end] < cutoff) {}
   return {begin, end - begin + 1};
 }
 
@@ -100,10 +100,11 @@ template<typename InputType>
 std::pair<int, int>
 DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<InputType> &args) {
   RunKernel(args.input, intermediate_buffer, {args.window_length, args.reset_interval});
-  auto dbs = view_as_tensor<float>(intermediate_buffer);
-  kernels::signal::DecibelCalculator<float> dbc(10.f, args.reference_max ? max(dbs)
+  auto signal_mms = view_as_tensor<float>(intermediate_buffer);
+  kernels::signal::DecibelCalculator<float> dbc(10.f, args.reference_max ? max(signal_mms)
                                                                          : args.reference_power);
-  return LeadTrailThresh(make_cspan(dbs.data, dbs.num_elements()), dbc.db2signal(args.cutoff_db));
+  return LeadTrailThresh(make_cspan(signal_mms.data, signal_mms.num_elements()),
+                         dbc.db2signal(args.cutoff_db));
 }
 
 }  // namespace detail
@@ -133,6 +134,11 @@ class NonsilenceOperator : public Operator<Backend> {
     // If input type is not floating point, there's no need for reset interval
     reset_interval_ = IsFloatingPoint(input_type) ? spec.GetArgument<int>("reset_interval", &ws)
                                                   : -1;
+
+    DALI_ENFORCE(reset_interval_ == -1 || reset_interval_ % window_length_ == 0,
+                 make_string("`reset_interval` shall be a multiple of `window_length`. "
+                             "Got: reset_interval: ", reset_interval_, " vs window_length: ",
+                             window_length_));
   }
 
 
