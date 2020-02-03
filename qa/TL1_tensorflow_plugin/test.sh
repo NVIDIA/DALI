@@ -1,39 +1,24 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose"
+pip_packages="nose tensorflow-gpu"
 target_dir=./dali/test/python
-
-do_once() {
-    USE_CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1/')
-    if [[ "$USE_CUDA_VERSION" = "10" ]]; then
-        export TENSORFLOW_VERSIONS="1.13.1 1.14 1.15 2.0"
-    else
-        export TENSORFLOW_VERSIONS="1.7 1.11 1.12"
-    fi
-}
 
 test_body() {
     # Manually removing the supported plugin so that it fails
     lib_dir=$(python -c 'import nvidia.dali.sysconfig as sc; print(sc.get_lib_dir())')
     rm -rf $lib_dir/plugin/*.so
 
-    for tensorflow_ver in ${TENSORFLOW_VERSIONS}; do
-        echo "Testing tensorflow-gpu==$tensorflow_ver"
+    # No plugin installed, should fail
+    nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadFail
 
-        # No plugin installed, should fail
-        nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadFail
+    # Remove the old and installing "current" dali tf (built against installed TF)
+    pip list | grep nvidia-dali-tf-plugin | xargs pip uninstall -y
 
-        pip install "tensorflow-gpu==$tensorflow_ver"
+    pip install --upgrade ../../../nvidia-dali-tf-plugin*.tar.gz
+    nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
 
-        # Installing "current" dali tf (built against installed TF)
-        pip install ../../../nvidia-dali-tf-plugin*.tar.gz
-        nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
-
-        # DALI TF run
-        nosetests --verbose test_dali_tf_plugin_run.py
-
-        pip uninstall -y "tensorflow-gpu"
-    done
+    # DALI TF run
+    nosetests --verbose test_dali_tf_plugin_run.py
 }
 
 pushd ../..
