@@ -43,10 +43,10 @@ struct Args {
 };
 
 
-template<typename T>
-T max(TensorView<StorageCPU, T, DynamicDimensions> tv) {
-  T max = std::numeric_limits<T>::lowest();
-  for (int i = 0; i < tv.num_elements(); i++) {
+template<typename T, int ndims>
+T max_element(const TensorView<StorageCPU, const T, ndims> &tv) {
+  T max = tv.data[0];
+  for (int i = 1; i < tv.num_elements(); i++) {
     max = std::max(max, tv.data[i]);
   }
   return max;
@@ -110,8 +110,8 @@ template<typename InputType>
 std::pair<int, int>
 DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<InputType> &args) {
   RunKernel(args.input, intermediate_buffer, {args.window_length, args.reset_interval});
-  auto signal_mms = view_as_tensor<float>(intermediate_buffer);
-  kernels::signal::DecibelCalculator<float> dbc(10.f, args.reference_max ? max(signal_mms)
+  auto signal_mms = view_as_tensor<const float>(intermediate_buffer);
+  kernels::signal::DecibelCalculator<float> dbc(10.f, args.reference_max ? max_element(signal_mms)
                                                                          : args.reference_power);
   return LeadTrailThresh(make_cspan(signal_mms.data, signal_mms.num_elements()),
                          dbc.db2signal(args.cutoff_db));
