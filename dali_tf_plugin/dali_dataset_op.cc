@@ -93,9 +93,6 @@ class DALIDatasetOp : public DatasetOpKernel {
   static constexpr const char* const kCpuPrefetchQueueDepth = "cpu_prefetch_queue_depth";
   static constexpr const char* const kGpuPrefetchQueueDepth = "gpu_prefetch_queue_depth";
 
-
-  //TF_CHECK_OK
-
   void FillPipelineDef(OpKernelConstruction* context, PipelineDef &def) {
     OP_REQUIRES_OK(context, context->GetAttr(kPipeline, &def.pipeline));
     OP_REQUIRES_OK(context, context->GetAttr(kBatchSize, &def.batch_size));
@@ -282,7 +279,6 @@ class DALIDatasetOp : public DatasetOpKernel {
         return Status::OK();
       }
 
-      // TODO(klecki): Should we both create & destroy it in Iterator or Dataset?
       ~Iterator() {
         daliDeletePipeline(&pipeline_handle_);
       }
