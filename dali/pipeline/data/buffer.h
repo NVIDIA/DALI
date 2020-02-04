@@ -32,6 +32,7 @@
 namespace dali {
 
 class GPUBackend;
+class CPUBackend;
 
 // Helper function to get a string of the data shape
 inline string ShapeString(vector<Index> shape) {
@@ -171,7 +172,7 @@ class Buffer {
    * @brief Returns the padding value of allocations caused by Resize() call
    */
   static inline size_t padding() {
-    return kPaddding;
+    return kPadding;
   }
 
   /**
@@ -305,15 +306,20 @@ class Buffer {
 
     if (new_num_bytes > num_bytes_) {
       size_t grow = num_bytes_ * kAllocMult;
-      grow = (grow + kPaddding) & ~(kPaddding - 1);
+      grow = (grow + kPadding) & ~(kPadding - 1);
       if (grow > new_num_bytes) new_num_bytes = grow;
       reserve(new_num_bytes);
+    } else if (!is_pinned() && align_up(new_num_bytes, kPadding) < num_bytes_ * kShrinkThreshold) {
+      data_.reset();
+      num_bytes_ = 0;
+      reserve(align_up(new_num_bytes, kPadding));
     }
   }
 
-  const double kAllocMult = 1.0;
+  static double kAllocMult;
+  static double kShrinkThreshold;
   // round to 1kB
-  static constexpr size_t kPaddding = 1024;
+  static constexpr size_t kPadding = 1024;
 
   Backend backend_;
 
@@ -325,6 +331,12 @@ class Buffer {
   bool shares_data_ = false;         // Whether we aren't using our own allocation
   bool pinned_ = true;               // Whether the allocation uses pinned memory
 };
+
+template <typename Backend>
+double Buffer<Backend>::kAllocMult = 1.0;
+
+template <typename Backend>
+double Buffer<Backend>::kShrinkThreshold = std::is_same<Backend, CPUBackend>::value ? 0.9 : 0.0;
 
 // Macro so we don't have to list these in all
 // classes that derive from Buffer
