@@ -121,7 +121,8 @@ def test_slice_synth_data_vs_numpy():
                  ((200, 400, 3), None, "HW", (16, 64), None),
                  ((200, 400, 3), (0, 1), None, (256,), None),
                  ((200, 400, 3), None, "HW", (256,), None),
-                 ((200, 400, 3), None, None, None, (-1, -1, 4))]:
+                 ((200, 400, 3), None, None, None, (-1, -1, 4)),
+                 ((25, 100, 3), (0,), None, None, (25,))]:
                 yield check_pad_synth_data, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
 
 def main():

@@ -151,15 +151,11 @@ class RandomDataIterator(object):
 
 class RandomlyShapedDataIterator(object):
     import_numpy()
-    def __init__(self, batch_size, max_shape=(10, 600, 800, 3)):
+    def __init__(self, batch_size, max_shape=(10, 600, 800, 3), seed=12345):
         self.batch_size = batch_size
         self.test_data = []
-        for _ in range(self.batch_size):
-            np.random.seed(0)
-            # Scale between 0.5 and 1.0
-            shape = [int(max_shape[dim] * (0.5 + random.random()*0.5)) for dim in range(len(max_shape))]
-            self.test_data.append(np.array(np.random.rand(*shape) * 255,
-                                  dtype = np.uint8))
+        self.max_shape = max_shape
+        np.random.seed(seed)
 
     def __iter__(self):
         self.i = 0
@@ -167,6 +163,12 @@ class RandomlyShapedDataIterator(object):
         return self
 
     def __next__(self):
+        self.test_data = []
+        for _ in range(self.batch_size):
+            # Scale between 0.5 and 1.0
+            shape = [int(self.max_shape[dim] * (0.5 + random.random()*0.5)) for dim in range(len(self.max_shape))]
+            self.test_data.append(np.array(np.random.rand(*shape) * 255,
+                                  dtype = np.uint8))
         batch = self.test_data
         self.i = (self.i + 1) % self.n
         return (batch)
