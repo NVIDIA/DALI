@@ -276,10 +276,11 @@ void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &in = ws.InputRef<CPUBackend>(0);
   TensorLayout layout = GetOutputLayout(ws);
   out.ShareData(&in);
+  out.Resize(output_shape_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
-    out[i].Resize(output_shape_[i]);
     assert(out[i].raw_data() == in[i].raw_data());
+    assert(out[i].shape() == output_shape_[i]);
   }
   out.SetLayout(layout);
 }
