@@ -347,6 +347,12 @@ class DLL_PUBLIC Buffer {
   bool pinned_ = true;               // Whether the allocation uses pinned memory
 };
 
+template <typename Backend>
+double Buffer<Backend>::growth_factor_ = 1.0;
+
+template <typename Backend>
+double Buffer<Backend>::shrink_threshold_ = std::is_same<Backend, CPUBackend>::value ? 0.9 : 0;
+
 // Macro so we don't have to list these in all
 // classes that derive from Buffer
 #define USE_BUFFER_MEMBERS()           \
