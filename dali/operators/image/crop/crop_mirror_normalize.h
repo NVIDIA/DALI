@@ -110,10 +110,29 @@ class CropMirrorNormalize : public Operator<Backend>, protected CropAttr {
       inv_std_vec_ = { spec.GetArgument<float>("std") };
     }
 
+    DALI_ENFORCE(!mean_vec_.empty() && !inv_std_vec_.empty(),
+      "mean and standard deviation can't be empty");
+
+    DALI_ENFORCE(
+      mean_vec_.size() == inv_std_vec_.size() || mean_vec_.size() == 1 || inv_std_vec_.size() == 1,
+      "`mean` and `stddev` must either be of the same size, be scalars, or one of them can be a "
+      "vector and the other a scalar.");
+
     // Inverse the std-deviation
     for (auto &element : inv_std_vec_) {
       element = 1.f / element;
     }
+
+    // Handle irregular mean/std argument lengths
+    auto args_size = std::max(mean_vec_.size(), inv_std_vec_.size());
+    if (mean_vec_.size() != inv_std_vec_.size()) {
+      if (mean_vec_.size() == 1)
+        mean_vec_.resize(args_size, mean_vec_[0]);
+
+      if (inv_std_vec_.size() == 1)
+        inv_std_vec_.resize(args_size, inv_std_vec_[0]);
+    }
+
     if (std::is_same<Backend, GPUBackend>::value) {
       kmgr_.Resize(1, 1);
     } else {

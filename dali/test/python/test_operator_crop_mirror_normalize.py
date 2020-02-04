@@ -197,9 +197,16 @@ def crop_mirror_normalize_func(crop_z, crop_y, crop_x,
         out = image[:, start_z:end_z, start_y:end_y, start_x:end_x, :]
         D, H, W = out.shape[1], out.shape[2], out.shape[3]
 
+    if not mean:
+        mean = [0.0]
+    if not std:
+        std = [1.0]
+
     if len(mean) == 1:
         mean = C * mean
+    if len(std) == 1:
         std = C * std
+
     assert len(mean) == C and len(std) == C
     inv_std = [np.float32(1.0) / np.float32(std[c]) for c in range(C)]
     mean = np.float32(mean)
@@ -369,7 +376,11 @@ def check_cmn_random_data_vs_numpy(device, batch_size, output_dtype, input_layou
 
 def test_cmn_random_data_vs_numpy():
     norm_data = [ ([0., 0., 0.], [1., 1., 1.]),
-                  ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]
+                  ([0.485 * 255, 0.456 * 255, 0.406 * 255], [0.229 * 255, 0.224 * 255, 0.225 * 255]),
+                  ([0.485 * 255, 0.456 * 255, 0.406 * 255], None),
+                  ([0.485 * 255, 0.456 * 255, 0.406 * 255], [255.0,]),
+                  (None, [0.229 * 255, 0.224 * 255, 0.225 * 255]),
+                  ([128,], [0.229 * 255, 0.224 * 255, 0.225 * 255]) ]
     output_layouts = {
         "HWC" : ["HWC", "CHW"],
         "FHWC" : ["FHWC", "FCHW"],
