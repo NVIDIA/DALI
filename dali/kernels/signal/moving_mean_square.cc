@@ -112,6 +112,7 @@ void MovingMeanSquareCpu<T>::Run(KernelContext &context, const OutTensorCPU<floa
 }
 
 
+template class MovingMeanSquareCpu<double>;
 template class MovingMeanSquareCpu<float>;
 template class MovingMeanSquareCpu<uint8_t>;
 template class MovingMeanSquareCpu<int8_t>;
