@@ -48,14 +48,18 @@ void InitializeBufferPolicies() {
     Buffer<CPUBackend>::SetShrinkThreshold(clamp(atof(threshold_str), 0.0, 1.0));
   }
   if (const char *factor = std::getenv("DALI_BUFFER_GROWTH_FACTOR")) {
-    Buffer<CPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, 4.0));
-    Buffer<GPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, 4.0));
+    double max_factor = Buffer<CPUBackend>::kMaxGrowthFactor;
+    Buffer<CPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, max_factor));
+    max_factor = Buffer<GPUBackend>::kMaxGrowthFactor;
+    Buffer<GPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, max_factor));
   }
   if (const char *factor = std::getenv("DALI_HOST_BUFFER_GROWTH_FACTOR")) {
-    Buffer<CPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, 4.0));
+    const double max_factor = Buffer<CPUBackend>::kMaxGrowthFactor;
+    Buffer<CPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, max_factor));
   }
   if (const char *factor = std::getenv("DALI_DEVICE_BUFFER_GROWTH_FACTOR")) {
-    Buffer<GPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, 4.0));
+    const double max_factor = Buffer<GPUBackend>::kMaxGrowthFactor;
+    Buffer<GPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, max_factor));
   }
 }
 

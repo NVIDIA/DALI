@@ -286,6 +286,8 @@ class DLL_PUBLIC Buffer {
     return shrink_threshold_;
   }
 
+  static constexpr double kMaxGrowthFactor = 4;
+
  protected:
   static void FreeMemory(void* ptr, size_t bytes, int device, bool pinned) {
     // for device == -1 it is noop

@@ -624,24 +624,34 @@ void ExposeBufferPolicyFunctions(py::module &m) {
     if (ratio < 0 || ratio > 1)
       throw py::value_error("Shrink threshold must be between 0 (never shrink) "
                             "and 1 (always shrink).");
+
     Buffer<CPUBackend>::SetShrinkThreshold(ratio);
   });
 
   m.def("SetHostBufferGrowthFactor", [](double factor) {
-    if (factor < 1 || factor > 4)
-      throw py::value_error("Growth factor must be between 1 and 4.");
+    const double max_factor = std::min(
+        Buffer<CPUBackend>::kMaxGrowthFactor,
+        Buffer<GPUBackend>::kMaxGrowthFactor);
+
+    if (factor < 1 || factor > max_factor)
+      throw py::value_error(make_string("Growth factor must be between 1 and ", max_factor, "."));
+
     Buffer<CPUBackend>::SetGrowthFactor(factor);
   });
 
   m.def("SetDeviceBufferGrowthFactor", [](double factor) {
-    if (factor < 1 || factor > 4)
-      throw py::value_error("Growth factor must be between 1 and 4.");
+    const double max_factor = Buffer<CPUBackend>::kMaxGrowthFactor;
+    if (factor < 1 || factor > max_factor)
+      throw py::value_error(make_string("Growth factor must be between 1 and ", max_factor, "."));
+
     Buffer<GPUBackend>::SetGrowthFactor(factor);
   });
 
   m.def("SetBufferGrowthFactor", [](double factor) {
-    if (factor < 1 || factor > 4)
-      throw py::value_error("Growth factor must be between 1 and 4.");
+    const double max_factor = Buffer<GPUBackend>::kMaxGrowthFactor;
+    if (factor < 1 || factor > max_factor)
+      throw py::value_error(make_string("Growth factor must be between 1 and ", max_factor, "."));
+
     Buffer<CPUBackend>::SetGrowthFactor(factor);
     Buffer<GPUBackend>::SetGrowthFactor(factor);
   });
