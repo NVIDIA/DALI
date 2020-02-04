@@ -14,9 +14,12 @@
 
 #include <signal.h>
 #include <cstring>
+#include <cstdlib>
 #include "dali/pipeline/init.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/math_util.h"
 #include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/buffer.h"
 
 namespace dali {
 
@@ -40,6 +43,22 @@ void subscribe_signals() {
 
 #endif
 
+void InitializeBufferPolicies() {
+  if (const char *threshold_str = std::getenv("DALI_HOST_BUFFER_SHRINK_THRESHOLD")) {
+    Buffer<CPUBackend>::SetShrinkThreshold(clamp(atof(threshold_str), 0.0, 1.0));
+  }
+  if (const char *factor = std::getenv("DALI_BUFFER_GROWTH_FACTOR")) {
+    Buffer<CPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, 4.0));
+    Buffer<GPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, 4.0));
+  }
+  if (const char *factor = std::getenv("DALI_HOST_BUFFER_GROWTH_FACTOR")) {
+    Buffer<CPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, 4.0));
+  }
+  if (const char *factor = std::getenv("DALI_DEVICE_BUFFER_GROWTH_FACTOR")) {
+    Buffer<GPUBackend>::SetGrowthFactor(clamp(atof(factor), 1.0, 4.0));
+  }
+}
+
 void DALIInit(const OpSpec &cpu_allocator,
               const OpSpec &pinned_cpu_allocator,
               const OpSpec &gpu_allocator) {
@@ -47,6 +66,7 @@ void DALIInit(const OpSpec &cpu_allocator,
   subscribe_signals();
 #endif
   InitializeBackends(cpu_allocator, pinned_cpu_allocator, gpu_allocator);
+  InitializeBufferPolicies();
 }
 
 void DALISetCPUAllocator(const OpSpec& allocator) {

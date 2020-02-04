@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ inline string ShapeString(vector<Index> shape) {
  * destruction is provided, only raw memory allocation.
  */
 template <typename Backend>
-class Buffer {
+class DLL_PUBLIC Buffer {
  public:
   /**
    * @brief Initializes a buffer of size 0.
@@ -271,6 +271,21 @@ class Buffer {
 
   DISABLE_COPY_MOVE_ASSIGN(Buffer);
 
+  static void SetGrowthFactor(double factor) {
+    assert(factor >= 1.0);
+    growth_factor_ = factor;
+  }
+  static void SetShrinkThreshold(double ratio) {
+    assert(ratio >= 0 && ratio <= 1);
+    shrink_threshold_ = ratio;
+  }
+  static double GetGrowthFactor() {
+    return growth_factor_;
+  }
+  static double GetShrinkThreshold() {
+    return shrink_threshold_;
+  }
+
  protected:
   static void FreeMemory(void* ptr, size_t bytes, int device, bool pinned) {
     // for device == -1 it is noop
@@ -305,19 +320,19 @@ class Buffer {
     }
 
     if (new_num_bytes > num_bytes_) {
-      size_t grow = num_bytes_ * kAllocMult;
+      size_t grow = num_bytes_ * growth_factor_;
       grow = (grow + kPadding) & ~(kPadding - 1);
       if (grow > new_num_bytes) new_num_bytes = grow;
       reserve(new_num_bytes);
-    } else if (!is_pinned() && align_up(new_num_bytes, kPadding) < num_bytes_ * kShrinkThreshold) {
+    } else if (!is_pinned() && align_up(new_num_bytes, kPadding) < num_bytes_ * shrink_threshold_) {
       data_.reset();
       num_bytes_ = 0;
       reserve(align_up(new_num_bytes, kPadding));
     }
   }
 
-  static double kAllocMult;
-  static double kShrinkThreshold;
+  static double growth_factor_;
+  static double shrink_threshold_;
   // round to 1kB
   static constexpr size_t kPadding = 1024;
 
@@ -331,12 +346,6 @@ class Buffer {
   bool shares_data_ = false;         // Whether we aren't using our own allocation
   bool pinned_ = true;               // Whether the allocation uses pinned memory
 };
-
-template <typename Backend>
-double Buffer<Backend>::kAllocMult = 1.0;
-
-template <typename Backend>
-double Buffer<Backend>::kShrinkThreshold = std::is_same<Backend, CPUBackend>::value ? 0.9 : 0.0;
 
 // Macro so we don't have to list these in all
 // classes that derive from Buffer
