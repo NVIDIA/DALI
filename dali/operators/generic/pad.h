@@ -73,15 +73,14 @@ class Pad : public Operator<Backend> {
     int nsamples = in_shape.num_samples();
     if (!kernel_sample_args_.has_value()) {
       kernel_sample_args_ = std::vector<Args>();
-      auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-      kernel_sample_args.reserve(nsamples);
-      for (int i = 0; i < nsamples; i++) {
-        kernel_sample_args.emplace_back(in_shape[i]);
-      }
     }
 
     auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-    assert(static_cast<int>(kernel_sample_args.size()) == nsamples);
+    kernel_sample_args.clear();
+    kernel_sample_args.reserve(nsamples);
+    for (int i = 0; i < nsamples; i++) {
+      kernel_sample_args.emplace_back(in_shape[i]);
+    }
 
     int ndim = in_shape.sample_dim();
 
