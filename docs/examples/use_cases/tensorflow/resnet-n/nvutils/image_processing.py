@@ -45,6 +45,8 @@ class HybridPipe(dali.pipeline.Pipeline):
             kwargs['seed'] = 7 * (1 + hvd.rank())
         super(HybridPipe, self).__init__(batch_size, num_threads, device_id, **kwargs)
 
+        self.training = training
+
         self.input = dali.ops.TFRecordReader(
             path=tfrec_filenames,
             index_path=tfrec_idx_filenames,
@@ -61,21 +63,21 @@ class HybridPipe(dali.pipeline.Pipeline):
                 'image/object/bbox/xmax':dali.tfrecord.VarLenFeature(dali.tfrecord.float32, 0.0),
                 'image/object/bbox/ymax':dali.tfrecord.VarLenFeature(dali.tfrecord.float32, 0.0)})
 
-        if training:
+        if self.training:
             if dali_cpu:
                 self.decode = dali.ops.ImageDecoderRandomCrop(
                     device="cpu",
                     output_type=dali.types.RGB,
-                    random_aspect_ratio=[0.8, 1.25],
-                    random_area=[0.1, 1.0],
+                    random_aspect_ratio=[0.75, 1.33],
+                    random_area=[0.05, 1.0],
                     num_attempts=100)
                 resize_device = "cpu"
             else:
                 self.decode = dali.ops.ImageDecoderRandomCrop(
                     device="mixed",
                     output_type=dali.types.RGB,
-                    random_aspect_ratio=[0.8, 1.25],
-                    random_area=[0.1, 1.0],
+                    random_aspect_ratio=[0.75, 1.33],
+                    random_area=[0.05, 1.0],
                     num_attempts=100)
                 resize_device = "gpu"
             self.resize = dali.ops.Resize (device=resize_device, resize_x=width, resize_y=height)
@@ -98,11 +100,8 @@ class HybridPipe(dali.pipeline.Pipeline):
             output_dtype=dali.types.FLOAT,
             crop=(height, width),
             image_type=dali.types.RGB,
-            mean=[121., 115., 100.],
-            std=[70., 68., 71.],
-            output_layout=dali.types.NHWC)
-        self.uniform = dali.ops.Uniform(range=(0.0, 1.0))
-        self.cast_float = dali.ops.Cast(device="gpu", dtype=dali.types.FLOAT)
+            mean=[123.68, 116.78, 103.94],
+            output_layout="HWC")
         self.mirror = dali.ops.CoinFlip()
         self.iter = 0
 
@@ -115,7 +114,10 @@ class HybridPipe(dali.pipeline.Pipeline):
         # Decode and augmentation
         images = self.decode(images)
         images = self.resize(images)
-        images = self.normalize(images.gpu(), mirror=self.mirror())
+        if self.training:
+            images = self.normalize(images.gpu(), mirror=self.mirror())
+        else:
+            images = self.normalize(images.gpu())
 
         return (images, labels)
 
