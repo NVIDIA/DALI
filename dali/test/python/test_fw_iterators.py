@@ -290,9 +290,10 @@ def test_gluon_iterator_sparse_batch():
                                                                   data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
                                                                   shuffle_after_epoch=False, pad_last_batch=True, return_labels=True), batch_size, num_gpus)
 
-    dali_train_iter = GluonIterator(pipes, [GluonIterator.SPARSE_TAG,
+    dali_train_iter = GluonIterator(pipes, pipes[0].epoch_size("Reader"),
+                                           [GluonIterator.SPARSE_TAG,
                                             GluonIterator.DENSE_TAG],
-                                    size=pipes[0].epoch_size("Reader"), fill_last_batch=True)
+                                            fill_last_batch=True)
 
     for it in dali_train_iter:
         labels, ids = it[0] # gpu 0
@@ -536,6 +537,7 @@ def stop_teration_case_generator():
                     for infinite in [False, True]:
                         yield batch_size, epochs, iter_num, auto_reset, infinite
 
+# MXNet
 def test_stop_iteration_mxnet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     fw_iter = lambda pipe, size, auto_reset : MXNetIterator(pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
@@ -553,10 +555,25 @@ def test_stop_iteration_mxnet_fail_single():
     fw_iter = lambda pipe, size, auto_reset : MXNetIterator(pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
     check_stop_iter_fail_single(fw_iter)
 
+# Gluon
 def test_stop_iteration_gluon():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
-    test_stop_iteration(lambda pipe, size, auto_reset : GluonIterator(pipe, [GluonIterator.DENSE_TAG], size=size, auto_reset=auto_reset), "GluonIterator")
+    fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size, [GluonIterator.DENSE_TAG], auto_reset=auto_reset)
+    iter_name = "GluonIterator"
+    for batch_size, epochs, iter_num, auto_reset, infinite in stop_teration_case_generator():
+        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset, infinite
 
+def test_stop_iteration_gluon_fail_multi():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size, auto_reset=auto_reset)
+    check_stop_iter_fail_multi(fw_iter)
+
+def test_stop_iteration_gluon_fail_single():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size=size, auto_reset=auto_reset)
+    check_stop_iter_fail_single(fw_iter)
+
+# PyTorch
 def test_stop_iteration_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     fw_iter = lambda pipe, size, auto_reset : PyTorchIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
@@ -574,6 +591,7 @@ def test_stop_iteration_pytorch_fail_single():
     fw_iter = lambda pipe, size, auto_reset : PyTorchIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
     check_stop_iter_fail_single(fw_iter)
 
+# PaddlePaddle
 def test_stop_iteration_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     fw_iter = lambda pipe, size, auto_reset : PaddleIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)

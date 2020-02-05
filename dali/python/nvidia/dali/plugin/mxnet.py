@@ -566,7 +566,6 @@ class DALIGluonIterator(_DALIIteratorBase):
             fill_last_batch,
             last_batch_padded,
             auto_reset)
-        self._auto_reset = auto_reset
 
         # Build all pipelines
         for p in self._pipes:
@@ -594,7 +593,7 @@ class DALIGluonIterator(_DALIIteratorBase):
             batch = self._first_batch
             self._first_batch = None
             return batch
-        if self._counter >= self._size:
+        if self._counter >= self._size and self._size > 0:
             if self._auto_reset:
                 self.reset()
             raise StopIteration
@@ -667,10 +666,10 @@ class DALIGluonIterator(_DALIIteratorBase):
         from nvidia.dali.backend import TensorGPU
         new_batch = []
         for j, output_el in enumerate(output_elements):
-            first_t = output_el if self._outputs_types[j] == DALIGluonIterator.DENSE_TAG else output_el[0]
+            first_t = output_el if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG else output_el[0]
             dtype = np.dtype(first_t.dtype())
             device = mx_gpu_device if type(first_t) is TensorGPU else mx_cpu_device
-            if self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
+            if self._outputs_types is None or self._outputs_types[j] == DALIGluonIterator.DENSE_TAG:
                 new_batch.append(SmartArray(mx.nd.zeros(shapes[j], device, dtype=dtype)))
             else:
                 l = []
