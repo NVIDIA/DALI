@@ -350,10 +350,15 @@ class DLL_PUBLIC Buffer {
 };
 
 template <typename Backend>
-double Buffer<Backend>::growth_factor_ = 1.0;
+DLL_PUBLIC double Buffer<Backend>::growth_factor_ = 1.0;
 
 template <typename Backend>
-double Buffer<Backend>::shrink_threshold_ = std::is_same<Backend, CPUBackend>::value ? 0.9 : 0;
+DLL_PUBLIC double Buffer<Backend>::shrink_threshold_ =
+  std::is_same<Backend, CPUBackend>::value ? 0.9 : 0;
+
+template <typename Backend>
+DLL_PUBLIC constexpr double Buffer<Backend>::kMaxGrowthFactor;
+
 
 // Macro so we don't have to list these in all
 // classes that derive from Buffer
