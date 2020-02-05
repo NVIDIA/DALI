@@ -77,7 +77,7 @@ def test_request(req, name, cuda):
     request = Request(req)
     request.get_method = lambda : 'HEAD'
     try:
-        response = urlopen(request)
+        _ = urlopen(request)
         return req
     except HTTPError:
         return None
@@ -178,7 +178,7 @@ def main():
         print(get_all_strings(args.use, args.cuda))
     elif args.install >= 0:
         if args.install > cal_num_of_configs(args.use, args.cuda):
-            args.install = 1
+            args.install = 0
         print (get_install_string(args.install, args.use, args.cuda))
 
 if __name__ == "__main__":

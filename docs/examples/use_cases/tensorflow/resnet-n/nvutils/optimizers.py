@@ -18,8 +18,13 @@ from __future__ import print_function
 from builtins import range
 import tensorflow as tf
 
+try:
+    from tensorflow.compat.v1.train import Optimizer
+except:
+    # Older TF versions don't have compat.v1 layer
+    from tensorflow.train import Optimizer
 
-class LarcOptimizer(tf.train.Optimizer):
+class LarcOptimizer(Optimizer):
     def __init__(self, optimizer, learning_rate, eta, clip=True, epsilon=1.,
                  name="LarcOptimizer", use_locking=False):
         super(LarcOptimizer, self).__init__(
@@ -57,7 +62,7 @@ class LarcOptimizer(tf.train.Optimizer):
         return self._optimizer.apply_gradients(gradvars, *args, **kwargs)
 
 
-class LossScalingOptimizer(tf.train.Optimizer):
+class LossScalingOptimizer(Optimizer):
     """An optimizer that scales loss and un-scales gradients."""
 
     def __init__(self, optimizer,

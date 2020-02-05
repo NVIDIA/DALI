@@ -12,7 +12,9 @@ test_body() {
     #install APEX
     git clone https://github.com/nvidia/apex
     pushd apex
+    export CUDA_HOME=/usr/local/cuda-$(python -c "import torch; print('.'.join(torch.version.cuda.split('.')[0:2]))")
     pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .
+    unset CUDA_HOME
     popd
 
     python -m torch.distributed.launch --nproc_per_node=8 main.py --backbone resnet50 --warmup 300 --bs 64 --eval-batch-size 8 --epochs 4 --data /data/coco/coco-2017/coco2017/ --data_pipeline dali --target 0.085
