@@ -328,6 +328,23 @@ struct TensorListViewBase {
     calculate_pointers(this->data, data, shape);
   }
 
+  bool is_contiguous() const {
+    if (num_samples() < 2)
+      return true;
+    auto *ptr = data[0];
+    for (int i = 1; i < num_samples(); i++) {
+      auto *next = ptr + volume(tensor_shape_span(i - 1));
+      if (data[i] != next)
+        return false;
+      ptr = next;
+    }
+    return true;
+  }
+
+  bool is_tensor() const {
+    return is_uniform(shape) && is_contiguous();
+  }
+
   using data_pointers_t = std::vector<element_type*>;
   TensorListShape<sample_ndim> shape;
   data_pointers_t data;

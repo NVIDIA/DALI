@@ -31,16 +31,23 @@ namespace kernels {
 namespace signal {
 namespace fft {
 
-class StftGpuImpl {
+class STFTImplGPU {
  public:
 
-  KernelRequirements Setup(span<const int64_t> lengths, const StftArgs &args);
+  KernelRequirements Setup(span<const int64_t> lengths, const STFTArgs &args);
 
   void RunR2C(KernelContext &ctx,
               const OutListGPU<complexf, 2> &out,
-              const InListGPU<float, 1> &in);
+              const InListGPU<float, 1> &in,
+              const InTensorGPU<float, 1> &window);
+
+  void RunR2R(KernelContext &ctx,
+              const OutListGPU<complexf, 2> &out,
+              const InListGPU<float, 1> &in,
+              const InTensorGPU<float, 1> &window);
 
  private:
+  void Reset();
   void CreatePlans(int64_t nwindows);
   void ReserveTempStorage(ScratchpadEstimator &se, int64_t nwindows, int window_length);
   void CreateStreams(int new_num_streams);
@@ -49,6 +56,7 @@ class StftGpuImpl {
   static constexpr int kMaxSize = 1<<26;
 
   int max_windows_ = 1, min_windows_ = 0;
+  int64_t total_windows_ = 0;
 
   inline int transform_size() const {
     return args_.window_length;
@@ -61,7 +69,7 @@ class StftGpuImpl {
   size_t total_work_size_ = 0;
   std::map<int, PlanInfo> plans_;
   std::vector<CUDAStream> streams_;
-  StftArgs args_;
+  STFTArgs args_;
 };
 
 

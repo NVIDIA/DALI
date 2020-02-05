@@ -138,22 +138,22 @@ void TestStatelessReduction3D(bool mean, Preprocess pre, Postprocess post) {
 TEST(ReduceTest, Sum3D) {
   TestStatelessReduction3D<Sum<float, int>>(
     false,
-    reductions::identity(),
-    reductions::identity());
+    dali::identity(),
+    dali::identity());
 }
 
 TEST(ReduceTest, Mean3D) {
   TestStatelessReduction3D<Mean<float, int>>(
     true,
-    reductions::identity(),
-    reductions::identity());
+    dali::identity(),
+    dali::identity());
 }
 
 TEST(ReduceTest, MeanSquare3D) {
   TestStatelessReduction3D<MeanSquare<float, int>>(
     true,
     reductions::square(),
-    reductions::identity());
+    dali::identity());
 }
 
 TEST(ReduceTest, RootMeanSquare3D) {

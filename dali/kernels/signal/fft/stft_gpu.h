@@ -26,39 +26,42 @@ namespace kernels {
 namespace signal {
 namespace fft {
 
-struct StftArgs : ExtractWindowsArgs {
-  /// @brief If set to > 0, the implementation setup will try to provide optimum
-  ///        environment for processing batches of this combined length.
-  int64_t estimated_max_total_length = 0;
-};
-
-struct SpectrogramArgs : StftArgs {
+struct STFTArgs : ExtractWindowsArgs {
   FftSpectrumType spectrum_type = FFT_SPECTRUM_POWER;
+  bool time_major_layout = false;
   /// @brief If set to > 0, the implementation setup will try to provide optimum
   ///        environment for processing batches of this combined length.
   int64_t estimated_max_total_length = 0;
+
+  DALI_HOST_DEV
+  constexpr inline bool operator==(const STFTArgs &other) const {
+    return ExtractWindowsArgs::operator==(other) &&
+           time_major_layout == other.time_major_layout &&
+           spectrum_type == other.spectrum_type &&
+           estimated_max_total_length == other.estimated_max_total_length;
+  }
 };
 
-class StftGpuImpl;
+class STFTImplGPU;
 
-class DLL_PUBLIC StftGpu {
+class DLL_PUBLIC STFT_GPU {
  public:
-  ~StftGpu();
+  ~STFT_GPU();
   kernels::KernelRequirements Setup(
     KernelContext &ctx,
     const InListGPU<float, 1> &in,
     const InTensorGPU<float, 1> &window,
-    const StftArgs &args);
+    const STFTArgs &args);
 
   void Run(
     KernelContext &ctx,
     const OutListGPU<complexf, 2> &out,
     const InListGPU<float, 1> &in,
     const InTensorGPU<float, 1> &window,
-    const StftArgs &args);
+    const STFTArgs &args);
 
  private:
-  std::unique_ptr<StftGpuImpl> impl;
+  std::unique_ptr<STFTImplGPU> impl;
 };
 
 }  // namespace fft

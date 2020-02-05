@@ -19,11 +19,18 @@ namespace kernels {
 namespace signal {
 namespace fft {
 
-KernelRequirements StftGpuImpl::Setup(span<const int64_t> lengths, const StftArgs &args) {
+void STFTImplGPU::Reset() {
+  plans_.clear();
+  total_work_size_ = 0;
+}
+
+
+KernelRequirements STFTImplGPU::Setup(span<const int64_t> lengths, const STFTArgs &args) {
   if (args != args_) {
-    plans_.clear();
+    Reset();
     args_ = args;
   }
+
   int64_t windows = 0;
   TensorListShape<> shape;
   shape.resize(lengths.size(), 2);
@@ -35,6 +42,8 @@ KernelRequirements StftGpuImpl::Setup(span<const int64_t> lengths, const StftArg
     TensorShape<2> ts = { n, (args.window_length + 2) / 2 };
     shape.set_tensor_shape(i, ts);
   }
+  total_windows_ = windows;
+
   KernelRequirements req;
   ScratchpadEstimator se;
 
@@ -46,7 +55,7 @@ KernelRequirements StftGpuImpl::Setup(span<const int64_t> lengths, const StftArg
 }
 
 
-void StftGpuImpl::CreatePlans(int64_t nwindows) {
+void STFTImplGPU::CreatePlans(int64_t nwindows) {
   int64_t max_windows = kMaxSize;
 
   while (max_windows * transform_size() > kMaxSize)
@@ -78,7 +87,7 @@ void StftGpuImpl::CreatePlans(int64_t nwindows) {
   CreateStreams(plans_.size());
 }
 
-void StftGpuImpl::CreateStreams(int new_num_streams) {
+void STFTImplGPU::CreateStreams(int new_num_streams) {
   int num_streams = streams_.size();
 
   if (num_streams < new_num_streams) {
@@ -88,17 +97,18 @@ void StftGpuImpl::CreateStreams(int new_num_streams) {
   }
 }
 
-void StftGpuImpl::ReserveTempStorage(ScratchpadEstimator &se, int64_t nwindows, int window_length) {
+void STFTImplGPU::ReserveTempStorage(ScratchpadEstimator &se, int64_t nwindows, int window_length) {
   assert(is_pow2(min_windows_));
   int64_t wnd = align_up(nwindows, min_windows_);
-  se.add<float>(AllocType::GPU, wnd * window_length, 8);
+  se.add<float>(AllocType::GPU, wnd * window_length + 2, 8);
   se.add<float>(AllocType::GPU, total_work_size_);
 }
 
 
-void StftGpuImpl::RunR2C(KernelContext &ctx,
+void STFTImplGPU::RunR2C(KernelContext &ctx,
                          const OutListGPU<complexf, 2> &out,
-                         const InListGPU<float, 1> &in) {
+                         const InListGPU<float, 1> &in,
+                         const InTensorGPU<float, 1> &window) {
   int N = in.num_samples();
   assert(out.num_samples() == N);
   int nout = (args_.window_length + 2) / 2;
@@ -106,6 +116,10 @@ void StftGpuImpl::RunR2C(KernelContext &ctx,
     auto length = in.shape[i][0];
     assert(out.shape[i] == (TensorShape<2>{ args_.num_windows(length), nout }));
   }
+  DALI_ENFORCE(window.num_elements() == 0 || window.num_elements() == transform_size(),
+    "The window must be either empty or have a size equal to the transform size.");
+
+  ctx.scratchpad->Alloc(AllocType::GPU, wnd * window_length + 2, 8);
 
 
 }

@@ -21,7 +21,9 @@ namespace kernels {
 namespace signal {
 namespace fft {
 
+TEST(STFTImplGPU, Real2Complex) {
 
+}
 
 }  // namespace fft
 }  // namespace signal

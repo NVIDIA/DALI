@@ -40,15 +40,15 @@ struct BlockDesc {
 
 constexpr int kBlock = 32;
 
-struct norm2 {
-  DALI_HOST_DEV
+struct norm2square {
+  DALI_HOST_DEV DALI_FORCEINLINE
   auto operator()(float2 c) const {
     return c.x * c.x + c.y * c.y;
   }
 };
 
-struct norm2root {
-  DALI_HOST_DEV
+struct norm2 {
+  DALI_HOST_DEV DALI_FORCEINLINE
   auto operator()(float2 c) const {
 #ifdef __CUDA_ARCH__
     return sqrtf(c.x * c.x + c.y * c.y);
@@ -57,6 +57,50 @@ struct norm2root {
 #endif
   }
 };
+
+struct power_dB {
+  power_dB() = default;
+  power_dB(float cutoff_dB) {
+    cutoff = std::pow(10, cutoff_dB / 10);
+  }
+
+  float mul = 3.01029995664f;  // log10(2)
+  float cutoff = 1e-8;         // -80 dB
+
+  DALI_HOST_DEV DALI_FORCEINLINE
+  auto operator()(float2 c) const {
+#ifdef __CUDA_ARCH__
+    return mul * log2f(::max(c.x * c.x + c.y * c.y, cutoff));
+#else
+    return mul * std::log2(std::max(c.x * c.x + c.y * c.y, cutoff));
+#endif
+  }
+};
+
+template <typename Out, typename In, typename Convert>
+__global__ void ConvertTimeMajorSpectrogram(
+      Out *out, int out_stride,
+      const In *in, int in_stride, int nfft, int64_t nwindows,
+      Convert convert = {}) {
+  // A warp processes a whole row (transform) to ensure sequential processing
+  // and thus enable in-place operation.
+
+  int64_t wnd = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+  if (wnd >= nwindows)
+    return;
+  out += wnd * out_stride;
+  in += wnd * in_stride;
+
+  // The loop starts at 0 (not threadIdx.x) to ensure there's no divergence which would
+  // cause undefined behavior in __syncwarp() (or require complex mask calculation).
+  for (int i = 0; i < nfft; i += 32) {
+    int j = i + threadIdx.x;
+    Out v = j < nfft ? convert(in[j]) : Out();
+    __syncwarp();  // memory barrier for in-place execution
+    if (j < nfft)
+      out[j] = v;
+  }
+}
 
 template <typename Out, typename In, typename Convert = identity>
 __global__ void TransposeBatch(
@@ -82,8 +126,8 @@ __global__ void TransposeBatch(
       out_pos.y = blk.x + threadIdx.y;
 
       if (all_coords(in_pos < block.end)) {
-        Out v = sample.in[in_pos.y * sample.in_stride + in_pos.x];
-        tmp[page][threadIdx.y][threadIdx.x] = convert(v);
+        Out v = convert(sample.in[in_pos.y * sample.in_stride + in_pos.x]);
+        tmp[page][threadIdx.y][threadIdx.x] = v;
       }
 
       __syncthreads();
@@ -96,15 +140,77 @@ __global__ void TransposeBatch(
   }
 }
 
+template <typename Out, typename In, typename Convert = identity>
+struct ConvertTimeMajorSpectrum {
+  void Run(KernelContext &ctx,
+           const OutListGPU<Out, 2> &out,
+           const InListGPU<In, 2> &in,
+           int nfft = -1,
+           Convert convert = {}) {
+    DALI_ENFORCE(out.num_samples() == in.num_samples(),
+                 "Input and output must have the same number of samples.");
+
+    int N = in.num_samples();
+    if (N == 0)
+      return;
+
+    for (int i = 0; i < N; i++) {
+      DALI_ENFORCE(in.shape[i][0] == out.shape[i][0],
+                   "Number of transforms must match for corresponding input/output samples.");
+      DALI_ENFORCE(nfft <= out.shape[i][1],
+                   "Output too narrow to contain the requested transform size");
+      DALI_ENFORCE(nfft <= in.shape[i][1],
+                   "Input too narrow to contain the requested transform size");
+      DALI_ENFORCE(in.shape[i][1] == in.shape[0][1],
+                   "All input tensors must have the same width");
+      DALI_ENFORCE(out.shape[i][1] == out.shape[0][1],
+                   "All output tensors must have the same width");
+    }
+
+    if (nfft < 0)
+      nfft = std::min(out.shape[0][1], in.shape[0][1]);
+
+    if (in.is_contiguous() && out.is_contiguous()) {
+      int64_t nwindows = 0;
+      for (int i = 0; i < N; i++) {
+        nwindows += in.shape[i][0];
+      }
+
+      dim3 blocks(1, div_ceil(nwindows, kBlock));
+      dim3 threads(32, kBlock);
+
+      ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
+          out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nfft, nwindows, convert
+        );
+    } else {
+      for (int i = 0; i < N; i++) {
+        int nwindows = in.shape[i][0];
+
+        dim3 blocks(1, div_ceil(nwindows, kBlock));
+        dim3 threads(32, kBlock);
+
+        ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
+            out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nfft, nwindows, convert
+          );
+      }
+    }
+  }
+};
+
 /**
  * A specialized kernel that tranposes a frame-major spectrogrum to frequency-major one,
- * with an option to calculate complex magnitude or squared magnitude.
+ * with an option to apply some pointwise transform on the data (e.g. complex magnitude).
  *
  * Constraints: all input samples must have the same
  */
 template <typename Out, typename In = Out, typename Convert = identity>
-struct SpectrumToFreqMajor {
+struct ToFreqMajorSpectrum {
   using SampleDesc = fft_postprocess::SampleDesc<Out, In>;
+
+  ToFreqMajorSpectrum() = default;
+  explicit ToFreqMajorSpectrum(Convert convert) : convert(convert) {}
+
+  Convert convert;
 
   KernelRequirements Setup(KernelContext &ctx, const InListGPU<In, 2> &in, int nfft = -1) {
     KernelRequirements req;
@@ -179,7 +285,7 @@ struct SpectrumToFreqMajor {
         ctx.gpu.stream, make_span(cpu_samples, N), make_span(cpu_blocks, nblocks_));
 
     dim3 blockDim(kBlock, kBlock, 1);
-    TransposeBatch<<<nblocks_, blockDim, 0, ctx.gpu.stream>>>(gpu_samples, gpu_blocks);
+    TransposeBatch<<<nblocks_, blockDim, 0, ctx.gpu.stream>>>(gpu_samples, gpu_blocks, convert);
 
   }
 
@@ -188,6 +294,12 @@ struct SpectrumToFreqMajor {
   int block_size_ = kBlock;
   int nfft_ = 0;
 };
+
+using ToFreqMajorComplexSpectrum = ToFreqMajorSpectrum<float2, float2>;
+using ToFreqMajorPowerSpectrum = ToFreqMajorSpectrum<float, float2, norm2square>;
+using ToFreqMajorAmplitudeSpectrum = ToFreqMajorSpectrum<float, float2, norm2>;
+using ToFreqMajorDecibelSpectrum = ToFreqMajorSpectrum<float, float2, power_dB>;
+
 
 }  // fft_postprocess
 
