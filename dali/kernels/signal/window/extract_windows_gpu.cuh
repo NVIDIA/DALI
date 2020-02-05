@@ -317,7 +317,7 @@ __global__ void PadHorizontalWindowsKernel(
  *                          function.
  */
 template <typename Dst, typename Src>
-struct ExtractWindowsGpuImpl {
+struct ExtractWindowsImplGPU {
   virtual KernelRequirements Setup(
       KernelContext &context,
       const TensorListShape<1> &input_shape,
@@ -333,13 +333,13 @@ struct ExtractWindowsGpuImpl {
 
   virtual bool IsVertical() const { return false; }
 
-  virtual ~ExtractWindowsGpuImpl() = default;
+  virtual ~ExtractWindowsImplGPU() = default;
 };
 
 
 /// @brief Extracts windows and stores them in columns
 template <typename Dst, typename Src>
-struct ExtractVerticalWindowsGpuImpl : ExtractWindowsGpuImpl<Dst, Src> {
+struct ExtractVerticalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
   using SampleDesc = window::SampleDesc;
   using BlockDesc = window::BlockDesc;
 
@@ -472,7 +472,7 @@ struct ExtractVerticalWindowsGpuImpl : ExtractWindowsGpuImpl<Dst, Src> {
 
 /// @brief Extracts windows and stores them in rows
 template <typename Dst, typename Src>
-struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsGpuImpl<Dst, Src> {
+struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
   using SampleDesc = window::SampleDesc;
   using BlockDesc = window::HorizontalBlockDesc;
   using PadBlock = window::PadHorizontalWindowsBlock;

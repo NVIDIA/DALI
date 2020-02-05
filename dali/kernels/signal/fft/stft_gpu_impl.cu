@@ -100,7 +100,7 @@ void STFTImplGPU::CreateStreams(int new_num_streams) {
 void STFTImplGPU::ReserveTempStorage(ScratchpadEstimator &se, int64_t nwindows, int window_length) {
   assert(is_pow2(min_windows_));
   int64_t wnd = align_up(nwindows, min_windows_);
-  se.add<float>(AllocType::GPU, wnd * window_length + 2, 8);
+  se.add<float>(AllocType::GPU, wnd * (window_length + 2), 8);
   se.add<float>(AllocType::GPU, total_work_size_);
 }
 
@@ -111,7 +111,6 @@ void STFTImplGPU::RunR2C(KernelContext &ctx,
                          const InTensorGPU<float, 1> &window) {
   int N = in.num_samples();
   assert(out.num_samples() == N);
-  int nout = (args_.window_length + 2) / 2;
   for (int i = 0; i < N; i++) {
     auto length = in.shape[i][0];
     assert(out.shape[i] == (TensorShape<2>{ args_.num_windows(length), nout }));
@@ -119,8 +118,9 @@ void STFTImplGPU::RunR2C(KernelContext &ctx,
   DALI_ENFORCE(window.num_elements() == 0 || window.num_elements() == transform_size(),
     "The window must be either empty or have a size equal to the transform size.");
 
-  ctx.scratchpad->Alloc(AllocType::GPU, wnd * window_length + 2, 8);
-
+  auto *windows = ctx.scratchpad->Allocate<float>(
+      AllocType::GPU,
+      total_windows_ * (transform_size() + 2), 8);
 
 }
 

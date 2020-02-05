@@ -70,8 +70,8 @@ class STFTImplGPU {
   std::map<int, PlanInfo> plans_;
   std::vector<CUDAStream> streams_;
   STFTArgs args_;
+  ExtractWindowsGPU<float, float> extract_windows_;
 };
-
 
 }  // namespace fft
 }  // namespace signal

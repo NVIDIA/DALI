@@ -25,7 +25,7 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-TEST(ExtractWindowsGpu, NonBatchedKernel) {
+TEST(ExtractWindowsGPU, NonBatchedKernel) {
   float *in_gpu, *out_gpu;
   int winlen = 60;
   int outwinlen = 63;
@@ -91,7 +91,7 @@ void TestBatchedExtract(
     bool vertical,
     span<const float> window,
     int out_win_len = -1) {
-  std::unique_ptr<ExtractWindowsGpuImpl<float, float>> extract;
+  std::unique_ptr<ExtractWindowsImplGPU<float, float>> extract;
   if (vertical)
     extract = std::make_unique<ExtractVerticalWindowsGpuImpl<float, float>>();
   else

@@ -21,7 +21,7 @@ namespace kernels {
 namespace signal {
 
 template <typename Dst, typename Src>
-KernelRequirements ExtractWindowsGpu<Dst, Src>::Setup(
+KernelRequirements ExtractWindowsGPU<Dst, Src>::Setup(
     KernelContext &context,
     const InListGPU<Src, 1> &input,
     const InTensorGPU<float, 1> &window,
@@ -38,7 +38,7 @@ KernelRequirements ExtractWindowsGpu<Dst, Src>::Setup(
 }
 
 template <typename Dst, typename Src>
-void ExtractWindowsGpu<Dst, Src>::Run(
+void ExtractWindowsGPU<Dst, Src>::Run(
     KernelContext &context,
     const OutListGPU<Dst, 2> &output,
     const InListGPU<Src, 1> &input,
@@ -50,14 +50,14 @@ void ExtractWindowsGpu<Dst, Src>::Run(
 }
 
 template <typename Dst, typename Src>
-ExtractWindowsGpu<Dst, Src>::ExtractWindowsGpu() = default;
+ExtractWindowsGPU<Dst, Src>::ExtractWindowsGPU() = default;
 
 template <typename Dst, typename Src>
-ExtractWindowsGpu<Dst, Src>::~ExtractWindowsGpu() = default;
+ExtractWindowsGPU<Dst, Src>::~ExtractWindowsGPU() = default;
 
-template class ExtractWindowsGpu<float, float>;
-template class ExtractWindowsGpu<float, int16_t>;
-template class ExtractWindowsGpu<float, int8_t>;
+template class ExtractWindowsGPU<float, float>;
+template class ExtractWindowsGPU<float, int16_t>;
+template class ExtractWindowsGPU<float, int8_t>;
 
 }  // namespace signal
 }  // namespace kernels

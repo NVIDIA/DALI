@@ -46,7 +46,7 @@ struct ExtractWindowsBatchedArgs : ExtractWindowsArgs {
 };
 
 template <typename Dst, typename Src>
-struct ExtractWindowsGpuImpl;
+struct ExtractWindowsImplGPU;
 
 /**
  * @brief Extracts windows from 1D signal, optionally applying a custom window function
@@ -72,7 +72,7 @@ struct ExtractWindowsGpuImpl;
  * @see ExtractWindowsArgs
  */
 template <typename Dst, typename Src>
-class DLL_PUBLIC ExtractWindowsGpu {
+class DLL_PUBLIC ExtractWindowsGPU {
  public:
   static_assert(std::is_same<Dst, float>::value, "Output type must be float");
   static_assert(
@@ -92,11 +92,11 @@ class DLL_PUBLIC ExtractWindowsGpu {
       const InTensorGPU<float, 1> &window,
       const ExtractWindowsBatchedArgs &args);
 
-  DLL_PUBLIC ExtractWindowsGpu();
-  DLL_PUBLIC ~ExtractWindowsGpu();
+  DLL_PUBLIC ExtractWindowsGPU();
+  DLL_PUBLIC ~ExtractWindowsGPU();
 
  private:
-  using Impl = ExtractWindowsGpuImpl<Dst, Src>;
+  using Impl = ExtractWindowsImplGPU<Dst, Src>;
   std::unique_ptr<Impl> impl;
 };
 
