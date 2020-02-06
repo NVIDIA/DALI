@@ -26,42 +26,47 @@ namespace kernels {
 namespace signal {
 namespace fft {
 
-struct STFTArgs : ExtractWindowsArgs {
+struct StftArgs : ExtractWindowsArgs {
   FftSpectrumType spectrum_type = FFT_SPECTRUM_POWER;
+
+  int nfft = -1;
+
   bool time_major_layout = false;
-  /// @brief If set to > 0, the implementation setup will try to provide optimum
-  ///        environment for processing batches of this combined length.
-  int64_t estimated_max_total_length = 0;
 
   DALI_HOST_DEV
-  constexpr inline bool operator==(const STFTArgs &other) const {
+  constexpr inline bool operator==(const StftArgs &other) const {
     return ExtractWindowsArgs::operator==(other) &&
+           nfft == other.nfft &&
            time_major_layout == other.time_major_layout &&
-           spectrum_type == other.spectrum_type &&
-           estimated_max_total_length == other.estimated_max_total_length;
+           spectrum_type == other.spectrum_type;
+  }
+
+  DALI_HOST_DEV
+  constexpr inline bool operator!=(const StftArgs &other) const {
+    return !(*this == other);
   }
 };
 
-class STFTImplGPU;
+class StftImplGPU;
 
-class DLL_PUBLIC STFT_GPU {
+class DLL_PUBLIC StftGPU {
  public:
-  ~STFT_GPU();
+  ~StftGPU();
   kernels::KernelRequirements Setup(
     KernelContext &ctx,
     const InListGPU<float, 1> &in,
     const InTensorGPU<float, 1> &window,
-    const STFTArgs &args);
+    const StftArgs &args);
 
   void Run(
     KernelContext &ctx,
     const OutListGPU<complexf, 2> &out,
     const InListGPU<float, 1> &in,
     const InTensorGPU<float, 1> &window,
-    const STFTArgs &args);
+    const StftArgs &args);
 
  private:
-  std::unique_ptr<STFTImplGPU> impl;
+  std::unique_ptr<StftImplGPU> impl;
 };
 
 }  // namespace fft

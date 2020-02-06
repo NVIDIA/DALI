@@ -18,12 +18,15 @@
 #include <cuda_runtime.h>
 #include "dali/core/geom/vec.h"
 #include "dali/kernels/kernel.h"
+#include "dali/kernels/signal/fft/fft_common.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
 
 namespace fft_postprocess {
+
+using namespace fft;  // NOLINT
 
 template <typename Out, typename In>
 struct SampleDesc {
@@ -140,13 +143,31 @@ __global__ void TransposeBatch(
   }
 }
 
+template <typename Out, typename In>
+class FFTPostprocess {
+ public:
+  virtual KernelRequirements Setup(KernelContext &ctx, const TensorListShape<2> &in_shape) = 0;
+
+  virtual void Run(KernelContext &ctx,
+                   const OutListGPU<Out, 2> &out,
+                   const InListGPU<In, 2> &in) = 0;
+
+  virtual ~FFTPostprocess() = default;
+};
+
 template <typename Out, typename In, typename Convert = identity>
-struct ConvertTimeMajorSpectrum {
-  void Run(KernelContext &ctx,
-           const OutListGPU<Out, 2> &out,
-           const InListGPU<In, 2> &in,
-           int nfft = -1,
-           Convert convert = {}) {
+class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
+ public:
+  ConvertTimeMajorSpectrum() = default;
+  explicit ConvertTimeMajorSpectrum(Convert convert) : convert_(convert) {}
+
+  KernelRequirements Setup(KernelContext &ctx, const TensorListShape<2> &in_shape) override {
+    KernelRequirements req;
+    req.output_shapes = { in_shape };
+    return req;
+  }
+
+  void Run(KernelContext &ctx, const OutListGPU<Out, 2> &out, const InListGPU<In, 2> &in) override {
     DALI_ENFORCE(out.num_samples() == in.num_samples(),
                  "Input and output must have the same number of samples.");
 
@@ -157,18 +178,13 @@ struct ConvertTimeMajorSpectrum {
     for (int i = 0; i < N; i++) {
       DALI_ENFORCE(in.shape[i][0] == out.shape[i][0],
                    "Number of transforms must match for corresponding input/output samples.");
-      DALI_ENFORCE(nfft <= out.shape[i][1],
-                   "Output too narrow to contain the requested transform size");
-      DALI_ENFORCE(nfft <= in.shape[i][1],
-                   "Input too narrow to contain the requested transform size");
       DALI_ENFORCE(in.shape[i][1] == in.shape[0][1],
                    "All input tensors must have the same width");
       DALI_ENFORCE(out.shape[i][1] == out.shape[0][1],
                    "All output tensors must have the same width");
     }
 
-    if (nfft < 0)
-      nfft = std::min(out.shape[0][1], in.shape[0][1]);
+    int nfft = std::min(out.shape[0][1], in.shape[0][1]);
 
     if (in.is_contiguous() && out.is_contiguous()) {
       int64_t nwindows = 0;
@@ -180,7 +196,7 @@ struct ConvertTimeMajorSpectrum {
       dim3 threads(32, kBlock);
 
       ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
-          out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nfft, nwindows, convert
+          out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nfft, nwindows, convert_
         );
     } else {
       for (int i = 0; i < N; i++) {
@@ -190,11 +206,14 @@ struct ConvertTimeMajorSpectrum {
         dim3 threads(32, kBlock);
 
         ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
-            out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nfft, nwindows, convert
+            out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nfft, nwindows, convert_
           );
       }
     }
   }
+
+ private:
+  Convert convert_;
 };
 
 /**
@@ -204,33 +223,31 @@ struct ConvertTimeMajorSpectrum {
  * Constraints: all input samples must have the same
  */
 template <typename Out, typename In = Out, typename Convert = identity>
-struct ToFreqMajorSpectrum {
+class ToFreqMajorSpectrum : public FFTPostprocess<Out, In> {
+ public:
   using SampleDesc = fft_postprocess::SampleDesc<Out, In>;
 
   ToFreqMajorSpectrum() = default;
-  explicit ToFreqMajorSpectrum(Convert convert) : convert(convert) {}
+  explicit ToFreqMajorSpectrum(Convert convert) : convert_(convert) {}
 
-  Convert convert;
-
-  KernelRequirements Setup(KernelContext &ctx, const InListGPU<In, 2> &in, int nfft = -1) {
+  KernelRequirements Setup(KernelContext &ctx, const TensorListShape<2> &in_shape) override {
     KernelRequirements req;
     ScratchpadEstimator se;
     req.output_shapes.resize(1);
     auto &out_shape = req.output_shapes[0];
 
-    int N = in.num_samples();
+    int N = in_shape.num_samples();
+    if (N == 0) {
+      nblocks_ = 0;
+      return req;
+    }
     int nblocks = 0;
-    DALI_ENFORCE(nfft <= in.shape[0][1],
-      "`nfft` parameter cannot exceed actual data size");
-
-    if (nfft < 0)
-      nfft = in.shape[0][1];
-    this->nfft_ = nfft;
+    int nfft = in_shape[0][1];
 
     int64_t total_windows = 0;
     out_shape.resize(N, 2);
     for (int i = 0; i < N; i++) {
-      TensorShape<2> sample_shape = in.shape[i];
+      TensorShape<2> sample_shape = in_shape[i];
       DALI_ENFORCE(sample_shape[1] == nfft, "All inputs must have the same number of FFT bins");
       out_shape.set_tensor_shape(i, { sample_shape[1], sample_shape[0] });
 
@@ -241,7 +258,7 @@ struct ToFreqMajorSpectrum {
     block_size_ = kBlock * (1 + total_windows / (100000 * kBlock));
 
     for (int i = 0; i < N; i++) {
-      int nwindows = in.shape[i][0];
+      int nwindows = in_shape[i][0];
       nblocks += div_ceil(nwindows, block_size_);
     }
     nblocks_ = nblocks;
@@ -253,27 +270,31 @@ struct ToFreqMajorSpectrum {
     return req;
   }
 
-  void Run(KernelContext &ctx, const OutListGPU<Out, 2> &out, const InListGPU<In, 2> &in) {
+  void Run(KernelContext &ctx, const OutListGPU<Out, 2> &out, const InListGPU<In, 2> &in) override {
     int N = in.num_samples();
+    if (!N)
+      return;
 
     SampleDesc *cpu_samples = ctx.scratchpad->Allocate<SampleDesc>(AllocType::Host, N);
     BlockDesc *cpu_blocks = ctx.scratchpad->Allocate<BlockDesc>(AllocType::Host, nblocks_);
 
+    int nfft = in.shape[0][1];
+
     int b = 0;
     for (int i = 0; i < N; i++) {
       TensorShape<2> sample_shape = in.shape[i];
-      assert(sample_shape[1] == nfft_);
+      assert(sample_shape[1] == nfft);
       int nwindows = sample_shape[0];
       cpu_samples[i] = {
         out.data[i],
         in.data[i],
         nwindows,  // output stride - a row contains all windows
-        nfft_      // input stride  - a row contains all frequencies
+        nfft      // input stride  - a row contains all frequencies
       };
       for (int start = 0; start < nwindows; start += block_size_) {
         int end = std::min(start + block_size_, nwindows);
         assert(b < nblocks_);
-        cpu_blocks[b++] = { i, ivec2(0, start), ivec2(nfft_, end) };
+        cpu_blocks[b++] = { i, ivec2(0, start), ivec2(nfft, end) };
       }
     }
     assert(b == nblocks_);
@@ -285,14 +306,13 @@ struct ToFreqMajorSpectrum {
         ctx.gpu.stream, make_span(cpu_samples, N), make_span(cpu_blocks, nblocks_));
 
     dim3 blockDim(kBlock, kBlock, 1);
-    TransposeBatch<<<nblocks_, blockDim, 0, ctx.gpu.stream>>>(gpu_samples, gpu_blocks, convert);
-
+    TransposeBatch<<<nblocks_, blockDim, 0, ctx.gpu.stream>>>(gpu_samples, gpu_blocks, convert_);
   }
 
  private:
+  Convert convert_;
   int nblocks_ = 0;
   int block_size_ = kBlock;
-  int nfft_ = 0;
 };
 
 using ToFreqMajorComplexSpectrum = ToFreqMajorSpectrum<float2, float2>;
@@ -300,6 +320,37 @@ using ToFreqMajorPowerSpectrum = ToFreqMajorSpectrum<float, float2, norm2square>
 using ToFreqMajorAmplitudeSpectrum = ToFreqMajorSpectrum<float, float2, norm2>;
 using ToFreqMajorDecibelSpectrum = ToFreqMajorSpectrum<float, float2, power_dB>;
 
+inline std::unique_ptr<FFTPostprocess<float2, float2>> GetSTFTPostprocessor(bool time_major) {
+  if (time_major)
+    return std::make_unique<ConvertTimeMajorSpectrum<float2, float2>>();
+  else
+    return std::make_unique<ToFreqMajorComplexSpectrum>();
+}
+
+template <typename Convert>
+std::unique_ptr<FFTPostprocess<float, float2>> GetSpectrogramPostprocessor(
+    bool time_major) {
+  if (time_major)
+    return std::make_unique<ConvertTimeMajorSpectrum<float, float2, Convert>>();
+  else
+    return std::make_unique<ToFreqMajorSpectrum<float, float2, Convert>>();
+}
+
+inline std::unique_ptr<FFTPostprocess<float, float2>> GetSpectrogramPostprocessor(
+    bool time_major,
+    FftSpectrumType type) {
+  switch (type) {
+    case FFT_SPECTRUM_MAGNITUDE:
+      return GetSpectrogramPostprocessor<norm2>(time_major);
+    case FFT_SPECTRUM_POWER:
+      return GetSpectrogramPostprocessor<norm2square>(time_major);
+    case FFT_SPECTRUM_POWER_DECIBELS:
+      return GetSpectrogramPostprocessor<power_dB>(time_major);
+    default:
+      assert(!"Unsupported spectrum type");
+      return nullptr;
+  }
+}
 
 }  // fft_postprocess
 

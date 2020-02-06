@@ -15,10 +15,11 @@
 #include <gtest/gtest.h>
 #include <random>
 #include "dali/kernels/common/copy.h"
-#include "dali/kernels/signal/fft/fft_postprocess.cuh"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/scratch.h"
+
+#include "dali/kernels/signal/fft/fft_postprocess.cuh"
 
 namespace dali {
 
@@ -102,7 +103,7 @@ class FFTPostprocessTest<FFTPostprocessArgs<Out, In, Convert>> : public ::testin
     ToFreqMajorSpectrum<Out, In, Convert> tr;
     KernelContext ctx;
     ScratchpadAllocator sa;
-    KernelRequirements req = tr.Setup(ctx, in.gpu());
+    KernelRequirements req = tr.Setup(ctx, in_shape);
     ASSERT_EQ(req.output_shapes.size(), 1u);
     ASSERT_EQ(req.output_shapes[0], out_shape);
     sa.Reserve(req.scratch_sizes);
@@ -167,6 +168,7 @@ class FFTPostprocessTest<FFTPostprocessArgs<Out, In, Convert>> : public ::testin
 
     ConvertTimeMajorSpectrum<Out, In, Convert> tr;
     KernelContext ctx;
+    tr.Setup(ctx, in_shape);
     tr.Run(ctx, out_gpu, in.gpu());
     CUDA_CALL(cudaGetLastError());
     out.reshape(out_shape);
@@ -175,7 +177,7 @@ class FFTPostprocessTest<FFTPostprocessArgs<Out, In, Convert>> : public ::testin
     for (int i = 0; i < N; i++)
       copy(cpu_out[i], out_gpu[i], ctx.gpu.stream);
 
-    // data requires padding - clear it so we don't make the coparison fail
+    // data requires padding - clear it so we don't make the comparison fail
     for (int i = 0; i < N; i++) {
       TensorView<StorageCPU, In, 2> in_tv = cpu_in[i];
       TensorView<StorageCPU, Out, 2> ref_tv = cpu_ref[i];

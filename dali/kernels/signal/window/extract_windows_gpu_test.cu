@@ -126,7 +126,7 @@ void TestBatchedExtract(
 
   auto in_gpu = in_list.gpu(0);
 
-  auto req = extract->Setup(ctx, lengths, args, concatenate, out_win_len);
+  auto req = extract->Setup(ctx, make_span(lengths.shapes), args, concatenate, out_win_len);
   ASSERT_EQ(req.output_shapes.size(), 1u);
   ASSERT_EQ(req.output_shapes[0].num_samples(), concatenate ? 1 : N);
 

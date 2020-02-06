@@ -26,6 +26,7 @@ enum FftSpectrumType {
   FFT_SPECTRUM_COMPLEX = 0,    // separate interleaved real and imag parts: (r0, i0, r1, i1, ...)
   FFT_SPECTRUM_MAGNITUDE = 1,  // sqrt( real^2 + imag^2 )
   FFT_SPECTRUM_POWER = 2,      // real^2 + imag^2
+  FFT_SPECTRUM_POWER_DECIBELS = 3,  // 10 * log10(real^2 + imag^2)
 };
 
 using complexf = std::complex<float>;

@@ -26,6 +26,22 @@ KernelRequirements ExtractWindowsGPU<Dst, Src>::Setup(
     const InListGPU<Src, 1> &input,
     const InTensorGPU<float, 1> &window,
     const ExtractWindowsBatchedArgs &args) {
+  return Setup(context, make_span(input.shape.shapes), args);
+}
+
+template <typename Dst, typename Src>
+KernelRequirements ExtractWindowsGPU<Dst, Src>::Setup(
+    KernelContext &context,
+    const TensorListShape<1> &input_shape,
+    const ExtractWindowsBatchedArgs &args) {
+  return Setup(context, make_span(input_shape.shapes), args);
+}
+
+template <typename Dst, typename Src>
+KernelRequirements ExtractWindowsGPU<Dst, Src>::Setup(
+    KernelContext &context,
+    span<const int64_t> input_shape,
+    const ExtractWindowsBatchedArgs &args) {
   if (!impl || impl->IsVertical() != args.vertical) {
     impl.reset();
     if (args.vertical)
@@ -34,7 +50,7 @@ KernelRequirements ExtractWindowsGPU<Dst, Src>::Setup(
       impl = std::make_unique<ExtractHorizontalWindowsGpuImpl<Dst, Src>>();
   }
 
-  return impl->Setup(context, input.shape, args, args.concatenate, args.output_window_length);
+  return impl->Setup(context, input_shape, args, args.concatenate, args.output_window_length);
 }
 
 template <typename Dst, typename Src>
@@ -42,9 +58,7 @@ void ExtractWindowsGPU<Dst, Src>::Run(
     KernelContext &context,
     const OutListGPU<Dst, 2> &output,
     const InListGPU<Src, 1> &input,
-    const InTensorGPU<float, 1> &window,
-    const ExtractWindowsBatchedArgs &args) {
-  (void)args;
+    const InTensorGPU<float, 1> &window) {
   assert(impl != nullptr);
   impl->Run(context, output, input, window);
 }

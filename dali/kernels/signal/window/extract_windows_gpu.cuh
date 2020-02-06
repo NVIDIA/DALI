@@ -320,7 +320,7 @@ template <typename Dst, typename Src>
 struct ExtractWindowsImplGPU {
   virtual KernelRequirements Setup(
       KernelContext &context,
-      const TensorListShape<1> &input_shape,
+      span<const int64_t> input_shape,
       const ExtractWindowsArgs &args,
       bool concatenate,
       int out_win_length = -1) = 0;
@@ -347,7 +347,7 @@ struct ExtractVerticalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
 
   KernelRequirements Setup(
       KernelContext &context,
-      const TensorListShape<1> &lengths,
+      span<const int64_t> lengths,
       const ExtractWindowsArgs &args,
       bool concatenate,
       int out_win_length) override {
@@ -361,7 +361,7 @@ struct ExtractVerticalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
       this->args.window_length = out_win_length;
     this->out_win_length = out_win_length;
 
-    int N = lengths.num_samples();
+    int N = lengths.size();
     int ygrid = div_ceil(out_win_length, window::kBlock);
 
     int64_t total_windows = 0;
@@ -372,7 +372,7 @@ struct ExtractVerticalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
     windows_per_block = window::kBlock;
     int xgrid = 0;
     for (int i = 0; i < N; i++) {
-      int nwin = args.num_windows(lengths[i][0]);
+      int nwin = args.num_windows(lengths[i]);
       total_windows += nwin;
       int blocks = div_ceil(nwin, windows_per_block);
       xgrid += blocks;
@@ -389,7 +389,7 @@ struct ExtractVerticalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
       windows_per_block <<= 1;
       xgrid = 0;
       for (int i = 0; i < N; i++) {
-        int nwin = args.num_windows(lengths[i][0]);
+        int nwin = args.num_windows(lengths[i]);
         xgrid += div_ceil(nwin, windows_per_block);
       }
     }
@@ -479,7 +479,7 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
 
   KernelRequirements Setup(
       KernelContext &context,
-      const TensorListShape<1> &lengths,
+      span<const int64_t> lengths,
       const ExtractWindowsArgs &args,
       bool concatenate,
       int out_win_length) override {
@@ -492,7 +492,7 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
 
     this->out_win_length = out_win_length;
 
-    int N = lengths.num_samples();
+    int N = lengths.size();
 
     int64_t total_windows = 0;
 
@@ -504,7 +504,7 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
     int64_t max_len = 0;
     int max_win_per_input = 0;
     for (int i = 0; i < N; i++) {
-      int64_t length = lengths[i][0];
+      int64_t length = lengths[i];
       if (length > max_len)
         max_len = length;
       int nwin = args.num_windows(length);
@@ -527,7 +527,7 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
       for (;;) {
         grid_dim = 0;
         for (int i = 0; i < N; i++) {
-          ptrdiff_t nwin = args.num_windows(lengths[i][0]);
+          ptrdiff_t nwin = args.num_windows(lengths[i]);
           ptrdiff_t length = nwin * args.window_step + args.window_length;
           grid_dim += div_ceil(length, logical_block_size);
         }
@@ -554,7 +554,7 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
       for (;;) {
         pad_blocks = 0;
         for (int i = 0; i < N; i++) {
-          ptrdiff_t nwin = args.num_windows(lengths[i][0]);
+          ptrdiff_t nwin = args.num_windows(lengths[i]);
           pad_blocks += div_ceil(nwin, pad_block_size);
         }
         if (grid_dim <= kMaxBlocks || grid_dim < 2 * N)
