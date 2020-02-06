@@ -33,8 +33,10 @@ class ToDecibels : public Operator<Backend> {
       : Operator<Backend>(spec) {
     args_.multiplier = spec.GetArgument<float>("multiplier");
     args_.ref_max = !spec.HasArgument("reference");
-    if (!args_.ref_max)
+    if (!args_.ref_max) {
       args_.s_ref = spec.GetArgument<float>("reference");
+      DALI_ENFORCE(args_.s_ref != 0, "`reference` argument can't be zero");
+    }
     auto cutoff_db = spec.GetArgument<float>("cutoff_db");
     args_.min_ratio = std::pow(10.0f, cutoff_db / args_.multiplier);
   }
