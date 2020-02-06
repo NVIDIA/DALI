@@ -27,10 +27,19 @@ this will set thread 0 to CPU 3, thread 1 to CPU 5, thread 2 to CPU 6, thread 3 
 Memory consumption
 ------------------
 
-In DALI architecture all GPU operators process the whole batch at a time while the CPU operator processes one sample at a time.
-With DALI the memory is only growing, never shrinking. Hence each GPU buffer is as large as the largest possible batch, while the CPU buffers are as large as batch size multiplied by the size of the largest sample. Note that even though the CPU processes one sample at a time per thread, a vector of samples need to reside in the memory.
-This lazy allocation strategy reduces the number of total memory operations, and hence helps in cases when the memory allocation is expensive, like the pinned CPU memory or GPU memory.
-This is most visible for the operators whose output size may differ from sample to sample and from run to run. Operator with the fixed size outputs, such as crop, does not influence the overall memory consumption growth over time
+DALI uses three kinds of memory: host, host page-locked (pinned) and GPU.
+GPU and host pinned memory allocation and freeing require device synchronization. For this reason, DALI avoids reallocating these kinds of memory whenever possible. The buffers allocated with this kind of storage will only grow when the existing buffer is too small to accommodate the requested shape. This allocation strategy reduces the number of total memory management operations and greatly increases the processing speed after the allocations have stabilized.
+
+In contrast, ordinary host memory is relatively cheap to allocate and free. To reduce host memory consumption, the buffers may shrink if the new requested size is smaller than a specified fraction of the old size (called shrink threshold). It can be adjusted to any value between 0 (never shrink) and 1 (always shrink), with the default being 0.9. The value can be controlled either via environment variable `DALI_HOST_BUFFER_SHRINK_THRESHOLD` or set in Python using `nvidia.dali.backend.SetHostBufferShrinkThreshold` function.
+
+During processing, DALI works on batches of samples. For GPU and some CPU Operators, the batch is stored as continuous allocation which is processed in one go, which reduces the number of necessary allocations.
+For some CPU Operators, that cannot calculate their output size ahead of time, the batch is instead stored as a vector of separately allocated samples.
+
+For example, if your batch consists of nine 480p images and one 4K image in random order, the single continuous allocation would be able to accommodate all possible combinations of such batches.
+On the other hand, the CPU batch presented as separate buffers will need to keep a 4K allocation for every sample after several iterations.
+In effect, GPU buffers are allocated to house transformation results is as large as the largest possible batch, while the CPU buffers can be as large as batch size multiplied by the size of the largest sample. Note that even though the CPU processes one sample at a time per thread, a vector of samples needs to reside in the memory.
+
+Moreover, both host and GPU buffers have configurable growth factor - if it's above 1 and the requested new size exceeds buffer capacity, the buffer will be allocated with extra margin to potentially avoid subsequent reallocations. This functionality is disabled by default (the growth factor is set to 1). These factors can be controlled via environment variables `DALI_HOST_BUFFER_GROWTH_FACTOR` and `DALI_DEVICE_BUFFER_GROWTH_FACTOR`, respectively as well as with Python API functions `nvidia.dali.backend.SetHostBufferGrowthFactor` and `nvidia.dali.backend.SetDeviceBufferGrowthFactor`. For convenience, the variable `DALI_BUFFER_GROWTH_FACTOR` and corresponding Python function `nvidia.dali.backend.SetBufferGrowthFactor` set the same growth factor for host and GPU buffers.
 
 Operator buffer presizing
 -------------------------
