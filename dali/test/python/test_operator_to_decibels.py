@@ -94,3 +94,60 @@ def test_operator_to_decibels_vs_python():
                                                             (20.0, 1e-6, -120.0, (2, 3, 40))]:
                 yield check_operator_to_decibels_vs_python, device, batch_size, shape, \
                     multiplier, reference, cutoff_db
+
+
+class NaturalLogarithmPipeline(Pipeline):
+    def __init__(self, iterator, batch_size, num_threads=1, exec_async=True, exec_pipelined=True):
+        super(NaturalLogarithmPipeline, self).__init__(batch_size, num_threads, device_id=0,
+                                                       seed=42, exec_async=exec_async,
+                                                       exec_pipelined=exec_pipelined)
+        self.inputs = ops.ExternalSource()
+        self.iterator = iterator
+        self.log = None
+
+    def define_graph(self):
+        if self.log is None:
+            raise RuntimeError(
+                "Error: you need to derive from this class and define `self.log` operator")
+        self.data = self.inputs()
+        out = self.log(self.data + 1)
+        return out
+
+    def iter_setup(self):
+        data = self.iterator.next()
+        self.feed_input(self.data, data)
+
+
+class NLDaliPipeline(NaturalLogarithmPipeline):
+    def __init__(self, iterator, batch_size):
+        super().__init__(iterator, batch_size)
+        self.log = ops.ToDecibels(device="cpu", multiplier=np.log(10), reference=1.0)
+
+
+def log_tensor(tensor):
+    return np.log(tensor)
+
+
+class NLPythonPipeline(NaturalLogarithmPipeline):
+    def __init__(self, iterator, batch_size):
+        super().__init__(iterator, batch_size,
+                         exec_async=False, exec_pipelined=False)
+        function = partial(log_tensor)
+        self.log = ops.PythonFunction(function=function)
+
+
+def check_natural_logarithm(device, batch_size, input_shape):
+    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+    compare_pipelines(
+        NLDaliPipeline(iter(eii1), batch_size),
+        NLPythonPipeline(iter(eii2), batch_size),
+        batch_size=batch_size, N_iterations=5, eps=1e-04)
+
+
+def test_operator_natural_logarithm():
+    shapes = [(1, 4096), (2, 1000), (2, 3, 40)]
+    batch_size = 3
+    device = "cpu"
+    for sh in shapes:
+        yield check_natural_logarithm, device, batch_size, sh
