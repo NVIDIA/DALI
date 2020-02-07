@@ -69,9 +69,9 @@ class _DALIIteratorBase(mx.io.DataIter):
                  fill_last_batch,
                  last_batch_padded,
                  auto_reset):
+        assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
-        assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         self._pipes = pipelines
         self._num_gpus = len(pipelines)
         self.batch_size = pipelines[0].batch_size
@@ -119,6 +119,12 @@ class _DALIIteratorBase(mx.io.DataIter):
     @property
     def size(self):
         return self._size
+
+    def _check_iteration_stop(self):
+        if self._counter >= self._size and self._size > 0:
+            if self._auto_reset:
+                self.reset()
+            raise StopIteration
 
 ###################################################
 ###################################################
@@ -258,10 +264,7 @@ class DALIGenericIterator(_DALIIteratorBase):
             batch = self._first_batch
             self._first_batch = None
             return batch
-        if self._counter >= self._size and self._size > 0:
-            if self._auto_reset:
-                self.reset()
-            raise StopIteration
+        self._check_iteration_stop()
         # Gather outputs
         outputs = []
         for p in self._pipes:
@@ -486,15 +489,16 @@ class SmartArray(object):
         return self._view
 
     @property
-    def array(self):
+    def view(self):
         return self._view
 
 
 class DALIGluonIterator(_DALIIteratorBase):
     """
     General DALI iterator for MXNet with Gluon API. It can return any number of
-    outputs from the DALI pipeline in the form of per GPU tuples of NDArray
-    of NDArrays or list of NDArrays (for output marked as DALIGluonIterator.SPARSE_TAG).
+    outputs from the DALI pipeline in the form of per GPU tuples. These tuples consisting of
+    NDArrays (for outputs marked as DALIGluonIterator.DENSE_TAG) and list of NDArrays (for
+    output marked as DALIGluonIterator.SPARSE_TAG).
 
 
 
@@ -512,15 +516,15 @@ class DALIGluonIterator(_DALIIteratorBase):
           from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
           `auto_reset` don't work in such case. It works with only one pipeline inside
           the iterator.
-    output_types : list of str, option, default = None
+    output_types : list of str, optional, default = None
                  List of tags indicating whether the pipeline(s) output batch is
                  uniform (all the samples have the same size) or not. Batch output marked
                  as the former will be returned as a single NDArray, the latter
                  will be returned as a list of NDArray.
                  Must be either DALIGluonIterator.DENSE_TAG
                  or DALIGluonIterator.SPARSE_TAG.
-                 Length of output_types must match the number of the pipeline(s) output.
-                 If not set, all output are considered as DALIGluonIterator.DENSE_TAG.
+                 Length of output_types must match the number of output of the pipeline(s).
+                 If not set, all outputs are considered to be marked with DALIGluonIterator.DENSE_TAG.
     auto_reset : bool, optional, default = False
                  Whether the iterator resets itself for the next epoch
                  or it requires reset() to be called separately.
@@ -572,7 +576,6 @@ class DALIGluonIterator(_DALIIteratorBase):
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
                 p.build()
         self._data_batches = [None for i in range(self._num_gpus)]
-        self._counter = 0
         self._output_tags = {DALIGluonIterator.DENSE_TAG, DALIGluonIterator.SPARSE_TAG}
         assert output_types is None or set(output_types) <= self._output_tags, \
             "Only DENSE_TAG and SPARSE_TAG are allowed"
@@ -584,19 +587,10 @@ class DALIGluonIterator(_DALIIteratorBase):
         for p in self._pipes:
             with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
                 p.schedule_run()
-        self._first_batch = None
-        self._first_batch = self.next()
 
 
     def __next__(self):
-        if self._first_batch is not None:
-            batch = self._first_batch
-            self._first_batch = None
-            return batch
-        if self._counter >= self._size and self._size > 0:
-            if self._auto_reset:
-                self.reset()
-            raise StopIteration
+        self._check_iteration_stop()
         # Gather outputs
         dali_outputs = []
         for p in self._pipes:
@@ -628,7 +622,7 @@ class DALIGluonIterator(_DALIIteratorBase):
                         ndarray = batch[j][sample_idx].resize(shapes[j][sample_idx])
                         feed_ndarray(output_el[sample_idx], ndarray)
 
-        batches = [[([sample.array for sample in output_el] if isinstance(output_el,list) else output_el.array)
+        batches = [[([sample.view for sample in output_el] if isinstance(output_el,list) else output_el.view)
                     for output_el in batch]
                    for batch in self._data_batches]
 
