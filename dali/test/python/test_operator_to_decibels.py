@@ -23,6 +23,7 @@ from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 import math
+from nose.tools import *
 
 class ToDecibelsPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, multiplier, reference, cutoff_db,
@@ -119,9 +120,9 @@ class NaturalLogarithmPipeline(Pipeline):
 
 
 class NLDaliPipeline(NaturalLogarithmPipeline):
-    def __init__(self, iterator, batch_size):
+    def __init__(self, iterator, batch_size, reference=1.0):
         super().__init__(iterator, batch_size)
-        self.log = ops.ToDecibels(device="cpu", multiplier=np.log(10), reference=1.0)
+        self.log = ops.ToDecibels(device="cpu", multiplier=np.log(10), reference=reference)
 
 
 def log_tensor(tensor):
@@ -151,3 +152,7 @@ def test_operator_natural_logarithm():
     device = "cpu"
     for sh in shapes:
         yield check_natural_logarithm, device, batch_size, sh
+
+@raises(RuntimeError)
+def test_invalid_reference():
+    NLDaliPipeline(None, 1, 0.0).build()
