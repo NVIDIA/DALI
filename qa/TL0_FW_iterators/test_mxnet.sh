@@ -20,6 +20,7 @@ test_body() {
     done
     nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators_detection.py
     nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators.py
+    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*gluon*' test_fw_iterators.py
 }
 
 pushd ../..

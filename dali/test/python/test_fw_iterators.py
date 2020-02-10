@@ -23,16 +23,19 @@ from test_utils import get_dali_extra_path
 from nose.tools import raises
 
 class COCOReaderPipeline(Pipeline):
-    def __init__(self, data_paths, batch_size, num_threads, shard_id, num_gpus, random_shuffle, stick_to_shard, shuffle_after_epoch, pad_last_batch, initial_fill=1024):
+    def __init__(self, data_paths, batch_size, num_threads, shard_id, num_gpus, random_shuffle, stick_to_shard, shuffle_after_epoch, pad_last_batch, initial_fill=1024, return_labels=False):
         # use only 1 GPU, as we care only about shard_id
         super(COCOReaderPipeline, self).__init__(batch_size, num_threads, 0, prefetch_queue_depth=1)
         self.input = ops.COCOReader(file_root = data_paths[0], annotations_file=data_paths[1],
                                     shard_id = shard_id, num_shards = num_gpus, random_shuffle=random_shuffle,
                                     save_img_ids=True, stick_to_shard=stick_to_shard,shuffle_after_epoch=shuffle_after_epoch,
                                     pad_last_batch=pad_last_batch, initial_fill=initial_fill)
+        self.return_labels=return_labels
 
     def define_graph(self):
-        images, bb, labels, ids = self.input(name="Reader")
+        _, _, labels, ids = self.input(name="Reader")
+        if self.return_labels:
+            return labels, ids
         return ids
 
 test_data_root = get_dali_extra_path()
@@ -204,6 +207,103 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) == 1
 
+def test_gluon_iterator_last_batch_no_pad_last_batch():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    num_gpus = 1
+    batch_size = 100
+
+    pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
+                                                                  data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
+                                                                  shuffle_after_epoch=False, pad_last_batch=False), batch_size, num_gpus)
+
+    dali_train_iter = GluonIterator(pipes, size=pipes[0].epoch_size("Reader"), fill_last_batch=True)
+
+    img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+
+    assert len(img_ids_list) > data_size
+    assert len(img_ids_list_set) == data_size
+    assert len(set(mirrored_data)) != 1
+
+def test_gluon_iterator_last_batch_pad_last_batch():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    num_gpus = 1
+    batch_size = 100
+
+    pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
+                                                                      data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
+                                                                      shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus)
+
+    dali_train_iter = GluonIterator(pipes,
+                                    size=pipes[0].epoch_size("Reader"), fill_last_batch=True)
+
+    img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+
+    assert len(img_ids_list) > data_size
+    assert len(img_ids_list_set) == data_size
+    assert len(set(mirrored_data)) == 1
+
+    dali_train_iter.reset()
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = \
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+
+    assert len(next_img_ids_list) > data_size
+    assert len(next_img_ids_list_set) == data_size
+    assert len(set(next_mirrored_data)) == 1
+
+def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    num_gpus = 1
+    batch_size = 100
+
+    pipes, data_size = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
+                                                                      data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
+                                                                      shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus)
+
+    dali_train_iter = GluonIterator(pipes, size=pipes[0].epoch_size("Reader"),
+                                    fill_last_batch=False)
+
+    img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+
+    assert len(img_ids_list) == data_size
+    assert len(img_ids_list_set) == data_size
+    assert len(set(mirrored_data)) != 1
+
+
+    dali_train_iter.reset()
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, pad, remainder = \
+        gather_ids(dali_train_iter, lambda x: x[0].squeeze().asnumpy(), lambda x: 0, data_size)
+
+    assert len(next_img_ids_list) == data_size
+    assert len(next_img_ids_list_set) == data_size
+    assert len(set(next_mirrored_data)) != 1
+
+def test_gluon_iterator_sparse_batch():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    from mxnet.ndarray.ndarray import NDArray
+    num_gpus = 1
+    batch_size = 16
+
+    pipes, _ = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
+                                                                  data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
+                                                                  shuffle_after_epoch=False, pad_last_batch=True, return_labels=True), batch_size, num_gpus)
+
+    dali_train_iter = GluonIterator(pipes, pipes[0].epoch_size("Reader"),
+                                           [GluonIterator.SPARSE_TAG,
+                                            GluonIterator.DENSE_TAG],
+                                            fill_last_batch=True)
+
+    for it in dali_train_iter:
+        labels, ids = it[0] # gpu 0
+        # labels should be a sparse batch: a list of per-sample NDArray's
+        # ids should be a dense batch: a single NDarray reprenseting the batch
+        assert isinstance(labels, (tuple,list))
+        assert len(labels) == batch_size
+        assert isinstance(labels[0], NDArray)
+        assert isinstance(ids, NDArray)
+
 
 def test_pytorch_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
@@ -353,7 +453,6 @@ def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) != 1
 
-
 class TestIterator():
     def __init__(self, n, batch_size):
         self.n = n
@@ -438,6 +537,7 @@ def stop_teration_case_generator():
                     for infinite in [False, True]:
                         yield batch_size, epochs, iter_num, auto_reset, infinite
 
+# MXNet
 def test_stop_iteration_mxnet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     fw_iter = lambda pipe, size, auto_reset : MXNetIterator(pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
@@ -455,6 +555,25 @@ def test_stop_iteration_mxnet_fail_single():
     fw_iter = lambda pipe, size, auto_reset : MXNetIterator(pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
     check_stop_iter_fail_single(fw_iter)
 
+# Gluon
+def test_stop_iteration_gluon():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size, [GluonIterator.DENSE_TAG], auto_reset=auto_reset)
+    iter_name = "GluonIterator"
+    for batch_size, epochs, iter_num, auto_reset, infinite in stop_teration_case_generator():
+        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset, infinite
+
+def test_stop_iteration_gluon_fail_multi():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size, auto_reset=auto_reset)
+    check_stop_iter_fail_multi(fw_iter)
+
+def test_stop_iteration_gluon_fail_single():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size=size, auto_reset=auto_reset)
+    check_stop_iter_fail_single(fw_iter)
+
+# PyTorch
 def test_stop_iteration_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     fw_iter = lambda pipe, size, auto_reset : PyTorchIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
@@ -472,6 +591,7 @@ def test_stop_iteration_pytorch_fail_single():
     fw_iter = lambda pipe, size, auto_reset : PyTorchIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
     check_stop_iter_fail_single(fw_iter)
 
+# PaddlePaddle
 def test_stop_iteration_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     fw_iter = lambda pipe, size, auto_reset : PaddleIterator(pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
