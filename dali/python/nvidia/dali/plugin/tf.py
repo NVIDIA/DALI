@@ -51,6 +51,14 @@ _dali_tf.__doc__ = _dali_tf.__doc__ + """
     differ based on your use case.
 """
 
+def serialize_pipeline(pipeline):
+  try:
+    return pipeline.serialize()
+  except:
+    print("Error during pipeline initialization. Note that some operators (e.g. Python Operators) "
+          "cannot be used with tensorflow data set API and DALIIterator.")
+    raise
+
 def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
                         shapes = [], dtypes = [], batch_size = -1, prefetch_queue_depth = 2, **kwargs):
   """
@@ -68,7 +76,7 @@ This operator works in the same way as DALI TensorFlow plugin, with the exceptio
       gpu_prefetch_queue_depth = prefetch_queue_depth
 
   if serialized_pipeline is None:
-    serialized_pipeline = pipeline.serialize()
+    serialized_pipeline = serialize_pipeline(pipeline)
 
   # if batch_size is not provided we need to extract if from the shape arg
   if (not isinstance(shapes, Iterable) or len(shapes) == 0) and batch_size == -1:
@@ -160,7 +168,7 @@ if dataset_compatible_tensorflow():
 
       output_classes = tuple(ops.Tensor for shape in shapes)
 
-      self._pipeline = pipeline.serialize()
+      self._pipeline = serialize_pipeline(pipeline)
       self._batch_size = batch_size
       self._num_threads = num_threads
       self._device_id = device_id

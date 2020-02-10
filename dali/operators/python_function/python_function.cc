@@ -31,9 +31,10 @@ DALI_SCHEMA(PythonFunction)
                 "The called function will get tensors' data as NumPy arrays for CPU operators"
                 " or as CuPy arrays for GPU operators and should return results in the same format"
                 " (for more universal data format see `DLTensorPythonFunction`). "
+                "The function should not modify input tensors. \n\n"
                 "For now, this operator can be used only in pipelines with "
                 "`exec_async=False` and `exec_pipelined=False` specified. Due to "
-                "inferior performance, it is intended mostly for prototyping and debugging.\n")
+                "inferior performance, it is intended mostly for prototyping and debugging.")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()
