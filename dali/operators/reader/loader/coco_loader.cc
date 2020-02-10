@@ -184,10 +184,6 @@ void parse_annotations(
     bool to_add = true;
     parser.EnterObject();
     while (const char* internal_key = parser.NextObjectKey()) {
-      if (!to_add) {
-        parser.SkipValue();
-        continue;
-      }
       if (0 == detail::safe_strcmp(internal_key, "image_id")) {
         annotation.image_id_ = parser.GetInt();
       } else if (0 == detail::safe_strcmp(internal_key, "category_id")) {
@@ -205,8 +201,8 @@ void parse_annotations(
         // which is not needed for instance segmentation
         if (parser.PeekType() != kArrayType) {
           to_add = false;
-          parser.SkipValue();
-          continue;
+          parser.SkipObject();
+          break;
         }
 
         int coord_offset = 0;
