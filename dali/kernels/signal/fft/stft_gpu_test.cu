@@ -17,13 +17,129 @@
 #include <fstream>
 #include "dali/kernels/signal/fft/stft_gpu_impl.cuh"
 #include "dali/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/signal/window/window_functions.h"
+#include "dali/kernels/signal/fft/fft_test_ref.h"
+#include "dali/core/boundary.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
 namespace fft {
+
+void RefExtractWindow(float *out,
+                      int window_index, const float *in, int n,
+                      const StftArgs &args) {
+  int center = args.padding != Padding::None ? args.window_center : 0;
+  if (center == -1)
+    center = args.window_length / 2;
+
+  int start = window_index * args.window_step - center;
+  for (int i = 0; i < args.window_length; i++) {
+    int idx = i + start;
+    float v = 0;
+    if (args.padding == Padding::Reflect) {
+      idx = boundary::idx_reflect_101(idx, n);
+    }
+    if (idx >= 0 && idx < n) {
+      v = in[idx];
+    } else {
+      assert(args.padding == Padding::Zero);
+    }
+    out[i] = v;
+  }
+}
+
+inline void RefPostprocess(span<float> out, span<const complexf> in, FftSpectrumType type) {
+  switch (type) {
+    case FFT_SPECTRUM_MAGNITUDE:
+    {
+      fft_postprocess::norm2 pp;
+      for (int i = 0; i < out.size(); i++)
+        out[i] = pp(in[i]);
+    } break;
+    case FFT_SPECTRUM_POWER:
+    {
+      fft_postprocess::norm2square pp;
+      for (int i = 0; i < out.size(); i++)
+        out[i] = pp(in[i]);
+     } break;
+    case FFT_SPECTRUM_POWER_DECIBELS:
+    {
+      fft_postprocess::power_dB pp;
+      for (int i = 0; i < out.size(); i++)
+        out[i] = pp(in[i]);
+    } break;
+    default:
+      assert(!"Unexpected postprocessing method");
+  }
+}
+
+inline void RefPostprocess(span<complexf> out, span<const complexf> in, FftSpectrumType type) {
+  assert(type == FFT_SPECTRUM_COMPLEX && "Unexpected postprocessing method");
+  for (int i = 0; i < out.size(); i++)
+    out[i] = in[i];
+}
+
+template <typename T>
+void RefSpectrum(const OutTensorCPU<T, 2> &ref_out, const float *in, int n,
+                 const StftArgs &args, span<const float> window) {
+  int t_axis = args.time_major_layout ? 0 : 1;
+  int f_axis = 1 - t_axis;
+  int nout = args.num_windows(n);
+  int nfft = args.nfft > 0 ? args.nfft : args.window_length;
+  test::ReferenceFFT<float> fft(nfft);
+  vector<float> ref_wnd(nfft);
+  vector<complexf> ref_fft(nfft);
+  assert(window.size() <= nfft);
+  int out_nfft = ref_out.shape[f_axis];
+  assert(out_nfft <= nfft);
+  vector<T> ref(out_nfft);
+
+  for (int i = 0; i < nout; i++) {
+    RefExtractWindow(ref_wnd.data(), i, in, n, args);
+    for (int j = 0; j < window.size(); j++)
+      ref_wnd[j] *= window[j];
+
+    fft(ref_fft.data(), ref_wnd.data());
+    RefPostprocess(make_span(ref), make_span(ref_fft), args.spectrum_type);
+
+    int pos[2] = {};
+    pos[t_axis] = i;
+    for (int j = 0; j < out_nfft; j++) {
+      pos[f_axis] = j;
+      *ref_out(pos) = ref[j];
+    }
+  }
+}
+
+template <typename T>
+void RefSpectrum(const OutListCPU<T, 2> &ref_out, const InListCPU<float, 1> &in,
+                 const StftArgs &args, span<const float> window) {
+  for (int i = 0; i < in.num_samples(); i++) {
+    RefSpectrum(ref_out[i], in.data[i], in.shape[i][0], args, window);
+  }
+}
+
+template <typename T>
+void RefSpectrum(TestTensorList<T, 2> &ref_out, const InListCPU<float, 1> &in,
+                 const StftArgs &args, span<const float> window) {
+  int t_axis = args.time_major_layout ? 0 : 1;
+  int f_axis = 1 - t_axis;
+  TensorListShape<2> ref_shape;
+  ref_shape.resize(in.num_samples());
+  int nfft = args.nfft > 0 ? args.nfft : args.window_length;
+  int spectrum_size = (nfft + 2) / 2;
+  for (int i = 0; i < in.num_samples(); i++) {
+    TensorShape<2> ts;
+    ts[t_axis] = args.num_windows(in.shape[i][0]);
+    ts[f_axis] = spectrum_size;
+    ref_shape.set_tensor_shape(i, ts);
+  }
+  ref_out.reshape(ref_shape);
+  RefSpectrum(ref_out.cpu(), in, args, window);
+}
 
 TEST(StftImplGPU, Setup) {
   StftImplGPU stft;
@@ -84,11 +200,11 @@ void GenerateTestSound(float *out, int length, float freq, float amplitude) {
   }
 }
 
-void GenerateTestWave(float *out, int length, int num_sounds, int max_sound_length,
+template <typename RNG>
+void GenerateTestWave(RNG &rng, float *out, int length, int num_sounds, int max_sound_length,
                       float noise_level = 0.01f) {
-  std::mt19937_64 rng(1234);
   std::normal_distribution<float> noise(0, noise_level);
-  std::uniform_int_distribution<int> lengths(4, max_sound_length);
+  std::uniform_int_distribution<int> lengths(max_sound_length/10, max_sound_length);
   std::uniform_real_distribution<float> freqs(1e-3f, 0.3f);
   std::uniform_real_distribution<float> ampls(0.1f, 1.0f);
   for (int i = 0; i < length; i++)
@@ -100,24 +216,20 @@ void GenerateTestWave(float *out, int length, int num_sounds, int max_sound_leng
   }
 }
 
-TEST(StftImplGPU, BatchOfOne) {
+
+TEST(StftImplGPU, Run) {
+  std::mt19937_64 rng(1234);
+
   StftImplGPU stft;
   TestTensorList<float, 1> in;
-  TestTensorList<complexf, 2> out;
   TestTensorList<float, 1> window;
-  TensorListShape<1> in_shape({ TensorShape<1>{35500} });
+  TensorListShape<1> in_shape = {{ 1000, 15, 35321, 2048, 11111, 20480 }};
+  const int N = in_shape.num_samples();
   in.reshape(in_shape);
-  auto lengths = make_cspan(in_shape.shapes);
-  int N = in_shape.num_samples();
+  const auto lengths = make_cspan(in_shape.shapes);
+  TensorListView<StorageCPU, float, 1> in_cpu = in.cpu();
   for (int i = 0; i < N; i++) {
-    GenerateTestWave(in.cpu().data[i], lengths[i], 30, lengths[i] / 5);
-  }
-
-  {
-    std::ofstream stft_in("stft_in.txt");
-    for (auto x : make_span(in.cpu().data[0], lengths[0])) {
-      stft_in << x << "\n";
-    }
+    GenerateTestWave(rng, in_cpu.data[i], lengths[i], 30, lengths[i] / 5);
   }
 
   StftArgs args;
@@ -129,11 +241,12 @@ TEST(StftImplGPU, BatchOfOne) {
   args.padding = signal::Padding::Reflect;
 
   window.reshape({{TensorShape<1>{args.window_length}}});
-  HannWindow(make_span(window.cpu().data[0], args.window_length));
+  auto window_span = make_span(window.cpu().data[0], args.window_length);
+  HannWindow(window_span);
+  for (bool time_major : { false, true }) {
 
-
-  for (bool time_major : { true }) {
     args.time_major_layout = time_major;
+    TestTensorList<complexf, 2> out;
 
     KernelContext ctx;
     KernelRequirements req = stft.Setup(ctx, make_span(lengths), args);
@@ -150,30 +263,14 @@ TEST(StftImplGPU, BatchOfOne) {
     sa.Reserve(req.scratch_sizes);
     auto scratchpad = sa.GetScratchpad();
     ctx.scratchpad = &scratchpad;
+    auto window_gpu = window.gpu()[0];
     out.reshape(convert_dim<2>(out_shape));
-    stft.RunR2C(ctx, out.gpu(), in.gpu(), window.gpu()[0]);
+    stft.RunR2C(ctx, out.gpu(), in.gpu(), window_gpu);
     TensorListView<StorageCPU, complexf, 2> out_cpu = out.cpu();
 
-    TensorView<StorageCPU, complexf, 2> tv = out_cpu[0];
-
-    int time_axis = time_major ? 0 : 1;
-    int freq_axis = 1 - time_axis;
-    std::ofstream stft_out("stft_out.txt");
-    stft_out << "[";
-    for (int f = 0; f < tv.shape[freq_axis]; f++) {
-      if (f)
-        stft_out << ",\n";
-      stft_out << "[";
-      for (int t = 0; t < tv.shape[time_axis]; t++) {
-        int i = time_major ? t : f;
-        int j = time_major ? f : t;
-        if (t)
-          stft_out << ", ";
-        stft_out << *tv(i, j);
-      }
-      stft_out << "]";
-    }
-    stft_out << "]";
+    TestTensorList<complexf, 2> ref;
+    RefSpectrum(ref, in_cpu, args, window_span);
+    Check(out_cpu, ref.cpu(), EqualEps(1e-5f));
   }
 }
 

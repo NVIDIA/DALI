@@ -23,6 +23,8 @@ namespace fft {
 
 void StftImplGPU::Reset() {
   plans_.clear();
+  post_complex_.reset();
+  post_real_.reset();
   total_work_size_ = 0;
 }
 
@@ -133,7 +135,6 @@ void StftImplGPU::CreatePlans(int64_t nwindows) {
           handle, 1, n,
           0, 0, 0, 0, 0, 0,
           CUFFT_R2C, w, &plan.work_size));
-      total_work_size_ += plan.work_size;
     }
   }
 
@@ -156,6 +157,22 @@ void StftImplGPU::ReserveTempStorage(ScratchpadEstimator &se) {
   se.add<float>(AllocType::GPU, num_temp_windows() * transform_in_size(), 8);
   // transform output
   se.add<float2>(AllocType::GPU, num_temp_windows() * transform_out_size(), 8);
+
+  int windows_left = total_windows_;
+  int max_plan = num_temp_windows();
+
+  size_t total_work = 0;
+  while (windows_left > 0) {
+    auto it = plans_.upper_bound(max_plan);
+    assert(it != plans_.begin());
+    --it;
+    int batch = it->first;
+    total_work += it->second.work_size;
+    windows_left -= batch;
+    max_plan -= batch;
+  }
+  total_work_size_ = total_work;
+
   se.add<char>(AllocType::GPU, total_work_size_, 16);
 }
 
@@ -237,6 +254,7 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
   // to powers of 2.
 
   int calls = 0;
+  size_t work_used = 0;
   while (windows_left > 0) {
     auto it = plans_.upper_bound(max_plan);
     assert(it != plans_.begin());
@@ -249,12 +267,15 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
     CUDA_CALL(cufftSetWorkArea(pi.handle, work));
     CUDA_CALL(cufftExecR2C(pi.handle, fft_in + in_ofs, fft_out + out_ofs));
     work += pi.work_size;
+    work_used += pi.work_size;
+    assert(work_used <= total_work_size_);
     calls++;
     windows_left -= batch;
     max_plan -= batch;
     in_ofs += batch * transform_in_size();
     out_ofs += batch * transform_out_size();
   }
+  (void)work_used;
 }
 
 void StftImplGPU::ExtractWindows(ExecutionContext &ctx) {
@@ -269,7 +290,7 @@ void StftImplGPU::ExtractWindows(ExecutionContext &ctx) {
 
   // 0-pad to avoid running FFT on garbage
   cudaMemsetAsync(fft_in + ofs, 0, pad*sizeof(float), ctx.stream());
- }
+}
 
 
 }  // namespace fft

@@ -48,6 +48,11 @@ struct norm2square {
   auto operator()(float2 c) const {
     return c.x * c.x + c.y * c.y;
   }
+
+  DALI_FORCEINLINE
+  auto operator()(complexf c) const {
+    return (*this)(float2{c.real(), c.imag()});
+  }
 };
 
 struct norm2 {
@@ -58,6 +63,11 @@ struct norm2 {
 #else
     return std::sqrt(c.x * c.x + c.y * c.y);
 #endif
+  }
+
+  DALI_FORCEINLINE
+  auto operator()(complexf c) const {
+    return (*this)(float2{c.real(), c.imag()});
   }
 };
 
@@ -78,6 +88,11 @@ struct power_dB {
     return mul * std::log2(std::max(c.x * c.x + c.y * c.y, cutoff));
 #endif
   }
+
+  DALI_FORCEINLINE
+  auto operator()(complexf c) const {
+    return (*this)(float2{c.real(), c.imag()});
+  }
 };
 
 template <typename Out, typename In, typename Convert>
@@ -94,14 +109,21 @@ __global__ void ConvertTimeMajorSpectrogram(
   out += wnd * out_stride;
   in += wnd * in_stride;
 
-  // The loop starts at 0 (not threadIdx.x) to ensure there's no divergence which would
-  // cause undefined behavior in __syncwarp() (or require complex mask calculation).
-  for (int i = 0; i < nfft; i += 32) {
-    int j = i + threadIdx.x;
-    Out v = j < nfft ? convert(in[j]) : Out();
-    __syncwarp();  // memory barrier for in-place execution
-    if (j < nfft)
-      out[j] = v;
+  // Check for in-place operation and size change
+  if (static_cast<const void*>(out) == static_cast<const void *>(in) &&
+      sizeof(Out) != sizeof(In)) {
+    // The loop starts at 0 (not threadIdx.x) to ensure there's no divergence which would
+    // cause undefined behavior in __syncwarp() (or require complex mask calculation).
+    for (int i = 0; i < nfft; i += 32) {
+      int j = i + threadIdx.x;
+      Out v = j < nfft ? convert(in[j]) : Out();
+      __syncwarp();  // memory barrier for in-place execution with non-trivial aliasing
+      if (j < nfft)
+        out[j] = v;
+    }
+  } else {
+    for (int i = threadIdx.x; i < nfft; i += 32)
+      out[i] = convert(in[i]);
   }
 }
 
@@ -138,7 +160,6 @@ __global__ void TransposeBatch(
         sample.out[out_pos.y * sample.out_stride + out_pos.x] = tmp[page][threadIdx.x][threadIdx.y];
 
       page = 1-page;
-
     }
   }
 }
@@ -198,6 +219,7 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
       ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
           out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nfft, nwindows, convert_
         );
+      CUDA_CALL(cudaGetLastError());
     } else {
       for (int i = 0; i < N; i++) {
         int nwindows = in.shape[i][0];
@@ -208,6 +230,7 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
         ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
             out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nfft, nwindows, convert_
           );
+        CUDA_CALL(cudaGetLastError());
       }
     }
   }
@@ -289,7 +312,7 @@ class ToFreqMajorSpectrum : public FFTPostprocess<Out, In> {
         out.data[i],
         in.data[i],
         nwindows,  // output stride - a row contains all windows
-        nfft      // input stride  - a row contains all frequencies
+        nfft       // input stride  - a row contains all frequencies
       };
       for (int start = 0; start < nwindows; start += block_size_) {
         int end = std::min(start + block_size_, nwindows);
@@ -307,6 +330,7 @@ class ToFreqMajorSpectrum : public FFTPostprocess<Out, In> {
 
     dim3 blockDim(kBlock, kBlock, 1);
     TransposeBatch<<<nblocks_, blockDim, 0, ctx.gpu.stream>>>(gpu_samples, gpu_blocks, convert_);
+    CUDA_CALL(cudaGetLastError());
   }
 
  private:
