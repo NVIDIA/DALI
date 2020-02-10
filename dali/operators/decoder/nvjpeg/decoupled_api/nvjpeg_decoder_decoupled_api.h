@@ -57,7 +57,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                  spec.GetArgument<int>("device_id"),
                  spec.GetArgument<bool>("affine") /* pin threads */) {
 #if NVJPEG_VER_MAJOR >= 11
-    hw_decoder_load_ = spec.GetArgument<float>("hw_decoder_load");
+    // if hw_decoder_load is not present in the schema (crop/sliceDecoder) then it is not supported
+    if (spec_.GetSchema().HasArgument("hw_decoder_load")) {
+      hw_decoder_load_ = spec.GetArgument<float>("hw_decoder_load");
+    } else {
+      hw_decoder_load_ = 0;
+    }
     hw_decoder_bs_ = static_cast<int>(std::round(hw_decoder_load_ * batch_size_));
 
     constexpr int kNumHwDecoders = 5;
