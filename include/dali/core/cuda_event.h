@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CORE_CUDA_STREAM_H_
-#define DALI_CORE_CUDA_STREAM_H_
+#ifndef DALI_CORE_CUDA_EVENT_H_
+#define DALI_CORE_CUDA_EVENT_H_
 
 #include <driver_types.h>
 #include <utility>
@@ -21,20 +21,20 @@
 
 namespace dali {
 
-class DLL_PUBLIC CUDAStream : public UniqueHandle<cudaStream_t, CUDAStream>{
+class DLL_PUBLIC CUDAEvent : public UniqueHandle<cudaEvent_t, CUDAEvent> {
  public:
-  DALI_INHERIT_UNIQUE_HANDLE(cudaStream_t, CUDAStream);
+  DALI_INHERIT_UNIQUE_HANDLE(cudaEvent_t, CUDAEvent)
+  constexpr CUDAEvent() = default;
 
-  /// @brief Creates a on specified device (or current device, if device_id < 0)
-  static CUDAStream Create(bool nonBlocking, int device_id = -1);
+  /// @brief Creates an event on specified device (or current device, if device_id < 0)
+  static CUDAEvent Create(int device_id = -1);
 
-  /// @brief Creates a non-blocking stream with given priority on specified device
+  /// @brief Creates an event event with specific flags on the device specified
   ///        (or current device, if device_id < 0)
-  static CUDAStream CreateWithPriority(bool nonBlocking, int priority, int device_id = -1);
-
-  static void DestroyHandle(cudaStream_t stream);
+  static CUDAEvent CreateWithFlags(unsigned flags, int device_id = -1);
+  static void DestroyHandle(cudaEvent_t);
 };
 
 }  // namespace dali
 
-#endif  // DALI_CORE_CUDA_STREAM_H_
+#endif  // DALI_CORE_CUDA_EVENT_H_

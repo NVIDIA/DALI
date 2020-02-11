@@ -21,6 +21,7 @@
 #include <map>
 #include "dali/core/tensor_view.h"
 #include "dali/core/cuda_stream.h"
+#include "dali/core/cuda_event.h"
 #include "dali/kernels/kernel_req.h"
 #include "dali/kernels/signal/fft/stft_gpu.h"
 #include "dali/kernels/signal/fft/cufft_helper.h"
@@ -100,9 +101,14 @@ class DLL_PUBLIC StftImplGPU {
     CUFFTHandle handle;
     size_t work_size = 0;
   };
-  size_t total_work_size_ = 0;
   std::map<int, PlanInfo> plans_;
-  std::vector<CUDAStream> streams_;
+  struct Stream {
+    CUDAStream stream;
+    CUDAEvent event;
+  };
+  std::vector<Stream> streams_;
+  size_t max_work_size_ = 0;
+  static constexpr int kMaxStreams = 4;
 
   StftArgs args_;
 

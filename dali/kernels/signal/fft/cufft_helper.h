@@ -19,6 +19,7 @@
 #include <utility>
 #include <string>
 #include "dali/core/cuda_error.h"
+#include "dali/core/unique_handle.h"
 #include "dali/core/format.h"
 
 namespace dali {
@@ -100,52 +101,12 @@ inline void cudaResultCheck<cufftResult>(cufftResult status) {
   }
 }
 
-struct CUFFTHandle {
-  CUFFTHandle() = default;
+struct CUFFTHandle : public UniqueHandle<cufftHandle, CUFFTHandle> {
+  DALI_INHERIT_UNIQUE_HANDLE(cufftHandle, CUFFTHandle);
 
-  explicit CUFFTHandle(cufftHandle handle) : handle_(handle) {}
-
-  ~CUFFTHandle() {
-    reset();
+  static void DestroyHandle(cufftHandle handle) {
+    CUDA_CALL(cufftDestroy(handle));
   }
-
-  CUFFTHandle(const CUFFTHandle &) = delete;
-  CUFFTHandle &operator=(const CUFFTHandle &) = delete;
-
-  CUFFTHandle(CUFFTHandle &&other) {
-    std::swap(handle_, other.handle_);
-  }
-  CUFFTHandle &operator=(CUFFTHandle &&other) {
-    std::swap(handle_, other.handle_);
-    return *this;
-  }
-
-  void reset() {
-    if (handle_) {
-      CUDA_CALL(cufftDestroy(handle_));
-      handle_ = 0;
-    }
-  }
-
-  void reset(cufftHandle handle) {
-    if (handle == handle_)
-      return;
-    reset();
-    handle_ = handle;
-  }
-
-  cufftHandle release() {
-    cufftHandle h = handle_;
-    handle_ = 0;
-    return h;
-  }
-
-  operator cufftHandle() const {
-    return handle_;
-  }
-
- private:
-  cufftHandle handle_ = 0;
 };
 
 }  // namespace dali

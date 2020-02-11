@@ -25,13 +25,13 @@ void StftImplGPU::Reset() {
   plans_.clear();
   post_complex_.reset();
   post_real_.reset();
-  total_work_size_ = 0;
 }
 
 inline void add_scratch(ScratchpadEstimator &se,
     const std::array<size_t, (size_t)AllocType::Count> &sizes) {
+  constexpr size_t kScratchpadAlignment = 64;
   for (size_t i = 0; i < sizes.size(); i++) {
-    se.sizes[i] = align_up(se.sizes[i], 64) + sizes[i];
+    se.sizes[i] = align_up(se.sizes[i], kScratchpadAlignment) + sizes[i];
   }
 }
 
@@ -138,7 +138,7 @@ void StftImplGPU::CreatePlans(int64_t nwindows) {
     }
   }
 
-  CreateStreams(plans_.size());
+  CreateStreams(std::min<int>(plans_.size(), kMaxStreams + 0 /* clang bug */));
 }
 
 void StftImplGPU::CreateStreams(int new_num_streams) {
@@ -147,7 +147,7 @@ void StftImplGPU::CreateStreams(int new_num_streams) {
   if (num_streams < new_num_streams) {
     streams_.resize(new_num_streams);
     for (int i = num_streams; i < new_num_streams; i++)
-      streams_[i] = CUDAStream::Create(true);
+      streams_[i] = { CUDAStream::Create(true), CUDAEvent::Create() };
   }
 }
 
@@ -161,19 +161,21 @@ void StftImplGPU::ReserveTempStorage(ScratchpadEstimator &se) {
   int windows_left = total_windows_;
   int max_plan = num_temp_windows();
 
-  size_t total_work = 0;
+  size_t max_work = 0;
   while (windows_left > 0) {
     auto it = plans_.upper_bound(max_plan);
     assert(it != plans_.begin());
     --it;
     int batch = it->first;
-    total_work += it->second.work_size;
+    max_work = std::max(max_work, it->second.work_size);
     windows_left -= batch;
     max_plan -= batch;
   }
-  total_work_size_ = total_work;
 
-  se.add<char>(AllocType::GPU, total_work_size_, 16);
+  max_work_size_ = max_work;
+
+  for (size_t i = 0; i < streams_.size(); i++)
+    se.add<char>(AllocType::GPU, max_work, alignof(double2));  // make each allocation aligned
 }
 
 void StftImplGPU::ValidateParams(ExecutionContext &ctx) {
@@ -241,7 +243,9 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
   assert(transform_in_.is_contiguous());
   float *fft_in = transform_in_.data[0];
 
-  char *work = ctx.scratchpad()->Allocate<char>(AllocType::GPU, total_work_size_, 16);
+  SmallVector<char *, kMaxStreams> work;
+  for (size_t i = 0; i < streams_.size(); i++)
+    work[i] = ctx.scratchpad()->Allocate<char>(AllocType::GPU, max_work_size_, 16);
 
   int64_t windows_left = total_windows_;
   int64_t max_plan = num_temp_windows();
@@ -254,28 +258,32 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
   // to powers of 2.
 
   int calls = 0;
-  size_t work_used = 0;
+  size_t max_stream = 0;
+  size_t stream_idx = 0;
   while (windows_left > 0) {
     auto it = plans_.upper_bound(max_plan);
     assert(it != plans_.begin());
     --it;
     int batch = it->first;
 
+    max_stream = std::max(max_stream, stream_idx);
     PlanInfo &pi = it->second;
-    // TODO(michalz) use internal streams
-    CUDA_CALL(cufftSetStream(pi.handle, ctx.stream()));
-    CUDA_CALL(cufftSetWorkArea(pi.handle, work));
+    CUDA_CALL(cufftSetStream(pi.handle, streams_[stream_idx].stream));
+    CUDA_CALL(cufftSetWorkArea(pi.handle, work[stream_idx]));
     CUDA_CALL(cufftExecR2C(pi.handle, fft_in + in_ofs, fft_out + out_ofs));
-    work += pi.work_size;
-    work_used += pi.work_size;
-    assert(work_used <= total_work_size_);
     calls++;
     windows_left -= batch;
     max_plan -= batch;
     in_ofs += batch * transform_in_size();
     out_ofs += batch * transform_out_size();
+    stream_idx++;
+    if (stream_idx >= streams_.size())
+      stream_idx = 0;
   }
-  (void)work_used;
+  for (size_t i = 0; i < max_stream; i++) {
+    CUDA_CALL(cudaEventRecord(streams_[i].event, streams_[i].stream));
+    CUDA_CALL(cudaStreamWaitEvent(ctx.stream(), streams_[i].event, 0));
+  }
 }
 
 void StftImplGPU::ExtractWindows(ExecutionContext &ctx) {
@@ -291,7 +299,6 @@ void StftImplGPU::ExtractWindows(ExecutionContext &ctx) {
   // 0-pad to avoid running FFT on garbage
   cudaMemsetAsync(fft_in + ofs, 0, pad*sizeof(float), ctx.stream());
 }
-
 
 }  // namespace fft
 }  // namespace signal
