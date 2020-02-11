@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@
 
 #include <cuda_runtime.h>
 #include <cufft.h>
-#include <vector>
 #include <map>
+#include <memory>
+#include <vector>
 #include "dali/core/tensor_view.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/core/cuda_event.h"
@@ -35,7 +36,6 @@ namespace fft {
 
 class DLL_PUBLIC StftImplGPU {
  public:
-
   KernelRequirements Setup(KernelContext &ctx, span<const int64_t> lengths, const StftArgs &args);
 
   void RunR2C(KernelContext &ctx,

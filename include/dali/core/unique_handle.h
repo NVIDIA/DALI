@@ -69,6 +69,7 @@ class UniqueHandle {
   }
 
   static constexpr handle_type null_handle() noexcept { return {}; }
+
  protected:
   inline ~UniqueHandle() { reset(); }
 
@@ -83,4 +84,4 @@ class UniqueHandle {
 
 }  // namespace dali
 
-#endif
+#endif  // DALI_CORE_UNIQUE_HANDLE_H_

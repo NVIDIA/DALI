@@ -47,29 +47,35 @@ namespace fft_postprocess {
 
 TEST(FFTPostprocess, Norm2) {
   norm2 f;
-  EXPECT_EQ(f(float2{0,0}), 0);
-  EXPECT_NEAR(f(float2{1,1}), sqrt(2), 1e-5f);
-  EXPECT_NEAR(f(float2{-1,1}), sqrt(2), 1e-5f);
-  EXPECT_NEAR(f(float2{-3,-4}), 5, 1e-5f);
+  EXPECT_EQ(f(float2{0, 0}), 0);
+  EXPECT_NEAR(f(float2{1, 1}), sqrt(2), 1e-5f);
+  EXPECT_NEAR(f(float2{-1, 1}), sqrt(2), 1e-5f);
+  EXPECT_NEAR(f(float2{-3, -4}), 5, 1e-5f);
 }
 
 TEST(FFTPostprocess, Norm2Square) {
   norm2square f;
-  EXPECT_EQ(f(float2{0,0}), 0.0f);
-  EXPECT_EQ(f(float2{1,1}), 2.0f);
-  EXPECT_EQ(f(float2{-1,1}), 2.0f);
-  EXPECT_EQ(f(float2{-3,-4}), 25.0f);
+  EXPECT_EQ(f(float2{0, 0}), 0.0f);
+  EXPECT_EQ(f(float2{1, 1}), 2.0f);
+  EXPECT_EQ(f(float2{-1, 1}), 2.0f);
+  EXPECT_EQ(f(float2{-3, -4}), 25.0f);
 }
 
 TEST(FFTPostprocess, Power_dB) {
   power_dB f;
-  EXPECT_NEAR(f(float2{0,0}), -80, 1e-5f);
-  EXPECT_EQ(f(float2{1,0}), 0);
-  EXPECT_EQ(f(float2{0,-1}), 0);
+  EXPECT_NEAR(f(float2{0, 0}), -80, 1e-5f);
+  EXPECT_EQ(f(float2{1, 0}), 0);
+  EXPECT_EQ(f(float2{0, -1}), 0);
 
-  EXPECT_NEAR(f(float2{1,1}), 3.01029995664, 1e-5f);
-  EXPECT_NEAR(f(float2{2,0}), 6.02059991328, 1e-5f);
-  EXPECT_NEAR(f(float2{2,2}), 9.03089986992, 1e-5f);
+  EXPECT_NEAR(f(float2{1, 1}), 3.01029995664, 1e-5f);
+  EXPECT_NEAR(f(float2{2, 0}), 6.02059991328, 1e-5f);
+  EXPECT_NEAR(f(float2{2, 2}), 9.03089986992, 1e-5f);
+  EXPECT_NEAR(f(float2{1e-3, 0}), -60, 1e-5f);
+
+  f = power_dB(-40);
+  EXPECT_NEAR(f(float2{0, 0}), -40, 1e-5f);
+  EXPECT_NEAR(f(float2{1e-1, 0}), -20, 1e-5f);
+  EXPECT_NEAR(f(float2{1e-2, 0}), -40, 1e-5f);
 }
 
 template <typename Out, typename In, typename Convert = identity>
@@ -215,7 +221,7 @@ TYPED_TEST(FFTPostprocessTest, ConvertTimeMajorInPlace) {
   this->ConvertTimeMajorInPlace();
 }
 
-}  // fft_postprocess
+}  // namespace fft_postprocess
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali

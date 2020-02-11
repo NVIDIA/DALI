@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_KERNELS_SIGNAL_FFT_FFT_TEST_REF_H_
+#define DALI_KERNELS_SIGNAL_FFT_FFT_TEST_REF_H_
+
 #include <complex>
 #include <vector>
 
@@ -33,7 +36,8 @@ void scramble(Out *out, const In *in, int n, int stride = 1) {
 
 template <typename T, typename C = std::complex<T>>
 struct ReferenceFFT {
-  ReferenceFFT(int n) : N(n) {
+  ReferenceFFT() = default;
+  explicit ReferenceFFT(int n) : N(n) {
     init();
   }
 
@@ -84,3 +88,5 @@ struct ReferenceFFT {
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
+
+#endif  // DALI_KERNELS_SIGNAL_FFT_FFT_TEST_REF_H_

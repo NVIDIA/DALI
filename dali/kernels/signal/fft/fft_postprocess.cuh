@@ -16,6 +16,7 @@
 #define DALI_KERNELS_SIGNAL_FFT_FFT_POSTPROCESS_CUH_
 
 #include <cuda_runtime.h>
+#include <memory>
 #include "dali/core/geom/vec.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/signal/fft/fft_common.h"
@@ -73,7 +74,7 @@ struct norm2 {
 
 struct power_dB {
   power_dB() = default;
-  power_dB(float cutoff_dB) {
+  explicit power_dB(float cutoff_dB) {
     cutoff = std::pow(10, cutoff_dB / 10);
   }
 
@@ -217,8 +218,7 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
       dim3 threads(32, kBlock);
 
       ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
-          out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nfft, nwindows, convert_
-        );
+          out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nfft, nwindows, convert_);
       CUDA_CALL(cudaGetLastError());
     } else {
       for (int i = 0; i < N; i++) {
@@ -228,8 +228,7 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
         dim3 threads(32, kBlock);
 
         ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
-            out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nfft, nwindows, convert_
-          );
+            out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nfft, nwindows, convert_);
         CUDA_CALL(cudaGetLastError());
       }
     }
@@ -376,7 +375,7 @@ inline std::unique_ptr<FFTPostprocess<float, float2>> GetSpectrogramPostprocesso
   }
 }
 
-}  // fft_postprocess
+}  // namespace fft_postprocess
 
 }  // namespace signal
 }  // namespace kernels

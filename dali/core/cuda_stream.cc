@@ -29,6 +29,7 @@ CUDAStream CUDAStream::Create(bool nonBlocking, int device_id) {
 CUDAStream CUDAStream::CreateWithPriority(bool nonBlocking, int priority, int device_id) {
   cudaStream_t stream;
   int flags = nonBlocking ? cudaStreamNonBlocking : cudaStreamDefault;
+  DeviceGuard dg(device_id);
   CUDA_CALL(cudaStreamCreateWithPriority(&stream, flags, priority));
   return CUDAStream(stream);
 }

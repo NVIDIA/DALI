@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <random>
-#include <fstream>
+#include <vector>
 #include "dali/kernels/signal/fft/stft_gpu_impl.cuh"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
@@ -243,8 +243,8 @@ TEST(StftImplGPU, Run) {
   window.reshape({{TensorShape<1>{args.window_length}}});
   auto window_span = make_span(window.cpu().data[0], args.window_length);
   HannWindow(window_span);
-  for (bool time_major : { false, true }) {
 
+  for (bool time_major : { false, true }) {
     args.time_major_layout = time_major;
     TestTensorList<complexf, 2> out;
 
@@ -253,12 +253,14 @@ TEST(StftImplGPU, Run) {
     ASSERT_EQ(req.output_shapes.size(), 1u);
     auto &out_shape = req.output_shapes[0];
     ASSERT_EQ(out_shape.num_samples(), N);
+
     for (int i = 0; i < N; i++) {
       TensorShape<2> ts = { args.num_windows(lengths[i]), args.window_length / 2 + 1 };
       if (!time_major)
         std::swap(ts[0], ts[1]);
       EXPECT_EQ(out_shape[i], ts);
     }
+
     ScratchpadAllocator sa;
     sa.Reserve(req.scratch_sizes);
     auto scratchpad = sa.GetScratchpad();

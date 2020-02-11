@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -129,7 +129,7 @@ void StftImplGPU::CreatePlans(int64_t nwindows) {
       cufftHandle handle;
       CUDA_CALL(cufftCreate(&handle));
       plan.handle.reset(handle);
-      CUDA_CALL(cufftSetAutoAllocation(handle, 0));
+      CUDA_CALL(cufftSetAutoAllocation(handle, false));
       plan.work_size = 0;
       CUDA_CALL(cufftMakePlanMany(
           handle, 1, n,
@@ -154,9 +154,9 @@ void StftImplGPU::CreateStreams(int new_num_streams) {
 void StftImplGPU::ReserveTempStorage(ScratchpadEstimator &se) {
   // TODO(michalz) - try in-place transform to reduce memory footprint
   // extracted windows
-  se.add<float>(AllocType::GPU, num_temp_windows() * transform_in_size(), 8);
+  se.add<float>(AllocType::GPU, num_temp_windows() * transform_in_size(), alignof(float2));
   // transform output
-  se.add<float2>(AllocType::GPU, num_temp_windows() * transform_out_size(), 8);
+  se.add<float2>(AllocType::GPU, num_temp_windows() * transform_out_size(), alignof(float2));
 
   int windows_left = total_windows_;
   int max_plan = num_temp_windows();
@@ -198,7 +198,6 @@ void StftImplGPU::ValidateParams(ExecutionContext &ctx) {
   DALI_ENFORCE(ctx.window().num_elements() == 0 ||
                ctx.window().num_elements() == transform_size(),
                "The window must be either empty or have a size equal to the transform size.");
-
 }
 
 void StftImplGPU::RunR2C(KernelContext &ctx,
@@ -238,7 +237,7 @@ void StftImplGPU::StoreRealResult(ExecutionContext &ctx) {
 
 void StftImplGPU::RunTransform(ExecutionContext &ctx) {
   float2 *fft_out = ctx.scratchpad()->Allocate<float2>(
-      AllocType::GPU, num_temp_windows() * transform_out_size(), 8);
+      AllocType::GPU, num_temp_windows() * transform_out_size(), alignof(float2));
   transform_out_.set_dense_data(fft_out);
   assert(transform_in_.is_contiguous());
   float *fft_in = transform_in_.data[0];
@@ -288,7 +287,7 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
 
 void StftImplGPU::ExtractWindows(ExecutionContext &ctx) {
   float *fft_in = ctx.scratchpad()->Allocate<float>(
-      AllocType::GPU, num_temp_windows() * transform_in_size(), 8);
+      AllocType::GPU, num_temp_windows() * transform_in_size(), alignof(float2));
   transform_in_.set_dense_data(fft_in);
 
   window_extractor_.Run(ctx.context(), transform_in_, ctx.in(), ctx.window());
