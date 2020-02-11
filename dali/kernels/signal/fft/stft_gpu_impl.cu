@@ -225,7 +225,8 @@ void StftImplGPU::StoreResult(ExecutionContext &ctx) {
 }
 
 void StftImplGPU::StoreComplexResult(ExecutionContext &ctx) {
-  static_assert(sizeof(ctx.complex_out().data[0][0]) == sizeof(float2));
+  static_assert(sizeof(ctx.complex_out().data[0][0]) == sizeof(float2),
+                "Complex output should have element type with the same size as float2");
   // reinterpret the whole TensorListView reference to avoid copying the shape
   auto &out = reinterpret_cast<const OutListGPU<float2, 2> &>(ctx.complex_out());
   post_complex_->Run(ctx.context(), out, transform_out_);
@@ -238,7 +239,7 @@ void StftImplGPU::StoreRealResult(ExecutionContext &ctx) {
 void StftImplGPU::RunTransform(ExecutionContext &ctx) {
   float2 *fft_out = ctx.scratchpad()->Allocate<float2>(
       AllocType::GPU, num_temp_windows() * transform_out_size(), alignof(float2));
-  transform_out_.set_dense_data(fft_out);
+  transform_out_.set_contiguous_data(fft_out);
   assert(transform_in_.is_contiguous());
   float *fft_in = transform_in_.data[0];
 
@@ -288,7 +289,7 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
 void StftImplGPU::ExtractWindows(ExecutionContext &ctx) {
   float *fft_in = ctx.scratchpad()->Allocate<float>(
       AllocType::GPU, num_temp_windows() * transform_in_size(), alignof(float2));
-  transform_in_.set_dense_data(fft_in);
+  transform_in_.set_contiguous_data(fft_in);
 
   window_extractor_.Run(ctx.context(), transform_in_, ctx.in(), ctx.window());
 

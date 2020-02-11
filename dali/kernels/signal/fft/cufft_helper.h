@@ -102,7 +102,7 @@ inline void cudaResultCheck<cufftResult>(cufftResult status) {
 }
 
 struct CUFFTHandle : public UniqueHandle<cufftHandle, CUFFTHandle> {
-  DALI_INHERIT_UNIQUE_HANDLE(cufftHandle, CUFFTHandle);
+  DALI_INHERIT_UNIQUE_HANDLE(cufftHandle, CUFFTHandle)
 
   static void DestroyHandle(cufftHandle handle) {
     CUDA_CALL(cufftDestroy(handle));

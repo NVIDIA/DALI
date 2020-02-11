@@ -18,17 +18,17 @@
 
 namespace dali {
 
-CUDAStream CUDAStream::Create(bool nonBlocking, int device_id) {
+CUDAStream CUDAStream::Create(bool non_blocking, int device_id) {
   cudaStream_t stream;
-  int flags = nonBlocking ? cudaStreamNonBlocking : cudaStreamDefault;
+  int flags = non_blocking ? cudaStreamNonBlocking : cudaStreamDefault;
   DeviceGuard dg(device_id);
   CUDA_CALL(cudaStreamCreateWithFlags(&stream, flags));
   return CUDAStream(stream);
 }
 
-CUDAStream CUDAStream::CreateWithPriority(bool nonBlocking, int priority, int device_id) {
+CUDAStream CUDAStream::CreateWithPriority(bool non_blocking, int priority, int device_id) {
   cudaStream_t stream;
-  int flags = nonBlocking ? cudaStreamNonBlocking : cudaStreamDefault;
+  int flags = non_blocking ? cudaStreamNonBlocking : cudaStreamDefault;
   DeviceGuard dg(device_id);
   CUDA_CALL(cudaStreamCreateWithPriority(&stream, flags, priority));
   return CUDAStream(stream);

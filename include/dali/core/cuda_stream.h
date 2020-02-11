@@ -23,14 +23,18 @@ namespace dali {
 
 class DLL_PUBLIC CUDAStream : public UniqueHandle<cudaStream_t, CUDAStream>{
  public:
-  DALI_INHERIT_UNIQUE_HANDLE(cudaStream_t, CUDAStream);
+  DALI_INHERIT_UNIQUE_HANDLE(cudaStream_t, CUDAStream)
 
-  /// @brief Creates a on specified device (or current device, if device_id < 0)
-  static CUDAStream Create(bool nonBlocking, int device_id = -1);
+  /**
+   *  @brief Creates a strean on specified device (or current device, if device_id < 0)
+   */
+  static CUDAStream Create(bool non_blocking, int device_id = -1);
 
-  /// @brief Creates a non-blocking stream with given priority on specified device
-  ///        (or current device, if device_id < 0)
-  static CUDAStream CreateWithPriority(bool nonBlocking, int priority, int device_id = -1);
+  /**
+   * @brief Creates a stream with given priority on specified device
+   *        (or current device, if device_id < 0)
+   */
+  static CUDAStream CreateWithPriority(bool non_blocking, int priority, int device_id = -1);
 
   static void DestroyHandle(cudaStream_t stream);
 };

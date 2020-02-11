@@ -183,6 +183,7 @@ template <typename T>
 using same_as_t = typename same_as<T>::type;
 
 
+// Imported from C++20 https://en.cppreference.com/w/cpp/utility/functional/identity
 struct identity {
   template <typename T>
   DALI_HOST_DEV DALI_FORCEINLINE
