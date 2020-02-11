@@ -37,6 +37,8 @@ class ToDecibels : public Operator<Backend> {
       args_.s_ref = spec.GetArgument<float>("reference");
     auto cutoff_db = spec.GetArgument<float>("cutoff_db");
     args_.min_ratio = std::pow(10.0f, cutoff_db / args_.multiplier);
+    if (args_.min_ratio == 0)
+      args_.min_ratio = std::nextafter(0.0f, 1.0f);
   }
 
  protected:

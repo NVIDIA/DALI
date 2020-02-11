@@ -134,7 +134,7 @@ class Transpose : public Operator<Backend> {
       auto permuted_dims = kernels::Permute(input.shape()[0], perm_);
       output_desc[0].shape = uniform_list_shape(batch_size_, permuted_dims);
     } else {
-      TensorListShape<> tl_shape(batch_size_);
+      TensorListShape<> tl_shape(batch_size_, input.shape().sample_dim());
       for (int i = 0; i < batch_size_; ++i) {
         auto in_shape = input.shape().tensor_shape(i);
         tl_shape.set_tensor_shape(i, kernels::Permute(in_shape, perm_));
