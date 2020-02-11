@@ -34,7 +34,7 @@ DALI_SCHEMA(PythonFunction)
                 "The function should not modify input tensors. \n\n"
                 "For now, this operator can be used only in pipelines with "
                 "`exec_async=False` and `exec_pipelined=False` specified. Due to "
-                "inferior performance, it is intended mostly for prototyping and debugging.")
+                "inferior performance, it is intended for prototyping and debugging.")
         .NumInput(0, 256)
         .AllowSequences()
         .SupportVolumetric()

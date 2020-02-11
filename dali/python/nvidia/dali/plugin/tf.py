@@ -54,10 +54,11 @@ _dali_tf.__doc__ = _dali_tf.__doc__ + """
 def serialize_pipeline(pipeline):
   try:
     return pipeline.serialize()
-  except:
-    print("Error during pipeline initialization. Note that some operators (e.g. Python Operators) "
-          "cannot be used with tensorflow data set API and DALIIterator.")
-    raise
+  except RuntimeError as e:
+    raise RuntimeError("Error during pipeline initialization. Note that some operators "
+                       "(e.g. Python Operators) cannot be used with "
+                       "tensorflow data set API and DALIIterator.") from e
+
 
 def DALIIteratorWrapper(pipeline = None, serialized_pipeline = None, sparse = [],
                         shapes = [], dtypes = [], batch_size = -1, prefetch_queue_depth = 2, **kwargs):

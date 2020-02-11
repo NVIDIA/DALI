@@ -244,18 +244,22 @@ def _test_tf_dataset_multigpu():
                 dataset_results[batch_id][device_id][2])
 
 
-class PythonOperatorPipeline(Pipeline):
+class ExternalInputPipeline(Pipeline):
     def __init__(self):
-        super(PythonOperatorPipeline, self).__init__(1, 1, 0, 0)
-        self.python_op = ops.PythonFunction(function=lambda: np.zeros(3, 3, 3))
+        super(ExternalInputPipeline, self).__init__(1, 1, 0, 0)
+        self.source = ops.ExternalSource()
 
     def define_graph(self):
-        return self.python_op()
+        self.inp = self.source()
+        return self.inp
+
+    def iter_setup(self):
+        self.feed_input(self.inp, [np.zeros((3, 3))])
 
 
 @raises(RuntimeError)
 def test_python_operator_error():
-    dataset_pipeline = PythonOperatorPipeline
+    dataset_pipeline = ExternalInputPipeline()
     shapes = [(1, 3, 3, 3)]
     dtypes = [tf.float32]
 
