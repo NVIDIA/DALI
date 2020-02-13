@@ -40,8 +40,6 @@ else()
   list(APPEND DALI_LIBS ${${CUDA_CUDART_LIBRARY}})
 endif()
 
-include_directories(${CUDA_INCLUDE_DIRS})
-
 # NVIDIA NPPC library
 find_cuda_helper_libs(nppc_static)
 find_cuda_helper_libs(nppicc_static)

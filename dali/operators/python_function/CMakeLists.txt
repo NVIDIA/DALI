@@ -18,7 +18,6 @@ collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 
 add_library(${dali_python_function_lib} SHARED ${PYTHON_FUNCTION_SRCS})
 target_link_libraries(${dali_python_function_lib} PUBLIC ${dali_lib})
-target_link_libraries(${dali_python_function_lib} PRIVATE ${DALI_LIBS})
 target_link_libraries(${dali_python_function_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
 target_include_directories(${dali_python_function_lib} PRIVATE
