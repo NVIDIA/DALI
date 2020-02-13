@@ -77,7 +77,6 @@ supported in TensorFlow. It is worth noting that fed inputs should match the num
 expected by the next operator in the pipeline (e.g. NHWC will expect 3-dimensional tensors
 where the last dimension represents the different channels).)code")
   .NumInput(0)
-  .NumOutput(1)
-  .Unserializable();
+  .NumOutput(1);
 
 }  // namespace dali
