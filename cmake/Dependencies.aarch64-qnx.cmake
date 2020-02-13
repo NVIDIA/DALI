@@ -41,15 +41,15 @@ else()
 endif()
 
 # NVIDIA NPPC library
-find_cuda_helper_libs(nppc_static)
-find_cuda_helper_libs(nppicc_static)
+CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
+CUDA_find_library(CUDA_nppc_static_LIBRARY nppc_static)
 list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppicc_static.a)
 list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # CULIBOS needed when using static CUDA libs
-find_cuda_helper_libs(culibos)
+CUDA_find_library(CUDA_culibos_LIBRARY culibos)
 list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
 list(APPEND DALI_EXCLUDES libculibos.a)
 
@@ -58,7 +58,7 @@ include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 
 # NVTX for profiling
 if (BUILD_NVTX)
-  find_cuda_helper_libs(nvToolsExt)
+  CUDA_find_library(CUDA_nvToolsExt_LIBRARY nvToolsExt)
   list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
   add_definitions(-DDALI_USE_NVTX)
 endif()
