@@ -113,7 +113,7 @@ def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=32, iterations=32):
 class PythonOperatorPipeline(Pipeline):
     def __init__(self):
         super(PythonOperatorPipeline, self).__init__(1, 1, 0, 0)
-        self.python_op = ops.PythonFunction(function=lambda: np.zeros(3, 3, 3))
+        self.python_op = ops.PythonFunction(function=lambda: np.zeros((3, 3, 3)))
 
     def define_graph(self):
         return self.python_op()
