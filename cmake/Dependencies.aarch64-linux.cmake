@@ -20,9 +20,6 @@
 set(CUDA_TOOLKIT_ROOT_DIR ${CUDA_HOST})
 set(CUDA_TOOLKIT_TARGET_DIR ${CUDA_TARGET})
 
-find_package(CUDA 10.0 REQUIRED)
-
-include_directories(${CUDA_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
 
 list(APPEND DALI_EXCLUDES libcudart_static.a)
@@ -41,7 +38,7 @@ list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
 list(APPEND DALI_EXCLUDES libculibos.a)
 
 # TODO(klecki): Do we need host includes?
-include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
+include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)
 
 # NVTX for profiling
 if (BUILD_NVTX)

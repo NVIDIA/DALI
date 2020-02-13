@@ -34,5 +34,12 @@ if (BUILD_BENCHMARK)
     list(APPEND DALI_BENCHMARK_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe2_alexnet_bench.cc")
   endif()
 
-  set(DALI_BENCHMARK_SRCS ${DALI_BENCHMARK_SRCS} PARENT_SCOPE)
+  set(benchmark_bin "dali_benchmark.bin")
+  add_executable(${benchmark_bin} "${DALI_BENCHMARK_SRCS}")
+
+  target_link_libraries(${benchmark_bin} PUBLIC ${dali_lib} ${dali_operator_lib} benchmark ${CUDART_LIB} pthread dl)
+
+  set_target_properties(${benchmark_bin} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
+
 endif()

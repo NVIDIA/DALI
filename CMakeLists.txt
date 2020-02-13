@@ -20,7 +20,7 @@ if (POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
 endif()
 
-project(DALI CXX)
+project(DALI CUDA CXX C)
 set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 
 # Build options
@@ -45,6 +45,7 @@ option(WERROR "Threat all warnings as errors" OFF)
 set(BUILD_FFMPEG ${BUILD_NVDEC})
 
 include(cmake/Utils.cmake)
+include(cmake/CUDA_utils.cmake)
 
 propagate_option(BUILD_PYTHON)
 propagate_option(BUILD_LMDB)
@@ -91,26 +92,28 @@ endif()
 # Debug flags
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -O0 -DDALI_DEBUG=1")
 # Generate only line info for device as -G disables all optimizations and causes unit tests to fail
-set(CUDA_NVCC_FLAGS_DEBUG "${CUDA_NVCC_FLAGS_DEBUG} -g -lineinfo -DDALI_DEBUG=1")
+set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -g -lineinfo -DDALI_DEBUG=1")
 
 # DevDebug flags - Use the "-G" for proper debug info for device code
 set(CMAKE_CXX_FLAGS_DEVDEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-string(REPLACE "-lineinfo" "-G" CUDA_NVCC_FLAGS_DEVDEBUG "${CUDA_NVCC_FLAGS_DEBUG}")
+string(REPLACE "-lineinfo" "-G" CMAKE_CUDA_FLAGS_DEVDEBUG "${CMAKE_CUDA_FLAGS_DEBUG}")
 
 # Release flags
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -DDALI_DEBUG=0")
-set(CUDA_NVCC_FLAGS_RELEASE "${CUDA_NVCC_FLAGS_RELEASE} -DDALI_DEBUG=0")
+set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS_RELEASE} -DDALI_DEBUG=0")
 
 # Release with debug info flags
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g3")
-set(CUDA_NVCC_FLAGS_RELWITHDEBINFO "${CUDA_NVCC_FLAGS_RELWITHDEBINFO} -g -lineinfo")
+set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "${CMAKE_CUDA_FLAGS_RELWITHDEBINFO} -g -lineinfo")
 
 # Use -std=c++14 (and not gnu++14)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 11)
 
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++14")
+set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # CXX flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -fPIC -fvisibility=hidden")
@@ -128,19 +131,25 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 
   # CUDA does not support current clang as host compiler, we need use gcc
   # CUDA_HOST_COMPILER variable operates on paths
-  if (${CUDA_HOST_COMPILER} MATCHES "clang")
-    message(STATUS "CUDA_HOST_COMPILER is set to ${CMAKE_C_COMPILER} - setting CUDA_HOST_COMPILER to gcc")
+  set(CUDA_UNSUPPORTED_COMPILER 0)
+  if (${CMAKE_CUDA_HOST_COMPILER} MATCHES "clang")
+      set(CUDA_UNSUPPORTED_COMPILER 1)
+  elseif (CMAKE_CUDA_HOST_COMPILER STREQUAL "")
+      set(CUDA_UNSUPPORTED_COMPILER 1)
+endif()
+
+  if(${CUDA_UNSUPPORTED_COMPILER})
+    message(STATUS "CUDA_HOST_COMPILER is set to ${CMAKE_C_COMPILER} - setting CMAKE_CUDA_HOST_COMPILER to gcc")
     execute_process(COMMAND which gcc OUTPUT_VARIABLE PATH_TO_GCC OUTPUT_STRIP_TRAILING_WHITESPACE)
     if (NOT PATH_TO_GCC)
       message(FATAL_ERROR "gcc was not found in PATH")
     else()
-      set(CUDA_HOST_COMPILER ${PATH_TO_GCC})
+      set(CMAKE_CUDA_HOST_COMPILER ${PATH_TO_GCC})
     endif()
   endif()
 endif()
 
 # Discover what architectures does nvcc support
-include(cmake/CUDA_utils.cmake)
 CUDA_find_supported_arch_values(CUDA_supported_archs ${CUDA_known_archs})
 message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
 
@@ -156,16 +165,13 @@ CUDA_get_gencode_args(CUDA_gencode_flags ${CUDA_targeted_archs})
 message(STATUS "Generated gencode flags: ${CUDA_gencode_flags}")
 
 # Add ptx & bin flags for cuda
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_gencode_flags}")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_gencode_flags} --compiler-options -fvisibility=hidden")
 
 # Include directories
-include_directories(BEFORE
+include_directories(
   "${PROJECT_SOURCE_DIR}"
   "${PROJECT_SOURCE_DIR}/include"
   "${PROJECT_BINARY_DIR}")
-cuda_include_directories(
-  "${PROJECT_SOURCE_DIR}"
-  "${PROJECT_SOURCE_DIR}/include")
 
 add_custom_target("check")
 add_custom_target("check-gtest")

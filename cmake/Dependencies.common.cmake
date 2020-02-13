@@ -168,9 +168,9 @@ if (BUILD_FFTS)
 
   # Workaround for Clang as msse3 is only enabled if GCC is detected
   if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    add_compile_options("-msse")
-    add_compile_options("-msse2")
-    add_compile_options("-msse3")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse -msse2 -msse3")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse -msse2 -msse3")
+    SET(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -msse -Xcompiler -msse2 -Xcompiler -msse3")
   endif()
 
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/ffts EXCLUDE_FROM_ALL)

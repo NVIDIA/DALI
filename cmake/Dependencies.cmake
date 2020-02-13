@@ -15,13 +15,13 @@
 ##################################################################
 # CUDA Toolkit libraries (including NVJPEG)
 ##################################################################
-# Note: CUDA 8 support is unofficial.  CUDA 9 is officially supported
-find_package(CUDA 8.0 REQUIRED)
 
-include_directories(${CUDA_INCLUDE_DIRS})
-list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
-
+CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
+
+list(APPEND DALI_LIBS ${CUDART_LIB})
+
+set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
 # For NVJPEG
 if (BUILD_NVJPEG)
@@ -44,34 +44,20 @@ if (BUILD_NVJPEG)
   endif()
 endif()
 
-# NVIDIA NPPC library
-find_cuda_helper_libs(nppc_static)
-
 # NVIDIA NPPI library
-if (${CUDA_VERSION} VERSION_LESS "9.0")
-  # In CUDA 8, NPPI is a single library
-  find_cuda_helper_libs(nppi_static)
-  list(APPEND DALI_LIBS ${CUDA_nppi_static_LIBRARY})
-  list(APPEND DALI_EXCLUDES libnppi_static.a)
-
-else()
-
-  find_cuda_helper_libs(nppicc_static)
-  list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
-  list(APPEND DALI_EXCLUDES libnppicc_static.a)
-endif()
-list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
+list(APPEND DALI_LIBS nppicc_static)
+list(APPEND DALI_EXCLUDES libnppicc_static.a)
+# NVIDIA NPPC library
+list(APPEND DALI_LIBS nppc_static)
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # CULIBOS needed when using static CUDA libs
-find_cuda_helper_libs(culibos)
-list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
+list(APPEND DALI_LIBS culibos)
 list(APPEND DALI_EXCLUDES libculibos.a)
 
 # NVTX for profiling
 if (BUILD_NVTX)
-  find_cuda_helper_libs(nvToolsExt)
-  list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
+  list(APPEND DALI_LIBS nvToolsExt)
   add_definitions(-DDALI_USE_NVTX)
 endif()
 

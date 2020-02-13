@@ -44,6 +44,11 @@ list(REMOVE_ITEM LINT_SRC
     ${DALI_SRC_DIR}/operators/generic/transpose/cutt/LRUCache.h
 )
 
+# empty files
+list(REMOVE_ITEM LINT_SRC
+    ${DALI_SRC_DIR}/python/dummy.cu
+)
+
 set(LINT_TARGET lint)
 
 add_custom_target(${LINT_TARGET})
