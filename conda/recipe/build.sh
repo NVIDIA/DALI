@@ -41,7 +41,7 @@ export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++14}
 # For some reason `aligned_alloc` is present when we use compiler version 5.4.x
 # Adding NO_ALIGNED_ALLOC definition for cutt
 export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
-
+export PATH=/usr/local/cuda/bin:${PATH}
 # Build
 cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DCUDA_rt_LIBRARY=$BUILD_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \

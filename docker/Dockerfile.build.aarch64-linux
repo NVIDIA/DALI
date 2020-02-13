@@ -207,6 +207,7 @@ CMD cmake \
   -DCMAKE_COLOR_MAKEFILE=ON \
   -DCMAKE_INSTALL_PREFIX=./install \
   -DARCH=aarch64-linux \
+  -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.0/bin/nvcc \
   -DCUDA_HOST=/usr/local/cuda-10.0 \
   -DCUDA_TARGET=/usr/local/cuda-10.0/targets/aarch64-linux \
   -DBUILD_TEST=ON \
