@@ -276,6 +276,14 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
+   * @brief Notes that this operator cannot be serialized
+   */
+  DLL_PUBLIC inline OpSchema& Unserializable() {
+    serializable_ = false;
+    return *this;
+  }
+
+  /**
    * @brief Adds a required argument to op with its type
    */
   DLL_PUBLIC inline OpSchema& AddArg(const std::string &s,
@@ -616,6 +624,10 @@ class DLL_PUBLIC OpSchema {
     return no_prune_;
   }
 
+  DLL_PUBLIC inline bool IsSerializable() const {
+    return serializable_;
+  }
+
   /**
    * @brief Returns the index of the output to which the input is passed.
    * @return Output index or -1 if given input is not passed through.
@@ -725,6 +737,8 @@ class DLL_PUBLIC OpSchema {
   bool is_internal_ = false;
 
   bool no_prune_ = false;
+
+  bool serializable_ = true;
 
   std::map<int, int> passthrough_map_;
 

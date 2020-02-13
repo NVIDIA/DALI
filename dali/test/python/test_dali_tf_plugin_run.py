@@ -22,6 +22,7 @@ import nvidia.dali.tfrecord as tfrec
 import tensorflow as tf
 import nvidia.dali.plugin.tf as dali_tf
 from test_utils import get_dali_extra_path
+from nose.tools import raises
 
 try:
     tf.compat.v1.disable_eager_execution()
@@ -107,3 +108,20 @@ def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=32, iterations=32):
                 assert(np.equal(np.mod(label, 1), 0).all())
                 assert((label >= 0).all())
                 assert((label <= 999).all())
+
+
+class PythonOperatorPipeline(Pipeline):
+    def __init__(self):
+        super(PythonOperatorPipeline, self).__init__(1, 1, 0, 0)
+        self.python_op = ops.PythonFunction(function=lambda: np.zeros((3, 3, 3)))
+
+    def define_graph(self):
+        return self.python_op()
+
+
+@raises(RuntimeError)
+def test_python_operator_error():
+    daliop = dali_tf.DALIIterator()
+    pipe = PythonOperatorPipeline()
+    with tf.device('/cpu:0'):
+        output = daliop(pipeline=pipe, shapes=[(1, 3, 3, 3)], dtypes=[tf.float32], device_id=0)
