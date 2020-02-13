@@ -40,7 +40,7 @@ are dealing with a squared magnitude or not).)code",
     .AddOptionalArg("reference",
       R"code(Reference magnitude. If not provided, the maximum of the input will be used as
 reference. Note: The maximum of the input will be calculated on a per-sample basis.)code",
-      1.0f)
+      0.0f)
     .AddOptionalArg("cutoff_db",
       R"code(Minimum or cut-off ratio in dB. Any value below this value will saturate. Example:
 A value of `cutoff_db=-80` corresponds to a minimum ratio of `1e-8`.)code",
