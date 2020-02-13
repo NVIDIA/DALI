@@ -32,8 +32,9 @@ else
     exit 1
 fi
 
-# Create 'gcc' symlink so nvcc can find it
+# Create 'gcc' and 'g++' symlinks so nvcc can find it
 ln -s $CC $BUILD_PREFIX/bin/gcc
+ln -s $CXX $BUILD_PREFIX/bin/g++
 
 # Force -std=c++14 in CXXFLAGS
 export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++14}
