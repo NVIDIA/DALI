@@ -120,7 +120,11 @@ void Normalize<CPUBackend>::FoldMeans() {
   assert(mean_.ntensor() > 0);
   SumSamples(view<float>(mean_));
   // calculate the normalization factor in double, then cast to float
-  float den = static_cast<float>(1.0 / ReducedVolume(data_shape_, make_span(axes_)));
+  auto v = ReducedVolume(data_shape_, make_span(axes_));
+  if (v == 0) {
+    return;
+  }
+  float den = static_cast<float>(1.0 / v);
   auto sample0 = make_tensor_cpu(mean_.mutable_tensor<float>(0), mean_.shape()[0]);
   auto elems = sample0.num_elements();
   for (int i = 0; i < elems; i++) {
@@ -134,6 +138,9 @@ void Normalize<CPUBackend>::FoldStdDev() {
   SumSamples(view<float>(inv_stddev_));
   // calculate the normalization factor in double, then cast to float
   auto v = ReducedVolume(data_shape_, make_span(axes_));
+  if (v == 0) {
+    return;
+  }
   float rdiv = static_cast<float>(1.0 / v);
   auto sample0 = make_tensor_cpu(inv_stddev_.mutable_tensor<float>(0), inv_stddev_.shape()[0]);
   auto elems = sample0.num_elements();

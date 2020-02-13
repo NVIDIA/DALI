@@ -136,6 +136,11 @@ static void ScaleRSqrtKeepZero(const TensorView<StorageCPU, float> &inout, float
 static void SumSquare2InvStdDev(const TensorView<StorageCPU, float> &inout,
                                 const TensorShape<> &data_shape,
                                 double scale) {
+  if (inout.num_elements() == 0) {
+    return;
+  }
+  assert(data_shape.num_elements() >= inout.num_elements());
+
   int64_t v = data_shape.num_elements() / inout.num_elements();
   float rdiv = static_cast<float>(1.0 / v);  // reciprocal in double precision
   ScaleRSqrtKeepZero(inout, rdiv, scale);
