@@ -14,7 +14,7 @@
 
 cmake_minimum_required(VERSION 3.11)
 # allow usage of check_symbol_exists() macro
-include(CheckSymbolExists)
+include(CheckCXXSymbolExists)
 
 if (POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)

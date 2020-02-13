@@ -32,19 +32,34 @@ find_package_handle_standard_args(NVJPEG
     REQUIRED_VARS NVJPEG_INCLUDE_DIR NVJPEG_LIBRARY
     VERSION_VAR NVJPEG_VERSION)
 
-# message(${CUDA_TOOLKIT_ROOT_DIR})
 if(NVJPEG_FOUND)
   # set includes and link libs for nvJpeg
-  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-  #set(CMAKE_REQUIRED_LIBRARIES ${NVJPEG_LIBRARY} "-L${CUDA_TOOLKIT_ROOT_DIR}/lib64" "-lcudart_static" "-lculibos" "dl" "-pthread" "rt")
-  check_symbol_exists("nvjpegCreateEx" "nvjpeg.h" NVJPEG_LIBRARY_0_2_0)
 
-  check_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)
+  if (POLICY CMP0075)
+    cmake_policy(SET CMP0075 NEW)
+  endif()
+
+  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+  set(CMAKE_REQUIRED_LIBRARIES_OLD ${CMAKE_REQUIRED_LIBRARIES})
+  set(CMAKE_REQUIRED_LINK_OPTIONS_OLD ${CMAKE_REQUIRED_LINK_OPTIONS})
+  foreach(DIR ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+    list(APPEND CMAKE_REQUIRED_LINK_OPTIONS "-L${DIR}")
+  endforeach(DIR)
+
+  list(APPEND CMAKE_REQUIRED_LIBRARIES "${NVJPEG_LIBRARY}" cudart_static dl m pthread rt)
+  message("Required libraries: ${CMAKE_REQUIRED_LIBRARIES}")
+  check_cxx_symbol_exists("nvjpegCreateEx" "nvjpeg.h" NVJPEG_LIBRARY_0_2_0)
+
+  check_cxx_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)
+  set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_OLD})
+  set(CMAKE_REQUIRED_LINK_OPTIONS ${CMAKE_REQUIRED_LINK_OPTIONS_OLD})
 
   mark_as_advanced(NVJPEG_ROOT_DIR NVJPEG_LIBRARY_RELEASE NVJPEG_LIBRARY_DEBUG)
   message("nvJPEG found in ${NVJPEG_INCLUDE_DIR}")
   if (NVJPEG_DECOUPLED_API)
     message("nvJPEG is using new API")
+  else()
+    message(WARNING " nvJPEG is using the deprecated API")
   endif()
 else()
   message("nvJPEG NOT found")
