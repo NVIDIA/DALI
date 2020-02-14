@@ -32,16 +32,13 @@ set(CUDA_TOOLKIT_TARGET_DIR ${CUDA_TARGET})
 
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
-set(CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES "${CUDA_TARGET}/lib"})
-set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${CUDA_TARGET}/include"})
+set(CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES "${CUDA_TARGET}/lib")
+set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${CUDA_TARGET}/include")
 
 message(STATUS "Found cudart at ${CUDA_LIBRARIES}")
 
-if (CUDA_USE_STATIC_CUDA_RUNTIME)
-  list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
-else()
-  list(APPEND DALI_LIBS ${${CUDA_CUDART_LIBRARY}})
-endif()
+CUDA_find_library(CUDART_LIB cudart_static)
+list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # NVIDIA NPP library
 CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
@@ -87,4 +84,5 @@ endif()
 
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${Protobuf_LIBRARY} ${Protobuf_PROTOC_LIBRARIES} ${Protobuf_LITE_LIBRARIES})
+list(APPEND DALI_LIBS ${CUDART_LIB})
 list(APPEND DALI_EXCLUDES libprotobuf.a;libprotobuf-lite.a;libprotoc.a)
