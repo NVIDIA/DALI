@@ -69,7 +69,6 @@ if (BUILD_TEST)
   target_link_libraries(${test_bin} PUBLIC ${dali_operator_lib})
   target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
-  target_link_libraries(${test_bin} PRIVATE cudart_static)
   set_target_properties(${test_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 
