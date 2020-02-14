@@ -30,7 +30,10 @@ endif()
 set(CUDA_TOOLKIT_ROOT_DIR ${CUDA_HOST})
 set(CUDA_TOOLKIT_TARGET_DIR ${CUDA_TARGET})
 
-find_package(CUDA 10.0 REQUIRED)
+set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
+
+set(CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES "${CUDA_TARGET}/lib"})
+set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${CUDA_TARGET}/include"})
 
 message(STATUS "Found cudart at ${CUDA_LIBRARIES}")
 
@@ -40,7 +43,7 @@ else()
   list(APPEND DALI_LIBS ${${CUDA_CUDART_LIBRARY}})
 endif()
 
-# NVIDIA NPPC library
+# NVIDIA NPP library
 CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
 CUDA_find_library(CUDA_nppc_static_LIBRARY nppc_static)
 list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
