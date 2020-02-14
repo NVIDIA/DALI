@@ -37,7 +37,7 @@ if (BUILD_BENCHMARK)
   set(benchmark_bin "dali_benchmark.bin")
   add_executable(${benchmark_bin} "${DALI_BENCHMARK_SRCS}")
 
-  target_link_libraries(${benchmark_bin} PUBLIC ${dali_lib} ${dali_operator_lib} benchmark ${CUDART_LIB} pthread dl)
+  target_link_libraries(${benchmark_bin} PRIVATE ${dali_lib} ${dali_operator_lib} benchmark ${DALI_LIBS})
 
   set_target_properties(${benchmark_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")

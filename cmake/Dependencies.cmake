@@ -19,8 +19,6 @@
 CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
-list(APPEND DALI_LIBS ${CUDART_LIB})
-
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
 # For NVJPEG
@@ -44,20 +42,23 @@ if (BUILD_NVJPEG)
   endif()
 endif()
 
-# NVIDIA NPPI library
-list(APPEND DALI_LIBS nppicc_static)
+# NVIDIA NPP library
+CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
+CUDA_find_library(CUDA_nppc_static_LIBRARY nppc_static)
+list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppicc_static.a)
-# NVIDIA NPPC library
-list(APPEND DALI_LIBS nppc_static)
+list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # CULIBOS needed when using static CUDA libs
-list(APPEND DALI_LIBS culibos)
+CUDA_find_library(CUDA_culibos_LIBRARY culibos)
+list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
 list(APPEND DALI_EXCLUDES libculibos.a)
 
 # NVTX for profiling
 if (BUILD_NVTX)
-  list(APPEND DALI_LIBS nvToolsExt)
+  CUDA_find_library(CUDA_nvToolsExt_LIBRARY nvToolsExt)
+  list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
   add_definitions(-DDALI_USE_NVTX)
 endif()
 
@@ -89,6 +90,7 @@ list(APPEND DALI_LIBS ${Protobuf_LIBRARY})
 # hide things from the protobuf, all we export is only is API generated from our proto files
 list(APPEND DALI_EXCLUDES libprotobuf.a)
 
+list(APPEND DALI_LIBS ${CUDART_LIB} rt pthread m dl)
 
 ##################################################################
 # Exclude stdlib
