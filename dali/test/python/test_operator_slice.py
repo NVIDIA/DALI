@@ -238,24 +238,25 @@ def slice_func_helper(axes, axis_names, layout, normalized_anchor, normalized_sh
         full_slice_anchor[axis] = slice_anchor[idx]
         full_slice_shape[axis] = slice_shape[idx]
 
+    #std::round has different behaviour than np.round so manually add 0.5 and truncate to int
     if normalized_anchor and normalized_shape:
-        start = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]))
+        start = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]) + 0.5)
                  for i in range(len(shape))]
-        end = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]+full_slice_shape[i]))
+        end = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]+full_slice_shape[i]) + 0.5)
                for i in range(len(shape))]
     else:
         if normalized_anchor:
-            start = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]))
+            start = [int(np.float32(shape[i]) * np.float32(full_slice_anchor[i]) + 0.5)
                     for i in range(len(shape))]
         else:
-            start = [int(np.float32(full_slice_anchor[i]))
+            start = [int(np.float32(full_slice_anchor[i]) + 0.5)
                     for i in range(len(shape))]
 
         if normalized_shape:
-            end = [start[i] + int(np.float32(shape[i]) * np.float32(full_slice_shape[i]))
+            end = [start[i] + int(np.float32(shape[i]) * np.float32(full_slice_shape[i]) + 0.5)
                 for i in range(len(shape))]
         else:
-            end = [start[i] + int(np.float32(full_slice_shape[i]))
+            end = [start[i] + int(np.float32(full_slice_shape[i]) + 0.5)
                 for i in range(len(shape))]
 
     if len(full_slice_anchor) == 3:
