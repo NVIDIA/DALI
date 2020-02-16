@@ -216,7 +216,7 @@ Build DALI
 
   make -j"$(nproc)"
 
-.. _BulildWheelAnchor:
+.. _BuildWheelAnchor:
 
 Build DALI wheel
 ++++++++++++++++
