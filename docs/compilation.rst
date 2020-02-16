@@ -1,6 +1,8 @@
 Compiling DALI from source
 ==========================
 
+.. _DockerBuilderAnchor:
+
 Compiling DALI from source (using Docker builder) - recommended
 ---------------------------------------------------------------
 
@@ -185,46 +187,100 @@ Prerequisites
     ./configure && make
 
 
-Get the DALI source
-+++++++++++++++++++
+Build DALI
+^^^^^^^^^^
+
+# Get DALI source code:
 
 .. code-block:: bash
 
-  git clone --recursive https://github.com/NVIDIA/dali
-  cd dali
+  git clone --recursive https://github.com/NVIDIA/DALI
+  cd DALI
 
-Make the build directory
-++++++++++++++++++++++++
+# Create a directory for CMake-generated Makefiles. This will be the directory, that DALI's built in.
 
 .. code-block:: bash
 
   mkdir build
   cd build
 
-
-Compile DALI
-^^^^^^^^^^^^
-
-Building DALI without LMDB support:
-+++++++++++++++++++++++++++++++++++
+# Run CMake. For additional options you can pass to CMake, refer to OptionalCmakeParamsAnchor_.
 
 .. code-block:: bash
 
-  cmake ..
-  make -j"$(nproc)"
+  cmake -D CMAKE_BUILD_TYPE=Release ..
 
-
-Building DALI with LMDB support:
-++++++++++++++++++++++++++++++++
+# Build. You can pass `-j` option to execute it in several threads
 
 .. code-block:: bash
 
-  cmake -DBUILD_LMDB=ON ..
   make -j"$(nproc)"
 
+.. _BulildWheelAnchor:
 
-Building DALI using Clang (experimental):
-+++++++++++++++++++++++++++++++++++++++++
+Build DALI wheel
+++++++++++++++++
+
+In order to run DALI using Python API, you need to put together and install a wheel based on the binaries you just built.
+
+.. code-block:: bash
+
+  cd build
+  pip wheel dali/python
+  pip install --force-reinstall nvidia_dali-$(cat ../VERSION)-py3-none-any.whl
+
+.. note::
+
+  Since such whl doesn't contain all the dependencies, it will most probably work only on the system where you built DALI bare-metal. To build a wheel that contains the dependencies and might be therefore used on other systems, follow DockerBuilderAnchor_.
+
+Verify the build (optional)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Obtain test data
+++++++++++++++++
+
+You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data
+
+.. code-block:: bash
+
+  git clone https://github.com/NVIDIA/DALI_extra
+
+Set test data path
+++++++++++++++++++
+
+DALI uses `DALI_EXTRA_PATH` environment variable to localize the test data. You can set it by invoking:
+
+.. code-block:: bash
+
+$ export DALI_EXTRA_PATH=<path_to_DALI_extra>
+e.g. export DALI_EXTRA_PATH=/home/yourname/workspace/DALI_extra
+
+Run GTest tests
++++++++++++++++
+
+To run GTest tests go to main build directory and run GTest binaries:
+
+.. code-block:: bash
+
+cd <path_to_DALI>/build
+./dali/python/nvidia/dali/test/dali_test.bin
+./dali/python/nvidia/dali/test/dali_operator_test.bin
+./dali/python/nvidia/dali/test/dali_kernel_test.bin
+./dali/python/nvidia/dali/test/dali_core_test.bin
+
+Run Nosetests
++++++++++++++
+
+To run Nosetests, you should have DALI's wheel installed in your system. For more details follow BuildWheelAnchor_.
+
+.. code-block:: bash
+
+  cd <path_to_DALI>/test
+  nosetests
+
+
+Building DALI using Clang (experimental)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. note::
 
@@ -237,9 +293,10 @@ Building DALI using Clang (experimental):
   cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang  ..
   make -j"$(nproc)"
 
+.. _OptionalCmakeParamsAnchor:
 
-Optional CMake build parameters:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Optional CMake build parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 -  ``BUILD_PYTHON`` - build Python bindings (default: ON)
 -  ``BUILD_TEST`` - include building test suite (default: ON)
