@@ -366,6 +366,20 @@ REGISTER_UNARY_IMPL(ArithmeticOp::minus, -);
 REGISTER_BINARY_IMPL(ArithmeticOp::add, +);
 REGISTER_BINARY_IMPL(ArithmeticOp::sub, -);
 REGISTER_BINARY_IMPL(ArithmeticOp::mul, *);
+
+// Specialization for mul and bool so we use && instead of * so the compiler is happy
+template <>
+DALI_HOST_DEV constexpr binary_result_t<bool, bool>
+  arithm_meta<ArithmeticOp::mul, CPUBackend>::impl<bool, bool>(bool l, bool r) {
+  return l && r;
+}
+
+template <>
+DALI_HOST_DEV constexpr binary_result_t<bool, bool>
+  arithm_meta<ArithmeticOp::mul, GPUBackend>::impl<bool, bool>(bool l, bool r) {
+  return l && r;
+}
+
 REGISTER_BINARY_IMPL(ArithmeticOp::div, /);
 
 #define REGISTER_BINARY_BITWISE_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                \
