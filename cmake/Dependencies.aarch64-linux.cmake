@@ -20,32 +20,35 @@
 set(CUDA_TOOLKIT_ROOT_DIR ${CUDA_HOST})
 set(CUDA_TOOLKIT_TARGET_DIR ${CUDA_TARGET})
 
-find_package(CUDA 10.0 REQUIRED)
+set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
-include_directories(${CUDA_INCLUDE_DIRS})
+set(CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES "${CUDA_TARGET}/lib")
+set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${CUDA_TARGET}/include")
+
 list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
 
+CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # NVIDIA NPPC library
-find_cuda_helper_libs(nppc_static)
-find_cuda_helper_libs(nppicc_static)
+CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
+CUDA_find_library(CUDA_nppc_static_LIBRARY nppc_static)
 list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppicc_static.a)
 list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # CULIBOS needed when using static CUDA libs
-find_cuda_helper_libs(culibos)
+CUDA_find_library(CUDA_culibos_LIBRARY culibos)
 list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
 list(APPEND DALI_EXCLUDES libculibos.a)
 
 # TODO(klecki): Do we need host includes?
-include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
+include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)
 
 # NVTX for profiling
 if (BUILD_NVTX)
-  find_cuda_helper_libs(nvToolsExt)
+  CUDA_find_library(CUDA_nvToolsExt_LIBRARY nvToolsExt)
   list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
   add_definitions(-DDALI_USE_NVTX)
 endif()
@@ -71,4 +74,8 @@ endif()
 
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 list(APPEND DALI_LIBS ${Protobuf_LIBRARY} ${Protobuf_PROTOC_LIBRARIES} ${Protobuf_LITE_LIBRARIES})
+
+set(DALI_SYSTEM_LIBS rt pthread m dl)
+list(APPEND DALI_LIBS ${CUDART_LIB} ${DALI_SYSTEM_LIBS})
+
 list(APPEND DALI_EXCLUDES libprotobuf.a;libprotobuf-lite.a;libprotoc.a)

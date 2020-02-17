@@ -18,7 +18,7 @@ collect_sources(DALI_PYTHON_BACKEND_SRCS)
 pybind11_add_module(${dali_python_lib} MODULE ${DALI_PYTHON_BACKEND_SRCS})
 
 target_link_libraries(${dali_python_lib} PUBLIC
-  ${dali_lib} ${dali_operator_lib} ${dali_kernel_lib} ${dali_core_lib})
+  ${dali_lib} ${dali_operator_lib} ${dali_kernel_lib} ${dali_core_lib} ${CUDART_LIB})
 target_link_libraries(${dali_python_lib} PRIVATE
   ${CUDA_LIBRARIES})
 

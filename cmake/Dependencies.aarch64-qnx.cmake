@@ -30,28 +30,26 @@ endif()
 set(CUDA_TOOLKIT_ROOT_DIR ${CUDA_HOST})
 set(CUDA_TOOLKIT_TARGET_DIR ${CUDA_TARGET})
 
-find_package(CUDA 10.0 REQUIRED)
+set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
+
+set(CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES "${CUDA_TARGET}/lib")
+set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${CUDA_TARGET}/include")
 
 message(STATUS "Found cudart at ${CUDA_LIBRARIES}")
 
-if (CUDA_USE_STATIC_CUDA_RUNTIME)
-  list(APPEND DALI_LIBS ${CUDA_LIBRARIES})
-else()
-  list(APPEND DALI_LIBS ${${CUDA_CUDART_LIBRARY}})
-endif()
+CUDA_find_library(CUDART_LIB cudart_static)
+list(APPEND DALI_EXCLUDES libcudart_static.a)
 
-include_directories(${CUDA_INCLUDE_DIRS})
-
-# NVIDIA NPPC library
-find_cuda_helper_libs(nppc_static)
-find_cuda_helper_libs(nppicc_static)
+# NVIDIA NPP library
+CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
+CUDA_find_library(CUDA_nppc_static_LIBRARY nppc_static)
 list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppicc_static.a)
 list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
 list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # CULIBOS needed when using static CUDA libs
-find_cuda_helper_libs(culibos)
+CUDA_find_library(CUDA_culibos_LIBRARY culibos)
 list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
 list(APPEND DALI_EXCLUDES libculibos.a)
 
@@ -60,7 +58,7 @@ include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 
 # NVTX for profiling
 if (BUILD_NVTX)
-  find_cuda_helper_libs(nvToolsExt)
+  CUDA_find_library(CUDA_nvToolsExt_LIBRARY nvToolsExt)
   list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
   add_definitions(-DDALI_USE_NVTX)
 endif()
@@ -85,5 +83,7 @@ else()
 endif()
 
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+set(DALI_SYSTEM_LIBS "")
 list(APPEND DALI_LIBS ${Protobuf_LIBRARY} ${Protobuf_PROTOC_LIBRARIES} ${Protobuf_LITE_LIBRARIES})
+list(APPEND DALI_LIBS ${CUDART_LIB})
 list(APPEND DALI_EXCLUDES libprotobuf.a;libprotobuf-lite.a;libprotoc.a)

@@ -13,12 +13,13 @@
 set(NVJPEG_ROOT_DIR "" CACHE PATH "Folder contains NVJPEG")
 
 find_path(NVJPEG_INCLUDE_DIR nvjpeg.h
-    PATHS ${NVJPEG_ROOT_DIR} ${CUDA_TOOLKIT_ROOT_DIR}
+    PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
     PATH_SUFFIXES include)
 
 find_library(NVJPEG_LIBRARY libnvjpeg_static.a nvjpeg
-    PATHS ${NVJPEG_ROOT_DIR} ${CUDA_TOOLKIT_ROOT_DIR}
+    PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
     PATH_SUFFIXES lib lib64)
+
 
 # nvJPEG 9.0 calls itself 0.1.x via API calls, and the header file doesn't tell you which
 # version it is. There's not a super clean way to determine which CUDA's nvJPEG we have.
@@ -31,19 +32,31 @@ find_package_handle_standard_args(NVJPEG
     REQUIRED_VARS NVJPEG_INCLUDE_DIR NVJPEG_LIBRARY
     VERSION_VAR NVJPEG_VERSION)
 
-message(${CUDA_TOOLKIT_ROOT_DIR})
 if(NVJPEG_FOUND)
   # set includes and link libs for nvJpeg
-  set(CMAKE_REQUIRED_INCLUDES ${CUDA_INCLUDE_DIRS})
-  set(CMAKE_REQUIRED_LIBRARIES ${NVJPEG_LIBRARY} "-L${CUDA_TOOLKIT_ROOT_DIR}/lib64" "-lcudart_static" "-lculibos" "dl" "-pthread" "rt")
-  check_symbol_exists("nvjpegCreateEx" "nvjpeg.h" NVJPEG_LIBRARY_0_2_0)
 
-  check_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)
+  if (POLICY CMP0075)
+    cmake_policy(SET CMP0075 NEW)
+  endif()
+
+  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+  set(CMAKE_REQUIRED_LIBRARIES_OLD ${CMAKE_REQUIRED_LIBRARIES})
+  foreach(DIR ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES "-L${DIR}")
+  endforeach(DIR)
+
+  list(APPEND CMAKE_REQUIRED_LIBRARIES "${NVJPEG_LIBRARY}" cudart_static culibos dl m pthread rt)
+  check_cxx_symbol_exists("nvjpegCreateEx" "nvjpeg.h" NVJPEG_LIBRARY_0_2_0)
+
+  check_cxx_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)
+  set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_OLD})
 
   mark_as_advanced(NVJPEG_ROOT_DIR NVJPEG_LIBRARY_RELEASE NVJPEG_LIBRARY_DEBUG)
   message("nvJPEG found in ${NVJPEG_INCLUDE_DIR}")
   if (NVJPEG_DECOUPLED_API)
     message("nvJPEG is using new API")
+  else()
+    message(WARNING " nvJPEG is using the deprecated API")
   endif()
 else()
   message("nvJPEG NOT found")
