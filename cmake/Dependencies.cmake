@@ -90,7 +90,8 @@ list(APPEND DALI_LIBS ${Protobuf_LIBRARY})
 # hide things from the protobuf, all we export is only is API generated from our proto files
 list(APPEND DALI_EXCLUDES libprotobuf.a)
 
-list(APPEND DALI_LIBS ${CUDART_LIB} rt pthread m dl)
+set(DALI_SYSTEM_LIBS rt pthread m dl)
+list(APPEND DALI_LIBS ${CUDART_LIB} ${DALI_SYSTEM_LIBS})
 
 ##################################################################
 # Exclude stdlib
