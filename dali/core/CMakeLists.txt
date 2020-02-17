@@ -23,7 +23,8 @@ list(REMOVE_ITEM DALI_CORE_SRCS dynlink_cuda.cc)
 add_library(dynlink_cuda STATIC dynlink_cuda.cc)
 
 add_library(${dali_core_lib} SHARED ${DALI_CORE_SRCS})
-target_link_libraries(${dali_core_lib} PRIVATE ${CUDART_LIB} ${DALI_SYSTEM_LIBS})
+target_link_libraries(${dali_core_lib} PRIVATE ${CUDART_LIB})
+target_link_libraries(${dali_core_lib} PUBLIC ${DALI_SYSTEM_LIBS})
 target_link_libraries(${dali_core_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(${dali_core_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
