@@ -130,16 +130,16 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wsign-compare")
 
   # CUDA does not support current clang as host compiler, we need use gcc
-  # CUDA_HOST_COMPILER variable operates on paths
+  # CMAKE_CUDA_HOST_COMPILER variable operates on paths
   set(CUDA_UNSUPPORTED_COMPILER 0)
-  if (${CMAKE_CUDA_HOST_COMPILER} MATCHES "clang")
+  if ("${CMAKE_CUDA_HOST_COMPILER}" MATCHES "clang")
       set(CUDA_UNSUPPORTED_COMPILER 1)
   elseif (CMAKE_CUDA_HOST_COMPILER STREQUAL "")
       set(CUDA_UNSUPPORTED_COMPILER 1)
-endif()
+  endif()
 
   if(${CUDA_UNSUPPORTED_COMPILER})
-    message(STATUS "CUDA_HOST_COMPILER is set to ${CMAKE_C_COMPILER} - setting CMAKE_CUDA_HOST_COMPILER to gcc")
+    message(STATUS "CMAKE_CUDA_HOST_COMPILER is set to ${CMAKE_C_COMPILER} - setting CMAKE_CUDA_HOST_COMPILER to gcc")
     execute_process(COMMAND which gcc OUTPUT_VARIABLE PATH_TO_GCC OUTPUT_STRIP_TRAILING_WHITESPACE)
     if (NOT PATH_TO_GCC)
       message(FATAL_ERROR "gcc was not found in PATH")
