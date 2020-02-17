@@ -91,7 +91,7 @@ list(APPEND DALI_LIBS ${Protobuf_LIBRARY})
 list(APPEND DALI_EXCLUDES libprotobuf.a)
 
 set(DALI_SYSTEM_LIBS rt pthread m dl)
-list(APPEND DALI_LIBS ${CUDART_LIB})
+list(APPEND DALI_LIBS ${CUDART_LIB} ${DALI_SYSTEM_LIBS})
 
 ##################################################################
 # Exclude stdlib

@@ -37,7 +37,7 @@ if (BUILD_TEST)
   set(test_bin "dali_core_test.bin")
   add_executable(${test_bin} "${DALI_CORE_TEST_SRCS}")
   target_link_libraries(${test_bin} PUBLIC ${dali_core_lib})
-  target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS} ${CUDART_LIB})
+  target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
   set_target_properties(${test_bin} PROPERTIES
