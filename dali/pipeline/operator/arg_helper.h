@@ -18,6 +18,7 @@
 #include <dali/pipeline/operator/argument.h>
 #include <dali/pipeline/operator/op_spec.h>
 #include <dali/pipeline/data/tensor.h>
+#include <dali/pipeline/data/views.h>
 #include <memory>
 #include <string>
 
@@ -29,11 +30,17 @@ class ArgValue {
   ArgValue() = default;
   ArgValue(ArgValue &&) = default;
   inline ArgValue(const ArgValue &other) { *this = other; }
-  inline ArgValue(const std::string &name, const OpSpec &spec, ArgumentWorkspace *ws) {
-    if (spec.HasTensorArgument(name)) {
-      tensor_vector_ = &ws->ArgumentInput(name);
+  explicit inline ArgValue(const std::string &name) : name_(name) {
+  }
+
+  void Update(const OpSpec &spec, ArgumentWorkspace &ws, bool use_default = true) {
+    if (spec.HasTensorArgument(name_)) {
+      tensor_vector_ = &ws.ArgumentInput(name_);
+      gpu_dirty_ = true;
     } else {
-      value_ = spec.GetArgument<T>(name, ws);
+      is_set_ = spec.HasArgument(name_);
+      if (use_default || is_set_)
+        value_ = spec.GetArgument<T>(name_);
     }
   }
 
@@ -45,32 +52,49 @@ class ArgValue {
     return *this;
   }
 
-  inline bool IsTensor() const { return tensor_vector_ != nullptr; }
+  inline bool IsInput() const { return tensor_vector_ != nullptr; }
+  inline bool IsSet() const { return is_set_; }
 
-  inline const T &operator[](Index index) {
-    if (IsTensor()) {
+  template <int ndim = DynamicDimensions>
+  inline const TensorView<StorageCPU, T, ndim> Tensor(int sample_index) {
+    ASSERT(IsInput());
+    return view<T, ndim>(tensor_vector_[sample_index]);
+  }
+
+  inline const T &Value() {
+    return value_;
+  }
+
+  inline const T &operator[](int sample_index) {
+    if (IsInput()) {
 #if DALI_DEBUG
-      DALI_ENFORCE(index < static_cast<Index>(tensor_vector_->ntensor()));
+      DALI_ENFORCE(sample_index < static_cast<int>(tensor_vector_->ntensor()));
 #endif
-      return (*tensor_vector_)[index].data<T>()[0];
+      return (*tensor_vector_)[sample_index].data<T>()[0];
     } else {
       return  value_;
     }
   }
 
-  inline const TensorList<GPUBackend> *AsGPU(cudaStream_t stream) {
-    DALI_ENFORCE(IsTensor());
-    if (!gpu_) {
+  inline const TensorList<GPUBackend> &AsGPU(cudaStream_t stream) {
+    DALI_ENFORCE(IsInput());
+    if (!gpu_)
       gpu_.reset(new TensorList<GPUBackend>());
+    if (gpu_dirty_) {
       gpu_->Copy(*tensor_vector_, stream);
+      gpu_dirty_ = false;
     }
-    return gpu_.get();
+    return *gpu_;
   }
 
  private:
+  string name_;
+  bool is_input_;
+  bool is_set_;
   T value_;
   const TensorVector<CPUBackend> *tensor_vector_ = nullptr;
   std::unique_ptr<TensorList<GPUBackend>> gpu_;
+  bool gpu_dirty_ = true;
 };
 
 }  // namespace dali
