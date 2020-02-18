@@ -238,11 +238,10 @@ Verify the build (optional)
 Obtain test data
 ++++++++++++++++
 
-You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data
+.. _DALI_extra_link: https://github.com/NVIDIA/DALI_extra#nvidia-dali
 
-.. code-block:: bash
+You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data. To download it follow :ref:`DALI_extra_link`.
 
-  git clone https://github.com/NVIDIA/DALI_extra
 
 Set test data path
 ++++++++++++++++++
@@ -254,29 +253,15 @@ DALI uses ``DALI_EXTRA_PATH`` environment variable to localize the test data. Yo
   $ export DALI_EXTRA_PATH=<path_to_DALI_extra>
   e.g. export DALI_EXTRA_PATH=/home/yourname/workspace/DALI_extra
 
-Run GTest tests
-+++++++++++++++
+Run tests
++++++++++
 
-To run GTest tests go to main build directory and run GTest binaries:
+DALI tests consist of 2 parts: C++ (GTest) and Python (usually Nose, but that's not always true). To run the tests there are convenient targets for Make, that you can run after building finished
 
 .. code-block:: bash
 
   cd <path_to_DALI>/build
-  ./dali/python/nvidia/dali/test/dali_test.bin
-  ./dali/python/nvidia/dali/test/dali_operator_test.bin
-  ./dali/python/nvidia/dali/test/dali_kernel_test.bin
-  ./dali/python/nvidia/dali/test/dali_core_test.bin
-
-Run Nosetests
-+++++++++++++
-
-To run Nosetests, you should have DALI's Python bindings installed in your system. For more details follow :ref:`PythonBindingsAnchor`.
-
-.. code-block:: bash
-
-  cd <path_to_DALI>/test/python
-  nosetests
-
+  make check-gtest check-python
 
 Building DALI using Clang (experimental)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
