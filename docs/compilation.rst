@@ -190,27 +190,27 @@ Prerequisites
 Build DALI
 ^^^^^^^^^^
 
-# Get DALI source code:
+1. Get DALI source code:
 
 .. code-block:: bash
 
   git clone --recursive https://github.com/NVIDIA/DALI
   cd DALI
 
-# Create a directory for CMake-generated Makefiles. This will be the directory, that DALI's built in.
+2. Create a directory for CMake-generated Makefiles. This will be the directory, that DALI's built in.
 
 .. code-block:: bash
 
   mkdir build
   cd build
 
-# Run CMake. For additional options you can pass to CMake, refer to OptionalCmakeParamsAnchor_.
+3. Run CMake. For additional options you can pass to CMake, refer to :ref:`OptionalCmakeParamsAnchor`.
 
 .. code-block:: bash
 
   cmake -D CMAKE_BUILD_TYPE=Release ..
 
-# Build. You can pass `-j` option to execute it in several threads
+4. Build. You can pass ``-j`` option to execute it in several threads
 
 .. code-block:: bash
 
@@ -230,7 +230,7 @@ In order to run DALI using Python API, you need to install Python bindings
 
 .. note::
 
-  Although you can create a wheel here by calling `pip wheel dali/python`, we don't really recommend doing it. Such whl is not self-contained (doesn't have all the dependencies) and it will work only on the system where you built DALI bare-metal. To build a wheel that contains the dependencies and might be therefore used on other systems, follow DockerBuilderAnchor_.
+  Although you can create a wheel here by calling ``pip wheel dali/python``, we don't really recommend doing so. Such whl is not self-contained (doesn't have all the dependencies) and it will work only on the system where you built DALI bare-metal. To build a wheel that contains the dependencies and might be therefore used on other systems, follow :ref:`DockerBuilderAnchor`.
 
 Verify the build (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -247,12 +247,12 @@ You can verify the build by running GTest and Nose tests. To do so, you'll need 
 Set test data path
 ++++++++++++++++++
 
-DALI uses `DALI_EXTRA_PATH` environment variable to localize the test data. You can set it by invoking:
+DALI uses ``DALI_EXTRA_PATH`` environment variable to localize the test data. You can set it by invoking:
 
 .. code-block:: bash
 
-$ export DALI_EXTRA_PATH=<path_to_DALI_extra>
-e.g. export DALI_EXTRA_PATH=/home/yourname/workspace/DALI_extra
+  $ export DALI_EXTRA_PATH=<path_to_DALI_extra>
+  e.g. export DALI_EXTRA_PATH=/home/yourname/workspace/DALI_extra
 
 Run GTest tests
 +++++++++++++++
@@ -261,16 +261,16 @@ To run GTest tests go to main build directory and run GTest binaries:
 
 .. code-block:: bash
 
-cd <path_to_DALI>/build
-./dali/python/nvidia/dali/test/dali_test.bin
-./dali/python/nvidia/dali/test/dali_operator_test.bin
-./dali/python/nvidia/dali/test/dali_kernel_test.bin
-./dali/python/nvidia/dali/test/dali_core_test.bin
+  cd <path_to_DALI>/build
+  ./dali/python/nvidia/dali/test/dali_test.bin
+  ./dali/python/nvidia/dali/test/dali_operator_test.bin
+  ./dali/python/nvidia/dali/test/dali_kernel_test.bin
+  ./dali/python/nvidia/dali/test/dali_core_test.bin
 
 Run Nosetests
 +++++++++++++
 
-To run Nosetests, you should have DALI's Python bindings installed in your system. For more details follow PythonBindingsAnchor_.
+To run Nosetests, you should have DALI's Python bindings installed in your system. For more details follow :ref:`PythonBindingsAnchor`.
 
 .. code-block:: bash
 
