@@ -216,22 +216,21 @@ Build DALI
 
   make -j"$(nproc)"
 
-.. _BulildWheelAnchor:
+.. _PythonBindingsAnchor:
 
-Build DALI wheel
-++++++++++++++++
+Install Python bindings
++++++++++++++++++++++++
 
-In order to run DALI using Python API, you need to put together and install a wheel based on the binaries you just built.
+In order to run DALI using Python API, you need to install Python bindings
 
 .. code-block:: bash
 
-  cd build
-  pip wheel dali/python
-  pip install --force-reinstall nvidia_dali-$(cat ../VERSION)-py3-none-any.whl
+    cd build
+    pip install dali/python
 
 .. note::
 
-  Since such whl doesn't contain all the dependencies, it will most probably work only on the system where you built DALI bare-metal. To build a wheel that contains the dependencies and might be therefore used on other systems, follow DockerBuilderAnchor_.
+  Although you can create a wheel here by calling `pip wheel dali/python`, we don't really recommend doing it. Such whl is not self-contained (doesn't have all the dependencies) and it will work only on the system where you built DALI bare-metal. To build a wheel that contains the dependencies and might be therefore used on other systems, follow DockerBuilderAnchor_.
 
 Verify the build (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -271,11 +270,11 @@ cd <path_to_DALI>/build
 Run Nosetests
 +++++++++++++
 
-To run Nosetests, you should have DALI's wheel installed in your system. For more details follow BuildWheelAnchor_.
+To run Nosetests, you should have DALI's Python bindings installed in your system. For more details follow PythonBindingsAnchor_.
 
 .. code-block:: bash
 
-  cd <path_to_DALI>/test
+  cd <path_to_DALI>/test/python
   nosetests
 
 
@@ -345,12 +344,6 @@ Following CMake parameters could be helpful in setting the right paths:
 * libjpeg-turbo options can be obtained from |libjpeg-turbo_cmake link|_
 * protobuf options can be obtained from |protobuf_cmake link|_
 
-Install Python bindings
-^^^^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: bash
-
-    pip install dali/python
 
 Cross-compiling DALI C++ API for aarch64 Linux (Docker)
 -------------------------------------------------------
