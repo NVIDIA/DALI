@@ -295,21 +295,21 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
         label_out_data[j] = label_data[idx];
 
         // scaling
-        float minus[] = {left, top, left, top};
-        float scale[] = {w, h, w, h};
+        double minus[] = {left, top, left, top};
+        double scale[] = {w, h, w, h};
         for (int k = 0; k < 4; ++k) {
           // scale and translate the input box
-          float coord = (bbox_i[k] - minus[k]) / scale[k];;
+          double coord = (bbox_i[k] - minus[k]) / scale[k];;
           // ..and clamp it to 0..1 range
-          bbox_o[k] = std::min(std::max(coord, 0.0f), 1.0f);
+          bbox_o[k] = std::min(std::max(coord, 0.0), 1.0);
         }
       }  // end bbox copy
 
       // everything is good, generate the crop parameters
-      const int left_idx = static_cast<int>(left * wtot);
-      const int top_idx = static_cast<int>(top * htot);
-      const int right_idx = static_cast<int>(right * wtot);
-      const int bottom_idx = static_cast<int>(bottom * htot);
+      const int left_idx = std::lround(left * wtot);
+      const int top_idx = std::lround(top * htot);
+      const int right_idx = std::lround(right * wtot);
+      const int bottom_idx = std::lround(bottom * htot);
 
       // perform the crop
       detail::crop(img, {left_idx, top_idx, right_idx, bottom_idx},

@@ -102,17 +102,27 @@ class SliceAttr {
 
         for (size_t i = 0; i < axes.size(); i++) {
           auto dim = axes[i];
-          float anchor_val = slice_anchor_data[i];
-          if (normalized_anchor_)
+          double anchor_val = slice_anchor_data[i];
+          double shape_val = slice_shape_data[i];
+          int64_t slice_end;
+          // special case - minimize the floating point error by multiplying only once after sum
+          if (normalized_anchor_ && normalized_shape_) {
+            slice_end = std::llround((anchor_val + shape_val) * shape[dim]);
             anchor_val *= shape[dim];
-          float shape_val = slice_shape_data[i];
-          if (normalized_shape_)
             shape_val *= shape[dim];
-          int64_t slice_end = static_cast<int64_t>(anchor_val + shape_val);
+          } else {
+            if (normalized_anchor_) {
+              anchor_val *= shape[dim];
+            }
+            if (normalized_shape_) {
+              shape_val *= shape[dim];
+            }
+            slice_end = std::llround(anchor_val + shape_val);
+          }
           DALI_ENFORCE(slice_end <= shape[dim],
             make_string("Slice end for dim ", dim, " is out of bounds:",
                         slice_end, ">", shape[dim]));
-          slice.anchor[dim] = static_cast<int64_t>(anchor_val);
+          slice.anchor[dim] = std::llround(anchor_val);
           slice.shape[dim] = slice_end - slice.anchor[dim];
           assert(slice.anchor[dim] + slice.shape[dim] <= shape[dim]);
         }

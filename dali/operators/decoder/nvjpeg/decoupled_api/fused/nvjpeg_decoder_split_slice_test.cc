@@ -62,10 +62,10 @@ class ImageDecoderSplitSliceTest_GPU : public DecodeTestBase<ImgType> {
       DALI_ENFORCE(shape_layout == "HW",
         make_string("Unexpected input shape layout: ", shape_layout, " vs HW"));
       CropWindow crop_window;
-      crop_window.anchor[0] = crop_y * shape[0];
-      crop_window.anchor[1] = crop_x * shape[1];
-      crop_window.shape[0] = (crop_h + crop_y) * shape[0] - crop_window.anchor[0];
-      crop_window.shape[1] = (crop_w + crop_x) * shape[1] - crop_window.anchor[1];
+      crop_window.anchor[0] = std::lround(crop_y * shape[0]);
+      crop_window.anchor[1] = std::lround(crop_x * shape[1]);
+      crop_window.shape[0] = std::lround((crop_h + crop_y) * shape[0] - crop_window.anchor[0]);
+      crop_window.shape[1] = std::lround((crop_w + crop_x) * shape[1] - crop_window.anchor[1]);
       return crop_window;
     };
   }
