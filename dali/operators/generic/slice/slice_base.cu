@@ -30,7 +30,7 @@ void RunHelper(TensorList<GPUBackend>& output,
                cudaStream_t stream,
                kernels::ScratchpadAllocator &scratch_alloc) {
   std::size_t number_of_dims = input.tensor_shape(0).size();
-  VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
+  VALUE_SWITCH(number_of_dims, NumDims, (1, 2, 3, 4), (
     kernels::SliceGPU<OutputType, InputType, NumDims> kernel;
 
     kernels::KernelContext ctx;

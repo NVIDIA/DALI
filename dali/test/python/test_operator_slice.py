@@ -258,7 +258,11 @@ def slice_func_helper(axes, axis_names, layout, normalized_anchor, normalized_sh
             end = [start[i] + int(np.float32(full_slice_shape[i]))
                 for i in range(len(shape))]
 
-    if len(full_slice_anchor) == 3:
+    if len(full_slice_anchor) == 1:
+        return image[start[0]:end[0]]
+    elif len(full_slice_anchor) == 2:
+        return image[start[0]:end[0], start[1]:end[1]]
+    elif len(full_slice_anchor) == 3:
         return image[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
     elif len(full_slice_anchor) == 4:
         return image[start[0]:end[0], start[1]:end[1], start[2]:end[2], start[3]:end[3]]
@@ -367,6 +371,10 @@ def test_slice_synth_data_vs_numpy():
                 ((200,400,3), "HWC", (1,0), None),
                 ((200,400,3), "HWC", (0,1), None),
                 ((200,400,3), "HWC", (2,), None),
+                ((200,), "H", (0,), None),
+                ((200,), "H", None, "H"),
+                ((200,400), "HW", (1,), None),
+                ((200,400), "HW", None, "W"),
                 ((80, 30, 20, 3), "DHWC", (2,1,0), None),
                 ((80, 30, 20, 3), "DHWC", (0,1,2), None),
                 ((80, 30, 20, 3), "DHWC", (2,1), None),

@@ -28,7 +28,7 @@ void RunHelper(Tensor<CPUBackend> &output,
                const std::vector<int64_t> &slice_anchor,
                const std::vector<int64_t> &slice_shape) {
   std::size_t number_of_dims = input.shape().size();
-  VALUE_SWITCH(number_of_dims, NumDims, (3, 4), (
+  VALUE_SWITCH(number_of_dims, NumDims, (1, 2, 3, 4), (
     kernels::KernelContext ctx;
     auto in_view = view<const InputType, NumDims>(input);
 
