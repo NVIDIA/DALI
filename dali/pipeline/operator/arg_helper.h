@@ -35,10 +35,12 @@ class ArgValue {
 
   void Update(const OpSpec &spec, ArgumentWorkspace &ws, bool use_default = true) {
     if (spec.HasTensorArgument(name_)) {
-      tensor_vector_ = &ws.ArgumentInput(name_);
+      arg_input_ = &ws.ArgumentInput(name_);
       gpu_dirty_ = true;
+      is_set_ = true;
     } else {
       is_set_ = spec.HasArgument(name_);
+      arg_input_ = nullptr;
       if (use_default || is_set_)
         value_ = spec.GetArgument<T>(name_);
     }
@@ -46,31 +48,38 @@ class ArgValue {
 
   ArgValue &operator=(ArgValue &&) = default;
   inline ArgValue &operator=(const ArgValue &other) {
+    name_ = other.name_;
+    is_set_ = other.is_set_;
+    gpu_dirty_ = true;
     gpu_.reset();
     value_  = other.value_;
-    tensor_vector_ = other.tensor_vector_;
+    arg_input_ = other.arg_input_;
     return *this;
   }
 
-  inline bool IsInput() const { return tensor_vector_ != nullptr; }
-  inline bool IsSet() const { return is_set_; }
+  inline bool IsInput() const noexcept { return arg_input_ != nullptr; }
+  inline bool IsSet() const noexcept { return is_set_; }
 
   template <int ndim = DynamicDimensions>
-  inline const TensorView<StorageCPU, T, ndim> Tensor(int sample_index) {
+  inline const TensorView<StorageCPU, T, ndim> Tensor(int sample_index) const {
     ASSERT(IsInput());
-    return view<T, ndim>(tensor_vector_[sample_index]);
+    return view<T, ndim>(arg_input_[sample_index]);
   }
 
-  inline const T &Value() {
+  inline const T &Value() const {
     return value_;
   }
 
-  inline const T &operator[](int sample_index) {
+  inline const string &Name() const noexcept {
+    return name_;
+  }
+
+  inline const T &operator[](int sample_index) const {
     if (IsInput()) {
 #if DALI_DEBUG
-      DALI_ENFORCE(sample_index < static_cast<int>(tensor_vector_->ntensor()));
+      DALI_ENFORCE(sample_index < static_cast<int>(arg_input_->ntensor()));
 #endif
-      return (*tensor_vector_)[sample_index].data<T>()[0];
+      return (*arg_input_)[sample_index].data<T>()[0];
     } else {
       return  value_;
     }
@@ -81,7 +90,7 @@ class ArgValue {
     if (!gpu_)
       gpu_.reset(new TensorList<GPUBackend>());
     if (gpu_dirty_) {
-      gpu_->Copy(*tensor_vector_, stream);
+      gpu_->Copy(*arg_input_, stream);
       gpu_dirty_ = false;
     }
     return *gpu_;
@@ -89,12 +98,11 @@ class ArgValue {
 
  private:
   string name_;
-  bool is_input_;
-  bool is_set_;
   T value_;
-  const TensorVector<CPUBackend> *tensor_vector_ = nullptr;
-  std::unique_ptr<TensorList<GPUBackend>> gpu_;
+  bool is_set_ = false;
   bool gpu_dirty_ = true;
+  const TensorVector<CPUBackend> *arg_input_ = nullptr;
+  std::unique_ptr<TensorList<GPUBackend>> gpu_;
 };
 
 }  // namespace dali
