@@ -200,13 +200,23 @@ void StftImplGPU::ValidateParams(ExecutionContext &ctx) {
                "The window must be either empty or have a size equal to the transform size.");
 }
 
-void StftImplGPU::RunR2C(KernelContext &ctx,
-                         const OutListGPU<complexf, 2> &out,
-                         const InListGPU<float, 1> &in,
-                         const InTensorGPU<float, 1> &window) {
+void StftImplGPU::Run(KernelContext &ctx,
+                      const OutListGPU<complexf, 2> &out,
+                      const InListGPU<float, 1> &in,
+                      const InTensorGPU<float, 1> &window) {
   assert(args_.spectrum_type == FFT_SPECTRUM_COMPLEX);
 
   ExecutionContext ectx({ &ctx, &out, nullptr, &in, &window });
+  Run(ectx);
+}
+
+void StftImplGPU::Run(KernelContext &ctx,
+                      const OutListGPU<float, 2> &out,
+                      const InListGPU<float, 1> &in,
+                      const InTensorGPU<float, 1> &window) {
+  assert(args_.spectrum_type != FFT_SPECTRUM_COMPLEX);
+
+  ExecutionContext ectx({ &ctx, nullptr, &out, &in, &window });
   Run(ectx);
 }
 

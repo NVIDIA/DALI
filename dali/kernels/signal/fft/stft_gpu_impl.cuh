@@ -38,15 +38,15 @@ class DLL_PUBLIC StftImplGPU {
  public:
   KernelRequirements Setup(KernelContext &ctx, span<const int64_t> lengths, const StftArgs &args);
 
-  void RunR2C(KernelContext &ctx,
-              const OutListGPU<complexf, 2> &out,
-              const InListGPU<float, 1> &in,
-              const InTensorGPU<float, 1> &window);
+  void Run(KernelContext &ctx,
+           const OutListGPU<complexf, 2> &out,
+           const InListGPU<float, 1> &in,
+           const InTensorGPU<float, 1> &window);
 
-  void RunR2R(KernelContext &ctx,
-              const OutListGPU<complexf, 2> &out,
-              const InListGPU<float, 1> &in,
-              const InTensorGPU<float, 1> &window);
+  void Run(KernelContext &ctx,
+           const OutListGPU<float, 2> &out,
+           const InListGPU<float, 1> &in,
+           const InTensorGPU<float, 1> &window);
 
  private:
   void Reset();

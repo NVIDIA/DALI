@@ -54,16 +54,32 @@ class DLL_PUBLIC StftGPU {
   ~StftGPU();
   kernels::KernelRequirements Setup(
     KernelContext &ctx,
-    const InListGPU<float, 1> &in,
-    const InTensorGPU<float, 1> &window,
+    const TensorListShape<1> &in,
     const StftArgs &args);
 
   void Run(
     KernelContext &ctx,
     const OutListGPU<complexf, 2> &out,
     const InListGPU<float, 1> &in,
-    const InTensorGPU<float, 1> &window,
+    const InTensorGPU<float, 1> &window);
+
+ private:
+  std::unique_ptr<StftImplGPU> impl;
+};
+
+class DLL_PUBLIC SpectrogramGPU {
+ public:
+  ~SpectrogramGPU();
+  kernels::KernelRequirements Setup(
+    KernelContext &ctx,
+    const TensorListShape<1> &in,
     const StftArgs &args);
+
+  void Run(
+    KernelContext &ctx,
+    const OutListGPU<float, 2> &out,
+    const InListGPU<float, 1> &in,
+    const InTensorGPU<float, 1> &window);
 
  private:
   std::unique_ptr<StftImplGPU> impl;

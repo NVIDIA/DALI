@@ -20,6 +20,23 @@
 
 namespace dali {
 
+/**
+ * @brief This class is an analogue of `unique_ptr` for non-memory resource handles.
+ *
+ * UniqueHandle is a base class for implementing managed resources (files, OS handles, etc).
+ * This class provides construction, assigment and decay to underlying handle type as well
+ * as equality comparison operators.
+ *
+ * @tparam HandleType  type of the handle, e.g. `int` for file descriptors or `FILE*` for buffers
+ * @tparam Actual      derived class (if using CRTP) or a handle information class providing the
+ *                     following interface:
+ *                        * `static constexpr HandleType null_handle()` - returns a null handle
+ *                        * `static void DestroyHandle(HandleType)` - frees underlying
+ *                           resources
+ *
+ * @see CUDAEvent
+ * @see CUDAStream
+ */
 template <typename HandleType, typename Actual>
 class UniqueHandle {
  public:
@@ -44,6 +61,7 @@ class UniqueHandle {
     return *this;
   }
 
+  /// @brief Destroys the underlying resource and resets the handle to null value.
   inline void reset() {
     if (handle_ != Actual::null_handle()) {
       Actual::DestroyHandle(handle_);
@@ -51,6 +69,8 @@ class UniqueHandle {
     }
   }
 
+  /// @brief Replaces the managed handle by the new one and destroying the old handle.
+  /// @remarks If `handle` is equal to the currently managed handle, this function is no-op
   inline void reset(handle_type handle) {
     if (handle != handle_) {
       reset();
@@ -64,6 +84,8 @@ class UniqueHandle {
   constexpr inline bool operator!=(const UniqueHandle &other) const noexcept {
     return handle_ != other.handle_;
   }
+
+  /// @brief Indicates whether the handle is non-null
   constexpr explicit operator bool() const noexcept {
     return handle_ != Actual::null_handle();
   }
@@ -76,6 +98,10 @@ class UniqueHandle {
   handle_type handle_;
 };
 
+/**
+ * A macro to inherit the common interface from UniqueHandle
+ * - useful when using UniqueHandle in CRTP
+ */
 #define DALI_INHERIT_UNIQUE_HANDLE(HandleType, WrapperClass)\
   using dali::UniqueHandle<HandleType, WrapperClass>::UniqueHandle;\
   using dali::UniqueHandle<HandleType, WrapperClass>::operator=;\
