@@ -7,6 +7,7 @@ Use Cases
    video_superres/README
    pytorch/resnet50/pytorch-resnet50
    pytorch/single_stage_detector/pytorch_ssd.rst
+   pytorch/rnn-t/README
    tensorflow/resnet-n/README
    paddle/index
    mxnet/mxnet-resnet50.ipynb
