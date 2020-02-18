@@ -23,6 +23,7 @@ list(REMOVE_ITEM DALI_CORE_SRCS dynlink_cuda.cc)
 add_library(dynlink_cuda STATIC dynlink_cuda.cc)
 
 add_library(${dali_core_lib} SHARED ${DALI_CORE_SRCS})
+target_include_directories(${dali_core_lib} PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 target_link_libraries(${dali_core_lib} PRIVATE ${CUDART_LIB})
 target_link_libraries(${dali_core_lib} PUBLIC ${DALI_SYSTEM_LIBS})
 target_link_libraries(${dali_core_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
