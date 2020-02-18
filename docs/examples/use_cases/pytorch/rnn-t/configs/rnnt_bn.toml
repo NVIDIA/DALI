@@ -1,0 +1,78 @@
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019, Myrtle Software Limited. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+model = "RNNT"
+
+[input]
+normalize = "per_feature"
+sample_rate = 16000
+window_size = 0.02
+window_stride = 0.01
+window = "hann"
+features = 64
+n_fft = 512
+frame_splicing = 3
+dither = 0.00001
+feat_type = "logfbank"
+normalize_transcripts = true
+trim_silence = true
+pad_to = 0   # TODO
+max_duration = 16.7
+speed_perturbation = true
+
+
+cutout_rect_regions = 0
+cutout_rect_time = 60
+cutout_rect_freq = 25
+
+
+cutout_x_regions = 2
+cutout_y_regions = 2
+cutout_x_width = 6
+cutout_y_width = 6
+
+
+[input_eval]
+normalize = "per_feature"
+sample_rate = 16000
+window_size = 0.02
+window_stride = 0.01
+window = "hann"
+features = 64
+n_fft = 512
+frame_splicing = 3
+dither = 0.00001
+feat_type = "logfbank"
+normalize_transcripts = true
+trim_silence = true
+pad_to = 0
+
+
+[rnnt]
+rnn_type = "lstm"
+norm = "batch_norm"
+encoder_n_hidden = 1024
+encoder_pre_rnn_layers = 2
+encoder_stack_time_factor = 2
+encoder_post_rnn_layers = 3
+pred_n_hidden = 1024
+pred_rnn_layers = 2
+forget_gate_bias = 1.0
+joint_n_hidden = 640
+dropout=0.0
+
+
+[labels]
+labels = [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
