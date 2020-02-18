@@ -14,6 +14,8 @@
 
 project(dali_kernels CUDA CXX C)
 
+set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+
 add_subdirectory(audio)
 add_subdirectory(common)
 add_subdirectory(erase)
@@ -29,8 +31,12 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_KERNEL_SRCS)
 collect_test_sources(DALI_KERNEL_TEST_SRCS)
 
+# cuFFT library
+CUDA_find_library(CUDA_cufft_static_LIBRARY cufft_static)
+
 add_library(${dali_kernel_lib} SHARED ${DALI_KERNEL_SRCS})
 target_link_libraries(${dali_kernel_lib} PUBLIC ${dali_core_lib})
+target_link_libraries(${dali_kernel_lib} PRIVATE ${CUDA_cufft_static_LIBRARY})
 target_link_libraries(${dali_kernel_lib} PRIVATE ${DALI_LIBS})
 target_link_libraries(${dali_kernel_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(${dali_kernel_lib} PROPERTIES
