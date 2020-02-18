@@ -107,7 +107,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
       type.template Copy<SrcBackend, Backend>(
           raw_mutable_tensor(i),
           other[i].raw_data(),
-          other[i].size(), 0);
+          other[i].size(), stream);
       this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
       this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
     }

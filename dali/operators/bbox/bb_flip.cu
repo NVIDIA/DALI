@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <dali/operators/bbox/bb_flip.cuh>
-#include <dali/pipeline/operator/arg_helper.h>
 #include <vector>
 
 namespace dali {
@@ -82,8 +81,8 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
                "Input data size must be a multiple of 4 if it contains bounding boxes;"
                " got " + std::to_string(input.size()));
 
-  ArgValue<int> horz("horizontal", spec_, &ws);
-  ArgValue<int> vert("vertical", spec_, &ws);
+  horz_.Update(spec_, ws);
+  vert_.Update(spec_, ws);
   bool ltrb = spec_.GetArgument<bool>("ltrb");
 
   auto stream = ws.stream();
@@ -94,11 +93,7 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   const int *per_sample_horz = nullptr;
   const int *per_sample_vert = nullptr;
 
-  // contains a map from box index to sample index - used
-  // for accessing per-sample horz/vert arguments.
-  Tensor<GPUBackend> sample_idx_tensor;
-
-  if (horz.IsTensor() || vert.IsTensor()) {
+  if (horz_.IsInput() || vert_.IsInput()) {
     std::vector<int> indices;
     indices.reserve(num_boxes);
 
@@ -117,15 +112,15 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
         indices.push_back(sample);
       }
     }
-    sample_idx_tensor.Copy(indices, stream);
+    idx2sample_.Copy(indices, stream);
 
-    if (horz.IsTensor())
-      per_sample_horz = horz.AsGPU(stream)->data<int>();
+    if (horz_.IsInput())
+      per_sample_horz = horz_.AsGPU(stream).data<int>();
 
-    if (vert.IsTensor())
-      per_sample_vert = vert.AsGPU(stream)->data<int>();
+    if (vert_.IsInput())
+      per_sample_vert = vert_.AsGPU(stream).data<int>();
 
-    sample_idx = sample_idx_tensor.data<int>();
+    sample_idx = idx2sample_.data<int>();
   }
 
   output.ResizeLike(input);
@@ -140,14 +135,14 @@ void BbFlip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
   if (ltrb) {
     BbFlipKernel<true><<<grid, block, 0, stream>>>(
       output.mutable_data<float>(), input.data<float>(), num_boxes,
-      !per_sample_horz && horz[0], per_sample_horz,
-      !per_sample_vert && vert[0], per_sample_vert,
+      !per_sample_horz && horz_[0], per_sample_horz,
+      !per_sample_vert && vert_[0], per_sample_vert,
       sample_idx);
   } else {
     BbFlipKernel<false><<<grid, block, 0, stream>>>(
       output.mutable_data<float>(), input.data<float>(), num_boxes,
-      !per_sample_horz && horz[0], per_sample_horz,
-      !per_sample_vert && vert[0], per_sample_vert,
+      !per_sample_horz && horz_[0], per_sample_horz,
+      !per_sample_vert && vert_[0], per_sample_vert,
       sample_idx);
   }
 }
