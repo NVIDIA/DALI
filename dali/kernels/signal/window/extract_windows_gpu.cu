@@ -45,9 +45,9 @@ KernelRequirements ExtractWindowsGPU<Dst, Src>::Setup(
   if (!impl || impl->IsVertical() != args.vertical) {
     impl.reset();
     if (args.vertical)
-      impl = std::make_unique<ExtractVerticalWindowsGpuImpl<Dst, Src>>();
+      impl = std::make_unique<ExtractVerticalWindowsImplGPU<Dst, Src>>();
     else
-      impl = std::make_unique<ExtractHorizontalWindowsGpuImpl<Dst, Src>>();
+      impl = std::make_unique<ExtractHorizontalWindowsImplGPU<Dst, Src>>();
   }
 
   return impl->Setup(context, input_shape, args, args.concatenate, args.output_window_length);

@@ -230,60 +230,66 @@ class StftImplGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
     std::mt19937_64 rng(1234);
 
     StftImplGPU stft;
-    TestTensorList<float, 1> in;
-    TestTensorList<float, 1> window;
-    TensorListShape<1> in_shape = {{ 1000, 15, 35321, 2048, 11111, 20480 }};
-    const int N = in_shape.num_samples();
-    in.reshape(in_shape);
-    const auto lengths = make_cspan(in_shape.shapes);
-    TensorListView<StorageCPU, float, 1> in_cpu = in.cpu();
-    for (int i = 0; i < N; i++) {
-      GenerateTestWave(rng, in_cpu.data[i], lengths[i], 30, lengths[i] / 5);
+
+    TensorListShape<1> in_shapes[] = {
+      {{ 1000, 15, 35321, 2048, 11111, 20480 }},
+      {{ 100, 150, 64, 20480, 3213 }},
+      {{ 1, 2, 3, 4, 5, 6, 7, 8 }},
+      {{ 0xffff, 0xfff, 0xff, 99, 77, 66, 55, 44 }}
+    };
+
+    for (auto &in_shape : in_shapes) {
+      TestTensorList<float, 1> in;
+      TestTensorList<float, 1> window;
+      const int N = in_shape.num_samples();
+      in.reshape(in_shape);
+      const auto lengths = make_cspan(in_shape.shapes);
+      TensorListView<StorageCPU, float, 1> in_cpu = in.cpu();
+      for (int i = 0; i < N; i++) {
+        GenerateTestWave(rng, in_cpu.data[i], lengths[i], 30, lengths[i] / 5);
+      }
+
+      StftArgs args;
+      args.axis = 0;
+      args.spectrum_type = spectrum_type;
+      args.window_length = 128;
+      args.window_center = 64;
+      args.window_step = 64;
+      args.padding = signal::Padding::Reflect;
+
+      window.reshape({{TensorShape<1>{args.window_length}}});
+      auto window_span = make_span(window.cpu().data[0], args.window_length);
+      HannWindow(window_span);
+
+      args.time_major_layout = time_major;
+      TestTensorList<OutputType, 2> out;
+
+      KernelContext ctx;
+      KernelRequirements req = stft.Setup(ctx, make_span(lengths), args);
+      ASSERT_EQ(req.output_shapes.size(), 1u);
+      auto &out_shape = req.output_shapes[0];
+      ASSERT_EQ(out_shape.num_samples(), N);
+
+      for (int i = 0; i < N; i++) {
+        TensorShape<2> ts = { args.num_windows(lengths[i]), args.window_length / 2 + 1 };
+        if (!time_major)
+          std::swap(ts[0], ts[1]);
+        EXPECT_EQ(out_shape[i], ts);
+      }
+
+      ScratchpadAllocator sa;
+      sa.Reserve(req.scratch_sizes);
+      auto scratchpad = sa.GetScratchpad();
+      ctx.scratchpad = &scratchpad;
+      auto window_gpu = window.gpu()[0];
+      out.reshape(convert_dim<2>(out_shape));
+      stft.Run(ctx, out.gpu(), in.gpu(), window_gpu);
+      TensorListView<StorageCPU, OutputType, 2> out_cpu = out.cpu();
+
+      TestTensorList<OutputType, 2> ref;
+      RefSpectrum(ref, in_cpu, args, window_span);
+      Check(out_cpu, ref.cpu(), EqualEpsRel(1e-5, 1e-4));
     }
-
-    StftArgs args;
-    args.axis = 0;
-    args.spectrum_type = spectrum_type;
-    args.window_length = 128;
-    args.window_center = 64;
-    args.window_step = 64;
-    args.padding = signal::Padding::Reflect;
-
-    window.reshape({{TensorShape<1>{args.window_length}}});
-    auto window_span = make_span(window.cpu().data[0], args.window_length);
-    HannWindow(window_span);
-
-    args.time_major_layout = time_major;
-    TestTensorList<OutputType, 2> out;
-
-    KernelContext ctx;
-    KernelRequirements req = stft.Setup(ctx, make_span(lengths), args);
-    ASSERT_EQ(req.output_shapes.size(), 1u);
-    auto &out_shape = req.output_shapes[0];
-    ASSERT_EQ(out_shape.num_samples(), N);
-
-    for (int i = 0; i < N; i++) {
-      TensorShape<2> ts = { args.num_windows(lengths[i]), args.window_length / 2 + 1 };
-      if (!time_major)
-        std::swap(ts[0], ts[1]);
-      EXPECT_EQ(out_shape[i], ts);
-    }
-
-    ScratchpadAllocator sa;
-    sa.Reserve(req.scratch_sizes);
-    auto scratchpad = sa.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
-    auto window_gpu = window.gpu()[0];
-    out.reshape(convert_dim<2>(out_shape));
-    stft.Run(ctx, out.gpu(), in.gpu(), window_gpu);
-    TensorListView<StorageCPU, OutputType, 2> out_cpu = out.cpu();
-
-    TestTensorList<OutputType, 2> ref;
-    RefSpectrum(ref, in_cpu, args, window_span);
-    if (spectrum_type == FFT_SPECTRUM_COMPLEX)
-      Check(out_cpu, ref.cpu(), EqualEps(1e-5));
-    else
-      Check(out_cpu, ref.cpu(), EqualRelative(1e-3));
   }
 };
 
@@ -299,9 +305,13 @@ using StftTypes = ::testing::Types<
 TYPED_TEST_SUITE(StftImplGPUTest, StftTypes);
 
 
-TYPED_TEST(StftImplGPUTest, RunBatch) {
+TYPED_TEST(StftImplGPUTest, RunImpl) {
   this->Run();
 }
+
+/*TYPED_TEST(StftImplGPUTest, RunInterface) {
+  this->RunInterface();
+}*/
 
 
 }  // namespace fft

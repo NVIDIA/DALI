@@ -85,17 +85,15 @@ TEST(ExtractWindowsGPU, NonBatchedKernel) {
 
 
 void TestBatchedExtract(
+    ExtractWindowsImplGPU<float, float> *extract,
     const TensorListShape<1> &lengths,
     bool concatenate,
     Padding padding,
-    bool vertical,
     span<const float> window,
     int out_win_len = -1) {
-  std::unique_ptr<ExtractWindowsImplGPU<float, float>> extract;
-  if (vertical)
-    extract = std::make_unique<ExtractVerticalWindowsGpuImpl<float, float>>();
-  else
-    extract = std::make_unique<ExtractHorizontalWindowsGpuImpl<float, float>>();
+  bool vertical = extract->IsVertical();
+
+  ScratchpadAllocator sa;
 
   int N = lengths.num_samples();
 
@@ -122,7 +120,6 @@ void TestBatchedExtract(
 
 
   KernelContext ctx;
-  ScratchpadAllocator sa;
 
   auto in_gpu = in_list.gpu(0);
 
@@ -185,74 +182,103 @@ void TestBatchedExtract(
 }
 
 void TestBatchedExtract(
+    const TensorListShape<1> &lengths,
     bool concatenate,
     Padding padding,
     bool vertical,
     span<const float> window,
     int out_win_len = -1) {
-  TensorListShape<1> lengths({ TensorShape<1>{5}, TensorShape<1>{305}, TensorShape<1>{157} });
-  TestBatchedExtract(lengths, concatenate, padding, vertical, window, out_win_len);
+  std::unique_ptr<ExtractWindowsImplGPU<float, float>> extract;
+  if (vertical)
+    extract = std::make_unique<ExtractVerticalWindowsImplGPU<float, float>>();
+  else
+    extract = std::make_unique<ExtractHorizontalWindowsImplGPU<float, float>>();
+
+  TestBatchedExtract(extract.get(), lengths, concatenate, padding, window, out_win_len);
 }
 
-TEST(ExtractVerticalWindowsGpu, BatchedConcat) {
+void TestBatchedExtract(
+    bool concatenate,
+    Padding padding,
+    bool vertical,
+    span<const float> window,
+    int out_win_len = -1) {
+  std::unique_ptr<ExtractWindowsImplGPU<float, float>> extract;
+  if (vertical)
+    extract = std::make_unique<ExtractVerticalWindowsImplGPU<float, float>>();
+  else
+    extract = std::make_unique<ExtractHorizontalWindowsImplGPU<float, float>>();
+
+  TensorListShape<1> lengths = {{ 5, 305, 157 }};
+  TestBatchedExtract(extract.get(), lengths, concatenate, padding, window, out_win_len);
+
+  if (vertical)
+    extract = std::make_unique<ExtractVerticalWindowsImplGPU<float, float>>();
+  else
+    extract = std::make_unique<ExtractHorizontalWindowsImplGPU<float, float>>();
+  lengths = {{ 137, 203, 150, 12 }};
+  TestBatchedExtract(extract.get(), lengths, concatenate, padding, window, out_win_len);
+}
+
+TEST(ExtractVerticalWindowsGPU, BatchedConcat) {
   TestBatchedExtract(true, Padding::Reflect, true, {});
 }
 
-TEST(ExtractVerticalWindowsGpu, BatchedSeparate) {
+TEST(ExtractVerticalWindowsGPU, BatchedSeparate) {
   TestBatchedExtract(false, Padding::Zero, true, {});
 }
 
-TEST(ExtractVerticalWindowsGpu, BatchedConcatWindowFunc) {
+TEST(ExtractVerticalWindowsGPU, BatchedConcatWindowFunc) {
   vector<float> window(60);
   HannWindow(make_span(window));
   TestBatchedExtract(true, Padding::Zero, true, make_cspan(window));
 }
 
-TEST(ExtractVerticalWindowsGpu, BatchedSeparateWindowFunc) {
+TEST(ExtractVerticalWindowsGPU, BatchedSeparateWindowFunc) {
   vector<float> window(60);
   HammingWindow(make_span(window));
   TestBatchedExtract(false, Padding::Reflect, true, make_cspan(window));
 }
 
-TEST(ExtractVerticalWindowsGpu, BatchedSeparateWindowFuncPad) {
+TEST(ExtractVerticalWindowsGPU, BatchedSeparateWindowFuncPad) {
   vector<float> window(60);
   HammingWindow(make_span(window));
-  TestBatchedExtract(true, Padding::Reflect, false, make_cspan(window), 72);
+  TestBatchedExtract(true, Padding::Reflect, true, make_cspan(window), 72);
 }
 
-TEST(ExtractHorizontalWindowsGpu, BatchedConcat) {
+TEST(ExtractHorizontalWindowsGPU, BatchedConcat) {
   TestBatchedExtract(true, Padding::Reflect, false, {});
 }
 
-TEST(ExtractHorizontalWindowsGpu, BatchedSeparate) {
+TEST(ExtractHorizontalWindowsGPU, BatchedSeparate) {
   TestBatchedExtract(false, Padding::Zero, false, {});
 }
 
-TEST(ExtractHorizontalWindowsGpu, BatchedConcatWindowFunc) {
+TEST(ExtractHorizontalWindowsGPU, BatchedConcatWindowFunc) {
   vector<float> window(60);
   HannWindow(make_span(window));
   TestBatchedExtract(true, Padding::Zero, false, make_cspan(window));
 }
 
-TEST(ExtractHorizontalWindowsGpu, BatchedSeparateWindowFunc) {
+TEST(ExtractHorizontalWindowsGPU, BatchedSeparateWindowFunc) {
   vector<float> window(60);
   HammingWindow(make_span(window));
   TestBatchedExtract(false, Padding::Reflect, false, make_cspan(window));
 }
 
-TEST(ExtractHorizontalWindowsGpu, BatchedSeparateWindowFuncPad) {
+TEST(ExtractHorizontalWindowsGPU, BatchedSeparateWindowFuncPad) {
   vector<float> window(60);
   HammingWindow(make_span(window));
   TestBatchedExtract(false, Padding::Reflect, false, make_cspan(window), 72);
 }
 
-TEST(ExtractHorizontalWindowsGpu, BatchedConcatWindowFuncPad) {
+TEST(ExtractHorizontalWindowsGPU, BatchedConcatWindowFuncPad) {
   vector<float> window(60);
   HammingWindow(make_span(window));
   TestBatchedExtract(false, Padding::Reflect, true, make_cspan(window), 72);
 }
 
-TEST(ExtractHorizontalWindowsGpu, SizeSweep) {
+TEST(ExtractHorizontalWindowsGPU, SizeSweep) {
   int max_size = 2048;
   std::vector<TensorShape<1>> lengths;
   int step = 1;
@@ -269,8 +295,6 @@ TEST(ExtractHorizontalWindowsGpu, SizeSweep) {
   HammingWindow(make_span(window));
   TestBatchedExtract(shape, false, Padding::Reflect, false, make_cspan(window));
 }
-
-
 
 }  // namespace signal
 }  // namespace kernels

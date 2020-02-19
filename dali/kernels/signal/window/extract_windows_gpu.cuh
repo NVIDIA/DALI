@@ -339,7 +339,7 @@ struct ExtractWindowsImplGPU {
 
 /// @brief Extracts windows and stores them in columns
 template <typename Dst, typename Src>
-struct ExtractVerticalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
+struct ExtractVerticalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
   using SampleDesc = window::SampleDesc;
   using BlockDesc = window::BlockDesc;
 
@@ -472,7 +472,7 @@ struct ExtractVerticalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
 
 /// @brief Extracts windows and stores them in rows
 template <typename Dst, typename Src>
-struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
+struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
   using SampleDesc = window::SampleDesc;
   using BlockDesc = window::HorizontalBlockDesc;
   using PadBlock = window::PadHorizontalWindowsBlock;
@@ -501,13 +501,16 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
 
     constexpr int kDefaultBlockSize = 256;
     logical_block_size = kDefaultBlockSize;
-    int64_t max_len = 0;
+    int64_t max_padded_length = 0;
     int max_win_per_input = 0;
     for (int i = 0; i < N; i++) {
       int64_t length = lengths[i];
-      if (length > max_len)
-        max_len = length;
       int nwin = args.num_windows(length);
+
+      int64_t padded_length = static_cast<int64_t>(nwin-1) * args.window_step + args.window_length;
+      if (padded_length > max_padded_length)
+        max_padded_length = padded_length;
+
       if (nwin > max_win_per_input)
         max_win_per_input = nwin;
       total_windows += nwin;
@@ -515,12 +518,13 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
         out_shape.set_tensor_shape(i, { nwin, out_win_length });
       }
     }
+
     if (concatenate) {
       out_shape.set_tensor_shape(0, { total_windows, out_win_length });
     }
 
-    if (max_len <= kDefaultBlockSize) {
-      block_dim = logical_block_size = max_len;
+    if (max_padded_length <= kDefaultBlockSize) {
+      block_dim = logical_block_size = max_padded_length;
       grid_dim = N;
     } else {
       const int kMaxBlocks = 0x10000;
@@ -528,7 +532,7 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
         grid_dim = 0;
         for (int i = 0; i < N; i++) {
           ptrdiff_t nwin = args.num_windows(lengths[i]);
-          ptrdiff_t length = nwin * args.window_step + args.window_length;
+          ptrdiff_t length = (nwin-1) * args.window_step + args.window_length;
           grid_dim += div_ceil(length, logical_block_size);
         }
         if (grid_dim <= kMaxBlocks || grid_dim < 2 * N)
@@ -539,6 +543,7 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
     }
 
     pad_grid = dim3(0, 0, 0);
+    pad_block_size = 0;
     if (out_win_length > args.window_length && !concatenate) {
       int pad_length = out_win_length - args.window_length;
       int max_pad_block_x = 32;
@@ -608,7 +613,7 @@ struct ExtractHorizontalWindowsGpuImpl : ExtractWindowsImplGPU<Dst, Src> {
       // this is the number of samples covered by this block - it includes padding (if any)
       // but also takes into account that the end of the last window doesn't need to coincide
       // with the end of (padded) signal.
-      ptrdiff_t length_covered = nwindows * args.window_step + args.window_length;
+      ptrdiff_t length_covered = (nwindows - 1) * args.window_step + args.window_length;
       int nblk = div_ceil(nwindows, div_ceil(length_covered, logical_block_size));
 
       ptrdiff_t out_offset = concatenate ? total_windows * out_width : 0;
