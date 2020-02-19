@@ -21,21 +21,29 @@
 
 namespace dali {
 
+/**
+ * @brief A wrapper class for CUDA stream handle (cudaStream_t),
+ *
+ * The purpose of this class is to provide safe ownership and lifecycle management
+ * for CUDA stream handles.
+ * The stream object may be created using the factory functions @ref Create and
+ * @ref CreateWithPriority.
+ *
+ * The object may also assume ownership of a pre-existing handle via constructor or
+ * @link UniqueHandle::reset(handle_type) reset @endlink function.
+ */
 class DLL_PUBLIC CUDAStream : public UniqueHandle<cudaStream_t, CUDAStream>{
  public:
   DALI_INHERIT_UNIQUE_HANDLE(cudaStream_t, CUDAStream)
 
-  /**
-   *  @brief Creates a strean on specified device (or current device, if device_id < 0)
-   */
+  /// @brief Creates a strean on specified device (or current device, if device_id < 0)
   static CUDAStream Create(bool non_blocking, int device_id = -1);
 
-  /**
-   * @brief Creates a stream with given priority on specified device
-   *        (or current device, if device_id < 0)
-   */
+  /// @brief Creates a stream with given priority on specified device
+  ///        (or current device, if device_id < 0)
   static CUDAStream CreateWithPriority(bool non_blocking, int priority, int device_id = -1);
 
+  /// @brief Calls cudaStreamDestroy on the handle.
   static void DestroyHandle(cudaStream_t stream);
 };
 

@@ -28,11 +28,21 @@ namespace dali {
  * as equality comparison operators.
  *
  * @tparam HandleType  type of the handle, e.g. `int` for file descriptors or `FILE*` for buffers
- * @tparam Actual      derived class (if using CRTP) or a handle information class providing the
- *                     following interface:
- *                        * `static constexpr HandleType null_handle()` - returns a null handle
- *                        * `static void DestroyHandle(HandleType)` - frees underlying
- *                           resources
+ * @tparam Actual      derived class (if using CRTP) or a handle information class.
+ *
+ * The interface of the `Actual` type:
+ * ```
+ * static void DestroyHandle(HandleType h);    // free or un-reference the underlying resource
+ *
+ * static constexpr HandleType null_handle();  // return a null handle; when using CRTP it's
+ *                                             // optional and default implementation returns
+ *                                             // default-constructed handle value.
+ * ```
+ *
+ * The handle can be populated by either the explicit constructor or using
+ * @link reset(handle_type) reset @endlink
+ * function. The derived classes may provide other ways of constructing the handle or the entire
+ * handle wrapper object.
  *
  * @see CUDAEvent
  * @see CUDAStream
@@ -43,9 +53,9 @@ class UniqueHandle {
   using handle_type = HandleType;
 
   constexpr inline UniqueHandle() : handle_(Actual::null_handle()) {}
-  constexpr explicit UniqueHandle(handle_type handle) : handle_(handle) {}
 
-  constexpr operator handle_type() const noexcept { return handle_; }
+  /// @brief Constructs a handle wrapper, assuming ownership of given handle.
+  constexpr explicit UniqueHandle(handle_type handle) : handle_(handle) {}
 
   UniqueHandle(const UniqueHandle &) = delete;
 
@@ -61,7 +71,16 @@ class UniqueHandle {
     return *this;
   }
 
-  /// @brief Destroys the underlying resource and resets the handle to null value.
+  /// @brief Make the wrapper usable in most context in which the handle type can be used.
+  constexpr operator handle_type() const noexcept { return handle_; }
+
+  /**
+   * @brief Destroys the underlying resource and resets the handle to null value.
+   *
+   * @remarks
+   * * If the handle is already null, this function is a no-op.
+   * * The null value to replace the handle with, is taken from `Actual::null_value()`.
+   */
   inline void reset() {
     if (handle_ != Actual::null_handle()) {
       Actual::DestroyHandle(handle_);
@@ -69,8 +88,10 @@ class UniqueHandle {
     }
   }
 
-  /// @brief Replaces the managed handle by the new one and destroying the old handle.
-  /// @remarks If `handle` is equal to the currently managed handle, this function is no-op
+  /**
+   * @brief Replaces the managed handle by the new one and destroying the old handle.
+   * @remarks If `handle` is equal to the currently managed handle, this function is no-op
+   */
   inline void reset(handle_type handle) {
     if (handle != handle_) {
       reset();
@@ -78,14 +99,21 @@ class UniqueHandle {
     }
   }
 
-  constexpr inline bool operator==(const UniqueHandle &other) const noexcept {
-    return handle_ == other.handle_;
-  }
-  constexpr inline bool operator!=(const UniqueHandle &other) const noexcept {
-    return handle_ != other.handle_;
+  /**
+   * @brief Relinquishes the ownership of the handle.
+   *
+   * The function replaces the managed handle with a null value and returns the old value.
+   *
+   * @returns The old handle value, no longer managed by UniqueHandle
+   * @remarks The null value to replace the handle with, is taken from `Actual::null_value()`.
+   */
+  inline handle_type release() {
+    handle_type old = handle_;
+    handle_ = Actual::null_value();
+    return old;
   }
 
-  /// @brief Indicates whether the handle is non-null
+  /// @brief Indicates whether the handle is non-null.
   constexpr explicit operator bool() const noexcept {
     return handle_ != Actual::null_handle();
   }
@@ -105,8 +133,6 @@ class UniqueHandle {
 #define DALI_INHERIT_UNIQUE_HANDLE(HandleType, WrapperClass)\
   using dali::UniqueHandle<HandleType, WrapperClass>::UniqueHandle;\
   using dali::UniqueHandle<HandleType, WrapperClass>::operator=;\
-  using dali::UniqueHandle<HandleType, WrapperClass>::operator==;\
-  using dali::UniqueHandle<HandleType, WrapperClass>::operator!=;
 
 }  // namespace dali
 

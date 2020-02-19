@@ -21,6 +21,16 @@
 
 namespace dali {
 
+/**
+ * @brief A wrapper class for CUDA event handle (cudaEvent_t),
+ *
+ * The purpose of this class is to provide safe ownership and lifecycle management
+ * for CUDA event handles.
+ * The event object may be created using the factory functions @ref Create and @ref CreateWithFlags.
+ *
+ * The object may also assume ownership of a pre-existing handle via constructor or
+ * @link UniqueHandle::reset(handle_type) reset @endlink function.
+ */
 class DLL_PUBLIC CUDAEvent : public UniqueHandle<cudaEvent_t, CUDAEvent> {
  public:
   DALI_INHERIT_UNIQUE_HANDLE(cudaEvent_t, CUDAEvent)
@@ -32,6 +42,8 @@ class DLL_PUBLIC CUDAEvent : public UniqueHandle<cudaEvent_t, CUDAEvent> {
   /// @brief Creates an event event with specific flags on the device specified
   ///        (or current device, if device_id < 0)
   static CUDAEvent CreateWithFlags(unsigned flags, int device_id = -1);
+
+  /// @brief Calls cudaEventDestroy on the handle.
   static void DestroyHandle(cudaEvent_t);
 };
 
