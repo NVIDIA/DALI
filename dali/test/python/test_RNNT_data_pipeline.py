@@ -39,8 +39,6 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
                  preemph_coeff=.97,
                  lowfreq=0.0,
                  highfreq=0.0,
-                 # NO DITHER AND RESAMPLE
-                 # PREEMPH DZIALA INACZEJ
                  num_threads=1, exec_async=False, exec_pipelined=False):
         super().__init__(batch_size, num_threads, device_id,
                          exec_async=exec_async,
