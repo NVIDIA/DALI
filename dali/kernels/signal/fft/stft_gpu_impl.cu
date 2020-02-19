@@ -270,6 +270,10 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
   int calls = 0;
   size_t max_stream = 0;
   size_t stream_idx = 0;
+  bool first_round = true;
+  if (!main_stream_ready_)
+    main_stream_ready_ = CUDAEvent::Create();
+  CUDA_CALL(cudaEventRecord(main_stream_ready_, ctx.stream()));
   while (windows_left > 0) {
     auto it = plans_.upper_bound(max_plan);
     assert(it != plans_.begin());
@@ -278,6 +282,8 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
 
     max_stream = std::max(max_stream, stream_idx);
     PlanInfo &pi = it->second;
+    if (first_round)
+      CUDA_CALL(cudaStreamWaitEvent(streams_[stream_idx].stream, main_stream_ready_, 0));
     CUDA_CALL(cufftSetStream(pi.handle, streams_[stream_idx].stream));
     CUDA_CALL(cufftSetWorkArea(pi.handle, work[stream_idx]));
     CUDA_CALL(cufftExecR2C(pi.handle, fft_in + in_ofs, fft_out + out_ofs));
@@ -287,8 +293,10 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
     in_ofs += batch * transform_in_size();
     out_ofs += batch * transform_out_size();
     stream_idx++;
-    if (stream_idx >= streams_.size())
+    if (stream_idx >= streams_.size()) {
       stream_idx = 0;
+      first_round = false;
+    }
   }
   for (size_t i = 0; i < max_stream; i++) {
     CUDA_CALL(cudaEventRecord(streams_[i].event, streams_[i].stream));

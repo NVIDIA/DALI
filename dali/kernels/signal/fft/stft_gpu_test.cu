@@ -226,10 +226,11 @@ template <typename OutputType, FftSpectrumType spectrum_type, bool time_major>
 class StftImplGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
 : public ::testing::Test {
  public:
+  template <typename Kernel>
   void Run() {
     std::mt19937_64 rng(1234);
 
-    StftImplGPU stft;
+    Kernel stft;
 
     TensorListShape<1> in_shapes[] = {
       {{ 1000, 15, 35321, 2048, 11111, 20480 }},
@@ -265,7 +266,7 @@ class StftImplGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
       TestTensorList<OutputType, 2> out;
 
       KernelContext ctx;
-      KernelRequirements req = stft.Setup(ctx, make_span(lengths), args);
+      KernelRequirements req = stft.Setup(ctx, in_shape, args);
       ASSERT_EQ(req.output_shapes.size(), 1u);
       auto &out_shape = req.output_shapes[0];
       ASSERT_EQ(out_shape.num_samples(), N);
@@ -291,6 +292,16 @@ class StftImplGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
       Check(out_cpu, ref.cpu(), EqualEpsRel(1e-5, 1e-4));
     }
   }
+
+  void TestImpl() {
+    Run<StftImplGPU>();
+  }
+
+  void TestInterface() {
+    const bool is_float = std::is_same<OutputType, float>::value;
+    using Kernel = std::conditional_t<is_float, SpectrogramGPU, StftGPU>;
+    Run<Kernel>();
+  }
 };
 
 using StftTypes = ::testing::Types<
@@ -305,13 +316,13 @@ using StftTypes = ::testing::Types<
 TYPED_TEST_SUITE(StftImplGPUTest, StftTypes);
 
 
-TYPED_TEST(StftImplGPUTest, RunImpl) {
-  this->Run();
+TYPED_TEST(StftImplGPUTest, TestImpl) {
+  this->TestImpl();
 }
 
-/*TYPED_TEST(StftImplGPUTest, RunInterface) {
-  this->RunInterface();
-}*/
+TYPED_TEST(StftImplGPUTest, TestInterface) {
+  this->TestInterface();
+}
 
 
 }  // namespace fft

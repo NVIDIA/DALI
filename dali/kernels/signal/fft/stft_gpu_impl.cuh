@@ -38,6 +38,12 @@ class DLL_PUBLIC StftImplGPU {
  public:
   KernelRequirements Setup(KernelContext &ctx, span<const int64_t> lengths, const StftArgs &args);
 
+  KernelRequirements Setup(KernelContext &ctx,
+                           const TensorListShape<1> &lengths,
+                           const StftArgs &args) {
+    return Setup(ctx, make_span(lengths.shapes), args);
+  }
+
   void Run(KernelContext &ctx,
            const OutListGPU<complexf, 2> &out,
            const InListGPU<float, 1> &in,
@@ -106,6 +112,7 @@ class DLL_PUBLIC StftImplGPU {
     CUDAStream stream;
     CUDAEvent event;
   };
+  CUDAEvent main_stream_ready_;
   std::vector<Stream> streams_;
   size_t max_work_size_ = 0;
   static constexpr int kMaxStreams = 4;

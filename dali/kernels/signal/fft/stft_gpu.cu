@@ -30,7 +30,7 @@ kernels::KernelRequirements StftGPU::Setup(
   if (!impl)
     impl = std::make_unique<StftImplGPU>();
   DALI_ENFORCE(args.spectrum_type == FFT_SPECTRUM_COMPLEX);
-  return impl->Setup(ctx, make_span(in_shape.shapes), args);
+  return impl->Setup(ctx, in_shape, args);
 }
 
 void StftGPU::Run(
@@ -51,7 +51,7 @@ kernels::KernelRequirements SpectrogramGPU::Setup(
   if (!impl)
     impl = std::make_unique<StftImplGPU>();
   DALI_ENFORCE(args.spectrum_type != FFT_SPECTRUM_COMPLEX);
-  return impl->Setup(ctx, make_span(in_shape.shapes), args);
+  return impl->Setup(ctx, in_shape, args);
 }
 
 void SpectrogramGPU::Run(
