@@ -80,8 +80,6 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
                                       axes=[0], image_type=types.ANY_DATA)
         self.to_float = ops.Cast(dtype=types.FLOAT)
 
-        self.prt = ops.PythonFunction(function=lambda x: print(x), num_outputs=0)
-
     @staticmethod
     def _div_ceil(dividend, divisor):
         return (dividend + divisor - 1) // divisor
@@ -104,8 +102,6 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
 
     def remove_silence(self, input):
         begin, len = self.get_nonsilent_region(input)
-        self.prt(begin)
-        self.prt(len)
         out = self.trim_silence(input, self.to_float(begin), self.to_float(len))
         return out
 
