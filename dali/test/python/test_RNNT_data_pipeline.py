@@ -121,16 +121,16 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
 
         # DALI's preemph works a little bit different than the one in native code.
         # The difference occurs in first value in buffer.
-        # audio = self.preemph(audio)
+        audio = self.preemph(audio)
 
-        # audio = self.spectrogram(audio)
-        # audio = self.mel_fbank(audio)
-        # audio = self.log_features(audio)
-        # audio, audio_sh = self._splice_frames(audio)
+        audio = self.spectrogram(audio)
+        audio = self.mel_fbank(audio)
+        audio = self.log_features(audio)
+        audio, audio_sh = self._splice_frames(audio)
 
         # This normalization goes across ax=0, since
         # the frame splicing doesn't transpose the tensor back
-        # audio = self.normalize(audio)
+        audio = self.normalize(audio)
 
         # return audio.gpu(), label.gpu(), audio_sh.gpu()
         return audio.gpu()
@@ -148,21 +148,12 @@ def test_rnnt_data_pipeline():
     """
     data_path = os.path.join(dali_extra_path, "db", "audio", "rnnt_data_pipeline")
     reference_data = np.load(os.path.join(data_path, "output_data.npy"))[0]
-    print("Reference:", reference_data.shape, reference_data)
     pipe = RnntTrainPipeline(device_id=0, n_devices=1, file_root=data_path,
-                             file_list=os.path.join(data_path, "file_list.txt"),
-                             batch_size=1)
+                             file_list=os.path.join(data_path, "file_list.txt"), batch_size=1)
     pipe.build()
     dali_out = pipe.run()
     output_data = dali_out[0].as_cpu().at(0)
-    print("Output:", output_data.shape, output_data)
     output_data = np.transpose(output_data, (1, 0))
-    tmp = np.abs(reference_data - output_data).flatten()
-    print(tmp.shape)
-    cnt = 0
-    for i in tmp:
-        cnt = cnt if i < .01 else cnt + 1
-    print(cnt)
     assert reference_data.shape == output_data.shape
     size = reference_data.flatten().shape[0]
     assert np.sum(np.isclose(reference_data, output_data, atol=.01, rtol=0)) / size > .99
