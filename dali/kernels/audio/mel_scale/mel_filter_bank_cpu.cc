@@ -40,60 +40,24 @@ namespace audio {
 // the contributions on every window of the spectrogram (horizontal axis)
 //
 template <typename T, int Dims>
-class MelFilterBankCpu<T, Dims>::Impl {
+class MelFilterBankCpu<T, Dims>::Impl: public MelFilterImplBase<T, Dims> {
  public:
   template <typename MelScale>
-  Impl(MelScale mel_scale, const MelFilterBankArgs &args) : args_(args) {
-    assert(args.sample_rate > 0);
-    T freq_nyquist = args.sample_rate / 2;
-
-    assert(args.freq_low >= 0 && args.freq_low <= freq_nyquist);
-    T mel_low = mel_scale.hz_to_mel(args.freq_low);
-
-    assert(args.freq_high >= 0 && args.freq_high <= freq_nyquist);
-    T mel_high = mel_scale.hz_to_mel(args.freq_high);
-
-    int nfilter = args.nfilter;
-    assert(nfilter > 0);
-
-    int64_t nfft = args.nfft;
-    assert(nfft > 0);
-
-    double hz_step = args.sample_rate / nfft;
-    double mel_delta = (mel_high - mel_low) / (nfilter + 1);
-
-    int64_t fftbin_size = nfft / 2 + 1;
-    double inv_hz_step = 1.0f / hz_step;
-    fftbin_start_ = std::ceil(args.freq_low * inv_hz_step);
-    if (fftbin_start_ < 0)
-      fftbin_start_ = 0;
-    fftbin_end_ = std::floor(args.freq_high * inv_hz_step);
-    if (fftbin_end_ > fftbin_size-1)
-      fftbin_end_ = fftbin_size-1;
-
-    weights_down_.resize(fftbin_size);
-    intervals_.resize(fftbin_size, -1);
-    norm_factors_.resize(nfilter, T(1));
-    T mel0 = mel_low, mel1 = mel_low + mel_delta;
+  Impl(MelScale mel_scale, const MelFilterBankArgs &args)
+  : MelFilterImplBase<T, Dims>(mel_scale, args) {
+    intervals_.resize(fftbin_size_, -1);
+    T mel = mel_low_ + mel_delta_;
 
     int64_t fftbin = fftbin_start_;
-    T f = fftbin * hz_step;
+    T f = fftbin * hz_step_;
 
-    int last_interval = nfilter;
-    for (int64_t interval = 0; interval <= last_interval;
-         interval++, mel0 = mel1, mel1 += mel_delta) {
-      if (interval == last_interval)
-        mel1 = mel_high;
-      T f0 = mel_scale.mel_to_hz(mel0), f1 = mel_scale.mel_to_hz(mel1);
-      if (args.normalize && interval < nfilter) {
-        // Filters are normalized so that they have constant energy per band
-        T f2 = mel_scale.mel_to_hz(mel1 + mel_delta);
-        norm_factors_[interval] = T(2) / (f2 - f0);
+    int last_interval = args_.nfilter;
+    for (int64_t interval = 0; interval <= last_interval; interval++, mel += mel_delta_) {
+      if (interval == last_interval) {
+        mel = mel_high_;
       }
-      T slope = T(1) / (f1 - f0);
-
-      for (; fftbin <= fftbin_end_ && f < f1; fftbin++, f = fftbin * hz_step) {
-        weights_down_[fftbin] = (f1 - f) * slope;
+      T freq = mel_scale.mel_to_hz(mel);
+      for (; fftbin <= fftbin_end_ && f < freq; fftbin++, f = fftbin * hz_step_) {
         intervals_[fftbin] = interval;
       }
     }
@@ -108,7 +72,6 @@ class MelFilterBankCpu<T, Dims>::Impl {
       in_stride = nwindows;
 
     int nfilter = args_.nfilter;
-    int nfft = args_.nfft;
 
     std::memset(out, 0, sizeof(T) * nfilter * nwindows);
     for (int64_t fftbin = fftbin_start_; fftbin <= fftbin_end_; fftbin++) {
@@ -143,11 +106,8 @@ class MelFilterBankCpu<T, Dims>::Impl {
   }
 
  private:
-  MelFilterBankArgs args_;
-  std::vector<T> weights_down_;
   std::vector<int> intervals_;
-  std::vector<T> norm_factors_;
-  int64_t fftbin_start_ = -1, fftbin_end_ = -1;
+  USE_MEL_FILTER_IMPL_MEMBERS(T, Dims);
 };
 
 template <typename T, int Dims>
