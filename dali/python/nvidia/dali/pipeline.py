@@ -115,6 +115,7 @@ class Pipeline(object):
         self._default_cuda_stream_priority = default_cuda_stream_priority
         self._api_type = None
         self._skip_api_check = False
+        self._prev = None
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -185,6 +186,14 @@ class Pipeline(object):
         prev = Pipeline.current(False)
         pipeline_tls.current_pipeline = pipeline
         return prev
+
+    def __enter__(self):
+        prev = Pipeline.set_current(self)
+        self._prev.append(prev)
+        return self
+
+    def __exit__(self):
+        Pipeline.set_current(self._prev.pop())
 
     def add_sink(self, edge):
         """Allows to manual add of graph edges to the pipeline which are not connected to the output and all pruned
@@ -445,7 +454,7 @@ class Pipeline(object):
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
-    
+
     def run(self):
         """Run the pipeline and return the result.
 
