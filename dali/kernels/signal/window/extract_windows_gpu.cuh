@@ -461,6 +461,7 @@ struct ExtractVerticalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
       gpu_samples, gpu_blocks, windows_per_block,
       window.data, out_win_length, args.window_length, args.window_center,
       args.window_step, args.padding == Padding::Reflect);
+    CUDA_CALL(cudaGetLastError());
   }
 
   dim3 block_dim, grid_dim;
@@ -667,6 +668,7 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
       gpu_samples, gpu_blocks,
       window.data, args.window_length, args.window_center,
       args.window_step, args.padding == Padding::Reflect);
+    CUDA_CALL(cudaGetLastError());
 
     int padding_length = out_win_length - args.window_length;
     if (padding_length > 0) {
@@ -676,8 +678,8 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
       } else {
         assert(concatenate);
         auto stride = out.tensor_shape_span(0)[1];
-        cudaMemset2DAsync(out.tensor_data(0) + args.window_length,
-          stride * sizeof(Dst), 0, padding_length * sizeof(Dst), total_windows, ctx.gpu.stream);
+        CUDA_CALL(cudaMemset2DAsync(out.tensor_data(0) + args.window_length,
+          stride * sizeof(Dst), 0, padding_length * sizeof(Dst), total_windows, ctx.gpu.stream));
       }
     }
   }
