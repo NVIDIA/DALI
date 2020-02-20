@@ -425,7 +425,7 @@ SINK_PATH = tempfile.mkdtemp()
 
 
 def save(image):
-    Image.fromarray(image).save(SINK_PATH + '/sink_img' + str(time.clock()) + '.jpg', 'JPEG')
+    Image.fromarray(image).save(SINK_PATH + '/sink_img' + str(time.process_time()) + '.jpg', 'JPEG')
 
 
 def test_sink():
