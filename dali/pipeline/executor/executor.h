@@ -163,7 +163,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public WorkspacePolicy, public 
 
   int batch_size_, device_id_;
   size_t bytes_per_sample_hint_;
-  cudaEvent_t mixed_stage_event_, gpu_stage_event_;
+  cudaEvent_t mixed_stage_event_ = {};
+  cudaEvent_t gpu_stage_event_ = {};
 
   vector<string> output_names_;
 

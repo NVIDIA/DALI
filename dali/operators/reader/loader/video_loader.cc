@@ -219,7 +219,8 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
   if (!file_data->file_stream) {
     file_data->file_stream = fopen(file_data->filename.c_str(), "r");
     DALI_ENFORCE(file_data->file_stream, make_string("Could not open file ", file_data->filename));
-    fseek(file_data->file_stream, file_data->file_position, SEEK_SET);
+    int ret = fseek(file_data->file_stream, file_data->file_position, SEEK_SET);
+    DALI_ENFORCE(ret == 0, make_string("Could not open file ", file_data->filename));
   }
   return fread(buf, 1, buf_size, file_data->file_stream);
 }
@@ -231,7 +232,8 @@ static int64_t seek_file(void *opaque, int64_t offset, int whence) {
   if (!file_data->file_stream) {
     file_data->file_stream = fopen(file_data->filename.c_str(), "r");
     DALI_ENFORCE(file_data->file_stream, make_string("Could not open file ", file_data->filename));
-    fseek(file_data->file_stream, file_data->file_position, SEEK_SET);
+    int ret = fseek(file_data->file_stream, file_data->file_position, SEEK_SET);
+    DALI_ENFORCE(ret == 0, make_string("Could not open file ", file_data->filename));
   }
   int ret = -1;
   switch (whence) {

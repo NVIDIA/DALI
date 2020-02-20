@@ -17,6 +17,7 @@
 #include "dali/benchmark/dali_bench.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 
@@ -39,7 +40,7 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
       0, -1, pipelined, 2,
       async);
 
-  dali::string list_root(std::getenv("DALI_TEST_FILE_READER_LIST_ROOT"));
+  dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg/image_list.txt");
   pipe.AddOperator(
       OpSpec("FileReader")
       .AddArg("device", "cpu")

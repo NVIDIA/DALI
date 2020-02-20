@@ -17,6 +17,7 @@
 #include "dali/benchmark/dali_bench.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/util/image.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 
@@ -40,7 +41,7 @@ BENCHMARK_DEFINE_F(C2Alexnet, Caffe2Pipe)(benchmark::State& st) { // NOLINT
       0, -1, pipelined, 2,
       async);
 
-  dali::string path(std::getenv("DALI_TEST_CAFFE2_LMDB_PATH"));
+  dali::string path(testing::dali_extra_path() + "/db/c2lmdb");
   pipe.AddOperator(
       OpSpec("Caffe2Reader")
       .AddArg("device", "cpu")

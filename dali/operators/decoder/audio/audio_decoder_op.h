@@ -84,7 +84,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
 
   std::vector<float> target_sample_rates_;
   kernels::signal::resampling::Resampler resampler_;
-  DALIDataType output_type_, decode_type_;
+  DALIDataType output_type_ = DALI_NO_TYPE, decode_type_ = DALI_NO_TYPE;
   const bool downmix_ = false, use_resampling_ = false;
   const float quality_ = 50.0f;
   std::vector<std::string> files_names_;

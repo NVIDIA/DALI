@@ -270,7 +270,7 @@ struct ReduceBase {
   }
 
   void CheckOutput() {
-    if (axis_mask == static_cast<uint64_t>((1 << ndim()) - 1)) {
+    if (axis_mask == (static_cast<uint64_t>(1) << ndim()) - 1) {
       DALI_ENFORCE((output.dim() == 1 || output.dim() == input.dim()) && output.num_elements() == 1,
         make_string("Full reduction produces a single value (possibly keeping reduced dimensions)."
         "\nOutput shape provided: ", output.shape));
