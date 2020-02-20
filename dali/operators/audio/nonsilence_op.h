@@ -45,9 +45,9 @@ struct Args {
 
 /**
  * If the buffer is not silent, add window length to the actual result,
- * since the analysis is performed with reference to the beginning of the window
+ * since we don't know where in the window the non-silent signal is
  */
-void augment_result(std::pair<int, int> &thresholding_result, int window_length) {
+void extend_nonsilent_range(std::pair<int, int> &thresholding_result, int window_length) {
   if (thresholding_result.second != 0) {
     thresholding_result.second += window_length - 1;
   }
@@ -126,7 +126,7 @@ DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<Input
                                                                          : args.reference_power);
   auto ret = LeadTrailThresh(make_cspan(signal_mms.data, signal_mms.num_elements()),
                              dbc.db2signal(args.cutoff_db));
-  augment_result(ret, args.window_length);
+  extend_nonsilent_range(ret, args.window_length);
   return ret;
 }
 
