@@ -138,7 +138,7 @@ void StftImplGPU::CreatePlans(int64_t nwindows) {
     }
   }
 
-  CreateStreams(std::min<int>(plans_.size(), kMaxStreams + 0 /* clang bug */));
+  CreateStreams(plans_.size() /* clang bug */);
 }
 
 void StftImplGPU::CreateStreams(int new_num_streams) {
@@ -268,8 +268,8 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
   // to powers of 2.
 
   int calls = 0;
-  size_t max_stream = 0;
-  size_t stream_idx = 0;
+  int max_stream = -1;
+  int stream_idx = 0;
   bool first_round = true;
   if (!main_stream_ready_)
     main_stream_ready_ = CUDAEvent::Create();
@@ -293,12 +293,12 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
     in_ofs += batch * transform_in_size();
     out_ofs += batch * transform_out_size();
     stream_idx++;
-    if (stream_idx >= streams_.size()) {
+    if (stream_idx >= static_cast<int>(streams_.size())) {
       stream_idx = 0;
       first_round = false;
     }
   }
-  for (size_t i = 0; i < max_stream; i++) {
+  for (size_t i = 0; i <= max_stream; i++) {
     CUDA_CALL(cudaEventRecord(streams_[i].event, streams_[i].stream));
     CUDA_CALL(cudaStreamWaitEvent(ctx.stream(), streams_[i].event, 0));
   }

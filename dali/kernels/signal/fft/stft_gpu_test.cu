@@ -267,6 +267,7 @@ class StftImplGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
 
       KernelContext ctx;
       KernelRequirements req = stft.Setup(ctx, in_shape, args);
+      auto stream = ctx.gpu.stream;
       ASSERT_EQ(req.output_shapes.size(), 1u);
       auto &out_shape = req.output_shapes[0];
       ASSERT_EQ(out_shape.num_samples(), N);
@@ -282,10 +283,10 @@ class StftImplGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
       sa.Reserve(req.scratch_sizes);
       auto scratchpad = sa.GetScratchpad();
       ctx.scratchpad = &scratchpad;
-      auto window_gpu = window.gpu()[0];
+      auto window_gpu = window.gpu(stream)[0];
       out.reshape(convert_dim<2>(out_shape));
-      stft.Run(ctx, out.gpu(), in.gpu(), window_gpu);
-      TensorListView<StorageCPU, OutputType, 2> out_cpu = out.cpu();
+      stft.Run(ctx, out.gpu(stream), in.gpu(stream), window_gpu);
+      TensorListView<StorageCPU, OutputType, 2> out_cpu = out.cpu(stream);
 
       TestTensorList<OutputType, 2> ref;
       RefSpectrum(ref, in_cpu, args, window_span);

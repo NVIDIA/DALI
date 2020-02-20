@@ -19,8 +19,8 @@ pybind11_add_module(${dali_python_lib} MODULE ${DALI_PYTHON_BACKEND_SRCS})
 
 target_link_libraries(${dali_python_lib} PUBLIC
   ${dali_lib} ${dali_operator_lib} ${dali_kernel_lib} ${dali_core_lib} ${CUDART_LIB})
-target_link_libraries(${dali_python_lib} PRIVATE
-  ${CUDA_LIBRARIES})
+target_link_libraries(${dali_python_lib} PRIVATE ${CUDA_LIBRARIES})
+target_link_libraries(${dali_python_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
 # Set output directory for backend_impl
 set_target_properties(${dali_python_lib} PROPERTIES
