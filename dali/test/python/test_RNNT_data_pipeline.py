@@ -128,8 +128,7 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
         # the frame splicing doesn't transpose the tensor back
         audio = self.normalize(audio)
 
-        # return audio.gpu(), label.gpu(), audio_sh.gpu()
-        return audio.gpu()
+        return audio.gpu(), audio_sh.gpu()
 
 
 def test_rnnt_data_pipeline():
@@ -150,6 +149,8 @@ def test_rnnt_data_pipeline():
     dali_out = pipe.run()
     output_data = dali_out[0].as_cpu().at(0)
     output_data = np.transpose(output_data, (1, 0))
+    audio_len = dali_out[1].as_cpu().at(0)[0]
+    assert audio_len == reference_data.shape[1]
     assert reference_data.shape == output_data.shape
     size = reference_data.flatten().shape[0]
     assert np.sum(np.isclose(reference_data, output_data, atol=.01, rtol=0)) / size > .99
