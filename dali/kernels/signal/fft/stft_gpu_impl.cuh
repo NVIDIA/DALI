@@ -36,6 +36,12 @@ namespace fft {
 
 class DLL_PUBLIC StftImplGPU {
  public:
+  StftImplGPU();
+  StftImplGPU(StftImplGPU &&) = default;
+  StftImplGPU(const StftImplGPU &) = delete;
+  ~StftImplGPU();
+
+
   KernelRequirements Setup(KernelContext &ctx, span<const int64_t> lengths, const StftArgs &args);
 
   KernelRequirements Setup(KernelContext &ctx,
