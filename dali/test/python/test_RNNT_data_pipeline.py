@@ -22,6 +22,14 @@ import test_utils
 dali_extra_path = test_utils.get_dali_extra_path()
 
 
+# TODO remove
+def _op_splicing_pad(input, align=3):
+    axis = 1
+    align_size = align - input.shape[axis] % align - 1
+    out = np.pad(input, ((0, align_size), (0, 0)))
+    return out
+
+
 class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
     def __init__(self,
                  device_id,
@@ -72,8 +80,8 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
 
         self.splicing_transpose = ops.Transpose(device="cpu", perm=[1, 0])
         self.splicing_reshape = ops.Reshape(device="cpu", rel_shape=[-1, frame_splicing_factor])
-        self.splicing_pad = ops.Pad(axes=[0], fill_value=0, align=frame_splicing_factor,
-                                    device="cpu")
+        self.splicing_pad = ops.Pad(axes=[1], fill_value=0, align=frame_splicing_factor, device="cpu")
+        self.splicing_pad = ops.PythonFunction(function=_op_splicing_pad, num_outputs=1)  # TODO remove
 
         self.get_nonsilent_region = ops.NonsilentRegion(device="cpu", cutoff_db=silence_threshold)
         self.trim_silence = ops.Slice(device="cpu", normalized_anchor=False, normalized_shape=False,
@@ -141,16 +149,21 @@ def test_rnnt_data_pipeline():
     2. Since DALI, as an optimization, doesn't perform one transposition in frame splicing,
        the result from DALI pipeline has to be transposed to fit the reference data.
     """
+    batch_size = 2
     data_path = os.path.join(dali_extra_path, "db", "audio", "rnnt_data_pipeline")
-    reference_data = np.load(os.path.join(data_path, "output_data.npy"))[0]
+    ref_names = ["and_showed_itself_output.npy", "asked_her_father_output.npy"]
+    reference_data = [np.load(os.path.join(data_path, ref))[0] for ref in ref_names]
     pipe = RnntTrainPipeline(device_id=0, n_devices=1, file_root=data_path,
-                             file_list=os.path.join(data_path, "file_list.txt"), batch_size=1)
+                             file_list=os.path.join(data_path, "file_list.txt"),
+                             batch_size=batch_size)
     pipe.build()
     dali_out = pipe.run()
-    output_data = dali_out[0].as_cpu().at(0)
-    output_data = np.transpose(output_data, (1, 0))
-    audio_len = dali_out[1].as_cpu().at(0)[0]
-    assert audio_len == reference_data.shape[1]
-    assert reference_data.shape == output_data.shape
-    size = reference_data.flatten().shape[0]
-    assert np.sum(np.isclose(reference_data, output_data, atol=.01, rtol=0)) / size > .99
+    for sample_idx in range(batch_size):
+        output_data = dali_out[0].as_cpu().at(sample_idx)
+        output_data = np.transpose(output_data, (1, 0))
+        audio_len = dali_out[1].as_cpu().at(sample_idx)[0]
+        assert audio_len == reference_data[sample_idx].shape[1]
+        assert reference_data[sample_idx].shape == output_data.shape
+        size = reference_data[sample_idx].flatten().shape[0]
+        assert np.sum(
+            np.isclose(reference_data[sample_idx], output_data, atol=.01, rtol=0)) / size > .99
