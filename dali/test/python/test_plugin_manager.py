@@ -20,6 +20,7 @@ import nvidia.dali.plugin_manager as plugin_manager
 import unittest
 import os
 import numpy as np
+import tempfile
 
 test_bin_dir = os.path.dirname(dali.__file__) + "/test"
 batch_size = 4
@@ -79,8 +80,13 @@ class TestLoadedPlugin(unittest.TestCase):
             plugin_manager.load_library("not_a_dali_plugin.so")
 
     def test_load_existing_but_not_a_library(self):
+        tmp = tempfile.NamedTemporaryFile(delete = False)
+        for _ in range(10):
+            tmp.write(b"0xdeadbeef\n")
+        tmp.close()
         with self.assertRaises(RuntimeError):
-            plugin_manager.load_library( test_bin_dir + "/dali_test.bin" )
+            plugin_manager.load_library( tmp.name )
+        os.remove(tmp.name)
 
     def test_load_custom_operator_plugin(self):
         with self.assertRaises(AttributeError):
