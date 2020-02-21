@@ -15,6 +15,7 @@
 from nvidia.dali.backend_impl import *
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
+from nose.tools import assert_raises
 
 def test_create_tensor():
     arr = np.random.rand(3, 5, 6)
@@ -43,11 +44,17 @@ def test_empty_tensor_tensorlist():
 def test_tensorlist_getitem():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
+    list_of_tensors = [x for x in tensorlist]
+
     assert(type(tensorlist.at(0)) == np.ndarray)
     assert(type(tensorlist[0]) != np.ndarray)
     assert(type(tensorlist[0]) == TensorCPU)
     assert(type(tensorlist[-3]) == TensorCPU)
-
+    assert(len(list_of_tensors) == len(tensorlist))
+    with assert_raises(IndexError):
+        tensorlist[len(tensorlist)]
+    with assert_raises(IndexError):
+        tensorlist[-len(tensorlist) - 1]
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
 #def test_tensorlist_getitem_slice():

@@ -225,11 +225,12 @@ void ExposeTensor(py::module &m) {
 
 template <typename Backend>
 std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, Index id) {
+  int num_tensors = static_cast<int>(t.ntensor());
   if (id < 0) {
-    int num_tensors = static_cast<int>(t.ntensor());
-    if (id < -num_tensors)
-      throw py::index_error("TensorListCPU index out of range");
     id = num_tensors + id;
+  }
+  if (id >= num_tensors || id < 0) {
+      throw py::index_error("TensorListCPU index out of range");
   }
   std::unique_ptr<Tensor<Backend>> ptr(new Tensor<Backend>());
   ptr->ShareData(&t, id);
