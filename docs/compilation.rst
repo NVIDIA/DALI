@@ -240,7 +240,7 @@ Obtain test data
 
 .. _DALI_extra_link: https://github.com/NVIDIA/DALI_extra#nvidia-dali
 
-You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data. To download it follow :ref:`DALI_extra_link`.
+You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data. To download it follow `DALI_extra README <https://github.com/NVIDIA/DALI_extra#nvidia-dali>`_.
 
 
 Set test data path
