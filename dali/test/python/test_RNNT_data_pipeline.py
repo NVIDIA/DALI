@@ -22,7 +22,7 @@ import test_utils
 dali_extra_path = test_utils.get_dali_extra_path()
 
 
-# TODO remove
+# TODO(mszolucha): remove when Pad is fixed
 def _op_splicing_pad(input, align=3):
     axis = 1
     align_size = align - input.shape[axis] % align - 1
@@ -81,7 +81,7 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
         self.splicing_transpose = ops.Transpose(device="cpu", perm=[1, 0])
         self.splicing_reshape = ops.Reshape(device="cpu", rel_shape=[-1, frame_splicing_factor])
         self.splicing_pad = ops.Pad(axes=[1], fill_value=0, align=frame_splicing_factor, device="cpu")
-        self.splicing_pad = ops.PythonFunction(function=_op_splicing_pad, num_outputs=1)  # TODO remove
+        self.splicing_pad = ops.PythonFunction(function=_op_splicing_pad, num_outputs=1)  # TODO(mszolucha): remove when Pad is fixed
 
         self.get_nonsilent_region = ops.NonsilentRegion(device="cpu", cutoff_db=silence_threshold)
         self.trim_silence = ops.Slice(device="cpu", normalized_anchor=False, normalized_shape=False,
