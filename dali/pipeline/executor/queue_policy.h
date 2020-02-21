@@ -163,6 +163,10 @@ struct UniformQueuePolicy {
     free_cond_.notify_all();
   }
 
+  std::mutex& GetReadyMutex() {
+    return ready_mutex_;
+  }
+
   void SignalStop() {
     {
       std::lock_guard<std::mutex> lock(ready_mutex_);
@@ -346,6 +350,10 @@ struct SeparateQueuePolicy {
     }
   }
 
+  std::mutex& GetReadyMutex() {
+    return ready_output_mutex_;
+  }
+
   void SignalStop() {
     {
       std::lock_guard<std::mutex> lock(ready_output_mutex_);
@@ -414,7 +422,7 @@ struct SeparateQueuePolicy {
 
   std::condition_variable ready_output_cv_, free_cond_;
   // Output ready and in_use mutexes and queues
-  std::mutex ready_output_mutex_, in_use_mutex_;
+  std::mutex ready_output_mutex_;
 
   std::queue<OutputIdxs> ready_output_queue_;
   std::queue<OutputIdxs> in_use_queue_;

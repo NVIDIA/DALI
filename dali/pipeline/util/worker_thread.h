@@ -97,10 +97,11 @@ class WorkerThread {
       WaitForWork();
 
       // Mark the thread as not running
-      std::unique_lock<std::mutex> lock(mutex_);
-      running_ = false;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        running_ = false;
+      }
       cv_.notify_one();
-      lock.unlock();
     } else {
       ForceStop();
     }
@@ -112,9 +113,11 @@ class WorkerThread {
   }
 
   inline void DoWork(Work work) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    work_queue_.push(std::move(work));
-    work_complete_ = false;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      work_queue_.push(std::move(work));
+      work_complete_ = false;
+    }
     cv_.notify_one();
   }
 
@@ -129,26 +132,28 @@ class WorkerThread {
       string error = "Error in worker thread: " +
         errors_.front();
       errors_.pop();
-      lock.unlock();
       running_ = false;
+      lock.unlock();
       cv_.notify_all();
       throw std::runtime_error(error);
     }
   }
 
   inline void ForceStop() {
-    running_ = false;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      running_ = false;
+    }
     barrier_.Break();
     cv_.notify_all();
   }
 
   inline void CheckForErrors() {
-    std::unique_lock<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     if (!errors_.empty()) {
       string error = "Error in worker thread: " +
         errors_.front();
       errors_.pop();
-      lock.unlock();
     }
   }
 
@@ -168,9 +173,11 @@ class WorkerThread {
       }
     } catch (std::exception &e) {
       errors_.push(e.what());
+      std::lock_guard<std::mutex> lock(mutex_);
       running_ = false;
     } catch (...) {
       errors_.push("Unknown exception");
+      std::lock_guard<std::mutex> lock(mutex_);
       running_ = false;
     }
 
@@ -197,15 +204,15 @@ class WorkerThread {
         cout << std::this_thread::get_id() << " Exception in thread: " << e.what() << endl;
         lock.lock();
         errors_.push(e.what());
-        lock.unlock();
         running_ = false;
+        lock.unlock();
         break;
       } catch (...) {
         cout << std::this_thread::get_id() << " Exception in thread" << endl;
         lock.lock();
         errors_.push("Caught unknown exception in thread.");
-        lock.unlock();
         running_ = false;
+        lock.unlock();
         break;
       }
 
