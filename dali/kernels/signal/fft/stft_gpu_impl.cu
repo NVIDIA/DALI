@@ -21,9 +21,6 @@ namespace kernels {
 namespace signal {
 namespace fft {
 
-StftImplGPU::StftImplGPU() = default;
-StftImplGPU::~StftImplGPU() = default;
-
 void StftImplGPU::Reset() {
   plans_.clear();
   post_complex_.reset();

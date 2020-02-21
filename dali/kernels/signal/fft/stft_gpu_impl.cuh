@@ -34,12 +34,11 @@ namespace kernels {
 namespace signal {
 namespace fft {
 
-class DLL_PUBLIC StftImplGPU {
+class StftImplGPU {
  public:
-  StftImplGPU();
+  StftImplGPU() = default;
   StftImplGPU(StftImplGPU &&) = default;
   StftImplGPU(const StftImplGPU &) = delete;
-  ~StftImplGPU();
 
 
   KernelRequirements Setup(KernelContext &ctx, span<const int64_t> lengths, const StftArgs &args);

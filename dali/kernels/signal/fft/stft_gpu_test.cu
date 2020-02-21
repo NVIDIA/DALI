@@ -15,12 +15,15 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <vector>
-#include "dali/kernels/signal/fft/stft_gpu_impl.cuh"
+#include <cmath>
+#include <complex>
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/signal/window/window_functions.h"
 #include "dali/kernels/signal/fft/fft_test_ref.h"
+#include "dali/kernels/signal/fft/stft_gpu.h"
+#include "dali/kernels/signal/fft/fft_postprocess.cuh"
 #include "dali/core/boundary.h"
 
 namespace dali {
@@ -141,9 +144,9 @@ void RefSpectrum(TestTensorList<T, 2> &ref_out, const InListCPU<float, 1> &in,
   RefSpectrum(ref_out.cpu(), in, args, window);
 }
 
-TEST(StftImplGPU, Setup) {
-  StftImplGPU stft;
-  int64_t lengths[] = { 100, 1000, 13, 45 };
+TEST(StftGPU, Setup) {
+  StftGPU stft;
+  TensorListShape<1> lengths = {{ 100, 1000, 13, 45 }};
   StftArgs args;
   args.axis = 0;
   args.spectrum_type = FFT_SPECTRUM_COMPLEX;
@@ -154,12 +157,12 @@ TEST(StftImplGPU, Setup) {
     args.time_major_layout = time_major;
 
     KernelContext ctx;
-    KernelRequirements req = stft.Setup(ctx, make_span(lengths), args);
+    KernelRequirements req = stft.Setup(ctx, lengths, args);
     ASSERT_EQ(req.output_shapes.size(), 1u);
     auto &o_shape = req.output_shapes[0];
     ASSERT_EQ(o_shape.num_samples(), 4);
     for (int i = 0; i < 4; i++) {
-      TensorShape<2> ts = { args.num_windows(lengths[i]), args.window_length / 2 + 1 };
+      TensorShape<2> ts = { args.num_windows(lengths.shapes[i]), args.window_length / 2 + 1 };
       if (!time_major)
         std::swap(ts[0], ts[1]);
       EXPECT_EQ(o_shape[i], ts);
@@ -217,13 +220,13 @@ void GenerateTestWave(RNG &rng, float *out, int length, int num_sounds, int max_
 }
 
 template <typename Params>
-class StftImplGPUTest;
+class StftGPUTest;
 
 template <typename OutputType, FftSpectrumType spectrum_type, bool time_major>
 struct StftTestParams {};
 
 template <typename OutputType, FftSpectrumType spectrum_type, bool time_major>
-class StftImplGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
+class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
 : public ::testing::Test {
  public:
   template <typename Kernel>
@@ -294,11 +297,7 @@ class StftImplGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
     }
   }
 
-  void TestImpl() {
-    Run<StftImplGPU>();
-  }
-
-  void TestInterface() {
+  void TestBatched() {
     const bool is_float = std::is_same<OutputType, float>::value;
     using Kernel = std::conditional_t<is_float, SpectrogramGPU, StftGPU>;
     Run<Kernel>();
@@ -314,15 +313,12 @@ using StftTypes = ::testing::Types<
   StftTestParams<float, FFT_SPECTRUM_POWER, true>
 >;
 
-TYPED_TEST_SUITE(StftImplGPUTest, StftTypes);
+TYPED_TEST_SUITE(StftGPUTest, StftTypes);
 
 
-TYPED_TEST(StftImplGPUTest, TestImpl) {
-  this->TestImpl();
-}
 
-TYPED_TEST(StftImplGPUTest, TestInterface) {
-  this->TestInterface();
+TYPED_TEST(StftGPUTest, TestBatched) {
+  this->TestBatched();
 }
 
 

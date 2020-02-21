@@ -21,6 +21,8 @@ namespace kernels {
 namespace signal {
 namespace fft {
 
+StftGPU::StftGPU() = default;
+StftGPU::StftGPU(StftGPU &&) = default;
 StftGPU::~StftGPU() = default;
 
 kernels::KernelRequirements StftGPU::Setup(
@@ -42,6 +44,8 @@ void StftGPU::Run(
   impl->Run(ctx, out, in, window);
 }
 
+SpectrogramGPU::SpectrogramGPU() = default;
+SpectrogramGPU::SpectrogramGPU(SpectrogramGPU &&) = default;
 SpectrogramGPU::~SpectrogramGPU() = default;
 
 kernels::KernelRequirements SpectrogramGPU::Setup(

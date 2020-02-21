@@ -51,6 +51,8 @@ class StftImplGPU;
 
 class DLL_PUBLIC StftGPU {
  public:
+  StftGPU();
+  StftGPU(StftGPU &&);
   ~StftGPU();
   kernels::KernelRequirements Setup(
     KernelContext &ctx,
@@ -69,6 +71,8 @@ class DLL_PUBLIC StftGPU {
 
 class DLL_PUBLIC SpectrogramGPU {
  public:
+  SpectrogramGPU();
+  SpectrogramGPU(SpectrogramGPU &&);
   ~SpectrogramGPU();
   kernels::KernelRequirements Setup(
     KernelContext &ctx,
