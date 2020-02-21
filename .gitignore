@@ -18,3 +18,4 @@ compile_debug
 cmake-build-*
 ./data
 qnx/
+docs/_build
