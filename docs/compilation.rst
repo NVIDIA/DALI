@@ -88,7 +88,7 @@ Prerequisites
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
 .. _lmdb link: https://github.com/LMDB/lmdb
-.. |gcc link| replace:: **GCC 4.9.2**
+.. |gcc link| replace:: **GCC 5.3**
 .. _gcc link: https://www.gnu.org/software/gcc/
 .. |boost link| replace:: **Boost 1.66**
 .. _boost link: https://www.boost.org/
