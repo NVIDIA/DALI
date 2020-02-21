@@ -55,7 +55,9 @@ TEST_F(NonsilenceOpTest, DetectNonsilenceRegionTest) {
   auto nonsilence_region = detail::DetectNonsilenceRegion<float>(intermediate_buffer,
                                                                  {in, 0, 1.f, false,
                                                                   this->window_size_, -1});
-  ASSERT_EQ(nonsilence_region, nonsilence_region_);
+  // It's impossible to figure out where within the window the nonsilent region begins and ends
+  EXPECT_PRED2(EqualEps(this->window_size_), nonsilence_region.first, nonsilence_region_.first);
+  EXPECT_PRED2(EqualEps(this->window_size_), nonsilence_region.second, nonsilence_region_.second);
 }
 
 
