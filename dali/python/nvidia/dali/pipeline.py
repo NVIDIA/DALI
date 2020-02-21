@@ -115,7 +115,7 @@ class Pipeline(object):
         self._default_cuda_stream_priority = default_cuda_stream_priority
         self._api_type = None
         self._skip_api_check = False
-        self._prev = None
+        self._graph_out = None
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -173,27 +173,38 @@ class Pipeline(object):
         return self._pipe.epoch_size()
 
     @staticmethod
-    def current(raise_error_if_none = True):
-        pipeline = getattr(pipeline_tls, 'current_pipeline', None)
-        if raise_error_if_none and (pipeline is None):
-            raise RuntimeError("Unknown pipeline! "
-                               "Graph edges must be created from within `define_graph` "
-                               "or Pipeline.set_current() must be explicitly used.")
-        return pipeline
+    def current():
+        return getattr(pipeline_tls, 'current_pipeline', None)
 
     @staticmethod
-    def set_current(pipeline):
-        prev = Pipeline.current(False)
+    def _raise_pipeline_required(op_name):
+        raise RuntimeError("Unknown pipeline!\n" +
+            op_name + " operator must be used inside `define_graph` or "
+            "current pipeline must be explicitly set using Pipeline.push_current or "
+            "using `with` statement.");
+
+    @staticmethod
+    def push_current(pipeline):
+        prev = Pipeline.current()
         pipeline_tls.current_pipeline = pipeline
+        stack = getattr(pipeline_tls, 'pipeline_stack', None)
+        if stack is None:
+            pipeline_tls.pipeline_stack = [prev]
+        else:
+            stack.append(prev)
+        pipeline_tls.prev_pipeline = pipeline
         return prev
 
+    def pop_current():
+        return pipeline_tls.pipeline_stack.pop()
+
     def __enter__(self):
-        prev = Pipeline.set_current(self)
-        self._prev.append(prev)
+        Pipeline.push_current(self)
         return self
 
-    def __exit__(self):
-        Pipeline.set_current(self._prev.pop())
+    def __exit__(self, exception_type, exception_value, traceback):
+        Pipeline.pop_current()
+
 
     def add_sink(self, edge):
         """Allows to manual add of graph edges to the pipeline which are not connected to the output and all pruned
@@ -255,9 +266,12 @@ class Pipeline(object):
                                 self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
-        prev_pipeline = Pipeline.set_current(self)
-        outputs = self.define_graph()
-        Pipeline.set_current(prev_pipeline)
+
+        with self:
+            if self._graph_out:
+                outputs = self._graph_out
+            else:
+                outputs = self.define_graph()
         if (not isinstance(outputs, tuple) and
             not isinstance(outputs, list)):
             outputs = (outputs,)
@@ -302,8 +316,10 @@ class Pipeline(object):
 
         # Add the ops to the graph and build the backend
         related_logical_id = {}
+        self._ops = []
         while ops:
             op = ops.pop()
+            self._ops.append(op)
             if op.relation_id not in related_logical_id:
                 related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
             else:
@@ -311,7 +327,7 @@ class Pipeline(object):
         self._prepared = True
         self._names_and_devices = [(e.name, e.device) for e in outputs]
 
-    def build(self):
+    def build(self, define_graph = None):
         """Build the pipeline.
 
         Pipeline needs to be built in order to run it standalone.
@@ -333,17 +349,21 @@ class Pipeline(object):
         inside of `iter_setup` method"""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        Edge._validate_edge_reference(ref)
+        if isinstance(ref, str):
+            name = ref
+        else:
+            Edge._validate_edge_reference(ref)
+            name = ref.name
         if isinstance(data, list):
             if self._batch_size != len(data):
                 raise RuntimeError("Data list provided to feed_input needs to have batch_size length")
             inputs = []
             for datum in data:
                 inputs.append(Tensors.TensorCPU(datum, layout))
-            self._pipe.SetExternalTensorInput(ref.name, inputs)
+            self._pipe.SetExternalTensorInput(name, inputs)
         else:
             inp = Tensors.TensorListCPU(data, layout)
-            self._pipe.SetExternalTLInput(ref.name, inp)
+            self._pipe.SetExternalTLInput(name, inp)
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""
@@ -487,7 +507,7 @@ class Pipeline(object):
         this function will return without waiting for the execution to end."""
         try:
             if not self._last_iter:
-                self.iter_setup()
+                self._iter_setup()
                 self._batches_to_consume += 1
             # Special case to prevent a deadlock if user didn't release the only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
@@ -502,7 +522,7 @@ class Pipeline(object):
         """
         try:
             if not self._last_iter:
-                self.iter_setup()
+                self._iter_setup()
                 self._batches_to_consume += 1
                 self._run_cpu()
                 if stage_name == "cpu":
@@ -593,12 +613,29 @@ class Pipeline(object):
             raise RuntimeError("Pipeline must be built first.")
         self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
 
+    def set_outputs(self, *outputs):
+        """This function is an alternative way to specify the output data nodes of the pipeline."""
+        self._graph_out = outputs
+
     def define_graph(self):
         """This function is defined by the user to construct the
         graph of operations for their pipeline.
 
         It returns a list of outputs created by calling DALI Operators."""
         raise NotImplementedError
+
+    def _iter_setup(self):
+        for op in self._ops:
+            callback = getattr(op._op, "_callback", None)
+            if callback is not None:
+                r = callback()
+                if isinstance(r, tuple):
+                    data, layout = r
+                else:
+                    data = r
+                    layout = ""
+                self.feed_input(op._name, data, layout)
+        self.iter_setup()
 
     def iter_setup(self):
         """This function can be overriden by user-defined

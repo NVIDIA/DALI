@@ -27,6 +27,13 @@ from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
 
 
+cupy = None
+def _setup_cupy():
+    global cupy
+    if cupy is None:
+        import cupy as cupy
+
+
 class _EdgeReference(object):
     def __init__(self, name, device="cpu", source=None):
         self.name = name
@@ -108,8 +115,10 @@ _cpu_ops = set({})
 _gpu_ops = set({})
 _mixed_ops = set({})
 
-def _numpydoc_formatter(name, type, doc):
+def _numpydoc_formatter(name, type, doc, optional = False):
     indent = "\n" + " " * 4
+    if optional:
+        type += ", optional"
     return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
 
 def _get_kwargs(schema, only_tensor = False):
@@ -119,9 +128,9 @@ def _get_kwargs(schema, only_tensor = False):
     `schema`
         the schema in which to lookup arguments
     `only_tensor`: bool
-        If True list only keyword arguments that can be passed as Tensors (argument inputs)
+        If True list only keyword arguments that can be passed as TensorLists (argument inputs)
         If False list all the arguments. False indicates that we list arguments to the
-        constructor of the operator which does not accept Tensors (argument inputs) - that
+        constructor of the operator which does not accept TensorLists (argument inputs) - that
         fact will be reflected in specified type
     """
     ret = ""
@@ -215,7 +224,8 @@ Args
 ----
 """
     for i in range(schema.MaxNumInput()):
-        ret += _numpydoc_formatter(schema.GetInputName(i), schema.GetInputType(i), schema.GetInputDox(i))
+        optional = i >= schema.MinNumInput()
+        ret += _numpydoc_formatter(schema.GetInputName(i), schema.GetInputType(i), schema.GetInputDox(i), optional)
         ret += "\n"
     ret += "\n"
     return ret
@@ -223,13 +233,13 @@ Args
 def _docstring_prefix_auto(op_name):
     """
         Generate start of the docstring for `__call__` of Operator `op_name`
-        with default values. Assumes ther will be 0 or 1 inputs
+        with default values. Assumes there will be 0 or 1 inputs
     """
     schema = b.GetSchema(op_name)
     if schema.MaxNumInput() == 0:
         return """__call__(**kwargs)
 
-Operator call to be used in `define_graph` step. This operator does not accept any Tensor inputs.
+Operator call to be used in `define_graph` step. This operator does not accept any TensorList inputs.
 """
     elif schema.MaxNumInput() == 1:
         return """__call__(data, **kwargs)
@@ -238,7 +248,7 @@ Operator call to be used in `define_graph` step.
 
 Args
 ----
-`data`: Tensor
+`data`: TensorList
     Input to the operator.
 """
     return ""
@@ -343,6 +353,8 @@ class _OperatorInstance(object):
 
     def generate_outputs(self):
         pipeline = Pipeline.current()
+        if pipeline is None and self._op.preserve:
+            Pipeline._raise_pipeline_required("Operators with side-effects ")
         # Add outputs
         if self._op.device == "gpu" or self._op.device == "mixed":
             output_device = "gpu"
@@ -357,7 +369,9 @@ class _OperatorInstance(object):
             return
 
         for i in range(num_output):
-            t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_output_" + str(i)
+            t_name = self._name
+            if num_output > 1:
+                t_name += "_" + str(i)
             t = _EdgeReference(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
             if self._op.preserve:
@@ -651,8 +665,7 @@ Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op
 def _wrap_op(op_class):
     wrapper_name = _to_snake_case(op_class.__name__)
     if not hasattr(sys.modules[__name__], wrapper_name):
-        setattr(sys.modules[__name__], wrapper_name,
-                _wrap_op_fn(op_class))
+        setattr(sys.modules[__name__], wrapper_name, _wrap_op_fn(op_class))
 
 
 def _load_ops():
@@ -667,8 +680,18 @@ def _load_ops():
         if not hasattr(sys.modules[__name__], op_name):
             op_class = python_op_factory(op_name, op_device = "cpu")
             setattr(sys.modules[__name__], op_name, op_class)
-            _wrap_op(op_class)
+            if op_name not in ["ExternalSource"]:
+                _wrap_op(op_class)
+
 _load_ops()
+
+def external_source(callback = None, *, name = None):
+    op = nvidia.dali.ops.ExternalSource()
+    op._callback = callback
+    if name is not None:
+        return op(name = name)
+    else:
+        return op()
 
 def Reload():
     _load_ops()
@@ -728,7 +751,10 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         feature_names = []
         features = []
         for i, (feature_name, feature) in enumerate(self._features.items()):
-            t_name = "_TFRecordReader" + "_id_" + str(op_instance.id) + "_output_" + str(i)
+            t_name = op_instance._name
+            if len(self._features.items()) > 1:
+                t_name += "_" + str(i)
+
             t = _EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
@@ -773,6 +799,8 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
 
     def __call__(self, *inputs, **kwargs):
         pipeline = Pipeline.current()
+        if pipeline is None:
+            Pipeline._raise_pipeline_required("PythonFunction operator")
         if pipeline.exec_async or pipeline.exec_pipelined:
             raise RuntimeError("PythonFunction can be used only in pipelines with `exec_async` and "
                                "`exec_pipelined` set to False.")
@@ -801,8 +829,12 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
             pipeline.add_sink(t)
             return
         outputs = []
+
+
         for i in range(self.num_outputs):
-            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_output_" + str(i)
+            t_name = op_instance._name
+            if self.num_outputs > 1:
+                t_name += "_" + str(i)
             t = _EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
@@ -821,7 +853,9 @@ def _dlpack_from_array(array):
 
 class PythonFunction(PythonFunctionBase):
     global _cpu_ops
+    global _gpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
+    _gpu_ops = _gpu_ops.union({'PythonFunction'})
 
     @staticmethod
     def current_stream():
@@ -854,20 +888,44 @@ class PythonFunction(PythonFunctionBase):
     def _function_wrapper_cpu(batch_processing, function, *dlpack_inputs):
         if batch_processing:
             return PythonFunction.function_wrapper_batch(function, _dlpack_to_array,
-                                                             _dlpack_from_array, *dlpack_inputs)
+                                                         _dlpack_from_array, *dlpack_inputs)
         else:
             return PythonFunction.function_wrapper_per_sample(function, _dlpack_to_array,
-                                                                  _dlpack_from_array,
-                                                                  *dlpack_inputs)
+                                                              _dlpack_from_array,
+                                                              *dlpack_inputs)
+
+    @staticmethod
+    def _cupy_stream_wrapper(function, *inputs):
+        stream = cupy.cuda.Stream(null=True)
+        stream.ptr = PythonFunction.current_stream().ptr
+        with stream:
+            out = function(*inputs)
+        stream.ptr = 0
+        return out
+
+    @staticmethod
+    def _function_wrapper_gpu(batch_processing, function, *dlpack_inputs):
+        def wrapped_func(*inputs):
+            return PythonFunction._cupy_stream_wrapper(function, *inputs)
+        if batch_processing:
+            return PythonFunction.function_wrapper_batch(wrapped_func, cupy.fromDlpack,
+                                                         lambda t: t.toDlpack(), *dlpack_inputs)
+        else:
+            return PythonFunction.function_wrapper_per_sample(wrapped_func, cupy.fromDlpack,
+                                                              lambda t: t.toDlpack(),
+                                                              *dlpack_inputs)
 
     def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
+        if device == 'gpu':
+            _setup_cupy()
+        func = (lambda *ts: PythonFunction._function_wrapper_cpu(batch_processing, function, *ts))\
+               if device == 'cpu' else \
+               (lambda *ts: PythonFunction._function_wrapper_gpu(batch_processing, function, *ts))
         super(PythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                                             function=lambda *ins:
-                                             PythonFunction._function_wrapper_cpu(batch_processing,
-                                                                                  function, *ins),
+                                             function=func,
                                              num_outputs=num_outputs, device=device,
+                                             synchronize_stream=False,
                                              batch_processing=batch_processing, **kwargs)
-
 
 
 class DLTensorPythonFunction(PythonFunctionBase):
@@ -1029,6 +1087,12 @@ def gpu_ops():
 def mixed_ops():
     return _mixed_ops
 
+
 def register_cpu_op(name):
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({name})
+
+
+def register_gpu_op(name):
+    global _gpu_ops
+    _gpu_ops = _gpu_ops.union({name})
