@@ -91,15 +91,15 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
       PipelinedExecutor::Outputs(ws);
     } catch (std::exception &e) {
       exec_error_ = true;
+      SignalStop();
       mixed_work_cv_.notify_all();
       gpu_work_cv_.notify_all();
-      SignalStop();
       throw;
     } catch (...) {
       exec_error_ = true;
+      SignalStop();
       mixed_work_cv_.notify_all();
       gpu_work_cv_.notify_all();
-      SignalStop();
       throw std::runtime_error("Unknown critical error in pipeline");
     }
   }
@@ -113,7 +113,6 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
 
   WorkerThread cpu_thread_, mixed_thread_, gpu_thread_;
   int cpu_work_counter_ = 0, mixed_work_counter_ = 0, gpu_work_counter_ = 0;
-  std::mutex cpu_mutex_, mixed_mutex_, gpu_mutex_;
   std::condition_variable mixed_work_cv_, gpu_work_cv_;
   int device_id_;
 };
