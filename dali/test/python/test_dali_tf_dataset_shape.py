@@ -26,7 +26,7 @@ def dali_pipe_batch_1(shapes, types, as_single_tuple = False):
 
     pipe = TestPipeline(batch_size=1, seed=0)
     ds = dali_tf.DALIDataset(pipe, batch_size=1, output_dtypes=types, output_shapes=shapes)
-    # for clarity, we could use the previous `pipe`
+    # for clarity, we could have used the previous `pipe`
     pipe_ref = TestPipeline(batch_size=1, seed=0, device_id=0, num_threads=4)
     pipe_ref.build()
 
