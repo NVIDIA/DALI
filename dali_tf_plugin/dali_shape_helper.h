@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
+#define DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
+
 #include "tensorflow/core/framework/tensor_shape.h"
 
-// namespace dali-tf-impl {
+namespace dali_tf_impl {
 
 struct CDeleter {
   void operator()(void *p) {
@@ -32,4 +35,7 @@ static tensorflow::TensorShape DaliToShape(const AutoCPtr<int64_t>& ns) {
   return ts;
 }
 
-// }  // namespace dali-tf-impl
+}  // namespace dali_tf_impl
+
+
+#endif  // DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_

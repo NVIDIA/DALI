@@ -230,17 +230,6 @@ if dataset_compatible_tensorflow():
       else:
         return True
 
-    def _handle_deprecation(self, tuple_arg, list_arg, arg_name):
-        """
-        Check usage of old `shapes` and `dtypes` (the list_arg) argument
-        instead of `output_shapes` and `output_dtypes` (the tuple_arg).
-        Convert list to tuple if the list_arg was provided.
-        """
-
-
-
-
-
     @property
     def element_spec(self):
       return self._structure

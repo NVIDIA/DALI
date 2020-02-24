@@ -13,17 +13,6 @@ data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/jpeg/')
 file_list_path = os.path.join(data_path, 'image_list.txt')
 
 def dali_pipe_batch_1(shapes, types, as_single_tuple = False):
-    target_sizes = [(853, 1280, 3),
-        (853, 1280, 3),
-        (770, 1280, 3),
-        (640, 960, 3),
-        (720, 479, 3),
-        (603, 960, 3),
-        (853, 1280, 3),
-        (911, 1280, 3),
-        (806, 1280, 3),
-        (360, 640, 3)]
-
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
@@ -37,16 +26,21 @@ def dali_pipe_batch_1(shapes, types, as_single_tuple = False):
 
     pipe = TestPipeline(batch_size=1, seed=0)
     ds = dali_tf.DALIDataset(pipe, batch_size=1, output_dtypes=types, output_shapes=shapes)
+    # for clarity, we could use the previous `pipe`
+    pipe_ref = TestPipeline(batch_size=1, seed=0, device_id=0, num_threads=4)
+    pipe_ref.build()
+
     ds_iter = iter(ds)
     # See if the iteration over different images works
     if as_single_tuple:
         shapes = shapes[0]
     for i in range(10):
         image, = ds_iter.next()
+        image_ref, = pipe_ref.run()
         if shapes is None or len(shapes) == 4:
-            assert_equals(image.shape, ((1,) + target_sizes[i]))
+            assert_equals(image.shape, ([1,] + image_ref[0].shape()))
         else:
-            assert_equals(image.shape, target_sizes[i])
+            assert_equals(image.shape, image_ref[0].shape())
 
 
 def test_batch_1_different_shapes():
@@ -169,7 +163,14 @@ def dali_pipe_artificial_shape(shapes, types, batch):
     ds_iter = iter(ds)
     for i in range(10):
         out, = ds_iter.next()
-        print(out.shape)
+        if len(shapes) == 4:
+            assert_equals(out.shape, (batch, 1, 2, 1))
+        if len(shapes) == 3:
+            assert_equals(out.shape, (batch, 1, 2))
+        if len(shapes) == 2:
+            assert_equals(out.shape, (batch, 2,))
+        if len(shapes) == 1:
+            assert_equals(out.shape, (2,))
 
 def test_artificial_match():
     for batch in [1, 10]:

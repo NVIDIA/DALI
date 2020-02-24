@@ -32,7 +32,7 @@
 
 #include "dali/c_api/c_api.h"
 #include "dali/core/common.h"
-#include "dali_tf_plugin/dali_shape_helper.h"
+#include "dali_shape_helper.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 
@@ -51,7 +51,7 @@ namespace tf = tensorflow;
       }                                                                            \
     } while (0)
 
-
+namespace dali_tf_impl {
 
 REGISTER_OP("Dali")
   .Attr("serialized_pipeline: string")
@@ -342,3 +342,5 @@ using tf::int64;
 
 REGISTER_KERNEL_BUILDER(Name("Dali").Device(tf::DEVICE_GPU), DaliOp)
 REGISTER_KERNEL_BUILDER(Name("Dali").Device(tf::DEVICE_CPU), DaliOp)
+
+}  // namespace dali_tf_impl

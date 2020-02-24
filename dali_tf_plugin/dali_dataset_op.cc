@@ -43,7 +43,7 @@
 
 #include "dali/core/common.h"
 #include "dali/c_api/c_api.h"
-#include "dali_tf_plugin/dali_shape_helper.h"
+#include "dali_shape_helper.h"
 
 #define DALI_CALL(FUNC)                                                    \
 do {                                                                       \
@@ -59,7 +59,7 @@ do {                                                                       \
 
 using namespace tensorflow;
 
-namespace {
+namespace dali_tf_impl {
 
 class DALIDatasetOp : public DatasetOpKernel {
  public:
@@ -229,8 +229,6 @@ class DALIDatasetOp : public DatasetOpKernel {
 
       Status GetNextInternal(IteratorContext *context, std::vector<Tensor> *out_tensors,
                              bool *end_of_sequence) override {
-        // static int called_times = 0;
-        // std::cout << " [DALI LOG] Called: " << called_times++ << " times" << std::endl;
         tensorflow::mutex_lock l(mu_);
 
         DALI_CALL(daliShareOutput(&pipeline_handle_));
@@ -439,6 +437,6 @@ Creates a DALI dataset compatible with tf.data.Dataset from a DALI pipeline.
 `dtypes` must match the type of the corresponding DALI Pipeline output tensors type.
 )doc");
 
-}  // namespace
+}  // namespace dali_tf_impl
 
 #endif  // TF_MAJOR_VERSION == 1 && TF_MINOR_VERSION >= 15
