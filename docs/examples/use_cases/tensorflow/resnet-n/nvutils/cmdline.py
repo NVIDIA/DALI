@@ -93,6 +93,13 @@ def parse_cmdline(init_vals, custom_parser=None):
     p.add_argument('--dali_cpu', action='store_true',
                    default=False,
                    help="""Use CPU backend for DALI for input pipeline.""")
+    xgrp = p.add_mutually_exclusive_group()
+    xgrp.add_argument('--use_xla', action='store_const',
+                      default=True, const=True, dest='use_xla',
+                      help="""Enable xla execution.""")
+    xgrp.add_argument('--no_xla', action='store_const',
+                      const=False, dest='use_xla',
+                      help="""Disable xla execution.""")
     p.add_argument('--epoch_evaluation', action='store_true',
                    default=False,
                    help="""Additionally runs the evaluation after every epoch.""")
@@ -128,6 +135,8 @@ def parse_cmdline(init_vals, custom_parser=None):
     del FLAGS.precision
     vals['dali_cpu'] = FLAGS.dali_cpu
     del FLAGS.dali_cpu
+    vals['use_xla'] = FLAGS.use_xla
+    del FLAGS.use_xla
     vals['epoch_evaluation'] = FLAGS.epoch_evaluation
     del FLAGS.epoch_evaluation
 

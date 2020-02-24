@@ -185,6 +185,7 @@ def train(infer_func, params):
     iter_unit = params['iter_unit']
     dali_cpu = params['dali_cpu']
     epoch_evaluation = params['epoch_evaluation']
+    use_xla = params['use_xla']
 
     # Determinism is not fully supported by all TF ops.
     # Disabling until remaining wrinkles can be ironed out.
@@ -224,6 +225,9 @@ def train(infer_func, params):
     # Horovod: pin GPU to be used to process local rank (one GPU per process)
     gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.7)
     config = ConfigProto(gpu_options=gpu_options)
+    if use_xla:
+         config.graph_options.optimizer_options.global_jit_level = (
+             tf.OptimizerOptions.ON_1)
     #config.gpu_options.allow_growth = True
     config.gpu_options.visible_device_list = str(hvd.local_rank())
     config.gpu_options.force_gpu_compatible = True # Force pinned memory
