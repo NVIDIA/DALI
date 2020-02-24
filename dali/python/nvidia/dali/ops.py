@@ -18,14 +18,18 @@ import sys
 import copy
 from itertools import count
 import threading
-from nvidia.dali import backend as b
-from nvidia.dali.types import _type_name_convert_to_string, _type_convert_value, \
+from nvidia.dali import backend as _b
+from nvidia.dali.types import \
+        _type_name_convert_to_string, _type_convert_value, \
         _vector_element_type, _bool_types, _int_types, _int_like_types, _float_types, \
-        DALIDataType, CUDAStream, ScalarConstant as _ScalarConstant, Constant as _Constant
-from nvidia.dali.pipeline import Pipeline
+        DALIDataType, \
+        CUDAStream as _CUDAStream, \
+        ScalarConstant as _ScalarConstant, \
+        Constant as _Constant
+from nvidia.dali.pipeline import Pipeline as _Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
-
+from nvidia.dali import fn as _functional
 
 cupy = None
 def _setup_cupy():
@@ -161,7 +165,7 @@ def _docstring_generator(cls):
         This lists all the Keyword args that can be used when creating operator
     """
     op_name = cls.__name__
-    schema = b.GetSchema(op_name)
+    schema = _b.GetSchema(op_name)
     ret = '\n'
 
     if schema.IsDeprecated():
@@ -213,7 +217,7 @@ def _docstring_prefix_from_inputs(op_name):
 
         Returns the signature of `__call__` and list of `Args` in appropriate section
     """
-    schema = b.GetSchema(op_name)
+    schema = _b.GetSchema(op_name)
     # Signature
     ret = "__call__(" + schema.GetCallSignatureInputs() + ", **kwargs)\n"
     # __call__ docstring
@@ -235,7 +239,7 @@ def _docstring_prefix_auto(op_name):
         Generate start of the docstring for `__call__` of Operator `op_name`
         with default values. Assumes there will be 0 or 1 inputs
     """
-    schema = b.GetSchema(op_name)
+    schema = _b.GetSchema(op_name)
     if schema.MaxNumInput() == 0:
         return """__call__(**kwargs)
 
@@ -258,7 +262,7 @@ def _docstring_generator_call(op_name):
     """
         Generate full docstring for `__call__` of Operator `op_name`.
     """
-    schema = b.GetSchema(op_name)
+    schema = _b.GetSchema(op_name)
     if schema.HasCallDox():
         ret = schema.GetCallDox()
     elif schema.HasInputDox():
@@ -312,8 +316,9 @@ class _OperatorInstance(object):
 
         self._inputs = inputs
 
-        if "name" in kwargs.keys():
-            self._name = kwargs["name"]
+        name = kwargs.get("name", None)
+        if name is not None:
+            self._name = name
         else:
             self._name = '__' + type(op).__name__ + "_" + str(self._counter.id)
         # Add inputs
@@ -352,9 +357,9 @@ class _OperatorInstance(object):
         self._op.schema.CheckArgs(self._spec)
 
     def generate_outputs(self):
-        pipeline = Pipeline.current()
+        pipeline = _Pipeline.current()
         if pipeline is None and self._op.preserve:
-            Pipeline._raise_pipeline_required("Operators with side-effects ")
+            _Pipeline._raise_pipeline_required("Operators with side-effects ")
         # Add outputs
         if self._op.device == "gpu" or self._op.device == "mixed":
             output_device = "gpu"
@@ -371,7 +376,7 @@ class _OperatorInstance(object):
         for i in range(num_output):
             t_name = self._name
             if num_output > 1:
-                t_name += "_" + str(i)
+                t_name += "[{}]".format(i)
             t = _EdgeReference(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
             if self._op.preserve:
@@ -451,8 +456,8 @@ class _DaliOperatorMeta(type):
 def python_op_factory(name, op_device = "cpu"):
     class Operator(with_metaclass(_DaliOperatorMeta, object)):
         def __init__(self, **kwargs):
-            self._spec = b.OpSpec(type(self).__name__)
-            self._schema = b.GetSchema(type(self).__name__)
+            self._spec = _b.OpSpec(type(self).__name__)
+            self._schema = _b.GetSchema(type(self).__name__)
 
             # Get the device argument. We will need this to determine
             # the device that our outputs will be stored on
@@ -606,95 +611,119 @@ def python_op_factory(name, op_device = "cpu"):
 
     Operator.__name__ = str(name)
     # The autodoc doesn't generate doc for something that doesn't match the module name
-    if b.GetSchema(Operator.__name__).IsInternal():
+    if _b.GetSchema(Operator.__name__).IsInternal():
         Operator.__module__ = Operator.__module__ + ".internal"
 
     # TODO(klecki): use this instead of __new__ in metaclass when Python2 is dropped
     # Operator.__call__.__doc__ = _docstring_generator_call(name)
     return Operator
 
-
-def _to_snake_case(camel):
-    out = ""
-    nupper = 0
-    start = 0
-    for i, c in enumerate(camel):
-        if c.isupper():
-            if nupper == 0:
-                start = i
-            nupper += 1
-        else:
-            if nupper == 0:
-                out += c
-            else:
-                if len(out) > 0:
-                    out += '_'
-                if nupper > 1:
-                    out += camel[start:i-1].lower() + '_'
-                out += camel[i-1].lower()
-                out += c
-                nupper = 0
-
-    if nupper > 0:
-        out += camel[start:i].lower()
-    out = out.replace("b_box", "bbox").replace("mx_net", "mxnet")
-    return out
-
-def _wrap_op_fn(op_class):
-    def op_wrapper(*args, **kwargs):
-        def is_edge(x):
-            return isinstance(x, _EdgeReference)
-        def is_call_arg(name, value):
-            return name == "name" or is_edge(value)
-
-        scalar_args = { name:value for (name, value) in kwargs.items() if not is_call_arg(name, value) }
-        tensor_args = { name:value for (name, value) in kwargs.items() if is_call_arg(name, value) }
-        for idx, inp in enumerate(args):
-            if not is_edge(inp):
-                raise TypeError("""Input {0} is not a DALI tensor (edge reference).
-Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op_class.__name__))
-        default_dev = _choose_device(args)
-        if default_dev == "gpu" and scalar_args.get("device") == "cpu":
-            raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
-        if "device" not in scalar_args:
-            scalar_args["device"] = default_dev
-
-        return op_class(**scalar_args)(*args, **tensor_args)
-    return op_wrapper
-
-def _wrap_op(op_class):
-    wrapper_name = _to_snake_case(op_class.__name__)
-    if not hasattr(sys.modules[__name__], wrapper_name):
-        setattr(sys.modules[__name__], wrapper_name, _wrap_op_fn(op_class))
-
-
 def _load_ops():
     global _cpu_ops
     global _gpu_ops
     global _mixed_ops
-    _cpu_ops = _cpu_ops.union(set(b.RegisteredCPUOps()))
-    _gpu_ops = _gpu_ops.union(set(b.RegisteredGPUOps()))
-    _mixed_ops = _mixed_ops.union(set(b.RegisteredMixedOps()))
+    _cpu_ops = _cpu_ops.union(set(_b.RegisteredCPUOps()))
+    _gpu_ops = _gpu_ops.union(set(_b.RegisteredGPUOps()))
+    _mixed_ops = _mixed_ops.union(set(_b.RegisteredMixedOps()))
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
     for op_name in _cpu_gpu_ops:
         if not hasattr(sys.modules[__name__], op_name):
             op_class = python_op_factory(op_name, op_device = "cpu")
             setattr(sys.modules[__name__], op_name, op_class)
             if op_name not in ["ExternalSource"]:
-                _wrap_op(op_class)
+                _functional._wrap_op(op_class)
 
 _load_ops()
 
-def external_source(callback = None, *, name = None):
-    op = nvidia.dali.ops.ExternalSource()
-    op._callback = callback
-    if name is not None:
-        return op(name = name)
-    else:
-        return op()
-
 def Reload():
     _load_ops()
+
+
+# custom wrappers around ops
+class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
+    global _cpu_ops
+    global _gpu_ops
+    _cpu_ops = _cpu_ops.union({'ExternalSource'})
+    _gpu_ops = _gpu_ops.union({'ExternalSource'})
+
+    def __init__(self, callback = None, num_outputs = None, *, layout = None, name = None, device = "cpu", **kwargs):
+        self._schema = _b.GetSchema("_ExternalSource")
+        self._spec = _b.OpSpec("_ExternalSource")
+        self._device = device
+        self._layout = layout
+
+        if name is not None and self.num_outputs is not None:
+            raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
+
+        self._name = name
+        self._num_outputs = num_outputs
+        self._callback = callback
+
+        for key, value in kwargs.items():
+            self._spec.AddArg(key, value)
+
+    @property
+    def spec(self):
+        return self._spec
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @property
+    def device(self):
+        return self._device
+
+    @property
+    def preserve(self):
+        return False
+
+    def __call__(self, *, callback = None, name = None, **kwargs):
+        if callback is None:
+            callback = self._callback
+        else:
+            if self._callback is not None:
+                raise RuntimeError("The callback for external source was specified twice. "
+                    "Callback must not be passed both to constructor and call.")
+
+        if name is None:
+            name = self._name
+
+        if name is not None and self._num_outputs is not None:
+            raise RuntimeError("`num_outputs` is not compatible with named `ExternalSource`")
+
+
+        if self._num_outputs is not None:
+            outputs = []
+            kwargs = {}
+            group = []
+            for i in range(self._num_outputs):
+                op_instance = _OperatorInstance([], self, **kwargs)
+                op_instance._callback = self._callback
+                op_instance._output_index = i
+                op_instance._group = group
+                if self._layout is not None:
+                    if isinstance(self._layout, (list, tuple)):
+                        op_instance._layout = self._layout[i] if i < len(self._layout) else ""
+                    else:
+                        op_instance._layout = self._layout
+                else:
+                    op_instance._layout = ""
+
+                group.append(op_instance)
+                op_instance.generate_outputs()
+                outputs.append(op_instance.unwrapped_outputs)
+            return outputs
+        else:
+            if name is not None:
+                kwargs["name"] = name
+            op_instance = _OperatorInstance([], self, **kwargs)
+            op_instance._callback = self._callback
+            op_instance._output_index = None
+            op_instance._group = [op_instance]
+            op_instance._layout = self._layout if self._layout is not None else ""
+            op_instance.generate_outputs()
+            return op_instance.unwrapped_outputs
 
 # custom wrappers around ops
 class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
@@ -710,8 +739,8 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
             self._index_path = index_path
         else:
             self._index_path = [index_path]
-        self._schema = b.GetSchema("_TFRecordReader")
-        self._spec = b.OpSpec("_TFRecordReader")
+        self._schema = _b.GetSchema("_TFRecordReader")
+        self._spec = _b.OpSpec("_TFRecordReader")
         self._device = "cpu"
 
         self._spec.AddArg("path", self._path)
@@ -753,7 +782,7 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
         for i, (feature_name, feature) in enumerate(self._features.items()):
             t_name = op_instance._name
             if len(self._features.items()) > 1:
-                t_name += "_" + str(i)
+                t_name += "[{}]".format(i)
 
             t = _EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
@@ -769,8 +798,8 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
 
 class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
     def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
-        self._schema = b.GetSchema(impl_name)
-        self._spec = b.OpSpec(impl_name)
+        self._schema = _b.GetSchema(impl_name)
+        self._spec = _b.OpSpec(impl_name)
         self._device = device
         self._impl_name = impl_name
 
@@ -798,9 +827,9 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
         return self._preserve
 
     def __call__(self, *inputs, **kwargs):
-        pipeline = Pipeline.current()
+        pipeline = _Pipeline.current()
         if pipeline is None:
-            Pipeline._raise_pipeline_required("PythonFunction operator")
+            _Pipeline._raise_pipeline_required("PythonFunction operator")
         if pipeline.exec_async or pipeline.exec_pipelined:
             raise RuntimeError("PythonFunction can be used only in pipelines with `exec_async` and "
                                "`exec_pipelined` set to False.")
@@ -834,7 +863,7 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
         for i in range(self.num_outputs):
             t_name = op_instance._name
             if self.num_outputs > 1:
-                t_name += "_" + str(i)
+                t_name += "[{}]".format(i)
             t = _EdgeReference(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
@@ -860,7 +889,7 @@ class PythonFunction(PythonFunctionBase):
     @staticmethod
     def current_stream():
         """Get DALI's current CUDA stream."""
-        return CUDAStream(nvidia.dali.libpython_function_plugin.current_dali_stream())
+        return _CUDAStream(nvidia.dali.libpython_function_plugin.current_dali_stream())
 
     @staticmethod
     def function_wrapper_per_sample(function, from_dlpack, to_dlpack, *dlpack_inputs):
@@ -943,9 +972,9 @@ class DLTensorPythonFunction(PythonFunctionBase):
                                                      batch_processing=batch_processing,
                                                      **kwargs)
 
-_wrap_op(PythonFunction)
-_wrap_op(DLTensorPythonFunction)
-_wrap_op(TFRecordReader)
+_functional._wrap_op(PythonFunction)
+_functional._wrap_op(DLTensorPythonFunction)
+_functional._wrap_op(TFRecordReader)
 
 def _load_arithm_ops():
     arithm_op_names = ["ArithmeticGenericOp"]

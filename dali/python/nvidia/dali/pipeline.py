@@ -19,6 +19,7 @@ from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
 from nvidia.dali import check_edge as Edge
 from threading import local as tls
+import copy
 import warnings
 pipeline_tls = tls()
 
@@ -252,7 +253,7 @@ class Pipeline(object):
         return api_checker(self)
 
     # Graph is constructed by backtracking from the output edges and the edges marked as sinks
-    def _prepare_graph(self):
+    def _prepare_graph(self, define_graph = None):
         self._pipe = b.Pipeline(self._batch_size,
                                 self._num_threads,
                                 self._device_id,
@@ -267,11 +268,16 @@ class Pipeline(object):
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
 
+        if define_graph is not None:
+            if self._graph_out is not None:
+                raise RuntimeError("Duplicate graph definition - `define_graph` argument "
+                    "should not be specified when graph was define with a call to `set_outputs`.")
+
         with self:
             if self._graph_out:
                 outputs = self._graph_out
             else:
-                outputs = self.define_graph()
+                outputs = define_graph()
         if (not isinstance(outputs, tuple) and
             not isinstance(outputs, list)):
             outputs = (outputs,)
@@ -325,7 +331,17 @@ class Pipeline(object):
             else:
                 self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
         self._prepared = True
+        self._setup_input_callbacks()
         self._names_and_devices = [(e.name, e.device) for e in outputs]
+
+    def _setup_input_callbacks(self):
+        groups = set()
+        for op in self._ops:
+            callback = getattr(op._op, "_callback", None)
+            if callback is not None:
+                group = tuple(op._group)
+                groups.add(group)
+        self._input_callbacks = list(groups)
 
     def build(self, define_graph = None):
         """Build the pipeline.
@@ -336,8 +352,12 @@ class Pipeline(object):
         if self._built:
             return
 
+        if self.num_threads < 1:
+            raise ValueError("Pipeline created with `num_threads` < 1 can only be used "
+                             "for serialization.")
+
         if not self._prepared:
-            self._prepare_graph()
+            self._prepare_graph(define_graph)
 
         self._pipe.Build(self._names_and_devices)
         self._built = True
@@ -562,12 +582,34 @@ class Pipeline(object):
         """
         return self._batches_to_consume == 0
 
-    def serialize(self):
+    def serialize(self, define_graph = None):
         """Serialize the pipeline to a Protobuf string."""
         if not self._prepared:
-            self._prepare_graph()
+            self._prepare_graph(define_graph)
             self._pipe.SetOutputNames(self._names_and_devices)
         return self._pipe.SerializeToProtobuf()
+
+    def clone(self, batch_size = None, num_threads = None, device_id = None, seed = None):
+        """Creates a copy of the pipeline."""
+        p = copy.copy(self)
+        p._built = False
+        p._pipe = None
+        p._prepared = False
+        p._first_iter = True
+        p._last_iter = False
+
+        if device_id is not None:
+            p._device_id = device_id
+        if num_threads is not None:
+            p._num_threads = num_threads
+        if seed is not None:
+            p._seed = seed
+        if batch_size is not None:
+            p._batch_size = batch_size
+
+        if self._built:
+            p.build()
+        return p
 
     def deserialize_and_build(self, serialized_pipeline):
         """Deserialize and build the pipeline given in serialized form.
@@ -625,16 +667,39 @@ class Pipeline(object):
         raise NotImplementedError
 
     def _iter_setup(self):
-        for op in self._ops:
-            callback = getattr(op._op, "_callback", None)
-            if callback is not None:
-                r = callback()
-                if isinstance(r, tuple):
-                    data, layout = r
-                else:
-                    data = r
-                    layout = ""
-                self.feed_input(op._name, data, layout)
+        def check_batch(data, batch_size, layout):
+            if isinstance(data, (list, tuple)):
+                if len(data) != self._batch_size:
+                    raise RuntimeError("The external source callback returned an unexpected batch "
+                    "size: {} instead of {}".format(len(data), self._batch_size))
+                if len(data) > 0:
+                    dim = len(data[0].shape)
+                    for t in data:
+                        if len(t.shape) != dim:
+                            raise RuntimeErrorError("All tensors in a batch must have the same number of dimensions")
+                    if layout != "" and dim != len(layout):
+                        raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+            else:
+                dim = len(data.shape) - 1
+                if data.shape[0] != self._batch_size:
+                    raise RuntimeError("The external source callback returned an unexpected batch "
+                    "size: {} instead of {}".format(data.shape[0], self._batch_size))
+                if layout != "" and dim != len(layout):
+                    raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+
+        for group in self._input_callbacks:
+            callback = group[0]._callback
+            callback_out = callback()
+            if group[0]._output_index is not None:
+                for op in group:
+                    data = callback_out[op._output_index]
+                    check_batch(data, self._batch_size, op._layout)
+                    self.feed_input(op._name, data, op._layout)
+            else:
+                data = callback_out
+                check_batch(data, self._batch_size, op._layout)
+                op = group[0]
+                self.feed_input(op._name, data, op._layout)
         self.iter_setup()
 
     def iter_setup(self):
