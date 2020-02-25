@@ -100,6 +100,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     for (auto &stream : jpeg_streams_) {
       NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &stream));
     }
+    NVJPEG_CALL(nvjpegJpegStreamCreate(handle_, &hw_decoder_jpeg_stream_));
+
     for (auto &buffer : pinned_buffers_) {
       NVJPEG_CALL(nvjpegBufferPinnedCreate(handle_, nullptr, &buffer));
     }
@@ -110,10 +112,16 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
                                              default_cuda_stream_priority_));
     }
+    CUDA_CALL(cudaStreamCreateWithPriority(
+      &hw_decode_stream_, cudaStreamNonBlocking, default_cuda_stream_priority_));
+
     for (auto &event : decode_events_) {
       CUDA_CALL(cudaEventCreate(&event));
       CUDA_CALL(cudaEventRecord(event, streams_[0]));
     }
+
+    CUDA_CALL(cudaEventCreate(&hw_decode_event_));
+    CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
   }
 
   ~nvJPEGDecoder() override {
@@ -136,6 +144,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       for (auto &stream  : jpeg_streams_) {
         NVJPEG_CALL(nvjpegJpegStreamDestroy(stream));
       }
+      NVJPEG_CALL(nvjpegJpegStreamDestroy(hw_decoder_jpeg_stream_));
+
       for (auto &buffer : pinned_buffers_) {
         NVJPEG_CALL(nvjpegBufferPinnedDestroy(buffer));
       }
@@ -145,9 +155,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       for (auto &event : decode_events_) {
         CUDA_CALL(cudaEventDestroy(event));
       }
+      CUDA_CALL(cudaEventDestroy(hw_decode_event_));
+
       for (auto &stream : streams_) {
         CUDA_CALL(cudaStreamDestroy(stream));
       }
+      CUDA_CALL(cudaStreamDestroy(hw_decode_stream_));
 
       NVJPEG_CALL(nvjpegDestroy(handle_));
     } catch (const std::exception &e) {
@@ -367,9 +380,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         bool hw_decode = false;
 #if NVJPEG_VER_MAJOR >= 11
         if (!crop_generator && state_hw_batched_ != nullptr) {
-          nvjpegJpegStreamParseHeader(handle_, input_data, in_size, jpeg_streams_[0]);
+          nvjpegJpegStreamParseHeader(handle_, input_data, in_size, hw_decoder_jpeg_stream_);
           int is_supported = -1;
-          nvjpegDecodeBatchedSupported(handle_, jpeg_streams_[0], &is_supported);
+          nvjpegDecodeBatchedSupported(handle_, hw_decoder_jpeg_stream_, &is_supported);
           hw_decode = is_supported == 0;
           if (!hw_decode) {
             LOG_LINE << "Sample \"" << data.file_name
@@ -503,13 +516,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         nvjpeg_destinations_[j].pitch[0] = out_shape[1] * out_shape[2];
         j++;
       }
+      CUDA_CALL(cudaEventSynchronize(hw_decode_event_));
       NVJPEG_CALL(nvjpegDecodeBatched(handle_, state, in_data_.data(), in_lengths_.data(),
-                                      nvjpeg_destinations_.data(), ws.stream()));
+                                      nvjpeg_destinations_.data(), hw_decode_stream_));
       for (auto *sample : samples_hw_batched_) {
         int i = sample->sample_idx;
         CacheStore(sample->file_name, output.mutable_tensor<uint8_t>(i),
-                   output_shape_.tensor_shape(i).to_static<3>(), ws.stream());
+                   output_shape_.tensor_shape(i).to_static<3>(), hw_decode_stream_);
       }
+      CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
     }
   }
 
@@ -531,6 +546,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(cudaEventRecord(decode_events_[tid], streams_[tid]));
       CUDA_CALL(cudaStreamWaitEvent(ws.stream(), decode_events_[tid], 0));
     }
+    CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
+    CUDA_CALL(cudaStreamWaitEvent(ws.stream(), hw_decode_event_, 0));
+
   }
 
   inline int GetNextBufferIndex(int thread_id) {
@@ -614,12 +632,15 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // Per thread - double buffered
   std::vector<nvjpegBufferPinned_t> pinned_buffers_;
   std::vector<nvjpegJpegStream_t> jpeg_streams_;
+  nvjpegJpegStream_t hw_decoder_jpeg_stream_;
 
   // GPU
   // Per thread
   std::vector<nvjpegBufferDevice_t> device_buffers_;
   std::vector<cudaStream_t> streams_;
+  cudaStream_t hw_decode_stream_;
   std::vector<cudaEvent_t> decode_events_;
+  cudaEvent_t hw_decode_event_;
   std::vector<int> thread_page_ids_;  // page index for double-buffering
 
   int device_id_;
