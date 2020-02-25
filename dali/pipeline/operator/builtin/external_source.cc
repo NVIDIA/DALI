@@ -68,6 +68,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
 }
 
 DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 
 DALI_SCHEMA(_ExternalSource)
   .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline,

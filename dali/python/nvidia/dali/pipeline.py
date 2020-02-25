@@ -17,8 +17,8 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
-from nvidia.dali import check_edge as Edge
 from threading import local as tls
+from . import data_node as _data_node
 import copy
 import warnings
 pipeline_tls = tls()
@@ -117,6 +117,7 @@ class Pipeline(object):
         self._api_type = None
         self._skip_api_check = False
         self._graph_out = None
+        self._input_callbacks = None
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -196,6 +197,7 @@ class Pipeline(object):
         pipeline_tls.prev_pipeline = pipeline
         return prev
 
+    @staticmethod
     def pop_current():
         return pipeline_tls.pipeline_stack.pop()
 
@@ -272,6 +274,8 @@ class Pipeline(object):
             if self._graph_out is not None:
                 raise RuntimeError("Duplicate graph definition - `define_graph` argument "
                     "should not be specified when graph was define with a call to `set_outputs`.")
+        else:
+            define_graph = self.define_graph
 
         with self:
             if self._graph_out:
@@ -283,7 +287,7 @@ class Pipeline(object):
             outputs = (outputs,)
 
         for output in outputs:
-            Edge._validate_edge_reference(output)
+            _data_node._check(output)
 
         # Backtrack to construct the graph
         op_ids = set()
@@ -372,7 +376,7 @@ class Pipeline(object):
         if isinstance(ref, str):
             name = ref
         else:
-            Edge._validate_edge_reference(ref)
+            _data_node._check(ref)
             name = ref.name
         if isinstance(data, list):
             if self._batch_size != len(data):
@@ -666,26 +670,30 @@ class Pipeline(object):
         It returns a list of outputs created by calling DALI Operators."""
         raise NotImplementedError
 
-    def _iter_setup(self):
-        def check_batch(data, batch_size, layout):
-            if isinstance(data, (list, tuple)):
-                if len(data) != self._batch_size:
-                    raise RuntimeError("The external source callback returned an unexpected batch "
-                    "size: {} instead of {}".format(len(data), self._batch_size))
-                if len(data) > 0:
-                    dim = len(data[0].shape)
-                    for t in data:
-                        if len(t.shape) != dim:
-                            raise RuntimeErrorError("All tensors in a batch must have the same number of dimensions")
-                    if layout != "" and dim != len(layout):
-                        raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
-            else:
-                dim = len(data.shape) - 1
-                if data.shape[0] != self._batch_size:
-                    raise RuntimeError("The external source callback returned an unexpected batch "
-                    "size: {} instead of {}".format(data.shape[0], self._batch_size))
+    @staticmethod
+    def _check_data_batch(data, batch_size, layout):
+        if isinstance(data, (list, tuple)):
+            if len(data) != batch_size:
+                raise RuntimeError("The external source callback returned an unexpected batch "
+                "size: {} instead of {}".format(len(data), batch_size))
+            if len(data) > 0:
+                dim = len(data[0].shape)
+                for t in data:
+                    if len(t.shape) != dim:
+                        raise RuntimeErrorError("All tensors in a batch must have the same number of dimensions")
                 if layout != "" and dim != len(layout):
                     raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+        else:
+            dim = len(data.shape) - 1
+            if data.shape[0] != batch_size:
+                raise RuntimeError("The external source callback returned an unexpected batch "
+                "size: {} instead of {}".format(data.shape[0], batch_size))
+            if layout != "" and dim != len(layout):
+                raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+
+    def _run_input_callbacks(self):
+        if self._input_callbacks is None:
+            return
 
         for group in self._input_callbacks:
             callback = group[0]._callback
@@ -693,13 +701,16 @@ class Pipeline(object):
             if group[0]._output_index is not None:
                 for op in group:
                     data = callback_out[op._output_index]
-                    check_batch(data, self._batch_size, op._layout)
+                    Pipeline._check_data_batch(data, self._batch_size, op._layout)
                     self.feed_input(op._name, data, op._layout)
             else:
                 data = callback_out
-                check_batch(data, self._batch_size, op._layout)
                 op = group[0]
+                Pipeline._check_data_batch(data, self._batch_size, op._layout)
                 self.feed_input(op._name, data, op._layout)
+
+    def _iter_setup(self):
+        self._run_input_callbacks()
         self.iter_setup()
 
     def iter_setup(self):

@@ -30,90 +30,13 @@ from nvidia.dali.pipeline import Pipeline as _Pipeline
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
 from nvidia.dali import fn as _functional
+from nvidia.dali.data_node import DataNode as _DataNode
 
 cupy = None
 def _setup_cupy():
     global cupy
     if cupy is None:
         import cupy as cupy
-
-
-class _EdgeReference(object):
-    def __init__(self, name, device="cpu", source=None):
-        self.name = name
-        self.device = device
-        self.source = source
-
-    # Note: Regardless of whether we want the cpu or gpu version
-    # of a tensor, we keep the source argument the same so that
-    # the pipeline can backtrack through the user-defined graph
-    def gpu(self):
-        return _EdgeReference(self.name, "gpu", self.source)
-
-    def __add__(self, other):
-        return _arithm_op("add", self, other)
-    def __radd__(self, other):
-        return _arithm_op("add", other, self)
-
-    def __sub__(self, other):
-        return _arithm_op("sub", self, other)
-    def __rsub__(self, other):
-        return _arithm_op("sub", other, self)
-
-    def __mul__(self, other):
-        return _arithm_op("mul", self, other)
-    def __rmul__(self, other):
-        return _arithm_op("mul", other, self)
-
-    def __truediv__(self, other):
-        return _arithm_op("fdiv", self, other)
-    def __rtruediv__(self, other):
-        return _arithm_op("fdiv", other, self)
-
-    def __floordiv__(self, other):
-        return _arithm_op("div", self, other)
-    def __rfloordiv__(self, other):
-        return _arithm_op("div", other, self)
-
-    def __neg__(self):
-        return _arithm_op("minus", self)
-
-    # Shortucitng the execution, unary + is basically a no-op
-    def __pos__(self):
-        return self
-
-    def __eq__(self, other):
-        return _arithm_op("eq", self, other)
-
-    def __ne__(self, other):
-        return _arithm_op("neq", self, other)
-
-    def __lt__(self, other):
-        return _arithm_op("lt", self, other)
-
-    def __le__(self, other):
-        return _arithm_op("leq", self, other)
-
-    def __gt__(self, other):
-        return _arithm_op("gt", self, other)
-
-    def __ge__(self, other):
-        return _arithm_op("geq", self, other)
-
-    def __and__(self, other):
-        return _arithm_op("bitand", self, other)
-    def __rand__(self, other):
-        return _arithm_op("bitand", other, self)
-
-    def __or__(self, other):
-        return _arithm_op("bitor", self, other)
-    def __ror__(self, other):
-        return _arithm_op("bitor", other, self)
-
-    def __xor__(self, other):
-        return _arithm_op("bitxor", self, other)
-    def __rxor__(self, other):
-        return _arithm_op("bitxor", other, self)
 
 _cpu_ops = set({})
 _gpu_ops = set({})
@@ -324,9 +247,9 @@ class _OperatorInstance(object):
         # Add inputs
         if inputs:
             for inp in inputs:
-                if not isinstance(inp, _EdgeReference):
+                if not isinstance(inp, _DataNode):
                     raise TypeError(
-                        "Expected inputs of type '_EdgeReference'. Received input of type '{}'."
+                        "Expected inputs of type `DataNode`. Received input of type '{}'."
                         .format(type(inp).__name__))
                 self._spec.AddInput(inp.name, inp.device)
         # Argument inputs
@@ -337,10 +260,10 @@ class _OperatorInstance(object):
                     continue
                 if isinstance(arg_inp, _ScalarConstant):
                     arg_inp = _instantiate_constant_node("cpu", arg_inp)
-                if not isinstance(arg_inp, _EdgeReference):
+                if not isinstance(arg_inp, _DataNode):
                     raise TypeError(
                             ("Expected inputs of type " +
-                            "'_EdgeReference'. Received " +
+                            "`DataNode`. Received " +
                             "input of type '{}'.")
                             .format(type(arg_inp).__name__))
                 self._spec.AddArgumentInput(k, arg_inp.name)
@@ -370,14 +293,14 @@ class _OperatorInstance(object):
 
         if num_output == 0 and self._op.preserve:
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
-            pipeline.add_sink(_EdgeReference(t_name, output_device, self))
+            pipeline.add_sink(_DataNode(t_name, output_device, self))
             return
 
         for i in range(num_output):
             t_name = self._name
             if num_output > 1:
                 t_name += "[{}]".format(i)
-            t = _EdgeReference(t_name, output_device, self)
+            t = _DataNode(t_name, output_device, self)
             self._spec.AddOutput(t.name, t.device)
             if self._op.preserve:
                 pipeline.add_sink(t)
@@ -563,12 +486,12 @@ def python_op_factory(name, op_device = "cpu"):
             return arg_list_len
 
         def _safe_len(self, input):
-            if isinstance(input, _EdgeReference):
+            if isinstance(input, _DataNode):
                 return 1
             else:
                 return len(input)
 
-        # Pack single _EdgeReferences into lists, so they are treated as Multiple Input Sets
+        # Pack single _DataNodes into lists, so they are treated as Multiple Input Sets
         # consistently with the ones already present
         def _unify_lists(self, inputs, arg_list_len):
             result = ()
@@ -624,6 +547,8 @@ def _load_ops():
     global _mixed_ops
     _cpu_ops = _cpu_ops.union(set(_b.RegisteredCPUOps()))
     _gpu_ops = _gpu_ops.union(set(_b.RegisteredGPUOps()))
+    _cpu_ops.remove("ExternalSource")
+    _gpu_ops.remove("ExternalSource")
     _mixed_ops = _mixed_ops.union(set(_b.RegisteredMixedOps()))
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
     for op_name in _cpu_gpu_ops:
@@ -659,6 +584,7 @@ class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
         self._num_outputs = num_outputs
         self._callback = callback
 
+        self._spec.AddArg("device", device)
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
 
@@ -699,7 +625,7 @@ class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
             group = []
             for i in range(self._num_outputs):
                 op_instance = _OperatorInstance([], self, **kwargs)
-                op_instance._callback = self._callback
+                op_instance._callback = callback
                 op_instance._output_index = i
                 op_instance._group = group
                 if self._layout is not None:
@@ -718,7 +644,7 @@ class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
             if name is not None:
                 kwargs["name"] = name
             op_instance = _OperatorInstance([], self, **kwargs)
-            op_instance._callback = self._callback
+            op_instance._callback = callback
             op_instance._output_index = None
             op_instance._group = [op_instance]
             op_instance._layout = self._layout if self._layout is not None else ""
@@ -784,7 +710,7 @@ class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
             if len(self._features.items()) > 1:
                 t_name += "[{}]".format(i)
 
-            t = _EdgeReference(t_name, self._device, op_instance)
+            t = _DataNode(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
             outputs[feature_name] = t
@@ -843,9 +769,9 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
                         self._schema.MaxNumInput(),
                         len(inputs)))
         for inp in inputs:
-            if not isinstance(inp, _EdgeReference):
+            if not isinstance(inp, _DataNode):
                 raise TypeError(
-                      ("Expected inputs of type '_EdgeReference'. Received input of type '{}'. " +
+                      ("Expected inputs of type `DataNode`. Received input of type '{}'. " +
                        "Python Operators do not support Multiple Input Sets.")
                       .format(type(inp).__name__))
         op_instance = _OperatorInstance(inputs, self, **kwargs)
@@ -854,7 +780,7 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
         op_instance.spec.AddArg("device", self.device)
         if self.num_outputs == 0:
             t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
-            t = _EdgeReference(t_name, self._device, op_instance)
+            t = _DataNode(t_name, self._device, op_instance)
             pipeline.add_sink(t)
             return
         outputs = []
@@ -864,7 +790,7 @@ class PythonFunctionBase(with_metaclass(_DaliOperatorMeta, object)):
             t_name = op_instance._name
             if self.num_outputs > 1:
                 t_name += "[{}]".format(i)
-            t = _EdgeReference(t_name, self._device, op_instance)
+            t = _DataNode(t_name, self._device, op_instance)
             op_instance.spec.AddOutput(t.name, t.device)
             op_instance.append_output(t)
             pipeline.add_sink(t)
@@ -1046,7 +972,7 @@ def _to_type_desc(input):
             .format(str(type(input))))
 
 
-# Group inputs into categories_idxs, _EdgeReferences, integer constants and real constants
+# Group inputs into categories_idxs, _DataNodes, integer constants and real constants
 # The categories_idxs is a list that for an input `i` contains a tuple:
 # (category of ith input, index of ith input in appropriate category)
 def _group_inputs(inputs):
@@ -1055,7 +981,7 @@ def _group_inputs(inputs):
     integers = []
     reals = []
     for input in inputs:
-        if isinstance(input, _EdgeReference):
+        if isinstance(input, _DataNode):
             categories_idxs.append(("edge", len(edges)))
             edges.append(input)
         elif _is_integer_like(input):

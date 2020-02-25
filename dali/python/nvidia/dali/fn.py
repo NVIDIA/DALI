@@ -14,15 +14,26 @@
 
 #pylint: disable=no-member
 from __future__ import division
-from nvidia.dali.pipeline import Pipeline
 import sys
 import nvidia.dali.ops
+from nvidia.dali.data_node import DataNode as _DataNode
 
-def _to_snake_case(camel):
+_special_case_mapping = {
+    "b_box" : "bbox",
+    "mx_net" : "mxnet",
+    "tf_record" : "tfrecord"
+}
+
+def _handle_special_case(s):
+    for artifact, desired in _special_case_mapping.items():
+        s = s.replace(artifact, desired)
+    return s
+
+def _to_snake_case(pascal):
     out = ""
     nupper = 0
     start = 0
-    for i, c in enumerate(camel):
+    for i, c in enumerate(pascal):
         if c.isupper():
             if nupper == 0:
                 start = i
@@ -34,20 +45,20 @@ def _to_snake_case(camel):
                 if len(out) > 0:
                     out += '_'
                 if nupper > 1:
-                    out += camel[start:i-1].lower() + '_'
-                out += camel[i-1].lower()
+                    out += pascal[start:i-1].lower() + '_'
+                out += pascal[i-1].lower()
                 out += c
                 nupper = 0
 
     if nupper > 0:
-        out += camel[start:i].lower()
-    out = out.replace("b_box", "bbox").replace("mx_net", "mxnet")
+        out += pascal[start:i].lower()
+    out = _handle_special_case(out)
     return out
 
 def _wrap_op_fn(op_class):
     def op_wrapper(*args, **kwargs):
         def is_edge(x):
-            return isinstance(x, _EdgeReference)
+            return isinstance(x, _DataNode)
         def is_call_arg(name, value):
             return name == "name" or is_edge(value)
 
@@ -57,7 +68,7 @@ def _wrap_op_fn(op_class):
             if not is_edge(inp):
                 raise TypeError("""Input {0} is not a DALI tensor (edge reference).
 Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op_class.__name__))
-        default_dev = _choose_device(args)
+        default_dev = nvidia.dali.ops._choose_device(args)
         if default_dev == "gpu" and scalar_args.get("device") == "cpu":
             raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
         if "device" not in scalar_args:
@@ -75,8 +86,8 @@ def _wrap_op(op_class):
 def external_source(callback = None, num_outputs = None, *, name = None, device = "cpu", layout = None):
     """
     Creates a data node which is populated with data from a Python callback function.
-    The data can be provided by the `callback` function, passed as an argument, or it
-    can be provided by `pipeline.feed_input(name, data, layout)` inside `pipeline.iter_setup`.
+    The data can be provided by the `callback` function, or it can be provided by
+    `pipeline.feed_input(name, data, layout)` inside `pipeline.iter_setup`.
 
     `callback` : callable
     If specified, it is a function to be called before each iteration to obtain the batch
