@@ -28,11 +28,13 @@ TensorListCPU
 ^^^^^^^^^^^^^
 .. autoclass:: nvidia.dali.backend.TensorListCPU
    :members:
+   :special-members: __getitem__
 
 TensorListGPU
 ^^^^^^^^^^^^^
 .. autoclass:: nvidia.dali.backend.TensorListGPU
    :members:
+   :special-members: __getitem__
 
 
 

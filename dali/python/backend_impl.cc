@@ -331,11 +331,12 @@ void ExposeTensorList(py::module &m) {
       ----------
       )code")
       .def("__getitem__",
-        [](TensorList<CPUBackend> &t, Index id) -> std::unique_ptr<Tensor<CPUBackend>> {
-          return TensorListGetItemImpl(t, id);
+        [](TensorList<CPUBackend> &t, Index i) -> std::unique_ptr<Tensor<CPUBackend>> {
+          return TensorListGetItemImpl(t, i);
         },
+      "i"_a,
       R"code(
-      Returns a tensor at given position in the list.
+      Returns a tensor at given position `i` in the list.
 
       Parameters
       ----------
@@ -494,7 +495,7 @@ void ExposeTensorList(py::module &m) {
       "non_blocking"_a = false,
       R"code(
       Copy the contents of this `TensorList` to an external pointer
-      residing in CPU memory.
+      residing in GPU memory.
 
       This function is used internally by plugins to interface with
       tensors from supported Deep Learning frameworks.
@@ -509,11 +510,12 @@ void ExposeTensorList(py::module &m) {
             Asynchronous copy.
       )code")
     .def("__getitem__",
-        [](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
-          return TensorListGetItemImpl(t, id);
+        [](TensorList<GPUBackend> &t, Index i) -> std::unique_ptr<Tensor<GPUBackend>> {
+          return TensorListGetItemImpl(t, i);
         },
+      "i"_a,
       R"code(
-      Returns a tensor at given position in the list.
+      Returns a tensor at given position `i` in the list.
 
       Parameters
       ----------
