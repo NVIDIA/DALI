@@ -233,7 +233,7 @@ class ReinterpretPipeline1(Pipeline):
         self.feed_input(self.input, data)
 
 
-def _test_reinterpret1(device):
+def _test_reinterpret_default(device):
     np.random.seed(31337)
     batch_size = 4
     pipe = ReinterpretPipeline1(device, batch_size)
@@ -248,7 +248,7 @@ def _test_reinterpret1(device):
 
 def test_reinterpret_default():
     for device in ["cpu", "gpu"]:
-        yield _test_reinterpret1, device
+        yield _test_reinterpret_default, device
 
 
 class ReinterpretPipeline2(Pipeline):
@@ -288,7 +288,7 @@ def _test_reinterpret_with_wildcard_shape(device):
 
 def test_reinterpret_with_wildcard_shape():
     for device in ["cpu", "gpu"]:
-        yield _test_reinterpret1, device
+        yield _test_reinterpret_with_wildcard_shape, device
 
 
 def main():
