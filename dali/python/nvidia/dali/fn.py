@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -83,25 +83,30 @@ def _wrap_op(op_class):
         setattr(sys.modules[__name__], wrapper_name, _wrap_op_fn(op_class))
 
 
-def external_source(callback = None, num_outputs = None, *, name = None, device = "cpu", layout = None):
+def external_source(source = None, num_outputs = None, *, cycle = False, name = None, device = "cpu", layout = None):
     """
-    Creates a data node which is populated with data from a Python callback function.
-    The data can be provided by the `callback` function, or it can be provided by
+    Creates a data node which is populated with data from a Python source.
+    The data can be provided by the `source` function or iterable, or it can be provided by
     `pipeline.feed_input(name, data, layout)` inside `pipeline.iter_setup`.
 
-    `callback` : callable
-    If specified, it is a function to be called before each iteration to obtain the batch
-    of data. The function should return a tensor as `ndarray` (outermost dimension being sample
-    index) or a list of tensors, if the shape of samples in the batch varies. If the function
-    provides multiple outputs (e.g. images and labels), they should be wrapped in an extra level
-    of list or tuple.
+    `source` : callable or iterable
+    The source of the data. The source is polled for data (via a call or `next(source)` whenever
+    the pipeline needs input for the next iteration. The source can supply one or data batches,
+    depending on the value or `num_outputs`. If `num_outputs` is not set, the `source` is expected
+    to return a single batch. If it's specified, the data is expected to a tuple or list where each
+    element corresponds to respective return value of the external_source.
+
+    `cycle`: bool
+    If `True`, the source iterable will be wrapped. Otherwise, StopIteration error wil be raised
+    when end of data is reached. Setting this flag to True when `source` is not an iterable is an
+    error.
 
     `num_outputs` : int, optional
-    If specified, denotes the number of TensorLists produced by the callback function
+    If specified, denotes the number of TensorLists produced by the source function
 
     `name` : str, optional
     The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
-    the data is provided by `callback`.
+    the data is provided by `source`.
 
     `layout` : str or list/tuple of str:
     If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
@@ -109,11 +114,11 @@ def external_source(callback = None, num_outputs = None, *, name = None, device 
     only the first outputs have the layout set, the reset have it cleared.
     """
     if num_outputs is not None:
-        if callback is None:
-            raise ValueError("The parameter `num_outputs` is only valid when using `callback` to "
+        if source is None:
+            raise ValueError("The parameter `num_outputs` is only valid when using `source` to "
                 "provide data. To feed multiple external sources in `feed_input`, use multiple "
                 "`external_source` nodes.")
 
     op = nvidia.dali.ops.ExternalSource(device = device, num_outputs = num_outputs,
-                                        callback = callback, layout = layout)
+                                        source = source, cycle = cycle, layout = layout)
     return op(name = name)

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -104,6 +104,7 @@ class Pipeline(object):
         self._built = False
         self._first_iter = True
         self._last_iter = False
+        self._iter = 0
         self._batches_to_consume = 0
         self._cpu_batches_to_consume = 0
         self._gpu_batches_to_consume = 0
@@ -180,10 +181,10 @@ class Pipeline(object):
 
     @staticmethod
     def _raise_pipeline_required(op_name):
-        raise RuntimeError("Unknown pipeline!\n" +
+        raise RuntimeError("Current Pipeline not set!\n" +
             op_name + " operator must be used inside `define_graph` or "
-            "current pipeline must be explicitly set using Pipeline.push_current or "
-            "using `with` statement.");
+            "current pipeline must be explicitly set using context manager (`with my_pipeline:`) "
+            "or with a call to `Pipeline.push_current(my_pipeline)`.")
 
     @staticmethod
     def push_current(pipeline):
@@ -199,7 +200,7 @@ class Pipeline(object):
 
     @staticmethod
     def pop_current():
-        return pipeline_tls.pipeline_stack.pop()
+        pipeline_tls.current_pipeline = pipeline_tls.pipeline_stack.pop()
 
     def __enter__(self):
         Pipeline.push_current(self)
@@ -343,7 +344,7 @@ class Pipeline(object):
         for op in self._ops:
             callback = getattr(op._op, "_callback", None)
             if callback is not None:
-                group = tuple(op._group)
+                group = op._group
                 groups.add(group)
         self._input_callbacks = list(groups)
 
@@ -366,21 +367,34 @@ class Pipeline(object):
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, ref, data, layout=""):
-        """Bind the NumPy array to a tensor produced by ExternalSource
-        operator. It is worth mentioning that `ref` **should not** be overridden
-        with other operator outputs and it should be called from the
-        inside of `iter_setup` method"""
+    def feed_input(self, data_node, data, layout=""):
+        """Bind a NumPy array (or a list thereof) to an output of ExternalSource.
+
+        `data_node` : DataNode or str
+        The `DataNode` returned by a call to ExternalSource or a name of the ExternalSource
+
+        `data` : numpy.ndarray or a list thereof
+        The data to be used as the output of the ExternalSource referred to by `data_node`.
+        In case of GPU external sources, this must be a numpy.ndarray.
+
+        `layout`: str
+        The description of the data layout (or empty string, if not specified).
+        It should be a string of the length that matches the dimensionality of the data, batch
+        dimension excluded. For a batch of channel-first images, this should be "CHW", for
+        channel-last video it's "FHWC" and so on.
+        """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        if isinstance(ref, str):
-            name = ref
+        if isinstance(data_node, str):
+            name = data_node
         else:
-            _data_node._check(ref)
-            name = ref.name
+            _data_node._check(data_node)
+            name = data_node.name
+
+        from nvidia.dali.external_source import _check_data_batch
+        _check_data_batch(data, self._batch_size, layout)
+
         if isinstance(data, list):
-            if self._batch_size != len(data):
-                raise RuntimeError("Data list provided to feed_input needs to have batch_size length")
             inputs = []
             for datum in data:
                 inputs.append(Tensors.TensorCPU(datum, layout))
@@ -580,6 +594,7 @@ class Pipeline(object):
         if self._last_iter:
             self._first_iter = True
             self._last_iter = False
+            self._iter = 0
 
     def empty(self):
         """If there is any work scheduled in the pipeline but not yet consumed
@@ -600,6 +615,7 @@ class Pipeline(object):
         p._pipe = None
         p._prepared = False
         p._first_iter = True
+        p._iter = 0
         p._last_iter = False
 
         if device_id is not None:
@@ -670,48 +686,17 @@ class Pipeline(object):
         It returns a list of outputs created by calling DALI Operators."""
         raise NotImplementedError
 
-    @staticmethod
-    def _check_data_batch(data, batch_size, layout):
-        if isinstance(data, (list, tuple)):
-            if len(data) != batch_size:
-                raise RuntimeError("The external source callback returned an unexpected batch "
-                "size: {} instead of {}".format(len(data), batch_size))
-            if len(data) > 0:
-                dim = len(data[0].shape)
-                for t in data:
-                    if len(t.shape) != dim:
-                        raise RuntimeErrorError("All tensors in a batch must have the same number of dimensions")
-                if layout != "" and dim != len(layout):
-                    raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
-        else:
-            dim = len(data.shape) - 1
-            if data.shape[0] != batch_size:
-                raise RuntimeError("The external source callback returned an unexpected batch "
-                "size: {} instead of {}".format(data.shape[0], batch_size))
-            if layout != "" and dim != len(layout):
-                raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
-
     def _run_input_callbacks(self):
         if self._input_callbacks is None:
             return
 
         for group in self._input_callbacks:
-            callback = group[0]._callback
-            callback_out = callback()
-            if group[0]._output_index is not None:
-                for op in group:
-                    data = callback_out[op._output_index]
-                    Pipeline._check_data_batch(data, self._batch_size, op._layout)
-                    self.feed_input(op._name, data, op._layout)
-            else:
-                data = callback_out
-                op = group[0]
-                Pipeline._check_data_batch(data, self._batch_size, op._layout)
-                self.feed_input(op._name, data, op._layout)
+            group.call_and_feed(self, self._iter)
 
     def _iter_setup(self):
         self._run_input_callbacks()
         self.iter_setup()
+        self._iter += 1
 
     def iter_setup(self):
         """This function can be overriden by user-defined

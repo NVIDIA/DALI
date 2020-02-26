@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -563,94 +563,6 @@ _load_ops()
 def Reload():
     _load_ops()
 
-
-# custom wrappers around ops
-class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
-    global _cpu_ops
-    global _gpu_ops
-    _cpu_ops = _cpu_ops.union({'ExternalSource'})
-    _gpu_ops = _gpu_ops.union({'ExternalSource'})
-
-    def __init__(self, callback = None, num_outputs = None, *, layout = None, name = None, device = "cpu", **kwargs):
-        self._schema = _b.GetSchema("_ExternalSource")
-        self._spec = _b.OpSpec("_ExternalSource")
-        self._device = device
-        self._layout = layout
-
-        if name is not None and self.num_outputs is not None:
-            raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
-
-        self._name = name
-        self._num_outputs = num_outputs
-        self._callback = callback
-
-        self._spec.AddArg("device", device)
-        for key, value in kwargs.items():
-            self._spec.AddArg(key, value)
-
-    @property
-    def spec(self):
-        return self._spec
-
-    @property
-    def schema(self):
-        return self._schema
-
-    @property
-    def device(self):
-        return self._device
-
-    @property
-    def preserve(self):
-        return False
-
-    def __call__(self, *, callback = None, name = None, **kwargs):
-        if callback is None:
-            callback = self._callback
-        else:
-            if self._callback is not None:
-                raise RuntimeError("The callback for external source was specified twice. "
-                    "Callback must not be passed both to constructor and call.")
-
-        if name is None:
-            name = self._name
-
-        if name is not None and self._num_outputs is not None:
-            raise RuntimeError("`num_outputs` is not compatible with named `ExternalSource`")
-
-
-        if self._num_outputs is not None:
-            outputs = []
-            kwargs = {}
-            group = []
-            for i in range(self._num_outputs):
-                op_instance = _OperatorInstance([], self, **kwargs)
-                op_instance._callback = callback
-                op_instance._output_index = i
-                op_instance._group = group
-                if self._layout is not None:
-                    if isinstance(self._layout, (list, tuple)):
-                        op_instance._layout = self._layout[i] if i < len(self._layout) else ""
-                    else:
-                        op_instance._layout = self._layout
-                else:
-                    op_instance._layout = ""
-
-                group.append(op_instance)
-                op_instance.generate_outputs()
-                outputs.append(op_instance.unwrapped_outputs)
-            return outputs
-        else:
-            if name is not None:
-                kwargs["name"] = name
-            op_instance = _OperatorInstance([], self, **kwargs)
-            op_instance._callback = callback
-            op_instance._output_index = None
-            op_instance._group = [op_instance]
-            op_instance._layout = self._layout if self._layout is not None else ""
-            op_instance.generate_outputs()
-            return op_instance.unwrapped_outputs
-
 # custom wrappers around ops
 class TFRecordReader(with_metaclass(_DaliOperatorMeta, object)):
     global _cpu_ops
@@ -1051,3 +963,7 @@ def register_cpu_op(name):
 def register_gpu_op(name):
     global _gpu_ops
     _gpu_ops = _gpu_ops.union({name})
+
+# This must go at the end - the purpose of these imports is to expose the operators in
+# nvidia.dali.ops module
+from nvidia.dali.external_source import ExternalSource

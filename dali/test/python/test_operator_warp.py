@@ -90,7 +90,7 @@ class WarpPipeline(Pipeline):
           self.cast = None
 
         if use_input:
-          self.transform_source = ops.ExternalSource()
+          self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
           self.warp = ops.WarpAffine(device = device, size=(240,320), fill_value = 42, output_dtype = output_type)
         else:
           warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
@@ -107,15 +107,11 @@ class WarpPipeline(Pipeline):
           images = self.cast(images)
 
         if self.use_input:
-          self.transform = self.transform_source()
-          outputs = self.warp(images, self.transform)
+          transform = self.transform_source()
+          outputs = self.warp(images, transform)
         else:
           outputs = self.warp(images)
         return outputs
-
-    def iter_setup(self):
-        if self.use_input:
-          self.feed_input(self.transform, gen_transforms(self.batch_size, 10))
 
 
 class CVPipeline(Pipeline):
@@ -126,7 +122,7 @@ class CVPipeline(Pipeline):
         self.input = ops.CaffeReader(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
         self.decode = ops.ImageDecoder(device = "cpu", output_type = types.RGB)
         if self.use_input:
-          self.transform_source = ops.ExternalSource()
+          self.transform_source = ops.ExternalSource(lambda: gen_transforms(self.batch_size, 10))
           self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type))
         else:
           self.warp = ops.PythonFunction(function=CVWarp(output_type, input_type, [[0.1, 0.9, 10], [0.8, -0.2, -20]]))
@@ -141,11 +137,6 @@ class CVPipeline(Pipeline):
         else:
           outputs = self.warp(images)
         return outputs
-
-    def iter_setup(self):
-        if self.use_input:
-          self.feed_input(self.transform, gen_transforms(self.batch_size, 10))
-
 
 def compare(pipe1, pipe2, eps):
   epoch_size = pipe1.epoch_size("Reader")
