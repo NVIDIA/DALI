@@ -128,6 +128,10 @@ class TensorVector {
   }
 
   DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape) {
+    return Resize(new_shape, type());
+  }
+
+  DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape, const TypeInfo &new_type) {
     // N.B. There probably is nothing wrong with adjusting batchsize for give TensorVector
     // (sparse tensor list), but the semantics of what type and pinned status should
     // the new elements have or having some of them allocated and the new ones not
@@ -138,12 +142,12 @@ class TensorVector {
       allocate_tensors(new_shape.size());
     }
     if (state_ == State::contiguous) {
-      tl_->Resize(new_shape);
+      tl_->Resize(new_shape, new_type);
       UpdateViews();
       return;
     }
     for (int i = 0; i < new_shape.size(); i++) {
-      tensors_[i]->Resize(new_shape[i]);
+      tensors_[i]->Resize(new_shape[i], new_type);
     }
   }
 
@@ -153,7 +157,9 @@ class TensorVector {
     for (auto t : tensors_) {
       t->set_type(new_type);
     }
-    UpdateViews();
+    if (state_ == State::contiguous) {
+      UpdateViews();
+    }
   }
 
   inline TypeInfo type() const {

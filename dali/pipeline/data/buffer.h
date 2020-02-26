@@ -297,10 +297,15 @@ class DLL_PUBLIC Buffer {
 
   // Helper to resize the underlying allocation
   inline void ResizeHelper(Index new_size) {
+    ResizeHelper(new_size, type_);
+  }
+
+  // Helper to resize the underlying allocation
+  inline void ResizeHelper(Index new_size, const TypeInfo &new_type) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
 
     // If we use NoType the result will always be 0
-    size_t new_num_bytes = new_size * type_.size();
+    size_t new_num_bytes = new_size * new_type.size();
 
     if (shares_data_) {
       DALI_ENFORCE(new_num_bytes <= num_bytes_,
@@ -309,6 +314,10 @@ class DLL_PUBLIC Buffer {
     }
 
     size_ = new_size;
+    type_ = new_type;
+
+    if (shares_data_)
+      return;
 
     if (new_size == 0) {
       if (std::is_same<Backend, GPUBackend>::value && device_ == -1) {
