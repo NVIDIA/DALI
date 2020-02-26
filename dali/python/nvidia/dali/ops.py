@@ -206,6 +206,11 @@ Keyword args
     ret += _get_kwargs(schema)
     return ret
 
+def _supported_layouts_str(supported_layouts):
+    if len(supported_layouts) == 0:
+        return ""
+    return " (" + ", ".join(["\'" + str(layout) + "\'" for layout in supported_layouts]) + ")"
+
 def _docstring_prefix_from_inputs(op_name):
     """
         Generate start of the docstring for `__call__` of Operator `op_name`
@@ -225,7 +230,8 @@ Args
 """
     for i in range(schema.MaxNumInput()):
         optional = i >= schema.MinNumInput()
-        ret += _numpydoc_formatter(schema.GetInputName(i), schema.GetInputType(i), schema.GetInputDox(i), optional)
+        input_type_str = schema.GetInputType(i) + _supported_layouts_str(schema.GetSupportedLayouts(i))
+        ret += _numpydoc_formatter(schema.GetInputName(i), input_type_str, schema.GetInputDox(i), optional)
         ret += "\n"
     ret += "\n"
     return ret
@@ -242,15 +248,17 @@ def _docstring_prefix_auto(op_name):
 Operator call to be used in `define_graph` step. This operator does not accept any TensorList inputs.
 """
     elif schema.MaxNumInput() == 1:
-        return """__call__(data, **kwargs)
+        ret = """__call__(data, **kwargs)
 
 Operator call to be used in `define_graph` step.
 
 Args
 ----
-`data`: TensorList
-    Input to the operator.
 """
+        dox = "Input to the operator.\n"
+        fmt  = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(0))
+        ret += _numpydoc_formatter("data", fmt, dox, optional=False)
+        return ret
     return ""
 
 

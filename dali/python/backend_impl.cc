@@ -1015,7 +1015,8 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsInternal", &OpSchema::IsInternal)
     .def("IsNoPrune", &OpSchema::IsNoPrune)
     .def("IsDeprecated", &OpSchema::IsDeprecated)
-    .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf);
+    .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)
+    .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts);
 
   ExposeTensorLayout(types_m);
   ExposeTensor(m);
