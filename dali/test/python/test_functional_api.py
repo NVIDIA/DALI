@@ -45,3 +45,35 @@ def test_fn_python_function():
 
     assert(np.array_equal(pipe.run()[0].at(0), batch1[0] + 1))
     assert(np.array_equal(pipe.run()[0].at(0), batch2[0] + 1))
+
+def test_fn_multiple_input_sets():
+    pipe = Pipeline(batch_size = 1, num_threads = 1, device_id = 0)
+
+    image1 = np.array([
+        [1, 2,  3,  4],
+        [5, 6,  7,  8],
+        [9, 10, 11, 12]], dtype=np.uint8)[:,:,np.newaxis]
+    image2 = np.array([
+        [10, 20],
+        [30, 40],
+        [50, 60]], dtype=np.uint8)[:,:,np.newaxis]
+    batches = [[image1], [image2]]
+
+    inputs = fn.external_source(lambda: batches, 2, layout = "HWC")
+    rotated = fn.rotate(inputs, angle = 90)
+    pipe.set_outputs(*rotated)
+
+    pipe.build()
+    outs = pipe.run()
+    arr1 = outs[0].at(0)
+    arr2 = outs[1].at(0)
+    ref1 = np.array([
+        [4, 8, 12],
+        [3, 7, 11],
+        [2, 6, 10],
+        [1, 5, 9]])[:,:,np.newaxis]
+    ref2 = np.array([
+        [20, 40, 60],
+        [10, 30, 50]], dtype=np.uint8)[:,:,np.newaxis]
+    assert(np.array_equal(arr1, ref1))
+    assert(np.array_equal(arr2, ref2))

@@ -193,4 +193,4 @@ class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
             return op_instance.unwrapped_outputs
 
 def _is_external_source_with_callback(op_instance):
-    return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not Noe
+    return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None

@@ -340,10 +340,10 @@ class Pipeline(object):
         self._names_and_devices = [(e.name, e.device) for e in outputs]
 
     def _setup_input_callbacks(self):
+        from nvidia.dali.external_source import _is_external_source_with_callback
         groups = set()
         for op in self._ops:
-            callback = getattr(op._op, "_callback", None)
-            if callback is not None:
+            if _is_external_source_with_callback(op):
                 group = op._group
                 groups.add(group)
         self._input_callbacks = list(groups)

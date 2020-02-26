@@ -824,8 +824,12 @@ def _load_arithm_ops():
 _load_arithm_ops()
 
 def _choose_device(inputs):
-    if any (input.device == "gpu" for input in inputs):
-        return "gpu"
+    for input in inputs:
+        if isinstance(input, (tuple, list)):
+            if any(inp.device == "gpu" for inp in input):
+                return "gpu"
+        elif input.device == "gpu":
+            return "gpu"
     return "cpu"
 
 def _is_boolean_like(input):

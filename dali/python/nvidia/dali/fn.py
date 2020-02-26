@@ -57,16 +57,18 @@ def _to_snake_case(pascal):
 
 def _wrap_op_fn(op_class):
     def op_wrapper(*args, **kwargs):
-        def is_edge(x):
+        def is_data_node(x):
             return isinstance(x, _DataNode)
+        def is_input(x):
+            return is_data_node(x) or all(isinstance(y, _DataNode) for y in x)
         def is_call_arg(name, value):
-            return name == "name" or is_edge(value)
+            return name == "name" or is_data_node(value)
 
         scalar_args = { name:value for (name, value) in kwargs.items() if not is_call_arg(name, value) }
         tensor_args = { name:value for (name, value) in kwargs.items() if is_call_arg(name, value) }
         for idx, inp in enumerate(args):
-            if not is_edge(inp):
-                raise TypeError("""Input {0} is not a DALI tensor (edge reference).
+            if not is_input(inp):
+                raise TypeError("""Input {0} is neither a DALI `DataNode` nor a tuple of data nodes.
 Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op_class.__name__))
         default_dev = nvidia.dali.ops._choose_device(args)
         if default_dev == "gpu" and scalar_args.get("device") == "cpu":
