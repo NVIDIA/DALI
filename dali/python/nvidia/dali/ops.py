@@ -138,6 +138,8 @@ def _get_kwargs(schema, only_tensor = False):
         if not only_tensor or schema.IsTensorArgument(arg):
             arg_name_doc = arg
             dtype = schema.GetArgumentType(arg)
+            print(arg)
+            print(dtype)
             type_name = _type_name_convert_to_string(dtype, is_tensor = only_tensor)
             if schema.IsArgumentOptional(arg):
                 default_value_string = schema.GetArgumentDefaultValueString(arg)
@@ -203,6 +205,7 @@ Supported backends
 Keyword args
 ------------
 """
+    print(">>>>> Schema for {}".format(op_name))
     ret += _get_kwargs(schema)
     return ret
 
@@ -277,6 +280,7 @@ def _docstring_generator_call(op_name):
         ret = "Please refer to class :meth:`nvidia.dali.ops." + op_name + "` for full documentation.\n"
     if schema.AppendKwargsSection():
         # Kwargs section
+        print(">>>> Schema II for {}".format(op_name))
         tensor_kwargs = _get_kwargs(schema, only_tensor = True)
         if tensor_kwargs:
             ret += """

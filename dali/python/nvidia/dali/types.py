@@ -34,8 +34,14 @@ def _not_implemented(val):
     raise NotImplementedError()
 
 _known_types = {
+        DALIDataType.INT8 : ("int", int),
+        DALIDataType.INT16 : ("int", int),
         DALIDataType.INT32 : ("int", int),
         DALIDataType.INT64 : ("int", int),
+        DALIDataType.UINT8 : ("int", int),
+        DALIDataType.UINT16 : ("int", int),
+        DALIDataType.UINT32 : ("int", int),
+        DALIDataType.UINT64 : ("int", int),
         DALIDataType.FLOAT : ("float", float),
         DALIDataType.BOOL : ("bool", bool),
         DALIDataType.STRING : ("str", str),

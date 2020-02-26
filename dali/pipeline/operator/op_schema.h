@@ -28,11 +28,23 @@
 #include "dali/core/format.h"
 #include "dali/core/traits.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/argument.h"
 
 namespace dali {
 
 class OpSpec;
+
+struct RequiredArgumentDoc {
+  std::string doc;
+  DALIDataType dtype;
+};
+
+struct DefaultedArgumentDoc {
+  std::string doc;
+  DALIDataType dtype;
+  Value *default_value;
+};
 
 class DLL_PUBLIC OpSchema {
  public:
@@ -45,25 +57,11 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC explicit inline OpSchema(const std::string &name): name_(name) {
     // Fill internal arguments
-    auto v = Value::construct(-1);
-    internal_arguments_["num_threads"] =
-        std::make_pair("Number of CPU threads in a thread pool", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(-1);
-    internal_arguments_["batch_size"] = std::make_pair("Batch size", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(1);
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(std::string("cpu"));
-    internal_arguments_["device"] = std::make_pair("Device on which the Op is run", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(false);
-    internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(0);
-    internal_arguments_["default_cuda_stream_priority"] =
-        std::make_pair("Default cuda stream priority", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
+    AddInternalArg("num_threads", "Number of CPU threads in a thread pool", -1, DALI_INT32);
+    AddInternalArg("batch_size", "Batch size", -1, DALI_INT32);
+    AddInternalArg("device", "Device on which the Op is run", std::string("cpu"), DALI_STRING);
+    AddInternalArg("inplace", "Whether Op can be run in place", false, DALI_BOOL);
+    AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0, DALI_INT32);
 
     AddOptionalArg("seed", "Random seed (If not provided it will be populated based "
       "on the global seed of the pipeline)", -1);
@@ -74,6 +72,8 @@ class DLL_PUBLIC OpSchema {
     AddOptionalArg("preserve", "Do not remove the Op from the "
                                "graph even if its outputs are unused.", false);
   }
+
+
 
   DLL_PUBLIC inline ~OpSchema() = default;
 
@@ -291,7 +291,7 @@ class DLL_PUBLIC OpSchema {
                                      const DALIDataType dtype,
                                      bool enable_tensor_input = false) {
     CheckArgument(s);
-    arguments_[s] = std::make_pair(doc, dtype);
+    arguments_[s] = {doc, dtype};
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
     }
@@ -404,7 +404,7 @@ class DLL_PUBLIC OpSchema {
                  bool enable_tensor_input = false) {
     CheckArgument(s);
     auto to_store = Value::construct(default_value);
-    optional_arguments_[s] = std::make_pair(doc, to_store.get());
+    optional_arguments_[s] = {doc, type2id<T>::value, to_store.get()};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
@@ -427,7 +427,7 @@ class DLL_PUBLIC OpSchema {
                                              bool enable_tensor_input = false) {
     CheckArgument(s);
     auto to_store = Value::construct(std::vector<T>(default_value));
-    optional_arguments_[s] = std::make_pair(doc, to_store.get());
+    optional_arguments_[s] = {doc, DALI_INT_VEC, to_store.get()};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
@@ -703,9 +703,18 @@ class DLL_PUBLIC OpSchema {
       std::to_string(max_num_input_) + ").\nWas NumInput called?");
   }
 
-  std::map<std::string, std::pair<std::string, DALIDataType> > GetRequiredArguments() const;
+  template <typename T>
+  void AddInternalArg(const std::string &name, const std::string &doc,
+                      T value, const DALIDataType dtype = type2id<T>::value) {
+    auto v = Value::construct(value);
+    internal_arguments_[name] = {doc, dtype, v.get()};
+    internal_arguments_unq_.push_back(std::move(v));
+  }
 
-  std::map<std::string, std::pair<std::string, Value*>> GetOptionalArguments() const;
+  std::map<std::string, RequiredArgumentDoc> GetRequiredArguments() const;
+
+
+  std::map<std::string, DefaultedArgumentDoc> GetOptionalArguments() const;
 
   string dox_;
   string name_;
@@ -751,9 +760,9 @@ class DLL_PUBLIC OpSchema {
   bool is_deprecated_ = false;
   string deprecated_in_favor_of_;
 
-  std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
-  std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
-  std::map<std::string, std::pair<std::string, Value*> > internal_arguments_;
+  std::map<std::string, RequiredArgumentDoc> arguments_;
+  std::map<std::string, DefaultedArgumentDoc> optional_arguments_;
+  std::map<std::string, DefaultedArgumentDoc> internal_arguments_;
   std::vector<std::unique_ptr<Value> > optional_arguments_unq_;
   std::vector<std::unique_ptr<Value> > internal_arguments_unq_;
   std::vector<std::vector<TensorLayout>> input_layouts_;
