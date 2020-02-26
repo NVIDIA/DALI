@@ -20,7 +20,9 @@
 #include "dali/core/api_helper.h"
 
 // Trick to bypass gcc4.9 old ABI name mangling used by TF
+#ifdef __cplusplus
 extern "C" {
+#endif
   struct daliPipelineHandle {
     void* pipe;
     void* ws;
@@ -30,6 +32,22 @@ extern "C" {
     CPU = 0,
     GPU = 1
   };
+
+  typedef enum {
+    DALI_NO_TYPE         = -1,
+    DALI_UINT8           =  0,
+    DALI_UINT16          =  1,
+    DALI_UINT32          =  2,
+    DALI_UINT64          =  3,
+    DALI_INT8            =  4,
+    DALI_INT16           =  5,
+    DALI_INT32           =  6,
+    DALI_INT64           =  7,
+    DALI_FLOAT16         =  8,
+    DALI_FLOAT           =  9,
+    DALI_FLOAT64         = 10,
+    DALI_BOOL            = 11
+  } dali_data_type_t;
 
   /**
    * @brief Create DALI pipeline. Setting batch_size,
@@ -94,6 +112,14 @@ extern "C" {
   DLL_PUBLIC int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n);
 
   /**
+   * @brief Return the type of the output tensor
+   * stored at position `n` in the pipeline.
+   * This function may only be called after
+   * calling Output function.
+   */
+  DLL_PUBLIC dali_data_type_t daliTypeAt(daliPipelineHandle* pipe_handle, int n);
+
+  /**
    * @brief Return the shape of the 'k' output tensor from tensor list
    * stored at position `n` in the pipeline.
    * This function may only be called after
@@ -101,6 +127,15 @@ extern "C" {
    * @remarks Caller is responsible to 'free' the memory returned
    */
   DLL_PUBLIC int64_t* daliShapeAtSample(daliPipelineHandle* pipe_handle, int n, int k);
+
+  /**
+   * @brief Return the type of the 'k' output tensor from tensor list
+   * stored at position `n` in the pipeline.
+   * This function may only be called after
+   * calling Output function.
+   * @remarks Same as calling daliShapeAt(pipe_handle, n)
+   */
+  DLL_PUBLIC dali_data_type_t daliTypeAtSample(daliPipelineHandle* pipe_handle, int n, int k);
 
   /**
    * @brief Return the number of tensors in the tensor list
@@ -159,6 +194,9 @@ extern "C" {
    * @brief Load plugin library
    */
   DLL_PUBLIC void daliLoadLibrary(const char* lib_path);
+
+#ifdef __cplusplus
 }
+#endif
 
 #endif  // DALI_C_API_C_API_H_

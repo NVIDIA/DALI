@@ -15,7 +15,10 @@
 #ifndef DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
 #define DALI_TF_PLUGIN_DALI_SHAPE_HELPER_H_
 
+#include "dali/c_api/c_api.h"
+
 #include "tensorflow/core/framework/tensor_shape.h"
+#include "tensorflow/core/framework/types.h"
 
 namespace dali_tf_impl {
 
@@ -34,6 +37,38 @@ static tensorflow::TensorShape DaliToShape(const AutoCPtr<int64_t>& ns) {
     ts.InsertDim(i, ns.get()[i]);
   return ts;
 }
+
+static tensorflow::DataType DaliToTfType(dali_data_type_t dali_type) {
+  switch (dali_type) {
+    case DALI_UINT8:
+      return tensorflow::DT_UINT8;
+    case DALI_UINT16:
+      return tensorflow::DT_UINT16;
+    case DALI_UINT32:
+      return tensorflow::DT_UINT32;
+    case DALI_UINT64:
+      return tensorflow::DT_UINT64;
+    case DALI_INT8:
+      return tensorflow::DT_INT8;
+    case DALI_INT16:
+      return tensorflow::DT_INT16;
+    case DALI_INT32:
+      return tensorflow::DT_INT32;
+    case DALI_INT64:
+      return tensorflow::DT_INT64;
+    case DALI_FLOAT16:
+      return tensorflow::DT_HALF;
+    case DALI_FLOAT:
+      return tensorflow::DT_FLOAT;
+    case DALI_FLOAT64:
+      return tensorflow::DT_DOUBLE;
+    case DALI_BOOL:
+      return tensorflow::DT_BOOL;
+    default:
+      return tensorflow::DT_INVALID;
+  }
+}
+
 
 }  // namespace dali_tf_impl
 

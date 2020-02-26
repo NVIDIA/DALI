@@ -78,7 +78,7 @@ class TestPipeline(Pipeline):
         if self.device is 'gpu':
             im_ids = im_ids.gpu()
         im_ids_16 = self.cast(im_ids)
-        reshaped = self.reshape(im_ids) + 0
+        reshaped = self.reshape(im_ids)
 
         return (output, reshaped, im_ids_16)
 

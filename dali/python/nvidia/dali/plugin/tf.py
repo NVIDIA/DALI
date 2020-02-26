@@ -158,7 +158,7 @@ if dataset_compatible_tensorflow():
     def __init__(
       self,
       pipeline,
-      output_dtypes,
+      output_dtypes = None,
       output_shapes = None,
       *,
       batch_size = 1,
@@ -171,20 +171,8 @@ if dataset_compatible_tensorflow():
       dtypes=None,
       shapes=None):
 
-      # Python will handle the case of mandatory `pipeline` and `output_dtypes` arguments
-      if dtypes is not None:
-        warnings.warn(("Use of argument `dtypes` is deprecated. Please use `output_dtypes` instead. " \
-            + "`output_dtypes` should be provided as a tuple."), Warning, stacklevel=2)
-
-      if shapes is not None:
-        if output_shapes is not None:
-          raise ValueError("Usage of `shapes` is deprecated in favor of `output_shapes`. " +
-            "Both arguments were provided.")
-        # show only this warning
-        warnings.warn(("Use of argument `shapes` is deprecated. Please use `output_shapes` instead. " \
-            + "`output_shapes` should be provided as a tuple."), Warning, stacklevel=2)
-        if isinstance(shapes, list):
-          output_shapes = tuple(list_arg)
+      output_shapes = self._handle_deprecation(output_shapes, shapes, "shapes")
+      output_dtypes = self._handle_deprecation(output_dtypes, dtypes, "dtypes")
 
       if not self._check_output_dtypes(output_dtypes):
         raise TypeError(("`output_dtypes` should be provided as single tf.DType value " +
@@ -221,14 +209,28 @@ if dataset_compatible_tensorflow():
     def _check_output_dtypes(self, output_dtypes):
       """Check whether output_dtypes is instance of tf.DType or tuple of tf.DType
       """
-      if not isinstance(output_dtypes, tf.DType):
-        if isinstance(output_dtypes, tuple) \
-            and all(isinstance(dtype, tf.DType) for dtype in output_dtypes):
-          return True
-        else:
-          return False
-      else:
+      if isinstance(output_dtypes, tf.DType):
         return True
+      elif isinstance(output_dtypes, tuple) \
+          and all(isinstance(dtype, tf.DType) for dtype in output_dtypes):
+        return True
+      else:
+        return False
+
+    def _handle_deprecation(self, supported_arg, deprecated_arg, name):
+      if deprecated_arg is not None:
+        if supported_arg is not None:
+          raise ValueError(("Usage of `{name}` is deprecated in favor of `output_{name}`. " +
+            "Both arguments were provided, but only `output_{name}` should be provided.").format(name=name))
+        # show only this warning
+        warnings.warn(("Use of argument `{name}` is deprecated. Please use `output_{name}` instead. " \
+            + "`output_{name}` should be provided as a tuple or a single value.").format(name=name),
+            Warning, stacklevel=2)
+        if isinstance(deprecated_arg, list):
+          return tuple(deprecated_arg)
+        return deprecated_arg
+      else:
+        return supported_arg
 
     @property
     def element_spec(self):
@@ -268,7 +270,7 @@ else:
     def __init__(
       self,
       pipeline,
-      output_dtypes,
+      output_dtypes = None,
       output_shapes = None,
       *,
       batch_size = 1,
@@ -293,7 +295,7 @@ DALIDataset.__doc__ =  """Creates a `DALIDataset` compatible with tf.data.Datase
     Parameters
     ----------
     `pipeline` : `nvidia.dali.Pipeline`
-        defining the augmentations to be performed.
+        defining the data processing to be performed.
     `output_dtypes`: `tf.DType` or `tuple` of `tf.DType`
         expected output types
     `output_shapes`: tuple of shapes, optional

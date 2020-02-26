@@ -246,20 +246,50 @@ class DALIDatasetOp : public DatasetOpKernel {
             return status;
           }
 
+          auto dali_type = daliTypeAt(&pipeline_handle_, out_id);
+          auto tf_type = DaliToTfType(dali_type);
+
+          if (tf_type != dataset()->dtypes_[out_id]) {
+            std::stringstream ss;
+            ss << "The type provided for output `" << out_id << "` is not compatible with "
+                << "the type returned by DALI Pipeline. Expected (output_types[" << out_id
+                << "]): " << DataTypeString(dataset()->dtypes_[out_id]) << ", got from Pipeline: "
+                << DataTypeString(tf_type) << ".";
+            return errors::InvalidArgument(ss.str());
+          }
+
           out_tensors->emplace_back(context->allocator({}), dataset()->dtypes_[out_id],
                                     output_shape);
           tensorflow::Tensor &output = out_tensors->operator[](out_id);
 
           void *dst = nullptr;
           switch (dataset()->dtypes_[out_id]) {
+            case DT_BOOL:
+              dst = reinterpret_cast<void *>(output.flat<bool>().data());
+              break;
             case DT_HALF:
               dst = reinterpret_cast<void *>(output.flat<Eigen::half>().data());
               break;
             case DT_FLOAT:
               dst = reinterpret_cast<void *>(output.flat<float>().data());
               break;
+            case DT_DOUBLE:
+              dst = reinterpret_cast<void *>(output.flat<double>().data());
+              break;
             case DT_UINT8:
               dst = reinterpret_cast<void *>(output.flat<uint8_t>().data());
+              break;
+            case DT_UINT16:
+              dst = reinterpret_cast<void *>(output.flat<uint16_t>().data());
+              break;
+            case DT_UINT32:
+              dst = reinterpret_cast<void *>(output.flat<uint32_t>().data());
+              break;
+            case DT_UINT64:
+              dst = reinterpret_cast<void *>(output.flat<uint64>().data());
+              break;
+            case DT_INT8:
+              dst = reinterpret_cast<void *>(output.flat<int8_t>().data());
               break;
             case DT_INT16:
               dst = reinterpret_cast<void *>(output.flat<int16_t>().data());
@@ -273,7 +303,7 @@ class DALIDatasetOp : public DatasetOpKernel {
             default:
               return errors::InvalidArgument(
                   "Unsupported type: " + DataTypeString(dataset()->dtypes_[out_id]) +
-                  "for tensor " + std::to_string(out_id));
+                  " for tensor " + std::to_string(out_id));
           }
 
           DALI_CALL(daliCopyTensorNTo(&pipeline_handle_, dst, out_id, dataset()->device_type_,
@@ -426,7 +456,7 @@ REGISTER_OP("DALIDataset")
   .Attr("cpu_prefetch_queue_depth: int")
   .Attr("gpu_prefetch_queue_depth: int")
   .Attr("output_shapes: list(shape) >= 1")
-  .Attr("output_dtypes: list({half, float, uint8, int16, int32, int64}) >= 1")
+  .Attr("output_dtypes: list({bool, half, float, uint8, uint16, uint32, uint64, int8, int16, int32, int64}) >= 1")
   .Output("handle: variant")
   .SetIsStateful()
   .SetShapeFn(shape_inference::ScalarShape)
