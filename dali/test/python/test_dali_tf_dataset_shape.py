@@ -3,16 +3,21 @@ import nvidia.dali.ops as ops
 import nvidia.dali.pipeline as pipeline
 import nvidia.dali.plugin.tf as dali_tf
 import nvidia.dali.types as dali_types
+from test_utils_tensorflow import *
+
 
 import numpy as np
 
 import os
-from nose.tools import assert_equals, raises
+from nose.tools import assert_equals, raises, SkipTest
 import itertools
 import warnings
 
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/jpeg/')
 file_list_path = os.path.join(data_path, 'image_list.txt')
+
+def setup():
+    skip_for_incompatible_tf()
 
 def dali_pipe_batch_1(shapes, types, as_single_tuple = False):
     class TestPipeline(pipeline.Pipeline):
