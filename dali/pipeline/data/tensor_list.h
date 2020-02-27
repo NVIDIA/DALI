@@ -128,6 +128,15 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
    * list.
    */
   DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape) {
+    Resize(new_shape, type_);
+  }
+
+  /**
+   * @brief Resize function to allocate a list of tensors. The input vector
+   * contains a set of dimensions for each tensor to be allocated in the
+   * list.
+   */
+  DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape, const TypeInfo &new_type) {
     if (new_shape == shape_) return;
 
     // Calculate the new size
@@ -143,7 +152,7 @@ class DLL_PUBLIC TensorList : public Buffer<Backend> {
     DALI_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
 
     // Resize the underlying allocation and save the new shape
-    ResizeHelper(new_size);
+    ResizeHelper(new_size, new_type);
     shape_ = new_shape;
 
     // Tensor views of this TensorList is no longer valid
