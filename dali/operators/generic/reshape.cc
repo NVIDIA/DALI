@@ -23,7 +23,8 @@
 namespace dali {
 
 DALI_SCHEMA(Reshape)
-  .DocStr(R"code(Treats content of the input as if it had a different shape and/or layout.)code")
+  .DocStr(R"(Treats content of the input as if it had a different shape and/or layout.
+  The buffer contents are not copied.)")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be reshaped")
@@ -44,7 +45,7 @@ DALI_SCHEMA(Reshape)
                   "e.g. input of shape `[480, 640, 3]` and `rel_shape = [0.5, -1]` would get the "
                   "shape [240, 3840].\n"
                   "NOTE: `rel_shape` and `shape` are mutually exclusive.",
-                                std::vector<float>(), true)
+                  std::vector<float>(), true)
   .AddOptionalArg("layout", "New layout for the data. If not specified, the output layout is "
                   "preserved if number of dimension matches existing layout or reset to empty "
                   "otherwise. If set and not empty, the layout must match the dimensionality of "
@@ -52,7 +53,8 @@ DALI_SCHEMA(Reshape)
                   "");
 
 DALI_SCHEMA(Reinterpret)
-  .DocStr(R"code(Treats content of the input as if it had a different type, shape or layout.)code")
+  .DocStr(R"(Treats content of the input as if it had a different type, shape and/or layout.
+  The buffer contents are not copied.)")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be reshaped")
@@ -73,7 +75,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   bool has_layout_arg = spec.HasArgument("layout");
   bool has_rel_shape_arg = spec.HasArgument("rel_shape") || spec.HasTensorArgument("rel_shape");
   if (spec.HasArgument("dtype"))
-    output_type_ = spec.GetArgument<DALIDataType>("dtype");
+    output_type_id_ = spec.GetArgument<DALIDataType>("dtype");
   DALI_ENFORCE(has_shape_input + has_shape_arg + has_rel_shape_arg <= 1, make_string(OpName(),
     ": shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
 
@@ -81,7 +83,7 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg) {
     bool can_have_dtype = spec.GetSchema().HasArgument("dtype");
     if (can_have_dtype) {
-      DALI_ENFORCE(output_type_ != DALI_NO_TYPE, make_string(OpName(),
+      DALI_ENFORCE(output_type_id_ != DALI_NO_TYPE, make_string(OpName(),
                    " is no-op: arguments specify neither new shape, layout nor type."));
     } else {
       DALI_FAIL(make_string(OpName(),
@@ -149,8 +151,13 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
 template <typename Backend>
 bool Reshape<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   output_desc.resize(1);
+
+  output_type_ = output_type_id_ != DALI_NO_TYPE
+      ? &TypeTable::GetTypeInfo(output_type_id_)
+      : &ws.template InputRef<Backend>(0).type();
+
   CalculateOutputShape(ws);
-  output_desc[0].type = ws.template InputRef<Backend>(0).type();
+  output_desc[0].type = *output_type_;
   output_desc[0].shape = output_shape_;
   // return false, because we don't want the executor to allocate anything
   // - this operator returns pointer to input memory
@@ -255,9 +262,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
   }
 
   int64_t input_element_size = in.type().size();
-  int64_t output_element_size = output_type_ != DALI_NO_TYPE
-      ? TypeTable::GetTypeInfo(output_type_).size()
-      : in.type().size();
+  int64_t output_element_size = output_type_->size();
 
   if (shape_source_ != ShapeSource::None) {
     for (int i = 0; i < N; i++) {
@@ -326,10 +331,7 @@ void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &in = ws.InputRef<CPUBackend>(0);
   TensorLayout layout = GetOutputLayout(ws);
   out.ShareData(&in);
-  const TypeInfo &type = output_type_ != DALI_NO_TYPE
-      ? TypeTable::GetTypeInfo(output_type_)
-      : in.type();
-  out.Resize(output_shape_, type);
+  out.Resize(output_shape_, *output_type_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
     assert(out[i].raw_data() == in[i].raw_data());
@@ -345,10 +347,7 @@ void Reshape<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   TensorLayout layout = GetOutputLayout(ws);
   out.Reset();
   out.ShareData(&in);
-  const TypeInfo &type = output_type_ != DALI_NO_TYPE
-      ? TypeTable::GetTypeInfo(output_type_)
-      : in.type();
-  out.Resize(output_shape_, type);
+  out.Resize(output_shape_, *output_type_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
     assert(out.raw_tensor(i) == in.raw_tensor(i));

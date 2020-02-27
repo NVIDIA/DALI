@@ -162,7 +162,7 @@ class TensorVector {
     }
   }
 
-  inline TypeInfo type() const {
+  inline const TypeInfo &type() const {
     if (state_ == State::contiguous) {
       return tl_->type();
     }

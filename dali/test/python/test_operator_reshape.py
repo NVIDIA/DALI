@@ -207,9 +207,9 @@ def test_reshape_arg_input():
         for use_wildcard in [False, True]:
            yield check_reshape_with_arg_input, device, batch_size, relative, use_wildcard
 
-class ReinterpretPipeline1(Pipeline):
+class ReinterpretPipelineWithDefaultShape(Pipeline):
     def __init__(self, device, batch_size, num_threads=3, device_id=0, num_gpus=1):
-        super(ReinterpretPipeline1, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True)
+        super(ReinterpretPipelineWithDefaultShape, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True)
         self.device = device
         self.ext_src = ops.ExternalSource()
         self.reinterpret = ops.Reinterpret(device = device, dtype = types.INT32)
@@ -233,10 +233,10 @@ class ReinterpretPipeline1(Pipeline):
         self.feed_input(self.input, data)
 
 
-def _test_reinterpret_default(device):
+def _test_reinterpret_default_shape(device):
     np.random.seed(31337)
     batch_size = 4
-    pipe = ReinterpretPipeline1(device, batch_size)
+    pipe = ReinterpretPipelineWithDefaultShape(device, batch_size)
     pipe.build()
     pipe_outs = pipe.run()
     in_batch = pipe_outs[0].as_cpu() if device == "gpu" else pipe_outs[0]
@@ -246,14 +246,14 @@ def _test_reinterpret_default(device):
         out = out_batch.at(i)
         assert_array_equal(ref, out)
 
-def test_reinterpret_default():
+def test_reinterpret_default_shape():
     for device in ["cpu", "gpu"]:
-        yield _test_reinterpret_default, device
+        yield _test_reinterpret_default_shape, device
 
 
-class ReinterpretPipeline2(Pipeline):
+class ReinterpretPipelineWildcardDim(Pipeline):
     def __init__(self, device, batch_size, num_threads=3, device_id=0, num_gpus=1):
-        super(ReinterpretPipeline2, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True)
+        super(ReinterpretPipelineWildcardDim, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True)
         self.device = device
         self.ext_src = ops.ExternalSource()
         self.reinterpret = ops.Reinterpret(device = device, shape = (20, 2), dtype = types.INT32)
@@ -273,10 +273,10 @@ class ReinterpretPipeline2(Pipeline):
         self.feed_input(self.input, data)
 
 
-def _test_reinterpret_with_wildcard_shape(device):
+def _test_reinterpret_wildcard_shape(device):
     np.random.seed(31337)
     batch_size = 4
-    pipe = ReinterpretPipeline2(device, batch_size)
+    pipe = ReinterpretPipelineWildcardDim(device, batch_size)
     pipe.build()
     pipe_outs = pipe.run()
     in_batch = pipe_outs[0].as_cpu() if device == "gpu" else pipe_outs[0]
@@ -286,9 +286,9 @@ def _test_reinterpret_with_wildcard_shape(device):
         out = out_batch.at(i)
         assert_array_equal(ref, out)
 
-def test_reinterpret_with_wildcard_shape():
+def test_reinterpret_wildcard_shape():
     for device in ["cpu", "gpu"]:
-        yield _test_reinterpret_with_wildcard_shape, device
+        yield _test_reinterpret_wildcard_shape, device
 
 
 def main():

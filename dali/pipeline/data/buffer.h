@@ -179,7 +179,7 @@ class DLL_PUBLIC Buffer {
    * @brief Returns the TypeInfo object that keeps track of the
    * datatype of the underlying storage.
    */
-  inline TypeInfo type() const {
+  inline const TypeInfo &type() const {
     return type_;
   }
 

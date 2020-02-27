@@ -61,7 +61,8 @@ class Reshape : public Operator<Backend> {
   ShapeSource shape_source_ = ShapeSource::None;
   bool use_rel_shape_ = false;
   int wildcard_dim_ = -1;
-  DALIDataType output_type_ = DALI_NO_TYPE;
+  DALIDataType output_type_id_ = DALI_NO_TYPE;
+  const TypeInfo *output_type_ = nullptr;
 
   void CalculateOutputShape(const Workspace &ws);
 

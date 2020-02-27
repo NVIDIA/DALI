@@ -232,7 +232,7 @@ class DLL_PUBLIC TypeInfo {
   DLL_PUBLIC inline void SetType(DALIDataType dtype = DALI_NO_TYPE);
 
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream);
+  DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream) const;
 
   DLL_PUBLIC inline DALIDataType id() const {
     return id_;
