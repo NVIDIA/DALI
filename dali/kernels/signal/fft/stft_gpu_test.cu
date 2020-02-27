@@ -25,6 +25,7 @@
 #include "dali/kernels/signal/fft/stft_gpu.h"
 #include "dali/kernels/signal/fft/fft_postprocess.cuh"
 #include "dali/core/boundary.h"
+#include "dali/test/test_sound_generator.h"
 
 namespace dali {
 namespace kernels {
@@ -170,55 +171,6 @@ TEST(StftGPU, Setup) {
   }
 }
 
-void GenerateTestSound(float *out, int length, float freq, float amplitude) {
-  float m = M_PI * freq;
-  int fade = length/4;
-  float ampl[8];
-
-  for (int h = 0; h < 8; h++)
-    ampl[h] = pow(0.5, h);
-
-  auto signal = [&](int i) {
-    float v = 0;
-    for (int h = 0; h < 8; h++) {
-      float phase = i * m * (2*h+1);  // generate odd harmonics
-      v += sin(phase) * ampl[h];
-    }
-    return v * amplitude;
-  };
-
-  int i = 0;
-  for (; i < fade; i++) {
-    float envelope = (1 - cos(M_PI*i/fade)) * 0.5f;
-    out[i] += signal(i) * envelope;
-  }
-
-  for (; i < length - fade; i++) {
-    out[i] += signal(i);
-  }
-
-  for (; i < length; i++) {
-    float envelope = (1 - cos(M_PI*(length - i)/fade)) * 0.5f;
-    out[i] += signal(i) * envelope;
-  }
-}
-
-template <typename RNG>
-void GenerateTestWave(RNG &rng, float *out, int length, int num_sounds, int max_sound_length,
-                      float noise_level = 0.01f) {
-  std::normal_distribution<float> noise(0, noise_level);
-  std::uniform_int_distribution<int> lengths(max_sound_length/10, max_sound_length);
-  std::uniform_real_distribution<float> freqs(1e-3f, 0.3f);
-  std::uniform_real_distribution<float> ampls(0.1f, 1.0f);
-  for (int i = 0; i < length; i++)
-    out[i] = noise(rng);
-  for (int i = 0; i < num_sounds; i++) {
-    int l = lengths(rng);
-    int pos = std::uniform_int_distribution<int>(0, length - l)(rng);
-    GenerateTestSound(out + pos, l, freqs(rng), ampls(rng));
-  }
-}
-
 template <typename Params>
 class StftGPUTest;
 
@@ -250,7 +202,7 @@ class StftGPUTest<StftTestParams<OutputType, spectrum_type, time_major>>
       const auto lengths = make_cspan(in_shape.shapes);
       TensorListView<StorageCPU, float, 1> in_cpu = in.cpu();
       for (int i = 0; i < N; i++) {
-        GenerateTestWave(rng, in_cpu.data[i], lengths[i], 30, lengths[i] / 5);
+        testing::GenerateTestWave(rng, in_cpu.data[i], lengths[i], 30, lengths[i] / 5);
       }
 
       StftArgs args;

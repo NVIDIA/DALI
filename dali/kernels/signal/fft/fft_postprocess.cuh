@@ -16,6 +16,7 @@
 #define DALI_KERNELS_SIGNAL_FFT_FFT_POSTPROCESS_CUH_
 
 #include <cuda_runtime.h>
+#include <math.h>
 #include <memory>
 #include "dali/core/geom/vec.h"
 #include "dali/kernels/kernel.h"
@@ -59,11 +60,7 @@ struct norm2square {
 struct norm2 {
   DALI_HOST_DEV DALI_FORCEINLINE
   auto operator()(float2 c) const {
-#ifdef __CUDA_ARCH__
     return sqrtf(c.x * c.x + c.y * c.y);
-#else
-    return std::sqrt(c.x * c.x + c.y * c.y);
-#endif
   }
 
   DALI_FORCEINLINE
@@ -75,7 +72,7 @@ struct norm2 {
 struct power_dB {
   power_dB() = default;
   explicit power_dB(float cutoff_dB) {
-    cutoff = std::pow(10, cutoff_dB / 10);
+    cutoff = pow(10, cutoff_dB / 10);
   }
 
   float mul = 3.01029995664f;  // log10(2)
@@ -83,11 +80,7 @@ struct power_dB {
 
   DALI_HOST_DEV DALI_FORCEINLINE
   auto operator()(float2 c) const {
-#ifdef __CUDA_ARCH__
     return mul * log2f(::max(c.x * c.x + c.y * c.y, cutoff));
-#else
-    return mul * std::log2(std::max(c.x * c.x + c.y * c.y, cutoff));
-#endif
   }
 
   DALI_FORCEINLINE
@@ -242,7 +235,7 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
  * A specialized kernel that tranposes a frame-major spectrogrum to frequency-major one,
  * with an option to apply some pointwise transform on the data (e.g. complex magnitude).
  *
- * Constraints: all input samples must have the same
+ * Constraints: all input samples must have the same number of spectrum bins
  */
 template <typename Out, typename In = Out, typename Convert = identity>
 class ToFreqMajorSpectrum : public FFTPostprocess<Out, In> {

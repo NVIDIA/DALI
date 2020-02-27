@@ -29,10 +29,10 @@ kernels::KernelRequirements StftGPU::Setup(
     KernelContext &ctx,
     const TensorListShape<1> &in_shape,
     const StftArgs &args) {
-  if (!impl)
-    impl = std::make_unique<StftImplGPU>();
+  if (!impl_)
+    impl_ = std::make_unique<StftImplGPU>();
   DALI_ENFORCE(args.spectrum_type == FFT_SPECTRUM_COMPLEX);
-  return impl->Setup(ctx, in_shape, args);
+  return impl_->Setup(ctx, in_shape, args);
 }
 
 void StftGPU::Run(
@@ -40,8 +40,8 @@ void StftGPU::Run(
     const OutListGPU<complexf, 2> &out,
     const InListGPU<float, 1> &in,
     const InTensorGPU<float, 1> &window) {
-  assert(impl != nullptr && "No instance present - missing call to Setup?");
-  impl->Run(ctx, out, in, window);
+  assert(impl_ != nullptr && "No instance present - missing call to Setup?");
+  impl_->Run(ctx, out, in, window);
 }
 
 SpectrogramGPU::SpectrogramGPU() = default;
@@ -52,10 +52,10 @@ kernels::KernelRequirements SpectrogramGPU::Setup(
     KernelContext &ctx,
     const TensorListShape<1> &in_shape,
     const StftArgs &args) {
-  if (!impl)
-    impl = std::make_unique<StftImplGPU>();
+  if (!impl_)
+    impl_ = std::make_unique<StftImplGPU>();
   DALI_ENFORCE(args.spectrum_type != FFT_SPECTRUM_COMPLEX);
-  return impl->Setup(ctx, in_shape, args);
+  return impl_->Setup(ctx, in_shape, args);
 }
 
 void SpectrogramGPU::Run(
@@ -63,8 +63,8 @@ void SpectrogramGPU::Run(
     const OutListGPU<float, 2> &out,
     const InListGPU<float, 1> &in,
     const InTensorGPU<float, 1> &window) {
-  assert(impl != nullptr && "No instance present - missing call to Setup?");
-  impl->Run(ctx, out, in, window);
+  assert(impl_ != nullptr && "No instance present - missing call to Setup?");
+  impl_->Run(ctx, out, in, window);
 }
 
 }  // namespace fft

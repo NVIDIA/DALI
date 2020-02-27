@@ -66,7 +66,7 @@ class DLL_PUBLIC StftGPU {
     const InTensorGPU<float, 1> &window);
 
  private:
-  std::unique_ptr<StftImplGPU> impl;
+  std::unique_ptr<StftImplGPU> impl_;
 };
 
 class DLL_PUBLIC SpectrogramGPU {
@@ -86,7 +86,7 @@ class DLL_PUBLIC SpectrogramGPU {
     const InTensorGPU<float, 1> &window);
 
  private:
-  std::unique_ptr<StftImplGPU> impl;
+  std::unique_ptr<StftImplGPU> impl_;
 };
 
 }  // namespace fft
