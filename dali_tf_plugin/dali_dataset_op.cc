@@ -324,6 +324,15 @@ class DALIDatasetOp : public DatasetOpKernel {
 
      private:
 
+      /**
+       * @brief Get a shape that is compatible with the partial required shape (set for TF dataset)
+       *        and the shape of batch returned from DALI pipeline.
+       *        Allow to squeeze excess dimensions from the DALI shape but we cannot modify the
+       *        rank of TF shape.
+       *        If there is not unambiguous matching return error status.
+       *
+       * @param result the matching shape if the function returned Status::OK()
+       */
       Status GetCompatibleShape(TensorShape &result, const PartialTensorShape &required_shape,
                                 const TensorShape &dali_shape, int batch_size, int output_idx) {
         if (required_shape.IsCompatibleWith(dali_shape)) {
@@ -344,7 +353,7 @@ class DALIDatasetOp : public DatasetOpKernel {
         for (int i = 0; i < required_shape.dims(); i++) {
           result.AddDim(0);
         }
-        // Non-trivial batch size case, diffrent dims
+        // Non-trivial batch size case, different dims
         if (batch_size != 1) {
           // Should not happen, batch size from DALI will always match
           if (dali_shape.dim_size(0) != batch_size) {
@@ -386,14 +395,20 @@ class DALIDatasetOp : public DatasetOpKernel {
         return Status::OK();
       }
 
-
+      /**
+       * @brief Check if the given dimension sizes match. Negative value represent `None`
+       *        placeholder. `dali` values are always concrete
+       */
       bool DimSizeMatch(int64_t required, int64_t dali) {
-        if (required < 0 || required == dali) {
-          return true;
-        }
-        return false;
+        return required < 0 || required == dali);
       }
 
+      /**
+       * @brief Calculate the matching shapes by recursively matching possible. Count the number
+       *        of possible matches. 1-sized dimensions in `dali_shape` can be skipped.
+       *
+       * If there is only 1 match it will be stored in the `result`.
+       */
       int CountShapeMatches(TensorShape &result, const PartialTensorShape &required_shape, const TensorShape &dali_shape,
                             int req_pos = 0, int dali_pos = 0) {
         // We went over the whole shapes and they matched on the way

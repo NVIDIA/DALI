@@ -129,15 +129,6 @@ extern "C" {
   DLL_PUBLIC int64_t* daliShapeAtSample(daliPipelineHandle* pipe_handle, int n, int k);
 
   /**
-   * @brief Return the type of the 'k' output tensor from tensor list
-   * stored at position `n` in the pipeline.
-   * This function may only be called after
-   * calling Output function.
-   * @remarks Same as calling daliShapeAt(pipe_handle, n)
-   */
-  DLL_PUBLIC dali_data_type_t daliTypeAtSample(daliPipelineHandle* pipe_handle, int n, int k);
-
-  /**
    * @brief Return the number of tensors in the tensor list
    * stored at position `n` in the pipeline.
    */

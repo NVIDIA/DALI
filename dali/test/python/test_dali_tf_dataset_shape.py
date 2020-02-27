@@ -9,7 +9,8 @@ from test_utils_tensorflow import *
 import numpy as np
 
 import os
-from nose.tools import assert_equals, raises, SkipTest
+from nose import SkipTest
+from nose.tools import assert_equals, raises
 import itertools
 import warnings
 
