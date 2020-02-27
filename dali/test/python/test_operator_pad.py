@@ -82,23 +82,29 @@ def check_pad_synth_data(device, batch_size, input_max_shape, axes, axis_names, 
             dim = actual_axes[i]
             align_val = align[i]
             shape_arg_val = shape_arg[i]
-            if shape_arg_val > 0:
-                max_shape[dim] = shape_arg_val
-            else:
-                for i in range(batch_size):
-                    input_shape = out1_data.at(i).shape
-                    if input_shape[dim] > max_shape[dim]:
-                        max_shape[dim] = input_shape[dim]
-                remainder = max_shape[dim] % align_val
-                if remainder > 0:
-                    max_shape[dim] = max_shape[dim] - remainder + align_val
+            for i in range(batch_size):
+                input_shape = out1_data.at(i).shape
+                if input_shape[dim] > max_shape[dim]:
+                    max_shape[dim] = input_shape[dim]
 
         out2_data = out2.as_cpu() if isinstance(out2[0], dali.backend_impl.TensorGPU) else out2
         for i in range(batch_size):
+            input_shape = out1_data.at(i).shape
             output_shape = out2_data.at(i).shape
-            for dim in range(len(max_shape)):
-                if dim in actual_axes:
-                    assert(output_shape[dim] == max_shape[dim])
+
+            for j in range(len(actual_axes)):
+                dim = actual_axes[j]
+                align_val = align[j]
+                shape_arg_val = shape_arg[j]
+                if shape_arg_val >= 0:
+                    in_extent = input_shape[dim]
+                    expected_extent = in_extent if in_extent > shape_arg_val else shape_arg_val
+                else:
+                    expected_extent = max_shape[dim]
+                remainder = expected_extent % align_val
+                if remainder > 0:
+                    expected_extent = expected_extent - remainder + align_val
+                assert(output_shape[dim] == expected_extent)
 
 def test_slice_synth_data_vs_numpy():
     for device in ["cpu", "gpu"]:
@@ -122,7 +128,8 @@ def test_slice_synth_data_vs_numpy():
                  ((200, 400, 3), (0, 1), None, (256,), None),
                  ((200, 400, 3), None, "HW", (256,), None),
                  ((200, 400, 3), None, None, None, (-1, -1, 4)),
-                 ((25, 100, 3), (0,), None, None, (25,))]:
+                 ((25, 100, 3), (0,), None, None, (25,)),
+                 ((200, 400, 3), (0, 1), None, (4, 16), (1, 200))]:
                 yield check_pad_synth_data, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
 
 def main():

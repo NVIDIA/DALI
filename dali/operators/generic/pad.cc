@@ -23,8 +23,9 @@ namespace dali {
 
 DALI_SCHEMA(Pad)
   .DocStr(R"code(Pads all samples with `fill_value` in the given `axes`,
-to match the size of the biggest dimension on those axes in the batch.
-The element padding axes is specified with the argument `axes`.
+to match the biggest extent in the batch for those axes, or to match the minimum `shape`
+specified.
+
 Supported types are integer and floating point numeric types.
 
 Examples:
@@ -46,10 +47,12 @@ Examples:
 
   input  = [[3,   4,   2,   5,   4],
             [2,   2],
-            [3, 199,   5]];
+            [3, 199,   5],
+            [1,   2,   3,   4,   5,   6,   7,   8]];
   output = [[3,   4,   2,   5,   4,  -1,  -1],
             [2,   2,  -1,  -1,  -1,  -1,  -1],
-            [3, 199,   5,  -1,  -1,  -1,  -1]]
+            [3, 199,   5,  -1,  -1,  -1,  -1],
+            [1,   2,   3,   4,   5,   6,   7,   8]]
 
 - `1-D` samples, `fill_value` = -1, `axes` = (0,), `align` = (4,)
 
@@ -62,6 +65,16 @@ Examples:
             [2,   2,  -1,  -1,  -1,  -1,  -1,  -1],
             [3, 199,   5,  -1,  -1,  -1,  -1,  -1]]
 
+- `1-D` samples, `fill_value` = -1, `axes` = (0,), `shape` = (1,), `align` = (2,)
+
+::
+
+  input  = [[3,   4,   2,   5,   4],
+            [2,   2],
+            [3, 199,   5]];
+  output = [[3,   4,   2,   5,   4,  -1],
+            [2,   2],
+            [3, 199,   5,  -1]]
 
 - `2-D` samples, `fill_value` = 42, `axes` = (1,)
 
@@ -129,15 +142,15 @@ Arguments *axis_names* and *axes* are mutually exclusive.
 If *axes* and *axis_names* are empty or not provided, the output will be padded on all the axes)code",
     "")
   .AddOptionalArg<int>("align",
-    R"code(If specified, determines the alignment on those dimensions that are padded. That is,
-the padded length on `axis = axes[i]` should be a multiple of `align[i]`. If a single integer value
-is provided, the alignment restrictions are applied to all the padded axes.
-If a non-negative value for *shape* is specified, the alignment shall be ignored on that axis)code",
+    R"code(If specified, determines the alignment on those dimensions specified by *axes* or
+*axis_names*. That is, the extent on `axis = axes[i]` will be adjusted to be a multiple of `align[i]`.
+If a single integer value is provided, the alignment restrictions are applied to all the padded axes.)code",
     std::vector<int>())
   .AddOptionalArg<int>("shape",
-    R"code(The extents of the output shape in the axes specified by *axes* or *axis_names*;
-specifying -1 for an axis restores the default behavior of extending the axis to accommodate the
-(aligned) size of the largest sample in the batch)code",
+    R"code(The extents of the output shape in the axes specified by *axes* or *axis_names*.
+Specifying -1 for an axis restores the default behavior of extending the axis to accommodate the
+(aligned) size of the largest sample in the batch. If the provided extent is smaller than the one
+of the sample, no padding will be applied, except what is needed to match required alignment.)code",
     vector<int>());
 
 template <>

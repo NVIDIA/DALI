@@ -68,6 +68,13 @@ class Pad : public Operator<Backend> {
   }
 
  private:
+  static inline int64_t aligned_extent(int64_t extent, int alignment) {
+    int64_t remainder = extent % alignment;
+    if (remainder > 0)
+      extent += alignment - remainder;
+    return extent;
+  }
+
   template <typename Args>
   std::vector<Args>& FillArgs(TensorListShape<> in_shape, TensorLayout in_layout) {
     int nsamples = in_shape.num_samples();
@@ -116,35 +123,34 @@ class Pad : public Operator<Backend> {
       make_string("If explicit shape is provided, there should be a value per axis to be padded. "
                   "Expected ", axes_.size(), " values for shape, got ", shape_.size()));
 
-    assert(static_cast<int>(axes_.size()) <= ndim);
-    for (int i = 0; i < static_cast<int>(axes_.size()); i++) {
+    int naxes = axes_.size();
+    assert(naxes <= ndim);
+    for (int i = 0; i < naxes; i++) {
       auto axis = axes_[i];
-      int64_t shape_val = shape_[i];
-      if (shape_val > 0) {
-        padded_shape[axis] = shape_val;
-      } else {
+      padded_shape[axis] = shape_[i];
+      if (padded_shape[axis] < 0) {
         for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
           auto data_shape = in_shape[sample_idx];
           if (data_shape[axis] > padded_shape[axis])
             padded_shape[axis] = data_shape[axis];
         }
-        assert(padded_shape[axis] > 0);
-        if (!align_.empty()) {
-          int64_t align_val = align_[i];
-          int64_t remainder = padded_shape[axis] % align_val;
-          if (remainder > 0) {
-            padded_shape[axis] += align_val - remainder;
-          }
-        }
       }
     }
 
-    for (int i = 0; i < nsamples; i++) {
-      auto &sample_args = kernel_sample_args[i];
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      auto &sample_args = kernel_sample_args[sample_idx];
+      const auto &sample_shape = in_shape[sample_idx];
       sample_args.padding_val = fill_value_;
-      for (auto axis : axes_) {
-        assert(padded_shape[axis] > 0);
-        sample_args.padded_shape[axis] = padded_shape[axis];
+      for (int i = 0; i < naxes; i++) {
+        auto axis = axes_[i];
+        auto &extent = sample_args.padded_shape[axis];
+        // Adjust padded extent only if it is bigger than the sample's extent
+        // That is, we are not cropping the image
+        if (padded_shape[axis] > extent)
+          extent = padded_shape[axis];
+        // Adjust alignment if required
+        if (!align_.empty())
+          extent = aligned_extent(extent, align_[i]);
       }
     }
 
