@@ -44,7 +44,7 @@ Tensor (``m * [x, y, w, h]`` or ``m * [left, top, right, bottom]``) and labels a
 Each mask can be one or more polygons. A polygon is a list of points (2 floats).
 For a given sample, the polygons are represented by two tensors:
 
-- `masks_meta` -> list of tuples (mask_idx, start_idx, count)
+- `masks_meta` -> list of tuples (mask_idx, start_idx, end_idx)
 - `masks_coords`-> list of (x,y) coordinates
 
 One mask can have one or more `masks_meta` having the same `mask_idx`, which means that the mask for that given
