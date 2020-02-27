@@ -55,6 +55,26 @@ class _ExternalSourceGroup(object):
             op = self.instances[0]
             pipeline.feed_input(op._name, data, op._layout)
 
+def _get_callback_from_source(source, cycle):
+    iterable = False
+    if source is not None:
+        try:
+            iterator = iter(source)
+            if cycle:
+                iterator = itertools.cycle(iterator)
+            iterable = True
+            callback = lambda: next(iterator)
+        except TypeError:
+            if not callable(source):
+                raise "Source must be iterable or callable"
+            callback = source
+    else:
+        callback = None
+
+    if not iterable and cycle:
+        raise ValueError("`cycle` argument is only valid for iterable `source`")
+    return callback
+
 class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
     """ExternalSource is a special operator which can provide data to DALI pipeline from Python
     using several methods.
@@ -94,28 +114,41 @@ class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
     _gpu_ops = _gpu_ops.union({'ExternalSource'})
 
     def __init__(self, source = None, num_outputs = None, *, cycle = False, layout = None, name = None, device = "cpu", **kwargs):
+        """Configures an ExternalSource operator.
+
+        `device`: str, "cpu" or "gpu"
+        The device, on which the ExternalSource output will appear
+
+        `source` : callable or iterable
+        The source of the data. The source is polled for data (via a call or `next(source)` whenever
+        the pipeline needs input for the next iteration. The source can supply one or data batches,
+        depending on the value or `num_outputs`. If `num_outputs` is not set, the `source` is expected
+        to return a single batch. If it's specified, the data is expected to a tuple or list where each
+        element corresponds to respective return value of the external_source.
+
+        `cycle`: bool
+        If `True`, the source iterable will be wrapped. Otherwise, StopIteration error wil be raised
+        when end of data is reached. Setting this flag to True when `source` is not an iterable is an
+        error.
+
+        `num_outputs` : int, optional
+        If specified, denotes the number of TensorLists produced by the source function
+
+        `name` : str, optional
+        The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
+        the data is provided by `source`.
+
+        `layout` : str or list/tuple of str:
+        If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
+        containing a distinct layout for each output. If the list has fewer elements than `num_outputs`,
+        only the first outputs have the layout set, the reset have it cleared.
+        """
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
         self._layout = layout
 
-        iterable = False
-        if source is not None:
-            try:
-                iterator = iter(source)
-                if cycle:
-                    iterator = itertools.cycle(iterator)
-                iterable = True
-                callback = lambda: next(iterator)
-            except TypeError:
-                if not callable(source):
-                    raise "Source must be iterable or callable"
-                callback = source
-        else:
-            callback = None
-
-        if not iterable and cycle:
-            raise ValueError("`cycle` argument is only valid for iterable `source`")
+        callback = _get_callback_from_source(source, cycle)
 
         if name is not None and self.num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
@@ -144,14 +177,43 @@ class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
     def preserve(self):
         return False
 
-    def __call__(self, *, callback = None, name = None, **kwargs):
-        if callback is None:
+    def __call__(self, *, source = None, cycle = None, name = None, layout = None, **kwargs):
+        """
+        `source` : callable or iterable
+        The source of the data. The source is polled for data (via a call or `next(source)` whenever
+        the pipeline needs input for the next iteration. The source can supply one or data batches,
+        depending on the value or `num_outputs`. If `num_outputs` is not set, the `source` is expected
+        to return a single batch. If it's specified, the data is expected to a tuple or list where each
+        element corresponds to respective return value of the external_source.
+
+        `cycle`: bool
+        If `True`, the source iterable will be wrapped. Otherwise, StopIteration error wil be raised
+        when end of data is reached. Setting this flag to True when `source` is not an iterable is an
+        error.
+
+        `num_outputs` : int, optional
+        If specified, denotes the number of TensorLists produced by the source function
+
+        `name` : str, optional
+        The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
+        the data is provided by `source`.
+
+        `layout` : str or list/tuple of str:
+        If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
+        containing a distinct layout for each output. If the list has fewer elements than `num_outputs`,
+        only the first outputs have the layout set, the reset have it cleared.
+        """
+        if source is None:
+            if cycle is not None:
+                raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
             callback = self._callback
         else:
             if self._callback is not None:
-                raise RuntimeError("The callback for external source was specified twice. "
-                    "Callback must not be passed both to constructor and call.")
+                raise RuntimeError("`source` already specified in constructor.")
+            callback = _get_callback_from_source(source, cycle)
 
+        if layout is not None and self._layout is not None:
+            raise RuntimeError("`layout` already specified in constructor.")
         if name is None:
             name = self._name
 

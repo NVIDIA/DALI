@@ -370,7 +370,8 @@ class _DaliOperatorMeta(type):
             actual_operator_name = name
         # Set the docstring for __call__, if it's present
         try:
-            attrs['__call__'].__doc__ = _docstring_generator_call(actual_operator_name)
+            if attrs['__call__'].__doc__ is None:
+                attrs['__call__'].__doc__ = _docstring_generator_call(actual_operator_name)
         except KeyError:
             pass
         op_instance = super(_DaliOperatorMeta, mcs).__new__(mcs, name, bases, attrs)
@@ -547,8 +548,6 @@ def _load_ops():
     global _mixed_ops
     _cpu_ops = _cpu_ops.union(set(_b.RegisteredCPUOps()))
     _gpu_ops = _gpu_ops.union(set(_b.RegisteredGPUOps()))
-    _cpu_ops.remove("ExternalSource")
-    _gpu_ops.remove("ExternalSource")
     _mixed_ops = _mixed_ops.union(set(_b.RegisteredMixedOps()))
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
     for op_name in _cpu_gpu_ops:
@@ -557,8 +556,6 @@ def _load_ops():
             setattr(sys.modules[__name__], op_name, op_class)
             if op_name not in ["ExternalSource"]:
                 _functional._wrap_op(op_class)
-
-_load_ops()
 
 def Reload():
     _load_ops()
@@ -971,3 +968,5 @@ def register_gpu_op(name):
 # This must go at the end - the purpose of these imports is to expose the operators in
 # nvidia.dali.ops module
 from nvidia.dali.external_source import ExternalSource
+
+_load_ops()
