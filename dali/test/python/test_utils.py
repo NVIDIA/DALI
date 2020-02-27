@@ -215,7 +215,7 @@ def dali_type(t):
         return types.UINT32
     if t is np.int32:
         return types.INT32
-    raise "Unsupported type: " + str(t)
+    raise TypeError("Unsupported type: " + str(t))
 
 def py_buffer_from_address(address, shape, dtype, gpu = False):
     buff = {'data': (address, False), 'shape': tuple(shape), 'typestr': dtype}

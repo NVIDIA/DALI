@@ -66,7 +66,7 @@ def _get_callback_from_source(source, cycle):
             callback = lambda: next(iterator)
         except TypeError:
             if not callable(source):
-                raise "Source must be iterable or callable"
+                raise TypeError("Source must be iterable or callable")
             callback = source
     else:
         callback = None

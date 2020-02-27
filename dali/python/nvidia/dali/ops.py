@@ -968,5 +968,6 @@ def register_gpu_op(name):
 # This must go at the end - the purpose of these imports is to expose the operators in
 # nvidia.dali.ops module
 from nvidia.dali.external_source import ExternalSource
+ExternalSource.__module__ = __name__
 
 _load_ops()
