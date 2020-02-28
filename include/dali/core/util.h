@@ -182,6 +182,17 @@ struct same_as { using type = T; };
 template <typename T>
 using same_as_t = typename same_as<T>::type;
 
+
+// Imported from C++20 https://en.cppreference.com/w/cpp/utility/functional/identity
+struct identity {
+  template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  T &&operator()(T &&x) const noexcept {
+    return std::forward<T>(x);
+  }
+};
+
+
 #define IMPL_HAS_NESTED_TYPE(type_name)\
 template <typename T>\
 std::true_type HasNested_##type_name(typename T::type_name *);\

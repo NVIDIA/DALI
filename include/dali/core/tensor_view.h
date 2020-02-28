@@ -322,10 +322,54 @@ struct TensorListViewBase {
     return shape.tensor_shape_span(sample);
   }
 
+  /**
+   * @brief Sets a base pointer for the entire list, assuming contiguous layout of tensors.
+   *
+   * The data pointerd of individual tensors in the lists are calculated assuming that the
+   * tensors are stored sequentially and without gaps.
+   *
+   * If the tensor list was populated using this function, it is guaranteed that
+   * @ref is_contiguous returns true.
+   */
   template <typename U>
-  void set_dense_data(U *data) {
+  void set_contiguous_data(U *data) {
     detail::check_implicit_conversion<U, DataType>();
     calculate_pointers(this->data, data, shape);
+  }
+
+  /**
+   * @brief Checks whether the tensors in the list are packed sequentially, without gaps.
+   *
+   * The function checks if the data pointer to a next sample immediately follows the last
+   * element of the previous sample. There's no constraint on the shapes of the samples, however.
+   * To determine whether the tensor list can be reduced to a tensor, see @ref is_tensor.
+   */
+  bool is_contiguous() const {
+    if (num_samples() < 2)
+      return true;
+    auto *ptr = data[0];
+    for (int i = 1; i < num_samples(); i++) {
+      auto *next = ptr + volume(tensor_shape_span(i - 1));
+      if (data[i] != next)
+        return false;
+      ptr = next;
+    }
+    return true;
+  }
+
+  /**
+   * @brief Checks whether the tensor list can be viewed as a tensor, with samples
+   *        as outermost dimension.
+   *
+   * A the tensor list can be viewed as a tensor with an extra dimesnions (samples)
+   * if all the tensors in that list are of the same shape and the storage is contiguous.
+   * Some algorithms may take advantage of this and choose an optimized code path.
+   *
+   * @return *true*  if the shape is uniform and the storage is contiguous;
+   *         *false* otherwise
+   */
+  bool is_tensor() const {
+    return is_uniform(shape) && is_contiguous();
   }
 
   using data_pointers_t = std::vector<element_type*>;

@@ -345,5 +345,47 @@ TEST(TensorListViewTest, SampleRange) {
   }
 }
 
+TEST(TensorListViewTest, IsContiguous) {
+  TensorListView<StorageCPU, int, 3> tlv;
+  int data[100];
+  tlv.shape = {{
+    { 1, 2, 3 },
+    { 10, 2, 1 },
+    { 2, 3, 4 },
+    { 5, 2, 3 }
+  }};
+  tlv.resize(4, 3);
+  tlv.data[0] = data;
+  tlv.data[1] = tlv.data[0] + 6;
+  tlv.data[2] = tlv.data[1] + 20;
+  tlv.data[3] = tlv.data[2] + 24;
+  EXPECT_TRUE(tlv.is_contiguous());
+  tlv.data[3]++;
+  EXPECT_FALSE(tlv.is_contiguous());
+}
+
+TEST(TensorListViewTest, IsTensor) {
+  TensorListView<StorageCPU, int, 3> tlv;
+  int data[100];
+  tlv.shape = {{
+    { 1, 2, 3 },
+    { 1, 2, 3 },
+    { 1, 2, 3 }
+  }};
+  tlv.resize(3, 3);
+  tlv.data[0] = data;
+  tlv.data[1] = data + 6;
+  tlv.data[2] = data + 12;
+  EXPECT_TRUE(tlv.is_tensor());
+  tlv.data[2]++;
+  EXPECT_FALSE(tlv.is_tensor());
+  tlv.shape.tensor_shape_span(2)[2]++;
+  EXPECT_FALSE(tlv.is_tensor());
+  tlv.data[2]--;
+  EXPECT_FALSE(tlv.is_tensor());
+  tlv.shape.tensor_shape_span(2)[2]--;
+  EXPECT_TRUE(tlv.is_tensor());
+}
+
 }  // namespace kernels
 }  // namespace dali

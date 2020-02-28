@@ -173,6 +173,38 @@ struct EqualEps {
   double eps = 1e-6;
 };
 
+
+/**
+ * @brief A predicate that checks that the arguments are within relative or absolute error range.
+ *
+ * This predicate checks if the two values (a, b) are nearby. The condition is satisified when
+ * the values differ by no more than fixed epsilon **OR** are within an error range relative
+ * to their values. This allows to use the fixed epsilon for small numbers and relative range
+ * for large numbers - e.g.
+ * ```
+ * eps = 1e-5
+ * rel = 1e-4
+ *
+ * (0.00001, 0.000011)  <- condition satisfied, absolute error == 0.000001 less than 1e-5
+ * (10000, 10001)       <- condition satisified, relative error == 1e-5 less than 1e-4
+ * (0.00100, 0.00102)   <- condition not satisified - absolute error 2e-5, relative error 0.0196
+ * ```
+ */
+struct EqualEpsRel {
+  EqualEpsRel() = default;
+
+  explicit EqualEpsRel(double eps, double rel) : eps(eps), rel(rel) {}
+
+  template <typename T1, typename T2>
+  bool operator()(const T1 &a, const T2 &b) const {
+    auto dif = std::abs(b - a);
+    return dif <= eps || dif <= rel * std::max<double>(std::abs(a), std::abs(b));
+  }
+
+  double eps = 1e-6, rel = 1e-4;
+};
+
+
 /**
  * @brief Functor for comparing (potentially rounded) value to a floating point reference
  * Performs ULP comparision.
