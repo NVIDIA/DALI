@@ -5,6 +5,7 @@ import nvidia.dali.types as types
 import nvidia.dali.backend as backend
 import numpy as np
 from nose.tools import assert_raises
+from test_utils import check_output
 import random
 
 class TestIterator():
@@ -40,23 +41,6 @@ class TestIterator():
             self.i = 0
             raise StopIteration
     next = __next__
-
-def check_output(outputs, ref_out, ref_is_list_of_outputs = None):
-    if ref_is_list_of_outputs is None:
-        ref_is_list_of_outputs = len(outputs) > 1
-
-    assert(ref_is_list_of_outputs or (len(outputs) == 1))
-
-    for idx in range(len(outputs)):
-        out = outputs[idx]
-        ref = ref_out[idx] if ref_is_list_of_outputs else ref_out
-        if isinstance(out, backend.TensorListGPU):
-            out = out.as_cpu()
-        for i in range(len(out)):
-            if not np.array_equal(out[i], ref[i]):
-                print("Out: ", out.at(i))
-                print("Ref: ", ref[i])
-            assert(np.array_equal(out[i], ref[i]))
 
 def run_and_check(pipe, ref_iterable):
     iter_ref = iter(ref_iterable)
@@ -195,8 +179,8 @@ def _test_external_source_iter_split(use_fn_api, device):
     batch_size = 9
     pipe = Pipeline(batch_size, 3, 0)
 
-    # this should produce a two-element list of Tensor(Lists), the first
-    # being 2D, the second being 3D (+ batch dimension)
+    # this should produce a three-element list of Tensor(Lists), the first
+    # being 4D, the second being 2D and the third 3D (+ batch dimension)
     source = TestIterator(iter_num, batch_size, [4, 2, 3], device == "gpu")
 
     if use_fn_api:
@@ -238,6 +222,7 @@ def test_external_source_collection_cycling():
     pipe.set_outputs(fn.external_source(batches, cycle = True))
     pipe.build()
 
+    # epochs are cycles over the source iterable
     for epoch in range(3):
         for batch in batches:
             check_output(pipe.run(), batch)

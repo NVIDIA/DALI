@@ -15,8 +15,10 @@
 #pylint: disable=no-member
 from __future__ import division
 import sys
-import nvidia.dali.ops
+from nvidia.dali import backend as _b
 from nvidia.dali.data_node import DataNode as _DataNode
+from nvidia.dali.types import \
+        _type_name_convert_to_string, _type_convert_value
 
 _special_case_mapping = {
     "b_box" : "bbox",
@@ -55,8 +57,9 @@ def _to_snake_case(pascal):
     out = _handle_special_case(out)
     return out
 
-def _wrap_op_fn(op_class):
-    def op_wrapper(*args, **kwargs):
+def _wrap_op_fn(op_class, wrapper_name):
+    def op_wrapper(*inputs, **arguments):
+        import nvidia.dali.ops
         def is_data_node(x):
             return isinstance(x, _DataNode)
         def is_input(x):
@@ -64,63 +67,27 @@ def _wrap_op_fn(op_class):
         def is_call_arg(name, value):
             return name == "name" or is_data_node(value)
 
-        scalar_args = { name:value for (name, value) in kwargs.items() if not is_call_arg(name, value) }
-        tensor_args = { name:value for (name, value) in kwargs.items() if is_call_arg(name, value) }
-        for idx, inp in enumerate(args):
+        scalar_args = { name:value for (name, value) in arguments.items() if not is_call_arg(name, value) }
+        tensor_args = { name:value for (name, value) in arguments.items() if is_call_arg(name, value) }
+        for idx, inp in enumerate(inputs):
             if not is_input(inp):
                 raise TypeError("""Input {0} is neither a DALI `DataNode` nor a tuple of data nodes.
 Got {1} instead when calling operator {2}.""".format(idx, type(inp).__name__, op_class.__name__))
-        default_dev = nvidia.dali.ops._choose_device(args)
+        default_dev = nvidia.dali.ops._choose_device(inputs)
         if default_dev == "gpu" and scalar_args.get("device") == "cpu":
             raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
         if "device" not in scalar_args:
             scalar_args["device"] = default_dev
 
-        return op_class(**scalar_args)(*args, **tensor_args)
+        return op_class(**scalar_args)(*inputs, **tensor_args)
+
+    op_wrapper.__name__ = wrapper_name
     return op_wrapper
 
 def _wrap_op(op_class):
     wrapper_name = _to_snake_case(op_class.__name__)
     if not hasattr(sys.modules[__name__], wrapper_name):
-        setattr(sys.modules[__name__], wrapper_name, _wrap_op_fn(op_class))
+        setattr(sys.modules[__name__], wrapper_name, _wrap_op_fn(op_class, wrapper_name))
 
-
-def external_source(source = None, num_outputs = None, *, cycle = False, name = None, device = "cpu", layout = None):
-    """
-    Creates a data node which is populated with data from a Python source.
-    The data can be provided by the `source` function or iterable, or it can be provided by
-    `pipeline.feed_input(name, data, layout)` inside `pipeline.iter_setup`.
-
-    `source` : callable or iterable
-    The source of the data. The source is polled for data (via a call or `next(source)` whenever
-    the pipeline needs input for the next iteration. The source can supply one or data batches,
-    depending on the value or `num_outputs`. If `num_outputs` is not set, the `source` is expected
-    to return a single batch. If it's specified, the data is expected to a tuple or list where each
-    element corresponds to respective return value of the external_source.
-
-    `cycle`: bool
-    If `True`, the source iterable will be wrapped. Otherwise, StopIteration error wil be raised
-    when end of data is reached. Setting this flag to True when `source` is not an iterable is an
-    error.
-
-    `num_outputs` : int, optional
-    If specified, denotes the number of TensorLists produced by the source function
-
-    `name` : str, optional
-    The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
-    the data is provided by `source`.
-
-    `layout` : str or list/tuple of str:
-    If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
-    containing a distinct layout for each output. If the list has fewer elements than `num_outputs`,
-    only the first outputs have the layout set, the reset have it cleared.
-    """
-    if num_outputs is not None:
-        if source is None:
-            raise ValueError("The parameter `num_outputs` is only valid when using `source` to "
-                "provide data. To feed multiple external sources in `feed_input`, use multiple "
-                "`external_source` nodes.")
-
-    op = nvidia.dali.ops.ExternalSource(device = device, num_outputs = num_outputs,
-                                        source = source, cycle = cycle, layout = layout)
-    return op(name = name)
+from nvidia.dali.external_source import external_source
+external_source.__module__ = __name__

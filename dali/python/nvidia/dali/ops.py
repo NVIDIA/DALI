@@ -27,9 +27,9 @@ from nvidia.dali.types import \
         ScalarConstant as _ScalarConstant, \
         Constant as _Constant
 from nvidia.dali.pipeline import Pipeline as _Pipeline
+from nvidia.dali import fn as _functional
 from future.utils import with_metaclass
 import nvidia.dali.libpython_function_plugin
-from nvidia.dali import fn as _functional
 from nvidia.dali.data_node import DataNode as _DataNode
 
 cupy = None
@@ -542,6 +542,9 @@ def python_op_factory(name, op_device = "cpu"):
     # Operator.__call__.__doc__ = _docstring_generator_call(name)
     return Operator
 
+def _wrap_op(op_class):
+    return _functional._wrap_op(op_class)
+
 def _load_ops():
     global _cpu_ops
     global _gpu_ops
@@ -555,7 +558,7 @@ def _load_ops():
             op_class = python_op_factory(op_name, op_device = "cpu")
             setattr(sys.modules[__name__], op_name, op_class)
             if op_name not in ["ExternalSource"]:
-                _functional._wrap_op(op_class)
+                _wrap_op(op_class)
 
 def Reload():
     _load_ops()
@@ -807,9 +810,9 @@ class DLTensorPythonFunction(PythonFunctionBase):
                                                      batch_processing=batch_processing,
                                                      **kwargs)
 
-_functional._wrap_op(PythonFunction)
-_functional._wrap_op(DLTensorPythonFunction)
-_functional._wrap_op(TFRecordReader)
+_wrap_op(PythonFunction)
+_wrap_op(DLTensorPythonFunction)
+_wrap_op(TFRecordReader)
 
 def _load_arithm_ops():
     arithm_op_names = ["ArithmeticGenericOp"]

@@ -37,6 +37,7 @@ def test_fn_python_function():
 
     batch1 = [np.array([1,2,3])]
     batch2 = [np.array([2,3,4])]
+    # we need a context, because we use an operator with potential side-effects (python_function)
     with pipe:
         src = fn.external_source([batch1, batch2])
         out = fn.python_function(src, function = lambda x: x+1)

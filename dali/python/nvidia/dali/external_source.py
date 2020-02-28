@@ -1,8 +1,6 @@
 # custom wrappers around ops
 from future.utils import with_metaclass
-from nvidia.dali.ops import _DaliOperatorMeta, _OperatorInstance, _gpu_ops, _cpu_ops
 from nvidia.dali import backend as _b
-import itertools
 
 def _check_data_batch(data, batch_size, layout):
     if isinstance(data, (list, tuple)):
@@ -24,6 +22,20 @@ def _check_data_batch(data, batch_size, layout):
         if layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
+class _CycleIter():
+    def __init__(self, iterable):
+        self.source = iterable
+
+    def __iter__(self):
+        self.it = iter(self.source)
+        return self
+
+    def __next__(self):
+        try:
+            return next(self.it)
+        except StopIteration:
+            self.it = iter(self.source)
+            return next(self.it)
 
 class _ExternalSourceGroup(object):
     def __init__(self, callback, is_multioutput, instances = []):
@@ -59,9 +71,10 @@ def _get_callback_from_source(source, cycle):
     iterable = False
     if source is not None:
         try:
-            iterator = iter(source)
             if cycle:
-                iterator = itertools.cycle(iterator)
+                iterator = iter(_CycleIter(source))
+            else:
+                iterator = iter(source)
             iterable = True
             callback = lambda: next(iterator)
         except TypeError:
@@ -75,74 +88,47 @@ def _get_callback_from_source(source, cycle):
         raise ValueError("`cycle` argument is only valid for iterable `source`")
     return callback
 
-class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
+class ExternalSource():
     """ExternalSource is a special operator which can provide data to DALI pipeline from Python
-    using several methods.
+using several methods.
 
-    The simplest and preferred way is to specify a `source`, which may be a callable or iterable.
+The simplest and preferred way is to specify a `source`, which may be a callable or iterable.
+"""
+    _args_doc = """
+Args
+----
 
-    `source` : callable or iterable
-    The source of the data. The source is polled for data (via a call or `next(source)` whenever
-    the pipeline needs input for the next iteration. The source can supply one or data batches,
-    depending on the value or `num_outputs`. If `num_outputs` is not set, the `source` is expected
-    to return a single batch. If it's specified, the data is expected to a tuple or list where each
-    element corresponds to respective output of the ExternalSource operator.
+`source` : callable or iterable
+    The source of the data. The source is polled for data (via a call `source()` or `next(source)`
+    whenever the pipeline needs input for the next iteration. The source can supply one or more data
+    batches, depending on the value of `num_outputs`. If `num_outputs` is not set, the `source` is
+    expected to return a single batch. If it's specified, the data is expected to a be tuple or list
+    where each element corresponds to respective return value of the external_source.
+    If the source is a callable and has a positional argument, it is assumed to be the current
+    iteration number and consecutive calls will be `source(0)`, `source(1)`, etc.
 
-    `num_outputs`: int or None
-    The number of outputs provided by the operator; only valid when used with `source` argument.
-    Determines how to interpret the data returned by `source` (a single TensorList or a list
-    thereof).
+`num_outputs` : int, optional
+    If specified, denotes the number of TensorLists produced by the source function
 
-    `cycle`: bool
+Keyword Args
+------------
+
+`cycle`: bool
     If `True`, the source iterable will be wrapped. Otherwise, StopIteration error wil be raised
     when end of data is reached. Setting this flag to True when `source` is not an iterable is an
     error.
 
-    `name` : str, optional
+`name` : str, optional
     The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
     the data is provided by `source`.
 
-    `layout` : str or list/tuple of str:
+`layout` : str or list/tuple of str:
     If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
     containing a distinct layout for each output. If the list has fewer elements than `num_outputs`,
     only the first outputs have the layout set, the reset have it cleared.
-
-    """
-    global _cpu_ops
-    global _gpu_ops
-    _cpu_ops = _cpu_ops.union({'ExternalSource'})
-    _gpu_ops = _gpu_ops.union({'ExternalSource'})
+"""
 
     def __init__(self, source = None, num_outputs = None, *, cycle = False, layout = None, name = None, device = "cpu", **kwargs):
-        """Configures an ExternalSource operator.
-
-        `device`: str, "cpu" or "gpu"
-        The device, on which the ExternalSource output will appear
-
-        `source` : callable or iterable
-        The source of the data. The source is polled for data (via a call or `next(source)` whenever
-        the pipeline needs input for the next iteration. The source can supply one or data batches,
-        depending on the value or `num_outputs`. If `num_outputs` is not set, the `source` is expected
-        to return a single batch. If it's specified, the data is expected to a tuple or list where each
-        element corresponds to respective return value of the external_source.
-
-        `cycle`: bool
-        If `True`, the source iterable will be wrapped. Otherwise, StopIteration error wil be raised
-        when end of data is reached. Setting this flag to True when `source` is not an iterable is an
-        error.
-
-        `num_outputs` : int, optional
-        If specified, denotes the number of TensorLists produced by the source function
-
-        `name` : str, optional
-        The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
-        the data is provided by `source`.
-
-        `layout` : str or list/tuple of str:
-        If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
-        containing a distinct layout for each output. If the list has fewer elements than `num_outputs`,
-        only the first outputs have the layout set, the reset have it cleared.
-        """
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
@@ -178,31 +164,9 @@ class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
         return False
 
     def __call__(self, *, source = None, cycle = None, name = None, layout = None, **kwargs):
-        """
-        `source` : callable or iterable
-        The source of the data. The source is polled for data (via a call or `next(source)` whenever
-        the pipeline needs input for the next iteration. The source can supply one or data batches,
-        depending on the value or `num_outputs`. If `num_outputs` is not set, the `source` is expected
-        to return a single batch. If it's specified, the data is expected to a tuple or list where each
-        element corresponds to respective return value of the external_source.
+        ""
+        from nvidia.dali.ops import _OperatorInstance
 
-        `cycle`: bool
-        If `True`, the source iterable will be wrapped. Otherwise, StopIteration error wil be raised
-        when end of data is reached. Setting this flag to True when `source` is not an iterable is an
-        error.
-
-        `num_outputs` : int, optional
-        If specified, denotes the number of TensorLists produced by the source function
-
-        `name` : str, optional
-        The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
-        the data is provided by `source`.
-
-        `layout` : str or list/tuple of str:
-        If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
-        containing a distinct layout for each output. If the list has fewer elements than `num_outputs`,
-        only the first outputs have the layout set, the reset have it cleared.
-        """
         if source is None:
             if cycle is not None:
                 raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
@@ -254,5 +218,27 @@ class ExternalSource(with_metaclass(_DaliOperatorMeta, object)):
 
             return op_instance.unwrapped_outputs
 
+    __doc__ += _args_doc
+    __call__.__doc__ += _args_doc
+
+
 def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
+
+def external_source(source = None, num_outputs = None, *, cycle = False, name = None, device = "cpu", layout = None):
+    """
+    Creates a data node which is populated with data from a Python source.
+    The data can be provided by the `source` function or iterable, or it can be provided by
+    `pipeline.feed_input(name, data, layout)` inside `pipeline.iter_setup`.
+    """
+    if num_outputs is not None:
+        if source is None:
+            raise ValueError("The parameter `num_outputs` is only valid when using `source` to "
+                "provide data. To feed multiple external sources in `feed_input`, use multiple "
+                "`external_source` nodes.")
+
+    op = ExternalSource(device = device, num_outputs = num_outputs,
+                        source = source, cycle = cycle, layout = layout)
+    return op(name = name)
+
+external_source.__doc__ += ExternalSource._args_doc

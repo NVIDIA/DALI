@@ -675,9 +675,17 @@ class Pipeline(object):
             raise RuntimeError("Pipeline must be built first.")
         self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
 
-    def set_outputs(self, *outputs):
-        """This function is an alternative way to specify the output data nodes of the pipeline."""
-        self._graph_out = outputs
+    def set_outputs(self, *output_data_nodes):
+        """Set the outputs of the pipeline.
+
+        Use of this function is an alternative to overriding `define_graph` in a derived class.
+
+        Args
+        ----
+        `*output_data_nodes` : unpacked list of `DataNode`s
+        The outputs of the pipeline
+        """
+        self._graph_out = output_data_nodes
 
     def define_graph(self):
         """This function is defined by the user to construct the
