@@ -137,10 +137,6 @@ static dali_data_type_t daliTypeAtHelper(dali::DeviceWorkspace* ws, int n) {
   return static_cast<dali_data_type_t>(static_cast<int>(type_id));
 }
 
-dali_data_type_t daliTypeAtSample(daliPipelineHandle* pipe_handle, int n) {
-  return daliTypeAt(pipe_handle, n);
-}
-
 dali_data_type_t daliTypeAt(daliPipelineHandle* pipe_handle, int n) {
   dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
   if (ws->OutputIsType<dali::CPUBackend>(n)) {
