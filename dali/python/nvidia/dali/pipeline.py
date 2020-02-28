@@ -188,6 +188,21 @@ class Pipeline(object):
 
     @staticmethod
     def push_current(pipeline):
+        """Sets the pipeline as current and stores the previous current pipeline
+        on stack. To restore previous pipeline as current, use :meth:`pop_current`.
+
+        To make sure that the pipeline is properly restored in case of exception, use context
+        manager (`with my_pipeline:`).
+
+        Current pipeline is required to call operators with side effects or without outputs.
+        Examples of such operators are `PythonFunction` (potential side effects) or `DumpImage`
+        (no output).
+
+        Any dangling operator can be marked as having side effects if it's marked
+        with `preserve=True`, which can be useful for debugging - otherwise operator which
+        does not contribute to the pipeline output is removed from the graph.
+        """
+
         prev = Pipeline.current()
         pipeline_tls.current_pipeline = pipeline
         stack = getattr(pipeline_tls, 'pipeline_stack', None)
@@ -200,13 +215,27 @@ class Pipeline(object):
 
     @staticmethod
     def pop_current():
+        """Restores previous pipeline as current. Complementary to :meth:`push_current`."""
         pipeline_tls.current_pipeline = pipeline_tls.pipeline_stack.pop()
 
     def __enter__(self):
+        """Safely sets the pipeline as current.
+        Current pipeline is required to call operators with side effects or without outputs.
+        Examples of such operators are `PythonFunction` (potential side effects) or `DumpImage`
+        (no output).
+
+        Any dangling operator can be marked as having side effects if it's marked
+        with `preserve=True`, which can be useful for debugging - otherwise operator which
+        does not contribute to the pipeline output is removed from the graph.
+
+        To manually set new (and restore previous) current pipeline, use :meth:`push_current`
+        and :meth:`pop_current`, respectively.
+        """
         Pipeline.push_current(self)
         return self
 
     def __exit__(self, exception_type, exception_value, traceback):
+        """Safely restores previous pipeline."""
         Pipeline.pop_current()
 
 
@@ -274,14 +303,14 @@ class Pipeline(object):
         if define_graph is not None:
             if self._graph_out is not None:
                 raise RuntimeError("Duplicate graph definition - `define_graph` argument "
-                    "should not be specified when graph was define with a call to `set_outputs`.")
+                    "should not be specified when graph was defined with a call to `set_outputs`.")
         else:
             define_graph = self.define_graph
 
-        with self:
-            if self._graph_out:
-                outputs = self._graph_out
-            else:
+        if self._graph_out:
+            outputs = self._graph_out
+        else:
+            with self:
                 outputs = define_graph()
         if (not isinstance(outputs, tuple) and
             not isinstance(outputs, list)):

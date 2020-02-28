@@ -5,6 +5,7 @@ Pipeline
 --------
 .. autoclass:: nvidia.dali.pipeline.Pipeline
    :members:
+   :special-members: __enter__, __exit__
 
 Tensor
 ------
