@@ -356,6 +356,11 @@ class DLL_PUBLIC OpSpec {
   /**
    * @brief Checks the Spec for a repeated argument of the given name/type.
    * Returns the default if an argument with the given name does not exist.
+   *
+   * @remark On Python level the arguments marked with *_VEC type, convert a single value
+   * of element type to a list of element types, so GetRepeatedArgument can be used.
+   * When the argument is set through C++ there is no such conversion and GetSingleOrRepeatedArg()
+   * should be used instead.
    */
   template <typename T>
   DLL_PUBLIC inline std::vector<T> GetRepeatedArgument(const string &name) const {
@@ -510,7 +515,10 @@ inline T OpSpec::GetArgumentImpl(
   } else {
     // Argument wasn't present locally, get the default from the associated schema
     const OpSchema& schema = GetSchema();
-    return static_cast<T>(schema.GetDefaultValueForOptionalArgument<S>(name));
+    DALI_ENFORCE(
+        schema.HasArgumentDefaultValue(name),
+        make_string("Optional argument \"", name, "\" has no default value and was not set."));
+    return static_cast<T>(schema.GetDefaultValueForArgument<S>(name));
   }
 }
 
@@ -535,15 +543,15 @@ inline bool OpSpec::TryGetArgumentImpl(
   }
   // Search for the argument locally
   auto arg_it = arguments_.find(name);
+  const OpSchema& schema = GetSchema();
   if (arg_it != arguments_.end()) {
     // Found locally - return
     if (arg_it->second->template IsType<S>()) {
       result = static_cast<T>(arg_it->second->template Get<S>());
       return true;
     }
-  } else {
-    // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = GetSchema();
+  } else if (schema.HasArgumentDefaultValue(name)) {
+    // Argument wasn't present locally, get the default from the associated schema if any
     auto schema_val = schema.FindDefaultValue(name);
     using VT = const ValueInst<S>;
     if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {
@@ -566,7 +574,10 @@ inline std::vector<T> OpSpec::GetRepeatedArgumentImpl(const string &name) const 
   } else {
     // Argument wasn't present locally, get the default from the associated schema
     const OpSchema& schema = GetSchema();
-    return detail::convert_vector<T>(schema.GetDefaultValueForOptionalArgument<V>(name));
+    DALI_ENFORCE(
+        schema.HasArgumentDefaultValue(name),
+        make_string("Optional argument \"", name, "\" has no default value and was not set."));
+    return detail::convert_vector<T>(schema.GetDefaultValueForArgument<V>(name));
   }
 }
 
@@ -575,15 +586,15 @@ inline bool OpSpec::TryGetRepeatedArgumentImpl(std::vector<T> &result, const str
   using V = std::vector<S>;
   // Search for the argument locally
   auto arg_it = arguments_.find(name);
+  const OpSchema& schema = GetSchema();
   if (arg_it != arguments_.end()) {
     // Found locally - return
     if (arg_it->second->template IsType<V>()) {
       detail::copy_vector(result, arg_it->second->template Get<V>());
       return true;
     }
-  } else {
-    // Argument wasn't present locally, get the default from the associated schema
-    const OpSchema& schema = GetSchema();
+  } else if (schema.HasArgumentDefaultValue(name)) {
+    // Argument wasn't present locally, get the default from the associated schema if any
     auto schema_val = schema.FindDefaultValue(name);
     using VT = const ValueInst<V>;
     if (VT *vt = dynamic_cast<VT *>(schema_val.second)) {

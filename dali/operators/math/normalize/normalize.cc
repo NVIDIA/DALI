@@ -13,9 +13,10 @@
 // limitations under the License.
 
 #include "dali/operators/math/normalize/normalize.h"
-#include "dali/kernels/reduce/reduce.h"
-#include "dali/kernels/normalize/normalize_cpu.h"
 #include "dali/core/math_util.h"
+#include "dali/core/tensor_layout.h"
+#include "dali/kernels/normalize/normalize_cpu.h"
+#include "dali/kernels/reduce/reduce.h"
 #include "dali/operators/math/normalize/normalize_utils.h"
 
 namespace dali {

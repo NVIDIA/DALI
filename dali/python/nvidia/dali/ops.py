@@ -138,19 +138,13 @@ def _get_kwargs(schema, only_tensor = False):
         if not only_tensor or schema.IsTensorArgument(arg):
             arg_name_doc = arg
             dtype = schema.GetArgumentType(arg)
-            print(arg)
-            print(dtype)
             type_name = _type_name_convert_to_string(dtype, is_tensor = only_tensor)
             if schema.IsArgumentOptional(arg):
-                default_value_string = schema.GetArgumentDefaultValueString(arg)
-                # Evaluating empty string results in an error
-                # so we need to prevent that
-                if default_value_string:
+                type_name += ", optional"
+                if schema.HasArgumentDefaultValue(arg):
+                    default_value_string = schema.GetArgumentDefaultValueString(arg)
                     default_value = eval(default_value_string)
-                else:
-                    default_value = default_value_string
-                type_name += (", optional, default = " +
-                        repr(_type_convert_value(dtype, default_value)))
+                    type_name += ", default = {}".format(repr(_type_convert_value(dtype, default_value)))
             doc = schema.GetArgumentDox(arg)
             ret += _numpydoc_formatter(arg, type_name, doc)
             ret += '\n'
@@ -205,7 +199,6 @@ Supported backends
 Keyword args
 ------------
 """
-    print(">>>>> Schema for {}".format(op_name))
     ret += _get_kwargs(schema)
     return ret
 
@@ -280,7 +273,6 @@ def _docstring_generator_call(op_name):
         ret = "Please refer to class :meth:`nvidia.dali.ops." + op_name + "` for full documentation.\n"
     if schema.AppendKwargsSection():
         # Kwargs section
-        print(">>>> Schema II for {}".format(op_name))
         tensor_kwargs = _get_kwargs(schema, only_tensor = True)
         if tensor_kwargs:
             ret += """

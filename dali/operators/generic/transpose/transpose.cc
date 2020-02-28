@@ -14,6 +14,7 @@
 
 #include "dali/kernels/common/transpose.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/operators/generic/transpose/transpose.h"
 #include "dali/pipeline/data/views.h"
 
@@ -77,6 +78,6 @@ Otherwise, the input layout is copied to the output)code",
     .AddOptionalArg(
         "output_layout",
         R"code(If provided, sets output data layout, overriding any `transpose_layout` setting)code",
-        "");
+        TensorLayout(""));
 
 }  // namespace dali

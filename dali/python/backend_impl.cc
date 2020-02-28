@@ -159,7 +159,9 @@ void ExposeTensor(py::module &m) {
          R"code(
          Remove single-dimensional entries from the shape of the Tensor.
          )code")
-    .def("layout", &Tensor<CPUBackend>::GetLayout)
+    .def("layout", [](Tensor<CPUBackend> &t) {
+      return t.GetLayout().str();
+    })
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
           CopyToExternalTensor(t, ctypes_void_ptr(p), CPU, 0, false);
@@ -192,7 +194,9 @@ void ExposeTensor(py::module &m) {
          R"code(
          Shape of the tensor.
          )code")
-    .def("layout", &Tensor<GPUBackend>::GetLayout)
+    .def("layout", [](Tensor<GPUBackend> &t) {
+      return t.GetLayout().str();
+    })
     .def("squeeze", &Tensor<GPUBackend>::Squeeze,
          R"code(
          Remove single-dimensional entries from the shape of the Tensor.
@@ -309,7 +313,9 @@ void ExposeTensorList(py::module &m) {
       b : the buffer to wrap into the TensorListCPU object
       layout : the layout description
       )code")
-    .def("layout", &TensorList<CPUBackend>::GetLayout)
+    .def("layout", [](TensorList<CPUBackend> &t) {
+      return t.GetLayout().str();
+    })
     .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
@@ -565,7 +571,9 @@ void ExposeTensorList(py::module &m) {
       ----------
       )code",
       py::keep_alive<0, 1>())
-    .def("layout", &TensorList<GPUBackend>::GetLayout)
+    .def("layout", [](TensorList<GPUBackend> &t) {
+      return t.GetLayout().str();
+    })
     .def("as_reshaped_tensor",
         [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<GPUBackend>* {
           return tl.AsReshapedTensor(new_shape);
@@ -1003,6 +1011,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("CheckArgs", &OpSchema::CheckArgs)
     .def("GetArgumentDox", &OpSchema::GetArgumentDox)
     .def("GetArgumentType", &OpSchema::GetArgumentType)
+    .def("HasArgumentDefaultValue", &OpSchema::HasArgumentDefaultValue)
     .def("GetArgumentDefaultValueString", &OpSchema::GetArgumentDefaultValueString)
     .def("GetArgumentNames", &OpSchema::GetArgumentNames)
     .def("IsArgumentOptional", &OpSchema::HasOptionalArgument,

@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/generic/constant.h"
-
 #include <vector>
+
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/tensor_layout.h"
+#include "dali/operators/generic/constant.h"
 #include "dali/pipeline/data/views.h"
 
 namespace dali {
@@ -32,9 +33,9 @@ The operator only performs meaningful work at first invocation - subsequent call
 a reference to the same memory.
 
 The operator can be automatically instantiated in Python with a call to
-`dali.types.Constant(value, dtype, shape, layout)`. The value can be a scalar, a tuple, a list or
-a numpy array, in which case the `shape` and `dtype` (if not explicitly overridden), will be
-taken from that array.
+:func:`types.Constant(value, dtype, shape, layout) <nvidia.dali.types.Constant>`.
+The value can be a scalar, a tuple, a list or a numpy array, in which case the `shape` and `dtype`
+(if not explicitly overridden), will be taken from that array.
 
 64-bit integer and double precision arrays are not supported and will be silently downgraded
 to 32-bit.

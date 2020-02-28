@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <vector>
+
+#include "dali/core/tensor_layout.h"
 #include "dali/operators/generic/slice/slice_attr.h"
 
 namespace dali {
@@ -25,7 +27,7 @@ DALI_SCHEMA(SliceAttr)
     .AddOptionalArg("axis_names",
         R"code(Order of dimensions used for anchor and shape slice inputs, as described in layout.
 If provided, `axis_names` takes higher priority than `axes`)code",
-        "WH")
+        TensorLayout("WH"))
     .AddOptionalArg("normalized_anchor",
         R"code(Whether or not the `anchor` input should be interpreted as normalized (range [0.0, 1.0])
 or absolute coordinates)code",

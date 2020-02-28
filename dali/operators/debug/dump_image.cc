@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/debug/dump_image.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/util/image.h"
 
 namespace dali {
@@ -45,6 +46,6 @@ DALI_SCHEMA(DumpImage)
   .AddOptionalArg("suffix",
       R"code(Suffix to be added to output file names.)code", std::string())
   .AddOptionalArg("input_layout",
-      R"code(Layout of input images.)code", "HWC");
+      R"code(Layout of input images.)code", TensorLayout("HWC"));
 
 }  // namespace dali

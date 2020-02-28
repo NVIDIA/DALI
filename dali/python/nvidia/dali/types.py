@@ -41,7 +41,7 @@ _known_types = {
         DALIDataType.UINT8 : ("int", int),
         DALIDataType.UINT16 : ("int", int),
         DALIDataType.UINT32 : ("int", int),
-        DALIDataType.UINT64 : ("int", int),
+        # DALIDataType.UINT64 : ("int", int), # everything else its into the Python int
         DALIDataType.FLOAT : ("float", float),
         DALIDataType.BOOL : ("bool", bool),
         DALIDataType.STRING : ("str", str),
@@ -52,7 +52,7 @@ _known_types = {
         DALIDataType.IMAGE_TYPE : ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),
         DALIDataType.DATA_TYPE : ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
         DALIDataType.INTERP_TYPE : ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
-        DALIDataType.TENSOR_LAYOUT : ("nvidia.dali.types.TensorLayout", lambda x: TensorLayout(str(x))),
+        DALIDataType.TENSOR_LAYOUT : (":ref:`layout <layout_str_doc>` str", lambda x: str(x)),
         DALIDataType.PYTHON_OBJECT : ("object", lambda x: x)
         }
 
@@ -134,8 +134,8 @@ ScalarConstant indicates what type should the value be treated as with respect
 to type promotions. The actual values passed to the backend from python
 would be `int32` for integer values and `float32` for floating point values.
 Python builtin types `bool`, `int` and `float` will be marked to indicate
-:meth:`nvidia.dali.types.DALIDataType.BOOL`, :meth:`nvidia.dali.types.DALIDataType.INT32`,
-and :meth:`nvidia.dali.types.DALIDataType.FLOAT` respectively.
+:const:`nvidia.dali.types.DALIDataType.BOOL`, :const:`nvidia.dali.types.DALIDataType.INT32`,
+and :const:`nvidia.dali.types.DALIDataType.FLOAT` respectively.
 
 Args
 ----

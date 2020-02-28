@@ -14,10 +14,12 @@
 
 #include <map>
 #include <vector>
-#include "dali/operators/generic/pad.h"
+
 #include "dali/core/static_switch.h"
-#include "dali/pipeline/data/views.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
+#include "dali/operators/generic/pad.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
