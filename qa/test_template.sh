@@ -48,24 +48,29 @@ do
         echo "Test variant run: $variant"
         # install packages
         inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
-        if [ -n "$inst" ]
-        then
-        pip install $inst -f /pip-packages
-
-        # If we just installed tensorflow, we need to reinstall DALI TF plugin
-        if [[ "$inst" == *tensorflow-gpu* ]]; then
-            pip uninstall -y nvidia-dali-tf-plugin || true
-            pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
+        # skip TF versions not supported for python 3.8
+        if [[ $PYTHON_VERSION_SHORT == 38 && $inst == *"tensorflow"* ]]; then
+            # extract version itself
+            tf_version=${inst##tensorflow*==} && tf_version=${tf_version% *}
+            # skip the one that doesn't support Python 3.8
+            version_lt "$tf_version" "2.2.0" && continue
         fi
+        if [ -n "$inst" ]; then
+            pip install $inst -f /pip-packages
+
+            # If we just installed tensorflow, we need to reinstall DALI TF plugin
+            if [[ "$inst" == *tensorflow-gpu* ]]; then
+                pip uninstall -y nvidia-dali-tf-plugin || true
+                pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
+            fi
         fi
         # test code
         test_body
 
         # remove packages
         remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
-        if [ -n "$remove" ]
-        then
-        pip uninstall -y $remove
+        if [ -n "$remove" ]; then
+           pip uninstall -y $remove
         fi
         ${epilog[variant]}
     done
