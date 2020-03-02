@@ -39,7 +39,7 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
                  preemph_coeff=.97,
                  lowfreq=0.0,
                  highfreq=0.0,
-                 num_threads=1, exec_async=False, exec_pipelined=False):
+                 num_threads=1, exec_async=True, exec_pipelined=True):
         super().__init__(batch_size, num_threads, device_id,
                          exec_async=exec_async,
                          exec_pipelined=exec_pipelined, seed=42)
