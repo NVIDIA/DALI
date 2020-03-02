@@ -36,7 +36,7 @@ def trim_ref(top_db, ref, frame_length, hop_length, input_data):
     begin = index[0] - frame_length / 2
     length = index[1] - index[0]
     if length != 0:
-        length += frame_length
+        length += frame_length - 1
     return np.array([begin]), np.array([length])
 
 
