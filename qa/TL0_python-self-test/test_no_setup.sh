@@ -10,6 +10,6 @@ source test_body.sh
 
 pushd ../../dali/test/python
 
-test_body
+run_all
 
 popd
