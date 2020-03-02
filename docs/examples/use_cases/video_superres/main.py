@@ -132,7 +132,7 @@ def main(args):
         data_timer = 0.0
         compute_timer = 0.0
 
-        iter_start = time.clock()
+        iter_start = time.perf_counter()
 
         training_data_times = []
         training_start = datetime.datetime.now()
@@ -154,7 +154,7 @@ def main(args):
 
             if args.timing:
                 torch.cuda.synchronize()
-                data_end = time.clock()
+                data_end = time.perf_counter()
 
 
             optimizer.zero_grad()
@@ -176,13 +176,13 @@ def main(args):
             if args.rank == 0:
                 if args.timing:
                     torch.cuda.synchronize()
-                    iter_end = time.clock()
+                    iter_end = time.perf_counter()
                     sample_timer += (iter_end - iter_start)
                     data_duration = data_end - iter_start
                     data_timer += data_duration
                     compute_timer += (iter_end - data_end)
                     torch.cuda.synchronize()
-                    iter_start = time.clock()
+                    iter_start = time.perf_counter()
                 writer.add_scalar('learning_rate', scheduler.get_lr()[0], total_iter)
                 writer.add_scalar('train_loss', loss.item(), total_iter)
 

@@ -90,7 +90,7 @@ def check_videopipeline_supported_type(dtype):
     del pipe
 
 SUPPORTED_TYPES = [types.DALIDataType.FLOAT, types.DALIDataType.UINT8]
-ALL_TYPES = [v for k, v in types.DALIDataType.__dict__.items() if not re.match("__(.*)__", str(k))]
+ALL_TYPES = list(types.DALIDataType.__members__.values())
 
 def test_simple_videopipeline_supported_types():
     for type in SUPPORTED_TYPES:
