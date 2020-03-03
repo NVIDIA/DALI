@@ -15,10 +15,7 @@
 #pylint: disable=no-member
 from __future__ import division
 import sys
-from nvidia.dali import backend as _b
 from nvidia.dali.data_node import DataNode as _DataNode
-from nvidia.dali.types import \
-        _type_name_convert_to_string, _type_convert_value
 
 _special_case_mapping = {
     "b_box" : "bbox",
