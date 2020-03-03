@@ -259,24 +259,6 @@ Spectrogram<CPUBackend>::Spectrogram(const OpSpec &spec)
     : Operator<CPUBackend>(spec)
     , impl_(std::make_unique<SpectrogramImplCpu>(spec)) {}
 
-template <>
-bool Spectrogram<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                        const workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.InputRef<CPUBackend>(0);
-  auto in_shape = input.shape();
-
-
-
-  assert(impl_ != nullptr);
-  return impl_->SetupImpl(output_desc, ws);
-}
-
-template <>
-void Spectrogram<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
-  assert(impl_ != nullptr);
-  impl_->RunImpl(ws);
-}
-
 DALI_REGISTER_OPERATOR(Spectrogram, Spectrogram<CPUBackend>, CPU);
 
 }  // namespace dali

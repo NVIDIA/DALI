@@ -43,8 +43,16 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
 
  protected:
   bool CanInferOutputs() const override { return true; }
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
-  void RunImpl(workspace_t<Backend> &ws) override;
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    assert(impl_ != nullptr);
+    return impl_->SetupImpl(output_desc, ws);
+  }
+
+  void RunImpl(workspace_t<Backend> &ws) override {
+    assert(impl_ != nullptr);
+    impl_->RunImpl(ws);
+  }
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
