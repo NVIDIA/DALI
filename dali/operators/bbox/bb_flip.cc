@@ -75,8 +75,10 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
   auto output_data = output.mutable_data<float>();
 
   for (int i = 0; i < input.size(); i += 4) {
-    auto bbox = ltrb_ ? BoundingBox::FromLtrb(&input_data[i], BoundingBox::NoBounds())
-                      : BoundingBox::FromXywh(&input_data[i], BoundingBox::NoBounds());
+    auto bbox = ltrb_ ? BoundingBox::FromLtrb(input_data[i], input_data[i + 1], input_data[i + 2],
+                                              input_data[i + 3], BoundingBox::NoBounds())
+                      : BoundingBox::FromXywh(input_data[i], input_data[i + 1], input_data[i + 2],
+                                              input_data[i + 3], BoundingBox::NoBounds());
 
     if (horizontal) {
       bbox = bbox.HorizontalFlip();
@@ -85,7 +87,7 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
       bbox = bbox.VerticalFlip();
     }
 
-    const auto result = ltrb_ ? bbox.AsLtrb() : bbox.AsXywh();
+    const auto result = ltrb_ ? bbox.AsStartAndEnd() : bbox.AsStartAndShape();
 
     output_data[i] = result[0];
     output_data[i + 1] = result[1];

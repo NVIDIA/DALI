@@ -21,6 +21,8 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/operators/ssd/box_encoder.h"
 
+static constexpr int kBboxSize = 4;
+
 namespace dali {
 template <>
 class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
@@ -45,21 +47,21 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
     best_box_iou_.Resize({batch_size_ * anchors_count_});
 
     auto means = spec.GetArgument<vector<float>>("means");
-    DALI_ENFORCE(means.size() == BoundingBox::kSize,
+    DALI_ENFORCE(means.size() == kBboxSize,
       "means size must be a list of 4 values.");
 
-    means_.Resize({BoundingBox::kSize});
+    means_.Resize({kBboxSize});
     auto means_data = means_.mutable_data<float>();
-    MemCopy(means_data, means.data(), BoundingBox::kSize * sizeof(float));
+    MemCopy(means_data, means.data(), kBboxSize * sizeof(float));
 
     auto stds = spec.GetArgument<vector<float>>("stds");
-    DALI_ENFORCE(stds.size() == BoundingBox::kSize,
+    DALI_ENFORCE(stds.size() == kBboxSize,
       "stds size must be a list of 4 values.");
     DALI_ENFORCE(std::find(stds.begin(), stds.end(), 0) == stds.end(),
        "stds values must be != 0.");
-    stds_.Resize({BoundingBox::kSize});
+    stds_.Resize({kBboxSize});
     auto stds_data = stds_.mutable_data<float>();
-    MemCopy(stds_data, stds.data(), BoundingBox::kSize * sizeof(float));
+    MemCopy(stds_data, stds.data(), kBboxSize * sizeof(float));
   }
 
   virtual ~BoxEncoder() = default;

@@ -245,7 +245,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
       // Note: ious has size N*M, but M = 1 in this case
       bool fail = false;
       for (int j = 0; j < N * 1; ++j) {
-        if (ious_data[j] <= min_iou) fail = true;
+        if (ious_data[j] < min_iou) fail = true;
       }
       // generate a new crop
       if (fail) {

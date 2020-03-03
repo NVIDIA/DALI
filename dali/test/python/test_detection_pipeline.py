@@ -278,7 +278,7 @@ class DetectionPipeline(Pipeline):
         image_decode_crop_gpu = self.decode_gpu_crop(inputs, crop_begin, crop_size)
 
         return (
-            labels,
+            image, labels,
             image_ssd_crop, image_decode_crop,
             image_slice_cpu, image_slice_gpu,
             boxes_ssd_crop, boxes_random_crop,
@@ -371,7 +371,7 @@ def run_for_dataset(args, dataset):
 
     for iter in range(args.iters):
         for pipe in pipes:
-            labels, \
+            image, labels, \
                 image_ssd_crop, image_decode_crop, \
                 image_slice_cpu, image_slice_gpu, \
                 boxes_ssd_crop, boxes_random_crop, \

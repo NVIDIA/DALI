@@ -26,6 +26,8 @@
 
 namespace dali {
 
+static constexpr int kBboxSize = 4;
+
 template<typename Backend>
 class BoxEncoder;
 
@@ -45,11 +47,10 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
 
     auto anchors = spec.GetArgument<vector<float>>("anchors");
 
-    DALI_ENFORCE(
-      (anchors.size() % BoundingBox::kSize) == 0,
+    DALI_ENFORCE(anchors.size() % kBboxSize == 0,
       "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
 
-    anchors_ = ReadBoxesFromInput(anchors.data(), anchors.size() / BoundingBox::kSize);
+    anchors_ = ReadBoxesFromInput(anchors.data(), anchors.size() / kBboxSize);
 
     means_ = spec.GetArgument<vector<float>>("means");
     DALI_ENFORCE(means_.size() == 4,
@@ -91,7 +92,7 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
 
   void WriteAnchorsToOutput(float *out_boxes, int *out_labels) const;
 
-  void WriteBoxToOutput(const std::array<float, BoundingBox::kSize>& box,
+  void WriteBoxToOutput(const RelBounds& box,
                         float *out_box_data) const;
 
   void WriteMatchesToOutput(const vector<std::pair<unsigned, unsigned>> matches,

@@ -20,170 +20,278 @@
 #include <vector>
 #include <limits>
 #include <string>
-
 #include "dali/core/error_handling.h"
+#include "dali/core/small_vector.h"
+#include "dali/core/format.h"
+#include "dali/core/math_util.h"
 
 namespace dali {
 
+using RelCoords = SmallVector<float, 3>;
+using RelBounds = SmallVector<float, 6>;  // e.g. start0, start1, ..., end0, end1, ...
+
 class BoundingBox {
  public:
-  static const size_t kSize = 4;
-  static constexpr array<float, kSize> NoBounds() {
-    return {
-      std::numeric_limits<float>::lowest(),
-      std::numeric_limits<float>::lowest(),
-      std::numeric_limits<float>::max(),
-      std::numeric_limits<float>::max()};
-  }
-  static constexpr array<float, kSize> UniformSquare() {
-    return {0.f, 0.f, 1.f, 1.f};
-  }
-
-  BoundingBox(const BoundingBox& other)
-      : left_{other.left_},
-        top_{other.top_},
-        right_{other.right_},
-        bottom_{other.bottom_},
-        area_{other.area_} {}
-
-  BoundingBox(BoundingBox&& other) noexcept : BoundingBox() { swap(*this, other); }
-
-  BoundingBox& operator=(BoundingBox other) {
-    swap(*this, other);
-    return *this;
+  static RelBounds Uniform(int ndim = 2, float min = 0.0f, float max = 1.0f) {
+    assert(ndim > 0);
+    RelBounds bounds;
+    bounds.reserve(ndim * 2);
+    for (int i = 0; i < ndim; i++)
+      bounds.push_back(min);
+    for (int i = 0; i < ndim; i++)
+      bounds.push_back(max);
+    return bounds;
   }
 
-  friend void swap(BoundingBox& lhs, BoundingBox& rhs) {
-    using std::swap;
-    swap(lhs.left_, rhs.left_);
-    swap(lhs.right_, rhs.right_);
-    swap(lhs.top_, rhs.top_);
-    swap(lhs.bottom_, rhs.bottom_);
-    swap(lhs.area_, rhs.area_);
+  static RelBounds NoBounds(int ndim = 2) {
+    return Uniform(ndim, std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max());
   }
 
-  static BoundingBox FromLtrb(const float* data, array<float, kSize> bounds = UniformSquare()) {
-    return FromLtrb(data[0], data[1], data[2], data[3], bounds);
+  static BoundingBox FromStartAndEnd(RelBounds bbox_bounds, RelBounds limits = {}) {
+    DALI_ENFORCE(bbox_bounds.size() == limits.size() || limits.empty());
+    DALI_ENFORCE(bbox_bounds.size() % 2 == 0);
+    int ndim = bbox_bounds.size() / 2;
+    DALI_ENFORCE(ndim >= 2 && ndim <= 3);
+
+    if (limits.empty())
+      limits = NoBounds(ndim);
+
+    CheckBounds(bbox_bounds[0], bbox_bounds[ndim],   limits[0], limits[ndim],   "left", "right");
+    CheckBounds(bbox_bounds[1], bbox_bounds[ndim+1], limits[1], limits[ndim+1], "top",  "bottom");
+
+    // handle depth dimension (if necessary)
+    if (ndim == 3)
+      CheckBounds(bbox_bounds[2], bbox_bounds[ndim+2], limits[2], limits[ndim+2], "front", "back");
+
+    return BoundingBox{bbox_bounds};
   }
 
-  static BoundingBox FromLtrb(
-    float l, float t, float r, float b, array<float, kSize> bounds = UniformSquare()) {
-    CheckBounds(l, bounds[0], bounds[2], "left");
-    CheckBounds(r, bounds[0], bounds[2], "right");
-    CheckBounds(t, bounds[1], bounds[3], "top");
-    CheckBounds(b, bounds[1], bounds[3], "bottom");
+  static BoundingBox FromStartAndShape(RelBounds start_shape, RelBounds limits = {}) {
+    DALI_ENFORCE(start_shape.size() == limits.size() || limits.empty());
+    DALI_ENFORCE(start_shape.size() % 2 == 0);
+    int ndim = start_shape.size() / 2;
+    DALI_ENFORCE(ndim >= 2 && ndim <= 3, make_string("Unexpected number of dimensions: ", ndim));
 
-    DALI_ENFORCE(
-      l <= r, "Expected left <= right. Received: " + to_string(l) + " <= " + to_string(r));
-    DALI_ENFORCE(
-      t <= b, "Expected top <= bottom. Received: " + to_string(t) + " <= " + to_string(b));
+    auto bbox_bounds = start_shape;
+    for (int i = 0; i < ndim; i++) {
+      bbox_bounds[ndim+i] += bbox_bounds[i];
+    }
 
-    return {l, t, r, b};
+    return FromStartAndEnd(bbox_bounds, limits);
   }
 
-  static BoundingBox FromXywh(const float* data, array<float, kSize> bounds = UniformSquare()) {
-    return FromXywh(data[0], data[1], data[2], data[3], bounds);
+  static BoundingBox FromLtrb(float l, float t, float r, float b,
+                              RelBounds limits = {}) {
+    return FromStartAndEnd(RelBounds{l, t, r, b}, limits);
   }
 
-  static BoundingBox FromXywh(
-    float x, float y, float w, float h, array<float, kSize> bounds = UniformSquare()) {
-    CheckBounds(x, bounds[0], bounds[2], "x");
-    CheckBounds(y, bounds[0], bounds[2], "y");
-    CheckBounds(x + w, bounds[1], bounds[3], "x + w");
-    CheckBounds(y + h, bounds[1], bounds[3], "y + h");
-
-    return {x, y, x + w, y + h};
+  static BoundingBox FromXywh(float x, float y, float w, float h,
+                              RelBounds limits = {}) {
+    return FromStartAndShape(RelBounds{x, y, w, h}, limits);
   }
 
-  BoundingBox ClampTo(const BoundingBox& other) const {
-    return {std::max(other.left_, left_), std::max(other.top_, top_),
-            std::min(other.right_, right_), std::min(other.bottom_, bottom_)};
+  BoundingBox Intersect(const BoundingBox& oth) const {
+    DALI_ENFORCE(ndim() == oth.ndim());
+    RelBounds out;
+    if (!Overlaps(oth)) {
+      return BoundingBox{out};
+    }
+    out.reserve(ndim() * 2);
+    for (int i = 0; i < ndim(); i++)
+      out.push_back(std::max(oth.bbox_bounds_[i], bbox_bounds_[i]));
+
+    for (int i = 0; i < ndim(); i++)
+      out.push_back(std::min(oth.bbox_bounds_[ndim() + i], bbox_bounds_[ndim() + i]));
+
+    return BoundingBox{out};
   }
 
-  float Area() const { return area_; }
+  float Volume() const {
+    if (bbox_bounds_.empty())
+      return 0.0f;
+
+    float vol = 1.0f;
+    for (int i = 0; i < ndim(); i++) {
+      assert(bbox_bounds_[ndim()+i] >= bbox_bounds_[i]);
+      vol *= bbox_bounds_[ndim()+i] - bbox_bounds_[i];
+    }
+    return vol;
+  }
+
+  float Area() const {
+    DALI_ENFORCE(ndim() == 2,
+      make_string("Requested area on ", ndim(), "-dimensional bounding box. Use Volume() instead"));
+    return Volume();
+  }
+
+  bool Contains(RelCoords point) const {
+    DALI_ENFORCE(static_cast<int>(point.size()) == ndim(),
+      make_string("Unexpected number of dimensions: ", ndim()));
+    for (int i = 0; i < ndim(); i++) {
+      if (point[i] < bbox_bounds_[i] || point[i] > bbox_bounds_[ndim()+i])
+        return false;
+    }
+    return true;
+  }
 
   bool Contains(float x, float y) const {
-    return x >= left_ && x <= right_ && y >= top_ && y <= bottom_;
+    DALI_ENFORCE(ndim() == 2,
+      make_string("Unexpected number of dimensions: ", ndim()));
+    return Contains(RelCoords{x, y});
   }
 
   bool Overlaps(const BoundingBox& other) const {
-    return left_ < other.right_ && right_ > other.left_ &&
-           top_ < other.bottom_ && bottom_ > other.top_;
+    for (int i = 0; i < ndim(); i++) {
+      float this_start = bbox_bounds_[i], this_end = bbox_bounds_[ndim() + i],
+            oth_start = other.bbox_bounds_[i], oth_end = other.bbox_bounds_[ndim() + i];
+      if (this_start >= oth_end || this_end <= oth_start)
+        return false;
+    }
+    return true;
   }
 
   float IntersectionOverUnion(const BoundingBox& other) const {
-    if (this->Overlaps(other)) {
-      const float intersection_area = this->ClampTo(other).area_;
-
-      return intersection_area / (area_ + other.area_ - intersection_area);
+    auto intersection_area = Intersect(other).Volume();
+    if (intersection_area == 0) {
+      return 0.0f;
     }
-    return 0.0f;
+
+    const float union_area = Volume() + other.Volume() - intersection_area;
+    return intersection_area / union_area;
   }
 
   BoundingBox RemapTo(const BoundingBox& other) const {
-    const float crop_width = other.right_ - other.left_;
-    const float crop_height = other.bottom_ - other.top_;
-
-    const float new_left =
-        (std::max(other.left_, left_) - other.left_) / crop_width;
-    const float new_top =
-        (std::max(other.top_, top_) - other.top_) / crop_height;
-    const float new_right =
-        (std::min(other.right_, right_) - other.left_) / crop_width;
-    const float new_bottom =
-        (std::min(other.bottom_, bottom_) - other.top_) / crop_height;
-
-    return {std::max(0.0f, std::min(new_left, 1.0f)),
-            std::max(0.0f, std::min(new_top, 1.0f)),
-            std::max(0.0f, std::min(new_right, 1.0f)),
-            std::max(0.0f, std::min(new_bottom, 1.0f))};
+    RelBounds out;
+    out.resize(ndim() * 2);
+    for (int i = 0; i < ndim(); i++) {
+      float oth_start = other.bbox_bounds_[i], start = bbox_bounds_[i];
+      float oth_end = other.bbox_bounds_[ndim()+i], end = bbox_bounds_[ndim()+i];
+      float rel_extent = oth_end - oth_start;
+      float new_start = (std::max(oth_start, start) - oth_start) / rel_extent;
+      float new_end = (std::min(oth_end, end) - oth_start) / rel_extent;
+      out[i] = clamp<float>(new_start, 0.0f, 1.0f);
+      out[ndim() + i] = clamp<float>(new_end, 0.0f, 1.0f);
+    }
+    return BoundingBox{out};
   }
 
   BoundingBox HorizontalFlip() const {
-    return {1 - right_, top_, 1 - left_, bottom_};
+    RelBounds out = bbox_bounds_;
+    out[0]        = 1.0f - bbox_bounds_[ndim()];
+    out[ndim()]   = 1.0f - bbox_bounds_[0];
+    return BoundingBox{out};
   }
 
   BoundingBox VerticalFlip() const {
-    return {left_, 1 - bottom_, right_, 1 - top_};
+    RelBounds out = bbox_bounds_;
+    out[1]        = 1.0f - bbox_bounds_[ndim()+1];
+    out[ndim()+1] = 1.0f - bbox_bounds_[1];
+    return BoundingBox{out};
   }
 
-  std::array<float, kSize> AsLtrb() const {
-    return {left_, top_, right_, bottom_};
+  RelBounds AsStartAndEnd() const {
+    return bbox_bounds_;
   }
 
-  std::array<float, kSize> AsXywh() const {
-    return {left_, top_, right_ - left_, bottom_ - top_};
+  RelBounds AsStartAndShape() const {
+    auto out = bbox_bounds_;
+    for (int i = 0; i < ndim(); i++) {
+      out[ndim()+i] -= bbox_bounds_[i];
+    }
+    return out;
   }
 
-  std::array<float, kSize> AsCenterWh() const {
-    return {(left_ + right_) * 0.5f, (top_ + bottom_) * 0.5f, right_ - left_, bottom_ - top_};
+  RelBounds AsCenterAndShape() const {
+    auto out = bbox_bounds_;
+    for (int i = 0; i < ndim(); i++) {
+      out[i]        = 0.5f * (bbox_bounds_[ndim()+i] + bbox_bounds_[i]);
+      out[ndim()+i] = bbox_bounds_[ndim()+i] - bbox_bounds_[i];
+    }
+    return out;
   }
 
-  bool operator==(const BoundingBox& other) const {
-    return left_ == other.left_
-        && top_ == other.top_
-        && right_ == other.right_
-        && bottom_ == other.bottom_;
+  RelBounds Centroid() const {
+    RelBounds centroid;
+    centroid.reserve(ndim());
+    for (int i = 0; i < ndim(); i++) {
+      centroid.push_back(0.5f * (bbox_bounds_[ndim()+i] + bbox_bounds_[i]));
+    }
+    return centroid;
   }
 
-  bool operator!=(const BoundingBox& other) const {
-    return !operator==(other);
+  float AspectRatio(int dim0, int dim1) const {
+    DALI_ENFORCE(dim0 >= 0 && dim0 < ndim());
+    DALI_ENFORCE(dim1 >= 0 && dim1 < ndim());
+    auto start_and_shape = AsStartAndShape();
+    auto extent0 = start_and_shape[ndim()+dim0];
+    auto extent1 = start_and_shape[ndim()+dim1];
+    return extent0 / extent1;
   }
+
+  float MinAspectRatio() const {
+    float min_ar = std::numeric_limits<float>::max();
+    for (int i = 0; i < ndim(); i++) {
+      for (int j = i + 1; j < ndim(); j++) {
+        min_ar = std::min(min_ar, AspectRatio(i, j));
+      }
+    }
+    return min_ar;
+  }
+
+  float MaxAspectRatio() const {
+    float max_ar = std::numeric_limits<float>::min();
+    for (int i = 0; i < ndim(); i++) {
+      for (int j = i + 1; j < ndim(); j++) {
+        max_ar = std::max(max_ar, AspectRatio(i, j));
+      }
+    }
+    return max_ar;
+  }
+
+  int ndim() const {
+    int bbox_bounds_size = bbox_bounds_.size();
+    assert(bbox_bounds_size % 2 == 0);
+    return bbox_bounds_size / 2;
+  }
+
+  bool Empty() const {
+    return bbox_bounds_.empty() || Volume() == 0.0f;
+  }
+
+  bool operator==(const BoundingBox& oth) const {
+    if (ndim() != oth.ndim()) {
+      return false;
+    }
+
+    for (int i = 0; i < ndim(); i++) {
+      if (bbox_bounds_[i] != oth.bbox_bounds_[i])
+        return false;
+    }
+
+    return true;
+  }
+
+  bool operator!=(const BoundingBox& oth) const {
+    return !operator==(oth);
+  }
+
+  explicit BoundingBox(RelBounds bbox_bounds = {})
+    : bbox_bounds_(std::move(bbox_bounds)) {}
 
  private:
-  static void CheckBounds(float value, float lower, float upper, const string &name) {
-    DALI_ENFORCE(
-      value >= lower && value <= upper,
-      "Expected " + to_string(lower) + " <= " + name + " <= " + to_string(upper) +
-        " Received:  " + to_string(value));
+  static void CheckBounds(float start, float end, float lower, float upper,
+                          const string& name_start, const string& name_end) {
+    DALI_ENFORCE(start >= lower && start <= upper,
+      make_string(name_start, "=", start, " is out of bounds [", lower, ", ", upper, "]"));
+    DALI_ENFORCE(end >= lower && end <= upper,
+      make_string(name_end, "=", end, " is out of bounds [", lower, ", ", upper, "]"));
+      assert(start <= end);
+    DALI_ENFORCE(start <= end,
+      make_string(name_start, " should be <= ", name_end, ". Got ",
+                  name_start, "=", start, ", ", name_end, "=", end));
   }
 
-  BoundingBox() = default;
-
-  BoundingBox(float l, float t, float r, float b)
-      : left_{l}, top_{t}, right_{r}, bottom_{b}, area_{(r - l) * (b - t)} {}
-
-  float left_, top_, right_, bottom_, area_;
+  RelBounds bbox_bounds_;
 };
 
 }  // namespace dali

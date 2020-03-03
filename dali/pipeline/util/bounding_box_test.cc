@@ -16,9 +16,10 @@
 
 #include "dali/pipeline/util/bounding_box.h"
 
-namespace {
+namespace dali {
+namespace test {
 
-using dali::BoundingBox;
+static int kBboxSize = 2;
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates) {
   EXPECT_ANY_THROW(BoundingBox::FromLtrb(-0.5, 0.5, 0.5, 0.5));
@@ -174,38 +175,38 @@ TEST(BoundingBoxTest, ContainsReturnsFalseIfPointIsContainedXYWH) {
   EXPECT_FALSE(box.Contains(0.75, 0.75));
 }
 
-TEST(BoundingBoxTest, CanBeClampedToSmaller) {
+TEST(BoundingBoxTest, CanBeIntersectedToSmaller) {
   auto bigger_box = BoundingBox::FromXywh(0.0, 0.0, 1.0, 1.0);
   auto smaller_box = BoundingBox::FromXywh(0.0, 0.0, 0.1, 0.1);
 
-  auto clamped = bigger_box.ClampTo(smaller_box);
+  auto intersected = bigger_box.Intersect(smaller_box);
 
-  EXPECT_EQ(clamped.Area(), smaller_box.Area());
+  EXPECT_EQ(intersected .Area(), smaller_box.Area());
 }
 
-TEST(BoundingBoxTest, ClampToBiggerLeavesTheSame) {
+TEST(BoundingBoxTest, IntersectBiggerLeavesTheSame) {
   auto bigger_box = BoundingBox::FromXywh(0.0, 0.0, 1.0, 1.0);
   auto smaller_box = BoundingBox::FromXywh(0.0, 0.0, 0.1, 0.1);
 
-  auto clamped = smaller_box.ClampTo(bigger_box);
+  auto intersected = smaller_box.Intersect(bigger_box);
 
-  EXPECT_EQ(clamped.Area(), smaller_box.Area());
+  EXPECT_EQ(intersected .Area(), smaller_box.Area());
 }
 
 TEST(BoundingBoxTest, CanFlipHorizontallyXYWH) {
   auto box_initial = BoundingBox::FromXywh(0.25, 0.25, 0.25, 0.25);
-  auto coords_initial_ltrb = box_initial.AsLtrb();
-  auto coords_initial_xywh = box_initial.AsXywh();
+  auto coords_initial_ltrb = box_initial.AsStartAndEnd();
+  auto coords_initial_xywh = box_initial.AsStartAndShape();
 
   auto box = BoundingBox::FromXywh(0.25, 0.25, 0.25, 0.25);
 
   box = box.HorizontalFlip();
   box = box.HorizontalFlip();
 
-  auto coords_flipped_ltrb = box.AsLtrb();
-  auto coords_flipped_xywh = box.AsXywh();
+  auto coords_flipped_ltrb = box.AsStartAndEnd();
+  auto coords_flipped_xywh = box.AsStartAndShape();
 
-  for (size_t i = 0; i < BoundingBox::kSize; i++) {
+  for (int i = 0; i < kBboxSize; i++) {
     EXPECT_EQ(coords_initial_ltrb[i], coords_flipped_ltrb[i]);
     EXPECT_EQ(coords_initial_xywh[i], coords_flipped_xywh[i]);
   }
@@ -213,18 +214,18 @@ TEST(BoundingBoxTest, CanFlipHorizontallyXYWH) {
 
 TEST(BoundingBoxTest, CanFlipHorizontallyLTRB) {
   auto box_initial = BoundingBox::FromLtrb(0.25, 0.25, 0.5, 0.5);
-  auto coords_initial_ltrb = box_initial.AsLtrb();
-  auto coords_initial_xywh = box_initial.AsXywh();
+  auto coords_initial_ltrb = box_initial.AsStartAndEnd();
+  auto coords_initial_xywh = box_initial.AsStartAndShape();
 
   auto box = BoundingBox::FromLtrb(0.25, 0.25, 0.5, 0.5);
 
   box = box.HorizontalFlip();
   box = box.HorizontalFlip();
 
-  auto coords_flipped_ltrb = box.AsLtrb();
-  auto coords_flipped_xywh = box.AsXywh();
+  auto coords_flipped_ltrb = box.AsStartAndEnd();
+  auto coords_flipped_xywh = box.AsStartAndShape();
 
-  for (size_t i = 0; i < BoundingBox::kSize; i++) {
+  for (int i = 0; i < kBboxSize; i++) {
     EXPECT_EQ(coords_initial_ltrb[i], coords_flipped_ltrb[i]);
     EXPECT_EQ(coords_initial_xywh[i], coords_flipped_xywh[i]);
   }
@@ -232,18 +233,18 @@ TEST(BoundingBoxTest, CanFlipHorizontallyLTRB) {
 
 TEST(BoundingBoxTest, CanFlipVerticallyXYWH) {
   auto box_initial = BoundingBox::FromXywh(0.25, 0.25, 0.25, 0.25);
-  auto coords_initial_ltrb = box_initial.AsLtrb();
-  auto coords_initial_xywh = box_initial.AsXywh();
+  auto coords_initial_ltrb = box_initial.AsStartAndEnd();
+  auto coords_initial_xywh = box_initial.AsStartAndShape();
 
   auto box = BoundingBox::FromXywh(0.25, 0.25, 0.25, 0.25);
 
   box = box.VerticalFlip();
   box = box.VerticalFlip();
 
-  auto coords_flipped_ltrb = box.AsLtrb();
-  auto coords_flipped_xywh = box.AsXywh();
+  auto coords_flipped_ltrb = box.AsStartAndEnd();
+  auto coords_flipped_xywh = box.AsStartAndShape();
 
-  for (size_t i = 0; i < BoundingBox::kSize; i++) {
+  for (int i = 0; i < kBboxSize; i++) {
     EXPECT_EQ(coords_initial_ltrb[i], coords_flipped_ltrb[i]);
     EXPECT_EQ(coords_initial_xywh[i], coords_flipped_xywh[i]);
   }
@@ -251,18 +252,18 @@ TEST(BoundingBoxTest, CanFlipVerticallyXYWH) {
 
 TEST(BoundingBoxTest, CanFlipVerticallyLTRB) {
   auto box_initial = BoundingBox::FromLtrb(0.25, 0.25, 0.5, 0.5);
-  auto coords_initial_ltrb = box_initial.AsLtrb();
-  auto coords_initial_xywh = box_initial.AsXywh();
+  auto coords_initial_ltrb = box_initial.AsStartAndEnd();
+  auto coords_initial_xywh = box_initial.AsStartAndShape();
 
   auto box = BoundingBox::FromLtrb(0.25, 0.25, 0.5, 0.5);
 
   box = box.VerticalFlip();
   box = box.VerticalFlip();
 
-  auto coords_flipped_ltrb = box.AsLtrb();
-  auto coords_flipped_xywh = box.AsXywh();
+  auto coords_flipped_ltrb = box.AsStartAndEnd();
+  auto coords_flipped_xywh = box.AsStartAndShape();
 
-  for (size_t i = 0; i < BoundingBox::kSize; i++) {
+  for (int i = 0; i < kBboxSize; i++) {
     EXPECT_EQ(coords_initial_ltrb[i], coords_flipped_ltrb[i]);
     EXPECT_EQ(coords_initial_xywh[i], coords_flipped_xywh[i]);
   }
@@ -350,4 +351,43 @@ TEST(BoundingBoxTest, CalculateIOUIsZeroIfNoOverlap) {
   EXPECT_EQ(ltrb_box.IntersectionOverUnion(xywh_box), 0.0f);
 }
 
-}  // namespace
+TEST(BoundingBoxTest, Bbox3dIoUNoOverlap) {
+  auto bbox1 = BoundingBox::FromStartAndEnd({0.0, 0.0, 0.0, 0.25, 0.25, 0.25});
+  auto bbox2 = BoundingBox::FromStartAndEnd({0.25, 0.25, 0.25, 0.5, 0.5, 0.5});
+
+  EXPECT_FALSE(bbox1.Overlaps(bbox2));
+  EXPECT_EQ(bbox1.IntersectionOverUnion(bbox2), 0.0f);
+}
+
+TEST(BoundingBoxTest, Bbox3dIoUOverlap) {
+  auto bbox1 = BoundingBox::FromStartAndEnd({0.0, 0.0, 0.0, 0.3, 0.3, 0.3});
+  auto bbox2 = BoundingBox::FromStartAndEnd({0.2, 0.2, 0.2, 0.5, 0.5, 0.5});
+
+  auto intersection_vol = 0.1 * 0.1 * 0.1;
+  auto union_vol = 2 * (0.3 * 0.3 * 0.3) - intersection_vol;
+
+  EXPECT_TRUE(bbox1.Overlaps(bbox2));
+  EXPECT_FLOAT_EQ(bbox1.IntersectionOverUnion(bbox2), intersection_vol / union_vol);
+}
+
+TEST(BoundingBoxTest, Bbox3dIntersect) {
+  auto bigger_box = BoundingBox::FromStartAndEnd({0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
+  auto smaller_box = BoundingBox::FromStartAndEnd({0.1, 0.1, 0.1, 0.9, 0.9, 0.9});
+
+  EXPECT_EQ(bigger_box.Intersect(smaller_box), smaller_box);
+}
+
+TEST(BoundingBoxTest, Bbox3dBboxFormatConversion) {
+  RelBounds start_and_end = {0.2, 0.2, 0.2, 0.7, 0.7, 0.7};
+  auto bbox1 = BoundingBox::FromStartAndEnd(start_and_end);
+
+  RelBounds start_and_shape = {0.2, 0.2, 0.2, 0.5, 0.5, 0.5};
+  auto bbox2 = BoundingBox::FromStartAndShape(start_and_shape);
+
+  EXPECT_EQ(bbox1, bbox2);
+  EXPECT_EQ(bbox1.AsStartAndShape(), start_and_shape);
+  EXPECT_EQ(bbox2.AsStartAndEnd(), start_and_end);
+}
+
+}  // namespace test
+}  // namespace dali
