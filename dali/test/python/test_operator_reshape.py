@@ -207,12 +207,100 @@ def test_reshape_arg_input():
         for use_wildcard in [False, True]:
            yield check_reshape_with_arg_input, device, batch_size, relative, use_wildcard
 
+class ReinterpretPipelineWithDefaultShape(Pipeline):
+    def __init__(self, device, batch_size, num_threads=3, device_id=0, num_gpus=1):
+        super(ReinterpretPipelineWithDefaultShape, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True)
+        self.device = device
+        self.ext_src = ops.ExternalSource()
+        self.reinterpret = ops.Reinterpret(device = device, dtype = types.INT32)
+
+    def define_graph(self):
+        input = self.input = self.ext_src()
+        if self.device == "gpu":
+          input = input.gpu()
+        reinterpreted = self.reinterpret(input)
+
+        # `input+0` creates a (no-op) arithmetic expression node - this prevents the
+        # original `input` node from being marked as pipeline output
+        return [input, reinterpreted]
+
+    def iter_setup(self):
+        data = []
+        for i in range(self.batch_size):
+            shape = np.random.randint(4, 20, size = [2])
+            shape[1] &= -4  # align to 4
+            data.append(np.random.randint(0, 255, shape, dtype = np.uint8))
+        self.feed_input(self.input, data)
+
+
+def _test_reinterpret_default_shape(device):
+    np.random.seed(31337)
+    batch_size = 4
+    pipe = ReinterpretPipelineWithDefaultShape(device, batch_size)
+    pipe.build()
+    pipe_outs = pipe.run()
+    in_batch = pipe_outs[0].as_cpu() if device == "gpu" else pipe_outs[0]
+    out_batch = pipe_outs[1].as_cpu() if device == "gpu" else pipe_outs[1]
+    for i in range(batch_size):
+        ref = in_batch.at(i).view(dtype = np.int32)
+        out = out_batch.at(i)
+        assert_array_equal(ref, out)
+
+def test_reinterpret_default_shape():
+    for device in ["cpu", "gpu"]:
+        yield _test_reinterpret_default_shape, device
+
+
+class ReinterpretPipelineWildcardDim(Pipeline):
+    def __init__(self, device, batch_size, num_threads=3, device_id=0, num_gpus=1):
+        super(ReinterpretPipelineWildcardDim, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=True, exec_pipelined=True)
+        self.device = device
+        self.ext_src = ops.ExternalSource()
+        self.reinterpret = ops.Reinterpret(device = device, shape = (20, 2), dtype = types.INT32)
+
+    def define_graph(self):
+        input = self.input = self.ext_src()
+        if self.device == "gpu":
+          input = input.gpu()
+        reinterpreted = self.reinterpret(input)
+
+        # `input+0` creates a (no-op) arithmetic expression node - this prevents the
+        # original `input` node from being marked as pipeline output
+        return [input, reinterpreted]
+
+    def iter_setup(self):
+        data = [np.random.randint(0, 255, [10, 16], dtype = np.uint8) for i in range(self.batch_size)]
+        self.feed_input(self.input, data)
+
+
+def _test_reinterpret_wildcard_shape(device):
+    np.random.seed(31337)
+    batch_size = 4
+    pipe = ReinterpretPipelineWildcardDim(device, batch_size)
+    pipe.build()
+    pipe_outs = pipe.run()
+    in_batch = pipe_outs[0].as_cpu() if device == "gpu" else pipe_outs[0]
+    out_batch = pipe_outs[1].as_cpu() if device == "gpu" else pipe_outs[1]
+    for i in range(batch_size):
+        ref = in_batch.at(i).view(dtype = np.int32).reshape([20, 2])
+        out = out_batch.at(i)
+        assert_array_equal(ref, out)
+
+def test_reinterpret_wildcard_shape():
+    for device in ["cpu", "gpu"]:
+        yield _test_reinterpret_wildcard_shape, device
+
+
 def main():
   for test in test_reshape_arg():
     test[0](*test[1:])
   for test in test_reshape_input():
     test[0](*test[1:])
   for test in test_reshape_arg_input():
+    test[0](*test[1:])
+  for test in test_reinterpret_default():
+    test[0](*test[1:])
+  for test in test_reinterpret_with_wildcard_shape():
     test[0](*test[1:])
 
 if __name__ == '__main__':

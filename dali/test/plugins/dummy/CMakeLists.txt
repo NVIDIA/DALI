@@ -15,7 +15,8 @@
 file(GLOB SRCS *.cc *.cu)
 
 set(lib_name "customdummyplugin")
-cuda_add_library(${lib_name} SHARED ${SRCS})
+add_library(${lib_name} SHARED ${SRCS})
+target_link_libraries(${lib_name} PRIVATE ${CUDART_LIB})
 target_link_libraries(${lib_name} PUBLIC ${dali_lib})
 
 set_target_properties(${lib_name} PROPERTIES

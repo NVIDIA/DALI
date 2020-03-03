@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_GENERIC_RESHAPE_H_
 #define DALI_OPERATORS_GENERIC_RESHAPE_H_
 
+#include <string>
 #include <vector>
 
 #include "dali/pipeline/operator/operator.h"
@@ -46,6 +47,9 @@ class Reshape : public Operator<Backend> {
   std::vector<float> rel_uniform_shape_;
   TensorLayout layout_;
   bool use_layout_ = false;
+  inline const std::string &OpName() const {
+    return this->spec_.name();
+  }
 
   enum class ShapeSource {
     None,
@@ -57,6 +61,8 @@ class Reshape : public Operator<Backend> {
   ShapeSource shape_source_ = ShapeSource::None;
   bool use_rel_shape_ = false;
   int wildcard_dim_ = -1;
+  DALIDataType output_type_id_ = DALI_NO_TYPE;
+  const TypeInfo *output_type_ = nullptr;
 
   void CalculateOutputShape(const Workspace &ws);
 

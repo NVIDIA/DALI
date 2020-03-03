@@ -33,8 +33,8 @@ RUN BOOST_VERSION=1_66_0 \
    && ln -s ../boost_${BOOST_VERSION}/boost include/boost
 
 # CMake
-RUN CMAKE_VERSION=3.11 && \
-    CMAKE_BUILD=3.11.0 && \
+RUN CMAKE_VERSION=3.12 && \
+    CMAKE_BUILD=3.12.4 && \
     curl -L https://cmake.org/files/v${CMAKE_VERSION}/cmake-${CMAKE_BUILD}.tar.gz | tar -xzf - && \
     cd /cmake-${CMAKE_BUILD} && \
     ./bootstrap --parallel=$(grep ^processor /proc/cpuinfo | wc -l) && \
@@ -207,6 +207,7 @@ CMD cmake \
   -DCMAKE_COLOR_MAKEFILE=ON \
   -DCMAKE_INSTALL_PREFIX=./install \
   -DARCH=aarch64-linux \
+  -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.0/bin/nvcc \
   -DCUDA_HOST=/usr/local/cuda-10.0 \
   -DCUDA_TARGET=/usr/local/cuda-10.0/targets/aarch64-linux \
   -DBUILD_TEST=ON \

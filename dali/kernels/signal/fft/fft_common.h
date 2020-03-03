@@ -12,34 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_CUSTREAM_H_
-#define DALI_UTIL_CUSTREAM_H_
+#ifndef DALI_KERNELS_SIGNAL_FFT_FFT_COMMON_H_
+#define DALI_KERNELS_SIGNAL_FFT_FFT_COMMON_H_
 
-#include <driver_types.h>
-#include "dali/core/common.h"
+#include <complex>
 
 namespace dali {
+namespace kernels {
+namespace signal {
+namespace fft {
 
-class DLL_PUBLIC CUStream {
- public:
-  CUStream(int device_id, bool default_stream, int priority);
-
-  ~CUStream();
-
-  CUStream(const CUStream &) = delete;
-
-  CUStream &operator=(const CUStream &) = delete;
-
-  explicit CUStream(CUStream &&);
-
-  CUStream &operator=(CUStream &&);
-
-  operator cudaStream_t();
-
- private:
-  cudaStream_t stream_;
+enum FftSpectrumType {
+  FFT_SPECTRUM_COMPLEX = 0,    // separate interleaved real and imag parts: (r0, i0, r1, i1, ...)
+  FFT_SPECTRUM_MAGNITUDE = 1,  // sqrt( real^2 + imag^2 )
+  FFT_SPECTRUM_POWER = 2,      // real^2 + imag^2
+  FFT_SPECTRUM_POWER_DECIBELS = 3,  // 10 * log10(real^2 + imag^2)
 };
 
+using complexf = std::complex<float>;
+
+}  // namespace fft
+}  // namespace signal
+}  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_UTIL_CUSTREAM_H_
+#endif  // DALI_KERNELS_SIGNAL_FFT_FFT_COMMON_H_

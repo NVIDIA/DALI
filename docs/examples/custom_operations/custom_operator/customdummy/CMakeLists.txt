@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
-find_package(CUDA 8.0 REQUIRED)
+project(custom_dummy_plugin)
+find_package(CUDA 9.0 REQUIRED)
 
 execute_process(
         COMMAND python -c "import nvidia.dali as dali; print(dali.sysconfig.get_lib_dir())"

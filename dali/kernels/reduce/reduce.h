@@ -32,14 +32,6 @@ namespace dali {
 namespace kernels {
 namespace reductions {
 
-struct identity {
-  template <typename T>
-  DALI_HOST_DEV DALI_FORCEINLINE
-  T &&operator()(T &&x) const noexcept {
-    return std::forward<T>(x);
-  }
-};
-
 struct square {
   template <typename T>
   DALI_HOST_DEV DALI_FORCEINLINE
@@ -231,7 +223,7 @@ struct ReduceBase {
    *
    * @param pos coordinates of the reduced value in the output tensor
    */
-  reductions::identity GetPreprocessor(span<int64_t> pos) const { return {}; }
+  identity GetPreprocessor(span<int64_t> pos) const { return {}; }
 
   /// @brief Returns a reduction functor, by default, a sum. Can be shadowed by Actual class.
   reductions::sum GetReduction() const { return {}; }
@@ -270,7 +262,7 @@ struct ReduceBase {
   }
 
   void CheckOutput() {
-    if (axis_mask == static_cast<uint64_t>((1 << ndim()) - 1)) {
+    if (axis_mask == (static_cast<uint64_t>(1) << ndim()) - 1) {
       DALI_ENFORCE((output.dim() == 1 || output.dim() == input.dim()) && output.num_elements() == 1,
         make_string("Full reduction produces a single value (possibly keeping reduced dimensions)."
         "\nOutput shape provided: ", output.shape));

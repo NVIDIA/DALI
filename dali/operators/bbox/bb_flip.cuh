@@ -16,8 +16,8 @@
 #define DALI_OPERATORS_BBOX_BB_FLIP_CUH_
 
 #include <vector>
-
 #include "dali/operators/bbox/bb_flip.h"
+#include "dali/pipeline/operator/arg_helper.h"
 
 namespace dali {
 
@@ -32,6 +32,12 @@ class BbFlip<GPUBackend> : public Operator<GPUBackend> {
 
   void RunImpl(Workspace<GPUBackend> &ws) override;
  private:
+  ArgValue<int> horz_{"horizontal"};
+  ArgValue<int> vert_{"vertical"};
+
+  // contains a map from box index to sample index - used
+  // for accessing per-sample horz/vert arguments.
+  Tensor<GPUBackend> idx2sample_;
 };
 
 }  // namespace dali

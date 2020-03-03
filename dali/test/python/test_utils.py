@@ -38,6 +38,8 @@ def get_dali_extra_path():
 np = None
 assert_array_equal = None
 assert_allclose = None
+cp = None
+
 def import_numpy():
     global np
     global assert_array_equal
@@ -214,3 +216,18 @@ def dali_type(t):
     if t is np.int32:
         return types.INT32
     raise "Unsupported type: " + str(t)
+
+def py_buffer_from_address(address, shape, dtype, gpu = False):
+    buff = {'data': (address, False), 'shape': tuple(shape), 'typestr': dtype}
+    class py_holder(object):
+        pass
+
+    holder = py_holder()
+    holder.__array_interface__ = buff
+    holder.__cuda_array_interface__ = buff
+    if not gpu:
+        return np.array(holder, copy=False)
+    else:
+        global cp
+        import cupy as cp
+        return cp.asanyarray(holder)

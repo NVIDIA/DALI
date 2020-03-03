@@ -181,6 +181,7 @@ void parse_annotations(
     if (parser.PeekType() != kObjectType) {
       continue;
     }
+    bool to_add = true;
     parser.EnterObject();
     while (const char* internal_key = parser.NextObjectKey()) {
       if (0 == detail::safe_strcmp(internal_key, "image_id")) {
@@ -199,7 +200,8 @@ void parse_annotations(
         // That means that the mask encoding is not polygons but RLE (iscrowd==1),
         // which is not needed for instance segmentation
         if (parser.PeekType() != kArrayType) {
-          while (parser.NextObjectKey()) {}
+          to_add = false;
+          parser.SkipObject();
           break;
         }
 
@@ -223,10 +225,12 @@ void parse_annotations(
     if (!annotation.IsOver(min_size_threshold)) {
       continue;
     }
-    if (ltrb) {
-      annotation.ToLtrb();
+    if (to_add) {
+      if (ltrb) {
+        annotation.ToLtrb();
+      }
+      annotations.emplace_back(std::move(annotation));
     }
-    annotations.emplace_back(std::move(annotation));
   }
 }
 

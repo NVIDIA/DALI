@@ -33,9 +33,7 @@ set(TEST_BINARY_DIR "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 ################################################
 # Common config for all subdirs
 ################################################
-set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
 string(REPLACE ";" ":" exclude_libs "${DALI_EXCLUDES}")
-message(STATUS "Exclude libs '${exclude_libs}'")
 
 ################################################
 # Build libdali
@@ -54,7 +52,7 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)
 
 set(DALI_PROTO_OBJ $<TARGET_OBJECTS:DALI_PROTO>)
-cuda_add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ})
+add_library(${dali_lib} SHARED ${DALI_SRCS} ${DALI_PROTO_OBJ} ${CUDART_LIB})
 set_target_properties(${dali_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 
@@ -66,7 +64,7 @@ target_link_libraries(${dali_lib} PRIVATE -Wl,--version-script=${CMAKE_BINARY_DI
 # Link in dali's dependencies
 message(STATUS "Adding dependencies to ${dali_lib}: '${DALI_LIBS}'")
 target_link_libraries(${dali_lib} PUBLIC ${dali_core_lib})
-target_link_libraries(${dali_lib} PRIVATE dynlink_cuda ${DALI_LIBS})
+target_link_libraries(${dali_lib} PRIVATE ${DALI_LIBS} dynlink_cuda)
 # Exclude (most) statically linked dali dependencies from the exports of libdali.so
 target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 
@@ -76,13 +74,13 @@ target_link_libraries(${dali_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 if (BUILD_TEST)
   add_subdirectory(test)
   set(test_main_bin "dali_test.bin")
-  cuda_add_executable(${test_main_bin} "${DALI_TEST_SRCS}")
+  add_executable(${test_main_bin} "${DALI_TEST_SRCS}")
 
   target_link_libraries(${test_main_bin} PUBLIC
-    ${dali_lib} ${dali_core_lib} ${dali_kernel_lib} ${dali_operator_lib}
+    ${dali_lib} ${dali_core_lib} ${dali_kernel_lib} ${dali_operator_lib} ${DALI_LIBS}
     gtest)
   target_link_libraries(${test_main_bin} PRIVATE
-    dynlink_cuda ${DALI_LIBS})
+    dynlink_cuda ${CUDART_LIB})
   set_target_properties(${test_main_bin} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 
@@ -96,14 +94,6 @@ endif()
 if (BUILD_BENCHMARK)
   # get benchmark main
   add_subdirectory(benchmark)
-
-  set(benchmark_bin "dali_benchmark.bin")
-  cuda_add_executable(${benchmark_bin} "${DALI_BENCHMARK_SRCS}")
-
-  target_link_libraries(${benchmark_bin} PUBLIC ${dali_lib} ${dali_operator_lib} benchmark pthread)
-
-  set_target_properties(${benchmark_bin} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
 endif()
 
 ################################################

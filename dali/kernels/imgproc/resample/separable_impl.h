@@ -166,7 +166,7 @@ struct SeparableResamplingGPUImpl : Interface {
     size_t odd_offset = GetOddTmpOffset();
     for (int t = 0; t < setup.num_tmp_buffers; t++) {
       size_t offset = t&1 ? odd_offset : 0;
-      intermediate[t].set_dense_data(tmp_mem + offset);
+      intermediate[t].set_contiguous_data(tmp_mem + offset);
     }
 
     for (int i = 0; i <in.num_samples(); i++) {

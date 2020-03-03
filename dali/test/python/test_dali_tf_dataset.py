@@ -243,3 +243,27 @@ def _test_tf_dataset_multigpu():
                 standalone_results[it_id][2],
                 dataset_results[batch_id][device_id][2])
 
+
+class PythonOperatorPipeline(Pipeline):
+    def __init__(self):
+        super(PythonOperatorPipeline, self).__init__(1, 1, 0, 0)
+        self.python_op = ops.PythonFunction(function=lambda: np.zeros((3, 3, 3)))
+
+    def define_graph(self):
+        return self.python_op()
+
+
+@raises(RuntimeError)
+def test_python_operator_error():
+    dataset_pipeline = PythonOperatorPipeline()
+    shapes = [(1, 3, 3, 3)]
+    dtypes = [tf.float32]
+
+    with tf.device('/cpu:0'):
+        daliset = dali_tf.DALIDataset(
+            pipeline=dataset_pipeline,
+            batch_size=1,
+            shapes=shapes,
+            dtypes=dtypes,
+            num_threads=1,
+            device_id=0)

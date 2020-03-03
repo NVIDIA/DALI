@@ -179,6 +179,12 @@ void ExposeTensor(py::module &m) {
         },
       R"code(
       String representing NumPy type of the Tensor.
+      )code")
+    .def("data_ptr", [](Tensor<CPUBackend> &t) {
+          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
+        },
+      R"code(
+      Returns the address of the first element of tensor.
       )code");
 
   py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
@@ -220,16 +226,24 @@ void ExposeTensor(py::module &m) {
         },
       R"code(
       String representing NumPy type of the Tensor.
+      )code")
+    .def("data_ptr",
+        [](Tensor<GPUBackend> &t) {
+          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
+        },
+      R"code(
+      Returns the address of the first element of tensor.
       )code");
 }
 
 template <typename Backend>
 std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, Index id) {
+  int num_tensors = static_cast<int>(t.ntensor());
   if (id < 0) {
-    int num_tensors = static_cast<int>(t.ntensor());
-    if (id < -num_tensors)
-      throw py::index_error("TensorListCPU index out of range");
     id = num_tensors + id;
+  }
+  if (id >= num_tensors || id < 0) {
+      throw py::index_error("TensorListCPU index out of range");
   }
   std::unique_ptr<Tensor<Backend>> ptr(new Tensor<Backend>());
   ptr->ShareData(&t, id);
@@ -253,11 +267,6 @@ py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
 #endif
 
 void ExposeTensorList(py::module &m) {
-  // We only want to wrap buffers w/ TensorLists to feed then to
-  // the backend. We do not support converting from TensorLists
-  // to numpy arrays currently.
-
-
   py::class_<TensorList<CPUBackend>>(m, "TensorListCPU", py::buffer_protocol())
     .def(py::init([](py::buffer b, string layout = "") {
         // We need to verify that the input data is C_CONTIGUOUS
@@ -301,26 +310,27 @@ void ExposeTensorList(py::module &m) {
       layout : the layout description
       )code")
     .def("layout", &TensorList<CPUBackend>::GetLayout)
-    .def("at", [](TensorList<CPUBackend> &t, Index id) -> py::array {
-          DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
+    .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
+          DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
-          DALI_ENFORCE(static_cast<size_t>(id) < t.ntensor(), "Index is out-of-range.");
+          DALI_ENFORCE(static_cast<size_t>(id) < tl.ntensor(), "Index is out-of-range.");
           DALI_ENFORCE(id >= 0, "Index is out-of-range.");
 
-          std::vector<ssize_t> shape(t.tensor_shape(id).size()), stride(t.tensor_shape(id).size());
+          std::vector<ssize_t> shape(tl.tensor_shape(id).size()),
+                                     stride(tl.tensor_shape(id).size());
           size_t dim_prod = 1;
           for (size_t i = 0; i < shape.size(); ++i) {
-            shape[i] = t.tensor_shape(id)[i];
+            shape[i] = tl.tensor_shape(id)[i];
 
             // We iterate over stride backwards
-            stride[(stride.size()-1) - i] = t.type().size()*dim_prod;
-            dim_prod *= t.tensor_shape(id)[(shape.size()-1) - i];
+            stride[(stride.size()-1) - i] = tl.type().size()*dim_prod;
+            dim_prod *= tl.tensor_shape(id)[(shape.size()-1) - i];
           }
 
           return py::array(py::buffer_info(
-              t.raw_mutable_tensor(id),
-              t.type().size(),
-              FormatStrFromType(t.type()),
+              tl.raw_mutable_tensor(id),
+              tl.type().size(),
+              FormatStrFromType(tl.type()),
               shape.size(), shape, stride));
         },
       R"code(
@@ -330,11 +340,12 @@ void ExposeTensorList(py::module &m) {
       ----------
       )code")
       .def("__getitem__",
-        [](TensorList<CPUBackend> &t, Index id) -> std::unique_ptr<Tensor<CPUBackend>> {
-          return TensorListGetItemImpl(t, id);
+        [](TensorList<CPUBackend> &tl, Index i) -> std::unique_ptr<Tensor<CPUBackend>> {
+          return TensorListGetItemImpl(tl, i);
         },
+      "i"_a,
       R"code(
-      Returns a tensor at given position in the list.
+      Returns a tensor at given position `i` in the list.
 
       Parameters
       ----------
@@ -342,8 +353,8 @@ void ExposeTensorList(py::module &m) {
       py::keep_alive<0, 1>())
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
       .def("__getitem__",
-        [](TensorList<CPUBackend> &t, py::slice slice) -> py::tuple {
-          return TensorListGetItemSliceImpl(t, slice);
+        [](TensorList<CPUBackend> &tl, py::slice slice) -> py::tuple {
+          return TensorListGetItemSliceImpl(tl, slice);
         },
       R"code(
       Returns a tensor at given position in the list.
@@ -352,45 +363,45 @@ void ExposeTensorList(py::module &m) {
       ----------
       )code")
 #endif
-    .def("as_array", [](TensorList<CPUBackend> &t) -> py::array {
+    .def("as_array", [](TensorList<CPUBackend> &tl) -> py::array {
           void* raw_mutable_data = nullptr;
           std::string format;
           size_t type_size;
 
-          if (t.size() > 0) {
-            DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
+          if (tl.size() > 0) {
+            DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
                 "buffer info for tensor w/ invalid type.");
-            DALI_ENFORCE(t.IsDenseTensor(),
+            DALI_ENFORCE(tl.IsDenseTensor(),
                         "Tensors in the list must have the same shape");
-            raw_mutable_data = t.raw_mutable_data();
+            raw_mutable_data = tl.raw_mutable_data();
           }
 
-          if (IsValidType(t.type())) {
-            format = FormatStrFromType(t.type());
-            type_size = t.type().size();
+          if (IsValidType(tl.type())) {
+            format = FormatStrFromType(tl.type());
+            type_size = tl.type().size();
           } else {
             // Default is float
             format = py::format_descriptor<float>::format();
             type_size = sizeof(float);
           }
 
-          auto shape_size = t.shape().size() > 0 ? t.tensor_shape(0).size() : 0;
+          auto shape_size = tl.shape().size() > 0 ? tl.tensor_shape(0).size() : 0;
           std::vector<ssize_t> shape(shape_size + 1);
           std::vector<ssize_t> strides(shape_size + 1);
           size_t dim_prod = 1;
           for (size_t i = 0; i < shape.size(); ++i) {
             if (i == 0) {
-              shape[i] = t.shape().size();
+              shape[i] = tl.shape().size();
             } else {
-              shape[i] = t.tensor_shape(0)[i - 1];
+              shape[i] = tl.tensor_shape(0)[i - 1];
             }
 
             // We iterate over stride backwards
             strides[(strides.size()-1) - i] = type_size*dim_prod;
             if (i == shape.size() - 1) {
-              dim_prod *= t.shape().size();
+              dim_prod *= tl.shape().size();
             } else {
-              dim_prod *= t.tensor_shape(0)[(shape.size()-2) - i];
+              dim_prod *= tl.tensor_shape(0)[(shape.size()-2) - i];
             }
           }
 
@@ -402,8 +413,8 @@ void ExposeTensorList(py::module &m) {
       Parameters
       ----------
       )code")
-    .def("__len__", [](TensorList<CPUBackend> &t) {
-          return t.ntensor();
+    .def("__len__", [](TensorList<CPUBackend> &tl) {
+          return tl.ntensor();
         })
     .def("is_dense_tensor", &TensorList<CPUBackend>::IsDenseTensor,
       R"code(
@@ -415,8 +426,8 @@ void ExposeTensorList(py::module &m) {
       may be viewed as a tensor of shape `(N, H, W, C)`.
       )code")
     .def("copy_to_external",
-        [](TensorList<CPUBackend> &t, py::object p) {
-          CopyToExternalTensor(&t, ctypes_void_ptr(p), CPU, 0);
+        [](TensorList<CPUBackend> &tl, py::object p) {
+          CopyToExternalTensor(&tl, ctypes_void_ptr(p), CPU, 0);
         },
       R"code(
       Copy the contents of this `TensorList` to an external pointer
@@ -445,7 +456,14 @@ void ExposeTensorList(py::module &m) {
 
       This function can only be called if `is_dense_tensor` returns `True`.
       )code",
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal)
+    .def("data_ptr",
+        [](TensorList<CPUBackend> &tl) {
+          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(tl.raw_mutable_data()));
+        },
+      R"code(
+      Returns the address of the first element of TensorList.
+      )code");
 
   py::class_<TensorList<GPUBackend>>(m, "TensorListGPU", py::buffer_protocol())
     .def(py::init([]() {
@@ -493,7 +511,7 @@ void ExposeTensorList(py::module &m) {
       "non_blocking"_a = false,
       R"code(
       Copy the contents of this `TensorList` to an external pointer
-      residing in CPU memory.
+      residing in GPU memory.
 
       This function is used internally by plugins to interface with
       tensors from supported Deep Learning frameworks.
@@ -508,11 +526,12 @@ void ExposeTensorList(py::module &m) {
             Asynchronous copy.
       )code")
     .def("__getitem__",
-        [](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
-          return TensorListGetItemImpl(t, id);
+        [](TensorList<GPUBackend> &t, Index i) -> std::unique_ptr<Tensor<GPUBackend>> {
+          return TensorListGetItemImpl(t, i);
         },
+      "i"_a,
       R"code(
-      Returns a tensor at given position in the list.
+      Returns a tensor at given position `i` in the list.
 
       Parameters
       ----------
@@ -564,7 +583,14 @@ void ExposeTensorList(py::module &m) {
 
       This function can only be called if `is_dense_tensor` returns `True`.
       )code",
-      py::return_value_policy::reference_internal);
+      py::return_value_policy::reference_internal)
+    .def("data_ptr",
+        [](TensorList<GPUBackend> &tl) {
+          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(tl.raw_mutable_data()));
+        },
+      R"code(
+      Returns the address of the first element of TensorList.
+      )code");
 }
 
 #define GetRegisteredOpsFor(OPTYPE)                                           \

@@ -31,12 +31,12 @@ extern "C" {
 #include <vector>
 
 #include "dali/core/dynlink_cuda.h"
+#include "dali/core/cuda_stream.h"
 #include "dali/operators/reader/nvdecoder/sequencewrapper.h"
 #include "dali/operators/reader/nvdecoder/cuvideoparser.h"
 #include "dali/operators/reader/nvdecoder/cuvideodecoder.h"
 #include "dali/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 #include "dali/util/thread_safe_queue.h"
-#include "dali/util/custream.h"
 
 struct AVPacket;
 #if HAVE_AVSTREAM_CODECPAR
@@ -173,7 +173,7 @@ class NvDecoder {
 
 
   const int device_id_;
-  CUStream stream_;
+  CUDAStream stream_;
 
   bool rgb_;
   DALIDataType dtype_;

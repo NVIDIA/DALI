@@ -43,10 +43,6 @@ template <typename Backend>
 class Tensor : public Buffer<Backend> {
  public:
   inline Tensor() {}
-  explicit inline Tensor(int batch_size) {
-    // We only set the size, but not the type. Pinned status can still be set
-    Resize({batch_size});
-  }
   inline ~Tensor() override = default;
 
 
@@ -147,6 +143,18 @@ class Tensor : public Buffer<Backend> {
   inline void Resize(const TensorShape<> &shape) {
     Index new_size = volume(shape);
     ResizeHelper(new_size);
+    shape_ = shape;
+  }
+
+  /**
+   * @brief Resizes the buffer to fit `volume(shape)` of new_type elements.
+   * The underlying storage is only reallocated in the case that
+   * the current buffer is not large enough for the requested
+   * number of elements.
+   */
+  inline void Resize(const TensorShape<> &shape, const TypeInfo &new_type) {
+    Index new_size = volume(shape);
+    ResizeHelper(new_size, new_type);
     shape_ = shape;
   }
 

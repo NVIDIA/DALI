@@ -12,7 +12,17 @@ test_py() {
     python test_coco_tfrecord.py -i 64
 }
 
-test_body() {
+test_no_fw() {
     test_nose
     test_py
+}
+
+test_cupy() {
+    nosetests --verbose test_backend_impl_gpu.py
+}
+
+
+run_all() {
+  test_no_fw
+  test_cupy
 }

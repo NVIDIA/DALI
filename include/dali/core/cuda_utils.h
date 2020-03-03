@@ -24,20 +24,6 @@
 
 namespace dali {
 
-// Compatible wrapper for CUDA 8 which does not have builtin
-// static_cast<float16>
-template <typename dst>
-__device__ inline dst StaticCastGpu(float val) {
-  return static_cast<dst>(val);
-}
-
-#if defined(__CUDACC__) && defined(CUDART_VERSION) && CUDART_VERSION < 9000
-template <>
-__device__ inline float16 StaticCastGpu(float val) {
-  return __float2half(static_cast<float>(val));
-}
-#endif  // defined(CUDART_VERSION) && CUDART_VERSION < 9000
-
 // allocator using device-side malloc/free
 
 template <typename T>

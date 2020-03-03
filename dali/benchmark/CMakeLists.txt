@@ -17,6 +17,7 @@ if (BUILD_BENCHMARK)
   # Get basic benchmark sources that don't depend on any other options
   set(DALI_BENCHMARK_SRCS
     #"${CMAKE_CURRENT_SOURCE_DIR}/makecontiguous_bench.cc"
+    "${CMAKE_SOURCE_DIR}/dali/test/dali_test_config.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_nvjpeg_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/dali_bench.cc"
@@ -34,5 +35,12 @@ if (BUILD_BENCHMARK)
     list(APPEND DALI_BENCHMARK_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/caffe2_alexnet_bench.cc")
   endif()
 
-  set(DALI_BENCHMARK_SRCS ${DALI_BENCHMARK_SRCS} PARENT_SCOPE)
+  set(benchmark_bin "dali_benchmark.bin")
+  add_executable(${benchmark_bin} "${DALI_BENCHMARK_SRCS}")
+
+  target_link_libraries(${benchmark_bin} PRIVATE ${dali_lib} ${dali_operator_lib} benchmark ${DALI_LIBS})
+
+  set_target_properties(${benchmark_bin} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${DALI_WHEEL_DIR}/test")
+
 endif()

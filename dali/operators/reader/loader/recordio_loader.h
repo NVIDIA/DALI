@@ -100,7 +100,7 @@ class RecordIOLoader : public IndexedFileLoader {
       return;
     }
 
-    if (should_seek_) {
+    if (should_seek_ || next_seek_pos_ != seek_pos) {
       current_file_->Seek(seek_pos);
       should_seek_ = false;
     }
@@ -127,17 +127,20 @@ class RecordIOLoader : public IndexedFileLoader {
           // Wrap the raw data in the Tensor object.
           tensor.ShareData(p, size, {size});
           tensor.set_type(TypeInfo::Create<uint8_t>());
+          next_seek_pos_ = seek_pos + size;
         }
       }
       if (use_read) {
         n_read += current_file_->Read(tensor.mutable_data<uint8_t>() + n_read,
                                       size - n_read);
+        next_seek_pos_ = seek_pos + n_read;
       }
       if (p == nullptr && n_read < size) {
         DALI_ENFORCE(current_file_index_ + 1 < uris_.size(),
           "Incomplete or corrupted record files");
         // Release previously opened file
         current_file_ = FileStream::Open(uris_[++current_file_index_], read_ahead_);
+        next_seek_pos_ = 0;
         continue;
       }
     }

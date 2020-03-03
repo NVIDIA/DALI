@@ -26,7 +26,7 @@ if ("${CUDA_TARGET_ARCHS}" STREQUAL "")
   set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures" FORCE)
 endif()
 
-# Find if passing `flags` to nvcc producess success or failure
+# Find if passing `flags` to CUDA compiler producess success or failure
 # Unix only
 #
 # Equivalent to dry-running preprocessing on /dev/null as .cu file
@@ -53,19 +53,15 @@ function(CUDA_check_nvcc_flag out_status nvcc_bin flags)
 endfunction()
 
 # Given the list of arch values, check which are supported by
-# nvcc found in CUDA_TOOLKIT_ROOT_DIR. Requires CUDA to be set up in CMake.
 #
 # @param out_arch_values_allowed  List of arch values supported by nvcc
 # @param arch_values_to_check     List of values to be checked against nvcc
 #                                 for example: 60;61;70;75
 # @return out_arch_values_allowed
 function(CUDA_find_supported_arch_values out_arch_values_allowed arch_values_to_check)
-  if (NOT CUDA_FOUND)
-    message(ERROR "CUDA is needed to check supported architecture values")
-  endif()
   # allow the user to pass the list like a normal variable
   set(arch_list ${arch_values_to_check} ${ARGN})
-  set(nvcc "${CUDA_TOOLKIT_ROOT_DIR}/bin/nvcc")
+  set(nvcc "${CMAKE_CUDA_COMPILER}")
   foreach(arch IN LISTS arch_list ITEMS)
     CUDA_check_nvcc_flag(supported ${nvcc} "-arch=sm_${arch}")
     if (supported)
@@ -81,7 +77,7 @@ endfunction()
 # to ensure the generation of PTX for most recent virtual architecture
 # and maintain forward compatibility
 #
-# @param out_args_string  output string containing appropriate CUDA_NVCC_FLAGS
+# @param out_args_string  output string containing appropriate CMAKE_CUDA_FLAGS
 # @param arch_values      list of arch values to use
 # @return out_args_string
 function(CUDA_get_gencode_args out_args_string arch_values)
@@ -96,4 +92,10 @@ function(CUDA_get_gencode_args out_args_string arch_values)
   list(GET arch_list -1 last_arch)
   set(out "${out} -gencode arch=compute_${last_arch},code=compute_${last_arch}")
   set(${out_args_string} ${out} PARENT_SCOPE)
+endfunction()
+
+
+function(CUDA_find_library out_path lib_name)
+    find_library(${out_path} ${lib_name} PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
+                 PATH_SUFFIXES lib lib64)
 endfunction()

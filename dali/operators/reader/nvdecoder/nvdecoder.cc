@@ -47,7 +47,7 @@ NvDecoder::NvDecoder(int device_id,
                      int max_height,
                      int max_width,
                      int additional_decode_surfaces)
-    : device_id_(device_id), stream_(device_id, false, 0),
+    : device_id_(device_id), stream_(CUDAStream::Create(true, device_id)),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
       device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces

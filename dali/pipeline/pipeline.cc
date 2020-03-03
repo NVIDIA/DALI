@@ -694,6 +694,8 @@ string Pipeline::SerializeToProtobuf() const {
     const auto& p = this->op_specs_for_serialization_[i];
     const OpSpec& spec = p.spec;
 
+    DALI_ENFORCE(spec.GetSchema().IsSerializable(), "Could not serialize the operator: "
+                                                    + spec.name());
     // As long as spec isn't an ExternalSource node, serialize
     if (spec.name() != "ExternalSource") {
       dali::SerializeToProtobuf(op_def, p.instance_name, spec, p.logical_id);

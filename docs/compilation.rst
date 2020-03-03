@@ -72,7 +72,7 @@ Prerequisites
 .. _nvjpeg link: https://developer.nvidia.com/nvjpeg
 .. |protobuf link| replace:: **protobuf**
 .. _protobuf link: https://github.com/google/protobuf
-.. |cmake link| replace:: **CMake 3.11**
+.. |cmake link| replace:: **CMake 3.12**
 .. _cmake link: https://cmake.org
 .. |jpegturbo link| replace:: **libjpeg-turbo 1.5.x**
 .. _jpegturbo link: https://github.com/libjpeg-turbo/libjpeg-turbo
@@ -111,7 +111,7 @@ Prerequisites
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |boost link|_ or later                 | Modules: *preprocessor*.                                                                    |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |cuda link|_                           | *CUDA 8.0 compatibility is provided unofficially.*                                          |
+   | |cuda link|_                           |                                                                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+
    | |nvjpeg link|_                         | *This can be unofficially disabled. See below.*                                             |
    +----------------------------------------+---------------------------------------------------------------------------------------------+

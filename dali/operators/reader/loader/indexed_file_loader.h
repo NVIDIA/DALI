@@ -66,10 +66,11 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       return;
     }
 
-    if (should_seek_) {
+    if (should_seek_ || next_seek_pos_ != seek_pos) {
       current_file_->Seek(seek_pos);
       should_seek_ = false;
     }
+    next_seek_pos_ = seek_pos + size;
 
     if (!copy_read_data_) {
       auto p = current_file_->Get(size);
@@ -157,6 +158,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   FileStream::FileStreamMappinReserver mmap_reserver;
   static constexpr int INVALID_INDEX = -1;
   bool should_seek_ = false;
+  int64 next_seek_pos_;
 };
 
 }  // namespace dali

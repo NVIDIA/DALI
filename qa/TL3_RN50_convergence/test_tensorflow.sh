@@ -25,8 +25,8 @@ SECONDS=0
 mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
     python -u resnet.py --layers=50 \
     --data_dir=$DATA_SET_DIR --data_idx_dir=idx-files/ \
-    --precision=fp16   --num_iter=90  --iter_unit=epoch --display_every=50 \
-    --batch=256 --dali_cpu --log_dir=$OUT \
+    --precision=fp16 --num_iter=90 --iter_unit=epoch --display_every=50 \
+    --batch=256 --use_xla --log_dir=$OUT \
     2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
@@ -38,7 +38,7 @@ fi
 
 MIN_TOP1=75.0
 MIN_TOP5=92.0
-MIN_PERF=6000
+MIN_PERF=10000
 
 TOP1=$(grep "^Top-1" $LOG | awk '{print $3}')
 TOP5=$(grep "^Top-5" $LOG | awk '{print $3}')

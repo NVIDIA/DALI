@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-project(dali_operator)
+project(dali_operator CUDA CXX C)
 
 add_subdirectory(audio)
 add_subdirectory(bbox)
@@ -43,7 +43,7 @@ if (BUILD_PROTO3)
   list(APPEND DALI_OPERATOR_PROTO_OBJ $<TARGET_OBJECTS:TF_PROTO>)
 endif()
 
-cuda_add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_PROTO_OBJ})
+add_library(${dali_operator_lib} SHARED ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_PROTO_OBJ})
 set_target_properties(${dali_operator_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
 target_link_libraries(${dali_operator_lib} PUBLIC ${dali_lib} ${dali_kernel_lib} ${dali_core_lib})
@@ -61,7 +61,7 @@ target_link_libraries(${dali_operator_lib} PRIVATE -Wl,--version-script=${CMAKE_
 if (BUILD_TEST)
   set(test_bin "dali_operator_test.bin")
   # TODO(janton): create a test_utils_lib with dali_test_config.cc and other common utilities
-  cuda_add_executable(${test_bin}
+  add_executable(${test_bin}
     ${DALI_OPERATOR_TEST_SRCS}
     ${DALI_ROOT}/dali/test/dali_test_config.cc
     ${DALI_ROOT}/dali/test/dali_operator_test_utils.cc)

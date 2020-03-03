@@ -28,10 +28,13 @@ DALI_SCHEMA(DLTensorPythonFunctionImpl)
     .NumInput(0, 256)
     .OutputFn([](const OpSpec &spec) {return spec.GetArgument<int>("num_outputs");})
     .NoPrune()
+    .Unserializable()
     .MakeInternal();
 
 DALI_SCHEMA(DLTensorPythonFunction)
     .DocStr(R"code(Execute a python function that operates on DLPack tensors.
+The function should not modify input tensors.
+
 In case of the GPU operator it is a user's responsibility to synchronize the device code with DALI.
 This can be accomplished by synchronizing DALI's work before the operator call
 with the `synchronize_stream` flag (true by default) and then making sure

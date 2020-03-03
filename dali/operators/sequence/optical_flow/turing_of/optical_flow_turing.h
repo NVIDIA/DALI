@@ -19,7 +19,6 @@
 #include <memory>
 #include <string>
 #include "dali/core/dynlink_cuda.h"
-#include "dali/util/custream.h"
 #include "nvOpticalFlowCuda.h"
 #include "nvOpticalFlowCommon.h"
 #include "dali/core/common.h"

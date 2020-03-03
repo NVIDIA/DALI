@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-project(dali_core)
+project(dali_core CUDA CXX C)
 
 # Get all the source files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
@@ -20,9 +20,12 @@ collect_sources(DALI_CORE_SRCS)
 collect_test_sources(DALI_CORE_TEST_SRCS)
 list(REMOVE_ITEM DALI_CORE_SRCS dynlink_cuda.cc)
 
-cuda_add_library(dynlink_cuda STATIC dynlink_cuda.cc)
+add_library(dynlink_cuda STATIC dynlink_cuda.cc)
 
-cuda_add_library(${dali_core_lib} SHARED ${DALI_CORE_SRCS})
+add_library(${dali_core_lib} SHARED ${DALI_CORE_SRCS})
+target_include_directories(${dali_core_lib} PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+target_link_libraries(${dali_core_lib} PRIVATE ${CUDART_LIB})
+target_link_libraries(${dali_core_lib} PUBLIC ${DALI_SYSTEM_LIBS})
 target_link_libraries(${dali_core_lib} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
 set_target_properties(${dali_core_lib} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
@@ -33,7 +36,7 @@ target_link_libraries(${dali_core_lib} PRIVATE -Wl,--version-script=${CMAKE_BINA
 
 if (BUILD_TEST)
   set(test_bin "dali_core_test.bin")
-  cuda_add_executable(${test_bin} "${DALI_CORE_TEST_SRCS}")
+  add_executable(${test_bin} "${DALI_CORE_TEST_SRCS}")
   target_link_libraries(${test_bin} PUBLIC ${dali_core_lib})
   target_link_libraries(${test_bin} PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(${test_bin} PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
