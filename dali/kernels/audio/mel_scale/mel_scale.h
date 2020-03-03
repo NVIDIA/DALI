@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_AUDIO_MEL_SCALE_MEL_SCALE_H_
 #define DALI_KERNELS_AUDIO_MEL_SCALE_MEL_SCALE_H_
 
+#include <vector>
 #include <cmath>
 #include "dali/core/force_inline.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_args.h"

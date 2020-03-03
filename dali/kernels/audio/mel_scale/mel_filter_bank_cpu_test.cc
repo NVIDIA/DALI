@@ -60,6 +60,17 @@ class MelScaleCpuTest : public::testing::TestWithParam<
   OutTensorCPU<float, 2> in_view_;
 };
 
+template <typename T>
+void print_data(const OutTensorCPU<T, 2>& data_view) {
+  auto sh = data_view.shape;
+  for (int i0 = 0; i0 < sh[0]; i0++) {
+    for (int i1 = 0; i1 < sh[1]; i1++) {
+      int k = i0 * sh[1] + i1;
+      LOG_LINE << " " << data_view.data[k];
+    }
+    LOG_LINE << "\n";
+  }
+}
 
 
 TEST_P(MelScaleCpuTest, MelScaleCpuTest) {

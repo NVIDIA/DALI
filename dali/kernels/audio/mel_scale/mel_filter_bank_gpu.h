@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_GPU_H_
 #define DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_GPU_H_
 
+#include <memory>
 #include "dali/core/common.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_args.h"

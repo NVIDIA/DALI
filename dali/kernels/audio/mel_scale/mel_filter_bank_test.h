@@ -1,5 +1,20 @@
-#ifndef DALI_DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_TEST_H_
-#define DALI_DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_TEST_H_
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+
+#ifndef DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_TEST_H_
+#define DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_TEST_H_
 
 #include <vector>
 #include <cassert>
@@ -12,30 +27,12 @@ namespace kernels {
 namespace audio {
 namespace test {
 
-template <typename T, int64_t Dims>
-void print_data(const OutTensorCPU<T, Dims> &data_view) {
-  static_assert(Dims > 2, "Print works for Dims > 1");
-
-}
-
-template <typename T>
-void print_data(const OutTensorCPU<T, 2>& data_view) {
-  auto sh = data_view.shape;
-  for (int i0 = 0; i0 < sh[0]; i0++) {
-    for (int i1 = 0; i1 < sh[1]; i1++) {
-      int k = i0 * sh[1] + i1;
-      LOG_LINE << " " << data_view.data[k];
-    }
-    LOG_LINE << "\n";
-  }
-}
-
 std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, float sample_rate,
                                                      float low_freq, float high_freq);
 
-}
-}
-}
-}
+}  // namespace test
+}  // namespace audio
+}  // namespace kernels
+}  // namespace dali
 
-#endif //DALI_DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_TEST_H_
+#endif  // DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_TEST_H_

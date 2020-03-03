@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
+#include <memory>
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_gpu.h"
 #include "dali/core/tensor_shape_print.h"
+
 namespace dali {
 namespace kernels {
 namespace audio {
@@ -305,4 +308,4 @@ template class MelFilterBankGpu<double, 4>;
 
 }  // namespace audio
 }  // namespace kernels
-}  // dali
+}  // namespace dali
