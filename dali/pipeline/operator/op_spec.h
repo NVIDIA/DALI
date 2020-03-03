@@ -28,44 +28,13 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/operator/copy_vector_helper.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 
-namespace detail {
 
-template <typename T, typename S>
-void copy_vector(std::vector<T> &out, const std::vector<S> &in) {
-  out.reserve(in.size());
-  out.clear();
-  for (decltype(auto) v : in) {
-    out.emplace_back(v);
-  }
-}
-
-/** @brief This overload simply forwards the reference */
-template <typename T>
-std::vector<T> &&convert_vector(std::vector<T> &&v) {
-  return std::move(v);
-}
-
-/** @brief This overload simply forwards the reference */
-template <typename T>
-const std::vector<T> &convert_vector(const std::vector<T> &v) {
-  return v;
-}
-
-/** @brief This overload converts elements from v and returns a vector of converted objects */
-template <typename T, typename S>
-std::enable_if_t<!std::is_same<T, S>::value, std::vector<T>>
-convert_vector(const std::vector<S> &v) {
-  std::vector<T> out;
-  copy_vector(out, v);
-  return out;
-}
-
-}  // namespace detail
 
 /**
  * @brief Defines all parameters needed to construct an Operator,

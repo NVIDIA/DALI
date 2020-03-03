@@ -36,6 +36,12 @@ struct argument_storage {
       int64_t, T>;
 };
 
+
+// template <typename T>
+// struct argument_storage<std::vector<T>> {
+//   using type = std::vector<typename argument_storage<T>::type>;
+// };
+
 template <>
 struct argument_storage<bool> {
   using type = bool;

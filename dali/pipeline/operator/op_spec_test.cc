@@ -158,7 +158,7 @@ TEST(OpSpecTest, GetArgumentVec) {
 
   }
 
-  for (const auto &arg_name : {"required_vec"s, "default_vec"s, "no_default_vec"s} ) {
+  for (const auto &arg_name : {"required_vec"s, "no_default_vec"s} ) {
 
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
@@ -174,13 +174,12 @@ TEST(OpSpecTest, GetArgumentVec) {
   }
 
   {
-    // TODO: this is a bug
-    // auto arg_name = "default_vec"s;
-    // ArgumentWorkspace ws;
-    // auto spec0 = OpSpec("DummyOpForSpecTest")
-    //     .AddArg("batch_size", 2);
-    // auto default_val = std::vector<int32_t>{0, 1};
-    // ASSERT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), default_val);
+    auto arg_name = "default_vec"s;
+    ArgumentWorkspace ws;
+    auto spec0 = OpSpec("DummyOpForSpecTest")
+        .AddArg("batch_size", 2);
+    auto default_val = std::vector<int32_t>{0, 1};
+    ASSERT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), default_val);
   }
 }
 

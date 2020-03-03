@@ -30,6 +30,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/argument.h"
+#include "dali/pipeline/operator/copy_vector_helper.h"
 
 namespace dali {
 
@@ -443,7 +444,8 @@ class DLL_PUBLIC OpSchema {
                                              std::vector<T> default_value,
                                              bool enable_tensor_input = false) {
     CheckArgument(s);
-    auto to_store = Value::construct(std::vector<T>(default_value));
+    using S = argument_storage_t<T>;
+    auto to_store = Value::construct(detail::convert_vector<S>(default_value));
     optional_arguments_[s] = {doc, type2id<std::vector<T>>::value, to_store.get()};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
