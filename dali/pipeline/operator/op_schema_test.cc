@@ -66,6 +66,8 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
   ASSERT_TRUE(schema.HasArgumentDefaultValue("foo"));
 
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
+
+  ASSERT_THROW(schema.HasArgumentDefaultValue("don't have this one"), std::runtime_error);
 }
 
 DALI_SCHEMA(Dummy4)

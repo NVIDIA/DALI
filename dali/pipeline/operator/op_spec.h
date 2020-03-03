@@ -517,7 +517,7 @@ inline T OpSpec::GetArgumentImpl(
     const OpSchema& schema = GetSchema();
     DALI_ENFORCE(
         schema.HasArgumentDefaultValue(name),
-        make_string("Optional argument \"", name, "\" has no default value and was not set."));
+        make_string("Argument \"", name, "\" has no default value and was not set."));
     return static_cast<T>(schema.GetDefaultValueForArgument<S>(name));
   }
 }
@@ -550,7 +550,7 @@ inline bool OpSpec::TryGetArgumentImpl(
       result = static_cast<T>(arg_it->second->template Get<S>());
       return true;
     }
-  } else if (schema.HasArgumentDefaultValue(name)) {
+  } else if (schema.HasArgument(name, true) && schema.HasArgumentDefaultValue(name)) {
     // Argument wasn't present locally, get the default from the associated schema if any
     auto schema_val = schema.FindDefaultValue(name);
     using VT = const ValueInst<S>;
@@ -593,7 +593,7 @@ inline bool OpSpec::TryGetRepeatedArgumentImpl(std::vector<T> &result, const str
       detail::copy_vector(result, arg_it->second->template Get<V>());
       return true;
     }
-  } else if (schema.HasArgumentDefaultValue(name)) {
+  } else if (schema.HasArgument(name, true) && schema.HasArgumentDefaultValue(name)) {
     // Argument wasn't present locally, get the default from the associated schema if any
     auto schema_val = schema.FindDefaultValue(name);
     using VT = const ValueInst<V>;

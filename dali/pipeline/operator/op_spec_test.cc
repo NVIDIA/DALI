@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <string>
 
 #include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
@@ -23,7 +24,179 @@
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/test/dali_test.h"
 
+using namespace std::string_literals;
+
 namespace dali {
+
+DALI_SCHEMA(DummyOpForSpecTest)
+  .NumInput(0).NumOutput(0)
+  .AddArg("required", "required argument", DALIDataType::DALI_INT32)
+  .AddOptionalArg("default", "argument with default", 11)
+  .AddOptionalArg<int>("no_default", "argument without default", nullptr)
+  .AddArg("required_vec", "required argument", DALIDataType::DALI_INT_VEC)
+  .AddOptionalArg("default_vec", "argument with default vec", std::vector<int32_t>{0, 1})
+  .AddOptionalArg<std::vector<int>>("no_default_vec", "argument without default", nullptr)
+  .AddArg("required_tensor", "required argument", DALIDataType::DALI_INT32, true)
+  .AddOptionalArg("default_tensor", "argument with default", 11, true)
+  .AddOptionalArg<int>("no_default_tensor", "argument without default", nullptr, true);
+
+TEST(OpSpecTest, GetArgumentTensorSet) {
+  // Check how required and optional arguments handle Argument Inputs
+  // Should work only with [Try]GetArgument;
+  // [Try]GetRepeatedArgument does not handle Argument Inputs
+  for (const auto &arg_name : {"required_tensor"s, "default_tensor"s, "no_default_tensor"s} ) {
+    ArgumentWorkspace ws0;
+    auto tv = std::make_shared<TensorVector<CPUBackend>>(2);
+    tv->Resize(uniform_list_shape(2, {1}));
+    tv->set_type(TypeInfo::Create<int32_t>());
+    for (int i = 0; i < 2; i++) {
+      tv->tensor_handle(i)->mutable_data<int32_t>()[0] = 42 + i;
+    }
+    ws0.AddArgumentInput(arg_name, tv);
+    auto spec0 = OpSpec("DummyOpForSpecTest")
+        .AddArg("batch_size", 2)
+        .AddArgumentInput(arg_name, "<not_used>");
+    ASSERT_EQ(spec0.GetArgument<int32_t>(arg_name, &ws0, 0), 42);
+    ASSERT_EQ(spec0.GetArgument<int32_t>(arg_name, &ws0, 1), 43);
+    int result = 0;
+    ASSERT_TRUE(spec0.TryGetArgument<int32_t>(result, arg_name, &ws0, 0));
+    ASSERT_EQ(result, 42);
+    ASSERT_TRUE(spec0.TryGetArgument<int32_t>(result, arg_name, &ws0, 1));
+    ASSERT_EQ(result, 43);
+    ASSERT_THROW(spec0.GetArgument<float>(arg_name, &ws0, 0), std::runtime_error);
+    float tmp = 0.f;
+    ASSERT_FALSE(spec0.TryGetArgument<float>(tmp, arg_name, &ws0, 0));
+
+    ArgumentWorkspace ws1;
+    auto spec1 = OpSpec("DummyOpForSpecTest")
+        .AddArg("batch_size", 2);
+    // If we have a default optional argument, we will just return its value
+    if (arg_name != "default_tensor"s) {
+      ASSERT_THROW(spec1.GetArgument<int>(arg_name, &ws1, 0), std::runtime_error);
+      ASSERT_THROW(spec1.GetArgument<int>(arg_name, &ws1, 1), std::runtime_error);
+      int result = 0;
+      ASSERT_FALSE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 0));
+      ASSERT_FALSE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 1));
+    } else {
+      ASSERT_EQ(spec1.GetArgument<int>(arg_name, &ws1, 0), 11);
+      ASSERT_EQ(spec1.GetArgument<int>(arg_name, &ws1, 1), 11);
+      int result = 0;
+      ASSERT_TRUE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 0));
+      ASSERT_EQ(result, 11);
+      result = 0;
+      ASSERT_TRUE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 1));
+      ASSERT_EQ(result, 11);
+    }
+  }
+}
+
+TEST(OpSpecTest, GetArgumentValue) {
+  for (const auto &arg_name : {"required"s, "default"s, "no_default"s,
+                               "required_tensor"s, "default_tensor"s, "no_default_tensor"s} ) {
+
+    ArgumentWorkspace ws;
+    auto spec0 = OpSpec("DummyOpForSpecTest")
+        .AddArg("batch_size", 2)
+        .AddArg(arg_name, 42);
+    ASSERT_EQ(spec0.GetArgument<int>(arg_name, &ws), 42);
+    int result = 0;
+    ASSERT_TRUE(spec0.TryGetArgument(result, arg_name, &ws));
+    ASSERT_EQ(result, 42);
+
+    ASSERT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::runtime_error);
+    float tmp = 0.f;
+    ASSERT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
+
+  }
+
+  for (const auto &arg_name : {"required"s, "no_default"s,
+                               "required_tensor"s, "no_default_tensor"s} ) {
+
+    ArgumentWorkspace ws;
+    auto spec0 = OpSpec("DummyOpForSpecTest")
+        .AddArg("batch_size", 2);
+    ASSERT_THROW(spec0.GetArgument<int>(arg_name, &ws), std::runtime_error);
+    int result = 0;
+    ASSERT_FALSE(spec0.TryGetArgument(result, arg_name, &ws));
+
+    ASSERT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::runtime_error);
+    float tmp = 0.f;
+    ASSERT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
+  }
+
+  for (const auto &arg_name : {"default"s, "default_tensor"s} ) {
+    ArgumentWorkspace ws;
+    auto spec0 = OpSpec("DummyOpForSpecTest")
+        .AddArg("batch_size", 2);
+    ASSERT_EQ(spec0.GetArgument<int>(arg_name, &ws), 11);
+
+    int result = 0;
+    ASSERT_TRUE(spec0.TryGetArgument(result, arg_name, &ws));
+    ASSERT_EQ(result, 11);
+
+    ASSERT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::runtime_error);
+    float tmp = 0.f;
+    ASSERT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
+  }
+}
+
+
+TEST(OpSpecTest, GetArgumentVec) {
+  for (const auto &arg_name : {"required_vec"s, "default_vec"s, "no_default_vec"s} ) {
+
+    ArgumentWorkspace ws;
+    auto value = std::vector<int32_t>{42, 43};
+
+    auto spec0 = OpSpec("DummyOpForSpecTest")
+        .AddArg("batch_size", 2)
+        .AddArg(arg_name, value);
+
+    ASSERT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), value);
+    std::vector<int32_t> result;
+    ASSERT_TRUE(spec0.TryGetRepeatedArgument(result, arg_name));
+    ASSERT_EQ(result, value);
+
+  }
+
+  for (const auto &arg_name : {"required_vec"s, "default_vec"s, "no_default_vec"s} ) {
+
+    ArgumentWorkspace ws;
+    auto spec0 = OpSpec("DummyOpForSpecTest")
+        .AddArg("batch_size", 2);
+
+    ASSERT_THROW(spec0.GetRepeatedArgument<int32_t>(arg_name), std::runtime_error);
+    std::vector<int32_t> result;
+    ASSERT_FALSE(spec0.TryGetRepeatedArgument(result, arg_name));
+
+    ASSERT_THROW(spec0.GetRepeatedArgument<float>(arg_name), std::runtime_error);
+    std::vector<float> tmp;
+    ASSERT_FALSE(spec0.TryGetRepeatedArgument(tmp, arg_name));
+  }
+
+  {
+    // TODO: this is a bug
+    // auto arg_name = "default_vec"s;
+    // ArgumentWorkspace ws;
+    // auto spec0 = OpSpec("DummyOpForSpecTest")
+    //     .AddArg("batch_size", 2);
+    // auto default_val = std::vector<int32_t>{0, 1};
+    // ASSERT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), default_val);
+  }
+}
+
+
+TEST(OpSpecTest, GetArgumentNonExisting) {
+  auto spec0 = OpSpec("DummyOpForSpecTest")
+      .AddArg("batch_size", 2);
+  ASSERT_THROW(spec0.GetArgument<int>("<no_such_argument>"), std::runtime_error);
+  int result = 0;
+  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "<no_such_argument>"));
+
+
+  ASSERT_THROW(spec0.GetRepeatedArgument<int>("<no_such_argument>"), std::runtime_error);
+  std::vector<int> result_vec;
+  ASSERT_FALSE(spec0.TryGetRepeatedArgument<int>(result_vec, "<no_such_argument>"));
+}
 
 class TestArgumentInput_Producer : public Operator<CPUBackend> {
  public:
