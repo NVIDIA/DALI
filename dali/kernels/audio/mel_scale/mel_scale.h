@@ -129,6 +129,10 @@ class MelFilterImplBase {
     }
   }
 
+  const MelFilterBankArgs& Args() const {
+    return args_;
+  }
+
  protected:
   MelFilterBankArgs args_;
   std::vector<T> weights_down_;

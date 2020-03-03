@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_CPU_H_
-#define DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_CPU_H_
+#ifndef DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_GPU_H_
+#define DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_GPU_H_
 
 #include "dali/core/common.h"
 #include "dali/kernels/kernel.h"
@@ -38,11 +38,11 @@ class DLL_PUBLIC MelFilterBankGpu {
                                       const MelFilterBankArgs &args);
 
   DLL_PUBLIC void Run(KernelContext &context,
-                      const OutListGPU<T, Dims> &out,
+                      OutListGPU<T, Dims> &out,
                       const InListGPU<T, Dims> &in,
                       const MelFilterBankArgs &args);
 
-  private:
+ private:
   class Impl;
   std::unique_ptr<Impl> impl_;
 };
@@ -51,4 +51,4 @@ class DLL_PUBLIC MelFilterBankGpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_CPU_H_
+#endif  // DALI_KERNELS_AUDIO_MEL_SCALE_MEL_FILTER_BANK_GPU_H_

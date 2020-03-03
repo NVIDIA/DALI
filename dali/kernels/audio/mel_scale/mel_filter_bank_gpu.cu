@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_gpu.h"
-
+#include "dali/core/tensor_shape_print.h"
 namespace dali {
 namespace kernels {
 namespace audio {
@@ -22,7 +22,7 @@ const int kBlock = 32;
 
 template <typename T>
 struct BlockDesc {
-  T *in_sample;
+  const T *in_sample;
   T *out_sample;
   int64_t start_window;
   int64_t nwindows;
@@ -35,7 +35,7 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
                                     int64_t fftbin_first, int64_t fftbin_last,
                                     int64_t mel_bins) {
   auto block_id = blockIdx.x;
-  T *in_sample = block_desc[block_id].in_sample;
+  const T *in_sample = block_desc[block_id].in_sample;
   T *out_sample = block_desc[block_id].out_sample;
   int64_t mel_bin = blockIdx.y * kBlock + threadIdx.y;
   if (mel_bin >= mel_bins) return;
@@ -47,7 +47,7 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
   // filter up
   int64_t fftbin = (mel_bin > 0) ? interval_ends[mel_bin - 1] + 1 : fftbin_first;
   int64_t fftbin_end = interval_ends[mel_bin];
-  T *in =  in_sample + fftbin * nwindows + window;
+  const T *in =  in_sample + fftbin * nwindows + window;
   for (; fftbin <= fftbin_end; ++fftbin, in += nwindows) {
     auto weight_up = T(1) - weights_down[fftbin];
     if (normalize) weight_up *= norm_factors[mel_bin];
@@ -56,7 +56,7 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
   // filter down
   fftbin = interval_ends[mel_bin] + 1;
   fftbin_end = (mel_bin < mel_bins - 1) ? interval_ends[mel_bin + 1] : fftbin_last;
-  *in =  in_sample + fftbin * nwindows + window;
+  in =  in_sample + fftbin * nwindows + window;
   for (; fftbin <= fftbin_end; ++fftbin, in += nwindows) {
     auto weight_down = weights_down[fftbin];
     if (normalize) weight_down *= norm_factors[mel_bin + 1];
@@ -73,7 +73,8 @@ class MelFilterBankGpu<T, Dims>::Impl : MelFilterImplBase<T, Dims> {
   template <typename MelScale>
   Impl(MelScale mel_scale, const MelFilterBankArgs &args, ScratchpadEstimator &se,
        const TensorListShape<Dims> &in_shape)
-      : MelFilterImplBase<T, Dims>(mel_scale, args) {
+      : MelFilterImplBase<T, Dims>(mel_scale, args)
+      , interval_ends_(args.nfilter) {
     T mel = mel_low_ + mel_delta_;
     for (int64_t interval = 0; interval < args_.nfilter; interval++, mel += mel_delta_) {
       T freq = mel_scale.mel_to_hz(mel);
@@ -85,9 +86,13 @@ class MelFilterBankGpu<T, Dims>::Impl : MelFilterImplBase<T, Dims> {
       se.add<T>(AllocType::GPU, norm_factors_.size());
 
     auto batch_size = in_shape.num_samples();
+    fft_dim_ = in_shape[0][args_.axis];
     for (int64_t ti = 0; ti < batch_size; ++ti) {
       const auto &tshape = in_shape.tensor_shape(ti);
-      nsamples_.push_back(volume(tshape.data(), tshape.data() + args_.axis));
+      if (args_.axis > 0)
+        nsamples_.push_back(volume(tshape.data(), tshape.data() + args_.axis));
+      else
+        nsamples_.push_back(1);
       nwindows_.push_back(volume(tshape.data() + args_.axis + 1, tshape.data() + tshape.size()));
       for (int64_t s = 0; s < nsamples_.back(); ++s) {
         auto nblocks = (nwindows_.back() + kBlock - 1) / kBlock;
@@ -99,39 +104,44 @@ class MelFilterBankGpu<T, Dims>::Impl : MelFilterImplBase<T, Dims> {
     se.add<BlockDesc<T>>(AllocType::GPU, block_descs_.size());
   }
 
-  void Compute(T** in_list, T **out_list, int64_t fft_dim,
-               Scratchpad &scratchpad, cudaStream_t stream) {
+  void Compute(const T* const* in_list, T **out_list, Scratchpad *scratchpad, cudaStream_t stream) {
     int64_t block_id = 0;
-    for (int64_t ti = 0; ti < nsamples_.size(); ++ti) {
-      T *in = in_list[ti];
+    for (uint64_t ti = 0; ti < nsamples_.size(); ++ti) {
+      const T *in = in_list[ti];
       T *out = out_list[ti];
       for (int64_t s = 0; s < nsamples_[ti]; ++s) {
-        block_descs_[block_id].in_sample = in;
-        block_descs_[block_id].out_sample = out;
-        in += nwindows_[ti] * fft_dim;
+        auto nblocks = (nwindows_[ti] + kBlock - 1) / kBlock;
+        for (int b = 0; b < nblocks; ++b) {
+          block_descs_[block_id].in_sample = in;
+          block_descs_[block_id].out_sample = out;
+          ++block_id;
+        }
+        in += nwindows_[ti] * fft_dim_;
         out += nwindows_[ti] * args_.nfilter;
-        ++block_id;
       }
     }
-    auto block_descs = scratchpad.ToGPU(stream, block_descs_);
-    auto interval_ends = scratchpad.ToGPU(stream, interval_ends_);
-    auto weights_down = scratchpad.ToGPU(stream, weights_down_);
+    auto block_descs = scratchpad->ToGPU(stream, block_descs_);
+    auto interval_ends = scratchpad->ToGPU(stream, interval_ends_);
+    auto weights_down = scratchpad->ToGPU(stream, weights_down_);
     T *norm_factors = nullptr;
     if (args_.normalize)
-      norm_factors = scratchpad.ToGPU(stream, norm_factors_);
+      norm_factors = scratchpad->ToGPU(stream, norm_factors_);
     dim3 block(kBlock, kBlock);
     dim3 grid(block_descs_.size(), (args_.nfilter + kBlock - 1) / kBlock);
     MelFilterBankKernel
       <<<grid, block, 0, stream>>>(block_descs, weights_down, interval_ends, args_.normalize,
-                                   norm_factors, fftbin_start_, fftbin_end_, args_.nfilter)
+                                   norm_factors, fftbin_start_, fftbin_end_, args_.nfilter);
 
   }
+
+  using MelFilterImplBase<T, Dims>::Args;
 
  private:
   std::vector<int64_t> interval_ends_;
   std::vector<int64_t> nsamples_;
   std::vector<int64_t> nwindows_;
   std::vector<BlockDesc<T>> block_descs_;
+  int64_t fft_dim_;
   USE_MEL_FILTER_IMPL_MEMBERS(T, Dims);
 };
 
@@ -141,33 +151,70 @@ KernelRequirements MelFilterBankGpu<T, Dims>::Setup(KernelContext &context,
                                                     const MelFilterBankArgs &original_args) {
   auto args = original_args;
   args.axis = args.axis >= 0 ? args.axis : Dims - 2;
-  auto out_shape = in.shape;
-  for (auto &tshape : out_shape) {
-    tshape[args.axis] = args.nfilter;
+  TensorListShape<Dims> out_shape(in.shape.num_samples());
+  for (int64_t s = 0; s < out_shape.num_samples(); ++s) {
+    auto s_shape = in.shape[s];
+    s_shape[args.axis] = args.nfilter;
+    out_shape.set_tensor_shape(s, s_shape);
   }
-
   KernelRequirements req;
   req.output_shapes = {out_shape};
 
-  // koknstruktor impl - przekazac scratchpad estimator
-  args.nfft = args.nfft > 0 ? args.nfft : 2 * (in.shape[args.axis] - 1);
+  auto fftdim = in.shape[0][args.axis];
+  for (int s = 1; s < in.shape.nsamples; ++s) {
+    DALI_ENFORCE(in.shape[s][args.axis] == fftdim,
+        "All samples should have the same FFT dimension");
+  }
+
+  ScratchpadEstimator se;
+  args.nfft = args.nfft > 0 ? args.nfft : 2 * (in.shape[0][args.axis] - 1);
   args.freq_high = args.freq_high > 0 ? args.freq_high : args.sample_rate / 2;
   if (!impl_ || impl_->Args() != args) {
     impl_.reset();
     switch (args.mel_formula) {
       case MelScaleFormula::HTK:
-        impl_ = std::make_unique<Impl>(HtkMelScale<T>(), args); // tu
+        impl_ = std::make_unique<Impl>(HtkMelScale<T>(), args, se, in.shape);
         break;
       case MelScaleFormula::Slaney:
       default:
-        impl_ = std::make_unique<Impl>(SlaneyMelScale<T>(), args);
+        impl_ = std::make_unique<Impl>(SlaneyMelScale<T>(), args, se, in.shape);
         break;
     }
   }
+  req.scratch_sizes = se.sizes;
   return req;
 }
+
+template <typename T, int Dims>
+void MelFilterBankGpu<T, Dims>::Run(
+    KernelContext &context,
+    OutListGPU<T, Dims> &out,
+    const InListGPU<T, Dims> &in,
+    const MelFilterBankArgs &original_args) {
+  (void) original_args;
+  DALI_ENFORCE(impl_ != nullptr);
+  auto in_shape = in.shape;
+  auto out_shape = out.shape;
+
+  impl_->Compute(in.data.data(), out.data.data(), context.scratchpad, context.gpu.stream);
 }
+
+template <typename T, int Dims>
+MelFilterBankGpu<T, Dims>::MelFilterBankGpu() = default;
+
+template <typename T, int Dims>
+MelFilterBankGpu<T, Dims>::~MelFilterBankGpu() = default;
+
+
+template class MelFilterBankGpu<float, 2>;
+template class MelFilterBankGpu<double, 2>;
+
+template class MelFilterBankGpu<float, 3>;
+template class MelFilterBankGpu<double, 3>;
+
+template class MelFilterBankGpu<float, 4>;
+template class MelFilterBankGpu<double, 4>;
 
 }  // namespace audio
 }  // namespace kernels
-}
+}  // dali

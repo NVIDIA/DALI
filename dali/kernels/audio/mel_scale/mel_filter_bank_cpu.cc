@@ -101,10 +101,6 @@ class MelFilterBankCpu<T, Dims>::Impl: public MelFilterImplBase<T, Dims> {
     }
   }
 
-  const MelFilterBankArgs& Args() const {
-    return args_;
-  }
-
  private:
   std::vector<int> intervals_;
   USE_MEL_FILTER_IMPL_MEMBERS(T, Dims);
