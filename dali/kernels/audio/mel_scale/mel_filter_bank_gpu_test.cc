@@ -68,16 +68,18 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
   auto shape = data_shape_;
   auto batch_size = data_shape_.num_samples();
   int nfft = (shape[0][axis_] - 1) * 2;
-  std::vector<int> nwin;
-  for (int i = 0; i < batch_size; ++i) {
-    auto sh = shape[i];
-    nwin.push_back(volume(sh.begin() + axis_ + 1, sh.end()));
+  std::vector<int> nwin(batch_size, 1);
+  if (axis_ < Dims - 1) {
+    for (int i = 0; i < batch_size; ++i) {
+        auto sh = shape[i];
+        nwin[i] = volume(sh.begin() + axis_ + 1, sh.end());
+    }
   }
-  std::vector<int> nsamples(batch_size, 1);
+  std::vector<int> nframes(batch_size, 1);
   if (axis_ > 0) {
     for (int i = 0; i < batch_size; ++i) {
       auto sh = shape[i];
-      nsamples[i] = volume(sh.begin(), sh.begin() + axis_);
+      nframes[i] = volume(sh.begin(), sh.begin() + axis_);
     }
   }
 
@@ -117,7 +119,7 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
 
   for (int b = 0; b < batch_size; ++b) {
     auto in_view = in_.cpu()[b];
-    for (int s = 0; s < nsamples[b]; ++s) {
+    for (int s = 0; s < nframes[b]; ++s) {
       for (int j = 0; j < nfilter_; j++) {
         for (int t = 0; t < nwin[b]; t++) {
           auto &out_val = expected_out[b][(s * nfilter_ + j) * nwin[b] + t];
@@ -153,7 +155,6 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
 
   auto out_view = out.gpu();
   kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, args);
-
   auto out_view_cpu = out.cpu();
   cudaStreamSynchronize(nullptr);
   for (int b = 0; b < batch_size; ++b) {
@@ -165,14 +166,14 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
 }
 
 INSTANTIATE_TEST_SUITE_P(MelScaleGpuTestpuTest, MelScaleGpuTest, testing::Combine(
-    testing::Values(std::vector<TensorShape<4>>{TensorShape<4>{10, 4, 6, 2}},
-                    std::vector<TensorShape<4>>{TensorShape<4>{4, 5, 6, 4},
-                                                TensorShape<4>{4, 6, 6, 1}}),  // shape
+    testing::Values(std::vector<TensorShape<4>>{TensorShape<4>{10, 4, 6, 12}},
+                    std::vector<TensorShape<4>>{TensorShape<4>{4, 5, 6, 5},
+                                                TensorShape<4>{4, 8, 6, 5}}),  // shape
     testing::Values(4, 8),  // nfilter
     testing::Values(16000.0f),  // sample rate
     testing::Values(0.0f, 1000.0f),  // fmin
     testing::Values(5000.0f, 8000.0f),  // fmax
-    testing::Values(0, 2)));  // axis
+    testing::Values(0, 2, 3)));  // axis
 
 }
 }

@@ -77,12 +77,11 @@ class MelFilterImplBase {
   template <typename MelScale>
   MelFilterImplBase(MelScale mel_scale, const MelFilterBankArgs &args): args_(args) {
     assert(args.sample_rate > 0);
-    T freq_nyquist = args.sample_rate / 2;
 
-    assert(args.freq_low >= 0 && args.freq_low <= freq_nyquist);
+    assert(args.freq_low >= 0 && args.freq_low <= args.sample_rate / 2);
     mel_low_ = mel_scale.hz_to_mel(args.freq_low);
 
-    assert(args.freq_high >= 0 && args.freq_high <= freq_nyquist);
+    assert(args.freq_high >= 0 && args.freq_high <= args.sample_rate / 2);
     mel_high_ = mel_scale.hz_to_mel(args.freq_high);
 
     int nfilter = args.nfilter;

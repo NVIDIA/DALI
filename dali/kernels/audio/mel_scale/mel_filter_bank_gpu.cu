@@ -18,16 +18,56 @@ namespace dali {
 namespace kernels {
 namespace audio {
 
-const int kBlock = 32;
+const int kBlockDim2 = 32;
+const int kBlockDim1 = 1024;
 
 template <typename T>
 struct BlockDesc {
-  const T *in_sample;
-  T *out_sample;
-  int64_t start_window;
-  int64_t nwindows;
+  const T *in_frame;
+  T *out_frame;
+  union {
+    struct {  // outer-dim fft
+      int64_t start_window;
+      int64_t frame_nwindows;
+    };
+    struct {  // inner-dim fft
+      int64_t block_start;
+      int64_t out_frame_size;
+    };
+  };
 };
 
+template <typename T>
+__device__ T calcMel(const T* in_frame, int64_t mel_bin,
+                     const T *weights_down, const int64_t *interval_ends,
+                     bool normalize, const T *norm_factors,
+                     int64_t fftbin_first, int64_t fftbin_last,
+                     int64_t fft_stride, int64_t fft_shift, int64_t mel_bins) {
+  T out = 0;
+  // filter up
+  int64_t fftbin = (mel_bin > 0) ? interval_ends[mel_bin - 1] + 1 : fftbin_first;
+  int64_t fftbin_end = interval_ends[mel_bin];
+  const T *in =  in_frame + fftbin * fft_stride + fft_shift;
+  for (; fftbin <= fftbin_end; ++fftbin, in += fft_stride) {
+    auto weight_up = T(1) - weights_down[fftbin];
+    if (normalize) weight_up *= norm_factors[mel_bin];
+    out += *in * weight_up;
+  }
+  // filter down
+  fftbin = interval_ends[mel_bin] + 1;
+  fftbin_end = (mel_bin < mel_bins - 1) ? interval_ends[mel_bin + 1] : fftbin_last;
+  in =  in_frame + fftbin * fft_stride + fft_shift;
+  for (; fftbin <= fftbin_end; ++fftbin, in += fft_stride) {
+    auto weight_down = weights_down[fftbin];
+    if (normalize) weight_down *= norm_factors[mel_bin + 1];
+    out += *in * weight_down;
+  }
+  return out;
+}
+
+// For layouts where the frequency is not the innermost dimension, data is flattened into
+// 3 dimensions - frame, frequency, time
+// Every frame is treated as independent two-dimensional sample
 template <typename T>
 __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
                                     const T *weights_down, const int64_t *interval_ends,
@@ -35,40 +75,42 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
                                     int64_t fftbin_first, int64_t fftbin_last,
                                     int64_t mel_bins) {
   auto block_id = blockIdx.x;
-  const T *in_sample = block_desc[block_id].in_sample;
-  T *out_sample = block_desc[block_id].out_sample;
-  int64_t mel_bin = blockIdx.y * kBlock + threadIdx.y;
+  const T *in_frame = block_desc[block_id].in_frame;
+  T *out_frame = block_desc[block_id].out_frame;
+  int64_t mel_bin = blockIdx.y * kBlockDim2 + threadIdx.y;
   if (mel_bin >= mel_bins) return;
   int64_t window = block_desc[block_id].start_window + threadIdx.x;
-  int64_t nwindows = block_desc[block_id].nwindows;
+  int64_t nwindows = block_desc[block_id].frame_nwindows;
   if (window >= nwindows) return;
-  T *out = out_sample + mel_bin * nwindows + window;
-  *out = T(0);
-  // filter up
-  int64_t fftbin = (mel_bin > 0) ? interval_ends[mel_bin - 1] + 1 : fftbin_first;
-  int64_t fftbin_end = interval_ends[mel_bin];
-  const T *in =  in_sample + fftbin * nwindows + window;
-  for (; fftbin <= fftbin_end; ++fftbin, in += nwindows) {
-    auto weight_up = T(1) - weights_down[fftbin];
-    if (normalize) weight_up *= norm_factors[mel_bin];
-    *out += *in * weight_up;
-  }
-  // filter down
-  fftbin = interval_ends[mel_bin] + 1;
-  fftbin_end = (mel_bin < mel_bins - 1) ? interval_ends[mel_bin + 1] : fftbin_last;
-  in =  in_sample + fftbin * nwindows + window;
-  for (; fftbin <= fftbin_end; ++fftbin, in += nwindows) {
-    auto weight_down = weights_down[fftbin];
-    if (normalize) weight_down *= norm_factors[mel_bin + 1];
-    *out += *in * weight_down;
-  }
+  T *out = out_frame + mel_bin * nwindows + window;
+  *out = calcMel(in_frame, mel_bin,
+                 weights_down, interval_ends, normalize, norm_factors,
+                 fftbin_first, fftbin_last,
+                 nwindows, window, mel_bins);
 }
 
-
-
+// For layouts with the innermost frequency dimension, data is flattened
+// to two dimensions - time, frequency
+template <typename T>
+__global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_desc,
+                                            const T *weights_down, const int64_t *interval_ends,
+                                            bool normalize, const T *norm_factors,
+                                            int64_t fftbin_first, int64_t fftbin_last,
+                                            int64_t mel_bins, int64_t fftdim) {
+  auto block_id = blockIdx.x;
+  auto idx = block_desc[block_id].block_start + threadIdx.x;
+  if (idx >= block_desc[block_id].out_frame_size) return;
+  auto window = idx / mel_bins;
+  auto mel_bin = idx % mel_bins;
+  const T *in = block_desc[block_id].in_frame;
+  T *out =  block_desc[block_id].out_frame;
+  *(out + idx) = calcMel(in + window * fftdim, mel_bin, weights_down, interval_ends,
+                         normalize, norm_factors,
+                         fftbin_first, fftbin_last, 1, 0, mel_bins);
+}
 
 template <typename T, int Dims>
-class MelFilterBankGpu<T, Dims>::Impl : MelFilterImplBase<T, Dims> {
+class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
  public:
   template <typename MelScale>
   Impl(MelScale mel_scale, const MelFilterBankArgs &args, ScratchpadEstimator &se,
@@ -85,40 +127,19 @@ class MelFilterBankGpu<T, Dims>::Impl : MelFilterImplBase<T, Dims> {
     if (args_.normalize)
       se.add<T>(AllocType::GPU, norm_factors_.size());
 
-    auto batch_size = in_shape.num_samples();
     fft_dim_ = in_shape[0][args_.axis];
-    for (int64_t ti = 0; ti < batch_size; ++ti) {
-      const auto &tshape = in_shape.tensor_shape(ti);
-      if (args_.axis > 0)
-        nsamples_.push_back(volume(tshape.data(), tshape.data() + args_.axis));
-      else
-        nsamples_.push_back(1);
-      nwindows_.push_back(volume(tshape.data() + args_.axis + 1, tshape.data() + tshape.size()));
-      for (int64_t s = 0; s < nsamples_.back(); ++s) {
-        auto nblocks = (nwindows_.back() + kBlock - 1) / kBlock;
-        for (int64_t b = 0; b < nblocks; ++b) {
-          block_descs_.push_back(BlockDesc<T>{nullptr, nullptr, b * kBlock, nwindows_.back()});
-        }
-      }
+    if (args_.axis == Dims - 1) {
+      SetupBlockDescsInnerFft(in_shape, se);
+    } else {
+      SetupBlockDescsOuterFft(in_shape, se);
     }
-    se.add<BlockDesc<T>>(AllocType::GPU, block_descs_.size());
   }
 
   void Compute(const T* const* in_list, T **out_list, Scratchpad *scratchpad, cudaStream_t stream) {
-    int64_t block_id = 0;
-    for (uint64_t ti = 0; ti < nsamples_.size(); ++ti) {
-      const T *in = in_list[ti];
-      T *out = out_list[ti];
-      for (int64_t s = 0; s < nsamples_[ti]; ++s) {
-        auto nblocks = (nwindows_[ti] + kBlock - 1) / kBlock;
-        for (int b = 0; b < nblocks; ++b) {
-          block_descs_[block_id].in_sample = in;
-          block_descs_[block_id].out_sample = out;
-          ++block_id;
-        }
-        in += nwindows_[ti] * fft_dim_;
-        out += nwindows_[ti] * args_.nfilter;
-      }
+    if (args_.axis == Dims - 1) {
+      FillBlockDescsInnerFft(in_list, out_list);
+    } else {
+      FillBlockDescsOuterFft(in_list, out_list);
     }
     auto block_descs = scratchpad->ToGPU(stream, block_descs_);
     auto interval_ends = scratchpad->ToGPU(stream, interval_ends_);
@@ -126,19 +147,90 @@ class MelFilterBankGpu<T, Dims>::Impl : MelFilterImplBase<T, Dims> {
     T *norm_factors = nullptr;
     if (args_.normalize)
       norm_factors = scratchpad->ToGPU(stream, norm_factors_);
-    dim3 block(kBlock, kBlock);
-    dim3 grid(block_descs_.size(), (args_.nfilter + kBlock - 1) / kBlock);
-    MelFilterBankKernel
-      <<<grid, block, 0, stream>>>(block_descs, weights_down, interval_ends, args_.normalize,
-                                   norm_factors, fftbin_start_, fftbin_end_, args_.nfilter);
-
+    if (args_.axis == Dims - 1) {
+      MelFilterBankKernelInnerFft
+          <<<block_descs_.size(), kBlockDim1, 0, stream>>>
+            (block_descs, weights_down, interval_ends, args_.normalize,
+             norm_factors, fftbin_start_, fftbin_end_, args_.nfilter, fft_dim_);
+    } else {
+      dim3 block(kBlockDim2, kBlockDim2);
+      dim3 grid(block_descs_.size(), (args_.nfilter + kBlockDim2 - 1) / kBlockDim2);
+      MelFilterBankKernel
+        <<<grid, block, 0, stream>>>(block_descs, weights_down, interval_ends, args_.normalize,
+                                     norm_factors, fftbin_start_, fftbin_end_, args_.nfilter);
+    }
   }
 
   using MelFilterImplBase<T, Dims>::Args;
 
  private:
+  void SetupBlockDescsOuterFft(const TensorListShape<Dims> &in_shape, ScratchpadEstimator &se) {
+    auto batch_size = in_shape.num_samples();
+    for (int64_t ti = 0; ti < batch_size; ++ti) {
+      const auto &tshape = in_shape.tensor_shape(ti);
+      if (args_.axis > 0)
+        nframes_.push_back(volume(tshape.data(), tshape.data() + args_.axis));
+      else
+        nframes_.push_back(1);
+      nwindows_.push_back(volume(tshape.data() + args_.axis + 1, tshape.data() + tshape.size()));
+      for (int64_t s = 0; s < nframes_.back(); ++s) {
+        auto nblocks = (nwindows_.back() + kBlockDim2 - 1) / kBlockDim2;
+        for (int64_t b = 0; b < nblocks; ++b) {
+          block_descs_.push_back(BlockDesc<T>{nullptr, nullptr,
+                                              {b * kBlockDim2, nwindows_.back()}});
+        }
+      }
+    }
+    se.add<BlockDesc<T>>(AllocType::GPU, block_descs_.size());
+  }
+
+  void SetupBlockDescsInnerFft(const TensorListShape<Dims> &in_shape, ScratchpadEstimator &se) {
+    auto batch_size = in_shape.num_samples();
+    for (int64_t ti = 0; ti < batch_size; ++ti) {
+      const auto &tshape = in_shape.tensor_shape(ti);
+      auto sample_size = volume(tshape.begin(), tshape.end() - 1) * args_.nfilter;
+      auto nblocks = (sample_size + kBlockDim1 - 1) / kBlockDim1;
+      for (int b = 0; b < nblocks; ++b) {
+        block_descs_.push_back(BlockDesc<T>{nullptr, nullptr, {b * kBlockDim1, sample_size}});
+      }
+    }
+    se.add<BlockDesc<T>>(AllocType::GPU, block_descs_.size());
+  }
+
+  void FillBlockDescsOuterFft(const T* const* in_list, T **out_list) {
+    int64_t block_id = 0;
+    for (uint64_t ti = 0; ti < nframes_.size(); ++ti) {
+      const T *in = in_list[ti];
+      T *out = out_list[ti];
+      for (int64_t s = 0; s < nframes_[ti]; ++s) {
+        auto nblocks = (nwindows_[ti] + kBlockDim2 - 1) / kBlockDim2;
+        for (int b = 0; b < nblocks; ++b) {
+          block_descs_[block_id].in_frame = in;
+          block_descs_[block_id].out_frame = out;
+          ++block_id;
+        }
+        in += nwindows_[ti] * fft_dim_;
+        out += nwindows_[ti] * args_.nfilter;
+      }
+    }
+  }
+
+  void FillBlockDescsInnerFft(const T* const* in_list, T **out_list) {
+    int block_id = 0;
+    int sample = 0;
+    while (block_id < block_descs_.size()) {
+      auto sample_size = block_descs_[block_id].out_frame_size;
+      auto nblocks = (sample_size + kBlockDim1 - 1) / kBlockDim1;
+      for (int i = 0; i < nblocks; ++i, ++block_id) {
+        block_descs_[block_id].in_frame = in_list[sample];
+        block_descs_[block_id].out_frame = out_list[sample];
+      }
+      ++sample;
+    }
+  }
+
   std::vector<int64_t> interval_ends_;
-  std::vector<int64_t> nsamples_;
+  std::vector<int64_t> nframes_;
   std::vector<int64_t> nwindows_;
   std::vector<BlockDesc<T>> block_descs_;
   int64_t fft_dim_;
@@ -165,7 +257,6 @@ KernelRequirements MelFilterBankGpu<T, Dims>::Setup(KernelContext &context,
     DALI_ENFORCE(in.shape[s][args.axis] == fftdim,
         "All samples should have the same FFT dimension");
   }
-
   ScratchpadEstimator se;
   args.nfft = args.nfft > 0 ? args.nfft : 2 * (in.shape[0][args.axis] - 1);
   args.freq_high = args.freq_high > 0 ? args.freq_high : args.sample_rate / 2;
@@ -193,9 +284,6 @@ void MelFilterBankGpu<T, Dims>::Run(
     const MelFilterBankArgs &original_args) {
   (void) original_args;
   DALI_ENFORCE(impl_ != nullptr);
-  auto in_shape = in.shape;
-  auto out_shape = out.shape;
-
   impl_->Compute(in.data.data(), out.data.data(), context.scratchpad, context.gpu.stream);
 }
 
