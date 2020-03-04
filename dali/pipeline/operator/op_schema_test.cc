@@ -66,6 +66,7 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
   ASSERT_TRUE(schema.HasArgumentDefaultValue("foo"));
 
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_defualt"), std::runtime_error);
 
   ASSERT_THROW(schema.HasArgumentDefaultValue("don't have this one"), std::runtime_error);
 }
@@ -92,6 +93,9 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
 
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
+
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_defualt"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_defualt2"), std::runtime_error);
 }
 
 DALI_SCHEMA(Dummy5)
@@ -122,6 +126,9 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleInheritance) {
 
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
+
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_defualt"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_defualt2"), std::runtime_error);
 }
 
 DALI_SCHEMA(Dummy6)
@@ -159,6 +166,10 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleParent) {
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default3"));
+
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_defualt"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_defualt2"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<float>("no_defualt3"), std::runtime_error);
 }
 
 DALI_SCHEMA(Dummy8)
