@@ -54,7 +54,6 @@ __device__ T calcMel(const T* in_frame, int mel_bin,
     weight_up *= norm_factor;
     out += *in * weight_up;
   }
-  fftbin = interval_ends[mel_bin + 1];
   fftbin_end = interval_ends[mel_bin + 2];
   in =  in_frame + fftbin * fft_stride + fft_shift;
   for (; fftbin < fftbin_end; ++fftbin, in += fft_stride) {
