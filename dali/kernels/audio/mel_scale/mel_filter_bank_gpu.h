@@ -40,8 +40,7 @@ class DLL_PUBLIC MelFilterBankGpu {
 
   DLL_PUBLIC void Run(KernelContext &context,
                       OutListGPU<T, Dims> &out,
-                      const InListGPU<T, Dims> &in,
-                      const MelFilterBankArgs &args);
+                      const InListGPU<T, Dims> &in);
 
  private:
   class Impl;

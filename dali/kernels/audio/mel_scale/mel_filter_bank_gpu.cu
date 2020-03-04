@@ -42,27 +42,24 @@ struct BlockDesc {
 
 template <typename T>
 __device__ T calcMel(const T* in_frame, int64_t mel_bin,
-                     const T *weights_down, const int64_t *interval_ends,
-                     bool normalize, const T *norm_factors,
-                     int64_t fftbin_first, int64_t fftbin_last,
-                     int64_t fft_stride, int64_t fft_shift, int64_t mel_bins) {
+                     const T *weights_down, const int *interval_ends,
+                     int fft_stride, int fft_shift,
+                     T norm_factor) {
   T out = 0;
-  // filter up
-  int64_t fftbin = (mel_bin > 0) ? interval_ends[mel_bin - 1] + 1 : fftbin_first;
-  int64_t fftbin_end = interval_ends[mel_bin];
+  int fftbin = interval_ends[mel_bin];
+  int fftbin_end = interval_ends[mel_bin + 1];
   const T *in =  in_frame + fftbin * fft_stride + fft_shift;
-  for (; fftbin <= fftbin_end; ++fftbin, in += fft_stride) {
+  for (; fftbin < fftbin_end; ++fftbin, in += fft_stride) {
     auto weight_up = T(1) - weights_down[fftbin];
-    if (normalize) weight_up *= norm_factors[mel_bin];
+    weight_up *= norm_factor;
     out += *in * weight_up;
   }
-  // filter down
-  fftbin = interval_ends[mel_bin] + 1;
-  fftbin_end = (mel_bin < mel_bins - 1) ? interval_ends[mel_bin + 1] : fftbin_last;
+  fftbin = interval_ends[mel_bin + 1];
+  fftbin_end = interval_ends[mel_bin + 2];
   in =  in_frame + fftbin * fft_stride + fft_shift;
-  for (; fftbin <= fftbin_end; ++fftbin, in += fft_stride) {
+  for (; fftbin < fftbin_end; ++fftbin, in += fft_stride) {
     auto weight_down = weights_down[fftbin];
-    if (normalize) weight_down *= norm_factors[mel_bin + 1];
+    weight_down *= norm_factor;
     out += *in * weight_down;
   }
   return out;
@@ -73,10 +70,9 @@ __device__ T calcMel(const T* in_frame, int64_t mel_bin,
 // Every frame is treated as independent two-dimensional sample
 template <typename T>
 __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
-                                    const T *weights_down, const int64_t *interval_ends,
+                                    const T *weights_down, const int *interval_ends,
                                     bool normalize, const T *norm_factors,
-                                    int64_t fftbin_first, int64_t fftbin_last,
-                                    int64_t mel_bins) {
+                                    int mel_bins) {
   auto block_id = blockIdx.x;
   const T *in_frame = block_desc[block_id].in_frame;
   T *out_frame = block_desc[block_id].out_frame;
@@ -86,20 +82,19 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
   int64_t nwindows = block_desc[block_id].frame_nwindows;
   if (window >= nwindows) return;
   T *out = out_frame + mel_bin * nwindows + window;
+  T norm_factor = (normalize) ? norm_factors[mel_bin] : 1;
   *out = calcMel(in_frame, mel_bin,
-                 weights_down, interval_ends, normalize, norm_factors,
-                 fftbin_first, fftbin_last,
-                 nwindows, window, mel_bins);
+                 weights_down, interval_ends,
+                 nwindows, window, norm_factor);
 }
 
 // For layouts with the innermost frequency dimension, data is flattened
 // to two dimensions - time, frequency
 template <typename T>
 __global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_desc,
-                                            const T *weights_down, const int64_t *interval_ends,
+                                            const T *weights_down, const int *interval_ends,
                                             bool normalize, const T *norm_factors,
-                                            int64_t fftbin_first, int64_t fftbin_last,
-                                            int64_t mel_bins, int64_t fftdim) {
+                                            int mel_bins, int64_t fftdim) {
   auto block_id = blockIdx.x;
   auto idx = block_desc[block_id].block_start + threadIdx.x;
   if (idx >= block_desc[block_id].out_frame_size) return;
@@ -107,9 +102,9 @@ __global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_desc,
   auto mel_bin = idx % mel_bins;
   const T *in = block_desc[block_id].in_frame;
   T *out =  block_desc[block_id].out_frame;
-  *(out + idx) = calcMel(in + window * fftdim, mel_bin, weights_down, interval_ends,
-                         normalize, norm_factors,
-                         fftbin_first, fftbin_last, 1, 0, mel_bins);
+  T norm_factor = (normalize) ? norm_factors[mel_bin] : 1;
+  *(out + idx) = calcMel(in + window * fftdim, mel_bin,
+                         weights_down, interval_ends, 1, 0, norm_factor);
 }
 
 template <typename T, int Dims>
@@ -119,13 +114,15 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
   Impl(MelScale mel_scale, const MelFilterBankArgs &args, ScratchpadEstimator &se,
        const TensorListShape<Dims> &in_shape)
       : MelFilterImplBase<T, Dims>(mel_scale, args)
-      , interval_ends_(args.nfilter) {
-    T mel = mel_low_ + mel_delta_;
-    for (int64_t interval = 0; interval < args_.nfilter; interval++, mel += mel_delta_) {
+      , interval_ends_(args.nfilter+2) {
+    double mel = mel_low_ + mel_delta_;
+    interval_ends_[0] = fftbin_start_;
+    interval_ends_[args.nfilter + 1] = fftbin_end_ + 1;
+    for (int interval = 1; interval < args_.nfilter + 1; interval++, mel += mel_delta_) {
       T freq = mel_scale.mel_to_hz(mel);
-      interval_ends_[interval] = std::floor(freq / hz_step_);
+      interval_ends_[interval] = std::ceil(freq / hz_step_);
     }
-    se.add<int64_t>(AllocType::GPU, interval_ends_.size());
+    se.add<int>(AllocType::GPU, interval_ends_.size());
     se.add<T>(AllocType::GPU, weights_down_.size());
     if (args_.normalize)
       se.add<T>(AllocType::GPU, norm_factors_.size());
@@ -154,13 +151,13 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
       MelFilterBankKernelInnerFft
           <<<block_descs_.size(), kBlockDim1, 0, stream>>>
             (block_descs, weights_down, interval_ends, args_.normalize,
-             norm_factors, fftbin_start_, fftbin_end_, args_.nfilter, fft_dim_);
+             norm_factors, args_.nfilter, fft_dim_);
     } else {
       dim3 block(kBlockDim2, kBlockDim2);
-      dim3 grid(block_descs_.size(), (args_.nfilter + kBlockDim2 - 1) / kBlockDim2);
+      dim3 grid(block_descs_.size(), div_ceil(args_.nfilter, kBlockDim2));
       MelFilterBankKernel
-        <<<grid, block, 0, stream>>>(block_descs, weights_down, interval_ends, args_.normalize,
-                                     norm_factors, fftbin_start_, fftbin_end_, args_.nfilter);
+        <<<grid, block, 0, stream>>>(block_descs, weights_down, interval_ends,
+                                     args_.normalize, norm_factors, args_.nfilter);
     }
   }
 
@@ -177,7 +174,7 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
         nframes_.push_back(1);
       nwindows_.push_back(volume(tshape.data() + args_.axis + 1, tshape.data() + tshape.size()));
       for (int64_t s = 0; s < nframes_.back(); ++s) {
-        auto nblocks = (nwindows_.back() + kBlockDim2 - 1) / kBlockDim2;
+        auto nblocks = div_ceil(nwindows_.back(), kBlockDim2);
         for (int64_t b = 0; b < nblocks; ++b) {
           block_descs_.push_back(BlockDesc<T>{nullptr, nullptr,
                                               {b * kBlockDim2, nwindows_.back()}});
@@ -192,7 +189,7 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
     for (int64_t ti = 0; ti < batch_size; ++ti) {
       const auto &tshape = in_shape.tensor_shape(ti);
       auto sample_size = volume(tshape.begin(), tshape.end() - 1) * args_.nfilter;
-      auto nblocks = (sample_size + kBlockDim1 - 1) / kBlockDim1;
+      auto nblocks = div_ceil(sample_size, kBlockDim1);
       for (int b = 0; b < nblocks; ++b) {
         block_descs_.push_back(BlockDesc<T>{nullptr, nullptr, {b * kBlockDim1, sample_size}});
       }
@@ -206,7 +203,7 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
       const T *in = in_list[ti];
       T *out = out_list[ti];
       for (int64_t s = 0; s < nframes_[ti]; ++s) {
-        auto nblocks = (nwindows_[ti] + kBlockDim2 - 1) / kBlockDim2;
+        auto nblocks = div_ceil(nwindows_[ti], kBlockDim2);
         for (int b = 0; b < nblocks; ++b) {
           block_descs_[block_id].in_frame = in;
           block_descs_[block_id].out_frame = out;
@@ -223,7 +220,7 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
     int sample = 0;
     while (block_id < block_descs_.size()) {
       auto sample_size = block_descs_[block_id].out_frame_size;
-      auto nblocks = (sample_size + kBlockDim1 - 1) / kBlockDim1;
+      auto nblocks = div_ceil(sample_size, kBlockDim1);
       for (int i = 0; i < nblocks; ++i, ++block_id) {
         block_descs_[block_id].in_frame = in_list[sample];
         block_descs_[block_id].out_frame = out_list[sample];
@@ -232,7 +229,7 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
     }
   }
 
-  std::vector<int64_t> interval_ends_;
+  std::vector<int> interval_ends_;
   std::vector<int64_t> nframes_;
   std::vector<int64_t> nwindows_;
   std::vector<BlockDesc<T>> block_descs_;
@@ -283,10 +280,8 @@ template <typename T, int Dims>
 void MelFilterBankGpu<T, Dims>::Run(
     KernelContext &context,
     OutListGPU<T, Dims> &out,
-    const InListGPU<T, Dims> &in,
-    const MelFilterBankArgs &original_args) {
-  (void) original_args;
-  DALI_ENFORCE(impl_ != nullptr);
+    const InListGPU<T, Dims> &in) {
+  assert(impl_ != nullptr);
   impl_->Compute(in.data.data(), out.data.data(), context.scratchpad, context.gpu.stream);
 }
 

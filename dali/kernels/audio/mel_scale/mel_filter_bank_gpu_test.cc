@@ -29,12 +29,12 @@ namespace test {
 
 
 using TestBase = ::testing::TestWithParam<
-    std::tuple<std::vector<TensorShape<4>>, /* data_shape */
-               int, /* nfilter */
-               float, /* sample_rate */
-               float, /*fmin */
-               float, /*fmax*/
-               int64_t>>; /* axis */
+    std::tuple<std::vector<TensorShape<4>>,  // data shape
+               int,                          // nfilter
+               float,                        // sample_rate
+               float,                        // fmin
+               float,                        // fmax
+               int64_t>>;                    // axis
 
 class MelScaleGpuTest : public TestBase {
  public:
@@ -156,12 +156,12 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
   out.reshape(out_shape);
 
   auto out_view = out.gpu();
-  kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view, args);
+  kmgr.Run<Kernel>(0, 0, ctx, out_view, in_view);
   auto out_view_cpu = out.cpu();
-  cudaStreamSynchronize(nullptr);
+  cudaStreamSynchronize(0);
   for (int b = 0; b < batch_size; ++b) {
     for (int idx = 0; idx < out_sizes[b]; idx++) {
-      ASSERT_NEAR(expected_out[b][idx], out_view_cpu.tensor_data(b)[idx], 1e-4) <<
+      ASSERT_NEAR(expected_out[b][idx], out_view_cpu.tensor_data(b)[idx], 1e-5) <<
         "Output data doesn't match in sample " << b << " reference (idx=" << idx << ")";
     }
   }
