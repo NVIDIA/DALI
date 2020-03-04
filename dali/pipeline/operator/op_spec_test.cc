@@ -24,7 +24,7 @@
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/test/dali_test.h"
 
-using namespace std::string_literals;
+using namespace std::string_literals;  // NOLINT(build/namespaces)
 
 namespace dali {
 
@@ -44,7 +44,7 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
   // Check how required and optional arguments handle Argument Inputs
   // Should work only with [Try]GetArgument;
   // [Try]GetRepeatedArgument does not handle Argument Inputs
-  for (const auto &arg_name : {"required_tensor"s, "default_tensor"s, "no_default_tensor"s} ) {
+  for (const auto &arg_name : {"required_tensor"s, "default_tensor"s, "no_default_tensor"s}) {
     ArgumentWorkspace ws0;
     auto tv = std::make_shared<TensorVector<CPUBackend>>(2);
     tv->Resize(uniform_list_shape(2, {1}));
@@ -92,8 +92,7 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
 
 TEST(OpSpecTest, GetArgumentValue) {
   for (const auto &arg_name : {"required"s, "default"s, "no_default"s,
-                               "required_tensor"s, "default_tensor"s, "no_default_tensor"s} ) {
-
+                               "required_tensor"s, "default_tensor"s, "no_default_tensor"s}) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("batch_size", 2)
@@ -106,12 +105,10 @@ TEST(OpSpecTest, GetArgumentValue) {
     ASSERT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::runtime_error);
     float tmp = 0.f;
     ASSERT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
-
   }
 
   for (const auto &arg_name : {"required"s, "no_default"s,
-                               "required_tensor"s, "no_default_tensor"s} ) {
-
+                               "required_tensor"s, "no_default_tensor"s}) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("batch_size", 2);
@@ -124,7 +121,7 @@ TEST(OpSpecTest, GetArgumentValue) {
     ASSERT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
   }
 
-  for (const auto &arg_name : {"default"s, "default_tensor"s} ) {
+  for (const auto &arg_name : {"default"s, "default_tensor"s}) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("batch_size", 2);
@@ -140,10 +137,8 @@ TEST(OpSpecTest, GetArgumentValue) {
   }
 }
 
-
 TEST(OpSpecTest, GetArgumentVec) {
-  for (const auto &arg_name : {"required_vec"s, "default_vec"s, "no_default_vec"s} ) {
-
+  for (const auto &arg_name : {"required_vec"s, "default_vec"s, "no_default_vec"s}) {
     ArgumentWorkspace ws;
     auto value = std::vector<int32_t>{42, 43};
 
@@ -155,11 +150,9 @@ TEST(OpSpecTest, GetArgumentVec) {
     std::vector<int32_t> result;
     ASSERT_TRUE(spec0.TryGetRepeatedArgument(result, arg_name));
     ASSERT_EQ(result, value);
-
   }
 
-  for (const auto &arg_name : {"required_vec"s, "no_default_vec"s} ) {
-
+  for (const auto &arg_name : {"required_vec"s, "no_default_vec"s}) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("batch_size", 2);

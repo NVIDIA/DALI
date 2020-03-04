@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATOR_COPY_VECTOR_HELPER_H_
 
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace dali {
