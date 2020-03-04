@@ -88,41 +88,41 @@ class MelFilterImplBase {
     int nfilter = args.nfilter;
     assert(nfilter > 0);
 
-    int64_t nfft = args.nfft;
+    int nfft = args.nfft;
     assert(nfft > 0);
 
-    hz_step_ = args.sample_rate / nfft;
+    hz_step_ = static_cast<double>(args.sample_rate) / nfft;
     mel_delta_ = (mel_high_ - mel_low_) / (nfilter + 1);
 
     fftbin_size_ = nfft / 2 + 1;
-    double inv_hz_step = 1.0f / hz_step_;
+    double inv_hz_step = 1.0 / hz_step_;
     fftbin_start_ = std::ceil(args.freq_low * inv_hz_step);
-    if (fftbin_start_ < 0)
-      fftbin_start_ = 0;
+    assert(fftbin_start_ >= 0);
     fftbin_end_ = std::floor(args.freq_high * inv_hz_step);
     if (fftbin_end_ > fftbin_size_ - 1)
       fftbin_end_ = fftbin_size_ - 1;
 
     weights_down_.resize(fftbin_size_);
     norm_factors_.resize(nfilter, T(1));
-    T mel0 = mel_low_, mel1 = mel_low_ + mel_delta_;
+    double mel0 = mel_low_, mel1 = mel_low_ + mel_delta_;
 
-    int64_t fftbin = fftbin_start_;
-    T f = fftbin * hz_step_;
+    int fftbin = fftbin_start_;
+    double f = fftbin * hz_step_;
 
     int last_interval = nfilter;
-    for (int64_t interval = 0; interval <= last_interval;
+    for (int interval = 0; interval <= last_interval;
          interval++, mel0 = mel1, mel1 += mel_delta_) {
       if (interval == last_interval)
         mel1 = mel_high_;
-      T f0 = mel_scale.mel_to_hz(mel0), f1 = mel_scale.mel_to_hz(mel1);
+      double f0 = mel_scale.mel_to_hz(mel0),
+             f1 = mel_scale.mel_to_hz(mel1);
       if (args.normalize && interval < nfilter) {
         // Filters are normalized so that they have constant energy per band
-        T f2 = mel_scale.mel_to_hz(mel1 + mel_delta_);
-        norm_factors_[interval] = T(2) / (f2 - f0);
+        double f2 = mel_scale.mel_to_hz(mel1 + mel_delta_);
+        norm_factors_[interval] = 2.0 / (f2 - f0);
       }
 
-      T slope = T(1) / (f1 - f0);
+      double slope = 1. / (f1 - f0);
       for (; fftbin <= fftbin_end_ && f < f1; fftbin++, f = fftbin * hz_step_) {
         weights_down_[fftbin] = (f1 - f) * slope;
       }
@@ -137,9 +137,9 @@ class MelFilterImplBase {
   MelFilterBankArgs args_;
   std::vector<T> weights_down_;
   std::vector<T> norm_factors_;
-  int64_t fftbin_start_ = -1, fftbin_end_ = -1;
-  int64_t fftbin_size_;
-  T mel_low_, mel_high_;
+  int fftbin_start_ = -1, fftbin_end_ = -1;
+  int fftbin_size_;
+  double mel_low_, mel_high_;
   double hz_step_, mel_delta_;
 };
 

@@ -41,7 +41,7 @@ struct BlockDesc {
 };
 
 template <typename T>
-__device__ T calcMel(const T* in_frame, int64_t mel_bin,
+__device__ T calcMel(const T* in_frame, int mel_bin,
                      const T *weights_down, const int *interval_ends,
                      int fft_stride, int fft_shift,
                      T norm_factor) {
@@ -76,7 +76,7 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
   auto block_id = blockIdx.x;
   const T *in_frame = block_desc[block_id].in_frame;
   T *out_frame = block_desc[block_id].out_frame;
-  int64_t mel_bin = blockIdx.y * kBlockDim2 + threadIdx.y;
+  int mel_bin = blockIdx.y * kBlockDim2 + threadIdx.y;
   if (mel_bin >= mel_bins) return;
   int64_t window = block_desc[block_id].start_window + threadIdx.x;
   int64_t nwindows = block_desc[block_id].frame_nwindows;
@@ -119,7 +119,7 @@ class MelFilterBankGpu<T, Dims>::Impl : public MelFilterImplBase<T, Dims> {
     interval_ends_[0] = fftbin_start_;
     interval_ends_[args.nfilter + 1] = fftbin_end_ + 1;
     for (int interval = 1; interval < args_.nfilter + 1; interval++, mel += mel_delta_) {
-      T freq = mel_scale.mel_to_hz(mel);
+      double freq = mel_scale.mel_to_hz(mel);
       interval_ends_[interval] = std::ceil(freq / hz_step_);
     }
     se.add<int>(AllocType::GPU, interval_ends_.size());
