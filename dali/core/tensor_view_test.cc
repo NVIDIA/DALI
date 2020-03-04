@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <numeric>
+#include <utility>
 
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_view.h"
@@ -385,6 +386,55 @@ TEST(TensorListViewTest, IsTensor) {
   EXPECT_FALSE(tlv.is_tensor());
   tlv.shape.tensor_shape_span(2)[2]--;
   EXPECT_TRUE(tlv.is_tensor());
+}
+
+TEST(TensorListView, Reshape) {
+  int data[100];
+  TensorListShape<3> shape = {{
+    { 1, 2, 3 },
+    { 3, 5, 2 },
+    { 2, 2, 2 }
+  }};
+  TensorListShape<3> shape2 = {{
+    { 1,  3, 2 },
+    { 1, 15, 2 },
+    { 4,  1, 2 }
+  }};
+  TensorListShape<1> shape3 = {{
+    { 6 },
+    { 30 },
+    { 8 }
+  }};
+  TensorListShape<1> shape4 = {{
+    { 44 }
+  }};
+  TensorListShape<3> shape_bad = {{
+    { 1,  3, 1 },
+    { 1, 15, 2 },
+    { 4,  1, 3 }
+  }};
+  TensorListView<StorageCPU, int, 3> tlv = make_tensor_list_cpu(data, shape);
+  auto r2 = reshape(tlv, shape2, true);
+  EXPECT_EQ(r2.shape, shape2);
+  EXPECT_EQ(r2.data, tlv.data);
+  auto r3 = reshape(tlv, shape3, true);
+  EXPECT_EQ(r3.shape, shape3);
+  EXPECT_EQ(r3.data, tlv.data);
+  auto r4 = reshape(tlv, shape4, true);
+  EXPECT_EQ(r4.shape, shape4);
+  EXPECT_THROW(reshape(tlv, shape_bad, true), std::logic_error);
+
+  // make tlv non-contiguous
+  std::swap(tlv.data[0], tlv.data[2]);
+
+  r2 = reshape(tlv, shape2, true);
+  EXPECT_EQ(r2.shape, shape2);
+  EXPECT_EQ(r2.data, tlv.data);
+  r3 = reshape(tlv, shape3, true);
+  EXPECT_EQ(r3.shape, shape3);
+  EXPECT_EQ(r3.data, tlv.data);
+  EXPECT_THROW(r4 = reshape(tlv, shape4, true), std::logic_error);
+  EXPECT_THROW(reshape(tlv, shape_bad, true), std::logic_error);
 }
 
 }  // namespace kernels

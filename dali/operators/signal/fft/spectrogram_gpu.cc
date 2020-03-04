@@ -41,7 +41,7 @@ struct SpectrogramOpImplGPU : public detail::OpImplBase<GPUBackend> {
       make_string("Invalid window length: ", args.window_length));
     DALI_ENFORCE(args.window_step > 0, make_string("Invalid window step: ", args.window_step));
     DALI_ENFORCE(args.window_length <= args.nfft,
-      make_string("`window_length` must not exceed ransform size (`nfft`). Got nfft = ", args.nfft,
+      make_string("`window_length` must not exceed transform size (`nfft`). Got nfft = ", args.nfft,
       " window_length = ", args.window_length));
     DALI_ENFORCE(power >= 1 && power <= 2,
       make_string("`power` must be 1 (magnitude) or 2 (power), got: ", power));
@@ -72,21 +72,70 @@ struct SpectrogramOpImplGPU : public detail::OpImplBase<GPUBackend> {
     auto &in = ws.InputRef<GPUBackend>(0);
     KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    auto in_shape = in.shape().to_static<1>();
-    auto req = kmgr.Setup<SpectrogramGPU>(0, ctx, in_shape, args);
-    CopyWindowToDevice(ctx.gpu.stream);
+    const auto &in_shape = in.shape();
+    TensorListShape<> out_shape;
+    in_shape_1D.resize(in_shape.num_samples());
+
+    int axis = -1;
+    if (in_shape.sample_dim() > 1) {
+      for (int i = 0; i < in_shape.num_samples(); i++) {
+        if (volume(in_shape.tensor_shape_span(i)) == 0) {
+          in_shape_1D.tensor_shape_span(i)[0] = 0;
+          continue;
+        }
+        if (axis < 0) {
+          int max_extent = 0;
+          // looking for non-degenerate dimension
+          for (int d = 0; d < in_shape.sample_dim(); d++) {
+            int extent = in_shape.tensor_shape_span(i)[d];
+            if (extent > 1) {
+              if (max_extent > 1) {
+                DALI_FAIL("Spectogram can only be computed from 1D data. If the data is has more "
+                  "dimensions, only one dimension can have extent greater than 1, e.g. "
+                  "(length x 1), (1 x length), etc. The dimension with extent > 1 must be the same "
+                  "one for all samples in the batch.");
+              }
+              axis = d;
+              max_extent = extent;
+            }
+          }
+          in_shape_1D.tensor_shape_span(i)[0] = max_extent;
+        } else {
+          for (int d = 0; d < in_shape.sample_dim(); d++) {
+            if (d != axis && in_shape.tensor_shape_span(i)[d] > 1) {
+                DALI_FAIL("Spectogram can only be computed from 1D data. If the data is has more "
+                  "dimensions, only one dimension can have extent greater than 1, e.g. "
+                  "(length x 1), (1 x length), etc. The dimension with extent > 1 must be the same "
+                  "one for all samples in the batch.");
+            }
+          }
+          in_shape_1D.tensor_shape_span(i)[0] = in_shape.tensor_shape_span(i)[axis];
+        }
+      }
+      if (axis < 0)  // degenerate or true 1D case
+        axis = 0;
+    } else {
+      in_shape_1D = in_shape.to_static<1>();
+      axis = 0;
+    }
+
+    auto req = kmgr.Setup<SpectrogramGPU>(0, ctx, in_shape_1D, args);
     output_desc.resize(1);
     output_desc[0] = { req.output_shapes[0], TypeTable::GetTypeInfo(DALI_FLOAT) };
+
+    CopyWindowToDevice(ctx.gpu.stream);
     return true;
   }
 
   void RunImpl(DeviceWorkspace &ws) override {
     auto &in = ws.InputRef<GPUBackend>(0);
     auto &out = ws.OutputRef<GPUBackend>(0);
-    assert(kmgr.GetRequirements(0).output_shapes[0] == out.shape());
+    auto kernel_output_shape = kmgr.GetRequirements(0).output_shapes[0].to_static<2>();
+    auto in_view_1D = reshape(view<float>(in), in_shape_1D);
+    auto out_view_2D = view<float, 2>(out);
     KernelContext ctx;
     ctx.gpu.stream = ws.stream();
-    kmgr.Run<SpectrogramGPU>(0, 0, ctx, view<float, 2>(out), view<float, 1>(in), gpu_window);
+    kmgr.Run<SpectrogramGPU>(0, 0, ctx, out_view_2D, in_view_1D, gpu_window);
   }
 
   void CopyWindowToDevice(cudaStream_t stream) {
@@ -105,6 +154,7 @@ struct SpectrogramOpImplGPU : public detail::OpImplBase<GPUBackend> {
   vector<float> cpu_window;
   kernels::memory::KernelUniquePtr<float> gpu_window_ptr;
   TensorView<StorageGPU, float, 1> gpu_window;
+  TensorListShape<1> in_shape_1D;
 };
 
 }  // namespace

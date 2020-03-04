@@ -51,6 +51,13 @@ class SpectrogramPipeline(Pipeline):
 
     def iter_setup(self):
         data = self.iterator.next()
+        # randomly insert extra axis (channels?)
+        r = np.random.randint(-1, 2)
+        if r == 0:
+            data = [x[np.newaxis,:] for x in data]
+        elif r == 1:
+            data = [x[:, np.newaxis] for x in data]
+
         self.feed_input(self.data, data)
 
 def hann_win(n):
@@ -157,6 +164,8 @@ def test_operator_spectrogram_vs_python_wave():
                     yield check_operator_spectrogram_vs_python_wave_1d, device, batch_size, \
                           length, nfft, window_length, window_step, window
 
+for test in test_operator_spectrogram_vs_python_wave():
+    test[0](*test[1:])
 
 dali_extra = get_dali_extra_path()
 audio_files = os.path.join(dali_extra, "db", "audio")
