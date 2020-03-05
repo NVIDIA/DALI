@@ -48,6 +48,7 @@ Operators documentation
 .. autoclass:: nvidia.dali.plugin.pytorch.TorchPythonFunction
    :members:
 
+.. _arithmetic_expressions:
 Arithmetic expressions
 ^^^^^^^^^^^^^^^^^^^^^^
 

@@ -23,6 +23,9 @@ import copy
 import warnings
 pipeline_tls = tls()
 
+from .data_node import DataNode
+DataNode.__module__ = __name__      # move to pipeline
+
 def _show_deprecation_warning(deprecated, in_favor_of):
     # show only this warning
     with warnings.catch_warnings():
@@ -32,65 +35,65 @@ def _show_deprecation_warning(deprecated, in_favor_of):
 
 
 class Pipeline(object):
-    """Pipeline class encapsulates all data required to define and run
-    DALI input pipeline.
+    """Pipeline class is the base of all DALI data pipelines. The pipeline
+encapsulates the data processing graph and the execution engine.
 
-    Parameters
-    ----------
-    `batch_size` : int, optional, default = -1
-        Batch size of the pipeline. Negative values for this parameter
-        are invalid - the default value may only be used with
-        serialized pipeline (the value stored in serialized pipeline
-        is used instead).
-    `num_threads` : int, optional, default = -1
-        Number of CPU threads used by the pipeline.
-        Negative values for this parameter are invalid - the default
-        value may only be used with serialized pipeline (the value
-        stored in serialized pipeline is used instead).
-    `device_id` : int, optional, default = -1
-        Id of GPU used by the pipeline.
-        Negative values for this parameter are invalid - the default
-        value may only be used with serialized pipeline (the value
-        stored in serialized pipeline is used instead).
-    `seed` : int, optional, default = -1
-        Seed used for random number generation. Leaving the default value
-        for this parameter results in random seed.
-    `exec_pipelined` : bool, optional, default = True
-        Whether to execute the pipeline in a way that enables
-        overlapping CPU and GPU computation, typically resulting
-        in faster execution speed, but larger memory consumption.
-    `prefetch_queue_depth` : int or {"cpu_size": int, "gpu_size": int}, optional, default = 2
-        Depth of the executor pipeline. Deeper pipeline makes DALI
-        more resistant to uneven execution time of each batch, but it
-        also consumes more memory for internal buffers.
-        Specifying a dict:
-        ``{ "cpu_size": x, "gpu_size": y }``
-        instead of an integer will cause the pipeline to use separated
-        queues executor, with buffer queue size `x` for cpu stage
-        and `y` for mixed and gpu stages. It is not supported when both `exec_async`
-        and `exec_pipelined` are set to `False`.
-        Executor will buffer cpu and gpu stages separatelly,
-        and will fill the buffer queues when the first :meth:`nvidia.dali.pipeline.Pipeline.run`
-        is issued.
-    `exec_async` : bool, optional, default = True
-        Whether to execute the pipeline asynchronously.
-        This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
-        run asynchronously with respect to the calling Python thread.
-        In order to synchronize with the pipeline one needs to call
-        :meth:`nvidia.dali.pipeline.Pipeline.outputs` method.
-    `bytes_per_sample` : int, optional, default = 0
-        A hint for DALI for how much memory to use for its tensors.
-    `set_affinity` : bool, optional, default = False
-        Whether to set CPU core affinity to the one closest to the
-        GPU being used.
-    `max_streams` : int, optional, default = -1
-        Limit the number of CUDA streams used by the executor.
-        Value of -1 does not impose a limit.
-        This parameter is currently unused (and behavior of
-        unrestricted number of streams is assumed).
-    `default_cuda_stream_priority` : int, optional, default = 0
-        CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
-    """
+Parameters
+----------
+`batch_size` : int, optional, default = -1
+    Batch size of the pipeline. Negative values for this parameter
+    are invalid - the default value may only be used with
+    serialized pipeline (the value stored in serialized pipeline
+    is used instead).
+`num_threads` : int, optional, default = -1
+    Number of CPU threads used by the pipeline.
+    Negative values for this parameter are invalid - the default
+    value may only be used with serialized pipeline (the value
+    stored in serialized pipeline is used instead).
+`device_id` : int, optional, default = -1
+    Id of GPU used by the pipeline.
+    Negative values for this parameter are invalid - the default
+    value may only be used with serialized pipeline (the value
+    stored in serialized pipeline is used instead).
+`seed` : int, optional, default = -1
+    Seed used for random number generation. Leaving the default value
+    for this parameter results in random seed.
+`exec_pipelined` : bool, optional, default = True
+    Whether to execute the pipeline in a way that enables
+    overlapping CPU and GPU computation, typically resulting
+    in faster execution speed, but larger memory consumption.
+`prefetch_queue_depth` : int or {"cpu_size": int, "gpu_size": int}, optional, default = 2
+    Depth of the executor pipeline. Deeper pipeline makes DALI
+    more resistant to uneven execution time of each batch, but it
+    also consumes more memory for internal buffers.
+    Specifying a dict:
+    ``{ "cpu_size": x, "gpu_size": y }``
+    instead of an integer will cause the pipeline to use separated
+    queues executor, with buffer queue size `x` for cpu stage
+    and `y` for mixed and gpu stages. It is not supported when both `exec_async`
+    and `exec_pipelined` are set to `False`.
+    Executor will buffer cpu and gpu stages separatelly,
+    and will fill the buffer queues when the first :meth:`nvidia.dali.pipeline.Pipeline.run`
+    is issued.
+`exec_async` : bool, optional, default = True
+    Whether to execute the pipeline asynchronously.
+    This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
+    run asynchronously with respect to the calling Python thread.
+    In order to synchronize with the pipeline one needs to call
+    :meth:`nvidia.dali.pipeline.Pipeline.outputs` method.
+`bytes_per_sample` : int, optional, default = 0
+    A hint for DALI for how much memory to use for its tensors.
+`set_affinity` : bool, optional, default = False
+    Whether to set CPU core affinity to the one closest to the
+    GPU being used.
+`max_streams` : int, optional, default = -1
+    Limit the number of CUDA streams used by the executor.
+    Value of -1 does not impose a limit.
+    This parameter is currently unused (and behavior of
+    unrestricted number of streams is assumed).
+`default_cuda_stream_priority` : int, optional, default = 0
+    CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
+"""
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
                  exec_async=True, bytes_per_sample=0,
