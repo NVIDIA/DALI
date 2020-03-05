@@ -46,17 +46,17 @@ class MelFilterBankCpu<T, Dims>::Impl: public MelFilterImplBase<T, Dims> {
   Impl(MelScale mel_scale, const MelFilterBankArgs &args)
   : MelFilterImplBase<T, Dims>(mel_scale, args) {
     intervals_.resize(fftbin_size_, -1);
-    T mel = mel_low_ + mel_delta_;
+    double mel = mel_low_ + mel_delta_;
 
     int64_t fftbin = fftbin_start_;
-    T f = fftbin * hz_step_;
+    double f = fftbin * hz_step_;
 
     int last_interval = args_.nfilter;
     for (int64_t interval = 0; interval <= last_interval; interval++, mel += mel_delta_) {
       if (interval == last_interval) {
         mel = mel_high_;
       }
-      T freq = mel_scale.mel_to_hz(mel);
+      double freq = mel_scale.mel_to_hz(mel);
       for (; fftbin <= fftbin_end_ && f < freq; fftbin++, f = fftbin * hz_step_) {
         intervals_[fftbin] = interval;
       }
