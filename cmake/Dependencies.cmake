@@ -19,8 +19,6 @@
 CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
-set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
-
 # For NVJPEG
 if (BUILD_NVJPEG)
   find_package(NVJPEG 9.0 REQUIRED)
@@ -60,10 +58,11 @@ list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
 list(APPEND DALI_EXCLUDES libculibos.a)
 
 # NVTX for profiling
-if (BUILD_NVTX)
-  CUDA_find_library(CUDA_nvToolsExt_LIBRARY nvToolsExt)
-  list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
-  add_definitions(-DDALI_USE_NVTX)
+if (NVTX_ENABLED)
+  if(${CUDA_VERSION} VERSION_LESS "10.0")
+     CUDA_find_library(CUDA_nvToolsExt_LIBRARY nvToolsExt)
+     list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
+  endif()
 endif()
 
 if (VERBOSE_LOGS)

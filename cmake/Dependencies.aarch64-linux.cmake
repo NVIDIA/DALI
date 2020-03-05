@@ -20,8 +20,6 @@
 set(CUDA_TOOLKIT_ROOT_DIR ${CUDA_HOST})
 set(CUDA_TOOLKIT_TARGET_DIR ${CUDA_TARGET})
 
-set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
-
 set(CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES "${CUDA_TARGET}/lib")
 set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${CUDA_TARGET}/include")
 
@@ -51,10 +49,11 @@ list(APPEND DALI_EXCLUDES libculibos.a)
 include_directories(${CUDA_TOOLKIT_TARGET_DIR}/include)
 
 # NVTX for profiling
-if (BUILD_NVTX)
-  CUDA_find_library(CUDA_nvToolsExt_LIBRARY nvToolsExt)
-  list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
-  add_definitions(-DDALI_USE_NVTX)
+if (NVTX_ENABLED)
+  if(${CUDA_VERSION} VERSION_LESS "10.0")
+     CUDA_find_library(CUDA_nvToolsExt_LIBRARY nvToolsExt)
+     list(APPEND DALI_LIBS ${CUDA_nvToolsExt_LIBRARY})
+  endif()
 endif()
 
 ##################################################################
