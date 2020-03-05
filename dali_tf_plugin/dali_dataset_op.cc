@@ -400,7 +400,7 @@ class DALIDatasetOp : public DatasetOpKernel {
        *        placeholder. `dali` values are always concrete
        */
       bool DimSizeMatch(int64_t required, int64_t dali) {
-        return required < 0 || required == dali);
+        return required < 0 || required == dali;
       }
 
       /**
