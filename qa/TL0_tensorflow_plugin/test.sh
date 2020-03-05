@@ -25,6 +25,8 @@ test_body() {
 
     # DALI TF DATASET run
     nosetests --verbose test_dali_tf_dataset.py
+
+    nosetests --verbose test_dali_tf_dataset_shape.py
 }
 
 pushd ../..
