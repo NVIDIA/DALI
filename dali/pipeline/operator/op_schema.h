@@ -36,12 +36,12 @@ namespace dali {
 
 class OpSpec;
 
-struct RequiredArgumentDoc {
+struct RequiredArgumentDef {
   std::string doc;
   DALIDataType dtype;
 };
 
-struct DefaultedArgumentDoc {
+struct DefaultedArgumentDef {
   std::string doc;
   DALIDataType dtype;
   Value *default_value;
@@ -760,10 +760,10 @@ class DLL_PUBLIC OpSchema {
     internal_arguments_unq_.push_back(std::move(v));
   }
 
-  std::map<std::string, RequiredArgumentDoc> GetRequiredArguments() const;
+  std::map<std::string, RequiredArgumentDef> GetRequiredArguments() const;
 
 
-  std::map<std::string, DefaultedArgumentDoc> GetOptionalArguments() const;
+  std::map<std::string, DefaultedArgumentDef> GetOptionalArguments() const;
 
   string dox_;
   string name_;
@@ -809,9 +809,9 @@ class DLL_PUBLIC OpSchema {
   bool is_deprecated_ = false;
   string deprecated_in_favor_of_;
 
-  std::map<std::string, RequiredArgumentDoc> arguments_;
-  std::map<std::string, DefaultedArgumentDoc> optional_arguments_;
-  std::map<std::string, DefaultedArgumentDoc> internal_arguments_;
+  std::map<std::string, RequiredArgumentDef> arguments_;
+  std::map<std::string, DefaultedArgumentDef> optional_arguments_;
+  std::map<std::string, DefaultedArgumentDef> internal_arguments_;
   std::vector<std::unique_ptr<Value> > optional_arguments_unq_;
   std::vector<std::unique_ptr<Value> > internal_arguments_unq_;
   std::vector<std::vector<TensorLayout>> input_layouts_;
@@ -834,8 +834,9 @@ class SchemaRegistry {
 template<typename T>
 inline T OpSchema::GetDefaultValueForArgument(const std::string &s) const {
   const Value *v = FindDefaultValue(s, false, true).second;
-  DALI_ENFORCE(v != nullptr, "Optional argument \"" + s + "\" is not defined for schema \""
-      + this->name() + "\"");
+  DALI_ENFORCE(v != nullptr,
+               make_string("The argument \"", s, "\" doesn't have a default value in schema \"",
+                           name(), "\"."));
 
   const ValueInst<T> * vT = dynamic_cast<const ValueInst<T>*>(v);
   DALI_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s +

@@ -90,7 +90,7 @@ string OpSchema::Dox() const {
   return dox_;
 }
 
-std::map<std::string, RequiredArgumentDoc>
+std::map<std::string, RequiredArgumentDef>
 OpSchema::GetRequiredArguments() const {
   auto ret = arguments_;
   for (const auto &parent_name : parents_) {
@@ -101,7 +101,7 @@ OpSchema::GetRequiredArguments() const {
   return ret;
 }
 
-std::map<std::string, DefaultedArgumentDoc> OpSchema::GetOptionalArguments() const {
+std::map<std::string, DefaultedArgumentDef> OpSchema::GetOptionalArguments() const {
   auto ret = optional_arguments_;
   for (const auto &parent_name : parents_) {
     const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
