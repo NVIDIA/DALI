@@ -318,7 +318,7 @@ Parameters
         if isinstance(outputs, tuple):
             outputs = list(outputs)
         elif not isinstance(outputs, list):
-            outputs = [output]
+            outputs = [outputs]
 
         for i in range(len(outputs)):
             if isinstance(outputs[i], types.ScalarConstant):
