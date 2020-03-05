@@ -114,7 +114,7 @@ class RnntTrainPipeline(nvidia.dali.pipeline.Pipeline):
 
         audio = self.remove_silence(audio)
 
-        audio = audio + self.normal_distribution(audio) * self.dither
+        # audio = audio + self.normal_distribution(audio) * self.dither
 
         # DALI's preemph works a little bit different than the one in native code.
         # The difference occurs in first value in buffer.
@@ -137,7 +137,8 @@ def test_rnnt_data_pipeline():
     Test compares pre-calculated output of native data pipeline with an output
     from DALI data pipeline. There are few modification of native data pipeline
     comparing to the reference:
-    1. Presampling (aka "speed perturbation") is turned off
+    1. Random operations (i.e. dither and presampling aka "speed perturbation")
+       are turned off
     2. Since DALI, as an optimization, doesn't perform one transposition in frame splicing,
        the result from DALI pipeline has to be transposed to fit the reference data.
     """
@@ -158,4 +159,4 @@ def test_rnnt_data_pipeline():
         assert reference_data[sample_idx].shape == output_data.shape
         size = reference_data[sample_idx].flatten().shape[0]
         assert np.sum(
-            np.isclose(reference_data[sample_idx], output_data, atol=.01, rtol=0)) / size > .98
+                np.isclose(reference_data[sample_idx], output_data, atol=.01, rtol=0)) / size > .99
