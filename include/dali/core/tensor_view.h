@@ -18,6 +18,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <stdexcept>
 #include "dali/core/tensor_shape.h"
 
 namespace dali {
@@ -440,13 +441,13 @@ struct TensorListViewBase {
   /**
    * @brief Constructs a tensor list from non-contiguous memory
    */
-  TensorListViewBase(DataType **data, const TensorListShape<sample_ndim> &shape)
+  TensorListViewBase(DataType *const *data, const TensorListShape<sample_ndim> &shape)
       : shape(shape)
       , data(data, data + this->shape.num_samples()) {}
   /**
    * @brief Constructs a tensor list from non-contiguous memory
    */
-  TensorListViewBase(DataType **data, TensorListShape<sample_ndim> &&shape)
+  TensorListViewBase(DataType *const *data, TensorListShape<sample_ndim> &&shape)
       : shape(std::move(shape))
       , data(data, data + this->shape.num_samples()) {}
 
@@ -495,15 +496,15 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
   //@{
   /** @brief Construction from non-contiguous memory */
 
-  TensorListView(DataType **data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
+  TensorListView(DataType *const *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
       : Base(data, shapes) {}
 
   template <int other_sample_ndim>
-  TensorListView(DataType **data, const TensorListShape<other_sample_ndim> &shape)
+  TensorListView(DataType *const *data, const TensorListShape<other_sample_ndim> &shape)
       : Base(data, shape) {}
 
   template <int other_sample_ndim>
-  TensorListView(DataType **data, TensorListShape<other_sample_ndim> &&shape)
+  TensorListView(DataType *const *data, TensorListShape<other_sample_ndim> &&shape)
       : Base(data, std::move(shape)) {}
 
   //@}
@@ -571,15 +572,15 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   //@{
   /** @brief Construction from non-contiguous memory */
 
-  TensorListView(DataType **data, const std::vector<TensorShape<sample_ndim>> &shapes)
+  TensorListView(DataType *const *data, const std::vector<TensorShape<sample_ndim>> &shapes)
       : Base(data, shapes) {}
 
   template <int other_sample_ndim>
-  TensorListView(DataType **data, const TensorListShape<other_sample_ndim> &shape)
+  TensorListView(DataType *const *data, const TensorListShape<other_sample_ndim> &shape)
       : Base(data, shape) {}
 
   template <int other_sample_ndim>
-  TensorListView(DataType **data, TensorListShape<other_sample_ndim> &&shape)
+  TensorListView(DataType *const *data, TensorListShape<other_sample_ndim> &&shape)
       : Base(data, std::move(shape)) {}
 
   //@}
@@ -626,7 +627,8 @@ TensorListView<StorageBackend, T, ndim> make_tensor_list(T *data, TensorListShap
  * @brief Wraps raw memory as a tensor list
  */
 template <typename StorageBackend, int ndim, typename T>
-TensorListView<StorageBackend, T, ndim> make_tensor_list(T **data, TensorListShape<ndim> shape) {
+TensorListView<StorageBackend, T, ndim> make_tensor_list(T *const *data,
+                                                         TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
@@ -650,7 +652,8 @@ TensorListView<StorageCPU, T, ndim> make_tensor_list_cpu(T *data, TensorListShap
  * @brief Wraps CPU raw memory as a tensor list
  */
 template <int ndim, typename T>
-TensorListView<StorageCPU, T, ndim> make_tensor_list_cpu(T **data, TensorListShape<ndim> shape) {
+TensorListView<StorageCPU, T, ndim> make_tensor_list_cpu(T *const *data,
+                                                         TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
@@ -674,7 +677,8 @@ TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *data, TensorListShap
  * @brief Wraps GPU raw memory as a tensor list
  */
 template <int ndim, typename T>
-TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T **data, TensorListShape<ndim> shape) {
+TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *const *data,
+                                                         TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
 }
 
@@ -770,6 +774,43 @@ TensorListView<StorageBackend, DataType, output_ndim> sample_range(
   TensorListView<StorageBackend, DataType, output_ndim> out_slice;
   sample_range(out_slice, input, begin, end);
   return out_slice;
+}
+
+/**
+ * @brief Uses existing data and a new shape to construct a new TensorListView.
+ *
+ * The function combines existing list a new shape to build a new TensorListView.
+ * If the existing list is contiguous, only the total number of elements must be preserved.
+ * Otherwise, all samples must have the same number of elements as in the original list.
+ * Dimensionality can be changed.
+ *
+ * @param list  original tensor list
+ * @param shape the desired shape
+ * @param check if true, exception is thrown when the list cannot be reshaped
+ */
+template <int out_dim, typename Storage, typename T, int in_dim>
+TensorListView<Storage, T, out_dim> reshape(
+  const TensorListView<Storage, T, in_dim> &list,
+  TensorListShape<out_dim> shape,
+  bool check = false) {
+  if (check && shape.num_elements() != list.num_elements())
+    throw std::logic_error("Attempt to reshape a TensorListView to a different total volume");
+  assert(shape.num_elements() == list.num_elements());
+  if (list.is_contiguous()) {
+    return make_tensor_list<Storage, out_dim, T>(list.data[0], std::move(shape));
+  } else {
+    if (check && shape.num_samples() != list.num_samples())
+      throw std::logic_error("Attempt to reshape a non-contiguous TensorListView with a different "
+                             "number of samples");
+    assert(shape.num_samples() == list.num_samples());
+    for (int i = 0; i < list.num_samples(); i++) {
+      if (check && volume(list.tensor_shape_span(i)) != volume(shape.tensor_shape_span(i)))
+        throw std::logic_error("Attempt to change the volume of sample when reshaping a "
+                               "non-contiguous TensorListView");
+      assert(volume(list.tensor_shape_span(i)) == volume(shape.tensor_shape_span(i)));
+    }
+    return make_tensor_list<Storage, out_dim, T>(list.data.data(), std::move(shape));
+  }
 }
 
 

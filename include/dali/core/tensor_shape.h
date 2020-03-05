@@ -945,10 +945,15 @@ template <int sample_ndim, typename T>
 void calculate_pointers(std::vector<T*> &pointers, T *base,
                         const TensorListShape<sample_ndim> &tls) {
   pointers.resize(tls.size());
-  pointers[0] = base;
-  for (int i = 0; i < tls.size() - 1; i++) {
-    auto sample_shape_span = tls.tensor_shape_span(i);
-    pointers[i + 1] = pointers[i] + volume(sample_shape_span);
+  if (base != nullptr) {
+    pointers[0] = base;
+    for (int i = 0; i < tls.size() - 1; i++) {
+      auto sample_shape_span = tls.tensor_shape_span(i);
+      pointers[i + 1] = pointers[i] + volume(sample_shape_span);
+    }
+  } else {
+    for (auto &ptr : pointers)
+      ptr = nullptr;
   }
 }
 
