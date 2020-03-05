@@ -25,12 +25,12 @@
 #include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/copy_vector_helper.h"
 #include "dali/core/format.h"
 #include "dali/core/traits.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/argument.h"
-#include "dali/pipeline/operator/copy_vector_helper.h"
 
 namespace dali {
 

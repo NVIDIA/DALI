@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATOR_COPY_VECTOR_HELPER_H_
-#define DALI_PIPELINE_OPERATOR_COPY_VECTOR_HELPER_H_
+#ifndef DALI_CORE_COPY_VECTOR_HELPER_H_
+#define DALI_CORE_COPY_VECTOR_HELPER_H_
 
 #include <type_traits>
 #include <utility>
@@ -57,4 +57,4 @@ convert_vector(const std::vector<S> &v) {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATOR_COPY_VECTOR_HELPER_H_
+#endif  // DALI_CORE_COPY_VECTOR_HELPER_H_

@@ -25,10 +25,10 @@
 #include <type_traits>
 
 #include "dali/core/common.h"
+#include "dali/core/copy_vector_helper.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/operator/copy_vector_helper.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/workspace/workspace.h"
 
