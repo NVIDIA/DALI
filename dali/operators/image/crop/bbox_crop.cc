@@ -58,7 +58,7 @@ void CollectShape(std::vector<TensorShape<>> &v,
       v.emplace_back(tmp);
     }
   } else if (spec.HasArgument(name)) {
-    auto tmp = spec.GetArgument<std::vector<int>>(name);
+    auto tmp = spec.GetRepeatedArgument<int>(name);
     DALI_ENFORCE(static_cast<int>(tmp.size()) == ndim,
       make_string("Argument `", name, "` must be a ", ndim, "D vector"));
 
@@ -114,14 +114,57 @@ struct ProspectiveCrop {
 
 DALI_SCHEMA(RandomBBoxCrop)
     .DocStr(
-        R"code(Perform a prospective crop to an image while keeping bounding boxes and labels consistent. Inputs must be supplied as
-two Tensors: `BBoxes` containing bounding boxes represented as `[l,t,r,b]` or `[x,y,w,h]`, and `Labels` containing the
-corresponding label for each bounding box. Resulting prospective crop is provided as two Tensors: `Begin` containing the starting
-coordinates for the `crop` in `(x,y)` format, and 'Size' containing the dimensions of the `crop` in `(w,h)` format.
-Bounding boxes are provided as a `(m*4)` Tensor, where each bounding box is represented as `[l,t,r,b]` or `[x,y,w,h]`. Resulting
-labels match the boxes that remain, after being discarded with respect to the minimum accepted intersection threshold.
-Be advised, when `allow_no_crop` is `false` and `thresholds` does not contain `0` it is good to increase `num_attempts` as otherwise
-it may loop for a very long time.)code")
+        R"code(Performs a prospective random crop to an image coordinate space while keeping
+bounding boxes (and optionally labels) consistent. That is, after applying the random crop operator
+to the image coordinate space, the bounding boxes will be adjusted or filtered out to match the
+cropped region of interest. The applied random crop operator is constrained by the arguments
+provided to the operator.
+
+The cropping window random selection is selected at random until it matches the overlap restrictions
+specified by `thresholds` argument. Thresholds values represent minimum intersection-over-union
+(IoU) of the cropping window and each of the provided bounding boxes. A valid crop is the one where
+all the provided bounding boxes produce an IoU above any of the thresholds. Alternative, we can
+allow not to crop as one of the valid outcomes of the random process (use `allow_no_crop` for that).
+
+Two modes of random crop are available:
+
+* Randomly shaped window, randomly placed within the original input space. The random crop window
+dimensions are selected according to the provided `aspect_ratio` restrictions.
+
+* Fixed size window, randomly placed within the original input space. The random crop window
+dimensions is fixed to match the provided `crop_shape` argument and the anchor is selected randomly.
+When providing `crop_shape`, a second argument `input_shape` should be provided, specifying the
+original image dimensions.
+
+The argument `num_attempts` can be used to control the maximum number of attempts that we try to
+produce a valid crop to match a single minimum IoU value from `thresholds`. Be advised that when
+`allow_no_crop` is `False` and `thresholds` does not contain `0.0`, it is good to increase the
+`num_attempts` value as otherwise it may loop for a very long time.
+
+Inputs: 0: `bboxes`, (1:`labels`, )
+
+First input `bboxes` refers to bounding boxes that are provided as a 2-dimensional tensor where the
+first dimension refers to the index of the bounding box and the second dimension refers to the
+index of the coordinate.
+Coordinates are relative to the original image dimensions (i.e. range [0.0, 1.0]), representing
+either `start` and `end` of the region (e.g. `[left, top, right, bottom]`, or `ltrb`) or `start` and
+`shape` (e.g. `[left, top, width, height]` or `xywh`). In the case of volumetric inputs, bounding
+boxes are encoded as `[left, top, front, right, bottom, back]` or
+`[left, top, front, width, height, depth]`.
+
+A second input `labels` can be optionally provided, representing the labels associated with each of
+the bounding boxes.
+
+Outputs: 0:`anchor`, 1:`shape`, 2:`bboxes`, (3:`labels`,)
+
+The result of the prospective crop operation is provided as two separate outputs `anchor` and
+`shape`, that can be feed directly to `Slice` operator to perform the actual crop operation to the
+original image. `anchor` and `shape` contains starting coordinates and dimensions for the crop, as
+`[x, y, (z,)]` and `[w, h, (d,)]` respectively. The coordinates can be represented in absolute or
+relative terms, depending of whether we used a fixed `crop_shape` or not.
+
+Third and fourth outputs correspond to the adjusted bounding boxes and optionally
+their corresponding labels. Bounding boxes are always specified in relative coordinates.)code")
     .NumInput(1, 2)  // [boxes, labels (optional),]
     .NumOutput(3)    // [anchor, shape, bboxes, labels (optional),]
     .AdditionalOutputsFn(
@@ -130,38 +173,61 @@ it may loop for a very long time.)code")
       })
     .AddOptionalArg(
         "thresholds",
-        R"code(Minimum overlap (Intersection over union) of the bounding boxes with respect to the prospective crop.
-Selected at random for every sample from provided values. Default imposes no restrictions on Intersection over Union for boxes and crop.)code",
+        R"code(Minimum intersection-over-union (IoU) of the bounding boxes with respect to the
+prospective crop. Each sample will select one of the `thresholds` randomly, and the operator will
+try a given number of attempts (see `num_attempts`) to produce a random crop window that yields an
+IoU above the selected threshold.)code",
         std::vector<float>{0.f})
     .AddOptionalArg(
         "aspect_ratio",
-        R"code(Range `[min, max]` of valid aspect ratio values for new crops. Value for `min` should be greater or equal to `0.0`.
-Default values disallow changes in aspect ratio.)code",
+        R"code(Range `[min, max]` of valid aspect ratio values for new crops.
+
+Value for `min` should be `> 0.0` and `min <= max`.
+
+By default, the aspect ratio will be enforced to be `1`, meaning squared cropping
+windows.
+
+Note: Providing `aspect_ratio` and `scaling` is incompatible with specifying `crop_shape`
+explicitly.)code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "scaling",
-        R"code(Range `[min, max]` for crop size with respect to original image dimensions. Value for `min` should be greater or equal to `0.0`.)code",
+        R"code(Range `[min, max]` for crop size with respect to original image dimensions.
+
+Value for `min` should be ` >= 0.0` and `min <= max`.
+
+Note: Providing `aspect_ratio` and `scaling` is incompatible with specifying `crop_shape`
+explicitly)code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "ltrb",
-        R"code(If true, bboxes are returned as [left, top, right, bottom], else [x, y, width, height].)code",
+        R"code(If true, bboxes are returned as [left, top, (front,) right, bottom (, back)],
+otherwise they are provided as [left, top, (front,) width, height (, depth].)code",
         true)
     .AddOptionalArg(
         "num_attempts",
-        R"code(Number of attempts to get a crop window that matches the desired parameters.)code",
+        R"code(Number of attempts to get a crop window that matches the `aspect_ratio` and selected
+IoU value from `thresholds`.)code",
         1)
     .AddOptionalArg(
         "allow_no_crop",
-        R"code(If true, includes no cropping as one of the random options.)code",
+        R"code(If true, not cropping will be one of the possible outcomes of the random process, as
+if it was one more `thresholds` value to choose from.)code",
         true)
     .AddOptionalArg<int>(
         "crop_shape",
-         R"code()code",
+         R"code(If provided, the random crop window dimensions will be fixed to this shape.
+
+Note: `crop_shape` and `input_shape` should be provided together, and providing those is
+incompatible with using `scaling` and `aspect_ratio` arguments.)code",
          std::vector<int>{},
          true)
     .AddOptionalArg<int>(
         "input_shape",
-         R"code()code",
+         R"code(Specifies the shape of the original input image.
+
+Note: `crop_shape` and `input_shape` should be provided together, and providing those is
+incompatible with using `scaling` and `aspect_ratio` arguments.)code",
          std::vector<int>{},
          true);
 
@@ -184,7 +250,7 @@ class RandomBBoxCrop<CPUBackend>::Impl {
       "`crop_shape` and `input_shape` should be provided together or not provided");
 
     if (has_crop_shape_) {
-      DALI_ENFORCE(!spec.HasArgument("allow_no_crop"),
+      DALI_ENFORCE(!spec.HasArgument("allow_no_crop") || !spec.GetArgument<bool>("allow_no_crop"),
         "`allow_no_crop` is incompatible with providing the crop shape explicitly");
       DALI_ENFORCE(!spec.HasArgument("aspect_ratio"),
         "`aspect_ratio` is incompatible with providing the crop shape explicitly");

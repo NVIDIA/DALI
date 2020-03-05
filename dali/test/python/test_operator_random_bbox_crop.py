@@ -24,6 +24,7 @@ from test_utils import ConstantDataIterator
 
 class RandomBBoxCropSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, boxes,
+                 input_shape=None, crop_shape=None,
                  num_threads=1, device_id=0, num_gpus=1):
         super(RandomBBoxCropSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
@@ -32,12 +33,14 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
         self.inputs = ops.ExternalSource()
         self.bbox_crop = ops.RandomBBoxCrop(
             device=self.device,
-            aspect_ratio=[0.5, 2.0],
+            aspect_ratio=[0.5, 2.0] if crop_shape is None else None,
+            scaling=[0.3, 1.0] if crop_shape is None else None,
             thresholds=[0, 0.01, 0.05, 0.1, 0.15],
-            scaling=[0.3, 1.0],
             ltrb=True,
             num_attempts=100,
-            allow_no_crop=False)
+            allow_no_crop=False,
+            input_shape=input_shape,
+            crop_shape=crop_shape)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -60,7 +63,8 @@ def test_random_bbox_crop_2d():
     device = 'cpu'
     batch_size = 1
     boxes = [np.array([bbox_3d_ltrb_1, bbox_3d_ltrb_2, bbox_3d_ltrb_3], dtype=np.float32)]
-    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size, boxes=boxes)
+    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size, boxes=boxes,
+                                           input_shape=[1200, 800, 64], crop_shape=[1200, 800, 64])
     pipe.build()
     for i in range(100):
         outputs = pipe.run()
