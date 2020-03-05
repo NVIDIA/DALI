@@ -1,6 +1,8 @@
 Python API
 ==========
 
+.. currentmodule:: nvidia.dali.pipeline
+
 Pipeline
 --------
 In DALI, any data processing task has a central object called pipeline. Pipeline object is an
@@ -9,22 +11,20 @@ data processing graph and the execution engine.
 
 There are two ways to define a DALI pipelines:
 
-#. by inheriting from Pipeline class and overriding :meth:`nvidia.dali.pipeline.Pipeline.define_graph`
+#. by inheriting from Pipeline class and overriding :meth:`Pipeline.define_graph`
 #. by instantiating `Pipeline` directly, building the graph and setting the pipeline
-   outputs with :meth:`nvidia.dali.pipeline.Pipeline.set_outputs`
+   outputs with :meth:`Pipeline.set_outputs`
 
 Data processing graphs
 """"""""""""""""""""""
 
 DALI pipeline is represented as a graph of operations. There are two kinds of nodes in the graph:
 
- * Operators
- * Data nodes (see :class:`nvidia.dali.pipeline.DataNode`)
+ * Operators - created on each call to an operator
+ * Data nodes (see :class:`DataNode`) - represent outputs and inputs of operators; they are
+   returned from calls to operators and passing them as inputs to other operators establishes
+   connections in the graph.
 
-The nodes are created on each call to an operator object (or function) - each call typically
-creates one operator node and as many data nodes as there are outputs from the operator.
-Passing `DataNode` objects as inputs or arguments to an operator establishes connections in
-the graph.
 Example::
 
     class MyPipeline(Pipeline):
@@ -40,6 +40,7 @@ Example::
 
     pipe = MyPipeline(batch_size = 4, num_threads = 2, device_id = 0)
     pipe.build()
+
 
 The resulting graph is:
 
@@ -60,18 +61,20 @@ manager (`with` statement)::
         a, b = src()
         pipe.set_outputs(a, b)
 
-.. autoclass:: nvidia.dali.pipeline.Pipeline
+.. autoclass:: Pipeline
    :members:
    :special-members: __enter__, __exit__
 
 
 DataNode
 --------
-.. autoclass:: nvidia.dali.pipeline.DataNode
+.. autoclass:: DataNode
    :members:
 
 Tensor
 ------
+
+.. currentmodule:: nvidia.dali.backend
 
 TensorCPU
 ^^^^^^^^^

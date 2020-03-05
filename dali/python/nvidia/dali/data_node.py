@@ -29,8 +29,8 @@ class DataNode(object):
     stage. It does not carry actual data, but is used to define the connections between operators
     and to specify the pipeline outputs. See documentation for :class:`Pipeline` for details.
 
-    `DataNode`s can be passed to DALI operators as inputs (and some of the named arguments) but
-    they also provide arithmetic operations which implicitly create appropriate operators that
+    `DataNode` objectss can be passed to DALI operators as inputs (and some of the named arguments)
+    but they also provide arithmetic operations which implicitly create appropriate operators that
     perform the expressions.
     """
     def __init__(self, name, device="cpu", source=None):

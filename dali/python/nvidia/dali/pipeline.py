@@ -315,12 +315,16 @@ Parameters
         else:
             with self:
                 outputs = define_graph()
-        if (not isinstance(outputs, tuple) and
-            not isinstance(outputs, list)):
-            outputs = (outputs,)
+        if isinstance(outputs, tuple):
+            outputs = list(outputs)
+        elif not isinstance(outputs, list):
+            outputs = [output]
 
-        for output in outputs:
-            _data_node._check(output)
+        for i in range(len(outputs)):
+            if isinstance(outputs[i], types.ScalarConstant):
+                import nvidia.dali.ops
+                outputs[i] = nvidia.dali.ops._instantiate_constant_node("cpu", outputs[i])
+            _data_node._check(outputs[i])
 
         # Backtrack to construct the graph
         op_ids = set()
@@ -714,7 +718,7 @@ Parameters
 
         Args
         ----
-        `*output_data_nodes` : unpacked list of `DataNode`s
+        `*output_data_nodes` : unpacked list of `DataNode` objects
         The outputs of the pipeline
         """
         self._graph_out = output_data_nodes

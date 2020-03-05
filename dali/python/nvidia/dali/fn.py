@@ -16,6 +16,7 @@
 from __future__ import division
 import sys
 from nvidia.dali.data_node import DataNode as _DataNode
+import nvidia.dali.types
 
 _special_case_mapping = {
     "b_box" : "bbox",
@@ -60,11 +61,18 @@ def _wrap_op_fn(op_class, wrapper_name):
         def is_data_node(x):
             return isinstance(x, _DataNode)
         def is_input(x):
-            return is_data_node(x) or all(isinstance(y, _DataNode) for y in x)
+            if is_data_node(x):
+                return True
+            return isinstance(x, (list, tuple)) and \
+                   any(isinstance(y, _DataNode) for y in x) and \
+                   all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
         def is_call_arg(name, value):
             return name == "name" or is_data_node(value)
 
-        scalar_args = { name:value for (name, value) in arguments.items() if not is_call_arg(name, value) }
+        def to_scalar(scalar):
+            return scalar.value if isinstance(scalar, nvidia.dali.types.ScalarConstant) else scalar
+
+        scalar_args = { name:to_scalar(value) for (name, value) in arguments.items() if not is_call_arg(name, value) }
         tensor_args = { name:value for (name, value) in arguments.items() if is_call_arg(name, value) }
         for idx, inp in enumerate(inputs):
             if not is_input(inp):
