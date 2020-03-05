@@ -175,18 +175,25 @@ class BoundingBox {
     return BoundingBox{out};
   }
 
-  BoundingBox HorizontalFlip() const {
+  BoundingBox AxisFlip(int axis) const {
+    DALI_ENFORCE(axis >= 0 && axis < ndim(),
+      make_string("Axis is out of bounds. Got ", axis, " expected range [", 0, ", ", ndim(), ")"));
     RelBounds out = bbox_bounds_;
-    out[0]        = 1.0f - bbox_bounds_[ndim()];
-    out[ndim()]   = 1.0f - bbox_bounds_[0];
+    out[axis]          = 1.0f - bbox_bounds_[ndim() + axis];
+    out[ndim() + axis] = 1.0f - bbox_bounds_[axis];
     return BoundingBox{out};
   }
 
+  BoundingBox HorizontalFlip() const {
+    return AxisFlip(0);
+  }
+
   BoundingBox VerticalFlip() const {
-    RelBounds out = bbox_bounds_;
-    out[1]        = 1.0f - bbox_bounds_[ndim()+1];
-    out[ndim()+1] = 1.0f - bbox_bounds_[1];
-    return BoundingBox{out};
+    return AxisFlip(1);
+  }
+
+  BoundingBox DepthWiseFlip() const {
+    return AxisFlip(2);
   }
 
   RelBounds AsStartAndEnd() const {

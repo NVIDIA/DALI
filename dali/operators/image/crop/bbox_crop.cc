@@ -123,8 +123,9 @@ provided to the operator.
 The cropping window random selection is selected at random until it matches the overlap restrictions
 specified by `thresholds` argument. Thresholds values represent minimum intersection-over-union
 (IoU) of the cropping window and each of the provided bounding boxes. A valid crop is the one where
-all the provided bounding boxes produce an IoU above any of the thresholds. Alternative, we can
-allow not to crop as one of the valid outcomes of the random process (use `allow_no_crop` for that).
+all the provided bounding boxes produce an IoU above a give value present in `thresholds` randomly
+selected. Alternative, we can allow not to crop as one of the valid outcomes of the random process
+(use `allow_no_crop` for that).
 
 Two modes of random crop are available:
 
