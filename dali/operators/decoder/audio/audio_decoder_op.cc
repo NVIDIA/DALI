@@ -46,6 +46,7 @@ This operator produces two outputs:
 
 DALI_REGISTER_OPERATOR(AudioDecoder, AudioDecoderCpu, CPU);
 
+
 bool
 AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) {
   GetPerSampleArgument<float>(target_sample_rates_, "sample_rate", ws);
