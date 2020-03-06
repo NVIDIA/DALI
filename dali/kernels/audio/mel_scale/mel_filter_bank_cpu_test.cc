@@ -17,6 +17,7 @@
 #include <vector>
 #include <complex>
 #include <cmath>
+#include "dali/kernels/audio/mel_scale/mel_filter_bank_test.h"
 #include "dali/kernels/scratch.h"
 #include "dali/kernels/audio/mel_scale/mel_scale.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu.h"
@@ -71,61 +72,6 @@ void print_data(const OutTensorCPU<T, 2>& data_view) {
   }
 }
 
-std::vector<std::vector<float>> ReferenceFilterBanks(int nfilter, int nfft, float sample_rate,
-                                                     float low_freq, float high_freq) {
-  HtkMelScale<float> mel_scale;
-
-  std::vector<std::vector<float>> fbanks(nfilter);
-  auto low_mel = mel_scale.hz_to_mel(low_freq);
-  auto high_mel = mel_scale.hz_to_mel(high_freq);
-
-  float delta_mel = (high_mel - low_mel) / (nfilter + 1);
-  assert(nfilter > 0);
-  std::vector<float> mel_points(nfilter+2, 0.0f);
-  mel_points[0] = mel_scale.hz_to_mel(low_freq);
-  for (int i = 1; i < nfilter+1; i++) {
-    mel_points[i] = mel_points[i-1] + delta_mel;
-  }
-  mel_points[nfilter+1] = mel_scale.hz_to_mel(high_freq);
-
-  std::vector<float> fftfreqs(nfft/2+1, 0.0f);
-  for (int i = 0; i < nfft/2+1; i++) {
-    fftfreqs[i] = i * sample_rate / nfft;
-  }
-
-  std::vector<float> freq_grid(mel_points.size(), 0.0f);
-  int i = 0;
-  freq_grid[0] = low_freq;
-  for (int i = 1; i < nfilter+1; i++) {
-    freq_grid[i] = mel_scale.mel_to_hz(mel_points[i]);
-  }
-  freq_grid[nfilter+1] = high_freq;
-
-  for (int j = 0; j < nfilter; j++) {
-    auto &fbank = fbanks[j];
-    fbank.resize(nfft/2+1, 0.0f);
-    for (int i = 0; i < nfft/2+1; i++) {
-      auto f = fftfreqs[i];
-      if (f < low_freq || f > high_freq) {
-        fbank[i] = 0.0f;
-      } else {
-        auto upper = (f - freq_grid[j]) / (freq_grid[j+1] - freq_grid[j]);
-        auto lower = (freq_grid[j+2] - f) / (freq_grid[j+2] - freq_grid[j+1]);
-        fbank[i] = std::max(0.0f, std::min(upper, lower));
-      }
-    }
-  }
-
-  for (int j = 0; j < nfilter; j++) {
-    LOG_LINE << "Filter " << j << " :";
-    auto &fbank = fbanks[j];
-    for (int i = 0; i < static_cast<int>(fbank.size()); i++) {
-      LOG_LINE << " " << fbank[i];
-    }
-    LOG_LINE << std::endl;
-  }
-  return fbanks;
-}
 
 TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   using T = float;
@@ -181,6 +127,7 @@ TEST_P(MelScaleCpuTest, MelScaleCpuTest) {
   args.freq_high = freq_high_;
   args.mel_formula = MelScaleFormula::HTK;
   args.normalize = false;
+
 
   kernels::audio::MelFilterBankCpu<T, Dims> kernel;
   auto req = kernel.Setup(ctx, in_view_, args);

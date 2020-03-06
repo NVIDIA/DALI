@@ -15,8 +15,10 @@
 #ifndef DALI_KERNELS_AUDIO_MEL_SCALE_MEL_SCALE_H_
 #define DALI_KERNELS_AUDIO_MEL_SCALE_MEL_SCALE_H_
 
+#include <vector>
 #include <cmath>
 #include "dali/core/force_inline.h"
+#include "dali/kernels/audio/mel_scale/mel_filter_bank_args.h"
 
 namespace dali {
 namespace kernels {
@@ -70,6 +72,88 @@ struct SlaneyMelScale {
   }
 };
 
+template <typename T, int Dims>
+class MelFilterImplBase {
+ public:
+  template <typename MelScale>
+  MelFilterImplBase(MelScale mel_scale, const MelFilterBankArgs &args): args_(args) {
+    assert(args.sample_rate > 0);
+
+    assert(args.freq_low >= 0 && args.freq_low <= args.sample_rate / 2);
+    mel_low_ = mel_scale.hz_to_mel(args.freq_low);
+
+    assert(args.freq_high >= 0 && args.freq_high <= args.sample_rate / 2);
+    mel_high_ = mel_scale.hz_to_mel(args.freq_high);
+
+    int nfilter = args.nfilter;
+    assert(nfilter > 0);
+
+    int nfft = args.nfft;
+    assert(nfft > 0);
+
+    hz_step_ = static_cast<double>(args.sample_rate) / nfft;
+    mel_delta_ = (mel_high_ - mel_low_) / (nfilter + 1);
+
+    fftbin_size_ = nfft / 2 + 1;
+    double inv_hz_step = 1.0 / hz_step_;
+    fftbin_start_ = std::ceil(args.freq_low * inv_hz_step);
+    assert(fftbin_start_ >= 0);
+    fftbin_end_ = std::floor(args.freq_high * inv_hz_step);
+    if (fftbin_end_ > fftbin_size_ - 1)
+      fftbin_end_ = fftbin_size_ - 1;
+
+    weights_down_.resize(fftbin_size_);
+    norm_factors_.resize(nfilter, T(1));
+    double mel0 = mel_low_, mel1 = mel_low_ + mel_delta_;
+
+    int fftbin = fftbin_start_;
+    double f = fftbin * hz_step_;
+
+    int last_interval = nfilter;
+    for (int interval = 0; interval <= last_interval;
+         interval++, mel0 = mel1, mel1 += mel_delta_) {
+      if (interval == last_interval)
+        mel1 = mel_high_;
+      double f0 = mel_scale.mel_to_hz(mel0),
+             f1 = mel_scale.mel_to_hz(mel1);
+      if (args.normalize && interval < nfilter) {
+        // Filters are normalized so that they have constant energy per band
+        double f2 = mel_scale.mel_to_hz(mel1 + mel_delta_);
+        norm_factors_[interval] = 2.0 / (f2 - f0);
+      }
+
+      double slope = 1. / (f1 - f0);
+      for (; fftbin <= fftbin_end_ && f < f1; fftbin++, f = fftbin * hz_step_) {
+        weights_down_[fftbin] = (f1 - f) * slope;
+      }
+    }
+  }
+
+  const MelFilterBankArgs& Args() const {
+    return args_;
+  }
+
+ protected:
+  MelFilterBankArgs args_;
+  std::vector<T> weights_down_;
+  std::vector<T> norm_factors_;
+  int fftbin_start_ = -1, fftbin_end_ = -1;
+  int fftbin_size_;
+  double mel_low_, mel_high_;
+  double hz_step_, mel_delta_;
+};
+
+#define USE_MEL_FILTER_IMPL_MEMBERS(T, Dims) \
+  using MelFilterImplBase<T, Dims>::args_; \
+  using MelFilterImplBase<T, Dims>::fftbin_start_; \
+  using MelFilterImplBase<T, Dims>::fftbin_end_; \
+  using MelFilterImplBase<T, Dims>::mel_low_; \
+  using MelFilterImplBase<T, Dims>::mel_high_; \
+  using MelFilterImplBase<T, Dims>::fftbin_size_; \
+  using MelFilterImplBase<T, Dims>::weights_down_; \
+  using MelFilterImplBase<T, Dims>::norm_factors_; \
+  using MelFilterImplBase<T, Dims>::mel_delta_; \
+  using MelFilterImplBase<T, Dims>::hz_step_
 
 }  // namespace audio
 }  // namespace kernels
