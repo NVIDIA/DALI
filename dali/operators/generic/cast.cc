@@ -26,6 +26,7 @@ void Cast<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   DALIDataType itype = input.type().id();
 
   TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
+    output.SetLayout(input.GetLayout());
     output.mutable_data<OType>();
     output.ResizeLike(input);
     TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
