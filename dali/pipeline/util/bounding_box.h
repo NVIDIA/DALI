@@ -292,7 +292,6 @@ class BoundingBox {
       make_string(name_start, "=", start, " is out of bounds [", lower, ", ", upper, "]"));
     DALI_ENFORCE(end >= lower && end <= upper,
       make_string(name_end, "=", end, " is out of bounds [", lower, ", ", upper, "]"));
-      assert(start <= end);
     DALI_ENFORCE(start <= end,
       make_string(name_start, " should be <= ", name_end, ". Got ",
                   name_start, "=", start, ", ", name_end, "=", end));
