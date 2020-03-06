@@ -109,7 +109,7 @@ def check_operator_mel_filter_bank_vs_python(device, batch_size, input_shape,
         batch_size=batch_size, N_iterations=5, eps=1e-03)
 
 def test_operator_mel_filter_bank_vs_python():
-    for device in ['cpu']:
+    for device in ['cpu', 'gpu']:
         for batch_size in [1, 3]:
             for normalize in [True, False]:
                 for mel_formula in ['htk', 'slaney']:

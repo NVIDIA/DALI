@@ -24,7 +24,13 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
+#define MEL_FBANK_SUPPORTED_TYPES (float)
+#define MEL_FBANK_SUPPORTED_NDIMS (2, 3, 4)
+
 namespace dali {
+
+static constexpr int kNumInputs = 1;
+static constexpr int kNumOutputs = 1;
 
 template <typename Backend>
 class MelFilterBank : public Operator<Backend> {
@@ -65,12 +71,13 @@ class MelFilterBank : public Operator<Backend> {
  protected:
   bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(workspace_t<Backend> &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
   kernels::KernelManager kmgr_;
+  kernels::KernelContext ctx_;
   kernels::audio::MelFilterBankArgs args_;
 };
 
