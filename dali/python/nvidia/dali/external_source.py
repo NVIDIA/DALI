@@ -1,5 +1,4 @@
 # custom wrappers around ops
-from future.utils import with_metaclass
 from nvidia.dali import backend as _b
 
 def _check_data_batch(data, batch_size, layout):

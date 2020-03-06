@@ -1,149 +1,23 @@
 Python API
 ==========
 
-.. currentmodule:: nvidia.dali.pipeline
+DALI functionality is exposed through Python API for ease of use and interoperability with common
+deep learning frameworks. This part of the documentation contains the detailed description of this
+API.
 
-Pipeline
---------
-In DALI, any data processing task has a central object called pipeline. Pipeline object is an
-instance of :class:`nvidia.dali.pipeline.Pipeline` or a derived class. Pipeline encapsulates the
-data processing graph and the execution engine.
+`Pipeline <pipeline.rst>`_ section describes the :class:`Pipeline` object - the central and most
+important part of every program using DALI.
 
-There are two ways to define a DALI pipelines:
+`Types <data_types.rst>`_ section describes types used to construct and returned by DALI pipelines.
 
-#. by inheriting from Pipeline class and overriding :meth:`Pipeline.define_graph`
-#. by instantiating `Pipeline` directly, building the graph and setting the pipeline
-   outputs with :meth:`Pipeline.set_outputs`
+`Functioal API <functional_api.rst>`_ (Experimental!) section describes a psuedo-imperative API
+which can be used to define DALI pipelines with less verbosity.
 
-Data processing graphs
-""""""""""""""""""""""
+.. toctree::
+   :maxdepth: 2
+   :caption:
+        API documentation
 
-DALI pipeline is represented as a graph of operations. There are two kinds of nodes in the graph:
-
- * Operators - created on each call to an operator
- * Data nodes (see :class:`DataNode`) - represent outputs and inputs of operators; they are
-   returned from calls to operators and passing them as inputs to other operators establishes
-   connections in the graph.
-
-Example::
-
-    class MyPipeline(Pipeline):
-        def define_graph(self):
-            img_reader  = ops.FileReader(file_root = "image_dir", seed = 1)
-            mask_reader = ops.FileReader(file_root = "mask_dir", seed = 1)
-            img_files, labels = img_reader()  # creates an instance of `FileReader`
-            mask_files, _ = mask_reader()     # creates another instance of `FileReader`
-            decode = ops.ImageDecoder()
-            images = decode(img_files)  # creates an instance of `ImageDecoder`
-            masks  = decode(mask_files)   # creates another instance of `ImageDecoder`
-            return [images, masks, labels]
-
-    pipe = MyPipeline(batch_size = 4, num_threads = 2, device_id = 0)
-    pipe.build()
-
-
-The resulting graph is:
-
-.. image:: images/two_readers.svg
-
-Current pipeline
-""""""""""""""""
-
-Subgraphs that do not contribute to the pipeline output are automatically pruned.
-If an operator has side effects (e.g. PythonFunction operator family), it cannot be invoked
-without setting the current pipeline. Current pipeline is set implicitly when the graph is
-defined inside derived pipeline's `define_graph` method. Otherwise, it can be set using context
-manager (`with` statement)::
-
-    pipe = dali.pipeline.Pipeline(batch_size = N, num_threads = 3, device_id = 0)
-    with pipe:
-        src = dali.ops.ExternalSource(my_source, num_outputs = 2)
-        a, b = src()
-        pipe.set_outputs(a, b)
-
-.. autoclass:: Pipeline
-   :members:
-   :special-members: __enter__, __exit__
-
-
-DataNode
---------
-.. autoclass:: DataNode
-   :members:
-
-Tensor
-------
-
-.. currentmodule:: nvidia.dali.backend
-
-TensorCPU
-^^^^^^^^^
-.. autoclass:: nvidia.dali.backend.TensorCPU
-   :members:
-   :undoc-members:
-
-TensorGPU
-^^^^^^^^^
-.. autoclass:: nvidia.dali.backend.TensorGPU
-   :members:
-   :undoc-members:
-
-TensorList
-----------
-
-TensorListCPU
-^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.backend.TensorListCPU
-   :members:
-   :special-members: __getitem__
-
-TensorListGPU
-^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.backend.TensorListGPU
-   :members:
-   :special-members: __getitem__
-
-
-
-Types
------
-
-Constant
-^^^^^^^^
-.. autofunction:: nvidia.dali.types.Constant
-.. autoclass:: nvidia.dali.types.ScalarConstant
-   :members:
-
-Enums
------
-
-DALIDataType
-^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.DALIDataType
-   :members:
-   :undoc-members:
-
-DALIIterpType
-^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.DALIInterpType
-   :members:
-   :undoc-members:
-
-DALIImageType
-^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.DALIImageType
-   :members:
-   :undoc-members:
-
-TensorLayout
-^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.TensorLayout
-   :members:
-   :undoc-members:
-
-PipelineAPIType
-^^^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.PipelineAPIType
-   :members:
-   :undoc-members:
-
+   pipeline
+   data_types
+   functional_api

@@ -406,18 +406,21 @@ Parameters
     def feed_input(self, data_node, data, layout=""):
         """Bind a NumPy array (or a list thereof) to an output of ExternalSource.
 
-        `data_node` : DataNode or str
-        The `DataNode` returned by a call to ExternalSource or a name of the ExternalSource
+        Parameters
+        ----------
+        data_node : :class:`DataNode` or str
+            The :class:`DataNode` returned by a call to ExternalSource or a name of the
+            :class:`nvidia.dali.ops.ExternalSource`
 
-        `data` : numpy.ndarray or a list thereof
-        The data to be used as the output of the ExternalSource referred to by `data_node`.
-        In case of GPU external sources, this must be a numpy.ndarray.
+        data : numpy.ndarray or a list thereof
+            The data to be used as the output of the ExternalSource referred to by `data_node`.
+            In case of GPU external sources, this must be a ``numpy.ndarray``.
 
-        `layout`: str
-        The description of the data layout (or empty string, if not specified).
-        It should be a string of the length that matches the dimensionality of the data, batch
-        dimension excluded. For a batch of channel-first images, this should be "CHW", for
-        channel-last video it's "FHWC" and so on.
+        layout : str
+            The description of the data layout (or empty string, if not specified).
+            It should be a string of the length that matches the dimensionality of the data, batch
+            dimension excluded. For a batch of channel-first images, this should be "CHW", for
+            channel-last video it's "FHWC" and so on.
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -461,7 +464,11 @@ Parameters
 
         If the pipeline is executed asynchronously, this function blocks
         until the results become available. It rises StopIteration if data set
-        reached its end - usually when iter_setup cannot produce any more data"""
+        reached its end - usually when iter_setup cannot produce any more data.
+
+        :return:
+            A list of `TensorList` objects for respective pipeline outputs
+        """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
                 raise StopIteration
@@ -504,7 +511,11 @@ Parameters
         results have been consumed.
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
         and :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
-        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
+        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline.
+
+        :return:
+            A list of `TensorList` objects for respective pipeline outputs
+        """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
                 raise StopIteration
@@ -557,7 +568,11 @@ Parameters
         faster execution.
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run` in the same pipeline,
         :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` and
-        :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`"""
+        :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
+
+        :return:
+            A list of `TensorList` objects for respective pipeline outputs
+        """
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
             self.schedule_run()
             return self.outputs()
@@ -718,7 +733,7 @@ Parameters
 
         Args
         ----
-        `*output_data_nodes` : unpacked list of `DataNode` objects
+        `*output_data_nodes` : unpacked list of :class:`DataNode` objects
         The outputs of the pipeline
         """
         self._graph_out = output_data_nodes
