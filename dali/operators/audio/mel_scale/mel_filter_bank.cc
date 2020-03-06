@@ -17,12 +17,6 @@
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_cpu.h"
 #include "dali/pipeline/data/views.h"
 
-#define MEL_FBANK_SUPPORTED_TYPES (float)
-#define MEL_FBANK_SUPPORTED_NDIMS (2, 3, 4)
-
-static constexpr int kNumInputs = 1;
-static constexpr int kNumOutputs = 1;
-
 namespace dali {
 
 DALI_SCHEMA(MelFilterBank)
@@ -65,8 +59,6 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                           const workspace_t<CPUBackend> &ws) {
   output_desc.resize(kNumOutputs);
   const auto &input = ws.InputRef<CPUBackend>(0);
-  auto &output = ws.OutputRef<CPUBackend>(0);
-  kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.size();
   auto nthreads = ws.GetThreadPool().size();
@@ -76,14 +68,14 @@ bool MelFilterBank<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T, Dims>;
       kmgr_.Initialize<MelFilterBankKernel>();
       kmgr_.Resize<MelFilterBankKernel>(nthreads, nsamples);
-      output_desc[0].type = TypeInfo::Create<T>();
+      output_desc[0].type = TypeTable::GetTypeInfo(TypeTable::GetTypeID<T>());
       output_desc[0].shape.resize(nsamples, Dims);
       for (int i = 0; i < nsamples; i++) {
         const auto in_view = view<const T, Dims>(input[i]);
-        auto &req = kmgr_.Setup<MelFilterBankKernel>(i, ctx, in_view, args_);
+        auto &req = kmgr_.Setup<MelFilterBankKernel>(i, ctx_, in_view, args_);
         output_desc[0].shape.set_tensor_shape(i, req.output_shapes[0][0].shape);
       }
-    ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.sample_dim())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type().id())));  // NOLINT
   return true;
 }
@@ -93,7 +85,6 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.InputRef<CPUBackend>(0);
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto in_shape = input.shape();
-  int nsamples = input.size();
   auto& thread_pool = ws.GetThreadPool();
 
   TYPE_SWITCH(input.type().id(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
@@ -102,10 +93,9 @@ void MelFilterBank<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
       for (int i = 0; i < input.shape().num_samples(); i++) {
         thread_pool.DoWorkWithID(
           [this, &input, &output, i](int thread_id) {
-            kernels::KernelContext ctx;
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
-            kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx, out_view, in_view, args_);
+            kmgr_.Run<MelFilterBankKernel>(thread_id, i, ctx_, out_view, in_view, args_);
           });
       }
     ), DALI_FAIL(make_string("Unsupported number of dimensions ", in_shape.size())));  // NOLINT
