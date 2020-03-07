@@ -24,8 +24,8 @@ from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 
-def transpose_func(image):
-    return image.transpose((1, 0, 2))
+def transpose_func(image, permutation=(1, 0, 2)):
+    return image.transpose(permutation)
 
 class TransposePipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0,
@@ -78,18 +78,19 @@ class PythonOpPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
-def check_transpose_vs_numpy(device, batch_size, shape):
+def check_transpose_vs_numpy(device, batch_size, shape, permutation):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
-    compare_pipelines(TransposePipeline(device, batch_size, "HWC", iter(eii1)),
-                      PythonOpPipeline(transpose_func, batch_size, "HWC", iter(eii2)),
+    compare_pipelines(TransposePipeline(device, batch_size, "HWC", iter(eii1), permutation=permutation),
+                      PythonOpPipeline(lambda x: transpose_func(x, permutation), batch_size, "HWC", iter(eii2)),
                       batch_size=batch_size, N_iterations=10)
 
 def test_transpose_vs_numpy():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 3}:
             for shape in {(2048, 512, 1), (2048, 512, 3), (2048, 512, 8)}:
-                yield check_transpose_vs_numpy, device, batch_size, shape
+                for permutation in ([0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]):
+                    yield check_transpose_vs_numpy, device, batch_size, shape, permutation
 
 def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
                            transpose_layout, out_layout_arg):
