@@ -35,6 +35,8 @@ def trim_ref(top_db, ref, frame_length, hop_length, input_data):
     # while DALI uses beginning of window. Hence the subtraction below
     begin = index[0] - frame_length / 2
     length = index[1] - index[0]
+    if length != 0:
+        length += frame_length - 1
     return np.array([begin]), np.array([length])
 
 
@@ -91,7 +93,7 @@ def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_p
 
 def test_nonsilence_operator():
     batch_size = 3
-    window_sizes = [512, 1024, 2048]
+    window_sizes = [512, 1024]
     reset_intervals = [-1, 2048, 8192]
     references_power = [None, .0003]
     cutoff_coeffs = [-10, -20, -30]
@@ -100,4 +102,4 @@ def test_nonsilence_operator():
             for rp in references_power:
                 for cc in cutoff_coeffs:
                     yield check_nonsilence_operator, \
-                          batch_size, cc, ws, rp, ri, 5 if ri == -1 else 1
+                          batch_size, cc, ws, rp, ri, ws

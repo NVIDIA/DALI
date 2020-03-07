@@ -296,7 +296,8 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
           "\n     in bytes:    ", actual_volume * input_element_size,
           "\nRequested volume: ", requested_volume,
           "\n     in bytes:    ", requested_volume * output_element_size,
-          "\nRequested shape:  ", output_shape_[i]));
+          "\nInput shape:\t", input_shape_[i],
+          "\nRequested shape:\t", output_shape_[i]));
     }
   } else if (output_element_size != input_element_size) {
     for (int i = 0; i < N; i++) {
