@@ -158,7 +158,7 @@ def test_different_num_shapes_dtypes():
     dataset_pipeline = TestPipeline(batch_size, num_threads, 'cpu')
     shapes = (
         (batch_size, 3, 224, 224),
-        (batch_size, 1),
+        (batch_size, 1, 1),
         (batch_size, 1))
     dtypes = (
         tf.float32,
@@ -180,7 +180,7 @@ def _test_tf_dataset_multigpu():
 
     shapes = (
         (batch_size, 3, 224, 224),
-        (batch_size, 1),
+        (batch_size, 1, 1),
         (batch_size, 1))
     dtypes = (
         tf.float32,
