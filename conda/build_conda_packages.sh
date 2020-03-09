@@ -23,10 +23,12 @@ CONDA_PREFIX=${CONDA_PREFIX:-/root/miniconda3}
 export DALI_CONDA_BUILD_VERSION=$(cat ../VERSION)$(if [ "${NVIDIA_DALI_BUILD_FLAVOR}" != "" ]; then \
                                                      echo .${NVIDIA_DALI_BUILD_FLAVOR}.${DALI_TIMESTAMP}; \
                                                    fi)
+# Build custom OpenCV first, as DALI requires only bare OpenCV without many features and dependencies
+conda build ${CONDA_BUILD_OPTIONS} third_party/dali_opencv/recipe
 
 # Building DALI package
 conda build ${CONDA_BUILD_OPTIONS} recipe
 
 # Copying the artifacts from conda prefix
 mkdir -p artifacts
-cp ${CONDA_PREFIX}/conda-bld/*/*.tar.bz2 artifacts
+cp ${CONDA_PREFIX}/conda-bld/*/*dali*.tar.bz2 artifacts

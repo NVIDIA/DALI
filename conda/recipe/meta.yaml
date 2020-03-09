@@ -64,7 +64,7 @@ requirements:
     - libjpeg-turbo >=2.0.3
     - ffmpeg >=4.1
     - tensorflow-gpu
-    - opencv ==3.4.4
+    - dali-opencv
     - boost >=1.67
     - lmdb >=0.9.22
     - libtiff >=4.0
@@ -74,9 +74,7 @@ requirements:
     - future >=0.17.1
     - protobuf >=3.11.2
     - libjpeg-turbo >=2.0.3
-    - ffmpeg >=4.1
     - tensorflow-gpu
-    - opencv ==3.4.4
     - lmdb >=0.9.22
     - libtiff >=4.0
     - libsndfile >=1.0.28
