@@ -20,9 +20,6 @@ package:
 source:
   # Beware: Only commited files are used
   - git_url: ../..
-  - fn: ffmpeg-4.2.1.tar.bz2
-    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2
-    folder: ffmpeg
 
 build:
   script_env:
@@ -55,13 +52,13 @@ build:
 
 requirements:
   build:
+    skip: True  # [not linux]
     - {{ compiler('c') }}
     - {{ compiler('cxx')}}
-    - pkg-config >=0.29.2
+    - pkg-config
     - cmake >=3.12.4
-    - make >=4.2.1
-    - nasm
-    - libtool
+    - make
+    - patchelf
   host:
     - python
     - future >=0.17.1
@@ -69,6 +66,7 @@ requirements:
     - libjpeg-turbo >=2.0.3
     - tensorflow-gpu
     - dali-opencv
+    - dali-ffmpeg
     - boost >=1.67
     - lmdb >=0.9.22
     - libtiff >=4.0

@@ -14,11 +14,9 @@ export CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.
 conda config --add channels conda-forge
 
 CONDA_BUILD_OPTIONS="--python=${PYVER} --exclusive-config-file config/conda_build_config.yaml"
+#CONDA_BUILD_OPTIONS="--exclusive-config-file config/conda_build_config.yaml"
 
 CONDA_PREFIX=${CONDA_PREFIX:-/root/miniconda3}
-
-# Note: To building dependency packages:
-# run 'install_requirements.txt' before installing DALI conda package)
 
 export DALI_CONDA_BUILD_VERSION=$(cat ../VERSION)$(if [ "${NVIDIA_DALI_BUILD_FLAVOR}" != "" ]; then \
                                                      echo .${NVIDIA_DALI_BUILD_FLAVOR}.${DALI_TIMESTAMP}; \
@@ -26,9 +24,13 @@ export DALI_CONDA_BUILD_VERSION=$(cat ../VERSION)$(if [ "${NVIDIA_DALI_BUILD_FLA
 # Build custom OpenCV first, as DALI requires only bare OpenCV without many features and dependencies
 conda build ${CONDA_BUILD_OPTIONS} third_party/dali_opencv/recipe
 
+# Build custom FFmpeg, as DALI requires only bare FFmpeg without many features and dependencies
+# but wiht mpeg4_unpack_bframes enabled
+conda build ${CONDA_BUILD_OPTIONS} third_party/dali_ffmpeg/recipe
+
 # Building DALI package
 conda build ${CONDA_BUILD_OPTIONS} recipe
 
 # Copying the artifacts from conda prefix
 mkdir -p artifacts
-cp ${CONDA_PREFIX}/conda-bld/*/*dali*.tar.bz2 artifacts
+cp ${CONDA_PREFIX}/conda-bld/*/nvidia-dali*.tar.bz2 artifacts

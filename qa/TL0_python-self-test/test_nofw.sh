@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 pip_packages="nose numpy>=1.17 opencv-python pillow librosa"
->>>>>>> Extend conda testing
+
 target_dir=./dali/test/python
 
 # test_body definition is in separate file so it can be used without setup

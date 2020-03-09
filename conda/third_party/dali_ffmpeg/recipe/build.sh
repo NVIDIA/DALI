@@ -12,30 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "3.4.3" %}
-
-  package:
-    name: dali-opencv
-    version: {{ build_version }}
-
-  source:
-    fn: opencv-3.4.3.tar.gz
-    url: https://github.com/opencv/opencv/archive/3.4.3.tar.gz
-    sha256: 4eef85759d5450b183459ff216b4c0fa43e87a4f6aa92c8af649f89336f002ec
-
-  build:
-    number: 0
-    string: dali_opencv
-
-  requirements:
-    build:
-      - {{ compiler('c') }}
-      - {{ compiler('cxx') }}
-      - cmake
-      - make
-    host:
-      - libjpeg-turbo >=1.5
-      - libtiff >=4.0
-    run:
-      - libjpeg-turbo >=1.5
-      - libtiff >=4.0
+# unset the SUBDIR variable since it changes the behavior of make here
+unset SUBDIR
+./configure \
+    --prefix=${PREFIX} \
+    --cc=${CC} \
+    --disable-static \
+    --disable-all \
+    --disable-autodetect \
+    --disable-iconv \
+    --enable-shared \
+    --enable-avformat \
+    --enable-avcodec \
+    --enable-avfilter \
+    --enable-protocol=file \
+    --enable-demuxer=mov,matroska,avi  \
+    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes
+make -j"$(nproc --all)"
+make install

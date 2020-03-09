@@ -45,27 +45,6 @@ export PATH=/usr/local/cuda/bin:${PATH}
 export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
 export PATH=/usr/local/cuda/bin:${PATH}
 
-# Build custom FFmepg first
-# unset the SUBDIR variable since it changes the behavior of make here
-unset SUBDIR
-cd ffmpeg
-./configure \
-    --prefix=${PREFIX} \
-    --cc=${CC} \
-    --disable-static \
-    --disable-all \
-    --disable-autodetect \
-    --disable-iconv \
-    --enable-shared \
-    --enable-avformat \
-    --enable-avcodec \
-    --enable-avfilter \
-    --enable-protocol=file \
-    --enable-demuxer=mov,matroska,avi  \
-    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes
-make -j"$(nproc --all)"
-make install
-
 # Create build directory for cmake and enter it
 mkdir $SRC_DIR/build
 cd $SRC_DIR/build
@@ -101,6 +80,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
 make -j"$(nproc --all)"
 make install
 
+# bundle FFmpeg to make sure DALI ships and uses own version
 fname_with_sha256() {
     HASH=$(sha256sum $1 | cut -c1-8)
     BASENAME=$(basename $1)

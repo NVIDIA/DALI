@@ -48,7 +48,7 @@ test_body() {
     # DecodeJPEGHost doesn't work well for Conda as OpenCV there uses libjpeg that returns a bit different
     # results that libturbo-jpeg DALI uses, also OpenCV conflicts with FFMpeg >= 4.2 which is reguired
     # to handle PackedBFrames
-    "$FULLPATH" --gtest_filter="*:-*Vp9*:*PackedBFrames*"
+    "$FULLPATH" --gtest_filter="*:-*Vp9*"
   done
 }
 

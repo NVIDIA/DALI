@@ -12,27 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "3.4.3" %}
+{% set build_version = "4.2.1" %}
 
   package:
-    name: dali-opencv
+    name: dali-ffmpeg
     version: {{ build_version }}
 
   source:
-    fn: opencv-3.4.3.tar.gz
-    url: https://github.com/opencv/opencv/archive/3.4.3.tar.gz
-    sha256: 4eef85759d5450b183459ff216b4c0fa43e87a4f6aa92c8af649f89336f002ec
+    fn: ffmpeg-4.2.1.tar.bz2
+    url: https://developer.download.nvidia.com/compute/redist/nvidia-dali/ffmpeg-4.2.1.tar.bz2
+    sha256: 682a9fa3f6864d7f0dbf224f86b129e337bc60286e0d00dffcd710998d521624
 
   build:
     number: 0
-    string: dali_opencv
+    string: dali_ffmpeg
 
   requirements:
     build:
       - {{ compiler('c') }}
       - {{ compiler('cxx') }}
-      - cmake
       - make
+      - nasm
+      - libtool
     host:
       - libjpeg-turbo >=1.5
       - libtiff >=4.0
