@@ -22,6 +22,7 @@
 #include <string>
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/core/format.h"
 #include "dali/core/math_util.h"
 
@@ -47,14 +48,22 @@ class BoundingBox {
     return Uniform(ndim, std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max());
   }
 
-  static BoundingBox FromStartAndEnd(RelBounds bbox_bounds, RelBounds limits = {}) {
+  static BoundingBox FromStartAndEnd(RelBounds bbox_bounds, RelBounds limits = {},
+                                     TensorLayout layout = {}) {
     DALI_ENFORCE(bbox_bounds.size() == limits.size() || limits.empty());
     DALI_ENFORCE(bbox_bounds.size() % 2 == 0);
     int ndim = bbox_bounds.size() / 2;
     DALI_ENFORCE(ndim >= 2 && ndim <= 3);
 
     if (limits.empty())
-      limits = NoBounds(ndim);
+      limits = Uniform(ndim);
+
+    if (!layout.empty()) {  // if layout not provided we assume `xyzXYZ`
+      DALI_ENFORCE(layout.is_permutation_of(InternalLayout(ndim)),
+        make_string("`", layout, "` is not a permutation of `", InternalLayout(ndim), "`"));
+
+      bbox_bounds = Permute(bbox_bounds, layout, InternalLayout(ndim));
+    }
 
     CheckBounds(bbox_bounds[0], bbox_bounds[ndim],   limits[0], limits[ndim],   "left", "right");
     CheckBounds(bbox_bounds[1], bbox_bounds[ndim+1], limits[1], limits[ndim+1], "top",  "bottom");
@@ -66,18 +75,43 @@ class BoundingBox {
     return BoundingBox{bbox_bounds};
   }
 
-  static BoundingBox FromStartAndShape(RelBounds start_shape, RelBounds limits = {}) {
+  static BoundingBox FromStartAndShape(RelBounds start_shape, RelBounds limits = {},
+                                       TensorLayout layout = {}) {
     DALI_ENFORCE(start_shape.size() == limits.size() || limits.empty());
     DALI_ENFORCE(start_shape.size() % 2 == 0);
     int ndim = start_shape.size() / 2;
     DALI_ENFORCE(ndim >= 2 && ndim <= 3, make_string("Unexpected number of dimensions: ", ndim));
 
     auto bbox_bounds = start_shape;
+    auto internal_layout = InternalAnchorAndShapeLayout(ndim);
+    if (!layout.empty()) {  // if layout not provided we assume `xyzWHD`
+      DALI_ENFORCE(layout.is_permutation_of(internal_layout),
+                   make_string("`", layout, "` is not a permutation of `", internal_layout, "`"));
+      bbox_bounds = Permute(bbox_bounds, layout, internal_layout);
+    }
+
     for (int i = 0; i < ndim; i++) {
       bbox_bounds[ndim+i] += bbox_bounds[i];
     }
 
     return FromStartAndEnd(bbox_bounds, limits);
+  }
+
+  static BoundingBox From(RelBounds bounds, RelBounds limits = {}, TensorLayout layout = {}) {
+    DALI_ENFORCE(bounds.size() == limits.size() || limits.empty());
+    DALI_ENFORCE(bounds.size() % 2 == 0);
+    int ndim = bounds.size() / 2;
+
+    if (layout.empty())
+      layout = InternalLayout(ndim);
+
+    if (layout.is_permutation_of(InternalLayout(ndim))) {
+      return FromStartAndEnd(bounds, limits, layout);
+    } else if (layout.is_permutation_of(InternalAnchorAndShapeLayout(ndim))) {
+      return FromStartAndShape(bounds, limits, layout);
+    } else {
+      DALI_FAIL(make_string("Unexpected bbox layout: ", layout));
+    }
   }
 
   static BoundingBox FromLtrb(float l, float t, float r, float b,
@@ -196,25 +230,70 @@ class BoundingBox {
     return AxisFlip(2);
   }
 
-  RelBounds AsStartAndEnd() const {
-    return bbox_bounds_;
+  static TensorLayout InternalLayout(int ndim) {
+    assert(ndim == 3 || ndim == 2);
+    return ndim == 3 ? "xyzXYZ" : "xyXY";
   }
 
-  RelBounds AsStartAndShape() const {
+  static TensorLayout InternalAnchorAndShapeLayout(int ndim) {
+    assert(ndim == 3 || ndim == 2);
+    return ndim == 3 ? "xyzWHD" : "xyWH";
+  }
+
+  RelBounds AsStartAndEnd(TensorLayout layout = {}) const {
+    auto internal_layout = InternalLayout(ndim());
+    if (layout.empty() || layout == internal_layout) {
+      return bbox_bounds_;
+    }
+
+    DALI_ENFORCE(layout.is_permutation_of(internal_layout),
+      make_string("`", layout, "` is not a permutation of `", internal_layout, "`"));
+    auto perm = GetDimIndices(InternalLayout(ndim()), layout);
     auto out = bbox_bounds_;
+
     for (int i = 0; i < ndim(); i++) {
-      out[ndim()+i] -= bbox_bounds_[i];
+      int axis = perm[i];
+      out[i]          = bbox_bounds_[axis];
+      out[ndim() + i] = bbox_bounds_[ndim() + axis];
     }
     return out;
   }
 
-  RelBounds AsCenterAndShape() const {
-    auto out = bbox_bounds_;
+  RelBounds AsStartAndShape(TensorLayout layout = {}) const {
+    auto start_and_shape = bbox_bounds_;
     for (int i = 0; i < ndim(); i++) {
-      out[i]        = 0.5f * (bbox_bounds_[ndim()+i] + bbox_bounds_[i]);
-      out[ndim()+i] = bbox_bounds_[ndim()+i] - bbox_bounds_[i];
+      start_and_shape[ndim()+i] -= bbox_bounds_[i];
     }
-    return out;
+
+    auto internal_layout = InternalAnchorAndShapeLayout(ndim());
+    if (layout.empty() || layout == internal_layout) {
+      return start_and_shape;
+    }
+    return Permute(start_and_shape, internal_layout, layout);
+  }
+
+  RelBounds As(TensorLayout layout) const {
+    if (layout.find('W') >= 0) {
+      return AsStartAndShape(layout);
+    } else if (layout.find('X') >= 0) {
+      return AsStartAndEnd(layout);
+    } else {
+      DALI_FAIL(make_string("Unexpected layout: ", layout));
+    }
+  }
+
+  RelBounds AsCenterAndShape(TensorLayout layout = {}) const {
+    auto center_and_shape = bbox_bounds_;
+    for (int i = 0; i < ndim(); i++) {
+      center_and_shape[i]        = 0.5f * (bbox_bounds_[ndim()+i] + bbox_bounds_[i]);
+      center_and_shape[ndim()+i] = bbox_bounds_[ndim()+i] - bbox_bounds_[i];
+    }
+
+    auto internal_layout = InternalAnchorAndShapeLayout(ndim());
+    if (layout.empty() || layout == internal_layout) {
+      return center_and_shape;
+    }
+    return Permute(center_and_shape, internal_layout, layout);
   }
 
   RelBounds Centroid() const {
@@ -261,6 +340,11 @@ class BoundingBox {
     return bbox_bounds_size / 2;
   }
 
+  int size() const {
+    return bbox_bounds_.size();
+  }
+
+
   bool Empty() const {
     return bbox_bounds_.empty() || Volume() == 0.0f;
   }
@@ -286,6 +370,18 @@ class BoundingBox {
     : bbox_bounds_(std::move(bbox_bounds)) {}
 
  private:
+  template <typename Bounds>
+  static Bounds Permute(const Bounds& bounds, TensorLayout orig_layout, TensorLayout new_layout) {
+    DALI_ENFORCE(orig_layout.is_permutation_of(new_layout),
+      make_string("`", orig_layout, "` is not a permutation of `", new_layout, "`"));
+    auto perm = GetDimIndices(orig_layout, new_layout);
+    auto out = bounds;
+    for (int i = 0; i < static_cast<int>(bounds.size()); i++) {
+      out[i] = bounds[perm[i]];
+    }
+    return out;
+  }
+
   static void CheckBounds(float start, float end, float lower, float upper,
                           const string& name_start, const string& name_end) {
     DALI_ENFORCE(start >= lower && start <= upper,

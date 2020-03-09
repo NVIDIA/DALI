@@ -389,5 +389,62 @@ TEST(BoundingBoxTest, Bbox3dBboxFormatConversion) {
   EXPECT_EQ(bbox2.AsStartAndEnd(), start_and_end);
 }
 
+TEST(BoundingBoxTest, LayoutConversionStartAndEnd) {
+  RelBounds start_and_end_yzx = {0.2, 0.3, 0.1, 0.44, 0.66, 0.22};
+  RelBounds start_and_end_xyz = {0.1, 0.2, 0.3, 0.22, 0.44, 0.66};
+  RelBounds start_and_end_zyx = {0.3, 0.2, 0.1, 0.66, 0.44, 0.22};
+
+  ASSERT_EQ(BoundingBox::FromStartAndEnd(start_and_end_yzx, {}, "yzxYZX"),
+            BoundingBox::FromStartAndEnd(start_and_end_zyx, {}, "zyxZYX"));
+
+  ASSERT_EQ(BoundingBox::FromStartAndEnd(start_and_end_yzx, {}, "yzxYZX"),
+            BoundingBox::FromStartAndEnd(start_and_end_xyz, {}, "xyzXYZ"));
+
+  auto box = BoundingBox::FromStartAndEnd(start_and_end_xyz, {}, "xyzXYZ");
+  auto yzx_box = box.AsStartAndEnd("yzxYZX");
+  for (int i = 0; i < 6; i++)
+    ASSERT_EQ(yzx_box[i], start_and_end_yzx[i]);
+
+  auto zyx_box = box.AsStartAndEnd("zyxZYX");
+  for (int i = 0; i < 6; i++)
+    ASSERT_EQ(zyx_box[i], start_and_end_zyx[i]);
+}
+
+TEST(BoundingBoxTest, LayoutConversionStartAndShape) {
+  RelBounds start_and_shape_yzx = {0.2, 0.3, 0.1, 0.44, 0.66, 0.22};
+  RelBounds start_and_shape_xyz = {0.1, 0.2, 0.3, 0.22, 0.44, 0.66};
+  RelBounds start_and_shape_zyx = {0.3, 0.2, 0.1, 0.66, 0.44, 0.22};
+
+  ASSERT_EQ(BoundingBox::FromStartAndShape(start_and_shape_yzx, {}, "yzxHDW"),
+            BoundingBox::FromStartAndShape(start_and_shape_zyx, {}, "zyxDHW"));
+
+  ASSERT_EQ(BoundingBox::FromStartAndShape(start_and_shape_yzx, {}, "yzxHDW"),
+            BoundingBox::FromStartAndShape(start_and_shape_xyz, {}, "xyzWHD"));
+
+  auto box = BoundingBox::FromStartAndShape(start_and_shape_xyz, {}, "xyzWHD");
+  auto yzx_box = box.AsStartAndShape("yzxHDW");
+  for (int i = 0; i < 6; i++)
+    ASSERT_EQ(yzx_box[i], start_and_shape_yzx[i]);
+
+  auto zyx_box = box.AsStartAndShape("zyxDHW");
+  for (int i = 0; i < 6; i++) {
+    ASSERT_EQ(zyx_box[i], start_and_shape_zyx[i]);
+  }
+}
+
+TEST(BoundingBoxTest, From) {
+  RelBounds start_and_shape_yzx = {0.2, 0.3, 0.1, 0.44, 0.66, 0.22};
+  RelBounds start_and_end_yzx = {0.2, 0.3, 0.1, 0.64, 0.96, 0.32};
+
+  ASSERT_EQ(BoundingBox::FromStartAndShape(start_and_shape_yzx, {}, "yzxHDW"),
+            BoundingBox::From(start_and_shape_yzx, {}, "yzxHDW"));
+
+  ASSERT_EQ(BoundingBox::FromStartAndEnd(start_and_end_yzx, {}, "yzxXYZ"),
+            BoundingBox::From(start_and_end_yzx, {}, "yzxXYZ"));
+
+  ASSERT_EQ(BoundingBox::FromStartAndShape(start_and_shape_yzx, {}, "yzxHDW"),
+            BoundingBox::FromStartAndEnd(start_and_end_yzx, {}, "yzxYZX"));
+}
+
 }  // namespace test
 }  // namespace dali
