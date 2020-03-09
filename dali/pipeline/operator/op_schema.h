@@ -358,9 +358,10 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC inline const TensorLayout &GetInputLayout(int index, int sample_ndim,
                                                        const TensorLayout &layout = {}) const {
     CheckInputIndex(index);
+    DALI_ENFORCE(layout.empty() || layout.ndim() == sample_ndim, make_string(
+      "The layout '", layout, "' is not valid for ", sample_ndim, "-dimensional tensor"));
+
     if (input_layouts_[index].empty()) {
-      DALI_ENFORCE(layout.empty() || layout.ndim() == sample_ndim,
-        "The layout for the input has different number of dimensions than actual input");
       return layout;
     }
 
@@ -385,6 +386,11 @@ class DLL_PUBLIC OpSchema {
         ss << l.c_str() << "\n";
       DALI_FAIL(ss.str());
     }
+  }
+
+  DLL_PUBLIC inline const std::vector<TensorLayout> &GetSupportedLayouts(int input_idx) const {
+    CheckInputIndex(input_idx);
+    return input_layouts_[input_idx];
   }
 
   /**

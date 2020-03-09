@@ -37,6 +37,10 @@ TensorListGPU
    :special-members: __getitem__
 
 
+.. _layout_str_doc:
+Data Layouts
+------------
+.. include:: data_layout.rst
 
 Types
 -----
@@ -79,4 +83,3 @@ PipelineAPIType
 .. autoclass:: nvidia.dali.types.PipelineAPIType
    :members:
    :undoc-members:
-
