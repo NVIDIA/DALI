@@ -49,8 +49,10 @@ void Cast<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
 
   DALIDataType itype = input.type().id();
   TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
+    output.SetLayout(input.GetLayout());
     output.mutable_data<OType>();
     output.ResizeLike(input);
+
     TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
       BatchedCast(output.mutable_data<OType>(), input.data<IType>(), input.size(), ws.stream());
     ), DALI_FAIL("Invalid input type"););  // NOLINT(whitespace/parens)
