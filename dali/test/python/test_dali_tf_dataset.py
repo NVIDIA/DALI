@@ -156,13 +156,13 @@ def test_different_num_shapes_dtypes():
     num_threads = 4
 
     dataset_pipeline = TestPipeline(batch_size, num_threads, 'cpu')
-    shapes = [
+    shapes = (
         (batch_size, 3, 224, 224),
-        (batch_size, 1),
-        (batch_size, 1)]
-    dtypes = [
+        (batch_size, 1, 1),
+        (batch_size, 1))
+    dtypes = (
         tf.float32,
-        tf.float32]
+        tf.float32)
 
     with tf.device('/cpu:0'):
         dali_tf.DALIDataset(
@@ -178,14 +178,14 @@ def _test_tf_dataset_multigpu():
     batch_size = 8
     num_threads = 4
 
-    shapes = [
+    shapes = (
         (batch_size, 3, 224, 224),
-        (batch_size, 1),
-        (batch_size, 1)]
-    dtypes = [
+        (batch_size, 1, 1),
+        (batch_size, 1))
+    dtypes = (
         tf.float32,
         tf.int32,
-        tf.int16]
+        tf.int16)
 
     dataset_results = []
     initializers = [tf.compat.v1.global_variables_initializer()]
@@ -255,14 +255,14 @@ class PythonOperatorPipeline(Pipeline):
 @raises(RuntimeError)
 def test_python_operator_error():
     dataset_pipeline = PythonOperatorPipeline()
-    shapes = [(1, 3, 3, 3)]
-    dtypes = [tf.float32]
+    shapes = ((1, 3, 3, 3))
+    dtypes = (tf.float32)
 
     with tf.device('/cpu:0'):
         daliset = dali_tf.DALIDataset(
             pipeline=dataset_pipeline,
             batch_size=1,
-            shapes=shapes,
-            dtypes=dtypes,
+            output_shapes=shapes,
+            output_dtypes=dtypes,
             num_threads=1,
             device_id=0)
