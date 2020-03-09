@@ -259,8 +259,8 @@ if dataset_compatible_tensorflow():
   if _get_tf_version() < StrictVersion('2.0'):
     class DALIDataset(dataset_ops.DatasetV1Adapter):
       @functools.wraps(_DALIDatasetV2.__init__)
-      def __init__(self, **kwargs):
-        wrapped = _DALIDatasetV2(**kwargs)
+      def __init__(self, pipeline, **kwargs):
+        wrapped = _DALIDatasetV2(pipeline, **kwargs)
         super(DALIDataset, self).__init__(wrapped)
   else:
     DALIDataset = _DALIDatasetV2

@@ -14,6 +14,12 @@ from nose.tools import assert_equals, raises
 import itertools
 import warnings
 
+try:
+    tf.compat.v1.enable_eager_execution()
+except:
+    pass
+
+
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/jpeg/')
 file_list_path = os.path.join(data_path, 'image_list.txt')
 
