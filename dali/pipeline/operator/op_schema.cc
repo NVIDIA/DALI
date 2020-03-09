@@ -90,7 +90,7 @@ string OpSchema::Dox() const {
   return dox_;
 }
 
-std::map<std::string, std::pair<std::string, DALIDataType> >
+std::map<std::string, RequiredArgumentDef>
 OpSchema::GetRequiredArguments() const {
   auto ret = arguments_;
   for (const auto &parent_name : parents_) {
@@ -101,7 +101,7 @@ OpSchema::GetRequiredArguments() const {
   return ret;
 }
 
-std::map<std::string, std::pair<std::string, Value*>> OpSchema::GetOptionalArguments() const {
+std::map<std::string, DefaultedArgumentDef> OpSchema::GetOptionalArguments() const {
   auto ret = optional_arguments_;
   for (const auto &parent_name : parents_) {
     const OpSchema &parent = SchemaRegistry::GetSchema(parent_name);
@@ -115,10 +115,10 @@ std::string OpSchema::GetArgumentDox(const std::string &name) const {
   DALI_ENFORCE(HasArgument(name), "Argument \"" + name +
       "\" is not supported by operator \"" + this->name() + "\".");
   if (HasRequiredArgument(name)) {
-    return GetRequiredArguments().at(name).first;
+    return GetRequiredArguments().at(name).doc;
   } else {
     // optional argument
-    return GetOptionalArguments().at(name).first;
+    return GetOptionalArguments().at(name).doc;
   }
 }
 
@@ -126,18 +126,36 @@ DALIDataType OpSchema::GetArgumentType(const std::string &name) const {
   DALI_ENFORCE(HasArgument(name), "Argument \"" + name +
       "\" is not supported by operator \"" + this->name() + "\".");
   if (HasRequiredArgument(name)) {
-    return GetRequiredArguments().at(name).second;
+    return GetRequiredArguments().at(name).dtype;
   } else {
     // optional argument
-    return GetOptionalArguments().at(name).second->GetTypeID();
+    return GetOptionalArguments().at(name).dtype;
   }
+}
+
+bool OpSchema::HasArgumentDefaultValue(const std::string &name) const {
+  DALI_ENFORCE(HasArgument(name, true), "Argument \"" + name +
+      "\" is not supported by operator \"" + this->name() + "\".");
+  if (HasRequiredArgument(name)) {
+    return false;
+  }
+  if (HasInternalArgument(name, true)) {
+    return true;
+  }
+  auto *value_ptr = GetOptionalArguments().at(name).default_value;
+  return value_ptr != nullptr;
 }
 
 std::string OpSchema::GetArgumentDefaultValueString(const std::string &name) const {
   DALI_ENFORCE(HasOptionalArgument(name), "Argument \"" + name +
       "\" is either not supported by operator \"" + this->name() + "\" or is not optional.");
 
-  auto &val = *GetOptionalArguments().at(name).second;
+  auto *value_ptr = GetOptionalArguments().at(name).default_value;
+
+  DALI_ENFORCE(value_ptr, make_string("Argument \"", name,
+      "\" in operator \"" + this->name() + "\" has no default value."));
+
+  auto &val = *value_ptr;
   auto str = val.ToString();
   if (val.GetTypeID() == DALI_STRING ||
       val.GetTypeID() == DALI_TENSOR_LAYOUT)
@@ -181,16 +199,28 @@ bool OpSchema::HasOptionalArgument(const std::string &name, const bool local_onl
   return ret;
 }
 
+bool OpSchema::HasInternalArgument(const std::string &name, const bool local_only) const {
+  bool ret = internal_arguments_.find(name) != internal_arguments_.end();
+  if (ret || local_only) {
+    return ret;
+  }
+  for (const auto &p : parents_) {
+    const OpSchema &parent = SchemaRegistry::GetSchema(p);
+    ret = ret || parent.HasInternalArgument(name);
+  }
+  return ret;
+}
+
 std::pair<const OpSchema *, const Value *>
 OpSchema::FindDefaultValue(const std::string &name, bool local_only, bool include_internal) const {
   auto it = optional_arguments_.find(name);
   if (it != optional_arguments_.end()) {
-    return { this, it->second.second };
+    return { this, it->second.default_value };
   }
   if (include_internal) {
     it = internal_arguments_.find(name);
     if (it != internal_arguments_.end()) {
-      return { this, it->second.second };
+      return { this, it->second.default_value };
     }
   }
   if (local_only)

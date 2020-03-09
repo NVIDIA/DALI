@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/generic/reshape.h"
 
 #include <vector>
+
 #include "dali/core/math_util.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/operators/generic/reshape.h"
 #include "dali/pipeline/data/views.h"
 
 namespace dali {
@@ -50,7 +52,7 @@ DALI_SCHEMA(Reshape)
                   "preserved if number of dimension matches existing layout or reset to empty "
                   "otherwise. If set and not empty, the layout must match the dimensionality of "
                   "the output.",
-                  "");
+                  TensorLayout(""));
 
 DALI_SCHEMA(Reinterpret)
   .DocStr(R"(Treats content of the input as if it had a different type, shape and/or layout.

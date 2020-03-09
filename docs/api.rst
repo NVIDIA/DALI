@@ -58,24 +58,21 @@ DALIDataType
 ^^^^^^^^^^^^
 .. autoclass:: nvidia.dali.types.DALIDataType
    :members:
+   :member-order: bysource
    :undoc-members:
 
 DALIIterpType
 ^^^^^^^^^^^^^
 .. autoclass:: nvidia.dali.types.DALIInterpType
    :members:
+   :member-order: bysource
    :undoc-members:
 
 DALIImageType
 ^^^^^^^^^^^^^
 .. autoclass:: nvidia.dali.types.DALIImageType
    :members:
-   :undoc-members:
-
-TensorLayout
-^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.TensorLayout
-   :members:
+   :member-order: bysource
    :undoc-members:
 
 PipelineAPIType
@@ -83,3 +80,4 @@ PipelineAPIType
 .. autoclass:: nvidia.dali.types.PipelineAPIType
    :members:
    :undoc-members:
+   :member-order: bysource

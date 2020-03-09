@@ -25,14 +25,27 @@
 #include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/copy_vector_helper.h"
 #include "dali/core/format.h"
 #include "dali/core/traits.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/argument.h"
 
 namespace dali {
 
 class OpSpec;
+
+struct RequiredArgumentDef {
+  std::string doc;
+  DALIDataType dtype;
+};
+
+struct DefaultedArgumentDef {
+  std::string doc;
+  DALIDataType dtype;
+  Value *default_value;
+};
 
 class DLL_PUBLIC OpSchema {
  public:
@@ -45,25 +58,11 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC explicit inline OpSchema(const std::string &name): name_(name) {
     // Fill internal arguments
-    auto v = Value::construct(-1);
-    internal_arguments_["num_threads"] =
-        std::make_pair("Number of CPU threads in a thread pool", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(-1);
-    internal_arguments_["batch_size"] = std::make_pair("Batch size", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(1);
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(std::string("cpu"));
-    internal_arguments_["device"] = std::make_pair("Device on which the Op is run", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(false);
-    internal_arguments_["inplace"] = std::make_pair("Whether Op can be run in place", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
-    v = Value::construct(0);
-    internal_arguments_["default_cuda_stream_priority"] =
-        std::make_pair("Default cuda stream priority", v.get());
-    internal_arguments_unq_.push_back(std::move(v));
+    AddInternalArg("num_threads", "Number of CPU threads in a thread pool", -1);
+    AddInternalArg("batch_size", "Batch size", -1);
+    AddInternalArg("device", "Device on which the Op is run", std::string("cpu"));
+    AddInternalArg("inplace", "Whether Op can be run in place", false);
+    AddInternalArg("default_cuda_stream_priority", "Default cuda stream priority", 0);
 
     AddOptionalArg("seed", "Random seed (If not provided it will be populated based "
       "on the global seed of the pipeline)", -1);
@@ -74,6 +73,8 @@ class DLL_PUBLIC OpSchema {
     AddOptionalArg("preserve", "Do not remove the Op from the "
                                "graph even if its outputs are unused.", false);
   }
+
+
 
   DLL_PUBLIC inline ~OpSchema() = default;
 
@@ -291,7 +292,7 @@ class DLL_PUBLIC OpSchema {
                                      const DALIDataType dtype,
                                      bool enable_tensor_input = false) {
     CheckArgument(s);
-    arguments_[s] = std::make_pair(doc, dtype);
+    arguments_[s] = {doc, dtype};
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
     }
@@ -394,6 +395,23 @@ class DLL_PUBLIC OpSchema {
   }
 
   /**
+   * @brief Adds an optional non-vector argument without default to op
+   */
+  template <typename T>
+  DLL_PUBLIC inline OpSchema& AddOptionalArg(const std::string &s,
+                                     const std::string &doc,
+                                     std::nullptr_t,
+                                     bool enable_tensor_input = false) {
+    CheckArgument(s);
+    optional_arguments_[s] = {doc, type2id<T>::value, nullptr};
+    if (enable_tensor_input) {
+      tensor_arguments_.insert(s);
+    }
+    return *this;
+  }
+
+
+  /**
    * @brief Adds an optional non-vector argument to op
    */
   template <typename T>
@@ -404,7 +422,7 @@ class DLL_PUBLIC OpSchema {
                  bool enable_tensor_input = false) {
     CheckArgument(s);
     auto to_store = Value::construct(default_value);
-    optional_arguments_[s] = std::make_pair(doc, to_store.get());
+    optional_arguments_[s] = {doc, type2id<T>::value, to_store.get()};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
@@ -426,8 +444,9 @@ class DLL_PUBLIC OpSchema {
                                              std::vector<T> default_value,
                                              bool enable_tensor_input = false) {
     CheckArgument(s);
-    auto to_store = Value::construct(std::vector<T>(default_value));
-    optional_arguments_[s] = std::make_pair(doc, to_store.get());
+    using S = argument_storage_t<T>;
+    auto to_store = Value::construct(detail::convert_vector<S>(default_value));
+    optional_arguments_[s] = {doc, type2id<std::vector<T>>::value, to_store.get()};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_.insert(s);
@@ -663,13 +682,17 @@ class DLL_PUBLIC OpSchema {
 
   DLL_PUBLIC void CheckArgs(const OpSpec &spec) const;
 
+  /**
+   * @brief Get default value of optional or internal argument. The default value must be declared
+   */
   template<typename T>
-  DLL_PUBLIC inline T GetDefaultValueForOptionalArgument(const std::string &s) const;
+  DLL_PUBLIC inline T GetDefaultValueForArgument(const std::string &s) const;
 
   DLL_PUBLIC bool HasRequiredArgument(const std::string &name, const bool local_only = false) const;
 
   DLL_PUBLIC bool HasOptionalArgument(const std::string &name, const bool local_only = false) const;
 
+  DLL_PUBLIC bool HasInternalArgument(const std::string &name, const bool local_only = false) const;
   /**
    * @brief Finds default value for a given argument
    * @return A pair of the defining schema and the value
@@ -679,13 +702,37 @@ class DLL_PUBLIC OpSchema {
                    bool local_only = false,
                    bool include_internal = true) const;
 
-  DLL_PUBLIC inline bool HasArgument(const std::string &name) const {
-    return HasRequiredArgument(name) || HasOptionalArgument(name);
+  DLL_PUBLIC inline bool HasArgument(const std::string &name, bool include_internal = false) const {
+    return HasRequiredArgument(name) || HasOptionalArgument(name)
+        || (include_internal && HasInternalArgument(name, true));
   }
 
+  /**
+   * @brief Get docstring for operator argument of given name (Python Operator Kwargs).
+   */
   DLL_PUBLIC std::string GetArgumentDox(const std::string &name) const;
+
+  /**
+   * @brief Get enum representing type of argument of given name.
+   */
   DLL_PUBLIC DALIDataType GetArgumentType(const std::string &name) const;
+
+  /**
+   * @brief Check if the argument has a default value.
+   *        Required arguments always return false.
+   *        Internal arguments always return true.
+   */
+  DLL_PUBLIC bool HasArgumentDefaultValue(const std::string &name) const;
+
+  /**
+   * @brief Get default value of optional argument represented as python-compatible repr string.
+   *        Not allowed for internal arguments.
+   */
   DLL_PUBLIC std::string GetArgumentDefaultValueString(const std::string &name) const;
+
+  /**
+   * @brief Get names of all required and optional arguments
+   */
   DLL_PUBLIC std::vector<std::string> GetArgumentNames() const;
   DLL_PUBLIC bool IsTensorArgument(const std::string &name) const;
 
@@ -703,9 +750,20 @@ class DLL_PUBLIC OpSchema {
       std::to_string(max_num_input_) + ").\nWas NumInput called?");
   }
 
-  std::map<std::string, std::pair<std::string, DALIDataType> > GetRequiredArguments() const;
+  /**
+   * @brief Add internal argument to schema. It always has a value.
+   */
+  template <typename T>
+  void AddInternalArg(const std::string &name, const std::string &doc, T value) {
+    auto v = Value::construct(value);
+    internal_arguments_[name] = {doc, type2id<T>::value, v.get()};
+    internal_arguments_unq_.push_back(std::move(v));
+  }
 
-  std::map<std::string, std::pair<std::string, Value*>> GetOptionalArguments() const;
+  std::map<std::string, RequiredArgumentDef> GetRequiredArguments() const;
+
+
+  std::map<std::string, DefaultedArgumentDef> GetOptionalArguments() const;
 
   string dox_;
   string name_;
@@ -751,9 +809,9 @@ class DLL_PUBLIC OpSchema {
   bool is_deprecated_ = false;
   string deprecated_in_favor_of_;
 
-  std::map<std::string, std::pair<std::string, DALIDataType> > arguments_;
-  std::map<std::string, std::pair<std::string, Value*> > optional_arguments_;
-  std::map<std::string, std::pair<std::string, Value*> > internal_arguments_;
+  std::map<std::string, RequiredArgumentDef> arguments_;
+  std::map<std::string, DefaultedArgumentDef> optional_arguments_;
+  std::map<std::string, DefaultedArgumentDef> internal_arguments_;
   std::vector<std::unique_ptr<Value> > optional_arguments_unq_;
   std::vector<std::unique_ptr<Value> > internal_arguments_unq_;
   std::vector<std::vector<TensorLayout>> input_layouts_;
@@ -774,10 +832,11 @@ class SchemaRegistry {
 };
 
 template<typename T>
-inline T OpSchema::GetDefaultValueForOptionalArgument(const std::string &s) const {
+inline T OpSchema::GetDefaultValueForArgument(const std::string &s) const {
   const Value *v = FindDefaultValue(s, false, true).second;
-  DALI_ENFORCE(v != nullptr, "Optional argument \"" + s + "\" is not defined for schema \""
-      + this->name() + "\"");
+  DALI_ENFORCE(v != nullptr,
+               make_string("The argument \"", s, "\" doesn't have a default value in schema \"",
+                           name(), "\"."));
 
   const ValueInst<T> * vT = dynamic_cast<const ValueInst<T>*>(v);
   DALI_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s +

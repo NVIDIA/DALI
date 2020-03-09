@@ -51,19 +51,30 @@ TEST(OpSchemaTest, OutputFNTest) {
 
 DALI_SCHEMA(Dummy3)
   .NumInput(1).NumOutput(1)
-  .AddOptionalArg("foo", "foo", 1.5f);
+  .AddOptionalArg("foo", "foo", 1.5f)
+  .AddOptionalArg<int>("no_default", "argument without default", nullptr);
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
   auto spec = OpSpec("Dummy3");
   auto &schema = SchemaRegistry::GetSchema("Dummy3");
 
   ASSERT_TRUE(schema.HasOptionalArgument("foo"));
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("foo"), 1.5f);
+
+  ASSERT_TRUE(schema.HasOptionalArgument("no_default"));
+
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("foo"));
+
+  ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
+
+  ASSERT_THROW(schema.HasArgumentDefaultValue("don't have this one"), std::runtime_error);
 }
 
 DALI_SCHEMA(Dummy4)
   .NumInput(1).NumOutput(1)
   .AddOptionalArg("bar", "var", 17.f)
+  .AddOptionalArg<bool>("no_default2", "argument without default", nullptr)
   .AddParent("Dummy3");
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
@@ -71,8 +82,20 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   auto &schema = SchemaRegistry::GetSchema("Dummy4");
 
   ASSERT_TRUE(schema.HasOptionalArgument("foo"));
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("bar"), 17);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("foo"), 1.5f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("bar"), 17);
+
+  ASSERT_TRUE(schema.HasOptionalArgument("no_default"));
+  ASSERT_TRUE(schema.HasOptionalArgument("no_default2"));
+
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("foo"));
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("bar"));
+
+  ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
+  ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
+
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::runtime_error);
 }
 
 DALI_SCHEMA(Dummy5)
@@ -90,14 +113,28 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleInheritance) {
   ASSERT_TRUE(schema.HasOptionalArgument("bar"));
   ASSERT_TRUE(schema.HasOptionalArgument("baz"));
 
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("bar"), 17.f);
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("baz"), 2.f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("foo"), 1.5f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("bar"), 17.f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("baz"), 2.f);
+
+  ASSERT_TRUE(schema.HasOptionalArgument("no_default"));
+  ASSERT_TRUE(schema.HasOptionalArgument("no_default2"));
+
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("foo"));
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("bar"));
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("baz"));
+
+  ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
+  ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
+
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::runtime_error);
 }
 
 DALI_SCHEMA(Dummy6)
   .NumInput(1).NumOutput(1)
-  .AddOptionalArg("dummy", "dummy", 1.85f);
+  .AddOptionalArg("dummy", "dummy", 1.85f)
+  .AddOptionalArg<float>("no_default3", "argument without default", nullptr);
 
 DALI_SCHEMA(Dummy7)
   .NumInput(1).NumOutput(1)
@@ -112,10 +149,27 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleParent) {
   ASSERT_TRUE(schema.HasOptionalArgument("baz"));
   ASSERT_TRUE(schema.HasOptionalArgument("dummy"));
 
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("foo"), 1.5f);
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("bar"), 17.f);
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("baz"), 2.f);
-  ASSERT_EQ(schema.GetDefaultValueForOptionalArgument<float>("dummy"), 1.85f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("foo"), 1.5f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("bar"), 17.f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("baz"), 2.f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("dummy"), 1.85f);
+
+  ASSERT_TRUE(schema.HasOptionalArgument("no_default"));
+  ASSERT_TRUE(schema.HasOptionalArgument("no_default2"));
+  ASSERT_TRUE(schema.HasOptionalArgument("no_default3"));
+
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("foo"));
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("bar"));
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("baz"));
+  ASSERT_TRUE(schema.HasArgumentDefaultValue("dummy"));
+
+  ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
+  ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
+  ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default3"));
+
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<float>("no_default3"), std::runtime_error);
 }
 
 DALI_SCHEMA(Dummy8)
