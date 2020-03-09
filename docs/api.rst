@@ -38,9 +38,20 @@ TensorListGPU
 
 
 .. _layout_str_doc:
+Data Layouts
 ------------
 .. include:: data_layout.rst
 
+Types
+-----
+
+Constant
+^^^^^^^^
+.. autofunction:: nvidia.dali.types.Constant
+.. autoclass:: nvidia.dali.types.ScalarConstant
+   :members:
+
+Enums
 -----
 
 DALIDataType
