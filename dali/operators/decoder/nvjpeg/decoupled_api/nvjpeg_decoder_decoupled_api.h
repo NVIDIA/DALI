@@ -548,7 +548,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
     CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
     CUDA_CALL(cudaStreamWaitEvent(ws.stream(), hw_decode_event_, 0));
-
   }
 
   inline int GetNextBufferIndex(int thread_id) {
