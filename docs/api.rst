@@ -38,6 +38,7 @@ TensorListGPU
 
 
 .. _layout_str_doc:
+
 Data Layouts
 ------------
 .. include:: data_layout.rst
