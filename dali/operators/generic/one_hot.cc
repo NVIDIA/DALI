@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,22 +19,18 @@ namespace dali {
 void OneHot::RunImpl(HostWorkspace &ws) {
   auto &output = ws.OutputRef<CPUBackend>(0);
   auto &input = ws.InputRef<CPUBackend>(0);
-  // check
   for (int i = 0; i < batch_size_; ++i) {
     auto &inptr = input[i];
     auto cls = inptr.template mutable_data<int>();
-    // DALI_ENFORCE(*cls < nclasses_, "Value ", cls,
-    //     " is bigger than specified number of classes");
+    DALI_ENFORCE(*cls < nclasses_, "Values are bigger than specified number of classes");
     auto &outptr = output[i];
     auto one_hot = outptr.template mutable_data<int>();
     one_hot[*cls] = 1;
   }
 }
 
-// Check
 DALI_REGISTER_OPERATOR(OneHot, OneHot, CPU);
 
-// Check
 DALI_SCHEMA(OneHot)
     .DocStr(
         "Produce tensor representing one hot encoding "
