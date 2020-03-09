@@ -76,9 +76,9 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
 
   for (int i = 0; i < input.size(); i += 4) {
     auto bbox = ltrb_ ? BoundingBox::FromLtrb(input_data[i], input_data[i + 1], input_data[i + 2],
-                                              input_data[i + 3], BoundingBox::NoBounds())
+                                              input_data[i + 3], BoundingBox::NoBounds(2))
                       : BoundingBox::FromXywh(input_data[i], input_data[i + 1], input_data[i + 2],
-                                              input_data[i + 3], BoundingBox::NoBounds());
+                                              input_data[i + 3], BoundingBox::NoBounds(2));
 
     if (horizontal) {
       bbox = bbox.HorizontalFlip();

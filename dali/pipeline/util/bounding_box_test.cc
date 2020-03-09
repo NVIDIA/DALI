@@ -26,7 +26,7 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates) {
-  BoundingBox::FromLtrb(-0.5, 0.5, 0.5, 0.5, BoundingBox::NoBounds());
+  BoundingBox::FromLtrb(-0.5, 0.5, 0.5, 0.5, BoundingBox::NoBounds(2));
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates2) {
@@ -34,7 +34,7 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates2) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates2) {
-  BoundingBox::FromLtrb(0.5, -0.5, 0.5, 0.5, BoundingBox::NoBounds());
+  BoundingBox::FromLtrb(0.5, -0.5, 0.5, 0.5, BoundingBox::NoBounds(2));
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates3) {
@@ -42,7 +42,7 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates3) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates3) {
-  BoundingBox::FromLtrb(-1.5, 0.5, -0.5, 0.5, BoundingBox::NoBounds());
+  BoundingBox::FromLtrb(-1.5, 0.5, -0.5, 0.5, BoundingBox::NoBounds(2));
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates4) {
@@ -50,7 +50,7 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates4) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates4) {
-  BoundingBox::FromLtrb(0.5, -1.5, 0.5, -0.5, BoundingBox::NoBounds());
+  BoundingBox::FromLtrb(0.5, -1.5, 0.5, -0.5, BoundingBox::NoBounds(2));
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne) {
@@ -58,7 +58,7 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne) {
-  BoundingBox::FromLtrb(1.1, 0.5, 1.5, 0.5, BoundingBox::NoBounds());
+  BoundingBox::FromLtrb(1.1, 0.5, 1.5, 0.5, BoundingBox::NoBounds(2));
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne2) {
@@ -66,7 +66,7 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne2) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne2) {
-  BoundingBox::FromLtrb(0.5, 1.1, 0.5, 1.5, BoundingBox::NoBounds());
+  BoundingBox::FromLtrb(0.5, 1.1, 0.5, 1.5, BoundingBox::NoBounds(2));
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne3) {
@@ -74,7 +74,7 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne3) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne3) {
-  BoundingBox::FromLtrb(0.5, 0.5, 1.1, 0.5, BoundingBox::NoBounds());
+  BoundingBox::FromLtrb(0.5, 0.5, 1.1, 0.5, BoundingBox::NoBounds(2));
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne4) {
@@ -82,7 +82,7 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne4) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne4) {
-  BoundingBox::FromLtrb(0.5, 0.5, 0.5, 1.1, BoundingBox::NoBounds());
+  BoundingBox::FromLtrb(0.5, 0.5, 0.5, 1.1, BoundingBox::NoBounds(2));
 }
 
 TEST(BoundingBoxTest, BoundingBoxRightMustBeGreaterOrEqualToLeft) {

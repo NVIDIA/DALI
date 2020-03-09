@@ -88,7 +88,7 @@ vector<BoundingBox> BoxEncoder<CPUBackend>::ReadBoxesFromInput(
 
   for (unsigned idx = 0; idx < num_boxes; ++idx) {
     boxes.push_back(BoundingBox::FromLtrb(in_box_data[0], in_box_data[1], in_box_data[2],
-                                          in_box_data[3], BoundingBox::NoBounds()));
+                                          in_box_data[3], BoundingBox::NoBounds(2)));
     in_box_data += kBboxSize;
   }
 

@@ -44,7 +44,7 @@ class BoundingBox {
     return bounds;
   }
 
-  static RelBounds NoBounds(int ndim = 2) {
+  static RelBounds NoBounds(int ndim) {
     return Uniform(ndim, std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max());
   }
 
@@ -58,15 +58,17 @@ class BoundingBox {
     if (limits.empty())
       limits = Uniform(ndim);
 
-    if (!layout.empty()) {  // if layout not provided we assume `xyzXYZ`
+    if (!layout.empty()) {  // if layout not provided we assume `xy(z)XY(Z)`
       DALI_ENFORCE(layout.is_permutation_of(InternalLayout(ndim)),
         make_string("`", layout, "` is not a permutation of `", InternalLayout(ndim), "`"));
 
       bbox_bounds = Permute(bbox_bounds, layout, InternalLayout(ndim));
     }
 
-    CheckBounds(bbox_bounds[0], bbox_bounds[ndim],   limits[0], limits[ndim],   "left", "right");
-    CheckBounds(bbox_bounds[1], bbox_bounds[ndim+1], limits[1], limits[ndim+1], "top",  "bottom");
+    CheckBounds(bbox_bounds[0], bbox_bounds[ndim], limits[0], limits[ndim],
+                "left", "right");
+    CheckBounds(bbox_bounds[1], bbox_bounds[ndim + 1], limits[1], limits[ndim + 1],
+                "top",  "bottom");
 
     // handle depth dimension (if necessary)
     if (ndim == 3)

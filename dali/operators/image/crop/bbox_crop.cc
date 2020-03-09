@@ -262,15 +262,21 @@ incompatible with using `scaling` and `aspect_ratio` arguments.)code",
 
   `X` (horizontal end anchor),   `Y` (vertical end anchor),   `Z` (depth-wise end anchor),
 
-  `W` (width),                   `H` (height),                `D` (depth).)code",
-        TensorLayout{"xyXY"})
+  `W` (width),                   `H` (height),                `D` (depth).
+
+Note: If left empty, `xyXY` or `xyzXYZ` will be assumed, depending on the number of dimensions.
+)code",
+        TensorLayout{""})
     .AddOptionalArg<TensorLayout>(
         "shape_layout",
          R"code(Determines the meaning of the dimensions provided in `crop_shape` and `input_shape`.
 Possible values are:
 
-  `W` (width), `H` (height), `D` (depth).)code",
-         TensorLayout{"WHD"});
+  `W` (width), `H` (height), `D` (depth).
+
+Note: If left empty, `WH` or `WHD` will be assumed, depending on the number of dimensions.
+)code",
+         TensorLayout{""});
 
 template <>
 class RandomBBoxCrop<CPUBackend>::Impl {
@@ -298,7 +304,6 @@ class RandomBBoxCrop<CPUBackend>::Impl {
       }
       DALI_WARN("`ltrb` is deprecated. Please use `bbox_layout` to specify the format of the"
                 " bounding box (e.g. \"xyXY\", \"xyWH\", ...)");
-      bbox_layout_ = InternalBboxLayout(2, spec.GetArgument<bool>("ltrb"));
     }
 
     if (has_crop_shape_) {
@@ -346,14 +351,17 @@ class RandomBBoxCrop<CPUBackend>::Impl {
     DALI_ENFORCE(ndim_ == 2 || ndim_ == 3,
       make_string("Unexpected number of dimensions: ", ndim_));
 
-    DALI_ENFORCE(!bbox_layout_.empty(), "`bbox_layout` can't be empty");
+    if (bbox_layout_.empty()) {
+      auto ltrb = spec_.GetArgument<bool>("ltrb");
+      bbox_layout_ = InternalBboxLayout(ndim_, ltrb);
+    }
 
     auto default_bbox_layout_start_end = InternalBboxLayout(ndim_, true);
     auto default_bbox_layout_start_shape = InternalBboxLayout(ndim_, false);
     DALI_ENFORCE(bbox_layout_.is_permutation_of(default_bbox_layout_start_end) ||
                  bbox_layout_.is_permutation_of(default_bbox_layout_start_shape),
       make_string("`bbox_layout` should be a permutation of `", default_bbox_layout_start_end,
-                  "` or `", default_bbox_layout_start_shape, "`"));
+                  "` or `", default_bbox_layout_start_shape, "`. Got: `", bbox_layout_, "`"));
 
     if (spec_.ArgumentDefined("input_shape") && spec_.ArgumentDefined("crop_shape")) {
       CollectShape(input_shape_, "input_shape", spec_, ws, ndim_, true);
@@ -453,7 +461,8 @@ class RandomBBoxCrop<CPUBackend>::Impl {
         for (int d = 0; d < ndim_; d++)
           no_crop[ndim_ + d] *= input_shape[d];
       }
-      return ProspectiveCrop(true, BoundingBox::From(no_crop), bounding_boxes, labels);
+      return ProspectiveCrop(true, BoundingBox::From(no_crop, BoundingBox::NoBounds(ndim_)),
+                             bounding_boxes, labels);
     }
 
     RelBounds shape, anchor, out_bounds, rel_bounds;
@@ -502,8 +511,8 @@ class RandomBBoxCrop<CPUBackend>::Impl {
         }
       }
 
-      const auto rel_crop = BoundingBox::FromStartAndShape(rel_bounds);
-      const auto out_crop = BoundingBox::FromStartAndShape(out_bounds);
+      auto rel_crop = BoundingBox::FromStartAndShape(rel_bounds);
+      auto out_crop = BoundingBox::FromStartAndShape(out_bounds, BoundingBox::NoBounds(ndim_));
 
       if (!ValidOverlap(rel_crop, bounding_boxes, option.min_iou)) {
         continue;
