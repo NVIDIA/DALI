@@ -16,10 +16,6 @@
 # limitations under the License.
 
 
-# Create build directory for cmake and enter it
-mkdir $SRC_DIR/build
-cd $SRC_DIR/build
-
 #Determine Architecture
 
 ARCH="$(arch)"
@@ -43,6 +39,36 @@ export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++14}
 # Adding NO_ALIGNED_ALLOC definition for cutt
 export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
 export PATH=/usr/local/cuda/bin:${PATH}
+
+# For some reason `aligned_alloc` is present when we use compiler version 5.4.x
+# Adding NO_ALIGNED_ALLOC definition for cutt
+export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
+export PATH=/usr/local/cuda/bin:${PATH}
+
+# Build custom FFmepg first
+# unset the SUBDIR variable since it changes the behavior of make here
+unset SUBDIR
+cd ffmpeg
+./configure \
+    --prefix=${PREFIX} \
+    --cc=${CC} \
+    --disable-static \
+    --disable-all \
+    --disable-autodetect \
+    --disable-iconv \
+    --enable-shared \
+    --enable-avformat \
+    --enable-avcodec \
+    --enable-avfilter \
+    --enable-protocol=file \
+    --enable-demuxer=mov,matroska,avi  \
+    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes
+make -j"$(nproc --all)"
+make install
+
+# Create build directory for cmake and enter it
+mkdir $SRC_DIR/build
+cd $SRC_DIR/build
 # Build
 cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DCUDA_rt_LIBRARY=$BUILD_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \
@@ -74,6 +100,66 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       ..
 make -j"$(nproc --all)"
 make install
+
+fname_with_sha256() {
+    HASH=$(sha256sum $1 | cut -c1-8)
+    BASENAME=$(basename $1)
+    INITNAME=$(echo $BASENAME | cut -f1 -d".")
+    ENDNAME=$(echo $BASENAME | cut -f 2- -d".")
+    echo "$INITNAME-$HASH.$ENDNAME"
+}
+
+DEPS_LIST=(
+    "$PREFIX/lib/libavformat.so.58"
+    "$PREFIX/lib/libavcodec.so.58"
+    "$PREFIX/lib/libavfilter.so.7"
+    "$PREFIX/lib/libavutil.so.56"
+)
+
+DEPS_SONAME=(
+    "libavformat.so.58"
+    "libavcodec.so.58"
+    "libavfilter.so.7"
+    "libavutil.so.56"
+)
+
+PKGNAME_PATH=dali/python/nvidia/dali/
+mkdir -p $PKGNAME_PATH/.libs
+
+patched=()
+for filepath in "${DEPS_LIST[@]}"; do
+    filename=$(basename $filepath)
+    patchedname=$(fname_with_sha256 $filepath)
+    patchedpath=$PKGNAME_PATH/.libs/$patchedname
+    patched+=("$patchedname")
+
+    if [[ ! -f "$filepath" ]]; then
+        echo "Didn't find $filename, skipping..."
+        continue
+    fi
+    echo "Copying $filepath to $patchedpath"
+    cp $filepath $patchedpath
+
+    echo "Patching DT_SONAME field in $patchedpath"
+    patchelf --set-soname $patchedname $patchedpath
+done
+
+find $PKGNAME_PATH -name '*.so*' -o -name '*.bin' | while read sofile; do
+    for ((i=0;i<${#DEPS_LIST[@]};++i)); do
+        origname=${DEPS_SONAME[i]}
+        patchedname=${patched[i]}
+        if [[ "$origname" != "$patchedname" ]]; then
+            set +e
+            patchelf --print-needed $sofile | grep $origname 2>&1 >/dev/null
+            ERRCODE=$?
+            set -e
+            if [ "$ERRCODE" -eq "0" ]; then
+                echo "patching $sofile entry $origname to $patchedname"
+                patchelf --replace-needed $origname $patchedname $sofile
+            fi
+        fi
+    done
+done
 
 # set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
 PKGNAME_PATH=$PWD/dali/python/nvidia/dali
