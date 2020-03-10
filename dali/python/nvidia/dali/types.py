@@ -212,13 +212,13 @@ dtype: DALIDataType, optional
     def __eq__(self, other):
         if isinstance(other, ScalarConstant):
             return self.value == other.value and self.dtype == other.dtype
-        # Delegate the call to the `__eq__` of other object, most probably an `_EdgeReference`
+        # Delegate the call to the `__eq__` of other object, most probably a `DataNode`
         return other.__eq__(self)
 
     def __ne__(self, other):
         if isinstance(other, ScalarConstant):
             return self.value != other.value or self.dtype != other.dtype
-        # Delegate the call to the `__ne__` of other object, most probably an `_EdgeReference`
+        # Delegate the call to the `__ne__` of other object, most probably a `DataNode`
         return other.__ne__(self)
 
     def __bool__(self):

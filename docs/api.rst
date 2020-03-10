@@ -1,84 +1,23 @@
 Python API
 ==========
 
-Pipeline
---------
-.. autoclass:: nvidia.dali.pipeline.Pipeline
-   :members:
+DALI functionality is exposed through Python API for ease of use and interoperability with common
+deep learning frameworks. This part of the documentation contains the detailed description of this
+API.
 
-Tensor
-------
+`Pipeline <pipeline.rst>`_ section describes the :class:`Pipeline` object - the central and most
+important part of every program using DALI.
 
-TensorCPU
-^^^^^^^^^
-.. autoclass:: nvidia.dali.backend.TensorCPU
-   :members:
-   :undoc-members:
+`Types <data_types.rst>`_ section describes types used to construct and returned by DALI pipelines.
 
-TensorGPU
-^^^^^^^^^
-.. autoclass:: nvidia.dali.backend.TensorGPU
-   :members:
-   :undoc-members:
+`Functioal API <functional_api.rst>`_ (Experimental!) section describes a psuedo-imperative API
+which can be used to define DALI pipelines with less verbosity.
 
-TensorList
-----------
+.. toctree::
+   :maxdepth: 2
+   :caption:
+        API documentation
 
-TensorListCPU
-^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.backend.TensorListCPU
-   :members:
-   :special-members: __getitem__
-
-TensorListGPU
-^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.backend.TensorListGPU
-   :members:
-   :special-members: __getitem__
-
-
-.. _layout_str_doc:
-
-Data Layouts
-------------
-.. include:: data_layout.rst
-
-Types
------
-
-Constant
-^^^^^^^^
-.. autofunction:: nvidia.dali.types.Constant
-.. autoclass:: nvidia.dali.types.ScalarConstant
-   :members:
-
-Enums
------
-
-DALIDataType
-^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.DALIDataType
-   :members:
-   :member-order: bysource
-   :undoc-members:
-
-DALIIterpType
-^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.DALIInterpType
-   :members:
-   :member-order: bysource
-   :undoc-members:
-
-DALIImageType
-^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.DALIImageType
-   :members:
-   :member-order: bysource
-   :undoc-members:
-
-PipelineAPIType
-^^^^^^^^^^^^^^^
-.. autoclass:: nvidia.dali.types.PipelineAPIType
-   :members:
-   :undoc-members:
-   :member-order: bysource
+   pipeline
+   data_types
+   functional_api

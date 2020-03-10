@@ -67,14 +67,25 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
   }
 }
 
+DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
+
+DALI_SCHEMA(_ExternalSource)
+  .DocStr(R"code("This is a backend for `ExternalSource` operator. Refer to the proper documentation
+  for details.)code")
+  .NumInput(0)
+  .NumOutput(1)
+  .MakeInternal();
 
 DALI_SCHEMA(ExternalSource)
   .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline,
-see :meth:`nvidia.dali.pipeline.Pipeline.feed_input` and
-:meth:`nvidia.dali.pipeline.Pipeline.iter_setup`. Currently this operator is not
-supported in TensorFlow. It is worth noting that fed inputs should match the number of dimensions
-expected by the next operator in the pipeline (e.g. NHWC will expect 3-dimensional tensors
+see :meth:`nvidia.dali.ops.ExternalSource.__init__`,
+see :meth:`nvidia.dali.fn.external_source`,
+:meth:`nvidia.dali.pipeline.Pipeline.feed_input` and
+:meth:`nvidia.dali.pipeline.Pipeline.iter_setup`.
+Currently this operator is not supported in TensorFlow. It is worth noting that fed inputs
+should match the number of dimensions expected by the next operator in the pipeline
+(e.g. HWC will expect 3-dimensional tensors
 where the last dimension represents the different channels).)code")
   .NumInput(0)
   .NumOutput(1);

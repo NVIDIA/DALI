@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,10 +17,14 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
-from nvidia.dali import check_edge as Edge
 from threading import local as tls
+from . import data_node as _data_node
+import copy
 import warnings
 pipeline_tls = tls()
+
+from .data_node import DataNode
+DataNode.__module__ = __name__      # move to pipeline
 
 def _show_deprecation_warning(deprecated, in_favor_of):
     # show only this warning
@@ -31,65 +35,65 @@ def _show_deprecation_warning(deprecated, in_favor_of):
 
 
 class Pipeline(object):
-    """Pipeline class encapsulates all data required to define and run
-    DALI input pipeline.
+    """Pipeline class is the base of all DALI data pipelines. The pipeline
+encapsulates the data processing graph and the execution engine.
 
-    Parameters
-    ----------
-    `batch_size` : int, optional, default = -1
-        Batch size of the pipeline. Negative values for this parameter
-        are invalid - the default value may only be used with
-        serialized pipeline (the value stored in serialized pipeline
-        is used instead).
-    `num_threads` : int, optional, default = -1
-        Number of CPU threads used by the pipeline.
-        Negative values for this parameter are invalid - the default
-        value may only be used with serialized pipeline (the value
-        stored in serialized pipeline is used instead).
-    `device_id` : int, optional, default = -1
-        Id of GPU used by the pipeline.
-        Negative values for this parameter are invalid - the default
-        value may only be used with serialized pipeline (the value
-        stored in serialized pipeline is used instead).
-    `seed` : int, optional, default = -1
-        Seed used for random number generation. Leaving the default value
-        for this parameter results in random seed.
-    `exec_pipelined` : bool, optional, default = True
-        Whether to execute the pipeline in a way that enables
-        overlapping CPU and GPU computation, typically resulting
-        in faster execution speed, but larger memory consumption.
-    `prefetch_queue_depth` : int or {"cpu_size": int, "gpu_size": int}, optional, default = 2
-        Depth of the executor pipeline. Deeper pipeline makes DALI
-        more resistant to uneven execution time of each batch, but it
-        also consumes more memory for internal buffers.
-        Specifying a dict:
-        ``{ "cpu_size": x, "gpu_size": y }``
-        instead of an integer will cause the pipeline to use separated
-        queues executor, with buffer queue size `x` for cpu stage
-        and `y` for mixed and gpu stages. It is not supported when both `exec_async`
-        and `exec_pipelined` are set to `False`.
-        Executor will buffer cpu and gpu stages separatelly,
-        and will fill the buffer queues when the first :meth:`nvidia.dali.pipeline.Pipeline.run`
-        is issued.
-    `exec_async` : bool, optional, default = True
-        Whether to execute the pipeline asynchronously.
-        This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
-        run asynchronously with respect to the calling Python thread.
-        In order to synchronize with the pipeline one needs to call
-        :meth:`nvidia.dali.pipeline.Pipeline.outputs` method.
-    `bytes_per_sample` : int, optional, default = 0
-        A hint for DALI for how much memory to use for its tensors.
-    `set_affinity` : bool, optional, default = False
-        Whether to set CPU core affinity to the one closest to the
-        GPU being used.
-    `max_streams` : int, optional, default = -1
-        Limit the number of CUDA streams used by the executor.
-        Value of -1 does not impose a limit.
-        This parameter is currently unused (and behavior of
-        unrestricted number of streams is assumed).
-    `default_cuda_stream_priority` : int, optional, default = 0
-        CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
-    """
+Parameters
+----------
+`batch_size` : int, optional, default = -1
+    Batch size of the pipeline. Negative values for this parameter
+    are invalid - the default value may only be used with
+    serialized pipeline (the value stored in serialized pipeline
+    is used instead).
+`num_threads` : int, optional, default = -1
+    Number of CPU threads used by the pipeline.
+    Negative values for this parameter are invalid - the default
+    value may only be used with serialized pipeline (the value
+    stored in serialized pipeline is used instead).
+`device_id` : int, optional, default = -1
+    Id of GPU used by the pipeline.
+    Negative values for this parameter are invalid - the default
+    value may only be used with serialized pipeline (the value
+    stored in serialized pipeline is used instead).
+`seed` : int, optional, default = -1
+    Seed used for random number generation. Leaving the default value
+    for this parameter results in random seed.
+`exec_pipelined` : bool, optional, default = True
+    Whether to execute the pipeline in a way that enables
+    overlapping CPU and GPU computation, typically resulting
+    in faster execution speed, but larger memory consumption.
+`prefetch_queue_depth` : int or {"cpu_size": int, "gpu_size": int}, optional, default = 2
+    Depth of the executor pipeline. Deeper pipeline makes DALI
+    more resistant to uneven execution time of each batch, but it
+    also consumes more memory for internal buffers.
+    Specifying a dict:
+    ``{ "cpu_size": x, "gpu_size": y }``
+    instead of an integer will cause the pipeline to use separated
+    queues executor, with buffer queue size `x` for cpu stage
+    and `y` for mixed and gpu stages. It is not supported when both `exec_async`
+    and `exec_pipelined` are set to `False`.
+    Executor will buffer cpu and gpu stages separatelly,
+    and will fill the buffer queues when the first :meth:`nvidia.dali.pipeline.Pipeline.run`
+    is issued.
+`exec_async` : bool, optional, default = True
+    Whether to execute the pipeline asynchronously.
+    This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
+    run asynchronously with respect to the calling Python thread.
+    In order to synchronize with the pipeline one needs to call
+    :meth:`nvidia.dali.pipeline.Pipeline.outputs` method.
+`bytes_per_sample` : int, optional, default = 0
+    A hint for DALI for how much memory to use for its tensors.
+`set_affinity` : bool, optional, default = False
+    Whether to set CPU core affinity to the one closest to the
+    GPU being used.
+`max_streams` : int, optional, default = -1
+    Limit the number of CUDA streams used by the executor.
+    Value of -1 does not impose a limit.
+    This parameter is currently unused (and behavior of
+    unrestricted number of streams is assumed).
+`default_cuda_stream_priority` : int, optional, default = 0
+    CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
+"""
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
                  exec_async=True, bytes_per_sample=0,
@@ -103,6 +107,7 @@ class Pipeline(object):
         self._built = False
         self._first_iter = True
         self._last_iter = False
+        self._iter = 0
         self._batches_to_consume = 0
         self._cpu_batches_to_consume = 0
         self._gpu_batches_to_consume = 0
@@ -115,6 +120,8 @@ class Pipeline(object):
         self._default_cuda_stream_priority = default_cuda_stream_priority
         self._api_type = None
         self._skip_api_check = False
+        self._graph_out = None
+        self._input_callbacks = None
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -172,19 +179,68 @@ class Pipeline(object):
         return self._pipe.epoch_size()
 
     @staticmethod
-    def current(raise_error_if_none = True):
-        pipeline = getattr(pipeline_tls, 'current_pipeline', None)
-        if raise_error_if_none and (pipeline is None):
-            raise RuntimeError("Unknown pipeline! "
-                               "Graph edges must be created from within `define_graph` "
-                               "or Pipeline.set_current() must be explicitly used.")
-        return pipeline
+    def current():
+        return getattr(pipeline_tls, 'current_pipeline', None)
 
     @staticmethod
-    def set_current(pipeline):
-        prev = Pipeline.current(False)
+    def _raise_pipeline_required(op_name):
+        raise RuntimeError("Current Pipeline not set!\n" +
+            op_name + " operator must be used inside `define_graph` or "
+            "current pipeline must be explicitly set using context manager (`with my_pipeline:`) "
+            "or with a call to `Pipeline.push_current(my_pipeline)`.")
+
+    @staticmethod
+    def push_current(pipeline):
+        """Sets the pipeline as current and stores the previous current pipeline
+        on stack. To restore previous pipeline as current, use :meth:`pop_current`.
+
+        To make sure that the pipeline is properly restored in case of exception, use context
+        manager (`with my_pipeline:`).
+
+        Current pipeline is required to call operators with side effects or without outputs.
+        Examples of such operators are `PythonFunction` (potential side effects) or `DumpImage`
+        (no output).
+
+        Any dangling operator can be marked as having side effects if it's marked
+        with `preserve=True`, which can be useful for debugging - otherwise operator which
+        does not contribute to the pipeline output is removed from the graph.
+        """
+
+        prev = Pipeline.current()
         pipeline_tls.current_pipeline = pipeline
+        stack = getattr(pipeline_tls, 'pipeline_stack', None)
+        if stack is None:
+            pipeline_tls.pipeline_stack = [prev]
+        else:
+            stack.append(prev)
+        pipeline_tls.prev_pipeline = pipeline
         return prev
+
+    @staticmethod
+    def pop_current():
+        """Restores previous pipeline as current. Complementary to :meth:`push_current`."""
+        pipeline_tls.current_pipeline = pipeline_tls.pipeline_stack.pop()
+
+    def __enter__(self):
+        """Safely sets the pipeline as current.
+        Current pipeline is required to call operators with side effects or without outputs.
+        Examples of such operators are `PythonFunction` (potential side effects) or `DumpImage`
+        (no output).
+
+        Any dangling operator can be marked as having side effects if it's marked
+        with `preserve=True`, which can be useful for debugging - otherwise operator which
+        does not contribute to the pipeline output is removed from the graph.
+
+        To manually set new (and restore previous) current pipeline, use :meth:`push_current`
+        and :meth:`pop_current`, respectively.
+        """
+        Pipeline.push_current(self)
+        return self
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        """Safely restores previous pipeline."""
+        Pipeline.pop_current()
+
 
     def add_sink(self, edge):
         """Allows to manual add of graph edges to the pipeline which are not connected to the output and all pruned
@@ -232,7 +288,7 @@ class Pipeline(object):
         return api_checker(self)
 
     # Graph is constructed by backtracking from the output edges and the edges marked as sinks
-    def _prepare_graph(self):
+    def _prepare_graph(self, define_graph = None):
         self._pipe = b.Pipeline(self._batch_size,
                                 self._num_threads,
                                 self._device_id,
@@ -246,15 +302,29 @@ class Pipeline(object):
                                 self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
-        prev_pipeline = Pipeline.set_current(self)
-        outputs = self.define_graph()
-        Pipeline.set_current(prev_pipeline)
-        if (not isinstance(outputs, tuple) and
-            not isinstance(outputs, list)):
-            outputs = (outputs,)
 
-        for output in outputs:
-            Edge._validate_edge_reference(output)
+        if define_graph is not None:
+            if self._graph_out is not None:
+                raise RuntimeError("Duplicate graph definition - `define_graph` argument "
+                    "should not be specified when graph was defined with a call to `set_outputs`.")
+        else:
+            define_graph = self.define_graph
+
+        if self._graph_out:
+            outputs = self._graph_out
+        else:
+            with self:
+                outputs = define_graph()
+        if isinstance(outputs, tuple):
+            outputs = list(outputs)
+        elif not isinstance(outputs, list):
+            outputs = [outputs]
+
+        for i in range(len(outputs)):
+            if isinstance(outputs[i], types.ScalarConstant):
+                import nvidia.dali.ops
+                outputs[i] = nvidia.dali.ops._instantiate_constant_node("cpu", outputs[i])
+            _data_node._check(outputs[i])
 
         # Backtrack to construct the graph
         op_ids = set()
@@ -293,16 +363,28 @@ class Pipeline(object):
 
         # Add the ops to the graph and build the backend
         related_logical_id = {}
+        self._ops = []
         while ops:
             op = ops.pop()
+            self._ops.append(op)
             if op.relation_id not in related_logical_id:
                 related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
             else:
                 self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
         self._prepared = True
+        self._setup_input_callbacks()
         self._names_and_devices = [(e.name, e.device) for e in outputs]
 
-    def build(self):
+    def _setup_input_callbacks(self):
+        from nvidia.dali.external_source import _is_external_source_with_callback
+        groups = set()
+        for op in self._ops:
+            if _is_external_source_with_callback(op):
+                group = op._group
+                groups.add(group)
+        self._input_callbacks = list(groups)
+
+    def build(self, define_graph = None):
         """Build the pipeline.
 
         Pipeline needs to be built in order to run it standalone.
@@ -311,30 +393,54 @@ class Pipeline(object):
         if self._built:
             return
 
+        if self.num_threads < 1:
+            raise ValueError("Pipeline created with `num_threads` < 1 can only be used "
+                             "for serialization.")
+
         if not self._prepared:
-            self._prepare_graph()
+            self._prepare_graph(define_graph)
 
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def feed_input(self, ref, data, layout=""):
-        """Bind the NumPy array to a tensor produced by ExternalSource
-        operator. It is worth mentioning that `ref` **should not** be overridden
-        with other operator outputs and it should be called from the
-        inside of `iter_setup` method"""
+    def feed_input(self, data_node, data, layout=""):
+        """Bind a NumPy array (or a list thereof) to an output of ExternalSource.
+
+        Parameters
+        ----------
+        data_node : :class:`DataNode` or str
+            The :class:`DataNode` returned by a call to ExternalSource or a name of the
+            :class:`nvidia.dali.ops.ExternalSource`
+
+        data : numpy.ndarray or a list thereof
+            The data to be used as the output of the ExternalSource referred to by `data_node`.
+            In case of GPU external sources, this must be a ``numpy.ndarray``.
+
+        layout : str
+            The description of the data layout (or empty string, if not specified).
+            It should be a string of the length that matches the dimensionality of the data, batch
+            dimension excluded. For a batch of channel-first images, this should be "CHW", for
+            channel-last video it's "FHWC" and so on.
+        """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        Edge._validate_edge_reference(ref)
+        if isinstance(data_node, str):
+            name = data_node
+        else:
+            _data_node._check(data_node)
+            name = data_node.name
+
+        from nvidia.dali.external_source import _check_data_batch
+        _check_data_batch(data, self._batch_size, layout)
+
         if isinstance(data, list):
-            if self._batch_size != len(data):
-                raise RuntimeError("Data list provided to feed_input needs to have batch_size length")
             inputs = []
             for datum in data:
                 inputs.append(Tensors.TensorCPU(datum, layout))
-            self._pipe.SetExternalTensorInput(ref.name, inputs)
+            self._pipe.SetExternalTensorInput(name, inputs)
         else:
             inp = Tensors.TensorListCPU(data, layout)
-            self._pipe.SetExternalTLInput(ref.name, inp)
+            self._pipe.SetExternalTLInput(name, inp)
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""
@@ -358,7 +464,11 @@ class Pipeline(object):
 
         If the pipeline is executed asynchronously, this function blocks
         until the results become available. It rises StopIteration if data set
-        reached its end - usually when iter_setup cannot produce any more data"""
+        reached its end - usually when iter_setup cannot produce any more data.
+
+        :return:
+            A list of `TensorList` objects for respective pipeline outputs
+        """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
                 raise StopIteration
@@ -401,7 +511,11 @@ class Pipeline(object):
         results have been consumed.
         Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
         and :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
-        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
+        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline.
+
+        :return:
+            A list of `TensorList` objects for respective pipeline outputs
+        """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
                 raise StopIteration
@@ -445,7 +559,7 @@ class Pipeline(object):
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
-    
+
     def run(self):
         """Run the pipeline and return the result.
 
@@ -454,7 +568,11 @@ class Pipeline(object):
         faster execution.
         Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run` in the same pipeline,
         :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` and
-        :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`"""
+        :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
+
+        :return:
+            A list of `TensorList` objects for respective pipeline outputs
+        """
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
             self.schedule_run()
             return self.outputs()
@@ -478,7 +596,7 @@ class Pipeline(object):
         this function will return without waiting for the execution to end."""
         try:
             if not self._last_iter:
-                self.iter_setup()
+                self._iter_setup()
                 self._batches_to_consume += 1
             # Special case to prevent a deadlock if user didn't release the only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
@@ -493,7 +611,7 @@ class Pipeline(object):
         """
         try:
             if not self._last_iter:
-                self.iter_setup()
+                self._iter_setup()
                 self._batches_to_consume += 1
                 self._run_cpu()
                 if stage_name == "cpu":
@@ -527,18 +645,42 @@ class Pipeline(object):
         if self._last_iter:
             self._first_iter = True
             self._last_iter = False
+            self._iter = 0
 
     def empty(self):
         """If there is any work scheduled in the pipeline but not yet consumed
         """
         return self._batches_to_consume == 0
 
-    def serialize(self):
+    def serialize(self, define_graph = None):
         """Serialize the pipeline to a Protobuf string."""
         if not self._prepared:
-            self._prepare_graph()
+            self._prepare_graph(define_graph)
             self._pipe.SetOutputNames(self._names_and_devices)
         return self._pipe.SerializeToProtobuf()
+
+    def clone(self, batch_size = None, num_threads = None, device_id = None, seed = None):
+        """Creates a copy of the pipeline."""
+        p = copy.copy(self)
+        p._built = False
+        p._pipe = None
+        p._prepared = False
+        p._first_iter = True
+        p._iter = 0
+        p._last_iter = False
+
+        if device_id is not None:
+            p._device_id = device_id
+        if num_threads is not None:
+            p._num_threads = num_threads
+        if seed is not None:
+            p._seed = seed
+        if batch_size is not None:
+            p._batch_size = batch_size
+
+        if self._built:
+            p.build()
+        return p
 
     def deserialize_and_build(self, serialized_pipeline):
         """Deserialize and build the pipeline given in serialized form.
@@ -584,12 +726,36 @@ class Pipeline(object):
             raise RuntimeError("Pipeline must be built first.")
         self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
 
+    def set_outputs(self, *output_data_nodes):
+        """Set the outputs of the pipeline.
+
+        Use of this function is an alternative to overriding `define_graph` in a derived class.
+
+        Args
+        ----
+        `*output_data_nodes` : unpacked list of :class:`DataNode` objects
+        The outputs of the pipeline
+        """
+        self._graph_out = output_data_nodes
+
     def define_graph(self):
         """This function is defined by the user to construct the
         graph of operations for their pipeline.
 
         It returns a list of outputs created by calling DALI Operators."""
         raise NotImplementedError
+
+    def _run_input_callbacks(self):
+        if self._input_callbacks is None:
+            return
+
+        for group in self._input_callbacks:
+            group.call_and_feed(self, self._iter)
+
+    def _iter_setup(self):
+        self._run_input_callbacks()
+        self.iter_setup()
+        self._iter += 1
 
     def iter_setup(self):
         """This function can be overriden by user-defined

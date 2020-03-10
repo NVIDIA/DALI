@@ -64,6 +64,7 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   sync_worker_.DoWork(RecycleFunctor{ this, std::move(cuda_event), std::move(data) });
 }
 
+DALI_REGISTER_OPERATOR(_ExternalSource, ExternalSource<GPUBackend>, GPU);
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<GPUBackend>, GPU);
 
 }  // namespace dali
