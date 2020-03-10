@@ -100,6 +100,39 @@ __global__ void ReduceAllBatchedKernel(Acc *out, const In *const *in, const int6
   BlockReduce(out, val, reduce, []() { return blockIdx.x + blockIdx.y * gridDim.x; });
 }
 
+/**
+ * @brief Reduce evenly-spaced, contiguous blocks in `in` and store blockwise results in `out`.
+ *
+ * This kernel treats `in` as a group of contiguously stored, but independent, chunks of data,
+ * each of `sanoke_size` elements.
+ * The partial result for each chunk is stored in out.
+ *
+ * `blockDim = 32, 32` (fixed!)
+ * `gridDim = (outputs_per_block, number_of_blocks)`
+ *
+ * @param out the result
+ * @param in  input data, in blocks `sample_size` elements each
+ */
+template <typename Acc, typename In,
+          typename Reduction = reductions::sum,
+          typename Preprocess = dali::identity>
+__global__ void ReduceAllBlockwiseKernel(Acc *out, const In *in, int64_t sample_size,
+                                         Reduction reduce = {}, Preprocess pp = {}) {
+  // This reduces blocks of size sample_size independently
+  const int sample = blockIdx.y;
+  in += sample * sample_size;  // calculate the base address of this block
+  const int64_t blk_size = blockDim.x * blockDim.y;
+  const int64_t grid_size = gridDim.x * blk_size;
+  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
+  int64_t offset = blockIdx.x * blk_size + flat_tid;
+  Acc val = offset < sample_size ? pp(in[offset]) : 0;
+  for (offset += grid_size; offset < sample_size; offset += grid_size) {
+    reduce(val, pp(in[offset]));
+  }
+  BlockReduce(out, val, reduce, []() { return blockIdx.x + blockIdx.y * gridDim.x; });
+}
+
+
 }  // namespace kernels
 }  // namespace dali
 
