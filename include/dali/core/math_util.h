@@ -23,6 +23,7 @@
 #else
 #include <cmath>
 #endif
+#include <cstdint>
 #include "dali/core/host_dev.h"
 #include "dali/core/force_inline.h"
 

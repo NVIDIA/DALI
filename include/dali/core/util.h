@@ -16,6 +16,7 @@
 #define DALI_CORE_UTIL_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <utility>
 #include <initializer_list>
 
