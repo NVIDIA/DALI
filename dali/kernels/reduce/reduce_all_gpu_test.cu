@@ -77,7 +77,9 @@ TEST(ReduceGPU, ReduceAllKernel) {
   float t = 0;
   cudaEventElapsedTime(&t, start, end);
   double out_sum = out_cpu[0];
+  double out_partial = RefSum(make_cspan(&out_cpu[1], n_out0));
   EXPECT_NEAR(out_sum, ref_sum, ref_sum * 1e-7 + 1e-7);
+  EXPECT_NEAR(out_partial, ref_sum, ref_sum * 1e-7 + 1e-7);
 
   t /= 1000;
   std::cout << n_in * sizeof(*in_data) / t * 1e-9 << " GB/s" << std::endl;
@@ -97,10 +99,10 @@ TEST(ReduceGPU, ReduceAllBatchedKernel) {
   }
 
   dim3 block(32, 32);
-  int nout_per_sample = 32;
-  int n_out0 = samples * nout_per_sample;
+  int n_out_per_sample = 32;
+  int n_out0 = samples * n_out_per_sample;
   int n_out = n_out0 + samples;
-  dim3 grid(nout_per_sample, samples);
+  dim3 grid(n_out_per_sample, samples);
   auto in_data = memory::alloc_unique<float>(AllocType::GPU, n_in);
   auto out_data = memory::alloc_unique<float>(AllocType::GPU, n_out);
   std::vector<float> in_cpu(n_in), out_cpu(n_out);
@@ -137,7 +139,7 @@ TEST(ReduceGPU, ReduceAllBatchedKernel) {
 
   dim3 grid2(1, samples);
   ReduceAllBlockwiseKernel<<<grid2, block>>>(out_data.get(),
-                                             out_data.get() + samples, nout_per_sample);
+                                             out_data.get() + samples, n_out_per_sample);
   cudaEventRecord(end);
   cudaMemcpy(out_cpu.data(), out_data.get(), n_out * sizeof(*out_data), cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
@@ -146,9 +148,12 @@ TEST(ReduceGPU, ReduceAllBatchedKernel) {
 
   offset = 0;
   for (int i = 0; i < samples; i++) {
-    double ref_sum = RefSum(make_span(host_ptrs[i], sizes[i]));
+    double ref_sum = RefSum(make_cspan(host_ptrs[i], sizes[i]));
     double out_sum = out_cpu[i];
-    EXPECT_NEAR(ref_sum, out_sum, ref_sum * 1e-7 + 1e-7);
+    auto partial_sums = make_cspan(&out_cpu[samples + i * n_out_per_sample], n_out_per_sample);
+    double out_partial = RefSum(partial_sums);
+    EXPECT_NEAR(out_sum, ref_sum, ref_sum * 1e-7 + 1e-7);
+    EXPECT_NEAR(out_partial, ref_sum, ref_sum * 1e-7 + 1e-7);
     offset += sizes[i];
   }
 

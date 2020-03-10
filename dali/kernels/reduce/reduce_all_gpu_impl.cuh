@@ -104,14 +104,17 @@ __global__ void ReduceAllBatchedKernel(Acc *out, const In *const *in, const int6
  * @brief Reduce evenly-spaced, contiguous blocks in `in` and store blockwise results in `out`.
  *
  * This kernel treats `in` as a group of contiguously stored, but independent, chunks of data,
- * each of `sanoke_size` elements.
+ * each of `sample_size` elements.
  * The partial result for each chunk is stored in out.
  *
  * `blockDim = 32, 32` (fixed!)
  * `gridDim = (outputs_per_block, number_of_blocks)`
  *
- * @param out the result
- * @param in  input data, in blocks `sample_size` elements each
+ * @param out         the result
+ * @param in          input data, in blocks `sample_size` elements each
+ * @param sample_size number of elements in each block
+ * @param reduce      the reduction functor
+ * @param pp          preprocessing to be applied to each value fetched from `in` before reducing
  */
 template <typename Acc, typename In,
           typename Reduction = reductions::sum,
