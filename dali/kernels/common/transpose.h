@@ -27,6 +27,13 @@ namespace dali {
 namespace kernels {
 namespace transpose_impl {
 
+/**
+ * @brief Transpose recursion that should allow to inline innermost loops
+ *        The innermost case where the data is actually copied.
+ *
+ * @tparam LevelsLeft how many levels of recursion are left, here equal to 1
+ * @tparam MaxLevels statically known number of dimensions or -1 otherwise
+ */
 template <int LevelsLeft, int MaxLevels = -1, typename T>
 std::enable_if_t<LevelsLeft == 1> TransposeImplStatic(T *dst, const T *src, int max_levels,
                                                       span<const int64_t> dst_stride,
@@ -42,6 +49,12 @@ std::enable_if_t<LevelsLeft == 1> TransposeImplStatic(T *dst, const T *src, int 
   }
 }
 
+/**
+ * @brief Transpose recursion that should allow to inline innermost loops.
+ *
+ * @tparam LevelsLeft how many levels of recursion are left, here grater than 1
+ * @tparam MaxLevels statically known number of dimensions or -1 otherwise
+ */
 template <int LevelsLeft, int MaxLevels = -1, typename T>
 std::enable_if_t<(LevelsLeft > 1)> TransposeImplStatic(T *dst, const T *src, int max_levels,
                                                        span<const int64_t> dst_stride,
@@ -58,9 +71,31 @@ std::enable_if_t<(LevelsLeft > 1)> TransposeImplStatic(T *dst, const T *src, int
   }
 }
 
+/**
+ * @brief Generic case for transpose, that transposes the tensors.
+ *
+ * Goes over the data in the dst-order, assumes at least one element and that
+ * Static <= max_levels - level.
+ *
+ * @tparam Static how many innermost dimensions should use template/static recursion.
+ *         Must be at least 1.
+ * @tparam T type of the data
+ * @param dst pointer to
+ * @param src
+ * @param level recursion level
+ * @param max_levels number of dimensions/recurion levels
+ * @param dst_stride
+ * @param src_stride
+ * @param size dst-ordered shape
+ * @param perm target permutation, source dimension `perm[i]` goes to destination dimension `i`
+ */
 template <int Static = 3, typename T>
 void TransposeImpl(T *dst, const T *src, int level, int max_levels, span<const int64_t> dst_stride,
                    span<const int64_t> src_stride, TensorShape<> size, span<const int> perm) {
+  static_assert(Static > 0, "At least last dimension must be `unrolled` so the data can be copied");
+  assert(max_levels - level >= Static &&
+         "The implementation cannot execute template recursion of requested level `Static` for "
+         "specified `max_levels` of recursion from current starting `level`.");
   auto dst_level_stride = dst_stride[level];
   auto src_level_stride = src_stride[perm[level]];
 
@@ -156,11 +191,17 @@ SmallVector<std::pair<int, int>, 6> PermToShapeBlocks(span<const int> perm,
 
 /**
  * @brief Transpose `src` Tensor to `dst` wrt to permutation `perm`
+ *
+ * Source dimension `perm[i]` goes to destination dimension `i`.
  */
 template <typename T>
 void Transpose(const TensorView<StorageCPU, T> &dst, const TensorView<StorageCPU, const T> &src,
                span<const int> perm) {
   int N = src.shape.sample_dim();
+  if (N == 0) {
+    // We are a no-op, there is nothing to transpose
+    return;
+  }
   assert(dst.shape.sample_dim() == N);
   assert(volume(src.shape) == volume(dst.shape));
   auto dst_strides = GetStrides(dst.shape);
@@ -177,10 +218,12 @@ void Transpose(const TensorView<StorageCPU, T> &dst, const TensorView<StorageCPU
 /**
  * @brief Transpose `src` Tensor to `dst` wrt to permutation `perm`
  *
- * Internally collapse the groups of consecutive dimensions for the transpositon
+ * Internally collapse the groups of consecutive dimensions for the transposition
  *
  * For example "HWC", perm = {2, 0, 1}; the "HW" would be collapsed to one dimension "X",
  * and effectively we will do XC -> CX transposition.
+ *
+ * Source dimension `perm[i]` goes to destination dimension `i`.
  */
 template <typename T>
 void TransposeGrouped(const TensorView<StorageCPU, T> &dst,

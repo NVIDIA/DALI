@@ -48,34 +48,53 @@ template <typename ShapeT = int>
 void PrepareArguments(SmallVector<ShapeT, kStaticShapeElements> &shape, VecInt &perm,
                       bool transpose = false) {
   DALI_ENFORCE(shape.size() == perm.size());
+  const int N = shape.size();
 
-  // cuTT does not handle dimensions with size 1 so we remove them
-  // (H, W, 1) is equivalent to (H, W)
-  auto it_shape = shape.begin();
-  auto it_perm = perm.begin();
-  SmallVector<ShapeT, kStaticShapeElements> erased;
-  while (it_shape != shape.end()) {
-    if (*it_shape == 1) {
-      erased.push_back(*it_perm);
-      it_shape = shape.erase(it_shape);
-      it_perm = perm.erase(it_perm);
+  // This will be oterwise reduced to empty shape, and we still want to have some
+  // notion of non-empty shape left
+  if (volume(shape) == 1) {
+    shape = {1};
+    perm = {0};
+    return;
+  }
+
+  SmallVector<int, kStaticShapeElements> ones_pos;
+  for (int i = 0; i < N; i++) {
+    if (shape[i] == 1) {
+      ones_pos.push_back(i);
+    }
+  }
+  SmallVector<ShapeT, kStaticShapeElements> tmp_shape;
+  tmp_shape.reserve(N - ones_pos.size());
+  // shape_idx holds index of original shape (already processed dimensions),
+  // ones_ids - holds indexes in array of degenerate (1-sized) dimensions
+  for (int shape_idx = 0, ones_idx = 0; shape_idx < N; shape_idx++) {
+    if (ones_idx < static_cast<int>(ones_pos.size()) && shape_idx == ones_pos[ones_idx]) {
+      ones_idx++;
     } else {
-      ++it_shape;
-      ++it_perm;
+      tmp_shape.push_back(shape[shape_idx]);
     }
   }
-  // when some permutation element is erased all elements positions after it should be decreased
-  // by one like it doesn't exist at all
-  // sort elements to erase in descending order so we avoid situations like
-  // erased(0, 2), perm(3, 1) -> perm(2, 0) while it should be (1, 0)
-  std::sort(erased.begin(), erased.end(), std::greater<int>());
-  for (auto &pos : erased) {
-    for (auto &elm : perm) {
-       if (elm > pos) {
-         --elm;
-       }
+  VecInt tmp_perm;
+  tmp_perm.reserve(N - ones_pos.size());
+  for (int i = 0; i < N; i++) {
+    // this element was removed
+    if (!std::binary_search(ones_pos.begin(), ones_pos.end(), perm[i])) {
+      tmp_perm.push_back(perm[i]);
     }
   }
+  // Reduce the dimension values in perm. We go over all elements that were left,
+  // and reduce it as many times, as there were smaller elements that were removed
+  for (int i = ones_pos.size() - 1; i >= 0; i--) {
+    for (auto &elem : tmp_perm) {
+      if (elem > ones_pos[i]) {
+        elem--;
+      }
+    }
+  }
+  shape = tmp_shape;
+  perm = tmp_perm;
+
   if (transpose) {
     RowToColumnMajor(shape.data(), perm.data(), shape.size());
   }

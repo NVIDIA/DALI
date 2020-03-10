@@ -20,7 +20,6 @@
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/dali_operator_test_utils.h"
 #include "dali/operators/generic/transpose/transpose.h"
-
 namespace dali {
 
 namespace {
@@ -50,23 +49,52 @@ class TransposeTest : public testing::DaliOperatorTest {
   }
 
  public:
-  std::unique_ptr<TensorList<CPUBackend>> GetInput(int rank) {
-    constexpr int batch_size = 10;
-    std::vector<Index> seq_shape{4, 8, 6};
-    if (rank > 3) {
-      seq_shape.push_back(2);
+  std::unique_ptr<TensorList<CPUBackend>> GetInput(int rank, unsigned int ones_mask, bool uniform) {
+    constexpr int batch_size = 5;
+    std::vector<std::vector<Index>> shape;
+    if (uniform) {
+      std::vector<Index> seq_shape{4, 8, 6};
+      if (rank > 3) {
+        seq_shape.push_back(2);
+      }
+      if (rank > 4) {
+        seq_shape.push_back(3);
+      }
+
+      for (int i = 0; i < batch_size; i++) {
+        shape.push_back(seq_shape);
+      }
+    } else {
+      shape = {{4, 8, 6}, {2, 3, 7}, {4, 4, 4}, {3, 2, 5}, {3, 7, 6}};
+      DALI_ENFORCE(static_cast<int>(shape.size()) == batch_size,
+                   "Test shape doesn't match the expected batch size");
+      if (rank > 3) {
+        for (int i = 0; i < batch_size; i++) {
+          shape[i].push_back(i + 2);
+        }
+      }
+      if (rank > 4) {
+        for (int i = 0; i < batch_size; i++) {
+          shape[i].push_back(batch_size - i + 1);
+        }
+      }
     }
-    if (rank > 4) {
-      seq_shape.push_back(3);
+    for (auto &v : shape) {
+      for (int i = 0; i < rank; i++) {
+        if (ones_mask & (1u << i)) {
+          v[i] = 1;
+        }
+      }
     }
-    auto batch_shape = uniform_list_shape(batch_size, seq_shape);
+
+    TensorListShape<> batch_shape(shape);
 
     std::unique_ptr<TensorList<CPUBackend>> tl(new TensorList<CPUBackend>);
     tl->Resize(batch_shape);
     tl->set_type(TypeInfo::Create<int>());
 
     for (int i = 0; i < batch_size; i++) {
-      Arrange(tl->mutable_tensor<int>(i), seq_shape);
+      Arrange(tl->mutable_tensor<int>(i), shape[i]);
     }
     return tl;
   }
@@ -96,9 +124,37 @@ std::vector<testing::Arguments> GetPermutations(int rank) {
   return perms;
 }
 
+static constexpr auto kOnesMask = "_ones_maks";
+static constexpr auto kUniform = "_uniform";
+
+/**
+ * @brief Generate set of additional arguments (not used by operator, only by the tests),
+ * that are all possinble bitmasks of size `rank`, showing which dimension should be set to 1.
+ */
+std::vector<testing::Arguments> GetOneMasks(int rank) {
+  std::vector<testing::Arguments> masks;
+  masks.reserve(1 << rank);
+  for (unsigned int mask = 0; mask < (1 << rank); mask++) {
+    masks.push_back({{kOnesMask, mask}});
+  }
+  return masks;
+}
+
+std::vector<testing::Arguments> one_masks_reduced = {
+  {{kOnesMask, 1u}},
+  {{kOnesMask, 4u}},
+  {{kOnesMask, 7u}},
+  {{kOnesMask, 31u}},
+};
+
 std::vector<testing::Arguments> devices = {
   {{"device", std::string{"cpu"}}},
   {{"device", std::string{"gpu"}}},
+};
+
+std::vector<testing::Arguments> uniform = {
+  {{kUniform, false}},
+  {{kUniform, true}}
 };
 
 namespace detail {
@@ -111,7 +167,7 @@ tensor_loop_impl(const T* in_tensor,
                  const std::vector<int>& /*unused*/, const std::vector<int>& /*unused*/,
                  const std::vector<int>& /*unused*/,
                  int in_idx, int out_idx) {
-  EXPECT_EQ(in_tensor[in_idx], out_tensor[out_idx]);
+  ASSERT_EQ(in_tensor[in_idx], out_tensor[out_idx]);
 }
 
 template <typename T, int Rank, int CurrDim>
@@ -182,26 +238,178 @@ void TransposeVerify(const testing::TensorListWrapper& input,
 TEST_P(TransposeTestRank3, TransposeRank3) {
   auto args = GetParam();
   testing::TensorListWrapper tlout;
-  this->RunTest(GetInput(3).get(), tlout, args, TransposeVerify);
+  auto mask = args.at(testing::ArgumentKey(kOnesMask)).GetValue<unsigned int>();
+  auto uniform = args.at(testing::ArgumentKey(kUniform)).GetValue<bool>();
+  this->RunTest(GetInput(3, mask, uniform).get(), tlout, args, TransposeVerify);
 }
 
 TEST_P(TransposeTestRank4, TransposeRank4) {
   auto args = GetParam();
   testing::TensorListWrapper tlout;
-  this->RunTest(GetInput(4).get(), tlout, args, TransposeVerify);
+  auto mask = args.at(testing::ArgumentKey(kOnesMask)).GetValue<unsigned int>();
+  auto uniform = args.at(testing::ArgumentKey(kUniform)).GetValue<bool>();
+  this->RunTest(GetInput(4, mask, uniform).get(), tlout, args, TransposeVerify);
 }
 
 TEST_P(TransposeTestRank5, TransposeRank5) {
   auto args = GetParam();
   testing::TensorListWrapper tlout;
-  this->RunTest(GetInput(5).get(), tlout, args, TransposeVerify);
+  auto mask = args.at(testing::ArgumentKey(kOnesMask)).GetValue<unsigned int>();
+  auto uniform = args.at(testing::ArgumentKey(kUniform)).GetValue<bool>();
+  this->RunTest(GetInput(5, mask, uniform).get(), tlout, args, TransposeVerify);
 }
 
 INSTANTIATE_TEST_SUITE_P(TransposeRank3Suite, TransposeTestRank3,
-                        ::testing::ValuesIn(cartesian(devices, GetPermutations(3))));
+                         ::testing::ValuesIn(cartesian(devices, GetPermutations(3), GetOneMasks(3),
+                                                       uniform)));
 INSTANTIATE_TEST_SUITE_P(TransposeRank4Suite, TransposeTestRank4,
-                        ::testing::ValuesIn(cartesian(devices, GetPermutations(4))));
+                         ::testing::ValuesIn(cartesian(devices, GetPermutations(4), GetOneMasks(4),
+                                                       uniform)));
 INSTANTIATE_TEST_SUITE_P(TransposeRank5Suite, TransposeTestRank5,
-                        ::testing::ValuesIn(cartesian(devices, GetPermutations(5))));
+                         ::testing::ValuesIn(cartesian(devices, GetPermutations(5),
+                                                       one_masks_reduced, uniform)));
+
+TEST(TransposeTest, PrepareArgumentsNoOnes) {
+  using dtype = SmallVector<int, 6>;
+  {
+    auto shape = dtype{2};
+    auto perm = dtype{0};
+    auto shape_expected = shape;
+    auto perm_expected = perm;
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{2, 4, 6, 8};
+    auto perm = dtype{0, 1, 2, 3};
+    auto shape_expected = shape;
+    auto perm_expected = perm;
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+}
+
+
+TEST(TransposeTest, PrepareArgumentsSingleDimRemoval) {
+  using dtype = SmallVector<int, 6>;
+  {
+    auto shape = dtype{2, 1};
+    auto perm = dtype{0, 1};
+    auto shape_expected = dtype{2};
+    auto perm_expected = dtype{0};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{1, 8, 6};
+    auto perm = dtype{1, 2, 0};
+    auto shape_expected = dtype{8, 6};
+    auto perm_expected = dtype{0, 1};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{1, 8, 6};
+    auto perm = dtype{0, 2, 1};
+    auto shape_expected = dtype{8, 6};
+    auto perm_expected = dtype{1, 0};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{8, 1, 6};
+    auto perm = dtype{1, 2, 0};
+    auto shape_expected = dtype{8, 6};
+    auto perm_expected = dtype{1, 0};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{8, 1, 6};
+    auto perm = dtype{0, 1, 2};
+    auto shape_expected = dtype{8, 6};
+    auto perm_expected = dtype{0, 1};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{8, 6, 1};
+    auto perm = dtype{1, 2, 0};
+    auto shape_expected = dtype{8, 6};
+    auto perm_expected = dtype{1, 0};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{8, 6, 1};
+    auto perm = dtype{0, 1, 2};
+    auto shape_expected = dtype{8, 6};
+    auto perm_expected = dtype{0, 1};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+}
+
+TEST(TransposeTest, PrepareArgumentsManyDimRemoval) {
+  using dtype = SmallVector<int, 6>;
+  {
+    auto shape = dtype{2, 1, 1, 1, 1};
+    auto perm = dtype{0, 1, 2, 3, 4};
+    auto shape_expected = dtype{2};
+    auto perm_expected = dtype{0};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{1, 8, 1, 6, 1, 1};
+    auto perm = dtype{0, 1, 2, 3, 4, 5};
+    auto shape_expected = dtype{8, 6};
+    auto perm_expected = dtype{0, 1};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{1, 8, 1, 6, 1, 1};
+    auto perm = dtype{0, 3, 2, 1, 4, 5};
+    auto shape_expected = dtype{8, 6};
+    auto perm_expected = dtype{1, 0};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+}
+
+TEST(TransposeTest, PrepareArgumentsOnlyOnes) {
+  using dtype = SmallVector<int, 6>;
+  {
+    auto shape = dtype{1, 1, 1, 1};
+    auto perm = dtype{0, 1, 2, 3};
+    auto shape_expected = dtype{1};
+    auto perm_expected = dtype{0};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+  {
+    auto shape = dtype{1, 1, 1, 1};
+    auto perm = dtype{3, 2, 1, 0};
+    auto shape_expected = dtype{1};
+    auto perm_expected = dtype{0};
+    transpose_detail::PrepareArguments(shape, perm);
+    EXPECT_EQ(shape, shape_expected);
+    EXPECT_EQ(perm, perm_expected);
+  }
+}
 
 }  // namespace dali
