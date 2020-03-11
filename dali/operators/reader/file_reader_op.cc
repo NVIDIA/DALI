@@ -26,17 +26,20 @@ DALI_SCHEMA(FileReader)
   .NumOutput(2)  // (Images, Labels)
   .AddArg("file_root",
       R"code(Path to a directory containing data files.
-`FileReader` supports flat directory structure. `file_root` directory should contain
-directories with images in them. To obtain labels `FileReader` sorts directories in
-`file_root` in alphabetical order and takes an index in this order as a class label.)code",
+``FileReader`` supports flat directory structure. ``file_root`` directory should contain
+directories with images in them. To obtain labels ``FileReader`` sorts directories in
+``file_root`` in alphabetical order and takes an index in this order as a class label.)code",
       DALI_STRING)
   .AddOptionalArg("file_list",
-      R"code(Path to the file with a list of pairs ``file label``
-(leave empty to traverse the `file_root` directory to obtain files and labels))code",
+      R"code(Path to a text file containing rows of ``filename label`` pairs, where the filenames are
+relative to ``file_root``.
+If left empty, ``file_root`` is traversed for subdirectories (only those at one level deep from 
+``file_root``) containing files associated with the same label. When traversing subdirectories, 
+labels are assigned consecutive numbers.)code",
       std::string())
 .AddOptionalArg("shuffle_after_epoch",
       R"code(If true, reader shuffles whole dataset after each epoch. It is exclusive with
-`stick_to_shard` and `random_shuffle`.)code",
+``stick_to_shard`` and ``random_shuffle``.)code",
       false)
   .AddParent("LoaderBase");
 
