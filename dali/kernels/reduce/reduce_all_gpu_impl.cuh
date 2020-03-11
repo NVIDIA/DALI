@@ -68,7 +68,7 @@ __global__ void ReduceAllKernel(Acc *out, const In *in, int64_t n,
   const int64_t grid_size = gridDim.x * blk_size;
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
   int64_t idx = blockIdx.x * blk_size + flat_tid;
-  Acc val = idx < n ? pp(in[idx]) : 0;
+  Acc val = idx < n ? pp(in[idx]) : reduce.template neutral<Acc>();
   for (idx += grid_size; idx < n; idx += grid_size) {
     reduce(val, pp(in[idx]));
   }
@@ -93,7 +93,7 @@ __global__ void ReduceAllBatchedKernel(Acc *out, const In *const *in, const int6
   const int64_t n = in_sizes[sample];
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
   int64_t idx = blockIdx.x * blk_size + flat_tid;
-  Acc val = idx < n ? pp(in[sample][idx]) : 0;
+  Acc val = idx < n ? pp(in[sample][idx]) : reduce.template neutral<Acc>();
   for (idx += grid_size; idx < n; idx += grid_size) {
     reduce(val, pp(in[sample][idx]));
   }
@@ -128,7 +128,7 @@ __global__ void ReduceAllBlockwiseKernel(Acc *out, const In *in, int64_t sample_
   const int64_t grid_size = gridDim.x * blk_size;
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
   int64_t offset = blockIdx.x * blk_size + flat_tid;
-  Acc val = offset < sample_size ? pp(in[offset]) : 0;
+  Acc val = offset < sample_size ? pp(in[offset]) : reduce.template neutral<Acc>();
   for (offset += grid_size; offset < sample_size; offset += grid_size) {
     reduce(val, pp(in[offset]));
   }

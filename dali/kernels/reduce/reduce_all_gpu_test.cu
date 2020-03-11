@@ -24,28 +24,54 @@
 namespace dali {
 namespace kernels {
 
-template <typename T>
-double RefSum(span<T> in) {
+template <typename Out, typename Reduction, typename T>
+Out RefReduce(span<T> in, const Reduction &R) {
   switch (in.size()) {
     case 0:
-      return 0;
+      return R.template neutral<Out>();
     case 1:
       return in[0];
     default: {
       if (in.size() <= 128) {
-        double acc = 0;
+        double acc = R.template neutral<Out>();
         for (auto &x : in)
-          acc += x;
+          R(acc, x);
         return acc;
       }
       int m = in.size() / 2;
       int n = in.size() - m;
-      return RefSum(make_span(in.data(), m)) + RefSum(make_span(in.data() + m, n));
+      Out out = RefReduce<Out>(make_span(in.data(), m), R);
+      R(out, RefReduce<Out>(make_span(in.data() + m, n), R));
+      return out;
     }
   }
 }
 
-TEST(ReduceGPU, ReduceAllKernel) {
+using ReductionTestTypes = ::testing::Types<reductions::sum, reductions::min, reductions::max>;
+
+inline bool IsAccurate(const reductions::min &) { return true; }
+inline bool IsAccurate(const reductions::max &) { return true; }
+template <typename Reduction>
+inline bool IsAccurate(const Reduction &) { return false; }
+
+template <typename Reduction>
+class ReduceAllGPUTest : public ::testing::Test {
+ public:
+  void TestReduceAll();
+  void TestReduceBatched();
+
+  template <typename T>
+  inline auto ref_reduce(span<T> in) const {
+    return RefReduce<double>(in, R);
+  }
+
+  Reduction R;
+};
+
+TYPED_TEST_SUITE(ReduceAllGPUTest, ReductionTestTypes);
+
+template <typename Reduction>
+void ReduceAllGPUTest<Reduction>::TestReduceAll() {
   std::mt19937_64 rng(1234);
   std::uniform_real_distribution<float> dist(0, 1);
 
@@ -59,7 +85,7 @@ TEST(ReduceGPU, ReduceAllKernel) {
   std::vector<float> in_cpu(n_in), out_cpu(n_out);
   for (auto &x : in_cpu)
     x = dist(rng);
-  double ref_sum = RefSum(make_cspan(in_cpu));
+  double ref_value = ref_reduce(make_cspan(in_cpu));
 
   cudaMemcpy(in_data.get(), in_cpu.data(), n_in * sizeof(*in_data), cudaMemcpyHostToDevice);
 
@@ -69,23 +95,35 @@ TEST(ReduceGPU, ReduceAllKernel) {
   auto start = CUDAEvent::CreateWithFlags(0);
   auto end =   CUDAEvent::CreateWithFlags(0);
   cudaEventRecord(start);
-  ReduceAllKernel<<<grid, block>>>(out_data.get() + 1, in_data.get(), n_in);
-  ReduceAllKernel<<<1, block>>>(out_data.get(), out_data.get() + 1, n_out0);
+  ReduceAllKernel<<<grid, block>>>(out_data.get() + 1, in_data.get(), n_in, R);
+  ReduceAllKernel<<<1, block>>>(out_data.get(), out_data.get() + 1, n_out0, R);
   cudaEventRecord(end);
   cudaMemcpy(out_cpu.data(), out_data.get(), n_out * sizeof(*out_data), cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
   float t = 0;
   cudaEventElapsedTime(&t, start, end);
-  double out_sum = out_cpu[0];
-  double out_partial = RefSum(make_cspan(&out_cpu[1], n_out0));
-  EXPECT_NEAR(out_sum, ref_sum, ref_sum * 1e-7 + 1e-7);
-  EXPECT_NEAR(out_partial, ref_sum, ref_sum * 1e-7 + 1e-7);
+  double out_value = out_cpu[0];
+  double out_partial = ref_reduce(make_cspan(&out_cpu[1], n_out0));
+  if (IsAccurate(R)) {
+    EXPECT_EQ(out_value, ref_value);
+    EXPECT_EQ(out_partial, ref_value);
+  } else {
+    double eps = ref_value * 1e-7 + 1e-7;
+    EXPECT_NEAR(out_value, ref_value, eps);
+    EXPECT_NEAR(out_partial, ref_value, eps);
+  }
 
-  t /= 1000;
+  t /= 1000;  // convert to seconds
   std::cout << n_in * sizeof(*in_data) / t * 1e-9 << " GB/s" << std::endl;
 }
 
-TEST(ReduceGPU, ReduceAllBatchedKernel) {
+TYPED_TEST(ReduceAllGPUTest, ReduceAllKernel) {
+  this->TestReduceAll();
+}
+
+
+template <typename Reduction>
+void ReduceAllGPUTest<Reduction>::TestReduceBatched() {
   std::mt19937_64 rng(1234);
   std::uniform_real_distribution<float> dist(0, 1);
   std::uniform_int_distribution<int> size_dist(10000, 1000000);
@@ -129,17 +167,18 @@ TEST(ReduceGPU, ReduceAllBatchedKernel) {
   cudaMemcpy(gpu_sizes.get(), sizes.data(), samples * sizeof(*gpu_sizes), cudaMemcpyHostToDevice);
 
   // warm-up
-  ReduceAllBatchedKernel<<<1, block>>>(out_data.get(), gpu_dev_ptrs.get(), gpu_sizes.get());
+  ReduceAllBatchedKernel<<<1, block>>>(out_data.get(), gpu_dev_ptrs.get(), gpu_sizes.get(), R);
   cudaDeviceSynchronize();
   auto start = CUDAEvent::CreateWithFlags(0);
   auto end =   CUDAEvent::CreateWithFlags(0);
   cudaEventRecord(start);
   ReduceAllBatchedKernel<<<grid, block>>>(out_data.get() + samples,
-                                          gpu_dev_ptrs.get(), gpu_sizes.get());
+                                          gpu_dev_ptrs.get(), gpu_sizes.get(), R);
 
   dim3 grid2(1, samples);
   ReduceAllBlockwiseKernel<<<grid2, block>>>(out_data.get(),
-                                             out_data.get() + samples, n_out_per_sample);
+                                             out_data.get() + samples, n_out_per_sample,
+                                             R);
   cudaEventRecord(end);
   cudaMemcpy(out_cpu.data(), out_data.get(), n_out * sizeof(*out_data), cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
@@ -148,17 +187,27 @@ TEST(ReduceGPU, ReduceAllBatchedKernel) {
 
   offset = 0;
   for (int i = 0; i < samples; i++) {
-    double ref_sum = RefSum(make_cspan(host_ptrs[i], sizes[i]));
-    double out_sum = out_cpu[i];
-    auto partial_sums = make_cspan(&out_cpu[samples + i * n_out_per_sample], n_out_per_sample);
-    double out_partial = RefSum(partial_sums);
-    EXPECT_NEAR(out_sum, ref_sum, ref_sum * 1e-7 + 1e-7);
-    EXPECT_NEAR(out_partial, ref_sum, ref_sum * 1e-7 + 1e-7);
+    double ref_value = ref_reduce(make_cspan(host_ptrs[i], sizes[i]));
+    double out_value = out_cpu[i];
+    auto partial_values = make_cspan(&out_cpu[samples + i * n_out_per_sample], n_out_per_sample);
+    double out_partial = ref_reduce(partial_values);
+    if (IsAccurate(R)) {
+      EXPECT_EQ(out_value, ref_value);
+      EXPECT_EQ(out_partial, ref_value);
+    } else {
+      double eps = ref_value * 1e-7 + 1e-7;
+      EXPECT_NEAR(out_value, ref_value, eps);
+      EXPECT_NEAR(out_partial, ref_value, eps);
+    }
     offset += sizes[i];
   }
 
-  t /= 1000;
+  t /= 1000;  // convert to seconds
   std::cout << n_in * sizeof(*in_data) / t * 1e-9 << " GB/s" << std::endl;
+}
+
+TYPED_TEST(ReduceAllGPUTest, ReduceAllBatchedKernel) {
+  this->TestReduceBatched();
 }
 
 }  // namespace kernels
