@@ -20,6 +20,7 @@
 #include <vector>
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/core/convert.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"
@@ -67,7 +68,38 @@ struct sum {
   void operator()(Acc &acc, const Addend &val) const noexcept {
     acc += val;
   }
+
+  template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  static constexpr T neutral() noexcept { return 0; }
 };
+
+struct min {
+  template <typename T, typename U>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  void operator()(T &min_val, const U &val) const noexcept {
+    if (val < min_val)
+      min_val = val;
+  }
+
+  template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  static constexpr T neutral() noexcept { return max_value<T>(); }
+};
+
+struct max {
+  template <typename T, typename U>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  void operator()(T &min_val, const U &val) const noexcept {
+    if (val > min_val)
+      min_val = val;
+  }
+
+  template <typename T>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  static constexpr T neutral() noexcept { return min_value<T>(); }
+};
+
 
 }  // namespace reductions
 
@@ -79,9 +111,10 @@ template <int static_stride, typename Dst, typename Src, typename Preprocessor, 
 void reduce1D_stride(Dst &reduced, const Src *data, int64_t dynamic_stride, int64_t n,
                      const Preprocessor &P, const Reduction &R) {
   const int64_t stride = static_stride < 0 ? dynamic_stride : static_stride;
+  const Dst neutral = R.template neutral<Dst>();
   if (n > kTreeReduceThreshold) {
     int64_t m = n >> 1;
-    Dst tmp1 = 0, tmp2 = 0;
+    Dst tmp1 = neutral, tmp2 = neutral;
     // reduce first half and accumulate
     reduce1D_stride<static_stride>(tmp1, data, stride, m, P, R);
     // reduce second half and accumulate
@@ -90,7 +123,7 @@ void reduce1D_stride(Dst &reduced, const Src *data, int64_t dynamic_stride, int6
     R(reduced, tmp1);
   } else {
     // reduce to a temporary
-    Dst tmp = 0;
+    Dst tmp = neutral;
     for (int64_t i = 0; i < n; i++)
        R(tmp, P(data[i * stride]));
     // accumulate in target value
@@ -120,8 +153,9 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
             const Preprocessor &P, const Reduction &R,
             int axis, int64_t extent, int64_t offset) {
   int64_t stride = in.stride[axis];
+  const Dst neutral = R.template neutral<Dst>();
   if (axis == in.dim() - 1) {
-    Dst tmp = 0;
+    Dst tmp = neutral;
     reduce1D(tmp, in.data + offset, stride, in.size[axis], P, R);
     R(reduced, tmp);
   } else {
@@ -129,7 +163,7 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
     if (sub_v == 0)
       sub_v = 1;
     if (extent >= 2 && extent * sub_v > kTreeReduceThreshold) {
-      Dst tmp1 = 0, tmp2 = 0;
+      Dst tmp1 = neutral, tmp2 = neutral;
       int64_t mid = extent / 2;
       reduce(tmp1, in, P, R, axis, mid, offset);
       reduce(tmp2, in, P, R, axis, extent - mid, offset + mid * stride);
@@ -137,7 +171,7 @@ void reduce(Dst &reduced, const StridedTensor<StorageCPU, Src> &in,
       R(reduced, tmp1);
     } else {
       for (int64_t i = 0; i < extent; i++) {
-        Dst tmp = 0;
+        Dst tmp = neutral;
         reduce(tmp, in, P, R, axis + 1, in.size[axis + 1], offset + i * stride);
         R(reduced, tmp);
       }
