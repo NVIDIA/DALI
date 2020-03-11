@@ -126,7 +126,7 @@ class ScalarConstant(object):
     This class should not be instantiated directly; use :func:`Constant` function
     with appropriate arguments to create instances of this class.
 
-Wrapper for a constant value that can be used in DALI arithmetic expressions
+Wrapper for a constant value that can be used in DALI :ref:`arithmetic expressions`
 and applied element-wise to the results of DALI Operators representing Tensors in
 :meth:`nvidia.dali.pipeline.Pipeline.define_graph` step.
 
@@ -212,13 +212,13 @@ dtype: DALIDataType, optional
     def __eq__(self, other):
         if isinstance(other, ScalarConstant):
             return self.value == other.value and self.dtype == other.dtype
-        # Delegate the call to the `__eq__` of other object, most probably an `_EdgeReference`
+        # Delegate the call to the `__eq__` of other object, most probably a `DataNode`
         return other.__eq__(self)
 
     def __ne__(self, other):
         if isinstance(other, ScalarConstant):
             return self.value != other.value or self.dtype != other.dtype
-        # Delegate the call to the `__ne__` of other object, most probably an `_EdgeReference`
+        # Delegate the call to the `__ne__` of other object, most probably a `DataNode`
         return other.__ne__(self)
 
     def __bool__(self):
@@ -393,7 +393,7 @@ def Constant(value, dtype = None, shape = None, layout = None, device = None, **
 If the `value` argument is a scalar and neither `shape`, `layout` nor
 `device` is provided, the function will return a :class:`ScalarConstant`
 wrapper object, which receives special, optimized treatment when used in
-arithmetic expressions.
+:ref:`arithmetic expressions`.
 
 Otherwise, the function creates a `dali.ops.Constant` node, which produces
 a batch of constant tensors.

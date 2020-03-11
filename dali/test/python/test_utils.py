@@ -197,6 +197,32 @@ class ConstantDataIterator(object):
 
     next = __next__
 
+def check_output(outputs, ref_out, ref_is_list_of_outputs = None):
+    """Checks the outputs of the pipeline.
+
+    `outputs`
+        return value from pipeline `run`
+    `ref_out`
+        a batch or tuple of batches
+    `ref_is_list_of_outputs`
+        only meaningful when there's just one output - if True, ref_out is a one-lement
+        list containing a single batch for output 0; otherwise ref_out _is_ a batch
+    """
+    if ref_is_list_of_outputs is None:
+        ref_is_list_of_outputs = len(outputs) > 1
+
+    assert(ref_is_list_of_outputs or (len(outputs) == 1))
+
+    for idx in range(len(outputs)):
+        out = outputs[idx]
+        ref = ref_out[idx] if ref_is_list_of_outputs else ref_out
+        if isinstance(out, dali.backend_impl.TensorListGPU):
+            out = out.as_cpu()
+        for i in range(len(out)):
+            if not np.array_equal(out[i], ref[i]):
+                print("Out: ", out.at(i))
+                print("Ref: ", ref[i])
+            assert(np.array_equal(out[i], ref[i]))
 
 def dali_type(t):
     if t is None:
@@ -215,7 +241,7 @@ def dali_type(t):
         return types.UINT32
     if t is np.int32:
         return types.INT32
-    raise "Unsupported type: " + str(t)
+    raise TypeError("Unsupported type: " + str(t))
 
 def py_buffer_from_address(address, shape, dtype, gpu = False):
     buff = {'data': (address, False), 'shape': tuple(shape), 'typestr': dtype}

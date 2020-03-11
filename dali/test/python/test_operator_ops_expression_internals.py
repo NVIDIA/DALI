@@ -20,8 +20,8 @@ from nose.tools import assert_equal, assert_raises
 
 
 def test_group_inputs():
-    e0 = ops._EdgeReference("op0", "cpu")
-    e1 = ops._EdgeReference("op1", "cpu")
+    e0 = ops._DataNode("op0", "cpu")
+    e1 = ops._DataNode("op1", "cpu")
     inputs = [e0, e1, 10.0, Constant(0).uint8(), 42]
     cat_idx, edges, integers, reals = ops._group_inputs(inputs)
     assert_equal([("edge", 0), ("edge", 1), ("real", 0),

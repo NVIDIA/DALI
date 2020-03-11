@@ -22,7 +22,8 @@ __git_sha__ = '@GIT_SHA@'
 from . import ops
 from . import pipeline
 from . import tensors
-from . import check_edge
+from . import fn
+from . import data_node
 from . import tfrecord
 from . import types
 from . import plugin_manager

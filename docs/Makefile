@@ -1,5 +1,7 @@
 # Minimal makefile for Sphinx documentation
 #
+export PYTHONIOENCODING=utf-8
+export LC_ALL=C.UTF-8
 
 # You can set these variables from the command line.
 SPHINXOPTS    =
