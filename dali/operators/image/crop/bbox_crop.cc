@@ -306,8 +306,13 @@ class RandomBBoxCrop<CPUBackend>::Impl {
                 " bounding box (e.g. \"xyXY\", \"xyWH\", ...)");
     }
 
+    bool allow_no_crop = spec.GetArgument<bool>("allow_no_crop");
     if (has_crop_shape_) {
-      DALI_ENFORCE(!spec.HasArgument("allow_no_crop") || !spec.GetArgument<bool>("allow_no_crop"),
+      // If it was left default but a crop_shape was provided, disallow no crop silently
+      if (!spec.HasArgument("allow_no_crop"))
+        allow_no_crop = false;
+
+      DALI_ENFORCE(!allow_no_crop,
                    "`allow_no_crop` is incompatible with providing the crop shape explicitly");
       DALI_ENFORCE(!spec.HasArgument("aspect_ratio"),
                    "`aspect_ratio` is incompatible with providing the crop shape explicitly");
@@ -326,7 +331,7 @@ class RandomBBoxCrop<CPUBackend>::Impl {
       sample_options_.emplace_back(false, threshold);
     }
 
-    if (spec.GetArgument<bool>("allow_no_crop")) {
+    if (allow_no_crop) {
       sample_options_.emplace_back(true, 0.0f);
     }
   }

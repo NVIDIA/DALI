@@ -248,16 +248,7 @@ class BoundingBox {
       return bbox_bounds_;
     }
 
-    DALI_ENFORCE(layout.is_permutation_of(internal_layout),
-      make_string("`", layout, "` is not a permutation of `", internal_layout, "`"));
-    auto perm = GetDimIndices(InternalLayout(ndim()), layout);
-    auto out = bbox_bounds_;
-
-    for (int i = 0; i < ndim(); i++) {
-      int axis = perm[i];
-      out[i]          = bbox_bounds_[axis];
-      out[ndim() + i] = bbox_bounds_[ndim() + axis];
-    }
+    auto out = Permute(bbox_bounds_, internal_layout, layout);
     return out;
   }
 
