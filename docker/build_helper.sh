@@ -26,7 +26,8 @@ export ARCH=${ARCH}
 export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
 export BUILD_TEST=${BUILD_TEST:-ON}
 export BUILD_BENCHMARK=${BUILD_BENCHMARK:-ON}
-export BUILD_NVTX=${BUILD_NVTX:-OFF}
+# use a default value as it differs for CUDA 9.x and CUDA 10.x
+export BUILD_NVTX=${BUILD_NVTX}
 export BUILD_PYTHON=${BUILD_PYTHON:-ON}
 export BUILD_LMDB=${BUILD_LMDB:-ON}
 export BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO:-ON}

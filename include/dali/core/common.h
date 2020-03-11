@@ -15,8 +15,16 @@
 #ifndef DALI_CORE_COMMON_H_
 #define DALI_CORE_COMMON_H_
 
-#ifdef DALI_USE_NVTX
-#include "nvToolsExt.h"
+#if NVTX_ENABLED
+  // Just to get CUDART_VERSION value
+  #include <cuda_runtime_api.h>
+  #if (CUDART_VERSION >= 10000)
+    #include "nvtx3/nvToolsExt.h"
+  #elif (CUDART_VERSION < 10000) // NOLINT
+    #include "nvToolsExt.h"
+  #else
+    #error Unknown CUDART_VERSION!
+  #endif
 #endif
 
 #include <array>
@@ -148,7 +156,7 @@ struct TimeRange {
   static const uint32_t knvGreen = 0x76B900;
 
   TimeRange(std::string name, const uint32_t rgb = kBlue) {  // NOLINT
-#ifdef DALI_USE_NVTX
+#if NVTX_ENABLED
     nvtxEventAttributes_t att;
     att.version = NVTX_VERSION;
     att.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
@@ -166,7 +174,7 @@ struct TimeRange {
   ~TimeRange() { stop(); }
 
   void stop() {
-#ifdef DALI_USE_NVTX
+#if NVTX_ENABLED
     if (started) {
       started = false;
       nvtxRangePop();
@@ -174,7 +182,7 @@ struct TimeRange {
 #endif
   }
 
-#ifdef DALI_USE_NVTX
+#if NVTX_ENABLED
 
  private:
   bool started = false;

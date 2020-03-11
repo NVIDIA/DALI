@@ -22,11 +22,21 @@ endif()
 
 project(DALI CUDA CXX C)
 set(DALI_ROOT ${PROJECT_SOURCE_DIR})
+set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
 # Build options
 option(BUILD_TEST "Build googletest test suite" ON)
 option(BUILD_BENCHMARK "Build benchmark suite" ON)
-option(BUILD_NVTX "Build with NVTX profiling enabled" OFF)
+# if BUILD_NVTX is empty remove it and let is be default
+if ("${BUILD_NVTX}" STREQUAL "")
+  unset(BUILD_NVTX CACHE)
+endif()
+# starting from CUDA 10.0 we enabling NVTX by default as it doesn't have any linkage dependency
+if(${CUDA_VERSION} VERSION_GREATER_EQUAL "10.0")
+  option(BUILD_NVTX "Build with NVTX profiling enabled" ON)
+else()
+  option(BUILD_NVTX "Build with NVTX profiling enabled" OFF)
+endif()
 option(BUILD_PYTHON "Build Python bindings" ON)
 option(BUILD_LMDB "Build LMDB readers" OFF)
 option(BUILD_JPEG_TURBO "Build with libjpeg-turbo support" ON)
@@ -47,6 +57,7 @@ set(BUILD_FFMPEG ${BUILD_NVDEC})
 include(cmake/Utils.cmake)
 include(cmake/CUDA_utils.cmake)
 
+propagate_option(BUILD_NVTX)
 propagate_option(BUILD_PYTHON)
 propagate_option(BUILD_LMDB)
 propagate_option(BUILD_JPEG_TURBO)
