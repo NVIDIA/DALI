@@ -5,12 +5,13 @@ DALI functionality is exposed through Python API for ease of use and interoperab
 deep learning frameworks. This part of the documentation contains the detailed description of this
 API.
 
-`Pipeline <pipeline.rst>`_ section describes the :class:`Pipeline` object - the central and most
+.. currentmodule:: nvidia.dali.pipeline
+`Pipeline <pipeline.rst>`_ section describes the :class:`Pipeline` class - the central and most
 important part of every program using DALI.
 
 `Types <data_types.rst>`_ section describes types used to construct and returned by DALI pipelines.
 
-`Functioal API <functional_api.rst>`_ (Experimental!) section describes a psuedo-imperative API
+`Functional API <functional_api.rst>`_ (Experimental!) section describes a psuedo-imperative API
 which can be used to define DALI pipelines with less verbosity.
 
 .. toctree::

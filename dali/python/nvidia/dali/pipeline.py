@@ -19,7 +19,6 @@ from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
 from threading import local as tls
 from . import data_node as _data_node
-import copy
 import warnings
 pipeline_tls = tls()
 
@@ -73,14 +72,14 @@ Parameters
     and `y` for mixed and gpu stages. It is not supported when both `exec_async`
     and `exec_pipelined` are set to `False`.
     Executor will buffer cpu and gpu stages separatelly,
-    and will fill the buffer queues when the first :meth:`nvidia.dali.pipeline.Pipeline.run`
+    and will fill the buffer queues when the first :meth:`run`
     is issued.
 `exec_async` : bool, optional, default = True
     Whether to execute the pipeline asynchronously.
-    This makes :meth:`nvidia.dali.pipeline.Pipeline.run` method
+    This makes :meth:`run` method
     run asynchronously with respect to the calling Python thread.
     In order to synchronize with the pipeline one needs to call
-    :meth:`nvidia.dali.pipeline.Pipeline.outputs` method.
+    :meth:`outputs` method.
 `bytes_per_sample` : int, optional, default = 0
     A hint for DALI for how much memory to use for its tensors.
 `set_affinity` : bool, optional, default = False
@@ -389,6 +388,13 @@ Parameters
 
         Pipeline needs to be built in order to run it standalone.
         Framework-specific plugins handle this step automatically.
+
+        Parameters
+        ----------
+        define_graph : callable
+            If specified, this function will be used instead of member :meth:`define_graph`.
+            This parameter must not be set, if the pipeline outputs are specified with
+            :meth:`set_outputs`.
         """
         if self._built:
             return
@@ -484,9 +490,9 @@ Parameters
         faster execution. It provides better control to the users about when they
         want to run the pipeline, when they want to obtain resulting buffers
         and return them to DALI buffer pool when the results have been consumed.
-        Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
-        and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`.
-        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
+        Needs to be used together with :meth:`release_outputs`
+        and :meth:`share_outputs`.
+        Should not be mixed with :meth:`run` in the same pipeline"""
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
                 self._prefetch()
@@ -495,23 +501,23 @@ Parameters
 
     # for the backward compatibility
     def _run(self):
-        """Deprecated. Use `nvidia.dali.pipeline.Pipeline.schedule_run` instead."""
+        """Deprecated. Use `schedule_run` instead."""
         _show_deprecation_warning("_run", "schedule_run")
         self.schedule_run()
 
     def share_outputs(self):
         """Returns the outputs of the pipeline.
 
-        Main difference to :meth:`nvidia.dali.pipeline.Pipeline.outputs`
+        Main difference to :meth:`outputs`
         is that share_outputs doesn't release returned buffers, release_outputs
         need to be called for that. If the pipeline is executed asynchronously,
         this function blocks until the results become available. It provides
         the user with better control about when he wants to run the pipeline, when he wants
         to obtain the resulting buffers and when they can be returned to DALI pool when the
         results have been consumed.
-        Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
-        and :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
-        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline.
+        Needs to be used together with :meth:`release_outputs`
+        and :meth:`schedule_run`
+        Should not be mixed with :meth:`run` in the same pipeline.
 
         :return:
             A list of `TensorList` objects for respective pipeline outputs
@@ -525,7 +531,7 @@ Parameters
 
     # for the backward compatibility
     def _share_outputs(self):
-        """Deprecated. Use :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` instead"""
+        """Deprecated. Use :meth:`share_outputs` instead"""
         _show_deprecation_warning("_share_outputs", "share_outputs")
         self.share_outputs()
 
@@ -537,9 +543,9 @@ Parameters
         the user with better control about when he wants to run the pipeline, when he wants
         to obtain the resulting buffers and when they can be returned to DALI pool when the
         results have been consumed.
-        Needs to be used together with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run`
-        and :meth:`nvidia.dali.pipeline.Pipeline.share_outputs`
-        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.run` in the same pipeline"""
+        Needs to be used together with :meth:`schedule_run`
+        and :meth:`share_outputs`
+        Should not be mixed with :meth:`run` in the same pipeline"""
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if not self._built:
                 raise RuntimeError("Pipeline must be built first.")
@@ -547,7 +553,7 @@ Parameters
 
     # for the backward compatibility
     def _release_outputs(self):
-        """Deprecated. Use :meth:`nvidia.dali.pipeline.Pipeline.release_outputs` instead"""
+        """Deprecated. Use :meth:`release_outputs` instead"""
         _show_deprecation_warning("_release_outputs", "release_outputs")
         self.release_outputs()
 
@@ -566,9 +572,9 @@ Parameters
         If the pipeline was created with `exec_pipelined` option set to `True`,
         this function will also start prefetching the next iteration for
         faster execution.
-        Should not be mixed with :meth:`nvidia.dali.pipeline.Pipeline.schedule_run` in the same pipeline,
-        :meth:`nvidia.dali.pipeline.Pipeline.share_outputs` and
-        :meth:`nvidia.dali.pipeline.Pipeline.release_outputs`
+        Should not be mixed with :meth:`schedule_run` in the same pipeline,
+        :meth:`share_outputs` and
+        :meth:`release_outputs`
 
         :return:
             A list of `TensorList` objects for respective pipeline outputs
@@ -659,29 +665,6 @@ Parameters
             self._pipe.SetOutputNames(self._names_and_devices)
         return self._pipe.SerializeToProtobuf()
 
-    def clone(self, batch_size = None, num_threads = None, device_id = None, seed = None):
-        """Creates a copy of the pipeline."""
-        p = copy.copy(self)
-        p._built = False
-        p._pipe = None
-        p._prepared = False
-        p._first_iter = True
-        p._iter = 0
-        p._last_iter = False
-
-        if device_id is not None:
-            p._device_id = device_id
-        if num_threads is not None:
-            p._num_threads = num_threads
-        if seed is not None:
-            p._seed = seed
-        if batch_size is not None:
-            p._batch_size = batch_size
-
-        if self._built:
-            p.build()
-        return p
-
     def deserialize_and_build(self, serialized_pipeline):
         """Deserialize and build the pipeline given in serialized form.
 
@@ -734,7 +717,7 @@ Parameters
         Args
         ----
         `*output_data_nodes` : unpacked list of :class:`DataNode` objects
-        The outputs of the pipeline
+            The outputs of the pipeline
         """
         self._graph_out = output_data_nodes
 

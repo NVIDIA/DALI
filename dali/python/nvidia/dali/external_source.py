@@ -77,6 +77,8 @@ def _get_callback_from_source(source, cycle):
             iterable = True
             callback = lambda: next(iterator)
         except TypeError:
+            if cycle is not None:
+                raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
             if not callable(source):
                 raise TypeError("Source must be iterable or callable")
             callback = source
@@ -92,6 +94,10 @@ class ExternalSource():
 using several methods.
 
 The simplest and preferred way is to specify a `source`, which may be a callable or iterable.
+
+.. note::
+    To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
+    which is more performant.
 """
     _args_doc = """
 Args
@@ -121,13 +127,13 @@ Keyword Args
     The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
     the data is provided by `source`.
 
-`layout` : str or list/tuple of str:
+`layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof
     If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
     containing a distinct layout for each output. If the list has fewer elements than `num_outputs`,
     only the first outputs have the layout set, the reset have it cleared.
 """
 
-    def __init__(self, source = None, num_outputs = None, *, cycle = False, layout = None, name = None, device = "cpu", **kwargs):
+    def __init__(self, source = None, num_outputs = None, *, cycle = None, layout = None, name = None, device = "cpu", **kwargs):
         self._schema = _b.GetSchema("_ExternalSource")
         self._spec = _b.OpSpec("_ExternalSource")
         self._device = device
@@ -168,7 +174,12 @@ Keyword Args
 
         if source is None:
             if cycle is not None:
-                raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
+                if self._callback:
+                    raise ValueError("The argument `cycle` can only be specified if `source` is an iterable object "
+                        "specified in this call. To cycle through an iterable specified in `__init__`, set cycle "
+                        "there.")
+                else:
+                    raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
             callback = self._callback
         else:
             if self._callback is not None:
@@ -224,11 +235,14 @@ Keyword Args
 def _is_external_source_with_callback(op_instance):
     return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
 
-def external_source(source = None, num_outputs = None, *, cycle = False, name = None, device = "cpu", layout = None):
-    """
-    Creates a data node which is populated with data from a Python source.
-    The data can be provided by the `source` function or iterable, or it can be provided by
-    `pipeline.feed_input(name, data, layout)` inside `pipeline.iter_setup`.
+def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None):
+    """Creates a data node which is populated with data from a Python source.
+The data can be provided by the `source` function or iterable, or it can be provided by
+`pipeline.feed_input(name, data, layout)` inside `pipeline.iter_setup`.
+
+.. note::
+    To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
+    which is more performant.
     """
     if num_outputs is not None:
         if source is None:
