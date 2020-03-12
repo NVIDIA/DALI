@@ -38,7 +38,8 @@ template <typename Acc, typename In,
 __device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_inner,
                                  Reduction reduce = {}, Preprocess pp = {}) {
   // this table contains multipliers to use in shared memory reindexing to best avoid bank
-  // conflicts - the values are result of exhaustive search for particular
+  // conflicts - the values are result of exhaustive search in range (16, 19) for particular
+  // inner extent
   static __constant__ uint8_t bank_friendly_table[64] = {
     17, 16, 17, 16, 17, 16, 19, 16,
     17, 16, 19, 16, 19, 16, 17, 16,
@@ -66,15 +67,18 @@ __device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_
 
   for (int64_t outer = blockIdx.x * blockDim.x; outer < n_outer; outer += grid_size_x) {
     int64_t base = outer * n_inner;
-    for (int i = 0; i < n_inner; i++) {
-      int ofs = i * blockDim.x + threadIdx.x;
-      auto idx = base + ofs;
-      tmp[bank_friendly(ofs)] = idx < sample_size ? pp(in[idx]) : reduce.template neutral<Acc>();
-    }
+    int ofs = i * blockDim.x + flat_tid;
+    auto idx = base + ofs;
+    tmp[bank_friendly(ofs)] = idx < sample_size ? pp(in[idx]) : reduce.template neutral<Acc>();
     __syncthreads();
     int64_t outer_ofs = outer + threadIdx.x;
-    Acc acc;
-    if (outer_ofs < n_outer) {
+
+    int shm_base = threadIdx.x * n_inner;
+    int my_shm = shm_base + threadIdx.y;
+    if (n_inner > 16)
+      if (threadIdx.y <= 16)
+        reduce(tmp[bank_friendly(shm_base + threadIdx.y)],
+    if (threadIdx.y > 1
       Acc acc = tmp[bank_friendly(threadIdx.x * n_inner)];
       for (int i = 1; i < n_inner; i++) {
         int ofs = threadIdx.x * n_inner + i;
