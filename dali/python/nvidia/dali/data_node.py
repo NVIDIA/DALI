@@ -113,4 +113,4 @@ def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):
         raise TypeError(("Expected outputs of type compatible with \"DataNode\"."
                 " Received output type with name \"{}\" that does not match.")
-                .format(type(edge).__name__))
+                .format(type(maybe_node).__name__))
