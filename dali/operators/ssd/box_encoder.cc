@@ -88,7 +88,8 @@ vector<BoundingBox<2>> BoxEncoder<CPUBackend>::ReadBoxesFromInput(
 
   for (unsigned idx = 0; idx < num_boxes; ++idx) {
     boxes.push_back(
-        BoundingBox<2>::From(make_cspan(in_box_data, kBboxSize), "xyXY", BoundingBox<2>::NoBounds()));
+      BoundingBox<2>::From(make_cspan(in_box_data, kBboxSize), "xyXY",
+                           BoundingBox<2>::NoBounds()));
     in_box_data += kBboxSize;
   }
 

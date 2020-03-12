@@ -26,7 +26,8 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates) {
-  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{-0.5, 0.5, 0.5, 0.5}, {}, BoundingBox<2>::NoBounds());
+  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{-0.5, 0.5, 0.5, 0.5}, {},
+                                  BoundingBox<2>::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates2) {
@@ -34,7 +35,8 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates2) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates2) {
-  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, -0.5, 0.5, 0.5}, {}, BoundingBox<2>::NoBounds());
+  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, -0.5, 0.5, 0.5}, {},
+                                  BoundingBox<2>::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates3) {
@@ -42,7 +44,8 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates3) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates3) {
-  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{-1.5, 0.5, -0.5, 0.5}, {}, BoundingBox<2>::NoBounds());
+  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{-1.5, 0.5, -0.5, 0.5}, {},
+                                  BoundingBox<2>::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates4) {
@@ -50,7 +53,8 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptNegativeCoordinates4) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptNegativeCoordinates4) {
-  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, -1.5, 0.5, -0.5}, {}, BoundingBox<2>::NoBounds());
+  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, -1.5, 0.5, -0.5}, {},
+                                  BoundingBox<2>::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne) {
@@ -58,7 +62,8 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne) {
-  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{1.1, 0.5, 1.5, 0.5}, {}, BoundingBox<2>::NoBounds());
+  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{1.1, 0.5, 1.5, 0.5}, {},
+                                  BoundingBox<2>::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne2) {
@@ -66,7 +71,8 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne2) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne2) {
-  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, 1.1, 0.5, 1.5}, {}, BoundingBox<2>::NoBounds());
+  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, 1.1, 0.5, 1.5}, {},
+                                  BoundingBox<2>::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne3) {
@@ -74,7 +80,8 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne3) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne3) {
-  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, 0.5, 1.1, 0.5}, {}, BoundingBox<2>::NoBounds());
+  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, 0.5, 1.1, 0.5}, {},
+                                  BoundingBox<2>::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne4) {
@@ -82,7 +89,8 @@ TEST(BoundingBoxTest, BoundingBoxLTRBDoesNotAcceptCoordinatesLargerThanOne4) {
 }
 
 TEST(BoundingBoxTest, BoundingBoxLTRBWithNoBoundsAcceptCoordinatesLargerThanOne4) {
-  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, 0.5, 0.5, 1.1}, {}, BoundingBox<2>::NoBounds());
+  BoundingBox<2>::FromStartAndEnd(std::array<float, 4>{0.5, 0.5, 0.5, 1.1}, {},
+                                  BoundingBox<2>::NoBounds());
 }
 
 TEST(BoundingBoxTest, BoundingBoxRightMustBeGreaterOrEqualToLeft) {
@@ -181,7 +189,7 @@ TEST(BoundingBoxTest, CanBeIntersectedToSmaller) {
 
   auto intersected = bigger_box.Intersect(smaller_box);
 
-  EXPECT_EQ(intersected .Volume(), smaller_box.Volume());
+  EXPECT_EQ(intersected.Volume(), smaller_box.Volume());
 }
 
 TEST(BoundingBoxTest, IntersectBiggerLeavesTheSame) {
@@ -190,11 +198,12 @@ TEST(BoundingBoxTest, IntersectBiggerLeavesTheSame) {
 
   auto intersected = smaller_box.Intersect(bigger_box);
 
-  EXPECT_EQ(intersected .Volume(), smaller_box.Volume());
+  EXPECT_EQ(intersected.Volume(), smaller_box.Volume());
 }
 
 TEST(BoundingBoxTest, CanFlipHorizontallyXYWH) {
-  auto box_initial = BoundingBox<2>::FromStartAndShape(std::array<float, 4>{0.25, 0.25, 0.25, 0.25});
+  auto box_initial =
+      BoundingBox<2>::FromStartAndShape(std::array<float, 4>{0.25, 0.25, 0.25, 0.25});
   auto coords_initial_ltrb = box_initial.AsStartAndEnd();
   auto coords_initial_xywh = box_initial.AsStartAndShape();
 
@@ -232,7 +241,8 @@ TEST(BoundingBoxTest, CanFlipHorizontallyLTRB) {
 }
 
 TEST(BoundingBoxTest, CanFlipVerticallyXYWH) {
-  auto box_initial = BoundingBox<2>::FromStartAndShape(std::array<float, 4>{0.25, 0.25, 0.25, 0.25});
+  auto box_initial =
+      BoundingBox<2>::FromStartAndShape(std::array<float, 4>{0.25, 0.25, 0.25, 0.25});
   auto coords_initial_ltrb = box_initial.AsStartAndEnd();
   auto coords_initial_xywh = box_initial.AsStartAndShape();
 
@@ -352,8 +362,10 @@ TEST(BoundingBoxTest, CalculateIOUIsZeroIfNoOverlap) {
 }
 
 TEST(BoundingBoxTest, Bbox3dIoUNoOverlap) {
-  auto bbox1 = BoundingBox<3>::FromStartAndEnd(std::array<float, 6>{0.0, 0.0, 0.0, 0.25, 0.25, 0.25});
-  auto bbox2 = BoundingBox<3>::FromStartAndEnd(std::array<float, 6>{0.25, 0.25, 0.25, 0.5, 0.5, 0.5});
+  auto bbox1 =
+      BoundingBox<3>::FromStartAndEnd(std::array<float, 6>{0.0, 0.0, 0.0, 0.25, 0.25, 0.25});
+  auto bbox2 =
+      BoundingBox<3>::FromStartAndEnd(std::array<float, 6>{0.25, 0.25, 0.25, 0.5, 0.5, 0.5});
 
   EXPECT_FALSE(bbox1.Overlaps(bbox2));
   EXPECT_EQ(bbox1.IntersectionOverUnion(bbox2), 0.0f);
@@ -371,8 +383,10 @@ TEST(BoundingBoxTest, Bbox3dIoUOverlap) {
 }
 
 TEST(BoundingBoxTest, Bbox3dIntersect) {
-  auto bigger_box = BoundingBox<3>::FromStartAndEnd(std::array<float, 6>{0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
-  auto smaller_box = BoundingBox<3>::FromStartAndEnd(std::array<float, 6>{0.1, 0.1, 0.1, 0.9, 0.9, 0.9});
+  auto bigger_box =
+      BoundingBox<3>::FromStartAndEnd(std::array<float, 6>{0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
+  auto smaller_box =
+      BoundingBox<3>::FromStartAndEnd(std::array<float, 6>{0.1, 0.1, 0.1, 0.9, 0.9, 0.9});
 
   EXPECT_EQ(bigger_box.Intersect(smaller_box), smaller_box);
 }
@@ -402,12 +416,10 @@ TEST(BoundingBoxTest, LayoutConversionStartAndEnd) {
 
   auto box = BoundingBox<3>::FromStartAndEnd(start_and_end_xyz, "xyzXYZ");
   auto yzx_box = box.AsStartAndEnd("yzxYZX");
-  for (int i = 0; i < 6; i++)
-    ASSERT_EQ(yzx_box[i], start_and_end_yzx[i]);
+  for (int i = 0; i < 6; i++) ASSERT_EQ(yzx_box[i], start_and_end_yzx[i]);
 
   auto zyx_box = box.AsStartAndEnd("zyxZYX");
-  for (int i = 0; i < 6; i++)
-    ASSERT_EQ(zyx_box[i], start_and_end_zyx[i]);
+  for (int i = 0; i < 6; i++) ASSERT_EQ(zyx_box[i], start_and_end_zyx[i]);
 }
 
 TEST(BoundingBoxTest, LayoutConversionStartAndShape) {
@@ -423,8 +435,7 @@ TEST(BoundingBoxTest, LayoutConversionStartAndShape) {
 
   auto box = BoundingBox<3>::FromStartAndShape(start_and_shape_xyz, "xyzWHD");
   auto yzx_box = box.AsStartAndShape("yzxHDW");
-  for (int i = 0; i < 6; i++)
-    ASSERT_EQ(yzx_box[i], start_and_shape_yzx[i]);
+  for (int i = 0; i < 6; i++) ASSERT_EQ(yzx_box[i], start_and_shape_yzx[i]);
 
   auto zyx_box = box.AsStartAndShape("zyxDHW");
   for (int i = 0; i < 6; i++) {

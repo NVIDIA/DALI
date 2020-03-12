@@ -96,7 +96,8 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
                         float *out_box_data) const;
 
   void WriteMatchesToOutput(const vector<std::pair<unsigned, unsigned>> matches,
-    const vector<BoundingBox<2>> &boxes, const int *labels, float *out_boxes, int *out_labels) const;
+                            const vector<BoundingBox<2>> &boxes, const int *labels,
+                            float *out_boxes, int *out_labels) const;
 
   vector<std::pair<unsigned, unsigned>> MatchBoxesWithAnchors(
     const vector<BoundingBox<2>> &boxes) const;

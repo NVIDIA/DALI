@@ -90,29 +90,14 @@ void CollectShape(std::vector<TensorShape<>> &v,
 struct SampleOption {
   bool no_crop = false;
   float min_iou = 0.0f;
-  SampleOption(bool _no_crop, float _min_iou)
-      : no_crop(_no_crop), min_iou(_min_iou) {}
 };
 
 struct Range {
-  Range(float _min, float _max)
-      : min(_min), max(_max) {
-    DALI_ENFORCE(min >= 0.0f,
-      make_string("Min should be at least 0.0. Received: ", min));
-    DALI_ENFORCE(min <= max,
-      make_string("Range should be provided as: [min, max]. Received: [", min, max, "]"));
-  }
-
-  explicit Range(const std::vector<float>& range)
-      : Range(range.size() == 2 ? range[0] : -1.0f,
-              range.size() == 2 ? range[1] : -1.0f) {
-  }
-
   bool Contains(float k) const {
+    assert(min <= max);
     return k >= min && k <= max;
   }
-
-  const float min, max;
+  float min = 0.0f, max = 0.0f;
 };
 
 }  // namespace
@@ -280,11 +265,19 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
       , has_labels_(spec.NumInput() > 1)
       , has_crop_shape_(spec.ArgumentDefined("crop_shape"))
       , has_input_shape_(spec.ArgumentDefined("input_shape"))
-      , scale_range_{Range(spec.GetRepeatedArgument<float>("scaling"))}
-      , aspect_ratio_range_{Range(spec.GetRepeatedArgument<float>("aspect_ratio"))}
       , bbox_layout_(spec.GetArgument<TensorLayout>("bbox_layout"))
       , shape_layout_(spec.GetArgument<TensorLayout>("shape_layout"))
       , rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("batch_size")) {
+    auto scaling_arg = spec.GetRepeatedArgument<float>("scaling");
+    assert(scaling_arg.size() == 2);
+    scale_range_.min = scaling_arg[0];
+    scale_range_.max = scaling_arg[1];
+
+    auto aspect_ratio_arg = spec.GetRepeatedArgument<float>("aspect_ratio");
+    assert(aspect_ratio_arg.size() == 2);
+    aspect_ratio_range_.min = aspect_ratio_arg[0];
+    aspect_ratio_range_.max = aspect_ratio_arg[1];
+
     DALI_ENFORCE(has_crop_shape_ == has_input_shape_,
       "`crop_shape` and `input_shape` should be provided together or not provided");
 
@@ -319,11 +312,11 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     for (const auto &threshold : thresholds) {
       DALI_ENFORCE(0.0 <= threshold && threshold <= 1.0,
         make_string("Threshold value must be within the range [0.0, 1.0]. Received: ", threshold));
-      sample_options_.emplace_back(false, threshold);
+      sample_options_.push_back({false, threshold});
     }
 
     if (allow_no_crop) {
-      sample_options_.emplace_back(true, 0.0f);
+      sample_options_.push_back({true, 0.0f});
     }
   }
 
@@ -417,7 +410,9 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     std::vector<BoundingBox<ndim>> boxes;
     std::vector<int> labels;
 
-    ProspectiveCrop(bool success, const BoundingBox<ndim> &crop, const std::vector<BoundingBox<ndim>> &boxes,
+    ProspectiveCrop(bool success,
+                    const BoundingBox<ndim> &crop,
+                    const std::vector<BoundingBox<ndim>> &boxes,
                     const std::vector<int> &labels)
         : success(success), crop(crop), boxes(boxes), labels(labels) {}
     ProspectiveCrop() = default;
@@ -571,9 +566,10 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     }
   }
 
-  void WriteBoxesToOutput(SampleWorkspace &ws, const std::vector<BoundingBox<ndim>> &bounding_boxes) {
+  void WriteBoxesToOutput(SampleWorkspace &ws,
+                          const std::vector<BoundingBox<ndim>> &bounding_boxes) {
     auto &bbox_out = ws.Output<CPUBackend>(2);
-    bbox_out.Resize({static_cast<int64_t>(bounding_boxes.size()), box_size});
+    bbox_out.Resize({static_cast<int64_t>(bounding_boxes.size()), coords_size});
     auto *bbox_out_data = bbox_out.mutable_data<float>();
 
     for (size_t i = 0; i < bounding_boxes.size(); ++i) {
@@ -600,9 +596,6 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
   bool has_crop_shape_;
   bool has_input_shape_;
 
-  Range scale_range_;
-  Range aspect_ratio_range_;
-
   TensorLayout bbox_layout_;
   TensorLayout shape_layout_;
 
@@ -612,6 +605,9 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
 
   std::vector<TensorShape<>> crop_shape_;
   std::vector<TensorShape<>> input_shape_;
+
+  Range scale_range_;
+  Range aspect_ratio_range_;
 };
 
 template <>
@@ -644,11 +640,9 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   DALI_ENFORCE(num_dims == 2 || num_dims == 3,
     make_string("Unexpected number of dimensions: ", num_dims));
 
-  VALUE_SWITCH(num_dims, ndim, (2, 3), (
-    impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(spec_);
-  ), (
-    DALI_FAIL(make_string("Not supported number of dimensions", num_dims));
-  ));
+  VALUE_SWITCH(num_dims, ndim, (2, 3),
+    (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(spec_);),
+    (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
   assert(impl_ != nullptr);
   return impl_->Setup(output_desc, ws);
 }

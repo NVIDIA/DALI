@@ -85,7 +85,8 @@ class BoundingBox {
 
     if (!layout.empty()) {  // if layout not provided we assume `xy(z)WH(D)`
       DALI_ENFORCE(layout.is_permutation_of(InternalAnchorAndShapeLayout()),
-        make_string("`", layout, "` is not a permutation of `", InternalAnchorAndShapeLayout(), "`"));
+                   make_string("`", layout, "` is not a permutation of `",
+                               InternalAnchorAndShapeLayout(), "`"));
       out.bbox_bounds_ = Permute(out.bbox_bounds_, layout, InternalAnchorAndShapeLayout());
     }
 
@@ -380,11 +381,13 @@ class BoundingBox {
       auto lower = limits.bbox_bounds_[d];
       auto upper = limits.bbox_bounds_[ndim + d];
       DALI_ENFORCE(start >= lower && start <= upper,
-        make_string("dim", d, " start =", start, " is out of bounds. Expected [", lower, ", ", upper, "]"));
+                   make_string("dim", d, " start =", start, " is out of bounds. Expected [", lower,
+                               ", ", upper, "]"));
       DALI_ENFORCE(end >= lower && end <= upper,
-        make_string("dim", d, " end =", end, " is out of bounds. Expected [", lower, ", ", upper, "]"));
+                   make_string("dim", d, " end =", end, " is out of bounds. Expected [", lower,
+                               ", ", upper, "]"));
       DALI_ENFORCE(start <= end,
-        make_string("dim", d, " start should be <= end. Got start=", start, ", ", end));
+                   make_string("dim", d, " start should be <= end. Got start=", start, ", ", end));
     }
   }
 
