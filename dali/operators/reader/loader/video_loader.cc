@@ -222,7 +222,12 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
     int ret = fseek(file_data->file_stream, file_data->file_position, SEEK_SET);
     DALI_ENFORCE(ret == 0, make_string("Could not open file ", file_data->filename));
   }
-  return fread(buf, 1, buf_size, file_data->file_stream);
+  auto ret = fread(buf, 1, buf_size, file_data->file_stream);
+  if (ret == 0 && std::feof(file_data->file_stream)) {
+    return AVERROR_EOF;
+  } else {
+    return ret;
+  }
 }
 
 static int64_t seek_file(void *opaque, int64_t offset, int whence) {
@@ -431,7 +436,6 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
       av_bsf_flush(file.bsf_ctx_.get());
     }
   }
-
   // close the previous file if there was any open
   if (last_opened_.size() && last_opened_ != filename) {
     auto& old_file = open_files_[last_opened_];
