@@ -166,9 +166,9 @@ def test_mxnet_iterator_empty_array():
             bboxes = []
             labels = []
             for _ in range(batch_size):
-                batch.append(np.empty((224, 224, 3), dtype = np.uint8))
+                batch.append(np.empty((224, 224, 3), dtype = np.float))
                 bboxes.append(np.empty((0, 4), dtype = np.uint8))
-                labels.append(np.array((0, 1), dtype = np.uint8))
+                labels.append(np.array((0, 1), dtype = np.longlong))
                 self.i = (self.i + 1) % self.n
 
             return (batch, bboxes, labels)
@@ -198,6 +198,10 @@ def test_mxnet_iterator_empty_array():
 
     for i, batch in enumerate(iterator):
         bboxes_shape = batch[0].label[0].asnumpy().shape
+
+        assert batch[0].data[0].asnumpy().dtype == np.float64
+        assert batch[0].label[0].asnumpy().dtype == np.uint8
+        assert batch[0].label[1].asnumpy().dtype == np.int64
 
         assert bboxes_shape[0] == batch_size
         assert bboxes_shape[1] == 0
