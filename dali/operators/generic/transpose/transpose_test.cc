@@ -133,8 +133,8 @@ static constexpr auto kUniform = "_uniform";
  */
 std::vector<testing::Arguments> GetOneMasks(int rank) {
   std::vector<testing::Arguments> masks;
-  masks.reserve(1 << rank);
-  for (unsigned int mask = 0; mask < (1 << rank); mask++) {
+  masks.reserve(1u << rank);
+  for (unsigned int mask = 0; mask < (1u << rank); mask++) {
     masks.push_back({{kOnesMask, mask}});
   }
   return masks;
@@ -270,10 +270,10 @@ INSTANTIATE_TEST_SUITE_P(TransposeRank5Suite, TransposeTestRank5,
                                                        one_masks_reduced, uniform)));
 
 TEST(TransposeTest, PrepareArgumentsNoOnes) {
-  using dtype = SmallVector<int, 6>;
+  using array = SmallVector<int, 6>;
   {
-    auto shape = dtype{2};
-    auto perm = dtype{0};
+    auto shape = array{2};
+    auto perm = array{0};
     auto shape_expected = shape;
     auto perm_expected = perm;
     transpose_detail::PrepareArguments(shape, perm);
@@ -281,8 +281,8 @@ TEST(TransposeTest, PrepareArgumentsNoOnes) {
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{2, 4, 6, 8};
-    auto perm = dtype{0, 1, 2, 3};
+    auto shape = array{2, 4, 6, 8};
+    auto perm = array{0, 1, 2, 3};
     auto shape_expected = shape;
     auto perm_expected = perm;
     transpose_detail::PrepareArguments(shape, perm);
@@ -293,66 +293,66 @@ TEST(TransposeTest, PrepareArgumentsNoOnes) {
 
 
 TEST(TransposeTest, PrepareArgumentsSingleDimRemoval) {
-  using dtype = SmallVector<int, 6>;
+  using array = SmallVector<int, 6>;
   {
-    auto shape = dtype{2, 1};
-    auto perm = dtype{0, 1};
-    auto shape_expected = dtype{2};
-    auto perm_expected = dtype{0};
+    auto shape = array{2, 1};
+    auto perm = array{0, 1};
+    auto shape_expected = array{2};
+    auto perm_expected = array{0};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{1, 8, 6};
-    auto perm = dtype{1, 2, 0};
-    auto shape_expected = dtype{8, 6};
-    auto perm_expected = dtype{0, 1};
+    auto shape = array{1, 8, 6};
+    auto perm = array{1, 2, 0};
+    auto shape_expected = array{8, 6};
+    auto perm_expected = array{0, 1};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{1, 8, 6};
-    auto perm = dtype{0, 2, 1};
-    auto shape_expected = dtype{8, 6};
-    auto perm_expected = dtype{1, 0};
+    auto shape = array{1, 8, 6};
+    auto perm = array{0, 2, 1};
+    auto shape_expected = array{8, 6};
+    auto perm_expected = array{1, 0};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{8, 1, 6};
-    auto perm = dtype{1, 2, 0};
-    auto shape_expected = dtype{8, 6};
-    auto perm_expected = dtype{1, 0};
+    auto shape = array{8, 1, 6};
+    auto perm = array{1, 2, 0};
+    auto shape_expected = array{8, 6};
+    auto perm_expected = array{1, 0};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{8, 1, 6};
-    auto perm = dtype{0, 1, 2};
-    auto shape_expected = dtype{8, 6};
-    auto perm_expected = dtype{0, 1};
+    auto shape = array{8, 1, 6};
+    auto perm = array{0, 1, 2};
+    auto shape_expected = array{8, 6};
+    auto perm_expected = array{0, 1};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{8, 6, 1};
-    auto perm = dtype{1, 2, 0};
-    auto shape_expected = dtype{8, 6};
-    auto perm_expected = dtype{1, 0};
+    auto shape = array{8, 6, 1};
+    auto perm = array{1, 2, 0};
+    auto shape_expected = array{8, 6};
+    auto perm_expected = array{1, 0};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{8, 6, 1};
-    auto perm = dtype{0, 1, 2};
-    auto shape_expected = dtype{8, 6};
-    auto perm_expected = dtype{0, 1};
+    auto shape = array{8, 6, 1};
+    auto perm = array{0, 1, 2};
+    auto shape_expected = array{8, 6};
+    auto perm_expected = array{0, 1};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
@@ -360,30 +360,30 @@ TEST(TransposeTest, PrepareArgumentsSingleDimRemoval) {
 }
 
 TEST(TransposeTest, PrepareArgumentsManyDimRemoval) {
-  using dtype = SmallVector<int, 6>;
+  using array = SmallVector<int, 6>;
   {
-    auto shape = dtype{2, 1, 1, 1, 1};
-    auto perm = dtype{0, 1, 2, 3, 4};
-    auto shape_expected = dtype{2};
-    auto perm_expected = dtype{0};
+    auto shape = array{2, 1, 1, 1, 1};
+    auto perm = array{0, 1, 2, 3, 4};
+    auto shape_expected = array{2};
+    auto perm_expected = array{0};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{1, 8, 1, 6, 1, 1};
-    auto perm = dtype{0, 1, 2, 3, 4, 5};
-    auto shape_expected = dtype{8, 6};
-    auto perm_expected = dtype{0, 1};
+    auto shape = array{1, 8, 1, 6, 1, 1};
+    auto perm = array{0, 1, 2, 3, 4, 5};
+    auto shape_expected = array{8, 6};
+    auto perm_expected = array{0, 1};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{1, 8, 1, 6, 1, 1};
-    auto perm = dtype{0, 3, 2, 1, 4, 5};
-    auto shape_expected = dtype{8, 6};
-    auto perm_expected = dtype{1, 0};
+    auto shape = array{1, 8, 1, 6, 1, 1};
+    auto perm = array{0, 3, 2, 1, 4, 5};
+    auto shape_expected = array{8, 6};
+    auto perm_expected = array{1, 0};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
@@ -391,21 +391,21 @@ TEST(TransposeTest, PrepareArgumentsManyDimRemoval) {
 }
 
 TEST(TransposeTest, PrepareArgumentsOnlyOnes) {
-  using dtype = SmallVector<int, 6>;
+  using array = SmallVector<int, 6>;
   {
-    auto shape = dtype{1, 1, 1, 1};
-    auto perm = dtype{0, 1, 2, 3};
-    auto shape_expected = dtype{1};
-    auto perm_expected = dtype{0};
+    auto shape = array{1, 1, 1, 1};
+    auto perm = array{0, 1, 2, 3};
+    auto shape_expected = array{1};
+    auto perm_expected = array{0};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
   }
   {
-    auto shape = dtype{1, 1, 1, 1};
-    auto perm = dtype{3, 2, 1, 0};
-    auto shape_expected = dtype{1};
-    auto perm_expected = dtype{0};
+    auto shape = array{1, 1, 1, 1};
+    auto perm = array{3, 2, 1, 0};
+    auto shape_expected = array{1};
+    auto perm_expected = array{0};
     transpose_detail::PrepareArguments(shape, perm);
     EXPECT_EQ(shape, shape_expected);
     EXPECT_EQ(perm, perm_expected);
