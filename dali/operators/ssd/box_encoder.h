@@ -77,29 +77,29 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
 
  private:
   const float criteria_;
-  vector<BoundingBox> anchors_;
+  vector<BoundingBox<2>> anchors_;
 
   bool offset_;
   vector<float> means_;
   vector<float> stds_;
   float scale_;
 
-  vector<float> CalculateIous(const vector<BoundingBox> &boxes) const;
+  vector<float> CalculateIous(const vector<BoundingBox<2>> &boxes) const;
 
-  void CalculateIousForBox(float *ious, const BoundingBox &box) const;
+  void CalculateIousForBox(float *ious, const BoundingBox<2> &box) const;
 
-  vector<BoundingBox> ReadBoxesFromInput(const float *in_boxes, unsigned num_boxes) const;
+  vector<BoundingBox<2>> ReadBoxesFromInput(const float *in_boxes, unsigned num_boxes) const;
 
   void WriteAnchorsToOutput(float *out_boxes, int *out_labels) const;
 
-  void WriteBoxToOutput(const RelBounds& box,
+  void WriteBoxToOutput(const BoundingBox<2>& box,
                         float *out_box_data) const;
 
   void WriteMatchesToOutput(const vector<std::pair<unsigned, unsigned>> matches,
-    const vector<BoundingBox> &boxes, const int *labels, float *out_boxes, int *out_labels) const;
+    const vector<BoundingBox<2>> &boxes, const int *labels, float *out_boxes, int *out_labels) const;
 
   vector<std::pair<unsigned, unsigned>> MatchBoxesWithAnchors(
-    const vector<BoundingBox> &boxes) const;
+    const vector<BoundingBox<2>> &boxes) const;
 
   unsigned FindBestBoxForAnchor(
     unsigned anchor_idx, const vector<float> &ious, unsigned num_boxes) const;

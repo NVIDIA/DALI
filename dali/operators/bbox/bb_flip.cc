@@ -74,12 +74,10 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
   output.ResizeLike(input);
   auto output_data = output.mutable_data<float>();
 
+  TensorLayout bbox_layout = ltrb_ ? "xyXY" : "xyWH";
   for (int i = 0; i < input.size(); i += 4) {
-    auto bbox = ltrb_ ? BoundingBox::FromLtrb(input_data[i], input_data[i + 1], input_data[i + 2],
-                                              input_data[i + 3], BoundingBox::NoBounds(2))
-                      : BoundingBox::FromXywh(input_data[i], input_data[i + 1], input_data[i + 2],
-                                              input_data[i + 3], BoundingBox::NoBounds(2));
-
+    auto bbox = BoundingBox<2>::From(make_cspan(input_data, 4), bbox_layout,
+                                     BoundingBox<2>::NoBounds());
     if (horizontal) {
       bbox = bbox.HorizontalFlip();
     }
@@ -89,7 +87,7 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
 
     const auto result = ltrb_ ? bbox.AsStartAndEnd() : bbox.AsStartAndShape();
 
-    output_data[i] = result[0];
+    output_data[i] =     result[0];
     output_data[i + 1] = result[1];
     output_data[i + 2] = result[2];
     output_data[i + 3] = result[3];
