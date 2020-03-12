@@ -17,6 +17,7 @@ import math
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
@@ -155,36 +156,15 @@ def test_mxnet_iterator_empty_array():
     batch_size = 4
     size = 100
 
-    class ExternalInputIterator(object):
-        def __iter__(self):
-            self.i = 0
-            self.n = size
-            return self
+    def get_data():
+        images = [np.empty((1, 224, 224, 3), dtype = np.float)] * batch_size
+        bboxes = [np.empty((1, 0, 4), dtype = np.uint8)] * batch_size
+        labels = [np.array((1, 0, 1), dtype = np.longlong)] * batch_size
+        return (images, bboxes, labels)
 
-        def __next__(self):
-            batch = []
-            bboxes = []
-            labels = []
-            for _ in range(batch_size):
-                batch.append(np.empty((224, 224, 3), dtype = np.float))
-                bboxes.append(np.empty((0, 4), dtype = np.uint8))
-                labels.append(np.array((0, 1), dtype = np.longlong))
-                self.i = (self.i + 1) % self.n
-
-            return (batch, bboxes, labels)
-
-    eii = ExternalInputIterator()
-
-    class ExternalSourcePipeline(Pipeline):                   
-        def __init__(self):
-            super(ExternalSourcePipeline, self).__init__(batch_size, 4, 0, seed=12)
-            self.source = ops.ExternalSource(source = eii, num_outputs = 3)
-
-        def define_graph(self):                                                                
-            jpegs, bboxes, labels = self.source()
-            return (jpegs, bboxes, labels)
-
-    pipe = ExternalSourcePipeline()
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
+    images, bboxes, labels = fn.external_source(source = get_data, num_outputs = 3)
+    pipe.set_outputs(images, bboxes, labels)
     pipe.build()
 
     iterator = MXNetIterator(
