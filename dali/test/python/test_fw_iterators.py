@@ -149,6 +149,60 @@ def test_mxnet_iterator_last_batch_no_pad_last_batch():
     assert len(img_ids_list_set) == data_size
     assert len(set(mirrored_data)) != 1
 
+def test_mxnet_iterator_empty_array():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+
+    batch_size = 4
+    size = 100
+
+    class ExternalInputIterator(object):
+        def __iter__(self):
+            self.i = 0
+            self.n = size
+            return self
+
+        def __next__(self):
+            batch = []
+            bboxes = []
+            labels = []
+            for _ in range(batch_size):
+                batch.append(np.empty((224, 224, 3), dtype = np.uint8))
+                bboxes.append(np.empty((0, 4), dtype = np.uint8))
+                labels.append(np.array((0, 1), dtype = np.uint8))
+                self.i = (self.i + 1) % self.n
+
+            return (batch, bboxes, labels)
+
+    eii = ExternalInputIterator()
+
+    class ExternalSourcePipeline(Pipeline):                   
+        def __init__(self):
+            super(ExternalSourcePipeline, self).__init__(batch_size, 4, 0, seed=12)
+            self.source = ops.ExternalSource(source = eii, num_outputs = 3)
+
+        def define_graph(self):                                                                
+            jpegs, bboxes, labels = self.source()
+            return (jpegs, bboxes, labels)
+
+    pipe = ExternalSourcePipeline()
+    pipe.build()
+
+    iterator = MXNetIterator(
+    pipe,
+    output_map=[
+        ('data',  MXNetIterator.DATA_TAG),
+        ('bboxes',  MXNetIterator.LABEL_TAG),
+        ('label',  MXNetIterator.LABEL_TAG)],
+    size=size,
+    dynamic_shape=True)
+
+    for i, batch in enumerate(iterator):
+        bboxes_shape = batch[0].label[0].asnumpy().shape
+
+        assert bboxes_shape[0] == batch_size
+        assert bboxes_shape[1] == 0
+        assert bboxes_shape[2] == 4
+
 
 def test_mxnet_iterator_last_batch_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
