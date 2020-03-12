@@ -41,13 +41,19 @@ class OneHot : public Operator<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
     output_desc.resize(1);
     output_desc[0].shape = uniform_list_shape(batch_size_, {nclasses_});
-    output_desc[0].type = TypeTable::GetTypeInfo(DALI_INT32);
+    TYPE_SWITCH(output_type_, type2id, DType, PREEMPH_TYPES, (
+            {
+              TypeInfo type;
+              type.SetType<DType>(output_type_);
+              output_desc[0].type = type;
+            }
+    ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
     return true;
   }
 
   void RunImpl(HostWorkspace &ws) override;
 
- private:
+  const DALIDataType output_type_;
   int nclasses_;
 };
 

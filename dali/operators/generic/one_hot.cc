@@ -16,15 +16,35 @@
 
 namespace dali {
 
+#define PREEMPH_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
+
 void OneHot::RunImpl(HostWorkspace &ws) {
-  auto &output = ws.OutputRef<CPUBackend>(0);
-  auto &input = ws.InputRef<CPUBackend>(0);
-  for (int i = 0; i < batch_size_; ++i) {
-    auto &inptr = input[i];
-    auto cls = inptr.template mutable_data<int>();
-    DALI_ENFORCE(*cls < nclasses_, "Values are bigger than specified number of classes");
-    auto &outptr = output[i];
-    auto one_hot = outptr.template mutable_data<int>();
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  auto &output = ws.template OutputRef<CPUBackend>(0);
+  auto &tp = ws.GetThreadPool();
+  TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
+          TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
+          for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+            tp.DoWorkWithID(
+                    [&, sample_id](int thread_id) {
+                        OneHot(out, in, sample_id);
+                    });
+          }
+  ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  tp.WaitForWork();
+}
+
+template <typename Out, typename In>
+void OneHot(const OutListCPU<Out> &out, const InListCPU<In> &in, int sample_id) {
+  // TODO
+  auto &inptr = in[sample_id];
+  // CHECK
+  auto cls = inptr.template mutable_data<int>();
+  auto &outptr = out[sample_id];
+  // CHECK
+  auto one_hot = outptr.template mutable_data<Out>();
+  if (cls < nclasses_ && cls >= 0) {
     one_hot[*cls] = 1;
   }
 }
@@ -38,5 +58,7 @@ DALI_SCHEMA(OneHot)
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("nclasses", R"code(Number of all classes)code", 0);
+    .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
+                    DALI_FLOAT);
 
 }  // namespace dali
