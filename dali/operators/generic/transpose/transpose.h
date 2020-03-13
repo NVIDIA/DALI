@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <utility>
 
 #include "dali/kernels/common/utils.h"
 #include "dali/operators/generic/transpose/cutt/cutt.h"
