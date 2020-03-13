@@ -135,6 +135,12 @@ def non_empty(shape):
     return True
 
 def get_mx_array(shape, ctx=None, dtype=None):
+    # WAR
+    # ToDo (jlisiecki) - fix when upstream MXNet fixes this
+    # mx.nd.empty doesn't support np.longlong as mx.nd.zeros does, but it does np.int64
+    # which from our point of view is the same
+    if dtype == np.longlong:
+        dtype = np.int64
     if non_empty(shape):
         return mx.nd.zeros(shape, ctx, dtype)
     else:
@@ -339,7 +345,6 @@ class DALIGenericIterator(_DALIIteratorBase):
                         d[j] = get_mx_array(shape, d[j].context, dtype = dtype)
                 for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
                     if list(l[j].shape) != shape:
-                        l[j] = get_mx_array(shape, l[j].context, dtype = dtype)
                         l[j] = get_mx_array(shape, l[j].context, dtype = dtype)
 
             for j, d_arr in enumerate(d):
