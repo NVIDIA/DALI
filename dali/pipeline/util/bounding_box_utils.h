@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_UTIL_BOUNDING_BOX_UTILS_H_
 #define DALI_PIPELINE_UTIL_BOUNDING_BOX_UTILS_H_
 
+#include <limits>
 #include "dali/core/geom/box.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/core/math_util.h"

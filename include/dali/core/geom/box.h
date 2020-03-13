@@ -108,16 +108,16 @@ constexpr DALI_HOST_DEV CoordinateType volume(const Box<ndims, CoordinateType> &
 /**
  * @return Intersection of two boxes or a default one when the arguments are disjoint.
  */
-template<int ndims, typename CoordinateType>
-constexpr DALI_HOST_DEV Box<ndims, CoordinateType>
-intersection(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
+template <int ndims, typename CoordinateType>
+constexpr DALI_HOST_DEV Box<ndims, CoordinateType> intersection(
+    const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
   Box<ndims, CoordinateType> tmp = {max(lhs.lo, rhs.lo), min(lhs.hi, rhs.hi)};
   return any_coord(tmp.hi <= tmp.lo) ? Box<ndims, CoordinateType>() : tmp;
 }
 
-template<int ndims, typename CoordinateType>
-constexpr DALI_HOST_DEV CoordinateType
-intersection_over_union(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
+template <int ndims, typename CoordinateType>
+constexpr DALI_HOST_DEV CoordinateType intersection_over_union(
+    const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
   auto intersection_vol = volume(intersection(lhs, rhs));
   if (intersection_vol == 0)
     return 0.0f;

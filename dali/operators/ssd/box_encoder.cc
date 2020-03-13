@@ -98,7 +98,8 @@ vector<Box<2, float>> BoxEncoder<CPUBackend>::ReadBoxesFromInput(
 }
 
 template <int ndim>
-void WriteBoxToOutput(float* out_box_data, const vec<ndim, float>& center, const vec<ndim, float>& extent) {
+void WriteBoxToOutput(float *out_box_data, const vec<ndim, float> &center,
+                      const vec<ndim, float> &extent) {
   out_box_data[0] = center[0];
   out_box_data[1] = center[1];
   out_box_data[2] = extent[0];
