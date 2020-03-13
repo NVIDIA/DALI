@@ -1,0 +1,242 @@
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.c++ copyswa
+
+#ifndef DALI_PIPELINE_UTIL_BOUNDING_BOX_UTILS_H_
+#define DALI_PIPELINE_UTIL_BOUNDING_BOX_UTILS_H_
+
+#include "dali/core/geom/box.h"
+#include "dali/core/tensor_layout.h"
+#include "dali/core/math_util.h"
+
+namespace dali {
+
+template <int ndim>
+void AxisFlip(Box<ndim, float>& box, int axis) {
+  assert(axis >= 0 && axis < ndim);
+  box.lo[axis] = 1.0f - box.hi[axis];
+  box.hi[axis] = 1.0f - box.lo[axis];
+}
+
+template <int ndim>
+void HorizontalFlip(Box<ndim, float>& box) {
+  static_assert(ndim >= 1);
+  AxisFlip(box, 0);
+}
+
+template <int ndim>
+void VerticalFlip(Box<ndim, float>& box) {
+  static_assert(ndim >= 2);
+  AxisFlip(box, 1);
+}
+
+template <int ndim>
+void DepthWiseFlip(Box<ndim, float>& box) {
+  static_assert(ndim >= 3);
+  AxisFlip(box, 2);
+}
+
+template <int ndim>
+constexpr TensorLayout DefaultLayout() {
+  assert(ndim == 2 || ndim == 3);
+  if (ndim == 3)
+    return TensorLayout{"xyzXYZ"};
+  else
+    return TensorLayout{"xyXY"};
+}
+
+template <int ndim>
+constexpr TensorLayout DefaultAnchorAndShapeLayout() {
+  assert(ndim == 2 || ndim == 3);
+  if (ndim == 3)
+    return TensorLayout{"xyzWHD"};
+  else
+    return TensorLayout{"xyWH"};
+}
+
+template <int ndim>
+float AspectRatio(const Box<ndim, float>& box, int dim0, int dim1) {
+  assert(dim0 >= 0 && dim0 < ndim);
+  assert(dim1 >= 0 && dim1 < ndim);
+  auto extent = box.extent();
+  auto extent0 = extent[dim0];
+  auto extent1 = extent[dim1];
+  return extent0 / extent1;
+}
+
+template <int ndim>
+float MinAspectRatio(const Box<ndim, float>& box) {
+  float min_ar = std::numeric_limits<float>::max();
+  for (int i = 0; i < ndim; i++) {
+    for (int j = i + 1; j < ndim; j++) {
+      min_ar = std::min(min_ar, AspectRatio(box, i, j));
+    }
+  }
+  return min_ar;
+}
+
+template <int ndim>
+float MaxAspectRatio(const Box<ndim, float>& box) {
+  float max_ar = std::numeric_limits<float>::min();
+  for (int i = 0; i < ndim; i++) {
+    for (int j = i + 1; j < ndim; j++) {
+      max_ar = std::max(max_ar, AspectRatio(box, i, j));
+    }
+  }
+  return max_ar;
+}
+
+template <int ndim>
+Box<ndim, float> Uniform(float min, float max) {
+  return Box<ndim, float>(vec<ndim, float>(min), vec<ndim, float>(max));
+}
+
+template <typename Coords>
+void PermuteCoords(Coords& coords,
+                   TensorLayout orig_layout,
+                   TensorLayout new_layout) {
+  if (orig_layout == new_layout)
+    return;
+  assert(orig_layout.is_permutation_of(new_layout));
+  assert(coords.size() == orig_layout.size());
+  auto perm = GetDimIndices(orig_layout, new_layout);
+  auto out = coords;
+  for (int d = 0; d < static_cast<int>(coords.size()); d++)
+    out[d] = coords[perm[d]];
+  std::swap(coords, out);
+}
+
+template <int ndim>
+void ReadBoxes(span<Box<ndim, float>> boxes,
+               span<const float> coords,
+               TensorLayout layout,
+               const Box<ndim, float>& limits = Uniform<ndim>(0.0f, 1.0f)) {
+  static constexpr int box_size = ndim * 2;
+  assert(coords.size() % box_size == 0);
+  assert(coords.size() / box_size == boxes.size());
+  int nboxes = boxes.size();
+
+  auto default_layout_start_end   = DefaultLayout<ndim>();
+  auto default_layout_start_shape = DefaultAnchorAndShapeLayout<ndim>();
+  if (layout.empty()) {  // if layout not provided we assume `xy(z)XY(Z)`
+    layout = default_layout_start_end;
+  }
+
+  bool is_start_and_end = layout.is_permutation_of(default_layout_start_end);
+  bool is_start_and_shape = layout.is_permutation_of(default_layout_start_shape);
+  DALI_ENFORCE(is_start_and_end || is_start_and_shape,
+    make_string("`", layout, "` should be a permutation of `", default_layout_start_end,
+                "` or `", default_layout_start_shape, "`"));
+  TensorLayout default_layout =
+      is_start_and_shape ? default_layout_start_shape : default_layout_start_end;
+
+  std::array<float, box_size> tmp;
+  for (int i = 0; i < nboxes; i++) {
+    auto &box = boxes[i];
+    const float* in = coords.data() + i * box_size;
+    for (int d = 0; d < box_size; d++)
+      tmp[d] = in[d];
+    PermuteCoords(tmp, layout, default_layout);
+    for (int d = 0; d < ndim; d++) {
+      box.lo[d] = tmp[d];
+      box.hi[d] = tmp[ndim + d];
+    }
+    if (is_start_and_shape) {
+      for (int d = 0; d < ndim; d++) {
+        box.hi[d] += box.lo[d];
+      }
+    }
+  }
+
+  if (!limits.empty()) {
+    for (int i = 0; i < nboxes; i++) {
+      DALI_ENFORCE(limits.contains(boxes[i]),
+        make_string("box ", boxes[i], " is out of bounds ", limits));
+    }
+  }
+}
+
+template <int ndim>
+void ReadBox(Box<ndim, float>& box,
+              span<const float> coords,
+              TensorLayout layout,
+              const Box<ndim, float>& limits = Uniform<ndim>(0.0f, 1.0f)) {
+  ReadBoxes<ndim>({&box, 1}, coords, layout, limits);
+}
+
+template <int ndim>
+void WriteBoxes(span<float> coords,
+                span<const Box<ndim, float>> boxes,
+                TensorLayout layout) {
+  static constexpr int box_size = ndim * 2;
+  assert(coords.size() % box_size == 0);
+  assert(coords.size() / box_size == boxes.size());
+  int nboxes = boxes.size();
+  assert(layout.empty() || layout.size() == box_size);
+  auto default_layout_start_end   = DefaultLayout<ndim>();
+  auto default_layout_start_shape = DefaultAnchorAndShapeLayout<ndim>();
+  if (layout.empty()) {  // if layout not provided we assume `xy(z)XY(Z)`
+    layout = default_layout_start_end;
+  }
+
+  bool is_start_and_end = layout.is_permutation_of(default_layout_start_end);
+  bool is_start_and_shape = layout.is_permutation_of(default_layout_start_shape);
+  DALI_ENFORCE(is_start_and_end || is_start_and_shape,
+    make_string("`", layout, "` should be a permutation of `", default_layout_start_end,
+                "` or `", default_layout_start_shape, "`"));
+  TensorLayout default_layout =
+      is_start_and_shape ? default_layout_start_shape : default_layout_start_end;
+
+  for (int i = 0; i < nboxes; i++) {
+    const auto &box = boxes[i];
+    std::array<float, box_size> tmp;
+    for (int d = 0; d < ndim; d++) {
+      tmp[d]        = box.lo[d];
+      tmp[ndim + d] = box.hi[d];
+    }
+
+    if (is_start_and_shape) {
+      for (int d = 0; d < ndim; d++) {
+        tmp[ndim + d] -= box.lo[d];
+      }
+    }
+    PermuteCoords(tmp, default_layout, layout);
+
+    float *out = coords.data() + box_size * i;
+    for (int d = 0; d < box_size; d++) {
+      out[d] = tmp[d];
+    }
+  }
+}
+
+template <int ndim>
+void WriteBox(span<float> coords,
+              const Box<ndim, float>& box,
+              TensorLayout layout) {
+  WriteBoxes<ndim>(coords, {&box, 1}, layout);
+}
+
+template <int ndim>
+Box<ndim, float> RemapBox(const Box<ndim, float> &box, const Box<ndim, float> &crop) {
+  Box<ndim, float> mapped_box = box;
+  auto rel_extent = crop.extent();
+  auto start = (max(crop.lo, box.lo) - crop.lo) / rel_extent;
+  auto end = (min(crop.hi, box.hi) - crop.lo) / rel_extent;
+  mapped_box.lo = clamp(start, vec<ndim, float>{0.0f}, vec<ndim, float>{1.0f});
+  mapped_box.hi = clamp(end, vec<ndim, float>{0.0f}, vec<ndim, float>{1.0f});
+  return mapped_box;
+}
+
+}  // namespace dali
+
+#endif  // DALI_PIPELINE_UTIL_BOUNDING_BOX_UTILS_H_

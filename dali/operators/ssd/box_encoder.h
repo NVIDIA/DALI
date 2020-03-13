@@ -19,10 +19,10 @@
 #include <cstring>
 #include <vector>
 #include <utility>
-
+#include "dali/core/cuda_utils.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/bounding_box.h"
+#include "dali/pipeline/util/bounding_box_utils.h"
 
 namespace dali {
 
@@ -77,30 +77,27 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
 
  private:
   const float criteria_;
-  vector<BoundingBox<2>> anchors_;
+  vector<Box<2, float>> anchors_;
 
   bool offset_;
   vector<float> means_;
   vector<float> stds_;
   float scale_;
 
-  vector<float> CalculateIous(const vector<BoundingBox<2>> &boxes) const;
+  vector<float> CalculateIous(const vector<Box<2, float>> &boxes) const;
 
-  void CalculateIousForBox(float *ious, const BoundingBox<2> &box) const;
+  void CalculateIousForBox(float *ious, const Box<2, float> &box) const;
 
-  vector<BoundingBox<2>> ReadBoxesFromInput(const float *in_boxes, unsigned num_boxes) const;
+  vector<Box<2, float>> ReadBoxesFromInput(const float *in_boxes, unsigned num_boxes) const;
 
   void WriteAnchorsToOutput(float *out_boxes, int *out_labels) const;
 
-  void WriteBoxToOutput(const BoundingBox<2>& box,
-                        float *out_box_data) const;
-
   void WriteMatchesToOutput(const vector<std::pair<unsigned, unsigned>> matches,
-                            const vector<BoundingBox<2>> &boxes, const int *labels,
+                            const vector<Box<2, float>> &boxes, const int *labels,
                             float *out_boxes, int *out_labels) const;
 
   vector<std::pair<unsigned, unsigned>> MatchBoxesWithAnchors(
-    const vector<BoundingBox<2>> &boxes) const;
+    const vector<Box<2, float>> &boxes) const;
 
   unsigned FindBestBoxForAnchor(
     unsigned anchor_idx, const vector<float> &ious, unsigned num_boxes) const;

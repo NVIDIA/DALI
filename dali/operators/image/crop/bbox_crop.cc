@@ -22,24 +22,15 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/geom/box.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/util/batch_rng.h"
-#include "dali/pipeline/util/bounding_box.h"
+#include "dali/pipeline/util/bounding_box_utils.h"
 
 namespace dali {
 
 namespace {
-
-// This is the default bbox layout that the operator uses internally
-TensorLayout InternalBboxLayout(int ndim, bool ltrb) {
-  assert(ndim == 3 || ndim == 2);
-  if (ltrb) {
-    return ndim == 3 ? "xyzXYZ" : "xyXY";
-  } else {
-    return ndim == 3 ? "xyzWHD" : "xyWH";
-  }
-}
 
 // This is the default shape layout that the operator uses internally
 TensorLayout InternalShapeLayout(int ndim) {
@@ -269,14 +260,25 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
       , shape_layout_(spec.GetArgument<TensorLayout>("shape_layout"))
       , rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("batch_size")) {
     auto scaling_arg = spec.GetRepeatedArgument<float>("scaling");
-    assert(scaling_arg.size() == 2);
+    DALI_ENFORCE(scaling_arg.size() == 2,
+                 make_string("`scaling` must be a range `[min, max]`. Got ",
+                             scaling_arg.size(), " values"));
     scale_range_.min = scaling_arg[0];
     scale_range_.max = scaling_arg[1];
+    DALI_ENFORCE(
+        scale_range_.min >= 0 && scale_range_.min <= scale_range_.max,
+        make_string("`scaling` range must be positive and min <= max. Got: ", scale_range_.min,
+                    ", ", scale_range_.max));
 
     auto aspect_ratio_arg = spec.GetRepeatedArgument<float>("aspect_ratio");
-    assert(aspect_ratio_arg.size() == 2);
+    DALI_ENFORCE(aspect_ratio_arg.size() == 2,
+                 make_string("`aspect_ratio` must be a range `[min, max]`. Got ",
+                             aspect_ratio_arg.size(), " values"));
     aspect_ratio_range_.min = aspect_ratio_arg[0];
     aspect_ratio_range_.max = aspect_ratio_arg[1];
+    DALI_ENFORCE(aspect_ratio_range_.min >= 0 && aspect_ratio_range_.min <= aspect_ratio_range_.max,
+                 make_string("`aspect_ratio` range must be positive and min <= max. Got: ",
+                             aspect_ratio_range_.min, ", ", aspect_ratio_range_.max));
 
     DALI_ENFORCE(has_crop_shape_ == has_input_shape_,
       "`crop_shape` and `input_shape` should be provided together or not provided");
@@ -323,11 +325,11 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
   bool Setup(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
     if (bbox_layout_.empty()) {
       auto ltrb = spec_.GetArgument<bool>("ltrb");
-      bbox_layout_ = InternalBboxLayout(ndim, ltrb);
+      bbox_layout_ = ltrb ? DefaultLayout<ndim>() : DefaultAnchorAndShapeLayout<ndim>();
     }
 
-    auto default_bbox_layout_start_end = InternalBboxLayout(ndim, true);
-    auto default_bbox_layout_start_shape = InternalBboxLayout(ndim, false);
+    auto default_bbox_layout_start_end = DefaultLayout<ndim>();
+    auto default_bbox_layout_start_shape = DefaultAnchorAndShapeLayout<ndim>();
     DALI_ENFORCE(bbox_layout_.is_permutation_of(default_bbox_layout_start_end) ||
                  bbox_layout_.is_permutation_of(default_bbox_layout_start_shape),
       make_string("`bbox_layout` should be a permutation of `", default_bbox_layout_start_end,
@@ -362,13 +364,10 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     const auto &boxes_tensor = ws.Input<CPUBackend>(0);
     auto nboxes = boxes_tensor.dim(0);
     auto ncoords = ndim * 2;
-    std::vector<BoundingBox<ndim>> bounding_boxes;
-    bounding_boxes.reserve(nboxes);
-    for (int i = 0; i < nboxes; i++) {
-      const auto *box_data = boxes_tensor.data<float>() + i * ncoords;
-      auto box = BoundingBox<ndim>::From(make_cspan(box_data, ncoords), bbox_layout_);
-      bounding_boxes.emplace_back(box);
-    }
+
+    std::vector<Box<ndim, float>> bounding_boxes(nboxes);
+    ReadBoxes(make_span(bounding_boxes),
+              make_cspan(boxes_tensor.data<float>(), boxes_tensor.size()), bbox_layout_);
 
     std::vector<int> labels;
     if (has_labels_) {
@@ -406,19 +405,19 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
  private:
   struct ProspectiveCrop {
     bool success = false;
-    BoundingBox<ndim> crop{};
-    std::vector<BoundingBox<ndim>> boxes;
+    Box<ndim, float> crop{};
+    std::vector<Box<ndim, float>> boxes;
     std::vector<int> labels;
 
     ProspectiveCrop(bool success,
-                    const BoundingBox<ndim> &crop,
-                    const std::vector<BoundingBox<ndim>> &boxes,
+                    const Box<ndim, float> &crop,
+                    const std::vector<Box<ndim, float>> &boxes,
                     const std::vector<int> &labels)
         : success(success), crop(crop), boxes(boxes), labels(labels) {}
     ProspectiveCrop() = default;
   };
 
-  const ProspectiveCrop FindProspectiveCrop(const std::vector<BoundingBox<ndim>> &bounding_boxes,
+  const ProspectiveCrop FindProspectiveCrop(const std::vector<Box<ndim, float>> &bounding_boxes,
                                             const std::vector<int> &labels,
                                             int sample) {
     auto &rng = rngs_[sample];
@@ -429,15 +428,11 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     bool absolute_crop_dims = has_crop_shape_;
 
     if (option.no_crop) {
-      BoundingBox<ndim> no_crop;
-      for (int d = 0; d < ndim; d++) {
-        no_crop[d] = 0.0f;
-        no_crop[ndim + d] = 1.0f;
-      }
+      Box<ndim, float> no_crop = Uniform<ndim>(0.0f, 1.0f);
       if (absolute_crop_dims) {
         auto &input_shape = input_shape_[sample];
         for (int d = 0; d < ndim; d++)
-          no_crop[ndim + d] *= input_shape[d];
+          no_crop.hi[d] *= input_shape[d];
       }
       return ProspectiveCrop(true, no_crop, bounding_boxes, labels);
     }
@@ -483,11 +478,12 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
         }
       }
 
-      auto layout = BoundingBox<ndim>::InternalAnchorAndShapeLayout();
-      auto rel_crop =
-          BoundingBox<ndim>::FromStartAndShape(rel_bounds, layout);
-      auto out_crop =
-          BoundingBox<ndim>::FromStartAndShape(out_bounds, layout, BoundingBox<ndim>::NoBounds());
+      auto layout = DefaultAnchorAndShapeLayout<ndim>();  // start and shape
+      Box<ndim, float> rel_crop;
+      ReadBox(rel_crop, make_cspan(rel_bounds), layout);
+
+      Box<ndim, float> out_crop;
+      ReadBox(out_crop, make_cspan(out_bounds), layout, {});
 
       if (!ValidOverlap(rel_crop, bounding_boxes, option.min_iou)) {
         continue;
@@ -501,7 +497,7 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
       }
 
       for (auto &box : filtered_bboxes) {
-        box = box.RemapTo(rel_crop);
+        box = RemapBox(box, rel_crop);
       }
 
       return ProspectiveCrop(true, out_crop, filtered_bboxes, filtered_labels);
@@ -521,23 +517,23 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     return true;
   }
 
-  bool ValidOverlap(const BoundingBox<ndim> &crop, const std::vector<BoundingBox<ndim>> &boxes,
+  bool ValidOverlap(const Box<ndim, float> &crop, const std::vector<Box<ndim, float>> &boxes,
                     float threshold) {
     return std::all_of(boxes.begin(), boxes.end(),
-      [&crop, threshold](const BoundingBox<ndim> &box) {
-        return crop.IntersectionOverUnion(box) >= threshold;
+      [&crop, threshold](const Box<ndim, float> &box) {
+        return intersection_over_union(crop, box) >= threshold;
       });
   }
 
-  void FilterByCentroid(const BoundingBox<ndim> &crop,
-                        std::vector<BoundingBox<ndim>> &bboxes,
+  void FilterByCentroid(const Box<ndim, float> &crop,
+                        std::vector<Box<ndim, float>> &bboxes,
                         std::vector<int> &labels) {
-    std::vector<BoundingBox<ndim>> new_bboxes;
+    std::vector<Box<ndim, float>> new_bboxes;
     std::vector<int> new_labels;
     bool process_labels = !labels.empty();
     assert(labels.empty() || labels.size() == bboxes.size());
     for (size_t i = 0; i < bboxes.size(); i++) {
-      if (crop.Contains(bboxes[i].Centroid())) {
+      if (crop.contains(bboxes[i].centroid())) {
         new_bboxes.push_back(bboxes[i]);
         if (process_labels)
           new_labels.push_back(labels[i]);
@@ -548,9 +544,7 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
       std::swap(labels, new_labels);
   }
 
-  void WriteCropToOutput(SampleWorkspace &ws, const BoundingBox<ndim> &crop) {
-    const auto coordinates = crop.AsStartAndShape();
-
+  void WriteCropToOutput(SampleWorkspace &ws, const Box<ndim, float> &crop) {
     // output0 : anchor, output1 : shape
     auto &anchor_out = ws.Output<CPUBackend>(0);
     anchor_out.Resize({ndim});
@@ -560,24 +554,20 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     shape_out.Resize({ndim});
     auto *shape_out_data = shape_out.mutable_data<float>();
 
-    for (int dim = 0; dim < ndim; dim++) {
-      anchor_out_data[dim] = coordinates[dim];
-      shape_out_data[dim]  = coordinates[ndim + dim];
+    auto extent = crop.extent();
+    for (int d = 0; d < ndim; d++) {
+      anchor_out_data[d] = crop.lo[d];
+      shape_out_data[d] = extent[d];
     }
   }
 
   void WriteBoxesToOutput(SampleWorkspace &ws,
-                          const std::vector<BoundingBox<ndim>> &bounding_boxes) {
+                          const std::vector<Box<ndim, float>> &bounding_boxes) {
     auto &bbox_out = ws.Output<CPUBackend>(2);
     bbox_out.Resize({static_cast<int64_t>(bounding_boxes.size()), coords_size});
     auto *bbox_out_data = bbox_out.mutable_data<float>();
-
-    for (size_t i = 0; i < bounding_boxes.size(); ++i) {
-      auto *output = bbox_out_data + i * coords_size;
-      auto coordinates = bounding_boxes[i].As(bbox_layout_);
-      for (int j = 0; j < coords_size; j++)
-        output[j] = coordinates[j];
-    }
+    WriteBoxes(make_span(bbox_out_data, bbox_out.size()), make_cspan(bounding_boxes),
+               bbox_layout_);
   }
 
   void WriteLabelsToOutput(SampleWorkspace &ws, const std::vector<int> &labels) {

@@ -48,6 +48,9 @@ struct Box {
     return hi - lo;
   }
 
+  constexpr DALI_HOST_DEV corner_t centroid() const {
+    return 0.5 * (hi + lo);
+  }
 
   /**
    * @return true, if this box contains given point
@@ -102,7 +105,6 @@ constexpr DALI_HOST_DEV CoordinateType volume(const Box<ndims, CoordinateType> &
   return dali::volume(box.extent());
 }
 
-
 /**
  * @return Intersection of two boxes or a default one when the arguments are disjoint.
  */
@@ -113,6 +115,22 @@ intersection(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateT
   return any_coord(tmp.hi <= tmp.lo) ? Box<ndims, CoordinateType>() : tmp;
 }
 
+template<int ndims, typename CoordinateType>
+constexpr DALI_HOST_DEV CoordinateType
+intersection_over_union(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
+  auto intersection_vol = volume(intersection(lhs, rhs));
+  if (intersection_vol == 0)
+    return 0.0f;
+
+  const CoordinateType union_vol = volume(lhs) + volume(rhs) - intersection_vol;
+  return intersection_vol / union_vol;
+}
+
+template<int ndims, typename CoordinateType>
+constexpr DALI_HOST_DEV bool
+overlaps(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
+  return intersection(lhs, rhs).empty();
+}
 
 /**
  * Two boxes are equal when their corners are identical

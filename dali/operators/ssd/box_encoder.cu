@@ -51,12 +51,12 @@ void BoxEncoder<GPUBackend>::PrepareAnchors(const vector<float> &anchors) {
 }
 
 __device__ __forceinline__ float CalculateIou(const float4 &b1, const float4 &b2) {
-  float l = max(b1.x, b2.x);
-  float t = max(b1.y, b2.y);
-  float r = min(b1.z, b2.z);
-  float b = min(b1.w, b2.w);
-  float first = max(r - l, 0.0f);
-  float second = max(b - t, 0.0f);
+  float l = cuda_max(b1.x, b2.x);
+  float t = cuda_max(b1.y, b2.y);
+  float r = cuda_min(b1.z, b2.z);
+  float b = cuda_min(b1.w, b2.w);
+  float first = cuda_max(r - l, 0.0f);
+  float second = cuda_max(b - t, 0.0f);
   volatile float intersection = first * second;
   volatile float area1 = (b1.w - b1.y) * (b1.z - b1.x);
   volatile float area2 = (b2.w - b2.y) * (b2.z - b2.x);
@@ -69,7 +69,7 @@ __device__ inline void FindBestMatch(const int N, volatile float *vals, volatile
     if (threadIdx.x < stride) {
       if (vals[threadIdx.x] <= vals[threadIdx.x + stride]) {
         if (vals[threadIdx.x] == vals[threadIdx.x + stride]) {
-          idx[threadIdx.x] = max(idx[threadIdx.x], idx[threadIdx.x + stride]);
+          idx[threadIdx.x] = cuda_max(idx[threadIdx.x], idx[threadIdx.x + stride]);
         } else {
           vals[threadIdx.x] = vals[threadIdx.x + stride];
           idx[threadIdx.x] = idx[threadIdx.x + stride];

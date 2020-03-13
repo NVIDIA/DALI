@@ -139,7 +139,7 @@ def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
     ndim = len(shape)
     for d in range(ndim):
         assert(anchor[d] >= 0.0 and anchor[d] <= input_shape[d])
-        assert(shape[d] == expected_crop_shape[d])
+        assert shape[d] == expected_crop_shape[d], "{} != {}".format(shape, expected_crop_shape)
         assert(anchor[d] + shape[d] > 0.0 and anchor[d] + shape[d] <= input_shape[d])
 
 bbox_2d_ltrb_1 = [0.0, 0.0, 0.9, 0.9]
