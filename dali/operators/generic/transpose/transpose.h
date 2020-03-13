@@ -75,7 +75,7 @@ void PrepareArguments(SmallVector<ShapeT, kStaticShapeElements> &shape, VecInt &
 
   VecInt tmp_perm;
   for (int i = 0; i < N; i++) {
-    // We need to skip those elements of permutation, that correspond to dimensions = 1.
+    // We need to skip the elements of permutation which correspond to dimensions with extent = 1
     if (shape[perm[i]] == 1) {
       continue;
     }

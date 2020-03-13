@@ -75,16 +75,7 @@ which is equivalent to:
 
 .. math:: dst(x_{perm[0]}, x_{perm[1]}, x_{perm[2]}) = src(x_0, x_1, x_2)
 
-for all valid coordinates:
-
-.. math ::
-
-  x_0 \in [0, 100)
-
-  x_1 \in [0, 200)
-
-  x_3 \in [0, 3)
-
+for all valid coordinates.
 )code")
     .NumInput(1)
     .NumOutput(1)
