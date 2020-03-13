@@ -16,9 +16,18 @@ find_path(NVJPEG_INCLUDE_DIR nvjpeg.h
     PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
     PATH_SUFFIXES include)
 
-find_library(NVJPEG_LIBRARY libnvjpeg_static.a nvjpeg
-    PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
-    PATH_SUFFIXES lib lib64)
+if (${DYNAMIC_CUDA})
+    # make sure we are not detecting stubs as we need a full version to extract toolkit string
+    set(CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES_NO_STUBS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+    list(FILTER CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES_NO_STUBS EXCLUDE REGEX ".*stubs.*")
+    find_library(NVJPEG_LIBRARY libnvjpeg.so nvjpeg
+        PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES_NO_STUBS}
+        PATH_SUFFIXES lib lib64)
+else()
+    find_library(NVJPEG_LIBRARY libnvjpeg_static.a nvjpeg
+        PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
+        PATH_SUFFIXES lib lib64)
+endif()
 
 
 # nvJPEG 9.0 calls itself 0.1.x via API calls, and the header file doesn't tell you which
@@ -46,7 +55,11 @@ if(NVJPEG_FOUND)
     list(APPEND CMAKE_REQUIRED_LIBRARIES "-L${DIR}")
   endforeach(DIR)
 
-  list(APPEND CMAKE_REQUIRED_LIBRARIES "${NVJPEG_LIBRARY}" cudart_static culibos dl m pthread rt)
+  if (${DYNAMIC_CUDA})
+      list(APPEND CMAKE_REQUIRED_LIBRARIES "${NVJPEG_LIBRARY}" cudart culibos dl m pthread rt)
+  else()
+      list(APPEND CMAKE_REQUIRED_LIBRARIES "${NVJPEG_LIBRARY}" cudart_static culibos dl m pthread rt)
+  endif()
   check_cxx_symbol_exists("nvjpegCreateEx" "nvjpeg.h" NVJPEG_LIBRARY_0_2_0)
 
   check_cxx_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)

@@ -28,6 +28,7 @@ export BUILD_TEST=${BUILD_TEST:-ON}
 export BUILD_BENCHMARK=${BUILD_BENCHMARK:-ON}
 # use a default value as it differs for CUDA 9.x and CUDA 10.x
 export BUILD_NVTX=${BUILD_NVTX}
+export DYNAMIC_CUDA=${DYNAMIC_CUDA:-OFF}
 export BUILD_PYTHON=${BUILD_PYTHON:-ON}
 export BUILD_LMDB=${BUILD_LMDB:-ON}
 export BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO:-ON}
@@ -57,6 +58,7 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DBUILD_TEST=${BUILD_TEST}                   \
       -DBUILD_BENCHMARK=${BUILD_BENCHMARK}         \
       -DBUILD_NVTX=${BUILD_NVTX}                   \
+      -DDYNAMIC_CUDA=${DYNAMIC_CUDA}               \
       -DBUILD_PYTHON=${BUILD_PYTHON}               \
       -DBUILD_LMDB=${BUILD_LMDB}                   \
       -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}       \
@@ -83,8 +85,10 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then \
         --build-option --plat-name=${WHL_PLATFORM_NAME} \
         --build-option --build-number=${NVIDIA_BUILD_ID}
     ../dali/python/bundle-wheel.sh nvidia_dali[_-]*.whl
-    export UNZIP_PATH="$(mktemp -d)"
-    unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH
-    python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ')
-    rm -rf $UNZIP_PATH
+    if [ "${DYNAMIC_CUDA}" != "ON" ]; then \
+        export UNZIP_PATH="$(mktemp -d)"
+        unzip /wheelhouse/nvidia_dali*.whl -d $UNZIP_PATH
+        python ../tools/test_bundled_libs.py $(find $UNZIP_PATH -iname *.so* | tr '\n' ' ')
+        rm -rf $UNZIP_PATH
+    fi
 fi

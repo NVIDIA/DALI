@@ -16,8 +16,12 @@
 # CUDA Toolkit libraries (including NVJPEG)
 ##################################################################
 
-CUDA_find_library(CUDART_LIB cudart_static)
-list(APPEND DALI_EXCLUDES libcudart_static.a)
+if (${DYNAMIC_CUDA})
+    CUDA_find_library(CUDART_LIB cudart)
+else()
+    CUDA_find_library(CUDART_LIB cudart_static)
+    list(APPEND DALI_EXCLUDES libcudart_static.a)
+endif()
 
 # For NVJPEG
 if (BUILD_NVJPEG)
@@ -41,21 +45,34 @@ if (BUILD_NVJPEG)
 endif()
 
 # NVIDIA NPP library
-CUDA_find_library(CUDA_nppicc_static_LIBRARY nppicc_static)
-CUDA_find_library(CUDA_nppc_static_LIBRARY nppc_static)
-list(APPEND DALI_LIBS ${CUDA_nppicc_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppicc_static.a)
-list(APPEND DALI_LIBS ${CUDA_nppc_static_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppc_static.a)
+if (${DYNAMIC_CUDA})
+    CUDA_find_library(CUDA_nppicc_LIBRARY nppicc)
+    CUDA_find_library(CUDA_nppc_LIBRARY nppc)
+else()
+    CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
+    CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
+    list(APPEND DALI_EXCLUDES libnppicc_static.a)
+    list(APPEND DALI_EXCLUDES libnppc_static.a)
+endif()
+list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
+list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
 
 # cuFFT library
-CUDA_find_library(CUDA_cufft_static_LIBRARY cufft_static)
-list(APPEND DALI_EXCLUDES libcufft_static.a)
+if (${DYNAMIC_CUDA})
+    CUDA_find_library(CUDA_cufft_LIBRARY cufft)
+else()
+    CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
+    list(APPEND DALI_EXCLUDES libcufft_static.a)
+endif()
 
 # CULIBOS needed when using static CUDA libs
-CUDA_find_library(CUDA_culibos_LIBRARY culibos)
-list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
-list(APPEND DALI_EXCLUDES libculibos.a)
+if (${DYNAMIC_CUDA})
+
+else()
+    CUDA_find_library(CUDA_culibos_LIBRARY culibos)
+    list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
+    list(APPEND DALI_EXCLUDES libculibos.a)
+endif()
 
 # NVTX for profiling
 if (NVTX_ENABLED)

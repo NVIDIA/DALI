@@ -143,6 +143,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_TEST=${BUILD_TEST}                  \
                                         BUILD_BENCHMARK=${BUILD_BENCHMARK}        \
                                         BUILD_NVTX=${BUILD_NVTX}                  \
+                                        DYNAMIC_CUDA=${DYNAMIC_CUDA}              \
                                         BUILD_PYTHON=${BUILD_PYTHON}              \
                                         BUILD_LMDB=${BUILD_LMDB}                  \
                                         BUILD_JPEG_TURBO=${BUILD_JPEG_TURBO}      \

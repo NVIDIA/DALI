@@ -25,6 +25,7 @@ set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
 
 # Build options
+option(DYNAMIC_CUDA "Link to CUDA dynamically" OFF)
 option(BUILD_TEST "Build googletest test suite" ON)
 option(BUILD_BENCHMARK "Build benchmark suite" ON)
 # if BUILD_NVTX is empty remove it and let is be default
