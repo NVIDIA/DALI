@@ -65,25 +65,17 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
         if self.labels is not None:
             self.feed_input(self.labels_data, self.labels)
 
-def compare_eps(in1, in2, eps = 1e-6):
-    diff1 = np.abs(in1 - in2)
-    diff2 = np.abs(in2 - in1)
-    err = np.mean( np.minimum(diff2, diff1) )
-    return err < eps
-
-def lt_eps(a, b, eps = 1e-6):
-    return a + eps < b
-
-def gt_eps(a, b, eps = 1e-6):
-    return a - eps > b
-
 def crop_contains(crop_anchor, crop_shape, point):
     ndim = len(crop_shape)
     assert(len(crop_shape) == ndim)
     assert(len(point) == ndim)
-    for d in range(ndim):
-        if lt_eps(point[d], crop_anchor[d]) or gt_eps(point[d], (crop_anchor[d] + crop_shape[d])):
-            return False
+
+    point = np.array(point)    
+    crop_anchor = np.array(crop_anchor)
+    crop_shape = np.array(crop_shape)
+
+    if np.any(np.less(point, crop_anchor)) or np.any(np.greater(point, (crop_anchor + crop_shape))):
+        return False
     return True
 
 def filter_by_centroid(crop_anchor, crop_shape, bboxes):
@@ -124,7 +116,7 @@ def check_processed_bboxes(crop_anchor, crop_shape, original_boxes, processed_bo
         box = filtered_boxes[i]
         processed_box = processed_boxes[i]
         expected_box = map_box(box, crop_anchor, crop_shape)
-        assert(compare_eps(expected_box, processed_box))
+        assert(np.allclose(expected_box, processed_box, atol=1e-6))
 
 def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
     ndim = len(shape)
