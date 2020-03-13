@@ -154,7 +154,7 @@ def test_mxnet_iterator_empty_array():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
 
     batch_size = 4
-    size = 100
+    size = 5
 
     def get_data():
         images = [np.empty((1, 224, 224, 3), dtype = np.float)] * batch_size
