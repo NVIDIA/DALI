@@ -63,7 +63,21 @@ class TransposeCPU : public Transpose<CPUBackend> {
 DALI_REGISTER_OPERATOR(Transpose, TransposeCPU, CPU);
 
 DALI_SCHEMA(Transpose)
-    .DocStr("Transpose tensor dimension to a new permutated dimension specified by `perm`.")
+    .DocStr(R"code(Transpose tensor by reordering the dimensions according to the `perm` parameter.
+Destination dimension ``i`` is obtained from source dimension ``perm[i]``.
+
+For example, with `src` image in `HWC` layout, ``shape = (100, 200, 3)``, and ``perm = [2, 0, 1]``
+Transpose Operator would produce a `dst` image of layout `CHW` and ``shape = (3, 100, 200)``,
+holding the euqality:
+
+.. math:: dst(x_2, x_0, x_1) = src(x_0, x_1, x_2)
+
+which is equivalent to:
+
+.. math:: dst(x_{perm[0]}, x_{perm[1]}, x_{perm[2]}) = src(x_0, x_1, x_2)
+
+for all valid coordinates.
+)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()

@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <utility>
 
 #include "dali/kernels/common/utils.h"
 #include "dali/operators/generic/transpose/cutt/cutt.h"
@@ -48,34 +49,45 @@ template <typename ShapeT = int>
 void PrepareArguments(SmallVector<ShapeT, kStaticShapeElements> &shape, VecInt &perm,
                       bool transpose = false) {
   DALI_ENFORCE(shape.size() == perm.size());
+  const int N = shape.size();
 
-  // cuTT does not handle dimensions with size 1 so we remove them
-  // (H, W, 1) is equivalent to (H, W)
-  auto it_shape = shape.begin();
-  auto it_perm = perm.begin();
-  SmallVector<ShapeT, kStaticShapeElements> erased;
-  while (it_shape != shape.end()) {
-    if (*it_shape == 1) {
-      erased.push_back(*it_perm);
-      it_shape = shape.erase(it_shape);
-      it_perm = perm.erase(it_perm);
+  // This will be oterwise reduced to empty shape, and we still want to have some
+  // notion of non-empty shape left
+  if (volume(shape) == 1) {
+    shape = {1};
+    perm = {0};
+    return;
+  }
+
+  SmallVector<ShapeT, kStaticShapeElements> tmp_shape;
+  SmallVector<int, kStaticShapeElements> coord_map;
+  coord_map.resize(N);
+
+  // Skip all dimensions of shape that are equal to 1. `coord_map` will hold the new "index"
+  // for the dimensions that accounts for the skipped ones (valid only for the ones that are left)
+  for (int i = 0, skipped = 0; i < N; i++) {
+    if (shape[i] == 1) {
+      skipped++;
     } else {
-      ++it_shape;
-      ++it_perm;
+      tmp_shape.push_back(shape[i]);
     }
+    coord_map[i] = i - skipped;
   }
-  // when some permutation element is erased all elements positions after it should be decreased
-  // by one like it doesn't exist at all
-  // sort elements to erase in descending order so we avoid situations like
-  // erased(0, 2), perm(3, 1) -> perm(2, 0) while it should be (1, 0)
-  std::sort(erased.begin(), erased.end(), std::greater<int>());
-  for (auto &pos : erased) {
-    for (auto &elm : perm) {
-       if (elm > pos) {
-         --elm;
-       }
+
+  VecInt tmp_perm;
+  for (int i = 0; i < N; i++) {
+    // We need to skip the elements of permutation which correspond to dimensions with extent = 1
+    if (shape[perm[i]] == 1) {
+      continue;
     }
+    // otherwise we pass the element to the new perm and use the new index of this dimension,
+    // accounting for the skipped dims
+    tmp_perm.push_back(coord_map[perm[i]]);
   }
+
+  perm = std::move(tmp_perm);
+  shape = std::move(tmp_shape);
+
   if (transpose) {
     RowToColumnMajor(shape.data(), perm.data(), shape.size());
   }

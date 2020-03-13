@@ -49,18 +49,25 @@ void cuTTKernel(const TensorList<GPUBackend>& input,
 
     transpose_detail::PrepareArguments(shape, perm, true);
 
-    const void* in = input.raw_tensor(0);
-    void* out = output.raw_mutable_tensor(0);
-    cuttHandle plan;
-    cuttCheck(cuttPlan(&plan,
-                       shape.size(),
-                       shape.data(),
-                       perm.data(),
-                       sizeof(T),
-                       stream));
-    cuttCheck(cuttExecute(plan, in, out));
-    CUDA_CALL(cudaStreamSynchronize(stream));
-    cuttCheck(cuttDestroy(plan));
+
+    const void* in = input.raw_tensor(i);
+    void* out = output.raw_mutable_tensor(i);
+
+    // cuTT doesn't handle cases where there is no transpositon (dim = 1)
+    if (shape.size() == 1) {
+      cudaMemcpyAsync(out, in, shape[0] * sizeof(T), cudaMemcpyDeviceToDevice, stream);
+    } else {
+      cuttHandle plan;
+      cuttCheck(cuttPlan(&plan,
+                        shape.size(),
+                        shape.data(),
+                        perm.data(),
+                        sizeof(T),
+                        stream));
+      cuttCheck(cuttExecute(plan, in, out));
+      CUDA_CALL(cudaStreamSynchronize(stream));
+      cuttCheck(cuttDestroy(plan));
+    }
   }
 }
 
@@ -81,20 +88,27 @@ void cuTTKernelBatched(const TensorList<GPUBackend>& input,
   for (auto p : permutation)
     perm.push_back(p+1);
 
-  transpose_detail::PrepareArguments(shape, perm, true);
 
-  if (*plan == 0) {
-    cuttCheck(cuttPlan(plan,
-                       shape.size(),
-                       shape.data(),
-                       perm.data(),
-                       sizeof(T),
-                       stream));
-  }
+  transpose_detail::PrepareArguments(shape, perm, true);
 
   const void* in = input.raw_tensor(0);
   void* out = output.raw_mutable_tensor(0);
-  cuttCheck(cuttExecute(*plan, in, out));
+
+  // cuTT doesn't handle cases where there is no transpositon (dim = 1)
+  if (shape.size() == 1) {
+    cudaMemcpyAsync(out, in, shape[0] * sizeof(T), cudaMemcpyDeviceToDevice, stream);
+  } else {
+    if (*plan == 0) {
+      cuttCheck(cuttPlan(plan,
+                        shape.size(),
+                        shape.data(),
+                        perm.data(),
+                        sizeof(T),
+                        stream));
+    }
+
+    cuttCheck(cuttExecute(*plan, in, out));
+  }
 }
 }  // namespace kernel
 
