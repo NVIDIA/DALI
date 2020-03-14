@@ -26,7 +26,7 @@ cd ${target_dir}
 # Limit to only one configuration (First version of each package)
 if [[ $one_config_only = true ]]; then
     echo "Limiting test run to one configuration of packages (first version of each)"
-    last_config_index=0
+    last_config_index=$(( 0 > $last_config_index ? $last_config_index : 0 ))
 fi
 
 # some global test setup
@@ -48,24 +48,22 @@ do
         echo "Test variant run: $variant"
         # install packages
         inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
-        if [ -n "$inst" ]
-        then
-        pip install $inst -f /pip-packages
+        if [ -n "$inst" ]; then
+            pip install $inst -f /pip-packages
 
-        # If we just installed tensorflow, we need to reinstall DALI TF plugin
-        if [[ "$inst" == *tensorflow-gpu* ]]; then
-            pip uninstall -y nvidia-dali-tf-plugin || true
-            pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
-        fi
+            # If we just installed tensorflow, we need to reinstall DALI TF plugin
+            if [[ "$inst" == *tensorflow* ]]; then
+                pip uninstall -y nvidia-dali-tf-plugin || true
+                pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
+            fi
         fi
         # test code
         test_body
 
         # remove packages
         remove=$($topdir/qa/setup_packages.py -r  -u $pip_packages --cuda ${CUDA_VERSION})
-        if [ -n "$remove" ]
-        then
-        pip uninstall -y $remove
+        if [ -n "$remove" ]; then
+           pip uninstall -y $remove
         fi
         ${epilog[variant]}
     done

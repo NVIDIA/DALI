@@ -2,6 +2,9 @@
 from __future__ import print_function, division
 import argparse
 import sys
+# use packaging from PIP as it is always present on system we are testing on
+from pip._vendor.packaging.version import parse
+import urllib.parse
 try:
     import pip._internal.pep425tags as p
 except:
@@ -21,21 +24,24 @@ except ImportError:
 # NOTE: First version will be picked in case of one_config_only
 
 packages = {
-            "opencv-python" : ["4.1.0.25"],
+            "opencv-python" : ["4.2.0.32"],
             "cupy-cuda{cuda_v}" : {
                         "90" : ["6.6.0"],
                         "100" : ["6.6.0"]},
             "mxnet-cu{cuda_v}" : {
-                        "90" : ["1.5.0"],
-                        "100" : ["1.5.0"]},
+                        "90" : ["1.6.0"],
+                        "100" : ["1.5.1"]},
             "tensorflow-gpu" : {
-                "90": ["1.12.0",],
-                "100": ["1.14.0", "1.15.2", "2.0.1", "2.1.0"]},
-            "torch" : {"90": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.1.0-{0}.whl"],
-                       "100": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.2.0-{0}.whl"]},
-            "torchvision" : {"90": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.3.0-{0}.whl"],
-                             "100": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.4.0-{0}.whl"]},
-            "paddle" : {"90": ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda9-cudnn7-openblas/paddlepaddle_gpu-latest-{0}.whl"],
+                        "90": ["1.12.0",],
+                        "100": ["1.14.0", "1.15.2", "2.0.1", "2.1.0"]},
+            "torch" : {
+                        "90": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.1.0-{0}.whl"],
+                        "100": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.4.0+{cuda_v}-{0}.whl"]},
+            "torchvision" : {
+                        "90": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.3.0-{0}.whl"],
+                        "100": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.5.0+{cuda_v}-{0}.whl"]},
+            "paddle" : {
+                        "90": ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda9-cudnn7-openblas/paddlepaddle_gpu-latest-{0}.whl"],
                         "100": ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda10-cudnn7-openblas/paddlepaddle_gpu-latest-{0}.whl"]},
             }
 
@@ -49,7 +55,26 @@ parser.add_argument('--cuda', dest='cuda', default="90", help="CUDA version to u
 parser.add_argument('--use', '-u', dest='use', default=[], help="provide only packages from this list", nargs='*')
 args = parser.parse_args()
 
+def filter_packages(key, vers):
+    """Filter out a version of package from list. Mainly for tensorflow-gpu where Python 3.8 is
+      supported only from 2.2.0"""
+    if vers is None:
+        return vers
+    if key == "tensorflow-gpu":
+        tmp = []
+        for v in vers:
+            # in case of tensorflow python 3.8 is supported only from 2.2.0
+            python_version = ".".join([str(x) for x in sys.version_info[0:3]])
+            if (parse("2.2.0") <= parse(v) and parse("3.8.0") <= parse(python_version)) or \
+                parse("3.8.0") > parse(python_version):
+                tmp.append(v)
+        vers = tmp
+    return vers
+
 def get_key_with_cuda(key, val_dict, cuda):
+    """Get the set of versions for highest matching cuda version available.
+
+       I.e. for cuda 9.2 it will get versions for cuda 9.0, for cuda 10.1 one for 10.0"""
     key_w_cuda = key
     max_cuda = None
     if isinstance(val_dict, dict):
@@ -60,29 +85,36 @@ def get_key_with_cuda(key, val_dict, cuda):
     return key_w_cuda, max_cuda
 
 def get_package(package_data, key, cuda):
+    """Returns a list of available versions for given package name and cuda version"""
+    ret = None
     if key in package_data.keys():
         if isinstance(package_data[key], dict):
             data = None
             for ver in sorted(package_data[key].keys(), key=int):
                 if int(ver) <= int(cuda):
                    data = package_data[key][ver]
-            return data
+            ret = data
         else:
-            return packages[key]
-    else:
-        return None
+            ret = packages[key]
 
-def test_request(req, name, cuda):
-    req = name.format(req, cuda_v = "cu" + cuda)
-    request = Request(req)
+    return filter_packages(key, ret)
+
+def test_request(py_ver, url, cuda):
+    """Check if given `url` to a package of version `py_ver` is available"""
+    py_ver = url.format(py_ver, cuda_v = "cu" + cuda)
+    py_ver = py_ver.split("://")
+    py_ver[-1] = urllib.parse.quote(py_ver[-1])
+    py_ver = "://".join(py_ver)
+    request = Request(py_ver)
     request.get_method = lambda : 'HEAD'
     try:
         _ = urlopen(request)
-        return req
+        return py_ver
     except HTTPError:
         return None
 
 def get_pyvers_name(name, cuda):
+    """Test if any compatible package url exists for a platform reported by PIP"""
     if isinstance(p.get_supported()[0], tuple):
         # old PIP returns tuple
         for v in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and 'any' not in y]:
@@ -100,6 +132,7 @@ def get_pyvers_name(name, cuda):
     return ""
 
 def print_configs(cuda):
+    """Prints all available configurations"""
     for key in packages.keys():
         key_w_cuda, max_cuda = get_key_with_cuda(key, packages[key], cuda)
         print (key_w_cuda + ":")
@@ -111,6 +144,11 @@ def print_configs(cuda):
             print ('\t' + val)
 
 def get_install_string(variant, use, cuda):
+    """Creates pip install string for given cuda version, variant number and package list
+
+    It supports names, http direct links and name remaping like tensorflow-gpu->tensorflow for
+    some specific versions.
+    """
     ret = []
     for key in packages.keys():
         if key not in use:
@@ -130,6 +168,7 @@ def get_install_string(variant, use, cuda):
     return " ".join(ret + additional)
 
 def get_remove_string(use, cuda):
+    """Creates pip remove string for given cuda version and package list"""
     # Remove only these which version we want to change
     to_remove = []
     for key in packages.keys():
@@ -142,26 +181,40 @@ def get_remove_string(use, cuda):
     return " ".join(to_remove)
 
 def cal_num_of_configs(use, cuda):
+    """Calculates how many different version configurations are available for given
+       package and cuda version"""
     ret = 1
     for key in packages.keys():
+        _, max_cuda = get_key_with_cuda(key, packages[key], cuda)
         if key not in use:
             continue
-        ret *= len(get_package(packages, key, cuda))
+        values = get_package(packages, key, max_cuda)
+        # make sure that there is any compatible package under listed link 
+        tmp = []
+        for val in values:
+            if val.startswith('http'):
+                if get_pyvers_name(val, max_cuda) != "":
+                    tmp.append(val)
+            else:
+                tmp.append(val)
+        values = tmp
+        ret *= len(values)
     return ret
 
 def get_all_strings(use, cuda):
+    """Prints all available configurations for given package list and cuda version"""
     ret = []
     for key in packages.keys():
         if key not in use:
             continue
-        _, max_cuda = get_key_with_cuda(key, packages[key], cuda)
+        key_w_cuda, max_cuda = get_key_with_cuda(key, packages[key], cuda)
         for val in get_package(packages, key, max_cuda):
             if val is None:
                 ret.append(key)
             elif val.startswith('http'):
                 ret.append(get_pyvers_name(val, max_cuda))
             else:
-                ret.append(key + "==" + val)
+                ret.append(key_w_cuda + "==" + val)
     # add all remaining used packages with default versions
     additional = [v for v in use if v not in packages.keys()]
     return " ".join(ret + additional)
@@ -179,6 +232,9 @@ def main():
     elif args.install >= 0:
         if args.install > cal_num_of_configs(args.use, args.cuda):
             args.install = 0
+        elif cal_num_of_configs(args.use, args.cuda) <= 0:
+            print("")
+            return
         print (get_install_string(args.install, args.use, args.cuda))
 
 if __name__ == "__main__":

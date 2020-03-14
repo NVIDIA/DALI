@@ -3,6 +3,9 @@ pip_packages=""
 target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {
+    if [ $($topdir/qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION}) = -1 ]; then
+        exit 0
+    fi
     mkdir -p idx-files/
 
     NUM_GPUS=$(nvidia-smi -L | wc -l)
