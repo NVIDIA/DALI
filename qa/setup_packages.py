@@ -16,34 +16,326 @@ except ImportError:
     # Fall back to Python 2's urllib2
     from urllib2 import urlopen, HTTPError, Request
 
-# keeps names of all required packages as a dict key
-# required versions are list or dict with keys of CUDA version, to use default just put None
-# instead of version number, direct link can be used
-# put {0} in pacage link as a placeholder for python pip package version (i.e. cp27-cp27mu-linux_x86_64)
-# and cuda_v for cuXX version
-# NOTE: First version will be picked in case of one_config_only
+PYTHON_VERSION = ".".join([str(x) for x in sys.version_info[0:2]])
 
-packages = {
-            "opencv-python" : ["4.2.0.32"],
-            "cupy-cuda{cuda_v}" : {
-                        "90" : ["6.6.0"],
-                        "100" : ["6.6.0"]},
-            "mxnet-cu{cuda_v}" : {
-                        "90" : ["1.6.0"],
-                        "100" : ["1.5.1"]},
-            "tensorflow-gpu" : {
-                        "90": ["1.12.0",],
-                        "100": ["1.14.0", "1.15.2", "2.0.1", "2.1.0"]},
-            "torch" : {
-                        "90": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.1.0-{0}.whl"],
-                        "100": ["http://download.pytorch.org/whl/{cuda_v}/torch-1.4.0+{cuda_v}-{0}.whl"]},
-            "torchvision" : {
-                        "90": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.3.0-{0}.whl"],
-                        "100": ["https://download.pytorch.org/whl/{cuda_v}/torchvision-0.5.0+{cuda_v}-{0}.whl"]},
-            "paddle" : {
-                        "90": ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda9-cudnn7-openblas/paddlepaddle_gpu-latest-{0}.whl"],
-                        "100": ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda10-cudnn7-openblas/paddlepaddle_gpu-latest-{0}.whl"]},
-            }
+class PckgVer():
+    """Class that holds a version string accompanied with maximum and minimum python version that
+        this version should support. If python falls beyond version bounds it evaluates to the empty string
+
+        Parameters
+        ----------
+        `ver`: str
+            Version that is housed by object of this class
+        `python_max_ver` : str, optional, default = None
+            Maximum python version supported by this package. If empty there is no upper bound
+        `python_min_ver`: str, optional, default = None
+            Mimimum python version supported by this package. If empty there is no lower bound
+    """
+    def __init__(self, ver, python_min_ver=None, python_max_ver=None):
+        self.ver = ver
+        self.python_min_ver = python_min_ver
+        self.python_max_ver = python_max_ver
+
+    def __bool__(self):
+        return (not self.python_min_ver or parse(PYTHON_VERSION) >= parse(self.python_min_ver)) and \
+           (not self.python_max_ver or parse(PYTHON_VERSION) <= parse(self.python_max_ver))
+
+    def __repr__(self):
+        if self:
+            return self.ver
+        else:
+            return ""
+
+class BasePackage():
+    """Class describing basic methods that package should provide
+
+        Parameters
+        ----------
+        `key`: str
+            Name this package should be queried for
+        `versions`: str or PckgVer class object
+            List of versions this package is available for
+        `name`: str, , optional, default = None
+            Name of this package used during installation. If empty it is the same as the key
+    """
+    def __init__(self, key, versions, name=None):
+        self.key = key
+        if not name:
+            name = key
+        self.name = name
+        self.versions = versions
+
+    def clamp_index(self, idx, cuda_version=None):
+        """Clamps index to range 0 - num_of_packages - 1
+
+            Parameters
+            ----------
+            `key`: idx: int
+                Index to clamp
+            `cuda_version`: str, optional, default = None
+                Cuda version used for a given index
+        """
+        if idx < 0 or idx >= self.get_num_of_version(cuda_version):
+            idx = 0
+        return idx
+
+    def get_name(self, cuda_version=None):
+        """Retrives package name.
+
+            Parameters
+            ----------
+            `cuda_version`: str, optional, default = None
+                Cuda version used for this query
+        """
+        raise NotImplementedError
+
+    def filter_versions(self, versions):
+        """Retrieves only compatible versions of this package from provided `versions` list
+
+            Parameters
+            ----------
+            `versions`: list
+                List of versions to be checked. All versions that evaluate to True are returned
+        """
+        # convert PckgVer to string
+        return [str(v) for v in versions if v]
+
+    def get_version(self, idx, cuda_version=None):
+        """Get versions at a given index, compatible with provided cuda_version
+
+            Parameters
+            ----------
+            `idx`: int
+                Index of version to retrive. If index is beyond 0-num_of_versions-1 range
+                it is clamped to it
+            `cuda_version`: str, optional, default = None
+                Cuda version used for this query
+        """
+        idx = self.clamp_index(idx, cuda_version)
+        return self.get_all_versions(cuda_version)[idx]
+
+    def get_all_versions(self, cuda_version=None):
+        """Get all versions compatible with provided cuda_version
+
+            Parameters
+            ----------
+            `cuda_version`: str, optional, default = None
+                Cuda version used for this query
+        """
+        raise NotImplementedError
+
+    def get_num_of_version(self, cuda_version=None):
+        """Obtains the number of available versions for given cuda_version
+
+            Parameters
+            ----------
+            `cuda_version`: str, optional, default = None
+                Cuda version used for this query
+        """
+        return len(self.get_all_versions(cuda_version))
+
+    def get_install_string(self, idx, cuda_version=None):
+        """Obtains installation string that pip should accept for version at
+        a given index with a given cuda_version
+
+            Parameters
+            ----------
+            `idx`: int
+                Index of version to retrive. If index is beyond 0-num_ov_versions-1 range
+                it is clamped to it
+            `cuda_version`: str, optional, default = None
+                Cuda version used for this query
+        """
+        return "{name}=={version}".format(name=self.get_name(cuda_version), version=self.get_version(idx, cuda_version))
+
+    def get_all_install_strings(self, cuda_version=None):
+        """Gets all installation string that pip should accept for a given
+        cuda version. Providing all of them to pip won't work, but each of
+        them should be a valid pip argument
+
+            Parameters
+            ----------
+            `cuda_version`: str, optional, default = None
+                Cuda version used for this query
+        """
+        ret = []
+        for i in range(self.get_num_of_version(cuda_version)):
+            ret.append(self.get_install_string(i, cuda_version))
+        return " ".join(ret)
+
+class PlainPackage(BasePackage):
+    """Class describing a simple package with a key/name and a list of versions.
+        Cuda version is irrelevant for this package
+
+        Parameters
+        ----------
+        `key`: str
+            Name this package should be queried for
+        `versions`: str or PckgVer class object
+            List of versions this package is available for
+        `name`: str, , optional, default = None
+            Name of this package used during installation. If empty it is the same as the key
+    """
+    def __init__(self, key, versions, name=None):
+        super(PlainPackage, self).__init__(key, versions, name)
+
+    def get_name(self, cuda_version=None):
+        return self.name
+
+    def get_all_versions(self, cuda_version=None):
+        return self.filter_versions(self.versions)
+
+class CudaPackage(BasePackage):
+    """Class describing a cuda package with a key/name and a dictionary where the key
+        is a cuda version and value is the list of versions supported.
+
+        Parameters
+        ----------
+        `key`: str
+            Name this package should be queried for
+        `versions`: str or PckgVer class object
+            Dictionary, where the key is a cuda version and vale, is the list of versions supported
+        `name`: str, , optional, default = None
+            Name of this package used during installation. If empty it is the same as the key.
+            If it includes `{cuda_v}` it is replaced by the cuda_version when queried
+    """
+    def __init__(self, key, versions, name=None):
+        super(CudaPackage, self).__init__(key, versions, name)
+        if not isinstance(versions, dict):
+            raise TypeError("versions argument should by dict type [cuda_version : list_of_versions")
+
+    def get_name(self, cuda_version):
+        cuda_version = self.max_cuda_version(cuda_version)
+        return self.name.format(cuda_v=cuda_version)
+
+    def get_all_versions(self, cuda_version):
+        cuda_version = self.max_cuda_version(cuda_version)
+        return self.filter_versions(self.versions[cuda_version])
+
+    def max_cuda_version(self, cuda_version):
+        """Gets a compatible, available cuda version to one asked for.
+            If there is no cuda version in the version list that matches the one provided,
+            the cuda version that is not higher is used 10.2 -> 10, 9.2 -> 9
+
+            Parameters
+            ----------
+            `cuda_version`: str
+                Cuda version used for this query
+        """
+        max_cuda = None
+        for ver in sorted(self.versions.keys(), key=int):
+            if int(ver) <= int(cuda_version):
+                max_cuda = ver
+        return max_cuda
+
+class CudaHttpPackage(CudaPackage):
+    """Class describing a cuda package with a key/name and a dictionary where the key
+        is a cuda version and value is the list of directly accessible http links
+
+        When it asked for a package version it checks compatible platform tags and provides
+        a download link to a compatible package
+
+        Parameters
+        ----------
+        `key`: str
+            Name this package should be queried for
+        `versions`: str or PckgVer class object
+            Dictionary, where the key is a cuda version and vale, is the list
+            of directly accessible http links. `{platform}` inside the link is replaced by the
+            compatible platform tag provided by pip
+        `name`: str, , optional, default = None
+            Name of this package used during installation. If empty it is the same as the key.
+            If it includes `{cuda_v}` it is replaced by the cuda_version when queried
+    """
+    def __init__(self, key, versions, name=None):
+        super(CudaHttpPackage, self).__init__(key, versions, name)
+
+    def get_all_versions(self, cuda_version):
+        cuda_version = self.max_cuda_version(cuda_version)
+        ret = []
+        for v in self.versions[cuda_version]:
+            vers = self.get_pyvers_name(v, cuda_version)
+            if vers != "":
+                ret.append(vers)
+        return ret
+
+    def get_install_string(self, idx, cuda_version=None):
+        return "{version}".format(version=self.get_version(idx, cuda_version))
+
+    def test_request(self, url):
+        """Checks if a provided url is available
+
+            Parameters
+            ----------
+            `url`: str
+                Package url to be tested.
+        """
+        url = url.split("://")
+        url[-1] = urllib.parse.quote(url[-1])
+        url = "://".join(url)
+        request = Request(url)
+        request.get_method = lambda : 'HEAD'
+        try:
+            _ = urlopen(request)
+            return url
+        except HTTPError:
+            return None
+
+    def get_pyvers_name(self, url, cuda_version):
+        """Checks if a provided url is available for a given cuda version
+
+            It checks what package is available and is compatible with the available platforms
+            returned by the pip
+
+            Parameters
+            ----------
+            `url`: str
+                Package url to be tested. `{cuda_v}` is replaced by cuda_version and  `{platform}`
+                by the platform tag
+            `cuda_version`: str
+                Cuda version used for this query
+        """
+        if isinstance(p.get_supported()[0], tuple):
+            # old PIP returns tuple
+            for py_ver in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and 'any' not in y]:
+                py_ver = "-".join(py_ver)
+                ret = self.test_request(url.format(platform=py_ver, cuda_v=cuda_version))
+                if ret:
+                    return ret
+        else:
+            # new PIP returns object
+            for py_ver in [tag for tag in p.get_supported() if tag.abi != 'none' and tag.platform != 'any']:
+                py_ver = str(py_ver)
+                ret = self.test_request(url.format(platform=py_ver, cuda_v=cuda_version))
+                if ret:
+                    return ret
+        return ""
+
+all_packages = [PlainPackage("opencv-python", ["4.2.0.32"]),
+                CudaPackage("cupy",
+                        { "90"  : ["6.6.0"],
+                          "100" : ["6.6.0"] },
+                        "cupy-cuda{cuda_v}"),
+                CudaPackage("mxnet",
+                        { "90"  : ["1.6.0"],
+                          "100" : ["1.5.1"] },
+                        "mxnet-cu{cuda_v}"),
+                CudaPackage("tensorflow-gpu",
+                        { "90"  : [PckgVer("1.12.0", python_max_ver="3.7")],
+                          "100" : [PckgVer("1.14.0",  python_max_ver="3.7"), PckgVer("1.15.2",  python_max_ver="3.7"), \
+                                   PckgVer("2.0.1",  python_max_ver="3.7"), PckgVer("2.1.0",  python_max_ver="3.7")] }),
+                CudaHttpPackage("torch",
+                        { "90"  : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.1.0-{platform}.whl"],
+                          "100" : ["http://download.pytorch.org/whl/cu{cuda_v}/torch-1.4.0+cu{cuda_v}-{platform}.whl"] }),
+                CudaHttpPackage("torchvision",
+                        { "90"  : ["https://download.pytorch.org/whl/cu{cuda_v}/torchvision-0.3.0-{platform}.whl"],
+                          "100" : ["https://download.pytorch.org/whl/cu{cuda_v}/torchvision-0.5.0+cu{cuda_v}-{platform}.whl"] }),
+                CudaHttpPackage("paddle",
+                        { "90"  : ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda9-cudnn7-openblas/paddlepaddle_gpu-latest-{platform}.whl"],
+                          "100" : ["https://paddle-wheel.bj.bcebos.com/gcc54/latest-gpu-cuda10-cudnn7-openblas/paddlepaddle_gpu-latest-{platform}.whl"] })
+               ]
+
+all_packages_keys = [pckg.key for pckg in all_packages]
 
 parser = argparse.ArgumentParser(description='Env setup helper')
 parser.add_argument('--list', '-l', help='list configs', action='store_true', default=False)
@@ -55,169 +347,48 @@ parser.add_argument('--cuda', dest='cuda', default="90", help="CUDA version to u
 parser.add_argument('--use', '-u', dest='use', default=[], help="provide only packages from this list", nargs='*')
 args = parser.parse_args()
 
-def filter_packages(key, vers):
-    """Filter out a version of package from list. Mainly for tensorflow-gpu where Python 3.8 is
-      supported only from 2.2.0"""
-    if vers is None:
-        return vers
-    if key == "tensorflow-gpu":
-        tmp = []
-        for v in vers:
-            # in case of tensorflow python 3.8 is supported only from 2.2.0
-            python_version = ".".join([str(x) for x in sys.version_info[0:3]])
-            if (parse("2.2.0") <= parse(v) and parse("3.8.0") <= parse(python_version)) or \
-                parse("3.8.0") > parse(python_version):
-                tmp.append(v)
-        vers = tmp
-    return vers
-
-def get_key_with_cuda(key, val_dict, cuda):
-    """Get the set of versions for highest matching cuda version available.
-
-       I.e. for cuda 9.2 it will get versions for cuda 9.0, for cuda 10.1 one for 10.0"""
-    key_w_cuda = key
-    max_cuda = None
-    if isinstance(val_dict, dict):
-        for ver in sorted(val_dict.keys(), key=int):
-            if int(ver) <= int(cuda):
-                key_w_cuda = key.format(cuda_v=ver)
-                max_cuda = ver
-    return key_w_cuda, max_cuda
-
-def get_package(package_data, key, cuda):
-    """Returns a list of available versions for given package name and cuda version"""
-    ret = None
-    if key in package_data.keys():
-        if isinstance(package_data[key], dict):
-            data = None
-            for ver in sorted(package_data[key].keys(), key=int):
-                if int(ver) <= int(cuda):
-                   data = package_data[key][ver]
-            ret = data
-        else:
-            ret = packages[key]
-
-    return filter_packages(key, ret)
-
-def test_request(py_ver, url, cuda):
-    """Check if given `url` to a package of version `py_ver` is available"""
-    py_ver = url.format(py_ver, cuda_v = "cu" + cuda)
-    py_ver = py_ver.split("://")
-    py_ver[-1] = urllib.parse.quote(py_ver[-1])
-    py_ver = "://".join(py_ver)
-    request = Request(py_ver)
-    request.get_method = lambda : 'HEAD'
-    try:
-        _ = urlopen(request)
-        return py_ver
-    except HTTPError:
-        return None
-
-def get_pyvers_name(name, cuda):
-    """Test if any compatible package url exists for a platform reported by PIP"""
-    if isinstance(p.get_supported()[0], tuple):
-        # old PIP returns tuple
-        for v in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and 'any' not in y]:
-            v = "-".join(v)
-            ret = test_request(v, name, cuda)
-            if ret:
-                return ret
-    else:
-        # new PIP returns object
-        for t in [tag for tag in p.get_supported() if tag.abi != 'none' and tag.platform != 'any']:
-            t = str(t)
-            ret = test_request(t, name, cuda)
-            if ret:
-                return ret
-    return ""
-
-def print_configs(cuda):
+def print_configs(cuda_version):
     """Prints all available configurations"""
-    for key in packages.keys():
-        key_w_cuda, max_cuda = get_key_with_cuda(key, packages[key], cuda)
-        print (key_w_cuda + ":")
-        for val in get_package(packages, key, max_cuda):
-            if val == None:
-                val = "Default"
-            elif val.startswith('http'):
-                val = get_pyvers_name(val, max_cuda)
-            print ('\t' + val)
+    for pckg in all_packages:
+        print("{}:".format(pckg.get_name(cuda_version)))
+        for v in pckg.get_all_versions(cuda_version):
+            print("\t{}".format(v))
 
-def get_install_string(variant, use, cuda):
-    """Creates pip install string for given cuda version, variant number and package list
-
-    It supports names, http direct links and name remaping like tensorflow-gpu->tensorflow for
-    some specific versions.
-    """
-    ret = []
-    for key in packages.keys():
-        if key not in use:
-            continue
-        key_w_cuda, max_cuda = get_key_with_cuda(key, packages[key], cuda)
-        tmp = variant % len(get_package(packages, key, max_cuda))
-        val = get_package(packages, key, max_cuda)[tmp]
-        if val == None:
-            ret.append(key_w_cuda)
-        elif val.startswith('http'):
-            ret.append(get_pyvers_name(val, max_cuda))
-        else:
-            ret.append(key_w_cuda + "==" + val)
-        variant = variant // len(get_package(packages, key, max_cuda))
-    # add all remaining used packages with default versions
-    additional = [v for v in use if v not in packages.keys()]
-    return " ".join(ret + additional)
-
-def get_remove_string(use, cuda):
-    """Creates pip remove string for given cuda version and package list"""
-    # Remove only these which version we want to change
-    to_remove = []
-    for key in packages.keys():
-        if key not in use:
-            continue
-        key_w_cuda, max_cuda = get_key_with_cuda(key, packages[key], cuda)
-        pkg_list_len = len(get_package(packages, key, max_cuda))
-        if pkg_list_len > 1:
-            to_remove.append(key_w_cuda)
-    return " ".join(to_remove)
-
-def cal_num_of_configs(use, cuda):
+def cal_num_of_configs(packages, cuda_version):
     """Calculates how many different version configurations are available for given
-       package and cuda version"""
+       packages and cuda version"""
     ret = 1
-    for key in packages.keys():
-        _, max_cuda = get_key_with_cuda(key, packages[key], cuda)
-        if key not in use:
-            continue
-        values = get_package(packages, key, max_cuda)
-        # make sure that there is any compatible package under listed link 
-        tmp = []
-        for val in values:
-            if val.startswith('http'):
-                if get_pyvers_name(val, max_cuda) != "":
-                    tmp.append(val)
-            else:
-                tmp.append(val)
-        values = tmp
-        ret *= len(values)
+    for pckg in all_packages:
+        if pckg.key in packages:
+            ret *= pckg.get_num_of_version(cuda_version)
     return ret
 
-def get_all_strings(use, cuda):
-    """Prints all available configurations for given package list and cuda version"""
+def for_all_pckg(packages, fun):
+    """Iterates over all packages, executes a fun returns all fun results as a list"""
     ret = []
-    for key in packages.keys():
-        if key not in use:
-            continue
-        key_w_cuda, max_cuda = get_key_with_cuda(key, packages[key], cuda)
-        for val in get_package(packages, key, max_cuda):
-            if val is None:
-                ret.append(key)
-            elif val.startswith('http'):
-                ret.append(get_pyvers_name(val, max_cuda))
-            else:
-                ret.append(key_w_cuda + "==" + val)
+    for pckg in all_packages:
+        if pckg.key in packages:
+            ret.append(fun(pckg))
     # add all remaining used packages with default versions
-    additional = [v for v in use if v not in packages.keys()]
-    return " ".join(ret + additional)
+    additional = [v for v in packages if v not in all_packages_keys]
+    return ret + additional
+
+def get_remove_string(packages, cuda_version):
+    """Creates pip remove string for given cuda version and package list"""
+    # Remove only these which version we want to change
+    ret = for_all_pckg(packages, lambda pckg: pckg.get_name(cuda_version))
+    return " ".join(ret)
+
+def get_all_strings(packages, cuda_version):
+    """Prints all available configurations for given package list and cuda version"""
+    ret = for_all_pckg(packages, lambda pckg: pckg.get_all_install_strings(cuda_version))
+    return " ".join(ret)
+
+def get_install_string(idx, packages, cuda_version):
+    """Creates pip install string for given cuda version, variant number and package list"""
+    ret = for_all_pckg(packages, lambda pckg: pckg.get_install_string(idx, cuda_version))
+    # add all remaining used packages with default versions
+    return " ".join(ret)
 
 def main():
     global args
@@ -230,11 +401,6 @@ def main():
     elif args.getall:
         print(get_all_strings(args.use, args.cuda))
     elif args.install >= 0:
-        if args.install > cal_num_of_configs(args.use, args.cuda):
-            args.install = 0
-        elif cal_num_of_configs(args.use, args.cuda) <= 0:
-            print("")
-            return
         print (get_install_string(args.install, args.use, args.cuda))
 
 if __name__ == "__main__":

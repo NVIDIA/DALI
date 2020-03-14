@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="jupyter numpy matplotlib cupy-cuda{cuda_v}"
+pip_packages="jupyter numpy matplotlib cupy"
 target_dir=./docs/examples
 
 test_body() {

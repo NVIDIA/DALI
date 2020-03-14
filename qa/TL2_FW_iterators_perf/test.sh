@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 # TODO(janton): remove explicit pillow version installation when torch fixes the issue with PILLOW_VERSION not being defined
-pip_packages="pillow==6.2.2 tensorflow-gpu torchvision mxnet-cu{cuda_v} torch paddle"
+pip_packages="pillow==6.2.2 tensorflow-gpu torchvision mxnet torch paddle"
 target_dir=./dali/test/python
 one_config_only=true
 

@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy mxnet-cu{cuda_v}"
+pip_packages="nose numpy mxnet"
 target_dir=./dali/test/python
 
 test_body() {

@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 
-pip_packages="mxnet-cu{cuda_v}"
+pip_packages="mxnet"
 
 test_body() {
     # test code
