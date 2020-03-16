@@ -102,6 +102,9 @@ Box<ndim, float> Uniform(float min, float max) {
   return Box<ndim, float>(vec<ndim, float>(min), vec<ndim, float>(max));
 }
 
+/**
+ * @brief Permutes coordinates according to an input and output layout
+ */
 template <typename Coords>
 void PermuteCoords(Coords& coords,
                    TensorLayout orig_layout,
@@ -117,22 +120,25 @@ void PermuteCoords(Coords& coords,
   std::swap(coords, out);
 }
 
+/**
+ * @brief Read bounding box coordinates from a 1D span of floats, interpreting each coordinate
+ * according to the provided layout. The function will enforce that all the boxes read are within
+ * the provided `limit` bounds
+ * @remarks Dimension names in the layout can be low (or start) anchors: "xyz", high (or end)
+ * anchors: "XYZ" or extent "WHD". For example, a layout "xyXY" implies that the bounding box
+ * coordinates are following the order x_start, y_start, x_end, y_end
+ */
 template <int ndim>
-void ReadBoxes(span<Box<ndim, float>> boxes,
-               span<const float> coords,
+void ReadBoxes(span<Box<ndim, float>> boxes, span<const float> coords,
                TensorLayout layout,
                const Box<ndim, float>& limits = Uniform<ndim>(0.0f, 1.0f)) {
   static constexpr int box_size = ndim * 2;
   assert(coords.size() % box_size == 0);
   assert(coords.size() / box_size == boxes.size());
+  assert(layout.size() == box_size);
   int nboxes = boxes.size();
-
   auto default_layout_start_end   = DefaultLayout<ndim>();
   auto default_layout_start_shape = DefaultAnchorAndShapeLayout<ndim>();
-  if (layout.empty()) {  // if layout not provided we assume `xy(z)XY(Z)`
-    layout = default_layout_start_end;
-  }
-
   bool is_start_and_end = layout.is_permutation_of(default_layout_start_end);
   bool is_start_and_shape = layout.is_permutation_of(default_layout_start_shape);
   DALI_ENFORCE(is_start_and_end || is_start_and_shape,
@@ -167,6 +173,10 @@ void ReadBoxes(span<Box<ndim, float>> boxes,
   }
 }
 
+/**
+ * @brief Read one bounding box
+ * @remarks see ReadBoxes
+ */
 template <int ndim>
 void ReadBox(Box<ndim, float>& box,
               span<const float> coords,
@@ -175,6 +185,14 @@ void ReadBox(Box<ndim, float>& box,
   ReadBoxes<ndim>({&box, 1}, coords, layout, limits);
 }
 
+/**
+ * @brief Write bounding box coordinates to a 1D span of floats, outputing the coordinates in the
+ * order specied by the provided layout
+ * @remarks Dimension names in the layout can be low (or start) anchors: "xyz", high (or end)
+ * anchors: "XYZ" or extent "WHD". For example, a layout "xyXY" implies that the bounding box
+ * coordinates are following the order x_start, y_start, x_end, y_end, while a layout "xyWD" means
+ * that the coordinates are following the order x_start, y_start, width, height
+ */
 template <int ndim>
 void WriteBoxes(span<float> coords,
                 span<const Box<ndim, float>> boxes,
@@ -182,13 +200,10 @@ void WriteBoxes(span<float> coords,
   static constexpr int box_size = ndim * 2;
   assert(coords.size() % box_size == 0);
   assert(coords.size() / box_size == boxes.size());
+  assert(layout.size() == box_size);
   int nboxes = boxes.size();
-  assert(layout.empty() || layout.size() == box_size);
   auto default_layout_start_end   = DefaultLayout<ndim>();
   auto default_layout_start_shape = DefaultAnchorAndShapeLayout<ndim>();
-  if (layout.empty()) {  // if layout not provided we assume `xy(z)XY(Z)`
-    layout = default_layout_start_end;
-  }
 
   bool is_start_and_end = layout.is_permutation_of(default_layout_start_end);
   bool is_start_and_shape = layout.is_permutation_of(default_layout_start_shape);
@@ -220,6 +235,10 @@ void WriteBoxes(span<float> coords,
   }
 }
 
+/**
+ * @brief Write one bounding box
+ * @remarks see WriteBoxes
+ */
 template <int ndim>
 void WriteBox(span<float> coords,
               const Box<ndim, float>& box,
@@ -227,6 +246,9 @@ void WriteBox(span<float> coords,
   WriteBoxes<ndim>(coords, {&box, 1}, layout);
 }
 
+/**
+ * @brief Remaps relative bounding box coordinates to the coordinate space of a subwindow
+ */
 template <int ndim>
 Box<ndim, float> RemapBox(const Box<ndim, float> &box, const Box<ndim, float> &crop) {
   Box<ndim, float> mapped_box = box;

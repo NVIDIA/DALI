@@ -349,8 +349,17 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
         for (int sample = 0; sample < static_cast<int>(input_shape_.size()); sample++) {
           TensorShape<> in_shape = input_shape_[sample];
           TensorShape<> crop_shape = crop_shape_[sample];
+
+          DALI_ENFORCE(crop_shape.sample_dim() == ndim,
+                    make_string("Unexpected number of dimensions. Expected ", ndim, ", got ",
+                                crop_shape.sample_dim()));
+
           for (int i = 0; i < ndim; i++) {
             int axis = perm[i];
+            DALI_ENFORCE(
+                crop_shape[axis] <= in_shape[axis],
+                make_string("Crop shape can't exceed input shape dimensions. Got crop_shape=",
+                            crop_shape, ", input_shape=", in_shape));
             input_shape_[sample][i] = in_shape[axis];
             crop_shape_[sample][i]  = crop_shape[axis];
           }
@@ -423,8 +432,6 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     auto &rng = rngs_[sample];
     std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
     SampleOption option = sample_options_[idx_dist(rng)];
-
-    assert(has_crop_shape_ == has_input_shape_);
     bool absolute_crop_dims = has_crop_shape_;
 
     if (option.no_crop) {
@@ -443,10 +450,6 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
         auto &crop_shape = crop_shape_[sample];
         auto &input_shape = input_shape_[sample];
 
-        DALI_ENFORCE(crop_shape.sample_dim() == ndim,
-                     make_string("Unexpected number of dimensions. Expected ", ndim, ", got ",
-                                 crop_shape.sample_dim()));
-
         for (int d = 0; d < ndim; d++) {
           shape[d] = static_cast<float>(crop_shape[d]);
           out_bounds[ndim + d] = shape[d];
@@ -454,7 +457,6 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
         }
 
         for (int d = 0; d < ndim; d++) {
-          assert(input_shape[d] >= crop_shape[d]);
           std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
           anchor[d] = static_cast<float>(anchor_dist(rng));
           out_bounds[d] = anchor[d];
