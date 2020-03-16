@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "reduce_axes_gpu_impl.cuh"
+#include <gtest/gtest.h>
 #include <random>
+#include "dali/kernels/reduce/reduce_axes_gpu_impl.cuh"
 #include "dali/kernels/alloc.h"
 #include "dali/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -36,14 +38,14 @@ TEST(ReduceGPU, ReduceInnerSmall) {
   }
   TestTensorList<float, 2> in;
   in.reshape(tls);
-  UniformRandomFill(tls.cpu(), rng, 0, 1);
+  UniformRandomFill(in.cpu(), rng, 0, 1);
 
-  auto gpu_in = tls.gpu();
+  auto gpu_in = in.gpu();
 
   auto gpu_pointers = memory::alloc_unique<float*>(AllocType::GPU, N);
   auto gpu_shapes = memory::alloc_unique<int64_t>(AllocType::GPU, N);
-  cudaMemcpy(gpu_pointers.get(), gpu_in.data.data(), N * sizeof(float*));
-  cudaMemcpy(gpu_shapes.get(), tls.shapes.data(), N * sizeof(int64_t));
+  cudaMemcpy(gpu_pointers.get(), gpu_in.data.data(), N * sizeof(float*), cudaMemcpyHostToDevice);
+  cudaMemcpy(gpu_shapes.get(), tls.shapes.data(), N * sizeof(int64_t), cudaMemcpyHostToDevice);
 
 
 }
