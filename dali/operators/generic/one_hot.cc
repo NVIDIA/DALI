@@ -13,41 +13,9 @@
 // limitations under the License.
 
 #include "dali/operators/generic/one_hot.h"
+#include <iostream>
 
 namespace dali {
-
-#define PREEMPH_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)  // NOLINT
-
-void OneHot::RunImpl(HostWorkspace &ws) {
-  const auto &input = ws.template InputRef<CPUBackend>(0);
-  auto &output = ws.template OutputRef<CPUBackend>(0);
-  auto &tp = ws.GetThreadPool();
-  TYPE_SWITCH(input.type().id(), type2id, InputType, PREEMPH_TYPES, (
-          TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
-          for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
-            tp.DoWorkWithID(
-                    [&, sample_id](int thread_id) {
-                        OneHot(out, in, sample_id);
-                    });
-          }
-  ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
-  tp.WaitForWork();
-}
-
-template <typename Out, typename In>
-void OneHot(const OutListCPU<Out> &out, const InListCPU<In> &in, int sample_id) {
-  // TODO
-  auto &inptr = in[sample_id];
-  // CHECK
-  auto cls = inptr.template mutable_data<int>();
-  auto &outptr = out[sample_id];
-  // CHECK
-  auto one_hot = outptr.template mutable_data<Out>();
-  if (cls < nclasses_ && cls >= 0) {
-    one_hot[*cls] = 1;
-  }
-}
 
 DALI_REGISTER_OPERATOR(OneHot, OneHot, CPU);
 
@@ -57,8 +25,48 @@ DALI_SCHEMA(OneHot)
         " of the given input")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("nclasses", R"code(Number of all classes)code", 0);
+    .AddOptionalArg("depth", R"code(Number of all classes)code", 0)
     .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
-                    DALI_FLOAT);
+                    DALI_FLOAT)
+    .AddOptionalArg("on_value", R"code(Value that will be used to fill the output when input[j] = i)code", 1)
+    .AddOptionalArg("off_value", R"code(Value that will be used to fill the output when input[j] != i)code", 0);
+
+bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
+  output_desc.resize(1);
+  output_desc[0].shape = uniform_list_shape(batch_size_, {depth_});
+  TYPE_SWITCH(output_type_, type2id, DType, ONE_HOT_TYPES, (
+    {
+      TypeInfo type;
+      type.SetType<DType>(output_type_);
+      output_desc[0].type = type;
+    }
+  ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+  return true;
+}
+
+void OneHot::RunImpl(HostWorkspace &ws) {
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  auto &output = ws.template OutputRef<CPUBackend>(0);
+  auto &tp = ws.GetThreadPool();
+  TYPE_SWITCH(input.type().id(), type2id, InputType, ONE_HOT_TYPES, (
+    TYPE_SWITCH(output_type_, type2id, OutputType, ONE_HOT_TYPES, (
+      for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
+        tp.DoWorkWithID(
+              [&, sample_id](int thread_id) {
+          auto &in = input[sample_id];
+          auto &out = output[sample_id];
+          auto in_tensor = make_tensor_cpu(in.template data<InputType>(), in.shape());
+          auto out_tensor = make_tensor_cpu(out.template mutable_data<OutputType>(), out.shape());
+          detail::DoOneHot<OutputType, InputType>(out_tensor, 
+                                                  in_tensor, 
+                                                  depth_, 
+                                                  on_value_, 
+                                                  off_value_);
+        });
+      }
+    ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
+  tp.WaitForWork();
+}
 
 }  // namespace dali

@@ -19,7 +19,7 @@ import nvidia.dali.types as types
 import numpy as np
 
 sample_size = 10
-premade_batch = [np.array(x) for x in range(sample_size)]
+premade_batch = [np.array(x, dtype=np.int32) for x in range(sample_size)]
 
 
 class OneHotPipeline(Pipeline):
@@ -28,7 +28,7 @@ class OneHotPipeline(Pipeline):
                                              num_threads,
                                              0)
         self.ext_src = ops.ExternalSource()
-        self.one_hot = ops.OneHot(nclasses=nclasses, device="cpu")
+        self.one_hot = ops.OneHot(depth=nclasses, dtype=types.INT32, device="cpu")
 
     def define_graph(self):
         self.data = self.ext_src()
@@ -39,24 +39,19 @@ class OneHotPipeline(Pipeline):
 
 
 def one_hot(input):
-    outp = np.zeros([sample_size, sample_size], dtype=int)
+    outp = np.zeros([sample_size, sample_size], dtype=np.int32)
     for i in range(sample_size):
-        outp[i, input[i]] = 1
+        outp[i, int(input[i])] = 1
     return outp
 
 
-def check_one_hot_operator():
+def test_one_hot_operator():
     pipeline = OneHotPipeline(nclasses=sample_size)
     pipeline.build()
     outputs = pipeline.run()
     reference = one_hot(premade_batch)
-    outputs = outputs[0]
-    for i in range(sample_size):
-        output_row = outputs.at(i)
-        for j in range(sample_size):
-            # compare operator encoding with python implementation
-            assert(output_row[j] == reference[i, j])
-
+    outputs = outputs[0].as_array()
+    assert(np.array_equal(outputs, reference))
 
 if __name__ == "__main__":
-    check_one_hot_operator()
+    test_one_hot_operator()
