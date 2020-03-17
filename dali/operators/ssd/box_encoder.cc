@@ -18,7 +18,10 @@
 #include "dali/operators/ssd/box_encoder.h"
 
 namespace dali {
-void BoxEncoder<CPUBackend>::CalculateIousForBox(float *ious, const Box<2, float> &box) const {
+
+using BoundingBox = BoxEncoder<CPUBackend>::BoundingBox;
+
+void BoxEncoder<CPUBackend>::CalculateIousForBox(float *ious, const BoundingBox &box) const {
   ious[0] = intersection_over_union(box, anchors_[0]);
   unsigned best_idx = 0;
   float best_iou = ious[0];
@@ -37,7 +40,7 @@ void BoxEncoder<CPUBackend>::CalculateIousForBox(float *ious, const Box<2, float
   ious[best_idx] = 2.;
 }
 
-vector<float> BoxEncoder<CPUBackend>::CalculateIous(const vector<Box<2, float>> &boxes) const {
+vector<float> BoxEncoder<CPUBackend>::CalculateIous(const vector<BoundingBox> &boxes) const {
   vector<float> ious(boxes.size() * anchors_.size());
 
   for (unsigned bbox_idx = 0; bbox_idx < boxes.size(); ++bbox_idx) {
@@ -64,7 +67,7 @@ unsigned BoxEncoder<CPUBackend>::FindBestBoxForAnchor(
 }
 
 vector<std::pair<unsigned, unsigned>> BoxEncoder<CPUBackend>::MatchBoxesWithAnchors(
-  const vector<Box<2, float>> &boxes) const {
+  const vector<BoundingBox> &boxes) const {
   const auto ious = CalculateIous(boxes);
   vector<std::pair<unsigned, unsigned>> matches;
 
@@ -80,43 +83,27 @@ vector<std::pair<unsigned, unsigned>> BoxEncoder<CPUBackend>::MatchBoxesWithAnch
   return matches;
 }
 
-vector<Box<2, float>> BoxEncoder<CPUBackend>::ReadBoxesFromInput(
-  const float *in_boxes, unsigned num_boxes) const {
-  vector<Box<2, float>> boxes;
-  boxes.resize(num_boxes);
-  const float *in_box_data = in_boxes;
-  for (unsigned idx = 0; idx < num_boxes; ++idx) {
-    auto &box = boxes[idx];
-    box.lo[0] = in_box_data[0];
-    box.lo[1] = in_box_data[1];
-    box.hi[0] = in_box_data[2];
-    box.hi[1] = in_box_data[3];
-    in_box_data += kBboxSize;
-  }
-
-  return boxes;
-}
-
 template <int ndim>
 void WriteBoxToOutput(float *out_box_data, const vec<ndim, float> &center,
                       const vec<ndim, float> &extent) {
-  out_box_data[0] = center[0];
-  out_box_data[1] = center[1];
-  out_box_data[2] = extent[0];
-  out_box_data[3] = extent[1];
+  for (int d = 0; d < ndim; d++) {
+    out_box_data[d] = center[d];
+    out_box_data[ndim + d] = extent[1];
+  }
 }
 
 void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_labels) const {
   if (offset_) {
     std::memset(out_boxes, 0,
-      sizeof(std::remove_pointer<decltype(out_boxes)>::type)*kBboxSize*anchors_.size());
+                sizeof(std::remove_pointer<decltype(out_boxes)>::type) * BoundingBox::box_size *
+                    anchors_.size());
     std::memset(out_labels, 0,
-       sizeof(std::remove_pointer<decltype(out_labels)>::type)*anchors_.size());
+                sizeof(std::remove_pointer<decltype(out_labels)>::type) * anchors_.size());
   } else {
     for (unsigned int idx = 0; idx < anchors_.size(); idx++) {
-      float *out_box = out_boxes + idx * kBboxSize;
-      const auto &box = anchors_[idx];
-      WriteBoxToOutput(out_box, box.centroid(), box.extent());
+      float *out_box = out_boxes + idx * BoundingBox::box_size;
+      const auto &anchor = anchors_[idx];
+      WriteBoxToOutput(out_box, anchor.centroid(), anchor.extent());
       out_labels[idx] = 0;
     }
   }
@@ -145,7 +132,7 @@ GetOffsets(vec<2, float> box_center,
 }
 
 void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
-  const vector<std::pair<unsigned, unsigned>> matches, const vector<Box<2, float>> &boxes,
+  const vector<std::pair<unsigned, unsigned>> matches, const vector<BoundingBox> &boxes,
   const int *labels, float *out_boxes, int *out_labels) const {
   if (offset_) {
     for (const auto &match : matches) {
@@ -155,13 +142,14 @@ void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
       vec<2, float> center, extent;
       std::tie(center, extent) = GetOffsets(box.centroid(), box.extent(), anchor.centroid(),
                                             anchor.extent(), means_, stds_, scale_);
-      WriteBoxToOutput(out_boxes + match.second * kBboxSize, center, extent);
+      WriteBoxToOutput(out_boxes + match.second * BoundingBox::box_size, center, extent);
       out_labels[match.second] = labels[match.first];
     }
   } else {
     for (const auto &match : matches) {
       auto box = boxes[match.first];
-      WriteBoxToOutput(out_boxes + match.second * kBboxSize, box.centroid(), box.extent());
+      WriteBoxToOutput(out_boxes + match.second * BoundingBox::box_size, box.centroid(),
+                       box.extent());
       out_labels[match.second] = labels[match.first];
     }
   }
@@ -170,16 +158,17 @@ void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
 void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto &bboxes_input = ws.Input<CPUBackend>(kBoxesInId);
   const auto &labels_input = ws.Input<CPUBackend>(kLabelsInId);
-
   const auto num_boxes = bboxes_input.dim(0);
-
   const auto labels = labels_input.data<int>();
-  const auto boxes = ReadBoxesFromInput(bboxes_input.data<float>(), num_boxes);
+
+  vector<BoundingBox> boxes;
+  boxes.resize(num_boxes);
+  ReadBoxes(make_span(boxes), make_cspan(bboxes_input.data<float>(), bboxes_input.size()), {}, {});
 
   // Create output
   auto &bboxes_output = ws.Output<CPUBackend>(kBoxesOutId);
   bboxes_output.set_type(bboxes_input.type());
-  bboxes_output.Resize({static_cast<int>(anchors_.size()), kBboxSize});
+  bboxes_output.Resize({static_cast<int>(anchors_.size()), BoundingBox::box_size});
   auto out_boxes = bboxes_output.mutable_data<float>();
 
   auto &labels_output = ws.Output<CPUBackend>(kLabelsOutId);

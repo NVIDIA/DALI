@@ -26,14 +26,14 @@
 
 namespace dali {
 
-static constexpr int kBboxSize = 4;
-
 template<typename Backend>
 class BoxEncoder;
 
 template <>
 class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
  public:
+  using BoundingBox = Box<2, float>;
+
   explicit BoxEncoder(const OpSpec &spec)
       : Operator<CPUBackend>(spec), criteria_(spec.GetArgument<float>("criteria")),
         offset_(spec.GetArgument<bool>("offset")),
@@ -46,11 +46,12 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
       "Expected criteria <= 1, actual value = " + std::to_string(criteria_));
 
     auto anchors = spec.GetArgument<vector<float>>("anchors");
-
-    DALI_ENFORCE(anchors.size() % kBboxSize == 0,
+    DALI_ENFORCE(anchors.size() % BoundingBox::box_size == 0,
       "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
+    int nanchors = anchors.size() / BoundingBox::box_size;
 
-    anchors_ = ReadBoxesFromInput(anchors.data(), anchors.size() / kBboxSize);
+    anchors_.resize(nanchors);
+    ReadBoxes(make_span(anchors_), make_cspan(anchors), {}, {});
 
     means_ = spec.GetArgument<vector<float>>("means");
     DALI_ENFORCE(means_.size() == 4,
@@ -77,27 +78,25 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
 
  private:
   const float criteria_;
-  vector<Box<2, float>> anchors_;
+  vector<BoundingBox> anchors_;
 
   bool offset_;
   vector<float> means_;
   vector<float> stds_;
   float scale_;
 
-  vector<float> CalculateIous(const vector<Box<2, float>> &boxes) const;
+  vector<float> CalculateIous(const vector<BoundingBox> &boxes) const;
 
-  void CalculateIousForBox(float *ious, const Box<2, float> &box) const;
-
-  vector<Box<2, float>> ReadBoxesFromInput(const float *in_boxes, unsigned num_boxes) const;
+  void CalculateIousForBox(float *ious, const BoundingBox &box) const;
 
   void WriteAnchorsToOutput(float *out_boxes, int *out_labels) const;
 
   void WriteMatchesToOutput(const vector<std::pair<unsigned, unsigned>> matches,
-                            const vector<Box<2, float>> &boxes, const int *labels,
+                            const vector<BoundingBox> &boxes, const int *labels,
                             float *out_boxes, int *out_labels) const;
 
   vector<std::pair<unsigned, unsigned>> MatchBoxesWithAnchors(
-    const vector<Box<2, float>> &boxes) const;
+    const vector<BoundingBox> &boxes) const;
 
   unsigned FindBestBoxForAnchor(
     unsigned anchor_idx, const vector<float> &ious, unsigned num_boxes) const;

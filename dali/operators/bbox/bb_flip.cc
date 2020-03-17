@@ -75,32 +75,18 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
   output.ResizeLike(input);
   auto output_data = output.mutable_data<float>();
 
-  for (int i = 0; i < input.size(); i += 4) {
-    Box<2, float> bbox;
-    bbox.lo[0] = input_data[0];
-    bbox.lo[1] = input_data[1];
-    bbox.hi[0] = input_data[2];
-    bbox.hi[1] = input_data[3];
-    if (!ltrb_) {
-      bbox.hi += bbox.lo;
-    }
+  std::vector<Box<2, float>> bboxes;
+  TensorLayout layout = ltrb_ ? "xyXY" : "xyWH";
+  ReadBoxes(make_span(bboxes), make_cspan(input_data, input.size()), layout, {});
 
-    if (horizontal) {
+  for (auto &bbox : bboxes) {
+    if (horizontal)
       HorizontalFlip(bbox);
-    }
-    if (vertical) {
+    if (vertical)
       VerticalFlip(bbox);
-    }
-
-    output_data[i]     = bbox.lo[0];
-    output_data[i + 1] = bbox.lo[1];
-    output_data[i + 2] = bbox.hi[0];
-    output_data[i + 3] = bbox.hi[1];
-    if (!ltrb_) {
-      output_data[i + 2] -= bbox.lo[0];
-      output_data[i + 3] -= bbox.lo[1];
-    }
   }
+
+  WriteBoxes(make_span(output_data, output.size()), make_cspan(bboxes), layout);
 }
 
 }  // namespace dali

@@ -42,8 +42,7 @@ void CollectShape(std::vector<TensorShape<>> &v,
                   const std::string &name,
                   const OpSpec& spec,
                   const workspace_t<CPUBackend>& ws,
-                  int ndim,
-                  bool required = false) {
+                  int ndim) {
   int batch_size = spec.GetArgument<int>("batch_size");
   v.clear();
   v.reserve(batch_size);
@@ -73,8 +72,7 @@ void CollectShape(std::vector<TensorShape<>> &v,
     TensorShape<> sh(std::vector<int64_t>(tmp.begin(), tmp.end()));
     v.resize(batch_size, sh);
   } else {
-    if (required)
-      DALI_FAIL(make_string("Argument `", name, "` is required"));
+    DALI_FAIL(make_string("Argument `", name, "` was not found"));
   }
 }
 
@@ -95,28 +93,28 @@ struct Range {
 
 DALI_SCHEMA(RandomBBoxCrop)
     .DocStr(
-        R"code(Performs a prospective random crop to an image coordinate space while keeping
+        R"code(Applies a prospective random crop to an image coordinate space while keeping
 bounding boxes (and optionally labels) consistent. That is, after applying the random crop operator
 to the image coordinate space, the bounding boxes will be adjusted or filtered out to match the
-cropped region of interest. The applied random crop operator is constrained by the arguments
+cropped region of interest. The applied random crop operation is constrained by the arguments
 provided to the operator.
 
-The cropping window random selection is selected at random until it matches the overlap restrictions
+The cropping window candidates are selected randomly until one matches the overlap restrictions
 specified by `thresholds` argument. Thresholds values represent minimum intersection-over-union
-(IoU) of the cropping window and each of the provided bounding boxes. A valid crop is the one where
-all the provided bounding boxes produce an IoU above a give value present in `thresholds` randomly
-selected. Alternative, we can allow not to crop as one of the valid outcomes of the random process
+(IoU) of the cropping window and each of the provided bounding boxes. A valid crop is one where
+all the provided bounding boxes produce an IoU above a (randomly selected) value from `thresholds`
+argument. Alternatively, we can allow not to crop as one of the valid outcomes of the random process
 (use `allow_no_crop` for that).
 
 Two modes of random crop are available:
 
 * Randomly shaped window, randomly placed within the original input space. The random crop window
-dimensions are selected according to the provided `aspect_ratio` restrictions.
+dimensions are selected according to the provided `aspect_ratio` and relative area restrictions.
 
 * Fixed size window, randomly placed within the original input space. The random crop window
-dimensions is fixed to match the provided `crop_shape` argument and the anchor is selected randomly.
+dimensions are taken from the `crop_shape` argument and the anchor is selected randomly.
 When providing `crop_shape`, a second argument `input_shape` should be provided, specifying the
-original image dimensions.
+original image dimensions, which is required to scale the output bounding boxes.
 
 The argument `num_attempts` can be used to control the maximum number of attempts that we try to
 produce a valid crop to match a single minimum IoU value from `thresholds`. Be advised that when
@@ -125,53 +123,57 @@ produce a valid crop to match a single minimum IoU value from `thresholds`. Be a
 
 Inputs: 0: `bboxes`, (1:`labels`, )
 
-First input `bboxes` refers to bounding boxes that are provided as a 2-dimensional tensor where the
-first dimension refers to the index of the bounding box and the second dimension refers to the
+The first input, `bboxes`, refers to bounding boxes that are provided as a 2-dimensional tensor where
+the first dimension refers to the index of the bounding box and the second dimension refers to the
 index of the coordinate.
 Coordinates are relative to the original image dimensions (i.e. range [0.0, 1.0]), representing
-either `start` and `end` of the region (e.g. `[left, top, right, bottom]`, or `ltrb`) or `start` and
-`shape` (e.g. `[left, top, width, height]` or `xywh`). In the case of volumetric inputs, bounding
-boxes are encoded as `[left, top, front, right, bottom, back]` or
-`[left, top, front, width, height, depth]`.
+either `start` and `end` of the region or `start` and shape` depending on the value of ``bbox_layout``.
+E.g. ``bbox_layout=\"xyXY\"`` means the bounding box coordinates are following the order
+``start_x, start_y, end_x, end_y``, while ``bbox_layout=\"xyWH\" indicates the order is
+``start_x, start_y, width, height``. See more in ``bbox_layout`` argument description.
 
 A second input `labels` can be optionally provided, representing the labels associated with each of
 the bounding boxes.
 
 Outputs: 0:`anchor`, 1:`shape`, 2:`bboxes`, (3:`labels`,)
 
-The result of the prospective crop operation is provided as two separate outputs `anchor` and
-`shape`, that can be feed directly to `Slice` operator to perform the actual crop operation to the
-original image. `anchor` and `shape` contains starting coordinates and dimensions for the crop, as
+The resulting crop parameters are provided as two separate outputs `anchor` and
+`shape`, that can be fed directly to `Slice` operator to perform the actual cropping of the
+original image. `anchor` and `shape` contain starting coordinates and dimensions for the crop, as
 `[x, y, (z,)]` and `[w, h, (d,)]` respectively. The coordinates can be represented in absolute or
-relative terms, depending of whether we used a fixed `crop_shape` or not.
+relative terms, depending of whether the fixed `crop_shape` was used or not.
 
-Third and fourth outputs correspond to the adjusted bounding boxes and optionally
+The third and fourth output correspond to the adjusted bounding boxes and optionally
 their corresponding labels. Bounding boxes are always specified in relative coordinates.)code")
     .NumInput(1, 2)  // [boxes, labels (optional),]
-    .NumOutput(3)    // [anchor, shape, bboxes, labels (optional),]
-    .AdditionalOutputsFn(
-      [](const OpSpec& spec) {
-        return spec.NumInput() - 1;  // +1 if labels are provided
-      })
+    .InputDox(
+        0, "boxes", "2D TensorList of float",
+        "Relative coordinates of the bounding boxes represented as a 2D tensor where the first "
+        "dimension refers to the index of the bounding box and the second dimension refers to the "
+        "index of the coordinate.")
+    .InputDox(1, "labels", "1D TensorList of integers",
+              "(optional) Labels associated with each of the bounding boxes.")
+    .NumOutput(3)  // [anchor, shape, bboxes, labels (optional),]
+    .AdditionalOutputsFn([](const OpSpec &spec) {
+      return spec.NumInput() - 1;  // +1 if labels are provided
+    })
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum intersection-over-union (IoU) of the bounding boxes with respect to the
-prospective crop. Each sample will select one of the `thresholds` randomly, and the operator will
+crop window. Each sample will select one of the `thresholds` randomly, and the operator will
 try a given number of attempts (see `num_attempts`) to produce a random crop window that yields an
 IoU above the selected threshold.)code",
         std::vector<float>{0.f})
-    .AddOptionalArg(
-        "aspect_ratio",
-        R"code(Range `[min, max]` of valid aspect ratio values for new crops.
+    .AddOptionalArg("aspect_ratio",
+                    R"code(Range `[min, max]` of valid aspect ratio values for new crops.
 
 Value for `min` should be `> 0.0` and `min <= max`.
 
-By default, the aspect ratio will be enforced to be `1`, meaning squared cropping
-windows.
+By default, square windows are generated.
 
 Note: Providing `aspect_ratio` and `scaling` is incompatible with specifying `crop_shape`
 explicitly.)code",
-        std::vector<float>{1.f, 1.f})
+                    std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "scaling",
         R"code(Range `[min, max]` for crop size with respect to original image dimensions.
@@ -186,7 +188,9 @@ explicitly)code",
         R"code(If true, bboxes are returned as [left, top, (front,) right, bottom (, back)],
 otherwise they are provided as [left, top, (front,) width, height (, depth].
 
-Note: This argument is deprecated. Use `bbox_layout` instead to specify the bbox encoding)code",
+WARNING: This argument is deprecated. Use `bbox_layout` instead to specify the bbox encoding.
+E.g ``ltrb=True`` is equivalent to ``bbox_layout=\"xyXY\" and ``ltrb=False`` corresponds to
+``bbox_layout=\"xyWH\")code",
         true)
     .AddOptionalArg(
         "num_attempts",
@@ -200,32 +204,29 @@ if it was one more `thresholds` value to choose from.)code",
         true)
     .AddOptionalArg<int>(
         "crop_shape",
-         R"code(If provided, the random crop window dimensions will be fixed to this shape.
+        R"code(If provided, the random crop window dimensions will be fixed to this shape.
 
 The order of dimensions is determined by the layout provided in `shape_layout`.
 
 Note: `crop_shape` and `input_shape` should be provided together, and providing those is
 incompatible with using `scaling` and `aspect_ratio` arguments.)code",
-         std::vector<int>{},
-         true)
-    .AddOptionalArg<int>(
-        "input_shape",
-         R"code(Specifies the shape of the original input image.
+        std::vector<int>{}, true)
+    .AddOptionalArg<int>("input_shape",
+                         R"code(Specifies the shape of the original input image.
 
 The order of dimensions is determined by the layout provided in `shape_layout`.
 
 Note: `crop_shape` and `input_shape` should be provided together, and providing those is
 incompatible with using `scaling` and `aspect_ratio` arguments.)code",
-         std::vector<int>{},
-         true)
+                         std::vector<int>{}, true)
     .AddOptionalArg<TensorLayout>(
         "bbox_layout",
         R"code(Determines the meaning of the coordinates of the bounding boxes.
   Possible values are:
 
-  `x` (horizontal start anchor), `y` (vertical start anchor), `z` (depth-wise start anchor),
+  `x` (horizontal start anchor), `y` (vertical start anchor), `z` (depthwise start anchor),
 
-  `X` (horizontal end anchor),   `Y` (vertical end anchor),   `Z` (depth-wise end anchor),
+  `X` (horizontal end anchor),   `Y` (vertical end anchor),   `Z` (depthwise end anchor),
 
   `W` (width),                   `H` (height),                `D` (depth).
 
@@ -234,14 +235,14 @@ Note: If left empty, `xyXY` or `xyzXYZ` will be assumed, depending on the number
         TensorLayout{""})
     .AddOptionalArg<TensorLayout>(
         "shape_layout",
-         R"code(Determines the meaning of the dimensions provided in `crop_shape` and `input_shape`.
+        R"code(Determines the meaning of the dimensions provided in `crop_shape` and `input_shape`.
 Possible values are:
 
   `W` (width), `H` (height), `D` (depth).
 
 Note: If left empty, `WH` or `WHD` will be assumed, depending on the number of dimensions.
 )code",
-         TensorLayout{""});
+        TensorLayout{""});
 
 template <int ndim>
 class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
@@ -285,8 +286,9 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
 
     if (spec.ArgumentDefined("ltrb")) {
       if (spec.ArgumentDefined("bbox_layout")) {
-        DALI_FAIL("`ltrb` and `bbox_layout` can't be provided at the same time. Use `bbox_layout` "
-                  "is preferred");
+        DALI_FAIL(
+            "`ltrb` and `bbox_layout` can't be provided at the same time. `ltrb` was deprecated in "
+            "favor of `bbox_layout`.");
       }
       DALI_WARN("`ltrb` is deprecated. Please use `bbox_layout` to specify the format of the"
                 " bounding box (e.g. \"xyXY\", \"xyWH\", ...)");
@@ -320,24 +322,23 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     if (allow_no_crop) {
       sample_options_.push_back({true, 0.0f});
     }
-  }
 
-  bool Setup(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
+    auto default_bbox_layout_start_end = DefaultBBoxLayout<ndim>();
+    auto default_bbox_layout_start_shape = DefaultBBoxAnchorAndShapeLayout<ndim>();
     if (bbox_layout_.empty()) {
       auto ltrb = spec_.GetArgument<bool>("ltrb");
-      bbox_layout_ = ltrb ? DefaultLayout<ndim>() : DefaultAnchorAndShapeLayout<ndim>();
+      bbox_layout_ = ltrb ? default_bbox_layout_start_end : default_bbox_layout_start_shape;
     }
-
-    auto default_bbox_layout_start_end = DefaultLayout<ndim>();
-    auto default_bbox_layout_start_shape = DefaultAnchorAndShapeLayout<ndim>();
     DALI_ENFORCE(bbox_layout_.is_permutation_of(default_bbox_layout_start_end) ||
                  bbox_layout_.is_permutation_of(default_bbox_layout_start_shape),
       make_string("`bbox_layout` should be a permutation of `", default_bbox_layout_start_end,
                   "` or `", default_bbox_layout_start_shape, "`. Got: `", bbox_layout_, "`"));
+  }
 
+  bool Setup(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
     if (spec_.ArgumentDefined("input_shape") && spec_.ArgumentDefined("crop_shape")) {
-      CollectShape(input_shape_, "input_shape", spec_, ws, ndim, true);
-      CollectShape(crop_shape_, "crop_shape", spec_, ws, ndim, true);
+      CollectShape(input_shape_, "input_shape", spec_, ws, ndim);
+      CollectShape(crop_shape_, "crop_shape", spec_, ws, ndim);
 
       // Converting the shapes to "WHD" or "WH" if necessary
       auto default_shape_layout = InternalShapeLayout(ndim);
@@ -394,20 +395,19 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     int sample = ws.data_idx();
     ProspectiveCrop prospective_crop;
     while (!prospective_crop.success) {
-      prospective_crop = FindProspectiveCrop(bounding_boxes, labels, sample);
+      prospective_crop =
+          FindProspectiveCrop(make_cspan(bounding_boxes), make_cspan(labels), sample);
     }
 
     WriteCropToOutput(ws, prospective_crop.crop);
-
-    const auto &selected_boxes  = prospective_crop.boxes;
-    WriteBoxesToOutput(ws, selected_boxes);
+    WriteBoxesToOutput(ws, make_cspan(prospective_crop.boxes));
 
     if (has_labels_) {
-      const auto &selected_labels = prospective_crop.labels;
-      DALI_ENFORCE(selected_boxes.size() == selected_labels.size(),
-        make_string("Expected boxes.size() == labels.size(). Received: ", selected_boxes.size(),
-          " != ", selected_labels.size()));
-      WriteLabelsToOutput(ws, selected_labels);
+      DALI_ENFORCE(
+          prospective_crop.boxes.size() == prospective_crop.labels.size(),
+          make_string("Expected boxes.size() == labels.size(). Received: ",
+                      prospective_crop.boxes.size(), " != ", prospective_crop.labels.size()));
+      WriteLabelsToOutput(ws, make_cspan(prospective_crop.labels));
     }
   }
 
@@ -419,15 +419,20 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     std::vector<int> labels;
 
     ProspectiveCrop(bool success,
-                    const Box<ndim, float> &crop,
-                    const std::vector<Box<ndim, float>> &boxes,
-                    const std::vector<int> &labels)
-        : success(success), crop(crop), boxes(boxes), labels(labels) {}
+                    const Box<ndim, float>& crop,
+                    const span<const Box<ndim, float>>& _boxes,
+                    const span<const int>& _labels)
+        : success(success), crop(crop) {
+      boxes.resize(_boxes.size());
+      std::memcpy(boxes.data(), _boxes.data(), _boxes.size() * sizeof(float));
+      labels.resize(_labels.size());
+      std::memcpy(labels.data(), _labels.data(), _labels.size() * sizeof(int));
+    }
     ProspectiveCrop() = default;
   };
 
-  const ProspectiveCrop FindProspectiveCrop(const std::vector<Box<ndim, float>> &bounding_boxes,
-                                            const std::vector<int> &labels,
+  const ProspectiveCrop FindProspectiveCrop(const span<const Box<ndim, float>> &bounding_boxes,
+                                            const span<const int> &labels,
                                             int sample) {
     auto &rng = rngs_[sample];
     std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
@@ -444,7 +449,9 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
       return ProspectiveCrop(true, no_crop, bounding_boxes, labels);
     }
 
-    std::array<float, coords_size> shape, anchor, out_bounds, rel_bounds;
+    vec<ndim, float> shape, anchor;
+    Box<ndim, float> rel_crop, out_crop;
+    std::array<float, coords_size> out_bounds, rel_bounds;
     for (int i = 0; i < num_attempts_; i++) {
       if (absolute_crop_dims) {
         auto &crop_shape = crop_shape_[sample];
@@ -452,63 +459,66 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
 
         for (int d = 0; d < ndim; d++) {
           shape[d] = static_cast<float>(crop_shape[d]);
-          out_bounds[ndim + d] = shape[d];
-          rel_bounds[ndim + d] = shape[d] / input_shape[d];
+          out_crop.hi[d] = shape[d];
+          rel_crop.hi[d] = shape[d] / input_shape[d];
         }
 
         for (int d = 0; d < ndim; d++) {
           std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
           anchor[d] = static_cast<float>(anchor_dist(rng));
-          out_bounds[d] = anchor[d];
-          rel_bounds[d] = anchor[d] / input_shape[d];
         }
+        out_crop.hi += out_crop.lo;
+        rel_crop.hi += rel_crop.lo;
       } else {  // relative dimensions
         std::uniform_real_distribution<float> extent_dist(scale_range_.min, scale_range_.max);
         for (int d = 0; d < ndim; d++) {
           shape[d] = extent_dist(rng);
-          out_bounds[ndim + d] = rel_bounds[ndim + d] = shape[d];
+          rel_crop.hi[d] = shape[d];
         }
 
-        if (!ValidAspectRatio(make_cspan(shape))) {
+        if (!ValidAspectRatio(shape)) {
           continue;
         }
 
         for (int d = 0; d < ndim; d++) {
           std::uniform_real_distribution<float> anchor_dist(0.0f, 1.0f - shape[d]);
           anchor[d] = anchor_dist(rng);
-          out_bounds[d] = rel_bounds[d] = anchor[d];
+          rel_crop.lo[d] = anchor[d];
         }
+        rel_crop.hi += rel_crop.lo;
+        out_crop = rel_crop;
       }
 
-      auto layout = DefaultAnchorAndShapeLayout<ndim>();  // start and shape
-      Box<ndim, float> rel_crop;
-      ReadBox(rel_crop, make_cspan(rel_bounds), layout);
-
-      Box<ndim, float> out_crop;
-      ReadBox(out_crop, make_cspan(out_bounds), layout, {});
-
-      if (!ValidOverlap(rel_crop, bounding_boxes, option.min_iou)) {
+      if (!ValidOverlap(rel_crop, make_cspan(bounding_boxes), option.min_iou)) {
         continue;
       }
 
-      auto filtered_bboxes = bounding_boxes;
-      auto filtered_labels = labels;
-      FilterByCentroid(rel_crop, filtered_bboxes, filtered_labels);
-      if (filtered_bboxes.empty()) {
+      ProspectiveCrop crop;
+      crop.success = true;
+      crop.crop = out_crop;
+      crop.boxes.resize(bounding_boxes.size());
+      std::memcpy(crop.boxes.data(), bounding_boxes.data(), sizeof(float) * bounding_boxes.size());
+
+      crop.labels.resize(labels.size());
+      std::memcpy(crop.labels.data(), labels.data(), sizeof(int) * labels.size());
+
+      FilterByCentroid(rel_crop, crop.boxes, crop.labels);
+      if (crop.boxes.empty()) {
         continue;
       }
 
-      for (auto &box : filtered_bboxes) {
+      for (auto &box : crop.boxes) {
         box = RemapBox(box, rel_crop);
       }
 
-      return ProspectiveCrop(true, out_crop, filtered_bboxes, filtered_labels);
+      return crop;
     }
 
     return ProspectiveCrop();
   }
 
-  bool ValidAspectRatio(span<const float> shape) {
+
+  bool ValidAspectRatio(vec<ndim, float> shape) {
     assert(static_cast<int>(shape.size()) == coords_size);
     for (int i = 0; i < ndim; i++) {
       for (int j = i + 1; j < ndim; j++) {
@@ -519,7 +529,8 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     return true;
   }
 
-  bool ValidOverlap(const Box<ndim, float> &crop, const std::vector<Box<ndim, float>> &boxes,
+  bool ValidOverlap(const Box<ndim, float> &crop,
+                    const span<const Box<ndim, float>> &boxes,
                     float threshold) {
     return std::all_of(boxes.begin(), boxes.end(),
       [&crop, threshold](const Box<ndim, float> &box) {
@@ -564,7 +575,7 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
   }
 
   void WriteBoxesToOutput(SampleWorkspace &ws,
-                          const std::vector<Box<ndim, float>> &bounding_boxes) {
+                          const span<const Box<ndim, float>> &bounding_boxes) {
     auto &bbox_out = ws.Output<CPUBackend>(2);
     bbox_out.Resize({static_cast<int64_t>(bounding_boxes.size()), coords_size});
     auto *bbox_out_data = bbox_out.mutable_data<float>();
@@ -572,13 +583,10 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
                bbox_layout_);
   }
 
-  void WriteLabelsToOutput(SampleWorkspace &ws, const std::vector<int> &labels) {
+  void WriteLabelsToOutput(SampleWorkspace &ws, const span<const int> &labels) {
     auto &labels_out = ws.Output<CPUBackend>(3);
     labels_out.Resize({static_cast<Index>(labels.size()), 1});
-    auto *labels_out_data = labels_out.mutable_data<int>();
-    for (size_t i = 0; i < labels.size(); i++) {
-      labels_out_data[i] = labels[i];
-    }
+    std::memcpy(labels_out.mutable_data<int>(), labels.data(), labels.size() * sizeof(int));
   }
 
  private:
@@ -635,7 +643,6 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   VALUE_SWITCH(num_dims, ndim, (2, 3),
     (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(spec_);),
     (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
-  assert(impl_ != nullptr);
   return impl_->Setup(output_desc, ws);
 }
 

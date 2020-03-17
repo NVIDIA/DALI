@@ -21,6 +21,8 @@ namespace dali {
 
 template<int ndims, typename CoordinateType>
 struct Box {
+  static constexpr int ndim = ndims;
+  static constexpr int box_size = ndims * 2;
   using corner_t = vec<ndims, CoordinateType>;
   static_assert(std::is_pod<corner_t>::value, "Corner has to be POD");
 
@@ -112,7 +114,7 @@ template <int ndims, typename CoordinateType>
 constexpr DALI_HOST_DEV Box<ndims, CoordinateType> intersection(
     const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
   Box<ndims, CoordinateType> tmp = {max(lhs.lo, rhs.lo), min(lhs.hi, rhs.hi)};
-  return any_coord(tmp.hi <= tmp.lo) ? Box<ndims, CoordinateType>() : tmp;
+  return !all_coords(tmp.hi > tmp.lo) ? Box<ndims, CoordinateType>() : tmp;
 }
 
 template <int ndims, typename CoordinateType>
@@ -129,7 +131,7 @@ constexpr DALI_HOST_DEV CoordinateType intersection_over_union(
 template<int ndims, typename CoordinateType>
 constexpr DALI_HOST_DEV bool
 overlaps(const Box<ndims, CoordinateType> &lhs, const Box<ndims, CoordinateType> &rhs) {
-  return intersection(lhs, rhs).empty();
+  return lhs.overlaps(rhs);
 }
 
 /**
