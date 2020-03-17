@@ -27,15 +27,12 @@ class OneHotPipeline(Pipeline):
         super(OneHotPipeline, self).__init__(sample_size,
                                              num_threads,
                                              0)
-        self.ext_src = ops.ExternalSource()
+        self.ext_src = ops.ExternalSource(source=[premade_batch], cycle=True)
         self.one_hot = ops.OneHot(depth=nclasses, dtype=types.INT32, device="cpu")
 
     def define_graph(self):
         self.data = self.ext_src()
         return self.one_hot(self.data)
-
-    def iter_setup(self):
-        self.feed_input(self.data, premade_batch)
 
 
 def one_hot(input):
