@@ -38,64 +38,103 @@ template <typename Acc, typename In,
 __device__ void ReduceInnerSmall(Acc *out, const In *in, int64_t n_outer, int n_inner,
                                  Reduction reduce = {}, Preprocess pp = {}) {
   const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
-  const int64_t grid_size_x = static_cast<int64_t>(gridDim.x) * blk_size
+  const int64_t grid_size_x = static_cast<int64_t>(gridDim.x) * blk_size;
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
   int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
   for (int64_t outer = base_idx; outer < n_outer; outer += grid_size_x) {
     const float *base = in + outer * n_inner;
-    float acc = pp(__ldg(base));
-
-    out[outer] = reductions::ReduceInner(base, n_inner, reduce, pp);
+    out[outer] = reductions::ReduceInner<Acc>(base, n_inner, reduce, pp);
   }
 }
 
 /**
  * @brief This kernel is used for reducing innermost dimension with large extent.
  *
- * The reduction needs at least one more level to complete. Output buffer `out`
- * will contain n_outer * gridDim.x elements
+ * The reduction needs at least one more level to complete. Output buffer
+ * will contain n_outer * inner_macroblocks elements.
+ *
+ * After this function is used, another level of reduction may be necessary,
+ * depending on the value inner_macroblocks.
  */
 template <typename Acc, typename In,
           typename Reduction = reductions::sum,
           typename Preprocess = dali::identity>
 __device__ void ReduceInnerLarge(Acc *out, const In *in, int64_t n_outer, int64_t n_inner,
-                                 int inner_block, int macroblock_size,
+                                 int inner_macroblocks, int macroblock_size,
                                  Reduction reduce = {}, Preprocess pp = {}) {
   constexpr int64_t blk_size = 32*32;  // block must be warpSize * warpSize for BlockReduce
-  constexpr int max_macroblock_size = 32;  // 32 blocks
 
-  const int64_t grid_size = gridDim.x * blk_size;
+  const int64_t total_blocks = n_outer * inner_macroblocks;
+
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
 
-  int64_t offset = blockIdx.x * blk_size + flat_tid;
-  Acc val = offset < sample_size ? pp(in[offset]) : reduce.template neutral<Acc>();
-  for (offset += grid_size; offset < sample_size; offset += grid_size) {
-    reduce(val, pp(in[offset]));
-  BlockReduce(out, &in[outer * n_inner], [outer]() { return outer; });
+  int outer_shift = __ffs(inner_macroblocks) - 1;
+  int inner_mask = inner_macroblocks - 1;
+
+  for (int64_t idx = blockIdx.x; idx < total_blocks; idx += gridDim.x) {
+    int64_t outer = idx >> outer_shift;
+    int64_t inner_macroblock = idx & inner_mask;
+    int64_t inner_start = inner_macroblock * macroblock_size;
+    int64_t inner_end = min(n_inner, inner_start + macroblock_size);
+
+    const In *base = &in[outer * n_inner];
+
+    Acc val = reduce.template neutral<Acc>();
+
+    // reduce macroblock to a block - each thread reduces its own block-strided slice
+    bool first = true;
+    for (int64_t inner = inner_start + flat_tid; inner < inner_end; inner += blk_size) {
+      auto x = pp(__ldg(base + inner));
+      if (first) {
+        val = x;
+        first = false;
+      } else {
+        reduce(val, x);
+      }
+    }
+
+    if (idx != blockIdx.x)  // not needed in first iteration:
+      __syncthreads();      // make sure that the shared memory used by BlockReduce is ready
+
+    BlockReduce(out, val, reduce, [idx]() { return idx; });
+  }
 }
 
 template <typename Out, typename In>
 struct ReduceInnerSampleDesc {
   Out *out;
   const In *in;
-  int64_t shape[2];
-  int inner_blocks, inner_block_size;
+  int64_t n_outer;  // volume of the outer (non-reduced) dimensions
+  int64_t n_inner;  // volume of the inner (reduced) dimensions
+
+  /**  number of macroblocks in inner dimension - must be a power of 2 for easier division */
+  int inner_macroblocks;
+
+  /**
+   * @brief Size, in elements, of the macroblock in inner dimension - does *not* need to be aligned
+   * on block boundary.
+   */
+  int inner_macroblock_size;
 };
 
 template <typename Acc, typename In,
           typename Reduction = reductions::sum,
           typename Preprocess = dali::identity>
-__global__ void ReduceInnerKernel(const ReduceInnerSampleDesc<Out, In> *samples,
+__global__ void ReduceInnerKernel(const ReduceInnerSampleDesc<Acc, In> *samples,
                                   Reduction reduce = {}, Preprocess pp = {}) {
-  int sample = threadIdx.y;
-  int64_t n_outer = samples[sample].shape[0];
-  int64_t n_inner = samples[sample].shape[1];
-  int64_t sample_size = n_outer * n_inner;
+  auto sample = samples[blockIdx.y];
+  int64_t n_outer = sample.n_outer;
+  int64_t n_inner = sample.n_inner;
+  Acc *out = sample.out;
+  const In *in = sample.in;
 
-  if (n_inner <= 1024 && samples[i].inner_blocks == 1)
-    ReduceInnerSmall(&out[sample], in[sample], n_outer, n_inner, reduce, pp);
-  else
-    ReduceInnerLarge(&out[sample], in[sample], n_outer, n_inner, reduce, pp);
+  // TODO(michalz) the 32-256 reduction is very slow - we need a dedicated functio for this range
+  if (n_inner < 64 && sample.inner_macroblocks == 1) {
+    ReduceInnerSmall(out, in, n_outer, n_inner, reduce, pp);
+  } else {
+    ReduceInnerLarge(out, in, n_outer, n_inner,
+                     sample.inner_macroblocks, sample.inner_macroblock_size, reduce, pp);
+  }
 }
 
 
