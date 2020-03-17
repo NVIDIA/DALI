@@ -126,6 +126,27 @@ class _DALIIteratorBase(mx.io.DataIter):
                 self.reset()
             raise StopIteration
 
+
+def non_empty(shape):
+    for s in shape:
+        if s == 0:
+            return False
+
+    return True
+
+def get_mx_array(shape, ctx=None, dtype=None):
+    # WAR
+    # ToDo (jlisiecki) - fix when upstream MXNet fixes this
+    # mx.nd.empty doesn't support np.longlong as mx.nd.zeros does, but it does np.int64
+    # which from our point of view is the same
+    if dtype == np.longlong:
+        dtype = np.int64
+    if non_empty(shape):
+        return mx.nd.zeros(shape, ctx, dtype)
+    else:
+        return mx.nd.empty(shape, ctx, dtype)
+
+
 ###################################################
 ###################################################
 ################## MXNet Sym API ##################
@@ -309,9 +330,9 @@ class DALIGenericIterator(_DALIIteratorBase):
                 d = []
                 l = []
                 for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.DATA_TAG]):
-                    d.append(mx.nd.zeros(shape, category_device[DALIGenericIterator.DATA_TAG][j], dtype = dtype))
+                    d.append(get_mx_array(shape, category_device[DALIGenericIterator.DATA_TAG][j], dtype = dtype))
                 for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
-                    l.append(mx.nd.zeros(shape, category_device[DALIGenericIterator.LABEL_TAG][j], dtype = dtype))
+                    l.append(get_mx_array(shape, category_device[DALIGenericIterator.LABEL_TAG][j], dtype = dtype))
 
                 self._data_batches[i][self._current_data_batch] = mx.io.DataBatch(data=d, label=l)
 
@@ -321,10 +342,10 @@ class DALIGenericIterator(_DALIIteratorBase):
             if self._dynamic_shape:
                 for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.DATA_TAG]):
                     if list(d[j].shape) != shape:
-                        d[j] = mx.nd.zeros(shape, d[j].context, dtype = dtype)
+                        d[j] = get_mx_array(shape, d[j].context, dtype = dtype)
                 for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
                     if list(l[j].shape) != shape:
-                        l[j] = mx.nd.zeros(shape, l[j].context, dtype = dtype)
+                        l[j] = get_mx_array(shape, l[j].context, dtype = dtype)
 
             for j, d_arr in enumerate(d):
                 feed_ndarray(category_tensors[DALIGenericIterator.DATA_TAG][j], d_arr)

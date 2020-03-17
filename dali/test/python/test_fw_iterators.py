@@ -17,6 +17,7 @@ import math
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
@@ -149,6 +150,55 @@ def test_mxnet_iterator_last_batch_no_pad_last_batch():
     assert len(img_ids_list_set) == data_size
     assert len(set(mirrored_data)) != 1
 
+def test_mxnet_iterator_empty_array():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    import mxnet as mx
+
+    batch_size = 4
+    size = 5
+
+    all_np_types = [np.bool_, np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
+                    np.uint8, np.uint16, np.uint32, np.uint64, np.float_, np.float32, np.float16,
+                    np.short, np.long, np.longlong, np.ushort, np.ulonglong]
+    np_types = []
+    # store in np_types only types supported by MXNet
+    for t in all_np_types:
+        try:
+            mx.nd.zeros([2, 2, 2], ctx=None, dtype=t)
+            np_types.append(t)
+        except mx.base.MXNetError:
+            pass
+
+    test_data_shape = [1, 3, 0, 4]
+    def get_data():
+        # create batch of [type_a, type_a, type_b, type_b, ...]
+        out = [[np.empty(test_data_shape, dtype = t)] * batch_size for t in np_types]
+        out = [val for pair in zip(out, out) for val in pair]
+        return out
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
+    outs = fn.external_source(source = get_data, num_outputs = len(np_types) * 2)
+    pipe.set_outputs(*outs)
+    pipe.build()
+    
+    # create map of [(data, type_a), (label, type_a), ...]
+    data_map = [('data_{}'.format(i), MXNetIterator.DATA_TAG) for i, t in enumerate(np_types)]
+    label_map = [('label_{}'.format(i), MXNetIterator.LABEL_TAG) for i, t in enumerate(np_types)]
+    out_map = [val for pair in zip(data_map, label_map) for val in pair]
+
+    iterator = MXNetIterator(
+    pipe,
+    output_map=out_map,
+    size=size,
+    dynamic_shape=True)
+
+    for batch in iterator:
+        for d, t in zip(batch[0].data, np_types):
+            shape = d.asnumpy().shape
+            assert shape[0] == batch_size
+            print(shape)
+            assert np.array_equal(shape[1:], test_data_shape)
+            assert d.asnumpy().dtype == t
 
 def test_mxnet_iterator_last_batch_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
