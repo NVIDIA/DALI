@@ -2,8 +2,10 @@ Types
 =====
 
 .. _TensorList:
+
 TensorList
 ----------
+
 .. currentmodule:: nvidia.dali.pipeline
 
 TensorList represents a batch of tensors. TensorLists are the return values of `Pipeline.run`

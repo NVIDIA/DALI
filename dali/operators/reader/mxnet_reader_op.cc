@@ -23,6 +23,8 @@ DALI_SCHEMA(MXNetReader)
   .DocStr("Read sample data from a MXNet RecordIO.")
   .NumInput(0)
   .NumOutput(2)
+  .OutputDoc(0, "data", "1D TensorList of uint8", "Raw data buffers.")
+  .OutputDoc(1, "labels", "1D TensorList of int", "Batch of labels corresponding to the buffers.")
   .AddArg("path",
       R"code(List of paths to RecordIO files.)code",
       DALI_STRING_VEC)

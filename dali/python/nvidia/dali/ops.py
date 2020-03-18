@@ -42,11 +42,29 @@ _cpu_ops = set({})
 _gpu_ops = set({})
 _mixed_ops = set({})
 
+_args_header = """
+Args
+----
+"""
+
+_kwargs_header = """
+Keyword args
+------------
+"""
+
+_returns_header = """
+Returns
+-------
+"""
+
 def _numpydoc_formatter(name, type, doc, optional = False):
     indent = "\n" + " " * 4
     if optional:
         type += ", optional"
-    return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
+    if name:
+        return "{} : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
+    else:
+        return "{}{}{}".format(type, indent, doc.replace("\n", indent))
 
 def _get_kwargs(schema, only_tensor = False):
     """
@@ -94,7 +112,7 @@ def _docstring_generator(cls):
             ret +=". Use `" + use_instead + "` instead."
         ret += "\n\n"
 
-    ret += schema.Dox()
+    ret += schema.DocStr()
     ret += '\n'
 
     if schema.IsSequenceOperator():
@@ -122,10 +140,7 @@ Supported backends
         ret += " * " + dev + "\n"
     ret += "\n"
 
-    ret += """
-Keyword args
-------------
-"""
+    ret += _kwargs_header
     ret += _get_kwargs(schema)
     return ret
 
@@ -133,6 +148,40 @@ def _supported_layouts_str(supported_layouts):
     if len(supported_layouts) == 0:
         return ""
     return " (" + ", ".join(["\'" + str(layout) + "\'" for layout in supported_layouts]) + ")"
+
+def _docstring_get_args(op_name):
+    """ Generate Args section for __call__ """
+    schema = _b.GetSchema(op_name)
+    ret = _args_header
+    for i in range(schema.MaxNumInput()):
+        optional = i >= schema.MinNumInput()
+        name, type_doc, doc = schema.GetPerInputDoc(i)
+        input_type_str = type_doc + _supported_layouts_str(schema.GetSupportedLayouts(i))
+        ret += _numpydoc_formatter(name, input_type_str, doc, optional)
+        ret += "\n"
+    return ret
+
+def _docstring_get_kwargs(op_name):
+    """ Generate Kwargs section for __call__ """
+    schema = _b.GetSchema(op_name)
+    return _kwargs_header + _get_kwargs(schema, True)
+
+def _docstring_get_returns(op_name):
+    """ Generate Returns section for __call__ """
+    schema = _b.GetSchema(op_name)
+    if schema.HasPerOutputDoc():
+        ret = _returns_header
+        for i in range(schema.NumOutput()):
+            name, type_doc, doc = schema.GetPerOutputDoc(i)
+            output_type_str = type_doc
+            ret += _numpydoc_formatter(name, output_type_str, doc)
+            ret += "\n"
+        return ret
+    elif schema.HasOutputDocStr():
+        return _returns_header + schema.GetOutputDocStr()
+    else:
+        return ""
+
 
 def _docstring_prefix_from_inputs(op_name):
     """
@@ -146,17 +195,6 @@ def _docstring_prefix_from_inputs(op_name):
     ret = "__call__(" + schema.GetCallSignatureInputs() + ", **kwargs)\n"
     # __call__ docstring
     ret += "\nOperator call to be used in `define_graph` step.\n"
-    # Args section
-    ret += """
-Args
-----
-"""
-    for i in range(schema.MaxNumInput()):
-        optional = i >= schema.MinNumInput()
-        input_type_str = schema.GetInputType(i) + _supported_layouts_str(schema.GetSupportedLayouts(i))
-        ret += _numpydoc_formatter(schema.GetInputName(i), input_type_str, schema.GetInputDox(i), optional)
-        ret += "\n"
-    ret += "\n"
     return ret
 
 def _docstring_prefix_auto(op_name):
@@ -175,9 +213,8 @@ Operator call to be used in `define_graph` step. This operator does not accept a
 
 Operator call to be used in `define_graph` step.
 
-Args
-----
 """
+        ret += _args_header
         dox = "Input to the operator.\n"
         fmt  = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(0))
         ret += _numpydoc_formatter("data", fmt, dox, optional=False)
@@ -190,23 +227,19 @@ def _docstring_generator_call(op_name):
         Generate full docstring for `__call__` of Operator `op_name`.
     """
     schema = _b.GetSchema(op_name)
-    if schema.HasCallDox():
-        ret = schema.GetCallDox()
-    elif schema.HasInputDox():
+    if schema.HasCallDocStr():
+        ret = schema.GetCallDocStr()
+        ret += _docstring_get_args(op_name)
+    elif schema.HasPerInputDoc():
         ret =_docstring_prefix_from_inputs(op_name)
-    elif schema.CanUseAutoInputDox():
+        ret += _docstring_get_args(op_name)
+    elif schema.CanUseAutoInputDoc():
         ret = _docstring_prefix_auto(op_name)
     else:
         ret = "Please refer to class :meth:`nvidia.dali.ops." + op_name + "` for full documentation.\n"
     if schema.AppendKwargsSection():
-        # Kwargs section
-        tensor_kwargs = _get_kwargs(schema, only_tensor = True)
-        if tensor_kwargs:
-            ret += """
-Keyword Args
-------------
-"""
-            ret += tensor_kwargs
+        ret += _docstring_get_kwargs(op_name)
+    ret += _docstring_get_returns(op_name)
     return ret
 
 class _OpCounter(object):

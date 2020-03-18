@@ -24,6 +24,8 @@ DALI_SCHEMA(FileReader)
   .DocStr("Read (Image, label) pairs from a directory")
   .NumInput(0)
   .NumOutput(2)  // (Images, Labels)
+  .OutputDoc(0, "data", "1D TensorList of uint8", "Raw file contents.")
+  .OutputDoc(1, "labels", "1D TensorList of int", "Batch of labels corresponding to files.")
   .AddArg("file_root",
       R"code(Path to a directory containing data files.
 ``FileReader`` supports flat directory structure. ``file_root`` directory should contain
@@ -33,8 +35,8 @@ directories with images in them. To obtain labels ``FileReader`` sorts directori
   .AddOptionalArg("file_list",
       R"code(Path to a text file containing rows of ``filename label`` pairs, where the filenames are
 relative to ``file_root``.
-If left empty, ``file_root`` is traversed for subdirectories (only those at one level deep from 
-``file_root``) containing files associated with the same label. When traversing subdirectories, 
+If left empty, ``file_root`` is traversed for subdirectories (only those at one level deep from
+``file_root``) containing files associated with the same label. When traversing subdirectories,
 labels are assigned consecutive numbers.)code",
       std::string())
 .AddOptionalArg("shuffle_after_epoch",

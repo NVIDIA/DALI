@@ -25,28 +25,29 @@ As an optional input, operator accepts external hints for OF calculation.
 The output format of this operator matches the output format of OF driver API.
 Dali uses Turing optical flow hardware implementation: https://developer.nvidia.com/opticalflow-sdk
 )code")
-                .NumInput(1, 2)
-                .NumOutput(1)
-                .AddOptionalArg(detail::kPresetArgName, R"code(Setting quality level of OF calculation.
+    .NumInput(1, 2)
+    .InputDoc(0, "frame_seq", "TensorList of uint8", "Batch of input sequences to calculate OF")
+    .InputDoc(1, "hints", "TensorList of float", "Batch of external hints for OF")
+    .NumOutput(1)
+    .AddOptionalArg(detail::kPresetArgName, R"code(Setting quality level of OF calculation.
  0.0f ... 1.0f, where 1.0f is best quality, lowest speed)code", .0f, false)
-                .AddOptionalArg(detail::kOutputFormatArgName,
-                                R"code(Setting grid size for output vector.
+    .AddOptionalArg(detail::kOutputFormatArgName,
+                    R"code(Setting grid size for output vector.
 Value defines width of grid square (e.g. if value == 4, 4x4 grid is used).
 For values <=0, grid size is undefined. Currently only grid_size=4 is supported.)code", -1, false)
-                .AddOptionalArg(detail::kEnableTemporalHintsArgName,
-                                R"code(enabling/disabling temporal hints for sequences longer than 2 images.
+    .AddOptionalArg(detail::kEnableTemporalHintsArgName,
+                    R"code(enabling/disabling temporal hints for sequences longer than 2 images.
 They are used to speed up calculation: previous OF result in sequence is used to calculate current flow. You might
 want to use temporal hints for sequences, that don't have much changes in the scene (e.g. only moving objects))code",
                                 false, false)
-                .AddOptionalArg(detail::kEnableExternalHintsArgName,
-                                R"code(enabling/disabling external hints for OF calculation. External hints
+    .AddOptionalArg(detail::kEnableExternalHintsArgName,
+                    R"code(enabling/disabling external hints for OF calculation. External hints
 are analogous to temporal hints, only they come from external source. When this option is enabled,
-Operator requires 2 inputs.)code",
-                                false, false)
-                .AddOptionalArg(detail::kImageTypeArgName,
-                                R"code(Type of input images (RGB, BGR, GRAY))code", DALI_RGB,
-                                false)
-                .AllowSequences();
+Operator requires 2 inputs.)code", false, false)
+    .AddOptionalArg(detail::kImageTypeArgName,
+                    R"code(Type of input images (RGB, BGR, GRAY))code", DALI_RGB,
+                    false)
+    .AllowSequences();
 
 
 DALI_REGISTER_OPERATOR(OpticalFlow, OpticalFlow<GPUBackend>, GPU);
