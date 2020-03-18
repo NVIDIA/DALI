@@ -165,7 +165,15 @@ try a given number of attempts (see `num_attempts`) to produce a random crop win
 IoU above the selected threshold.)code",
         std::vector<float>{0.f})
     .AddOptionalArg("aspect_ratio",
-                    R"code(Range `[min, max]` of valid aspect ratio values for new crops.
+                    R"code(Single or multiple valid aspect ratio ranges
+(``[min0, max0, (min1, max1, min2, max2)]``) for cropping windows.
+
+For 2D bounding boxes, a single aspect ratio `x/y` range should be provided (i.e. ``[min_xy, max_xy]``)
+
+For 3D bounding boxes, three aspect ratio ranges are expected (``x/y``, ``x/z`` and ``y/z``) ranges, i.e
+``[min_xy, max_xy, min_xz, max_xz, min_yz, max_yz]``.
+Alternatively, if a single aspect ratio range is provided, the valid aspect ratio range will be the
+same for the three ratios.
 
 Value for `min` should be `> 0.0` and `min <= max`.
 
@@ -178,7 +186,7 @@ explicitly.)code",
         "scaling",
         R"code(Range `[min, max]` for crop size with respect to original image dimensions.
 
-Value for `min` should be ` >= 0.0` and `min <= max`.
+Value for `min` should satisfy `0.0 <= min <= max`.
 
 Note: Providing `aspect_ratio` and `scaling` is incompatible with specifying `crop_shape`
 explicitly)code",
@@ -272,14 +280,20 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
                     ", ", scale_range_.max));
 
     auto aspect_ratio_arg = spec.GetRepeatedArgument<float>("aspect_ratio");
-    DALI_ENFORCE(aspect_ratio_arg.size() == 2,
-                 make_string("`aspect_ratio` must be a range `[min, max]`. Got ",
-                             aspect_ratio_arg.size(), " values"));
-    aspect_ratio_range_.min = aspect_ratio_arg[0];
-    aspect_ratio_range_.max = aspect_ratio_arg[1];
-    DALI_ENFORCE(aspect_ratio_range_.min >= 0 && aspect_ratio_range_.min <= aspect_ratio_range_.max,
-                 make_string("`aspect_ratio` range must be positive and min <= max. Got: ",
-                             aspect_ratio_range_.min, ", ", aspect_ratio_range_.max));
+    DALI_ENFORCE(aspect_ratio_arg.size() == 2 || aspect_ratio_arg.size() == 6,
+        make_string(
+            "`aspect_ratio` range argument should have 2 elements, or 6 elements in case of "
+            "3D bounding boxes. Got ",
+            aspect_ratio_arg.size(), " elements"));
+    aspect_ratio_ranges_.resize(aspect_ratio_arg.size() / 2);
+    int k = 0;
+    for (auto &range : aspect_ratio_ranges_) {
+      range.min = aspect_ratio_arg[k++];
+      range.max = aspect_ratio_arg[k++];
+      DALI_ENFORCE(range.min >= 0 && range.min <= range.max,
+                   make_string("`aspect_ratio` range must be positive and min <= max. Got: ",
+                               range.min, ", ", range.max));
+    }
 
     DALI_ENFORCE(has_crop_shape_ == has_input_shape_,
       "`crop_shape` and `input_shape` should be provided together or not provided");
@@ -290,8 +304,10 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
             "`ltrb` and `bbox_layout` can't be provided at the same time. `ltrb` was deprecated in "
             "favor of `bbox_layout`.");
       }
-      DALI_WARN("`ltrb` is deprecated. Please use `bbox_layout` to specify the format of the"
-                " bounding box (e.g. \"xyXY\", \"xyWH\", ...)");
+      DALI_WARN(
+          "WARNING: `ltrb` is deprecated. Please use `bbox_layout` to specify the format of the "
+          "bounding box. E.g. For 2D bounding boxes, `ltrb=True`` is equivalent to "
+          "`bbox_layout=\"xyXY\"`, and `ltrb=False` is equivalent to `bbox_layout=\"xyWH\"`");
     }
 
     bool allow_no_crop = spec.GetArgument<bool>("allow_no_crop");
@@ -423,13 +439,67 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
                     const span<const Box<ndim, float>>& _boxes,
                     const span<const int>& _labels)
         : success(success), crop(crop) {
+      assert(_boxes.size() == _labels.size());
       boxes.resize(_boxes.size());
-      std::memcpy(boxes.data(), _boxes.data(), _boxes.size() * sizeof(float));
       labels.resize(_labels.size());
-      std::memcpy(labels.data(), _labels.data(), _labels.size() * sizeof(int));
+      for (int i = 0; i < _boxes.size(); i++) {
+        boxes[i] = _boxes[i];
+        labels[i] = _labels[i];
+      }
     }
     ProspectiveCrop() = default;
   };
+
+  /**
+   * @brief Fixes shape dimensions to follow aspect ratio constraints in case of ar_min == ar_max
+   * @remarks The dimensions are fixed on a random order
+   */
+  void FixAspectRatios(vec<ndim, float>& shape) {
+    // If aspect ratio is fixed, fix the required dimensions
+    std::array<float, ndim*ndim> fixed_aspect_ratios;
+    int k = 0;
+
+    for (int d0 = 0; d0 < ndim; d0++) {
+      for (int d1 = d0 + 1; d1 < ndim; d1++) {
+        // to be used later when min==max
+        if (aspect_ratio_ranges_[k].min == aspect_ratio_ranges_[k].max) {
+          fixed_aspect_ratios[d0*ndim+d1] = aspect_ratio_ranges_[k].min;
+          fixed_aspect_ratios[d1*ndim+d0] = 1.0 / aspect_ratio_ranges_[k].min;
+        } else {
+          fixed_aspect_ratios[d0*ndim+d1] = 0.0f;
+          fixed_aspect_ratios[d1*ndim+d0] = 0.0f;
+        }
+        k = (k + 1) % aspect_ratio_ranges_.size();
+      }
+    }
+
+    std::array<int, ndim> order;
+    std::iota(order.begin(), order.end(), 0);
+    std::random_shuffle(order.begin(), order.end());
+
+    float max_extent = 0.0f;
+    for (int d = 0; d < ndim; d++) {
+      max_extent = std::max(max_extent, shape[d]);
+    }
+
+    for (int i0 = 0; i0 < ndim; i0++) {
+      for (int i1 = i0 + 1; i1 < ndim; i1++) {
+        int d0 = order[i0], d1 = order[i1];
+        auto fixed_ar = fixed_aspect_ratios[d0*ndim+d1];
+        if (shape[d0] != shape[d1] && fixed_ar > 0) {
+          shape[d0] = shape[d1] * fixed_ar;
+        }
+      }
+    }
+
+    // Re-scale so that largest extent matches the previous max extent
+    float new_max_extent = 0.0;
+    for (int d = 0; d < ndim; d++)
+      new_max_extent = std::max(new_max_extent, shape[d]);
+
+    for (auto &extent : shape)
+      extent = max_extent * extent / new_max_extent;
+  }
 
   const ProspectiveCrop FindProspectiveCrop(const span<const Box<ndim, float>> &bounding_boxes,
                                             const span<const int> &labels,
@@ -466,6 +536,8 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
         for (int d = 0; d < ndim; d++) {
           std::uniform_int_distribution<> anchor_dist(0, input_shape[d] - crop_shape[d]);
           anchor[d] = static_cast<float>(anchor_dist(rng));
+          out_crop.lo[d] = anchor[d];
+          rel_crop.lo[d] = anchor[d] / input_shape[d];
         }
         out_crop.hi += out_crop.lo;
         rel_crop.hi += rel_crop.lo;
@@ -473,19 +545,21 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
         std::uniform_real_distribution<float> extent_dist(scale_range_.min, scale_range_.max);
         for (int d = 0; d < ndim; d++) {
           shape[d] = extent_dist(rng);
-          rel_crop.hi[d] = shape[d];
         }
+
+        FixAspectRatios(shape);
 
         if (!ValidAspectRatio(shape)) {
           continue;
         }
 
         for (int d = 0; d < ndim; d++) {
+          assert(shape[d] >= 0.0f && shape[d] <= 1.0f);
           std::uniform_real_distribution<float> anchor_dist(0.0f, 1.0f - shape[d]);
           anchor[d] = anchor_dist(rng);
           rel_crop.lo[d] = anchor[d];
+          rel_crop.hi[d] = anchor[d] + shape[d];
         }
-        rel_crop.hi += rel_crop.lo;
         out_crop = rel_crop;
       }
 
@@ -497,11 +571,11 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
       crop.success = true;
       crop.crop = out_crop;
       crop.boxes.resize(bounding_boxes.size());
-      std::memcpy(crop.boxes.data(), bounding_boxes.data(), sizeof(float) * bounding_boxes.size());
-
       crop.labels.resize(labels.size());
-      std::memcpy(crop.labels.data(), labels.data(), sizeof(int) * labels.size());
-
+      for (int i = 0; i < bounding_boxes.size(); i++) {
+        crop.boxes[i] = bounding_boxes[i];
+        crop.labels[i] = labels[i];
+      }
       FilterByCentroid(rel_crop, crop.boxes, crop.labels);
       if (crop.boxes.empty()) {
         continue;
@@ -510,7 +584,6 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
       for (auto &box : crop.boxes) {
         box = RemapBox(box, rel_crop);
       }
-
       return crop;
     }
 
@@ -519,11 +592,13 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
 
 
   bool ValidAspectRatio(vec<ndim, float> shape) {
-    assert(static_cast<int>(shape.size()) == coords_size);
+    assert(static_cast<int>(shape.size()) == ndim);
+    int k = 0;
+    assert(!aspect_ratio_ranges_.empty());
     for (int i = 0; i < ndim; i++) {
       for (int j = i + 1; j < ndim; j++) {
-        if (!aspect_ratio_range_.Contains(shape[i] / shape[j]))
-          return false;
+        if (!aspect_ratio_ranges_[k].Contains(shape[i] / shape[j])) return false;
+        k = (k + 1) % aspect_ratio_ranges_.size();
       }
     }
     return true;
@@ -586,7 +661,9 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
   void WriteLabelsToOutput(SampleWorkspace &ws, const span<const int> &labels) {
     auto &labels_out = ws.Output<CPUBackend>(3);
     labels_out.Resize({static_cast<Index>(labels.size()), 1});
-    std::memcpy(labels_out.mutable_data<int>(), labels.data(), labels.size() * sizeof(int));
+    auto *labels_out_data = labels_out.mutable_data<int>();
+    for (int i = 0; i < labels_out.size(); i++)
+      labels_out_data[i] = labels[i];
   }
 
  private:
@@ -607,7 +684,7 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
   std::vector<TensorShape<>> input_shape_;
 
   Range scale_range_;
-  Range aspect_ratio_range_;
+  std::vector<Range> aspect_ratio_ranges_;
 };
 
 template <>

@@ -120,12 +120,27 @@ def check_processed_bboxes(crop_anchor, crop_shape, original_boxes, processed_bo
 
 def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
     ndim = len(shape)
+    k = 0
+    nranges = len(aspect_ratio) / 2
+
+    max_extent = 0.0
     for d in range(ndim):
-        assert(anchor[d] >= 0.0 and anchor[d] <= 1.0)
+        max_extent = shape[d] if shape[d] > max_extent else max_extent
+    assert (max_extent >= scaling[0] or np.isclose(max_extent, scaling[0]))
+    assert (max_extent <= scaling[1] or np.isclose(max_extent, scaling[1]))
+    for d in range(ndim):
+        assert anchor[d] >= 0.0 and anchor[d] <= 1.0, anchor
         assert(anchor[d] + shape[d] > 0.0 and anchor[d] + shape[d] <= 1.0)
-        assert(shape[d] >= scaling[0] and shape[d] <= scaling[1])
-        ar = shape[0] / shape[1]
-        assert(ar >= aspect_ratio[0] and ar <= aspect_ratio[1])
+
+        for d2 in range(d+1, ndim):
+            ar = shape[d] / shape[d2]
+            ar_min = aspect_ratio[k*2]
+            ar_max = aspect_ratio[k*2+1]
+            if ar_min == ar_max:
+                assert np.isclose(ar, ar_min), "ar {}/{} = {} is not close to ar_min={}".format(d, d2, ar, ar_min)
+            else:
+                assert ar >= aspect_ratio[k*2] and ar <= aspect_ratio[k*2+1]
+            k = int((k + 1) % nranges)
 
 def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
     ndim = len(shape)
@@ -178,7 +193,11 @@ def check_random_bbox_crop_variable_shape(ndim, scaling, aspect_ratio):
 def test_random_bbox_crop_variable_shape():
     for ndim in [2, 3]:
         for scaling in [[0.3, 0.5], [0.1, 0.3], [0.9, 0.99]]:
-            for aspect_ratio in [[0.01, 100], [0.5, 2.0]]:
+            aspect_ratio_ranges = {
+                2 :  [[0.01, 100], [0.5, 2.0], [1.0, 1.0]],
+                3 :  [[0.5, 2.0, 0.6, 2.1, 0.4, 1.9], [1.0, 1.0], [0.5, 0.5, 0.25, 0.25, 0.5, 0.5]]
+            }
+            for aspect_ratio in aspect_ratio_ranges[ndim]:
                 yield check_random_bbox_crop_variable_shape, \
                         ndim, scaling, aspect_ratio
 
