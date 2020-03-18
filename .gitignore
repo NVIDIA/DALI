@@ -15,7 +15,9 @@ wheelhouse
 compile
 compile_debug
 .idea
+.vscode
 cmake-build-*
 ./data
 qnx/
 docs/_build
+
