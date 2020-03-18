@@ -86,9 +86,110 @@ void OpSchema::CheckArgs(const OpSpec &spec) const {
   }
 }
 
-string OpSchema::Dox() const {
+string OpSchema::DocStr() const {
   return dox_;
 }
+
+OpSchema &OpSchema::InputDoc(int index, const string &name, const string &type_doc,
+                             const string &doc) {
+  CheckInputIndex(index);
+  DALI_ENFORCE(!name.empty(), "Name of the input should not be empty");
+  DALI_ENFORCE(!type_doc.empty(), "Type of the input should not be empty");
+  DALI_ENFORCE(!doc.empty(), "Doc of the input should not be empty");
+  DALI_ENFORCE(call_dox_str_.empty(),
+               "Providing docstrings for inputs is not supported when the CallDocStr was used.");
+  input_dox_set_ = true;
+  input_dox_[index] = {name, type_doc, doc};
+  return *this;
+}
+
+DLL_PUBLIC OpSchema &OpSchema::OutputDoc(int index, const string &name, const string &type_doc,
+                                         const string &doc) {
+  CheckOutputIndex(index);
+  DALI_ENFORCE(!output_fn_, "Output dox cannot be used when the OutputFn was set");
+  DALI_ENFORCE(!additional_outputs_fn_,
+               "Output doc cannot be used when the AdditionalOutputFn was set");
+  DALI_ENFORCE(!type_doc.empty(), "Type of the output should not be empty");
+  DALI_ENFORCE(!doc.empty(), "Doc of the output should not be empty");
+  DALI_ENFORCE(output_dox_str_.empty(),
+               "Providing docstrings for output is not supported when the OutputDocStr was used.");
+  output_dox_set_ = true;
+  output_dox_[index] = {name, type_doc, doc};
+  return *this;
+}
+
+DLL_PUBLIC OpSchema &OpSchema::CallDocStr(const std::string &doc, bool append_kwargs_section) {
+  DALI_ENFORCE(!doc.empty(), "The custom docstring for __call__ should not be empty.");
+
+  DALI_ENFORCE(!input_dox_set_,
+               "Providing docstring for `__call__` is not supported when docstrings for separate "
+               "inputs were set using InputDoc.");
+  DALI_ENFORCE(!output_dox_set_,
+               "Providing docstring for `__call__` is not supported when docstrings for separate "
+               "outputs were set using OutputDoc.");
+  call_dox_str_ = doc;
+  append_kwargs_section_ = append_kwargs_section;
+  return *this;
+}
+
+DLL_PUBLIC OpSchema &OpSchema::InputDocStr(const std::string &doc) {
+  DALI_ENFORCE(!doc.empty(), "The custom `Args` section for __call__ should not be empty.");
+  DALI_ENFORCE(!input_dox_set_,
+               "Providing custom `Args` section for `__call__` is not supported when docstrings "
+               "for separate inputs were set using InputDoc.");
+  input_dox_str_ = doc;
+  return *this;
+}
+
+DLL_PUBLIC OpSchema &OpSchema::OutputDocStr(const std::string &doc) {
+  DALI_ENFORCE(!doc.empty(), "The custom `Returns` section for __call__ should not be empty.");
+  DALI_ENFORCE(!output_dox_set_,
+               "Providing custom `Returns` section for `__call__` is not supported when "
+               "docstrings for separate outputs were set using OutputDoc.");
+  output_dox_str_ = doc;
+  return *this;
+}
+
+std::string OpSchema::GetCallSignatureInputs() {
+  DALI_ENFORCE(HasPerInputDoc(),
+                "Input documentation was not specified for this operator.");
+  std::stringstream result;
+  for (int i = 0; i < MinNumInput(); i++) {
+    result << input_dox_[i].name;
+    if (i < MaxNumInput() - 1) {
+      result << ", ";
+    }
+  }
+  for (int i = MinNumInput(); i < MaxNumInput(); i++) {
+    result << input_dox_[i].name << " = None";
+    if (i < MaxNumInput() - 1) {
+      result << ", ";
+    }
+  }
+  return result.str();
+}
+
+OpSchema::InOutDoc OpSchema::GetPerInputDoc(int input_idx) {
+  CheckInputIndex(input_idx);
+  DALI_ENFORCE(HasPerInputDoc(),
+                "Input documentation was not specified for this operator.");
+  DALI_ENFORCE(!input_dox_[input_idx].name.empty(),
+                make_string("Docstring for input ", input_idx,
+                            "was not set. All inputs should be documented."));
+  return input_dox_[input_idx];
+}
+
+OpSchema::InOutDoc OpSchema::GetPerOutputDoc(int output_idx) {
+  CheckOutputIndex(output_idx);
+  DALI_ENFORCE(HasPerOutputDoc(),
+                "Output documentation was not specified for this operator.");
+  DALI_ENFORCE(!output_dox_[output_idx].name.empty() || !output_dox_[output_idx].type_doc.empty(),
+                make_string("Docstring for output ", output_idx,
+                            "was not set. All outputs should be documented."));
+  return output_dox_[output_idx];
+}
+
+
 
 std::map<std::string, RequiredArgumentDef>
 OpSchema::GetRequiredArguments() const {

@@ -19,7 +19,7 @@
 namespace dali {
 
 DALI_SCHEMA(NonsilentRegion)
-                .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.
+    .DocStr(R"code(The operator performs leading and trailing silence detection in an audio buffer.
 The operator returns the beginning and length of the non-silent region by comparing short term power of the signal
 with a silence cut-off threshold. The signal is consider silence when ``short_term_power_db < cutoff_db`` with::
 
@@ -35,22 +35,24 @@ Inputs/Outputs
 Remarks
   - If ``Outputs[1] == 0``, ``Outputs[0]`` value is undefined
 )code")
-                .NumInput(1)
-                .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg("cutoff_db",
-                                R"code(The threshold [dB], below which everything is considered as silence)code",
-                                -60.f)
-                .AddOptionalArg("window_length", R"code(Size of a sliding window.
+    .NumInput(1)
+    .NumOutput(detail::kNumOutputs)
+    .InputDoc(0, "audio_buffer", "1D TensorList", "Batch of audio buffers")
+    .OutputDoc(0, "start", "TensorList of int",
+               "Start positions, in samples, of nonsilent regions.")
+    .OutputDoc(1, "length", "TensorList of int", "Lengths, in samples, of nonsilent regions.")
+    .AddOptionalArg("cutoff_db",
+        R"code(The threshold [dB], below which everything is considered as silence)code", -60.f)
+    .AddOptionalArg("window_length", R"code(Size of a sliding window.
 The sliding window is used to calculate short-term power of the signal.)code", 2048)
-                .AddOptionalArg("reference_power",
-                                R"code(The reference power used for converting signal to db.
+    .AddOptionalArg("reference_power",
+                    R"code(The reference power used for converting signal to db.
 If ``reference_power`` is not provided, the maximum of the signal will be used as the reference power)code",
-                                0.f)
-                .AddOptionalArg("reset_interval",
-                                R"code(The number of samples after which the moving mean average is
+                    0.f)
+    .AddOptionalArg("reset_interval",
+                    R"code(The number of samples after which the moving mean average is
 recalculated to avoid loss of precision. If ``reset_interval == -1`` or the input type allows exact calculation,
-the average won't be reset. The default value should fit most of the use cases.)code",
-                                8192);
+the average won't be reset. The default value should fit most of the use cases.)code", 8192);
 
 DALI_REGISTER_OPERATOR(NonsilentRegion, NonsilenceOperatorCpu, CPU);
 

@@ -21,23 +21,25 @@
 namespace dali {
 
 DALI_SCHEMA(NormalDistribution)
-                .DocStr(R"code(Creates a tensor that consists of data distributed normally.
+    .DocStr(R"code(Creates a tensor that consists of data distributed normally.
 This operator can be ran in 3 modes, which determine the shape of the output tensor:
 1. Providing an input batch to this operator results in a batch of output tensors, which have the same shape as the input tensors.
 2. Providing a custom `shape` as an argument results in an output batch, where every tensor has the same (given) shape.
 3. Providing no input arguments results in an output batch of scalars, distributed normally.)code")
-                .NumInput(0, 1)
-                .NumOutput(detail::kNumOutputs)
-                .AddOptionalArg(detail::kMean, R"code(Mean value of the distribution)code",
-                                0.f, true)
-                .AddOptionalArg(detail::kStddev,
-                                R"code(Standard deviation of the distribution)code",
-                                1.f, true)
-                .AddOptionalArg(detail::kShape,
-                                R"code(Shape of single output tensor in a batch)code",
-                                detail::kShapeDefaultValue)
-                .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
-                                DALI_FLOAT);
+    .NumInput(0, 1)
+    .InputDoc(0, "data", "TensorList",
+        "If provided, the output is given the same shape as `data` (`data` contents are ignored)")
+    .NumOutput(detail::kNumOutputs)
+    .AddOptionalArg(detail::kMean, R"code(Mean value of the distribution)code",
+                    0.f, true)
+    .AddOptionalArg(detail::kStddev,
+                    R"code(Standard deviation of the distribution)code",
+                    1.f, true)
+    .AddOptionalArg(detail::kShape,
+                    R"code(Shape of single output tensor in a batch)code",
+                    detail::kShapeDefaultValue)
+    .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
+                    DALI_FLOAT);
 
 DALI_REGISTER_OPERATOR(NormalDistribution, NormalDistributionCpu, CPU);
 

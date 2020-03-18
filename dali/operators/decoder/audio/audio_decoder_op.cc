@@ -30,6 +30,9 @@ This operator produces two outputs:
 )code")
   .NumInput(1)
   .NumOutput(2)
+  .OutputDoc(0, "decoded", "TensorList of int16, int32 or float", "The decoded audio recordings.")
+  .OutputDoc(1, "sampling_rate", "TensorList of float",
+             "The sampling rates corresponding to the decoded sound recordings [Hz].")
   .AddOptionalArg("sample_rate",
           "If specified, the target sample rate, in Hz, to which the audio is resampled.",
           0.0f, true)

@@ -26,6 +26,11 @@ DALI_SCHEMA(CaffeReader)
     auto label_available = spec.GetArgument<bool>("label_available");
     return image_available + label_available;
   })
+  .OutputDocStr(R"code(images : 1D TensorList of uint8, optional
+    encoded image data, only if ``image_available = true``.
+labels : 1D TensorList of int, optional
+    Batch of labels corresponding to images, only if ``label_available = true``.
+  )code")
   .AddArg("path",
       R"code(List of paths to Caffe LMDB directories.)code",
       DALI_STRING_VEC)

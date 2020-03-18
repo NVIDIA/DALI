@@ -149,13 +149,23 @@ relative terms, depending of whether the fixed ``crop_shape`` was used or not.
 The third and fourth output correspond to the adjusted bounding boxes and optionally
 their corresponding labels. Bounding boxes are always specified in relative coordinates.)code")
     .NumInput(1, 2)  // [boxes, labels (optional),]
-    .InputDox(
+    .InputDoc(
         0, "boxes", "2D TensorList of float",
         "Relative coordinates of the bounding boxes represented as a 2D tensor where the first "
         "dimension refers to the index of the bounding box and the second dimension refers to the "
         "index of the coordinate.")
-    .InputDox(1, "labels", "1D TensorList of integers",
+    .InputDoc(1, "labels", "1D TensorList of integers",
               "(optional) Labels associated with each of the bounding boxes.")
+    .OutputDocStr(R"code(anchor : TensorList of {batch, 2} or {batch, 3} float
+    Slice-compatible anchors [x, y, (z,)] of calculated crop windows.
+shape : TensorList of {batch, 2} or {batch, 3} float
+    Slice compatible dimensions [w, h, (d,)] of calculated crop windows.
+bboxes : 2D TensorList of float
+    Adjusted bounding boxes. Each sample ``i`` has shape ``{m_i, 4}`` representing ``m_i`` bounding boxes
+    that are valid for given crop window.
+labels : 2D TensorList of int, optional
+    Labels corresponding to bounding boxes. Each sample ``i`` has shape ``{m_i, 1}`` representing
+    ``m_i`` labels.)code")
     .NumOutput(3)  // [anchor, shape, bboxes, labels (optional),]
     .AdditionalOutputsFn([](const OpSpec &spec) {
       return spec.NumRegularInput() - 1;  // +1 if labels are provided
@@ -198,7 +208,7 @@ explicitly.)code",
 
 Value for ``min`` should satisfy ``0.0 <= min <= max``.
 
-Note: Providing ``aspect_ratio`` and ``scaling`` is incompatible with specifying `crop_shape`
+Note: Providing ``aspect_ratio`` and ``scaling`` is incompatible with specifying ``crop_shape``
 explicitly)code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(

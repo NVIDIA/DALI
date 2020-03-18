@@ -33,6 +33,13 @@ DALI_SCHEMA(Caffe2Reader)
       int has_bbox = static_cast<int>(spec.GetArgument<bool>("bbox"));
     return img_idx + num_label_outputs + additional_inputs + has_bbox;
   })
+  .OutputDocStr(R"code(images : 1D TensorList of uint8, optional
+    encoded image data, only if ``image_available = true``.
+*labels : optional
+    One or more output batches of labels, depending on the reader configuration.
+*additional_outputs : optional
+    Additional auxiliary data tensors provided for each sample.
+  )code")
   .AddArg("path",
       R"code(List of paths to Caffe2 LMDB directories.)code",
       DALI_STRING_VEC)
