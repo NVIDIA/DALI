@@ -152,12 +152,25 @@ void RefReduceInner(Out *out, const T *in, int64_t n_outer, int64_t n_inner, con
   }
 }
 
+template <typename Out, typename Reduction, typename T>
+void RefReduceMiddle(Out *out, const T *in,
+                     int64_t n_outer, int64_t n_reduced, int64_t n_inner,
+                     const Reduction &R) {
+  int64_t outer_stride = n_reduced * n_inner;
+  for (int64_t outer = 0; outer < n_outer; outer++) {
+    int64_t offset = outer * outer_stride;
+    for (int64_t inner = 0; inner < n_inner; inner++, offset++) {
+      out[outer * n_inner + inner] = RefReduce<Out>(in + offset, n_reduced, n_inner, R);
+    }
+  }
+}
+
 using int_dist = std::uniform_int_distribution<int>;
 
 template <typename Reduction>
 class ReduceInnerGPUTest : public ::testing::Test {
  public:
-  using SampleDesc = ReduceInnerSampleDesc<float, float>;
+  using SampleDesc = ReduceSampleDesc<float, float>;
 
   void PrepareData(int N, int_dist outer_shape_dist, int_dist inner_shape_dist) {
     std::uniform_real_distribution<float> dist(0, 1);
@@ -182,14 +195,15 @@ class ReduceInnerGPUTest : public ::testing::Test {
       auto ts = tls[i];
       SampleDesc desc;
       desc.n_outer = ts[0];
-      desc.n_inner = ts[1];
-      desc.inner_macroblocks = 1;
-      desc.inner_macroblock_size = desc.n_inner;
-      while (desc.inner_macroblock_size > 0x8000) {
-        desc.inner_macroblocks <<= 1;
-        desc.inner_macroblock_size = div_ceil(desc.n_inner, desc.inner_macroblocks);
+      desc.n_reduced = ts[1];
+      desc.n_inner = 1;  // no inner dimensions
+      desc.num_macroblocks = 1;
+      desc.macroblock_size = desc.n_reduced;
+      while (desc.macroblock_size > 0x8000) {
+        desc.num_macroblocks <<= 1;
+        desc.macroblock_size = div_ceil(desc.n_reduced, desc.num_macroblocks);
       }
-      out_tls.set_tensor_shape(i, { desc.n_outer, desc.inner_macroblocks });
+      out_tls.set_tensor_shape(i, { desc.n_outer, desc.num_macroblocks });
       cpu_descs.push_back(desc);
     }
     out.reshape(out_tls);
@@ -257,6 +271,7 @@ class ReduceInnerGPUTest : public ::testing::Test {
   DeviceBuffer<SampleDesc> gpu_descs;
 };
 
+
 using ReductionTestTypes = ::testing::Types<reductions::sum, reductions::min, reductions::max>;
 
 TYPED_TEST_SUITE(ReduceInnerGPUTest, ReductionTestTypes);
@@ -285,6 +300,134 @@ TYPED_TEST(ReduceInnerGPUTest, ReduceInner_16k_1M) {
   this->PrepareData(10, int_dist(1, 10), int_dist(16*1024, 1024*1024));
   this->Run();
 }
+
+
+
+template <typename Reduction>
+class ReduceOtherGPUTest : public ::testing::Test {
+ public:
+  using SampleDesc = ReduceSampleDesc<float, float>;
+
+  void PrepareData(int N,
+                   int_dist outer_shape_dist,
+                   int_dist reduced_shape_dist,
+                   int_dist inner_shape_dist) {
+    std::uniform_real_distribution<float> dist(0, 1);
+    std::mt19937_64 rng;
+
+    TensorListShape<3> tls;
+    TensorListShape<3> out_tls;
+
+    this->N = N;
+    tls.resize(N);
+    out_tls.resize(N);
+    for (int i = 0; i < N; i++) {
+      int outer = outer_shape_dist(rng);
+      int reduced = reduced_shape_dist(rng);
+      int inner = inner_shape_dist(rng);
+      tls.set_tensor_shape(i, { outer, reduced, inner });
+    }
+    in.reshape(tls);
+    auto cpu_in = in.cpu();
+    UniformRandomFill(cpu_in, rng, 0, 1);
+
+    for (int i = 0; i < N; i++) {
+      auto ts = tls[i];
+      SampleDesc desc;
+      desc.n_outer = ts[0];
+      desc.n_reduced = ts[1];
+      desc.n_inner = ts[2];
+      desc.num_macroblocks = 1;
+      desc.macroblock_size = desc.n_reduced;
+      while (desc.macroblock_size > 0x8000) {
+        desc.num_macroblocks <<= 1;
+        desc.macroblock_size = div_ceil(desc.n_reduced, desc.num_macroblocks);
+      }
+      out_tls.set_tensor_shape(i, { desc.n_outer, desc.num_macroblocks, desc.n_inner });
+      cpu_descs.push_back(desc);
+    }
+    out.reshape(out_tls);
+
+    auto gpu_in = in.gpu();
+    auto gpu_out = out.gpu();
+    for (int i = 0; i < N; i++) {
+      SampleDesc &desc = cpu_descs[i];
+      desc.in = gpu_in.data[i];
+      desc.out = gpu_out.data[i];
+    }
+  }
+
+  void Run() {
+    auto gpu_in = in.gpu();
+    auto gpu_out = out.gpu();
+    gpu_descs.from_host(cpu_descs);
+
+    dim3 grid(32, N);
+    dim3 block(32, 32);
+    auto start = CUDAEvent::CreateWithFlags(0);
+    auto end =   CUDAEvent::CreateWithFlags(0);
+    cudaEventRecord(start);
+    ReduceOtherKernel<<<grid, block>>>(gpu_descs.data(), reduction);
+    cudaEventRecord(end);
+    CUDA_CALL(cudaDeviceSynchronize());
+    float t = 0;
+    cudaEventElapsedTime(&t, start, end);
+    t /= 1000;  // convert to seconds
+    int64_t read = gpu_in.num_elements() * sizeof(float);
+    int64_t written = gpu_out.num_elements() * sizeof(float);
+    std::cerr << (read + written) / t * 1e-9 << " GB/s" << endl;
+    CheckResult();
+  }
+
+  void CheckResult() {
+    auto cpu_out = out.cpu();
+    auto cpu_in = in.cpu();
+    auto in_shape = cpu_in.shape;
+    auto out_shape = cpu_out.shape;
+
+    vector<float> ref_out;
+    vector<float> full_out;  // when out is not a full reduction, we calculate the second stage here
+    for (int i = 0; i < N; i++) {
+      auto ts = in_shape[i];
+      int64_t outer = ts[0];
+      int64_t reduced = ts[1];
+      int64_t inner = ts[2];
+      ref_out.resize(outer * inner);
+      RefReduceMiddle(ref_out.data(), cpu_in.data[i], outer, reduced, inner, reduction);
+      auto out = cpu_out[i];
+      print(std::cerr, "Input shape: ", ts, "\nOutput shape: ", out.shape, "\n");
+      double tmp = cpu_in.data[i][0];
+      for (int64_t j = 1; j < reduced; j++)
+        reduction(tmp, cpu_in.data[i][j * inner]);
+      print(std::cerr, "First reduced entry: ", tmp, "\n");
+      if (out.shape[1] > 1) {
+        full_out.resize(outer);
+        RefReduceInner(full_out.data(), out.data, outer, out.shape[1], reduction);
+        out = make_tensor_cpu<3>(full_out.data(), { outer, 1, inner });
+      }
+      auto ref = make_tensor_cpu<3>(ref_out.data(), { outer, 1, inner });
+      Check(out, ref, EqualEpsRel(1e-6, 1e-6));
+    }
+  }
+
+  Reduction reduction;
+  int N;
+  TestTensorList<float, 3> in, out;
+  std::vector<SampleDesc> cpu_descs;
+  DeviceBuffer<SampleDesc> gpu_descs;
+};
+
+
+using ReductionTestTypes = ::testing::Types<reductions::sum, reductions::min, reductions::max>;
+
+TYPED_TEST_SUITE(ReduceOtherGPUTest, ReductionTestTypes);
+
+TYPED_TEST(ReduceOtherGPUTest, ReduceMiddle_Medium_Small_Small) {
+  this->PrepareData(10, int_dist(1000, 20000), int_dist(2, 63), int_dist(1, 32));
+  this->Run();
+}
+
+
 
 }  // namespace kernels
 }  // namespace dali

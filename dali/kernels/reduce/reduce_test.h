@@ -25,27 +25,34 @@ constexpr bool IsAccurate(const reductions::max &) { return true; }
 template <typename Reduction>
 constexpr bool IsAccurate(const Reduction &) { return false; }
 
+
 template <typename Out, typename Reduction, typename T>
-Out RefReduce(span<T> in, const Reduction &R) {
-  switch (in.size()) {
+Out RefReduce(const T *in, int64_t n, int64_t stride, const Reduction &R) {
+  switch (n) {
     case 0:
       return R.template neutral<Out>();
     case 1:
       return in[0];
     default: {
-      if (in.size() <= 128) {
-        double acc = R.template neutral<Out>();
-        for (auto &x : in)
-          R(acc, x);
+      if (n <= 128) {
+        Out acc = R.template neutral<Out>();
+        for (int64_t idx = 0; idx < n; idx++)
+          R(acc, in[idx * stride]);
         return acc;
       }
-      int64_t m = in.size() / 2;
-      int64_t n = in.size() - m;
-      Out out = RefReduce<Out>(make_span(in.data(), m), R);
-      R(out, RefReduce<Out>(make_span(in.data() + m, n), R));
+      int64_t a = n / 2;
+      int64_t b = n - a;
+      Out out = RefReduce<Out>(in, a, stride, R);
+      R(out, RefReduce<Out>(in + a * stride, b, stride, R));
       return out;
     }
   }
+}
+
+
+template <typename Out, typename Reduction, typename T>
+Out RefReduce(span<T> in, const Reduction &R) {
+  return RefReduce<Out>(in.data(), in.size(), 1, R);
 }
 
 }  // namespace kernels
