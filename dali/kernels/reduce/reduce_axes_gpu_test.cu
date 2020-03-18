@@ -14,6 +14,8 @@
 
 #include <gtest/gtest.h>
 #include <random>
+#include <utility>
+#include <vector>
 #include "dali/kernels/reduce/reduce_axes_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_test.h"
 #include "dali/kernels/alloc.h"
@@ -125,7 +127,7 @@ struct DeviceBuffer {
     size_ = new_size;
   }
 
-private:
+ private:
   void reallocate(size_t new_cap, cudaStream_t stream) {
     if (size_ == 0) {
       data_.reset();
@@ -253,7 +255,6 @@ class ReduceInnerGPUTest : public ::testing::Test {
   TestTensorList<float, 2> in, out;
   std::vector<SampleDesc> cpu_descs;
   DeviceBuffer<SampleDesc> gpu_descs;
-
 };
 
 using ReductionTestTypes = ::testing::Types<reductions::sum, reductions::min, reductions::max>;

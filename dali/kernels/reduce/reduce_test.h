@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _DALI_KERNELS_REDUCE_REDUCE_TEST_H
-#define _DALI_KERNELS_REDUCE_REDUCE_TEST_H
+#ifndef DALI_KERNELS_REDUCE_REDUCE_TEST_H_
+#define DALI_KERNELS_REDUCE_REDUCE_TEST_H_
 
 #include "dali/core/span.h"
 
@@ -51,4 +51,4 @@ Out RefReduce(span<T> in, const Reduction &R) {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // _DALI_KERNELS_REDUCE_REDUCE_TEST_H
+#endif  // DALI_KERNELS_REDUCE_REDUCE_TEST_H_
