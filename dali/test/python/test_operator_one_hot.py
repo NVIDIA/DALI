@@ -18,8 +18,7 @@ import nvidia.dali.types as types
 
 import numpy as np
 
-sample_size = 10
-premade_batch = [np.array(x, dtype=np.int32) for x in range(sample_size)]
+sample_size = 20
 
 
 class OneHotPipeline(Pipeline):
@@ -42,13 +41,20 @@ def one_hot(input):
     return outp
 
 
-def test_one_hot_operator():
+def check_one_hot_operator(premade_batch):
     pipeline = OneHotPipeline(nclasses=sample_size)
     pipeline.build()
     outputs = pipeline.run()
     reference = one_hot(premade_batch)
     outputs = outputs[0].as_array()
-    assert(np.array_equal(outputs, reference))
+    # import ipdb; ipdb.set_trace();
+    assert np.array_equal(outputs, reference) == True
+
+def test_one_hot_operator():
+    for i in range(10):
+        premade_batch = [np.array([np.random.randint(0, sample_size)], dtype=np.int32) for x in range(sample_size)]
+        yield check_one_hot_operator, premade_batch
 
 if __name__ == "__main__":
-    test_one_hot_operator()
+    res = test_one_hot_operator()
+

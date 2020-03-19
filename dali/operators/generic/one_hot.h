@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_RANDOM_ONE_HOT_H
 
 #include <vector>
+#include <iostream>
 
 #include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/kernel_params.h"
@@ -28,16 +29,20 @@ namespace dali {
 
 namespace detail {
 template <typename Out, typename In, int ndims = 1>
-void DoOneHot(kernels::OutTensorCPU<Out, ndims> &out, 
-              const kernels::InTensorCPU<In, ndims> &in,
+void DoOneHot(kernels::OutTensorCPU<Out, ndims> out, 
+              kernels::InTensorCPU<In, ndims> in,
               int depth, int on_value, int off_value) {
   auto input = in.data;
   auto output = out.data;
-  for (int i = 0; i < depth; ++i) {
-    if (i == static_cast<int>(*input)) {
-      output[i] = on_value;
-    } else {
-      output[i] = off_value;
+  if (in.shape.sample_dim() == 1) {
+    for (int sample = 0; sample < in.shape[0]; ++sample) {
+      for (int i = 0; i < depth; ++i) {
+        if (i == static_cast<int>(input[sample])) {
+          output[sample * depth + i] = on_value;
+        } else {
+          output[sample * depth + i] = off_value;
+        }
+      }
     }
   }
 }
@@ -47,10 +52,9 @@ class OneHot : public Operator<CPUBackend> {
  public:
   inline explicit OneHot(const OpSpec &spec)
       : Operator<CPUBackend>(spec), depth_(spec.GetArgument<int64_t>("depth")),
-        output_type_(spec.GetArgument<std::remove_const_t<decltype(this->output_type_)>>(
-                     arg_names::kDtype)),
-        on_value_(spec.GetArgument<int64_t>("on_value")),
-        off_value_(spec.GetArgument<int64_t>("off_value")) {}
+        output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)),
+        on_value_(spec.GetArgument<float>("on_value")),
+        off_value_(spec.GetArgument<float>("off_value")) {}
 
   inline ~OneHot() override = default;
 
@@ -70,8 +74,8 @@ class OneHot : public Operator<CPUBackend> {
 
   int depth_;
   const DALIDataType output_type_;
-  int on_value_;
-  int off_value_;
+  float on_value_;
+  float off_value_;
 };
 
 }  // namespace dali

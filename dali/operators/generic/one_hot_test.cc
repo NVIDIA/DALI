@@ -20,7 +20,7 @@ class OneHotOpTest : public ::testing::Test {
 
   protected:
     void SetUp() final {
-        for (int i = 0; i < nclasses_; ++i) output_.push_back(0);
+        output_.resize(nclasses_, 0);
     }
 
     int buffer_length_ = 10;
@@ -34,7 +34,7 @@ class OneHotOpTest : public ::testing::Test {
 using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, int64_t, float>;
 INPUT_OUTPUT_TYPED_TEST_SUITE(OneHotOpTest, TestTypes);
 
-TYPED_TEST(OneHotOpTest, test_various_types) {
+TYPED_TEST(OneHotOpTest, TestVariousTypes) {
     using In = typename TypeParam::In;
     using Out = typename TypeParam::Out;
     for (auto it = this->input_.begin(); it != this->input_.end(); ++it) {

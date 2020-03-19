@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/generic/one_hot.h"
+#include "dali/core/tensor_shape.h"
 #include <iostream>
 
 namespace dali {
@@ -33,7 +34,8 @@ DALI_SCHEMA(OneHot)
 
 bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
   output_desc.resize(1);
-  output_desc[0].shape = uniform_list_shape(batch_size_, {depth_});
+  const auto &input = ws.template InputRef<CPUBackend>(0);
+  output_desc[0].shape = uniform_list_shape(batch_size_, (shape_cat(input[0].shape(), depth_)));
   TYPE_SWITCH(output_type_, type2id, DType, ONE_HOT_TYPES, (
     {
       TypeInfo type;
