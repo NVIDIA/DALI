@@ -27,30 +27,21 @@
 namespace dali {
 
 namespace detail {
-template <typename Out, typename In, int ndims = 1>
-void DoOneHot(kernels::OutTensorCPU<Out, ndims> out,
-              kernels::InTensorCPU<In, ndims> in,
-              int depth, int on_value, int off_value) {
+template <typename Out, typename In>
+void DoOneHot(kernels::OutTensorCPU<Out, 1> out,
+              kernels::InTensorCPU<In, 1> in,
+              int num_classes, same_as_t<Out> on_value, same_as_t<Out> off_value) {
   auto input = in.data;
   auto output = out.data;
-  if (in.shape.sample_dim() == 1) {
-    for (int sample = 0; sample < in.shape[0]; ++sample) {
-      for (int i = 0; i < depth; ++i) {
-        if (i == static_cast<int>(input[sample])) {
-          output[sample * depth + i] = on_value;
-        } else {
-          output[sample * depth + i] = off_value;
-        }
-      }
-    }
-  }
+  for (int i = 0; i < num_classes; ++i) output[i] = off_value;
+  output[static_cast<int>(input[0])] = on_value;
 }
 }  // namespace detail
 
 class OneHot : public Operator<CPUBackend> {
  public:
   inline explicit OneHot(const OpSpec &spec)
-      : Operator<CPUBackend>(spec), depth_(spec.GetArgument<int64_t>("depth")),
+      : Operator<CPUBackend>(spec), num_classes_(spec.GetArgument<int64_t>("num_classes")),
         output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)),
         on_value_(spec.GetArgument<float>("on_value")),
         off_value_(spec.GetArgument<float>("off_value")) {}
@@ -71,7 +62,7 @@ class OneHot : public Operator<CPUBackend> {
   void RunImpl(HostWorkspace &ws) override;
 
 
-  int depth_;
+  int num_classes_;
   const DALIDataType output_type_;
   float on_value_;
   float off_value_;
