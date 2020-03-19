@@ -14,16 +14,79 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 import os
 
+bbox_2d_ltrb_1 = [0.0, 0.0, 0.9, 0.9]
+bbox_2d_ltrb_2 = [0.1, 0.1, 0.99, 0.99]
+bbox_2d_ltrb_3 = [0.3, 0.3, 0.5, 0.5]
+bbox_3d_ltrb_1 = [0.5, 0.5, 0.5, 0.7, 0.7, 0.7]
+bbox_3d_ltrb_2 = [0.1, 0.1, 0.1, 0.6, 0.6, 0.6]
+bbox_3d_ltrb_3 = [0.4, 0.4, 0.4, 0.9, 0.9, 0.9]
+
+bboxes_data = {
+    2 : [bbox_2d_ltrb_1, bbox_2d_ltrb_2, bbox_2d_ltrb_3],
+    3 : [bbox_3d_ltrb_1, bbox_3d_ltrb_2, bbox_3d_ltrb_3]
+}
+
+class BBoxDataIterator():
+    def __init__(self, n, batch_size, ndim = 2, produce_labels = False):
+        self.batch_size = batch_size
+        self.ndim = ndim
+        self.produce_labels = produce_labels
+        self.num_outputs = 2 if produce_labels else 1
+        self.n = n
+        self.i = 0
+
+    def __len__(self):
+        return self.n
+
+    def __iter__(self):
+        # return a copy, so that the iteration number doesn't collide
+        return BBoxDataIterator(self.n, self.batch_size, self.ndim, self.produce_labels)
+
+    def __next__(self):
+        boxes = []
+        labels = []
+        bboxes = bboxes_data[self.ndim]
+        if self.i % 2 == 0:
+            boxes.append(np.array([bboxes[0], bboxes[1], bboxes[2]], dtype=np.float32))
+            labels.append(np.array([1, 2, 3], dtype=np.int32))
+            if self.batch_size > 1:
+                boxes.append(np.array([bboxes[2], bboxes[1]], dtype=np.float32))
+                labels.append(np.array([2, 1], dtype=np.int32))
+                for i in range(self.batch_size - 2):
+                    boxes.append(np.array([bboxes[2]], dtype=np.float32))
+                    labels.append(np.array([3], dtype=np.int32))
+        else:
+            boxes.append(np.array([bboxes[2]], dtype=np.float32))
+            labels.append(np.array([3], dtype=np.int32))
+            if self.batch_size > 1:
+                boxes.append(np.array([bboxes[1], bboxes[2], bboxes[0]], dtype=np.float32))
+                labels.append(np.array([2, 3, 1], dtype=np.int32))
+                for i in range(self.batch_size - 2):
+                    boxes.append(np.array([bboxes[1]], dtype=np.float32))
+                    labels.append(np.array([2], dtype=np.int32))
+
+        if self.i < self.n:
+            self.i = self.i + 1
+            outputs = [boxes]
+            if self.produce_labels:
+                outputs.append(labels)
+            return outputs
+        else:
+            self.i = 0
+            raise StopIteration
+    next = __next__
+
+
 class RandomBBoxCropSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size,
-                 boxes,
-                 labels = None,
+                 bbox_source,
                  thresholds = [0, 0.01, 0.05, 0.1, 0.15],
                  scaling = [0.3, 1.0],
                  aspect_ratio = [0.5, 2.0],
@@ -35,11 +98,9 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
                  num_threads=1, device_id=0, num_gpus=1):
         super(RandomBBoxCropSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
+
         self.device = device
-        self.boxes = boxes
-        self.labels = labels
-        self.boxes_inputs = ops.ExternalSource()
-        self.labels_inputs = ops.ExternalSource()
+        self.bbox_source = bbox_source
 
         self.bbox_crop = ops.RandomBBoxCrop(
             device = self.device,
@@ -53,17 +114,9 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
             crop_shape = crop_shape)
 
     def define_graph(self):
-        self.boxes_data = self.boxes_inputs()
-        self.labels_data = self.labels_inputs()
-        inputs = [self.boxes_data]
-        if self.labels_data is not None:
-            inputs.append(self.labels_data)
-        return self.bbox_crop(*inputs)
-
-    def iter_setup(self):
-        self.feed_input(self.boxes_data, self.boxes)
-        if self.labels is not None:
-            self.feed_input(self.labels_data, self.labels)
+        inputs = fn.external_source(source=self.bbox_source, num_outputs=self.bbox_source.num_outputs)
+        outputs = self.bbox_crop(*inputs)
+        return [inputs[0], *outputs]
 
 def crop_contains(crop_anchor, crop_shape, point):
     ndim = len(crop_shape)
@@ -149,77 +202,54 @@ def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
         assert shape[d] == expected_crop_shape[d], "{} != {}".format(shape, expected_crop_shape)
         assert(anchor[d] + shape[d] > 0.0 and anchor[d] + shape[d] <= input_shape[d])
 
-bbox_2d_ltrb_1 = [0.0, 0.0, 0.9, 0.9]
-bbox_2d_ltrb_2 = [0.1, 0.1, 0.99, 0.99]
-bbox_2d_ltrb_3 = [0.3, 0.3, 0.5, 0.5]
-bbox_3d_ltrb_1 = [0.5, 0.5, 0.5, 0.7, 0.7, 0.7]
-bbox_3d_ltrb_2 = [0.1, 0.1, 0.1, 0.6, 0.6, 0.6]
-bbox_3d_ltrb_3 = [0.4, 0.4, 0.4, 0.9, 0.9, 0.9]
-
-def get_bounding_boxes(ndim, nboxes, produce_labels=True):
-    assert(nboxes == 3)
-    if ndim == 2:
-        boxes = [np.array([bbox_2d_ltrb_1, bbox_2d_ltrb_2, bbox_2d_ltrb_3], dtype=np.float32)]
-    elif ndim == 3:
-        boxes = [np.array([bbox_3d_ltrb_1, bbox_3d_ltrb_2, bbox_3d_ltrb_3], dtype=np.float32)]
-    else:
-        assert(False)
-    return boxes
-
-def get_labels(nboxes):
-    assert(nboxes == 3)
-    labels = [np.array([1, 2, 3], dtype=np.int32)]
-    return labels
-
-def check_random_bbox_crop_variable_shape(ndim, scaling, aspect_ratio):
-    boxes = get_bounding_boxes(ndim, nboxes=3)
-    labels = get_labels(nboxes=3)
-
-    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=1,
-                                           boxes=boxes, labels=labels,
+def check_random_bbox_crop_variable_shape(batch_size, ndim, scaling, aspect_ratio, use_labels):
+    bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
+    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size, bbox_source=bbox_source,
                                            scaling=scaling, aspect_ratio=aspect_ratio,
                                            input_shape=None, crop_shape=None)
     pipe.build()
     for i in range(100):
         outputs = pipe.run()
-        out_crop_anchor = outputs[0].at(0)
-        out_crop_shape = outputs[1].at(0)
-        out_boxes = outputs[2].at(0)
-        out_labels = outputs[3].at(0)
-        check_crop_dims_variable_size(out_crop_anchor, out_crop_shape, scaling, aspect_ratio)
-        check_processed_bboxes(out_crop_anchor, out_crop_shape, boxes[0], out_boxes)
+        for sample in range(batch_size):
+            in_boxes = outputs[0].at(sample)
+            out_crop_anchor = outputs[1].at(sample)
+            out_crop_shape = outputs[2].at(sample)
+            out_boxes = outputs[3].at(sample)
+            check_crop_dims_variable_size(out_crop_anchor, out_crop_shape, scaling, aspect_ratio)
+            check_processed_bboxes(out_crop_anchor, out_crop_shape, in_boxes, out_boxes)
 
 
 def test_random_bbox_crop_variable_shape():
-    for ndim in [2, 3]:
-        for scaling in [[0.3, 0.5], [0.1, 0.3], [0.9, 0.99]]:
-            aspect_ratio_ranges = {
-                2 :  [[0.01, 100], [0.5, 2.0], [1.0, 1.0]],
-                3 :  [[0.5, 2.0, 0.6, 2.1, 0.4, 1.9], [1.0, 1.0], [0.5, 0.5, 0.25, 0.25, 0.5, 0.5]]
-            }
-            for aspect_ratio in aspect_ratio_ranges[ndim]:
-                yield check_random_bbox_crop_variable_shape, \
-                        ndim, scaling, aspect_ratio
+    for batch_size in [3]:
+        for ndim in [2, 3]:
+            for scaling in [[0.3, 0.5], [0.1, 0.3], [0.9, 0.99]]:
+                aspect_ratio_ranges = {
+                    2 :  [[0.01, 100], [0.5, 2.0], [1.0, 1.0]],
+                    3 :  [[0.5, 2.0, 0.6, 2.1, 0.4, 1.9], [1.0, 1.0], [0.5, 0.5, 0.25, 0.25, 0.5, 0.5]]
+                }
+                for aspect_ratio in aspect_ratio_ranges[ndim]:
+                    for use_labels in [True, False]:
+                        yield check_random_bbox_crop_variable_shape, \
+                                batch_size, ndim, scaling, aspect_ratio, use_labels
 
-def check_random_bbox_crop_fixed_shape(ndim, crop_shape, input_shape):
-    boxes = get_bounding_boxes(ndim, nboxes=3)
-    labels = get_labels(nboxes=3)
-
-    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=1,
-                                           boxes=boxes, labels=labels,
+def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape, use_labels):
+    bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
+    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size,
+                                           bbox_source=bbox_source,
                                            scaling=None, aspect_ratio=None,
                                            input_shape=input_shape, crop_shape=crop_shape)
     pipe.build()
     for i in range(100):
         outputs = pipe.run()
-        out_crop_anchor = outputs[0].at(0)
-        out_crop_shape = outputs[1].at(0)
-        out_boxes = outputs[2].at(0)
-        out_labels = outputs[3].at(0)
-        check_crop_dims_fixed_size(out_crop_anchor, out_crop_shape, crop_shape, input_shape)
-        rel_out_crop_anchor = [out_crop_anchor[d] / input_shape[d] for d in range(ndim)]
-        rel_out_crop_shape = [out_crop_shape[d] / input_shape[d] for d in range(ndim)]
-        check_processed_bboxes(rel_out_crop_anchor, rel_out_crop_shape, boxes[0], out_boxes)
+        for sample in range(batch_size):
+            in_boxes = outputs[0].at(sample)
+            out_crop_anchor = outputs[1].at(sample)
+            out_crop_shape = outputs[2].at(sample)
+            out_boxes = outputs[3].at(sample)
+            check_crop_dims_fixed_size(out_crop_anchor, out_crop_shape, crop_shape, input_shape)
+            rel_out_crop_anchor = [out_crop_anchor[d] / input_shape[d] for d in range(ndim)]
+            rel_out_crop_shape = [out_crop_shape[d] / input_shape[d] for d in range(ndim)]
+            check_processed_bboxes(rel_out_crop_anchor, rel_out_crop_shape, in_boxes, out_boxes)
 
 
 def test_random_bbox_crop_fixed_shape():
@@ -232,11 +262,13 @@ def test_random_bbox_crop_fixed_shape():
         2: [[100, 50], [400, 300]],
         3: [[100, 50, 32], [400, 300, 64]]
     }
-    for ndim in [2, 3]:
-        for input_shape in input_shapes[ndim]:
-            for crop_shape in crop_shapes[ndim]:
-                yield check_random_bbox_crop_fixed_shape, \
-                        ndim, crop_shape, input_shape
+    for batch_size in [3]:
+        for ndim in [2, 3]:
+            for input_shape in input_shapes[ndim]:
+                for crop_shape in crop_shapes[ndim]:
+                    for use_labels in [True, False]:
+                        yield check_random_bbox_crop_fixed_shape, \
+                                batch_size, ndim, crop_shape, input_shape, use_labels
 
 def main():
   for test in test_random_bbox_crop_fixed_shape():

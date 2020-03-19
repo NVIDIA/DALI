@@ -570,12 +570,18 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
       ProspectiveCrop crop;
       crop.success = true;
       crop.crop = out_crop;
+
       crop.boxes.resize(bounding_boxes.size());
-      crop.labels.resize(labels.size());
-      for (int i = 0; i < bounding_boxes.size(); i++) {
+      for (int i = 0; i < bounding_boxes.size(); i++)
         crop.boxes[i] = bounding_boxes[i];
-        crop.labels[i] = labels[i];
+
+      if (!labels.empty()) {
+        assert(labels.size() == bounding_boxes.size());
+        crop.labels.resize(labels.size());
+        for (int i = 0; i < labels.size(); i++)
+          crop.labels[i] = labels[i];
       }
+
       FilterByCentroid(rel_crop, crop.boxes, crop.labels);
       if (crop.boxes.empty()) {
         continue;
