@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_RANDOM_ONE_HOT_H
-#define DALI_OPERATORS_RANDOM_ONE_HOT_H
+#ifndef DALI_OPERATORS_GENERIC_ONE_HOT_H_
+#define DALI_OPERATORS_GENERIC_ONE_HOT_H_
 
 #include <vector>
-#include <iostream>
 
 #include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/kernel_params.h"
@@ -29,7 +28,7 @@ namespace dali {
 
 namespace detail {
 template <typename Out, typename In, int ndims = 1>
-void DoOneHot(kernels::OutTensorCPU<Out, ndims> out, 
+void DoOneHot(kernels::OutTensorCPU<Out, ndims> out,
               kernels::InTensorCPU<In, ndims> in,
               int depth, int on_value, int off_value) {
   auto input = in.data;
@@ -46,7 +45,7 @@ void DoOneHot(kernels::OutTensorCPU<Out, ndims> out,
     }
   }
 }
-} // namespace detail
+}  // namespace detail
 
 class OneHot : public Operator<CPUBackend> {
  public:
@@ -80,4 +79,4 @@ class OneHot : public Operator<CPUBackend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_RANDOM_ONE_HOT_H
+#endif  // DALI_OPERATORS_GENERIC_ONE_HOT_H_

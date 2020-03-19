@@ -20,41 +20,34 @@ import numpy as np
 
 sample_size = 20
 
-
 class OneHotPipeline(Pipeline):
-    def __init__(self, nclasses, num_threads=1):
+    def __init__(self, nclasses, input, num_threads=1):
         super(OneHotPipeline, self).__init__(sample_size,
                                              num_threads,
                                              0)
-        self.ext_src = ops.ExternalSource(source=[premade_batch], cycle=True)
+        self.ext_src = ops.ExternalSource(source=[input], cycle=True)
         self.one_hot = ops.OneHot(depth=nclasses, dtype=types.INT32, device="cpu")
 
     def define_graph(self):
         self.data = self.ext_src()
         return self.one_hot(self.data)
 
-
 def one_hot(input):
-    outp = np.zeros([sample_size, sample_size], dtype=np.int32)
+    outp = np.zeros([sample_size, 1, sample_size], dtype=np.int32)
     for i in range(sample_size):
-        outp[i, int(input[i])] = 1
+        outp[i, 0, int(input[i])] = 1
     return outp
 
-
 def check_one_hot_operator(premade_batch):
-    pipeline = OneHotPipeline(nclasses=sample_size)
+    pipeline = OneHotPipeline(nclasses=sample_size, input=premade_batch)
     pipeline.build()
     outputs = pipeline.run()
     reference = one_hot(premade_batch)
     outputs = outputs[0].as_array()
-    # import ipdb; ipdb.set_trace();
-    assert np.array_equal(outputs, reference) == True
+    assert(np.array_equal(outputs, reference))
 
 def test_one_hot_operator():
     for i in range(10):
         premade_batch = [np.array([np.random.randint(0, sample_size)], dtype=np.int32) for x in range(sample_size)]
         yield check_one_hot_operator, premade_batch
-
-if __name__ == "__main__":
-    res = test_one_hot_operator()
 

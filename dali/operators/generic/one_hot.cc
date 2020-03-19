@@ -14,7 +14,6 @@
 
 #include "dali/operators/generic/one_hot.h"
 #include "dali/core/tensor_shape.h"
-#include <iostream>
 
 namespace dali {
 
@@ -29,8 +28,8 @@ DALI_SCHEMA(OneHot)
     .AddOptionalArg("depth", R"code(Number of all classes)code", 0)
     .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
                     DALI_FLOAT)
-    .AddOptionalArg("on_value", R"code(Value that will be used to fill the output when input[j] = i)code", 1)
-    .AddOptionalArg("off_value", R"code(Value that will be used to fill the output when input[j] != i)code", 0);
+    .AddOptionalArg("on_value", R"code(Value that will be used to fill the output when input[j] = i)code", 1.f)
+    .AddOptionalArg("off_value", R"code(Value that will be used to fill the output when input[j] != i)code", 0.f);
 
 bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
   output_desc.resize(1);
@@ -59,10 +58,10 @@ void OneHot::RunImpl(HostWorkspace &ws) {
           auto &out = output[sample_id];
           auto in_tensor = make_tensor_cpu(in.template data<InputType>(), in.shape());
           auto out_tensor = make_tensor_cpu(out.template mutable_data<OutputType>(), out.shape());
-          detail::DoOneHot<OutputType, InputType>(out_tensor, 
-                                                  in_tensor, 
-                                                  depth_, 
-                                                  on_value_, 
+          detail::DoOneHot<OutputType, InputType>(out_tensor,
+                                                  in_tensor,
+                                                  depth_,
+                                                  on_value_,
                                                   off_value_);
         });
       }
