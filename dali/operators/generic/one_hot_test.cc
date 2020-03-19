@@ -14,10 +14,10 @@
 
 #include <gtest/gtest.h>
 #include <tuple>
+#include <utility>
 #include "dali/operators/generic/one_hot.h"
 #include "dali/kernels/kernel_params.h"
 #include "dali/kernels/test/kernel_test_utils.h"
-#include "utility"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
