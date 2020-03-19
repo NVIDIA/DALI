@@ -47,6 +47,7 @@ def check_one_hot_operator(premade_batch):
     assert(np.array_equal(outputs, reference))
 
 def test_one_hot_operator():
+    np.random.seed(42);
     for i in range(10):
         premade_batch = [np.array([np.random.randint(0, sample_size)], dtype=np.int32) for x in range(sample_size)]
         yield check_one_hot_operator, premade_batch
