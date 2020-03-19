@@ -90,7 +90,7 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
                  thresholds = [0, 0.01, 0.05, 0.1, 0.15],
                  scaling = [0.3, 1.0],
                  aspect_ratio = [0.5, 2.0],
-                 ltrb = True,
+                 bbox_layout = "xyXY",
                  num_attempts = 100,
                  allow_no_crop = False,
                  input_shape = None,
@@ -107,7 +107,7 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
             aspect_ratio = aspect_ratio,
             scaling = scaling,
             thresholds = thresholds,
-            ltrb = ltrb,
+            bbox_layout = bbox_layout,
             num_attempts = num_attempts,
             allow_no_crop = allow_no_crop,
             input_shape = input_shape,
@@ -204,7 +204,10 @@ def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
 
 def check_random_bbox_crop_variable_shape(batch_size, ndim, scaling, aspect_ratio, use_labels):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
-    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size, bbox_source=bbox_source,
+    bbox_layout = "xyzXYZ" if ndim == 3 else "xyXY"
+    pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size,
+                                           bbox_source=bbox_source,
+                                           bbox_layout=bbox_layout,
                                            scaling=scaling, aspect_ratio=aspect_ratio,
                                            input_shape=None, crop_shape=None)
     pipe.build()
@@ -234,8 +237,10 @@ def test_random_bbox_crop_variable_shape():
 
 def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape, use_labels):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
+    bbox_layout = "xyzXYZ" if ndim == 3 else "xyXY"
     pipe = RandomBBoxCropSynthDataPipeline(device='cpu', batch_size=batch_size,
                                            bbox_source=bbox_source,
+                                           bbox_layout=bbox_layout,
                                            scaling=None, aspect_ratio=None,
                                            input_shape=input_shape, crop_shape=crop_shape)
     pipe.build()

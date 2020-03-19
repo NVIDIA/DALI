@@ -165,8 +165,7 @@ try a given number of attempts (see `num_attempts`) to produce a random crop win
 IoU above the selected threshold.)code",
         std::vector<float>{0.f})
     .AddOptionalArg("aspect_ratio",
-                    R"code(Single or multiple valid aspect ratio ranges
-(``[min_xy, max_xy, (min_xz, max_xz, min_yz, max_yz)]``) for cropping windows.
+                    R"code(Single or multiple valid aspect ratio ranges for cropping windows.
 
 For 2D bounding boxes, a single aspect ratio `x/y` range should be provided (i.e. ``[min_xy, max_xy]``)
 
@@ -313,8 +312,10 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
     bool allow_no_crop = spec.GetArgument<bool>("allow_no_crop");
     if (has_crop_shape_) {
       // If it was left default but a crop_shape was provided, disallow no crop silently
-      if (!spec.HasArgument("allow_no_crop"))
+      if (!spec.HasArgument("allow_no_crop")) {
+        DALI_WARN("Using explicit `crop_shape`, `allow_no_crop` will not take effect.");
         allow_no_crop = false;
+      }
 
       DALI_ENFORCE(!allow_no_crop,
                    "`allow_no_crop` is incompatible with providing the crop shape explicitly");
