@@ -31,19 +31,19 @@ void AxisFlip(Box<ndim, float>& box, int axis) {
 
 template <int ndim>
 void HorizontalFlip(Box<ndim, float>& box) {
-  static_assert(ndim >= 1);
+  static_assert(ndim >= 1, "Unexpected number of dimensions");
   AxisFlip(box, 0);
 }
 
 template <int ndim>
 void VerticalFlip(Box<ndim, float>& box) {
-  static_assert(ndim >= 2);
+  static_assert(ndim >= 2, "Unexpected number of dimensions");
   AxisFlip(box, 1);
 }
 
 template <int ndim>
 void DepthwiseFlip(Box<ndim, float>& box) {
-  static_assert(ndim >= 3);
+  static_assert(ndim >= 3, "Unexpected number of dimensions");
   AxisFlip(box, 2);
 }
 

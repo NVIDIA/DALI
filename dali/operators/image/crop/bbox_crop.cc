@@ -436,15 +436,15 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
 
     ProspectiveCrop(bool success,
                     const Box<ndim, float>& crop,
-                    const span<const Box<ndim, float>>& _boxes,
-                    const span<const int>& _labels)
+                    const span<const Box<ndim, float>>& boxes_data,
+                    const span<const int>& labels_data)
         : success(success), crop(crop) {
-      assert(_boxes.size() == _labels.size());
-      boxes.resize(_boxes.size());
-      labels.resize(_labels.size());
-      for (int i = 0; i < _boxes.size(); i++) {
-        boxes[i] = _boxes[i];
-        labels[i] = _labels[i];
+      assert(boxes_data.size() == labels_data.size());
+      boxes.resize(boxes_data.size());
+      labels.resize(labels_data.size());
+      for (int i = 0; i < boxes_data.size(); i++) {
+        boxes[i] = boxes_data[i];
+        labels[i] = labels_data[i];
       }
     }
     ProspectiveCrop() = default;
@@ -485,9 +485,9 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     for (int i0 = 0; i0 < ndim; i0++) {
       for (int i1 = i0 + 1; i1 < ndim; i1++) {
         int d0 = order[i0], d1 = order[i1];
-        auto fixed_ar = fixed_aspect_ratios[d0*ndim+d1];
-        if (shape[d0] != shape[d1] && fixed_ar > 0) {
-          shape[d0] = shape[d1] * fixed_ar;
+        auto fixed_ar = fixed_aspect_ratios[d1*ndim+d0];
+        if (fixed_ar > 0) {
+          shape[d1] = shape[d0] * fixed_ar;
         }
       }
     }
