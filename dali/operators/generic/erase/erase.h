@@ -28,19 +28,6 @@
 
 namespace dali {
 
-namespace detail {
-
-template <typename Backend>
-class OpImplBase {
- public:
-  virtual ~OpImplBase() = default;
-  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                         const workspace_t<Backend> &ws) = 0;
-  virtual void RunImpl(workspace_t<Backend> &ws) = 0;
-};
-
-}  // namespace detail
-
 template <typename Backend>
 class Erase : public Operator<Backend> {
  public:

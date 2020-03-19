@@ -23,18 +23,6 @@
 
 namespace dali {
 
-namespace detail {
-
-template <typename Backend>
-struct OpImplBase {
-  virtual ~OpImplBase() = default;
-  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                         const workspace_t<Backend> &ws) = 0;
-  virtual void RunImpl(workspace_t<Backend> &ws) = 0;
-};
-
-}  // namespace detail
-
 template <typename Backend>
 class DLL_PUBLIC Spectrogram : public Operator<Backend> {
  public:

@@ -34,14 +34,7 @@ class RandomBBoxCrop : public Operator<Backend> {
   void RunImpl(Workspace<Backend> &ws) override;
 
  private:
-  class Impl {
-   public:
-    virtual ~Impl() = default;
-    virtual bool Setup(std::vector<OutputDesc> &output_desc,
-                       const workspace_t<Backend> &ws) = 0;
-    virtual void Run(Workspace<Backend> &ws) = 0;
-  };
-  std::unique_ptr<Impl> impl_;
+  std::unique_ptr<detail::OpImplBase<Backend>> impl_;
   OpSpec spec_;
 };
 

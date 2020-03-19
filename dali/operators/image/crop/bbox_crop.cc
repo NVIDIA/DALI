@@ -166,7 +166,7 @@ IoU above the selected threshold.)code",
         std::vector<float>{0.f})
     .AddOptionalArg("aspect_ratio",
                     R"code(Single or multiple valid aspect ratio ranges
-(``[min0, max0, (min1, max1, min2, max2)]``) for cropping windows.
+(``[min_xy, max_xy, (min_xz, max_xz, min_yz, max_yz)]``) for cropping windows.
 
 For 2D bounding boxes, a single aspect ratio `x/y` range should be provided (i.e. ``[min_xy, max_xy]``)
 
@@ -253,7 +253,7 @@ Note: If left empty, `WH` or `WHD` will be assumed, depending on the number of d
         TensorLayout{""});
 
 template <int ndim>
-class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
+class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
  public:
   static constexpr int coords_size = ndim * 2;
 
@@ -351,7 +351,7 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
                   "` or `", default_bbox_layout_start_shape, "`. Got: `", bbox_layout_, "`"));
   }
 
-  bool Setup(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override {
     if (spec_.ArgumentDefined("input_shape") && spec_.ArgumentDefined("crop_shape")) {
       CollectShape(input_shape_, "input_shape", spec_, ws, ndim);
       CollectShape(crop_shape_, "crop_shape", spec_, ws, ndim);
@@ -386,7 +386,7 @@ class RandomBBoxCropImpl : public RandomBBoxCrop<CPUBackend>::Impl {
     return false;
   }
 
-  void Run(SampleWorkspace &ws) {
+  void RunImpl(SampleWorkspace &ws) override {
     const auto &boxes_tensor = ws.Input<CPUBackend>(0);
     auto nboxes = boxes_tensor.dim(0);
     auto ncoords = ndim * 2;
@@ -726,13 +726,13 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   VALUE_SWITCH(num_dims, ndim, (2, 3),
     (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(spec_);),
     (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
-  return impl_->Setup(output_desc, ws);
+  return impl_->SetupImpl(output_desc, ws);
 }
 
 template <>
 void RandomBBoxCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   assert(impl_ != nullptr);
-  impl_->Run(ws);
+  impl_->RunImpl(ws);
 }
 
 DALI_REGISTER_OPERATOR(RandomBBoxCrop, RandomBBoxCrop<CPUBackend>, CPU);

@@ -395,6 +395,34 @@ DALI_DECLARE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
 
 DLL_PUBLIC std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec);
 
+namespace detail {
+
+template <typename Backend>
+class OpImplBase {
+ public:
+  virtual ~OpImplBase() = default;
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                         const workspace_t<Backend> &ws) = 0;
+  virtual void RunImpl(workspace_t<Backend> &ws) = 0;
+};
+
+template <>
+class OpImplBase<CPUBackend> {
+ public:
+  virtual ~OpImplBase() = default;
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                         const workspace_t<CPUBackend> &ws) = 0;
+  virtual void RunImpl(HostWorkspace &ws) {
+    assert(false);
+  }
+  virtual void RunImpl(SampleWorkspace &ws) {
+    assert(false);
+  }
+};
+
+}  // namespace detail
+
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATOR_OPERATOR_H_
