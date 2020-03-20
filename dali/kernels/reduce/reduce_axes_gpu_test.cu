@@ -16,6 +16,7 @@
 #include <random>
 #include <utility>
 #include <vector>
+#include "dali/core/dev_buffer.h"
 #include "dali/kernels/reduce/reduce_axes_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_test.h"
 #include "dali/kernels/alloc.h"
@@ -26,124 +27,6 @@
 
 namespace dali {
 namespace kernels {
-
-template <typename T>
-void copyD2D(T *dst, const T *src, size_t n, cudaStream_t stream = 0) {
-  CUDA_CALL(cudaMemcpyAsync(dst, src, n*sizeof(T), cudaMemcpyDeviceToDevice, stream));
-}
-
-template <typename T>
-void copyD2H(T *dst, const T *src, size_t n, cudaStream_t stream = 0) {
-  CUDA_CALL(cudaMemcpyAsync(dst, src, n*sizeof(T), cudaMemcpyDeviceToHost, stream));
-}
-
-template <typename T>
-void copyH2D(T *dst, const T *src, size_t n, cudaStream_t stream = 0) {
-  CUDA_CALL(cudaMemcpyAsync(dst, src, n*sizeof(T), cudaMemcpyHostToDevice, stream));
-}
-
-template <typename T>
-void copyH2H(T *dst, const T *src, size_t n, cudaStream_t stream = 0) {
-  CUDA_CALL(cudaMemcpyAsync(dst, src, n*sizeof(T), cudaMemcpyHostToHost, stream));
-}
-
-/**
- * @brief Represents a strongly typed device-side buffer with size and capacity.
- *
- * This class behaves somewhat like vector in terms of storage growth.
- * It doesn't support copy construction/assignment nor indexing (not possible on host-side).
- * It does support common query functions, exponential resize and shrinking.
- * It also provides copy utilities from both host- and device-side sources, with ability
- * to specify CUDA stream.
- */
-template <typename T>
-struct DeviceBuffer {
-  DeviceBuffer() = default;
-  DeviceBuffer(DeviceBuffer &&other) {
-    *this = other;
-  }
-
-  DeviceBuffer &operator=(DeviceBuffer &&other) {
-    data_ = std::move(other.data_);
-    size_ = other.size_;
-    capacity_ = other.capacity_;
-    other.size_ = 0;
-    other.capacity_ = 0;
-    return *this;
-  }
-
-  size_t size() const { return size_; }
-  size_t size_bytes() const { return sizeof(T) * size_; }
-  size_t capacity() const { return capacity_; }
-
-  operator T *() { return data_.get(); }
-  operator const T *() const { return data_.get(); }
-
-  T *data() { return data_.get(); }
-  const T *data() const { return data_.get(); }
-
-  bool empty() const { return size_ == 0; }
-
-  void clear() { size_ = 0; }
-  void free() { size_ = 0; capacity_ = 0; data_.reset(); }
-
-  void shrink_to_fit(cudaStream_t stream = 0) {
-    reallocate(size_, stream);
-  }
-
-  void from_host(const T *source, size_t count, cudaStream_t stream = 0) {
-    clear();
-    resize(count);
-    copyH2D(data_.get(), source, size(), stream);
-  }
-
-  void from_device(const T *source, size_t count, cudaStream_t stream = 0) {
-    clear();
-    resize(count);
-    copyD2D(data_.get(), source, size(), stream);
-  }
-
-  template <typename ArrayLike>
-  if_array_like<ArrayLike> from_host(const ArrayLike &source, cudaStream_t stream = 0) {
-    from_host(&source[0], dali::size(source), stream);
-  }
-
-  template <typename ArrayLike>
-  if_array_like<ArrayLike> from_device(const ArrayLike &source, cudaStream_t stream = 0) {
-    from_device(&source[0], dali::size(source), stream);
-  }
-
-  void copy(const DeviceBuffer &src, cudaStream_t stream = 0) {
-    clear();
-    resize(src.size());
-    copyH2D(data_.get(), src.data(), size(), stream);
-  }
-
-  void resize(size_t new_size, cudaStream_t stream = 0) {
-    if (new_size > capacity_) {
-      size_t new_cap = max(2 * capacity_, new_size);
-      reallocate(new_cap, stream);
-    }
-    size_ = new_size;
-  }
-
- private:
-  void reallocate(size_t new_cap, cudaStream_t stream) {
-    if (size_ == 0) {
-      data_.reset();
-      capacity_ = size_ = 0;
-      data_ = kernels::memory::alloc_unique<T>(AllocType::GPU, new_cap);
-      capacity_ = new_cap;
-    } else {
-      auto new_data = kernels::memory::alloc_unique<T>(AllocType::GPU, new_cap);
-      copyD2D(new_data.get(), data_.get(), size(), stream);
-    }
-  }
-
-  kernels::memory::KernelUniquePtr<T> data_;
-  size_t capacity_ = 0;
-  size_t size_ = 0;
-};
 
 template <typename Out, typename Reduction, typename T>
 void RefReduceInner(Out *out, const T *in, int64_t n_outer, int64_t n_inner, const Reduction &R) {
@@ -164,6 +47,7 @@ void RefReduceMiddle(Out *out, const T *in,
     }
   }
 }
+
 
 using int_dist = std::uniform_int_distribution<int>;
 
@@ -363,11 +247,12 @@ class ReduceOtherGPUTest : public ::testing::Test {
     gpu_descs.from_host(cpu_descs);
 
     dim3 grid(32, N);
-    dim3 block(32, 32);
+    dim3 block(32, 24);
     auto start = CUDAEvent::CreateWithFlags(0);
     auto end =   CUDAEvent::CreateWithFlags(0);
     cudaEventRecord(start);
     ReduceOtherKernel<<<grid, block>>>(gpu_descs.data(), reduction);
+    CUDA_CALL(cudaGetLastError());
     cudaEventRecord(end);
     CUDA_CALL(cudaDeviceSynchronize());
     float t = 0;
@@ -389,17 +274,16 @@ class ReduceOtherGPUTest : public ::testing::Test {
     vector<float> full_out;  // when out is not a full reduction, we calculate the second stage here
     for (int i = 0; i < N; i++) {
       auto ts = in_shape[i];
+      print(std::cerr, "Checking sample #", i, " of shape ", ts, "\n");
       int64_t outer = ts[0];
       int64_t reduced = ts[1];
       int64_t inner = ts[2];
       ref_out.resize(outer * inner);
       RefReduceMiddle(ref_out.data(), cpu_in.data[i], outer, reduced, inner, reduction);
       auto out = cpu_out[i];
-      print(std::cerr, "Input shape: ", ts, "\nOutput shape: ", out.shape, "\n");
       double tmp = cpu_in.data[i][0];
       for (int64_t j = 1; j < reduced; j++)
         reduction(tmp, cpu_in.data[i][j * inner]);
-      print(std::cerr, "First reduced entry: ", tmp, "\n");
       if (out.shape[1] > 1) {
         full_out.resize(outer);
         RefReduceInner(full_out.data(), out.data, outer, out.shape[1], reduction);
@@ -422,8 +306,18 @@ using ReductionTestTypes = ::testing::Types<reductions::sum, reductions::min, re
 
 TYPED_TEST_SUITE(ReduceOtherGPUTest, ReductionTestTypes);
 
-TYPED_TEST(ReduceOtherGPUTest, ReduceMiddle_Medium_Small_Small) {
+/*TYPED_TEST(ReduceOtherGPUTest, ReduceMiddle_Medium_Small_Small) {
   this->PrepareData(10, int_dist(1000, 20000), int_dist(2, 63), int_dist(1, 32));
+  this->Run();
+}
+
+TYPED_TEST(ReduceOtherGPUTest, ReduceMiddle_Medium_Medium_Small) {
+  this->PrepareData(10, int_dist(1000, 2000), int_dist(32, 256), int_dist(1, 32));
+  this->Run();
+}*/
+
+TYPED_TEST(ReduceOtherGPUTest, ReduceMiddle_Small_Large_Small) {
+  this->PrepareData(10, int_dist(10, 100), int_dist(512, 10240), int_dist(10, 32));
   this->Run();
 }
 

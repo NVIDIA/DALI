@@ -102,7 +102,7 @@ DALI_HOST_DEV Acc ThreadReduce(const T *base, int n, int64_t stride, Reduction r
     case 0:
       break;
     case 1:
-      r(acc, pp(*base));
+      r(acc, pp(__ldg(base)));
       break;
     case 2:
       r(acc, TreeReduce<2, Acc>::reduce(base, stride, r, pp));

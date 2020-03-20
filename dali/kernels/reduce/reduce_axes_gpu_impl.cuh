@@ -62,9 +62,10 @@ template <typename Acc, typename In,
 __device__ void ReduceInnerLarge(Acc *out, const In *in, int64_t n_outer, int64_t n_inner,
                                  int num_macroblocks, int macroblock_size,
                                  Reduction reduce = {}, Preprocess pp = {}) {
-  constexpr int64_t blk_size = 32*32;  // block must be warpSize * warpSize for BlockReduce
+  assert(blockDim.x == 32);
+  const int blk_size = 32*blockDim.y;  // block must be warpSize * warpSize for BlockReduce
 
-  const int64_t total_blocks = n_outer * num_macroblocks;
+  const int total_blocks = n_outer * num_macroblocks;
 
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
 
@@ -96,7 +97,8 @@ __device__ void ReduceInnerLarge(Acc *out, const In *in, int64_t n_outer, int64_
     if (idx != blockIdx.x)  // not needed in first iteration:
       __syncthreads();      // make sure that the shared memory used by BlockReduce is ready
 
-    BlockReduce(out, val, reduce, [idx]() { return idx; });
+    if (BlockReduce(val, reduce))
+      out[idx] = val;
   }
 }
 
@@ -157,6 +159,9 @@ DALI_HOST_DEV DALI_FORCEINLINE void _divmod(Div &div, Mod &mod, X x, Y y) {
 
 template <typename Div, typename Mod, typename X, typename Y>
 DALI_HOST_DEV DALI_FORCEINLINE void divmod(Div &div, Mod &mod, X x, Y y) {
+#ifndef NDEBUG
+    return _divmod(div, mod, x, y);
+#else
   switch (y) {
     case 1:
       div = x; mod = 0; break;
@@ -195,17 +200,53 @@ DALI_HOST_DEV DALI_FORCEINLINE void divmod(Div &div, Mod &mod, X x, Y y) {
         div = x >> (__ffs(y) - 1);
         mod = x & (y-1);
       } else {
-        _divmod(div, mod, x, y); break;
+        _divmod(div, mod, x, y);
       }
+      break;
+  }
+#endif
+}
+
+/**
+ * Each *thread* performs full reduction - blockDim volume is used as a stride in non-reduced dims
+ */
+template <typename Acc, typename In,
+          typename Reduction = reductions::sum,
+          typename Preprocess = dali::identity>
+DALI_FORCEINLINE __device__
+void ReduceOtherSmall(const ReduceSampleDesc<Acc, In> &sample,
+                      Reduction reduce = {}, Preprocess pp = {}) {
+  int64_t n_outer = sample.n_outer;
+  int n_reduced = sample.n_reduced;
+  int64_t n_inner = sample.n_inner;
+  int64_t n_non_reduced = n_inner * n_outer;
+  int64_t outer_stride = n_inner * n_reduced;
+
+  Acc *out = sample.out;
+  const In *in = sample.in;
+  const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
+  const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
+  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
+  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
+  for (int64_t idx = base_idx; idx < n_non_reduced; idx += grid_stride) {
+    int64_t outer, inner;
+    divmod(outer, inner, idx, n_inner);
+    const float *base = in + outer * outer_stride + inner;
+    out[idx] = reductions::ThreadReduce<Acc>(base, n_reduced, n_inner, reduce, pp);
   }
 }
 
 
+/**
+ * Each *warp* performs full reduction - blockDim.y is used as a stride in non-reduced dims
+ */
 template <typename Acc, typename In,
           typename Reduction = reductions::sum,
           typename Preprocess = dali::identity>
-__device__ void ReduceOtherSmall(const ReduceSampleDesc<Acc, In> &sample,
-                                 Reduction reduce = {}, Preprocess pp = {}) {
+DALI_FORCEINLINE __device__
+void ReduceOtherMedium(const ReduceSampleDesc<Acc, In> &sample,
+                       Reduction reduce = {}, Preprocess pp = {}) {
+  assert(blockDim.x == 32);
   int64_t n_outer = sample.n_outer;
   int n_reduced = sample.n_reduced;
   int64_t n_inner = sample.n_inner;
@@ -215,44 +256,70 @@ __device__ void ReduceOtherSmall(const ReduceSampleDesc<Acc, In> &sample,
   Acc *out = sample.out;
   const In *in = sample.in;
 
-  const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
-  const int64_t grid_size_x = static_cast<int64_t>(gridDim.x) * blk_size;
-  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
-  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
-  for (int64_t idx = base_idx; idx < n_non_reduced; idx += grid_size_x) {
+  const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blockDim.y;
+  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blockDim.y + threadIdx.y;
+  // we can't add thread_offset to base index, because we need warp convergence at all times
+  // to perform warp-sync reduction
+  int tid = threadIdx.x;
+  int64_t thread_offset = tid * n_inner;
+  for (int64_t idx = base_idx; idx < n_non_reduced; idx += grid_stride) {
     int64_t outer, inner;
     divmod(outer, inner, idx, n_inner);
-    const float *base = in + outer * outer_stride + inner;
-    out[idx] = reductions::ThreadReduce<Acc>(base, n_reduced, n_inner, reduce, pp);
+    const float *base = in + outer * outer_stride + thread_offset + inner;
+
+    int n = (n_reduced + 31 - tid) >> 5;
+    Acc val = reductions::ThreadReduce<Acc>(base, n, n_inner * 32, reduce, pp);
+
+    WarpReduce(val, reduce);
+    if (tid == 0)
+      out[idx] = val;
   }
 }
 
 
+/**
+ * Each *block* performs a reduction (maybe partial) - blockDim is used as a stride in reduced dims
+ */
 template <typename Acc, typename In,
           typename Reduction = reductions::sum,
           typename Preprocess = dali::identity>
-__device__ void ReduceOtherLarge(const ReduceSampleDesc<Acc, In> &sample,
-                                 Reduction reduce = {}, Preprocess pp = {}) {
-  /*int64_t n_outer = sample.n_outer;
-  int n_reduced = sample.n_reduced;
-  int64_t n_inner = sample.n_inner;
+DALI_FORCEINLINE __device__
+void ReduceOtherLarge(const ReduceSampleDesc<Acc, In> &sample,
+                      Reduction reduce = {}, Preprocess pp = {}) {
+  assert(blockDim.x == 32);
+
+  // TODO(michalz) support macroblocks!
+  int n_outer = sample.n_outer;
+  int64_t n_reduced = sample.n_reduced;
+  int n_inner = sample.n_inner;
   int64_t n_non_reduced = n_inner * n_outer;
   int64_t outer_stride = n_inner * n_reduced;
 
   Acc *out = sample.out;
   const In *in = sample.in;
 
-  const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
-  const int64_t grid_size_x = static_cast<int64_t>(gridDim.x) * blk_size;
-  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
-  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
-  for (int64_t idx = base_idx; idx < n_non_reduced; idx += grid_size_x) {
-    int64_t outer, inner;
+  const int flat_tid = threadIdx.x + threadIdx.y * 32;
+  const int blk_size = 32 * blockDim.y;
+  int n = (n_reduced + blk_size - 1 - flat_tid) / blk_size;
+
+  const int thread_stride = static_cast<int64_t>(n_inner) * blk_size;
+
+  const int grid_stride = gridDim.x;
+  int64_t base_idx = blockIdx.x;
+  // we can't add thread_offset to base index, because we need block-level convergence at all times
+  // to perform block reduction
+  int64_t thread_offset = flat_tid * n_inner;
+  for (int idx = base_idx; idx < n_non_reduced; idx += grid_stride) {
+    int outer, inner;
     divmod(outer, inner, idx, n_inner);
-    const float *base = in + outer * outer_stride + inner;
-    out[outer] = reductions::ThreadReduce<Acc>(base, n_reduced, n_inner, reduce, pp);
-  }*/
-  assert(!"not implemented");
+    const float *base = in + outer * outer_stride + thread_offset + inner;
+
+    Acc val = reductions::ThreadReduce<Acc>(base, n, thread_stride, reduce, pp);
+
+    __syncthreads();
+    if (BlockReduce(val, reduce))
+      out[idx] = val;
+  }
 }
 
 
@@ -262,18 +329,14 @@ template <typename Acc, typename In,
 __global__ void ReduceOtherKernel(const ReduceSampleDesc<Acc, In> *samples,
                                   Reduction reduce = {}, Preprocess pp = {}) {
   auto sample = samples[blockIdx.y];
-  int64_t n_inner = sample.n_inner;
-  if (n_inner == 1) {
-    ReduceInner(sample, reduce, pp);
-    return;
-  }
 
-  if (sample.n_reduced < 64) {
+  /*if (sample.n_reduced < 64) {
     ReduceOtherSmall(sample, reduce, pp);
-  } else {
+  } else if (sample.n_reduced < 1024) {
+    ReduceOtherMedium(sample, reduce, pp);
+  } else {*/
     ReduceOtherLarge(sample, reduce, pp);
-  }
-
+  //}
 }
 
 }  // namespace kernels
