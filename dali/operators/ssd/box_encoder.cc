@@ -88,7 +88,7 @@ void WriteBoxToOutput(float *out_box_data, const vec<ndim, float> &center,
                       const vec<ndim, float> &extent) {
   for (int d = 0; d < ndim; d++) {
     out_box_data[d] = center[d];
-    out_box_data[ndim + d] = extent[1];
+    out_box_data[ndim + d] = extent[d];
   }
 }
 

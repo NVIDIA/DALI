@@ -35,6 +35,7 @@ class RandomBBoxCrop : public Operator<Backend> {
 
  private:
   std::unique_ptr<detail::OpImplBase<Backend>> impl_;
+  int impl_ndim_ = -1;
   OpSpec spec_;
 };
 

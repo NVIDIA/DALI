@@ -21,12 +21,12 @@ from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 import os
 
-bbox_2d_ltrb_1 = [0.0, 0.0, 0.9, 0.9]
-bbox_2d_ltrb_2 = [0.1, 0.1, 0.99, 0.99]
-bbox_2d_ltrb_3 = [0.3, 0.3, 0.5, 0.5]
-bbox_3d_ltrb_1 = [0.5, 0.5, 0.5, 0.7, 0.7, 0.7]
-bbox_3d_ltrb_2 = [0.1, 0.1, 0.1, 0.6, 0.6, 0.6]
-bbox_3d_ltrb_3 = [0.4, 0.4, 0.4, 0.9, 0.9, 0.9]
+bbox_2d_ltrb_1 = [0.0123, 0.0123, 0.9123, 0.9123]
+bbox_2d_ltrb_2 = [0.1123, 0.1123, 0.99123, 0.99123]
+bbox_2d_ltrb_3 = [0.3123, 0.3123, 0.5123, 0.5123]
+bbox_3d_ltrb_1 = [0.5123, 0.5123, 0.5123, 0.7123, 0.7123, 0.7123]
+bbox_3d_ltrb_2 = [0.1123, 0.1123, 0.1123, 0.6123, 0.6123, 0.6123]
+bbox_3d_ltrb_3 = [0.4123, 0.4123, 0.4123, 0.9123, 0.9123, 0.9123]
 
 bboxes_data = {
     2 : [bbox_2d_ltrb_1, bbox_2d_ltrb_2, bbox_2d_ltrb_3],

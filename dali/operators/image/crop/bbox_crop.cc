@@ -460,12 +460,14 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
     std::array<float, ndim*ndim> fixed_aspect_ratios;
     int k = 0;
 
+    bool need_fix = false;
     for (int d0 = 0; d0 < ndim; d0++) {
       for (int d1 = d0 + 1; d1 < ndim; d1++) {
         // to be used later when min==max
         if (aspect_ratio_ranges_[k].min == aspect_ratio_ranges_[k].max) {
           fixed_aspect_ratios[d0*ndim+d1] = aspect_ratio_ranges_[k].min;
           fixed_aspect_ratios[d1*ndim+d0] = 1.0 / aspect_ratio_ranges_[k].min;
+          need_fix = true;
         } else {
           fixed_aspect_ratios[d0*ndim+d1] = 0.0f;
           fixed_aspect_ratios[d1*ndim+d0] = 0.0f;
@@ -473,6 +475,9 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
         k = (k + 1) % aspect_ratio_ranges_.size();
       }
     }
+
+    if (!need_fix)
+      return;
 
     std::array<int, ndim> order;
     std::iota(order.begin(), order.end(), 0);
@@ -724,9 +729,12 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   DALI_ENFORCE(num_dims == 2 || num_dims == 3,
     make_string("Unexpected number of dimensions: ", num_dims));
 
-  VALUE_SWITCH(num_dims, ndim, (2, 3),
-    (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(spec_);),
-    (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
+  if (impl_ == nullptr || impl_ndim_ != num_dims) {
+    VALUE_SWITCH(num_dims, ndim, (2, 3),
+      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(spec_);),
+      (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
+    impl_ndim_ = num_dims;
+  }
   return impl_->SetupImpl(output_desc, ws);
 }
 

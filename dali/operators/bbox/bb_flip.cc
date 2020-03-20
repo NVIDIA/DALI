@@ -76,6 +76,10 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
   auto output_data = output.mutable_data<float>();
 
   std::vector<Box<2, float>> bboxes;
+  constexpr int box_size = Box<2, float>::box_size;
+  assert(input.size() % box_size == 0);
+  int nboxes = input.size() / box_size;
+  bboxes.resize(nboxes);
   TensorLayout layout = ltrb_ ? "xyXY" : "xyWH";
   ReadBoxes(make_span(bboxes), make_cspan(input_data, input.size()), layout, {});
 

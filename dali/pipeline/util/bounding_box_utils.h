@@ -25,8 +25,9 @@ namespace dali {
 template <int ndim>
 void AxisFlip(Box<ndim, float>& box, int axis) {
   assert(axis >= 0 && axis < ndim);
-  box.lo[axis] = 1.0f - box.hi[axis];
-  box.hi[axis] = 1.0f - box.lo[axis];
+  float lo = box.lo[axis], hi = box.hi[axis];
+  box.lo[axis] = 1.0f - hi;
+  box.hi[axis] = 1.0f - lo;
 }
 
 template <int ndim>

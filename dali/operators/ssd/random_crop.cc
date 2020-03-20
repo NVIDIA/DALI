@@ -194,7 +194,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   crop_attempt.set_pinned(false);
   crop_attempt.Resize({1, 4});
   float *crop_ptr = crop_attempt.mutable_data<float>();
-
   // iterate until a suitable crop has been found
   while (true) {
     auto opt_idx = int_dis_(rngs_[sample]);
