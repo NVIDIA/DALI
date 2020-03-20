@@ -34,7 +34,10 @@ void DoOneHot(kernels::OutTensorCPU<Out, 1> out,
   auto input = in.data;
   auto output = out.data;
   for (int i = 0; i < num_classes; ++i) output[i] = off_value;
-  output[static_cast<int>(input[0])] = on_value;
+  int cls = static_cast<int>(input[0]);
+  if (cls >= 0 && cls < num_classes) {
+    output[cls] = on_value;
+  }
 }
 }  // namespace detail
 

@@ -67,9 +67,9 @@ void OneHot::RunImpl(HostWorkspace &ws) {
                                                   off_value_);
         });
       }
+      tp.WaitForWork();
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type().id())))  // NOLINT
-  tp.WaitForWork();
 }
 
 }  // namespace dali
