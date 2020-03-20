@@ -14,6 +14,7 @@
 
 #include "dali/operators/generic/one_hot.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
@@ -28,8 +29,8 @@ DALI_SCHEMA(OneHot)
     .AddOptionalArg("num_classes", R"code(Number of all classes in the data)code", 0)
     .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output)code",
                     DALI_FLOAT)
-    .AddOptionalArg("on_value", R"code(Value that will be used to fill the output when input[j] = i)code", 1.f)
-    .AddOptionalArg("off_value", R"code(Value that will be used to fill the output when input[j] != i)code", 0.f);
+    .AddOptionalArg("on_value", R"code(Value that will be used to fill the output when ``input[j] = i``. It will be cast to ``dtype`` type)code", 1.f)
+    .AddOptionalArg("off_value", R"code(Value that will be used to fill the output when ``input[j] != i``. It will be cast to ``dtype`` type)code", 0.f);
 
 bool OneHot::SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
   output_desc.resize(1);
@@ -50,17 +51,17 @@ void OneHot::RunImpl(HostWorkspace &ws) {
   auto &tp = ws.GetThreadPool();
   TYPE_SWITCH(input.type().id(), type2id, InputType, ONE_HOT_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, ONE_HOT_TYPES, (
+      auto in_tensor = view<const InputType, 1>(input);
+      auto out_tensor = view<OutputType, 1>(output);
       for (int sample_id = 0; sample_id < batch_size_; ++sample_id) {
         DALI_ENFORCE(input[sample_id].shape().sample_dim() == 1 && input[sample_id].shape()[0] == 1,
                      "Input must be a scalar.");
         tp.DoWorkWithID(
               [&, sample_id](int thread_id) {
-          auto &in = input[sample_id];
-          auto &out = output[sample_id];
-          auto in_tensor = make_tensor_cpu(in.template data<InputType>(), in.shape());
-          auto out_tensor = make_tensor_cpu(out.template mutable_data<OutputType>(), out.shape());
-          detail::DoOneHot<OutputType, InputType>(out_tensor.to_static<1>(),
-                                                  in_tensor.to_static<1>(),
+          auto in = in_tensor[sample_id];
+          auto out = out_tensor[sample_id];
+          detail::DoOneHot<OutputType, InputType>(out.to_static<1>(),
+                                                  in.to_static<1>(),
                                                   num_classes_,
                                                   on_value_,
                                                   off_value_);
