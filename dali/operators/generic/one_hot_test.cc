@@ -37,8 +37,8 @@ class OneHotOpTest : public ::testing::Test {
     int num_classes_ = 20;
     std::vector<In> input_{1, 3, 5, 0, 1, 2, 10, 15, 7, 6};
     std::vector<Out> output_;
-    TensorShape<1> input_shape_ = {1};
-    TensorShape<1> output_shape_ = {num_classes_};
+    TensorShape<DynamicDimensions> input_shape_ = {1};
+    TensorShape<DynamicDimensions> output_shape_ = {num_classes_};
 };
 
 using TestTypes = std::tuple<uint8_t, int8_t, uint16_t, int16_t, int32_t, int64_t, float>;
@@ -48,11 +48,9 @@ TYPED_TEST(OneHotOpTest, TestVariousTypes) {
     using Out = typename TypeParam::Out;
     using In = typename TypeParam::In;
     for (int sample = 0; sample < this->buffer_length_; ++sample) {
-        auto input = make_tensor_cpu(this->input_.data() + sample,
-                                     this->input_shape_);
-        auto output = make_tensor_cpu(this->output_.data(),
-                                      this->output_shape_);
-        dali::detail::DoOneHot<Out, In>(output, input, 20, 1, 0);
+        auto input = make_tensor_cpu(this->input_.data() + sample, this->input_shape_);
+        auto output = make_tensor_cpu(this->output_.data(), this->output_shape_);
+        dali::detail::DoOneHot<Out, In>(output, input, 20, 1, 0, 0, 0);
         for (int i = 0; i < this->num_classes_; ++i) {
             if (i == this->input_.data()[sample]) {
                 ASSERT_EQ(output.data[i], 1);

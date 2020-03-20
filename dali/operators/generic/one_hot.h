@@ -27,16 +27,21 @@
 namespace dali {
 
 namespace detail {
-template <typename Out, typename In>
-void DoOneHot(kernels::OutTensorCPU<Out, 1> out,
-              kernels::InTensorCPU<In, 1> in,
-              int num_classes, same_as_t<Out> on_value, same_as_t<Out> off_value) {
-  auto input = in.data;
-  auto output = out.data;
-  for (int i = 0; i < num_classes; ++i) output[i] = off_value;
-  int cls = static_cast<int>(input[0]);
-  if (cls >= 0 && cls < num_classes) {
-    output[cls] = on_value;
+
+template<typename Out, typename In>
+void DoOneHot(kernels::OutTensorCPU<Out, DynamicDimensions> output,
+              kernels::InTensorCPU<In, DynamicDimensions> input, int num_classes,
+              same_as_t<Out> on_value, same_as_t<Out> off_value, int ndims, int axis = 0) {
+  auto in = input.data;
+  auto out = output.data;
+  for (int i = 0; i < volume(output.shape); ++i) out[i] = off_value;
+  int64_t inner = axis == ndims ? 1 : volume(input.shape.last(ndims - axis));
+  for (int64_t i = 0, n = input.num_elements(); i < n; i++) {
+    int cls = in[i];
+    if (cls < 0 || cls >= num_classes)
+      continue;
+    int64_t out_idx = (i % inner) + cls * inner + (i / inner) * (inner * num_classes);
+    out[out_idx] = on_value;
   }
 }
 }  // namespace detail
