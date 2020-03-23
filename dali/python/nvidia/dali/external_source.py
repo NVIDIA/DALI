@@ -36,6 +36,21 @@ class _CycleIter():
             self.it = iter(self.source)
             return next(self.it)
 
+class _CycleGenFunc():
+    def __init__(self, gen_func):
+        self.source = gen_func
+
+    def __iter__(self):
+        self.it = iter(self.source())
+        return self
+
+    def __next__(self):
+        try:
+            return next(self.it)
+        except StopIteration:
+            self.it = iter(self.source())
+            return next(self.it)
+
 class _ExternalSourceGroup(object):
     def __init__(self, callback, is_multioutput, instances = []):
         self.instances = list(instances)  # we need a copy!
@@ -66,21 +81,38 @@ class _ExternalSourceGroup(object):
             op = self.instances[0]
             pipeline.feed_input(op._name, data, op._layout)
 
+def _is_generator_function(x):
+    import inspect
+    if inspect.isgeneratorfunction(x):
+        return True
+    return _is_generator_function(getattr(x, "__call__", None))
+
 def _get_callback_from_source(source, cycle):
     iterable = False
     if source is not None:
+        import inspect
         try:
             if cycle:
-                iterator = iter(_CycleIter(source))
+                if inspect.isgenerator(source):
+                    raise TypeError("Cannot cycle through a generator - if the generator is a result "
+                        "of calling a generator function, pass that function instead as `source`.")
+                if _is_generator_function(source):
+                    iterator = iter(_CycleGenFunc(source))
+                else:
+                    iterator = iter(_CycleIter(source))
             else:
+                if _is_generator_function(source):
+                    source = source()
                 iterator = iter(source)
             iterable = True
             callback = lambda: next(iterator)
-        except TypeError:
+        except TypeError as err:
+            if "not iterable" not in str(err):
+                raise(err)
             if cycle is not None:
                 raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
             if not callable(source):
-                raise TypeError("Source must be iterable or callable")
+                raise TypeError("Source must be callable, iterable or a perameterless generator function")
             callback = source
     else:
         callback = None
@@ -111,6 +143,9 @@ Args
     where each element corresponds to respective return value of the external_source.
     If the source is a callable and has a positional argument, it is assumed to be the current
     iteration number and consecutive calls will be `source(0)`, `source(1)`, etc.
+    If the source is a generator function, it is invoked and treated as an iterable - however,
+    unlike a gnerator, it can be used with `cycle`, in which case the function will be called
+    again when the generator reaches end of iteration.
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists produced by the source function
@@ -119,9 +154,11 @@ Keyword Args
 ------------
 
 `cycle`: bool
-    If `True`, the source iterable will be wrapped. Otherwise, StopIteration error wil be raised
-    when end of data is reached. Setting this flag to True when `source` is not an iterable is an
-    error.
+    If `True`, the source will be wrapped. Otherwise, StopIteration error wil be raised
+    when end of data is reached. This flag requires that `source` is either a collection, i.e. an
+    iteratble object where ``iter(source)`` will return a fresh iterator on each call or a
+    generator function. In the latter case, the generator function will be called again when more
+    data is requried than was yielded by the function.
 
 `name` : str, optional
     The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
@@ -176,10 +213,11 @@ Keyword Args
             if cycle is not None:
                 if self._callback:
                     raise ValueError("The argument `cycle` can only be specified if `source` is an iterable object "
-                        "specified in this call. To cycle through an iterable specified in `__init__`, set cycle "
-                        "there.")
+                        "or a generator function specified in this call. To cycle through an iterable specified in "
+                        "`__init__`, set `cycle` there.")
                 else:
-                    raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
+                    raise ValueError("The argument `cycle` can only be specified if `source` is a "
+                                     "reusable iterable or a generator function.")
             callback = self._callback
         else:
             if self._callback is not None:
