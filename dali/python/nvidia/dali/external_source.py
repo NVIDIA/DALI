@@ -82,10 +82,15 @@ class _ExternalSourceGroup(object):
             pipeline.feed_input(op._name, data, op._layout)
 
 def _is_generator_function(x):
+    """Checks whether x is a generator function or a callable object
+    where __call__ is a generator function"""
     import inspect
     if inspect.isgeneratorfunction(x):
         return True
-    return _is_generator_function(getattr(x, "__call__", None))
+    if x is None or inspect.isfunction(x):
+        return False
+    call = getattr(x, "__call__", None)
+    return _is_generator_function(call)
 
 def _get_callback_from_source(source, cycle):
     iterable = False
