@@ -428,3 +428,50 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
 void daliLoadLibrary(const char* lib_path) {
     dali::PluginManager::LoadLibrary(lib_path);
 }
+
+int64_t getEpochSize(daliPipelineHandle* pipe_handle, const char *reader_name,
+                     bool with_padding) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  std::map<std::string, int64_t> sizes = pipeline->EpochSize(with_padding);
+  std::string op_name(reader_name);
+  DALI_ENFORCE(sizes.find(op_name) != sizes.end(),
+      "Operator " + op_name + " does not expose valid epoch size.");
+  return sizes[op_name];
+}
+
+int getShardId(daliPipelineHandle* pipe_handle, const char *reader_name) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  std::map<std::string, int> ids = pipeline->ShardId();
+  std::string op_name(reader_name);
+  DALI_ENFORCE(ids.find(op_name) != ids.end(),
+      "Operator " + op_name + " does not expose valid epoch size.");
+  return ids[op_name];
+
+}
+
+int getNumberOfShards(daliPipelineHandle* pipe_handle, const char *reader_name) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  std::map<std::string, int> shards = pipeline->NumberOfShards();
+  std::string op_name(reader_name);
+  DALI_ENFORCE(shards.find(op_name) != shards.end(),
+      "Operator " + op_name + " does not expose valid number of shards.");
+  return shards[op_name];
+}
+
+bool getIfReaderPads(daliPipelineHandle* pipe_handle, const char *reader_name) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  std::map<std::string, bool> pads = pipeline->IfReaderPads();
+  std::string op_name(reader_name);
+  DALI_ENFORCE(pads.find(op_name) != pads.end(),
+      "Operator " + op_name + " does not expose valid epoch size.");
+  return pads[op_name];
+}
+
+bool getIfSticksToShard(daliPipelineHandle* pipe_handle, const char *reader_name) {
+  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  std::map<std::string, bool> sticks = pipeline->IfSticksToShard();
+  std::string op_name(reader_name);
+  DALI_ENFORCE(sticks.find(op_name) != sticks.end(),
+      "Operator " + op_name + " does not expose valid epoch size.");
+  return sticks[op_name];
+}

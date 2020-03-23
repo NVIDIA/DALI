@@ -157,7 +157,7 @@ Parameters
     def exec_async(self):
         return self._exec_async
 
-    def epoch_size(self, name = None):
+    def epoch_size(self, name = None, with_padding = True):
         """Epoch size of a pipeline.
 
         If the `name` parameter is `None`, returns a dictionary of pairs
@@ -169,13 +169,96 @@ Parameters
         ----------
         name : str, optional, default = None
             The reader which should be used to obtain epoch size.
+        with_padding : bool, optional, default = True
+            If is set to true the data set size is rounded to multiply of
+        the batch size
         """
 
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         if name is not None:
-            return self._pipe.epoch_size(name)
-        return self._pipe.epoch_size()
+            return self._pipe.epoch_size(name, with_padding)
+        return self._pipe.epoch_size(with_padding)
+
+    def shards_number(self, name = None):
+        """Number of shards of the pipeline.
+
+        If the `name` parameter is `None`, returns a dictionary of pairs
+        `(reader name, shards_number for that reader)`.
+        If the `name` parameter is not `None`, returns shards_number for that
+        reader.
+
+        Parameters
+        ----------
+        name : str, optional, default = None
+            The reader which should be used to obtain shards_number.
+        """
+
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if name is not None:
+            return self._pipe.shards_number(name)
+        return self._pipe.shards_number()
+
+    def shard_id(self, name = None):
+        """Shard if of the pipeline.
+
+        If the `name` parameter is `None`, returns a dictionary of pairs
+        `(reader name, shard_id for that reader)`.
+        If the `name` parameter is not `None`, returns shard_id for that
+        reader.
+
+        Parameters
+        ----------
+        name : str, optional, default = None
+            The reader which should be used to obtain shard_id.
+        """
+
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if name is not None:
+            return self._pipe.shard_id(name)
+        return self._pipe.shard_id()
+
+    def if_reader_pads(self, name = None):
+        """Checks if the reader in the pipeline use padding
+
+        If the `name` parameter is `None`, returns a dictionary of pairs
+        `(reader name, if_reader_pads for that reader)`.
+        If the `name` parameter is not `None`, returns if_reader_pads for that
+        reader.
+
+        Parameters
+        ----------
+        name : str, optional, default = None
+            The reader which should be used to obtain if_reader_pads.
+        """
+
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if name is not None:
+            return self._pipe.if_reader_pads(name)
+        return self._pipe.if_reader_pads()
+
+    def if_sticks_to_shard(self, name = None):
+        """Checks if the reader in the pipeline sticks to the shard
+
+        If the `name` parameter is `None`, returns a dictionary of pairs
+        `(reader name, if_sticks_to_shard for that reader)`.
+        If the `name` parameter is not `None`, returns if_sticks_to_shard for that
+        reader.
+
+        Parameters
+        ----------
+        name : str, optional, default = None
+            The reader which should be used to obtain if_sticks_to_shard.
+        """
+
+        if not self._built:
+            raise RuntimeError("Pipeline must be built first.")
+        if name is not None:
+            return self._pipe.if_sticks_to_shard(name)
+        return self._pipe.if_sticks_to_shard()
 
     @staticmethod
     def current():
@@ -252,7 +335,7 @@ Parameters
         self._api_type = type
 
     def _check_api_type(self, type):
-        if self._api_type == None:
+        if self._api_type is None:
             self._set_api_type(type)
         if type != self._api_type:
             raise RuntimeError("Mixing pipeline API type. Currently used: " + str(self._api_type) +

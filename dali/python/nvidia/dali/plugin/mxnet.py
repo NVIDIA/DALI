@@ -15,8 +15,6 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from nvidia.dali.backend import TensorGPU, TensorListGPU
-from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import types
 import mxnet as mx
 import ctypes
@@ -74,10 +72,11 @@ class _DALIIteratorBase(mx.io.DataIter):
     """
     def __init__(self,
                  pipelines,
-                 size,
-                 fill_last_batch,
-                 last_batch_padded,
-                 auto_reset):
+                 size=-1,
+                 reader_name=None,
+                 fill_last_batch=False,
+                 last_batch_padded=False,
+                 auto_reset=False):
         assert pipelines is not None, "Number of provided pipelines has to be at least 1"
         if not isinstance(pipelines, list):
             pipelines = [pipelines]
@@ -90,11 +89,41 @@ class _DALIIteratorBase(mx.io.DataIter):
         self._size = int(size)
         self._auto_reset = auto_reset
         assert self._size != 0, "Size cannot be 0"
-        assert self._size > 0 or (self._size < 0 and len(pipelines) == 1), "Negative size is supported only for a single pipeline"
-        if self._size < 0:
+        assert self._size > 0 or (self._size < 0 and (len(pipelines) == 1 or reader_name)), "Negative size is supported only for a single pipeline"
+        assert not reader_name or (reader_name and self._size < 0), "When reader_name is provided, size should not be set"
+        if self._size < 0 and not reader_name:
             self._auto_reset = False
             self._fill_last_batch = False
             self._last_batch_padded = False
+        # Build all pipelines
+        for p in self._pipes:
+            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
+                p.build()
+
+        self._reader_name = reader_name
+        if self._reader_name:
+            self._size_no_pad = self._pipes[0].epoch_size(self._reader_name, False)
+            assert np.all(np.equal([p.epoch_size(self._reader_name, False) for p in self._pipes], self._size_no_pad)), \
+                "All pipelines readers should have the same size, check if they are reading the same data"
+
+            self._shards_num = self._pipes[0].shards_number(self._reader_name)
+            assert np.all(np.equal([p.shards_number(self._reader_name) for p in self._pipes], self._shards_num)), \
+                "All pipelines readers should have the same shard number set"
+
+            self._shards_id = [p.shard_id(self._reader_name) for p in self._pipes]
+
+            assert np.all([p.if_reader_pads(self._reader_name) for p in self._pipes]) or \
+                   not np.any([p.if_reader_pads(self._reader_name) for p in self._pipes]), \
+                "All pipelines readers should have set padding in the same way"
+            self._if_reader_pads = self._pipes[0].if_reader_pads(self._reader_name)
+
+            assert np.all([p.if_sticks_to_shard(self._reader_name) for p in self._pipes]) or \
+                   not np.any([p.if_sticks_to_shard(self._reader_name) for p in self._pipes]), \
+                "All pipelines readers should have set stick to the shard in the same way"
+            self._if_sticks_to_shard = self._pipes[0].if_sticks_to_shard(self._reader_name)
+            if self._if_reader_pads:
+                self._last_batch_padded = True
+            self._size = self._pipes[0].epoch_size(self._reader_name, True) // self._shards_num
 
 
     def next(self):
@@ -102,6 +131,9 @@ class _DALIIteratorBase(mx.io.DataIter):
         Returns the next batch of data.
         """
         return self.__next__()
+
+    def __next__(self):
+        raise NotImplementedError
 
     def __iter__(self):
         return self
@@ -133,6 +165,9 @@ class _DALIIteratorBase(mx.io.DataIter):
         if self._counter >= self._size and self._size > 0:
             if self._auto_reset:
                 self.reset()
+            # advance to the next shard
+            if self._reader_name and not self._if_sticks_to_shard:
+                self._shards_id = [(v + 1) % self._shards_num for v in self._shards_id]
             raise StopIteration
 
 
@@ -184,12 +219,18 @@ class DALIGenericIterator(_DALIIteratorBase):
                  and DALIGenericIterator.LABEL_TAG mapping given output
                  for data or label correspondingly.
                  output_names should be distinct.
-    size : int
+    size : int, default = -1
           Number of samples in the epoch (Usually the size of the dataset).
           Providing -1 means that the iterator will work until StopIteration is raised
           from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
           `auto_reset` don't work in such case. It works with only one pipeline inside
           the iterator.
+          Mutually exclusive with `reader_name` argument
+    reader_name : str, default = None
+           Name of the reader which will be queried to the shard size, number of shards and
+           all other properties necessary to count properly the number of relevant and padded
+           samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
+           `last_batch_padded` accordingly
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     fill_last_batch : bool, optional, default = True
@@ -219,6 +260,7 @@ class DALIGenericIterator(_DALIIteratorBase):
                  epoch will end sooner as data from it was consumed but dropped. If set to
                  ``True`` next epoch would be the same length as the first one. For this to happen,
                  the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
+                 It is overwritten when `reader_name` argument is provided
 
     Example
     -------
@@ -235,7 +277,8 @@ class DALIGenericIterator(_DALIIteratorBase):
     def __init__(self,
                  pipelines,
                  output_map,
-                 size,
+                 size=-1,
+                 reader_name=None,
                  data_layout='NCHW',
                  fill_last_batch=True,
                  auto_reset=False,
@@ -245,15 +288,12 @@ class DALIGenericIterator(_DALIIteratorBase):
         super(DALIGenericIterator, self).__init__(
             pipelines,
             size,
+            reader_name,
             fill_last_batch,
             last_batch_padded,
             auto_reset)
         self._squeeze_labels = squeeze_labels
         self._dynamic_shape = dynamic_shape
-        # Build all pipelines
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.build()
         # Use double-buffering of data batches
         self._data_batches = [[None] for i in range(self._num_gpus)]
         self._current_data_batch = 0
@@ -367,12 +407,22 @@ class DALIGenericIterator(_DALIIteratorBase):
                 p.schedule_run()
 
         copy_db_index = self._current_data_batch
-        # Change index for double buffering
-        self._current_data_batch = (self._current_data_batch + 1) % 1
-        self._counter += self._num_gpus * self.batch_size
+        if self._reader_name:
+            self._counter += self.batch_size
+            if not self._fill_last_batch and self._last_batch_padded:
+                # calculate each shard size for each id, and check how many samples are left by substracting from iterator counter
+                # the shard size, then go though all GPUs and return only relevant data by stripping padded one
+                left = [self._counter - int((id + 1) * self._size_no_pad / self._shards_num) + int(id * self._size_no_pad / self._shards_num) for id in self._shards_id]
+                if_padded = np.greater(left, 0)
+                if np.any(if_padded):
+                    for i, to_pad in zip(range(self._num_gpus), left):
+                        self._data_batches[i][copy_db_index].pad = to_pad
 
-        # padding the last batch
-        if (not self._fill_last_batch) and (self._counter > self._size) and self._size > 0:
+        else:
+            self._counter += self._num_gpus * self.batch_size
+
+            # padding the last batch
+            if (not self._fill_last_batch) and (self._counter > self._size) and self._size > 0:
                 # this is the last batch and we need to pad
                 overflow = self._counter - self._size
                 overflow_per_device = overflow // self._num_gpus
@@ -382,9 +432,9 @@ class DALIGenericIterator(_DALIIteratorBase):
                         self._data_batches[i][copy_db_index].pad = overflow_per_device
                     else:
                         self._data_batches[i][copy_db_index].pad = overflow_per_device + 1
-        else:
-            for db in self._data_batches:
-                db[copy_db_index].pad = 0
+            else:
+                for db in self._data_batches:
+                    db[copy_db_index].pad = 0
 
         return [db[copy_db_index] for db in self._data_batches]
 
@@ -420,12 +470,18 @@ class DALIClassificationIterator(DALIGenericIterator):
     ----------
     pipelines : list of nvidia.dali.pipeline.Pipeline
                 List of pipelines to use
-    size : int
+    size : int, default = -1
            Number of samples in the epoch (Usually the size of the dataset).
            Providing -1 means that the iterator will work until StopIteration is raised
            from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
            `auto_reset` don't work in such case. It works with only one pipeline inside
            the iterator.
+           Mutually exclusive with `reader_name` argument
+    reader_name : str, default = None
+           Name of the reader which will be queried to the shard size, number of shards and
+           all other properties necessary to count properly the number of relevant and padded
+           samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
+           `last_batch_padded` accordingly
     data_name : str, optional, default = 'data'
                 Data name for provided symbols.
     label_name : str, optional, default = 'softmax_label'
@@ -459,6 +515,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                  epoch will end sooner as data from it was consumed but dropped. If set to
                  ``True`` next epoch would be the same length as the first one. For this to happen,
                  the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
+                 It is overwritten when `reader_name` argument is provided
 
     Example
     -------
@@ -474,7 +531,8 @@ class DALIClassificationIterator(DALIGenericIterator):
     """
     def __init__(self,
                  pipelines,
-                 size,
+                 size=-1,
+                 reader_name=None,
                  data_name='data',
                  label_name='softmax_label',
                  data_layout='NCHW',
@@ -487,8 +545,9 @@ class DALIClassificationIterator(DALIGenericIterator):
                                                          [(data_name, DALIClassificationIterator.DATA_TAG),
                                                           (label_name, DALIClassificationIterator.LABEL_TAG)],
                                                          size,
-                                                         data_layout     = data_layout,
-                                                         fill_last_batch = fill_last_batch,
+                                                         reader_name=reader_name,
+                                                         data_layout=data_layout,
+                                                         fill_last_batch=fill_last_batch,
                                                          auto_reset = auto_reset,
                                                          squeeze_labels=squeeze_labels,
                                                          dynamic_shape=dynamic_shape,
@@ -541,12 +600,18 @@ class DALIGluonIterator(_DALIIteratorBase):
     ----------
     pipelines : list of nvidia.dali.pipeline.Pipeline
                 List of pipelines to use
-    size : int
+    size : int, default = -1
           Number of samples in the epoch (Usually the size of the dataset).
           Providing -1 means that the iterator will work until StopIteration is raised
           from the inside of iter_setup(). The options `fill_last_batch`, `last_batch_padded` and
           `auto_reset` don't work in such case. It works with only one pipeline inside
           the iterator.
+           Mutually exclusive with `reader_name` argument
+    reader_name : str, default = None
+           Name of the reader which will be queried to the shard size, number of shards and
+           all other properties necessary to count properly the number of relevant and padded
+           samples that iterator needs to deal with. It automatically sets `fill_last_batch` and
+           `last_batch_padded` accordingly
     output_types : list of str, optional, default = None
                  List of tags indicating whether the pipeline(s) output batch is
                  uniform (all the samples have the same size) or not. Batch output marked
@@ -575,6 +640,7 @@ class DALIGluonIterator(_DALIIteratorBase):
                  epoch will end sooner as data from it was consumed but dropped. If set to
                  ``True`` next epoch would be the same length as the first one. For this to happen,
                  the option `pad_last_batch` in the reader needs to be set to ``True`` as well.
+                 It is overwritten when `reader_name` argument is provided
 
     Example
     -------
@@ -591,7 +657,8 @@ class DALIGluonIterator(_DALIIteratorBase):
     """
     def __init__(self,
                  pipelines,
-                 size,
+                 size=-1,
+                 reader_name=None,
                  output_types=None,
                  auto_reset=False,
                  fill_last_batch=True,
@@ -599,14 +666,11 @@ class DALIGluonIterator(_DALIIteratorBase):
         super(DALIGluonIterator, self).__init__(
             pipelines,
             size,
+            reader_name,
             fill_last_batch,
             last_batch_padded,
             auto_reset)
 
-        # Build all pipelines
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.build()
         self._data_batches = [None for i in range(self._num_gpus)]
         self._output_tags = {DALIGluonIterator.DENSE_TAG, DALIGluonIterator.SPARSE_TAG}
         assert output_types is None or set(output_types) <= self._output_tags, \
@@ -663,26 +727,44 @@ class DALIGluonIterator(_DALIIteratorBase):
                 p.release_outputs()
                 p.schedule_run()
 
-        self._counter += self._num_gpus * self.batch_size
-        if (not self._fill_last_batch) and (self._counter > self._size) and self._size > 0:
-            # First calculate how much data is required to return exactly self._size entries.
-            diff = self._num_gpus * self.batch_size - (self._counter - self._size)
-            # Figure out how many GPUs to grab from.
-            numGPUs_tograb = int(np.ceil(diff/self.batch_size))
-            # Figure out how many results to grab from the last GPU (as a fractional GPU batch may be required to
-            # bring us right up to self._size).
-            mod_diff = diff % self.batch_size
-            data_fromlastGPU = mod_diff if mod_diff else self.batch_size
+        if self._reader_name:
+            self._counter += self.batch_size
+            if not self._fill_last_batch and self._last_batch_padded:
+                # calculate each shard size for each id, and check how many samples are left by substracting from iterator counter
+                # the shard size, then go though all GPUs and return only relevant data by stripping padded one
+                left = [self._counter - int((id + 1) * self._size_no_pad / self._shards_num) + int(id * self._size_no_pad / self._shards_num) for id in self._shards_id]
+                left = [self.batch_size - l for l in left]
+                if_padded = np.less(left, self.batch_size)
+                if np.any(if_padded):
+                    output = []
+                    for batch, to_copy in zip(batches, left):
+                        batch = batch.copy()
+                        for element_idx in range(len(batch)):
+                            batch[element_idx] = batch[element_idx][0:to_copy]
+                        output.append(batch)
+                    return output
 
-            # Grab the relevant data.
-            # 1) Grab everything from the relevant GPUs.
-            # 2) Grab the right data from the last GPU.
-            # 3) Append data together correctly and return.
-            output = batches[0:numGPUs_tograb]
-            output[-1] = output[-1].copy()
-            for element_idx in range(len(output[-1])):
-                output[-1][element_idx] = output[-1][element_idx][0:data_fromlastGPU]
-            return output
+        else:
+            self._counter += self._num_gpus * self.batch_size
+            if (not self._fill_last_batch) and (self._counter > self._size) and self._size > 0:
+                # First calculate how much data is required to return exactly self._size entries.
+                diff = self._num_gpus * self.batch_size - (self._counter - self._size)
+                # Figure out how many GPUs to grab from.
+                numGPUs_tograb = int(np.ceil(diff/self.batch_size))
+                # Figure out how many results to grab from the last GPU (as a fractional GPU batch may be required to
+                # bring us right up to self._size).
+                mod_diff = diff % self.batch_size
+                data_fromlastGPU = mod_diff if mod_diff else self.batch_size
+
+                # Grab the relevant data.
+                # 1) Grab everything from the relevant GPUs.
+                # 2) Grab the right data from the last GPU.
+                # 3) Append data together correctly and return.
+                output = batches[0:numGPUs_tograb]
+                output[-1] = output[-1].copy()
+                for element_idx in range(len(output[-1])):
+                    output[-1][element_idx] = output[-1][element_idx][0:data_fromlastGPU]
+                return output
 
         return batches
 

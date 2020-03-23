@@ -228,16 +228,33 @@ class Loader {
     }
     return SizeImpl();
   }
+
   // Give the size of the data accessed externally from python
-  Index SizePadded() {
+  Index SizePadded(bool consider_padding = true) {
     if (!loading_flag_) {
       PrepareMetadata();
     }
-    if (pad_last_batch_) {
+    if (pad_last_batch_ && consider_padding) {
       return num_samples(num_shards_, SizeImpl()) * num_shards_;
     } else {
       return SizeImpl();
     }
+  }
+
+  int GetShardNumber() {
+    return num_shards_;
+  }
+
+  int GetShardId() {
+    return shard_id_;
+  }
+
+  int PadLastBatch() {
+    return pad_last_batch_;
+  }
+
+  int StickToShard() {
+    return stick_to_shard_;
   }
 
  protected:

@@ -370,10 +370,34 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC inline int batch_size() const { return batch_size_; }
 
   /**
-   * @brief Returns the map of (node name, node's epoch size)
+   * @brief Returns the map of (node name, node's epoch size with pad if consider_padding is set to trye)
    * for all nodes that return a valid epoch size
    */
-  DLL_PUBLIC std::map<std::string, Index> EpochSize();
+  DLL_PUBLIC std::map<std::string, Index> EpochSize(bool consider_padding = true);
+
+  /**
+   * @brief Returns the map of (node name, node's number of shards)
+   * for all nodes that return a valid shards numbers
+   */
+  DLL_PUBLIC std::map<std::string, int> NumberOfShards();
+
+  /**
+   * @brief Returns the map of (node name, node's shard id)
+   * for all nodes that return a valid shard ids
+   */
+  DLL_PUBLIC std::map<std::string, int> ShardId();
+
+  /**
+   * @brief Returns the map of (node name, node's pad info)
+   * for all nodes that information about padding
+   */
+  DLL_PUBLIC std::map<std::string, bool> IfReaderPads();
+
+  /**
+   * @brief Returns the map of (node name, node's stick to the shard info)
+   * for all nodes that information about sticking to the shard
+   */
+  DLL_PUBLIC std::map<std::string, bool> IfSticksToShard();
 
   /**
    * @brief Returns the number of threads used by the pipeline.

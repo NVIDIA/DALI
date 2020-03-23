@@ -1084,13 +1084,47 @@ PYBIND11_MODULE(backend_impl, m) {
         "show_tensors"_a = false,
         "show_ids"_a = false,
         "use_colors"_a = false)
-    .def("epoch_size", &Pipeline::EpochSize)
+    .def("epoch_size",  [](Pipeline* p, bool with_padding) {
+          return p->EpochSize(with_padding);
+        })
     .def("epoch_size",
-        [](Pipeline* p, const std::string& op_name) {
-          std::map<std::string, Index> sizes = p->EpochSize();
+        [](Pipeline* p, const std::string& op_name, bool with_padding) {
+          std::map<std::string, Index> sizes = p->EpochSize(with_padding);
           DALI_ENFORCE(sizes.find(op_name) != sizes.end(),
               "Operator " + op_name + " does not expose valid epoch size.");
           return sizes[op_name];
+        })
+    .def("shards_number", &Pipeline::NumberOfShards)
+    .def("shards_number",
+        [](Pipeline* p, const std::string& op_name) {
+          std::map<std::string, int> shards = p->NumberOfShards();
+          DALI_ENFORCE(shards.find(op_name) != shards.end(),
+              "Operator " + op_name + " does not expose valid number of shards.");
+          return shards[op_name];
+        })
+    .def("shard_id", &Pipeline::ShardId)
+    .def("shard_id",
+        [](Pipeline* p, const std::string& op_name) {
+          std::map<std::string, int> ids = p->ShardId();
+          DALI_ENFORCE(ids.find(op_name) != ids.end(),
+              "Operator " + op_name + " does not expose valid epoch size.");
+          return ids[op_name];
+        })
+    .def("if_reader_pads", &Pipeline::IfReaderPads)
+    .def("if_reader_pads",
+        [](Pipeline* p, const std::string& op_name) {
+          std::map<std::string, bool> pads = p->IfReaderPads();
+          DALI_ENFORCE(pads.find(op_name) != pads.end(),
+              "Operator " + op_name + " does not expose valid epoch size.");
+          return pads[op_name];
+        })
+    .def("if_sticks_to_shard", &Pipeline::IfSticksToShard)
+    .def("if_sticks_to_shard",
+        [](Pipeline* p, const std::string& op_name) {
+          std::map<std::string, bool> sticks = p->IfSticksToShard();
+          DALI_ENFORCE(sticks.find(op_name) != sticks.end(),
+              "Operator " + op_name + " does not expose valid epoch size.");
+          return sticks[op_name];
         });
 
 #define DALI_OPSPEC_ADDARG(T) \

@@ -180,7 +180,7 @@ def test_mxnet_iterator_empty_array():
     outs = fn.external_source(source = get_data, num_outputs = len(np_types) * 2)
     pipe.set_outputs(*outs)
     pipe.build()
-    
+
     # create map of [(data, type_a), (label, type_a), ...]
     data_map = [('data_{}'.format(i), MXNetIterator.DATA_TAG) for i, t in enumerate(np_types)]
     label_map = [('label_{}'.format(i), MXNetIterator.LABEL_TAG) for i, t in enumerate(np_types)]
@@ -256,6 +256,36 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
     assert len(next_img_ids_list) - pad == data_size
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) == 1
+
+def check_mxnet_iterator_pass_reader_name(shards_num, batch_size, stick_to_shard, pad, iters):
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
+                                data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
+                                shuffle_after_epoch=False, pad_last_batch=pad) for id in range(shards_num)]
+    dali_train_iter = MXNetIterator(pipes, [("ids", MXNetIterator.DATA_TAG)], reader_name="Reader", fill_last_batch=False)
+    for _ in range(iters):
+        out_set = []
+        img_ids_list = [[] for _ in range(shards_num)]
+        for it in iter(dali_train_iter):
+            for id in range(shards_num):
+                tmp = it[id].data[0].squeeze().asnumpy().copy()
+                if it[id].pad:
+                     tmp = tmp[0:-it[id].pad]
+                img_ids_list[id].append(tmp)
+        dali_train_iter.reset()
+        for id in range(shards_num):
+            img_ids_list[id] = np.concatenate(img_ids_list[id])
+            out_set.append(set(img_ids_list[id]))
+        assert len(set.intersection(*out_set)) == 0, "Shards should not overlaps in the epoch"
+        assert len(set.union(*out_set)) == sum([len(v) for v in img_ids_list]), "Data returned from shard should not duplicate values"
+
+def test_mxnet_iterator_pass_reader_name():
+    for shards_num in [3, 5, 17]:
+        for batch_size in [3, 5, 7]:
+            for stick_to_shard in [False, True]:
+                for pad in [True]:
+                    for iters in [1, 2, 3]:
+                       yield check_mxnet_iterator_pass_reader_name, shards_num, batch_size, stick_to_shard, pad, iters
 
 def test_gluon_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
@@ -341,7 +371,7 @@ def test_gluon_iterator_sparse_batch():
                                                                   shuffle_after_epoch=False, pad_last_batch=True, return_labels=True), batch_size, num_gpus)
 
     dali_train_iter = GluonIterator(pipes, pipes[0].epoch_size("Reader"),
-                                           [GluonIterator.SPARSE_TAG,
+                                           output_types=[GluonIterator.SPARSE_TAG,
                                             GluonIterator.DENSE_TAG],
                                             fill_last_batch=True)
 
@@ -354,6 +384,38 @@ def test_gluon_iterator_sparse_batch():
         assert isinstance(labels[0], NDArray)
         assert isinstance(ids, NDArray)
 
+
+def check_gluon_iterator_pass_reader_name(shards_num, batch_size, stick_to_shard, pad, iters):
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
+                                data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
+                                shuffle_after_epoch=False, pad_last_batch=pad) for id in range(shards_num)]
+    dali_train_iter = GluonIterator(pipes, reader_name="Reader", fill_last_batch=False)
+
+    for _ in range(iters):
+        out_set = []
+        img_ids_list = [[] for _ in range(shards_num)]
+        for it in iter(dali_train_iter):
+            for id in range(shards_num):
+                if len(it[id][0]):
+                    tmp = it[id][0].squeeze().asnumpy().copy()
+                else:
+                    tmp = np.empty([0])
+                img_ids_list[id].append(tmp)
+        dali_train_iter.reset()
+        for id in range(shards_num):
+            img_ids_list[id] = np.concatenate(img_ids_list[id])
+            out_set.append(set(img_ids_list[id]))
+        assert len(set.intersection(*out_set)) == 0, "Shards should not overlaps in the epoch"
+        assert len(set.union(*out_set)) == sum([len(v) for v in img_ids_list]), "Data returned from shard should not duplicate values"
+
+def test_gluon_iterator_pass_reader_name():
+    for shards_num in [3, 5, 17]:
+        for batch_size in [3, 5, 7]:
+            for stick_to_shard in [False, True]:
+                for pad in [True]:
+                    for iters in [1, 2, 3]:
+                         yield check_gluon_iterator_pass_reader_name, shards_num, batch_size, stick_to_shard, pad, iters
 
 def test_pytorch_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
@@ -525,6 +587,34 @@ def test_paddle_iterator_feed_ndarray():
         feed_ndarray(out_data, ptr2, cuda_stream = 0)  # Using default stream
         np.testing.assert_equal(np.array(lod_tensor2), outs[0].as_cpu().as_array())
 
+def check_pytorch_iterator_pass_reader_name(shards_num, batch_size, stick_to_shard, pad, iters):
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
+                                data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
+                                shuffle_after_epoch=False, pad_last_batch=pad) for id in range(shards_num)]
+    dali_train_iter = PyTorchIterator(pipes, output_map=["data"], reader_name="Reader", fill_last_batch=False)
+    for _ in range(iters):
+        out_set = []
+        img_ids_list = [[] for _ in range(shards_num)]
+        for it in iter(dali_train_iter):
+            for id in range(shards_num):
+                tmp = it[id]["data"].squeeze(dim=1).numpy().copy()
+                img_ids_list[id].append(tmp)
+        dali_train_iter.reset()
+        for id in range(shards_num):
+            img_ids_list[id] = np.concatenate(img_ids_list[id])
+            out_set.append(set(img_ids_list[id]))
+        assert len(set.intersection(*out_set)) == 0, "Shards should not overlaps in the epoch"
+        assert len(set.union(*out_set)) == sum([len(v) for v in img_ids_list]), "Data returned from shard should not duplicate values"
+
+def test_pytorch_iterator_pass_reader_name():
+    for shards_num in [3, 5, 17]:
+        for batch_size in [3, 5, 7]:
+            for stick_to_shard in [False, True]:
+                for pad in [True]:
+                    for iters in [1, 2, 3]:
+                        yield check_pytorch_iterator_pass_reader_name, shards_num, batch_size, stick_to_shard, pad, iters
+
 def test_paddle_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     num_gpus = 1
@@ -569,7 +659,6 @@ def test_paddle_iterator_last_batch_pad_last_batch():
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) == 1
 
-
 def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     num_gpus = 1
@@ -598,6 +687,35 @@ def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
     assert len(next_img_ids_list) == data_size
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) != 1
+
+
+def check_paddle_iterator_pass_reader_name(shards_num, batch_size, stick_to_shard, pad, iters):
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=id, num_gpus=shards_num,
+                                data_paths=data_sets[0], random_shuffle=False, stick_to_shard=stick_to_shard,
+                                shuffle_after_epoch=False, pad_last_batch=pad) for id in range(shards_num)]
+    dali_train_iter = PaddleIterator(pipes, output_map=["data"], reader_name="Reader", fill_last_batch=False)
+    for _ in range(iters):
+        out_set = []
+        img_ids_list = [[] for _ in range(shards_num)]
+        for it in iter(dali_train_iter):
+            for id in range(shards_num):
+                tmp = np.array(it[id]["data"]).squeeze(axis=1).copy()
+                img_ids_list[id].append(tmp)
+        dali_train_iter.reset()
+        for id in range(shards_num):
+            img_ids_list[id] = np.concatenate(img_ids_list[id])
+            out_set.append(set(img_ids_list[id]))
+        assert len(set.intersection(*out_set)) == 0, "Shards should not overlaps in the epoch"
+        assert len(set.union(*out_set)) == sum([len(v) for v in img_ids_list]), "Data returned from shard should not duplicate values"
+
+def test_paddle_iterator_pass_reader_name():
+    for shards_num in [3, 5, 17]:
+        for batch_size in [3, 5, 7]:
+            for stick_to_shard in [False, True]:
+                for pad in [True]:
+                    for iters in [1, 2, 3]:
+                        yield check_paddle_iterator_pass_reader_name, shards_num, batch_size, stick_to_shard, pad, iters
 
 class TestIterator():
     def __init__(self, n, batch_size):
@@ -666,14 +784,14 @@ def check_stop_iter_fail_multi(fw_iter):
     batch_size = 1
     iter_num = 1
     pipes = [TestIterPipeline(batch_size, 0, TestIterator(iter_num, batch_size)) for _ in range(2)]
-    loader = fw_iter(pipes, -1, False)
+    fw_iter(pipes, -1, False)
 
 @raises(Exception)
 def check_stop_iter_fail_single(fw_iter):
     batch_size = 1
     iter_num = 1
     pipes = [TestIterPipeline(batch_size, 0, TestIterator(iter_num, batch_size)) for _ in range(1)]
-    loader = fw_iter(pipes, 0, False)
+    fw_iter(pipes, 0, False)
 
 def stop_teration_case_generator():
     for epochs in [1, 3 ,6]:
@@ -704,7 +822,7 @@ def test_stop_iteration_mxnet_fail_single():
 # Gluon
 def test_stop_iteration_gluon():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
-    fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size, [GluonIterator.DENSE_TAG], auto_reset=auto_reset)
+    fw_iter = lambda pipe, size, auto_reset : GluonIterator(pipe, size, output_types=[GluonIterator.DENSE_TAG], auto_reset=auto_reset)
     iter_name = "GluonIterator"
     for batch_size, epochs, iter_num, auto_reset, infinite in stop_teration_case_generator():
         yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, auto_reset, infinite

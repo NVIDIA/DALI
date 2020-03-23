@@ -711,20 +711,96 @@ OpNode * Pipeline::GetOperatorNode(const std::string& name) {
   return &(graph_.Node(name));
 }
 
-std::map<std::string, Index> Pipeline::EpochSize() {
+std::map<std::string, Index> Pipeline::EpochSize(bool consider_padding) {
   std::map<std::string, Index> ret;
   for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
     const OpNode &current = graph_.Node(OpType::CPU, i);
-    Index epoch_size = current.op->epoch_size();
+    Index epoch_size = current.op->epoch_size(consider_padding);
     if (epoch_size != -1) {
       ret.insert(make_pair(current.instance_name, epoch_size));
     }
   }
   for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
     const OpNode &current = graph_.Node(OpType::GPU, i);
-    Index epoch_size = current.op->epoch_size();
+    Index epoch_size = current.op->epoch_size(consider_padding);
     if (epoch_size != -1) {
       ret.insert(make_pair(current.instance_name, epoch_size));
+    }
+  }
+  return ret;
+}
+
+std::map<std::string, int> Pipeline::NumberOfShards() {
+  std::map<std::string, int> ret;
+  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::CPU, i);
+    int number_of_shards = current.op->number_of_shards();
+    if (number_of_shards != -1) {
+      ret.insert(make_pair(current.instance_name, number_of_shards));
+    }
+  }
+  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::GPU, i);
+    int number_of_shards = current.op->number_of_shards();
+    if (number_of_shards != -1) {
+      ret.insert(make_pair(current.instance_name, number_of_shards));
+    }
+  }
+  return ret;
+}
+
+std::map<std::string, int> Pipeline::ShardId() {
+  std::map<std::string, int> ret;
+  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::CPU, i);
+    int shard_id = current.op->shard_id();
+    if (shard_id != -1) {
+      ret.insert(make_pair(current.instance_name, shard_id));
+    }
+  }
+  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::GPU, i);
+    int shard_id = current.op->shard_id();
+    if (shard_id != -1) {
+      ret.insert(make_pair(current.instance_name, shard_id));
+    }
+  }
+  return ret;
+}
+
+std::map<std::string, bool> Pipeline::IfReaderPads() {
+  std::map<std::string, bool> ret;
+  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::CPU, i);
+    int if_pads = current.op->if_pads();
+    if (if_pads != -1) {
+      ret.insert(make_pair(current.instance_name, !!if_pads));
+    }
+  }
+  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::GPU, i);
+    int if_pads = current.op->if_pads();
+    if (if_pads != -1) {
+      ret.insert(make_pair(current.instance_name, !!if_pads));
+    }
+  }
+  return ret;
+}
+
+std::map<std::string, bool> Pipeline::IfSticksToShard() {
+  std::map<std::string, bool> ret;
+  for (Index i = 0; i < graph_.NumOp(OpType::CPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::CPU, i);
+    int if_sticks = current.op->if_sticks();
+    if (if_sticks != -1) {
+      ret.insert(make_pair(current.instance_name, !!if_sticks));
+    }
+  }
+  for (Index i = 0; i < graph_.NumOp(OpType::GPU); ++i) {
+    const OpNode &current = graph_.Node(OpType::GPU, i);
+    int if_sticks = current.op->if_sticks();
+    if (if_sticks != -1) {
+      ret.insert(make_pair(current.instance_name, !!if_sticks));
     }
   }
   return ret;

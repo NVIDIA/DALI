@@ -57,7 +57,8 @@ class HybridTrainPipe(Pipeline):
             num_shards=world_size,
             ratio=True,
             ltrb=True,
-            shuffle_after_epoch=True)
+            shuffle_after_epoch=True,
+            pad_last_batch=True)
 
         self.crop = ops.RandomBBoxCrop(
             device="cpu",
@@ -102,7 +103,7 @@ class HybridTrainPipe(Pipeline):
         hue = self.rng3()
         flip = self.coin()
 
-        images, bboxes, labels = self.reader()
+        images, bboxes, labels = self.reader(name="Reader")
 
         crop_begin, crop_size, bboxes, labels = self.crop(bboxes, labels)
         bboxes = self.bbflip(bboxes, horizontal=flip)
@@ -160,10 +161,9 @@ def main():
             FLAGS.num_threads, local_rank=idx, world_size=world_size)
         for idx, p in enumerate(places)]
 
-    sample_per_shard = 118287 // world_size
     train_loader = DALIGenericIterator(
         pipelines, ['image', ('gt_box', 1), ('gt_label', 1)],
-        sample_per_shard, auto_reset=True, dynamic_shape=True)
+        reader_name="Reader", fill_last_batch=False, auto_reset=True, dynamic_shape=True)
 
     FLAGS.whole_batch_size = FLAGS.batch_size * world_size
     total_steps = 400000

@@ -424,6 +424,8 @@ TYPED_TEST(ReaderTest, ResetLoaderTestNoPad) {
 
   ASSERT_EQ(tl_even.Size(), tl_even.SizePadded());
   ASSERT_EQ(tl_odd.Size(), tl_odd.SizePadded());
+  ASSERT_EQ(tl_even.Size(), tl_even.SizePadded(false));
+  ASSERT_EQ(tl_odd.Size(), tl_odd.SizePadded(false));
 }
 
 TYPED_TEST(ReaderTest, ResetLoaderTestPad) {
@@ -457,6 +459,9 @@ TYPED_TEST(ReaderTest, ResetLoaderTestPad) {
 
   ASSERT_EQ(tl_even.Size(), tl_even.SizePadded());
   ASSERT_NE(tl_odd.Size(), tl_odd.SizePadded());
+
+  ASSERT_EQ(tl_even.Size(), tl_even.SizePadded(false));
+  ASSERT_EQ(tl_odd.Size(), tl_odd.SizePadded(false));
 
   ASSERT_EQ(tl_even.SizePadded(), tl_even.internal_size_);
   ASSERT_EQ(tl_odd.SizePadded(),

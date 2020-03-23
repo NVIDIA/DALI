@@ -17,8 +17,9 @@ import nvidia.dali.types as types
 class VideoReaderPipeline(Pipeline):
     def __init__(self, batch_size, sequence_length, num_threads, device_id, files, crop_size):
         super(VideoReaderPipeline, self).__init__(batch_size, num_threads, device_id, seed=12)
-        self.reader = ops.VideoReader(device="gpu", filenames=files, sequence_length=sequence_length, normalized=False,
-                                     random_shuffle=True, image_type=types.RGB, dtype=types.UINT8, initial_fill=16)
+        self.reader = ops.VideoReader(device="gpu", filenames=files, sequence_length=sequence_length,
+                                     normalized=False, random_shuffle=True, image_type=types.RGB,
+                                     dtype=types.UINT8, initial_fill=16, pad_last_batch=True)
         self.crop = ops.Crop(device="gpu", crop=crop_size, output_dtype=types.FLOAT)
         self.uniform = ops.Uniform(range=(0.0, 1.0))
         self.transpose = ops.Transpose(device="gpu", perm=[3, 0, 1, 2])
@@ -43,7 +44,8 @@ class DALILoader():
         self.epoch_size = self.pipeline.epoch_size("Reader")
         self.dali_iterator = pytorch.DALIGenericIterator(self.pipeline,
                                                          ["data"],
-                                                         self.epoch_size,
+                                                         reader_name="Reader",
+                                                         fill_last_batch=False,
                                                          auto_reset=True)
     def __len__(self):
         return int(self.epoch_size)

@@ -152,7 +152,39 @@ class DLL_PUBLIC OperatorBase {
    * @brief For reader Ops, returns the size of the dataset
    * For all other Ops, returns -1
    */
-  DLL_PUBLIC virtual Index epoch_size() const {
+  DLL_PUBLIC virtual Index epoch_size(bool consider_padding = true) const {
+    return -1;
+  }
+
+  /**
+   * @brief For reader Ops, returns the number of shards for given reader
+   * For all other Ops, returns -1
+   */
+  DLL_PUBLIC virtual int number_of_shards() const {
+    return -1;
+  }
+
+  /**
+   * @brief For reader Ops, returns the shard id
+   * For all other Ops, returns -1
+   */
+  DLL_PUBLIC virtual int shard_id() const {
+    return -1;
+  }
+
+  /**
+   * @brief For reader Ops, returns if padding is applied in the reader
+   * For all other Ops, returns -1
+   */
+  DLL_PUBLIC virtual int if_pads() const {
+    return -1;
+  }
+
+  /**
+   * @brief For reader Ops, returns if the reader should stick to the assigned shard
+   * For all other Ops, returns -1
+   */
+  DLL_PUBLIC virtual int if_sticks() const {
     return -1;
   }
 
