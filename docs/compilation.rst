@@ -1,6 +1,8 @@
 Compiling DALI from source
 ==========================
 
+.. _DockerBuilderAnchor:
+
 Compiling DALI from source (using Docker builder) - recommended
 ---------------------------------------------------------------
 
@@ -86,7 +88,7 @@ Prerequisites
 .. _opencv link: https://opencv.org
 .. |lmdb link| replace:: **liblmdb 0.9.x**
 .. _lmdb link: https://github.com/LMDB/lmdb
-.. |gcc link| replace:: **GCC 4.9.2**
+.. |gcc link| replace:: **GCC 5.3**
 .. _gcc link: https://www.gnu.org/software/gcc/
 .. |boost link| replace:: **Boost 1.66**
 .. _boost link: https://www.boost.org/
@@ -185,46 +187,84 @@ Prerequisites
     ./configure && make
 
 
-Get the DALI source
-+++++++++++++++++++
+Build DALI
+^^^^^^^^^^
+
+1. Get DALI source code:
 
 .. code-block:: bash
 
-  git clone --recursive https://github.com/NVIDIA/dali
-  cd dali
+  git clone --recursive https://github.com/NVIDIA/DALI
+  cd DALI
 
-Make the build directory
-++++++++++++++++++++++++
+2. Create a directory for CMake-generated Makefiles. This will be the directory, that DALI's built in.
 
 .. code-block:: bash
 
   mkdir build
   cd build
 
-
-Compile DALI
-^^^^^^^^^^^^
-
-Building DALI without LMDB support:
-+++++++++++++++++++++++++++++++++++
+3. Run CMake. For additional options you can pass to CMake, refer to :ref:`OptionalCmakeParamsAnchor`.
 
 .. code-block:: bash
 
-  cmake ..
-  make -j"$(nproc)"
+  cmake -D CMAKE_BUILD_TYPE=Release ..
 
-
-Building DALI with LMDB support:
-++++++++++++++++++++++++++++++++
+4. Build. You can use ``-j`` option to execute it in several threads
 
 .. code-block:: bash
 
-  cmake -DBUILD_LMDB=ON ..
   make -j"$(nproc)"
 
+.. _PythonBindingsAnchor:
 
-Building DALI using Clang (experimental):
-+++++++++++++++++++++++++++++++++++++++++
+Install Python bindings
++++++++++++++++++++++++
+
+In order to run DALI using Python API, you need to install Python bindings
+
+.. code-block:: bash
+
+    cd build
+    pip install dali/python
+
+.. note::
+
+  Although you can create a wheel here by calling ``pip wheel dali/python``, we don't really recommend doing so. Such whl is not self-contained (doesn't have all the dependencies) and it will work only on the system where you built DALI bare-metal. To build a wheel that contains the dependencies and might be therefore used on other systems, follow :ref:`DockerBuilderAnchor`.
+
+Verify the build (optional)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Obtain test data
+++++++++++++++++
+
+.. _DALI_extra_link: https://github.com/NVIDIA/DALI_extra#nvidia-dali
+
+You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data. To download it follow `DALI_extra README <https://github.com/NVIDIA/DALI_extra#nvidia-dali>`_. Keep in mind, that you need git-lfs to properly clone DALI_extra repo. To install git-lfs, follow `this tutorial <https://github.com/git-lfs/git-lfs/wiki/Tutorial>`_.
+
+
+Set test data path
+++++++++++++++++++
+
+DALI uses ``DALI_EXTRA_PATH`` environment variable to localize the test data. You can set it by invoking:
+
+.. code-block:: bash
+
+  $ export DALI_EXTRA_PATH=<path_to_DALI_extra>
+  e.g. export DALI_EXTRA_PATH=/home/yourname/workspace/DALI_extra
+
+Run tests
++++++++++
+
+DALI tests consist of 2 parts: C++ (GTest) and Python (usually Nose, but that's not always true). To run the tests there are convenient targets for Make, that you can run after building finished
+
+.. code-block:: bash
+
+  cd <path_to_DALI>/build
+  make check-gtest check-python
+
+Building DALI using Clang (experimental)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. note::
 
@@ -237,9 +277,10 @@ Building DALI using Clang (experimental):
   cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang  ..
   make -j"$(nproc)"
 
+.. _OptionalCmakeParamsAnchor:
 
-Optional CMake build parameters:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Optional CMake build parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 -  ``BUILD_PYTHON`` - build Python bindings (default: ON)
 -  ``BUILD_TEST`` - include building test suite (default: ON)
@@ -288,12 +329,6 @@ Following CMake parameters could be helpful in setting the right paths:
 * libjpeg-turbo options can be obtained from |libjpeg-turbo_cmake link|_
 * protobuf options can be obtained from |protobuf_cmake link|_
 
-Install Python bindings
-^^^^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: bash
-
-    pip install dali/python
 
 Cross-compiling DALI C++ API for aarch64 Linux (Docker)
 -------------------------------------------------------
