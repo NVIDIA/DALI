@@ -1,5 +1,6 @@
 # custom wrappers around ops
 from nvidia.dali import backend as _b
+import inspect
 
 def _check_data_batch(data, batch_size, layout):
     if isinstance(data, (list, tuple)):
@@ -36,6 +37,21 @@ class _CycleIter():
             self.it = iter(self.source)
             return next(self.it)
 
+class _CycleGenFunc():
+    def __init__(self, gen_func):
+        self.source = gen_func
+
+    def __iter__(self):
+        self.it = iter(self.source())
+        return self
+
+    def __next__(self):
+        try:
+            return next(self.it)
+        except StopIteration:
+            self.it = iter(self.source())
+            return next(self.it)
+
 class _ExternalSourceGroup(object):
     def __init__(self, callback, is_multioutput, instances = []):
         self.instances = list(instances)  # we need a copy!
@@ -66,21 +82,41 @@ class _ExternalSourceGroup(object):
             op = self.instances[0]
             pipeline.feed_input(op._name, data, op._layout)
 
+def _is_generator_function(x):
+    """Checks whether x is a generator function or a callable object
+    where __call__ is a generator function"""
+    if inspect.isgeneratorfunction(x):
+        return True
+    if x is None or inspect.isfunction(x):
+        return False
+    call = getattr(x, "__call__", None)
+    return _is_generator_function(call)
+
 def _get_callback_from_source(source, cycle):
     iterable = False
     if source is not None:
         try:
             if cycle:
-                iterator = iter(_CycleIter(source))
+                if inspect.isgenerator(source):
+                    raise TypeError("Cannot cycle through a generator - if the generator is a result "
+                        "of calling a generator function, pass that function instead as `source`.")
+                if _is_generator_function(source):
+                    iterator = iter(_CycleGenFunc(source))
+                else:
+                    iterator = iter(_CycleIter(source))
             else:
+                if _is_generator_function(source):
+                    source = source()
                 iterator = iter(source)
             iterable = True
             callback = lambda: next(iterator)
-        except TypeError:
+        except TypeError as err:
+            if "not iterable" not in str(err):
+                raise(err)
             if cycle is not None:
                 raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
             if not callable(source):
-                raise TypeError("Source must be iterable or callable")
+                raise TypeError("Source must be callable, iterable or a parameterless generator function")
             callback = source
     else:
         callback = None
@@ -104,13 +140,16 @@ Args
 ----
 
 `source` : callable or iterable
-    The source of the data. The source is polled for data (via a call `source()` or `next(source)`
+    The source of the data. The source is polled for data (via a call ``source()`` or ``next(source)``
     whenever the pipeline needs input for the next iteration. The source can supply one or more data
-    batches, depending on the value of `num_outputs`. If `num_outputs` is not set, the `source` is
+    batches, depending on the value of ``num_outputs``. If ``num_outputs`` is not set, the ``source`` is
     expected to return a single batch. If it's specified, the data is expected to a be tuple or list
     where each element corresponds to respective return value of the external_source.
     If the source is a callable and has a positional argument, it is assumed to be the current
-    iteration number and consecutive calls will be `source(0)`, `source(1)`, etc.
+    iteration number and consecutive calls will be ``source(0)``, ``source(1)``, etc.
+    If the source is a generator function, it is invoked and treated as an iterable - however,
+    unlike a gnerator, it can be used with ``cycle``, in which case the function will be called
+    again when the generator reaches end of iteration.
 
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists produced by the source function
@@ -119,17 +158,19 @@ Keyword Args
 ------------
 
 `cycle`: bool
-    If `True`, the source iterable will be wrapped. Otherwise, StopIteration error wil be raised
-    when end of data is reached. Setting this flag to True when `source` is not an iterable is an
-    error.
+    If ``True``, the source will be wrapped. Otherwise, StopIteration will be raised
+    when end of data is reached. This flag requires that ``source`` is either a collection, i.e. an
+    iterable object where ``iter(source)`` will return a fresh iterator on each call or a
+    generator function. In the latter case, the generator function will be called again when more
+    data is requested than was yielded by the function.
 
 `name` : str, optional
-    The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
-    the data is provided by `source`.
+    The name of the data node - used when feeding the data in ``iter_setup``; can be omitted if
+    the data is provided by ``source``.
 
 `layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof
-    If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
-    containing a distinct layout for each output. If the list has fewer elements than `num_outputs`,
+    If provided, sets the layout of the data. When ``num_outputs > 1``, layout can be a list
+    containing a distinct layout for each output. If the list has fewer elements than ``num_outputs``,
     only the first outputs have the layout set, the reset have it cleared.
 """
 
@@ -176,10 +217,11 @@ Keyword Args
             if cycle is not None:
                 if self._callback:
                     raise ValueError("The argument `cycle` can only be specified if `source` is an iterable object "
-                        "specified in this call. To cycle through an iterable specified in `__init__`, set cycle "
-                        "there.")
+                        "or a generator function specified in this call. To cycle through an iterable specified in "
+                        "`__init__`, set `cycle` there.")
                 else:
-                    raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
+                    raise ValueError("The argument `cycle` can only be specified if `source` is a "
+                                     "reusable iterable or a generator function.")
             callback = self._callback
         else:
             if self._callback is not None:
@@ -237,8 +279,8 @@ def _is_external_source_with_callback(op_instance):
 
 def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None):
     """Creates a data node which is populated with data from a Python source.
-The data can be provided by the `source` function or iterable, or it can be provided by
-`pipeline.feed_input(name, data, layout)` inside `pipeline.iter_setup`.
+The data can be provided by the ``source`` function or iterable, or it can be provided by
+``pipeline.feed_input(name, data, layout)`` inside ``pipeline.iter_setup``.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,

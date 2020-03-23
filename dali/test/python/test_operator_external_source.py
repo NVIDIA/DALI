@@ -235,3 +235,41 @@ def test_external_source_with_iter():
 
     for i in range(10):
         check_output(pipe.run(), [np.array([i + 1.5], dtype=np.float32)])
+
+def test_external_source_generator():
+    pipe = Pipeline(1, 3, 0)
+
+    def gen():
+        for i in range(5):
+            yield [np.array([i + 1.5], dtype=np.float32)]
+
+    pipe.set_outputs(fn.external_source(gen()))
+    pipe.build()
+
+    for i in range(5):
+        check_output(pipe.run(), [np.array([i + 1.5], dtype=np.float32)])
+
+def test_external_source_gen_function_cycle():
+    pipe = Pipeline(1, 3, 0)
+
+    def gen():
+        for i in range(5):
+            yield [np.array([i + 1.5], dtype=np.float32)]
+
+    pipe.set_outputs(fn.external_source(gen, cycle = True))
+    pipe.build()
+
+    for cycle in range(3):
+        for i in range(5):
+            check_output(pipe.run(), [np.array([i + 1.5], dtype=np.float32)])
+
+def test_external_source_generator_cycle_error():
+    pipe = Pipeline(1, 3, 0)
+
+    def gen():
+        for i in range(5):
+            yield [np.array([i + 1.5], dtype=np.float32)]
+
+    fn.external_source(gen(), cycle = False)     # no cycle - OK
+    with assert_raises(TypeError):
+        fn.external_source(gen(), cycle = True)  # cycle over generator - error expected
