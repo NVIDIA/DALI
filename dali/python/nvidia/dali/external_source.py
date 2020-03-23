@@ -1,5 +1,6 @@
 # custom wrappers around ops
 from nvidia.dali import backend as _b
+import inspect
 
 def _check_data_batch(data, batch_size, layout):
     if isinstance(data, (list, tuple)):
@@ -84,7 +85,6 @@ class _ExternalSourceGroup(object):
 def _is_generator_function(x):
     """Checks whether x is a generator function or a callable object
     where __call__ is a generator function"""
-    import inspect
     if inspect.isgeneratorfunction(x):
         return True
     if x is None or inspect.isfunction(x):
@@ -95,7 +95,6 @@ def _is_generator_function(x):
 def _get_callback_from_source(source, cycle):
     iterable = False
     if source is not None:
-        import inspect
         try:
             if cycle:
                 if inspect.isgenerator(source):
@@ -117,7 +116,7 @@ def _get_callback_from_source(source, cycle):
             if cycle is not None:
                 raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
             if not callable(source):
-                raise TypeError("Source must be callable, iterable or a perameterless generator function")
+                raise TypeError("Source must be callable, iterable or a parameterless generator function")
             callback = source
     else:
         callback = None
@@ -141,15 +140,15 @@ Args
 ----
 
 `source` : callable or iterable
-    The source of the data. The source is polled for data (via a call `source()` or `next(source)`
+    The source of the data. The source is polled for data (via a call ``source()`` or ``next(source)``
     whenever the pipeline needs input for the next iteration. The source can supply one or more data
-    batches, depending on the value of `num_outputs`. If `num_outputs` is not set, the `source` is
+    batches, depending on the value of ``num_outputs``. If ``num_outputs`` is not set, the ``source`` is
     expected to return a single batch. If it's specified, the data is expected to a be tuple or list
     where each element corresponds to respective return value of the external_source.
     If the source is a callable and has a positional argument, it is assumed to be the current
-    iteration number and consecutive calls will be `source(0)`, `source(1)`, etc.
+    iteration number and consecutive calls will be ``source(0)``, ``source(1)``, etc.
     If the source is a generator function, it is invoked and treated as an iterable - however,
-    unlike a gnerator, it can be used with `cycle`, in which case the function will be called
+    unlike a gnerator, it can be used with ``cycle``, in which case the function will be called
     again when the generator reaches end of iteration.
 
 `num_outputs` : int, optional
@@ -159,19 +158,19 @@ Keyword Args
 ------------
 
 `cycle`: bool
-    If `True`, the source will be wrapped. Otherwise, StopIteration error wil be raised
-    when end of data is reached. This flag requires that `source` is either a collection, i.e. an
-    iteratble object where ``iter(source)`` will return a fresh iterator on each call or a
+    If ``True``, the source will be wrapped. Otherwise, StopIteration will be raised
+    when end of data is reached. This flag requires that ``source`` is either a collection, i.e. an
+    iterable object where ``iter(source)`` will return a fresh iterator on each call or a
     generator function. In the latter case, the generator function will be called again when more
-    data is requried than was yielded by the function.
+    data is requested than was yielded by the function.
 
 `name` : str, optional
-    The name of the data node - used when feeding the data in `iter_setup`; can be omitted if
-    the data is provided by `source`.
+    The name of the data node - used when feeding the data in ``iter_setup``; can be omitted if
+    the data is provided by ``source``.
 
 `layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof
-    If provided, sets the layout of the data. When `num_outputs` > 1, layout can be a list
-    containing a distinct layout for each output. If the list has fewer elements than `num_outputs`,
+    If provided, sets the layout of the data. When ``num_outputs > 1``, layout can be a list
+    containing a distinct layout for each output. If the list has fewer elements than ``num_outputs``,
     only the first outputs have the layout set, the reset have it cleared.
 """
 
@@ -280,8 +279,8 @@ def _is_external_source_with_callback(op_instance):
 
 def external_source(source = None, num_outputs = None, *, cycle = None, name = None, device = "cpu", layout = None):
     """Creates a data node which is populated with data from a Python source.
-The data can be provided by the `source` function or iterable, or it can be provided by
-`pipeline.feed_input(name, data, layout)` inside `pipeline.iter_setup`.
+The data can be provided by the ``source`` function or iterable, or it can be provided by
+``pipeline.feed_input(name, data, layout)`` inside ``pipeline.iter_setup``.
 
 .. note::
     To return a batch of copies of the same tensor, use :func:`nvidia.dali.types.Constant`,
