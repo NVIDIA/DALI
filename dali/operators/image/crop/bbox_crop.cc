@@ -100,48 +100,48 @@ cropped region of interest. The applied random crop operation is constrained by 
 provided to the operator.
 
 The cropping window candidates are selected randomly until one matches the overlap restrictions
-specified by `thresholds` argument. Thresholds values represent minimum intersection-over-union
+specified by ``thresholds`` argument. Thresholds values represent minimum intersection-over-union
 (IoU) of the cropping window and each of the provided bounding boxes. A valid crop is one where
 all the provided bounding boxes produce an IoU above a (randomly selected) value from `thresholds`
 argument. Alternatively, we can allow not to crop as one of the valid outcomes of the random process
-(use `allow_no_crop` for that).
+(use ``allow_no_crop`` for that).
 
 Two modes of random crop are available:
 
-* Randomly shaped window, randomly placed within the original input space. The random crop window
-dimensions are selected according to the provided `aspect_ratio` and relative area restrictions.
+Randomly shaped window, randomly placed within the original input space. The random crop window
+dimensions are selected according to the provided ``aspect_ratio`` and relative area restrictions.
 
-* Fixed size window, randomly placed within the original input space. The random crop window
-dimensions are taken from the `crop_shape` argument and the anchor is selected randomly.
-When providing `crop_shape`, a second argument `input_shape` should be provided, specifying the
+Fixed size window, randomly placed within the original input space. The random crop window
+dimensions are taken from the ``crop_shape`` argument and the anchor is selected randomly.
+When providing ``crop_shape``, a second argument ``input_shape`` should be provided, specifying the
 original image dimensions, which is required to scale the output bounding boxes.
 
-The argument `num_attempts` can be used to control the maximum number of attempts that we try to
-produce a valid crop to match a single minimum IoU value from `thresholds`. Be advised that when
-`allow_no_crop` is `False` and `thresholds` does not contain `0.0`, it is good to increase the
-`num_attempts` value as otherwise it may loop for a very long time.
+The argument ``num_attempts`` can be used to control the maximum number of attempts that we try to
+produce a valid crop to match a single minimum IoU value from ``thresholds``. Be advised that when
+``allow_no_crop`` is ``False`` and ``thresholds`` does not contain ``0.0``, it is good to increase the
+``num_attempts`` value as otherwise it may loop for a very long time.
 
-Inputs: 0: `bboxes`, (1:`labels`, )
+Inputs: 0: ``bboxes``, (1:``labels``, )
 
-The first input, `bboxes`, refers to bounding boxes that are provided as a 2-dimensional tensor where
+The first input, ``bboxes``, refers to bounding boxes that are provided as a 2-dimensional tensor where
 the first dimension refers to the index of the bounding box and the second dimension refers to the
 index of the coordinate.
 Coordinates are relative to the original image dimensions (i.e. range [0.0, 1.0]), representing
-either `start` and `end` of the region or `start` and shape` depending on the value of ``bbox_layout``.
-E.g. ``bbox_layout=\"xyXY\"`` means the bounding box coordinates are following the order
-``start_x, start_y, end_x, end_y``, while ``bbox_layout=\"xyWH\" indicates the order is
+either ``start`` and ``end`` of the region or ``start`` and shape` depending on the value of ``bbox_layout``.
+E.g. ``bbox_layout="xyXY"`` means the bounding box coordinates are following the order
+``start_x, start_y, end_x, end_y``, while ``bbox_layout="xyWH"`` indicates the order is
 ``start_x, start_y, width, height``. See more in ``bbox_layout`` argument description.
 
-A second input `labels` can be optionally provided, representing the labels associated with each of
+A second input ``labels`` can be optionally provided, representing the labels associated with each of
 the bounding boxes.
 
-Outputs: 0:`anchor`, 1:`shape`, 2:`bboxes`, (3:`labels`,)
+Outputs: 0:``anchor``, 1:``shape``, 2:``bboxes``, (3:``labels``,)
 
-The resulting crop parameters are provided as two separate outputs `anchor` and
-`shape`, that can be fed directly to `Slice` operator to perform the actual cropping of the
-original image. `anchor` and `shape` contain starting coordinates and dimensions for the crop, as
-`[x, y, (z,)]` and `[w, h, (d,)]` respectively. The coordinates can be represented in absolute or
-relative terms, depending of whether the fixed `crop_shape` was used or not.
+The resulting crop parameters are provided as two separate outputs ``anchor`` and
+``shape``, that can be fed directly to ``Slice`` operator to perform the actual cropping of the
+original image. ``anchor`` and ``shape`` contain starting coordinates and dimensions for the crop, as
+``[x, y, (z,)]`` and ``[w, h, (d,)]`` respectively. The coordinates can be represented in absolute or
+relative terms, depending of whether the fixed ``crop_shape`` was used or not.
 
 The third and fourth output correspond to the adjusted bounding boxes and optionally
 their corresponding labels. Bounding boxes are always specified in relative coordinates.)code")
@@ -160,84 +160,84 @@ their corresponding labels. Bounding boxes are always specified in relative coor
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum intersection-over-union (IoU) of the bounding boxes with respect to the
-crop window. Each sample will select one of the `thresholds` randomly, and the operator will
-try a given number of attempts (see `num_attempts`) to produce a random crop window that yields an
+crop window. Each sample will select one of the ``thresholds`` randomly, and the operator will
+try a given number of attempts (see ``num_attempts``) to produce a random crop window that yields an
 IoU above the selected threshold.)code",
         std::vector<float>{0.f})
     .AddOptionalArg("aspect_ratio",
                     R"code(Single or multiple valid aspect ratio ranges for cropping windows.
 
-For 2D bounding boxes, a single aspect ratio `x/y` range should be provided (i.e. ``[min_xy, max_xy]``)
+For 2D bounding boxes, a single aspect ratio ``x/y`` range should be provided (i.e. ``[min_xy, max_xy]``)
 
 For 3D bounding boxes, three aspect ratio ranges are expected (``x/y``, ``x/z`` and ``y/z``) ranges, i.e
 ``[min_xy, max_xy, min_xz, max_xz, min_yz, max_yz]``.
 Alternatively, if a single aspect ratio range is provided, the valid aspect ratio range will be the
 same for the three ratios.
 
-Value for `min` should be `> 0.0` and `min <= max`.
+Value for ``min`` should be ``> 0.0`` and ``min <= max``.
 
 By default, square windows are generated.
 
-Note: Providing `aspect_ratio` and `scaling` is incompatible with specifying `crop_shape`
+Note: Providing ``aspect_ratio`` and ``scaling`` is incompatible with specifying ``crop_shape``
 explicitly.)code",
                     std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "scaling",
-        R"code(Range `[min, max]` for crop size with respect to original image dimensions.
+        R"code(Range ``[min, max]`` for crop size with respect to original image dimensions.
 
-Value for `min` should satisfy `0.0 <= min <= max`.
+Value for ``min`` should satisfy ``0.0 <= min <= max``.
 
-Note: Providing `aspect_ratio` and `scaling` is incompatible with specifying `crop_shape`
+Note: Providing ``aspect_ratio`` and ``scaling`` is incompatible with specifying `crop_shape`
 explicitly)code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
         "ltrb",
-        R"code(If true, bboxes are returned as [left, top, (front,) right, bottom (, back)],
-otherwise they are provided as [left, top, (front,) width, height (, depth].
+        R"code(If true, bboxes are returned as ``[left, top, right, bottom]``,
+otherwise they are provided as ``[left, top, width, height]``.
 
-WARNING: This argument is deprecated. Use `bbox_layout` instead to specify the bbox encoding.
-E.g ``ltrb=True`` is equivalent to ``bbox_layout=\"xyXY\" and ``ltrb=False`` corresponds to
-``bbox_layout=\"xyWH\")code",
+WARNING: This argument is deprecated. Use ``bbox_layout`` instead to specify the bbox encoding.
+E.g ``ltrb=True`` is equivalent to ``bbox_layout="xyXY"`` and ``ltrb=False`` corresponds to
+``bbox_layout="xyWH"``)code",
         true)
     .AddOptionalArg(
         "num_attempts",
-        R"code(Number of attempts to get a crop window that matches the `aspect_ratio` and selected
-IoU value from `thresholds`.)code",
+        R"code(Number of attempts to get a crop window that matches the ``aspect_ratio`` and selected
+IoU value from ``thresholds``.)code",
         1)
     .AddOptionalArg(
         "allow_no_crop",
         R"code(If true, not cropping will be one of the possible outcomes of the random process, as
-if it was one more `thresholds` value to choose from.)code",
+if it was one more ``thresholds`` value to choose from.)code",
         true)
     .AddOptionalArg<int>(
         "crop_shape",
         R"code(If provided, the random crop window dimensions will be fixed to this shape.
 
-The order of dimensions is determined by the layout provided in `shape_layout`.
+The order of dimensions is determined by the layout provided in ``shape_layout``.
 
-Note: `crop_shape` and `input_shape` should be provided together, and providing those is
-incompatible with using `scaling` and `aspect_ratio` arguments.)code",
+Note: ``crop_shape`` and ``input_shape`` should be provided together, and providing those is
+incompatible with using ``scaling`` and ``aspect_ratio`` arguments.)code",
         std::vector<int>{}, true)
     .AddOptionalArg<int>("input_shape",
                          R"code(Specifies the shape of the original input image.
 
-The order of dimensions is determined by the layout provided in `shape_layout`.
+The order of dimensions is determined by the layout provided in ``shape_layout``.
 
-Note: `crop_shape` and `input_shape` should be provided together, and providing those is
-incompatible with using `scaling` and `aspect_ratio` arguments.)code",
+Note: ``crop_shape`` and ``input_shape`` should be provided together, and providing those is
+incompatible with using ``scaling`` and ``aspect_ratio`` arguments.)code",
                          std::vector<int>{}, true)
     .AddOptionalArg<TensorLayout>(
         "bbox_layout",
         R"code(Determines the meaning of the coordinates of the bounding boxes.
   Possible values are:
 
-  `x` (horizontal start anchor), `y` (vertical start anchor), `z` (depthwise start anchor),
+  ``x`` (horizontal start anchor), ``y`` (vertical start anchor), ``z`` (depthwise start anchor),
 
-  `X` (horizontal end anchor),   `Y` (vertical end anchor),   `Z` (depthwise end anchor),
+  ``X`` (horizontal end anchor),   ``Y`` (vertical end anchor),   ``Z`` (depthwise end anchor),
 
-  `W` (width),                   `H` (height),                `D` (depth).
+  ``W`` (width),                   ``H`` (height),                ``D`` (depth).
 
-Note: If left empty, `xyXY` or `xyzXYZ` will be assumed, depending on the number of dimensions.
+Note: If left empty, ``"xyXY"`` or ``"xyzXYZ"`` will be assumed, depending on the number of dimensions.
 )code",
         TensorLayout{""})
     .AddOptionalArg<TensorLayout>(
@@ -245,9 +245,9 @@ Note: If left empty, `xyXY` or `xyzXYZ` will be assumed, depending on the number
         R"code(Determines the meaning of the dimensions provided in `crop_shape` and `input_shape`.
 Possible values are:
 
-  `W` (width), `H` (height), `D` (depth).
+  ``W`` (width), ``H`` (height), ``D`` (depth).
 
-Note: If left empty, `WH` or `WHD` will be assumed, depending on the number of dimensions.
+Note: If left empty, ``"WH"`` or ``"WHD"`` will be assumed, depending on the number of dimensions.
 )code",
         TensorLayout{""});
 
