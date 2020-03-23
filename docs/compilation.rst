@@ -210,7 +210,7 @@ Build DALI
 
   cmake -D CMAKE_BUILD_TYPE=Release ..
 
-4. Build. You can pass ``-j`` option to execute it in several threads
+4. Build. You can use ``-j`` option to execute it in several threads
 
 .. code-block:: bash
 
@@ -240,7 +240,7 @@ Obtain test data
 
 .. _DALI_extra_link: https://github.com/NVIDIA/DALI_extra#nvidia-dali
 
-You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data. To download it follow `DALI_extra README <https://github.com/NVIDIA/DALI_extra#nvidia-dali>`_.
+You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data. To download it follow `DALI_extra README <https://github.com/NVIDIA/DALI_extra#nvidia-dali>`_. Keep in mind, that you need git-lfs to properly clone DALI_extra repo. To install git-lfs, follow `this tutorial <https://github.com/git-lfs/git-lfs/wiki/Tutorial>`_.
 
 
 Set test data path
