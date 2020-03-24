@@ -25,29 +25,36 @@ namespace signal {
 template <typename T>
 struct DecibelCalculator {
  public:
+  DALI_HOST_DEV DALI_FORCEINLINE
   explicit DecibelCalculator(T mul = 10.0, T s_ref = 1.0, T min_ratio = 1e-8)
-      : inv_mul_(1. / mul)
+      : inv_mul_(T(1) / mul)
       , mul_log2_(mul * kLog2Factor)
       , s_ref_(s_ref)
-      , inv_s_ref_(s_ref == 1.0 ? 1.0 : 1.0 / s_ref)
+      , inv_s_ref_(s_ref == T(1) ? T(1) : T(1) / s_ref)
       , min_ratio_(min_ratio) {
-    assert(min_ratio_ > 0.0);
-    assert(inv_s_ref_ > 0.0);
+    assert(min_ratio_ > T(0));
+    assert(inv_s_ref_ > T(0));
   }
 
-  DALI_FORCEINLINE
+  DALI_HOST_DEV DALI_FORCEINLINE
   T operator()(T s) const {
     T ratio = s * inv_s_ref_;
-    return mul_log2_ * std::log2(std::max(min_ratio_, ratio));
+#ifndef __CUDA_ARCH__
+    using std::log2;
+#endif
+    return mul_log2_ * log2(cuda_max(min_ratio_, ratio));
   }
 
-  DALI_FORCEINLINE
+  DALI_HOST_DEV DALI_FORCEINLINE
   T db2signal(T db) const {
-    return s_ref_ * std::pow(10.0, db * inv_mul_);
+#ifndef __CUDA_ARCH__
+    using std::pow;
+#endif
+    return s_ref_ * pow(T(10), db * inv_mul_);
   }
 
  private:
-  static constexpr  T kLog2Factor = 0.3010299956639812;  // std::log10(2.0);
+  static constexpr T kLog2Factor = 0.3010299956639812;  // std::log10(2.0);
 
   // Inverse of the multiplier
   T inv_mul_;
