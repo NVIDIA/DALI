@@ -76,7 +76,7 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
   auto output_data = output.mutable_data<float>();
 
   std::vector<Box<2, float>> bboxes;
-  constexpr int box_size = Box<2, float>::box_size;
+  constexpr int box_size = Box<2, float>::size;
   assert(input.size() % box_size == 0);
   int nboxes = input.size() / box_size;
   bboxes.resize(nboxes);

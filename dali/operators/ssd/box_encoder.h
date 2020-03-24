@@ -46,9 +46,9 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
       "Expected criteria <= 1, actual value = " + std::to_string(criteria_));
 
     auto anchors = spec.GetArgument<vector<float>>("anchors");
-    DALI_ENFORCE(anchors.size() % BoundingBox::box_size == 0,
+    DALI_ENFORCE(anchors.size() % BoundingBox::size == 0,
       "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
-    int nanchors = anchors.size() / BoundingBox::box_size;
+    int nanchors = anchors.size() / BoundingBox::size;
 
     anchors_.resize(nanchors);
     ReadBoxes(make_span(anchors_), make_cspan(anchors), {}, {});

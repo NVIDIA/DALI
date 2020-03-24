@@ -95,13 +95,13 @@ void WriteBoxToOutput(float *out_box_data, const vec<ndim, float> &center,
 void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_labels) const {
   if (offset_) {
     std::memset(out_boxes, 0,
-                sizeof(std::remove_pointer<decltype(out_boxes)>::type) * BoundingBox::box_size *
+                sizeof(std::remove_pointer<decltype(out_boxes)>::type) * BoundingBox::size *
                     anchors_.size());
     std::memset(out_labels, 0,
                 sizeof(std::remove_pointer<decltype(out_labels)>::type) * anchors_.size());
   } else {
     for (unsigned int idx = 0; idx < anchors_.size(); idx++) {
-      float *out_box = out_boxes + idx * BoundingBox::box_size;
+      float *out_box = out_boxes + idx * BoundingBox::size;
       const auto &anchor = anchors_[idx];
       WriteBoxToOutput(out_box, anchor.centroid(), anchor.extent());
       out_labels[idx] = 0;
@@ -111,11 +111,11 @@ void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_lab
 
 // Calculate offset from CenterWH ref box and anchor
 // based on eq (2)  in https://arxiv.org/abs/1512.02325 with extra normalization
-std::pair<vec<2, float>, vec<2, float>>
-GetOffsets(vec<2, float> box_center,
-           vec<2, float> box_extent,
-           vec<2, float> anchor_center,
-           vec<2, float> anchor_extent,
+std::pair<fvec2, fvec2>
+GetOffsets(fvec2 box_center,
+           fvec2 box_extent,
+           fvec2 anchor_center,
+           fvec2 anchor_extent,
            const std::vector<float>& means,
            const std::vector<float>& stds,
            float scale) {
@@ -123,7 +123,7 @@ GetOffsets(vec<2, float> box_center,
   box_extent *= scale;
   anchor_center *= scale;
   anchor_extent *= scale;
-  vec<2, float> center, extent;
+  fvec<2> center, extent;
   center[0] = ((box_center[0] - anchor_center[0]) / anchor_extent[0] - means[0]) / stds[0];
   center[1] = ((box_center[1] - anchor_center[1]) / anchor_extent[1] - means[1]) / stds[1];
   extent[0] = (std::log(box_extent[0] / anchor_extent[0]) - means[2]) / stds[2];
@@ -139,16 +139,16 @@ void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
       auto box = boxes[match.first];
       auto anchor = anchors_[match.second];
 
-      vec<2, float> center, extent;
+      fvec<2> center, extent;
       std::tie(center, extent) = GetOffsets(box.centroid(), box.extent(), anchor.centroid(),
                                             anchor.extent(), means_, stds_, scale_);
-      WriteBoxToOutput(out_boxes + match.second * BoundingBox::box_size, center, extent);
+      WriteBoxToOutput(out_boxes + match.second * BoundingBox::size, center, extent);
       out_labels[match.second] = labels[match.first];
     }
   } else {
     for (const auto &match : matches) {
       auto box = boxes[match.first];
-      WriteBoxToOutput(out_boxes + match.second * BoundingBox::box_size, box.centroid(),
+      WriteBoxToOutput(out_boxes + match.second * BoundingBox::size, box.centroid(),
                        box.extent());
       out_labels[match.second] = labels[match.first];
     }
@@ -168,7 +168,7 @@ void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   // Create output
   auto &bboxes_output = ws.Output<CPUBackend>(kBoxesOutId);
   bboxes_output.set_type(bboxes_input.type());
-  bboxes_output.Resize({static_cast<int>(anchors_.size()), BoundingBox::box_size});
+  bboxes_output.Resize({static_cast<int>(anchors_.size()), BoundingBox::size});
   auto out_boxes = bboxes_output.mutable_data<float>();
 
   auto &labels_output = ws.Output<CPUBackend>(kLabelsOutId);

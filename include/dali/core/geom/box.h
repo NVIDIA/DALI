@@ -22,7 +22,8 @@ namespace dali {
 template<int ndims, typename CoordinateType>
 struct Box {
   static constexpr int ndim = ndims;
-  static constexpr int box_size = ndims * 2;
+  // box is represented with two ndim coordinates
+  static constexpr int size = ndims * 2;
   using corner_t = vec<ndims, CoordinateType>;
   static_assert(std::is_pod<corner_t>::value, "Corner has to be POD");
 

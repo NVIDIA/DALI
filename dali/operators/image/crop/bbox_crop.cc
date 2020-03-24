@@ -259,14 +259,14 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
   ~RandomBBoxCropImpl() = default;
 
   explicit RandomBBoxCropImpl(const OpSpec &spec)
-      : spec_(spec)
-      , num_attempts_{spec.GetArgument<int>("num_attempts")}
-      , has_labels_(spec.NumInput() > 1)
-      , has_crop_shape_(spec.ArgumentDefined("crop_shape"))
-      , has_input_shape_(spec.ArgumentDefined("input_shape"))
-      , bbox_layout_(spec.GetArgument<TensorLayout>("bbox_layout"))
-      , shape_layout_(spec.GetArgument<TensorLayout>("shape_layout"))
-      , rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("batch_size")) {
+      : spec_(spec),
+        num_attempts_{spec.GetArgument<int>("num_attempts")},
+        has_labels_(spec.NumInput() > 1),
+        has_crop_shape_(spec.ArgumentDefined("crop_shape")),
+        has_input_shape_(spec.ArgumentDefined("input_shape")),
+        bbox_layout_(spec.GetArgument<TensorLayout>("bbox_layout")),
+        shape_layout_(spec.GetArgument<TensorLayout>("shape_layout")),
+        rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int>("batch_size")) {
     auto scaling_arg = spec.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
                  make_string("`scaling` must be a range `[min, max]`. Got ",
@@ -437,8 +437,8 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
 
     ProspectiveCrop(bool success,
                     const Box<ndim, float>& crop,
-                    const span<const Box<ndim, float>>& boxes_data,
-                    const span<const int>& labels_data)
+                    span<const Box<ndim, float>> boxes_data,
+                    span<const int> labels_data)
         : success(success), crop(crop) {
       assert(boxes_data.size() == labels_data.size());
       boxes.resize(boxes_data.size());
@@ -507,8 +507,8 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
       extent = max_extent * extent / new_max_extent;
   }
 
-  const ProspectiveCrop FindProspectiveCrop(const span<const Box<ndim, float>> &bounding_boxes,
-                                            const span<const int> &labels,
+  const ProspectiveCrop FindProspectiveCrop(span<const Box<ndim, float>> bounding_boxes,
+                                            span<const int> labels,
                                             int sample) {
     auto &rng = rngs_[sample];
     std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
@@ -617,7 +617,7 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
   }
 
   bool ValidOverlap(const Box<ndim, float> &crop,
-                    const span<const Box<ndim, float>> &boxes,
+                    span<const Box<ndim, float>> boxes,
                     float threshold) {
     return std::all_of(boxes.begin(), boxes.end(),
       [&crop, threshold](const Box<ndim, float> &box) {
@@ -662,7 +662,7 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
   }
 
   void WriteBoxesToOutput(SampleWorkspace &ws,
-                          const span<const Box<ndim, float>> &bounding_boxes) {
+                          span<const Box<ndim, float>> bounding_boxes) {
     auto &bbox_out = ws.Output<CPUBackend>(2);
     bbox_out.Resize({static_cast<int64_t>(bounding_boxes.size()), coords_size});
     auto *bbox_out_data = bbox_out.mutable_data<float>();
@@ -670,7 +670,7 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
                bbox_layout_);
   }
 
-  void WriteLabelsToOutput(SampleWorkspace &ws, const span<const int> &labels) {
+  void WriteLabelsToOutput(SampleWorkspace &ws, span<const int> labels) {
     auto &labels_out = ws.Output<CPUBackend>(3);
     labels_out.Resize({static_cast<Index>(labels.size()), 1});
     auto *labels_out_data = labels_out.mutable_data<int>();

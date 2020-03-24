@@ -28,12 +28,12 @@ __host__ __device__ inline float4 ToCenterWidthHeight(const float4 &box) {
 
 void BoxEncoder<GPUBackend>::PrepareAnchors(const vector<float> &anchors) {
   DALI_ENFORCE(
-    (anchors.size() % BoundingBox::box_size) == 0,
+    (anchors.size() % BoundingBox::size) == 0,
     "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
 
-  anchors_count_ = anchors.size() / BoundingBox::box_size;
-  anchors_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::box_size)});
-  anchors_as_center_wh_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::box_size)});
+  anchors_count_ = anchors.size() / BoundingBox::size;
+  anchors_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::size)});
+  anchors_as_center_wh_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::size)});
 
   auto anchors_data_cpu = reinterpret_cast<const float4 *>(anchors.data());
 
@@ -43,11 +43,11 @@ void BoxEncoder<GPUBackend>::PrepareAnchors(const vector<float> &anchors) {
 
   auto anchors_data = anchors_.mutable_data<float>();
   auto anchors_as_center_wh_data = anchors_as_center_wh_.mutable_data<float>();
-  MemCopy(anchors_data, anchors.data(), anchors_count_ * BoundingBox::box_size * sizeof(float));
+  MemCopy(anchors_data, anchors.data(), anchors_count_ * BoundingBox::size * sizeof(float));
   MemCopy(
     anchors_as_center_wh_data,
     anchors_as_center_wh.data(),
-    anchors_count_ * BoundingBox::box_size * sizeof(float));
+    anchors_count_ * BoundingBox::size * sizeof(float));
 }
 
 __device__ __forceinline__ float CalculateIou(const float4 &b1, const float4 &b2) {
@@ -223,7 +223,7 @@ void BoxEncoder<GPUBackend>::WriteAnchorsToOutput(
     MemCopy(
       boxes_out_data + sample * anchors_count_,
       anchors_as_center_wh_.data<float>(),
-      anchors_count_ * BoundingBox::box_size * sizeof(float),
+      anchors_count_ * BoundingBox::size * sizeof(float),
       stream);
 }
 
@@ -239,7 +239,7 @@ void BoxEncoder<GPUBackend>::ClearOutput(
     CUDA_CALL(cudaMemsetAsync(
       boxes_out_data + sample * anchors_count_,
       0,
-      anchors_count_ * BoundingBox::box_size * sizeof(float),
+      anchors_count_ * BoundingBox::size * sizeof(float),
       stream));
 }
 
@@ -251,7 +251,7 @@ BoxEncoder<GPUBackend>::CalculateDims(
 
   for (size_t i = 0; i < boxes_input.ntensor(); i++) {
     boxes_output_shape.set_tensor_shape(i,
-        {anchors_count_, static_cast<int64_t>(BoundingBox::box_size)});
+        {anchors_count_, static_cast<int64_t>(BoundingBox::size)});
     labels_output_shape.set_tensor_shape(i, {anchors_count_});
   }
 

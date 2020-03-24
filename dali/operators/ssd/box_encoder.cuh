@@ -46,21 +46,21 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
     best_box_iou_.Resize({batch_size_ * anchors_count_});
 
     auto means = spec.GetArgument<vector<float>>("means");
-    DALI_ENFORCE(means.size() == BoundingBox::box_size,
+    DALI_ENFORCE(means.size() == BoundingBox::size,
       "means size must be a list of 4 values.");
 
-    means_.Resize({BoundingBox::box_size});
+    means_.Resize({BoundingBox::size});
     auto means_data = means_.mutable_data<float>();
-    MemCopy(means_data, means.data(), BoundingBox::box_size * sizeof(float));
+    MemCopy(means_data, means.data(), BoundingBox::size * sizeof(float));
 
     auto stds = spec.GetArgument<vector<float>>("stds");
-    DALI_ENFORCE(stds.size() == BoundingBox::box_size,
+    DALI_ENFORCE(stds.size() == BoundingBox::size,
       "stds size must be a list of 4 values.");
     DALI_ENFORCE(std::find(stds.begin(), stds.end(), 0) == stds.end(),
        "stds values must be != 0.");
-    stds_.Resize({BoundingBox::box_size});
+    stds_.Resize({BoundingBox::size});
     auto stds_data = stds_.mutable_data<float>();
-    MemCopy(stds_data, stds.data(), BoundingBox::box_size * sizeof(float));
+    MemCopy(stds_data, stds.data(), BoundingBox::size * sizeof(float));
   }
 
   virtual ~BoxEncoder() = default;
