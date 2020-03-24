@@ -560,7 +560,6 @@ class RandomBBoxCropImpl : public detail::OpImplBase<CPUBackend> {
         }
 
         for (int d = 0; d < ndim; d++) {
-          assert(shape[d] >= 0.0f && shape[d] <= 1.0f);
           std::uniform_real_distribution<float> anchor_dist(0.0f, 1.0f - shape[d]);
           anchor[d] = anchor_dist(rng);
           rel_crop.lo[d] = anchor[d];
