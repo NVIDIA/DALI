@@ -247,14 +247,12 @@ class DALIGenericIterator(object):
             assert np.all([p.if_reader_pads(self._reader_name) for p in self._pipes]) or \
                     not np.any([p.if_reader_pads(self._reader_name) for p in self._pipes]), \
                 "All pipelines readers should have set padding in the same way"
-            self._if_reader_pads = self._pipes[0].if_reader_pads(self._reader_name)
+            self._last_batch_padded = self._pipes[0].if_reader_pads(self._reader_name)
 
             assert np.all([p.if_sticks_to_shard(self._reader_name) for p in self._pipes]) or \
                     not np.any([p.if_sticks_to_shard(self._reader_name) for p in self._pipes]), \
                 "All pipelines readers should have set stick to the shard in the same way"
             self._if_sticks_to_shard = self._pipes[0].if_sticks_to_shard(self._reader_name)
-            if self._if_reader_pads:
-                self._last_batch_padded = True
             self._size = self._pipes[0].epoch_size(self._reader_name, True) // self._shards_num
 
         # Use double-buffering of data batches
@@ -377,13 +375,13 @@ class DALIGenericIterator(object):
 
         if self._reader_name:
             self._counter += self.batch_size
-            if not self._fill_last_batch and self._last_batch_padded:
+            if not self._fill_last_batch:
                 # calculate each shard size for each id, and check how many samples are left by substracting from iterator counter
                 # the shard size, then go though all GPUs and return only relevant data by stripping padded one
                 left = [self._counter - int((id + 1) * self._size_no_pad / self._shards_num) + int(id * self._size_no_pad / self._shards_num) for id in self._shards_id]
                 left = [self.batch_size - l for l in left]
-                if_padded = np.less(left, self.batch_size)
-                if np.any(if_padded):
+                if_drop = np.less(left, self.batch_size)
+                if np.any(if_drop):
                     output = []
                     for batch, to_copy in zip(self._data_batches, left):
                         batch = batch.copy()
