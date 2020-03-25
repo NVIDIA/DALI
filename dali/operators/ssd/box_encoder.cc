@@ -18,13 +18,16 @@
 #include "dali/operators/ssd/box_encoder.h"
 
 namespace dali {
+
+using BoundingBox = BoxEncoder<CPUBackend>::BoundingBox;
+
 void BoxEncoder<CPUBackend>::CalculateIousForBox(float *ious, const BoundingBox &box) const {
-  ious[0] = box.IntersectionOverUnion(anchors_[0]);
+  ious[0] = intersection_over_union(box, anchors_[0]);
   unsigned best_idx = 0;
   float best_iou = ious[0];
 
   for (unsigned anchor_idx = 1; anchor_idx < anchors_.size(); ++anchor_idx) {
-    ious[anchor_idx] = box.IntersectionOverUnion(anchors_[anchor_idx]);
+    ious[anchor_idx] = intersection_over_union(box, anchors_[anchor_idx]);
 
     if (ious[anchor_idx] >= best_iou) {
       best_iou = ious[anchor_idx];
@@ -80,36 +83,27 @@ vector<std::pair<unsigned, unsigned>> BoxEncoder<CPUBackend>::MatchBoxesWithAnch
   return matches;
 }
 
-vector<BoundingBox> BoxEncoder<CPUBackend>::ReadBoxesFromInput(
-  const float *in_boxes, unsigned num_boxes) const {
-  vector<BoundingBox> boxes;
-  boxes.reserve(num_boxes);
-  auto in_box_data = in_boxes;
-
-  for (unsigned idx = 0; idx < num_boxes; ++idx) {
-    boxes.push_back(BoundingBox::FromLtrb(in_box_data, BoundingBox::NoBounds()));
-    in_box_data += BoundingBox::kSize;
+template <int ndim>
+void WriteBoxToOutput(float *out_box_data, const vec<ndim, float> &center,
+                      const vec<ndim, float> &extent) {
+  for (int d = 0; d < ndim; d++) {
+    out_box_data[d] = center[d];
+    out_box_data[ndim + d] = extent[d];
   }
-
-  return boxes;
-}
-
-void BoxEncoder<CPUBackend>::WriteBoxToOutput(const std::array<float, BoundingBox::kSize> &box,
-                                              float *out_box_data) const {
-  for (unsigned idx = 0; idx < BoundingBox::kSize; ++idx)
-    out_box_data[idx] = box[idx];
 }
 
 void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_labels) const {
   if (offset_) {
     std::memset(out_boxes, 0,
-      sizeof(std::remove_pointer<decltype(out_boxes)>::type)*BoundingBox::kSize*anchors_.size());
+                sizeof(std::remove_pointer<decltype(out_boxes)>::type) * BoundingBox::size *
+                    anchors_.size());
     std::memset(out_labels, 0,
-       sizeof(std::remove_pointer<decltype(out_labels)>::type)*anchors_.size());
+                sizeof(std::remove_pointer<decltype(out_labels)>::type) * anchors_.size());
   } else {
-    for (unsigned idx = 0; idx < anchors_.size(); ++idx) {
-      const auto box = anchors_[idx].AsCenterWh();
-      WriteBoxToOutput(box, out_boxes + idx * BoundingBox::kSize);
+    for (unsigned int idx = 0; idx < anchors_.size(); idx++) {
+      float *out_box = out_boxes + idx * BoundingBox::size;
+      const auto &anchor = anchors_[idx];
+      WriteBoxToOutput(out_box, anchor.centroid(), anchor.extent());
       out_labels[idx] = 0;
     }
   }
@@ -117,20 +111,24 @@ void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_lab
 
 // Calculate offset from CenterWH ref box and anchor
 // based on eq (2)  in https://arxiv.org/abs/1512.02325 with extra normalization
-std::array<float, BoundingBox::kSize>
-GetOffsets(std::array<float, BoundingBox::kSize> box,
-           std::array<float, BoundingBox::kSize> anchor,
+std::pair<fvec2, fvec2>
+GetOffsets(fvec2 box_center,
+           fvec2 box_extent,
+           fvec2 anchor_center,
+           fvec2 anchor_extent,
            const std::vector<float>& means,
            const std::vector<float>& stds,
            float scale) {
-  for (std::size_t i = 0; i < BoundingBox::kSize; ++i) {
-    box[i] *= scale;
-    anchor[i] *= scale;
-  }
-  return {((box[0] - anchor[0]) / anchor[2] - means[0]) / stds[0],
-          ((box[1] - anchor[1]) / anchor[3] - means[1]) / stds[1],
-          (std::log(box[2] / anchor[2]) - means[2]) / stds[2],
-          (std::log(box[3] / anchor[3]) - means[3]) / stds[3]};
+  box_center *= scale;
+  box_extent *= scale;
+  anchor_center *= scale;
+  anchor_extent *= scale;
+  fvec<2> center, extent;
+  center[0] = ((box_center[0] - anchor_center[0]) / anchor_extent[0] - means[0]) / stds[0];
+  center[1] = ((box_center[1] - anchor_center[1]) / anchor_extent[1] - means[1]) / stds[1];
+  extent[0] = (std::log(box_extent[0] / anchor_extent[0]) - means[2]) / stds[2];
+  extent[1] = (std::log(box_extent[1] / anchor_extent[1]) - means[3]) / stds[3];
+  return std::make_pair(center, extent);
 }
 
 void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
@@ -138,16 +136,20 @@ void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
   const int *labels, float *out_boxes, int *out_labels) const {
   if (offset_) {
     for (const auto &match : matches) {
-      const auto box = boxes[match.first].AsCenterWh();
-      const auto anchor = anchors_[match.second].AsCenterWh();
-      WriteBoxToOutput(GetOffsets(box, anchor, means_, stds_, scale_),
-                       out_boxes + match.second * BoundingBox::kSize);
+      auto box = boxes[match.first];
+      auto anchor = anchors_[match.second];
+
+      fvec<2> center, extent;
+      std::tie(center, extent) = GetOffsets(box.centroid(), box.extent(), anchor.centroid(),
+                                            anchor.extent(), means_, stds_, scale_);
+      WriteBoxToOutput(out_boxes + match.second * BoundingBox::size, center, extent);
       out_labels[match.second] = labels[match.first];
     }
   } else {
     for (const auto &match : matches) {
-      const auto box = boxes[match.first].AsCenterWh();
-      WriteBoxToOutput(box, out_boxes + match.second * BoundingBox::kSize);
+      auto box = boxes[match.first];
+      WriteBoxToOutput(out_boxes + match.second * BoundingBox::size, box.centroid(),
+                       box.extent());
       out_labels[match.second] = labels[match.first];
     }
   }
@@ -156,16 +158,17 @@ void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
 void BoxEncoder<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto &bboxes_input = ws.Input<CPUBackend>(kBoxesInId);
   const auto &labels_input = ws.Input<CPUBackend>(kLabelsInId);
-
   const auto num_boxes = bboxes_input.dim(0);
-
   const auto labels = labels_input.data<int>();
-  const auto boxes = ReadBoxesFromInput(bboxes_input.data<float>(), num_boxes);
+
+  vector<BoundingBox> boxes;
+  boxes.resize(num_boxes);
+  ReadBoxes(make_span(boxes), make_cspan(bboxes_input.data<float>(), bboxes_input.size()), {}, {});
 
   // Create output
   auto &bboxes_output = ws.Output<CPUBackend>(kBoxesOutId);
   bboxes_output.set_type(bboxes_input.type());
-  bboxes_output.Resize({static_cast<int>(anchors_.size()), static_cast<int>(BoundingBox::kSize)});
+  bboxes_output.Resize({static_cast<int>(anchors_.size()), BoundingBox::size});
   auto out_boxes = bboxes_output.mutable_data<float>();
 
   auto &labels_output = ws.Output<CPUBackend>(kLabelsOutId);

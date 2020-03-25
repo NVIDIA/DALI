@@ -26,6 +26,7 @@ template <>
 class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
  public:
   static constexpr int BlockSize = 256;
+  using BoundingBox = Box<2, float>;
 
   explicit BoxEncoder(const OpSpec &spec)
       : Operator<GPUBackend>(spec),
@@ -45,21 +46,21 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
     best_box_iou_.Resize({batch_size_ * anchors_count_});
 
     auto means = spec.GetArgument<vector<float>>("means");
-    DALI_ENFORCE(means.size() == BoundingBox::kSize,
+    DALI_ENFORCE(means.size() == BoundingBox::size,
       "means size must be a list of 4 values.");
 
-    means_.Resize({BoundingBox::kSize});
+    means_.Resize({BoundingBox::size});
     auto means_data = means_.mutable_data<float>();
-    MemCopy(means_data, means.data(), BoundingBox::kSize * sizeof(float));
+    MemCopy(means_data, means.data(), BoundingBox::size * sizeof(float));
 
     auto stds = spec.GetArgument<vector<float>>("stds");
-    DALI_ENFORCE(stds.size() == BoundingBox::kSize,
+    DALI_ENFORCE(stds.size() == BoundingBox::size,
       "stds size must be a list of 4 values.");
     DALI_ENFORCE(std::find(stds.begin(), stds.end(), 0) == stds.end(),
        "stds values must be != 0.");
-    stds_.Resize({BoundingBox::kSize});
+    stds_.Resize({BoundingBox::size});
     auto stds_data = stds_.mutable_data<float>();
-    MemCopy(stds_data, stds.data(), BoundingBox::kSize * sizeof(float));
+    MemCopy(stds_data, stds.data(), BoundingBox::size * sizeof(float));
   }
 
   virtual ~BoxEncoder() = default;

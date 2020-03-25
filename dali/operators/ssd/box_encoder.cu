@@ -28,12 +28,12 @@ __host__ __device__ inline float4 ToCenterWidthHeight(const float4 &box) {
 
 void BoxEncoder<GPUBackend>::PrepareAnchors(const vector<float> &anchors) {
   DALI_ENFORCE(
-    (anchors.size() % BoundingBox::kSize) == 0,
+    (anchors.size() % BoundingBox::size) == 0,
     "Anchors size must be divisible by 4, actual value = " + std::to_string(anchors.size()));
 
-  anchors_count_ = anchors.size() / BoundingBox::kSize;
-  anchors_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::kSize)});
-  anchors_as_center_wh_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::kSize)});
+  anchors_count_ = anchors.size() / BoundingBox::size;
+  anchors_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::size)});
+  anchors_as_center_wh_.Resize({anchors_count_, static_cast<int64_t>(BoundingBox::size)});
 
   auto anchors_data_cpu = reinterpret_cast<const float4 *>(anchors.data());
 
@@ -43,20 +43,20 @@ void BoxEncoder<GPUBackend>::PrepareAnchors(const vector<float> &anchors) {
 
   auto anchors_data = anchors_.mutable_data<float>();
   auto anchors_as_center_wh_data = anchors_as_center_wh_.mutable_data<float>();
-  MemCopy(anchors_data, anchors.data(), anchors_count_ * BoundingBox::kSize * sizeof(float));
+  MemCopy(anchors_data, anchors.data(), anchors_count_ * BoundingBox::size * sizeof(float));
   MemCopy(
     anchors_as_center_wh_data,
     anchors_as_center_wh.data(),
-    anchors_count_ * BoundingBox::kSize * sizeof(float));
+    anchors_count_ * BoundingBox::size * sizeof(float));
 }
 
 __device__ __forceinline__ float CalculateIou(const float4 &b1, const float4 &b2) {
-  float l = max(b1.x, b2.x);
-  float t = max(b1.y, b2.y);
-  float r = min(b1.z, b2.z);
-  float b = min(b1.w, b2.w);
-  float first = max(r - l, 0.0f);
-  float second = max(b - t, 0.0f);
+  float l = cuda_max(b1.x, b2.x);
+  float t = cuda_max(b1.y, b2.y);
+  float r = cuda_min(b1.z, b2.z);
+  float b = cuda_min(b1.w, b2.w);
+  float first = cuda_max(r - l, 0.0f);
+  float second = cuda_max(b - t, 0.0f);
   volatile float intersection = first * second;
   volatile float area1 = (b1.w - b1.y) * (b1.z - b1.x);
   volatile float area2 = (b2.w - b2.y) * (b2.z - b2.x);
@@ -69,7 +69,7 @@ __device__ inline void FindBestMatch(const int N, volatile float *vals, volatile
     if (threadIdx.x < stride) {
       if (vals[threadIdx.x] <= vals[threadIdx.x + stride]) {
         if (vals[threadIdx.x] == vals[threadIdx.x + stride]) {
-          idx[threadIdx.x] = max(idx[threadIdx.x], idx[threadIdx.x + stride]);
+          idx[threadIdx.x] = cuda_max(idx[threadIdx.x], idx[threadIdx.x + stride]);
         } else {
           vals[threadIdx.x] = vals[threadIdx.x + stride];
           idx[threadIdx.x] = idx[threadIdx.x + stride];
@@ -223,7 +223,7 @@ void BoxEncoder<GPUBackend>::WriteAnchorsToOutput(
     MemCopy(
       boxes_out_data + sample * anchors_count_,
       anchors_as_center_wh_.data<float>(),
-      anchors_count_ * BoundingBox::kSize * sizeof(float),
+      anchors_count_ * BoundingBox::size * sizeof(float),
       stream);
 }
 
@@ -239,7 +239,7 @@ void BoxEncoder<GPUBackend>::ClearOutput(
     CUDA_CALL(cudaMemsetAsync(
       boxes_out_data + sample * anchors_count_,
       0,
-      anchors_count_ * BoundingBox::kSize * sizeof(float),
+      anchors_count_ * BoundingBox::size * sizeof(float),
       stream));
 }
 
@@ -251,7 +251,7 @@ BoxEncoder<GPUBackend>::CalculateDims(
 
   for (size_t i = 0; i < boxes_input.ntensor(); i++) {
     boxes_output_shape.set_tensor_shape(i,
-        {anchors_count_, static_cast<int64_t>(BoundingBox::kSize)});
+        {anchors_count_, static_cast<int64_t>(BoundingBox::size)});
     labels_output_shape.set_tensor_shape(i, {anchors_count_});
   }
 

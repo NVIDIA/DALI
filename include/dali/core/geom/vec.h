@@ -57,6 +57,8 @@ template <int N>
 using dvec = vec<N, double>;
 template <int N>
 using bvec = vec<N, bool>;
+template <int N>
+using fvec = vec<N, float>;
 
 #define DEFINE_VEC_ALIASES(prefix)     \
   using prefix##vec1 = prefix##vec<1>; \
@@ -74,6 +76,7 @@ DEFINE_VEC_ALIASES(u16)
 DEFINE_VEC_ALIASES(u8)
 DEFINE_VEC_ALIASES(d)
 DEFINE_VEC_ALIASES(b)
+DEFINE_VEC_ALIASES(f)
 DEFINE_VEC_ALIASES()
 
 template <typename T>

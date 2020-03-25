@@ -13,8 +13,9 @@
 // limitations under the License.
 
 #include "dali/operators/bbox/bb_flip.h"
-#include <dali/pipeline/util/bounding_box.h>
 #include <iterator>
+#include "dali/core/geom/box.h"
+#include "dali/pipeline/util/bounding_box_utils.h"
 
 namespace dali {
 
@@ -74,24 +75,22 @@ void BbFlip<CPUBackend>::RunImpl(dali::SampleWorkspace &ws) {
   output.ResizeLike(input);
   auto output_data = output.mutable_data<float>();
 
-  for (int i = 0; i < input.size(); i += 4) {
-    auto bbox = ltrb_ ? BoundingBox::FromLtrb(&input_data[i], BoundingBox::NoBounds())
-                      : BoundingBox::FromXywh(&input_data[i], BoundingBox::NoBounds());
+  std::vector<Box<2, float>> bboxes;
+  constexpr int box_size = Box<2, float>::size;
+  assert(input.size() % box_size == 0);
+  int nboxes = input.size() / box_size;
+  bboxes.resize(nboxes);
+  TensorLayout layout = ltrb_ ? "xyXY" : "xyWH";
+  ReadBoxes(make_span(bboxes), make_cspan(input_data, input.size()), layout, {});
 
-    if (horizontal) {
-      bbox = bbox.HorizontalFlip();
-    }
-    if (vertical) {
-      bbox = bbox.VerticalFlip();
-    }
-
-    const auto result = ltrb_ ? bbox.AsLtrb() : bbox.AsXywh();
-
-    output_data[i] = result[0];
-    output_data[i + 1] = result[1];
-    output_data[i + 2] = result[2];
-    output_data[i + 3] = result[3];
+  for (auto &bbox : bboxes) {
+    if (horizontal)
+      HorizontalFlip(bbox);
+    if (vertical)
+      VerticalFlip(bbox);
   }
+
+  WriteBoxes(make_span(output_data, output.size()), make_cspan(bboxes), layout);
 }
 
 }  // namespace dali
