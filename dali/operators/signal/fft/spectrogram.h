@@ -20,6 +20,7 @@
 #include "dali/core/common.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 
@@ -48,7 +49,7 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
  private:
   OpSpec spec__;
 
-  std::unique_ptr<detail::OpImplBase<Backend>> impl_;
+  std::unique_ptr<OpImplBase<Backend>> impl_;
 };
 
 }  // namespace dali

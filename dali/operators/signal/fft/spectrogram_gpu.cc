@@ -30,7 +30,7 @@ using kernels::KernelContext;
 using kernels::signal::Padding;
 using namespace kernels::signal::fft;  // NOLINT
 
-struct SpectrogramOpImplGPU : public detail::OpImplBase<GPUBackend> {
+struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
   explicit SpectrogramOpImplGPU(const OpSpec &spec) {
     args.window_length = spec.GetArgument<int>("window_length");
     args.window_step = spec.GetArgument<int>("window_step");

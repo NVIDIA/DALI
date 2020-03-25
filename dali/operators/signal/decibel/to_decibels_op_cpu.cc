@@ -12,16 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/signal/decibel/to_decibels.h"
+#include "dali/operators/signal/decibel/to_decibels_op.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/signal/decibel/to_decibels_cpu.h"
 #include "dali/pipeline/data/views.h"
-
-#define TO_DB_SUPPORTED_TYPES (float)
-#define TO_DB_SUPPORTED_NDIMS (1, 2, 3, 4)
-
-static constexpr int kNumInputs = 1;
-static constexpr int kNumOutputs = 1;
 
 namespace dali {
 

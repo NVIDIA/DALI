@@ -61,7 +61,7 @@ true, the signal is mirrored with respect to the boundary, otherwise the signal 
 zeros. Note: This option is ignored when `center_windows` is set to false.)code",
     true);
 
-struct SpectrogramImplCpu : detail::OpImplBase<CPUBackend> {
+struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
   using OutputType = float;
   using InputType = float;
 

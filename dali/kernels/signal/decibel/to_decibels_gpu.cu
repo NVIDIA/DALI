@@ -71,7 +71,11 @@ KernelRequirements ToDecibelsGpu<T, Dims>::Setup(KernelContext &context,
 template <typename T, int Dims>
 void ToDecibelsGpu<T, Dims>::Run(KernelContext &context, const OutListGPU<T, Dims> &out,
                                  const InListGPU<T, Dims> &in, const ToDecibelsArgs<T> &args,
-                                 InTensorGPU<T, 1> max_values) {
+                                 InListGPU<T, 1> max_values) {
+  DALI_ENFORCE(max_values.empty() || max_values.is_contiguous(),
+      "Reduce all kernel expects the output to be contiguous");
+  const T* max_values_data = max_values.empty() ? nullptr : max_values[0].data;
+
   auto num_samples = in.size();
   auto* sample_data = context.scratchpad->Allocate<SampleDesc<T>>(AllocType::Host, num_samples);
 
@@ -92,7 +96,7 @@ void ToDecibelsGpu<T, Dims>::Run(KernelContext &context, const OutListGPU<T, Dim
   auto blocks_per_sample = std::max(32, 1024 / num_samples);
   dim3 grid(blocks_per_sample, num_samples);
   ToDecibelsKernel<T><<<grid, block, 0, context.gpu.stream>>>(
-      sample_data_gpu, args, max_values.data);
+      sample_data_gpu, args, max_values_data);
 }
 
 template class ToDecibelsGpu<float, 1>;

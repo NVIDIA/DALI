@@ -23,6 +23,7 @@
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/reduce/reductions.h"
+#include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
 
 namespace dali {
 namespace kernels {

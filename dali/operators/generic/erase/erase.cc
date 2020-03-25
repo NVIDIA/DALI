@@ -132,7 +132,7 @@ resulting in centered erased regions at the specified *anchor*.)code",
   .SupportVolumetric();
 
 template <typename T, int Dims>
-class EraseImplCpu : public detail::OpImplBase<CPUBackend> {
+class EraseImplCpu : public OpImplBase<CPUBackend> {
  public:
   using EraseKernel = kernels::EraseCpu<T, Dims>;
 

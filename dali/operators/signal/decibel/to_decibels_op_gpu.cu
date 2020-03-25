@@ -1,0 +1,138 @@
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <utility>
+#include <vector>
+#include <memory>
+#include "dali/operators/signal/decibel/to_decibels_op.h"
+#include "dali/core/static_switch.h"
+#include "dali/kernels/kernel_params.h"
+#include "dali/kernels/reduce/reduce_all_kernel_gpu.h"
+#include "dali/kernels/signal/decibel/to_decibels_gpu.h"
+#include "dali/pipeline/data/views.h"
+
+namespace dali {
+
+template <typename T, int Dims>
+class ToDecibelsImpl : public OpImplBase<GPUBackend> {
+ public:
+  using MaxKernel = kernels::reduce::ReduceAllGPU<T, T, Dims, kernels::reductions::max>;
+  using ToDecibelsKernel = kernels::signal::ToDecibelsGpu<T, Dims>;
+  using ToDecibelsArgs = kernels::signal::ToDecibelsArgs<T>;
+
+  explicit ToDecibelsImpl(ToDecibelsArgs args)
+      : args_(std::move(args)) {
+    if (args_.ref_max) {
+      kmgr_max_.Initialize<MaxKernel>();
+      kmgr_max_.Resize<MaxKernel>(1, 1);
+    }
+    kmgr_todb_.Initialize<ToDecibelsKernel>();
+    kmgr_todb_.Resize<ToDecibelsKernel>(1, 1);
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
+  void RunImpl(workspace_t<GPUBackend> &ws) override;
+
+ private:
+  ToDecibelsArgs args_;
+
+  kernels::KernelManager kmgr_max_;
+  kernels::KernelManager kmgr_todb_;
+
+  std::vector<OutputDesc> max_out_desc_;
+  TensorList<GPUBackend> max_out_;
+};
+
+template <typename T, int Dims>
+bool ToDecibelsImpl<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                        const workspace_t<GPUBackend> &ws) {
+  kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
+
+  const auto &input = ws.InputRef<GPUBackend>(0);
+  auto in_view = view<const T, Dims>(input);
+  auto nsamples = input.size();
+
+  auto type = TypeInfo::Create<T>();
+
+  if (args_.ref_max) {
+    auto& req_max = kmgr_max_.Setup<MaxKernel>(0, ctx, in_view);
+    max_out_desc_.resize(1);
+    max_out_desc_[0].type = type;
+    max_out_desc_[0].shape = req_max.output_shapes[0];
+  }
+
+  auto& req = kmgr_todb_.Setup<ToDecibelsKernel>(0, ctx, in_view);
+  output_desc.resize(1);
+  output_desc[0].type = type;
+  output_desc[0].shape = req.output_shapes[0];
+
+  return true;
+}
+
+template <typename T, int Dims>
+void ToDecibelsImpl<T, Dims>::RunImpl(workspace_t<GPUBackend> &ws) {
+  const auto &input = ws.InputRef<GPUBackend>(0);
+  auto &output = ws.OutputRef<GPUBackend>(0);
+  int nsamples = input.size();
+
+  auto in_view = view<const T, Dims>(input);
+  auto out_view = view<T, Dims>(output);
+
+  kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
+
+  if (args_.ref_max) {
+    max_out_.set_type(max_out_desc_[0].type);
+    max_out_.Resize(max_out_desc_[0].shape);
+    auto max_values_view = view<T, 1>(max_out_);
+    kmgr_max_.Run<MaxKernel>(0, 0, ctx, max_values_view, in_view);
+    kmgr_todb_.Run<ToDecibelsKernel>(0, 0, ctx, out_view, in_view, args_, max_values_view);
+  } else {
+    kmgr_todb_.Run<ToDecibelsKernel>(0, 0, ctx, out_view, in_view, args_);
+  }
+}
+
+template <>
+bool ToDecibels<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                       const workspace_t<GPUBackend> &ws) {
+  output_desc.resize(kNumOutputs);
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto in_shape = input.shape();
+  int ndim = in_shape.sample_dim();
+  auto type = input.type().id();
+  TYPE_SWITCH(type, type2id, T, TO_DB_SUPPORTED_TYPES, (
+    VALUE_SWITCH(ndim, Dims, TO_DB_SUPPORTED_NDIMS, (
+      using Impl = ToDecibelsImpl<T, Dims>;
+      if (!impl_ || type != type_ || ndim != ndim) {
+        impl_ = std::make_unique<Impl>(args_);
+        type_ = type;
+        ndim_ = ndim;
+      }
+    ), DALI_FAIL(make_string("Unsupported number of dimensions ", ndim)));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported data type: ", type)));  // NOLINT
+
+  impl_->SetupImpl(output_desc, ws);
+  return true;
+}
+
+template <>
+void ToDecibels<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+  assert(impl_ != nullptr);
+  impl_->RunImpl(ws);
+}
+
+DALI_REGISTER_OPERATOR(ToDecibels, ToDecibels<GPUBackend>, GPU);
+
+}  // namespace dali
