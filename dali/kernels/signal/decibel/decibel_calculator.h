@@ -23,13 +23,11 @@ namespace kernels {
 namespace signal {
 
 template <typename T>
-struct DecibelCalculator {
+struct MagnitudeToDecibel {
  public:
   DALI_HOST_DEV DALI_FORCEINLINE
-  explicit DecibelCalculator(T mul = 10.0, T s_ref = 1.0, T min_ratio = 1e-8)
-      : inv_mul_(T(1) / mul)
-      , mul_log2_(mul * kLog2Factor)
-      , s_ref_(s_ref)
+  explicit MagnitudeToDecibel(T mul = 10.0, T s_ref = 1.0, T min_ratio = 1e-8)
+      : mul_log2_(mul * kLog2Factor)
       , inv_s_ref_(s_ref == T(1) ? T(1) : T(1) / s_ref)
       , min_ratio_(min_ratio) {
     assert(min_ratio_ > T(0));
@@ -45,8 +43,29 @@ struct DecibelCalculator {
     return mul_log2_ * log2(cuda_max(min_ratio_, ratio));
   }
 
+ private:
+  static constexpr T kLog2Factor = 0.3010299956639812;  // std::log10(2.0);
+
+  // equivalent multiplier in terms of log2
+  T mul_log2_;
+
+  // Inverse of the magnitude reference to which we are calculating the ratio against
+  T inv_s_ref_;
+
+  // Cut-off or minimum value for `s/s_ref` ratio
+  T min_ratio_;
+};
+
+template <typename T>
+struct DecibelToMagnitude {
+ public:
   DALI_HOST_DEV DALI_FORCEINLINE
-  T db2signal(T db) const {
+  explicit DecibelToMagnitude(T mul = 10.0, T s_ref = 1.0, T min_ratio = 1e-8)
+      : inv_mul_(T(1) / mul)
+      , s_ref_(s_ref) {}
+
+  DALI_HOST_DEV DALI_FORCEINLINE
+  T operator()(T db) const {
 #ifndef __CUDA_ARCH__
     using std::pow;
 #endif
@@ -59,19 +78,9 @@ struct DecibelCalculator {
   // Inverse of the multiplier
   T inv_mul_;
 
-  // equivalent multiplier in terms of log2
-  T mul_log2_;
-
   // The reference magnitude to which we are calculating the ratio against
   T s_ref_;
-
-  // Inverse of the magnitude reference to which we are calculating the ratio against
-  T inv_s_ref_;
-
-  // Cut-off or minimum value for `s/s_ref` ratio
-  T min_ratio_;
 };
-
 
 }  // namespace signal
 }  // namespace kernels

@@ -45,7 +45,7 @@ __global__ void ToDecibelsKernel(const SampleDesc<T>* sample_data,
   const int64_t tid = threadIdx.y * blockDim.x + threadIdx.x;
   assert(args.ref_max == (max_values != nullptr));
   T s_ref = args.ref_max ? max_values[sample_idx] : args.s_ref;
-  DecibelCalculator<T> dB(args.multiplier, s_ref, args.min_ratio);
+  MagnitudeToDecibel<T> dB(args.multiplier, s_ref, args.min_ratio);
   for (int64_t idx = offset + tid; idx < sample.size; idx += grid_size) {
     sample.out[idx] = dB(sample.in[idx]);
   }

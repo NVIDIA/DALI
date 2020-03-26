@@ -118,7 +118,7 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
     const auto *in_data = in_view_cpu.tensor_data(b);
 
     T s_ref = args.ref_max ? max_values[b] : args.s_ref;
-    DecibelCalculator<T> dB(args.multiplier, s_ref, args.min_ratio);
+    MagnitudeToDecibel<T> dB(args.multiplier, s_ref, args.min_ratio);
     for (int idx = 0; idx < sz; idx++) {
       ASSERT_NEAR(out_data[idx], dB(in_data[idx]), 1e-5) <<
         "Output data doesn't match in sample " << b << " reference (idx=" << idx << ")";

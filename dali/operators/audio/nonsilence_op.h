@@ -122,10 +122,10 @@ std::pair<int, int>
 DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<InputType> &args) {
   RunKernel(args.input, intermediate_buffer, {args.window_length, args.reset_interval});
   auto signal_mms = view_as_tensor<const float>(intermediate_buffer);
-  kernels::signal::DecibelCalculator<float> dbc(10.f, args.reference_max ? max_element(signal_mms)
-                                                                         : args.reference_power);
+  kernels::signal::DecibelToMagnitude<float> db2mag(
+      10.f, args.reference_max ? max_element(signal_mms) : args.reference_power);
   auto ret = LeadTrailThresh(make_cspan(signal_mms.data, signal_mms.num_elements()),
-                             dbc.db2signal(args.cutoff_db));
+                             db2mag(args.cutoff_db));
   extend_nonsilent_range(ret, args.window_length);
   return ret;
 }
