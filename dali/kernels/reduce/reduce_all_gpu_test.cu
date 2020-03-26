@@ -15,9 +15,13 @@
 #include <gtest/gtest.h>
 #include <random>
 #include <vector>
+#include "dali/test/tensor_test_utils.h"
+#include "dali/test/test_tensors.h"
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
-#include "dali/core/util.h"
+#include "dali/kernels/reduce/reduce_all_kernel_gpu.h"
+#include "dali/kernels/scratch.h"
 #include "dali/kernels/alloc.h"
+#include "dali/core/util.h"
 #include "dali/core/span.h"
 #include "dali/core/cuda_event.h"
 
@@ -59,6 +63,7 @@ class ReduceAllGPUTest : public ::testing::Test {
  public:
   void TestReduceAll();
   void TestReduceBatched();
+  void TestReduceAllKernel();
 
   template <typename T>
   inline auto ref_reduce(span<T> in) const {
@@ -208,6 +213,77 @@ void ReduceAllGPUTest<Reduction>::TestReduceBatched() {
 
 TYPED_TEST(ReduceAllGPUTest, ReduceAllBatchedKernel) {
   this->TestReduceBatched();
+}
+
+template <typename Reduction>
+void ReduceAllGPUTest<Reduction>::TestReduceAllKernel() {
+  std::mt19937_64 rng(1234);
+  std::uniform_int_distribution<int> size_dist(10000, 1000000);
+
+  int nsamples = 35;
+  constexpr int ndim = 1;
+  TensorListShape<ndim> data_shape(nsamples, ndim);
+  int64_t total_size = 0;
+  for (int i = 0; i < nsamples; i++) {
+    auto size = size_dist(rng);
+    data_shape.set_tensor_shape(i, {size});
+    total_size += size;
+  }
+
+  TestTensorList<float, ndim> in;
+  in.reshape(data_shape);
+  UniformRandomFill(in.cpu(), rng, 0.0, 1.0);
+
+  kernels::reduce::ReduceAllGPU<float, ndim, Reduction> kernel;
+
+  auto out_shape = TensorListShape<1>::make_uniform(nsamples, TensorShape<1>{1});
+  TestTensorList<float, 1> out;
+  out.reshape(out_shape.to_static<1>());
+
+  auto in_view_gpu = in.gpu();
+  auto out_view_gpu = out.gpu();
+
+  KernelContext ctx;
+  ctx.gpu.stream = 0;
+
+  auto req = kernel.Setup(ctx, in_view_gpu);
+
+  ScratchpadAllocator sa;
+  sa.Reserve(req.scratch_sizes);
+  auto scratchpad = sa.GetScratchpad();
+  ctx.scratchpad = &scratchpad;
+
+  ASSERT_EQ(req.output_shapes[0], out_shape);
+
+  auto start = CUDAEvent::CreateWithFlags(0);
+  auto end   = CUDAEvent::CreateWithFlags(0);
+
+  cudaEventRecord(start);
+  kernel.Run(ctx, out_view_gpu, in_view_gpu);
+  cudaEventRecord(end);
+
+  cudaDeviceSynchronize();
+  float t = 0;
+  cudaEventElapsedTime(&t, start, end);
+  t /= 1000;  // convert to seconds
+  std::cout << total_size * sizeof(float) / t * 1e-9 << " GB/s" << std::endl;
+
+  auto in_view_cpu = in.cpu();
+  auto out_view_cpu = out.cpu();
+  for (int i = 0; i < nsamples; i++) {
+    double ref_value = ref_reduce(make_cspan(in_view_cpu[i].data, volume(in_view_cpu[i].shape)));
+    double out_value = out_view_cpu[i].data[0];
+    if (IsAccurate(R)) {
+      EXPECT_EQ(out_value, ref_value);
+    } else {
+      double eps = ref_value * 1e-7 + 1e-7;
+      EXPECT_NEAR(out_value, ref_value, eps);
+    }
+  }
+}
+
+TYPED_TEST(ReduceAllGPUTest, ReduceAllKernelGPU) {
+  this->TestReduceAllKernel();
 }
 
 }  // namespace kernels
