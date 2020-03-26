@@ -58,7 +58,7 @@ __device__ bool BlockReduce(Acc &val, Reduction reduce) {
     // padded with neutral elements and checking for proper number of lanes
     // would likely be more expensive than one or two extra __shfl_down_sync
     WarpReduce(val, reduce);
-    return true;
+    return threadIdx.x == 0;
   }
   return false;
 }
