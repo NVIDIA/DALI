@@ -20,12 +20,6 @@
 namespace dali {
 namespace kernels {
 
-constexpr bool IsAccurate(const reductions::min &) { return true; }
-constexpr bool IsAccurate(const reductions::max &) { return true; }
-template <typename Reduction>
-constexpr bool IsAccurate(const Reduction &) { return false; }
-
-
 template <typename Out, typename Reduction, typename T>
 Out RefReduce(const T *in, int64_t n, int64_t stride, const Reduction &R) {
   switch (n) {

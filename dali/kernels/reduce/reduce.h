@@ -100,6 +100,16 @@ struct max {
   static constexpr T neutral() noexcept { return min_value<T>(); }
 };
 
+template <typename Reduction>
+struct is_accurate : std::false_type {};
+
+template <>
+struct is_accurate<min> : std::true_type {};
+template <>
+struct is_accurate<max> : std::true_type {};
+
+template <typename Reduction>
+constexpr bool IsAccurate(const Reduction &) { return is_accurate<Reduction>::value; }
 
 }  // namespace reductions
 

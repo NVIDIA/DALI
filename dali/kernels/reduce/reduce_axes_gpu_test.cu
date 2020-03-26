@@ -104,12 +104,13 @@ class ReduceInnerGPUTest : public ::testing::Test {
   void Run() {
     auto gpu_in = in.gpu();
     auto gpu_out = out.gpu();
-    gpu_descs.from_host(cpu_descs);
 
-    dim3 grid(32, N);
+    int xgrid = std::max(32, 1024 / N);
+    dim3 grid(xgrid, N);
     dim3 block(32, 32);
     auto start = CUDAEvent::CreateWithFlags(0);
     auto end =   CUDAEvent::CreateWithFlags(0);
+    gpu_descs.from_host(cpu_descs);
     cudaEventRecord(start);
     ReduceInnerKernel<<<grid, block>>>(gpu_descs.data(), reduction);
     cudaEventRecord(end);
@@ -188,7 +189,7 @@ TYPED_TEST(ReduceInnerGPUTest, ReduceInner_16k_1M) {
 
 
 template <typename Reduction>
-class ReduceOtherGPUTest : public ::testing::Test {
+class ReduceMiddleGPUTest : public ::testing::Test {
  public:
   using SampleDesc = ReduceSampleDesc<float, float>;
 
@@ -246,12 +247,13 @@ class ReduceOtherGPUTest : public ::testing::Test {
     auto gpu_out = out.gpu();
     gpu_descs.from_host(cpu_descs);
 
-    dim3 grid(32, N);
+    int xgrid = std::max(32, 1024 / N);
+    dim3 grid(xgrid, N);
     dim3 block(32, 24);
     auto start = CUDAEvent::CreateWithFlags(0);
     auto end =   CUDAEvent::CreateWithFlags(0);
     cudaEventRecord(start);
-    ReduceOtherKernel<<<grid, block>>>(gpu_descs.data(), reduction);
+    ReduceMiddleKernel<<<grid, block, sizeof(float)*32*33>>>(gpu_descs.data(), reduction);
     CUDA_CALL(cudaGetLastError());
     cudaEventRecord(end);
     CUDA_CALL(cudaDeviceSynchronize());
@@ -281,12 +283,9 @@ class ReduceOtherGPUTest : public ::testing::Test {
       ref_out.resize(outer * inner);
       RefReduceMiddle(ref_out.data(), cpu_in.data[i], outer, reduced, inner, reduction);
       auto out = cpu_out[i];
-      double tmp = cpu_in.data[i][0];
-      for (int64_t j = 1; j < reduced; j++)
-        reduction(tmp, cpu_in.data[i][j * inner]);
       if (out.shape[1] > 1) {
-        full_out.resize(outer);
-        RefReduceInner(full_out.data(), out.data, outer, out.shape[1], reduction);
+        full_out.resize(outer * inner);
+        RefReduceMiddle(full_out.data(), out.data, outer, out.shape[1], inner, reduction);
         out = make_tensor_cpu<3>(full_out.data(), { outer, 1, inner });
       }
       auto ref = make_tensor_cpu<3>(ref_out.data(), { outer, 1, inner });
@@ -304,23 +303,47 @@ class ReduceOtherGPUTest : public ::testing::Test {
 
 using ReductionTestTypes = ::testing::Types<reductions::sum, reductions::min, reductions::max>;
 
-TYPED_TEST_SUITE(ReduceOtherGPUTest, ReductionTestTypes);
+TYPED_TEST_SUITE(ReduceMiddleGPUTest, ReductionTestTypes);
 
-/*TYPED_TEST(ReduceOtherGPUTest, ReduceMiddle_Medium_Small_Small) {
+TYPED_TEST(ReduceMiddleGPUTest, ReduceMiddle_Medium_Small_Small) {
   this->PrepareData(10, int_dist(1000, 20000), int_dist(2, 63), int_dist(1, 32));
   this->Run();
 }
 
-TYPED_TEST(ReduceOtherGPUTest, ReduceMiddle_Medium_Medium_Small) {
+TYPED_TEST(ReduceMiddleGPUTest, ReduceMiddle_Medium_Medium_Small) {
   this->PrepareData(10, int_dist(1000, 2000), int_dist(32, 256), int_dist(1, 32));
-  this->Run();
-}*/
-
-TYPED_TEST(ReduceOtherGPUTest, ReduceMiddle_Small_Large_Small) {
-  this->PrepareData(10, int_dist(10, 100), int_dist(512, 10240), int_dist(10, 32));
   this->Run();
 }
 
+TYPED_TEST(ReduceMiddleGPUTest, ReduceMiddle_Small_Large_Small) {
+  this->PrepareData(10, int_dist(10, 20), int_dist(20480, 102400), int_dist(10, 32));
+  this->Run();
+}
+
+TYPED_TEST(ReduceMiddleGPUTest, ReduceMiddle_Small_Large_Medium) {
+#ifdef NDEBUG
+  this->PrepareData(10, int_dist(3, 5), int_dist(16<<10, 100<<10), int_dist(32, 256));
+#else
+  this->PrepareData(10, int_dist(3, 5), int_dist(2<<10, 5<<10), int_dist(32, 256));
+#endif
+  this->Run();
+}
+
+TYPED_TEST(ReduceMiddleGPUTest, ReduceOuter_Large_Small) {
+#ifdef NDEBUG
+  this->PrepareData(10, int_dist(1, 1), int_dist(1<<18, 1<<20), int_dist(3, 8));
+#else
+  this->PrepareData(10, int_dist(1, 1), int_dist(1<<15, 1<<18), int_dist(3, 8));
+#endif
+  this->Run();
+}
+
+#ifdef NDEBUG
+TYPED_TEST(ReduceMiddleGPUTest, ReduceOuter_B1_16M_3) {
+  this->PrepareData(1, int_dist(1, 1), int_dist(16<<20, 16<<20), int_dist(3, 3));
+  this->Run();
+}
+#endif
 
 
 }  // namespace kernels

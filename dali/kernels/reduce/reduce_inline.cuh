@@ -24,20 +24,20 @@ namespace reductions {
 
 
 template <int n, typename Acc>
-struct TreeReduce {
+struct StaticTreeReduce {
   template <typename T, typename Reduction, typename Preprocess>
   DALI_FORCEINLINE DALI_HOST_DEV
   static Acc reduce(const T *base, int64_t stride, Reduction r, Preprocess pp) {
     const int b = n / 2;
     const int a = n - b;
-    Acc acc = TreeReduce<a, Acc>::reduce(base, stride, r, pp);
-    r(acc, TreeReduce<b, Acc>::reduce(base + a * stride, stride, r, pp));
+    Acc acc = StaticTreeReduce<a, Acc>::reduce(base, stride, r, pp);
+    r(acc, StaticTreeReduce<b, Acc>::reduce(base + a * stride, stride, r, pp));
     return acc;
   }
 };
 
 template <typename Acc>
-struct TreeReduce<0, Acc> {
+struct StaticTreeReduce<0, Acc> {
   template <typename T, typename Reduction, typename Preprocess>
   DALI_FORCEINLINE DALI_HOST_DEV
   static Acc reduce(const T *base, int64_t stride, Reduction r, Preprocess pp) {
@@ -46,21 +46,30 @@ struct TreeReduce<0, Acc> {
 };
 
 template <typename Acc>
-struct TreeReduce<1, Acc> {
+struct StaticTreeReduce<1, Acc> {
   template <typename T, typename Reduction, typename Preprocess>
   DALI_FORCEINLINE DALI_HOST_DEV
   static Acc reduce(const T *base, int64_t stride, Reduction, Preprocess pp) {
+  #ifdef __CUDA_ARCH__
     return pp(__ldg(base));
+  #else
+    return pp(*base);
+  #endif
   }
 };
 
 template <typename Acc>
-struct TreeReduce<2, Acc> {
+struct StaticTreeReduce<2, Acc> {
   template <typename T, typename Reduction, typename Preprocess>
   DALI_FORCEINLINE DALI_HOST_DEV
   static Acc reduce(const T *base, int64_t stride, Reduction r, Preprocess pp) {
+  #ifdef __CUDA_ARCH__
     Acc acc = pp(__ldg(base));
     r(acc, pp(__ldg(base + stride)));
+  #else
+    Acc acc = pp(base[0]);
+    r(acc, pp(base[stride]));
+  #endif
     return acc;
   }
 };
@@ -69,59 +78,51 @@ template <typename Acc, typename T, typename Reduction, typename Preprocess>
 DALI_HOST_DEV Acc ThreadReduce(const T *base, int n, int64_t stride, Reduction r, Preprocess pp) {
   Acc acc = r.template neutral<Acc>();
   while (n >= 256) {
-    r(acc, TreeReduce<256, Acc>::reduce(base, stride, r, pp));
+    r(acc, StaticTreeReduce<256, Acc>::reduce(base, stride, r, pp));
     base += 256 * stride;
     n -= 256;
   }
-  if (n >= 128) {
-    r(acc, TreeReduce<128, Acc>::reduce(base, stride, r, pp));
-    base += 128 * stride;
-    n -= 128;
+  #define INLINE_TREE_REDUCE_STEP(pow) \
+  if (n >= (1 << pow)) { \
+    r(acc, StaticTreeReduce<(1 << pow), Acc>::reduce(base, stride, r, pp)); \
+    base += (1 << pow) * stride; \
+    n -= (1 << pow); \
   }
-  if (n >= 64) {
-    r(acc, TreeReduce<64, Acc>::reduce(base, stride, r, pp));
-    base += 64 * stride;
-    n -= 64;
-  }
-  if (n >= 32) {
-    r(acc, TreeReduce<32, Acc>::reduce(base, stride, r, pp));
-    base += 32 * stride;
-    n -= 32;
-  }
-  if (n >= 16) {
-    r(acc, TreeReduce<16, Acc>::reduce(base, stride, r, pp));
-    base += 16 * stride;
-    n -= 16;
-  }
-  if (n >= 8) {
-    r(acc, TreeReduce<8, Acc>::reduce(base, stride, r, pp));
-    base += 8 * stride;
-    n -= 8;
-  }
+  INLINE_TREE_REDUCE_STEP(7)
+  INLINE_TREE_REDUCE_STEP(6)
+  INLINE_TREE_REDUCE_STEP(5)
+  INLINE_TREE_REDUCE_STEP(4)
+  INLINE_TREE_REDUCE_STEP(3)
+  // below 8, we handle all cases, in a switch
+
   switch (n) {
-    case 0:
-      break;
     case 1:
+    #ifdef __CUDA_ARCH__
       r(acc, pp(__ldg(base)));
+    #else
+      r(acc, pp(*base));
+    #endif
       break;
     case 2:
-      r(acc, TreeReduce<2, Acc>::reduce(base, stride, r, pp));
+      r(acc, StaticTreeReduce<2, Acc>::reduce(base, stride, r, pp));
       break;
     case 3:
-      r(acc, TreeReduce<3, Acc>::reduce(base, stride, r, pp));
+      r(acc, StaticTreeReduce<3, Acc>::reduce(base, stride, r, pp));
       break;
     case 4:
-      r(acc, TreeReduce<4, Acc>::reduce(base, stride, r, pp));
+      r(acc, StaticTreeReduce<4, Acc>::reduce(base, stride, r, pp));
       break;
     case 5:
-      r(acc, TreeReduce<5, Acc>::reduce(base, stride, r, pp));
+      r(acc, StaticTreeReduce<5, Acc>::reduce(base, stride, r, pp));
       break;
     case 6:
-      r(acc, TreeReduce<6, Acc>::reduce(base, stride, r, pp));
+      r(acc, StaticTreeReduce<6, Acc>::reduce(base, stride, r, pp));
       break;
     case 7:
-      r(acc, TreeReduce<7, Acc>::reduce(base, stride, r, pp));
+      r(acc, StaticTreeReduce<7, Acc>::reduce(base, stride, r, pp));
       break;
+    default:
+      break;  // no-op
   }
   return acc;
 }
