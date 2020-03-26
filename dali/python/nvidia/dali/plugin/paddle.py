@@ -288,9 +288,6 @@ class DALIGenericIterator(object):
         if self._counter >= self._size and self._size > 0:
             if self._auto_reset:
                 self.reset()
-            # advance to the next shard
-            if self._reader_name and not self._if_sticks_to_shard:
-                self._shards_id = [(v + 1) % self._shards_num for v in self._shards_id]
             raise StopIteration
 
         # Gather outputs
@@ -435,6 +432,9 @@ class DALIGenericIterator(object):
         and will ignore such request.
         """
         if self._counter >= self._size or self._size < 0:
+            # advance to the next shard
+            if self._reader_name and not self._if_sticks_to_shard:
+                self._shards_id = [(v + 1) % self._shards_num for v in self._shards_id]
             if self._fill_last_batch and not self._last_batch_padded:
                 self._counter = self._counter % self._size
             else:

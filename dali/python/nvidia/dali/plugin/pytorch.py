@@ -191,6 +191,7 @@ class DALIGenericIterator(object):
         # Use double-buffering of data batches
         self._data_batches = [None for i in range(self._num_gpus)]
         self._counter = 0
+        self._counter_per_gpu = [0] * self._num_gpus
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
         self._output_categories = set(output_map)
         self.output_map = output_map
@@ -212,9 +213,6 @@ class DALIGenericIterator(object):
         if self._counter >= self._size and self._size > 0:
             if self._auto_reset:
                 self.reset()
-            # advance to the next shard
-            if self._reader_name and not self._if_sticks_to_shard:
-                self._shards_id = [(v + 1) % self._shards_num for v in self._shards_id]
             raise StopIteration
         # Gather outputs
         outputs = []
@@ -335,8 +333,15 @@ class DALIGenericIterator(object):
         and will ignore such request.
         """
         if self._counter >= self._size or self._size < 0:
+            # advance to the next shard
+            if self._reader_name and not self._if_sticks_to_shard:
+                self._shards_id = [(v + 1) % self._shards_num for v in self._shards_id]
             if self._fill_last_batch and not self._last_batch_padded:
-                self._counter = self._counter % self._size
+                if self._reader_name:
+                    self._counter_per_gpu = [v - int((id + 1) * self._size_no_pad / self._shards_num) + int(id * self._size_no_pad / self._shards_num) for v, id in zip(self._counter_per_gpu, self._shards_id)]
+                    self._counter = min(self._counter_per_gpu)
+                else:
+                    self._counter = self._counter % self._size
             else:
                 self._counter = 0
             for p in self._pipes:
