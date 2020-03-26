@@ -255,18 +255,9 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel() {
 
   ASSERT_EQ(req.output_shapes[0], out_shape);
 
-  auto start = CUDAEvent::CreateWithFlags(0);
-  auto end   = CUDAEvent::CreateWithFlags(0);
-
-  cudaEventRecord(start);
   kernel.Run(ctx, out_view_gpu, in_view_gpu);
-  cudaEventRecord(end);
 
   cudaDeviceSynchronize();
-  float t = 0;
-  cudaEventElapsedTime(&t, start, end);
-  t /= 1000;  // convert to seconds
-  std::cout << total_size * sizeof(float) / t * 1e-9 << " GB/s" << std::endl;
 
   auto in_view_cpu = in.cpu();
   auto out_view_cpu = out.cpu();

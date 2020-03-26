@@ -83,15 +83,15 @@ class DLL_PUBLIC ReduceAllGPU {
 
     dim3 block(32, 32);
     dim3 grid(blocks_per_sample_, num_samples);
-    ReduceAllBatchedKernel<<<grid, block>>>(buffer_gpu, sample_data_gpu, sample_size_gpu,
-                                            reduction);
+    ReduceAllBatchedKernel<<<grid, block, 0, context.gpu.stream>>>(
+        buffer_gpu, sample_data_gpu, sample_size_gpu, reduction);
 
     DALI_ENFORCE(out.is_contiguous(), "Reduce all kernel expects the output to be contiguous");
     auto* out_start = out[0].data;
 
     dim3 grid2(1, num_samples);
-    ReduceAllBlockwiseKernel<<<grid2, block>>>(out_start, buffer_gpu, blocks_per_sample_,
-                                               reduction);
+    ReduceAllBlockwiseKernel<<<grid2, block, 0, context.gpu.stream>>>(
+        out_start, buffer_gpu, blocks_per_sample_, reduction);
   }
 
  private:
