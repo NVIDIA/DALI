@@ -249,7 +249,7 @@ class ReduceMiddleGPUTest : public ::testing::Test {
 
     int xgrid = std::max(32, 1024 / N);
     dim3 grid(xgrid, N);
-    dim3 block(32, 24);
+    dim3 block(32, 20);
     auto start = CUDAEvent::CreateWithFlags(0);
     auto end =   CUDAEvent::CreateWithFlags(0);
     cudaEventRecord(start);
