@@ -38,7 +38,7 @@ fi
 
 MIN_TOP1=75.0
 MIN_TOP5=92.0
-MIN_PERF=10000
+MIN_PERF=9500
 
 TOP1=$(grep "^Top-1" $LOG | awk '{print $3}')
 TOP5=$(grep "^Top-5" $LOG | awk '{print $3}')
