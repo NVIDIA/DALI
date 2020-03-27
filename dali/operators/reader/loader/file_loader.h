@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_FILE_ONLY_LOADER_H_
-#define DALI_OPERATORS_READER_LOADER_FILE_ONLY_LOADER_H_
+#ifndef DALI_OPERATORS_READER_LOADER_FILE_LOADER_H_
+#define DALI_OPERATORS_READER_LOADER_FILE_LOADER_H_
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -40,9 +40,9 @@ struct ImageFileWrapper {
   std::string filename;
 };
 
-class FileOnlyLoader : public Loader< CPUBackend, ImageFileWrapper > {
+class FileLoader : public Loader< CPUBackend, ImageFileWrapper > {
  public:
-  explicit inline FileOnlyLoader(
+  explicit inline FileLoader(
     const OpSpec& spec,
     vector<std::string> images = std::vector<std::string>(),
     bool shuffle_after_epoch = false)
@@ -56,7 +56,7 @@ class FileOnlyLoader : public Loader< CPUBackend, ImageFileWrapper > {
       /*
       * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks differently
       * after each epoch so coexistence with `stick_to_shard` doesn't make any sense
-      * Still when `shuffle_after_epoch` we will set `stick_to_shard` internally in the FileOnlyLoader so all
+      * Still when `shuffle_after_epoch` we will set `stick_to_shard` internally in the FileLoader so all
       * DALI instances will do shuffling after each epoch
       */
       if (shuffle_after_epoch_ || stick_to_shard_)
@@ -127,4 +127,4 @@ class FileOnlyLoader : public Loader< CPUBackend, ImageFileWrapper > {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_FILE_ONLY_LOADER_H_
+#endif  // DALI_OPERATORS_READER_LOADER_FILE_LOADER_H_

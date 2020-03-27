@@ -18,7 +18,7 @@
 #include <memory>
 
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/file_only_loader.h"
+#include "dali/operators/reader/loader/file_loader.h"
 #include "dali/util/file.h"
 #include "dali/operators/reader/loader/utils.h"
 
@@ -114,12 +114,12 @@ vector<std::string> filesystem::traverse_directories(const std::string& file_roo
   return file_list;
 }
 
-void FileOnlyLoader::PrepareEmpty(ImageFileWrapper &image_file) {
+void FileLoader::PrepareEmpty(ImageFileWrapper &image_file) {
   PrepareEmptyTensor(image_file.image);
   image_file.filename = "";
 }
 
-void FileOnlyLoader::ReadSample(ImageFileWrapper& imfile) {
+void FileLoader::ReadSample(ImageFileWrapper& imfile) {
   auto image_file = images_[current_index_++];
 
   // handle wrap-around
@@ -141,8 +141,7 @@ void FileOnlyLoader::ReadSample(ImageFileWrapper& imfile) {
     return;
   }
 
-  FileStreamMode mode(read_ahead_);
-  auto current_image = FileStream::Open(file_root_ + "/" + image_file, mode);
+  auto current_image = FileStream::Open(file_root_ + "/" + image_file, read_ahead_);
   Index image_size = current_image->Size();
 
   if (copy_read_data_) {
@@ -169,7 +168,7 @@ void FileOnlyLoader::ReadSample(ImageFileWrapper& imfile) {
   imfile.filename = file_root_ + "/" + image_file;
 }
 
-Index FileOnlyLoader::SizeImpl() {
+Index FileLoader::SizeImpl() {
   return static_cast<Index>(images_.size());
 }
 }  // namespace dali

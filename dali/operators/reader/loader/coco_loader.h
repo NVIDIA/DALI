@@ -35,7 +35,7 @@ inline int safe_strcmp(const char *str1, const char (&str2)[N]) {
 }  // namespace detail
 
 using ImageIdPairs = std::vector<std::pair<std::string, int>>;
-class CocoLoader : public FileLoader {
+class CocoLoader : public FileLabelLoader {
  public:
   explicit inline CocoLoader(
     const OpSpec& spec,
@@ -49,7 +49,7 @@ class CocoLoader : public FileLoader {
     bool save_img_ids,
     std::vector<int> &original_ids,
     bool shuffle_after_epoch = false) :
-      FileLoader(spec, std::vector<std::pair<string, int>>(), shuffle_after_epoch),
+      FileLabelLoader(spec, std::vector<std::pair<string, int>>(), shuffle_after_epoch),
       spec_(spec),
       parse_meta_files_(spec.HasArgument("meta_files_path")),
       offsets_(offsets),

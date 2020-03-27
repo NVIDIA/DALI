@@ -141,8 +141,7 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
     return;
   }
 
-  FileStreamMode mode(read_ahead_);
-  auto current_image = FileStream::Open(file_root_ + "/" + image_file, mode);
+  auto current_image = FileStream::Open(file_root_ + "/" + image_file, read_ahead_);
 
   // read the header
   NumpyParseTarget target;
@@ -155,23 +154,7 @@ void NumpyLoader::ReadSample(ImageFileWrapper& imfile) {
     }
     imfile.image.Resize(target.shape, target.type_info);
     // copy the image
-    if (num_prefetch_threads_ == 1) {
-      current_image->Read(static_cast<uint8_t*>(imfile.image.raw_mutable_data()), image_bytes);
-    } else {
-      // dispatch threads to do the reads
-      size_t chunksize = (image_bytes / num_prefetch_threads_) + 1;
-      uint8_t* dptr = static_cast<uint8_t*>(imfile.image.raw_mutable_data());
-      for (int i = 0; i < num_prefetch_threads_; ++i) {
-        thread_pool_->DoWorkWithID([&current_image, dptr, chunksize, i](int tid) {
-            off_t offset = i * chunksize;
-            current_image->ReadThread(dptr, chunksize, offset);
-          });
-      }
-      // join the threads
-      thread_pool_->WaitForWork();
-      // advance the file offset
-      current_image->Forward(image_bytes);
-    }
+    current_image->Read(static_cast<uint8_t*>(imfile.image.raw_mutable_data()), image_bytes);
   } else {
     auto p = current_image->Get(image_bytes);
     // Wrap the raw data in the Tensor object.

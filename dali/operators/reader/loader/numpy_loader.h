@@ -58,13 +58,13 @@ class NumpyParseTarget{
   }
 };
 
-class NumpyLoader : public FileOnlyLoader {
+class NumpyLoader : public FileLoader {
  public:
   explicit inline NumpyLoader(
     const OpSpec& spec,
     vector<std::string> images = std::vector<std::string>(),
     bool shuffle_after_epoch = false)
-    : FileOnlyLoader(spec, images, shuffle_after_epoch),
+    : FileLoader(spec, images, shuffle_after_epoch),
     num_prefetch_threads_(spec.GetArgument<int>("num_prefetch_threads")),
     header_regex_(R"###(^\{'descr': \'(.*?)\', 'fortran_order': (.*?), 'shape': \((.*?)\), \})###") {
     // Thread Pool:
