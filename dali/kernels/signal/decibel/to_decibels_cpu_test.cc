@@ -92,6 +92,11 @@ TEST_P(ToDecibelsCpuTest, ToDecibelsCpuTest) {
   auto out_shape = reqs.output_shapes[0][0];
   ASSERT_EQ(out_shape, in_view_.shape);
 
+  ScratchpadAllocator scratch_alloc;
+  scratch_alloc.Reserve(reqs.scratch_sizes);
+  auto scratchpad = scratch_alloc.GetScratchpad();
+  ctx.scratchpad = &scratchpad;
+
   auto out_size = volume(out_shape);
   std::vector<T> expected_out(out_size);
   auto expected_out_view = OutTensorCPU<T, Dims>(expected_out.data(), out_shape.to_static<Dims>());

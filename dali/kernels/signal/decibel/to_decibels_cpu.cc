@@ -63,7 +63,7 @@ void ToDecibelsCpu<T, Dims>::Run(
       s_ref = 1.0;
   }
 
-  DecibelCalculator<T> dB(args.multiplier, s_ref, args.min_ratio);
+  MagnitudeToDecibel<T> dB(args.multiplier, s_ref, args.min_ratio);
   for (int64_t i = 0; i < in_size; i++) {
     out.data[i] = dB(in.data[i]);
   }
