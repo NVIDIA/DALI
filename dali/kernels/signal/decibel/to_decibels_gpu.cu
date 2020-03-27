@@ -84,8 +84,9 @@ void ToDecibelsGpu<T, Dims>::Run(KernelContext &context, const OutListGPU<T, Dim
   }
 
   auto* sample_data_gpu = context.scratchpad->Allocate<SampleDesc<T>>(AllocType::GPU, num_samples);
-  cudaMemcpyAsync(sample_data_gpu, sample_data, num_samples * sizeof(SampleDesc<T>),
-                  cudaMemcpyHostToDevice, context.gpu.stream);
+  CUDA_CALL(
+    cudaMemcpyAsync(sample_data_gpu, sample_data, num_samples * sizeof(SampleDesc<T>),
+                    cudaMemcpyHostToDevice, context.gpu.stream));
 
   dim3 block(32, 32);
   auto blocks_per_sample = std::max(32, 1024 / num_samples);
