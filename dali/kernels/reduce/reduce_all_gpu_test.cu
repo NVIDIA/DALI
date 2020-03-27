@@ -63,7 +63,7 @@ class ReduceAllGPUTest : public ::testing::Test {
  public:
   void TestReduceAll();
   void TestReduceBatched();
-  void TestReduceAllKernel();
+  void TestReduceAllKernel(int min_size, int max_size);
 
   template <typename T>
   inline auto ref_reduce(span<T> in) const {
@@ -216,9 +216,9 @@ TYPED_TEST(ReduceAllGPUTest, ReduceAllBatchedKernel) {
 }
 
 template <typename Reduction>
-void ReduceAllGPUTest<Reduction>::TestReduceAllKernel() {
+void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size) {
   std::mt19937_64 rng(1234);
-  std::uniform_int_distribution<int> size_dist(10000, 1000000);
+  std::uniform_int_distribution<int> size_dist(min_size, max_size);
 
   int nsamples = 35;
   constexpr int ndim = 1;
@@ -274,7 +274,10 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel() {
 }
 
 TYPED_TEST(ReduceAllGPUTest, ReduceAllKernelGPU) {
-  this->TestReduceAllKernel();
+  // big inputs
+  this->TestReduceAllKernel(10000, 1000000);
+  // small inputs
+  this->TestReduceAllKernel(128, 2048);
 }
 
 }  // namespace kernels
