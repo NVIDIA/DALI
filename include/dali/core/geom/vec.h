@@ -45,8 +45,10 @@ template <int N>
 using i16vec = vec<N, int16_t>;
 template <int N>
 using u16vec = vec<N, uint16_t>;
+/// Use only when you need to emphasise bit width - otherwise use ivec.
 template <int N>
-using i32ec = vec<N, int32_t>;
+using i32vec = vec<N, int32_t>;
+/// Use only when you need to emphasise bit width - otherwise use uvec.
 template <int N>
 using u32vec = vec<N, uint32_t>;
 template <int N>
@@ -57,8 +59,6 @@ template <int N>
 using dvec = vec<N, double>;
 template <int N>
 using bvec = vec<N, bool>;
-template <int N>
-using fvec = vec<N, float>;
 
 #define DEFINE_VEC_ALIASES(prefix)     \
   using prefix##vec1 = prefix##vec<1>; \
@@ -69,14 +69,17 @@ using fvec = vec<N, float>;
   using prefix##vec16 = prefix##vec<16>;
 
 DEFINE_VEC_ALIASES(i)
+DEFINE_VEC_ALIASES(i64)
+DEFINE_VEC_ALIASES(i32)  // consider using ivec instead!
 DEFINE_VEC_ALIASES(i16)
 DEFINE_VEC_ALIASES(i8)
 DEFINE_VEC_ALIASES(u)
+DEFINE_VEC_ALIASES(u64)
+DEFINE_VEC_ALIASES(u32)  // consider using uvec instead!
 DEFINE_VEC_ALIASES(u16)
 DEFINE_VEC_ALIASES(u8)
 DEFINE_VEC_ALIASES(d)
 DEFINE_VEC_ALIASES(b)
-DEFINE_VEC_ALIASES(f)
 DEFINE_VEC_ALIASES()
 
 template <typename T>

@@ -138,17 +138,19 @@ class RotateParamProvider
     int s = 0;  // sample index
     int64_t ofs = 0;  // offset within sample
     for (int64_t i = 0; i < n; i++) {
-      out[i] = TL.data[s][ofs++];
       if (ofs == sample_size) {
         ofs = 0;
-        sample_size = TL.shape[++s].num_elements();
+        s++;
+        assert(s < TL.num_samples());
+        sample_size = TL.shape[s].num_elements();
       }
+      out[i] = TL.data[s][ofs++];
     }
   }
 
   template <typename T, int N>
   void CopyIgnoreShape(vector<vec<N, T>> &out, const TensorListView<StorageCPU, const T> &TL) {
-    int64_t n = TL.num_elements();
+    int64_t n = TL.num_elements() / N;
     out.resize(n);
     if (!n)
       return;
@@ -157,11 +159,13 @@ class RotateParamProvider
     int64_t ofs = 0;  // offset within sample
     for (int64_t i = 0; i < n; i++) {
       for (int j = 0; j < N; j++) {
-        out[i][j] = TL.data[s][ofs++];
         if (ofs == sample_size) {
           ofs = 0;
-          sample_size = TL.shape[++s].num_elements();
+          s++;
+          assert(s < TL.num_samples());
+          sample_size = TL.shape[s].num_elements();
         }
+        out[i][j] = TL.data[s][ofs++];
       }
     }
   }
@@ -193,7 +197,7 @@ class RotateParamProvider
     if (spec_->HasTensorArgument(name)) {
       auto arg_view = dali::view<const T>(ws_->ArgumentInput(name));
       int n = arg_view.num_elements();
-      DALI_ENFORCE(n == num_samples_, make_string(
+      DALI_ENFORCE(n == N * num_samples_, make_string(
         "Unexpected number of elements in argument `", name, "`: ", n,
         "; expected: ", num_samples_));
       CopyIgnoreShape(v, arg_view);
