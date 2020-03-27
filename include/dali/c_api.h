@@ -312,28 +312,28 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
   /**
    * @brief Returns the epoch size with/without padded samples for given, named reader
    */
-  DLL_PUBLIC int64_t getEpochSize(daliPipelineHandle* pipe_handle, const char *reader_name,
+  DLL_PUBLIC int64_t daliGetEpochSize(daliPipelineHandle* pipe_handle, const char *reader_name,
                                   bool with_padding);
 
   /**
    * @brief Returns the shard ID for given, named reader
    */
-  DLL_PUBLIC int getShardId(daliPipelineHandle* pipe_handle, const char *reader_name);
+  DLL_PUBLIC int daliGetShardId(daliPipelineHandle* pipe_handle, const char *reader_name);
 
   /**
    * @brief Returns the number of shards, named reader
    */
-  DLL_PUBLIC int getNumberOfShards(daliPipelineHandle* pipe_handle, const char *reader_name);
+  DLL_PUBLIC int daliGetNumberOfShards(daliPipelineHandle* pipe_handle, const char *reader_name);
 
   /**
    * @brief Returns if reader pads last batch for, named reader
    */
-  DLL_PUBLIC bool getIfReaderPads(daliPipelineHandle* pipe_handle, const char *reader_name);
+  DLL_PUBLIC bool daliGetIfReaderPads(daliPipelineHandle* pipe_handle, const char *reader_name);
 
   /**
    * @brief Returns if reader sticks to the shard, named reader
    */
-  DLL_PUBLIC bool getIfSticksToShard(daliPipelineHandle* pipe_handle, const char *reader_name);
+  DLL_PUBLIC bool daliGetIfSticksToShard(daliPipelineHandle* pipe_handle, const char *reader_name);
 
 
 #ifdef __cplusplus

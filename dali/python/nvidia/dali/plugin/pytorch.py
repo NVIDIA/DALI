@@ -19,12 +19,11 @@ from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 from nvidia.dali import types
+from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 import torch
 import torch.utils.dlpack as torch_dlpack
 import ctypes
-import logging
 import math
-from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 
 import numpy as np
 
@@ -266,15 +265,6 @@ class DALIGenericIterator(_DaliBaseIterator):
                 return output
 
         return self._data_batches
-
-    def next(self):
-        """
-        Returns the next batch of data.
-        """
-        return self.__next__()
-
-    def __iter__(self):
-        return self
 
 class DALIClassificationIterator(DALIGenericIterator):
     """

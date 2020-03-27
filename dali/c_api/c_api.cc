@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <map>
 
 #include "dali/core/cuda_stream.h"
 #include "dali/core/format.h"
@@ -429,7 +430,7 @@ void daliLoadLibrary(const char* lib_path) {
     dali::PluginManager::LoadLibrary(lib_path);
 }
 
-int64_t getEpochSize(daliPipelineHandle* pipe_handle, const char *reader_name,
+int64_t daliGetEpochSize(daliPipelineHandle* pipe_handle, const char *reader_name,
                      bool with_padding) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   std::map<std::string, int64_t> sizes = pipeline->EpochSize(with_padding);
@@ -439,17 +440,16 @@ int64_t getEpochSize(daliPipelineHandle* pipe_handle, const char *reader_name,
   return sizes[op_name];
 }
 
-int getShardId(daliPipelineHandle* pipe_handle, const char *reader_name) {
+int daliGetShardId(daliPipelineHandle* pipe_handle, const char *reader_name) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   std::map<std::string, int> ids = pipeline->ShardId();
   std::string op_name(reader_name);
   DALI_ENFORCE(ids.find(op_name) != ids.end(),
       "Operator " + op_name + " does not expose valid epoch size.");
   return ids[op_name];
-
 }
 
-int getNumberOfShards(daliPipelineHandle* pipe_handle, const char *reader_name) {
+int daliGetNumberOfShards(daliPipelineHandle* pipe_handle, const char *reader_name) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   std::map<std::string, int> shards = pipeline->NumberOfShards();
   std::string op_name(reader_name);
@@ -458,7 +458,7 @@ int getNumberOfShards(daliPipelineHandle* pipe_handle, const char *reader_name) 
   return shards[op_name];
 }
 
-bool getIfReaderPads(daliPipelineHandle* pipe_handle, const char *reader_name) {
+bool daliGetIfReaderPads(daliPipelineHandle* pipe_handle, const char *reader_name) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   std::map<std::string, bool> pads = pipeline->IfReaderPads();
   std::string op_name(reader_name);
@@ -467,7 +467,7 @@ bool getIfReaderPads(daliPipelineHandle* pipe_handle, const char *reader_name) {
   return pads[op_name];
 }
 
-bool getIfSticksToShard(daliPipelineHandle* pipe_handle, const char *reader_name) {
+bool daliGetIfSticksToShard(daliPipelineHandle* pipe_handle, const char *reader_name) {
   dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
   std::map<std::string, bool> sticks = pipeline->IfSticksToShard();
   std::string op_name(reader_name);

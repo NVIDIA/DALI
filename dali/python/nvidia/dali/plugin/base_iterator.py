@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import types
 import math
 import logging
@@ -81,11 +80,8 @@ class _DaliBaseIterator(object):
                 # if padding is enabled all shards are equal
                 self._size = self._pipes[0].epoch_size(self._reader_name, True) // self._shards_num
             else:
-                # get the size as the biggest shard size rounded to multiply of batch size so we won't miss
-                # any sample each epoch
-                shards_beg = [int(id * self._size_no_pad / self._shards_num) for id in self._shards_id]
-                shards_end = [int((id + 1) * self._size_no_pad / self._shards_num) for id in self._shards_id]
-                self._size = math.ceil(max([e - v for e, v in zip(shards_end, shards_beg)]) / self.batch_size) * self.batch_size
+                # get the size as a multiply of the batch size that is bigger or equal than the biggest shard
+                self._size = math.ceil(math.ceil(self._size_no_pad / self._shards_num) / self.batch_size) * self.batch_size
 
     def _check_stop(self):
         """"
@@ -151,3 +147,19 @@ class _DaliBaseIterator(object):
                         p.schedule_run()
         else:
             logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
+
+    def next(self):
+        """
+        Returns the next batch of data.
+        """
+        return self.__next__()
+
+    def __next__(self):
+        raise NotImplementedError
+
+    def __iter__(self):
+        return self
+
+    @property
+    def size(self):
+        return self._size

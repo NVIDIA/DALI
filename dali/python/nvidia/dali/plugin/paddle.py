@@ -18,13 +18,13 @@ from __future__ import division
 from __future__ import print_function
 
 import ctypes
-import logging
 import math
 
 import numpy as np
 
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
+from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from paddle import fluid
 
 dtype_map = {
@@ -130,7 +130,7 @@ def lod_tensor_clip(lod_tensor, size):
     return output
 
 
-class DALIGenericIterator(object):
+class DALIGenericIterator(_DaliBaseIterator):
     """
     General DALI iterator for Paddle. It can return any number of
     outputs from the DALI pipeline in the form of Paddle's Tensors.
@@ -208,52 +208,8 @@ class DALIGenericIterator(object):
                  fill_last_batch=True,
                  dynamic_shape=False,
                  last_batch_padded=False):
-        if not isinstance(pipelines, list):
-            pipelines = [pipelines]
-        self._num_gpus = len(pipelines)
-        assert pipelines is not None, \
-            "Number of provided pipelines has to be at least 1"
-        self.batch_size = pipelines[0].batch_size
-        self._size = int(size)
-        self._auto_reset = auto_reset
+        _DaliBaseIterator.__init__(self, pipelines, size, reader_name, auto_reset, fill_last_batch, last_batch_padded)
         self._dynamic_shape = dynamic_shape
-        self._fill_last_batch = fill_last_batch
-        self._last_batch_padded = last_batch_padded
-        assert self._size != 0, "Size cannot be 0"
-        assert self._size > 0 or (self._size < 0 and (len(pipelines) == 1 or reader_name)), "Negative size is supported only for a single pipeline"
-        assert not reader_name or (reader_name and self._size < 0), "When reader_name is provided, size should not be set"
-        if self._size < 0:
-            self._auto_reset = False
-            self._fill_last_batch = False
-            self._last_batch_padded = False
-        self._pipes = pipelines
-        # Build all pipelines
-        for p in self._pipes:
-            with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                p.build()
-
-        self._reader_name = reader_name
-        if self._reader_name:
-            self._size_no_pad = self._pipes[0].epoch_size(self._reader_name, False)
-            assert np.all(np.equal([p.epoch_size(self._reader_name, False) for p in self._pipes], self._size_no_pad)), \
-                "All pipelines readers should have the same size, check if they are reading the same data"
-
-            self._shards_num = self._pipes[0].shards_number(self._reader_name)
-            assert np.all(np.equal([p.shards_number(self._reader_name) for p in self._pipes], self._shards_num)), \
-                "All pipelines readers should have the same shard number set"
-
-            self._shards_id = [p.shard_id(self._reader_name) for p in self._pipes]
-
-            assert np.all([p.if_reader_pads(self._reader_name) for p in self._pipes]) or \
-                    not np.any([p.if_reader_pads(self._reader_name) for p in self._pipes]), \
-                "All pipelines readers should have set padding in the same way"
-            self._last_batch_padded = self._pipes[0].if_reader_pads(self._reader_name)
-
-            assert np.all([p.if_sticks_to_shard(self._reader_name) for p in self._pipes]) or \
-                    not np.any([p.if_sticks_to_shard(self._reader_name) for p in self._pipes]), \
-                "All pipelines readers should have set stick to the shard in the same way"
-            self._if_sticks_to_shard = self._pipes[0].if_sticks_to_shard(self._reader_name)
-            self._size = self._pipes[0].epoch_size(self._reader_name, True) // self._shards_num
 
         # Use double-buffering of data batches
         self._data_batches = [None for i in range(self._num_gpus)]
@@ -372,20 +328,15 @@ class DALIGenericIterator(object):
 
         if self._reader_name:
             self._counter += self.batch_size
-            if not self._fill_last_batch:
-                # calculate each shard size for each id, and check how many samples are left by substracting from iterator counter
-                # the shard size, then go though all GPUs and return only relevant data by stripping padded one
-                left = [self._counter - int((id + 1) * self._size_no_pad / self._shards_num) + int(id * self._size_no_pad / self._shards_num) for id in self._shards_id]
-                left = [self.batch_size - l for l in left]
-                if_drop = np.less(left, self.batch_size)
-                if np.any(if_drop):
-                    output = []
-                    for batch, to_copy in zip(self._data_batches, left):
-                        batch = batch.copy()
-                        for cat in self.output_map:
-                            batch[cat] = batch[cat][0:to_copy]
-                        output.append(batch)
-                    return output
+            if_drop, left = self._remove_padded()
+            if np.any(if_drop):
+                output = []
+                for batch, to_copy in zip(self._data_batches, left):
+                    batch = batch.copy()
+                    for cat in self.output_map:
+                        batch[cat] = batch[cat][0:to_copy]
+                    output.append(batch)
+                return output
 
         else:
             self._counter += self._num_gpus * self.batch_size
@@ -415,38 +366,6 @@ class DALIGenericIterator(object):
                 return output
 
         return self._data_batches
-
-    def next(self):
-        """
-        Returns the next batch of data.
-        """
-        return self.__next__()
-
-    def __iter__(self):
-        return self
-
-    def reset(self):
-        """
-        Resets the iterator after the full epoch.
-        DALI iterators do not support resetting before the end of the epoch
-        and will ignore such request.
-        """
-        if self._counter >= self._size or self._size < 0:
-            # advance to the next shard
-            if self._reader_name and not self._if_sticks_to_shard:
-                self._shards_id = [(v + 1) % self._shards_num for v in self._shards_id]
-            if self._fill_last_batch and not self._last_batch_padded:
-                self._counter = self._counter % self._size
-            else:
-               self._counter = 0
-            for p in self._pipes:
-                p.reset()
-                if p.empty():
-                    with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
-                        p.schedule_run()
-        else:
-            logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
-
 
 class DALIClassificationIterator(DALIGenericIterator):
     """
