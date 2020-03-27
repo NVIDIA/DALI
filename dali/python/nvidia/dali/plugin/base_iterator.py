@@ -45,9 +45,7 @@ class _DaliBaseIterator(object):
             self._last_batch_padded = False
         self._pipes = pipelines
         self._counter = 0
-        # cont where we starts inside each GPU shard in given epoch,
-        # if shards are uneven this will differ epoch2epoch
-        self._counter_per_gpu = [0] * self._num_gpus
+        self._epoch_counter = 0
 
         # Build all pipelines
         for p in self._pipes:
@@ -82,6 +80,12 @@ class _DaliBaseIterator(object):
             else:
                 # get the size as a multiply of the batch size that is bigger or equal than the biggest shard
                 self._size = math.ceil(math.ceil(self._size_no_pad / self._shards_num) / self.batch_size) * self.batch_size
+
+            # cont where we starts inside each GPU shard in given epoch,
+            # if shards are uneven this will differ epoch2epoch
+            self._counter_per_gpu = np.zeros(self._shards_num, dtype=np.long)
+            self._shards_beg = None
+            self._shards_end = None
 
     def _check_stop(self):
         """"
@@ -120,12 +124,17 @@ class _DaliBaseIterator(object):
                     # accurate way
                     # get the number of samples read in this epoch, self._counter started with min(self._counter_per_gpu) value
                     self._counter -= min(self._counter_per_gpu)
-                    self._counter_per_gpu = [v + self._counter for v in self._counter_per_gpu]
-                    shards_beg = [int(id * self._size_no_pad / self._shards_num) for id in self._shards_id]
-                    shards_end = [int((id + 1) * self._size_no_pad / self._shards_num) for id in self._shards_id]
+                    self._counter_per_gpu = self._counter_per_gpu + self._counter
+                    if self._shards_beg is None:
+                        if not self._if_sticks_to_shard:
+                            shard_id_mod = self._epoch_counter
+                        else:
+                            shard_id_mod = 0
+                        self._shards_beg = np.ceil(np.arange(0, self._shards_num) * self._size_no_pad / self._shards_num).astype(np.int)
+                        self._shards_end = np.ceil(np.arange(1, self._shards_num + 1) * self._size_no_pad / self._shards_num).astype(np.int)
                     # check how much each GPU read ahead from next shard, as shards have different size each epoch
                     # GPU may read ahead or not
-                    self._counter_per_gpu = [v - (e - b) for v, b, e in zip(self._counter_per_gpu, shards_beg, shards_end)]
+                    self._counter_per_gpu = self._counter_per_gpu - (self._shards_end - self._shards_beg)
                     self._counter = min(self._counter_per_gpu)
                 else:
                     # legacy way
@@ -133,13 +142,28 @@ class _DaliBaseIterator(object):
             else:
                 self._counter = 0
             # advance to the next shard
-            if self._reader_name and not self._if_sticks_to_shard:
-                self._shards_id = [(v + 1) % self._shards_num for v in self._shards_id]
+            self._epoch_counter  += 1
+            if self._reader_name:
+                if not self._if_sticks_to_shard:
+                    self._shards_id = [(v + 1) % self._shards_num for v in self._shards_id]
                 if self._fill_last_batch and not self._last_batch_padded:
                     # revaluate _size
-                    shards_beg = [int(id * self._size_no_pad / self._shards_num) for id in self._shards_id]
-                    shards_end = [int((id + 1) * self._size_no_pad / self._shards_num) for id in self._shards_id]
-                    self._size = math.ceil(max([e - v for e, v in zip(shards_end, shards_beg)]) / self.batch_size) * self.batch_size
+                    if not self._if_sticks_to_shard:
+                        self._shards_beg = np.roll(self._shards_beg, 1)
+                        self._shards_end  = np.roll(self._shards_end , 1)
+                    # check how many samples we need to reach from each shard in next epoch per each GPU taking into account already read
+                    read_in_next_epoch = (self._shards_end - self._shards_beg) - self._counter_per_gpu
+                    # get the maximmum number of samples and round it up to full batch sizes
+                    self._size = math.ceil(max(read_in_next_epoch) / self.batch_size) * self.batch_size
+                    # in case some epoch is skipped
+                    if self._size == 0:
+                        self._size = self.batch_size
+                        self._counter_per_gpu = self._counter_per_gpu - self.batch_size
+                        self._counter = min(self._counter_per_gpu)
+                        self._epoch_counter += 1
+                        self._shards_beg = np.roll(self._shards_beg, 1)
+                        self._shards_end  = np.roll(self._shards_end , 1)
+
             for p in self._pipes:
                 p.reset()
                 if p.empty():
