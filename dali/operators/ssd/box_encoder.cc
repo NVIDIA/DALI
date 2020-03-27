@@ -111,11 +111,11 @@ void BoxEncoder<CPUBackend>::WriteAnchorsToOutput(float *out_boxes, int *out_lab
 
 // Calculate offset from CenterWH ref box and anchor
 // based on eq (2)  in https://arxiv.org/abs/1512.02325 with extra normalization
-std::pair<fvec2, fvec2>
-GetOffsets(fvec2 box_center,
-           fvec2 box_extent,
-           fvec2 anchor_center,
-           fvec2 anchor_extent,
+std::pair<vec2, vec2>
+GetOffsets(vec2 box_center,
+           vec2 box_extent,
+           vec2 anchor_center,
+           vec2 anchor_extent,
            const std::vector<float>& means,
            const std::vector<float>& stds,
            float scale) {
@@ -123,7 +123,7 @@ GetOffsets(fvec2 box_center,
   box_extent *= scale;
   anchor_center *= scale;
   anchor_extent *= scale;
-  fvec<2> center, extent;
+  vec2 center, extent;
   center[0] = ((box_center[0] - anchor_center[0]) / anchor_extent[0] - means[0]) / stds[0];
   center[1] = ((box_center[1] - anchor_center[1]) / anchor_extent[1] - means[1]) / stds[1];
   extent[0] = (std::log(box_extent[0] / anchor_extent[0]) - means[2]) / stds[2];
@@ -139,7 +139,7 @@ void BoxEncoder<CPUBackend>::WriteMatchesToOutput(
       auto box = boxes[match.first];
       auto anchor = anchors_[match.second];
 
-      fvec<2> center, extent;
+      vec2 center, extent;
       std::tie(center, extent) = GetOffsets(box.centroid(), box.extent(), anchor.centroid(),
                                             anchor.extent(), means_, stds_, scale_);
       WriteBoxToOutput(out_boxes + match.second * BoundingBox::size, center, extent);
