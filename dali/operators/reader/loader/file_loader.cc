@@ -17,7 +17,7 @@
 #include <memory>
 
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/file_loader.h"
+#include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/util/file.h"
 #include "dali/operators/reader/loader/utils.h"
 
@@ -91,11 +91,11 @@ vector<std::pair<string, int>> filesystem::traverse_directories(const std::strin
   return file_label_pairs;
 }
 
-void FileLoader::PrepareEmpty(ImageLabelWrapper &image_label) {
+void FileLabelLoader::PrepareEmpty(ImageLabelWrapper &image_label) {
   PrepareEmptyTensor(image_label.image);
 }
 
-void FileLoader::ReadSample(ImageLabelWrapper &image_label) {
+void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
   auto image_pair = image_label_pairs_[current_index_++];
 
   // handle wrap-around
@@ -142,7 +142,7 @@ void FileLoader::ReadSample(ImageLabelWrapper &image_label) {
   image_label.image.SetMeta(meta);
 }
 
-Index FileLoader::SizeImpl() {
+Index FileLabelLoader::SizeImpl() {
   return static_cast<Index>(image_label_pairs_.size());
 }
 }  // namespace dali

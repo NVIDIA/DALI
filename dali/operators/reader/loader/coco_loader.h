@@ -21,7 +21,7 @@
 #include <vector>
 #include <utility>
 
-#include "dali/operators/reader/loader/file_loader.h"
+#include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 

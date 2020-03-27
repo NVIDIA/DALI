@@ -21,7 +21,7 @@
 #include "dali/test/dali_test.h"
 
 #include "dali/operators/reader/loader/loader.h"
-#include "dali/operators/reader/loader/file_loader.h"
+#include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/operators/reader/loader/lmdb.h"
 
 namespace dali {

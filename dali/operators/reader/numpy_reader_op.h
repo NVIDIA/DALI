@@ -12,53 +12,48 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_FILE_READER_OP_H_
-#define DALI_OPERATORS_READER_FILE_READER_OP_H_
+#ifndef DALI_OPERATORS_READER_NUMPY_READER_OP_H_
+#define DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 
 #include <utility>
 #include <string>
 #include <vector>
 #include "dali/operators/reader/reader_op.h"
-#include "dali/operators/reader/loader/file_label_loader.h"
+#include "dali/operators/reader/loader/numpy_loader.h"
 
 namespace dali {
 
-class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
+class NumpyReader : public DataReader<CPUBackend, ImageFileWrapper > {
  public:
-  explicit FileReader(const OpSpec& spec)
-    : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+  explicit NumpyReader(const OpSpec& spec)
+    : DataReader< CPUBackend, ImageFileWrapper >(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    loader_ = InitLoader<FileLoader>(spec, std::vector<std::pair<string, int>>(),
-                                     shuffle_after_epoch);
+    loader_ = InitLoader<NumpyLoader>(spec, std::vector<string>(),
+                                      shuffle_after_epoch);
   }
 
   void RunImpl(SampleWorkspace &ws) override {
     const int idx = ws.data_idx();
 
-    const auto& image_label = GetSample(idx);
+    const auto& imfile = GetSample(idx);
 
     // copy from raw_data -> outputs directly
     auto &image_output = ws.Output<CPUBackend>(0);
-    auto &label_output = ws.Output<CPUBackend>(1);
 
-    Index image_size = image_label.image.size();
-
-    image_output.Resize({image_size});
-    image_output.mutable_data<uint8_t>();
-    label_output.Resize({1});
+    // image
+    Index image_bytes = imfile.image.nbytes();
+    image_output.Resize(imfile.image.shape(), imfile.image.type());
 
     std::memcpy(image_output.raw_mutable_data(),
-                image_label.image.raw_data(),
-                image_size);
-    image_output.SetSourceInfo(image_label.image.GetSourceInfo());
-
-    label_output.mutable_data<int>()[0] = image_label.label;
+                imfile.image.raw_data(),
+                image_bytes);
+    image_output.SetSourceInfo(imfile.image.GetSourceInfo());
   }
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageFileWrapper);
 };
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_FILE_READER_OP_H_
+#endif  // DALI_OPERATORS_READER_NUMPY_READER_OP_H_
